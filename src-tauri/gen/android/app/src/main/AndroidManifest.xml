@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HAND-EDITED AND TRACKED. `tauri android init` would regenerate this from its
+  template and drop everything Glyph adds below, so .gitignore re-includes it
+  by name. Every addition carries a comment saying what breaks without it.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      The microphone, for voice notes. The runtime prompt is raised by the
+      generated RustWebChromeClient when the page first calls getUserMedia, which
+      is also why MODIFY_AUDIO_SETTINGS is here: that client requests both, and a
+      request for a permission the manifest does not declare is silently denied.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!--
+      Over-the-air APK updates. Without it the installer intent that
+      MainActivity.installApk sends is refused, and Settings never lists Glyph
+      under "Install unknown apps" for the person to allow. The web layer
+      updates without it; only a new native build needs the installer.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!--
+      Update alerts, which are OFF unless the person turns them on in Settings.
+      Android 13+ asks for this at that moment (MainActivity.setUpdateAlerts);
+      without it the background check still runs but never shows anything.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- AndroidTV support -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.glyph"
+        android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:launchMode="singleTask"
+            android:label="@string/main_activity_title"
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <!-- AndroidTV support -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              The second way to qualify as an assistant, kept as a fallback for
+              launchers and OEM builds that invoke the assistant by activity
+              rather than through the voice interaction service. DEFAULT is not
+              optional: the role controller matches with MATCH_DEFAULT_ONLY.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <!-- The capture action the side key and the launcher shortcut both send. -->
+            <intent-filter>
+                <action android:name="com.mattssoftware.glyph.CAPTURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/glyph_shortcuts" />
+        </activity>
+
+        <!--
+          The digital assistant. Selecting Glyph under Settings > Apps > Default
+          apps > Digital assistant app is what routes a held side key here. It is
+          exported and guarded by BIND_VOICE_INTERACTION, which only the system
+          holds, so no other app can bind it.
+        -->
+        <service
+            android:name=".capture.GlyphInteractionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/glyph_voice_interaction" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+
+        <!-- One per press of the side key. Bound only by the system, so not exported. -->
+        <service
+            android:name=".capture.GlyphSessionService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+
+        <!-- Required by the assistant role and deliberately inert; see GlyphRecognitionService. -->
+        <service
+            android:name=".capture.GlyphRecognitionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.speech"
+                android:resource="@xml/glyph_recognition" />
+        </service>
+
+        <provider
+          android:name="androidx.core.content.FileProvider"
+          android:authorities="${applicationId}.fileprovider"
+          android:exported="false"
+          android:grantUriPermissions="true">
+          <meta-data
+            android:name="android.support.FILE_PROVIDER_PATHS"
+            android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

@@ -1,0 +1,50 @@
+node_modules
+/dist
+.DS_Store
+src-tauri/target
+/coverage
+
+# Generated mobile projects. `tauri ios init` / `android init` rebuild these.
+# Hand-written native files are re-included below by name as they appear.
+src-tauri/gen/apple/build
+src-tauri/gen/apple/Externals
+src-tauri/gen/apple/glyph.xcodeproj
+src-tauri/gen/apple/Pods
+src-tauri/gen/apple/Podfile.lock
+src-tauri/gen/apple/assets
+src-tauri/gen/android/**
+!src-tauri/gen/android/app/
+!src-tauri/gen/android/app/src/
+!src-tauri/gen/android/app/src/main/
+!src-tauri/gen/android/app/src/main/AndroidManifest.xml
+!src-tauri/gen/android/app/build.gradle.kts
+
+# Deploy credentials for scripts/deploy-ota.mjs.
+.env
+.env.*
+
+# Whisper models and the TTS test fixture. Tens to hundreds of megabytes each,
+# and reproducible byte-for-byte: `npm run fetch:model` fetches and verifies
+# them against pinned SHA-256s, and the tests regenerate the fixture with `say`.
+/models
+
+
+# Glyph's hand-written Android layer: the assistant hook that makes a held side
+# key open the capture screen. Re-included by name because `tauri android init`
+# would replace or drop every one of these, and a new hand-written file has to
+# be added here on purpose. (`dir/**` above, not `dir/`, is what lets these
+# negations reach below an excluded directory.)
+!src-tauri/gen/android/app/src/main/java/
+!src-tauri/gen/android/app/src/main/java/com/
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/MainActivity.kt
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/capture/
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/capture/**
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/updates/
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/updates/**
+!src-tauri/gen/android/app/src/main/res/
+!src-tauri/gen/android/app/src/main/res/xml/
+!src-tauri/gen/android/app/src/main/res/xml/glyph_*.xml
+!src-tauri/gen/android/app/src/main/res/values/
+!src-tauri/gen/android/app/src/main/res/values/glyph_strings.xml

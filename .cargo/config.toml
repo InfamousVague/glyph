@@ -1,0 +1,104 @@
+# Cargo configuration for the Rust core, and in practice: what whisper.cpp
+# needs to cross-compile for the phone.
+#
+# WHY THIS FILE IS AT THE PROJECT ROOT AND NOT IN src-tauri/. Cargo finds a
+# config file by walking up from the CURRENT DIRECTORY, not from the manifest,
+# and `tauri android build` does not run cargo from src-tauri/: Gradle starts it
+# with `npm run tauri android android-studio-script`, and npm runs every script
+# from the folder holding package.json. The file used to live in
+# src-tauri/.cargo/, where a plain `cargo build` from src-tauri/ found it and the
+# real phone build did not - measured 2026-09-12, `CMAKE_TOOLCHAIN_FILE_aarch64_
+# linux_android = None` from the root, `Some(..)` from src-tauri/. Without the
+# toolchain file CMake configured ggml as a MACOS build, switched Apple's BLAS
+# on, and failed with "BLAS not found". From here it is found either way.
+#
+# A plain `cargo build --target aarch64-linux-android --lib` in src-tauri/ still
+# reads it, which matters: that command reproduces the phone's native build in
+# about a minute, without Gradle, which is the only sane loop for chasing a C++
+# link error.
+#
+# ONE MORE TRAP when changing anything below: CMake only honours a toolchain file
+# on the FIRST configure of a build directory. A whisper-rs-sys build directory
+# first configured without it stays a macOS build forever, silently ignoring the
+# file on every later run. Delete
+# src-tauri/target/aarch64-linux-android/*/build/whisper-rs-sys-* after any
+# change here.
+#
+# Every variable here is either NAMED FOR THE TARGET (`_aarch64_linux_android`,
+# which only that target's build scripts read) or lives in the toolchain file
+# that only the Android cmake invocation reads. Nothing unsuffixed without a
+# reason written next to it: whisper-rs-sys and llama-cpp-sys-2 both forward
+# CMAKE_* and GGML_* variables straight to cmake, for every target, so a bare
+# GGML_NATIVE=OFF here would quietly de-optimise the macOS build as well. The
+# llama.cpp block at the end is the deliberate exception, and says why.
+#
+# [env] never overrides a variable already in the environment. cargo-mobile2
+# sets the compiler variables itself from the NDK_HOME it was given, and when it
+# does, its values win and these are inert.
+#
+# The NDK path is absolute because cargo does not expand ~ or $HOME in this
+# file. It is the NDK package.json's android scripts pin
+# ($HOME/Library/Android/sdk/ndk/26.3.11579264); moving to another NDK means
+# changing it here, there, and re-copying libc++_shared.so (see .gitignore).
+
+[env]
+# The C and C++ compilers for every build script targeting the phone: SQLite
+# (rusqlite bundled), ring (reqwest's TLS), and - through the toolchain file
+# below - ggml. Without them a plain cargo build fails in libsqlite3-sys looking
+# for an `aarch64-linux-android-clang` that is on nobody's PATH. The API level
+# in the name (24) is minSdk in gen/android/app/build.gradle.kts, and is what
+# cargo-mobile2 would have chosen.
+CC_aarch64_linux_android = "/Users/matt/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang"
+# Named explicitly rather than left for cc to guess from CC. The cmake crate asks
+# cc for a C++ compiler to collect CMAKE_CXX_FLAGS from; an unnamed one is a
+# probe of a binary that does not exist, and the flags that come back differ
+# between this build and Tauri's.
+CXX_aarch64_linux_android = "/Users/matt/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang++"
+# The archiver for those static libraries. Without it cc falls back to the host
+# `ar`, which on macOS writes BSD archives the NDK linker cannot index.
+AR_aarch64_linux_android = "/Users/matt/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+
+# Where ggml learns it is being built for Android at all. Without it the cmake
+# crate sets CMAKE_SYSTEM_NAME=Android and hands CMake the bare compiler, with
+# no ABI, no API level and no STL, and CMake's own Android support then goes
+# looking for an NDK by environment variables this build does not set. See the
+# file itself for why it is a wrapper around the NDK's toolchain file and not
+# that file directly: the short version is that pointing here straight at the
+# NDK's file builds 32-bit ARM, silently.
+# Relative to the directory holding .cargo/, which is now the project root.
+CMAKE_TOOLCHAIN_FILE_aarch64_linux_android = { value = "src-tauri/.cargo/aarch64-linux-android.toolchain.cmake", relative = true }
+
+# bindgen parses whisper.h with the host's libclang, targeted at the phone.
+# whisper.h pulls in ggml.h, which includes <stdio.h>, and a libclang told
+# --target=aarch64-linux-android with no sysroot has no <stdio.h> to find.
+# Without this, whisper-rs-sys does not fail - it prints a cargo:warning and
+# falls back to the bindings.rs it ships, which it describes itself as "may be
+# out of date". Generated against the real headers is the version that matches
+# the whisper.cpp being linked.
+BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android = "--sysroot=/Users/matt/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/sysroot --target=aarch64-linux-android24"
+
+# llama-cpp-sys-2 (src/llm/) finds the NDK and API level by its own rules and
+# ignores the toolchain file above. Left alone it picks the NEWEST NDK under
+# the SDK and API 28 - a different NDK from the one whisper and the app use,
+# and above minSdk. These names are read by no other build script (whisper-rs-
+# sys forwards only CMAKE_*, GGML_* and WHISPER_*), so they are safe unsuffixed.
+ANDROID_NDK = "/Users/matt/Library/Android/sdk/ndk/26.3.11579264"
+ANDROID_API_LEVEL = "24"
+# The Arm features ggml-cpu is compiled for. llama-cpp-sys-2 builds plain
+# armv8-a without this - no dot-product kernels, which Q4_K matrix
+# multiplication is several times faster with - and ggml is now built once, by
+# llama-cpp-sys-2, for both engines (see Cargo.toml's whisper-rs-sys patch), so
+# the toolchain file's GGML_CPU_ARM_ARCH no longer reaches it. The same value
+# whisper has always been built with: every arm64 phone since 2019. i8mm was
+# measured no faster on the emulator and would SIGILL on older cores.
+# Unsuffixed because llama-cpp-sys-2 reads it unsuffixed; on a desktop build
+# ggml-cpu gets the same flags, which on Apple silicon are a subset of what it
+# would have picked and cost the host tests nothing measurable.
+GGML_CPU_ARM_ARCH = "armv8.2-a+dotprod+fp16"
+
+[target.aarch64-linux-android]
+# The final link of libglyph_lib.so. The NDK's clang driver is the linker
+# rather than lld directly because it knows where bionic, the crt objects and
+# libc++_shared.so live. Without it rustc invokes the host `cc`, which is
+# Apple's, and which cannot produce an ELF.
+linker = "/Users/matt/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang"

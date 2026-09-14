@@ -1,0 +1,118 @@
+/* The little reader (Thinking.tsx): the wait before the first word, alive. */
+
+.stage {
+  display: grid;
+  place-items: center;
+  padding: var(--glacier-space-10) var(--app-gutter) var(--glacier-space-6);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.robot {
+  inline-size: min(40vw, 9rem);
+  block-size: auto;
+  overflow: visible;
+}
+
+/* ---- loading: the beacon blinks, the eyes are shut ---------------------- */
+
+.beacon {
+  transform-origin: 60px 12px;
+  animation: beacon 1.1s ease-in-out infinite;
+}
+
+@keyframes beacon {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.stage[data-phase='loading'] .eye {
+  opacity: 0;
+}
+
+.stage[data-phase='loading'] .lines rect {
+  opacity: 0.25;
+}
+
+/* A slow breath while it warms up, so the whole thing is not frozen. */
+.stage[data-phase='loading'] .robot {
+  animation: breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* ---- reading: the eyes open and sweep the lines, one at a time ---------- */
+
+.stage[data-phase='reading'] .lid {
+  opacity: 0;
+}
+
+.stage[data-phase='reading'] .beacon {
+  animation: none;
+  opacity: 1;
+}
+
+/* The eyes sweep left to right over 1.2 s, three times per pass, one per line. */
+.stage[data-phase='reading'] .eyes {
+  animation: sweep 1.2s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-5px);
+  }
+  50% {
+    transform: translateX(5px);
+  }
+  100% {
+    transform: translateX(-5px);
+  }
+}
+
+/* Each line takes its turn in ink while the eyes cross it: a 3.6 s round. */
+.stage[data-phase='reading'] .lines rect {
+  opacity: 0.25;
+  animation: turn 3.6s linear infinite;
+}
+
+.stage[data-phase='reading'] .line2 {
+  animation-delay: 1.2s;
+}
+
+.stage[data-phase='reading'] .line3 {
+  animation-delay: 2.4s;
+}
+
+@keyframes turn {
+  0%,
+  33.3% {
+    opacity: 1;
+  }
+  33.4%,
+  100% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beacon,
+  .stage[data-phase='loading'] .robot,
+  .stage[data-phase='reading'] .eyes,
+  .stage[data-phase='reading'] .lines rect {
+    animation: none;
+  }
+
+  .stage[data-phase='reading'] .lines rect {
+    opacity: 1;
+  }
+}

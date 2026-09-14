@@ -1,0 +1,366 @@
+/*
+ * The walkthrough, in the app's own terms: one page at a time, big type, words
+ * for buttons, nothing boxed except the example output, which is code and is
+ * set like code.
+ */
+.guide {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--glacier-bg);
+  color: var(--glacier-text);
+}
+
+.top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-1));
+  font-size: var(--glacier-font-size-sm);
+}
+
+.progress {
+  color: var(--glacier-text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.skip {
+  font-size: var(--glacier-font-size-sm);
+}
+
+.page {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: var(--glacier-space-6) var(--glacier-space-24);
+  animation: enter var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    animation: none;
+  }
+}
+
+/*
+ * The pictures (art/Shapes.tsx) are drawn on currentColor and sized here. The
+ * welcome's leads the page, in full ink and large; every other page's sits
+ * above its title in grey, quieter than the words it introduces.
+ */
+.hero {
+  display: block;
+  inline-size: min(58vw, 15rem);
+  margin-block: var(--glacier-space-4) 0;
+  color: var(--app-ink);
+}
+
+.art {
+  display: block;
+  inline-size: 7.5rem;
+  margin-block-end: var(--glacier-space-5);
+  color: var(--app-ink-3);
+}
+
+.display {
+  margin: var(--glacier-space-6) 0 0;
+  font-size: calc(var(--app-display) * 1.15);
+  line-height: 0.92;
+  letter-spacing: var(--app-tracking-display);
+  font-weight: var(--glacier-font-weight-bold);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--glacier-font-size-4xl);
+  line-height: 1.02;
+  letter-spacing: var(--app-tracking-display);
+  font-weight: var(--glacier-font-weight-bold);
+  max-inline-size: 14ch;
+}
+
+.lead {
+  margin: var(--glacier-space-5) 0 0;
+  font-size: var(--glacier-font-size-lg);
+  line-height: 1.45;
+  color: var(--glacier-text-muted);
+  max-inline-size: 32ch;
+}
+
+.body {
+  margin: var(--glacier-space-4) 0 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+  color: var(--glacier-text-subtle);
+  max-inline-size: 34ch;
+}
+
+.done {
+  margin: var(--glacier-space-4) 0 0;
+  font-size: var(--glacier-font-size-lg);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-success-text, var(--glacier-accent-text));
+}
+
+.steps,
+.phrases {
+  list-style: none;
+  margin: var(--glacier-space-6) 0 0;
+  padding: 0;
+  counter-reset: step;
+}
+
+.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding: var(--glacier-space-5) 0 var(--glacier-space-5) 2.2em;
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+/* The step number, set in the heading's size so it reads as part of the line. */
+.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: var(--glacier-space-5);
+  font-size: var(--glacier-font-size-xl);
+  line-height: 1.25;
+  font-weight: var(--glacier-font-weight-bold);
+  color: var(--glacier-text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: var(--glacier-font-size-xl);
+  line-height: 1.25;
+  letter-spacing: var(--app-tracking-title);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.path {
+  margin: var(--glacier-space-2) 0 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.6;
+  color: var(--glacier-text-muted);
+}
+
+.sep {
+  color: var(--glacier-text-subtle);
+}
+
+.target {
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.note {
+  margin: var(--glacier-space-2) 0 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+  color: var(--glacier-text-muted);
+}
+
+.action {
+  margin-top: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-md);
+  color: var(--glacier-accent-text);
+}
+
+.fine {
+  margin: var(--glacier-space-4) 0 0;
+  padding-block-start: var(--glacier-space-4);
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-subtle);
+}
+
+.phrase {
+  padding: var(--glacier-space-5) 0;
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+/* The words to say, set large: they are what a person has to remember. */
+.cues {
+  margin: var(--glacier-space-2) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--glacier-space-4);
+  font-size: var(--glacier-font-size-lg);
+  font-weight: var(--glacier-font-weight-medium);
+  color: var(--glacier-accent-text);
+}
+
+.cue {
+  white-space: nowrap;
+}
+
+.example {
+  margin-top: var(--glacier-space-3);
+  border-inline-start: var(--glacier-shape-accent-edge, 3px) solid var(--glacier-border-strong);
+  padding-inline-start: var(--glacier-space-3);
+}
+
+.said {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  font-style: italic;
+  color: var(--glacier-text-subtle);
+}
+
+.result {
+  margin: var(--glacier-space-2) 0 0;
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--glacier-text);
+}
+
+.dock {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: var(--glacier-space-8) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-3));
+  background: linear-gradient(to bottom, transparent, var(--glacier-bg) 45%);
+  pointer-events: none;
+}
+
+.nav {
+  pointer-events: auto;
+  font-size: var(--app-action);
+  letter-spacing: var(--app-tracking-title);
+  font-weight: var(--glacier-font-weight-semibold);
+  padding-inline: var(--glacier-space-2);
+  margin-inline: calc(-1 * var(--glacier-space-2));
+}
+
+.nav[data-hidden] {
+  visibility: hidden;
+}
+
+.primary {
+  pointer-events: auto;
+  min-inline-size: 8.5rem;
+}
+
+/* The record dot, in paper on the ink pill. */
+.dot {
+  inline-size: 0.5em;
+  block-size: 0.5em;
+  border-radius: var(--glacier-radius-full);
+  background: currentColor;
+}
+
+/* --- the theme page ------------------------------------------------------ */
+
+.choices {
+  margin-top: var(--glacier-space-6);
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * A choice is a row; the chosen one is the same row printed in reverse
+ * (`.app-inverse`), a band of ink with its words in paper. The inline padding
+ * on every row, pulled back by a negative margin, keeps the words aligned with
+ * the page while giving the band room at its ends.
+ */
+.choice {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-4);
+  inline-size: calc(100% + 2 * var(--glacier-space-3));
+  margin-inline: calc(-1 * var(--glacier-space-3));
+  padding: var(--glacier-space-3);
+  border: none;
+  border-radius: var(--glacier-radius-xl);
+  background: none;
+  transition: background-color var(--glacier-duration-fast) var(--glacier-ease-out);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.choiceText {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+/*
+ * The swatch is the choice, shown: literal colours rather than tokens, because
+ * each one has to look like ITS theme whichever theme is on screen around it.
+ */
+.swatch {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  border-radius: var(--glacier-radius-lg);
+  font-size: var(--glacier-font-size-xl);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: var(--app-tracking-title);
+  border: 2px solid transparent;
+}
+
+/* A model's size in the swatch's place: the one number that decides the choice. */
+.size {
+  font-size: var(--glacier-font-size-sm);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  background: var(--app-paper-2);
+  color: var(--app-ink);
+  border-color: var(--app-rule);
+}
+
+.choice[data-selected] .size {
+  background: var(--app-paper);
+  color: var(--app-ink);
+}
+
+/* The ink theme's own paper and ink (ink.css), fixed here for the reason above. */
+.swatch[data-swatch='dark'] {
+  background: oklch(0.11 0 0);
+  color: oklch(0.965 0 0);
+  border-color: oklch(0.34 0 0);
+}
+
+.swatch[data-swatch='light'] {
+  background: oklch(0.995 0 0);
+  color: oklch(0.16 0 0);
+  border-color: oklch(0.86 0 0);
+}
+
+.swatch[data-swatch='system'] {
+  background: linear-gradient(135deg, oklch(0.995 0 0) 0 50%, oklch(0.11 0 0) 50% 100%);
+  color: oklch(0.56 0 0);
+  border-color: oklch(0.56 0 0);
+}
+
+.choice + .choice {
+  margin-block-start: var(--glacier-space-1);
+}

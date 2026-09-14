@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What makes Glyph a digital assistant. All three of sessionService,
+  recognitionService and supportsAssist are required: VoiceInteractionServiceInfo
+  rejects the service if either service is missing, and the assistant role only
+  counts it as an assistant when supportsAssist is true.
+
+  supportsLaunchVoiceAssistFromKeyguard is what lets a held side key start a note
+  on the LOCKED phone; without it the system asks for an unlock first.
+
+  Class names are fully qualified because this file is read by the system, not
+  resolved against the manifest's package.
+-->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.mattssoftware.glyph.capture.GlyphSessionService"
+    android:recognitionService="com.mattssoftware.glyph.capture.GlyphRecognitionService"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true"
+    android:supportsLocalInteraction="false" />

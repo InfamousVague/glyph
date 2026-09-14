@@ -1,0 +1,203 @@
+/* A note's settings (NoteSettings.tsx): a sheet from the bottom over the dimmed note. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  background: color-mix(in oklch, var(--glacier-bg) 55%, transparent);
+  animation: scrim-in 200ms ease-out both;
+}
+
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.sheet {
+  inline-size: 100%;
+  max-block-size: 85dvh;
+  overflow-y: auto;
+  padding: var(--glacier-space-2) calc(var(--app-safe-right, 0px) + var(--app-gutter)) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-5)) calc(var(--app-safe-left, 0px) + var(--app-gutter));
+  border-radius: var(--glacier-radius-xl, 1.5rem) var(--glacier-radius-xl, 1.5rem) 0 0;
+  background: var(--app-paper-2, var(--glacier-surface));
+  border-block-start: 1px solid var(--glacier-border-subtle);
+  animation: sheet-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(40%);
+    opacity: 0;
+  }
+}
+
+.grip {
+  display: block;
+  inline-size: 2.5rem;
+  block-size: 4px;
+  margin: 0 auto var(--glacier-space-3);
+  border-radius: var(--glacier-radius-full);
+  background: var(--glacier-border-strong);
+}
+
+.title {
+  margin: 0 0 var(--glacier-space-4);
+  font-size: var(--glacier-font-size-lg);
+  font-weight: var(--glacier-font-weight-bold);
+  color: var(--glacier-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heading {
+  margin: var(--glacier-space-2) 0 var(--glacier-space-2);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--glacier-text-subtle);
+}
+
+.group {
+  display: grid;
+  margin-block-end: var(--glacier-space-3);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--glacier-bg);
+  overflow: hidden;
+}
+
+.row {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  min-block-size: var(--glacier-space-12);
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border: none;
+  background: none;
+  color: var(--glacier-text);
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.row + .row {
+  border-block-start: 1px solid var(--glacier-border-subtle);
+}
+
+.row:active:not([aria-disabled]) {
+  background: var(--app-wash, var(--glacier-surface-sunken));
+}
+
+.row[aria-disabled] {
+  cursor: default;
+  color: var(--glacier-text-muted);
+}
+
+.icon {
+  flex: none;
+  font-size: 1.25rem;
+  display: inline-flex;
+}
+
+.label {
+  display: grid;
+  gap: 2px;
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.hint {
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-regular, 400);
+  color: var(--glacier-text-subtle);
+}
+
+.row:disabled {
+  cursor: default;
+  color: var(--glacier-text-muted);
+}
+
+/* The board picker's way back to the note's settings. */
+.back {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0 0 var(--glacier-space-3);
+  padding: var(--glacier-space-1) 0;
+  border: none;
+  background: none;
+  color: var(--glacier-text);
+  font: inherit;
+  font-weight: var(--glacier-font-weight-medium);
+  cursor: pointer;
+}
+
+.note {
+  margin: 0 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-subtle);
+}
+
+/* The chosen board: a tick at the row's end, drawn with borders. */
+.tick {
+  margin-inline-start: auto;
+  inline-size: 0.4em;
+  block-size: 0.8em;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  transform: rotate(45deg) translate(-0.1em, -0.1em);
+}
+
+.field {
+  display: grid;
+  gap: var(--glacier-space-1);
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+}
+
+.field + .field,
+.field + .row,
+.row + .field {
+  border-block-start: 1px solid var(--glacier-border-subtle);
+}
+
+.fieldLabel {
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--glacier-text-subtle);
+}
+
+.input {
+  appearance: none;
+  inline-size: 100%;
+  padding: var(--glacier-space-2) 0;
+  border: none;
+  border-block-end: 1.5px solid var(--glacier-border-strong);
+  background: none;
+  color: var(--glacier-text);
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  outline: none;
+}
+
+.input:focus {
+  border-block-end-color: var(--glacier-text);
+}
+
+.danger {
+  color: var(--glacier-red-9, oklch(0.6 0.22 27));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrim,
+  .sheet {
+    animation: none;
+  }
+}

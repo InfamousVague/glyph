@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glyph's own strings, kept out of the generated strings.xml so a re-init cannot take them. -->
+<resources>
+    <string name="glyph_capture_short">Record note</string>
+    <string name="glyph_capture_long">Record a voice note</string>
+</resources>

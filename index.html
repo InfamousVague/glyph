@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- maximum-scale=1 / user-scalable=no: this is an app shell, not a
+         document - without them iOS zooms the whole page whenever a focused
+         input's font is under 16px, and leaves it zoomed. viewport-fit=cover
+         is what makes env(safe-area-inset-*) report real values, so the
+         notch/home-indicator padding in app.css actually engages. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Glyph</title>
+    <style>
+      /* Pre-tokens paint so the first frame is never a white flash. */
+      html { background: oklch(0.11 0 0); }
+      html[data-theme='light'] { background: oklch(0.995 0 0); }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!--
+      THE OTA LOADER. Decides whether this launch runs the frontend compiled
+      into the app or a newer one downloaded over the air, and hands the answer
+      to main.tsx. The Rust half, and the reasoning behind every rule here, is
+      the header of src-tauri/src/ota.rs.
+
+      A classic inline script, and at the END of body, on purpose: Vite hoists
+      the built module script into <head>, and module scripts are deferred, so
+      this runs first and can publish `__glyphBoot` before any frontend
+      evaluates. It never removes the embedded module tag - a removed module
+      script still executes, which is how AttackFM once had two frontends
+      fighting over #root. Instead every copy of main.tsx asks `__glyphBoot`
+      whether it is the chosen one and only that one mounts.
+
+      Written in ES5 with no dependencies: it runs before any bundle and has to
+      work against every bundle it might choose.
+    -->
+    <script>
+      (function () {
+        var internals = window.__TAURI_INTERNALS__;
+        var embedded = document.querySelector('script[type="module"][src*="assets/"]');
+        // A browser (attack.fm/glyph), or the dev server: one frontend, no choice.
+        if (!internals || !internals.invoke || !embedded) return;
+
+        var boot = (window.__glyphBoot = { chosen: undefined, waiting: [], mounters: {}, build: null });
+        var embeddedJs = embedded.src;
+        var embeddedCss = Array.prototype.slice.call(document.querySelectorAll('link[rel="stylesheet"][href*="assets/"]'));
+        var decided = false;
+
+        function choose(url, build) {
+          boot.chosen = url;
+          boot.build = build;
+          var waiting = boot.waiting.splice(0);
+          for (var i = 0; i < waiting.length; i++) waiting[i]();
+        }
+
+        function runEmbedded() {
+          if (decided) return;
+          decided = true;
+          choose(embeddedJs, null);
+        }
+
+        // Back to the frontend in the APK, in this same launch, after a bundle
+        // was chosen and then failed. Its own stylesheet comes back first.
+        function fallBack(build, reason, added) {
+          console.warn('[glyph] OTA build ' + build + ' failed: ' + reason + '; running the built-in frontend');
+          internals.invoke('ota_boot_failed', { build: build, reason: reason }).catch(function () {});
+          for (var i = 0; i < added.length; i++) added[i].remove();
+          for (var j = 0; j < embeddedCss.length; j++) if (!embeddedCss[j].isConnected) document.head.appendChild(embeddedCss[j]);
+          var root = document.getElementById('root');
+          if (root) root.replaceChildren();
+          choose(embeddedJs, null);
+          var mount = boot.mounters[embeddedJs];
+          if (mount) mount();
+        }
+
+        function runBundle(bundle) {
+          var base = bundle.base;
+          var added = [];
+          var pendingStyles = bundle.styles.length;
+          var failed = false;
+
+          function fail(reason) {
+            if (failed || boot.mounted) return;
+            failed = true;
+            window.removeEventListener('error', onError);
+            fallBack(bundle.build, reason, added);
+          }
+
+          // A bundle that throws while it evaluates reports it here, not to the
+          // script's onerror - and waiting out the deadline for it is eight
+          // seconds of black screen for nothing. Only the bundle's own files,
+          // and only before it mounts: after that an error is a bug in a running
+          // app, not a bad install.
+          function onError(event) {
+            if (event && typeof event.filename === 'string' && event.filename.indexOf(base) === 0) {
+              fail('threw while starting: ' + event.message);
+            }
+          }
+          window.addEventListener('error', onError);
+
+          function startScript() {
+            // The embedded stylesheet goes only once the new one has LOADED:
+            // removing it first and then failing to load the replacement leaves
+            // an unstyled app that still mounts, and so still passes its wager.
+            for (var i = 0; i < embeddedCss.length; i++) embeddedCss[i].remove();
+            var script = document.createElement('script');
+            script.type = 'module';
+            script.crossOrigin = 'anonymous';
+            script.onerror = function () {
+              fail('entry script did not load');
+            };
+            script.src = base + bundle.entry;
+            choose(script.src, bundle.build);
+            document.head.appendChild(script);
+            // A bundle that loads but never mounts - a throw during evaluation,
+            // a render that crashes - reports nothing to onerror. The deadline
+            // catches it in this launch instead of the next.
+            setTimeout(function () {
+              if (!boot.mounted) fail('did not mount within 8 s');
+            }, 8000);
+          }
+
+          if (!pendingStyles) startScript();
+          for (var i = 0; i < bundle.styles.length; i++) {
+            var link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.crossOrigin = 'anonymous';
+            link.onload = function () {
+              if (!failed && --pendingStyles === 0) startScript();
+            };
+            link.onerror = function () {
+              fail('stylesheet did not load');
+            };
+            link.href = base + bundle.styles[i];
+            added.push(link);
+            document.head.appendChild(link);
+          }
+        }
+
+        // An answer slower than this boots the embedded frontend. The Rust
+        // side may already have staked the bundle; the embedded frontend's
+        // boot report clears that stake without counting it as a failure.
+        var guard = setTimeout(runEmbedded, 1500);
+
+        internals
+          .invoke('ota_claim_boot')
+          .then(function (state) {
+            clearTimeout(guard);
+            if (decided) return;
+            if (!state || !state.bundle) return runEmbedded();
+            decided = true;
+            runBundle(state.bundle);
+          })
+          .catch(function () {
+            clearTimeout(guard);
+            runEmbedded();
+          });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,657 @@
+/*
+ * Settings: the shell (a full-screen page that opens on a list of sections
+ * and pushes into a pane) and the kit its panes are built from
+ * (settings/kit/settingsKit.tsx). Both on loan from AttackFM's settings, in
+ * ink: one paper, one ink, hairlines between things, and no tint anywhere.
+ *
+ * Global class names on purpose. The shell and the kit are one surface and
+ * this is its one stylesheet; a module per component would split "what does
+ * a row look like" across six files.
+ */
+
+/* ── the page ─────────────────────────────────────────────────────────────── */
+
+.settingsScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  background: var(--glacier-bg);
+  color: var(--glacier-text);
+  animation: settingsEnter var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
+}
+
+@keyframes settingsEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* A pane drilled into slides in from the right; coming back, the list slides
+   in from the left, so the motion says which way the page went. */
+.settingsScreen[data-view='pane'] .settingsScreen__pane {
+  animation: settingsPush var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
+}
+
+.settingsScreen[data-view='list'][data-direction='out'] .settingsScreen__list {
+  animation: settingsPop var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
+}
+
+@keyframes settingsPush {
+  from {
+    transform: translateX(10%);
+    opacity: 0;
+  }
+}
+
+@keyframes settingsPop {
+  from {
+    transform: translateX(-10%);
+    opacity: 0;
+  }
+}
+
+/* The rows arrive one after another, each a little after the last (`--i` is
+   the row's place, set inline), rising a few pixels as they fade in. The same
+   for a pane's cards. */
+.settingsScreen__row,
+.settingsScreen__pane .setk,
+.settingsScreen__pane .setk-callout,
+.settingsScreen__pane .setk-empty {
+  animation: settingsRise 360ms var(--glacier-ease-out, ease-out) both;
+  animation-delay: calc(40ms * var(--i, 0));
+}
+
+.settingsScreen__pane .setk:nth-child(2) { --i: 1; }
+.settingsScreen__pane .setk:nth-child(3) { --i: 2; }
+.settingsScreen__pane .setk:nth-child(4) { --i: 3; }
+.settingsScreen__pane .setk:nth-child(5) { --i: 4; }
+.settingsScreen__pane .setk:nth-child(6) { --i: 5; }
+
+@keyframes settingsRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* A word under the list after a back step: the way forward. */
+.settingsScreen__hint {
+  margin: var(--glacier-space-2) 0 0;
+  padding-inline: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settingsScreen,
+  .settingsScreen[data-view='pane'] .settingsScreen__pane,
+  .settingsScreen[data-view='list'][data-direction='out'] .settingsScreen__list,
+  .settingsScreen__row,
+  .settingsScreen__pane .setk,
+  .settingsScreen__pane .setk-callout,
+  .settingsScreen__pane .setk-empty {
+    animation: none;
+  }
+}
+
+/* ── skeletons: the shape of what is coming, breathing ────────────────────── */
+
+/* Every async spot in Settings draws the same placeholder: a paper-3 block
+   the size of the words it stands for, pulsing slowly. Decorative; the region
+   that is loading says so with aria-busy. */
+.setk-skeleton {
+  display: inline-block;
+  border-radius: var(--glacier-radius-sm);
+  background: var(--app-paper-3);
+  animation: setkBreathe 1.6s ease-in-out infinite;
+}
+
+.setk-skeleton--line {
+  inline-size: 60%;
+  block-size: 0.85em;
+}
+
+.setk-skeleton--title {
+  inline-size: 40%;
+  block-size: 1.1em;
+}
+
+.setk-skeleton--tile {
+  inline-size: 1.85rem;
+  block-size: 1.85rem;
+  border-radius: 0.55rem;
+}
+
+.setk-skeleton--control {
+  inline-size: 2.6rem;
+  block-size: 1.5rem;
+  border-radius: 999px;
+}
+
+/* A whole row's worth: a tile, a title line and a hint line, in a row's seat. */
+.setk-row--skeleton {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-3);
+  min-block-size: var(--glacier-space-14, 3.5rem);
+}
+
+.setk-row--skeleton + .setk-row--skeleton {
+  border-block-start: var(--glacier-hairline) solid var(--app-rule);
+}
+
+.setk-row--skeleton .setk-skeleton--text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+@keyframes setkBreathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setk-skeleton {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/* The top line: a word on each side, the way every Glyph screen begins. */
+.settingsScreen__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-4);
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-1));
+  font-size: var(--glacier-font-size-md);
+}
+
+.settingsScreen__headWord {
+  color: var(--glacier-text);
+}
+
+/* The scrolling body: the list, or the pane. */
+.settingsScreen__list,
+.settingsScreen__pane {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-4);
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block-end: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-16));
+}
+
+/* Nothing in a scroller may shrink to fit it: with more sections than fit,
+   the groups would give up their height instead of overflowing. */
+.settingsScreen__list > *,
+.settingsScreen__pane > * {
+  flex: none;
+}
+
+/* The page's own word, set like the list's "Notes". */
+.settingsScreen__display {
+  margin: var(--glacier-space-2) 0 var(--glacier-space-2);
+  font-size: var(--app-display);
+  line-height: 0.95;
+  letter-spacing: var(--app-tracking-display);
+  font-weight: var(--glacier-font-weight-bold);
+  overflow-wrap: anywhere;
+}
+
+/* A pane's word is a step smaller: it sits under "Settings", not in its place. */
+.settingsScreen__pane .settingsScreen__display {
+  font-size: calc(var(--app-display) * 0.72);
+}
+
+/* ── the section list ─────────────────────────────────────────────────────── */
+
+/* Consecutive rows of one group share a card, the iOS-settings shape. */
+.settingsScreen__cluster {
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+}
+
+.settingsScreen__groupLabel,
+.setk__title {
+  font-size: 0.72rem;
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-ink-3);
+  padding-inline: var(--glacier-space-2);
+}
+
+.settingsScreen__group,
+.setk__card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2);
+  overflow: hidden;
+}
+
+.settingsScreen__row {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  min-block-size: var(--glacier-space-14, 3.5rem);
+  padding: var(--glacier-space-3);
+  border: none;
+  background: transparent;
+  color: var(--glacier-text);
+  font: inherit;
+  font-weight: var(--glacier-font-weight-medium);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settingsScreen__row:active,
+.setk-row--press:active,
+.setk-hero--press:active {
+  background: var(--app-paper-3);
+}
+
+.settingsScreen__row + .settingsScreen__row,
+.setk-row + .setk-row {
+  border-block-start: var(--glacier-hairline) solid var(--app-rule);
+}
+
+/* The chip each row wears: a small ink squircle, the glyph in paper. */
+.settingsScreen__rowIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  inline-size: 1.85rem;
+  block-size: 1.85rem;
+  border-radius: 0.55rem;
+  background: var(--app-ink);
+  color: var(--app-paper);
+}
+
+.settingsScreen__rowIcon svg {
+  inline-size: 1.05rem;
+  block-size: 1.05rem;
+}
+
+/* Label over the live one-line reading of the section's state. */
+.settingsScreen__rowText {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.settingsScreen__rowLabel {
+  font-size: var(--glacier-font-size-md);
+}
+
+.settingsScreen__rowSummary {
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--app-ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settingsScreen__rowChevron,
+.setk-row__chevron {
+  flex: none;
+  display: flex;
+  color: var(--app-ink-4);
+}
+
+/* ── the kit: section, row ────────────────────────────────────────────────── */
+
+.setk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+}
+
+.setk__desc,
+.setk__footer {
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-2);
+  padding-inline: var(--glacier-space-2);
+}
+
+.setk-row {
+  display: flex;
+  flex-direction: column;
+  padding: var(--glacier-space-3);
+}
+
+.setk-row__main {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+}
+
+/* The pressable row is its own button but draws exactly like the others. */
+.setk-row--press {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  text-align: start;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.setk-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-inline-size: 0;
+  flex: 1;
+}
+
+.setk-row__label {
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.setk-row__hint {
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-2);
+}
+
+.setk-row__why {
+  font-size: var(--glacier-font-size-xs, 0.75rem);
+  color: var(--app-ink-3);
+  font-style: italic;
+}
+
+.setk-row[data-disabled],
+.setk-row--press:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.setk-row__value {
+  color: var(--app-ink-3);
+  font-size: var(--glacier-font-size-sm);
+  text-align: end;
+  overflow-wrap: anywhere;
+  max-inline-size: 55%;
+  font-variant-numeric: tabular-nums;
+}
+
+.setk-row__control {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.setk-row__wide {
+  margin-block-start: var(--glacier-space-3);
+}
+
+.setk-row__icon {
+  display: flex;
+  flex-shrink: 0;
+}
+
+/* ── the hero ─────────────────────────────────────────────────────────────── */
+
+.setk-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-3);
+  inline-size: 100%;
+  text-align: start;
+}
+
+.setk-hero--press {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.setk-hero__glyph,
+.setk-tile,
+.setk-empty__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-3);
+  color: var(--app-ink);
+}
+
+.setk-tile[data-size='sm'] {
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: var(--glacier-radius-md);
+}
+
+.setk-tile[data-size='lg'] {
+  inline-size: 3.25rem;
+  block-size: 3.25rem;
+}
+
+.setk-hero__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-inline-size: 0;
+  flex: 1;
+}
+
+/* The hero's word is big: it is the fact a bug report needs first. */
+.setk-hero__title {
+  font-size: var(--glacier-font-size-2xl);
+  line-height: 1.1;
+  letter-spacing: var(--app-tracking-title);
+  font-weight: var(--glacier-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.setk-hero__meta {
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-2);
+}
+
+.setk-hero__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2);
+}
+
+.setk-hero__dot {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 999px;
+  background: var(--app-ink);
+}
+
+.setk-hero__status[data-pulse] .setk-hero__dot {
+  animation: setkPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes setkPulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setk-hero__status[data-pulse] .setk-hero__dot {
+    animation: none;
+  }
+}
+
+.setk-hero__trailing {
+  flex-shrink: 0;
+}
+
+/* ── the banner, the empty state, the footnote ────────────────────────────── */
+
+.setk-callout {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-3);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2);
+  border: var(--glacier-hairline) solid var(--app-rule);
+}
+
+.setk-callout__icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--app-ink);
+}
+
+.setk-callout__body {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+}
+
+.setk-callout__action {
+  flex-shrink: 0;
+}
+
+.setk-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  text-align: center;
+  padding: var(--glacier-space-6) var(--glacier-space-4);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2);
+}
+
+.setk-empty__title {
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.setk-empty__body {
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-2);
+}
+
+.setk-empty__action,
+.setk-action {
+  color: var(--app-ink);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.setk-action {
+  min-block-size: var(--glacier-space-10);
+  padding-inline: var(--glacier-space-1);
+}
+
+.setk-footnote {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-3);
+  padding-inline: var(--glacier-space-2);
+}
+
+/* ── pick one: a ring, an ink dot when chosen ─────────────────────────────── */
+
+.setk-pick {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-10);
+  block-size: var(--glacier-space-10);
+  margin: calc(var(--glacier-space-2) * -1);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.setk-pick__dot {
+  box-sizing: border-box;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border-radius: 999px;
+  border: 2px solid var(--app-ink-3);
+  transition:
+    border-color var(--glacier-duration-fast) var(--glacier-ease-out),
+    box-shadow var(--glacier-duration-fast) var(--glacier-ease-out);
+}
+
+.setk-pick[aria-checked='true'] .setk-pick__dot {
+  border-color: var(--app-ink);
+  box-shadow: inset 0 0 0 0.3rem var(--app-ink);
+}
+
+.setk-pick:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.setk-pick:focus-visible {
+  outline: 2px solid var(--app-ink);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+/* ── Type's sample: the size shown rather than described ──────────────────── */
+
+.settingsScreen__sample {
+  margin: 0 0 var(--glacier-space-2);
+  padding-inline: var(--glacier-space-2);
+  font-size: var(--app-h1);
+  line-height: 1;
+  letter-spacing: var(--app-tracking-display);
+  font-weight: var(--glacier-font-weight-bold);
+  color: var(--app-ink-3);
+}
+
+/* A row of the app's word buttons under a card (Updates' actions). */
+.settingsScreen__actions {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--glacier-space-5);
+  padding-inline: var(--glacier-space-2);
+}

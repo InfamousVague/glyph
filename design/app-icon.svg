@@ -1,0 +1,6 @@
+<!-- The bullet: a reel with tape running off it, and a markdown bullet point. Matt's pick, redrawn from icon-bullet.png as exact shapes and centred. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect width="1024" height="1024" fill="#ffffff"/>
+  <circle cx="349" cy="512" r="124" fill="#000000"/>
+  <rect x="503" y="464" width="296" height="96" rx="48" fill="#000000"/>
+</svg>

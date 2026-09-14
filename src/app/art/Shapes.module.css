@@ -1,0 +1,210 @@
+/*
+ * How the pictures move (Shapes.tsx). Every loop has a long rest in it, so a
+ * page is calm most of the time and a picture only now and then does its
+ * thing. Transforms are measured against each shape's own box.
+ */
+.shape {
+  overflow: visible;
+}
+
+.shape * {
+  transform-box: fill-box;
+}
+
+/* Empty archive: the last line dissolves into dots, left to right, and comes back. */
+.archive .dot {
+  animation: archive-dot 4.2s ease-in-out infinite;
+}
+
+@keyframes archive-dot {
+  0%,
+  30% {
+    opacity: 1;
+    transform: none;
+  }
+  50%,
+  70% {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.3);
+  }
+  90%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Welcome: the dot lands, the line writes out, a rest, then again. */
+.welcome .bullet {
+  transform-origin: center;
+  animation: bullet 5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+.welcome .bulletLine {
+  transform-origin: left center;
+  animation: bullet-line 5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+@keyframes bullet {
+  0% {
+    transform: scale(0);
+  }
+  8% {
+    transform: scale(1.1);
+  }
+  14%,
+  90% {
+    transform: none;
+  }
+  100% {
+    transform: scale(0);
+  }
+}
+
+@keyframes bullet-line {
+  0%,
+  10% {
+    transform: scaleX(0);
+  }
+  26%,
+  88% {
+    transform: none;
+  }
+  98%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+/* Light or dark: the square turns over, ink and paper change places, and back. */
+.theme .turn {
+  transform-origin: center;
+  animation: turn 6s cubic-bezier(0.65, 0, 0.25, 1) infinite;
+}
+
+@keyframes turn {
+  0%,
+  30% {
+    transform: none;
+  }
+  45%,
+  80% {
+    transform: rotate(180deg);
+  }
+  95%,
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Side key: the key goes in and sound leaves it. */
+.sidekey .key {
+  animation: key 3.2s ease-in-out infinite;
+}
+
+.sidekey .wave {
+  animation: wave 3.2s ease-out infinite;
+}
+
+@keyframes key {
+  0%,
+  8% {
+    transform: none;
+  }
+  14%,
+  55% {
+    transform: translateX(-3px);
+  }
+  62%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes wave {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  26%,
+  60% {
+    opacity: 1;
+    transform: none;
+  }
+  80%,
+  100% {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+}
+
+/* Markdown: the lines write in one after another, then the box ticks. */
+.markdown .line {
+  transform-origin: left center;
+  animation: line 6s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+.markdown .tick {
+  stroke-dasharray: 1;
+  animation: tick 6s ease-out infinite;
+}
+
+@keyframes line {
+  0% {
+    transform: scaleX(0);
+  }
+  10%,
+  88% {
+    transform: none;
+  }
+  98%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes tick {
+  0%,
+  26% {
+    stroke-dashoffset: 1;
+  }
+  34%,
+  88% {
+    stroke-dashoffset: 0;
+  }
+  96%,
+  100% {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* Tips: the lid lifts, hangs there a moment, and settles with a little bounce. */
+.tips .lid {
+  transform-origin: 10% 100%;
+  animation: lid 4.4s cubic-bezier(0.3, 0.7, 0.3, 1) infinite;
+}
+
+@keyframes lid {
+  0%,
+  20% {
+    transform: none;
+  }
+  34%,
+  60% {
+    transform: translate(-3px, -14px) rotate(-16deg);
+  }
+  74% {
+    transform: translateY(2px);
+  }
+  80%,
+  100% {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shape * {
+    animation: none !important;
+  }
+}

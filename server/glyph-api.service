@@ -1,0 +1,41 @@
+# glyph-api: annotates Glyph voice notes for attack.fm/glyph/api/*.
+#
+# Installed by scripts/deploy-server.mjs, which rewrites this file on every
+# deploy - edit it here, not on the box.
+#
+# Shaped like attackfm.service on the same box on purpose: a dedicated system
+# user, loopback only (Caddy is the one door), and the same hardening lines.
+# It needs even less than AttackFM does - no data directory, no music, nothing
+# written anywhere - so ProtectSystem=strict has no ReadWritePaths at all.
+
+[Unit]
+Description=Glyph API (voice note annotation via the local Ollama)
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+# GLYPH_API_TOKEN lives here, root-owned 0600. systemd reads it as root before
+# dropping to the service user, so the user itself cannot read the file.
+EnvironmentFile=/opt/glyph-api/glyph-api.env
+Environment=GLYPH_API_BIND=127.0.0.1:8796
+Environment=OLLAMA_URL=http://127.0.0.1:11434
+ExecStart=/opt/glyph-api/bin/glyph-api
+User=glyph
+Group=glyph
+Restart=on-failure
+RestartSec=2
+# An in-flight annotation is allowed to finish on stop: 45 s is the upstream
+# ceiling, and five more is the margin.
+TimeoutStopSec=50
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+# Measured idle on the box: 4.2 MB resident, 1.4 MB charged to the unit's
+# cgroup. The ceiling is for a bug, not for the workload.
+MemoryMax=96M
+
+[Install]
+WantedBy=multi-user.target

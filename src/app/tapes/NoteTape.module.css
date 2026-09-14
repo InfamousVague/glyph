@@ -1,0 +1,192 @@
+/*
+ * The tape at the top of a note: a small cassette on the left, the time,
+ * Play and the Note / Transcript switch beside it. Short, so the note keeps the
+ * screen.
+ */
+.tape {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 9.5rem) 1fr;
+  align-items: center;
+  column-gap: var(--glacier-space-4);
+  row-gap: var(--glacier-space-2);
+  padding: var(--glacier-space-3) calc(var(--app-safe-right, 0px) + var(--app-gutter)) var(--glacier-space-1) calc(var(--app-safe-left, 0px) + var(--app-gutter));
+}
+
+.cassette {
+  appearance: none;
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 160ms var(--glacier-ease-out, ease-out);
+}
+
+.cassette:active {
+  transform: scale(0.97);
+}
+
+.cassette:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 3px;
+  border-radius: var(--glacier-radius-md);
+}
+
+.side {
+  display: grid;
+  justify-items: start;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.of {
+  font-weight: var(--glacier-font-weight-regular, 400);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+}
+
+/* Talking into the note: a pill when it is the only thing to do, a word beside Play. */
+.speak {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-block-size: var(--glacier-space-10);
+  padding-inline: var(--glacier-space-4);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.speak:global(.app-word) {
+  padding-inline: var(--glacier-space-1);
+  color: var(--glacier-text);
+}
+
+/* The record dot, in the pill's colour. */
+.speakDot {
+  inline-size: 0.5em;
+  block-size: 0.5em;
+  border-radius: var(--glacier-radius-full);
+  background: currentColor;
+}
+
+.blank {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+/* A cassette never recorded on: the same tape, quieter, waiting. */
+.cassette[data-blank] {
+  opacity: 0.72;
+}
+
+.cassette[data-blank]:active {
+  opacity: 1;
+}
+
+.play {
+  min-block-size: var(--glacier-space-10);
+  padding-inline: var(--glacier-space-4);
+}
+
+.playMark,
+.pauseMark {
+  display: inline-block;
+  inline-size: 0.7em;
+  block-size: 0.7em;
+}
+
+/* A triangle and two bars, drawn with borders so they take the pill's colour. */
+.playMark {
+  inline-size: 0;
+  block-size: 0;
+  border-block: 0.4em solid transparent;
+  border-inline-start: 0.65em solid currentColor;
+}
+
+.pauseMark {
+  border-inline: 0.22em solid currentColor;
+  inline-size: 0.2em;
+}
+
+/* A phrase's shape while the recording's words are still being read. */
+.phraseSkeleton {
+  display: block;
+  block-size: 1em;
+  margin-block: var(--glacier-space-2);
+  border-radius: var(--glacier-radius-sm);
+  background: var(--app-paper-3, var(--glacier-surface-sunken));
+  animation: phraseBreathe 1.6s ease-in-out infinite;
+}
+
+@keyframes phraseBreathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phraseSkeleton {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+.problem {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+/* Transcript: the phrases as spoken, in the note's own size, scrolling in the note's place. */
+.transcript {
+  block-size: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--glacier-space-5) calc(var(--app-safe-right, 0px) + var(--app-gutter)) var(--glacier-space-24) calc(var(--app-safe-left, 0px) + var(--app-gutter));
+}
+
+.words {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--glacier-space-3);
+}
+
+.phrase {
+  appearance: none;
+  display: block;
+  inline-size: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: start;
+  font: inherit;
+  font-size: var(--app-body);
+  line-height: 1.4;
+  color: var(--app-ink-4, var(--glacier-text-subtle));
+  cursor: pointer;
+  transition: color 160ms var(--glacier-ease-out, ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.phrase[data-past] {
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.phrase[data-current] {
+  color: var(--app-ink, var(--glacier-text));
+}

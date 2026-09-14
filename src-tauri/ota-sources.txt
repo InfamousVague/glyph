@@ -1,0 +1,18 @@
+# Where Glyph looks for over-the-air updates, most preferred first.
+#
+# One base URL per line, https only, no trailing slash; ota.json, apk.json and
+# the bundle's assets/ sit directly under each. This one file plays two parts:
+#
+#  - COMPILED IN. An APK tries these when it knows no better (a fresh install),
+#    and always as a last resort.
+#  - PUBLISHED. deploy-ota.mjs stamps this list into the signed ota.json as
+#    `sources`. An installed app that verifies that manifest remembers the list
+#    and tries it FIRST from then on - which is how installs follow Glyph to a
+#    new domain without a new APK.
+#
+# Moving domains: add the new base URL above the old one here and deploy while
+# the old domain still serves (or redirects). Apps that check in learn the new
+# list. Keep the old domain up, or 301 it to the new one, for as long as
+# possible - an install that never checks in before it goes dark only has what
+# its APK compiled in. See README "Moving to another domain".
+https://attack.fm/glyph

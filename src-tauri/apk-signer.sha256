@@ -1,0 +1,6 @@
+# SHA-256 of the certificate every Glyph APK must be signed with. Android installs
+# an update only over an app signed by the same certificate, so an APK signed by
+# anything else can never reach an existing install - deploy-ota.mjs refuses to
+# publish one (apksigner verify --print-certs). The key itself lives outside the
+# repo: ~/.config/glyph/glyph-android.keystore (see README "Signing keys").
+3ca686b5ee56d923b9a645685e2011b66762ae99aa3a5b444b1ee754884c63aa

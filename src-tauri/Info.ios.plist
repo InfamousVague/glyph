@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged into the generated iOS Info.plist by the Tauri build. Keys that must
+  survive `tauri ios build` regenerating gen/apple/app_iOS/Info.plist live here.
+-->
+<plist version="1.0">
+<dict>
+	<!-- iOS 26+ TRAPS any app that never adopted the scene lifecycle
+	     (EXC_BREAKPOINT in __UIApplicationEvaluateRuntimeIssueForNoScene-
+	     LifecycleAdoption) - fatal on the iOS 27 runtime, a warning on 26.
+	     SupportsMultipleScenes=true is the load-bearing key: tao keys
+	     everything scene-shaped off multiple_scenes_enabled() and registers
+	     its own scene delegate from code; the UISceneConfigurations block is
+	     the documented fallback and harmless while the delegate method wins.
+	     Learned the hard way in AttackFM; see its Info.ios.plist. -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>TaoSceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+
+	<!-- The custom URL scheme: glyph://capture opens straight into a voice
+	     note. Lives here, not in the generated plist, for the reason above. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.mattssoftware.glyph</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>glyph</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- The microphone exists for one thing: a held capture button records a
+	     short clip and transcribes it ON THIS DEVICE into a note. Nothing
+	     records unless that button is held, and the audio never leaves the
+	     phone unless the cloud transcription option is turned on. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Glyph uses the microphone only while you hold the capture button, to turn what you say into a note.</string>
+
+	<!-- Export compliance: the app's only cryptography is standard HTTPS/TLS,
+	     which is exempt. Declaring it stops TestFlight asking every upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+</dict>
+</plist>

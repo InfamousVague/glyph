@@ -1,0 +1,15 @@
+{
+  "$schema": "./gen/schemas/mobile-schema.json",
+  "app": {
+    "windows": [
+      {
+        "title": "Glyph",
+        "label": "main",
+        "backgroundThrottling": "disabled"
+      }
+    ]
+  },
+  "bundle": {
+    "externalBin": []
+  }
+}

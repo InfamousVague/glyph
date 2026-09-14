@@ -1,0 +1,273 @@
+/*
+ * Every rule the markdown renderer needs, in Glacier tokens only.
+ *
+ * Two families live here and they must not be confused. The `.h1`-`.mark`
+ * classes are INLINE: they are handed to `HighlightStyle` and land on spans
+ * covering runs of text. The `.lineH1`-`.lineHr` classes are BLOCK: they are
+ * handed to `Decoration.line` and land on the line element. A property that
+ * belongs to the line (padding, border, background) cannot go on the inline
+ * class, because an inline span covers only part of the line and the result
+ * would be a box around a word.
+ *
+ * The marker rules are last on purpose; see the note in glyphHighlight.ts.
+ */
+
+.editor {
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+/* --- inline runs --------------------------------------------------------- */
+
+/*
+ * Headings are set BIG. Glyph is typography first (DESIGN section 14), so an
+ * H1 is a display line - the kit's 4xl, above its own heading map - and each
+ * step down is one kit step smaller. The line-heights tighten as the size
+ * grows, because a 1.5 leading that reads well at 18px leaves a 40px heading
+ * floating in its own line box; the tracking tightens for the same reason.
+ * `--app-h*` carry the reader's text-size setting (app.css).
+ */
+.h1 {
+  font-size: var(--app-h1);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  font-weight: var(--glacier-font-weight-bold);
+}
+
+.h2 {
+  font-size: var(--app-h2);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  font-weight: var(--glacier-font-weight-bold);
+}
+
+.h3 {
+  font-size: var(--app-h3);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.h4 {
+  font-size: var(--app-h4);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.h5 {
+  font-size: var(--app-h5);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+/*
+ * H6 is the quietest heading, and deliberately NOT uppercased the way the kit
+ * styles a label: in an editor the characters on screen have to be the
+ * characters in the file, or typing lowercase and seeing capitals reads as the
+ * app rewriting what was typed.
+ */
+.h6 {
+  font-size: var(--app-h6);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-subtle);
+}
+
+.strong {
+  font-weight: var(--glacier-font-weight-bold);
+}
+
+/* No italic token exists; the kit writes the literal too. */
+.em {
+  font-style: italic;
+}
+
+.strike {
+  text-decoration: line-through;
+}
+
+/*
+ * Inline code is colour and face only - no background, no padding, no radius.
+ * A box on an inline run inside an editable line shifts the glyphs inside it
+ * relative to the text around them, and the caret has to land between two of
+ * those glyphs. Colour changes nothing about the metrics.
+ */
+.code {
+  font-family: var(--glacier-font-mono);
+  color: var(--glacier-accent-text);
+}
+
+.link {
+  color: var(--glacier-accent-text);
+  font-weight: var(--glacier-font-weight-medium);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/*
+ * The URL half of a link is addressing, not prose, so it is quiet and NOT
+ * underlined - the underline belongs to the words a reader would tap. Both
+ * halves are inside the same `Link` node, so this has to actively switch the
+ * decoration back off rather than simply not setting it.
+ */
+.url {
+  color: var(--glacier-text-muted);
+  text-decoration: none;
+}
+
+.quote {
+  color: var(--glacier-text-muted);
+}
+
+.list {
+  color: var(--glacier-text);
+}
+
+.hr {
+  color: var(--glacier-text-subtle);
+}
+
+.codeInfo {
+  color: var(--glacier-accent-text);
+}
+
+.taskMarker {
+  color: var(--glacier-accent-text);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+/*
+ * THE POINT OF THE WHOLE APP: every `#`, `**`, `>`, backtick and bracket, still
+ * on screen, just quieter than the words.
+ *
+ * Size and weight are inherited from the run rather than set, so a `**` inside
+ * a bold word is the same size as the word - a marker that changed the line's
+ * metrics as it was typed would make the text jump under the thumb, which is
+ * exactly the moment a person is looking at it.
+ *
+ * Never `opacity`: it would let the page show through the glyph rather than
+ * dimming it. Never `--glacier-text-disabled`: it fails AA contrast, and these
+ * characters are content.
+ *
+ * Keep this rule LAST in the file. `.mark` and `.strong` have equal
+ * specificity, so source order decides, and the marker has to win.
+ */
+.mark {
+  color: var(--glacier-text-subtle);
+  font-weight: var(--glacier-font-weight-regular);
+  /*
+   * Markers carry their run's tags as well as their own, so without this the
+   * `~~` of a strikethrough is itself struck through and a link's brackets are
+   * underlined - the syntax decorated as though it were the content. Cancelling
+   * here works only because the highlighter emits markers as SIBLING spans of
+   * the text rather than wrapping it; a parent's text-decoration could not be
+   * switched off by a child.
+   */
+  text-decoration: none;
+}
+
+/* --- lines --------------------------------------------------------------- */
+
+/*
+ * SPECIFICITY, and why these selectors look heavier than they need to.
+ *
+ * CodeMirror's theme is written through style-mod, which scopes every rule
+ * under a generated class - so a `.cm-line` rule declared there is really
+ * `.ͼ1 .cm-line`, two classes, and it beats a bare `.lineItem` no matter what
+ * order the stylesheets land in. The first version of this file lost that
+ * fight silently: the list dash and the quote bar rendered flat against the
+ * left edge of the screen with no error anywhere.
+ *
+ * So the base line padding lives here (0,2,0) rather than in the theme, and
+ * every per-block rule qualifies itself with `:global(.cm-line)` on the same
+ * element (0,3,0) to sit above it. Both are local decisions in one file, which
+ * is the point: the two halves can be read together.
+ */
+.editor :global(.cm-line) {
+  padding-inline: var(--app-gutter);
+}
+
+/*
+ * Space above a heading, never below: the gap belongs to the heading's
+ * relationship with what came before it, and a trailing margin would push the
+ * text the heading introduces away from it. `:first-child` drops the space at
+ * the top of a note, where there is nothing to separate from.
+ */
+.editor :global(.cm-line).lineH1,
+.editor :global(.cm-line).lineH2 {
+  padding-block-start: var(--glacier-space-8);
+}
+
+.editor :global(.cm-line).lineH3,
+.editor :global(.cm-line).lineH4 {
+  padding-block-start: var(--glacier-space-6);
+}
+
+.editor :global(.cm-line).lineH1:first-child,
+.editor :global(.cm-line).lineH2:first-child,
+.editor :global(.cm-line).lineH3:first-child,
+.editor :global(.cm-line).lineH4:first-child {
+  padding-block-start: 0;
+}
+
+/*
+ * The quote bar. `--glacier-shape-accent-edge` is the kit's 3px edge token.
+ * The bar sits where the text's own inline padding already was, and the text
+ * steps in past it, so a quote lines up with the paragraph above rather than
+ * shifting sideways when the `>` is typed.
+ */
+.editor :global(.cm-line).lineQuote {
+  border-inline-start: var(--glacier-shape-accent-edge) solid var(--glacier-border-strong);
+  padding-inline-start: calc(var(--app-gutter) - var(--glacier-shape-accent-edge));
+}
+
+/*
+ * List hanging indent: wrapped lines start under the first letter of the
+ * words, not back under the dash. A negative `text-indent` against matching
+ * padding, where `--hang` is the marker's measured width (glyphLines.ts) - so
+ * `- `, `10. ` and `- [ ] ` each hang exactly as far as they reach. A line in
+ * an item with no marker of its own has no hang.
+ */
+.editor :global(.cm-line).lineItem {
+  padding-inline-start: calc(var(--app-gutter) + var(--hang, 0px));
+  text-indent: calc(-1 * var(--hang, 0px));
+}
+
+.editor :global(.cm-line).lineCode {
+  font-family: var(--glacier-font-mono);
+  font-size: calc(var(--app-body) * 0.82);
+  background: var(--glacier-surface-sunken);
+  tab-size: 2;
+}
+
+.editor :global(.cm-line).lineHr {
+  color: var(--glacier-text-subtle);
+}
+
+
+/*
+ * A picture under its line. A block widget sits outside `.cm-line`, so it
+ * takes the lines' side padding itself: the picture lines up with the text
+ * and headings rather than running to the screen's edges. Its own corners,
+ * the markdown above it kept and dimmed. A picture still loading from browser
+ * storage keeps its place at a small height rather than jumping in.
+ */
+.figure {
+  margin: var(--glacier-space-2) 0 var(--glacier-space-3);
+  padding: 0 var(--app-gutter);
+}
+
+.figure img {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 60vh;
+  border-radius: var(--glacier-radius-md, 8px);
+  background: var(--app-paper-2, var(--glacier-surface));
+}
+
+.figure[data-waiting]::before {
+  content: '';
+  display: block;
+  min-block-size: 3rem;
+  border-radius: var(--glacier-radius-md, 8px);
+  background: var(--app-paper-2, var(--glacier-surface));
+}

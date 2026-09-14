@@ -1,0 +1,11 @@
+# Ed25519 public keys an installed Glyph accepts over-the-air updates from.
+#
+# Compiled into the APK (src-tauri/src/ota.rs, include_str!). One raw 32-byte
+# key per line, base64; anything after # is a comment. A manifest is accepted
+# if ANY key here signed it, which is how a key is rotated: ship an APK that
+# lists the old key and the new one, move signing to the new key, and drop the
+# old line in a later APK. Removing a key from here does not revoke it for
+# APKs already installed.
+#
+# The private half lives outside the repo; see scripts/ota-sign.mjs.
++lGP9TU8jcvUCrDjPwD5W33HsJn/Bhxm3gH4TK5CvkM=  # added 2026-09-12

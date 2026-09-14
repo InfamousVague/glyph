@@ -1,0 +1,140 @@
+[package]
+name = "glyph"
+version = "1.0.7"
+description = "Glyph: a mobile-first markdown notes app built on Glacier UI."
+authors = ["Matt"]
+edition = "2021"
+
+# The library the app binary links against; also what the mobile targets build.
+[lib]
+name = "glyph_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+# The Taptic Engine. The web layer's HapticsProvider fires through this on a
+# phone instead of the web fallbacks, which never reach WKWebView.
+tauri-plugin-haptics = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The notes store. `bundled` compiles SQLite into this binary instead of
+# linking whatever the platform ships: Android's own libsqlite3 is a different
+# version on every OEM image, and the store is written by two processes, so
+# "the WAL implementation on this phone" is not a variable worth having. It
+# also means no system library to find when the capture service loads
+# libapp_lib.so with no Tauri around it. See src/store.rs.
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+# Note ids. v4 only - the id has to be mintable by a capture process that has
+# never spoken to the app and cannot ask it what the last id was, so the id
+# carries no order, no time and no host, and nothing may ever read meaning out
+# of one.
+uuid = { version = "1.26.1", features = ["v4"] }
+# Bytes the page sends inside JSON, where the Android WebView cannot hand
+# request bodies to native code: capture_push's audio, and a pasted picture
+# (images::save_image_data, which iOS has too, so this is not in the section
+# below). 0.22 is already in the tree through tauri, so this adds no new crate.
+base64 = "0.22"
+
+# On-device transcription and the download that feeds it. Everywhere EXCEPT
+# iOS: whisper.cpp is the Android and desktop engine, and iOS capture is going
+# to Apple's SpeechTranscriber (DESIGN section 6.3), so building ggml for a
+# target whose commands only answer "not supported" would be a C++ compile
+# and ~60 MB of model download bought for nothing. capture_commands.rs keeps
+# the command NAMES on iOS so the page is written against one surface.
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+# whisper.cpp, statically linked. 0.16 is the newest release; its build script
+# is what .cargo/config.toml steers for aarch64-linux-android.
+whisper-rs = "0.16"
+# Named only for the raw types of whisper.cpp's progress callback, which
+# whisper-rs takes but does not re-export (whisper/engine.rs, `on_progress`).
+# The same crate whisper-rs already builds, so this compiles nothing new.
+whisper-rs-sys = "0.15"
+# llama.cpp, for formatting notes on the phone (src/llm/). Pinned exactly,
+# because vendor/whisper-rs-sys builds whisper.cpp against THIS crate's ggml:
+# two ggml copies in one library link under the same names and the linker
+# silently mixes them (measured 2026-09-13: Qwen3.5 died with SIGBUS on its
+# first decode). Moving this version means rebuilding and re-running both
+# engines' model tests. No default features: OpenMP stays off to match the
+# ggml whisper expects, and `common` (a large C++ library) is not needed.
+# `android-shared-stdcxx` because the NDK's default is c++_static and whisper
+# links c++_shared; two C++ runtimes in one .so is its own class of crash.
+llama-cpp-2 = { version = "=0.1.156", default-features = false, features = ["android-shared-stdcxx"] }
+# llama.cpp hands tokens back as bytes that can split a UTF-8 character; the
+# decoder carries the half between tokens. Already in the tree through reqwest.
+encoding_rs = "0.8"
+# The model download. 0.12 with rustls-tls on purpose, and NOT the 0.13 that
+# tauri already carries: native-tls resolves to OpenSSL on Android and will not
+# cross-compile (AttackFM learned this), and 0.13's rustls feature brings
+# rustls-platform-verifier, which panics on Android unless the JVM has been
+# handed to it over JNI first - which a capture process with no Tauri in it
+# never does. 0.12's rustls-tls is ring plus the bundled webpki roots: pure
+# Rust and C that the NDK compiles, and no platform hook to forget. No
+# `stream` feature: `Response::chunk()` is the whole streaming surface the
+# download needs, and it is in the base crate.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+# SHA-256 of the model, computed while the bytes arrive. Already in the tree
+# under tauri, so this compiles nothing new.
+sha2 = "0.10"
+# statvfs, for the free space beside the models (llm/device.rs). 0.2 is
+# already in the tree under a dozen crates, so this compiles nothing new.
+libc = "0.2"
+# Ed25519 verification of over-the-air manifests (src/ota.rs). ring is already
+# compiled into this target as rustls's crypto, so naming it adds no new crate
+# and no second implementation to audit.
+ring = "0.17"
+
+# The JNI entry point the update-alert worker calls (src/update_alerts.rs).
+# 0.21 is the version tauri already carries for Android, so this compiles
+# nothing new.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+
+# Desktop-only crates. A phone has no traffic lights to position, and decorum
+# does not build for iOS or Android - so it is named per-target rather than
+# left in the shared list where a mobile build would trip over it.
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+tauri-plugin-decorum = "1"
+
+# The Objective-C runtime, for the one thing the window API has no word for on
+# iOS: making the window KEY once the scene attaches it, without which the
+# keyboard never rises. See ensure_key_window in lib.rs.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+
+[features]
+# Kept in sync with tauri.conf.json > app > security > csp.
+custom-protocol = ["tauri/custom-protocol"]
+
+# tao 0.35.3 (the newest tao any released tauri-runtime-wry accepts: it pins
+# ^0.35) returns a UISceneConfiguration from
+# application:configurationForConnectingSceneSession: whose Retained drops
+# before UIKit reads it. Debug builds survive on autorelease-pool luck; release
+# builds hand UIKit a freed object and segfault at launch in
+# -[UIApplication _connectUISceneFromFBSScene:transitionContext:] on iOS 26/27
+# devices. vendor/tao is a pristine 0.35.3 plus the one-line 0.36.0 backport
+# (autorelease_ptr) in src/platform_impl/ios/view.rs, carried over from
+# AttackFM where it was found. Drop this patch and the vendor/ copy once
+# tauri-runtime-wry depends on tao >= 0.36.
+[patch.crates-io]
+tao = { path = "vendor/tao" }
+# whisper-rs-sys 0.15.0 plus a build.rs patch that compiles whisper.cpp against
+# llama-cpp-sys-2's ggml (WHISPER_USE_SYSTEM_GGML) instead of its own, so the
+# library has ONE ggml. whisper-rs-sys bundles ggml 0.9.5 and llama-cpp-sys-2
+# ggml 0.19.0 under the same static library names; see `shared_ggml` in
+# vendor/whisper-rs-sys/build.rs. whisper.cpp compiled against 0.19 unchanged
+# and its fixture tests pass. Drop this once whisper-rs-sys can take a system
+# ggml itself.
+whisper-rs-sys = { path = "vendor/whisper-rs-sys" }
+
+# Debug symbols are most of the weight of the Android debug .so, and that APK
+# is now sideloaded OVER THE AIR rather than pushed down a cable - so they are
+# a download the phone pays for on every test build. "debuginfo" drops DWARF
+# but keeps the symbol table, so a native crash still names functions; only
+# line numbers go, and those are recovered by rebuilding locally when a crash
+# is worth chasing.
+[profile.dev]
+strip = "debuginfo"
