@@ -99,10 +99,21 @@
   color: var(--glacier-text-muted);
 }
 
+/* A row's icon, the same as the Notion drawer's (MarkMenu.module.css): an 18 px drawing in a 30 px ring (Matt: "icons in the more need to be the same size to match the icons in the notion drawer"). */
 .icon {
   flex: none;
-  font-size: 1.25rem;
-  display: inline-flex;
+  display: grid;
+  place-items: center;
+  inline-size: 1.875rem;
+  block-size: 1.875rem;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: 18px;
+}
+
+.icon svg {
+  inline-size: 18px;
+  block-size: 18px;
 }
 
 .label {

@@ -41,6 +41,26 @@ describe('the voice tutorial', () => {
     expect(passed).toEqual(['talk']);
   });
 
+  it('passes on what the phone’s speech model really wrote for each lesson', () => {
+    // base.en on synthesised voices: "end" heard as "and", "Glyph" as "Glit", "Clith" or "Life".
+    setSpokenFormats([{ word: 'highlight', delimiter: '==' }]);
+    const heard: Record<string, string[]> = {
+      bold: ['The deadline is Bold Friday at noon and bold.'],
+      marks: ['The gate code is highlight 4412 and highlight.'],
+      command: ['Glit. Add eggs to my practice list.'],
+      jump: ['Life. Switch to my practice list.'],
+      table: ['Clith. Add a table to my practice list.'],
+      title: ['Title. We can trip.'],
+      bullets: ['Bullet point. Boat milk.', 'Next point. Eggs.'],
+    };
+    for (const lesson of practices()) {
+      const say = heard[lesson.id];
+      if (!say) continue;
+      const { markdown, heard: words } = said({ say });
+      expect(lesson.passes(markdown, words), `${lesson.id}: ${JSON.stringify(markdown)}`).toBe(true);
+    }
+  });
+
   it('does not pass the pause lesson on a spoken new paragraph', () => {
     const pause = practices().find((lesson) => lesson.id === 'pause')!;
     const { markdown, heard } = said({ say: ['The kitchen needs work.', 'New paragraph.', 'The garden is fine.'] });

@@ -162,7 +162,11 @@
   border-radius: var(--glacier-radius-full);
   background: none;
   color: var(--glacier-text);
-  font-size: 1.15rem;
+  /*
+   * 22 px icons. Tried at 28 px to look the size of the Notion drawer's and they were too big (Matt: "go back to the
+   * previous size and make the icons on the notion drawer smaller to match"), so the drawer came down instead.
+   */
+  font-size: 22px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -248,6 +252,19 @@
  * transcript the page holds still and the view scrolls inside itself.
  */
 .page {
+  /*
+   * The note's type, times the zoom two fingers pinch (editor/pinchZoom.ts), on top of the Text size setting. Redefined
+   * here, not at the root, because a custom property is worked out where it is defined: `--note-zoom` set on this page
+   * would not reach sizes already computed above it.
+   */
+  --note-zoom: 1;
+  --app-body: calc(var(--glacier-font-size-lg) * var(--app-text-scale) * var(--note-zoom));
+  --app-h1: calc(var(--glacier-font-size-4xl) * var(--app-text-scale) * var(--note-zoom));
+  --app-h2: calc(var(--glacier-font-size-3xl) * var(--app-text-scale) * var(--note-zoom));
+  --app-h3: calc(var(--glacier-font-size-2xl) * var(--app-text-scale) * var(--note-zoom));
+  --app-h4: calc(var(--glacier-font-size-xl) * var(--app-text-scale) * var(--note-zoom));
+  --app-h5: calc(var(--glacier-font-size-lg) * var(--app-text-scale) * var(--note-zoom));
+  --app-h6: calc(var(--glacier-font-size-md) * var(--app-text-scale) * var(--note-zoom));
   flex: 1;
   min-block-size: 0;
   display: flex;

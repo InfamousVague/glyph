@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findKeyword, planCommand, reply } from './command.ts';
+import { actionable, findKeyword, findSoundAlike, planCommand, reply } from './command.ts';
 
 const notes = [
   { id: 'b', title: 'AttackFM Bugbash' },
@@ -34,6 +34,25 @@ describe('hearing the keyword', () => {
     });
     // Later in the phrase, on its own, it is the keyword.
     expect(findKeyword('call the dentist. Glyph, add that to the Glyph note')?.after).toBe('add that to the Glyph note');
+  });
+
+  it('takes the other spellings base.en wrote for it across voices', () => {
+    for (const heard of ['Gliv. Add eggs to work.', 'Glive, new note.', 'Glit. Add eggs to work.', 'Clith. Add a table to work.', 'Hey Bliff. Put call Sam on work.', 'Glyth, new note.']) {
+      expect(findKeyword(heard), heard).not.toBeNull();
+    }
+  });
+
+  it('takes a sound-alike word at the start only when a command follows', () => {
+    const reads = (words: string) => actionable(plan(words));
+    expect(findSoundAlike('Life. Add eggs to work.', reads)).toEqual({ before: '', after: 'Add eggs to work.' });
+    expect(findSoundAlike('Live, new notes.', reads)?.after).toBe('new notes.');
+    expect(findSoundAlike('Head life. Put call Sam on the work list.', reads)?.after).toBe('Put call Sam on the work list.');
+    expect(findSoundAlike('Add life, add eggs to work.', reads)?.after).toBe('add eggs to work.');
+    // Words, not a command.
+    expect(findSoundAlike('Life is short.', reads)).toBeNull();
+    expect(findSoundAlike('Live. Laugh. Love.', reads)).toBeNull();
+    expect(findSoundAlike('We climbed the cliff. Add it to the story.', reads)).toBeNull();
+    expect(findSoundAlike('Cliff, add eggs to the moon list.', reads)).toBeNull();
   });
 
   it('is not fooled by words that contain it or sound near it', () => {

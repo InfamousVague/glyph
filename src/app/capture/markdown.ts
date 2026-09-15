@@ -182,16 +182,20 @@ function inlineMarkup(formats: readonly SpokenFormat[]): RegExp {
  * put after "end bold" is kept, so the sentence after it still starts a new
  * sentence.
  *
- * "and bold" also closes, but only when Whisper put a mark straight after the
- * opening word ("Italics, maybe, and italics."). The two words sound almost
- * the same, and on synthesised speech base.en wrote "and" for "end" in most
- * voices even with the cue vocabulary as its prompt. The mark shows the
- * speaker paused after saying the cue; "bold and bold" in running prose has no
- * pause there and is left alone.
+ * "and bold" also closes, when Whisper put a mark straight after the opening
+ * word ("Italics, maybe, and italics.") or when it ends the sentence ("The
+ * deadline is bold Friday at noon and bold."). The two words sound almost the
+ * same, and on synthesised speech base.en wrote "and" for "end" in most voices
+ * even with the cue vocabulary as its prompt; the voice tutorial could not be
+ * passed on "end bold" said plainly. "It was bold thinking and bold action"
+ * has neither a pause after the first "bold" nor the sentence ending at the
+ * second, and is left alone.
  */
 export function spokenInlineMarkup(paragraph: string, formats: readonly SpokenFormat[] = spokenFormats): string {
-  return paragraph.replace(inlineMarkup(formats), (match, kind: string, paused: string, inner: string, closer: string, after: string) => {
-    if (closer.toLowerCase() === 'and' && !paused) return match;
+  return paragraph.replace(inlineMarkup(formats), (match, kind: string, paused: string, inner: string, closer: string, after: string, offset: number, whole: string) => {
+    // "and bold" closes after a pause at the opening cue, or when it ends the sentence: "… at noon and bold." Mid-sentence, "bold thinking and bold action" is prose.
+    const endsSentence = Boolean(after) || !whole.slice(offset + match.length).trim();
+    if (closer.toLowerCase() === 'and' && !paused && !endsSentence) return match;
     const words = inner.trim().replace(/[.,;:!]+$/, '');
     const said = kind.toLowerCase().replace(/\s+/g, ' ');
     const format = formats.find((f) => f.word.trim().toLowerCase().replace(/\s+/g, ' ') === said);

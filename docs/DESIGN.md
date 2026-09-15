@@ -2103,3 +2103,71 @@ properties, then Open in Notion, Mark done or Reopen, Use these words as its tit
 the dimmed note or the back gesture closes it, and an action that changes the note closes it. The open line is
 still kept in the editor's state (`editor/linkedRows.ts`); a view plugin mounts the drawer over the page while it
 is open and takes it down when it closes or the line loses its link.
+
+## Two passes on speech: rules for marks, a model for commands (2026-09-15)
+
+Matt: "it feels like the model for doing the agentic tasks should be different than the language parsing model, we
+might need two different AI passes, I can't even pass the tutorial". No model read speech before this: Whisper
+(base.en) wrote the words and hand-written rules found the cues and commands in them. Twelve synthesised voices
+were run through base.en with the tutorial's phrases, and the transcripts through the lesson checks. The words were
+mostly right; the rules missed three things.
+
+- **"end bold" comes back "and bold".** It closed only after a pause at the opening cue. It now also closes when it
+  ends the sentence (`capture/markdown.ts`); "bold thinking and bold action" is still prose. Plugin marks too.
+- **"Glyph" comes back as anything.** "Gliff", "Gliv", "Glit", "Clith", and in half the voices a real word: "Life.",
+  "Live,", "Head life,". The spellings are keywords now, and a sound-alike word counts at the very start of a phrase
+  when what follows reads as a command (`findSoundAlike`), so "Life is short" stays words. "New notes" and "new
+  node" start a note. "Glyph." leads the Whisper cue vocabulary (native: needs an APK); at the end of the line it
+  read as its own sentence and broke carrying a sentence across a cut.
+- **The command pass** (`capture/understand.ts`). When the rules can't read what was said after the keyword, the
+  phone's language model reads it: after a 1.2 s pause, or at once when the rules named a note that isn't there.
+  It answers one JSON object (add, switch, new, table or none); the note must be one of the person's, matched by
+  title, and the recorder still asks before anything changes. The chip says "working it out" meanwhile. It runs only
+  in a pause, with no words coming in, and is cancelled the moment speech resumes, then asked again at the next pause:
+  it shares the phone's cores with Whisper, and the recording comes first. For the same reason it is not loaded ahead
+  of time, so the first command of a launch waits for the load. Measured on the Mac on 24 commands as
+  speech recognition writes them (`llm::tests::understands_spoken_commands`): Qwen3.5 4B 23 right at about 1.3 s,
+  2B 20 at 0.5 s, 0.8B 6. Every miss of 4B and 2B was "none", which leaves the words in the note. 4B runs it when
+  it is on the phone, else 2B. Marks are never sent to a model: they stay instant and the same every time.
+- **The tutorial** uses both: its command lessons take the new spellings, and when the rules can't read the command
+  it asks the same model against the practice note.
+
+## Model downloads pick up where they were cut (2026-09-15)
+
+Matt's Fold could not get any language model: "could not download Qwen3.5-4B-Q4_K_M.gguf", with attack.fm answering
+404 and Hugging Face "peer closed connection without sending TLS close_notify". Two causes.
+
+- **The attack.fm mirror has never had the language models.** Only the Whisper weights were uploaded to
+  `/glyph/models/`, so every language model came from Hugging Face.
+- **A cut connection threw the download away.** `whisper::model::download` read one response to the end or failed,
+  and a failure deleted the `.part`, so 2.7 GB had to arrive over one unbroken connection. It now picks up where it
+  stopped: the next request asks for the rest with a `Range`, the bytes written and hashed so far stay, and the hash
+  carries on (Hugging Face's CDN answers a range with a 206 and the right `Content-Range`). A server that sends the
+  whole file again is started over from the first byte, so the hash is always over the file in order. Eight tries
+  from the last time bytes arrived, a little longer apart each time up to ten seconds; a mirror that never answers
+  gets two; an HTTP error such as a 404 is never retried. `resume_tests` cut a local server's first answer a third
+  of the way in, with and without range support. Native: it reaches phones with the next APK.
+
+## The Glyph Tasks board, 2026-09-15 evening
+
+Matt's list, worked through with each card moved on the board.
+
+- **Wisp fade-in a third quicker.** Arc, jitter and stagger at 0.75 in `editor/wispArrivals.ts`; `art/WispText.tsx`
+  the same, its letters' cadence times 4/3.
+- **Backspaced letters fade where they were.** A ghost is a zero-width place at where the text went; it was drawn
+  right-aligned to it, a letter left of the letter, and the next backspace carried it back another. It is left-aligned
+  now and pinned (`pinGhosts`): its first position against the content is kept, and any later move is undone with a
+  `translate`, measured after the DOM update and before paint. The delete fade is 140 ms, 85 ms in a run.
+- **Header and More icons at the drawer's size.** The header's mic, robot and More draw at 22 px; the More sheet's
+  rows (and plugin rows through `SheetIcon`) are a 22 px drawing in a 2.2 rem ring, as in `MarkMenu`.
+- **The last letter of a linked item.** Only a pill opens the Notion drawer; the rest of the row under the item is
+  the note's, and a tap there places the caret (`RowWidget.ignoreEvent`).
+- **Done, both ways** (`editor/doneSync.ts`). A box ticked or unticked in the note runs the task's Mark done or
+  Reopen; a task finished or reopened ticks or unticks the box. Each side answers a change of the other once, and a
+  task that can't be written leaves the box as the person set it.
+- **Notes reopen where they were left** (`editor/notePlace.ts`). The line at the top of the page and the offset into
+  it, per note, the last 200. Restored once the note's words have arrived (they come after the editor), and written
+  from the last scroll, since the page is gone by the time the note closes.
+- **Pinch to zoom** (`editor/pinchZoom.ts`). Two fingers set `--note-zoom` on the note's page, which redefines the
+  body and heading sizes there (a custom property is computed where it is defined, so the root's could not follow),
+  from 0.7 to 2, kept for every note. The position under the fingers is held with `coordsAtPos` each frame.

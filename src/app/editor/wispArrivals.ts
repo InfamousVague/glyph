@@ -44,8 +44,8 @@ const typing = Facet.define<boolean, boolean>({ combine: (values) => values.some
  * A letter deleted by hand leaves quickly, and quicker still in a run of backspaces (Matt: "if the item is being
  * backspaced make the animation quicker"): the smoke is a trace of what went, not something to wait for.
  */
-const DELETE_MS = 180;
-const DELETE_RUN_MS = 110;
+const DELETE_MS = 140;
+const DELETE_RUN_MS = 85;
 /** Backspaces closer together than this are one run. */
 const DELETE_RUN_GAP_MS = 350;
 let lastDeleteAt = 0;
@@ -78,12 +78,13 @@ export interface Moving {
  * quickly (Matt: "the text needs to fade in way faster"), but each keeps its full arc: shortening that made the smoke
  * end before it read ("it seems shortening the animation was wrong").
  */
-const STAGGER_MS = 14;
+const STAGGER_MS = 10.5;
 /** However long a word, the next one never waits longer than this behind it. */
-const WORD_MAX_MS = 110;
-const STAGGER_CAP_MS = 2400;
-const IN_MS = 620;
-const IN_JITTER_MS = 180;
+const WORD_MAX_MS = 83;
+const STAGGER_CAP_MS = 1800;
+/** A third quicker than it was (Matt: "the fade in wisp effect needs to be boosted by 33% speed"): arc, jitter and stagger all at 0.75. */
+const IN_MS = 465;
+const IN_JITTER_MS = 135;
 const OUT_MS = 380;
 const POOL_MAX = 32;
 const BEND = 34;
@@ -99,9 +100,9 @@ const settle = StateEffect.define<readonly number[]>();
 export const revealWisp = StateEffect.define<{ from: number; to: number }>();
 
 /** The opening reveal: each piece this far behind the one before, the whole never longer than the cap; and its arc. */
-const REVEAL_STEP_MS = 18;
-const REVEAL_CAP_MS = 520;
-const REVEAL_MS = 460;
+const REVEAL_STEP_MS = 13.5;
+const REVEAL_CAP_MS = 390;
+const REVEAL_MS = 345;
 /**
  * A piece of the reveal is a few words, never more than this many characters: short enough to sit on one row. A
  * whole paragraph as one piece was one filter the width of the page and several rows deep, redrawn every frame (Matt:
@@ -240,12 +241,13 @@ class Ghost extends WidgetType {
   constructor(
     readonly text: string,
     readonly filterId: string,
+    readonly id: number,
   ) {
     super();
   }
 
   eq(other: Ghost): boolean {
-    return other.text === this.text && other.filterId === this.filterId;
+    return other.text === this.text && other.filterId === this.filterId && other.id === this.id;
   }
 
   /**
@@ -253,10 +255,16 @@ class Ghost extends WidgetType {
    * its old place for the whole fade and then let it snap back, and a held backspace in the middle of a line shuffled
    * the rest of the line to and fro (Matt: "backspacing text in the middle of other text is quite glitchy"). Now the
    * line closes up at once and the letters smoke away where they were, over it.
+   *
+   * Where they were, and they stay there (`pinGhosts`): the place is where the text went, so the next backspace,
+   * taking the letter before it, carried the last one's smoke back a letter, and it was drawn right-aligned to the
+   * place, a letter left of the letter it was (Matt: "backspacing on the ghostly text is a bit glitchy and it shifts
+   * the text being deleted back instead of fading away in place").
    */
   toDOM(): HTMLElement {
     const place = document.createElement('span');
     place.className = 'cm-wispGonePlace';
+    place.dataset.wispGhost = String(this.id);
     place.setAttribute('aria-hidden', 'true');
     const span = document.createElement('span');
     span.className = 'cm-wispGone';
@@ -341,7 +349,7 @@ const wispPlugin = ViewPlugin.fromClass(
           // Not yet on screen until its moment: fully bent, blurred and clear.
           this.shape(slot, m.gone ? 1 : 0, Boolean(m.gone));
         }
-        if (m.gone) ranges.push(Decoration.widget({ widget: new Ghost(m.gone, slot.id), side: -1 }).range(m.from));
+        if (m.gone) ranges.push(Decoration.widget({ widget: new Ghost(m.gone, slot.id, m.id), side: -1 }).range(m.from));
         else if (m.to > m.from) ranges.push(Decoration.mark({ class: 'cm-wispCh', attributes: { style: `filter:url(#${slot.id})` } }).range(m.from, m.to));
       }
       for (const [id, slot] of this.slots) {
@@ -351,6 +359,8 @@ const wispPlugin = ViewPlugin.fromClass(
           this.starts.delete(id);
         }
       }
+      for (const id of this.pins.keys()) if (!alive.has(id)) this.pins.delete(id);
+      if (current.some((m) => m.gone)) this.view.requestMeasure({ key: this.pinKey, read: () => this.readGhosts(), write: (read) => this.pinGhosts(read) });
       ranges.sort((a, b) => a.from - b.from || (a.value.startSide ?? 0) - (b.value.startSide ?? 0));
       this.decorations = Decoration.set(ranges, true);
       if (this.evicted.length) {
@@ -360,6 +370,32 @@ const wispPlugin = ViewPlugin.fromClass(
       if (current.length) {
         cancelAnimationFrame(this.frame);
         this.frame = requestAnimationFrame(this.tick);
+      }
+    }
+
+    /** Where each ghost first drew, against the top left of the content: it is held there until it has gone. */
+    private readonly pins = new Map<number, { x: number; y: number }>();
+    private readonly pinKey = {};
+
+    /** Every ghost's place as it lays out now, after this update's DOM, before it is painted. */
+    private readGhosts() {
+      const content = this.view.contentDOM.getBoundingClientRect();
+      return [...this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-wispGonePlace[data-wisp-ghost]')].map((place) => {
+        const rect = place.getBoundingClientRect();
+        return { place, id: Number(place.dataset.wispGhost), x: rect.left - content.left, y: rect.top - content.top };
+      });
+    }
+
+    /** A new ghost is pinned where it is; one whose place has moved since (the text before it deleted too) is drawn back at its pin. */
+    private pinGhosts(ghosts: ReturnType<typeof this.readGhosts>) {
+      for (const { place, id, x, y } of ghosts) {
+        let pin = this.pins.get(id);
+        if (!pin) {
+          pin = { x, y };
+          this.pins.set(id, pin);
+        }
+        const letters = place.firstElementChild as HTMLElement | null;
+        if (letters) letters.style.translate = pin.x === x && pin.y === y ? '' : `${(pin.x - x).toFixed(1)}px ${(pin.y - y).toFixed(1)}px`;
       }
     }
 
@@ -514,8 +550,8 @@ const wispTheme = EditorView.baseTheme({
   '.cm-wispWait': { opacity: '0' },
   // An empty inline box, sitting on the line's own text box: its ghost lines up with the letters beside it.
   '.cm-wispGonePlace': { position: 'relative', display: 'inline' },
-  // Right-aligned to where it went, so the letters before the caret leave from under it.
-  '.cm-wispGone': { position: 'absolute', right: '0', top: '0', whiteSpace: 'pre', pointerEvents: 'none', userSelect: 'none' },
+  // Left-aligned at where it went, which is where its first letter was; held there as the text around it moves (`pinGhosts`).
+  '.cm-wispGone': { position: 'absolute', left: '0', top: '0', whiteSpace: 'pre', pointerEvents: 'none', userSelect: 'none' },
 });
 
 /** Text arriving from and leaving into smoke: transactions carrying the `wisp` annotation, and with `typing`, the person's own. */

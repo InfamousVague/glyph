@@ -65,7 +65,8 @@ const FILLER_AFTER = /\s+(?:note|notes|list|page)$/i;
 const AT_END = new RegExp(String.raw`(?:^|[.,;!?]\s+|\s+and\s+|\s+)${OPENER}\s+(.+?)[.!?]*\s*$`, 'i');
 /** The command at the start, its name ending at the first stop or comma. */
 const AT_START = new RegExp(String.raw`^\s*${OPENER}\s+([^.,;!?]+)[.,;!?]\s*(.+)$`, 'i');
-const NEW_NOTE = /^\s*(?:new|start\s+a\s+new|another)\s+note[.!]?\s*$/i;
+/** "New note", and what base.en writes for it said quickly: "new notes", "new node". */
+const NEW_NOTE = /^\s*(?:new|start\s+a\s+new|another)\s+(?:notes?|node)[.!]?\s*$/i;
 
 /*
  * "New item for AttackFM", "add a task to the backlog", "new to-dos for work:

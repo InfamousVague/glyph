@@ -446,6 +446,11 @@
 }
 
 /* Three dots breathing while the name is still being said. */
+/* The command model reading a command the rules couldn't: said quietly after the words. */
+.routeThinking {
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
 .routeDots {
   inline-size: 1.4em;
   block-size: 0.35em;

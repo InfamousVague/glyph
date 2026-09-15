@@ -1,4 +1,4 @@
-import { findKeyword, planCommand, reply } from '../capture/command.ts';
+import { actionable, findKeyword, findSoundAlike, planCommand, reply, type Plan } from '../capture/command.ts';
 
 /**
  * The voice tutorial's lessons (tutorial/TutorialScreen.tsx): what to say, and how to tell it worked.
@@ -37,6 +37,11 @@ export interface Practice extends LessonBase {
   passes: (markdown: string, heard: string) => boolean;
   /** Said when it passes. */
   praise: string;
+  /**
+   * A command lesson: the plans that pass it. When the rules can't read the command, the phone's command model is
+   * asked, as the recorder asks it (capture/understand.ts), and one of these passes the lesson.
+   */
+  wants?: Plan['kind'][];
 }
 
 export interface Tip extends LessonBase {
@@ -58,10 +63,18 @@ export interface SaidFormat {
 /** A pretend note for the command lessons, so a command can be understood without touching a real note. */
 export const PRACTICE_NOTE = { id: 'tutorial-practice', title: 'Practice list' };
 
-/** What a "Glyph, …" command in `heard` would do, against the practice note. */
+const practice = (words: string) => planCommand(words, { notes: [PRACTICE_NOTE] });
+
+/** The words of a command in `heard`: after "Glyph", or after a word speech recognition writes for it when a command follows. */
+export function commandWords(heard: string): string | null {
+  const found = findKeyword(heard) ?? findSoundAlike(heard, (words) => actionable(practice(words)));
+  return found?.after.trim() || null;
+}
+
+/** What a "Glyph, …" command in `heard` would do, against the practice note, by the rules. */
 function commandIn(heard: string) {
-  const found = findKeyword(heard);
-  return found ? planCommand(found.after, { notes: [PRACTICE_NOTE] }) : null;
+  const words = commandWords(heard);
+  return words ? practice(words) : null;
 }
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -260,6 +273,7 @@ const COMMANDS: Lesson[] = [
       const plan = commandIn(heard);
       return plan?.kind === 'place' || plan?.kind === 'await';
     },
+    wants: ['place', 'await'],
     praise: 'Glyph would add it to Practice list, after asking you.',
   },
   {
@@ -284,6 +298,7 @@ const COMMANDS: Lesson[] = [
       const plan = commandIn(heard);
       return plan?.kind === 'move' || plan?.kind === 'new';
     },
+    wants: ['move', 'new'],
     praise: 'Glyph would carry on there, after asking you.',
   },
   {
@@ -294,6 +309,7 @@ const COMMANDS: Lesson[] = [
     teach: 'Say “Glyph, add a table”. It asks for the column labels, then each row, and shows the table before adding it.',
     say: ['Glyph, add a table to my practice list.'],
     passes: (_markdown, heard) => commandIn(heard)?.kind === 'table',
+    wants: ['table'],
     praise: 'Glyph would start asking for the columns.',
   },
 ];

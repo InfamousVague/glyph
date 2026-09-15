@@ -16,8 +16,9 @@ import { renderNote, setSpokenFormats, type Segment } from './markdown.ts';
 import { Opening } from './Opening.tsx';
 import { QuietWatch } from './quiet.ts';
 import { type Candidate } from './route.ts';
-import { findKeyword, planCommand, reply, type Placement, type Plan } from './command.ts';
+import { actionable, findKeyword, findSoundAlike, planCommand, reply, type Placement, type Plan } from './command.ts';
 import { placeWords } from './listAppend.ts';
+import { commandModel, understandCommand } from './understand.ts';
 import { appendBlock, cellsOf, fitRow, saysDone, tableMarkdown } from './table.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { plugins } from '../plugins/registry.ts';
@@ -88,6 +89,12 @@ const DRAFT_SAVE_MS = 1000;
 
 /** After "Glyph", this long without a word that makes a command, and it gives up. */
 const COMMAND_QUIET_MS = 4500;
+/**
+ * A pause after a command the rules can't read: the on-device model is asked (capture/understand.ts). Only in a pause,
+ * with no words coming in, and stopped the moment they do: the model and Whisper share the phone's cores, and the
+ * recording comes first.
+ */
+const UNDERSTAND_AFTER_MS = 1200;
 /** "New items for …": a pause this long after the last one, and they are asked about. */
 const ITEMS_QUIET_MS = 2500;
 /** A note named with nothing said for it: this long, and it gives up. */
@@ -183,7 +190,21 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    * After "Glyph": the command being said, across phrases. `said` is what was
    * heard from the keyword on, to put back in the note if no command comes.
    */
-  const listening = useRef<{ words: string; said: Segment[]; lastAt: number } | null>(null);
+  const listening = useRef<{ words: string; said: Segment[]; lastAt: number; asked?: string } | null>(null);
+  /** The command model reading a command the rules couldn't (capture/understand.ts): for which words, and how to stop it. */
+  const understanding = useRef<{ words: string; cancel: () => void } | null>(null);
+  /** The phone's command model, once looked up; null without one, and the rules alone read commands. */
+  const commandModelId = useRef<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void commandModel().then((id) => {
+      if (live) commandModelId.current = id;
+    });
+    return () => {
+      live = false;
+      understanding.current?.cancel();
+    };
+  }, []);
   /** A command named its note but not what goes in it: the next phrases are that. */
   const awaiting = useRef<{ plan: Extract<Plan<Candidate & { note: Note }>, { kind: 'await' }>; words: string[]; lastAt: number } | null>(null);
   /** What a command will do once it is confirmed, by "yes" or a tap. */
@@ -564,6 +585,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
   /** No command came after the keyword: what was said goes back into the note, as words. */
   const giveBack = (why: string) => {
+    stopUnderstanding();
     const heard = listening.current;
     listening.current = null;
     setItemWords('');
@@ -580,8 +602,42 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     setRoute({ phase: 'said', text: why });
   };
 
+  /** Stops the command model, if it is reading something. */
+  const stopUnderstanding = () => {
+    understanding.current?.cancel();
+    understanding.current = null;
+  };
+
+  /**
+   * The rules had no plan for `words`: the phone's command model reads them (capture/understand.ts). Its plan is
+   * confirmed like the rules' would be; with none, `orElse` says why the words stay, or the quiet gives them back.
+   */
+  const askModel = (words: string, span: { startMs: number; endMs: number }, orElse: string | null) => {
+    stopUnderstanding();
+    const heard = listening.current;
+    if (heard) heard.asked = words;
+    const asking = understandCommand(words, candidates.current);
+    understanding.current = { words, cancel: asking.cancel };
+    setRoute({ phase: 'command', words, thinking: true });
+    void asking.done.then((plan) => {
+      if (understanding.current?.words !== words) return;
+      understanding.current = null;
+      if (listening.current?.words !== words) return;
+      if (plan && plan.kind !== 'no-note') {
+        commandLog.current.push(`The on-device model read “Glyph ${words}”`);
+        planRef.current(plan, span);
+      } else if (orElse) {
+        giveBackRef.current(orElse);
+        fireNativeHaptic('warning');
+      } else {
+        setRoute({ phase: 'command', words });
+      }
+    });
+  };
+
   /** The command so far, read again with every phrase: a plan to confirm, a note to wait on, or more to hear. */
   const decide = (words: string, span: { startMs: number; endMs: number }) => {
+    if (understanding.current && understanding.current.words !== words) stopUnderstanding();
     const plugin = plugins.voiceCommands().find((voice) => voice.parse(words) !== null);
     if (plugin) return offerPlugin(plugin, plugin.parse(words), span);
     const plan = planCommand(words, { notes: candidates.current, targets: itemWordsOfPlugins() });
@@ -590,10 +646,18 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       return;
     }
     if (plan.kind === 'no-note') {
-      giveBack(`No note called “${plan.name}”, so it stays here.`);
+      const why = `No note called “${plan.name}”, so it stays here.`;
+      if (commandModelId.current) return askModel(words, span, why);
+      giveBack(why);
       fireNativeHaptic('warning');
       return;
     }
+    carryOut(plan, span);
+  };
+
+  /** A plan, from the rules or the model: a table to build, a note to wait on, or something to confirm. */
+  const carryOut = (plan: Exclude<Plan<Candidate & { note: Note }>, { kind: 'no-note' }>, span: { startMs: number; endMs: number }) => {
+    stopUnderstanding();
     if (plan.kind === 'table') {
       listening.current = null;
       setItemWords('');
@@ -672,7 +736,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const span = { startMs: segment.startMs, endMs: segment.endMs };
     const skip = () => commandSpans.current.push(span);
     const keywordOn = commandWordOn();
-    const found = keywordOn ? findKeyword(text) : null;
+    // "Glyph", or a word base.en writes for it ("Life. Add eggs to work.") when a command follows and none is under way.
+    const readsAsCommand = (words: string) =>
+      plugins.voiceCommands().some((voice) => voice.parse(words) !== null) || actionable(planCommand(words, { notes: candidates.current, targets: itemWordsOfPlugins() }));
+    const underWay = tabling.current !== null || awaiting.current !== null || listening.current !== null;
+    const found = keywordOn ? (findKeyword(text) ?? (underWay ? null : findSoundAlike(text, readsAsCommand))) : null;
 
     // A table being asked for: every phrase is its next piece, until "done".
     const draft = tabling.current;
@@ -777,6 +845,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   // The timer is set up once per phase; these keep it calling the newest copies.
   const giveBackRef = useRef(giveBack);
   giveBackRef.current = giveBack;
+  const planRef = useRef(carryOut);
+  planRef.current = carryOut;
+  const askModelRef = useRef(askModel);
+  askModelRef.current = askModel;
   const offerRef = useRef(offer);
   offerRef.current = offer;
   const cancelPendingRef = useRef(cancelPending);
@@ -848,6 +920,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             }
             setPartial(text);
             // Words of a command show in the chip, not in the note.
+            // Talking again: the command model stops, so it never takes the phone from the words being heard, and reads the command again at the next pause.
+            if (text && understanding.current) {
+              stopUnderstanding();
+              if (listening.current) listening.current.asked = undefined;
+            }
             const commanding = listening.current !== null || awaiting.current !== null || tabling.current !== null || (commandWordOn() && findKeyword(text) !== null);
             setItemWords(commanding ? text : '');
             showGuess(text);
@@ -917,8 +994,14 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       const commanding = listening.current !== null || awaiting.current !== null || pendingRef.current !== null || tabling.current !== null;
       if (tabling.current && now - tabling.current.lastAt > TABLE_QUIET_MS) cancelTableRef.current('No table: nothing was said for it for a while.');
       if (!commanding && quiet.current?.due(now)) void finishRef.current();
+      // The keyword said, words the rules can't read, and a pause: the command model reads them.
+      const saying = listening.current;
+      if (saying?.words && commandModelId.current && saying.asked !== saying.words && !understanding.current && now - saying.lastAt > UNDERSTAND_AFTER_MS && now - lastHeard.current > UNDERSTAND_AFTER_MS) {
+        const last = saying.said[saying.said.length - 1];
+        askModelRef.current(saying.words, last ? { startMs: last.startMs, endMs: last.endMs } : { startMs: 0, endMs: 0 }, null);
+      }
       // The keyword said, and then nothing that makes a command: the words go back in the note.
-      if (listening.current && now - listening.current.lastAt > COMMAND_QUIET_MS) {
+      if (listening.current && !understanding.current && now - listening.current.lastAt > COMMAND_QUIET_MS) {
         giveBackRef.current(listening.current.words ? 'No command there, so the words stay in the note.' : 'Say a command after “Glyph”.');
       }
       const wait = awaiting.current;
@@ -1203,6 +1286,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
               <span>
                 <strong>Glyph</strong>
                 {route.words || partialCommand(itemWords) ? `: ${[route.words, partialCommand(itemWords)].filter(Boolean).join(' ')}` : ', listening for a command'}
+                {route.thinking ? <span className={styles.routeThinking}> · working it out</span> : null}
               </span>
             </>
           ) : route.phase === 'said' ? (
@@ -1304,7 +1388,7 @@ type RouteView =
   /** Something a command did, with a tick. */
   | { phase: 'done'; text: string }
   /** After "Glyph": the command's words so far. */
-  | { phase: 'command'; words: string }
+  | { phase: 'command'; words: string; thinking?: boolean }
   /** A sentence about what did not happen. */
   | { phase: 'said'; text: string }
   | { phase: 'waiting'; title: string; many: boolean; leave: boolean }

@@ -32,7 +32,17 @@ import { cellsOf } from './table.ts';
  * small model sometimes spells it the way it sounds. "Hey" or "OK" before it
  * are part of the keyword.
  */
-const KEYWORD = /(^|[\s,.;:!?"“])(?:(?:hey|hi|ok(?:ay)?|so)[,\s]+)?(?:glyph|glyphs|glyf|glif|gliff|glyff|glith|clyph|gleef)(?=$|[\s,.;:!?"”'])[,.;:!?"”]*\s*/i;
+const KEYWORD =
+  /(^|[\s,.;:!?"“])(?:(?:hey|hi|ok(?:ay)?|so)[,\s]+)?(?:glyph|glyphs|glyphe|glyf|glif|gliff|glyff|gliph|glyth|glith|clith|clyph|gleef|gliv|glive|glit|bliff)(?=$|[\s,.;:!?"”'])[,.;:!?"”]*\s*/i;
+
+/**
+ * What base.en writes for "Glyph" that is a word of its own: "Life. Add eggs to my list", "Live, new note", "Head
+ * life, put call Sam on the work list". Twelve synthesised voices were run through the phone's model saying
+ * "Glyph, …"; half came back as one of these, and the voice tutorial's command lessons could not be passed. They are
+ * ordinary words, so one only counts at the very start of a phrase, followed by a stop or a comma, and only when what
+ * follows reads as a command (`findSoundAlike`); "We climbed the cliff at dawn" and "Life is short" stay words.
+ */
+const SOUND_ALIKE = /^\s*(?:(?:hey|hi|ok(?:ay)?|so|a|add|head|hade|hate|take|tag)[,\s]+)?(?:life|live|lift|lip|cliff|clip|glide|slip)[,.;:!?]+\s*/i;
 
 /**
  * "…to the Glyph note": the word as a note's name, not the keyword. Matt has a
@@ -57,6 +67,22 @@ export function findKeyword(text: string): { before: string; after: string } | n
     };
   }
   return null;
+}
+
+/**
+ * A sound-alike of the keyword at the start of `text` ("Life. Add eggs to work."), when `reads` says the rest is a
+ * command: the same shape as `findKeyword`, nothing before it.
+ */
+export function findSoundAlike(text: string, reads: (words: string) => boolean): { before: string; after: string } | null {
+  const found = SOUND_ALIKE.exec(text);
+  if (!found) return null;
+  const after = text.slice(found[0].length).trim();
+  return after && reads(after) ? { before: '', after } : null;
+}
+
+/** Whether a plan is something to do: a note to add to or move to, a new note, a table, or a note named and waiting. */
+export function actionable(plan: Plan | null): boolean {
+  return plan !== null && plan.kind !== 'no-note';
 }
 
 // ---- yes or no --------------------------------------------------------------------------------

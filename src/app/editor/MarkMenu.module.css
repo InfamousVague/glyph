@@ -136,11 +136,12 @@
   color: var(--app-ink-2, var(--glacier-text));
 }
 
+/* An 18 px drawing in a 30 px ring: it looks the size of the note header's icons, whose rings are bigger and dimmer (Matt: "make the icons on the notion drawer smaller to match"). */
 .icon {
   display: grid;
   place-items: center;
-  inline-size: 2.2rem;
-  block-size: 2.2rem;
+  inline-size: 1.875rem;
+  block-size: 1.875rem;
   border-radius: 50%;
   background: var(--app-paper, var(--glacier-bg));
   border: 1.5px solid var(--app-ink, var(--glacier-text));

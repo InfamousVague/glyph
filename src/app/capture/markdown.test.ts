@@ -270,6 +270,11 @@ describe('guide cues', () => {
     expect(renderNote(spoken(opening, 'Bold. This really matters and bold.')).markdown).toContain('**This really matters**.');
   });
 
+  it('closes on "and bold" that ends the sentence, the way Whisper writes "end bold" said plainly', () => {
+    expect(renderNote(spoken(`${opening} The deadline is bold Friday at noon and bold.`)).markdown).toContain('The deadline is **Friday at noon**.');
+    expect(renderNote(spoken(opening, 'The deadline is italics next Friday and italics.')).markdown).toContain('The deadline is _next Friday_.');
+  });
+
   it('does NOT close on "and bold" with no pause after the opening word', () => {
     expect(renderNote(spoken(`${opening} It was bold thinking and bold action.`)).markdown).not.toContain('**');
     expect(renderNote(spoken(`${opening} It was bold, brash thinking.`)).markdown).not.toContain('**');

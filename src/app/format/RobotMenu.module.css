@@ -21,7 +21,8 @@
   border-radius: var(--glacier-radius-full);
   background: none;
   color: var(--glacier-text);
-  font-size: 1.15rem;
+  /* The robot at the header's icon size, 22 px (editor/NoteScreen.module.css `.cog`). */
+  font-size: 22px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -34,8 +35,8 @@
 }
 
 .caret {
-  inline-size: 0.7em;
-  block-size: 0.7em;
+  inline-size: 0.6em;
+  block-size: 0.6em;
   transition: transform 180ms var(--glacier-ease-out, ease-out);
 }
 

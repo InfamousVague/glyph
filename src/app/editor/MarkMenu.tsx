@@ -93,7 +93,7 @@ export function MarkMenu({ name, url, words, say, close, unlink }: MarkMenuProps
   }) => (
     <button type="button" className={styles.option} data-quiet={quiet || undefined} disabled={busy !== null} onClick={onPress}>
       <span className={styles.icon} aria-hidden="true">
-        <Icon size={22} strokeWidth={2.1} />
+        <Icon size={18} strokeWidth={2.2} />
       </span>
       <span className={styles.label}>{busy === id && busyLabel ? busyLabel : label}</span>
     </button>

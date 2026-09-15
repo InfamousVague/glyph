@@ -84,7 +84,15 @@ pub fn clean(raw: &str) -> String {
 /// Twelve cues is about thirty tokens, well inside the 224 whisper.cpp keeps.
 /// When it trims, it trims from the front, so this line goes before the
 /// committed tail and is the part that gets dropped first.
-pub const CUE_VOCABULARY: &str = "Title. Heading. Bullet point. Number one. Check box. To do. Quote. \
+///
+/// "Glyph" closes it, the keyword every spoken command starts with. Without it
+/// twelve synthesised voices wrote "Gliff", "Gliv", "Glit", "Life" and "Live"
+/// for it; with it a few more came back as "Glyph" or a spelling
+/// `capture/command.ts` knows, and plain dictation did not change. It leads
+/// the line: at the end, just before the committed tail, it read as a
+/// sentence of its own and a phrase carried across a cut started over in
+/// capitals (`tests::a_prompt_tail_carries_a_sentence_across_the_cut`).
+pub const CUE_VOCABULARY: &str = "Glyph. Title. Heading. Bullet point. Number one. Check box. To do. Quote. \
     Important. Bold, end bold. Italics, end italics. Divider. New paragraph.";
 
 /// The prompt for the next window: the cue vocabulary, then the committed tail.
@@ -243,7 +251,7 @@ mod tests {
     fn the_vocabulary_is_one_line_of_cue_sentences() {
         // The `\` continuation must not leave a run of spaces in the prompt.
         assert!(!CUE_VOCABULARY.contains("  "), "{CUE_VOCABULARY:?}");
-        assert_eq!(sentences(CUE_VOCABULARY).count(), 12);
+        assert_eq!(sentences(CUE_VOCABULARY).count(), 13);
     }
 
     #[test]

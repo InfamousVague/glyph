@@ -179,13 +179,21 @@ class RowWidget extends WidgetType {
       row.tabIndex = 0;
       row.setAttribute('aria-expanded', String(this.open));
       row.setAttribute('aria-label', `${name}: ${row.title || 'linked'}. ${this.open ? 'Close' : 'Open'} its menu.`);
-      // A tap on the row is the row's: the editor must not move the caret or raise the keyboard.
+      // A tap on a pill is the row's: the editor must not move the caret or raise the keyboard. A tap on the empty rest
+      // of the row is the note's, and puts the caret there: the row spans the page right under the item, so a finger
+      // reaching for the item's last letter landed on it and opened the drawer (Matt: "hard to click the last
+      // character of a list item because it opens the notion modal").
+      const onPill = (event: Event) => event.target instanceof Element && event.target.closest('.cm-linkPill') !== null;
       row.addEventListener('pointerdown', (event) => {
+        if (!onPill(event)) return;
         event.preventDefault();
         event.stopPropagation();
       });
-      row.addEventListener('mousedown', (event) => event.preventDefault());
+      row.addEventListener('mousedown', (event) => {
+        if (onPill(event)) event.preventDefault();
+      });
       row.addEventListener('click', (event) => {
+        if (!onPill(event)) return;
         event.preventDefault();
         event.stopPropagation();
         // The row sits after its line; whichever side of the line break CodeMirror counts it on, find the linked line.
@@ -199,8 +207,9 @@ class RowWidget extends WidgetType {
     return row;
   }
 
-  ignoreEvent(): boolean {
-    return true;
+  /** Events on a pill are the row's; on the empty rest of the row, the editor's, so a tap there places the caret. */
+  ignoreEvent(event: Event): boolean {
+    return event.target instanceof Element && event.target.closest('.cm-linkPill') !== null;
   }
 }
 
@@ -314,7 +323,7 @@ const rowsTheme = EditorView.baseTheme({
     userSelect: 'none',
     WebkitTapHighlightColor: 'transparent',
   },
-  '.cm-linkRow[role="button"]': { cursor: 'pointer' },
+  '.cm-linkRow[role="button"] .cm-linkPill': { cursor: 'pointer' },
   '.cm-linkPill': {
     display: 'inline-flex',
     alignItems: 'center',

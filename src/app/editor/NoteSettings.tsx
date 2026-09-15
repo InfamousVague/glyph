@@ -136,7 +136,9 @@ export function NoteSettings({ open, noteId, title, pinned, editing, onClose, on
             ) : null}
             {onFind ? (
               <button type="button" className={styles.row} onClick={onFind}>
-                <TextSearch className={styles.icon} size={20} strokeWidth={2} />
+                <span className={styles.icon} aria-hidden="true">
+                  <TextSearch size={18} strokeWidth={2.2} />
+                </span>
                 <span className={styles.label}>Find and replace</span>
               </button>
             ) : null}
@@ -145,15 +147,21 @@ export function NoteSettings({ open, noteId, title, pinned, editing, onClose, on
 
         <div className={styles.group}>
           <button type="button" className={styles.row} onClick={onPin}>
-            <Pin className={styles.icon} />
+            <span className={styles.icon} aria-hidden="true">
+              <Pin />
+            </span>
             <span className={styles.label}>{pinned ? 'Unpin' : 'Pin to the top'}</span>
           </button>
           <button type="button" className={styles.row} onClick={onArchive}>
-            <ArchiveBox className={styles.icon} />
+            <span className={styles.icon} aria-hidden="true">
+              <ArchiveBox />
+            </span>
             <span className={styles.label}>Archive</span>
           </button>
           <button type="button" className={styles.row} onClick={() => setPage('workspace')}>
-            <WorkspaceIcon className={styles.icon} />
+            <span className={styles.icon} aria-hidden="true">
+              <WorkspaceIcon />
+            </span>
             <span className={styles.label}>
               Workspace
               <span className={styles.hint}>{filed ? filed.name : spaces.list.length ? 'Not in one' : 'None yet. Make one to sort your notes.'}</span>
@@ -201,7 +209,9 @@ export function NoteSettings({ open, noteId, title, pinned, editing, onClose, on
 
         <div className={styles.group}>
           <button type="button" className={`${styles.row} ${styles.danger}`} onClick={onDelete}>
-            <Bin className={styles.icon} />
+            <span className={styles.icon} aria-hidden="true">
+              <Bin />
+            </span>
             <span className={styles.label}>Delete</span>
           </button>
         </div>

@@ -2,15 +2,35 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { history, undo } from '@codemirror/commands';
-import { markDetailsChanged, provideMarkDetails, type MarkDetails, type MarkEntry } from '../core/markDetails.ts';
+import { markDetailsChanged, provideMarkDetails, type MarkAction, type MarkDetails, type MarkEntry } from '../core/markDetails.ts';
 import { doneSync } from './doneSync.ts';
 
 const answers = new Map<string, MarkEntry | null>();
+/** What the service was asked to do, and whether it can write tasks at all. */
+const sent: string[] = [];
+let writable = false;
 provideMarkDetails('notion', () => ({
   peek: (url) => answers.get(url) ?? null,
   want: () => undefined,
   open: () => Promise.resolve(),
   reads: (url) => url.startsWith('https://www.notion.so/'),
+  actions: (url): MarkAction[] => {
+    const entry = answers.get(url);
+    if (!writable || entry?.state !== 'ready') return [];
+    const done = entry.details.status?.stage === 'done';
+    return [
+      {
+        id: done ? 'reopen' : 'done',
+        label: '',
+        busyLabel: '',
+        icon: done ? 'reopen' : 'done',
+        run: async () => {
+          sent.push(`${done ? 'reopen' : 'done'} ${url}`);
+          answers.set(url, ready(url, done ? 'todo' : 'done', { editedAt: (entry.details.editedAt ?? 0) + 500 }));
+        },
+      },
+    ];
+  },
 }));
 
 const A = 'https://www.notion.so/a-1234';
@@ -32,7 +52,11 @@ function open(doc: string): EditorView {
 const settled = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 describe('ticking a to-do whose task is done', () => {
-  beforeEach(() => answers.clear());
+  beforeEach(() => {
+    answers.clear();
+    sent.length = 0;
+    writable = false;
+  });
 
   it('ticks the box of an item whose task reads as done, and leaves the rest', async () => {
     answers.set(A, ready(A, 'done'));
@@ -91,6 +115,69 @@ describe('ticking a to-do whose task is done', () => {
     view.dispatch({ changes: { from: view.state.doc.length, insert: `- [ ] milk [notion](${A})\n` } });
     await settled();
     expect(view.state.doc.toString()).toBe(`plain\n- [x] milk [notion](${A})\n`);
+    view.destroy();
+  });
+
+  it('unticks the box of a task reopened in the service', async () => {
+    answers.set(A, ready(A, 'done'));
+    const view = open(`- [ ] milk [notion](${A})\n`);
+    await settled();
+    expect(view.state.doc.toString()).toBe(`- [x] milk [notion](${A})\n`);
+    answers.set(A, ready(A, 'doing', { editedAt: 5000 }));
+    markDetailsChanged();
+    await settled();
+    expect(view.state.doc.toString()).toBe(`- [ ] milk [notion](${A})\n`);
+    view.destroy();
+  });
+});
+
+describe('a box ticked in the note', () => {
+  beforeEach(() => {
+    answers.clear();
+    sent.length = 0;
+    writable = true;
+  });
+
+  it('marks its task done, and reopens it when unticked', async () => {
+    answers.set(A, ready(A, 'todo'));
+    const view = open(`- [ ] milk [notion](${A})\n- [ ] bread\n`);
+    await settled();
+    view.dispatch({ changes: { from: 3, to: 4, insert: 'x' }, userEvent: 'input' });
+    await settled();
+    await settled();
+    expect(sent).toEqual([`done ${A}`]);
+    expect(view.state.doc.toString()).toBe(`- [x] milk [notion](${A})\n- [ ] bread\n`);
+    view.dispatch({ changes: { from: 3, to: 4, insert: ' ' }, userEvent: 'input' });
+    await settled();
+    await settled();
+    expect(sent).toEqual([`done ${A}`, `reopen ${A}`]);
+    expect(view.state.doc.toString()).toBe(`- [ ] milk [notion](${A})\n- [ ] bread\n`);
+    view.destroy();
+  });
+
+  it('sends nothing for a plain to-do, or for a box the sync itself set', async () => {
+    answers.set(A, ready(A, 'done'));
+    const view = open(`- [ ] milk [notion](${A})\n- [ ] bread\n`);
+    await settled();
+    await settled();
+    expect(view.state.doc.toString()).toBe(`- [x] milk [notion](${A})\n- [ ] bread\n`);
+    view.dispatch({ changes: { from: view.state.doc.line(2).from + 3, to: view.state.doc.line(2).from + 4, insert: 'x' }, userEvent: 'input' });
+    await settled();
+    expect(sent).toEqual([]);
+    view.destroy();
+  });
+
+  it('keeps a box ticked by hand when its task can’t be written', async () => {
+    writable = false;
+    answers.set(A, ready(A, 'todo'));
+    const view = open(`- [ ] milk [notion](${A})\n`);
+    await settled();
+    view.dispatch({ changes: { from: 3, to: 4, insert: 'x' }, userEvent: 'input' });
+    await settled();
+    markDetailsChanged();
+    await settled();
+    expect(sent).toEqual([]);
+    expect(view.state.doc.toString()).toBe(`- [x] milk [notion](${A})\n`);
     view.destroy();
   });
 });

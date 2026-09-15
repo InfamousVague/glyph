@@ -56,9 +56,13 @@ interface WispTextProps {
 const SVG_NS = 'http://www.w3.org/2000/svg';
 /** A class from the module, never the empty string (which classList refuses). */
 const cls = (name: string): string => styles[name] ?? name;
-/** How long a letter takes to set, in ms; the fade runs the same length so neither ends first. */
-const IN_MS = 615;
-const IN_JITTER_MS = 180;
+/**
+ * How long a letter takes to set, in ms; the fade runs the same length so neither ends first. A third quicker than it
+ * was, and letters come a third sooner (`SPEED`): Matt, "the fade in wisp effect needs to be boosted by 33% speed".
+ */
+const IN_MS = 461;
+const IN_JITTER_MS = 135;
+const SPEED = 4 / 3;
 /** Untyping is quicker than typing. */
 const OUT_MS = 345;
 /** Letters leave this far apart. */
@@ -117,7 +121,7 @@ class WispEngine {
     private onSettled: (text: string) => void,
     private readonly unit: 'letter' | 'word' = 'letter',
   ) {
-    this.wait = cadence(pace);
+    this.wait = cadence(pace * SPEED);
     this.svg = document.createElementNS(SVG_NS, 'svg');
     this.svg.setAttribute('class', cls('defs'));
     this.svg.setAttribute('aria-hidden', 'true');
@@ -127,7 +131,7 @@ class WispEngine {
   }
 
   setPace(pace: number): void {
-    this.wait = cadence(pace);
+    this.wait = cadence(pace * SPEED);
   }
 
   private delay = 0;

@@ -4,7 +4,8 @@ import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { renderNote, setSpokenFormats } from '../capture/markdown.ts';
 import { plugins } from '../plugins/registry.ts';
-import { CHAPTERS, lessonsFor, readProgress, writeProgress } from './lessons.ts';
+import { understandCommand } from '../capture/understand.ts';
+import { CHAPTERS, commandWords, lessonsFor, PRACTICE_NOTE, readProgress, writeProgress } from './lessons.ts';
 import { useListening } from './useListening.ts';
 import styles from './TutorialScreen.module.css';
 
@@ -53,15 +54,43 @@ export function TutorialScreen({ onDone, onAllMarks }: { onDone: () => void; onA
       return next;
     });
 
+  /** The command model reading a command lesson's words the rules couldn't. */
+  const [working, setWorking] = useState(false);
+  // Words coming in: the model waits for the pause, and a run under way stops, so it never competes with the microphone.
+  const speaking = ear.partial.trim() !== '';
+
   // A lesson passes on what was committed, not on a guess still changing.
   useEffect(() => {
-    if (!lesson || lesson.kind !== 'practice' || passed || !ear.segments.length) return;
-    const committed = renderNote(ear.segments, '', { titled: false }).markdown;
-    if (!lesson.passes(committed, ear.segments.map((s) => s.text).join(' '))) return;
-    fireNativeHaptic('success');
-    setPassed(lesson.id);
-    tick(lesson.id);
-  }, [ear.segments, lesson, passed]);
+    if (!lesson || lesson.kind !== 'practice' || passed || !ear.segments.length) return undefined;
+    const said = ear.segments.map((s) => s.text).join(' ');
+    const pass = () => {
+      fireNativeHaptic('success');
+      setPassed(lesson.id);
+      tick(lesson.id);
+    };
+    if (lesson.passes(renderNote(ear.segments, '', { titled: false }).markdown, said)) {
+      pass();
+      return undefined;
+    }
+    // A command the rules can't read: after a breath, the phone's command model reads it, as the recorder would ask it.
+    const words = lesson.wants ? commandWords(said) : null;
+    if (!words || !lesson.wants || speaking) return undefined;
+    const wants = lesson.wants;
+    let asking: ReturnType<typeof understandCommand> | null = null;
+    const timer = window.setTimeout(() => {
+      setWorking(true);
+      asking = understandCommand(words, [PRACTICE_NOTE]);
+      void asking.done.then((plan) => {
+        setWorking(false);
+        if (plan && wants.includes(plan.kind)) pass();
+      });
+    }, 900);
+    return () => {
+      window.clearTimeout(timer);
+      asking?.cancel();
+      setWorking(false);
+    };
+  }, [ear.segments, lesson, passed, speaking]);
 
   // Ticked, a breath, then the next lesson with nothing heard yet.
   const { clear } = ear;
@@ -184,7 +213,10 @@ export function TutorialScreen({ onDone, onAllMarks }: { onDone: () => void; onA
                   ) : status ? (
                     <p className={styles.listening}>{status}</p>
                   ) : heard ? (
-                    <pre className={styles.written}>{lesson.asks ? heard : written}</pre>
+                    <>
+                      <pre className={styles.written}>{lesson.asks ? heard : written}</pre>
+                      {working ? <p className={styles.listening}>Working out the command…</p> : null}
+                    </>
                   ) : (
                     <p className={styles.listening}>
                       <span className={styles.pulse} aria-hidden="true" /> Listening

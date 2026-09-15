@@ -6,6 +6,8 @@ import { ArrowLeft } from '../art/Icons.tsx';
 import { adoptImagePath, pickImage } from '../core/images.ts';
 import { ScrollFades } from '../art/ScrollFades.tsx';
 import { useWispEdge } from '../art/wispEdge.ts';
+import { useNotePlace } from './notePlace.ts';
+import { useNoteZoom } from './pinchZoom.ts';
 import { ContextMenu } from './ContextMenu.tsx';
 import { FindBar } from './FindBar.tsx';
 import { Editor } from './Editor.tsx';
@@ -299,6 +301,10 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
 
   // Playing takes the screen for the transcript; the chosen view waits under it.
   const shown: 'transcript' | 'robot' | 'raw' = tape.length && tape.playing ? 'transcript' : mode ? 'robot' : 'raw';
+  // The note opens where it was left, and remembers where it is left (editor/notePlace.ts).
+  useNotePlace(note.id, page, view, shown === 'raw');
+  // Two fingers pinch the note's text larger or smaller (editor/pinchZoom.ts).
+  useNoteZoom(page, view, shown === 'raw');
 
   // The tape's Remove: the recording comes off the note (its length and phrases forgotten; the audio file stays
   // until the note is spoken into again or deleted, which is what lets Undo put it back).
@@ -384,13 +390,13 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
           {/* A note with no recording has no tape; talking into it is this mic. Once it has audio, the tape's Add is. */}
           {tape.length > 0 ? null : (
             <button type="button" className={styles.cog} onClick={speakHere} aria-label="Talk into this note">
-              <Mic size={18} strokeWidth={2.2} aria-hidden="true" />
+              <Mic size={22} strokeWidth={2.1} aria-hidden="true" />
             </button>
           )}
           <RobotMenu mode={mode} onChoose={showMode} />
           {/* More for this note: pin, archive, links, delete (NoteSettings). Three dots rather than a cog (Matt). */}
           <button type="button" className={`${styles.cog} ${styles.more}`} onClick={() => setSettingsOpen(true)} aria-label="More for this note">
-            <EllipsisVertical size={20} strokeWidth={2.6} aria-hidden="true" />
+            <EllipsisVertical size={22} strokeWidth={2.6} aria-hidden="true" />
           </button>
         </div>
       </header>
