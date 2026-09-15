@@ -39,6 +39,7 @@
 //! patch in Cargo.toml.
 
 pub mod device;
+pub mod hardware;
 pub mod model;
 pub mod prompt;
 

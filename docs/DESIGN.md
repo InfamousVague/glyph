@@ -1130,12 +1130,218 @@ options".
   for it, while a picture-shaped line is copied every time, since the prompts have always asked
   that of pictures. Format and Enhance keep it where it was and append a block whose line never
   came back; a summary may leave a table out. The prompts say to copy the line and never draw a
-  table of their own (`no tables` stays, meaning new ones).
+  table of their own (`no tables` stays, meaning new ones). On the emulator with the 2B: a
+  three-row bug table typed into a note came back whole and drawn after Format, all cells in
+  place - at the end of the note, because the 2B dropped the line and the fallback appended the
+  block. The 4B keeps the line where it was.
+- **The 2B invents on short notes.** Twice on the emulator, Format on a one-line note ("bug bash
+  notes from friday heres what we found") came back as a bug report with a root cause, an impact
+  and three actions the note never had; the same 2B on the dentist note enhanced it with reasons
+  it never gave. The prompts forbid it and the 4B obeys; the 2B does not, for a note with little
+  in it. Worth a rule: skip the 2B's draft pass when the note is short, since the 4B answers a
+  short note in seconds anyway, and the draft is where the inventions show.
 - **1.0.6, one line.** Choosing Enhance while the Summarize view was open came up empty: the
   view is the same component for every mode and was not remounted on a mode change, so its
   once-per-mount start (the guard that keeps Stop stopped) never fired for the new mode. The
   view is now keyed by mode: a change of mode is a fresh view, with its own editor and its own
   start.
+
+## 29b. The update card, in foil (2026-09-14, 1.0.8)
+
+Matt: "the update banner is kind of ugly with the solid blue, can you update it to be like a white
+holographic design". The card (`notes/NotesList.module.css`) is now white in both themes - the
+one white card on black paper is the point - with a foil sheen: a pastel spectrum (pink, mint,
+lemon, lavender, in oklch at chroma 0.08 so it reads as colour and not a tint) drifting slowly one
+way under a band of white light crossing the other, the way a holographic sticker catches a lamp.
+Near-black words, a black pill for the action, an inset white hairline and a soft drop shadow so
+it sits on light paper too; the progress bar is black on a faint track. Reduced motion stops the
+drift. Checked at phone width in both themes; the card only appears when an update is waiting, so
+the check was a card injected with the module's classes.
+
+## 29c. Suggestions, inline (2026-09-14)
+
+Matt: "render suggestions inline for stuff like adding a list item as a Notion task and whatnot; I
+want the note to feel more alive with the integrations while remaining minimalistic".
+
+- **What it is.** A quiet word at the end of a line for what a plugin could do with it, tapped
+  to do it: "Notion" after a to-do that is not a task yet, once the note has a board. A small
+  outlined word in the faintest ink, a step smaller than the line, with a hairline of its own
+  ink at less than half strength so it shows on black paper and on white without shouting.
+  Nothing else on the page changes. While it runs it says its busy word ("Sending") and cannot
+  be tapped twice; once the line has become what was offered (a link to the task) the plugin no
+  longer offers it and the word is gone. It is never on the line being typed: it would sit
+  against the caret and jump with every letter.
+- **Where it comes from.** A plugin extension point (`plugins/types.ts` `suggest(noteId, body)`,
+  gathered by `plugins.suggestions`), pure and read on every change of the document - the
+  answers are a regex per line, and a note of five hundred lines costs nothing. It needs the
+  `notes` permission like the other things that change a note; the registry refuses a plugin
+  that offers words without it. The Notion plugin offers one per unsent item when a board is
+  linked; each runs the same send as the swipe, so the line becomes the task's link and is one
+  undo. Other plugins can offer their own (a repo address that could become the note's project,
+  say) without the editor knowing what they are.
+- **How it is drawn** (`editor/suggestions.ts`). A widget decoration after the line's text
+  (`side: 1`), rebuilt on document and selection changes and on a busy effect, so the note's own
+  words are never touched and the swipe on the line still works. The widget ignores the editor's
+  events and stops its own, so a tap is a tap and not a caret move. Verified in the browser at
+  phone width in both themes and by unit tests: the word on every offered line but the caret's,
+  following the note as it changes, the busy word while it runs.
+- **On the emulator** (1.0.9, a board record written by hand): a note of three to-dos opened
+  with the three words in place within a third of a second; tapping one said "Sending" and gave
+  the account error on the line, since the emulator has no Notion sign-in, then offered the word
+  again. Once, right after a relaunch, a note opened with no words until the caret moved: the
+  Notion plugin's readiness is settled by an asynchronous check of the binary at start-up, and
+  the editor's first build can precede it. The swipe has the same window. Worth a nudge from the
+  registry when readiness changes, later.
+- **Later.** A first nudge before anything is linked ("Send to Notion…" on the first to-do,
+  opening the board picker) needs a way for a plugin to open its own picker from a note; and
+  the Projects plugin could offer "Project" on a line with a GitHub address.
+
+## 29d. Apply, three ways (2026-09-14, 1.0.9)
+
+Matt: "there is no way to accept, append or prepend a summary or enhancement". Apply replaced the
+note, which is right for Format and wrong for a summary that belongs above the note or an
+enhancement someone wants under it. The Apply word in the robot's line now opens three -
+Replace note, Add above, Add below - and Back. Above puts the text, a blank line, then the note;
+below puts the note, a blank line, then the text; all three go through the note's editor, so the
+history has them, and the notice says which happened ("Added above the note.") with Undo, which
+puts the old words back and the kept version back to what it was. The kept text is marked applied
+against the hash of the note as it now is, not of the text, so the queue and the passes leave it
+alone until the note changes again. Verified in the browser: all three ways, the notice, Undo.
+
+## 29e. The item mark: one form for a linked item (2026-09-14)
+
+Matt: "we also need a common format for linking Notion pages to list items, as the AI will change
+how this looks when formatting or enhancing". A sent item's words used to become the link,
+`- [ ] [Buy milk](https://…)`, and a rewrite that moved or dropped the link left the item looking
+unsent (the 2B moved one into the title): the suggestion offered it again, and Notion would have
+had it twice.
+
+- **The form.** The words stay plain and the item ends with a mark, a link whose words are the
+  lowercase name of what it is linked to: `- [ ] Buy milk on the way home [notion](https://…)`.
+  Generic on purpose: `[github](…)` would mark an issue the same way, and the editor would draw
+  it the same way. Written in one place, `core/itemLinks.ts` `linkedLine`, so the swipe, the
+  inline suggestion, "Send list to Notion", the voice commands and the recorder's live linking
+  (`applyLinks`, which puts the mark at the end of an item, or right after words in a sentence)
+  all write it without a change of their own. Recognised alongside the old form, so a note from
+  before is never sent twice; `unsentItems` answers an item's words without its mark.
+- **Drawn.** `editor/links.ts` draws a mark - the whole `[notion](address)`, when it is the last
+  thing on an item's line - as one small solid pill with the name on it: the done twin of the
+  outlined suggestion pill, so a note reads at a glance: outlined could be a task, solid is one.
+  On the caret's line it is written out in full, like a short link. An ordinary link at the end
+  of an item (`[the board](…)`) is not a mark: its words are not one lowercase name.
+- **Through the model.** A mark is protected like every link (`format/links.ts`), as
+  `[notion](link-1)`, and the three prompts say to keep it at the end of its item. The
+  protection remembers the item's words for a mark, and a mark whose token never comes back goes
+  onto the item found again by those words - three words in five, letters and digits, three
+  characters or more - before the old fallbacks (wrap the words, append at the end). Measured on
+  the Mac with the 4B (`llm::tests::keeps_an_item_mark_at_the_end_of_its_item`).
+
+## 29f. A note called Glyph (2026-09-14, 1.1.3)
+
+Matt, from the Fold: he said "add a note to the Glyph note saying testing if this works" and got a
+new note titled "Add a note to", the rest gone. Reproduced with `planCommand` against his notes:
+he has a note called Glyph, the keyword was not said first, and `findKeyword` took the note's
+name mid-phrase for the keyword - the words before it became the note, the words after it were a
+command nothing could read, and at the end of the take they were dropped. Said with "Glyph" first,
+every phrasing of it already parsed, his included.
+
+- **The fix** (`capture/command.ts`): an occurrence of the word that a preposition leads and
+  "note", "page" or "list" follows ("…to the Glyph note") is a name, not the keyword, and the
+  search moves on; the keyword still counts first in the phrase or on its own later. So the phrase
+  without the keyword is plain words and nothing is lost, and with it the Glyph note can be named.
+- **Trying any phrase without a microphone** (`capture/engine.ts`): `?simulate=say&say=a|b` speaks
+  the phrases given, one per bar, the way the fixed scripts do. Both cases were run through the
+  real recorder in the browser: the card "Add to Glyph: Testing if this works", a spoken yes, and
+  the line at the end of the Glyph note; and the keyword-less phrase kept whole as a new note.
+- **Still open, for the recorder:** words after a keyword that never resolve into a command are
+  dropped at the end of the take. They should go back into the note as words, with a line saying
+  the command was not understood.
+
+## 29g. On this phone: the AI card, Local only, and the pinned heading (2026-09-14, 1.1.4)
+
+Matt: "highlight the local AI part of this, making sure the app can be run totally without a
+server if desired; a better, consistent AI card that renders when it's thinking, and it should
+render things like real phone hardware usage". And, for the list: "better iconography for pinned
+notes, make the label more apparent for the group, avoid individually repeatedly marking things
+like having a pin on each note".
+
+- **The AI card** (`format/AiCard.tsx`). One face for the model at work, drawn by the robot's views
+  while a pass is writing and nothing has arrived yet, and offered to the review screen: the
+  model and its size on disk, a pill saying "On this phone", what it is doing and how fast (the
+  same lines as before), the little reader in the corner, and the phone underneath as a grid of
+  readings with hairline bars - cores, memory, battery from what the page can read itself
+  (`format/deviceFacts.ts`: hardwareConcurrency, deviceMemory, getBattery), and from native
+  generation 14 the engine's own readings every tick (`Hardware` on Progress: its memory of the
+  phone's, its share of the cores, threads of cores, the hottest thermal zone). What nothing
+  reports is left out rather than guessed. "Nothing leaves the phone." closes it, with Stop.
+- **Local only** (`localOnly` in preferences, a switch in Settings > Formatting under "On the
+  phone"). While it is on: the update check never asks the box (`core/ota.ts`), a model download
+  is refused with a sentence (`core/ai.ts`), the voice model is not fetched and the recorder says
+  why, the larger voice model is not fetched and the better words wait (`capture/engine.ts`,
+  `capture/refine.ts`), and every plugin that declares the network permission is off
+  (`plugins/registry.ts`, which now follows preference changes and tells its listeners). Glyph
+  runs from what is on the phone; turning it off restores everything.
+- **The readings, native generation 14** (`src-tauri/src/llm/hardware.rs`, 1.2.0). The engine's
+  reporter samples the phone with every progress report, about every 120 ms: the app's resident
+  memory from `/proc/self/statm`, the phone's total and available memory from `/proc/meminfo`
+  (the `device` module's parser), the process's CPU time from `/proc/self/stat` turned into a
+  percentage of one core over the time since the last sample (640 is six and a half cores busy),
+  the engine's threads of the phone's cores, and the hottest thermal zone under
+  `/sys/class/thermal` where the phone lets it be read - many do not, and then there is no
+  reading rather than a guess. The reading rides on `Progress` as `hardware`, absent where there
+  is no `/proc` (the Mac's tests), and the card draws whatever arrives. Reading three small files
+  costs microseconds. The parsers take text, so a real phone's files are the unit tests.
+- **The pinned heading** (`notes/NotesList.tsx`). The pin left every pinned row and sits once on
+  the group's heading, tilted as it was; the heading grew a step and darkened an ink, with a
+  hairline under it, so the group reads as a group. Others keeps its label without an icon, so
+  the pin stays the pin. Swipes are as they were.
+
+## 29h. The formatter's tidy-up (2026-09-14, 1.2.1)
+
+Matt: "the formatter can do things like double nest links and not clean up Notion task links to
+simply say notion, and other basic formatting tasks". Two pure passes in `format/clean.ts`, both
+in the pipeline:
+
+- **Before the model, `cleanNote`.** An item linked the old way - its words as the link,
+  `- [ ] [Buy milk](notion-url)`, whole or mid-words - becomes the mark form, `Buy milk
+  [notion](url)`, so the model sees words as words and the mark as the one thing to keep. Links to
+  anywhere else are left as they are. The hash stays the note's own.
+- **After the links are back, `cleanRewrite`.** A link nested in a link's words, which a small
+  model writes now and then (`[[Buy milk](url)](url)`), unwinds a layer at a time and the inner
+  one wins. An item's mark is once and last, wherever the model put it or however many times.
+  Then the plain markdown the prompts ask for: `-` bullets for `*` and `+`, task boxes with their
+  spaces and a lowercase x, a space after a heading's hashes, no trailing spaces, no run of blank
+  lines. Words are never touched; the test that proves it feeds the prompt's own example through
+  and gets it back unchanged.
+- **Marks are named things.** Restricting the mark grammar came out of this: `[docs](url)` at the
+  end of "read the docs" is one lowercase word in a link and was a mark called docs, drawn as a
+  pill. Now a mark's name must be a plugin's id (`core/itemLinks.ts` `registerMarkName`, which the
+  registry calls with every plugin as it loads; "notion" is built in), everywhere marks are read:
+  the editor's pill, the formatter's protection, and both passes here.
+- **And one more guard** in `format/links.ts`: a link whose token vanished is never restored
+  around words that already sit inside another link, which was a second way to nest.
+
+## 29i. The gist under every title (2026-09-14, 1.2.2)
+
+Matt's board: "live on-device AI summaries on the home list". One quiet line under each note's
+title in the list, what the note is about, written on the phone in the background.
+
+- **The line** (`format/gist.ts`, GIST_PROMPT in `prompt.ts`): at most ten words in the writer's
+  own voice, no markdown, no closing punctuation; a note with many things in it gets a line about
+  what they have in common, not a list of them - the first prompt without that rule gave the
+  weekend note fifteen words naming every errand; a second example fixed it, measured with the 4B
+  (`llm::tests::gists_a_note_in_one_short_line`). The answer is tidied to one bare line and cut at
+  ninety characters on a word (`tidyGist`).
+- **The runner.** The list hands `useGists` the notes it shows; a module-level runner works through
+  the ones with no gist, or a gist from an older body, one at a time, newest first, only while the
+  app is on screen, with the smallest model on the phone (speed over care for a line), forty
+  tokens each, links protected as tokens. Each gist is kept in `glyph-ai-results` beside the
+  summaries with the hash of the body it came from, so a note that has not changed is never asked
+  twice and a note that has shows its old line until the new one lands; a note the runner could
+  not gist is left alone for the session. The engine serialises this with the format queue and the
+  robot's own passes. Nothing leaves the phone, and Local only changes nothing here.
+- **Drawn** in `notes/NotesList.tsx`: one line, the third ink, ellipsised, fading in when it lands;
+  nothing at all until then, so a phone without a model looks as it did.
 
 ## 30. Talking to the recorder (2026-09-13, 0.9.2 to 0.9.4)
 
@@ -1474,3 +1680,383 @@ note' it should ask 'and what will the column labels be?' ... to guide the user 
   view uses the same editor, so tables are drawn there too (read-only, always drawn). The formatter keeps table
   blocks verbatim (`format/tables.ts`).
 - `?simulate=table` answers the questions and says yes; `?simulate=tableask` stops at the yes.
+
+## 40. The review after a recording (2026-09-14, 1.1.0, native generation 13)
+
+Matt: "Show the AI reasoning dissecting and parsing the note after we hit stop, use slower more detailed models to
+check if the fast model got stuff right and work with the user to resolve and commit". He chose a review screen
+right after Stop, all four checks (words, structure, commands, names), and the model's raw thinking over a
+narrated checklist, knowing that needed an APK.
+
+- **Stop still saves first.** The note is written exactly as before, and only then does the recorder hand over
+  (`ReviewHandoff`): the note, the better-words job the queue would have run, every phrase the fast model heard
+  (commands included), what each "Glyph" command did or was declined ("Did: add “Fix the seek bar” to
+  HelloTrade’s list", "Offered to …; the person said no"), and the other notes commands changed. Leaving at any
+  point loses nothing, and whatever would have run anyway (better words, formatting) is queued as before.
+- **Listening again** (`capture/refine.ts` `listenAgain`). The larger speech model runs over this take now,
+  with progress, instead of later in the queue. The queue and the formatter are held while the review is on
+  screen, since they want the same cores.
+- **Comparing words** (`review/diff.ts`). A word-level LCS of the fast transcript against the careful one,
+  grouped into runs with context. Case and punctuation are ignored, but "hello trade" and "HelloTrade" still
+  differ.
+- **Thinking it through** (`review/prompt.ts`, `useReview.ts`). The formatting model, or the largest Qwen on the
+  phone, since Gemma doesn't reason, with reasoning ON. It gets both transcripts, the disagreements, the
+  commands, the note titles, any note a command changed, any plugin context, and the note last. Its thinking
+  streams raw into a monospaced pane that follows the newest line.
+  - The native layer used to switch thinking off with an empty thought. `ai_generate` now takes `think` and
+    `think_budget`, and reports `thinking` on progress and output. Formatting passes send neither and are
+    unchanged.
+  - The budget matters: on the Mac the 4B reasoned past 2,400 tokens without answering. Past its budget (700
+    for the 4B, 600 for the 2B, 500 for the 9B) the engine closes the thought for it in its own voice ("I have
+    thought about this enough; …</think>") and the answer is sampled after. Measured: 787 tokens, 115 s on the
+    Mac CPU, one correct finding.
+  - `llm::tests::prints_a_review_with_its_thinking` runs the real prompt.
+- **Findings, earned** (`review/findings.ts`). The answer is a JSON array, read leniently (fences, chatter,
+  trailing commas). A finding is kept only if its check is known, its note exists, and its `find` really is in
+  that note (exactly, or with whitespace and case forgiven). A model that invents a problem can't invent a fix.
+  Changes are "replace" or "add a line" (a list item joins its list). A replace changes the LAST occurrence,
+  since the words just said are the newest.
+- **Deciding.** Each finding is a card: the check, which note, what and why, the text struck through and the new
+  text. "Use this" is the default, a tap makes it "Keep mine", and Edit changes the new text. "Commit N"
+  applies the accepted ones to every note they name. "Keep as is", Skip or Back leave the note alone.
+  Without a language model the careful model's word changes are offered on their own.
+- **Gated.** `reviewAvailable()` needs native generation 13, the Recording setting "Review after recording" (on
+  by default), and an unlocked phone. On an older binary Stop behaves exactly as before.
+- `?simulate=review&review` in a browser runs the whole flow with scripted models.
+
+## 41. Test results, in Developer mode (2026-09-14)
+
+Matt: "When developer mode is on add a test suite reporting page like we have on attack fm". It follows AttackFM's
+page: a report generated where the app is built, compiled into the page, and read in Settings.
+
+- **The report** (`scripts/test-report.mjs`, written to `src/app/diag/testReport.generated.json`). It runs every
+  suite to the end, whatever the others did:
+  - the page's Vitest (JSON reporter with task locations)
+  - the app's Rust: `cargo test --lib` in src-tauri, which leaves the real-model tests ignored
+  - glyph-api's Rust
+  Parsing is pure (`scripts/testReport/parse.mjs`, tested with the page), and ANSI is stripped and failures are
+  clamped. A suite that ran no tests is an error, never a pass. `--only=` and `--skip=` keep the other suites'
+  last results, marked "not run".
+- **Matched by code, not by commit.** Glyph ships far more often than it commits, so the report records a
+  fingerprint of `src/`, both crates' `src/` and `scripts/` (`testReport/source.mjs`, the report itself
+  excluded). `vite.config.ts` stamps the same fingerprint into the build as `__GLYPH_SOURCE__`. The page says
+  "The same code this build was made from", or warns that the code changed after the tests ran.
+- **Every release runs it.** `deploy-ota.mjs` runs the report before the web build and stops on a failing test
+  or a suite that didn't run. `--skip-tests` ships anyway, and that build's page then says its report is from
+  other code. This adds about 90 seconds per release.
+- **The page** (`settings/TestResultsPane.tsx`, Developer mode only, under Developer):
+  - A red or green verdict card, recomputed from the suites rather than trusting the report's `ok`, with Passed,
+    Failed, Skipped and Not run (an alarm colour when they aren't zero).
+  - Warnings: code changed, no fingerprint, suites that didn't run.
+  - Where it came from: version, fingerprint pill, commit (+ changes), when it ran, the machine, the tool
+    versions.
+  - Find: search on every word in a test's name or file, and "Only failures".
+  - One card per suite. Tests are grouped by file (a Rust test's module path stands in for its file), with
+    failures first and open, and each failure's output under it.
+- First run: 436 passed, 0 failed, 7 skipped (the real-model tests), in about 90 s.
+
+## 42. The library: notes as Markdown files (2026-09-14, 1.3.0, native generation 15)
+
+Matt: "a folder and sub folders full of purely markdown files with a small flat file things like sqlite or json
+files for indexing so we can keep our whole library in these files … it should all render to valid markdown but
+store metadata we can specially format such as linked notion tickets and to-do lists". He chose a folder he
+picks, his own folders with titles as file names, Obsidian-compatible metadata, and a hidden `.glyph` folder.
+The format is specified in `docs/LIBRARY.md`. This is phase 1: the library in the app's own storage, behind the
+same commands.
+
+- **The page didn't change.** `src-tauri/src/library/` implements the old `Store`'s calls (list, get, save,
+  delete, pin, archive, recording, formatted, capture), and `NotesStore` now holds a `Library`. The page only
+  gains `Note.path`.
+- **Files are the truth** (`library/mod.rs`). Every read of the list walks the folder first. A file whose
+  modified time and size match its index row is skipped, a changed one is read again, and a row without a file
+  is dropped. Opening a note re-reads its file and re-scans if the file is gone or its body changed, so an edit
+  in another app shows up. `.glyph/index.sqlite` (`PRAGMA user_version` 1) is a cache that a version change
+  simply rebuilds.
+- **Front matter** (`library/frontmatter.rs`) is edited by line, never parsed into a map and re-serialised.
+  Unknown keys, comments, lists and quoting stay exactly as written, and a key is only touched when its value
+  changes. Values Glyph writes are quoted when YAML would misread them.
+- **Names** (`library/names.rs`). A title is the first line of words with its Markdown gone: heading and quote
+  marks, list and task markers, link addresses (their words stay), pictures, emphasis and bare URLs, and a
+  trailing item mark like `[notion](…)`. The first move on the emulator named a file
+  "- Buy milk(httpswww…).md"; now it's "Buy milk on the way home….md". Characters a file system refuses are
+  dropped, names are cut at 80 characters at a word, and clashes get " 2". Saving under a changed title renames
+  the file, and the id in front matter keeps it the same note.
+- **A pin is not an edit.** Pin and archive rewrite only front matter, then set the file's modified time back
+  (`File::set_modified`), so the list order doesn't jump.
+- **Copies.** A file carrying an id that another existing file already has gets its own id, so a copy made in a
+  file manager is a second note rather than a fight over one row.
+- **Drafts.** The page saves a new note the moment + is tapped, so a backgrounded webview can't lose it. With
+  files, every note opened and left became "Untitled N.md". Only words are worth keeping that way, so a blank
+  new note is now a draft in native memory, and the first save with words writes its file. A note this run
+  started as a draft goes back to being one if all its words are removed and nothing else was set. An earlier try deleted empty notes from the page on the way back, but the editor's last save
+  isn't awaited, so it could race a note just typed in. Deciding inside the library, under its lock, can't.
+- **Moving in** (`commands.rs` `open_library`). The first launch writes every old note to `Inbox/` with its
+  front matter, sidecar and original modified time. Notes with no words and nothing set are skipped, since the
+  old app's save-on-open left them behind. `library.json` records the move, and only then are
+  `glyph.sqlite{,-wal,-shm}` renamed `.moved`. A move cut short is finished next launch, because a note already
+  in the library is never written again.
+- **`Vault`** (`library/vault.rs`) is the only thing that touches files: list, read, atomic write (a `.part`
+  beside the file, renamed), rename, remove, stat, keep modified time. Paths are relative with forward slashes,
+  and `..`, empty segments and absolute paths are refused. Phase 2's folder picker will be a second `Vault` over
+  the Storage Access Framework.
+- **Checked on the emulator** with a backup of its old database, moved in twice (before and after the skip). 9 notes moved in as 8 files plus
+  one skipped empty note, with 6 sidecars. The pinned group, the order and "1 HR AGO" were unchanged. An edit
+  renamed its file and kept its id. A new note left empty wrote nothing, a typed one wrote
+  `Inbox/Draft check note.md`, and clearing it removed the file.
+- Tests: `library::tests` (11), `library::frontmatter` (5), `library::names` (4).
+
+## 43. Workspaces (2026-09-14)
+
+Matt: "add workspaces so we can sort notes by a given workspace."
+
+- **A workspace is a name, and a note is in at most one.** Kept on the page under `glyph-workspaces` (core/workspaces.ts), so it ships over the air: the note store is Rust's SQLite, and a column there is a native change. Nothing is shown while there are none, so a list that never uses them looks as it always did.
+- **The list.** Once one exists, a row of outlined names sits under the title (notes/WorkspaceBar.tsx): All, then each workspace, then + for another. The chosen one is solid ink, the list shows only its notes, and the choice is remembered, so the app opens where it was left. Tapping the chosen name again opens its sheet (notes/WorkspaceSheet.tsx): rename, or remove. Removing unfiles its notes and deletes nothing. The archive is never filtered: it is the place to find anything.
+- **The note's cog.** A Workspace row under Pin and Archive says where the note is; its page (editor/WorkspacePicker.tsx) lists the workspaces with the note's own ticked, a name for a new one that files the note there as it is made, and a way out of the one it is in. The first workspace is made here as often as on the list.
+- **A note made while a workspace is chosen is filed there**, typed or spoken (App.tsx): the list the person is looking at is where the new note should appear. A spoken note that is already filed stays where it is; in memo mode the take goes on the last spoken note, which may live elsewhere.
+- Deleting a note forgets its filing (notes/useNoteActions.ts), and so, now, its kept summaries and gist. Reset clears the key.
+
+## 44. A ticked box when Notion says done (2026-09-14)
+
+Matt: "Notion items that are done should automatically update the checked status of the checkbox for the item they're listed in."
+
+- **editor/doneSync.ts** watches the mark details the pills draw (core/markDetails.ts) and, when a to-do line ends with a mark whose task reads as done, changes its `[ ]` to `[x]`. An edit to the note, saved like typing, and not in the undo history: undoing a keystroke should not untick a task that Notion says is finished.
+- **Only that way round, once per change of the task.** The tick is answered to the task's last-edited time; a box unticked by hand stays unticked until the task itself changes again, so the note never fights the person holding it. A task in Notion's trash does not tick.
+- Nothing new is read: the pills' own reads (editor/links.ts) are what arrive, for the marks in view while the note is open, every minute and on return.
+
+
+## 45. Working through the Glyph Tasks board (2026-09-14)
+
+Matt: "Take a look at the tasks in the Glyph task management board I've created from within Glyph, work through them and let me know as you do so I can ensure they're tracking in app correctly. When an item is linked to notion it should show a few key details". Each card was moved to In progress when started and Done when verified, with a note saying what changed and whether it needs an APK, so the pills in his notes show the board changing. The first update banner card was closed as already done by the white foil card (§29b), and duplicate cards were closed with their twin.
+
+### 45a. What a Notion task is doing, in the note
+
+- **Details are read back** (`core/markDetails.ts`, `plugins/notion/details.ts`). The editor asks by a mark's name and address, and the plugin that owns the name answers through a provider registered with its extension point (`GlyphPlugin.marks`). A switched-off plugin answers nothing.
+  - The Notion provider reads `GET pages/{id}` through `notion_request`, so no new route or login was needed.
+  - The status stage comes from the board's own status groups (`GET databases/{id}`, once per board), so "Shipped" is done wherever the board says so. A name guess is the fallback.
+  - The pill's facts are a priority-like select and a due-like date ("Overdue" until done).
+  - Two reads at a time; fresh for 45 seconds.
+  - The last 300 answers are kept (`glyph-notion-tasks`), so an offline note still shows the last status.
+  - Signing out forgets them.
+- **When it reads.** On opening a note, on coming back to the front, and every minute while a note is open, for the linked lines in view (`editor/links.ts`).
+- **First as one pill**, then reworked on Matt's next note: "Not all notion links are being auto formatted to have the full pill showing details … might need multiple pills … maybe consider a card."
+- **A row of pills under every linked line** (`editor/linkedRows.ts`).
+  - Which lines: an item ending in a mark, an old-style `[words](notion link)` item, or a Notion link in a sentence (`MarkDetailsProvider.reads`).
+  - What it shows: the service's name (solid), the stage ring and status, and one pill per fact.
+  - It hangs at the item's own indent (`--hang`). The mark at the end of the line draws nothing while the row carries it; on the caret's line it is written out in full as before.
+  - Block widgets must come from state, so the rows are a StateField over the document, rebuilt when the document changes, details arrive (`detailsArrived`), or a menu opens.
+
+### 45b. The menu that splits the note open
+
+Matt: "tap on the notion pills to show a few options like opening the ticket in notion or un linking or updating etc. Make these context menus split text in place … splitting the page right where it needs to go and make the options typography and iconography heavy so they fit the theme on all context menus."
+
+- **A tap on a row opens a block widget under it** (`editor/MarkMenu.tsx`, a React root inside the widget via `markMenuMount.tsx`).
+  - The lines below move apart and the gap is paper-2 across the width, with its edges shaded like a cut. It grows open (`grid-template-rows` 0fr to 1fr).
+  - Contents: the stage and status, the title set large, every property in two columns, and when it changed and was read.
+  - Then full-width rows, each a ringed Lucide icon beside a word at xl semibold:
+    - Open in Notion.
+    - Mark done in Notion / Reopen: the board's first done or to-do status, or its Done checkbox.
+    - Use these words as its title, when the item's words differ from the task's title.
+    - Refresh.
+    - Unlink: the mark or link comes off the line, and the words stay.
+  - Menu actions report through the note's own sentence line (`NoteEditing.say`).
+- **It closes** on a touch outside, the back gesture, another tap on the row, or an action that changes the line.
+- **The press-and-hold menu took the same hand** (`editor/ContextMenu.tsx`): an icon over each word in bold, in a rounded band. It still floats above the selection, since splitting the page would move the text being selected.
+- The floating card that briefly did this job (MarkCard) is gone.
+
+### 45c. The note page, the keyboard, and the status bar
+
+- **The tape scrolls with the note** (three cards). In the Write view, the tape row and the editor are one scrolling `.page`, and the header stays put. The editor grows with its words (`Editor` `grow`: height auto, and the scroller doesn't scroll or hold its overscroll, one class more specific than glyphTheme). The Formatted and transcript views keep their own scrolling under a fixed tape.
+- **The keyboard covered the page** (two cards). Measured on the emulator: on Android 15+ edge-to-edge, `adjustResize` no longer shrinks the window, so a tapped line near the bottom stayed under the keyboard even while typing.
+  - `MainActivity.fitAboveKeyboard` pads the WebView's parent frame by the IME inset, so the page sees an ordinary resize.
+  - The listener sits on the frame, never the WebView. Set on the WebView, it replaced Chromium's own listener, `env(safe-area-inset-top)` went to 0, and the header slid under the clock.
+  - The editor keeps the caret in view on any window or visual viewport resize.
+  - Native generation 15; the page half works without it.
+- **The status bar.** A fixed scrim of paper colour under the status bar fades out just below it (`app-statusScrim`, zero height where there is no bar). `GlyphHost.setLightChrome` makes the bar icons follow Glyph's Light/Dark setting rather than the phone's (preferences.ts calls it, and again when System follows a change). Native generation 15.
+- **Scroll fades** (two cards: "gradient blur and fade … dont show when on top and bottom of scroll").
+  - `art/ScrollFades.tsx` puts two fixed bands over a scroller's edges, each a 3 px backdrop blur masked by a gradient under a veil of paper.
+  - Visibility is an attribute set from a passive scroll listener, so scrolling renders nothing.
+  - Used on the note page (top and bottom) and the home list (top; the dock already fades the bottom).
+
+### 45d. Colour, voice and touch
+
+- **Seeded cassette colours** (`tapes/tapeColour.ts`). An FNV-1a hash of the note's id picks one of eight shells (tomato, tangerine, mustard, sage, teal, cobalt, violet, rose) and nudges its hue by up to six degrees. All share one oklch lightness and chroma, so every shell reads on black paper and white. Only the shell, print and wound tape take the colour; the label stays paper and ink. The id is for life (front matter), so a note keeps its colour through renames and on every phone.
+- **The rings follow the voice** (`capture/voiceLevel.ts`, `SideKeyWaves.tsx`). The recorder publishes the microphone level, and `paceRings` sends rings out of the side key's glow.
+  - In silence, one faint ring every 2.7 s.
+  - Talking, one every 220 to 580 ms, each wider, brighter, thicker and quicker the louder the voice.
+  - Rings are created and animated directly with Web Animations, capped at nine, with no React renders. Reduced motion keeps three still rings.
+- **Feeling a detent coming** (`core/detentFeel.ts`). While a swipe closes on a detent (the list row's Pin/Archive/Delete, and a list item's swipe to Notion), light ticks come faster as it nears: none in the first third, then 240 ms apart down to 40 ms. Then comes the firm click of arriving, and nothing while backing off. The item swipe also gained the arrive and back-off clicks it never had.
+
+### 45e. "Glyph", while Glyph is open
+
+Matt: "While Glyph is open I should be able to say the AIs wake word in order to make it start transcribing and updating notes as requested." This reverses the pause of 2026-09-13 for the in-app case only; there is still no background hotword.
+
+- **When it listens** (`capture/useWakeWord.ts`): the list or a note is on screen, no settings or guide is open, the keyword and the new "Listen for “Glyph” while it's open" switch are both on (on by default), and the voice model is already on the phone (it never starts a download).
+- **What it costs** (`capture/wakeWord.ts`).
+  - In quiet, only the level is watched and the last 1.2 s are held.
+  - 400 ms of voice starts a Whisper session on the held audio, and each partial is looked through with `findKeyword`.
+  - Speech that ends (1.2 s quiet) or runs past 7 s without the keyword is cancelled, samples and all.
+  - Everything stays on the phone. Android shows its microphone dot while Glyph listens.
+- **The hand-over.** Hearing the keyword cancels the session and leaves the open microphone and everything since the speech began (`takeWakeHandoff`). The recorder opens (`woke`, aimed at the open note if there is one), rebinds that microphone to its own handlers, and transcribes the held audio first. What came before the keyword in its first phrase is dropped, since that talk wasn't for Glyph. The command and its "shall I?" follow as always.
+- **One Whisper session at a time.** A listener stopped while its session was still starting would cancel it on arrival, possibly after the recorder had started its own. The recorder therefore waits for `wakeSettled()` before `capture_start`, and whoever stops or wakes the listener owns cancelling a starting session.
+- **The permission loop.** Asking for the microphone puts Android's permission activity over the app for an instant, which hides the page. The first build stopped on that hide and started again on return, round and round, and the emulator ended up with the microphone denied "don't ask again". Now a hide only lets the microphone go after 2.5 s, and a failed start isn't retried until the conditions change.
+- **Checked on the emulator**: the listener holds the microphone on the list, an ordinary recording starts beside it, and it picks the microphone back up after Discard. The spoken hand-off needs a voice and was left for the phone. `wakeWord.test.ts` covers the pacing.
+
+## 46. A note wears its links (2026-09-14)
+
+Matt: "There should be some kind of indication if a note is linked to a given notion board or git
+project." The only place that said so was the cog sheet.
+
+- **`NoteLink.linked(noteId)`** (`plugins/types.ts`): a link names what the note is linked to
+  ("Glyph Tasks", "attackfm/app") or null. The registry's `linksOf(noteId)` collects them from the
+  plugins that are on, and `useNoteLinks` keeps a component current: the plugin host now announces
+  every write to a plugin's storage (`onPluginStorage`), which is where links live.
+- **`plugins/LinkMarks.tsx`**: the plugin's mark in a ring with the name beside it. On the note, a
+  row under the tape that opens the cog sheet; on a list row, the marks alone after the time, the
+  names in the accessible text. Nothing is drawn for an unlinked note or a plugin switched off.
+- **Staging build** (`GLYPH_STAGING=1 npm run android:build …`, `gen/android/app/build.gradle.kts`):
+  the same code as "Glyph Staging" under `com.mattssoftware.glyph.staging`, beside the real app with
+  its own data and no update checks (`ota.rs` `STAGING`, `UpdateCheckWorker`), so a build can be
+  walked through as a new person sees it. `src/channel/<production|staging|dev>/res` carries the one
+  resource that differs, the launcher shortcut's target package. `GLYPH_CHANNEL=dev` is the third app,
+  "Glyph Dev" (`com.mattssoftware.glyph.dev`), for `tauri android dev`: a debug build whose page comes
+  live from the Mac's Vite server and hot-reloads as the code changes, for working on the phone with
+  Matt in the room.
+
+## 47. The first page: waves from the side key (2026-09-14)
+
+Matt: "research the rough position of the button on all modern flagship phones, create that list in a database, and on the 'Hold. Talk. Done.' first page have waves emanating from that button spot, but don't do anything to prompt the user to press it yet. Change the text to target telling the user that you hold and talk and the app writes clean markdown using local LLMs that don't kill baby seals or pollute the ocean; we can use quirky fun branding here."
+
+- **Where the key is** (guide/sideKeys.ts): a table of current Android flagships, each with the edge the side key is on, seen from the front, and how far down the phone's height its middle sits. Rough, read off the phones; makers mostly agree on the right edge a little above the middle, below the volume rocker, and differ in one thing: Google puts the power key above the rocker, high on the right, and Sony puts it dead centre with a shutter under it. A phone is known by the model in its user agent (`SM-F971U1`, `Pixel 10 Pro`, `CPH2649`), failing that by its maker (`deviceMaker`, `Build.MANUFACTURER`), failing that the common case. `onScreen` moves a point on the phone to the screen: the display starts a little way down and ends a little short of the foot. The same list lives in Matt's Notion as the database "Side keys on flagship phones", to edit as phones come and go; the app carries its own copy because the guide runs before anything is signed in.
+- **The waves** (guide/SideKeyWaves.tsx): four hairline rings of ink, centred on the screen's edge at the key's height so only their inner half shows, widening one after another to a third of a screen and fading before they reach the words. Behind the page (a negative z-index in the guide's stacking context: above its paper, below its content), no touch, nothing pointing, no word "press": the key is there and the page knows it, and that is all it says. Under reduced motion two rings sit still and faint.
+- **The words.** "Hold. Talk. Done." stays. Under it: hold the side key and talk, and Glyph writes it up as clean Markdown; the writing is done by small language models on the phone that never phone home, no cloud, no server farm boiling a lake, no baby seals harmed, no oceans polluted. The setup line that was there ("two things to set up") is gone; the pages that follow do the setting up.
+
+## 48. Words from smoke: the Wisp component (2026-09-14)
+
+Matt picked Wisp from the Apparition Type playground (letters bent by SVG turbulence that stills as
+each one sets) and asked for it "added to our text component through a helper", "character by
+character", able to "swap around entire words", for the guide's first page.
+
+- **`art/wisp.ts`**, pure and tested: a text is words and gaps; a change from one text to another is
+  the longest common run of words kept in place, the rest leaving and arriving (a word that moved
+  leaves and comes back rather than sliding); letters arrive at a hand's cadence (uneven, a breath
+  after a comma, longer after a full stop) and leave from the last letter, quicker.
+- **`art/WispText.tsx`**: the component. Its letters are its own DOM under a requestAnimationFrame that
+  runs only while something settles; each settling letter has its own filter from a pool capped at
+  48 (two letters sharing one flickered), a wide filter region and sRGB interpolation, as the
+  playground found. The first `text` types itself in (or is simply there with `still`); each later
+  `text` is a word-level swap: out, then in. Reduced motion shows the text at rest and fades changes.
+  A screen reader gets the whole text once; the letters are hidden from it.
+- **`art/useWisp.ts`** `useWispCycle(texts, holdMs)`: a line that keeps changing, for the headline.
+- **The blank list after Skip** (seen once on the emulator): `useNotes` now retries a failed first
+  read and re-asks once when the phone's first answer is empty, and the guide's close refreshes the
+  list.
+
+## 49. The first page, again: a heads-up that there's AI in here (2026-09-14)
+
+Matt: "redo the first slide, it should be a heads up page that we use AI but say that it all runs on local models on your phone then we're going to do three funny anti AI animations with simple SVG elements like 'no dying baby seals' 'no datacenter water' then make one about it not helping prevent you from being stupid … that ones on you be funny and a bit adult sassy mean … a flashing no symbol then a seal getting bonked on the head with a club then like no symbol again then sludge nasty water turning toxic green with a gradient … heavy iconography and micro animations and color". This replaces §47's words and hero. The side key's rings (§47) stay behind the page.
+
+- **Top of the page: the gags** (`guide/AntiAiStage.tsx`, words and order in `guide/antiAi.ts`). Beats go round:
+  1. The no symbol slams in and flashes twice, with the gag's title under it.
+  2. Its scene plays, with the punchline.
+
+  Each beat is one React render. Every movement is a CSS animation over `--beat` (the beat's length), with parts turning about points in the drawing (`transform-box: view-box`). A beat only advances while the page is visible.
+  - **"No dying baby seals."** A seal on an ice floe. A club on a blue sleeve winds up and lands at 34%: a BONK burst, X eyes, a lump, and stars going round. "Nobody got clubbed so you could write a grocery list."
+  - **"No datacenter water."** A datacenter with blinking racks, steaming, pipes a lake dug into the ground. The lake's gradient stops turn from clear blue to sludge green, the fish goes belly up with X eyes, then stink lines and a skull. "No server farm drank a lake and spat it back out glowing."
+  - **"No thinking for you, either."** A phone beams answers at a head. Its brain's wrinkles erase one by one, it shrinks to a pea and rattles, and the face goes cross-eyed and slack-jawed. "It won't stop you going soft in the head. That one's on you, sweetie."
+  - Under the scene: a coloured badge per gag (blue, green, pink) with its Lucide icon, and a red ban flashing over it during the no beat.
+  - With reduced motion, the three are listed still, each badge with its ban.
+- **Then the heads-up.**
+  - The headline "Heads up: there's AI in here." typed out of smoke (WispText, a size below the display face).
+  - One sentence: every model runs on the phone, so nothing said goes to a cloud, a company, or anyone.
+  - Four promises as coloured icon pills that pop in one after another, their icons wiggling now and then: Runs on your phone, No cloud, Works offline, Nothing sent anywhere.
+- Checked at phone width in the browser by pausing each scene's animations at their moments: the bonk, the toxic lake, the shrunken brain. `antiAi.test.ts` holds the order and the words.
+
+## 50. Wobbly waves, the microphone, and "Not yet, finish reading." (2026-09-14)
+
+Matt, later the same day: "remove showing the glyph logo on the first page, make the pulsing waves wobbly and have them react to the phone's microphone, if the app is relaunched we can assume they hit the button on the side too early so reload with a warning about it being too soon but fit the ghostly theme without being cheesy, just be a bit sassy. Maybe just 'not yet, finish reading.'"
+
+- **The logo** was the first page's hero art; it went with the page's redo into the AI heads-up (§47's Welcome was reworked on its own), so nothing more to remove.
+- **The waves** (guide/SideKeyWaves.tsx, guide/waves.ts) are drawn on a canvas now, since they are no longer circles: three slow sines around each outline make it waver like something seen through water rather than shiver. At rest one faint ring every 0.95 s; a voice sends them out closer together, wider and brighter, with a bigger wobble, the level eased frame by frame so a word does not make a ring jump. Frames stop while the page is hidden. Under reduced motion two rings sit still.
+- **The microphone** (guide/micLevel.ts) is a small listener of its own, loudness only, closed the moment the page leaves. The guide never asks for it: the first screen of the app should not open with a permission dialog, and the recorder asks when there is a reason to. So the rings listen where the microphone is already allowed and keep their beat everywhere else: a fresh install until its first recording, and the hot-reloading dev build, whose plain-http page has no microphone at all.
+- **Too soon** (guide/tooSoon.ts, guide/TooSoon.tsx). The guide notes that it has started and which page it is on; both go when it is finished. A launch with the guide unfinished and left on a reading page (before the side-key page) is someone who held the key on page one: the app comes up on the guide again, one line typed out of smoke at the top of it, "Not yet, finish reading.", and a side-key launch does not record. The key held while the guide is open on a reading page does the same. From the side-key page on, a press is what the page asks for, and it records as before.
+
+## 49. Marks from plugins, a secret in smoke, and the sample note
+
+Matt: "add a default note with every kind of markdown formatting and table and image and everything we support,
+add support for additional formatting characters through plugins and add spoiler as one which gives text an
+extreme wisp effect when it's between two pipes || ||". Then: "we need a button up top to see all the formatting
+symbols, it should split the UI open under the top bar with a wispy fade and then render in a row of formatting
+controls we can scroll through horizontally".
+
+- **A plugin can add an inline formatting** (`plugins/types.ts` `InlineFormat`): a node name, a delimiter run of
+  one to three of a character Markdown doesn't already use, and a look. The editor's markdown
+  (`editor/language.ts` `inlineFormat`) parses each switched-on plugin's formatting the way GFM parses `~~`, with
+  the same flanking rules, into a node holding two marks and the words; the marks take the dimmed marker style
+  every delimiter has, so nothing is hidden (§3.2). The look is drawn by two small view plugins, not the
+  highlighter: `formatLooks.ts` puts a plugin's CSS on the words of a `style` look, and `wispFormat.ts` puts each
+  letter of a `wisp` look in smoke. The registry checks the shape at start and refuses a delimiter like `**`.
+- **The Spoiler plugin** (`plugins/spoiler/`) is one formatting and nothing else: `||the key is under the
+  stone||`. Every letter between the pipes is bent, blurred and half-there, a dozen SVG filters shared round the
+  letters and animated together at about thirty steps a second while any smoke is on screen, so the words can't
+  be read; put the caret in them and they settle to plain text for editing, leave and they smoke over. Reduced
+  motion keeps the smoke still, and still hiding. A read-only note never clears. The letters are plain inline
+  marks carrying a filter, as the recorder's arriving words are (§48), so kerning and wrapping don't change.
+- **Styles, from the press-and-hold menu** (`editor/ContextMenu.tsx`): a bar of symbols split open under the top
+  bar came first and was taken out (Matt: "it doesn't look good as is, maybe it needs to be something we do by
+  pressing and holding on text"). Holding on text opens the note's menu, and its Style word turns the menu over to
+  the formatting in the menu's own hand, icon over word: the marks that wrap the selection (Bold, Italic, Struck,
+  Code, then each switched-on plugin's, so Spoiler sits after them), the forms a line takes (Heading, Quote, List,
+  Numbered, To-do), and the inserts (Link, Table, Rule; a picture stays Add image on the first page), in one band
+  that scrolls sideways with a little room between the three kinds (three stacked bands "looks a bit strange"; a heavier rule read as "two pixels thick"). A long press on empty paper places the caret and opens the menu there. A style
+  pressed wraps or unwraps through `editor/format.ts`, stays on the menu lit in reverse while it applies, so a word
+  can take two in one go; an insert closes the menu. The styles come in out of smoke along each band; Back returns.
+- **The sample note** (`core/sampleNote.ts`, `core/seed.ts`): one note with one of everything, headings to
+  spoiler, a table, a fenced block, a rule, and a picture drawn on the spot (an ink cassette letting off smoke,
+  rendered through a canvas into the library's pictures like any pasted one). A fresh library gets it once, a
+  few seconds after the first read comes back empty; a library with notes is marked done and left alone, so an
+  update drops nothing on anyone. Settings > About > Add the sample note makes another on request. The test
+  parses the note and checks every node the editor knows is in it.
+- **The marks page** (`guide/Guide.tsx` `Markdown`, `guide/phrases.ts`): the guide's "Talk in markdown" page became
+  a rundown (Matt: "a quick rundown of markdown, our special symbols, and how to trigger each with voice"). Three
+  lists: every spoken cue with the mark it writes beside the words to say and an example written by the real rules
+  (`symbol` on each `PhraseGroup`, pinned by guide.test.ts to appear in its example); the marks that are typed only
+  (`TYPED`); and the switched-on plugins' own marks, with the spoken cue where the plugin names one (`InlineFormat.cue`,
+  the Spoiler's "spoiler … end spoiler"). The sample note's picture is Jocelyn Morales's smoke from Unsplash
+  (docs/THIRD_PARTY.md); the drawn cassette was "quite ugly".
+- **Six more marks** (`plugins/marks/index.tsx`), each its own plugin of one formatting so any can be switched off,
+  made through one `markPlugin` helper (Matt: "i like all of these, add them each"): `==highlight==` (an ink wash),
+  `%%aside%%` (smaller, muted, leaning), `??unsure??` (a dotted line under a doubt), `@@redact@@` (a solid bar,
+  lifted while the caret is in it: `FormatLook` grew `clearAtCaret`, and `formatLooks.ts` follows the selection
+  when any look lifts), `^^shout^^` (spaced small caps), `++added++` (a line under, the pair of `~~struck~~`). Each
+  names its spoken cue and a line for the guide (`InlineFormat.about`); the sample note shows all six.
+- **The home page from smoke** (`notes/NotesList.tsx`, `art/WispText.tsx` `delay`): "Notes" types in at a hand's
+  pace and the first eight titles follow, quick and each a beat after the last (Matt: "offset them slightly so each
+  animation looks special but doesn't take all day"); rows past the eighth are simply there, since the cost is a
+  filter per settling letter. `WispText` gained a `delay` for its first text only; the row title's clip box has
+  padding inside its margin so a bending letter isn't cut at the line.
+
+
+## Memo mode sorts: the scratch page (2026-09-15)
+
+Matt: "when I tell it to add a note to a list by a given title I want it to add to that list, but it just gets left on whichever note was last open. Change memo mode to write to a scratch file that's not real until the memo is done, then the AI can figure out how to sort." He chose: show the sorting and commit it; a blank scratch page while talking; without a model, the rules file the commands they know and the rest becomes a new note.
+
+- **The scratch** (`capture/scratch.ts`): with Memo mode on and the recorder not aimed at a note, the take is written to the page's own storage a second at a time, not to a note, and the recorder shows a blank page headed "Memo · sorted when you're done". The recording is kept under the scratch's id. A scratch left by a take that never finished, a memo ended over the lock screen, or one left with Back waits on the list as "A memo is waiting to be sorted".
+- **Sorting** (`sort/`): the reasoning model reads the memo beside the person's note titles (`sort/prompt.ts`) and answers with placements, each a note, what to add, and the memo's words it came from. Every placement must name a real note and quote the memo exactly (`sort/plan.ts` `readPlacements`), and the rules (`rulePlacements`, the recorder's own `planCommand`) add any plain "add X to Y" the model missed, so an explicit command is never lost. Without a model, only the rules sort.
+- **The screen** (`sort/SortScreen.tsx`, the review's styles): each placement with Use this or Skip, and under them the new note that what's left becomes (`leftover`). Commit files the kept placements through `placeWords` and saves the rest as a new note carrying the recording; "Keep as one note" skips them all. Nothing is written before Commit.
+
+## 50. The tape only where there is audio
+
+Matt: "Don't show the tape on notes that don't have any audio recorded; the notes with audio recordings added should
+show the tape so we can add or remove audio there."
+
+- **A note with no recording has no tape** (`tapes/NoteTape.tsx` renders nothing without one, and `editor/NoteScreen.tsx`
+  drops the row). Talking into such a note is a ringed mic in the header, beside the robot and the cog, so it stays
+  one tap away; the side key still clears the stage for a fresh capture as before.
+- **A note with a recording has the tape**: the cassette and Play as before, and under Play two quiet words, Add
+  (the recorder aimed at the note; the take is appended to the tape) and Remove.
+- **Remove** forgets the recording's length and phrases (`set_note_recording` with null, native generation 6, so no
+  new APK), and the tape goes at once with a five-second Undo that puts both back. The audio file itself stays on
+  disk until the note is spoken into again or deleted, which is what makes Undo possible; the recorder now appends to
+  a note's file only when the note still has a recording (`capture/CaptureScreen.tsx`), so a take after a Remove
+  starts a fresh file instead of landing after the removed audio.
+

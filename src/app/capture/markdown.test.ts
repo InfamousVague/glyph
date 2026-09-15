@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { enumeration, renderNote, toParagraphs, type Segment } from './markdown.ts';
+import { enumeration, renderNote, setSpokenFormats, spokenInlineMarkup, toParagraphs, type Segment } from './markdown.ts';
 
 /**
  * What a spoken note becomes.
@@ -437,3 +437,15 @@ describe('"the next item is" with the item in the next phrase', () => {
 function opening(): string {
   return 'This opening sentence is long enough not to become a title.';
 }
+
+describe('a plugin formatting said aloud', () => {
+  it('wraps "spoiler … end spoiler" in the plugin\'s delimiter, and leaves bold as it was', () => {
+    setSpokenFormats([{ word: 'spoiler', delimiter: '||' }]);
+    try {
+      expect(spokenInlineMarkup('The winner is spoiler. The butler. End spoiler. And bold. Friday. End bold.')).toBe('The winner is ||The butler||. And **Friday**.');
+      expect(spokenInlineMarkup('No spoilers here, spoiler alert.')).toBe('No spoilers here, spoiler alert.');
+    } finally {
+      setSpokenFormats([]);
+    }
+  });
+});

@@ -83,3 +83,8 @@ export function Unarchive({ className }: IconProps) {
 export function Bin({ className }: IconProps) {
   return icon(className, 'M4 6.5h16M9.5 6.5V4h5v2.5M6.2 6.5 7.1 20h9.8l.9-13.5M10 10.5v6M14 10.5v6');
 }
+
+/** A folder: a tab at the top left, then the pocket. Where a note is filed. */
+export function Workspace({ className }: IconProps) {
+  return icon(className, 'M3.5 6.5a1 1 0 0 1 1-1h5l2 2.5h8a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z');
+}

@@ -22,6 +22,7 @@ Keep, without exception:
 - The writer's meaning and voice. Plain, direct sentences. First person if the note is in first person. No corporate tone, no labels the note did not give (no "Priority", "Status", "Action", "Deadline").
 - Any line that is a picture, like ![](image/abc.jpg): copied exactly, on its own line, where it was, never inside backticks. Never describe a picture; the line is the picture.
 - Every link. You receive links as [the words](link-1) or <link-2>: keep each one exactly as written, its link-1 target included, where it belongs. Never drop a link, never change its target, and never write out an address.
+- A list item may end with a mark, a link whose words are one lowercase name, like [notion](link-1): keep it at the end of that item, exactly as it is.
 - Any line that is a table, which you receive as a picture-like line ![table-1](table): copied exactly, on its own line, where it was. Never describe it, and never write a table of your own.
 - The note's size. A note of a few words stays a few words; do not write what it might have meant.
 - Words you are not sure of, such as names, spelled as the note spells them.
@@ -55,6 +56,7 @@ Keep, without exception:
 - What the note decides and asks for: the things to do with their when, and the few names, dates and amounts they need. Everything else is left out. Nothing is added; if the note does not say it, you do not say it.
 - The writer's meaning and voice. First person if the note is in first person. No labels the note did not give.
 - Every link. You receive links as [the words](link-1) or <link-2>: keep each one exactly as written, its link-1 target included, wherever its words appear. Never drop a link, never change its target, and never write out an address.
+- A list item may end with a mark, a link whose words are one lowercase name, like [notion](link-1): if the item is in the summary, its mark stays at its end, exactly as it is.
 - Words you are not sure of, such as names, spelled as the note spells them.
 - A picture-like line ![table-1](table) is a table in the note: leave it out of the summary, or copy the line exactly if the table is the point of the note. Never describe it.
 
@@ -87,6 +89,7 @@ Keep, without exception:
 - The writer's meaning and voice. First person if the note is in first person. No corporate tone, no labels the note did not give.
 - Any line that is a picture, like ![](image/abc.jpg): copied exactly, on its own line, where it was, never inside backticks. Never describe a picture.
 - Every link. You receive links as [the words](link-1) or <link-2>: keep each one exactly as written, its link-1 target included, where it belongs. Never drop a link, never change its target, and never write out an address.
+- A list item may end with a mark, a link whose words are one lowercase name, like [notion](link-1): keep it at the end of that item, exactly as it is.
 - Any line that is a table, which you receive as a picture-like line ![table-1](table): copied exactly, on its own line, where it was. Never describe it, and never write a table of your own.
 - Words you are not sure of, such as names, spelled as the note spells them.
 
@@ -98,6 +101,25 @@ Enhance:
 - Longer than the note, up to about twice as long; a note of a few words becomes a few sentences, not a page.
 
 Plain markdown only: no emoji, no tables, no horizontal rules, no "*" bullets. The answer is the markdown note and nothing else: no introduction, no explanation, no closing remark, no code fence around it.`;
+
+/**
+ * The gist: one line under a note's title in the list, what the note is
+ * about, written on the phone in the background (format/gist.ts). Twelve
+ * words at most; the example holds the model to it.
+ */
+export const GIST_PROMPT = String.raw`You are the editor inside Glyph, a notes app. You receive one note and answer with one line that says what it is about, in the writer's own words and voice: at most ten words, no heading, no list, no quotes, no closing punctuation, and nothing else at all. A note with many things in it gets a line about what they have in common, not a list of them. Links come as [the words](link-1) or <link-2>: leave them out and never write an address. A picture line, ![](…), is left out too.
+
+Example. The note:
+ok so I need to call the plumber about the leaking tap before thursday because it's getting worse, and pick up eggs and coffee on the way home
+
+Its line:
+Call the plumber by Thursday, and eggs and coffee
+
+Another. The note:
+weekend plans. book the cabin by friday, deposit is 200. snacks and a charger for the drive. ask sam about the dog. the car needs an oil change before we go
+
+Its line:
+Getting the weekend cabin trip ready`;
 
 /** The prompt for a mode. */
 export function promptFor(mode: Mode): string {

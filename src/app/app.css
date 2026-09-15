@@ -121,3 +121,73 @@ body {
 #root {
   height: 100dvh;
 }
+
+/*
+ * The status bar's ground. The page is drawn edge to edge, so a list or a note
+ * scrolled up ran under the phone's clock and icons and they sat on words
+ * (Matt: "top content when scrolling intercepts the native top menu controls
+ * … We need a gradient to fix that at the top"). The paper colour is solid
+ * behind the bar and fades out just below it; nothing can be touched through
+ * it. Zero high where there is no status bar, as on a desktop.
+ */
+.app-statusScrim {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 40;
+  block-size: calc(var(--app-safe-top) + min(var(--app-safe-top), 14px));
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--glacier-bg) 0,
+    var(--glacier-bg) calc(var(--app-safe-top) * 0.7),
+    color-mix(in srgb, var(--glacier-bg) 0%, transparent) 100%
+  );
+}
+
+/*
+ * The wisp edge (art/wispEdge.ts): a view scrolled off its top goes to smoke
+ * where it slips behind its header, and fades out into it. The app's standard
+ * soft top; worn only while scrolled.
+ */
+/*
+ * A header pane over a wisp-edged scroller (art/wispEdge.ts): dark glass in
+ * the dark and light glass on paper, the page's own colour at two thirds
+ * over a blur of whatever runs under it (Matt: "it's not like a dark glass,
+ * it's solid black"). Tinted with the page's own paper rather than a lighter
+ * grey, so at the top of the page, with nothing under it, it is the page and
+ * nothing shows; once the page runs under it the blur reads as glass. The
+ * wisp sits a little way below its edge.
+ */
+.app-headerPane {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  z-index: 3;
+  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
+}
+
+[data-wisp-edge] {
+  filter: url(#wispEdge);
+  /* With no header the very top dissolves (`--wisp-top-fade`); under a solid header the header hides it. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--wisp-top-fade, 29px));
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--wisp-top-fade, 29px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-wisp-edge] {
+    filter: none;
+  }
+}
+
+/*
+ * Icons filled the way AttackFM fills them: the outline in ink and its inside a third of the same colour, so a
+ * muted icon fills muted and a paper icon fills paper (Matt: "use the filled style we use on AttackFM", then "the
+ * icon fill should be slightly opaque, not solid"). `.lucide` is the kit's icon internals showing through
+ * (@glacier/icons proxies lucide). Zero specificity, so any icon that colours its own fill (the guide's flames) wins.
+ */
+:where(svg.lucide) {
+  fill: color-mix(in srgb, currentColor 33%, transparent);
+}

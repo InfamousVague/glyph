@@ -4,6 +4,7 @@ import { itemAt, linkedLine, unsentItems } from '../../core/itemLinks.ts';
 import { isTauri } from '../../core/tauri.ts';
 import type { GlyphPlugin, NoteEditing } from '../types.ts';
 import { BoardPicker } from './BoardPicker.tsx';
+import { notionDetails } from './details.ts';
 import { boardFor, boardLinks, createTask, notionAvailable, notionReadyNow, type Board } from './client.ts';
 import { manifest } from './manifest.ts';
 import { NotionMark } from './marks.tsx';
@@ -32,7 +33,7 @@ async function sendItems(board: Board, items: readonly { text: string }[], editi
   for (const item of items) {
     try {
       const task = await createTask(board, item.text);
-      if (editing.replaceLine((text, line) => itemAt(text, line)?.text === item.text, (text) => linkedLine(text, task.url))) sent += 1;
+      if (editing.replaceLine((text, line) => itemAt(text, line)?.text === item.text, (text) => linkedLine(text, task.url, 'notion'))) sent += 1;
     } catch (failure) {
       editing.say(failure instanceof Error ? failure.message : String(failure));
       return;
@@ -62,6 +63,7 @@ export const notionPlugin: GlyphPlugin = {
         return (await notionAvailable()) ? null : 'Needs the newest Glyph. Update it in Settings.';
       },
       Picker: BoardPicker,
+      linked: (noteId) => boardFor(noteId)?.title ?? null,
     },
   ],
   noteActions: [
@@ -91,6 +93,18 @@ export const notionPlugin: GlyphPlugin = {
       if (board) await sendItems(board, [{ text }], editing);
     },
   },
+  // The quiet "Notion" after each item not sent yet, once a board is linked.
+  suggest(noteId, body) {
+    const board = boardFor(noteId);
+    if (!notionReadyNow() || !board) return [];
+    return unsentItems(body).map((item) => ({
+      line: item.line,
+      label: 'Notion',
+      busyLabel: 'Sending',
+      run: (editing: NoteEditing) => sendItems(board, [{ text: item.text }], editing),
+    }));
+  },
+  marks: notionDetails,
   voice: [sendCommand, taskNoteCommand],
   itemTargets: [notionItems],
   tips: () => (Object.keys(boardLinks()).length ? [{ say: 'Send that to Notion', does: 'to make what you just said a task' }] : []),

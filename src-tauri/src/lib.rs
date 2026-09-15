@@ -8,6 +8,8 @@
 // first such caller that DID ship is the update-alert worker, for `ota`, below.
 // See store.rs's header.
 pub mod store;
+/// The notes as a folder of Markdown files, and the index over them (docs/LIBRARY.md).
+pub mod library;
 
 // The webview's door to the store - four commands and no logic of its own.
 mod commands;

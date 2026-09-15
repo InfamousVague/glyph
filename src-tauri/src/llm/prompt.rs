@@ -18,6 +18,11 @@ pub const SENTINEL: &str = "\u{E000}glyph-note\u{E001}";
 /// nothing happen for a minute.
 pub const EMPTY_THOUGHT: &str = "<think>\n\n</think>\n\n";
 
+/// Closes a thought that has run past its budget, so the answer comes. Qwen's
+/// own advice for budget forcing is to end the thinking in the model's voice
+/// and close the tag: the model then answers from what it has thought so far.
+pub const THOUGHT_CUTOFF: &str = "\n\nI have thought about this enough; time to give the answer from what I have so far.\n</think>\n\n";
+
 /// The system message: the page's system prompt, then any context.
 ///
 /// Context goes in the system message rather than beside the note so that it

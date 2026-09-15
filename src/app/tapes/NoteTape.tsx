@@ -1,3 +1,4 @@
+import { Mic, Pause, Play, Trash2 } from '@glacier/icons';
 import { useEffect, useRef } from 'react';
 import { counter } from '../capture/tape.ts';
 import type { Note } from '../core/store.ts';
@@ -6,16 +7,18 @@ import type { Tape } from './useTape.ts';
 import styles from './NoteTape.module.css';
 
 /**
- * The tape at the top of every note: the cassette, Speak, and for a note that
- * has a recording, Play and where the playhead is.
+ * The tape at the top of a note that has a recording: the cassette, Play and
+ * where the playhead is, and the two things to do with the audio, Add (talk
+ * more into the note, the new take appended to the tape) and Remove.
  *
- * Every note has one, so talking into a note is always one tap away (Matt: "i
- * want to be able to start talking on a note"): Speak opens the recorder aimed
- * at this note, and the words land at its end. A note never spoken into shows
- * an empty cassette with its title on the label, and tapping it is Speak too.
- * A spoken note's cassette plays and pauses when tapped; its reels turn while
- * it plays and the tape winds across, so the picture is the progress bar.
- * Which words are shown under it - the note, its formatted version, or the
+ * Only a spoken note has one (Matt: "Don't show the tape on notes that don't
+ * have any audio recorded; the notes with audio recordings added should show
+ * the tape so we can add or remove audio there"). A note with no recording
+ * has no cassette at all; its header has a mic to talk into it instead
+ * (editor/NoteScreen.tsx), and once it has been spoken into, the tape
+ * appears. The cassette plays and pauses when tapped; its reels turn while it
+ * plays and the tape winds across, so the picture is the progress bar. Which
+ * words are shown under it - the note, its formatted version, or the
  * recording's phrases following the sound (`TranscriptWords`) - is the note
  * screen's business.
  */
@@ -23,47 +26,49 @@ import styles from './NoteTape.module.css';
 const DATE = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
 const CLIP = 22;
 
-export function NoteTape({ note, title: typed, tape, onSpeak }: { note: Note; title: string; tape: Tape; onSpeak: () => void }) {
+interface NoteTapeProps {
+  note: Note;
+  title: string;
+  tape: Tape;
+  /** Talk more into the note: the recorder, aimed at it, appending to the tape. */
+  onSpeak: () => void;
+  /** Take the recording off the note (the screen offers Undo). */
+  onRemove: () => void;
+}
+
+export function NoteTape({ note, title: typed, tape, onSpeak, onRemove }: NoteTapeProps) {
+  if (tape.length <= 0) return null;
   const title = typed || 'Untitled';
   const label = title.length > CLIP ? `${title.slice(0, CLIP - 1).trimEnd()}…` : title;
-  const recorded = tape.length > 0;
   const moved = tape.playing || tape.at > 0;
   return (
-    <section className={styles.tape} aria-label={recorded ? 'Recording' : 'Talk into this note'}>
-      <button
-        type="button"
-        className={styles.cassette}
-        data-blank={recorded ? undefined : ''}
-        onClick={recorded ? tape.toggle : onSpeak}
-        aria-label={recorded ? (tape.playing ? 'Pause the recording' : 'Play the recording') : 'Talk into this note'}
-      >
+    <section className={styles.tape} aria-label="Recording">
+      <button type="button" className={styles.cassette} onClick={tape.toggle} aria-label={tape.playing ? 'Pause the recording' : 'Play the recording'}>
         <TapeArt
-          positionMs={recorded ? (moved ? tape.at : tape.length) : 0}
+          positionMs={moved ? tape.at : tape.length}
           playing={tape.playing}
           title={label}
           side={DATE.format(note.createdAt).toUpperCase()}
-          counter={recorded ? counter(tape.length) : 'BLANK'}
+          counter={counter(tape.length)}
         />
       </button>
 
       <div className={styles.side}>
-        {recorded ? (
-          <span className={styles.time}>
-            {counter(tape.at)} <span className={styles.of}>/ {counter(tape.length)}</span>
-          </span>
-        ) : (
-          <span className={styles.blank}>Nothing recorded yet</span>
-        )}
-        <span className={styles.controls}>
-          {recorded ? (
-            <button type="button" className={`app-pill ${styles.play}`} onClick={tape.toggle} aria-label={tape.playing ? 'Pause' : 'Play'}>
-              <span className={tape.playing ? styles.pauseMark : styles.playMark} aria-hidden="true" />
-              {tape.playing ? 'Pause' : 'Play'}
-            </button>
-          ) : null}
-          <button type="button" className={`${recorded ? 'app-word' : 'app-pill'} ${styles.speak}`} onClick={onSpeak} aria-label="Talk into this note">
-            <span className={styles.speakDot} aria-hidden="true" />
-            Speak
+        <span className={styles.time}>
+          {counter(tape.at)} <span className={styles.of}>/ {counter(tape.length)}</span>
+        </span>
+        <button type="button" className={`app-pill ${styles.play}`} onClick={tape.toggle} aria-label={tape.playing ? 'Pause' : 'Play'}>
+          {tape.playing ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+          {tape.playing ? 'Pause' : 'Play'}
+        </button>
+        <span className={styles.edits}>
+          <button type="button" className={`app-word ${styles.edit}`} onClick={onSpeak} aria-label="Record more into this note">
+            <Mic size={15} strokeWidth={2.2} aria-hidden="true" />
+            Add
+          </button>
+          <button type="button" className={`app-word ${styles.edit}`} onClick={onRemove} aria-label="Remove this note's recording">
+            <Trash2 size={15} strokeWidth={2.2} aria-hidden="true" />
+            Remove
           </button>
         </span>
       </div>

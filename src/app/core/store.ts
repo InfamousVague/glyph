@@ -48,6 +48,8 @@ export interface Note {
   formattedFor?: number | null;
   /** The model that wrote it, by its id in core/ai.ts. */
   formattedModel?: string | null;
+  /** Where the note's file is in the library, relative to it (`Inbox/AttackFM.md`). Native generation 15; absent before, and in a browser. */
+  path?: string;
 }
 
 export type NoteSource = 'editor' | 'capture';
@@ -224,7 +226,7 @@ export function notePreview(body: string): string {
     const text = line
       .replace(/^[#>\-*\s]+/, '')
       .replace(/^\[[ xX]\]\s*/, '')
-      .replace(/(\*\*|__|~~|`)/g, '')
+      .replace(/(\*\*|__|~~|`|\|\|)/g, '')
       .replace(/(^|\s)[*_](\S)/g, '$1$2')
       .replace(/(\S)[*_](?=\s|$|[.,;:!?])/g, '$1')
       .trim();
@@ -252,6 +254,9 @@ interface NotesState {
  * `window.__glyph.refresh()` for the case where the webview was alive but
  * hidden and the browser never fired `visibilitychange`.
  */
+/** Retries for the first read of the list, in ms: a store still opening, or an index busy after an install. */
+const FIRST_READ_RETRIES_MS = [250, 900, 2400];
+
 export function useNotes(): NotesState {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
@@ -263,13 +268,46 @@ export function useNotes(): NotesState {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    // The first read is the one that can go wrong: on a phone the store may
+    // still be opening, or its index busy right after an install, and a
+    // rejection here once left the list a blank page until a relaunch. So a
+    // failed first read is tried again a few times, and an empty first answer
+    // on the phone is asked once more a moment later, since a library that
+    // was there a launch ago is more likely still there than gone.
+    let cancelled = false;
+    void (async () => {
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          const next = await listNotes();
+          if (cancelled) return;
+          setNotes(next);
+          setLoading(false);
+          if (next.length === 0 && attempt === 0 && isTauri()) {
+            // Where the empty answer came from, should it ever be wrong: a page under
+            // another origin would be reading the browser store, not the phone's.
+            console.info(`[glyph] first read of the notes was empty (tauri ${String(isTauri())}, origin ${location.origin}); asking again`);
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            if (!cancelled) await refresh().catch(() => undefined);
+          }
+          return;
+        } catch (error) {
+          const wait = FIRST_READ_RETRIES_MS[attempt];
+          if (wait === undefined) {
+            console.warn(`[glyph] the notes could not be read (tauri ${String(isTauri())}, origin ${location.origin})`, error);
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, wait));
+          if (cancelled) return;
+        }
+      }
+    })();
     const onVisible = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
     document.addEventListener('visibilitychange', onVisible);
     const unanswer = answerHost('refresh', () => void refresh());
     return () => {
+      cancelled = true;
       document.removeEventListener('visibilitychange', onVisible);
       unanswer();
     };

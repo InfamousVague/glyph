@@ -1,0 +1,44 @@
+/*
+ * A scroller's soft edges (ScrollFades.tsx): a band at each end that blurs
+ * what passes under it and fades it into the paper, shown only while there is
+ * more to scroll to that way.
+ */
+
+.top,
+.bottom {
+  position: fixed;
+  z-index: 20;
+  box-sizing: content-box;
+  block-size: var(--glacier-space-8, 2rem);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms var(--glacier-ease-out, ease-out);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.top[data-shown='true'],
+.bottom[data-shown='true'] {
+  opacity: 1;
+}
+
+/* The blur fades out with the veil, so the band has no edge of its own. */
+.top {
+  background: linear-gradient(to bottom, var(--glacier-bg) 0%, color-mix(in srgb, var(--glacier-bg) 70%, transparent) 40%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%);
+}
+
+.bottom {
+  transform: translateY(-100%);
+  background: linear-gradient(to top, var(--glacier-bg) 0%, color-mix(in srgb, var(--glacier-bg) 70%, transparent) 40%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top,
+  .bottom {
+    transition: none;
+  }
+}

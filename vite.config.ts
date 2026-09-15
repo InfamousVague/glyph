@@ -3,6 +3,8 @@ import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+// @ts-expect-error - a plain .mjs module shared with scripts/test-report.mjs, no types.
+import { sourceHash } from './scripts/testReport/source.mjs';
 
 const root = import.meta.dirname;
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
@@ -74,18 +76,33 @@ function otaManifest(): Plugin {
 // from `ota.localhost` and from attack.fm/glyph/ unchanged. @glacier/react
 // resolves from the vendored copy in node_modules (installed via the file:
 // dependency).
+/** The `--port` the dev server was started with (the phone's proxied page can't tell the socket its port). */
+function portFromArgs(): number {
+  const at = process.argv.indexOf('--port');
+  return (at >= 0 && Number(process.argv[at + 1])) || Number(process.env.PORT) || 5250;
+}
+
 export default defineConfig({
   base: './',
   plugins: [react(), otaManifest()],
   define: {
     __GLYPH_BUILD__: JSON.stringify(build),
     __GLYPH_VERSION__: JSON.stringify(pkg.version),
+    // The code this build is made from, for the test results page to check its report against.
+    __GLYPH_SOURCE__: JSON.stringify(sourceHash(root)),
+    // A staging build (GLYPH_STAGING=1, see gen/android/app/build.gradle.kts): its own app, no update checks.
+    __GLYPH_STAGING__: JSON.stringify(Boolean(process.env.GLYPH_STAGING)),
   },
   server: {
     // 5250, not the 5240 the other Glacier apps use: two of them are often
     // running side by side, and Tauri wants a fixed port it can rely on.
     port: Number(process.env.PORT) || 5250,
     strictPort: true,
+    // `tauri android dev` builds under src-tauri/ while this server runs; its output is not the page's.
+    watch: { ignored: ['**/src-tauri/**', '**/server/**'] },
+    // On a phone (`tauri android dev --host`), the page is proxied through tauri.localhost, so the
+    // hot-reload socket must be told the Mac's real address; the CLI passes it as TAURI_DEV_HOST.
+    ...(process.env.TAURI_DEV_HOST ? { host: '0.0.0.0', hmr: { host: process.env.TAURI_DEV_HOST, protocol: 'ws', port: portFromArgs() } } : {}),
   },
   clearScreen: false,
 });

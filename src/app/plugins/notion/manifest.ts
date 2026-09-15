@@ -16,7 +16,7 @@ export const manifest: PluginManifest = {
   ],
   hosts: ['api.notion.com', 'attack.fm'],
   native: { generation: 12, commands: ['notion_save_account', 'notion_account', 'notion_disconnect', 'notion_request'] },
-  storage: ['glyph-notion-links', 'glyph-notion-signin'],
+  storage: ['glyph-notion-links', 'glyph-notion-signin', 'glyph-notion-tasks'],
 };
 
 export const host = createHost(manifest);

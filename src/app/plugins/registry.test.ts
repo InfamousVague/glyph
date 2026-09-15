@@ -89,10 +89,17 @@ describe('the plugin registry', () => {
     expect(createRegistry([linked, optional], memoryStore()).storageKeys()).toEqual(['glyph-plugins', 'glyph-optional']);
   });
 
-  it('ships Notion and Projects as standard, each within its manifest', () => {
+  it('ships Notion, Projects and Spoilers as standard, each within its manifest', () => {
     expect(BUILT_IN.map((p) => [p.manifest.id, p.manifest.standard])).toEqual([
       ['notion', true],
       ['projects', true],
+      ['spoiler', true],
+      ['highlight', true],
+      ['aside', true],
+      ['unsure', true],
+      ['redact', true],
+      ['shout', true],
+      ['added', true],
     ]);
     for (const plugin of BUILT_IN) {
       const kinds = plugin.manifest.permissions.map((p) => p.kind);
@@ -131,5 +138,82 @@ describe('a plugin’s host', () => {
     const host = createHost(manifest('p', { permissions: [{ kind: 'network', why: '' }] }));
     expect(() => host.require('network')).not.toThrow();
     expect(() => host.require('ai')).toThrow(/didn't declare the “ai” permission/);
+  });
+});
+
+describe('what plugins offer on a note’s lines', () => {
+  const offering: GlyphPlugin = {
+    manifest: manifest('offering', { permissions: [{ kind: 'notes', why: '' }] }),
+    icon: Icon,
+    suggest: (noteId, body) => (noteId === 'n1' && body.includes('- [ ]') ? [{ line: 1, label: 'Notion', busyLabel: 'Sending', run: () => Promise.resolve() }] : []),
+  };
+  const quiet: GlyphPlugin = {
+    manifest: manifest('quiet', { standard: false, permissions: [{ kind: 'notes', why: '' }] }),
+    icon: Icon,
+    suggest: () => [{ line: 2, label: 'Quiet', busyLabel: 'Quiet', run: () => Promise.resolve() }],
+  };
+
+  it('gathers the words of the switched-on plugins for the note as it stands', () => {
+    const registry = createRegistry([offering, quiet], memoryStore());
+    expect(registry.suggestions('n1', '- [ ] milk').map((s) => s.label)).toEqual(['Notion']);
+    expect(registry.suggestions('n1', 'plain')).toEqual([]);
+    expect(registry.suggestions('n2', '- [ ] milk')).toEqual([]);
+  });
+
+  it('refuses a plugin that offers words without the notes permission', () => {
+    const overreach: GlyphPlugin = { manifest: manifest('overreach'), icon: Icon, suggest: () => [] };
+    expect(() => createRegistry([overreach], memoryStore())).toThrow(PluginPermissionError);
+  });
+});
+
+describe('Local only', () => {
+  const online: GlyphPlugin = { manifest: manifest('online', { permissions: [{ kind: 'network', why: '' }], hosts: ['api.example'] }), icon: Icon };
+  const offline: GlyphPlugin = { manifest: manifest('offline'), icon: Icon };
+
+  it('turns off every plugin that uses the network, and tells listeners, until it is turned off again', async () => {
+    const { setPreferences } = await import('../core/preferences.ts');
+    const registry = createRegistry([online, offline], memoryStore());
+    const heard = vi.fn();
+    registry.subscribe(heard);
+    expect(registry.enabled().map((p) => p.manifest.id)).toEqual(['online', 'offline']);
+    setPreferences({ localOnly: true });
+    expect(registry.enabled().map((p) => p.manifest.id)).toEqual(['offline']);
+    expect(registry.isEnabled('online')).toBe(false);
+    expect(heard).toHaveBeenCalled();
+    setPreferences({ localOnly: false });
+    expect(registry.enabled().map((p) => p.manifest.id)).toEqual(['online', 'offline']);
+  });
+});
+
+describe('what a note is linked to', () => {
+  const boards: GlyphPlugin = {
+    manifest: manifest('boards'),
+    icon: Icon,
+    noteLinks: [{ id: 'board', label: 'Board', icon: Icon, hint: () => '', Picker: () => null, linked: (id) => (id === 'n1' ? 'Glyph Tasks' : null) }],
+  };
+  const repos: GlyphPlugin = {
+    manifest: manifest('repos', { standard: false }),
+    icon: Icon,
+    noteLinks: [{ id: 'repo', label: 'Repo', icon: Icon, hint: () => '', Picker: () => null, linked: () => 'attackfm/app' }],
+  };
+
+  it('names each link from every switched-on plugin, and nothing for a note without one', () => {
+    const registry = createRegistry([boards, repos], memoryStore({ repos: true }));
+    expect(registry.linksOf('n1').map((l) => `${l.link.label}: ${l.name}`)).toEqual(['Board: Glyph Tasks', 'Repo: attackfm/app']);
+    expect(registry.linksOf('n2').map((l) => l.name)).toEqual(['attackfm/app']);
+    registry.setEnabled('repos', false);
+    expect(registry.linksOf('n2')).toEqual([]);
+  });
+
+  it("offers the formattings of switched-on plugins only, and refuses a delimiter Markdown already uses", () => {
+    const shout: GlyphPlugin = { manifest: manifest('shout'), icon: Icon, formats: [{ name: 'Shout', delimiter: '==', look: { kind: 'style', css: 'text-transform: uppercase' } }] };
+    const registry = createRegistry([shout], memoryStore());
+    expect(registry.formats().map((f) => f.name)).toEqual(['Shout']);
+    registry.setEnabled('shout', false);
+    expect(registry.formats()).toEqual([]);
+    const bold: GlyphPlugin = { manifest: manifest('bold'), icon: Icon, formats: [{ name: 'Louder', delimiter: '**', look: { kind: 'wisp' } }] };
+    expect(() => createRegistry([bold], memoryStore())).toThrow(/delimiter/);
+    const lower: GlyphPlugin = { manifest: manifest('lower'), icon: Icon, formats: [{ name: 'shout', delimiter: '==', look: { kind: 'wisp' } }] };
+    expect(() => createRegistry([lower], memoryStore())).toThrow(/capitalised/);
   });
 });

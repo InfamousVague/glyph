@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { fireNativeHaptic } from '../core/haptics.ts';
+import { tickNow, type Approaching } from '../core/detentFeel.ts';
+import { fireMicroTick, fireNativeHaptic } from '../core/haptics.ts';
 import { ArchiveBox, Bin, Pin, Unarchive } from '../art/Icons.tsx';
 import { armedAt, followFinger, startsInGestureEdge, type SwipeAction } from './swipe.ts';
 import styles from './SwipeRow.module.css';
@@ -29,6 +30,10 @@ import styles from './SwipeRow.module.css';
  * swipe nears it, and the gap turns ink, or red for delete, once it is armed -
  * because a fast fling can cross two detents inside one motor pulse, and a
  * threshold you can only feel is one you can miss.
+ *
+ * And a detent can be felt COMING: light ticks while the swipe closes on it,
+ * speeding up as it nears (core/detentFeel.ts), so a thumb finds it by feel
+ * before the click.
  */
 
 interface SwipeRowProps {
@@ -53,6 +58,7 @@ export function SwipeRow({ children, start = [], end = [], onAction }: SwipeRowP
     intent: 'undecided' | 'horizontal' | 'vertical';
     width: number;
     armed: string | null;
+    approaching: Approaching;
   } | null>(null);
   const swallowClick = useRef(false);
 
@@ -69,6 +75,7 @@ export function SwipeRow({ children, start = [], end = [], onAction }: SwipeRowP
       intent: 'undecided',
       width: rowRef.current?.offsetWidth ?? 1,
       armed: null,
+      approaching: { lastTickAt: -Infinity, lastDistance: 0 },
     };
     setSettling(null);
   }, []);
@@ -93,7 +100,10 @@ export function SwipeRow({ children, start = [], end = [], onAction }: SwipeRowP
       const shown = actions.length ? followFinger(moveX, actions.at(-1)?.detent ?? 0, g.width) : 0;
       setDx(shown);
 
-      const next = armedAt(actions, Math.abs(shown) / g.width);
+      const distance = Math.abs(shown) / g.width;
+      if (tickNow(g.approaching, actions.map((a) => a.detent), distance, event.timeStamp)) fireMicroTick();
+
+      const next = armedAt(actions, distance);
       if ((next?.id ?? null) !== g.armed) {
         const deeper = next && (!g.armed || actions.findIndex((a) => a.id === next.id) > actions.findIndex((a) => a.id === g.armed));
         // Out through a detent: a firm click, heavier for a destructive one.

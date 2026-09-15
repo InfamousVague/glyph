@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { preferences } from './preferences.ts';
 import { invoke, isTauri } from './tauri.ts';
 
 /**
@@ -134,6 +135,9 @@ export function isNewerVersion(offered: string, installed: string): boolean {
   return false;
 }
 
+/** Whether this page was built as the staging app (vite.config.ts): its own id, its own data, no updates. */
+export const STAGING: boolean = typeof __GLYPH_STAGING__ !== 'undefined' && __GLYPH_STAGING__;
+
 export function useUpdates(): Updates {
   const [ready, setReady] = useState<Updates['ready']>(null);
   const [apk, setApk] = useState<ApkPhase>({ kind: 'none' });
@@ -145,7 +149,12 @@ export function useUpdates(): Updates {
   const lastAt = useRef(0);
 
   const check = useCallback(async () => {
-    if (!isTauri() || running.current) return;
+    // Local only: nothing is asked of the box, not even whether there is an update.
+    // A staging build never updates: what was installed is what runs.
+    // Nor does Glyph Dev (`tauri android dev`): its page comes live from the Mac's Vite server, so a downloaded bundle
+    // is never what it runs, and offering one left "A new version of Glyph is ready" that Reload could never take
+    // (Matt: "the OTA update isn't taking").
+    if (!isTauri() || running.current || preferences().localOnly || STAGING || import.meta.env.DEV) return;
     running.current = true;
     setChecking(true);
     try {

@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react';
+import { TextSearch } from '@glacier/icons';
 import { useBack } from '../core/back.ts';
-import { ArchiveBox, ArrowLeft, Bin, Pin } from '../art/Icons.tsx';
+import { ArchiveBox, ArrowLeft, Bin, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
+import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
 import { SheetIcon } from '../plugins/kit.tsx';
 import { plugins, usePlugins } from '../plugins/registry.ts';
 import type { NoteEditing, NoteLink } from '../plugins/types.ts';
+import { WorkspacePicker } from './WorkspacePicker.tsx';
+import type { NoteView } from './viewMode.ts';
 import styles from './NoteSettings.module.css';
 
 /**
- * One note's settings, from the cog in its header: pin it, archive it, what it
- * is linked to, what can be done with it, then Delete, apart at the bottom.
+ * One note's settings, from the cog in its header: pin it, archive it, which
+ * workspace it is in (core/workspaces.ts), what it is linked to, what can be
+ * done with it, then Delete, apart at the bottom.
  *
  * "Linked to" and the actions under it come from plugins (plugins/registry.ts):
  * the Projects plugin's Project row, the Notion plugin's board and "Send list
@@ -32,12 +37,20 @@ interface NoteSettingsProps {
   onPin: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  /** Opens find and replace in the note; absent where the note can't be searched (the robot's view is showing). */
+  onFind?: () => void;
+  /** How the note is shown, when the header has no room for its switch (a folded phone); absent, no row. */
+  view?: NoteView;
+  onView?: (view: NoteView) => void;
 }
 
-export function NoteSettings({ open, noteId, title, pinned, editing, onClose, onPin, onArchive, onDelete }: NoteSettingsProps) {
+export function NoteSettings({ open, noteId, title, pinned, editing, onClose, onPin, onArchive, onDelete, onFind, view, onView }: NoteSettingsProps) {
   // Re-rendered when a plugin is switched, so its rows come and go.
   usePlugins();
-  const [page, setPage] = useState<NoteLink | null>(null);
+  const [page, setPage] = useState<NoteLink | 'workspace' | null>(null);
+  // Re-rendered as the note is filed, so the row says where it is.
+  const spaces = useWorkspaces();
+  const filed = workspaceOf(noteId);
   const [unavailable, setUnavailable] = useState<Record<string, string | null>>({});
   // The body when the sheet opened: the action rows' counts are read from it.
   const [body, setBody] = useState('');
@@ -61,10 +74,16 @@ export function NoteSettings({ open, noteId, title, pinned, editing, onClose, on
   if (!open) return null;
 
   if (page) {
-    const Picker = page.Picker;
+    const Picker = page === 'workspace' ? WorkspacePicker : page.Picker;
     return (
       <div className={styles.scrim} onClick={onClose}>
-        <section className={styles.sheet} role="dialog" aria-modal="true" aria-label={page.label} onClick={(e) => e.stopPropagation()}>
+        <section
+          className={styles.sheet}
+          role="dialog"
+          aria-modal="true"
+          aria-label={page === 'workspace' ? 'Workspace' : page.label}
+          onClick={(e) => e.stopPropagation()}
+        >
           <span className={styles.grip} aria-hidden="true" />
           <button type="button" className={styles.back} onClick={() => setPage(null)}>
             <ArrowLeft /> {title || 'This note'}
@@ -79,9 +98,50 @@ export function NoteSettings({ open, noteId, title, pinned, editing, onClose, on
   const actions = plugins.noteActions().filter((action) => action.visible(noteId));
   return (
     <div className={styles.scrim} onClick={onClose}>
-      <section className={styles.sheet} role="dialog" aria-modal="true" aria-label={`Settings for ${title || 'this note'}`} onClick={(e) => e.stopPropagation()}>
+      <section
+        className={styles.sheet}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Settings for ${title || 'this note'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <span className={styles.grip} aria-hidden="true" />
         <p className={styles.title}>{title || 'Untitled'}</p>
+
+        {onFind || (view && onView) ? (
+          <div className={styles.group}>
+            {view && onView ? (
+              <div className={styles.row} aria-disabled>
+                <span className={styles.label}>Show</span>
+                <div className={styles.viewChoice} role="radiogroup" aria-label="How the note is shown">
+                  {(
+                    [
+                      ['mixed', 'Markdown'],
+                      ['formatted', 'Formatted'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={view === value}
+                      data-on={view === value || undefined}
+                      onClick={() => onView(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {onFind ? (
+              <button type="button" className={styles.row} onClick={onFind}>
+                <TextSearch className={styles.icon} size={20} strokeWidth={2} />
+                <span className={styles.label}>Find and replace</span>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className={styles.group}>
           <button type="button" className={styles.row} onClick={onPin}>
@@ -91,6 +151,13 @@ export function NoteSettings({ open, noteId, title, pinned, editing, onClose, on
           <button type="button" className={styles.row} onClick={onArchive}>
             <ArchiveBox className={styles.icon} />
             <span className={styles.label}>Archive</span>
+          </button>
+          <button type="button" className={styles.row} onClick={() => setPage('workspace')}>
+            <WorkspaceIcon className={styles.icon} />
+            <span className={styles.label}>
+              Workspace
+              <span className={styles.hint}>{filed ? filed.name : spaces.list.length ? 'Not in one' : 'None yet. Make one to sort your notes.'}</span>
+            </span>
           </button>
         </div>
 

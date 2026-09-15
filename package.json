@@ -1,7 +1,7 @@
 {
   "name": "glyph",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.4.0",
   "type": "module",
   "description": "Glyph: a mobile-first markdown notes app built on Glacier UI.",
   "scripts": {
@@ -29,8 +29,10 @@
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",
+    "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.12.4",
+    "@codemirror/language-data": "^6.5.2",
     "@codemirror/state": "^6.7.4",
     "@codemirror/view": "^6.43.11",
     "@glacier/icons": "file:./vendor/@glacier/icons",

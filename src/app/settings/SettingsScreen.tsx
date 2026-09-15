@@ -3,6 +3,7 @@ import { ChevronRight } from '@glacier/icons';
 import { ArrowLeft } from '../art/Icons.tsx';
 import { onBack } from '../core/back.ts';
 import { useSwipeNav } from '../core/swipe.ts';
+import { useWispEdge } from '../art/wispEdge.ts';
 import './settings.css';
 
 /**
@@ -45,6 +46,8 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
   // The pane a back step just left, for a forward swipe to return to.
   const [left, setLeft] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  // The list or the pane showing goes to smoke under its header (art/wispEdge.ts).
+  const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) {
@@ -99,6 +102,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
   }, [open, back]);
 
   useSwipeNav(root, { onBack: back, onForward: forward }, open);
+  useWispEdge(scroller, open && (active?.id ?? 'list'));
 
   if (!open) return null;
 
@@ -119,7 +123,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
               <ArrowLeft /> Settings
             </button>
           </header>
-          <div className="settingsScreen__pane" key={active.id}>
+          <div ref={scroller} className="settingsScreen__pane" key={active.id}>
             <h1 className="settingsScreen__display">{active.label}</h1>
             {active.content}
           </div>
@@ -127,7 +131,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
       ) : (
         <>
           <header className="settingsScreen__head" aria-hidden="true" />
-          <nav className="settingsScreen__list" key="list">
+          <nav ref={scroller} className="settingsScreen__list" key="list">
             <h1 className="settingsScreen__display">Settings</h1>
             {clusters.map((cluster) => (
               <div key={cluster[0]!.id} className="settingsScreen__cluster">

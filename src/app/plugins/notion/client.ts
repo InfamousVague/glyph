@@ -162,12 +162,13 @@ interface Answer<T> {
   body: T;
 }
 
-async function notion<T>(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<T> {
+/** A call to Notion's API through the app, with Notion's refusals as sentences. */
+export async function notionRequest<T>(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<T> {
   const answer = await host.invoke<Answer<T & { message?: string }>>('notion_request', { request: { method, path, body: body ?? null } });
   if (answer.status >= 400) {
     const message = (answer.body as { message?: string } | null)?.message;
     if (answer.status === 401) throw new Error('Notion signed Glyph out. Sign in again in Settings > Notion.');
-    if (answer.status === 404) throw new Error('Notion can’t see that board. Share it with Glyph in Notion.');
+    if (answer.status === 404) throw new Error(path.startsWith('pages/') ? 'Notion can’t see that task. Share its board with Glyph in Notion.' : 'Notion can’t see that board. Share it with Glyph in Notion.');
     throw new Error(message ?? `Notion answered ${answer.status}.`);
   }
   return answer.body;
@@ -211,7 +212,7 @@ function boardOf(db: DatabaseObject): Board {
 
 /** Every board (database) the sign-in was given access to, recently edited first. */
 export async function listBoards(): Promise<Board[]> {
-  const found = await notion<{ results: DatabaseObject[] }>('POST', 'search', {
+  const found = await notionRequest<{ results: DatabaseObject[] }>('POST', 'search', {
     filter: { property: 'object', value: 'database' },
     sort: { direction: 'descending', timestamp: 'last_edited_time' },
     page_size: 50,
@@ -227,7 +228,7 @@ export interface Task {
 
 /** Makes a task on `board` and answers it, with its link. */
 export async function createTask(board: Board, title: string): Promise<Task> {
-  const page = await notion<{ id: string; url: string }>('POST', 'pages', {
+  const page = await notionRequest<{ id: string; url: string }>('POST', 'pages', {
     parent: { database_id: board.id },
     properties: { [board.titleProperty]: { title: [{ type: 'text', text: { content: title.slice(0, 2000) } }] } },
   });
@@ -236,7 +237,7 @@ export async function createTask(board: Board, title: string): Promise<Task> {
 
 /** The board's tasks whose titles contain `words`, for "add a note for the notion task for …". */
 export async function findTasks(board: Board, words: string): Promise<Task[]> {
-  const result = await notion<{ results: Array<{ id: string; url: string; properties: Record<string, { type: string; title?: unknown }> }> }>(
+  const result = await notionRequest<{ results: Array<{ id: string; url: string; properties: Record<string, { type: string; title?: unknown }> }> }>(
     'POST',
     `databases/${board.id}/query`,
     {

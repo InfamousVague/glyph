@@ -1,0 +1,63 @@
+import { saveImageFile } from './images.ts';
+import { sampleImageBlob, sampleNoteBody } from './sampleNote.ts';
+import { newNoteId, saveNote, type Note } from './store.ts';
+
+/**
+ * The sample note's arrival (core/sampleNote.ts). A fresh library, with no
+ * notes in it, gets it once, so the first thing a new person opens shows
+ * every mark the app draws; a library that already has notes is left alone
+ * and marked done, so an update never drops a note on someone. Settings >
+ * About adds one on request at any time, which is how Matt sees it on a phone
+ * full of notes.
+ *
+ * The mark is a key in localStorage, the way the guide's is, and a reset
+ * clears it with the rest (core/reset.ts).
+ */
+
+export const SAMPLE_SEEDED_KEY = 'glyph-sample-note';
+
+export function sampleNoteSeeded(): boolean {
+  try {
+    return localStorage.getItem(SAMPLE_SEEDED_KEY) !== null;
+  } catch {
+    // Nowhere to remember it: better never to seed than to seed on every open.
+    return true;
+  }
+}
+
+function markSeeded(): void {
+  try {
+    localStorage.setItem(SAMPLE_SEEDED_KEY, new Date().toISOString());
+  } catch {
+    // Nowhere to remember it.
+  }
+}
+
+/** Makes the sample note now, picture and all where a picture can be drawn, and answers it. */
+export async function addSampleNote(): Promise<Note> {
+  let image: string | null = null;
+  try {
+    const blob = await sampleImageBlob();
+    if (blob) image = await saveImageFile(blob);
+  } catch {
+    // No picture, then: the note says nothing of one.
+    image = null;
+  }
+  const note = await saveNote(newNoteId(), sampleNoteBody(image), 'editor');
+  markSeeded();
+  return note;
+}
+
+/**
+ * The sample note for a fresh library only: made when the library holds
+ * `noteCount` of nothing and it has never been made; a library with notes
+ * is marked done and left as it is. Answers the note made, or null.
+ */
+export async function seedSampleNote(noteCount: number): Promise<Note | null> {
+  if (sampleNoteSeeded()) return null;
+  if (noteCount > 0) {
+    markSeeded();
+    return null;
+  }
+  return addSampleNote();
+}

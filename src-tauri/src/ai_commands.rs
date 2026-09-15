@@ -61,6 +61,15 @@ pub struct GenerateRequest {
     pub max_tokens: u32,
     #[serde(default = "default_temperature")]
     pub temperature: f32,
+    /// Let a model that can reason do so before it answers, and stream the
+    /// reasoning with the answer (native generation 13). Absent means no:
+    /// the empty thought goes in, as every formatting pass wants.
+    #[serde(default)]
+    pub think: bool,
+    /// With `think`: the most tokens the thinking may run before it is closed
+    /// for the model and the answer begins. 0 is no limit.
+    #[serde(default)]
+    pub think_budget: u32,
 }
 
 fn default_temperature() -> f32 {
@@ -267,6 +276,8 @@ pub async fn ai_generate(
             prompt: request.prompt,
             max_tokens: request.max_tokens,
             temperature: request.temperature,
+            think: request.think,
+            think_budget: request.think_budget,
         };
         let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, move |progress| {
             let _ = emitter.emit("ai://progress", progress);
@@ -312,6 +323,9 @@ mod tests {
         assert_eq!(request.max_tokens, 200);
         assert_eq!(request.temperature, 0.3);
         assert_eq!(request.context, None);
+        assert!(!request.think, "a formatting pass that says nothing about thinking gets none");
+        let thinking: GenerateRequest = serde_json::from_str(r#"{"id":"r2","model":"qwen3.5-4b","system":"Review.","prompt":"hi","maxTokens":900,"think":true}"#).unwrap();
+        assert!(thinking.think);
     }
 
     #[test]

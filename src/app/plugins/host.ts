@@ -1,6 +1,25 @@
 import { invoke as tauriInvoke, isTauri } from '../core/tauri.ts';
 import type { Permission, PluginHost, PluginManifest } from './types.ts';
 
+
+/**
+ * A plugin wrote to its storage: whatever draws from it (a note's link marks,
+ * the cog sheet's hints) reads again. Plugins keep what a note is linked to in
+ * their own keys, so this is the one place a change is seen.
+ */
+const storageListeners = new Set<() => void>();
+
+function storageChanged(): void {
+  storageListeners.forEach((listener) => listener());
+}
+
+export function onPluginStorage(listener: () => void): () => void {
+  storageListeners.add(listener);
+  return () => {
+    storageListeners.delete(listener);
+  };
+}
+
 /**
  * A plugin's one way onto the phone, cut to its manifest.
  *
@@ -70,9 +89,11 @@ export function createHost(manifest: PluginManifest, invoke: typeof tauriInvoke 
         } catch {
           // No storage: it lasts as long as the page.
         }
+        storageChanged();
       },
       remove(key: string) {
         owns(key);
+        storageChanged();
         try {
           localStorage.removeItem(key);
         } catch {

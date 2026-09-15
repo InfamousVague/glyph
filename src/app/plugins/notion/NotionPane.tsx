@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { SquareKanban } from '@glacier/icons';
 import { PaneSection, RowAction, SettingRow, SettingsCallout, SettingsEmpty, SettingsFootnote } from '../../settings/kit/settingsKit.tsx';
 import { isTauri } from '../../core/tauri.ts';
+import { forgetTaskDetails } from './details.ts';
 import { disconnectNotion, listBoards, notionAvailable, startNotionSignIn, useNotionAccount, type Board } from './client.ts';
 
 /**
@@ -76,6 +77,7 @@ export function NotionPane() {
             control={
               <RowAction
                 onPress={() => {
+                  forgetTaskDetails();
                   void disconnectNotion().then(refresh);
                 }}
               >

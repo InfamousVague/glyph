@@ -17,6 +17,14 @@
   min-block-size: 0;
 }
 
+/* Growing with its words (Editor's `grow`): the page around it scrolls. */
+.editor[data-grow] {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  block-size: auto;
+}
+
 /* --- inline runs --------------------------------------------------------- */
 
 /*
@@ -32,6 +40,8 @@
   line-height: 1.08;
   letter-spacing: -0.035em;
   font-weight: var(--glacier-font-weight-bold);
+  /* A touch lighter than the ink of the body, so the title sits back a hair (Matt: "a very slight transparency"). */
+  color: color-mix(in srgb, var(--glacier-text) 88%, transparent);
 }
 
 .h2 {
@@ -94,6 +104,57 @@
 .code {
   font-family: var(--glacier-font-mono);
   color: var(--glacier-accent-text);
+}
+
+/*
+ * Code inside a fenced block (glyphHighlight.ts): the block's language parses it, and these are its kinds of token,
+ * each drawn from the code theme chosen for the page's side (codeThemes.ts, codeThemes.css). Ink shows them in
+ * weight and shade; the coloured themes in colour at the reading weight.
+ */
+.codeKeyword {
+  color: var(--code-keyword);
+  font-weight: var(--code-keyword-weight);
+}
+
+.codeString {
+  color: var(--code-string);
+}
+
+.codeComment {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.codeType {
+  color: var(--code-type);
+  font-weight: var(--code-name-weight);
+}
+
+.codeProperty {
+  color: var(--code-property);
+}
+
+.codeName {
+  color: var(--code-name);
+  font-weight: var(--code-name-weight);
+}
+
+.codeLiteral {
+  color: var(--code-literal);
+  font-weight: var(--code-name-weight);
+}
+
+.codePunctuation {
+  color: var(--code-punctuation);
+}
+
+.codeMacro {
+  color: var(--code-macro);
+  font-weight: var(--code-name-weight);
+}
+
+.codeMeta {
+  color: var(--code-meta);
 }
 
 .link {
@@ -235,7 +296,8 @@
 .editor :global(.cm-line).lineCode {
   font-family: var(--glacier-font-mono);
   font-size: calc(var(--app-body) * 0.82);
-  background: var(--glacier-surface-sunken);
+  background: var(--code-bg);
+  color: var(--code-fg);
   tab-size: 2;
 }
 

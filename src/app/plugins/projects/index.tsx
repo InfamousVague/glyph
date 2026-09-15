@@ -34,6 +34,10 @@ export const projectsPlugin: GlyphPlugin = {
         return project ? `${project.owner}/${project.repo}. The AI reads it when formatting this note.` : 'A GitHub repo the AI reads for context when formatting this note.';
       },
       Picker: ProjectPicker,
+      linked(noteId) {
+        const project = projectFor(noteId);
+        return project ? `${project.owner}/${project.repo}` : null;
+      },
     },
   ],
   formatContext: { for: projectContextFor, version: projectContextVersion },

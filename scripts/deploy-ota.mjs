@@ -47,6 +47,7 @@
  *   node scripts/deploy-ota.mjs                  # web + OTA update, the quick loop
  *   node scripts/deploy-ota.mjs --apk            # also build and publish the APK
  *   node scripts/deploy-ota.mjs --apk --same-version
+ *   node scripts/deploy-ota.mjs --skip-tests     # ship without running the tests first (not recommended)
  *   node scripts/deploy-ota.mjs --apk --keep-connection && npm run deploy:server   # one login for both
  *                                                # republish an APK whose version is not newer
  *   node scripts/deploy-ota.mjs --public         # build without the formatting token (a public release)
@@ -101,6 +102,9 @@ const isPublic = process.argv.includes('--public');
 // Leave the connection open (it closes itself two minutes after its last use)
 // so a server deploy straight after this one spends no second login.
 const keepConnection = process.argv.includes('--keep-connection');
+// Ship without running the tests first: only for a release that cannot wait. The
+// Test results page in that build then says its report is from other code.
+const skipTests = process.argv.includes('--skip-tests');
 const notesFlag = process.argv.indexOf('--notes');
 const notes = notesFlag >= 0 ? String(process.argv[notesFlag + 1] ?? '').trim() : '';
 if (notesFlag >= 0 && (!notes || notes.startsWith('--'))) fail('--notes needs the text of what changed.');
@@ -226,6 +230,22 @@ if (!sources.length || sources.some((u) => !/^https:\/\/\S+[^/]$/.test(u))) {
   fail(`${SOURCES_FILE} must list at least one https base URL, without a trailing slash.`);
 }
 const services = existsSync(SERVICES_FILE) ? JSON.parse(readFileSync(SERVICES_FILE, 'utf8')) : null;
+
+// ---- tests ------------------------------------------------------------------
+
+// Every suite runs before the build, and the report it writes is compiled into
+// the page (Settings > Test results, Developer mode), stamped with the same
+// source fingerprint the build is. A failing test, or a suite that did not
+// run, stops the release here, before anything is built or signed.
+if (!skipTests) {
+  step('Running every test suite for the Test results page');
+  const tested = spawnSync('node', [join(ROOT, 'scripts/test-report.mjs')], { cwd: ROOT, stdio: 'inherit' });
+  if (tested.status !== 0) {
+    fail('A test failed or a suite did not run (the lines above say which). Fix it and release again, or pass --skip-tests to ship anyway.');
+  }
+} else {
+  console.log(c.dim('  --skip-tests: the Test results page in this build will say its report is from other code.'));
+}
 
 // ---- build ------------------------------------------------------------------
 

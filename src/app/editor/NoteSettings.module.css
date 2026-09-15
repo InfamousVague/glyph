@@ -201,3 +201,35 @@
     animation: none;
   }
 }
+
+/* How the note is shown, when the header has no room for it: two words, the chosen one filled (NoteScreen's switch). */
+.row[aria-disabled]:has(.viewChoice) {
+  justify-content: space-between;
+  color: var(--glacier-text);
+}
+
+.viewChoice {
+  display: inline-flex;
+  padding: 3px;
+  border: 1.5px solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-full);
+}
+
+.viewChoice button {
+  appearance: none;
+  min-block-size: 2rem;
+  padding: 0 var(--glacier-space-3);
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+}
+
+.viewChoice button[data-on] {
+  background: var(--glacier-text);
+  color: var(--glacier-bg);
+}

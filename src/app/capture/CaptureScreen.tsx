@@ -1,3 +1,4 @@
+import { Square } from '@glacier/icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
@@ -5,13 +6,14 @@ import { answerHost, endCapture, isLocked, setCapturing } from '../core/host.ts'
 import { deleteNote, getNote, listNotes, newNoteId, noteTitle, saveNote, setNoteRecording, type Note } from '../core/store.ts';
 import { preferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
-import { openMicrophone, type Microphone } from './audio.ts';
+import { openMicrophone, type Microphone, type MicrophoneHandlers } from './audio.ts';
 import { appendBody, continuationNote, rememberCapture } from './continuation.ts';
 import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { enqueueFormat, setFormattingPaused } from '../format/queue.ts';
+import { reviewAvailable, type ReviewHandoff } from '../review/useReview.ts';
 import { startCapture, type CaptureSession, type EngineKind } from './engine.ts';
-import { renderNote, type Segment } from './markdown.ts';
-import { Opening, Saved } from './Opening.tsx';
+import { renderNote, setSpokenFormats, type Segment } from './markdown.ts';
+import { Opening } from './Opening.tsx';
 import { QuietWatch } from './quiet.ts';
 import { type Candidate } from './route.ts';
 import { findKeyword, planCommand, reply, type Placement, type Plan } from './command.ts';
@@ -22,7 +24,11 @@ import { plugins } from '../plugins/registry.ts';
 import type { CaptureContext, VoiceCommand } from '../plugins/types.ts';
 import { tips, TIP_AFTER_MS, type Tip } from './tips.ts';
 import { SideKeyWaves } from './SideKeyWaves.tsx';
+import { publishVoiceLevel } from './voiceLevel.ts';
+import { takeWakeHandoff, wakeSettled } from './wakeWord.ts';
 import { useSideKeySpot } from './sideKey.ts';
+import { LivePage } from './LivePage.tsx';
+import { clearScratch, saveScratch, type Scratch } from './scratch.ts';
 import { Tail } from './Tail.tsx';
 import { counter } from './tape.ts';
 import styles from './CaptureScreen.module.css';
@@ -68,8 +74,11 @@ interface CaptureScreenProps {
   stopRequests?: number;
   /** Talking into this note (its Speak): the words go on its end, whatever memo mode says. */
   noteId?: string;
+  /** Opened by saying "Glyph" while the app was open: the microphone and first words are waiting (capture/wakeWord.ts). */
+  woke?: boolean;
   /** The saved note, or null when the capture was cancelled or nothing was said. */
-  onFinish: (note: Note | null, locked: boolean) => void;
+  /** The take is over. `review` is set when the review after a recording should look at it (review/); `sort` when it was a memo, to be sorted (sort/). */
+  onFinish: (note: Note | null, locked: boolean, review?: ReviewHandoff, sort?: Scratch) => void;
 }
 
 type Phase = 'starting' | 'listening' | 'finishing' | 'failed';
@@ -97,9 +106,16 @@ const ENGINE_LABEL: Record<EngineKind, string> = {
   simulated: 'Simulated voice',
 };
 
-export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, onFinish }: CaptureScreenProps) {
+export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, woke = false, onFinish }: CaptureScreenProps) {
+  /** Opened by the keyword: what came before it in the first phrase wasn't for Glyph, and is dropped. */
+  const wokeRef = useRef(woke);
   /** The note being written: a new id, or the note this capture continues. */
   const noteId = useRef(newNoteId());
+  /**
+   * Memo mode, and not talking into a particular note: the take is written to a scratch page, not a note, and sorted
+   * into notes when it ends (capture/scratch.ts, sort/). Decided once, as the take opens.
+   */
+  const scratchMode = useRef(!aimedAt && preferences().memo);
   /** The note this capture is being added to, if it continues one. */
   const [target, setTarget] = useState<Note | null>(null);
   const targetRef = useRef<Note | null>(null);
@@ -129,6 +145,19 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const micRef = useRef<Microphone | null>(null);
   const meterRef = useRef<HTMLDivElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
+  /** The line at the top: a pane the note's page runs under (app.css .app-headerPane), so the wisp sits below it. */
+  const topRef = useRef<HTMLDivElement>(null);
+  // Its height, for the body to keep clear of it in the states that aren't the page (`--recorder-top`).
+  useEffect(() => {
+    const top = topRef.current;
+    const screen = screenRef.current;
+    if (!top || !screen) return undefined;
+    const fit = () => screen.style.setProperty('--recorder-top', `${top.offsetHeight}px`);
+    fit();
+    const watched = new ResizeObserver(fit);
+    watched.observe(top);
+    return () => watched.disconnect();
+  }, []);
   /** Set when "Stop when I go quiet" is on: watches for the end of talking. */
   const quiet = useRef(preferences().quietStop ? new QuietWatch(QUIET_STOP_MS) : null);
   /** Whether this phone stops a recording when the side key is pressed (generation 12). */
@@ -166,6 +195,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** Tables made for the note being recorded: they follow its words. */
   const tablesRef = useRef<string[]>([]);
   const [tables, setTables] = useState<string[]>([]);
+  /** Every phrase the fast model heard, commands and all, for the review to check against a second listen. */
+  const heardRef = useRef<string[]>([]);
+  /** What each command did, or didn't, in words: the review checks them. */
+  const commandLog = useRef<string[]>([]);
+  /** Notes other than this one that commands changed. */
+  const touchedRef = useRef<Set<string>>(new Set());
   /** Recording spans that were commands, for the better-words pass to leave out. */
   const commandSpans = useRef<Array<{ startMs: number; endMs: number }>>([]);
   /** Phrases that were words and then "Glyph": the better words keep only what came before it. */
@@ -200,6 +235,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     return tables.length ? { ...linked, markdown: withTables(linked.markdown, tables) } : linked;
   }, [segments, partial, titled, itemWords, sentLinks, tables]);
 
+  // The switched-on plugins' formattings can be said like bold ("spoiler … end spoiler"); read as the recorder opens.
+  useState(() => setSpokenFormats(plugins.formats().flatMap((format) => (format.cue ? [{ word: format.cue, delimiter: format.delimiter }] : []))));
+
   // No background pass over an earlier recording while this one is live: same cores.
   useEffect(() => {
     setRecorderLive(true);
@@ -225,7 +263,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   // with memo mode on.
   useEffect(() => {
     let current = true;
-    const chosen = aimedAt ? getNote(aimedAt).catch(() => null) : continuationNote(preferences().memo);
+    const chosen = aimedAt ? getNote(aimedAt).catch(() => null) : scratchMode.current ? Promise.resolve(null) : continuationNote(preferences().memo);
     void chosen.then((found) => {
       // Found after a draft was already written to a new note: stay with that one.
       if (!current || !found || savedDraft.current || finished.current) return;
@@ -270,6 +308,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
   /** Undoes whatever drafts wrote: the continued note gets its text back, a new note goes. */
   const undoDraft = useCallback(async () => {
+    if (scratchMode.current) {
+      savedDraft.current = false;
+      clearScratch();
+      return;
+    }
     if (!savedDraft.current) return;
     savedDraft.current = false;
     const continued = targetRef.current;
@@ -484,6 +527,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const held = pendingRef.current?.offer;
     if (!held) return;
     setPending(null);
+    commandLog.current.push(describeOffer(held, 'done'));
+    if (held.kind === 'place' || (held.kind === 'table' && held.note)) touchedRef.current.add(held.note!.id);
     if (held.kind === 'place') {
       void addItems(held.note, held.text, { task: held.placement.task, many: held.placement.many, target: held.placement.target, leave: held.placement.how === 'leave' });
     } else if (held.kind === 'table') {
@@ -512,6 +557,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** No, or no answer: nothing happens, and the chip says so. */
   const cancelPending = (why: string | null) => {
     if (!pendingRef.current) return;
+    commandLog.current.push(describeOffer(pendingRef.current.offer, why ? 'declined' : 'dropped'));
     setPending(null);
     if (why) setRoute({ phase: 'said', text: why });
   };
@@ -522,6 +568,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     listening.current = null;
     setItemWords('');
     if (!heard) return;
+    commandLog.current.push(`Heard “Glyph ${heard.words}” but no command in it, so those words stayed in the note`);
     if (heard.said.length) {
       const back = new Set(heard.said.map((s) => `${s.startMs}:${s.endMs}`));
       commandSpans.current = commandSpans.current.filter((span) => !back.has(`${span.startMs}:${span.endMs}`));
@@ -711,8 +758,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       return null;
     }
 
-    // "Glyph": the words before it stay; the rest is the command.
-    const before = found!.before;
+    // "Glyph": the words before it stay; the rest is the command. Opened by the keyword, they weren't for the note.
+    const before = wokeRef.current ? '' : found!.before;
+    wokeRef.current = false;
     const from = text.slice(before.length).trim();
     if (before) keywordSpans.current.push(span);
     else skip();
@@ -744,9 +792,17 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     async function start() {
       const simulate = new URLSearchParams(window.location.search).has('simulate');
       try {
+        const wake = woke ? takeWakeHandoff() : null;
+        if (wake) {
+          // The listener's microphone, still open, and the words that woke it, heard first.
+          held.push(...wake.preroll);
+          micRef.current = wake.mic;
+        }
         if (isTauri() && !simulate) {
-          micRef.current = await openMicrophone({
+          const handlers: MicrophoneHandlers = {
             onChunk: (samples) => {
+              // A start that was called off keeps nothing it hears (see the microphone opening below).
+              if (cancelled) return;
               counts.current.heardSamples += samples.length;
               if (sessionRef.current) sessionRef.current.push(samples);
               else held.push(samples);
@@ -758,12 +814,31 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
               const level = String(Math.min(1, rms * 8));
               meterRef.current?.style.setProperty('--level', level);
               screenRef.current?.style.setProperty('--level', level);
+              publishVoiceLevel(Math.min(1, rms * 8));
               quiet.current?.level(rms, performance.now());
             },
-          });
-          counts.current.deviceRate = micRef.current.deviceRate;
-          console.info(`[glyph] microphone open at ${micRef.current.deviceRate} Hz, context ${micRef.current.state()}`);
+          };
+          if (wake) wake.rebind(handlers);
+          else {
+            const opened = await openMicrophone(handlers);
+            // Called off while the microphone was opening (React's development double start, or the screen closed at
+            // once): this start's microphone goes, rather than living on unowned and feeding the next start's session
+            // a second copy of every chunk, interleaved - a take that plays back choppy at half speed, and that the
+            // voice model hears as nonsense.
+            if (cancelled) {
+              opened.stop();
+              return;
+            }
+            micRef.current = opened;
+          }
+          const mic = micRef.current;
+          if (mic) {
+            counts.current.deviceRate = mic.deviceRate;
+            console.info(`[glyph] microphone ${wake ? 'handed over by the keyword' : 'open'} at ${mic.deviceRate} Hz, context ${mic.state()}`);
+          }
         }
+        // A listener for "Glyph" that was just stopped lets go of the voice model first.
+        await wakeSettled();
         const session = await startCapture({
           onPartial: (text) => {
             if (text) {
@@ -782,6 +857,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             quiet.current?.words(performance.now());
             heard();
             counts.current.lastError = null;
+            heardRef.current.push(raw.text);
             const segment = takeCommand(raw);
             setPartial('');
             if (!segment) return;
@@ -798,6 +874,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         });
         if (cancelled) {
           session.cancel();
+          if (!wake) micRef.current?.stop();
           return;
         }
         sessionRef.current = session;
@@ -877,6 +954,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       if (finished.current) return;
       savedDraft.current = true;
       const id = noteId.current;
+      if (scratchMode.current) {
+        const markdown = withTables(applyLinks(renderNote(segmentsRef.current, '', { titled: true }).markdown, sentLinksRef.current), tablesRef.current);
+        saveScratch({ id, markdown, heard: heardRef.current.join(' '), recordedMs: null, segments: segmentsRef.current, done: false, at: Date.now() });
+        return;
+      }
       void compose(withTables(applyLinks(renderNote(segmentsRef.current, '', { titled: !targetRef.current }).markdown, sentLinksRef.current), tablesRef.current)).then((body) =>
         saveNote(id, body, 'capture'),
       );
@@ -896,11 +978,16 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const continued = targetRef.current;
     let stopped: { recordedMs: number | null } = { recordedMs: null };
     try {
-      stopped = (await sessionRef.current?.stop({ recordAs: noteId.current, append: continued !== null })) ?? stopped;
+      // Appended only onto a tape the note still has: a recording removed from the note leaves its file behind, and a
+      // take added after it starts the file afresh rather than playing after the removed sound.
+      stopped = (await sessionRef.current?.stop({ recordAs: noteId.current, append: continued !== null && (continued.recordingMs ?? 0) > 0 })) ?? stopped;
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
     }
 
+    // Words after a keyword that never became a command go into the note as
+    // they were said: Done must never be how dictation is lost.
+    if (listening.current) giveBackRef.current('No command there, so the words stay in the note.');
     const spoken = segmentsRef.current;
     const { plain } = renderNote(spoken);
     const locked = isLocked();
@@ -913,16 +1000,35 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
 
     const markdown = withTables(applyLinks(renderNote(spoken, '', { titled: !targetRef.current }).markdown, sentLinksRef.current), tablesRef.current);
+    // A memo becomes notes only when it is sorted: kept as a finished scratch, and handed on (sort/).
+    if (scratchMode.current && !targetRef.current) {
+      const scratch: Scratch = {
+        id: noteId.current,
+        markdown,
+        heard: heardRef.current.join(' '),
+        recordedMs: stopped.recordedMs !== null && sessionRef.current?.keepsAudio ? stopped.recordedMs : null,
+        segments: spoken,
+        done: true,
+        at: Date.now(),
+      };
+      saveScratch(scratch);
+      fireNativeHaptic('success');
+      endCapture(locked);
+      onFinish(null, locked, undefined, scratch);
+      return;
+    }
     const saved = await saveNote(noteId.current, await compose(markdown), 'capture');
+    let refineJob: ReviewHandoff['job'] = null;
     if (stopped.recordedMs !== null && sessionRef.current?.keepsAudio) {
       // New phrases sit after the continued tape's, shifted by its length.
       const offset = continued?.recordingMs ?? 0;
       const prior = continued?.segments ?? [];
       const all = [...prior, ...spoken.map((s) => ({ ...s, startMs: s.startMs + offset, endMs: s.endMs + offset }))];
       await setNoteRecording(saved.id, stopped.recordedMs, all).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
-      // The better words, later: the larger model over this take's recording.
+      // The better words: the larger model over this take's recording, later,
+      // or now in the review after a recording when that runs.
       const base = continued ? ((await baseBody.current) ?? continued.body) : '';
-      enqueueRefine({
+      refineJob = {
         id: saved.id,
         fromMs: offset,
         recordingMs: stopped.recordedMs,
@@ -933,14 +1039,21 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         promptTail: renderNote(prior).plain.slice(-200),
         skip: commandSpans.current.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
         keywordAt: keywordSpans.current.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
-      });
+      };
     }
-    // The staged rewrite (format/queue.ts): a quick draft, then slower models
-    // revising it. After the refine job, which it waits for.
-    enqueueFormat(saved.id);
     rememberCapture(saved.id);
     fireNativeHaptic('success');
     endCapture(locked);
+    // The review after a recording: it runs the better words and the formatting when it is done.
+    // Not over a locked phone, whose note is not shown to whoever is holding it.
+    if (!locked && (await reviewAvailable())) {
+      onFinish(saved, locked, { noteId: saved.id, job: refineJob, heard: heardRef.current.join(' '), commands: [...commandLog.current], touched: [...touchedRef.current] });
+      return;
+    }
+    if (refineJob) enqueueRefine(refineJob);
+    // The staged rewrite (format/queue.ts): a quick draft, then slower models
+    // revising it. After the refine job, which it waits for.
+    enqueueFormat(saved.id);
     onFinish(saved, locked);
   }, [onFinish, compose, undoDraft]);
 
@@ -982,7 +1095,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   else if (phase === 'starting') status = 'Starting';
   else if (phase === 'finishing') status = 'Saving';
   else if (error && !segments.length) status = `Problem: ${error}`;
-  const where = target ? (locked ? 'Adding to your last note' : `Adding to “${noteTitle(target.body)}”`) : 'New note';
+  const where = target ? (locked ? 'Adding to your last note' : `Adding to “${noteTitle(target.body)}”`) : scratchMode.current ? 'Memo · sorted when you’re done' : 'New note';
 
   // A capture that has heard a while and produced nothing is the one worth
   // explaining without being asked: the line that diagnosed the Fold.
@@ -992,7 +1105,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   return (
     <div className={styles.screen} data-phase={phase} ref={screenRef}>
       {fromAssistant && (phase === 'starting' || phase === 'listening') ? <SideKeyWaves spot={spot} /> : null}
-      <div className={styles.top} role="status" aria-live="polite">
+      <div ref={topRef} className={`app-headerPane ${styles.top}`} role="status" aria-live="polite">
         {status ? (
           <span className={styles.where}>{status}</span>
         ) : (
@@ -1021,24 +1134,23 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         ) : null}
         {route?.phase === 'added' ? (
           <ListLanding key={`landing-${route.added.join('|')}`} title={route.title} body={route.body} added={route.added} />
-        ) : target && phase !== 'finishing' ? (
-          <NoteContext key={`context-${target.id}-${moves}`} note={target} />
-        ) : null}
-        {phase === 'finishing' && hasWords ? (
-          <Saved />
-        ) : hasWords ? (
-          <div key={`words-${noteId.current}-${moves}`} className={styles.written} data-moved={moves ? '' : undefined}>
-            <Tail markdown={note.markdown} pendingFrom={note.pendingFrom} />
+        ) : phase === 'failed' && !hasWords ? (
+          <div className={styles.empty}>
+            <Opening failed />
+            <p className={styles.lead}>Nothing was recorded.</p>
           </div>
         ) : (
-          <div className={styles.empty}>
-            <Opening failed={phase === 'failed'} />
-            <p className={styles.lead}>{phase === 'failed' ? 'Nothing was recorded.' : 'Start talking.'}</p>
-            {phase === 'failed' ? null : (
-              <p className={styles.hint}>{stopHint(fromAssistant, pressStops, quiet.current !== null)}</p>
-            )}
-          </div>
+          // The note's own page, its older text above and the words written onto its end (LivePage.tsx). Over the lock
+          // screen the note being continued shows none of its text.
+          <LivePage
+            key={`page-${target?.id ?? 'new'}-${moves}`}
+            base={target && !locked ? target.body : ''}
+            markdown={note.markdown}
+            under={topRef}
+            placeholder={phase === 'starting' ? 'Starting…' : 'Start talking.'}
+          />
         )}
+        {!hasWords && phase !== 'failed' && route?.phase !== 'added' ? <p className={styles.pageHint}>{stopHint(fromAssistant, pressStops, quiet.current !== null)}</p> : null}
       </div>
 
       {tableView ? (
@@ -1140,12 +1252,29 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           aria-label="Stop and save"
         >
           <div className={styles.meter} ref={meterRef} aria-hidden="true" />
-          <span className={styles.doneMark} aria-hidden="true" />
+          <Square size={16} aria-hidden="true" />
           Done
         </button>
       </footer>
     </div>
   );
+}
+
+/** What a command offered, in words, and what came of it: for the review's check of commands. */
+function describeOffer(offer: Offer, outcome: 'done' | 'declined' | 'dropped'): string {
+  const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
+  const what =
+    offer.kind === 'place'
+      ? `add “${offer.added.map(show).join('”, “')}” to ${offer.title}${offer.into === 'list' ? '’s list' : ' as a paragraph'}`
+      : offer.kind === 'move'
+        ? `move this recording to ${offer.title}`
+        : offer.kind === 'new'
+          ? 'start a new note'
+          : offer.kind === 'table'
+            ? `add a table (${offer.columns.join(', ')}; ${offer.rows.length} rows) to ${offer.title}`
+            : offer.title.charAt(0).toLowerCase() + offer.title.slice(1);
+  if (outcome === 'done') return `Did: ${what}`;
+  return outcome === 'declined' ? `Offered to ${what}; the person said no` : `Offered to ${what}; nobody answered, so it was not done`;
 }
 
 /** The take's markdown with its tables after its words. */
@@ -1331,29 +1460,6 @@ function ListLanding({ title, body, added }: { title: string; body: string; adde
         <p key={`a${i}`} className={styles.landed} style={{ animationDelay: `${120 + i * 140}ms` }}>
           <span className={styles.landedTick} aria-hidden="true" />
           {show(line)}
-        </p>
-      ))}
-    </div>
-  );
-}
-
-/**
- * The note being written on, above the words: its title and its last couple
- * of lines, faint, so it is always plain which note the words are landing in.
- */
-function NoteContext({ note }: { note: Note }) {
-  const lines = note.body
-    .split('\n')
-    .map((line) => line.replace(/^\s*(?:#{1,6}\s+|- \[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+|>\s+)/, '').replace(/\*\*/g, '').trim())
-    .filter((line) => line && !line.startsWith('!['));
-  const title = noteTitle(note.body) || 'Untitled';
-  const last = lines.filter((line) => line !== title).slice(-2);
-  return (
-    <div className={styles.context} aria-label={`Writing on ${title}`}>
-      <p className={styles.contextTitle}>{title}</p>
-      {last.map((line, i) => (
-        <p key={i} className={styles.contextLine}>
-          {line}
         </p>
       ))}
     </div>

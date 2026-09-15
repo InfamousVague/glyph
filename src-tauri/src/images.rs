@@ -193,7 +193,7 @@ pub fn save_image_data(app: tauri::AppHandle, base64: String) -> Result<SavedIma
 /// Removes the pictures a deleted note referred to, unless another note still
 /// does. Best effort: a picture that cannot be removed is left, and the delete
 /// it follows has already happened.
-pub fn remove_unreferenced<R: tauri::Runtime>(app: &tauri::AppHandle<R>, store: &crate::store::Store, body: &str) {
+pub fn remove_unreferenced<R: tauri::Runtime>(app: &tauri::AppHandle<R>, store: &crate::library::Library, body: &str) {
     let Some(dir) = images_dir(app) else { return };
     for name in referenced(body) {
         if store.image_in_use(&name).unwrap_or(true) {

@@ -1,16 +1,32 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
 import { archiveOrder, listOrder, noteTitle, type Note } from '../core/store.ts';
+import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import type { NoteActions } from './useNoteActions.ts';
+import { useGists } from '../format/gist.ts';
 import { groupsOf } from './groups.ts';
 import { ArrowLeft, Cog, Pin, Plus } from '../art/Icons.tsx';
 import { useRefining } from '../capture/refine.ts';
 import { Blank, EmptyArchive } from '../art/Shapes.tsx';
+import { useWispEdge } from '../art/wispEdge.ts';
+import { Mic } from '@glacier/icons';
+import { WorkspaceBar } from './WorkspaceBar.tsx';
+import { WorkspaceSheet } from './WorkspaceSheet.tsx';
+import { LinkMarks } from '../plugins/LinkMarks.tsx';
 import { SwipeRow } from './SwipeRow.tsx';
 import { shortenUrls } from '../core/shortUrl.ts';
 import type { SwipeAction } from './swipe.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
 import type { Updates } from '../core/ota.ts';
+
+/*
+ * The page comes in from smoke (Matt: "the notes text should animate in with
+ * the wisp effect and same with every title, offset them slightly so each
+ * animation looks special but doesn't take all day"): the heading at a
+ * hand's pace, then the first titles quick and each a beat after the last,
+ * the rest simply there. A filter per settling letter is the cost, so only
+ * the rows in view on a phone get it.
+ */
 import styles from './NotesList.module.css';
 
 /**
@@ -36,11 +52,17 @@ import styles from './NotesList.module.css';
  * list has to reach a thousand notes before that costs anything measurable.
  *
  * Rows swipe (SwipeRow): right to pin, left to archive, further left to
- * delete, each detent felt and shown. Pinned notes sit first, with a pin at
- * their top right. Archived notes
+ * delete, each detent felt and shown. Pinned notes sit first, under a heading
+ * that carries the pin - the rows themselves are not marked one by one
+ * (Matt: "avoid individually repeatedly marking things like having a pin on
+ * each note"). Archived notes
  * leave the list for an Archive view at its foot, where a swipe right restores
  * and a swipe left deletes. On a binary without flags (native generation < 3)
  * the only swipe is delete.
+ *
+ * Workspaces (core/workspaces.ts) are a row of names under the title once one
+ * exists: the list shows the chosen workspace's notes, and All is the list as
+ * it was. The archive is never filtered.
  */
 
 interface NotesListProps {
@@ -58,6 +80,9 @@ interface NotesListProps {
   actions: NoteActions;
   /** Star and archive exist on this binary. */
   canFlag: boolean;
+  /** A memo was said and not yet sorted into notes (capture/scratch.ts): the card that opens its sorting. */
+  memoWaiting?: boolean;
+  onSortMemo?: () => void;
 }
 
 const DELETE: SwipeAction = { id: 'delete', label: 'Delete', icon: 'delete', tone: 'danger', detent: 0.55, removes: true };
@@ -102,15 +127,25 @@ export function NotesList({
   onSettings,
   actions,
   canFlag,
+  memoWaiting = false,
+  onSortMemo,
 }: NotesListProps) {
   const [view, setView] = useState<'notes' | 'archive'>('notes');
   // The phone's back gesture: the archive steps back to the notes.
   useBack(view === 'archive', () => setView('notes'));
   const refining = useRefining();
+  const scroller = useRef<HTMLDivElement>(null);
+  // Notes going up under the status bar go to smoke (art/wispEdge.ts).
+  useWispEdge(scroller);
+  const spaces = useWorkspaces();
+  // A workspace being added, or one open to rename or remove.
+  const [manage, setManage] = useState<Workspace | 'new' | null>(null);
   const live = notes.filter((n) => !actions.hidden.has(n.id));
   const archived = archiveOrder(live);
-  const shown = view === 'archive' ? archived : listOrder(live);
+  const shown = view === 'archive' ? archived : inWorkspace(listOrder(live), spaces.current?.id ?? null);
   const count = shown.length;
+  // One line under each title, what the note is about, written on the phone (format/gist.ts).
+  const gists = useGists(shown);
 
   const act = (note: Note) => (id: string) => {
     if (id === 'pin') actions.pin(note);
@@ -120,7 +155,7 @@ export function NotesList({
   };
   return (
     <div className={styles.screen}>
-      <div className={styles.scroll}>
+      <div ref={scroller} className={styles.scroll}>
         <header className={styles.header}>
           {view === 'archive' ? (
             <div className={styles.topline}>
@@ -129,12 +164,15 @@ export function NotesList({
               </button>
             </div>
           ) : null}
+          {/* Plain: the smoke is kept for words being typed and deleted (Matt: "this animation is too much and takes too long, save it for things like typing and deleting"). */}
           <h1 className={styles.display}>{view === 'archive' ? 'Archive' : 'Notes'}</h1>
         </header>
 
         {view === 'notes' ? (
           <>
+            <WorkspaceBar onManage={setManage} />
             <UpdateNotice updates={updates} />
+            {memoWaiting && onSortMemo ? <UpdateCard text="A memo is waiting to be sorted into your notes." action="Sort" onAction={onSortMemo} /> : null}
             <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
             {refining.download ? (
               <p className={styles.notice} role="status">
@@ -151,6 +189,11 @@ export function NotesList({
               <>
                 <EmptyArchive className={styles.emptyArt} />
                 <p className={styles.emptyLead}>Nothing archived.</p>
+              </>
+            ) : spaces.current ? (
+              <>
+                <p className={styles.emptyLead}>Nothing in {spaces.current.name} yet.</p>
+                <p className={styles.emptyHint}>Write one now, or file a note here from its settings.</p>
               </>
             ) : (
               <>
@@ -177,6 +220,7 @@ export function NotesList({
           <section key={group.key} aria-labelledby={group.label ? `notes-${group.key}` : undefined}>
             {group.label ? (
               <h2 id={`notes-${group.key}`} className={styles.group}>
+                {group.key === 'pinned' ? <Pin className={styles.groupIcon} /> : null}
                 {group.label}
               </h2>
             ) : null}
@@ -188,14 +232,15 @@ export function NotesList({
                 return (
                   <li key={note.id} className={styles.arrive} style={{ '--i': Math.min(i, 8) } as React.CSSProperties}>
                     <SwipeRow start={start} end={end} onAction={act(note)}>
-                      <button type="button" className={styles.row} data-pinned={note.starred ? '' : undefined} onClick={() => onOpen(note.id)}>
-                        {note.starred ? <Pin className={styles.pinned} /> : null}
+                      <button type="button" className={styles.row} onClick={() => onOpen(note.id)}>
                         <span className={styles.rowTitle} data-untitled={title ? undefined : ''}>
-                          {note.starred ? <span className={styles.visuallyHidden}>Pinned: </span> : null}
                           {title ? shortenUrls(title) : 'Untitled'}
                         </span>
+                        {gists[note.id] ? <span className={styles.rowGist}>{gists[note.id]}</span> : null}
                         <span className={styles.rowMeta}>
                           {when(view === 'archive' && note.archivedAt ? note.archivedAt : note.updatedAt)}
+                          {/* Small ringed marks for what the note is linked to: a Notion board, a project (plugins/LinkMarks.tsx). */}
+                          <LinkMarks noteId={note.id} compact />
                           {refining.pending.has(note.id) ? <span className={styles.improving}> · Improving</span> : null}
                         </span>
                       </button>
@@ -213,6 +258,7 @@ export function NotesList({
           </button>
         ) : null}
       </div>
+      {/* The top of the list softens as the title scrolls under the status bar; the dock paints the bottom. */}
 
       {/*
         Three places, each with one job: a typed note on the left, a spoken
@@ -225,13 +271,14 @@ export function NotesList({
           <Plus />
         </button>
         <button type="button" className={`app-pill ${styles.speak}`} onClick={onCapture} aria-label="Speak a voice note">
-          <span className={styles.speakDot} aria-hidden="true" />
+          <Mic size={18} strokeWidth={2.2} aria-hidden="true" />
           Speak
         </button>
         <button type="button" className={`${styles.round} ${styles.cog}`} onClick={onSettings} aria-label="Settings">
           <Cog />
         </button>
       </nav>
+      <WorkspaceSheet which={manage} onClose={() => setManage(null)} />
     </div>
   );
 }

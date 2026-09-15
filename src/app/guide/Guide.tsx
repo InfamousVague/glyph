@@ -2,13 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight } from '../art/Icons.tsx';
 import { useBack } from '../core/back.ts';
 import { useSwipeNav } from '../core/swipe.ts';
-import { Markdown as MarkdownArt, SideKey as SideKeyArt, Theme as ThemeArt, Tips as TipsArt, Welcome as WelcomeArt } from '../art/Shapes.tsx';
+import { ArrowDown, CloudOff, ShieldCheck, Smartphone, WifiOff } from '@glacier/icons';
+import { Markdown as MarkdownArt, SideKey as SideKeyArt, Tips as TipsArt } from '../art/Shapes.tsx';
+import { GloveSwitch } from './GloveSwitch.tsx';
 import { isAndroid } from '../core/platform.ts';
-import { setPreferences, usePreferences, type ThemePref } from '../core/preferences.ts';
+import { preferences, setPreferences, usePreferences, type ThemePref } from '../core/preferences.ts';
 import { gb, MODELS, modelName, useModels } from '../core/ai.ts';
 import { isTauri } from '../core/tauri.ts';
 import { GUIDE_PAGES as PAGES, type GuidePage as Page } from './pages.ts';
-import { PHRASES, renderExample } from './phrases.ts';
+import { PHRASES, renderExample, TYPED } from './phrases.ts';
+import { plugins } from '../plugins/registry.ts';
+import { AntiAiStage } from './AntiAiStage.tsx';
+import { useWispEdge } from '../art/wispEdge.ts';
+import { HeadsUp } from './HeadsUp.tsx';
+import { SideKeyWaves } from './SideKeyWaves.tsx';
 import styles from './Guide.module.css';
 
 /**
@@ -40,6 +47,8 @@ interface GuideProps {
   onClose: () => void;
   /** Start a voice note from the last page. */
   onTry: () => void;
+  /** The reader held the side key before the guide got to it (tooSoon.ts): one line says so, at the top of the page. */
+  tooSoon?: boolean;
 }
 
 /*
@@ -75,9 +84,55 @@ function phoneKind(): 'samsung' | 'pixel' | 'other' {
 }
 
 
+/**
+ * What the nudge says when Next is waiting at the bottom of a page, one picked
+ * each time a page opens (Matt: "a 'Down Here' button … put 6 different sassy
+ * phrases it could use").
+ */
+const NUDGES = ['Down here.', 'Keep scrolling, hon.', 'It’s not up there.', 'Scroll. I’ll wait.', 'The good bit’s lower.', 'Thumb down. Literally.'] as const;
+
+/** How long a page is read before the nudge fades in, and how close to the end counts as the bottom. */
+const NUDGE_AFTER_MS = 2400;
+const BOTTOM_SLACK_PX = 24;
+
 export function Guide({ index, onIndex: setIndex, onClose, onTry }: GuideProps) {
   const page: Page = PAGES[index] ?? 'welcome';
   const last = index === PAGES.length - 1;
+
+  // Next waits at the bottom of the page: it only shows once the page has been scrolled to its end. Until then, after
+  // a moment, a nudge fades in where it will be, and a tap on the nudge takes the reader down. A page that fits the
+  // screen is already at its bottom. Watched as the page scrolls, resizes, or grows (the heads-up types itself in).
+  const pageRef = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const [nudgeDue, setNudgeDue] = useState(false);
+  // On the heads-up, the nudge waits for the gags to have played once, through the hot phone (Matt), not for a timer.
+  const [watched, setWatched] = useState(false);
+  const [nudge, setNudge] = useState<string>(NUDGES[0]);
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return undefined;
+    setNudgeDue(false);
+    setNudge(NUDGES[Math.floor(Math.random() * NUDGES.length)] ?? NUDGES[0]);
+    const check = () => setAtBottom(el.scrollHeight - el.clientHeight - el.scrollTop <= BOTTOM_SLACK_PX);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    const resized = new ResizeObserver(check);
+    resized.observe(el);
+    const grown = new MutationObserver(check);
+    grown.observe(el, { childList: true, subtree: true });
+    const timer = page === 'welcome' ? 0 : window.setTimeout(() => setNudgeDue(true), NUDGE_AFTER_MS);
+    return () => {
+      el.removeEventListener('scroll', check);
+      resized.disconnect();
+      grown.disconnect();
+      window.clearTimeout(timer);
+    };
+  }, [page]);
+  const nudgeReady = page === 'welcome' ? watched : nudgeDue;
+  // Content slipping behind the top bar goes to smoke: the app's wisp edge (art/wispEdge.ts).
+  const topRef = useRef<HTMLElement>(null);
+  useWispEdge(pageRef, page, topRef);
+  const toBottom = () => pageRef.current?.scrollTo({ top: pageRef.current.scrollHeight, behavior: 'smooth' });
 
   // The phone's back gesture (and Escape) steps back through the guide before
   // it closes it; a swipe right does the same, and a swipe left is Next.
@@ -90,13 +145,13 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry }: GuideProps) 
   useSwipeNav(root, {
     onBack: stepBack,
     onForward: () => {
-      if (!last) setIndex(index + 1);
+      if (!last && atBottom) setIndex(index + 1);
     },
   });
 
   return (
     <div ref={root} className={styles.guide} role="dialog" aria-modal="true" aria-label="How to use Glyph">
-      <header className={styles.top}>
+      <header ref={topRef} className={`app-headerPane ${styles.top}`}>
         <span className={styles.progress}>
           {index + 1} of {PAGES.length}
         </span>
@@ -105,8 +160,15 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry }: GuideProps) 
         </button>
       </header>
 
-      <div className={styles.page} key={page}>
-        {page === 'welcome' ? <Welcome /> : null}
+      {/*
+        The rings from the side key wait for its page, where the key is the subject (Matt: "remove the animation … until we
+        get to that step"). Drawn here, outside the scrolling page, so they stay put while it scrolls (Matt: "the ripples
+        should stay where they are and not scroll with the page"); inside it, the page's wisp edge (a filter) would make
+        their fixed position scroll along.
+      */}
+      {page === 'sidekey' ? <SideKeyWaves /> : null}
+      <div ref={pageRef} className={styles.page} key={page}>
+        {page === 'welcome' ? <Welcome onWatched={() => setWatched(true)} /> : null}
         {page === 'theme' ? <Theme /> : null}
         {page === 'model' ? <Model /> : null}
         {page === 'sidekey' ? <SideKey /> : null}
@@ -124,46 +186,95 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry }: GuideProps) 
         >
           Back
         </button>
-        {last ? (
+        <span className={styles.nextSlot}>
           <button
             type="button"
-            className={`app-pill ${styles.primary}`}
-            onClick={() => {
-              onClose();
-              onTry();
-            }}
+            className={`app-pill ${styles.primary} ${styles.nudge}`}
+            data-shown={(!atBottom && nudgeReady) || undefined}
+            aria-hidden={atBottom || !nudgeReady}
+            tabIndex={atBottom || !nudgeReady ? -1 : 0}
+            onClick={toBottom}
           >
-            <span className={styles.dot} aria-hidden="true" />
-            Try it
+            <ArrowDown size={18} strokeWidth={2.6} aria-hidden="true" />
+            {nudge}
           </button>
-        ) : (
-          <button type="button" className={`app-pill ${styles.primary}`} onClick={() => setIndex(index + 1)}>
-            Next
-          </button>
-        )}
+          {last ? (
+            <button
+              type="button"
+              className={`app-pill ${styles.primary} ${styles.next}`}
+              data-shown={atBottom || undefined}
+              aria-hidden={!atBottom}
+              tabIndex={atBottom ? 0 : -1}
+              onClick={() => {
+                onClose();
+                onTry();
+              }}
+            >
+              <span className={styles.dot} aria-hidden="true" />
+              Try it
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={`app-pill ${styles.primary} ${styles.next}`}
+              data-shown={atBottom || undefined}
+              aria-hidden={!atBottom}
+              tabIndex={atBottom ? 0 : -1}
+              onClick={() => setIndex(index + 1)}
+            >
+              Next
+            </button>
+          )}
+        </span>
       </nav>
     </div>
   );
 }
 
-function Welcome() {
+/**
+ * The first page: a heads-up that there's AI in Glyph, and that all of it runs
+ * on the phone.
+ *
+ * Matt: "a heads up page that we use AI but say that it all runs on local
+ * models on your phone", with three funny anti-AI gags played over the top in
+ * one ink and simple SVG (AntiAiStage.tsx): no clubbed baby seals, no
+ * datacenter water gone toxic, and no help staying clever ("that one's on
+ * you"). Then the headline, typed out of smoke (art/WispText.tsx), one
+ * sentence, and four promises as ink icon pills that pop in one after
+ * another. The headline comes first, then the gags (Matt: "move the heads up
+ * … to the very top"); the side key's rings wait for the side-key page.
+ */
+function Welcome({ onWatched }: { onWatched: () => void }) {
+  const [show, setShow] = useState(false);
   return (
     <>
-      <WelcomeArt className={styles.hero} />
-      <h1 className={styles.display}>
-        Hold.
-        <br />
-        Talk.
-        <br />
-        Done.
-      </h1>
+      {/* "Heads up: we use AI." big, a flame behind the AI; "Ethically, on your phone." under it (HeadsUp.tsx). */}
+      <HeadsUp onDone={() => setShow(true)} />
+      <AntiAiStage waiting={!show} onRound={onWatched} />
       <p className={styles.lead}>
-        Glyph turns what you say into a formatted note. Headings, lists and to-dos, all on the phone, no connection needed.
+        Glyph uses AI to turn what you say into notes. Every model runs right here on your phone, so nothing you say goes to a cloud, a company, or
+        anyone. Unless you share them, I guess.
       </p>
-      <p className={styles.body}>Two things to set up. The side key, and a few words that shape the note.</p>
+      <ul className={styles.promises} aria-label="How Glyph’s AI works">
+        {PROMISES.map(({ icon: Icon, label }, index) => (
+          <li key={label} className={styles.promise} style={{ animationDelay: `${240 + index * 110}ms` }}>
+            <span className={styles.promiseIcon} aria-hidden="true">
+              <Icon size={18} strokeWidth={2.4} />
+            </span>
+            {label}
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
+
+const PROMISES = [
+  { icon: Smartphone, label: 'Runs on your phone' },
+  { icon: CloudOff, label: 'No cloud' },
+  { icon: WifiOff, label: 'Works offline' },
+  { icon: ShieldCheck, label: 'Nothing sent anywhere' },
+] as const;
 
 const THEME_CHOICES: Array<{ value: ThemePref; label: string; hint: string }> = [
   { value: 'dark', label: 'Dark', hint: 'Light words on black. Easier on the eyes at night.' },
@@ -177,13 +288,24 @@ const THEME_CHOICES: Array<{ value: ThemePref; label: string; hint: string }> = 
  * it is tapped - the guide itself changes colour under the thumb - so the
  * person decides by seeing, not by imagining. Changeable any time in Settings.
  */
+/** Once the person has tapped a choice, the glove stops picking for them, this visit and any later one. */
+let themeChosen = false;
+
 function Theme() {
   const { theme } = usePreferences();
+  const [chosen, setChosen] = useState(themeChosen);
+  // The glove's flicks are real theme changes; leaving without choosing puts the theme back.
+  useEffect(() => {
+    const was = preferences().theme;
+    return () => {
+      if (!themeChosen) setPreferences({ theme: was });
+    };
+  }, []);
   return (
     <>
-      <ThemeArt className={styles.art} />
+      <GloveSwitch settled={chosen} />
       <h1 className={styles.title}>Light or dark?</h1>
-      <p className={styles.lead}>Pick the page you want to write on. You can change it later in Settings.</p>
+      <p className={styles.lead}>Please go ahead and click dark mode like 99.85492% of you so this guy stops with the lights. You can change it later in Settings.</p>
       <div className={styles.choices} role="radiogroup" aria-label="Theme">
         {THEME_CHOICES.map((choice) => (
           <button
@@ -193,7 +315,11 @@ function Theme() {
             aria-checked={theme === choice.value}
             className={`${styles.choice} ${theme === choice.value ? 'app-inverse' : ''}`}
             data-selected={theme === choice.value ? '' : undefined}
-            onClick={() => setPreferences({ theme: choice.value })}
+            onClick={() => {
+              themeChosen = true;
+              setChosen(true);
+              setPreferences({ theme: choice.value });
+            }}
           >
             <span className={styles.swatch} data-swatch={choice.value} aria-hidden="true">
               Aa
@@ -223,7 +349,6 @@ function Model() {
   const chosen = MODELS.find((m) => m.id === formatModel);
   return (
     <>
-      <MarkdownArt className={styles.art} />
       <h1 className={styles.title}>Choose your model</h1>
       <p className={styles.lead}>It rewrites your notes on the phone. Bigger is more careful, and slower. Nothing leaves the phone.</p>
       <div className={styles.choices} role="radiogroup" aria-label="Model">
@@ -351,9 +476,10 @@ function SideKey() {
           <p className={styles.note}>That saves the note. Tapping Done does the same.</p>
         </li>
         <li>
-          <h2 className={styles.stepTitle}>Recording keeps adding to your last note.</h2>
+          <h2 className={styles.stepTitle}>Say where things go, and Glyph sorts it after.</h2>
           <p className={styles.note}>
-            Tap New note on the recorder to start a fresh one. Turn off Memo mode in Settings to get a new note every
+            “Add oat milk to groceries” goes to your Groceries note, and the rest becomes a new note. You see where
+            everything is going before anything is filed. Turn off Memo mode in Settings to get a plain new note every
             time.
           </p>
         </li>
@@ -380,37 +506,92 @@ function Path({ parts }: { parts: string[] }) {
   );
 }
 
+/**
+ * The marks page: a quick rundown of markdown, of Glyph's own marks, and of
+ * how to say each one (Matt: "give the user a quick rundown of markdown, our
+ * special symbols, and how to trigger each with voice"). Three lists: the
+ * marks with a spoken cue, each with the mark itself beside the words to say
+ * and an example written by the real rules; the marks that are typed only;
+ * and the plugins' own marks, said where the plugin names a cue.
+ */
 function Markdown() {
   // Rendered once per mount: the rules are pure, and these never change mid-guide.
   const rendered = useMemo(() => PHRASES.map((group) => ({ group, markdown: renderExample(group.example) })), []);
+  const own = useMemo(() => plugins.formats(), []);
   return (
     <>
       <MarkdownArt className={styles.art} />
-      <h1 className={styles.title}>Talk in markdown.</h1>
-      <p className={styles.lead}>Say these words and the note formats itself as you talk. Everything else stays exactly as you said it.</p>
+      <h1 className={styles.title}>The marks, and how to say them.</h1>
+      <p className={styles.lead}>
+        A note is Markdown: plain words with a few marks around them. Type the marks, or say the words in quotes and Glyph writes them as you talk. The marks stay
+        on the page, a little dimmed, so you always see what you wrote.
+      </p>
+      <h2 className={styles.section}>Said, or typed</h2>
       <ul className={styles.phrases}>
         {rendered.map(({ group, markdown }) => (
-          <li key={group.title} className={styles.phrase}>
-            <h2 className={styles.stepTitle}>{group.title}</h2>
-            <p className={styles.cues}>
-              {group.cues.map((cue) => (
-                <span key={cue} className={styles.cue}>
-                  {cue}
-                </span>
-              ))}
-            </p>
-            <p className={styles.note}>{group.lead}</p>
-            <div className={styles.example}>
-              <p className={styles.said}>
-                {group.example.say.map((line) => (
-                  <span key={line}>“{line}” </span>
+          <li key={group.title} className={`${styles.phrase} ${styles.marked}`}>
+            <code className={styles.symbol} aria-label={group.symbol ? `The mark: ${group.symbol}` : 'A blank line'}>
+              {group.symbol || '¶'}
+            </code>
+            <div>
+              <h3 className={styles.stepTitle}>{group.title}</h3>
+              <p className={styles.cues}>
+                {group.cues.map((cue) => (
+                  <span key={cue} className={styles.cue}>
+                    {cue}
+                  </span>
                 ))}
               </p>
-              <pre className={styles.result}>{markdown}</pre>
+              <p className={styles.note}>{group.lead}</p>
+              <div className={styles.example}>
+                <p className={styles.said}>
+                  {group.example.say.map((line) => (
+                    <span key={line}>“{line}” </span>
+                  ))}
+                </p>
+                <pre className={styles.result}>{markdown}</pre>
+              </div>
             </div>
           </li>
         ))}
       </ul>
+      <h2 className={styles.section}>Typed only</h2>
+      <ul className={styles.phrases}>
+        {TYPED.map((mark) => (
+          <li key={mark.title} className={`${styles.phrase} ${styles.marked}`}>
+            <code className={styles.symbol}>{mark.symbol}</code>
+            <div>
+              <h3 className={styles.stepTitle}>{mark.title}</h3>
+              <p className={styles.note}>{mark.how}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {own.length ? (
+        <>
+          <h2 className={styles.section}>Glyph’s own</h2>
+          <ul className={styles.phrases}>
+            {own.map((format) => (
+              <li key={format.name} className={`${styles.phrase} ${styles.marked}`}>
+                <code className={styles.symbol}>{`${format.delimiter}…${format.delimiter}`}</code>
+                <div>
+                  <h3 className={styles.stepTitle}>{format.name}</h3>
+                  {format.cue ? (
+                    <p className={styles.cues}>
+                      <span className={styles.cue}>“{format.cue}” then “end {format.cue}”</span>
+                    </p>
+                  ) : null}
+                  <p className={styles.note}>
+                    {format.about ?? (format.look.kind === 'wisp' ? 'The words go to smoke until you put the caret in them.' : 'Drawn its own way.')}
+                    {format.cue ? '' : ' Typed only.'}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      <p className={styles.note}>Press and hold on any words in a note and choose Style to put one of these marks on them.</p>
     </>
   );
 }

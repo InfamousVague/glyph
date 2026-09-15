@@ -1,0 +1,524 @@
+import { Annotation, Facet, StateEffect, StateField, type EditorState, type Extension, type Range, type Transaction } from '@codemirror/state';
+import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+
+/**
+ * Words arriving in the editor from smoke, and leaving into it: the Wisp
+ * treatment (art/WispText.tsx) for text the recorder writes into a note as it
+ * is understood and rewritten.
+ *
+ * Matt: text should "appear and disappear with the Wisp effect as it's
+ * understood and rewritten". The recorder dispatches its changes as ordinary
+ * transactions with the `wisp` annotation; this extension does the rest:
+ *
+ * - Every letter a `heard` change inserts arrives out of smoke, one after
+ *   another at a hand's pace even when a whole phrase lands at once.
+ * - A `rewrite` change is diffed against the text it replaces, so a pending
+ *   phrase firming up ("buy mil" to "buy milk") moves one letter, and the
+ *   letters that really went are shown leaving, bending and thinning where
+ *   they were.
+ * - Only the newest letters are in motion, capped at a pool of filters, so a
+ *   long note costs nothing but its last few words.
+ * - With `typing` on, what the person types is treated the same way (Matt: "I
+ *   want the text to fade in and delete away with the wisp effect as I
+ *   type"): each typed letter arrives from smoke, a backspace leaves its
+ *   letter going into it, and a long paste animates only its first letters.
+ *
+ * WispText owns its DOM; a note's is CodeMirror's, so here the motion is all
+ * in the filter and none in the DOM: each moving letter is a mark decoration
+ * carrying `filter: url(#one-of-the-pool)`, and the filter itself, with the
+ * bend, the blur, the lift and the fade, is what a requestAnimationFrame
+ * moves, in an svg the extension keeps beside the editor. CodeMirror may
+ * rebuild a mark's span whenever its neighbours change; nothing is lost when
+ * it does. With reduced motion asked for, nothing here happens at all.
+ */
+
+export type WispKind = 'heard' | 'rewrite';
+
+/** Put on a transaction that writes what was heard, or rewrites a pending phrase. */
+export const wisp = Annotation.define<{ kind: WispKind }>();
+
+/** Whether typed and deleted text moves too. */
+const typing = Facet.define<boolean, boolean>({ combine: (values) => values.some(Boolean) });
+
+/**
+ * A letter deleted by hand leaves quickly, and quicker still in a run of backspaces (Matt: "if the item is being
+ * backspaced make the animation quicker"): the smoke is a trace of what went, not something to wait for.
+ */
+const DELETE_MS = 180;
+const DELETE_RUN_MS = 110;
+/** Backspaces closer together than this are one run. */
+const DELETE_RUN_GAP_MS = 350;
+let lastDeleteAt = 0;
+
+function deleteMs(now: number): number {
+  const run = now - lastDeleteAt < DELETE_RUN_GAP_MS;
+  lastDeleteAt = now;
+  return run ? DELETE_RUN_MS : DELETE_MS;
+}
+
+/** A paste animates no more letters than this: past it the pool would only settle the first ones early. */
+const PASTE_MAX = 40;
+
+/** A letter that arrived, or the text that left, still in motion. */
+export interface Moving {
+  id: number;
+  /** Arriving: the letter's range in the document. Leaving: an empty range at the point it left. */
+  from: number;
+  to: number;
+  /** The text, for a ghost of what left; empty for an arrival. */
+  gone: string;
+  /** performance.now() at which its motion starts; later than now for letters still waiting their turn. */
+  at: number;
+
+  dur: number;
+}
+
+/**
+ * Letters a phrase types in at, ms; the whole phrase never waits longer than the cap. The words follow each other
+ * quickly (Matt: "the text needs to fade in way faster"), but each keeps its full arc: shortening that made the smoke
+ * end before it read ("it seems shortening the animation was wrong").
+ */
+const STAGGER_MS = 14;
+/** However long a word, the next one never waits longer than this behind it. */
+const WORD_MAX_MS = 110;
+const STAGGER_CAP_MS = 2400;
+const IN_MS = 620;
+const IN_JITTER_MS = 180;
+const OUT_MS = 380;
+const POOL_MAX = 32;
+const BEND = 34;
+const SOFT = 5;
+const LIFT = 4;
+
+const settle = StateEffect.define<readonly number[]>();
+
+/**
+ * Fades a stretch of text that is already there in from smoke, a line at a time and quickly: the note opening (Matt:
+ * "the text on notes should quickly fade in with the wisp"). One filter a line, so a screenful fits the pool.
+ */
+export const revealWisp = StateEffect.define<{ from: number; to: number }>();
+
+/** The opening reveal: each piece this far behind the one before, the whole never longer than the cap; and its arc. */
+const REVEAL_STEP_MS = 18;
+const REVEAL_CAP_MS = 520;
+const REVEAL_MS = 460;
+/**
+ * A piece of the reveal is a few words, never more than this many characters: short enough to sit on one row. A
+ * whole paragraph as one piece was one filter the width of the page and several rows deep, redrawn every frame (Matt:
+ * "loading the second row of text is still super laggy").
+ */
+const REVEAL_PIECE_CHARS = 24;
+/** Pieces the opening reveal animates: about a screen; anything further down is already set when scrolled to. */
+const REVEAL_PIECES = 48;
+
+function revealing(state: EditorState, from: number, to: number, now: number): Moving[] {
+  const moving: Moving[] = [];
+  let line = state.doc.lineAt(Math.max(0, Math.min(from, state.doc.length)));
+  const end = Math.min(to, state.doc.length);
+  while (moving.length < REVEAL_PIECES) {
+    const text = line.text;
+    const words = /\S+/g;
+    let piece: { from: number; to: number } | null = null;
+    const flush = () => {
+      if (!piece) return;
+      moving.push({ id: nextId++, from: line.from + piece.from, to: line.from + piece.to, gone: '', at: now + Math.min(moving.length * REVEAL_STEP_MS, REVEAL_CAP_MS), dur: REVEAL_MS + Math.random() * IN_JITTER_MS });
+      piece = null;
+    };
+    for (let word = words.exec(text); word && moving.length < REVEAL_PIECES; word = words.exec(text)) {
+      const wordEnd = word.index + word[0].length;
+      if (piece && wordEnd - piece.from > REVEAL_PIECE_CHARS) flush();
+      if (piece) piece.to = wordEnd;
+      else piece = { from: word.index, to: wordEnd };
+    }
+    flush();
+    if (line.to >= end || line.number >= state.doc.lines) break;
+    line = state.doc.line(line.number + 1);
+  }
+  return moving;
+}
+
+let nextId = 1;
+
+/** The common prefix and suffix of `a` and `b`, as lengths, never overlapping. */
+export function commonEnds(a: string, b: string): { prefix: number; suffix: number } {
+  const shortest = Math.min(a.length, b.length);
+  let prefix = 0;
+  while (prefix < shortest && a[prefix] === b[prefix]) prefix += 1;
+  let suffix = 0;
+  while (suffix < shortest - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix += 1;
+  return { prefix, suffix };
+}
+
+function prefersStill(): boolean {
+  return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** What a wisp transaction sets in motion: the letters it really added, and the text it really took away. */
+function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, outMs = OUT_MS): Moving[] {
+  const moving: Moving[] = [];
+  let wait = 0;
+  let letters = 0;
+  tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+    const removed = tr.startState.doc.sliceString(fromA, toA);
+    const added = inserted.toString();
+    const { prefix, suffix } = commonEnds(removed, added);
+    const gone = removed.slice(prefix, removed.length - suffix);
+    if (gone.trim()) moving.push({ id: nextId++, from: fromB + prefix, to: fromB + prefix, gone, at: now, dur: outMs });
+    // A word at a time, one filter each, in turn at the pace its letters would type: a letter per filter made a long
+    // phrase bend sixty at once, the phone fell behind, and the rest arrived all together (Matt: "it still animates
+    // one line or so and then rapidly finishes"). A single typed letter is its own word, so typing is unchanged.
+    const end = added.length - suffix;
+    let i = prefix;
+    while (i < end && letters < cap) {
+      while (i < end && !(added[i] ?? '').trim()) i += 1;
+      if (i >= end) break;
+      let j = i;
+      while (j < end && (added[j] ?? '').trim() && letters < cap) {
+        j += 1;
+        letters += 1;
+      }
+      moving.push({ id: nextId++, from: fromB + i, to: fromB + j, gone: '', at: now + Math.min(wait, STAGGER_CAP_MS), dur: IN_MS + Math.random() * IN_JITTER_MS });
+      wait += Math.min(WORD_MAX_MS, (j - i + 1) * STAGGER_MS);
+      i = j;
+    }
+  });
+  return moving;
+}
+
+/** Everything in motion, mapped through every change, until the frame loop says it has settled. */
+export const wispState = StateField.define<readonly Moving[]>({
+  create: () => [],
+  update(moving, tr) {
+    let next = moving;
+    if (tr.docChanged) {
+      next = next.flatMap((m) => {
+        const from = tr.changes.mapPos(m.from, m.gone ? -1 : 1);
+        const to = tr.changes.mapPos(m.to, -1);
+        // A word the change took away entirely is done moving.
+        if (!m.gone && to <= from) return [];
+        return [{ ...m, from, to }];
+      });
+    }
+    for (const effect of tr.effects) {
+      if (effect.is(revealWisp) && !prefersStill()) next = [...next, ...revealing(tr.state, effect.value.from, effect.value.to, performance.now())];
+      if (effect.is(settle)) {
+        const done = new Set(effect.value);
+        next = next.filter((m) => !done.has(m.id));
+      }
+    }
+    if (!tr.docChanged || prefersStill()) return next;
+    if (tr.annotation(wisp)) return [...next, ...movingIn(tr, performance.now())];
+    // Typed, pasted, or deleted by hand.
+    if (tr.state.facet(typing) && (tr.isUserEvent('input') || tr.isUserEvent('delete'))) {
+      const now = performance.now();
+      return [...next, ...movingIn(tr, now, tr.isUserEvent('input.paste') ? PASTE_MAX : Number.POSITIVE_INFINITY, tr.isUserEvent('delete') ? deleteMs(now) : OUT_MS)];
+    }
+    return next;
+  },
+});
+
+/** The letters and ghosts in motion right now, for a test or a caller wondering whether to wait. */
+export function moving(state: EditorState): readonly Moving[] {
+  return state.field(wispState, false) ?? [];
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+interface Slot {
+  id: string;
+  disp: Element;
+  blur: Element;
+  lift: Element;
+  alpha: Element;
+  busy: boolean;
+  filter: Element;
+  /** Whether the filter's region has been fitted to the word now using it. */
+  sized: boolean;
+}
+
+class Ghost extends WidgetType {
+  constructor(
+    readonly text: string,
+    readonly filterId: string,
+  ) {
+    super();
+  }
+
+  eq(other: Ghost): boolean {
+    return other.text === this.text && other.filterId === this.filterId;
+  }
+
+  /**
+   * A place that takes no room, with the text that went drawn over it. Inline, the ghost held the text after it in
+   * its old place for the whole fade and then let it snap back, and a held backspace in the middle of a line shuffled
+   * the rest of the line to and fro (Matt: "backspacing text in the middle of other text is quite glitchy"). Now the
+   * line closes up at once and the letters smoke away where they were, over it.
+   */
+  toDOM(): HTMLElement {
+    const place = document.createElement('span');
+    place.className = 'cm-wispGonePlace';
+    place.setAttribute('aria-hidden', 'true');
+    const span = document.createElement('span');
+    span.className = 'cm-wispGone';
+    span.textContent = this.text;
+    span.style.filter = `url(#${this.filterId})`;
+    place.appendChild(span);
+    return place;
+  }
+
+  ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+let instances = 0;
+
+const wispPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet = Decoration.none;
+    private readonly svg: SVGSVGElement;
+    private readonly defs: SVGDefsElement;
+    private readonly prefix: string;
+    private readonly pool: Slot[] = [];
+    private readonly slots = new Map<number, Slot>();
+    private frame = 0;
+
+    constructor(readonly view: EditorView) {
+      instances += 1;
+      this.prefix = `wispcm-${instances}`;
+      this.svg = document.createElementNS(SVG_NS, 'svg');
+      this.svg.setAttribute('aria-hidden', 'true');
+      this.svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+      this.defs = document.createElementNS(SVG_NS, 'defs');
+      this.svg.appendChild(this.defs);
+      view.dom.appendChild(this.svg);
+      this.redraw();
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.startState.field(wispState) !== update.state.field(wispState)) this.redraw();
+    }
+
+    destroy() {
+      cancelAnimationFrame(this.frame);
+      this.svg.remove();
+    }
+
+    /**
+     * A filter for each thing in motion, kept while it moves; the marks and ghosts that carry them. A letter whose
+     * turn hasn't come is only hidden, and takes no filter until it has: a long phrase then types across at its pace
+     * with the pool holding just the letters mid-arc, where it used to fill on the first line and settle the rest at
+     * once (Matt: "it still animates one line or so and then rapidly finishes").
+     */
+    private redraw() {
+      const current = this.view.state.field(wispState);
+      const now = performance.now();
+      const alive = new Set<number>();
+      const ranges: Range<Decoration>[] = [];
+      this.nextDue = Number.POSITIVE_INFINITY;
+      for (const m of current) {
+        alive.add(m.id);
+        if (!m.gone && m.at > now) {
+          this.nextDue = Math.min(this.nextDue, m.at);
+          if (m.to > m.from) ranges.push(Decoration.mark({ class: 'cm-wispWait' }).range(m.from, m.to));
+          continue;
+        }
+        let slot = this.slots.get(m.id);
+        if (!slot) {
+          // A word never takes a filter from one still moving: with none free it waits its turn, unseen, and starts
+          // when one settles. So a long phrase keeps arriving at the pace the phone can draw, instead of the rest
+          // being set all at once to make room.
+          const found = this.slot(Boolean(m.gone));
+          if (!found) {
+            this.nextDue = now;
+            if (!m.gone && m.to > m.from) ranges.push(Decoration.mark({ class: 'cm-wispWait' }).range(m.from, m.to));
+            continue;
+          }
+          slot = found;
+          slot.sized = false;
+          this.slots.set(m.id, slot);
+          this.starts.set(m.id, Math.max(m.at, now));
+          // Not yet on screen until its moment: fully bent, blurred and clear.
+          this.shape(slot, m.gone ? 1 : 0, Boolean(m.gone));
+        }
+        if (m.gone) ranges.push(Decoration.widget({ widget: new Ghost(m.gone, slot.id), side: -1 }).range(m.from));
+        else if (m.to > m.from) ranges.push(Decoration.mark({ class: 'cm-wispCh', attributes: { style: `filter:url(#${slot.id})` } }).range(m.from, m.to));
+      }
+      for (const [id, slot] of this.slots) {
+        if (!alive.has(id)) {
+          slot.busy = false;
+          this.slots.delete(id);
+          this.starts.delete(id);
+        }
+      }
+      ranges.sort((a, b) => a.from - b.from || (a.value.startSide ?? 0) - (b.value.startSide ?? 0));
+      this.decorations = Decoration.set(ranges, true);
+      if (this.evicted.length) {
+        const settled = this.evicted.splice(0);
+        queueMicrotask(() => this.view.dispatch({ effects: settle.of(settled) }));
+      }
+      if (current.length) {
+        cancelAnimationFrame(this.frame);
+        this.frame = requestAnimationFrame(this.tick);
+      }
+    }
+
+    /** When the next waiting letter's turn comes, and the marks are drawn again with it moving. */
+    private nextDue = Number.POSITIVE_INFINITY;
+
+    /** Letters that lent their filter to a newer one during a pass, to be settled once the pass is over. */
+    private evicted: number[] = [];
+
+    /** When each word with a filter really began: its turn, or later if it had to wait for a filter. */
+    private readonly starts = new Map<number, number>();
+
+    /** One frame: every moving thing's filter set for its moment; the ones past the end handed back to settle. */
+    private tick = () => {
+      const now = performance.now();
+      if (now >= this.nextDue) {
+        // Its filter is set and its mark swapped in the same frame, so nothing shows plain in between; the empty
+        // transaction is what makes the editor read the marks again.
+        this.redraw();
+        this.view.dispatch({});
+        return;
+      }
+      const done: number[] = [];
+      for (const m of this.view.state.field(wispState)) {
+        const slot = this.slots.get(m.id);
+        if (!slot) continue;
+        if (!slot.sized) this.fit(slot, m);
+        const t = (now - (this.starts.get(m.id) ?? m.at)) / m.dur;
+        if (t >= 1) {
+          done.push(m.id);
+          continue;
+        }
+        this.shape(slot, Math.max(0, t), Boolean(m.gone));
+      }
+      if (done.length) {
+        this.view.dispatch({ effects: settle.of(done) });
+        return;
+      }
+      if (this.slots.size || this.nextDue < Number.POSITIVE_INFINITY) this.frame = requestAnimationFrame(this.tick);
+    };
+
+    /**
+     * Arriving: the bend is over by three quarters of the way and the blur a
+     * little later, so the last frames near zero, where a half pixel of
+     * displacement shimmers on thin strokes, are not drawn; the letter fades
+     * in over the first third and lifts into place. Leaving: the same curves
+     * backwards, thinning as it goes.
+     */
+    private shape(slot: Slot, t: number, leaving: boolean) {
+      const p = leaving ? 1 - t : t;
+      const bend = Math.max(0, 1 - p / 0.72);
+      const soft = Math.max(0, 1 - p / 0.9);
+      const alpha = leaving ? 1 - t : Math.min(1, t / 0.3);
+      const lift = leaving ? -LIFT * 1.2 * t : LIFT * (1 - Math.min(1, t / 0.5));
+      slot.disp.setAttribute('scale', (BEND * bend * bend).toFixed(2));
+      slot.blur.setAttribute('stdDeviation', (SOFT * soft * soft).toFixed(2));
+      slot.lift.setAttribute('dy', lift.toFixed(2));
+      slot.alpha.setAttribute('slope', alpha.toFixed(3));
+    }
+
+    /**
+     * The filter's region, in shares of what it bends: wide around a single letter, which is a dozen pixels and the
+     * bend reaches seventeen, and narrow around a word or a few, so a long piece doesn't paint several times its
+     * width each frame. In shares of the element, never in pixels: a CSS filter's user space is not the word's own,
+     * and a pixel region missed the text altogether (Matt: "the fade in and out of text with the wisp doesn't even
+     * render").
+     */
+    private fit(slot: Slot, m: Moving) {
+      slot.sized = true;
+      const length = m.gone ? m.gone.length : m.to - m.from;
+      const wide = length <= 1;
+      slot.filter.setAttribute('x', wide ? '-300%' : length <= 4 ? '-80%' : '-30%');
+      slot.filter.setAttribute('y', '-150%');
+      slot.filter.setAttribute('width', wide ? '700%' : length <= 4 ? '260%' : '160%');
+      slot.filter.setAttribute('height', '400%');
+    }
+
+    /** A free filter, a new one while the pool has room, or with `evict` (a deletion's ghost) the oldest one's. */
+    private slot(evict = false): Slot | null {
+      const free = this.pool.find((s) => !s.busy);
+      if (free) {
+        free.busy = true;
+        return free;
+      }
+      if (this.pool.length >= POOL_MAX) {
+        if (!evict) return null;
+        // Faster than anyone talks: the oldest letter simply sets, cleanly, and lends its filter. Its settling is
+        // dispatched after this pass: redraw can run inside an editor update, where a dispatch is not allowed.
+        let oldest: [number, Slot] | null = null;
+        for (const entry of this.slots) if (!oldest || entry[0] < oldest[0]) oldest = entry;
+        if (!oldest) return null;
+        this.slots.delete(oldest[0]);
+        this.evicted.push(oldest[0]);
+        oldest[1].busy = true;
+        return oldest[1];
+      }
+      const i = this.pool.length;
+      const id = `${this.prefix}-${i}`;
+      const filter = document.createElementNS(SVG_NS, 'filter');
+      filter.setAttribute('id', id);
+      // Room for the bend and the blur, so the smeared strokes are never clipped; in sRGB, so thin type doesn't brighten.
+      // Measured in pixels around the word, not in multiples of it: a region seven times a word's width made every
+      // frame of a long phrase paint seven times the text it was moving.
+      filter.setAttribute('x', '-150%');
+      filter.setAttribute('y', '-100%');
+      filter.setAttribute('width', '400%');
+      filter.setAttribute('height', '300%');
+      filter.setAttribute('color-interpolation-filters', 'sRGB');
+      const noise = document.createElementNS(SVG_NS, 'feTurbulence');
+      noise.setAttribute('type', 'fractalNoise');
+      noise.setAttribute('baseFrequency', '0.018 0.06');
+      noise.setAttribute('numOctaves', '1');
+      noise.setAttribute('seed', String(i * 7 + 1));
+      noise.setAttribute('result', 'n');
+      const disp = document.createElementNS(SVG_NS, 'feDisplacementMap');
+      disp.setAttribute('in', 'SourceGraphic');
+      disp.setAttribute('in2', 'n');
+      disp.setAttribute('scale', '0');
+      disp.setAttribute('xChannelSelector', 'R');
+      disp.setAttribute('yChannelSelector', 'G');
+      disp.setAttribute('result', 'd');
+      const blur = document.createElementNS(SVG_NS, 'feGaussianBlur');
+      blur.setAttribute('in', 'd');
+      blur.setAttribute('stdDeviation', '0');
+      blur.setAttribute('result', 'b');
+      const lift = document.createElementNS(SVG_NS, 'feOffset');
+      lift.setAttribute('in', 'b');
+      lift.setAttribute('dx', '0');
+      lift.setAttribute('dy', '0');
+      lift.setAttribute('result', 'l');
+      const transfer = document.createElementNS(SVG_NS, 'feComponentTransfer');
+      transfer.setAttribute('in', 'l');
+      const alpha = document.createElementNS(SVG_NS, 'feFuncA');
+      alpha.setAttribute('type', 'linear');
+      alpha.setAttribute('slope', '1');
+      transfer.appendChild(alpha);
+      filter.append(noise, disp, blur, lift, transfer);
+      this.defs.appendChild(filter);
+      const slot: Slot = { id, disp, blur, lift, alpha, busy: true, filter, sized: false };
+      this.pool.push(slot);
+      return slot;
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
+
+// Plain inline spans: a letter box of its own (inline-block, as WispText's letters are) would change the
+// line's kerning and wrapping, and the text under the filter must sit exactly where it does without it.
+const wispTheme = EditorView.baseTheme({
+  '.cm-wispCh': {},
+  // Not its turn yet: there, so the line doesn't move, but unseen.
+  '.cm-wispWait': { opacity: '0' },
+  // An empty inline box, sitting on the line's own text box: its ghost lines up with the letters beside it.
+  '.cm-wispGonePlace': { position: 'relative', display: 'inline' },
+  // Right-aligned to where it went, so the letters before the caret leave from under it.
+  '.cm-wispGone': { position: 'absolute', right: '0', top: '0', whiteSpace: 'pre', pointerEvents: 'none', userSelect: 'none' },
+});
+
+/** Text arriving from and leaving into smoke: transactions carrying the `wisp` annotation, and with `typing`, the person's own. */
+export function wispArrivals(options: { typing?: boolean } = {}): Extension {
+  return [typing.of(options.typing ?? false), wispState, wispPlugin, wispTheme];
+}

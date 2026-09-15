@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from 'react';
+import { isCodeThemeDark, isCodeThemeLight, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
+import { isNoteView, type NoteView } from '../editor/viewMode.ts';
 
 /**
  * The look-and-feel knobs, and how they reach the tokens.
@@ -30,8 +32,10 @@ export interface Preferences {
   textSize: TextSize;
   typeface: Typeface;
   /**
-   * Memo mode: recording - the Speak button or the side key - keeps adding to
-   * the last spoken note until New note is tapped on the recorder. Off, every
+   * Memo mode: recording - the Speak button or the side key - writes to a
+   * scratch page, sorted into notes when it ends (capture/scratch.ts, sort/;
+   * Matt: "not real until the memo is done, then the AI can figure out how to
+   * sort"). It used to keep adding to the last spoken note. Off, every
    * recording is a new note.
    */
   memo: boolean;
@@ -53,8 +57,33 @@ export interface Preferences {
    * asks before it acts, either way.
    */
   commandWord: boolean;
+  /**
+   * While the list or a note is open, saying "Glyph" opens the recorder with
+   * what was said (capture/wakeWord.ts). On by default: Matt, "While Glyph is
+   * open I should be able to say the AIs wake word". Needs `commandWord`.
+   */
+  listenWhileOpen: boolean;
+  /**
+   * After Stop, the review (review/): the slower speech model listens again and
+   * the language model, thinking out loud, checks the note; the person keeps
+   * or commits what it finds. On by default: Matt asked for it.
+   */
+  review: boolean;
+  /**
+   * Nothing leaves the phone and nothing arrives: no update checks, no model
+   * downloads, and plugins that use the network are off. Glyph runs from what
+   * is on the phone. Matt: "the app can be run totally without a server if desired".
+   */
+  localOnly: boolean;
   /** Which model formats notes on the phone, by its id in core/ai.ts. */
   formatModel: string;
+  /** Colours for code on the light page and on the dark one (editor/codeThemes.ts); 'ink' keeps code in the page's ink. */
+  codeLight: CodeThemeLight;
+  codeDark: CodeThemeDark;
+  /** Whether the code colours were picked in Settings; until they are, they follow the default (Pastel). */
+  codeChosen: boolean;
+  /** How notes are shown: marks and formatting together, or just the formatted text (editor/viewMode.ts). */
+  noteView: NoteView;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -68,7 +97,14 @@ export const DEFAULT_PREFERENCES: Preferences = {
   refine: true,
   quietStop: false,
   commandWord: true,
+  listenWhileOpen: true,
+  review: true,
+  localOnly: false,
   formatModel: 'qwen3.5-4b',
+  codeLight: 'pastel',
+  codeDark: 'pastel',
+  codeChosen: false,
+  noteView: 'mixed',
 };
 
 const STORAGE_KEY = 'glyph-preferences';
@@ -79,7 +115,12 @@ function load(): Preferences {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_PREFERENCES;
-    return { ...DEFAULT_PREFERENCES, ...(JSON.parse(raw) as Partial<Preferences>) };
+    const loaded = { ...DEFAULT_PREFERENCES, ...(JSON.parse(raw) as Partial<Preferences>) };
+    // A theme a later build removed falls back to the default rather than to no colours at all.
+    if (!isCodeThemeLight(loaded.codeLight) || !loaded.codeChosen) loaded.codeLight = DEFAULT_PREFERENCES.codeLight;
+    if (!isCodeThemeDark(loaded.codeDark) || !loaded.codeChosen) loaded.codeDark = DEFAULT_PREFERENCES.codeDark;
+    if (!isNoteView(loaded.noteView)) loaded.noteView = DEFAULT_PREFERENCES.noteView;
+    return loaded;
   } catch {
     return DEFAULT_PREFERENCES;
   }
@@ -98,6 +139,12 @@ export function setPreferences(next: Partial<Preferences>): void {
   }
   applyPreferences(current);
   for (const l of listeners) l();
+}
+
+/** Called after every change, for code outside React that must follow a preference. */
+export function onPreferences(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 export function usePreferences(): Preferences {
@@ -119,6 +166,35 @@ export function isDarkNow(theme: ThemePref): boolean {
 }
 
 /**
+ * The phone's status bar icons, in step with the page: dark on light paper,
+ * light on dark. Android picks them from the phone's own dark mode, so a
+ * Light setting on a dark phone drew white icons on white paper (Matt: "they
+ * don't swap between light and dark mode"). On System the page follows the
+ * phone, so it is told again when the phone changes. Native generation 15;
+ * a no-op before.
+ */
+let chromeTheme: ThemePref | null = null;
+let chromeWatched = false;
+
+function matchChrome(theme: ThemePref): void {
+  chromeTheme = theme;
+  const tell = () => {
+    try {
+      window.GlyphHost?.setLightChrome?.(!isDarkNow(chromeTheme ?? 'system'));
+    } catch {
+      // An activity from before generation 15 has no such method.
+    }
+  };
+  tell();
+  if (!chromeWatched && typeof matchMedia !== 'undefined') {
+    chromeWatched = true;
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (chromeTheme === 'system') tell();
+    });
+  }
+}
+
+/**
  * Reflect the preferences onto the document element. Each value equal to its
  * default clears its attribute so the token `:root` defaults win, which is how
  * the Glacier docs app and AttackFM both drive their theming.
@@ -128,6 +204,7 @@ export function applyPreferences(prefs: Preferences = current): void {
 
   if (prefs.theme === 'system') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', prefs.theme);
+  matchChrome(prefs.theme);
 
   if (prefs.density === DEFAULT_PREFERENCES.density) root.removeAttribute('data-density');
   else root.setAttribute('data-density', prefs.density);
@@ -143,4 +220,8 @@ export function applyPreferences(prefs: Preferences = current): void {
   // components change face along with the editor.
   if (prefs.typeface === DEFAULT_PREFERENCES.typeface) root.removeAttribute('data-font');
   else root.setAttribute('data-font', prefs.typeface);
+
+  // Both code themes are stamped; editor/codeThemes.css applies whichever side of the page is showing.
+  root.setAttribute('data-code-light', prefs.codeLight);
+  root.setAttribute('data-code-dark', prefs.codeDark);
 }

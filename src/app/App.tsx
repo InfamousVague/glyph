@@ -3,18 +3,29 @@ import { HapticsProvider, ToastProvider } from '@glacier/react';
 import { NotesList } from './notes/NotesList.tsx';
 import { NoteScreen } from './editor/NoteScreen.tsx';
 import { SettingsSheet } from './settings/SettingsSheet.tsx';
+import { ReviewScreen } from './review/ReviewScreen.tsx';
+import type { ReviewHandoff } from './review/useReview.ts';
+import { SortScreen } from './sort/SortScreen.tsx';
+import { TutorialScreen } from './tutorial/TutorialScreen.tsx';
+import { GUIDE_PAGES } from './guide/pages.ts';
+import { readScratch, type Scratch } from './capture/scratch.ts';
 import { CaptureScreen } from './capture/CaptureScreen.tsx';
 import { startRefining } from './capture/refine.ts';
 import { startFormatting } from './format/queue.ts';
 import { Guide } from './guide/Guide.tsx';
+import { clearGuideProgress, isReadingPage, launchedTooSoon, markGuideStarted, rememberGuidePage } from './guide/tooSoon.ts';
 import { useVoiceModel } from './capture/useVoiceModel.ts';
 import { installBack } from './core/back.ts';
 import { hapticsImpl, installTapHaptics } from './core/haptics.ts';
 import { answerHost, takeCaptureLaunch } from './core/host.ts';
-import { applyPreferences } from './core/preferences.ts';
+import { applyPreferences, usePreferences } from './core/preferences.ts';
+import { useWakeWord } from './capture/useWakeWord.ts';
+import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
 import { isTauri } from './core/tauri.ts';
 import { getNote, newNoteId, saveNote, useNotes, type Note } from './core/store.ts';
+import { addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
+import { fileNewNote } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 
 /**
@@ -57,6 +68,7 @@ function markGuideSeen(): void {
   } catch {
     // Seen for this run, at least.
   }
+  clearGuideProgress();
 }
 
 type Screen =
@@ -69,7 +81,15 @@ type Screen =
       stop: number;
       /** Talking into this note, from its Speak: the words go here, and the capture comes back here. */
       noteId?: string;
-    };
+      /** Opened by saying "Glyph" while the app was open (capture/wakeWord.ts). */
+      woke?: boolean;
+    }
+  /** After Stop: the slower models check the take, and the person commits what they find (review/). */
+  | { name: 'review'; handoff: ReviewHandoff }
+  /** After a memo: where its parts go, proposed, and filed when committed (sort/). */
+  | { name: 'sort'; scratch: Scratch }
+  /** The voice tutorial, open from Settings any time (tutorial/). */
+  | { name: 'tutorial' };
 
 export function App() {
   return (
@@ -85,9 +105,12 @@ export function App() {
 function Shell() {
   const { notes, loading, refresh } = useNotes();
   const actions = useNoteActions(refresh);
-  const [screen, setScreen] = useState<Screen>(() =>
-    takeCaptureLaunch() ? { name: 'capture', key: Date.now(), fromAssistant: true, stop: 0 } : { name: 'list' },
-  );
+  const [screen, setScreen] = useState<Screen>(() => {
+    const launch = takeCaptureLaunch();
+    // The side key held before the guide got to it: the guide again, not a recording (guide/tooSoon.ts).
+    if (launch && launchedTooSoon(guideSeen())) return { name: 'list' };
+    return launch ? { name: 'capture', key: Date.now(), fromAssistant: true, stop: 0 } : { name: 'list' };
+  });
   // Read by the side-key handler, which is registered once.
   const screenRef = useRef(screen);
   screenRef.current = screen;
@@ -95,7 +118,26 @@ function Shell() {
   // The walkthrough opens by itself once, on the first launch that is not a
   // side-key capture - a person who held the key is already mid-sentence.
   const [guide, setGuide] = useState(() => screen.name !== 'capture' && !guideSeen());
+  // "Not yet, finish reading.": a relaunch, or the side key, while the guide was still on a reading page.
+  const [tooSoon, setTooSoon] = useState(() => screen.name !== 'capture' && launchedTooSoon(guideSeen()));
+
+  // "Glyph", said while the list or a note is open: the recorder opens with it (capture/wakeWord.ts).
+  const wakePrefs = usePreferences();
+  useWakeWord(wakePrefs.commandWord && wakePrefs.listenWhileOpen && (screen.name === 'list' || screen.name === 'note') && !settings && !guide, () => {
+    const current = screenRef.current;
+    setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0, woke: true, noteId: current.name === 'note' ? current.note.id : undefined });
+  });
   const [guidePage, setGuidePage] = useState(0);
+  // Read by the side-key handler, which is registered once.
+  const guideRef = useRef({ open: guide, page: guidePage });
+  guideRef.current = { open: guide, page: guidePage };
+  // Where the guide is, kept for a relaunch (guide/tooSoon.ts); gone once it is finished.
+  useEffect(() => {
+    if (guide) {
+      markGuideStarted();
+      rememberGuidePage(guidePage);
+    }
+  }, [guide, guidePage]);
 
   useEffect(() => {
     // First, before anything that might reload: this frontend mounted, so the
@@ -134,6 +176,11 @@ function Shell() {
           setScreen({ ...current, stop: current.stop + 1 });
           return;
         }
+        // On a reading page of the guide the key is too soon: the line, not a recording.
+        if (guideRef.current.open && isReadingPage(guideRef.current.page)) {
+          setTooSoon(true);
+          return;
+        }
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         setSettings(false);
         setGuide(false);
@@ -157,11 +204,34 @@ function Shell() {
     if (note) setScreen({ name: 'note', note });
   };
 
+  // A fresh library gets the sample note once (core/seed.ts): a few seconds
+  // after the first read comes back empty, past the store's own re-asks, so a
+  // slow first answer from the phone is never mistaken for an empty library.
+  useEffect(() => {
+    if (loading || sampleNoteSeeded()) return undefined;
+    const timer = window.setTimeout(() => {
+      void seedSampleNote(notes.length).then((made) => made && refresh());
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [loading, notes.length, refresh]);
+
+  // Settings > About: another sample note, opened at once.
+  const sampleNote = async () => {
+    setSettings(false);
+    const note = await addSampleNote();
+    await refresh();
+    setScreen({ name: 'note', note });
+  };
+
   const newNote = async () => {
     // Written to the store immediately rather than on first keystroke: a note
     // that exists only in memory is a note that a backgrounded webview loses,
     // and an empty row in the list is a far smaller problem than a lost one.
+    // The library holds it as a draft with no file until its first words
+    // (docs/LIBRARY.md), so a note opened and left leaves nothing behind.
     const note = await saveNote(newNoteId(), '', 'editor');
+    // Made while the list shows one workspace: it belongs there (core/workspaces.ts).
+    fileNewNote(note.id);
     await refresh();
     setScreen({ name: 'note', note });
   };
@@ -187,9 +257,29 @@ function Shell() {
     await refresh();
   };
 
+  // A memo said and not yet sorted: one finished while the phone was locked, left with Back, or cut off when the app
+  // was killed mid-memo (capture/scratch.ts). Read again whenever the list comes back.
+  const [memoWaiting, setMemoWaiting] = useState(() => readScratch() !== null);
+  useEffect(() => {
+    if (screen.name === 'list') setMemoWaiting(readScratch() !== null);
+  }, [screen.name]);
+
   const captureFinished = useCallback(
-    async (note: Note | null, locked: boolean) => {
+    async (note: Note | null, locked: boolean, review?: ReviewHandoff, sort?: Scratch) => {
+      // A memo: sorted now, or, over a locked phone, waiting on the list until it is unlocked.
+      if (sort) {
+        await refresh();
+        setMemoWaiting(true);
+        setScreen(locked ? { name: 'list' } : { name: 'sort', scratch: sort });
+        return;
+      }
+      // A spoken note lands in the workspace the list is showing, unless it is filed already.
+      if (note) fileNewNote(note.id);
       await refresh();
+      if (note && review) {
+        setScreen({ name: 'review', handoff: review });
+        return;
+      }
       // Talking into a note from the note: back to that note, read fresh, since
       // its words just changed (and a Formatted view compares against them).
       // Otherwise the list, the new note at its top: reading it back is a tap
@@ -213,13 +303,53 @@ function Shell() {
 
   return (
     <>
+      {/* Under the status bar: what scrolls up fades out before it reaches the phone's clock and icons. */}
+      <div className="app-statusScrim" aria-hidden="true" />
+      {/* The wisp edge's filter, for every view that scrolls under a header (art/wispEdge.ts). */}
+      <WispEdgeFilter />
       {screen.name === 'capture' ? (
         <CaptureScreen
           key={screen.key}
           fromAssistant={screen.fromAssistant}
           stopRequests={screen.stop}
           noteId={screen.noteId}
-          onFinish={(note, locked) => void captureFinished(note, locked)}
+          woke={screen.woke}
+          onFinish={(note, locked, review, sort) => void captureFinished(note, locked, review, sort)}
+        />
+      ) : screen.name === 'tutorial' ? (
+        <TutorialScreen
+          onDone={() => setScreen({ name: 'list' })}
+          onAllMarks={() => {
+            setScreen({ name: 'list' });
+            setGuidePage(GUIDE_PAGES.indexOf('markdown'));
+            setGuide(true);
+          }}
+        />
+      ) : screen.name === 'sort' ? (
+        <SortScreen
+          key={screen.scratch.id}
+          scratch={screen.scratch}
+          onDone={(id) => {
+            void (async () => {
+              setMemoWaiting(readScratch() !== null);
+              await refresh();
+              if (id) fileNewNote(id);
+              const fresh = id ? await getNote(id).catch(() => null) : null;
+              setScreen(fresh ? { name: 'note', note: fresh } : { name: 'list' });
+            })();
+          }}
+        />
+      ) : screen.name === 'review' ? (
+        <ReviewScreen
+          key={screen.handoff.noteId}
+          handoff={screen.handoff}
+          onDone={(id) => {
+            void (async () => {
+              await refresh();
+              const fresh = await getNote(id).catch(() => null);
+              setScreen(fresh ? { name: 'note', note: fresh } : { name: 'list' });
+            })();
+          }}
         />
       ) : screen.name === 'note' ? (
         <NoteScreen
@@ -247,16 +377,28 @@ function Shell() {
           onSettings={() => setSettings(true)}
           actions={actions}
           canFlag={canFlag(updates)}
+          memoWaiting={memoWaiting}
+          onSortMemo={() => {
+            const waiting = readScratch();
+            if (waiting) setScreen({ name: 'sort', scratch: { ...waiting, done: true } });
+            else setMemoWaiting(false);
+          }}
         />
       )}
       <SettingsSheet
         open={settings}
         onClose={() => setSettings(false)}
         updates={updates}
-        onGuide={(page = 0) => {
+        onGuide={(page) => {
           setSettings(false);
-          setGuidePage(page);
+          // A row's press hands its event along; only a number is a page.
+          setGuidePage(typeof page === 'number' ? page : 0);
           setGuide(true);
+        }}
+        onSample={() => void sampleNote()}
+        onTutorial={() => {
+          setSettings(false);
+          setScreen({ name: 'tutorial' });
         }}
       />
       {/*
@@ -269,10 +411,16 @@ function Shell() {
       {guide && screen.name !== 'capture' ? (
         <Guide
           index={guidePage}
-          onIndex={setGuidePage}
+          tooSoon={tooSoon}
+          onIndex={(index) => {
+            setGuidePage(index);
+            setTooSoon(false);
+          }}
           onClose={() => {
             markGuideSeen();
             setGuide(false);
+            // The list underneath loaded while the guide was up; ask again now it shows.
+            void refresh();
           }}
           onTry={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
         />

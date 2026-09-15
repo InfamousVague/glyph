@@ -25,6 +25,7 @@ use std::sync::Mutex;
 
 use tauri::Manager;
 
+use crate::library::Library;
 use crate::store::{recording_file, Note, RecordedSegment, Recording, Store};
 
 /// Keeps the on-device model's formatted version of a note, or clears it with
@@ -66,7 +67,7 @@ const DB_FILE: &str = "glyph.sqlite";
 /// anyway. The CROSS-PROCESS contention - the capture service writing while
 /// this connection reads - is not what this lock is for; that one is SQLite's,
 /// through WAL and the busy timeout.
-pub struct NotesStore(pub Mutex<Store>);
+pub struct NotesStore(pub Mutex<Library>);
 
 impl NotesStore {
     /// The guard, recovered if some earlier command panicked while holding it.
@@ -78,7 +79,7 @@ impl NotesStore {
     /// guard and refusing every note operation for the rest of the process's
     /// life because one of them once panicked - which is how an app goes from
     /// having a bug to being a brick.
-    pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, Store> {
+    pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, Library> {
         self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }
@@ -108,9 +109,41 @@ pub fn install(app: &tauri::App) -> std::result::Result<(), String> {
         .map_err(|e| format!("no app data directory to keep notes in: {e}"))?;
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-    let store = Store::open(&dir.join(DB_FILE)).map_err(|e| e.to_string())?;
-    app.manage(NotesStore(Mutex::new(store)));
+    let library = open_library(&dir)?;
+    app.manage(NotesStore(Mutex::new(library)));
     Ok(())
+}
+
+/// The library folder in the app's own storage (docs/LIBRARY.md, phase 1).
+const LIBRARY_DIR: &str = "Library";
+
+/// Opens the library, and the first time, moves every note of the old
+/// database into it as a file. The old database is kept, renamed
+/// `glyph.sqlite.moved`, and only once every note is written out: a move that
+/// stops halfway (the app killed, the storage full) leaves the database where
+/// it was, and the next launch finishes it, because a note already in the
+/// library is never written twice.
+fn open_library(dir: &std::path::Path) -> std::result::Result<Library, String> {
+    let mut library = Library::open_fs(&dir.join(LIBRARY_DIR)).map_err(|e| e.to_string())?;
+    let old = dir.join(DB_FILE);
+    if old.exists() && !library.moved_in() {
+        let store = Store::open(&old).map_err(|e| e.to_string())?;
+        match library.move_in(&store) {
+            Ok(moved) => {
+                drop(store);
+                library.mark_moved_in(DB_FILE, moved).map_err(|e| e.to_string())?;
+                for suffix in ["", "-wal", "-shm"] {
+                    let from = dir.join(format!("{DB_FILE}{suffix}"));
+                    if from.exists() {
+                        let _ = std::fs::rename(&from, dir.join(format!("{DB_FILE}.moved{suffix}")));
+                    }
+                }
+                eprintln!("[glyph] moved {moved} notes from {DB_FILE} into the library");
+            }
+            Err(e) => eprintln!("[glyph] the move into the library stopped, and will finish next launch: {e}"),
+        }
+    }
+    Ok(library)
 }
 
 /// Every note, newest edit first. What the list screen draws.
@@ -162,7 +195,7 @@ pub fn delete_note(
     store: tauri::State<'_, NotesStore>,
     id: String,
 ) -> std::result::Result<bool, String> {
-    let store = store.lock();
+    let mut store = store.lock();
     // The body is read before the row goes: it is the only list of the
     // pictures the note had. They go after it, so a failed delete never
     // leaves a note pointing at pictures that are gone, and one another note

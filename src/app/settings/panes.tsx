@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, Terminal } from '@glacier/icons';
+import { BookOpen, FileText, GraduationCap, Terminal } from '@glacier/icons';
 import { SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
 import { setPreferences, usePreferences, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
+import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { hapticsAvailable, setHapticsPref, useHapticsPref, fireNativeHaptic } from '../core/haptics.ts';
-import { describeBuild, sourceHost, type Updates } from '../core/ota.ts';
+import { describeBuild, sourceHost, STAGING, type Updates } from '../core/ota.ts';
 import { isTauri } from '../core/tauri.ts';
 import { countKnock, KNOCKS_WANTED, setDeveloperMode, useDeveloperMode } from './developerMode.ts';
 import { useUpdateAlerts } from './useUpdateAlerts.ts';
@@ -84,6 +85,7 @@ export function TypePane() {
 export function ThemePane() {
   const prefs = usePreferences();
   return (
+    <>
     <PaneSection title="Page" description="Ink on paper, or paper on ink. System follows the phone.">
       <SettingRow
         label="Theme"
@@ -100,6 +102,37 @@ export function ThemePane() {
         }
       />
     </PaneSection>
+    <PaneSection title="Code" description="The colours of code in a code block, one set for the light page and one for the dark. Ink keeps code in the page's own ink.">
+      <SettingRow
+        label="On the light page"
+        layout="stacked"
+        control={
+          <SegmentedControl
+            aria-label="Code colours on the light page"
+            fullWidth
+            size="sm"
+            options={CODE_THEMES_LIGHT}
+            value={prefs.codeLight}
+            onValueChange={(value) => setPreferences({ codeLight: value as CodeThemeLight, codeChosen: true })}
+          />
+        }
+      />
+      <SettingRow
+        label="On the dark page"
+        layout="stacked"
+        control={
+          <SegmentedControl
+            aria-label="Code colours on the dark page"
+            fullWidth
+            size="sm"
+            options={CODE_THEMES_DARK}
+            value={prefs.codeDark}
+            onValueChange={(value) => setPreferences({ codeDark: value as CodeThemeDark, codeChosen: true })}
+          />
+        }
+      />
+    </PaneSection>
+    </>
   );
 }
 
@@ -110,7 +143,7 @@ export function RecordingPane() {
       <PaneSection title="The side key">
         <SettingRow
           label="Memo mode"
-          hint="Recording adds to your last note until you tap New note."
+          hint="What you say is kept on a scratch page, then sorted into your notes when you’re done: you see where each part goes before it’s filed. Off, every recording is a plain new note."
           control={<Switch aria-label="Memo mode" checked={prefs.memo} onCheckedChange={(memo) => setPreferences({ memo })} />}
         />
         <SettingRow
@@ -122,6 +155,23 @@ export function RecordingPane() {
           label="Commands start with “Glyph”"
           hint="Say “Glyph, add buy milk to HelloTrade” and it asks before it does it. Off, a command can be said without it, and still asks."
           control={<Switch aria-label="Commands start with Glyph" checked={prefs.commandWord} onCheckedChange={(commandWord) => setPreferences({ commandWord })} />}
+        />
+        <SettingRow
+          label="Listen for “Glyph” while it's open"
+          hint="On the list or in a note, say “Glyph” and the recorder opens with what you said. Your voice is only heard on the phone, and nothing is kept until you say it. Android shows its microphone dot while Glyph listens."
+          control={
+            <Switch
+              aria-label="Listen for Glyph while it's open"
+              checked={prefs.commandWord && prefs.listenWhileOpen}
+              disabled={!prefs.commandWord}
+              onCheckedChange={(listenWhileOpen) => setPreferences({ listenWhileOpen })}
+            />
+          }
+        />
+        <SettingRow
+          label="Review after recording"
+          hint="When you stop, a slower speech model listens again and the language model thinks the note through out loud, then shows what it would fix for you to keep or commit."
+          control={<Switch aria-label="Review after recording" checked={prefs.review} onCheckedChange={(review) => setPreferences({ review })} />}
         />
       </PaneSection>
       {isTauri() ? <SideKeyPlace /> : null}
@@ -280,7 +330,12 @@ function buildLine(updates: Updates): string {
   const { status } = updates;
   const overTheAir = Boolean(window.__glyphBoot?.build);
   const host = sourceHost(status?.sources?.[0]);
-  return [overTheAir ? 'Updated over the air' : 'Built into the app', describeBuild(updates.build), status ? `app ${status.nativeVersion}` : null, host ? `updates from ${host}` : null]
+  return [
+    overTheAir ? 'Updated over the air' : 'Built into the app',
+    describeBuild(updates.build),
+    status ? `app ${status.nativeVersion}` : null,
+    STAGING ? 'staging build, updates off' : host ? `updates from ${host}` : null,
+  ]
     .filter(Boolean)
     .join(' · ');
 }
@@ -290,7 +345,7 @@ function buildLine(updates: Updates): string {
  * seven presses on it, the way Android's own are unlocked, with a countdown
  * from the third press so somebody who knows the gesture knows it is working.
  */
-export function AboutPane({ updates, onGuide, onDeveloper }: { updates: Updates; onGuide: () => void; onDeveloper: () => void }) {
+export function AboutPane({ updates, onGuide, onSample, onTutorial, onDeveloper }: { updates: Updates; onGuide: () => void; onSample: () => void; onTutorial: () => void; onDeveloper: () => void }) {
   const { toast } = useToast();
   const knock = () => {
     const left = countKnock();
@@ -311,7 +366,9 @@ export function AboutPane({ updates, onGuide, onDeveloper }: { updates: Updates;
         <PaneHero title={updates.version} meta={buildLine(updates)} onPress={knock} />
       </PaneSection>
       <PaneSection title="Help">
-        <SettingRow icon={<BookOpen size={20} />} label="How to talk to Glyph" hint="The side key, and the cues that make markdown." onPress={onGuide} />
+        <SettingRow icon={<GraduationCap size={20} />} label="Voice tutorial" hint="A few minutes: say each cue, watch it work, and tick off every lesson." onPress={() => onTutorial()} />
+        <SettingRow icon={<BookOpen size={20} />} label="How to talk to Glyph" hint="The side key, and the cues that make markdown." onPress={() => onGuide()} />
+        <SettingRow icon={<FileText size={20} />} label="Add the sample note" hint="One note with every mark in it: headings, lists, a table, a picture, a secret in smoke." onPress={onSample} />
       </PaneSection>
       <SettingsFootnote>Glyph keeps your notes, recordings and models on the phone. Nothing is sent anywhere.</SettingsFootnote>
     </>

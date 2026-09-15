@@ -252,6 +252,10 @@ pub struct Note {
     pub formatted_for: Option<i64>,
     /// The model that wrote it, by the page's id.
     pub formatted_model: Option<String>,
+    /// Where the note's file is in the library (library/), relative to it: `Inbox/AttackFM.md`.
+    /// None for a note read from the old database.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 /// One committed phrase of a recording, as the page's `Segment` has it.
@@ -294,6 +298,16 @@ impl Recording {
             }
         }
         Ok(Recording { ms, segments })
+    }
+
+    /// The recording's length in milliseconds.
+    pub fn ms(&self) -> i64 {
+        self.ms
+    }
+
+    /// Its phrases, in order.
+    pub fn segments(&self) -> &[RecordedSegment] {
+        &self.segments
     }
 }
 
@@ -364,6 +378,7 @@ fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
         formatted: row.get::<_, Option<String>>(9)?,
         formatted_for: row.get::<_, Option<i64>>(10)?,
         formatted_model: row.get::<_, Option<String>>(11)?,
+        path: None,
     })
 }
 

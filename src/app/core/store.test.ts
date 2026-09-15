@@ -12,6 +12,7 @@ describe('the list labels', () => {
       'Something with negative space and one strong colour.',
     );
     expect(notePreview('Title\n> _quiet_ words, ~~gone~~ here')).toBe('quiet words, gone here');
+    expect(notePreview('Title\nThe key is ||under the stone||.')).toBe('The key is under the stone.');
   });
 
   it('previews a task without its box', () => {

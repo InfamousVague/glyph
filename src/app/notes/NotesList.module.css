@@ -64,17 +64,87 @@
 }
 
 /*
- * The label over a group of notes - Pinned, then Others. The rows' own meta
- * voice (small, spaced capitals, subtle), so it reads as a divider, not a
- * heading competing with the titles under it.
+ * The heading over a group of notes - Pinned, then Others. Spaced capitals a
+ * step below the titles, in the second ink, with the pin on the Pinned one:
+ * the one mark for the whole group, so no row needs its own.
  */
 .group {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
   margin: var(--glacier-space-6) 0 var(--glacier-space-2);
-  font-size: var(--glacier-font-size-xs);
+  font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-semibold);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--glacier-text-subtle);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+}
+
+/* The pin, once, on the heading: tilted the way it used to sit on each row. */
+.groupIcon {
+  font-size: 1.15em;
+  transform: rotate(-12deg);
+}
+
+/*
+ * Workspaces (WorkspaceBar.tsx): a row of names under the title, once there
+ * is one. Outlined words a step smaller than the rows, the way a suggestion
+ * sits in a note, so the row reads as a filter and not as more notes; the
+ * chosen one is solid ink. The row scrolls sideways past the gutter rather
+ * than wrapping, so it stays one line however many there are.
+ */
+.spaces {
+  display: flex;
+  gap: var(--glacier-space-2);
+  margin: calc(-1 * var(--glacier-space-2)) 0 var(--glacier-space-5);
+  padding-block: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.spaces::-webkit-scrollbar {
+  display: none;
+}
+
+.space {
+  appearance: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2rem;
+  padding: 0 var(--glacier-space-4);
+  border: 1px solid color-mix(in oklch, var(--app-ink-3) 55%, transparent);
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--app-ink-2);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.space:active {
+  color: var(--app-ink);
+}
+
+.space[aria-pressed='true'] {
+  background: var(--app-ink);
+  border-color: var(--app-ink);
+  color: var(--app-paper);
+}
+
+.space:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The + for another: a square-ish pill so the stroke sits centred. */
+.spaceAdd {
+  padding-inline: var(--glacier-space-3);
+  font-size: var(--glacier-font-size-md);
 }
 
 /* Rows arrive one after another as the list opens, rising a few pixels;
@@ -197,6 +267,31 @@
   overflow-wrap: anywhere;
 }
 
+/* The gist: what the note is about, in one quiet line, when the phone has written it. */
+.rowGist {
+  display: block;
+  margin-block-start: var(--glacier-space-1);
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: gist-in 260ms var(--glacier-ease-out, ease-out) both;
+}
+
+@keyframes gist-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rowGist {
+    animation: none;
+  }
+}
+
 .rowMeta {
   display: block;
   margin-block-start: var(--glacier-space-2);
@@ -249,24 +344,59 @@
 }
 
 /*
- * The update card. Blue in both themes, with near-black words on it: the kit's
- * blue 9 is light enough that dark text reads better than white, and the same
- * pair works on paper and on black. The action is a black pill so it looks
- * like the thing to press.
+ * The update card: white, holographic. Matt: "the update banner is kind of
+ * ugly with the solid blue, can you update it to be like a white holographic
+ * design". White in both themes - the one white card on black paper is the
+ * point - with a foil sheen: a faint pastel spectrum drifting slowly under a
+ * band of light, the way a holographic sticker catches a lamp. Near-black
+ * words and a black pill for the action, the app's own ink on its own paper.
  */
 .update {
-  --update-ink: oklch(0.16 0.02 228);
+  --update-ink: oklch(0.18 0.012 260);
   position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: var(--glacier-space-3);
   margin: 0 0 var(--glacier-space-5);
   padding: var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-4);
   border-radius: var(--glacier-radius-lg);
-  background: var(--glacier-blue-9, oklch(0.64 0.162 228));
   color: var(--update-ink);
+  background-color: #fff;
+  background-image:
+    linear-gradient(115deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.85) 18%, rgba(255, 255, 255, 0) 34%, rgba(255, 255, 255, 0) 62%, rgba(255, 255, 255, 0.7) 78%, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(
+      100deg,
+      oklch(0.93 0.085 350) 0%,
+      oklch(0.94 0.075 215) 20%,
+      oklch(0.96 0.075 135) 40%,
+      oklch(0.95 0.09 80) 60%,
+      oklch(0.93 0.08 300) 80%,
+      oklch(0.93 0.085 350) 100%
+    );
+  background-size:
+    260% 100%,
+    320% 100%;
+  background-position:
+    0% 0,
+    0% 0;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 30px rgba(0, 0, 0, 0.22);
   overflow: hidden;
-  animation: update-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation:
+    update-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    holo 11s linear infinite;
+}
+
+/* The foil: the light band crosses one way, the spectrum drifts the other. */
+@keyframes holo {
+  to {
+    background-position:
+      -260% 0,
+      320% 0;
+  }
 }
 
 .updateText {
@@ -285,7 +415,7 @@
   border: none;
   border-radius: var(--glacier-radius-full);
   background: var(--update-ink);
-  color: var(--glacier-blue-9, oklch(0.64 0.162 228));
+  color: #fff;
   font: inherit;
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-bold);
@@ -306,7 +436,7 @@
   position: absolute;
   inset: auto 0 0;
   block-size: 3px;
-  background: color-mix(in oklch, var(--update-ink) 18%, transparent);
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .updateBar > span {
@@ -412,56 +542,6 @@
 
 .cog:active svg {
   transform: rotate(45deg);
-}
-
-/* The record dot, in the pill's paper: it means microphone, and it needs no colour to. */
-.speakDot {
-  inline-size: 0.5em;
-  block-size: 0.5em;
-  border-radius: var(--glacier-radius-full);
-  background: currentColor;
-}
-
-/*
- * A pinned note's pin, in its row's top right corner: small, tilted the way a
- * pin sits in a board, in the meta line's grey so the title stays the loudest
- * thing. The title leaves room for it.
- */
-.row[data-pinned] {
-  position: relative;
-  padding-inline-end: var(--glacier-space-8);
-}
-
-.pinned {
-  position: absolute;
-  inset-block-start: var(--glacier-space-4);
-  inset-inline-end: 0;
-  font-size: 1.15rem;
-  color: var(--app-ink-2, var(--glacier-text-muted));
-  transform: rotate(-12deg);
-  animation: pin-drop 360ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
-}
-
-@keyframes pin-drop {
-  from {
-    opacity: 0;
-    transform: translateY(-6px) rotate(-30deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pinned {
-    animation: none;
-  }
-}
-
-.visuallyHidden {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 /* The way into the archive, at the foot of the list where it is out of the way. */

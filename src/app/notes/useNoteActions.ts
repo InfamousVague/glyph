@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@glacier/react';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { deleteNote, noteTitle, setNoteArchived, setNoteStarred, type Note } from '../core/store.ts';
+import { forgetNote } from '../core/workspaces.ts';
+import { forgetResults } from '../format/results.ts';
 
 /**
  * Star, archive and delete, each undoable - what a swipe on a row does.
@@ -60,6 +62,9 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
     window.clearTimeout(due.timer);
     try {
       await deleteNote(due.id);
+      // Its filing (core/workspaces.ts) and its kept summaries and gist (format/results.ts) go with it.
+      forgetNote(due.id);
+      forgetResults(due.id);
     } catch (error) {
       console.warn('[glyph] delete failed:', error);
     } finally {

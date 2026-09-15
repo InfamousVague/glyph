@@ -1,5 +1,5 @@
 import { Download, Sparkles } from '@glacier/icons';
-import { ProgressBar } from '@glacier/react';
+import { ProgressBar, Switch } from '@glacier/react';
 import { DEFAULT_MODEL, gb, MODELS, useModels } from '../core/ai.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
@@ -35,6 +35,18 @@ export function FormattingPane() {
 
   return (
     <>
+      <PaneSection title="On the phone" description="Every model runs on this phone. Nothing you write or say is sent anywhere to be formatted.">
+        <SettingRow
+          label="Local only"
+          hint={
+            prefs.localOnly
+              ? 'On. No update checks, no downloads, and plugins that use the network are off. Glyph runs from what is on the phone.'
+              : 'Turn off update checks, downloads, and every plugin that uses the network. Glyph then runs from what is on the phone.'
+          }
+          control={<Switch aria-label="Local only" checked={prefs.localOnly} onCheckedChange={(localOnly) => setPreferences({ localOnly })} />}
+        />
+      </PaneSection>
+
       {downloading && download ? (
         <SettingsCallout icon={<Download size={20} />}>
           <span>

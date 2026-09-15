@@ -23,6 +23,19 @@ describe('hearing the keyword', () => {
     expect(findKeyword('Gliff add eggs to work')?.after).toBe('add eggs to work');
   });
 
+  it('knows the word as a note’s name when a preposition leads and "note" follows', () => {
+    // No keyword said: the phrase is words, and nothing is lost.
+    expect(findKeyword('add a note to the Glyph note saying testing if this works')).toBeNull();
+    expect(findKeyword('put that on the glyph page')).toBeNull();
+    // Said first, it is the keyword, and the note called Glyph can still be named after it.
+    expect(findKeyword('Glyph, add a note to the Glyph note saying testing if this works')).toEqual({
+      before: '',
+      after: 'add a note to the Glyph note saying testing if this works',
+    });
+    // Later in the phrase, on its own, it is the keyword.
+    expect(findKeyword('call the dentist. Glyph, add that to the Glyph note')?.after).toBe('add that to the Glyph note');
+  });
+
   it('is not fooled by words that contain it or sound near it', () => {
     expect(findKeyword('The hieroglyphs were beautiful.')).toBeNull();
     expect(findKeyword('We climbed the cliff at dawn.')).toBeNull();

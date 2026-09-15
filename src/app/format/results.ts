@@ -19,7 +19,9 @@ import type { Mode } from './modes.ts';
 const KEY = 'glyph-ai-results';
 
 type Stored = { text: string; for: number; model: string };
-type Sheet = Record<string, Partial<Record<Exclude<Mode, 'format'>, Stored>>>;
+/** What is kept here per note: the modes that are not Format's, and the list's one-line gist. */
+type Kind = Exclude<Mode, 'format'> | 'gist';
+type Sheet = Record<string, Partial<Record<Kind, Stored>>>;
 
 function readSheet(): Sheet {
   try {
@@ -64,7 +66,27 @@ export async function keepResult(id: string, mode: Mode, text: string, hash: num
   writeSheet(sheet);
 }
 
-/** A note is gone: so are its summary and its enhanced text. */
+/** The list's gist: its line, the body it came from as a hash, its length and its first line, and the model. */
+export interface Gist {
+  text: string;
+  for: number;
+  model: string;
+  /** The body's length and first line when the gist was written: what "a meaningful change" is measured against. */
+  len?: number;
+  head?: string;
+}
+
+export function readGist(id: string): Gist | null {
+  return (readSheet()[id]?.gist as Gist | undefined) ?? null;
+}
+
+export function keepGist(id: string, gist: Gist): void {
+  const sheet = readSheet();
+  sheet[id] = { ...(sheet[id] ?? {}), gist };
+  writeSheet(sheet);
+}
+
+/** A note is gone: so are its summary, its enhanced text and its gist. */
 export function forgetResults(id: string): void {
   const sheet = readSheet();
   if (!(id in sheet)) return;

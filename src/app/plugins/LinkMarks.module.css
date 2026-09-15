@@ -1,0 +1,84 @@
+/*
+ * A note's link marks (LinkMarks.tsx): the plugin's mark in a ring, and the
+ * name of the thing beside it, in the quiet ink the note's small print uses.
+ * On the note it is a row under the tape, tappable; on a list row the marks
+ * alone, inline after the time.
+ */
+
+.row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--glacier-space-2) var(--glacier-space-3);
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.row {
+  cursor: pointer;
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: 0 var(--glacier-space-2);
+}
+
+button.row:active {
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  min-inline-size: 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.4;
+}
+
+/* The plugin's mark in a ring, the way the header draws its cog. */
+.icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.5em;
+  block-size: 1.5em;
+  flex: none;
+  border: 1.5px solid currentColor;
+  border-radius: var(--glacier-radius-full, 999px);
+  font-size: 0.85em;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-inline-size: 14rem;
+}
+
+/* On a list row: the marks alone, small, inline after the time. */
+.row[data-compact] {
+  gap: 0.35em;
+  vertical-align: -0.2em;
+  margin-inline-start: 0.5em;
+}
+
+.mark[data-compact] .icon {
+  inline-size: 1.35em;
+  block-size: 1.35em;
+  border-width: 1px;
+  font-size: 0.8em;
+}
+
+/* Read by assistive tech, not seen: the name behind a compact mark. */
+.hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

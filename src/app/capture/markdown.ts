@@ -146,8 +146,33 @@ const DIVIDER_CUE = /^(?:divider|horizontal\s+(?:line|rule)|separator)[.!]?$/i;
 const STANDALONE_CUE =
   /^(title|note\s+title|heading|section|new\s+section|bullet(?:\s+point)?|(?:next|new)\s+(?:point|item|bullet)|quote|check\s?box|checklist(?:\s+item)?|check\s+item|to[\s-]?do|task|important|key\s+point|number\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2}))[.,:!]?$/i;
 
+/** A plugin's formatting said the way bold is: its cue word, and the delimiter the words it wraps are put between. */
+export interface SpokenFormat {
+  word: string;
+  delimiter: string;
+}
+
 /**
- * Spoken inline markup: "bold ... end bold", "italic ... end italic".
+ * The plugin formattings that can be said, set by the recorder from the switched-on plugins (plugins/types.ts
+ * `InlineFormat.cue`; the Spoiler plugin's "spoiler … end spoiler" wraps the words in `||`). Held here rather than
+ * read from the registry so this file stays pure and testable.
+ */
+let spokenFormats: readonly SpokenFormat[] = [];
+
+export function setSpokenFormats(formats: readonly SpokenFormat[]): void {
+  spokenFormats = formats.filter((format) => /^[a-z][a-z ]*[a-z]$/i.test(format.word.trim()) && format.delimiter);
+}
+
+const escapeWord = (word: string) => word.trim().replace(/\s+/g, '\\s+');
+
+function inlineMarkup(formats: readonly SpokenFormat[]): RegExp {
+  const words = ['bold', 'italics?', 'emphasis', ...formats.map((format) => escapeWord(format.word))];
+  return new RegExp(`\\b(${words.join('|')})\\b([.,:;!]?)\\s+([\\s\\S]+?)[.,;:!]?\\s+(end|and)\\s+\\1\\b([.,;:!?]?)`, 'gi');
+}
+
+/**
+ * Spoken inline markup: "bold ... end bold", "italic ... end italic", and a
+ * plugin's own ("spoiler ... end spoiler", `setSpokenFormats`).
  *
  * Matched across a whole paragraph rather than inside one sentence, because a
  * speaker pauses around the words being marked and Whisper turns each pause
@@ -164,13 +189,13 @@ const STANDALONE_CUE =
  * speaker paused after saying the cue; "bold and bold" in running prose has no
  * pause there and is left alone.
  */
-const INLINE_MARKUP = /\b(bold|italics?|emphasis)\b([.,:;!]?)\s+([\s\S]+?)[.,;:!]?\s+(end|and)\s+\1\b([.,;:!?]?)/gi;
-
-export function spokenInlineMarkup(paragraph: string): string {
-  return paragraph.replace(INLINE_MARKUP, (match, kind: string, paused: string, inner: string, closer: string, after: string) => {
+export function spokenInlineMarkup(paragraph: string, formats: readonly SpokenFormat[] = spokenFormats): string {
+  return paragraph.replace(inlineMarkup(formats), (match, kind: string, paused: string, inner: string, closer: string, after: string) => {
     if (closer.toLowerCase() === 'and' && !paused) return match;
     const words = inner.trim().replace(/[.,;:!]+$/, '');
-    const marker = kind.toLowerCase() === 'bold' ? '**' : '_';
+    const said = kind.toLowerCase().replace(/\s+/g, ' ');
+    const format = formats.find((f) => f.word.trim().toLowerCase().replace(/\s+/g, ' ') === said);
+    const marker = format ? format.delimiter : said === 'bold' ? '**' : '_';
     return `${marker}${words}${marker}${after}`;
   });
 }

@@ -34,15 +34,29 @@ import { cellsOf } from './table.ts';
  */
 const KEYWORD = /(^|[\s,.;:!?"“])(?:(?:hey|hi|ok(?:ay)?|so)[,\s]+)?(?:glyph|glyphs|glyf|glif|gliff|glyff|glith|clyph|gleef)(?=$|[\s,.;:!?"”'])[,.;:!?"”]*\s*/i;
 
+/**
+ * "…to the Glyph note": the word as a note's name, not the keyword. Matt has a
+ * note called Glyph, and "add a note to the Glyph note saying testing if this
+ * works", said without the keyword first, took the name for the keyword: the
+ * words before it became a note titled "Add a note to" and the rest was lost.
+ * A preposition before and "note" or "page" after say it is a name.
+ */
+const NAMED_BEFORE = /(?:^|\s)(?:to|in|into|on|onto|for|under|about|called|named|titled)\s+(?:(?:the|my|our|a)\s+)?$/i;
+const NAMED_AFTER = /^\s*(?:notes?|pages?|list)\b/i;
+
 /** The keyword in `text`: the words before it (kept as words) and after it (the command). */
 export function findKeyword(text: string): { before: string; after: string } | null {
-  const found = KEYWORD.exec(text);
-  if (!found) return null;
-  const at = found.index + (found[1]?.length ?? 0);
-  return {
-    before: text.slice(0, at).replace(/[\s,;:]+$/, '').trim(),
-    after: text.slice(found.index + found[0].length).trim(),
-  };
+  const all = new RegExp(KEYWORD.source, 'gi');
+  for (const found of text.matchAll(all)) {
+    const at = found.index + (found[1]?.length ?? 0);
+    const end = found.index + found[0].length;
+    if (NAMED_BEFORE.test(text.slice(0, at)) && NAMED_AFTER.test(text.slice(end))) continue;
+    return {
+      before: text.slice(0, at).replace(/[\s,;:]+$/, '').trim(),
+      after: text.slice(end).trim(),
+    };
+  }
+  return null;
 }
 
 // ---- yes or no --------------------------------------------------------------------------------

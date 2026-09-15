@@ -77,6 +77,8 @@ fn request(id: &str, system: &str, note: &str, max_tokens: u32) -> Request {
         prompt: note.to_string(),
         max_tokens,
         temperature: 0.3,
+        think: false,
+        think_budget: 0,
     }
 }
 
@@ -295,4 +297,78 @@ fn keeps_a_table_token_on_its_own_line() {
     assert!(text.lines().any(|l| l.trim() == "![table-1](table)"), "the token is on its own line:\n{}", output.text);
     assert!(!text.contains("|--") && !text.contains("| --"), "no table of its own:\n{}", output.text);
     eprintln!("{}", output.text);
+}
+
+/// The review prompt the page sends after a recording (src/app/review/prompt.ts).
+fn review_prompt() -> String {
+    let source = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/app/review/prompt.ts"))
+        .expect("review/prompt.ts is in the repository");
+    let opener = "REVIEW_PROMPT = String.raw`";
+    let start = source.find(opener).expect("REVIEW_PROMPT is a String.raw literal") + opener.len();
+    let end = start + source[start..].find('`').expect("the literal closes");
+    source[start..end].trim().to_string()
+}
+
+/// A take as the review sees it: the fast model misheard "seek" and "HelloTrade",
+/// and one command put an item in this note when it was meant for HelloTrade.
+const REVIEW_TAKE: &str = "WHAT THE FAST SPEECH MODEL HEARD:\nBug bash on Friday. Fix the seat bar on two devices. Glyph, add update the readme to hello trade. Yes. Downloads get stuck on the discover list.\n\nWHAT THE SLOWER, MORE ACCURATE SPEECH MODEL HEARD:\nBug bash on Friday. Fix the seek bar on two devices. Glyph, add update the readme to HelloTrade. Yes. Downloads get stuck on the discover list.\n\nWHERE THEY DISAGREE (fast → slower):\n- …Friday. Fix the [seat → seek] bar on two…\n- …the readme to [hello trade. → HelloTrade.] Yes. Downloads…\n\nCOMMANDS THAT RAN:\n- Added “Update the readme” to Bug bash's list\n\nTHE PERSON'S NOTE TITLES:\nHelloTrade · Glyph Notes · Places to Go · Bug bash\n\nOTHER NOTE A COMMAND CHANGED, \"HelloTrade\":\n# HelloTrade\n\n- Ship the APK\n\nTHIS NOTE, \"Bug bash\", AS SAVED:\n# Bug bash on Friday\n\n- [ ] Fix the seat bar on two devices\n- [ ] Update the readme\n- [ ] Downloads get stuck on the discover list";
+
+/// The review with thinking on, judged by eye:
+/// `cargo test --lib llm::tests::prints_a_review -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn prints_a_review_with_its_thinking() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let mut req = request("review", &review_prompt(), REVIEW_TAKE, 1400);
+    req.think = true;
+    req.think_budget = 700;
+    let (result, events) = run(&path, req, Arc::default(), |_| {});
+    let output = result.expect("a review");
+    assert!(output.thinking, "Qwen's template thinks, and thinking was asked for");
+    assert!(events.iter().any(|e| e.thinking), "progress says the stream starts with thinking");
+    eprintln!(
+        "\n===== {} / review: {} out in {} ms, {:.1} tok/s{} =====\n{}\n=====",
+        chosen().id, output.output_tokens, output.ms, output.tokens_per_second, if output.truncated { " TRUNCATED" } else { "" }, output.text
+    );
+    let answer = output.text.split("</think>").nth(1).expect("the thinking closes before the answer");
+    assert!(answer.trim_start().starts_with('[') || answer.contains("```"), "the answer is the findings array: {answer}");
+}
+
+
+/// An item's mark (src/app/core/itemLinks.ts) goes through the model as
+/// `[notion](link-1)` at the end of its item; the page can put a lost one
+/// back, but the model keeping it in place is the half the page cannot test.
+#[test]
+fn keeps_an_item_mark_at_the_end_of_its_item() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let note = "ok so tomorrow I need to call the dentist before ten\n\n- [ ] buy milk on the way home [notion](link-1)\n- [ ] pick up the parcel from the post office";
+    let (result, _) = run(&path, request("mark", &page_system_prompt(), note, 512), Arc::default(), |_| {});
+    let output = result.expect("a generation");
+    let marked: Vec<&str> = output.text.lines().filter(|l| l.to_lowercase().contains("[notion](link-1)")).collect();
+    eprintln!("{}", output.text);
+    assert_eq!(marked.len(), 1, "the mark is on one line:\n{}", output.text);
+    let line = marked[0].trim();
+    assert!(line.starts_with("- ") || line.starts_with("* ") || line.chars().next().is_some_and(|c| c.is_ascii_digit()), "on a list item:\n{line}");
+    assert!(line.to_lowercase().ends_with("[notion](link-1)") || line.to_lowercase().ends_with("[notion](link-1)."), "at its end:\n{line}");
+    assert!(line.to_lowercase().contains("milk"), "on the milk item:\n{line}");
+}
+
+/// The gist (GIST_PROMPT): the one line under a note's title in the list.
+/// One line, a dozen words, no markdown.
+#[test]
+fn gists_a_note_in_one_short_line() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let (result, _) = run(&path, request("gist", &page_prompt("GIST_PROMPT"), SPOKEN, 40), Arc::default(), |_| {});
+    let output = result.expect("a generation");
+    let text = output.text.trim();
+    eprintln!("{text}");
+    let first = text.lines().next().unwrap_or("").trim();
+    assert!(!first.is_empty(), "says something");
+    assert!(first.split_whitespace().count() <= 14, "a dozen words or so:\n{text}");
+    assert!(!first.starts_with('#') && !first.starts_with('-'), "no markdown:\n{text}");
+    let lower = first.to_lowercase();
+    assert!(lower.contains("plumber") || lower.contains("weekend") || lower.contains("cabin") || lower.contains("report"), "about the note:\n{text}");
 }
