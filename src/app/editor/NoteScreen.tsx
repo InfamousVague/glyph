@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Mic } from '@glacier/icons';
+import { EllipsisVertical, Mic } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import type { EditorView } from '@codemirror/view';
-import { ArrowLeft, Cog } from '../art/Icons.tsx';
+import { ArrowLeft } from '../art/Icons.tsx';
 import { adoptImagePath, pickImage } from '../core/images.ts';
 import { ScrollFades } from '../art/ScrollFades.tsx';
 import { useWispEdge } from '../art/wispEdge.ts';
@@ -388,8 +388,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
             </button>
           )}
           <RobotMenu mode={mode} onChoose={showMode} />
-          <button type="button" className={styles.cog} onClick={() => setSettingsOpen(true)} aria-label="This note's settings">
-            <Cog />
+          {/* More for this note: pin, archive, links, delete (NoteSettings). Three dots rather than a cog (Matt). */}
+          <button type="button" className={`${styles.cog} ${styles.more}`} onClick={() => setSettingsOpen(true)} aria-label="More for this note">
+            <EllipsisVertical size={20} strokeWidth={2.6} aria-hidden="true" />
           </button>
         </div>
       </header>

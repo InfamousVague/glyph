@@ -1,13 +1,13 @@
 import { Facet, StateEffect, StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
+import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { itemWords, markOf } from '../core/itemLinks.ts';
 import { hasMarkDetails, markNameFor, peekMarkDetails, type MarkEntry } from '../core/markDetails.ts';
 import { detailsArrived } from './links.ts';
 import { mountMarkMenu } from './markMenuMount.tsx';
 
 /**
- * What a note's links are linked to, shown under them, and the menu that
- * splits the note open where they are.
+ * What a note's links are linked to, shown under them, and the drawer a tap
+ * on one opens.
  *
  * Matt, on the first version's single pill: "Not all notion links are being
  * auto formatted to have the full pill showing details, I also think the
@@ -26,15 +26,16 @@ import { mountMarkMenu } from './markMenuMount.tsx';
  *   then a pill for each fact (priority, due). The mark at the end of the
  *   line draws nothing while the row carries it (links.ts). A plugin that is
  *   off draws no row, and its mark is the old pill again.
- * - **A tap on the row splits the note open** under it: the lines below move
- *   down and the menu is in the gap, the width of the page, with its top and
- *   bottom edges shaded like a cut (editor/MarkMenu.tsx). Another tap on the
- *   row, a touch outside, or the back gesture closes it again.
+ * - **A tap on the row opens a drawer** from the bottom over the dimmed note
+ *   (editor/MarkMenu.tsx). It first split the note open under the line; Matt:
+ *   "the notion opener should open in a drawer instead of rendering in place".
+ *   A tap on the dimmed note or the back gesture closes it again.
  *
- * Block widgets can only come from state, so both are a StateField over the
+ * Block widgets can only come from state, so the rows are a StateField over the
  * whole document, recomputed when it changes, when details arrive (links.ts
- * dispatches `detailsArrived`), and when a menu opens or closes. Notes are
- * short; a line without `](` is skipped at once.
+ * dispatches `detailsArrived`), and when a menu opens or closes. The drawer is a
+ * view plugin that follows which line's menu is open. Notes are short; a line
+ * without `](` is skipped at once.
  */
 
 export interface Linked {
@@ -116,7 +117,13 @@ class RowWidget extends WidgetType {
   }
 
   eq(other: RowWidget): boolean {
-    return other.linked.url === this.linked.url && other.linked.item === this.linked.item && other.face === this.face && other.open === this.open && other.menus === this.menus;
+    return (
+      other.linked.url === this.linked.url &&
+      other.linked.item === this.linked.item &&
+      other.face === this.face &&
+      other.open === this.open &&
+      other.menus === this.menus
+    );
   }
 
   get estimatedHeight(): number {
@@ -197,55 +204,72 @@ class RowWidget extends WidgetType {
   }
 }
 
-class MenuWidget extends WidgetType {
-  constructor(
-    readonly linked: Linked,
-    readonly menus: LinkMenus,
-  ) {
-    super();
-  }
+/** The drawer for the line whose menu is open, mounted over the page while it is, and taken down when it closes. */
+const menuDrawer = ViewPlugin.fromClass(
+  class {
+    key = '';
+    unmount: (() => void) | null = null;
 
-  eq(other: MenuWidget): boolean {
-    return other.linked.url === this.linked.url && other.linked.words === this.linked.words && other.linked.kind === this.linked.kind;
-  }
+    constructor(readonly view: EditorView) {
+      this.sync();
+    }
 
-  get estimatedHeight(): number {
-    return 260;
-  }
+    update(update: ViewUpdate): void {
+      const toggled = update.transactions.some((tr) => tr.effects.some((effect) => effect.is(toggleMenu)));
+      if (toggled || update.docChanged || update.startState.facet(menusFacet) !== update.state.facet(menusFacet)) this.sync();
+    }
 
-  toDOM(view: EditorView): HTMLElement {
-    const host = document.createElement('div');
-    host.className = 'cm-linkMenu';
-    const linked = this.linked;
-    const lineNow = () => {
-      const from = view.state.field(openMenu, false);
-      return from === null || from === undefined ? null : view.state.doc.lineAt(from);
-    };
-    const unmount = mountMarkMenu(host, {
-      name: linked.name,
-      url: linked.url,
-      words: linked.words,
-      say: this.menus.say,
-      close: () => view.dispatch({ effects: toggleMenu.of(null) }),
-      unlink: () => {
-        const line = lineNow();
-        if (!line) return;
-        const next = unlinked(line.text, linked);
-        view.dispatch({ changes: { from: line.from, to: line.to, insert: next }, effects: toggleMenu.of(null) });
-      },
-    });
-    (host as HTMLElement & { unmountMenu?: () => void }).unmountMenu = unmount;
-    return host;
-  }
+    sync(): void {
+      const { view } = this;
+      const { state } = view;
+      const menus = state.facet(menusFacet);
+      const from = state.field(openMenu, false) ?? null;
+      const line = menus && from !== null ? state.doc.lineAt(from) : null;
+      const linked = line ? linkedOn(line.text, line.from) : null;
+      const key = linked ? [linked.name, linked.url, linked.words, linked.kind].join('\n') : '';
+      if (key === this.key) return;
+      this.close();
+      this.key = key;
+      if (!linked || !menus) {
+        // The line lost its link under an open menu: the menu is closed too, once this update is done.
+        if (from !== null) queueMicrotask(() => view.state.field(openMenu, false) !== null && view.dispatch({ effects: toggleMenu.of(null) }));
+        return;
+      }
+      const host = document.createElement('div');
+      host.className = 'cm-linkMenu';
+      document.body.append(host);
+      const lineNow = () => {
+        const at = view.state.field(openMenu, false);
+        return at === null || at === undefined ? null : view.state.doc.lineAt(at);
+      };
+      const unmount = mountMarkMenu(host, {
+        name: linked.name,
+        url: linked.url,
+        words: linked.words,
+        say: menus.say,
+        close: () => view.dispatch({ effects: toggleMenu.of(null) }),
+        unlink: () => {
+          const now = lineNow();
+          if (!now) return;
+          view.dispatch({ changes: { from: now.from, to: now.to, insert: unlinked(now.text, linked) }, effects: toggleMenu.of(null) });
+        },
+      });
+      this.unmount = () => {
+        unmount();
+        queueMicrotask(() => host.remove());
+      };
+    }
 
-  destroy(dom: HTMLElement): void {
-    (dom as HTMLElement & { unmountMenu?: () => void }).unmountMenu?.();
-  }
+    close(): void {
+      this.unmount?.();
+      this.unmount = null;
+    }
 
-  ignoreEvent(): boolean {
-    return true;
-  }
-}
+    destroy(): void {
+      this.close();
+    }
+  },
+);
 
 function build(state: EditorState): DecorationSet {
   const menus = state.facet(menusFacet);
@@ -261,7 +285,6 @@ function build(state: EditorState): DecorationSet {
     if (linked.kind === 'link' && !entry) continue;
     const isOpen = menus !== null && open !== null && open >= line.from && open <= line.to;
     ranges.push(Decoration.widget({ widget: new RowWidget(linked, entry, isOpen, menus !== null), block: true, side: 1 }).range(line.to));
-    if (isOpen && menus) ranges.push(Decoration.widget({ widget: new MenuWidget(linked, menus), block: true, side: 2 }).range(line.to));
   }
   return Decoration.set(ranges, true);
 }
@@ -269,7 +292,10 @@ function build(state: EditorState): DecorationSet {
 const rows = StateField.define<DecorationSet>({
   create: build,
   update(value, tr) {
-    const changed = tr.docChanged || tr.effects.some((effect) => effect.is(detailsArrived) || effect.is(toggleMenu)) || tr.startState.facet(menusFacet) !== tr.state.facet(menusFacet);
+    const changed =
+      tr.docChanged ||
+      tr.effects.some((effect) => effect.is(detailsArrived) || effect.is(toggleMenu)) ||
+      tr.startState.facet(menusFacet) !== tr.state.facet(menusFacet);
     return changed ? build(tr.state) : value;
   },
   provide: (field) => EditorView.decorations.from(field),
@@ -323,9 +349,9 @@ const rowsTheme = EditorView.baseTheme({
 });
 
 /**
- * Rows of pills under linked lines, and, with `menus`, the menu a tap on a row
- * splits the note open for.
+ * Rows of pills under linked lines, and, with `menus`, the drawer a tap on a
+ * row opens.
  */
 export function linkedRows(menus: LinkMenus | null): Extension {
-  return [menusFacet.of(menus), openMenu, rows, rowsTheme];
+  return [menusFacet.of(menus), openMenu, rows, menuDrawer, rowsTheme];
 }

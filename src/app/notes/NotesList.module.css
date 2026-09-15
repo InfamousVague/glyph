@@ -307,6 +307,22 @@
   color: var(--app-ink-3);
 }
 
+/* A row's workspace (Matt: "add labels to the workspace on the notes on the homepage"): a hairline tag after the time, cut short when long. */
+.rowSpace {
+  display: inline-block;
+  max-inline-size: 14ch;
+  margin-inline-start: 0.6em;
+  padding: 0.12em 0.6em 0;
+  border: 1px solid color-mix(in oklch, var(--app-ink-3) 55%, transparent);
+  border-radius: var(--glacier-radius-full);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: -0.4em;
+  line-height: 1.5;
+  color: var(--glacier-text-muted);
+}
+
 .empty {
   padding-block: var(--glacier-space-6) var(--glacier-space-8);
 }
@@ -364,7 +380,15 @@
   color: var(--update-ink);
   background-color: #fff;
   background-image:
-    linear-gradient(115deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.85) 18%, rgba(255, 255, 255, 0) 34%, rgba(255, 255, 255, 0) 62%, rgba(255, 255, 255, 0.7) 78%, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.85) 18%,
+      rgba(255, 255, 255, 0) 34%,
+      rgba(255, 255, 255, 0) 62%,
+      rgba(255, 255, 255, 0.7) 78%,
+      rgba(255, 255, 255, 0) 100%
+    ),
     linear-gradient(
       100deg,
       oklch(0.93 0.085 350) 0%,

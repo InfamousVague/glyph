@@ -366,7 +366,7 @@ export function AboutPane({ updates, onGuide, onSample, onTutorial, onDeveloper 
         <PaneHero title={updates.version} meta={buildLine(updates)} onPress={knock} />
       </PaneSection>
       <PaneSection title="Help">
-        <SettingRow icon={<GraduationCap size={20} />} label="Voice tutorial" hint="A few minutes: say each cue, watch it work, and tick off every lesson." onPress={() => onTutorial()} />
+        <SettingRow icon={<GraduationCap size={20} />} label="Voice tutorial" hint="Every voice cue and command, said out loud and ticked off, then a few tips and tricks. A few minutes." onPress={() => onTutorial()} />
         <SettingRow icon={<BookOpen size={20} />} label="How to talk to Glyph" hint="The side key, and the cues that make markdown." onPress={() => onGuide()} />
         <SettingRow icon={<FileText size={20} />} label="Add the sample note" hint="One note with every mark in it: headings, lists, a table, a picture, a secret in smoke." onPress={onSample} />
       </PaneSection>

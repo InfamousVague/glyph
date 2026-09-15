@@ -2060,3 +2060,46 @@ show the tape so we can add or remove audio there."
   a note's file only when the note still has a recording (`capture/CaptureScreen.tsx`), so a take after a Remove
   starts a fresh file instead of landing after the removed audio.
 
+
+## The voice tutorial: every cue, then tips (2026-09-15)
+
+Matt asked for a tutorial "at any time for the commands you can say in the app" that marks off lesson by lesson, and
+then, on what it was missing: "just learning the voice to markdown commands and tips and tricks".
+
+- **Where it is.** Settings, About, Voice tutorial (`tutorial/TutorialScreen.tsx`). The microphone stays open for the
+  whole tutorial through the recorder's own engine, and the session is cancelled, so nothing said is saved.
+- **The lessons** (`tutorial/lessons.ts`, `lessonsFor`) come in five chapters. The basics: talk, title, sections, a
+  spoken new paragraph, and a paragraph from a two-second pause. Lists: bullet points, a list in one breath, numbers,
+  steps, to-dos, and a cue said on its own. Making it stand out: important, bold and italic, quotes, dividers, and one
+  lesson for the plugins' spoken marks when any are switched on. Talking to Glyph: sending words to a note, answering
+  yes or no, switching notes, and building a table, all against a pretend Practice list. Tips and tricks: pausing
+  before a cue, words staying yours, the side key, saying "Glyph" in the app, Memo mode, and fixing a note after.
+- **How a lesson passes.** A practice lesson checks what the recorder's rules write from what was really said
+  (`renderNote`), or what `planCommand` and `reply` make of it, never the example's exact words. A tip is read and
+  ticked with Got it. lessons.test.ts passes every lesson on its own example and checks plain talk passes only the
+  first.
+- **The screen.** A thin bar per lesson with gaps between chapters, the chapter and place above each lesson, and a
+  summary at the end grouped by chapter where any lesson can be tapped to take again.
+
+## A workspace chosen glides to the top
+
+Matt: "When I click different workspaces the page should scroll back up smoothly, not just jump to the top."
+
+The jump was the browser's: the new workspace's list is usually shorter, so the page couldn't stay as far down as it
+was and snapped up in the same frame. `useGlideToTop` in `notes/NotesList.tsx` remembers where the page was (as it
+scrolls, as a finger lands, and at every render), and when the chosen workspace changes it lends the shorter list
+enough room at its foot to stay put for a frame, puts the page back, and scrolls to the top smoothly. The room goes
+once the page reaches the top, where it is out of sight, or after three seconds whatever happened. The scrollend from
+putting the page back is ignored, since taking the room away then would drop the page before it had moved. Reduced
+motion goes to the top at once.
+
+
+## The Notion opener is a drawer (2026-09-15)
+
+Matt: "The notion opener should open in a drawerer instead of rendering in place." A tap on a linked line's row of
+pills no longer splits the note open under the line. The same menu (`editor/MarkMenu.tsx`) rises from the bottom
+in the note settings' sheet over the dimmed note: the task's stage, status and facts, its title set large, its
+properties, then Open in Notion, Mark done or Reopen, Use these words as its title, Refresh and Unlink. A tap on
+the dimmed note or the back gesture closes it, and an action that changes the note closes it. The open line is
+still kept in the editor's state (`editor/linkedRows.ts`); a view plugin mounts the drawer over the page while it
+is open and takes it down when it closes or the line loses its link.

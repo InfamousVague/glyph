@@ -13,13 +13,17 @@ const MOST_RINGS = 9;
  *
  * The rings start just outside the screen's edge beside the key, so what
  * shows is arcs opening into the screen, the way sound leaves a speaker.
- * In the page's faintest ink, behind the words.
+ * In the page's faintest ink, over the words and under the top line, so the
+ * page's text never hides them (Matt: "the waves that come from me talking
+ * get lost behind content on the page"). Nothing marks the key itself: a glow
+ * there read as a stray dot ("a strange dot near the center that isn't
+ * needed").
  *
  * The voice sends them out (Matt: "make the ripple … react to the levels of my
  * voice as I record the note"). In a pause, one faint ring every 2.7 seconds,
  * so the screen shows it is listening; talking, rings go out as often as five
  * a second, each wider, brighter, thicker and quicker the louder the voice
- * (voiceLevel.ts `paceRings`), and the glow at the key swells with it. Rings
+ * (voiceLevel.ts `paceRings`). Rings
  * are added and animated straight in the DOM (Web Animations), never through
  * a React render. Decoration only. With reduced motion three rings stand still.
  *
@@ -45,7 +49,6 @@ export function SideKeyWaves({ spot, contained = false }: { spot: Spot; containe
   // Far enough to cross most of the screen's width, never the whole screen.
   const reach = contained ? Math.max(width, height) * 0.9 : Math.min(Math.max(width, height) * 0.5, width * 1.1);
   const rings = useRef<SVGGElement>(null);
-  const key = useRef<SVGCircleElement>(null);
   const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   useEffect(() => {
@@ -57,10 +60,6 @@ export function SideKeyWaves({ spot, contained = false }: { spot: Spot; containe
     let frame = 0;
     const tick = (now: number) => {
       const shape = paceRings(pacer, level, now);
-      if (key.current) {
-        key.current.style.transform = `scale(${(1 + pacer.smooth * 0.7).toFixed(3)})`;
-        key.current.style.opacity = (0.18 + pacer.smooth * 0.3).toFixed(3);
-      }
       if (shape && group.childElementCount < MOST_RINGS) {
         const ring = document.createElementNS(SVG, 'circle');
         ring.setAttribute('class', styles.ring ?? '');
@@ -107,7 +106,6 @@ export function SideKeyWaves({ spot, contained = false }: { spot: Spot; containe
                 ))
               : null}
           </g>
-          <circle ref={key} className={styles.key} cx={at.x} cy={at.y} r={contained ? 10 : 22} style={{ transformOrigin: `${at.x}px ${at.y}px` }} />
         </svg>
       ) : null}
     </div>

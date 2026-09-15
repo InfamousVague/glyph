@@ -2,8 +2,8 @@
 .waves {
   position: fixed;
   inset: 0;
-  z-index: 0;
-  /* Behind the recorder's words: its parts sit at z-index 1. */
+  /* Over the recorder's page, its tips and its buttons (all at z-index 1), under its top line (3); never in the way of a touch. */
+  z-index: 2;
   pointer-events: none;
   overflow: hidden;
 }
@@ -24,15 +24,6 @@
   vector-effect: non-scaling-stroke;
   opacity: 0;
   transform: scale(0.04);
-}
-
-/* The key itself: a soft ink glow at the edge, swelling with the voice. */
-.key {
-  fill: var(--app-ink, var(--glacier-text));
-  opacity: 0.18;
-  transition:
-    transform 120ms ease-out,
-    opacity 120ms ease-out;
 }
 
 /* With reduced motion: three rings standing still, and nothing moves. */

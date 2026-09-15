@@ -1,48 +1,17 @@
 /*
- * The split (MarkMenu.tsx): the note parts at the linked line and the gap is
- * paper-2 across the whole width, its top and bottom edges shaded inward the
- * way a cut in a page throws a little shadow. It opens by growing from nothing,
- * so the lines below are seen to move apart.
+ * The drawer (MarkMenu.tsx): the note settings' sheet (NoteSettings.module.css), holding the task in the note's own
+ * type and the things to do.
  */
 
-.split {
-  display: grid;
-  grid-template-rows: 1fr;
-  margin-block: 0.15em 0.6em;
-  background: var(--app-paper-2, var(--glacier-surface-raised));
-  box-shadow:
-    inset 0 12px 14px -14px rgba(0, 0, 0, 0.45),
-    inset 0 -12px 14px -14px rgba(0, 0, 0, 0.45);
+.drawer {
   font-size: var(--glacier-font-size-md);
   line-height: 1.35;
-  text-indent: 0;
-  cursor: default;
-  animation: split 260ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
-}
-
-@keyframes split {
-  from {
-    grid-template-rows: 0fr;
-    opacity: 0.4;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .split {
-    animation: none;
-  }
-}
-
-.inner {
-  min-block-size: 0;
-  overflow: hidden;
-  padding: var(--glacier-space-5) var(--app-gutter) var(--glacier-space-2);
 }
 
 .head {
   display: grid;
   gap: var(--glacier-space-2);
-  padding-block-end: var(--glacier-space-3);
+  padding-block: var(--glacier-space-2) var(--glacier-space-3);
 }
 
 .eyebrow {

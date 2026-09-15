@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useBack } from '../core/back.ts';
 import { archiveOrder, listOrder, noteTitle, type Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
@@ -62,7 +62,8 @@ import styles from './NotesList.module.css';
  *
  * Workspaces (core/workspaces.ts) are a row of names under the title once one
  * exists: the list shows the chosen workspace's notes, and All is the list as
- * it was. The archive is never filtered.
+ * it was. The archive is never filtered. On All and in the archive a filed
+ * note wears its workspace as a small tag after the time.
  */
 
 interface NotesListProps {
@@ -138,12 +139,22 @@ export function NotesList({
   // Notes going up under the status bar go to smoke (art/wispEdge.ts).
   useWispEdge(scroller);
   const spaces = useWorkspaces();
+  // Another workspace chosen: the list glides back to its top rather than jumping there.
+  useGlideToTop(scroller, view === 'notes' ? (spaces.current?.id ?? 'all') : null);
   // A workspace being added, or one open to rename or remove.
   const [manage, setManage] = useState<Workspace | 'new' | null>(null);
   const live = notes.filter((n) => !actions.hidden.has(n.id));
   const archived = archiveOrder(live);
   const shown = view === 'archive' ? archived : inWorkspace(listOrder(live), spaces.current?.id ?? null);
   const count = shown.length;
+  // A note's workspace, by note id, for the rows that should wear it: none while one workspace is chosen, since every row is in it.
+  const labelled = new Map<string, string>();
+  if (view === 'archive' || !spaces.current) {
+    for (const note of shown) {
+      const name = spaces.list.find((w) => w.id === spaces.of[note.id])?.name;
+      if (name) labelled.set(note.id, name);
+    }
+  }
   // One line under each title, what the note is about, written on the phone (format/gist.ts).
   const gists = useGists(shown);
 
@@ -176,8 +187,7 @@ export function NotesList({
             <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
             {refining.download ? (
               <p className={styles.notice} role="status">
-                Getting the better voice model, {Math.round(refining.download.received / 1e6)} of{' '}
-                {Math.round(refining.download.total / 1e6)} MB.
+                Getting the better voice model, {Math.round(refining.download.received / 1e6)} of {Math.round(refining.download.total / 1e6)} MB.
               </p>
             ) : null}
           </>
@@ -239,6 +249,8 @@ export function NotesList({
                         {gists[note.id] ? <span className={styles.rowGist}>{gists[note.id]}</span> : null}
                         <span className={styles.rowMeta}>
                           {when(view === 'archive' && note.archivedAt ? note.archivedAt : note.updatedAt)}
+                          {/* Which workspace it's filed in, where the list isn't already that workspace: All, and the archive. */}
+                          {labelled.has(note.id) ? <span className={styles.rowSpace}>{labelled.get(note.id)}</span> : null}
                           {/* Small ringed marks for what the note is linked to: a Notion board, a project (plugins/LinkMarks.tsx). */}
                           <LinkMarks noteId={note.id} compact />
                           {refining.pending.has(note.id) ? <span className={styles.improving}> · Improving</span> : null}
@@ -309,7 +321,12 @@ function UpdateNotice({ updates }: { updates: Updates }) {
     );
   }
   if (apk.kind === 'downloading') {
-    return <UpdateCard text={`Downloading Glyph ${apk.info.version}, ${mb(apk.received)} of ${mb(apk.total)} MB.`} progress={apk.total ? apk.received / apk.total : 0} />;
+    return (
+      <UpdateCard
+        text={`Downloading Glyph ${apk.info.version}, ${mb(apk.received)} of ${mb(apk.total)} MB.`}
+        progress={apk.total ? apk.received / apk.total : 0}
+      />
+    );
   }
   if (apk.kind === 'installing') {
     // Android's own dialog is on top now; this is what is left if it is dismissed.
@@ -364,3 +381,79 @@ function VoiceModelStatus({ state, onRetry }: { state: VoiceModelState; onRetry:
     </p>
   );
 }
+
+/**
+ * Glides `scroller` back to its top whenever `key` changes: a workspace chosen in the list (Matt: "when I click
+ * different workspaces the page should scroll back up smoothly, not just jump to the top").
+ *
+ * The jump was the browser's, not ours: the new workspace's list is usually shorter, so the page can't stay as far
+ * down as it was and snaps up in the same frame. So the scroll position is remembered as it moves, and when the key
+ * changes, before the new list paints, the page is given enough room at its foot to stay where it was, put back
+ * there, and then scrolled to the top smoothly. The room goes once the page is at the top, where it is out of sight.
+ * With reduced motion it goes to the top at once.
+ */
+function useGlideToTop(scroller: RefObject<HTMLElement | null>, key: string | null): void {
+  // Where the page was before a change: read at every commit that keeps the key, as it scrolls, and as a finger lands
+  // (a tap on a workspace), so it is never the position the browser clamps to once the shorter list is in.
+  const lastTop = useRef(0);
+  const lastKey = useRef(key);
+  const release = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return undefined;
+    if (lastKey.current !== key) {
+      lastKey.current = key;
+      const from = lastTop.current;
+      if (key !== null && from > 0) glide(el, from, release);
+    }
+    lastTop.current = el.scrollTop;
+    const remember = () => {
+      lastTop.current = el.scrollTop;
+    };
+    el.addEventListener('scroll', remember, { passive: true });
+    el.addEventListener('pointerdown', remember, { capture: true, passive: true });
+    return () => {
+      el.removeEventListener('scroll', remember);
+      el.removeEventListener('pointerdown', remember, { capture: true });
+    };
+  });
+  // Leaving the list mid-glide: the borrowed room goes with it.
+  useLayoutEffect(() => () => release.current?.(), []);
+}
+
+/** Holds `el` at `from` over a list too short to reach it, then scrolls it to the top; the room at the foot goes when the glide ends. */
+function glide(el: HTMLElement, from: number, release: { current: (() => void) | null }): void {
+  release.current?.();
+  const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const base = parseFloat(getComputedStyle(el).paddingBlockEnd) || 0;
+  const short = from + el.clientHeight - el.scrollHeight;
+  if (short > 0) el.style.paddingBlockEnd = `${base + short}px`;
+  el.scrollTop = from;
+  let done = false;
+  const end = () => {
+    if (done) return;
+    done = true;
+    el.style.paddingBlockEnd = '';
+    el.removeEventListener('scrollend', ended);
+    window.clearTimeout(timer);
+    if (release.current === end) release.current = null;
+  };
+  // Only the end of the glide itself: putting the page back at `from` above fires a scrollend of its own a frame
+  // later, and taking the room away then would drop the page to the short list's foot before it had moved.
+  const ended = () => {
+    if (el.scrollTop <= 1) end();
+  };
+  release.current = end;
+  el.addEventListener('scrollend', ended);
+  // A WebView without scrollend: the room goes once the page has reached the top, or after three seconds whatever
+  // happened, so a glide cut short by a finger never leaves the list longer than it is.
+  const started = performance.now();
+  const check = () => {
+    if (el.scrollTop <= 1 || performance.now() - started > 3000) end();
+    else timer = window.setTimeout(check, 250);
+  };
+  let timer = window.setTimeout(check, 700);
+  el.scrollTo({ top: 0, behavior: still ? 'auto' : 'smooth' });
+  if (still) end();
+}
+

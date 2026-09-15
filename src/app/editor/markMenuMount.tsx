@@ -2,7 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { MarkMenu, type MarkMenuProps } from './MarkMenu.tsx';
 
 /**
- * Renders a linked line's menu into its CodeMirror widget (editor/linkedRows.ts),
+ * Renders a linked line's drawer into a host over the page (editor/linkedRows.ts),
  * a React root of its own; answers how to take it down again.
  */
 export function mountMarkMenu(host: HTMLElement, props: MarkMenuProps): () => void {

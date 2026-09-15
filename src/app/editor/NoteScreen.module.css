@@ -175,6 +175,11 @@
   transform: rotate(45deg);
 }
 
+/* The note's More: three dots don't turn when pressed, they only answer the press. */
+.more:active svg {
+  transform: scale(0.9);
+}
+
 @keyframes noteRise {
   from {
     opacity: 0;

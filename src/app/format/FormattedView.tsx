@@ -6,6 +6,7 @@ import { gb, modelName, MODELS, useModels } from '../core/ai.ts';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { usePreferences } from '../core/preferences.ts';
+import { useThinkingWhile } from '../core/thinking.ts';
 import { isTauri } from '../core/tauri.ts';
 import type { Formatter } from './formatter.ts';
 import { AiCard } from './AiCard.tsx';
@@ -77,6 +78,8 @@ export function FormattedView({
   const applying = useRef(false);
   // A pass writing: the text is the model's for now.
   const busy = state.kind === 'running' || (state.kind === 'done' && state.revising !== null);
+  // The gears turn over the screen while the model writes (art/ThinkingGears.tsx).
+  useThinkingWhile(busy);
 
   // The phone's back gesture: the note.
   useBack(true, onClose);

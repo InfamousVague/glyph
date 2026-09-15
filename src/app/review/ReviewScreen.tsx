@@ -3,6 +3,7 @@ import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import type { Finding } from './findings.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
+import { useThinkingWhile } from '../core/thinking.ts';
 import styles from './ReviewScreen.module.css';
 import { useReview, type ReviewHandoff, type StepState } from './useReview.ts';
 
@@ -96,6 +97,8 @@ export function ReviewScreen({ handoff, onDone }: { handoff: ReviewHandoff; onDo
 
   const accepted = (state.findings ?? []).filter((f) => state.accepted.has(f.id)).length;
   const thinking = state.think.state === 'running';
+  // The gears turn over the screen while the model thinks it through (art/ThinkingGears.tsx).
+  useThinkingWhile(thinking);
 
   return (
     <div className={styles.screen}>
