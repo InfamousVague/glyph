@@ -195,6 +195,32 @@ export function anchorFor(text: string, taken: readonly string[]): string {
   }
 }
 
+/** The board `line` is inside, fence lines included, or null. */
+export function boardAt(doc: string, line: number): Board | null {
+  return boardsIn(doc).find((board) => board.to > board.from && line >= board.from && line <= board.to) ?? null;
+}
+
+/**
+ * A whole board as words to take away (Matt: "the task management board needs to be copyable but formatting is
+ * splitting it up"). Drawn as columns, a board cannot be dragged over and copied a piece at a time, and its fence and
+ * its tasks sit apart in the note anyway. This is both together, in the note's own markdown: the fence, then every
+ * task it names in the order the note has them. Pasted into another note it is the same working board; pasted
+ * anywhere else it reads as a list under its columns.
+ *
+ * Null when `line` is not inside a board.
+ */
+export function boardCopy(doc: string, line: number): string | null {
+  const lines = doc.split('\n');
+  const board = boardAt(doc, line);
+  if (!board) return null;
+  const named = new Set(board.columns.flatMap((column) => column.cards));
+  const tasks = tasksIn(doc)
+    .filter((task) => named.has(task.id))
+    .map((task) => lines[task.line - 1] ?? '');
+  const fence = lines.slice(board.from - 1, board.to).join('\n');
+  return tasks.length ? `${fence}\n\n${tasks.join('\n')}\n` : `${fence}\n`;
+}
+
 /**
  * A task's words as a card says them: links by their own words, not by where they point, and the marks that would be
  * drawn as bold or code taken off. The note keeps every character; this is only what the card shows.

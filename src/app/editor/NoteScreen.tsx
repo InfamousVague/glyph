@@ -596,6 +596,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
         view={view}
         onAddImage={() => void addPhoto()}
         onPasteImage={pasteImage}
+        say={(message) => toast({ message })}
         onFind={setFinding}
         // The same send a swipe on the item does, where a plugin takes this note's items (a Notion board, a GitHub issue).
         send={(() => {

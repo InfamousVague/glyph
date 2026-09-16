@@ -46,7 +46,7 @@ import {
   type Block,
   type Mark,
 } from './format.ts';
-import { addToBoard } from '../core/boards.ts';
+import { addToBoard, boardAt, boardCopy } from '../core/boards.ts';
 import styles from './ContextMenu.module.css';
 
 /**
@@ -94,6 +94,8 @@ interface ContextMenuProps {
   onAddImage?: () => void;
   /** Adopts a picture the activity copied out of the clipboard, by path; answers its name. */
   onPasteImage?: (path: string) => Promise<void>;
+  /** A sentence for the person, when something they asked for could not be done. */
+  say?: (message: string) => void;
   edits?: MenuEdit[];
   onEdit?: (id: string, from: number, to: number) => void;
   /** Why the edits cannot run right now, shown under them greyed. */
@@ -111,21 +113,36 @@ interface Open {
   to: number;
 }
 
-type Clipboard = { text?: string; path?: string };
+type Clipboard = { text?: string; path?: string; error?: string };
 
-function hostClipboard(): (() => string) | null {
+/**
+ * What is on the clipboard, however this build can find out: the activity's own reader on the phone (which also
+ * answers with a picture), and the browser's otherwise - the web app has no activity, and until now had no Paste at
+ * all. Null where neither can be asked, and the row is not shown.
+ */
+function clipboardReader(): (() => Promise<Clipboard>) | null {
   const host = (window as { GlyphHost?: { readClipboard?: () => string } }).GlyphHost;
-  return typeof host?.readClipboard === 'function' ? () => host.readClipboard!() : null;
+  if (typeof host?.readClipboard === 'function') {
+    return async () => {
+      try {
+        return JSON.parse(host.readClipboard!()) as Clipboard;
+      } catch {
+        return {};
+      }
+    };
+  }
+  if (typeof navigator.clipboard?.readText === 'function') return async () => ({ text: await navigator.clipboard.readText() });
+  return null;
 }
 
-export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit, editsUnavailable = null, onFind, send = null }: ContextMenuProps) {
+export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], onEdit, editsUnavailable = null, onFind, send = null }: ContextMenuProps) {
   const [open, setOpen] = useState<Open | null>(null);
   /** The menu's words, or its styles. */
   const [styling, setStyling] = useState(false);
   // A style pressed changes what is lit: the menu reads the editor again.
   const [, restyled] = useReducer((n: number) => n + 1, 0);
   const menu = useRef<HTMLDivElement>(null);
-  const canPaste = hostClipboard() !== null;
+  const readClipboard = clipboardReader();
 
   const close = useCallback(() => setOpen(null), []);
 
@@ -164,7 +181,9 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
         y,
         timer: window.setTimeout(() => {
           press = null;
-          const pos = view.posAtCoords({ x, y });
+          // An empty note has no text under the finger, and the precise reading is null there; the nearest place in
+          // the note is what a press means anyway (Matt: "i cant seem to paste a note" - into an empty one).
+          const pos = view.posAtCoords({ x, y }) ?? view.posAtCoords({ x, y }, false);
           if (pos === null) return;
           const line = view.state.doc.lineAt(pos);
           const wordAt = (offset: number) => offset > line.from - 1 && offset < line.to && /\S/.test(view.state.sliceDoc(offset, offset + 1));
@@ -245,14 +264,17 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
     view.focus();
   };
 
-  const copy = async () => {
+  /** Words onto the clipboard, however this browser lets them go there. */
+  const write = async (words: string) => {
     try {
-      await navigator.clipboard.writeText(text());
+      await navigator.clipboard.writeText(words);
     } catch {
       // A browser with no clipboard access: the old way still copies a selection.
       document.execCommand('copy');
     }
   };
+
+  const copy = () => write(text());
 
   const cut = async () => {
     await copy();
@@ -260,14 +282,16 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
   };
 
   const paste = async () => {
-    const read = hostClipboard();
-    if (!read) return;
+    if (!readClipboard) return;
     let clip: Clipboard;
     try {
-      clip = JSON.parse(read()) as Clipboard;
+      clip = await readClipboard();
     } catch {
+      // The browser refused to be asked: nothing is pasted, and the person is told why rather than left guessing.
+      say?.('Glyph can’t read the clipboard here. Paste with your keyboard instead.');
       return;
     }
+    if (clip.error) say?.(clip.error);
     if (clip.path && onPasteImage) {
       await onPasteImage(clip.path);
     } else if (clip.text) {
@@ -294,7 +318,9 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
     const state = view.state;
     // Each switched-on plugin's formattings, under that plugin's own icon.
     // A mark's own icon where it has one (plugins/types.ts `InlineFormat`), else the plugin's, else the letter.
-    const formats = plugins.enabled().flatMap((plugin) => (plugin.formats ?? []).map((format) => ({ format, icon: ((format.icon ?? plugin.icon) as Icon | undefined) ?? Type })));
+    const formats = plugins
+      .enabled()
+      .flatMap((plugin) => (plugin.formats ?? []).map((format) => ({ format, icon: ((format.icon ?? plugin.icon) as Icon | undefined) ?? Type })));
     return (
       <div ref={menu} className={styles.menu} role="menu" aria-label="Styles" onPointerDown={(event) => event.preventDefault()}>
         <Row>
@@ -302,7 +328,14 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
             <Word icon={ChevronLeft} label="Back" />
           </button>
           {MARKS.map(({ mark, icon, label }, i) => (
-            <StyleItem key={mark} icon={icon} label={label} i={i} lit={activeMarks(state).includes(mark)} onClick={style((target) => toggleMark(target, mark))} />
+            <StyleItem
+              key={mark}
+              icon={icon}
+              label={label}
+              i={i}
+              lit={activeMarks(state).includes(mark)}
+              onClick={style((target) => toggleMark(target, mark))}
+            />
           ))}
           {formats.map(({ format, icon }, i) => (
             <StyleItem
@@ -338,6 +371,23 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
   const lineWords = caretLine ? caretLine.text.replace(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/, '').trim() : '';
   /** A to-do that a board in this note could take (core/boards.ts). */
   const boardable = view && caretLine ? addToBoard(view.state.doc.toString(), caretLine.number) !== null : false;
+  /** The board the press landed on (core/boards.ts), and it as words: the fence and the tasks it names. */
+  const fence = view && caretLine ? boardAt(view.state.doc.toString(), caretLine.number) : null;
+  const board = view && caretLine ? boardCopy(view.state.doc.toString(), caretLine.number) : null;
+
+  /**
+   * A row that works on lines, run on a board: the whole fence is taken first. Pressed on a drawn board the caret is
+   * on one of its column lines, and duplicating or deleting that alone would leave half a board behind.
+   */
+  const whole = (run: (target: EditorView) => void) => () => {
+    if (!view) return;
+    if (fence) {
+      const open = view.state.doc.line(fence.from);
+      const close = view.state.doc.line(fence.to);
+      view.dispatch({ selection: { anchor: open.from, head: close.to } });
+    }
+    run(view);
+  };
 
   /** The to-do joins the nearest board above it: the line gains its anchor, and the fence gains the card. */
   const putOnBoard = () => {
@@ -375,9 +425,15 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
             </button>
           </>
         ) : null}
-        {canPaste ? (
+        {readClipboard ? (
           <button type="button" role="menuitem" className={styles.item} onClick={() => void act(paste)()}>
             <Word icon={ClipboardPaste} label="Paste" />
+          </button>
+        ) : null}
+        {/* A board is drawn as columns, so it cannot be dragged over: this takes the whole of it at once. */}
+        {board ? (
+          <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => write(board))()}>
+            <Word icon={Copy} label="Copy board" />
           </button>
         ) : null}
         {selected && onFind && to - from <= 120 ? (
@@ -397,16 +453,16 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
         <button type="button" role="menuitem" className={styles.item} onClick={() => void act(selectAll)()}>
           <Word icon={TextSelect} label="Select all" />
         </button>
-        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && duplicateSelection(view))()}>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole(duplicateSelection))()}>
           <Word icon={CopyPlus} label="Duplicate" />
         </button>
-        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && deleteSelection(view))()}>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole(deleteSelection))()}>
           <Word icon={Trash2} label="Delete" />
         </button>
-        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && moveLines(view, -1))()}>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole((target) => moveLines(target, -1)))()}>
           <Word icon={ArrowUpToLine} label="Move up" />
         </button>
-        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && moveLines(view, 1))()}>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole((target) => moveLines(target, 1)))()}>
           <Word icon={ArrowDownToLine} label="Move down" />
         </button>
         {boardable ? (
@@ -484,7 +540,21 @@ const BLOCKS: { block: Block; icon: Icon; label: string }[] = [
 ];
 
 /** A style: its icon over its word, lit (printed in reverse) while it applies, coming in out of smoke after the ones before it. */
-function StyleItem({ icon, label, i, lit = false, group = false, onClick }: { icon: Icon; label: string; i: number; lit?: boolean; group?: boolean; onClick: () => void }) {
+function StyleItem({
+  icon,
+  label,
+  i,
+  lit = false,
+  group = false,
+  onClick,
+}: {
+  icon: Icon;
+  label: string;
+  i: number;
+  lit?: boolean;
+  group?: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"

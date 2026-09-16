@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addToBoard,
+  boardCopy,
   boardFrom,
   cardText,
   anchorFor,
@@ -223,5 +224,37 @@ describe('what a card says', () => {
     expect(cardText('Fix the [login button](https://example.com/a/very/long/url) *today*')).toBe('Fix the login button today');
     expect(cardText('Read <https://example.com/x>')).toBe('Read https://example.com/x');
     expect(cardText('  lots   of   room  ')).toBe('lots of room');
+  });
+});
+
+describe('a board taken away as words', () => {
+  it('gives the fence and the tasks it names, in the order the note has them', () => {
+    expect(boardCopy(note, 4)).toBe(
+      [
+        '```board',
+        'To do: ship-page, email-list',
+        'In progress: fix-login',
+        'Done: pick-date',
+        '```',
+        '',
+        '- [ ] Ship the pricing page ^ship-page',
+        '- [ ] Email the beta list ^email-list',
+        '- [ ] Fix the login button ^fix-login',
+        '- [x] Pick a launch date ^pick-date',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('is the same board again when it is pasted into an empty note', () => {
+    const again = boardCopy(note, 3)!;
+    expect(boardsIn(again)[0]?.columns).toEqual(boardsIn(note)[0]?.columns);
+    expect(tasksIn(again).map((task) => task.id)).toEqual(['ship-page', 'email-list', 'fix-login', 'pick-date']);
+  });
+
+  it('takes a board with no tasks yet, and answers nothing off a board', () => {
+    expect(boardCopy('```board\nTo do:\n```', 2)).toBe('```board\nTo do:\n```\n');
+    expect(boardCopy(note, 9)).toBeNull();
+    expect(boardCopy('- [ ] Alone', 1)).toBeNull();
   });
 });
