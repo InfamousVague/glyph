@@ -55,7 +55,7 @@ A secret between pairs of pipes goes to smoke until you put the caret in it: ||t
 
 ## Glyph's own marks
 
-==Highlight== the line you will want again. An aside is a note to yourself, %%smaller and quieter%%. Mark a fact to check as ??unsure??. Put a bar over a name with @@redact@@ and lift it with the caret. ^^Shout^^ without going bold. Show what was ++added++ beside what was ~~struck~~. Each has a word to say while recording: "highlight", then "end highlight".
+==Highlight== the line you will want again. An aside is a note to yourself, %%smaller and quieter%%. Mark a fact to check as ??unsure??, and say why in brackets after it: ??the deposit??(Sam said 400, the email says 450) — tap the words for the note. ^^Shout^^ without going bold. Show what was ++added++ beside what was ~~struck~~. Each has a word to say while recording: "highlight", then "end highlight".
 
 ## Lists
 

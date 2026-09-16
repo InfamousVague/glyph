@@ -46,14 +46,24 @@ describe("Glyph's own marks", () => {
     expect(nodes('+ an item\n+ another')).not.toContain('Added');
   });
 
-  it('lifts a redaction while the caret is in it, and keeps the rest', () => {
-    const doc = 'name: @@Sam Ortiz@@ and ==keep==';
-    const looks = new Map(formats.map((f) => [f.name, { length: f.delimiter.length, css: f.look.kind === 'style' ? f.look.css : '', clearAtCaret: f.look.kind === 'style' ? f.look.clearAtCaret : undefined }]));
+  it('a mark whose look lifts at the caret keeps the rest lit', () => {
+    // No mark lifts today (the redaction did, and is gone), so one is made up here to hold the behaviour still.
+    const doc = 'name: ==Sam Ortiz== and ??keep??';
+    const looks = new Map([
+      ['Highlight', { length: 2, css: 'background: red', clearAtCaret: true }],
+      ['Unsure', { length: 2, css: 'text-decoration: underline dotted' }],
+    ]);
     const inside = EditorState.create({ doc, extensions: [glyphMarkdown(formats)], selection: { anchor: 10 } });
-    const words = (state: EditorState, atCaret: boolean) => styledRanges(state, looks, { from: 0, to: doc.length }, atCaret).map((r) => doc.slice(r.from, r.to));
+    const words = (state: EditorState, atCaret: boolean) =>
+      styledRanges(state, looks, { from: 0, to: doc.length }, atCaret).map((r) => doc.slice(r.from, r.to));
     expect(words(inside, true)).toEqual(['keep']);
     expect(words(inside, false)).toEqual(['Sam Ortiz', 'keep']);
     const outside = EditorState.create({ doc, extensions: [glyphMarkdown(formats)], selection: { anchor: 0 } });
     expect(words(outside, true)).toEqual(['Sam Ortiz', 'keep']);
+  });
+
+  it('has no redaction any more: @@ is plain words (Matt: "remove redacted its the same as spoiler")', () => {
+    expect(formats.map((format) => format.name)).not.toContain('Redact');
+    expect(nodes('a @@bar@@ of ink')).not.toContain('Redact');
   });
 });

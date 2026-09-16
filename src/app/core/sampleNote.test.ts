@@ -32,7 +32,6 @@ const EVERYTHING = [
   'Highlight',
   'Aside',
   'Unsure',
-  'Redact',
   'Shout',
   'Added',
   'BulletList',

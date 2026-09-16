@@ -23,6 +23,9 @@ export function CheatSheet() {
 
       <section className={styles.part}>
         <h2 className={styles.partTitle}>What you type</h2>
+        <p className={styles.lead}>
+          Any of Glyph’s own marks can carry a note: write it in brackets straight after, like ??the deposit??(Sam said 400), and tapping the words shows it.
+        </p>
         <MarksTable />
       </section>
 

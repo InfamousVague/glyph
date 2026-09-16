@@ -1,10 +1,10 @@
-import { CircleQuestionMark, Eraser, EyeOff, Highlighter, Megaphone, MessageSquareDashed, Plus } from '@glacier/icons';
+import { CircleQuestionMark, EyeOff, Highlighter, Megaphone, MessageSquareDashed, Plus } from '@glacier/icons';
 import type { GlyphPlugin, InlineFormat, PluginManifest } from '../types.ts';
 
 /**
  * Marks: the formatting Glyph adds to Markdown, all of it in one plugin
  * (Matt: "move all the additional formatting to one single plugin instead of
- * one of each like shout redact unsure etc"). Seven marks, one switch in
+ * one of each like shout redact unsure etc"). Six marks, one switch in
  * Settings > Plugins, and each carries its own icon for the Style page
  * (editor/ContextMenu.tsx) and its own words for the guide's table
  * (guide/marks.ts).
@@ -19,7 +19,7 @@ import type { GlyphPlugin, InlineFormat, PluginManifest } from '../types.ts';
 export const manifest: PluginManifest = {
   id: 'marks',
   name: 'Marks',
-  description: 'Glyph’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a shout and an addition. Typed or said.',
+  description: 'Glyph’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a shout and an addition. Typed or said.',
   version: '1.0.0',
   author: 'Glyph',
   standard: true,
@@ -56,18 +56,13 @@ export const MARKS: readonly InlineFormat[] = [
   {
     name: 'Unsure',
     delimiter: '??',
-    look: { kind: 'style', css: 'text-decoration: underline dotted; text-decoration-color: var(--glacier-text-subtle); text-underline-offset: 0.22em; text-decoration-thickness: 0.09em;' },
+    look: {
+      kind: 'style',
+      css: 'text-decoration: underline dotted; text-decoration-color: var(--glacier-text-subtle); text-underline-offset: 0.22em; text-decoration-thickness: 0.09em;',
+    },
     cue: 'unsure',
-    about: 'A dotted line under a fact to check later.',
+    about: 'A dotted line under a fact to check later. Add “(why)” after it and tapping the words shows that note.',
     icon: CircleQuestionMark,
-  },
-  {
-    name: 'Redact',
-    delimiter: '@@',
-    look: { kind: 'style', css: 'background: var(--glacier-text); color: var(--glacier-text); border-radius: 0.1em; box-shadow: 0 0 0 0.08em var(--glacier-text);', clearAtCaret: true },
-    cue: 'redact',
-    about: 'A solid bar of ink over the words, lifted while you edit them.',
-    icon: Eraser,
   },
   {
     name: 'Shout',

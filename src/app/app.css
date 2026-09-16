@@ -146,6 +146,17 @@ body {
 }
 
 /*
+ * A screen with a header pane covers the status bar itself, in glass, since its header pads by `--app-safe-top` and
+ * reaches the top of the phone. The scrim used to paint over that in solid paper, so the strip behind the clock was
+ * flat while the menu bar a few pixels below it was frosted (Matt: "top bar native bar doesnt have same blur as top
+ * bar menu bar"). Where there is a header, the header is the whole cover; where there is none - the list - the scrim
+ * stays as it was. A browser without `:has` keeps the old solid strip, which is the safe way round.
+ */
+body:has(.app-headerPane) .app-statusScrim {
+  display: none;
+}
+
+/*
  * The wisp edge (art/wispEdge.ts): a view scrolled off its top goes to smoke
  * where it slips behind its header, and fades out into it. The app's standard
  * soft top; worn only while scrolled.

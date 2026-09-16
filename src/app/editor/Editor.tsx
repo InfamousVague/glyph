@@ -11,6 +11,7 @@ import { inlineImages } from './images.ts';
 import { doneSync } from './doneSync.ts';
 import { linkedRows, type LinkMenus } from './linkedRows.ts';
 import { shortLinks } from './links.ts';
+import { markNotes } from './markNotes.ts';
 import { drawnTables } from './tables.ts';
 import { swipeItemAction, swipeItemTheme, type SwipeAction } from './swipeItems.ts';
 import { lineSuggestions, type LineSuggestion } from './suggestions.ts';
@@ -187,6 +188,8 @@ export function Editor({
         glyphMarkdown(formatList),
         formatLooks(formatList),
         wispFormat(formatList),
+        // A note in brackets after a mark, shown when its words are tapped (editor/markNotes.ts).
+        markNotes(formatList),
         syntaxHighlighting(glyphHighlight),
         glyphLines,
         inlineImages((message) => onImageErrorRef.current?.(message)),
