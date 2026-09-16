@@ -221,6 +221,8 @@ export interface InlineFormat {
   cue?: string;
   /** One line on what it is for, for the guide's marks page: "A dotted line under a fact to check later." */
   about?: string;
+  /** Its own mark on the Style page, where a plugin brings several: the plugin's icon otherwise. */
+  icon?: ComponentType<{ size?: number }>;
 }
 
 export type FormatLook =

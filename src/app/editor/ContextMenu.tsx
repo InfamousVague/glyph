@@ -270,7 +270,8 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
     };
     const state = view.state;
     // Each switched-on plugin's formattings, under that plugin's own icon.
-    const formats = plugins.enabled().flatMap((plugin) => (plugin.formats ?? []).map((format) => ({ format, icon: (plugin.icon as Icon | undefined) ?? Type })));
+    // A mark's own icon where it has one (plugins/types.ts `InlineFormat`), else the plugin's, else the letter.
+    const formats = plugins.enabled().flatMap((plugin) => (plugin.formats ?? []).map((format) => ({ format, icon: ((format.icon ?? plugin.icon) as Icon | undefined) ?? Type })));
     return (
       <div ref={menu} className={styles.menu} role="menu" aria-label="Styles" onPointerDown={(event) => event.preventDefault()}>
         <Row>

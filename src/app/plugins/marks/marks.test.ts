@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { glyphMarkdown } from '../../editor/language.ts';
 import { styledRanges } from '../../editor/formatLooks.ts';
 import { BUILT_IN } from '../registry.ts';
-import { MARK_PLUGINS } from './index.tsx';
+import { MARKS, marksPlugin } from './index.tsx';
 
-const formats = MARK_PLUGINS.flatMap((plugin) => plugin.formats ?? []);
+const formats = MARKS;
 
 function nodes(doc: string): string[] {
   const state = EditorState.create({ doc, extensions: [glyphMarkdown(formats)] });
@@ -16,6 +16,14 @@ function nodes(doc: string): string[] {
 }
 
 describe("Glyph's own marks", () => {
+  it('are one plugin, with one switch, each mark carrying its own icon', () => {
+    expect(marksPlugin.manifest.id).toBe('marks');
+    expect(marksPlugin.formats).toBe(MARKS);
+    expect(marksPlugin.manifest.permissions).toEqual([]);
+    for (const format of MARKS) expect(format.icon, format.name).toBeTruthy();
+    expect(MARKS.map((format) => format.name)).toContain('Spoiler');
+  });
+
   it('each parses between its own delimiter, with a cue and a line for the guide', () => {
     for (const format of formats) {
       const doc = `say ${format.delimiter}these words${format.delimiter} now`;

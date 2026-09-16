@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { outline, parseRepo, pickFiles, readmeWords } from './projects.ts';
+import { outline, parseRepo, pickFiles, readmeWords } from './repos.ts';
 
 describe('reading a GitHub project', () => {
   it('takes a repo from the ways people paste one', () => {

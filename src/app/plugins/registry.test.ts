@@ -89,17 +89,11 @@ describe('the plugin registry', () => {
     expect(createRegistry([linked, optional], memoryStore()).storageKeys()).toEqual(['glyph-plugins', 'glyph-optional']);
   });
 
-  it('ships Notion, Projects and Spoilers as standard, each within its manifest', () => {
+  it('ships Notion, GitHub and Marks as standard, each within its manifest', () => {
     expect(BUILT_IN.map((p) => [p.manifest.id, p.manifest.standard])).toEqual([
       ['notion', true],
-      ['projects', true],
-      ['spoiler', true],
-      ['highlight', true],
-      ['aside', true],
-      ['unsure', true],
-      ['redact', true],
-      ['shout', true],
-      ['added', true],
+      ['github', true],
+      ['marks', true],
     ]);
     for (const plugin of BUILT_IN) {
       const kinds = plugin.manifest.permissions.map((p) => p.kind);

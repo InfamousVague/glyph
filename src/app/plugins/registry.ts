@@ -1,7 +1,6 @@
 import { notionPlugin } from './notion/index.tsx';
-import { projectsPlugin } from './projects/index.tsx';
-import { spoilerPlugin } from './spoiler/index.tsx';
-import { MARK_PLUGINS } from './marks/index.tsx';
+import { githubPlugin } from './github/index.tsx';
+import { marksPlugin } from './marks/index.tsx';
 import { onPluginStorage, PluginPermissionError } from './host.ts';
 import { registerMarkName } from '../core/itemLinks.ts';
 import { markDetailsChanged, provideMarkDetails } from '../core/markDetails.ts';
@@ -189,7 +188,7 @@ export function createRegistry(plugins: readonly GlyphPlugin[], store: SwitchSto
 }
 
 /** The plugins that ship with Glyph. */
-export const BUILT_IN: readonly GlyphPlugin[] = [notionPlugin, projectsPlugin, spoilerPlugin, ...MARK_PLUGINS];
+export const BUILT_IN: readonly GlyphPlugin[] = [notionPlugin, githubPlugin, marksPlugin];
 
 export const plugins = createRegistry(BUILT_IN);
 

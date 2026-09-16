@@ -2288,3 +2288,32 @@ example note with this functionality." The standard is docs/BOARDS.md; it is two
   "give the dropdown for the robot tools like formatting glass mode". Format, Summarize and Enhance are rows under an
   AI heading in the note's More sheet, the group in glass, the mode showing marked with a dot; the header keeps the
   bookmark, the mic and More. `format/RobotMenu.tsx` and its CSS are deleted, nothing imports them.
+
+## The marks are one plugin
+
+Matt: "move all the additional formatting to one single plugin instead of one of each like shout redact unsure etc."
+`plugins/marks/index.tsx` is now a single Marks plugin holding all seven formats, the spoiler among them (its own folder
+is gone), with one switch in Settings > Plugins. So the Style page and the guide's table could still show a mark's own
+sign rather than the plugin's, `InlineFormat` gained an optional `icon`, which `editor/ContextMenu.tsx` prefers over the
+plugin's.
+
+## One GitHub plugin: repos, and issues that tick both ways
+
+Matt: "make a GitHub issues plugin that allows us to sync list items with GitHub project issues, or make it part of an
+overall GitHub plugin that's provided by default like Notion." The Projects plugin became that plugin
+(`plugins/github/`, id `github`, standard): one link on a note, "GitHub repo", doing both jobs.
+
+- **Issues** (`issues.ts`, `details.ts`). A list item sent becomes an issue on the linked repo and its words become a
+  link to it, `- [ ] Ship the page [github](https://github.com/o/r/issues/12)`, the shape Notion's items already use.
+  The pill says whether it is open; the card lists the repo, the number, who has it, its labels and milestone. Because
+  the provider's stage is plain (open is to do, closed is done) and its actions are called `done` and `reopen`, the
+  tick works both ways with no editor change (`editor/doneSync.ts`, `core/markDetails.ts`): ticking the box closes the
+  issue, and an issue closed on GitHub ticks the box. Reads are paced two at a time, fresh for 45 seconds, and the last
+  300 are kept (`glyph-github-issues`) so a note opened offline still shows what its issues last were.
+- **Sending** needs a token; reading needs none. The token has moved into the plugin's own page in Settings, where it
+  can be typed rather than only offered while linking a private repo, and every place that would send says so when it
+  is missing.
+- **Context** is unchanged (`repos.ts`, once `projects.ts`): the repo read on the phone into a briefing the model gets
+  with the note. The storage keys are the same, so repos and links carry over; only the plugin's id changed, which
+  resets its switch to on.
+

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { SheetField, SheetGroup, SheetHeading, SheetNote, SheetRow, SheetTitle } from '../kit.tsx';
 import { RepoMark } from './marks.tsx';
-import { addProject, githubToken, linkProject, projectFor, projects, setGithubToken, type Project, type Step } from './projects.ts';
+import { addProject, githubToken, linkProject, projectFor, projects, setGithubToken, type Project, type Step } from './repos.ts';
 
 /**
  * The projects kept on this phone, one to link to a note, and a way to add
