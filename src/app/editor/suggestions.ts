@@ -40,6 +40,8 @@ class SuggestWidget extends WidgetType {
     readonly label: string,
     readonly busy: boolean,
     readonly press: () => void,
+    /** Told as a finger goes down on it, so the pill is not taken away before the tap finishes. */
+    readonly held: () => void,
   ) {
     super();
   }
@@ -57,7 +59,20 @@ class SuggestWidget extends WidgetType {
       button.dataset.busy = '';
       button.disabled = true;
     }
-    button.addEventListener('pointerdown', (event) => event.stopPropagation());
+    /*
+     * A press on the pill must not reach the editor, or the caret moves to this line, the pill is rebuilt without it
+     * (a line being typed carries no suggestion) and the tap lands on nothing: the first press did nothing and the
+     * second one worked (Matt: "sometimes i have to press the notion pill twice to create the notion task").
+     * Stopping `pointerdown` alone left the mouse events a phone sends after it, so all three are stopped, and the
+     * line is held from the moment a finger goes down until the tap is over.
+     */
+    for (const kind of ['pointerdown', 'mousedown', 'touchstart'] as const) {
+      button.addEventListener(kind, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.held();
+      });
+    }
     button.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -76,6 +91,8 @@ export function lineSuggestions({ suggest }: Options): Extension {
     class {
       decorations: DecorationSet;
       private readonly busy = new Set<number>();
+      /** The line whose pill a finger is on: kept on screen even once the caret lands on that line. */
+      private held: number | null = null;
       private gone = false;
 
       constructor(readonly view: EditorView) {
@@ -97,13 +114,31 @@ export function lineSuggestions({ suggest }: Options): Extension {
         const caret = doc.lineAt(state.selection.main.head).number;
         const marks = [];
         for (const suggestion of suggest(doc.toString())) {
-          if (suggestion.line < 1 || suggestion.line > doc.lines || suggestion.line === caret) continue;
+          const held = this.held === suggestion.line || this.busy.has(suggestion.line);
+          if (suggestion.line < 1 || suggestion.line > doc.lines || (suggestion.line === caret && !held)) continue;
           const line = doc.line(suggestion.line);
           const busy = this.busy.has(suggestion.line);
-          const widget = new SuggestWidget(busy ? suggestion.busyLabel : suggestion.label, busy, () => this.press(suggestion));
+          const widget = new SuggestWidget(
+            busy ? suggestion.busyLabel : suggestion.label,
+            busy,
+            () => this.press(suggestion),
+            () => this.hold(suggestion.line),
+          );
           marks.push(Decoration.widget({ widget, side: 1 }).range(line.to));
         }
         return Decoration.set(marks, true);
+      }
+
+      /** A finger is on this line's pill: it stays put until the press is done with, however the caret moves. */
+      private hold(line: number): void {
+        this.held = line;
+        const release = () => {
+          if (this.held === line) this.held = null;
+          window.removeEventListener('pointerup', release);
+          window.removeEventListener('pointercancel', release);
+        };
+        window.addEventListener('pointerup', release);
+        window.addEventListener('pointercancel', release);
       }
 
       private press(suggestion: LineSuggestion): void {

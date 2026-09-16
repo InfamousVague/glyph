@@ -1,3 +1,4 @@
+import { usePreferences } from '../core/preferences.ts';
 import { useEffect, useState, type RefObject } from 'react';
 
 /**
@@ -206,12 +207,19 @@ function placeBand(under: number, on = true): void {
  * whether it is. `key` re-reads it when the content changes; `under` is a
  * header the scroller runs beneath.
  */
-export function useWispEdge(scroller: RefObject<HTMLElement | null>, key?: unknown, under?: RefObject<HTMLElement | null>, options: { foot?: boolean } = {}): boolean {
+export function useWispEdge(
+  scroller: RefObject<HTMLElement | null>,
+  key?: unknown,
+  under?: RefObject<HTMLElement | null>,
+  options: { foot?: boolean } = {},
+): boolean {
   const foot = options.foot ?? false;
   const [on, setOn] = useState(false);
+  // Switched off under Settings > Animations, a page slips under its header with a clean edge (core/preferences.ts).
+  const wanted = usePreferences().wispEdge;
   useEffect(() => {
     const el = scroller.current;
-    if (!el) return undefined;
+    if (!el || !wanted) return undefined;
     // Both refs are set by the time the effect runs; the header is read once so the cleanup sees the same node.
     const header = under?.current ?? null;
     const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -307,6 +315,6 @@ export function useWispEdge(scroller: RefObject<HTMLElement | null>, key?: unkno
       }
       holdStill(true);
     };
-  }, [scroller, key, under, foot]);
+  }, [wanted, scroller, key, under, foot]);
   return on;
 }

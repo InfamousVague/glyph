@@ -32,6 +32,7 @@
  *   --app-paper-3   pressed, sunken     --app-ink-3    tertiary text, markers
  *   --app-rule      hairlines           --app-ink-4    disabled, faint marks
  *   --app-wash      a translucent ink tint for highlights over any surface
+ *   --app-mark      the highlighter's blue wash, the one colour among the marks
  *   --app-dots      the dot-grid texture (a background-image; pair with
  *                   --app-dots-size)
  */
@@ -159,6 +160,13 @@
   --app-ink-3: var(--app-gray-9);
   --app-ink-4: var(--app-gray-7);
   --app-wash: color-mix(in oklch, var(--app-gray-12) 9%, transparent);
+  /*
+   * The highlighter's ink (Matt: "make the highlight use a blue highlight instead of dim gray"). The one coloured
+   * mark in a monochrome app, so it is a wash rather than a fill: the words keep the page's own ink and stay as
+   * readable as the line around them. Mixed against the paper it sits on, so it is a pale wash on white and a deep
+   * one on black rather than the same flat blue twice.
+   */
+  --app-mark: color-mix(in oklch, oklch(0.62 0.17 250) 34%, transparent);
   --app-dot: color-mix(in oklch, var(--app-gray-12) 26%, transparent);
   --app-dots: radial-gradient(circle, var(--app-dot) 0.9px, transparent 1.4px);
   --app-dots-size: 11px 11px;

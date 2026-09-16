@@ -40,9 +40,12 @@ export const MARKS: readonly InlineFormat[] = [
   {
     name: 'Highlight',
     delimiter: '==',
-    look: { kind: 'style', css: 'background: var(--app-wash); border-radius: 0.2em; box-shadow: 0 0 0 0.12em var(--app-wash);' },
+    look: {
+      kind: 'style',
+      css: 'background: var(--app-mark, var(--app-wash)); border-radius: 0.2em; box-shadow: 0 0 0 0.12em var(--app-mark, var(--app-wash));',
+    },
     cue: 'highlight',
-    about: 'A wash of ink behind the words, for the line you will want again.',
+    about: 'A wash of blue behind the words, for the line you will want again.',
     icon: Highlighter,
   },
   {

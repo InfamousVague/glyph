@@ -1,57 +1,65 @@
-import { useMemo } from 'react';
-import { MarksTable } from './MarksTable.tsx';
-import { saidGroups } from './cheatSheet.ts';
+import { useMemo, useRef } from 'react';
+import { markGroups, type MarkRow } from './marks.ts';
+import { Drawn } from './MarksTable.tsx';
 import styles from './CheatSheet.module.css';
 
 /**
- * Every formatting rule Glyph has, in one page to look things up in (Matt: "i want the glossary / lexicon / cheat
- * sheet added for all formatting rules in the help section of the more menu").
+ * The cheat sheet: every formatting character, and nothing else (Matt: "redo the UI for the cheatsheet dont include
+ * anything but formatting characters and condense the UI and bring in more organization and structure").
  *
- * Two halves, because a note is written two ways. **What you type** is the table of marks that the guide already had
- * (guide/MarksTable.tsx): the mark, a line using it, and the same line drawn as the note draws it. **What you say**
- * is every spoken rule (guide/cheatSheet.ts), each with words that work, in the order the tutorial teaches them.
+ * It began as the guide's table with the spoken rules under it, which made it a second tutorial rather than something
+ * to glance at. What is left is the marks: a line of chips to jump between the groups, then a group at a time, each
+ * row the mark, what to type and how it comes out, three to a line where the phone is wide enough. The rows are
+ * `guide/marks.ts` still, so a plugin switched off is not promised here and a new mark arrives by itself.
  *
- * Both halves are read from what the app actually does - the plugin registry and the tutorial's own lessons - so a
- * mark from a switched-off plugin is not promised here, and a rule cannot say one thing on this page and another in
- * the recorder.
+ * The voice cues live where they are taught, one row above this in Settings > Help: the tutorial says them out loud
+ * and ticks them off, which a table cannot do.
  */
 export function CheatSheet() {
-  const groups = useMemo(() => saidGroups(), []);
+  const groups = useMemo(() => markGroups(), []);
+  const sheet = useRef<HTMLDivElement>(null);
+
+  /** The chips are a way down a long page: the group's heading goes to the top of whatever is scrolling. */
+  const jump = (title: string) => {
+    sheet.current?.querySelector(`[data-group="${CSS.escape(title)}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+
   return (
-    <div className={styles.sheet}>
-      <p className={styles.lead}>Every way to format a note: the marks you type, and the words you say while recording.</p>
-
-      <section className={styles.part}>
-        <h2 className={styles.partTitle}>What you type</h2>
-        <p className={styles.lead}>
-          Any of Glyph’s own marks can carry a note: write it in brackets straight after, like ??the deposit??(Sam said 400), and tapping the words shows it.
-        </p>
-        <MarksTable />
-      </section>
-
-      <section className={styles.part}>
-        <h2 className={styles.partTitle}>What you say</h2>
+    <div ref={sheet} className={styles.sheet}>
+      <nav className={styles.chips} aria-label="The groups of marks">
         {groups.map((group) => (
-          <section key={group.chapter} className={styles.group}>
-            <h3 className={styles.groupTitle}>{group.chapter}</h3>
-            {group.rules.map((rule) => (
-              <div key={`${group.chapter}-${rule.title}`} className={`${styles.rule} ${rule.spoken ? '' : styles.tip}`}>
-                <p className={styles.name}>{rule.title}</p>
-                <p className={styles.teach}>{rule.teach}</p>
-                {rule.say.length ? (
-                  <div className={styles.say}>
-                    {rule.say.map((phrase, index) => (
-                      <p key={`${phrase}-${index}`} className={styles.phrase}>
-                        “{phrase}”
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </section>
+          <button key={group.title} type="button" className={styles.chip} onClick={() => jump(group.title)}>
+            {group.title}
+          </button>
         ))}
-      </section>
+      </nav>
+
+      {groups.map((group) => (
+        <section key={group.title} className={styles.group} data-group={group.title}>
+          <h2 className={styles.title}>{group.title}</h2>
+          <div className={styles.rows}>
+            {group.rows.map((row) => (
+              <Row key={row.name} row={row} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** One mark: what it is, what to type, and the same line as the note draws it. */
+function Row({ row }: { row: MarkRow }) {
+  return (
+    <div className={styles.row}>
+      <code className={styles.symbol}>{row.symbol}</code>
+      <div className={styles.words}>
+        <p className={styles.name}>{row.name}</p>
+        <pre className={styles.typed}>{row.typed}</pre>
+        <div className={styles.shown}>
+          <Drawn row={row} />
+        </div>
+      </div>
     </div>
   );
 }

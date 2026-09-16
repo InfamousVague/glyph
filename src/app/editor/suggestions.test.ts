@@ -57,3 +57,26 @@ describe('inline suggestions', () => {
     view.destroy();
   });
 });
+
+describe('a pill pressed with a finger', () => {
+  it('stays on its line while the finger is down, even once the caret lands there', async () => {
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: '- [ ] Book the cabin\n- [ ] Call Sam',
+        extensions: [lineSuggestions({ suggest: () => [{ line: 2, label: 'Notion', busyLabel: 'Sending', run: async () => undefined }] })],
+      }),
+      parent: document.body,
+    });
+    const pill = () => view.contentDOM.querySelector('.cm-suggest');
+    expect(pill()).toBeTruthy();
+    // A finger goes down on it, and the caret moves to that line the way a tap on the editor moves it.
+    pill()!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    view.dispatch({ selection: { anchor: view.state.doc.line(2).from + 3 } });
+    expect(pill(), 'the pill is held while the finger is down').toBeTruthy();
+    // The finger lifts: the line is being typed on now, so the pill goes as it always did.
+    window.dispatchEvent(new PointerEvent('pointerup'));
+    view.dispatch({ selection: { anchor: view.state.doc.line(2).from + 4 } });
+    expect(pill()).toBeNull();
+    view.destroy();
+  });
+});

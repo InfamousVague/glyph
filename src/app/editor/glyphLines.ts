@@ -62,7 +62,14 @@ function markerWidth(view: EditorView, marker: string): number {
   if (known !== undefined) return known;
   const ruler = document.createElement('span');
   ruler.setAttribute('aria-hidden', 'true');
-  Object.assign(ruler.style, { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre', insetInlineStart: '0', insetBlockStart: '0', pointerEvents: 'none' });
+  Object.assign(ruler.style, {
+    position: 'absolute',
+    visibility: 'hidden',
+    whiteSpace: 'pre',
+    insetInlineStart: '0',
+    insetBlockStart: '0',
+    pointerEvents: 'none',
+  });
   ruler.textContent = marker;
   view.scrollDOM.appendChild(ruler);
   const width = ruler.getBoundingClientRect().width;
@@ -92,9 +99,16 @@ function buildLines(view: EditorView): DecorationSet {
         const last = doc.lineAt(Math.max(node.from, node.to - 1)).number;
         for (let n = first; n <= last; n += 1) {
           const at = doc.line(n).from;
+          const classes = [cls];
+          // A block of code is one card, not a stack of painted lines: its first and last lines carry the corners
+          // (Matt: "code blocks missing border radii card shape and padding around the outside").
+          if (cls === styles.lineCode) {
+            if (n === first) classes.push(styles.lineCodeTop ?? '');
+            if (n === last) classes.push(styles.lineCodeFoot ?? '');
+          }
           const existing = perLine.get(at);
-          if (existing) existing.push(cls);
-          else perLine.set(at, [cls]);
+          if (existing) existing.push(...classes);
+          else perLine.set(at, classes);
         }
       },
     });

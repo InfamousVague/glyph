@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, FlaskConical, Info, Mic, Puzzle, RefreshCw, Sparkles, SunMoon, Terminal, Type, Vibrate } from '@glacier/icons';
+import { BookOpen, FlaskConical, Info, Mic, Puzzle, RefreshCw, Sparkles, SunMoon, Terminal, Type, Vibrate, Waves } from '@glacier/icons';
 import { gb, modelName, MODELS, useModels } from '../core/ai.ts';
 import { hapticsAvailable, useHapticsPref } from '../core/haptics.ts';
 import { isAndroid } from '../core/platform.ts';
@@ -11,7 +11,7 @@ import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { FormattingPane } from './FormattingPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
 import { usePlugins } from '../plugins/registry.ts';
-import { AboutPane, DeveloperPane, FeelPane, RecordingPane, ThemePane, TypePane, UpdatesPane, WhatsNewPane } from './panes.tsx';
+import { AboutPane, AnimationsPane, DeveloperPane, FeelPane, RecordingPane, ThemePane, TypePane, UpdatesPane, WhatsNewPane } from './panes.tsx';
 import { SettingsScreen, type SettingsSection } from './SettingsScreen.tsx';
 import { TestResultsPane } from './TestResultsPane.tsx';
 import { reportSummary } from '../diag/testReport.ts';
@@ -145,6 +145,15 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onTut
       content: <UpdatesPane updates={updates} />,
       summary: updatesSummary,
       group: 3,
+    },
+    {
+      id: 'animations',
+      label: 'Animations',
+      icon: <Waves size={16} />,
+      content: <AnimationsPane />,
+      summary:
+        [prefs.wisp ? 'Ghostly typing' : null, prefs.wispEdge ? 'smoke' : null, prefs.ripples ? 'ripples' : null].filter(Boolean).join(' · ') || 'All still',
+      group: 1,
     },
     {
       id: 'cheatsheet',

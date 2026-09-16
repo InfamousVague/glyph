@@ -1,81 +1,119 @@
 /*
- * The cheat sheet (CheatSheet.tsx): the spoken rules under the table of marks,
- * in the same ink and paper. A rule is its words, then the phrase to say,
- * which is set the way a note sets a quote so the eye finds it at a glance.
+ * The cheat sheet (CheatSheet.tsx): the marks, condensed. A line of chips to
+ * jump by, then a card per mark - the character in a ring, its name, the line
+ * to type, and the line as it comes out. Two cards to a row where there is
+ * room, one where there is not, so a phone reads it in a single column and a
+ * folded phone gets twice as much on screen.
  */
 
 .sheet {
   padding-block-end: var(--glacier-space-8);
 }
 
-.lead {
-  margin: 0 0 var(--glacier-space-5);
-  font-size: var(--glacier-font-size-md);
-  line-height: var(--glacier-leading-md);
+/* The way down a long page: the groups, in the order they come. */
+.chips {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  display: flex;
+  gap: var(--glacier-space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-block-end: var(--glacier-space-4);
+  padding-block: var(--glacier-space-2);
+  background: var(--glacier-bg);
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex: none;
+  padding: 0.3em 0.75em;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: 999px;
+  background: none;
   color: var(--glacier-text-muted);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.part + .part {
-  margin-block-start: var(--glacier-space-8);
-}
-
-.partTitle {
-  margin: 0 0 var(--glacier-space-2);
-  font-size: var(--glacier-font-size-lg);
-  font-weight: var(--glacier-font-weight-semibold);
+.chip:active {
+  background: var(--app-wash, var(--glacier-surface));
 }
 
 .group + .group {
   margin-block-start: var(--glacier-space-6);
 }
 
-.groupTitle {
-  margin: 0 0 var(--glacier-space-3);
+.title {
+  margin: 0 0 var(--glacier-space-2);
   font-size: var(--glacier-font-size-sm);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: var(--glacier-font-weight-semibold);
   color: var(--glacier-text-subtle);
+  scroll-margin-block-start: var(--glacier-space-2);
 }
 
-.rule {
-  padding-block: var(--glacier-space-3);
-  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+.rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--glacier-space-2);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--glacier-surface);
+  min-inline-size: 0;
+}
+
+/* The character itself, in a ring, so the eye finds it before the words. */
+.symbol {
+  flex: none;
+  padding: 0.15em 0.45em;
+  border: var(--glacier-hairline) solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-md, 8px);
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.words {
+  display: grid;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
 }
 
 .name {
   margin: 0;
-  font-weight: var(--glacier-font-weight-medium);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
 }
 
-.teach {
-  margin: var(--glacier-space-1) 0 0;
-  font-size: var(--glacier-font-size-md);
-  line-height: var(--glacier-leading-md);
+.typed {
+  margin: 0;
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--glacier-text-muted);
 }
 
-/* The words to say: a quiet block the eye can pick out, the way the note draws a quote. */
-.say {
-  margin: var(--glacier-space-2) 0 0;
-  padding-inline-start: var(--glacier-space-3);
-  border-inline-start: 2px solid var(--glacier-border-subtle);
-  display: grid;
-  gap: var(--glacier-space-1);
-}
-
-.phrase {
-  margin: 0;
-  font-size: var(--glacier-font-size-md);
-  line-height: var(--glacier-leading-md);
-}
-
-/* A rule with nothing to say is advice: no quote block, and its words carry it. */
-.tip .name::after {
-  content: ' · tip';
-  font-weight: var(--glacier-font-weight-regular);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-size: var(--glacier-font-size-xs);
-  color: var(--glacier-text-subtle);
+/* The drawn side, cut off from the typed one by a rule rather than a column. */
+.shown {
+  margin-block-start: var(--glacier-space-1);
+  padding-block-start: var(--glacier-space-2);
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  overflow-wrap: anywhere;
 }

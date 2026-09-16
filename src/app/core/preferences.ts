@@ -84,6 +84,18 @@ export interface Preferences {
   codeChosen: boolean;
   /** How notes are shown: marks and formatting together, or just the formatted text (editor/viewMode.ts). */
   noteView: NoteView;
+  /**
+   * The app's movement, three switches under Settings > Animations (Matt: "add animations section to settings").
+   * On by default, every one of them: they are what Glyph looks like. A phone asking for less motion is obeyed
+   * whatever these say (app.css `prefers-reduced-motion`).
+   *
+   * `wisp` is the ghostly typing, letters arriving and leaving as smoke (editor/wispArrivals.ts); `wispEdge` the
+   * smoke where a page slips under its header (art/wispEdge.ts); `ripples` the rings that answer a voice while
+   * recording (capture/LivePage.tsx).
+   */
+  wisp: boolean;
+  wispEdge: boolean;
+  ripples: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -105,6 +117,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   codeDark: 'pastel',
   codeChosen: false,
   noteView: 'mixed',
+  wisp: true,
+  wispEdge: true,
+  ripples: true,
 };
 
 const STORAGE_KEY = 'glyph-preferences';

@@ -293,18 +293,40 @@
   text-indent: calc(-1 * var(--hang, 0px));
 }
 
+/*
+ * A fenced block is one card: the paper runs behind every line of it, the
+ * first and last lines carry the corners and the block's own top and bottom
+ * padding, and the words sit in from the edge rather than against it (Matt:
+ * "code blocks missing border radii card shape and padding around the
+ * outside"). The lines keep their own left padding from `.cm-line`, so the
+ * card is inset by that much and the code lines up with the note's text.
+ */
 .editor :global(.cm-line).lineCode {
   font-family: var(--glacier-font-mono);
   font-size: calc(var(--app-body) * 0.82);
   background: var(--code-bg);
   color: var(--code-fg);
   tab-size: 2;
+  padding-inline: calc(var(--app-gutter) + 0.7em) calc(var(--app-gutter) + 0.7em);
+}
+
+.editor :global(.cm-line).lineCodeTop {
+  margin-block-start: 0.5em;
+  padding-block-start: 0.55em;
+  border-start-start-radius: var(--glacier-radius-lg);
+  border-start-end-radius: var(--glacier-radius-lg);
+}
+
+.editor :global(.cm-line).lineCodeFoot {
+  margin-block-end: 0.5em;
+  padding-block-end: 0.55em;
+  border-end-start-radius: var(--glacier-radius-lg);
+  border-end-end-radius: var(--glacier-radius-lg);
 }
 
 .editor :global(.cm-line).lineHr {
   color: var(--glacier-text-subtle);
 }
-
 
 /*
  * A picture under its line. A block widget sits outside `.cm-line`, so it

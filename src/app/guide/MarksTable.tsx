@@ -38,7 +38,7 @@ export function MarksTable() {
                 </div>
                 <div className={styles.shown} role="cell">
                   <span className={styles.name}>{row.name}</span>
-                  <Shown row={row} />
+                  <Drawn row={row} />
                   {row.say ? <span className={styles.say}>{row.say}</span> : null}
                 </div>
               </div>
@@ -50,8 +50,8 @@ export function MarksTable() {
   );
 }
 
-/** The example as the note draws it: one line, in the mark's own look. */
-function Shown({ row }: { row: MarkRow }) {
+/** The example as the note draws it: one line, in the mark's own look. Shared with the cheat sheet (CheatSheet.tsx). */
+export function Drawn({ row }: { row: MarkRow }) {
   switch (row.looks) {
     case 'h1':
       return <span className={`${styles.example} ${styles.h1}`}>{row.words}</span>;

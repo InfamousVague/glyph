@@ -545,7 +545,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
             value={note.body}
             onChange={onChange}
             onView={setView}
-            wispTyping
+            wispTyping={prefs.wisp}
             display={prefs.noteView}
             tape={!tape.web && tape.length > 0 ? convertFileSrc(`${note.id}.wav`, 'rec') : null}
             tapeId={tape.length > 0 ? tapeId(note.id) : null}

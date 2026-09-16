@@ -47,7 +47,7 @@ interface LivePageProps {
 const FOLLOW_PX = 160;
 
 export function LivePage({ base, markdown, placeholder, under }: LivePageProps) {
-  const { theme } = usePreferences();
+  const { theme, wisp: ghosting, ripples: rippling } = usePreferences();
   const page = useRef<HTMLDivElement>(null);
   // The older text goes to smoke under the recorder's top line, like any page (art/wispEdge.ts): the line is a pane
   // the page runs under, so nothing shows fading against the black above the words (Matt: "the header on the new
@@ -98,8 +98,8 @@ export function LivePage({ base, markdown, placeholder, under }: LivePageProps) 
         onView={setView}
         readOnly
         grow
-        arrivals
-        ripples={ripples}
+        arrivals={ghosting}
+        ripples={rippling ? ripples : undefined}
         display="formatted"
       />
     </div>
