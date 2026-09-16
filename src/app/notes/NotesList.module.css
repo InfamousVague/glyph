@@ -515,8 +515,15 @@
  */
 .speak {
   pointer-events: auto;
-  font-size: var(--glacier-font-size-lg);
-  padding-inline: var(--glacier-space-6);
+  /* A size smaller than it was, with the rings beside it (Matt: "the speak new note and settings button can be a
+     size smaller"). The same height as the rings, set rather than left to the pill's padding, so the three still
+     sit on one line. */
+  /* The shared pill sets a minimum height (app/ink.css .app-pill); this one is shorter, so the minimum is lowered too. */
+  min-block-size: var(--glacier-space-10);
+  block-size: var(--glacier-space-10);
+  padding-block: 0;
+  padding-inline: var(--glacier-space-5);
+  font-size: var(--glacier-font-size-md);
 }
 
 /*
@@ -529,14 +536,14 @@
   appearance: none;
   display: grid;
   place-items: center;
-  inline-size: var(--glacier-space-12);
-  block-size: var(--glacier-space-12);
+  inline-size: var(--glacier-space-10);
+  block-size: var(--glacier-space-10);
   padding: 0;
   border: 1.5px solid var(--glacier-border-strong);
   border-radius: var(--glacier-radius-full);
   background: var(--glacier-bg);
   color: var(--glacier-text);
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -553,7 +560,7 @@
 /* A new note: the + is a touch heavier than the cog, since it starts something. */
 .add {
   justify-self: start;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
 }
 
 .add:active svg {

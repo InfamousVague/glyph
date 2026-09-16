@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
-import { listenToMicrophone } from './micLevel.ts';
 import { onScreen, sideKeySpot, type Edge, type SideKeySpot } from './sideKeys.ts';
 import { grown, paceWaves, shining, wobbleAmount, wobbleAt, type Pacer, type Ring } from './waves.ts';
 import styles from './SideKeyWaves.module.css';
@@ -11,13 +10,13 @@ import styles from './SideKeyWaves.module.css';
  * do anything to prompt the user to press it yet").
  *
  * Drawn on a canvas, since the rings are not circles: their outlines waver
- * (waves.ts), and they answer the microphone - a word sends rings out closer
- * together, wider and brighter, with a bigger wobble (Matt: "make the
- * pulsing waves wobbly and have them react to the phone's microphone"). The
- * microphone is asked for while the page is up and let go when it leaves
- * (micLevel.ts); without one, the rings keep their resting beat. Each ring is
- * centred on the edge itself, so only its inner half shows. Under reduced
- * motion two rings sit still and faint, and nothing listens.
+ * (waves.ts) and they keep a resting beat. They answered the microphone once
+ * (Matt: "make the pulsing waves wobbly and have them react to the phone's
+ * microphone"), and no longer do: a page that is only read is no place for an
+ * open microphone (Matt: "disable the always on microphone only enable it when
+ * actually recording or in memo mode"). Each ring is centred on the edge
+ * itself, so only its inner half shows. Under reduced motion two rings sit
+ * still and faint.
  */
 
 const POINTS = 96;
@@ -172,11 +171,7 @@ export function SideKeyWaves({ spot }: { spot?: SideKeySpot }) {
       return () => waves.stop();
     }
     waves.start();
-    const stopListening = listenToMicrophone((level) => waves.hear(level));
-    return () => {
-      stopListening();
-      waves.stop();
-    };
+    return () => waves.stop();
   }, [key]);
 
   const style = { '--at': `${(onScreen(key.at) * 100).toFixed(1)}%` } as CSSProperties;

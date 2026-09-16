@@ -1,4 +1,5 @@
 import { saveImageFile } from './images.ts';
+import { boardNoteBody } from './boardNote.ts';
 import { sampleImageBlob, sampleNoteBody } from './sampleNote.ts';
 import { newNoteId, saveNote, type Note } from './store.ts';
 
@@ -46,6 +47,11 @@ export async function addSampleNote(): Promise<Note> {
   const note = await saveNote(newNoteId(), sampleNoteBody(image), 'editor');
   markSeeded();
   return note;
+}
+
+/** Makes the example board (core/boardNote.ts) now, and answers it. */
+export async function addBoardNote(): Promise<Note> {
+  return saveNote(newNoteId(), boardNoteBody(), 'editor');
 }
 
 /**

@@ -283,7 +283,7 @@ export function NotesList({
           <Plus />
         </button>
         <button type="button" className={`app-pill ${styles.speak}`} onClick={onCapture} aria-label="Speak a voice note">
-          <Mic size={18} strokeWidth={2.2} aria-hidden="true" />
+          <Mic size={16} strokeWidth={2.2} aria-hidden="true" />
           Speak
         </button>
         <button type="button" className={`${styles.round} ${styles.cog}`} onClick={onSettings} aria-label="Settings">

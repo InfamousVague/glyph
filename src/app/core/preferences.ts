@@ -58,12 +58,6 @@ export interface Preferences {
    */
   commandWord: boolean;
   /**
-   * While the list or a note is open, saying "Glyph" opens the recorder with
-   * what was said (capture/wakeWord.ts). On by default: Matt, "While Glyph is
-   * open I should be able to say the AIs wake word". Needs `commandWord`.
-   */
-  listenWhileOpen: boolean;
-  /**
    * After Stop, the review (review/): the slower speech model listens again and
    * the language model, thinking out loud, checks the note; the person keeps
    * or commits what it finds. On by default: Matt asked for it.
@@ -109,7 +103,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
   refine: true,
   quietStop: false,
   commandWord: true,
-  listenWhileOpen: true,
   review: true,
   localOnly: false,
   formatModel: 'qwen3.5-4b',

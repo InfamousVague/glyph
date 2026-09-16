@@ -2257,18 +2257,40 @@ way to see what 1.4.1-3 changed, or what they already had.
   kept for reading with no signal, and the release running is marked. It is words, not code: unsigned, fetched
   plainly, while the bundles it describes stay signed and checked. The web version reads the file beside its own page.
 
-## Boards, written in markdown, and taken out again (2026-09-16)
+## Boards, written in markdown: out, and back with a generic link (2026-09-16)
 
-Built, shipped in 1.4.1-7 to 1.4.2-1, then removed the same night: "for now the board view is too much remove this
-code". The standard was two pieces of ordinary markdown - a to-do carrying an anchor (`- [ ] Ship it ^ship-page`) and
-a fenced ```board block whose lines were the columns - with `core/boards.ts` as the only reader and writer of the
-syntax, `editor/boards.ts` drawing the fence as columns of cards, an example note, More > Make a board to turn a list
-of to-dos into one, and Copy board / To board in the press-and-hold menu.
+Built, shipped in 1.4.1-7 to 1.4.2-1, removed the same night ("for now the board view is too much remove this code"),
+and asked for again the next morning: "bring back the board functionality and formatting rules, add it to the
+specification / cheat sheet. come up with a generic way to link list items to the board." The standard is
+docs/BOARDS.md and it is still two pieces of ordinary markdown, with one of them now doing more.
 
-What it cost is worth remembering, because the parts that stayed came out of it: a card that says its task's words
-wants the markdown taken off them (a to-do ending in a `[notion](…)` link read as a URL, and one long task filled the
-screen), and a block widget cannot be dragged over, so anything drawn in place of text needs its own way to be
-copied. It is all in git at 1.4.2; `git revert` of the removal brings it back whole.
+- **An anchor names an item**, and that is the generic link. `- [ ] Ship the pricing page ^ship-page` still works, but
+  so does `- Ask Sam about the copy ^ask-sam` and `1. Unplug it ^unplug`: any list item, not only a to-do, which is
+  what makes the link generic rather than a board feature. A card for an item with no box is drawn with a dot instead
+  of a tick. The regex takes an anchor only after whitespace and before the end of the line, which is what keeps
+  `E = mc^2^` a superscript.
+- **Anything can point at an anchor.** `[[#^ask-sam]]` in the middle of a sentence goes to that line, and
+  `[[Note#^ask-sam]]` to one in another note (the title half is `editor/wikiLinks.ts`, which skips a `[[#` outright;
+  the anchor half is `core/boards.ts`). A **fenced ```board block** is then one more thing that names anchors, rather
+  than the only thing that can.
+- **A card is its item** (`core/boards.ts` reads and writes the whole syntax; `editor/boards.ts` draws it). The
+  card's tick box is the item's box, its words are the item's words, and tapping them puts the caret on that line. A
+  column called Done means done: ticking a card moves it there, dragging it there ticks it, and dragging it out
+  unticks it.
+- **Press and hold to drag** (Matt: "add a way to tap and drag to re organize items in lanes"). The card itself stays
+  in the column as the gap it would leave and moves from place to place as the finger goes, while a copy follows
+  overhead; `putCardAt` writes it where the gap was, so a card reorders inside a lane as well as moving between them.
+  Before the hold is up the finger still scrolls, and a card held at either edge scrolls the board along.
+- **Friendlier on a phone**: columns that snap one to a screen, a column name that stays while its cards scroll, an
+  empty column that says it will take a card, thumb-sized targets with the chevrons kept for a hand that would rather
+  not drag, and a **+** that opens a field for the new card's words and writes the to-do and its card together.
+  The first + put the caret into an empty `- [ ] ^item` line, which left every new card named `^item`, `^item-2`,
+  and put the caret one place short of the box's space; asking for the words first removes both, and the board is
+  redrawn in place (`updateDOM`) so the field and the keyboard survive each card. The `^anchor` at the end of a line is drawn small and faint, so the line reads as its words.
+- **The fence stays the truth.** Tapping it puts the caret inside and the drawing steps aside, the way a table does
+  (`editor/tables.ts`). A card whose item is gone is drawn with its anchor, so nothing disappears quietly.
+- **The example note** (`core/boardNote.ts`, Settings > About > Add the example board) is a working board with two
+  fences in one note, and says in its own words how to change it.
 
 ## The board again, and the robot moves house (2026-09-16)
 
@@ -2319,5 +2341,49 @@ image; it now carries the rest of what a person expects of a line, and two of Gl
 
 - **Duplicate, Delete, Move up, Move down** (`editor/format.ts`). With words selected they work on the selection;
   with none, on the line the caret is on, which is what a finger has usually just tapped.
+- **To board** (`core/boards.ts` `addToBoard`, docs/BOARDS.md). On a list item in a note that holds a board, this
+  gives the line an anchor made from its own words and adds the card to the nearest board above, in Done when the item
+  is already ticked. Nothing shows on a line that is not a list item, in a note with no board, or on an item already
+  on one.
 - **Send** is the plugin's own item action, the one a swipe on the item does (a Notion board, a GitHub issue), so the
   same thing can be done without knowing about the swipe.
+
+## The cheat sheet draws its examples with the editor (2026-09-16)
+
+Matt: "the cheatsheet is disorganized and ugly please redo it with better iconography and layout also make sure were
+using the real formatters as some things like spoilers isnt using the right one (wisp)". Both halves of that came
+from the same cause.
+
+- **The examples are the app now.** The guide's table and the cheat sheet each used to draw every mark a second time
+  in CSS, which is how a spoiler ended up a `blur(3.5px)` on one page and real smoke in a note. `guide/MarkExample.tsx`
+  is the note's own editor, read-only, in `formatted` view, with the same extensions and the same switched-on
+  plugins: the spoiler is the wisp filter, the code block is the real highlighter, a table is a drawn table and a
+  board is a working board. A mark that changes in the app changes on both pages by itself, and the bespoke look CSS
+  is gone. An editor per row is a real thing to build, so a row builds one when it comes within a screen of being
+  looked at (`IntersectionObserver`).
+- **A mark is a card.** Icon, name, the characters in a ring, the line to type, then under a rule the line as it
+  reads. Every row carries its own icon in `guide/marks.ts` - a plugin's mark uses the icon the plugin declares - and
+  the page is a grid that gives a phone one column and a folded phone two, with a board taking the full width.
+- **A field to find a mark** by its name, its characters or the words of its example, above the group chips. Looking
+  something up was the whole point of the page and it was a scroll.
+
+## The microphone is only open when something is being recorded (2026-09-16)
+
+Matt: "disable the always on microphone only enable it when actually recording or in memo mode, remove the wake work
+functionality completely". The wake word is gone, not switched off: `capture/wakeWord.ts`, `capture/useWakeWord.ts`
+and their test are deleted, with the `listenWhileOpen` preference, its Settings row, the handoff the recorder took
+from it (`takeWakeHandoff`, `wakeSettled`), the `woke` screen state, and the tutorial tip that taught it. This
+reverses the section of 2026-09-16 above ("While Glyph is open I should be able to say the AIs wake word"), which had
+itself reversed the pause of 2026-09-13.
+
+- **`prefs.commandWord` stays.** It does a second job: it is what makes a spoken command need "Glyph" in front of it
+  *while a recording is running* (`capture/command.ts`), which is not an open microphone and is what keeps "Glyph, add
+  buy milk to HelloTrade" apart from a sentence about Glyph. Only the listening is out.
+- **Two things open a microphone now.** The recorder (`capture/CaptureScreen.tsx`, memo mode included, since a memo is
+  that screen in another mode) and the voice tutorial - and the tutorial now opens it for a lesson that is practised
+  and lets it go between them (`tutorial/useListening.ts` takes an `on`), rather than holding it for the whole
+  tutorial as it did.
+- **The guide's rings stopped listening too.** `guide/micLevel.ts` opened the microphone on the side-key page so the
+  rings could answer a voice; a page that is only read is no place for it, and the rings keep their resting beat.
+  The file is gone.
+- Nothing in the Kotlin side ever held a microphone: the side key launches the recorder, it does not listen.

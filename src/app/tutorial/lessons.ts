@@ -340,14 +340,6 @@ const TIPS: Lesson[] = [
   },
   {
     kind: 'tip',
-    id: 'tip-wake',
-    chapter: 'Tips and tricks',
-    title: 'Say “Glyph” with the app open',
-    teach:
-      'With the list or a note on screen, say “Glyph” and the recorder opens with what you said. It’s on unless you turn it off in Settings, under Recording.',
-  },
-  {
-    kind: 'tip',
     id: 'tip-memo',
     chapter: 'Tips and tricks',
     title: 'Talk now, sort later',

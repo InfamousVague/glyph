@@ -7,6 +7,7 @@ import { adoptImagePath, pickImage } from '../core/images.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { caretPlace, placeOf, readBookmark, scrollToPlace, useNotePlace, writeBookmark } from './notePlace.ts';
 import { markedWords, showBookmark } from './bookmarkLine.ts';
+import { boardFrom, itemAt } from '../core/boards.ts';
 import { hasClips, setTapeId, tapeId } from '../core/clips.ts';
 import { useNoteZoom } from './pinchZoom.ts';
 import { ContextMenu } from './ContextMenu.tsx';
@@ -71,14 +72,19 @@ interface NoteScreenProps {
   onPin: (note: Note) => void;
   onArchive: (note: Note) => void;
   /** Opens the note by that title, making it where there is none: what a [[link]] in the words does. */
-  onOpenTitle?: (title: string) => void;
+  onOpenTitle?: (title: string, at?: string) => void;
+  /** The item to land on when the note was opened by a link pointing inside it: `^anchor` (core/boards.ts). */
+  at?: string;
   /** Whether a note by that title exists, for drawing a [[link]] as written or as waiting. */
   hasTitle?: (title: string) => boolean;
 }
 
 const SAVE_DEBOUNCE_MS = 400;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle }: NoteScreenProps) {
+/** How far below the header a note opened at an item sits, so the line is not against it. */
+const LAND_ROOM = 12;
+
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, at }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -307,7 +313,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // The page smokes at both ends: under the header, and off the bottom where the dock is (art/wispEdge.ts).
   useWispEdge(page, shown, header, { foot: true });
   // The note opens where it was left, and remembers where it is left (editor/notePlace.ts).
-  useNotePlace(note.id, page, view, shown === 'raw');
+  // Opened at an item, the note goes to that line rather than back to where it was left last time.
+  useNotePlace(note.id, page, view, shown === 'raw' && !at);
   /** Whether this note has a bookmark, for the header's button. */
   const [marked, setMarked] = useState(() => readBookmark(note.id) !== null);
   useEffect(() => setMarked(readBookmark(note.id) !== null), [note.id]);
@@ -373,6 +380,58 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     showMark(mark.pos);
     fireNativeHaptic('selection');
   };
+  /**
+   * Opened by a link that pointed inside this note (`[[Launch week#^ask-sam]]`), the caret lands on that item and
+   * the page scrolls to it. The words arrive a moment after the editor does, so the item is looked for a few times
+   * before the note is left where it opened.
+   */
+  useEffect(() => {
+    const anchor = at?.replace(/^\^/, '');
+    if (!anchor || !view) return undefined;
+    const timers: number[] = [];
+    let tries = 0;
+    let landed = 0;
+    const land = () => {
+      const item = itemAt(view.state.doc.toString(), anchor);
+      const scroller = page.current;
+      if (item && scroller) {
+        const line = view.state.doc.line(Math.min(item.line, view.state.doc.lines));
+        if (!landed) view.dispatch({ selection: { anchor: line.to } });
+        // The first scroll works from the editor's own idea of where the line is, which is a guess for lines it has
+        // not drawn (a board counts for a lot of page). Once the line is really on screen its own top is measured and
+        // the last of it taken off, so a note with a board lands on the line and not a screen past it.
+        const seen = view.coordsAtPos(line.from);
+        // Under the header, which floats over the page rather than pushing it down.
+        const room = (header.current?.getBoundingClientRect().bottom ?? scroller.getBoundingClientRect().top) + LAND_ROOM;
+        if (seen) scroller.scrollTop += seen.top - room;
+        else scrollToPlace(view, scroller, { pos: line.from, offset: 0 });
+        landed += 1;
+        if (landed < 4) timers.push(window.setTimeout(land, landed * 150));
+        return;
+      }
+      if (tries < 24) {
+        tries += 1;
+        timers.push(window.setTimeout(land, 100));
+      }
+    };
+    timers.push(window.setTimeout(land, 0));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [at, view]);
+
+  /**
+   * The note's list laid out as a board (core/boards.ts): each item gets a name at the end, and a fence of columns
+   * goes in under the title, ticked items in Done. One change, so one Undo puts the note back as it was.
+   */
+  const makeBoard = () => {
+    if (!view) return;
+    const made = boardFrom(view.state.doc.toString());
+    setSettingsOpen(false);
+    if (!made) return;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: made.doc }, userEvent: 'input.board' });
+    fireNativeHaptic('success');
+    toast({ message: `${made.cards} ${made.cards === 1 ? 'item is' : 'items are'} now cards${made.done ? `, ${made.done} in Done` : ''}.` });
+  };
+
   // Two fingers pinch the note's text larger or smaller (editor/pinchZoom.ts).
   useNoteZoom(page, view, shown === 'raw');
 
@@ -616,6 +675,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               }
             : undefined
         }
+        onMakeBoard={shown === 'raw' && settingsOpen && boardFrom(view?.state.doc.toString() ?? body.current) ? makeBoard : undefined}
         onPin={() => {
           flush();
           onPin({ ...note, starred: pinned });

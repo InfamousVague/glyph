@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ListChecks, TextSearch } from '@glacier/icons';
 import { useBack } from '../core/back.ts';
-import { ArchiveBox, ArrowLeft, Bin, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
+import { ArchiveBox, ArrowLeft, Bin, Board, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
 import { SheetIcon } from '../plugins/kit.tsx';
@@ -43,6 +43,8 @@ interface NoteSettingsProps {
   onDelete: () => void;
   /** Opens find and replace in the note; absent where the note can't be searched (the robot's view is showing). */
   onFind?: () => void;
+  /** Lays the note's list out as a board (core/boards.ts); absent where there is nothing to make one of. */
+  onMakeBoard?: () => void;
   /** How the note is shown, when the header has no room for its switch (a folded phone); absent, no row. */
   view?: NoteView;
   /** What the robot is showing over the note, and how to choose (format/modes.ts). Absent on a note that can't be read to. */
@@ -62,6 +64,7 @@ export function NoteSettings({
   onArchive,
   onDelete,
   onFind,
+  onMakeBoard,
   view,
   onView,
   mode,
@@ -130,7 +133,7 @@ export function NoteSettings({
         <span className={styles.grip} aria-hidden="true" {...drag} />
         <p className={styles.title}>{title || 'Untitled'}</p>
 
-        {onFind || (view && onView) ? (
+        {onFind || onMakeBoard || (view && onView) ? (
           <>
             <p className={styles.heading}>Reading it</p>
             <div className={styles.group}>
@@ -164,6 +167,18 @@ export function NoteSettings({
                     <TextSearch size={18} strokeWidth={2.2} />
                   </span>
                   <span className={styles.label}>Find and replace</span>
+                </button>
+              ) : null}
+              {/* A list laid out as columns, in the note's own words (docs/BOARDS.md). */}
+              {onMakeBoard ? (
+                <button type="button" className={styles.row} onClick={onMakeBoard}>
+                  <span className={styles.icon} aria-hidden="true">
+                    <Board />
+                  </span>
+                  <span className={styles.label}>
+                    Make a board
+                    <span className={styles.hint}>Every item in this note becomes a card.</span>
+                  </span>
                 </button>
               ) : null}
             </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, FileText, GraduationCap, ListChecks, Sparkles, Terminal } from '@glacier/icons';
+import { BookOpen, FileText, GraduationCap, LayoutGrid, ListChecks, Terminal } from '@glacier/icons';
 import { SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
 import { setPreferences, usePreferences, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
@@ -163,18 +163,6 @@ export function RecordingPane() {
           }
         />
         <SettingRow
-          label="Listen for “Glyph” while it's open"
-          hint="On the list or in a note, say “Glyph” and the recorder opens with what you said. Your voice is only heard on the phone, and nothing is kept until you say it. Android shows its microphone dot while Glyph listens."
-          control={
-            <Switch
-              aria-label="Listen for Glyph while it's open"
-              checked={prefs.commandWord && prefs.listenWhileOpen}
-              disabled={!prefs.commandWord}
-              onCheckedChange={(listenWhileOpen) => setPreferences({ listenWhileOpen })}
-            />
-          }
-        />
-        <SettingRow
           label="Review after recording"
           hint="When you stop, a slower speech model listens again and the language model thinks the note through out loud, then shows what it would fix for you to keep or commit."
           control={<Switch aria-label="Review after recording" checked={prefs.review} onCheckedChange={(review) => setPreferences({ review })} />}
@@ -280,13 +268,17 @@ export function FeelPane() {
   );
 }
 
-export function UpdatesPane({ updates }: { updates: Updates }) {
+/**
+ * Updates, as a part of the About page: where this build stands, the buttons that move it on, and the alerts switch.
+ * Was a page of its own (Matt: "combine about whats new and updates settings pages").
+ */
+function UpdatesSection({ updates }: { updates: Updates }) {
   const { ready, apk, checking, lastError, lastChecked } = updates;
   const alerts = useUpdateAlerts();
 
   if (!isTauri()) {
     return (
-      <PaneSection title="This build">
+      <PaneSection title="Updates">
         <SettingRow label="You're on the web version" hint="Reload the page to update." />
       </PaneSection>
     );
@@ -304,7 +296,7 @@ export function UpdatesPane({ updates }: { updates: Updates }) {
 
   return (
     <>
-      <PaneSection title="Version">
+      <PaneSection title="Updates">
         <SettingRow label={status} />
       </PaneSection>
       <div className="settingsScreen__actions">
@@ -347,16 +339,11 @@ function buildLine(updates: Updates): string {
 }
 
 /**
- * About: the version, big, which is also the door to the developer tools -
- * seven presses on it, the way Android's own are unlocked, with a countdown
- * from the third press so somebody who knows the gesture knows it is working.
+ * What's new, as the foot of the About page: every release published, newest first, with the one running marked
+ * (core/changelog.ts). Read from the site each time the page opens, and from what was kept when there is no signal
+ * (Matt: "show a changelog with all updates including OTA").
  */
-/**
- * What's new: every release published, newest first, with the one running marked (core/changelog.ts). Read from the
- * site each time the page opens, and from what was kept when there is no signal (Matt: "show a changelog with all
- * updates including OTA").
- */
-export function WhatsNewPane({ updates }: { updates: Updates }) {
+function ReleasesSection({ updates }: { updates: Updates }) {
   const [releases, setReleases] = useState<Release[]>(keptReleases);
   const [reading, setReading] = useState(true);
   const running = window.__glyphBoot?.build ?? updates.build;
@@ -381,19 +368,19 @@ export function WhatsNewPane({ updates }: { updates: Updates }) {
     );
   }
 
+  // One group, a row a release: on the About page the list is the foot of it, not a page of cards of its own.
   return (
     <>
-      {releases.map((release) => (
-        <PaneSection key={release.build} title={release.build === running ? `${release.version} · you're on this one` : release.version}>
+      <PaneSection title="What's new" description="Every update, newest first. A version with an app number needs installing.">
+        {releases.map((release) => (
           <SettingRow
-            label={releaseWhen(release)}
+            key={release.build}
+            label={release.build === running ? `${release.version} · you're on this one` : release.version}
+            value={releaseWhen(release)}
             hint={[release.notes, release.apk ? `Installed as Glyph ${release.apk}.` : null].filter(Boolean).join(' ')}
           />
-        </PaneSection>
-      ))}
-      <SettingsFootnote>
-        Every update Glyph has published, newest first. Updates arrive over the air; a version with an app number needs installing.
-      </SettingsFootnote>
+        ))}
+      </PaneSection>
     </>
   );
 }
@@ -429,21 +416,28 @@ export function AnimationsPane() {
   );
 }
 
+/**
+ * About, updates and what's new, as one page (Matt: "combine about whats new and updates settings pages"): the
+ * version, big, then where this build stands and how to move it on, then help, then every release published.
+ *
+ * The version is also the door to the developer tools - seven presses on it, the way Android's own are unlocked, with
+ * a countdown from the third press so somebody who knows the gesture knows it is working.
+ */
 export function AboutPane({
   updates,
   onGuide,
   onSample,
+  onBoard,
   onTutorial,
   onCheatSheet,
-  onWhatsNew,
   onDeveloper,
 }: {
   updates: Updates;
   onGuide: () => void;
   onSample: () => void;
+  onBoard: () => void;
   onTutorial: () => void;
   onCheatSheet: () => void;
-  onWhatsNew: () => void;
   onDeveloper: () => void;
 }) {
   const { toast } = useToast();
@@ -465,13 +459,8 @@ export function AboutPane({
       <PaneSection>
         <PaneHero title={updates.version} meta={buildLine(updates)} onPress={knock} />
       </PaneSection>
+      <UpdatesSection updates={updates} />
       <PaneSection title="Help">
-        <SettingRow
-          icon={<Sparkles size={20} />}
-          label="What's new"
-          hint="Every update Glyph has published, and which one you're running."
-          onPress={() => onWhatsNew()}
-        />
         <SettingRow
           icon={<GraduationCap size={20} />}
           label="Voice tutorial"
@@ -487,8 +476,14 @@ export function AboutPane({
         <SettingRow
           icon={<ListChecks size={20} />}
           label="Formatting cheat sheet"
-          hint="Every mark you can type and every cue you can say, in one page to look things up in."
+          hint="Every mark you can type, with what it looks like, in one page to look things up in."
           onPress={() => onCheatSheet()}
+        />
+        <SettingRow
+          icon={<LayoutGrid size={20} />}
+          label="Add the example board"
+          hint="A working board written in markdown: columns, cards, and the items they point at."
+          onPress={onBoard}
         />
         <SettingRow
           icon={<FileText size={20} />}
@@ -497,6 +492,7 @@ export function AboutPane({
           onPress={onSample}
         />
       </PaneSection>
+      <ReleasesSection updates={updates} />
       <SettingsFootnote>Glyph keeps your notes, recordings and models on the phone. Nothing is sent anywhere.</SettingsFootnote>
     </>
   );

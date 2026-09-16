@@ -9,6 +9,7 @@ import {
   CopyPlus,
   Heading,
   ImagePlus,
+  LayoutGrid,
   Italic,
   Link,
   List,
@@ -45,6 +46,7 @@ import {
   type Block,
   type Mark,
 } from './format.ts';
+import { addToBoard, boardAt, boardCopy } from '../core/boards.ts';
 import styles from './ContextMenu.module.css';
 
 /**
@@ -396,6 +398,42 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
   const caretLine = view ? view.state.doc.lineAt(view.state.selection.main.head) : null;
   const lineWords = caretLine ? caretLine.text.replace(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/, '').trim() : '';
   /** A to-do that a board in this note could take (core/boards.ts). */
+  /** A list item that a board in this note could take (core/boards.ts). */
+  const boardable = view && caretLine ? addToBoard(view.state.doc.toString(), caretLine.number) !== null : false;
+  /** The board the press landed on (core/boards.ts), and it as words: the fence and the items it names. */
+  const fence = view && caretLine ? boardAt(view.state.doc.toString(), caretLine.number) : null;
+  const board = view && caretLine ? boardCopy(view.state.doc.toString(), caretLine.number) : null;
+
+  /**
+   * A row that works on lines, run on a board: the whole fence is taken first. Pressed on a drawn board the caret is
+   * on one of its column lines, and duplicating or deleting that alone would leave half a board behind.
+   */
+  const whole = (run: (target: EditorView) => void) => () => {
+    if (!view) return;
+    if (fence) {
+      const open = view.state.doc.line(fence.from);
+      const close = view.state.doc.line(fence.to);
+      view.dispatch({ selection: { anchor: open.from, head: close.to } });
+    }
+    run(view);
+  };
+
+  /** The item joins the nearest board above it: the line gains its anchor, and the fence gains the card. */
+  const putOnBoard = () => {
+    if (!view || !caretLine) return;
+    const added = addToBoard(view.state.doc.toString(), caretLine.number);
+    if (!added) return;
+    const doc = view.state.doc;
+    const open = doc.line(added.fence.from);
+    const close = doc.line(added.fence.to);
+    const changes = [{ from: open.to + 1, to: close.from - 1, insert: added.fence.body }];
+    if (added.line) {
+      const line = doc.line(added.line.number);
+      changes.push({ from: line.from, to: line.to, insert: added.line.text });
+    }
+    view.dispatch({ changes, userEvent: 'input.board' });
+  };
+
   return (
     <div
       ref={menu}
@@ -421,6 +459,12 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
             <Word icon={ClipboardPaste} label="Paste" />
           </button>
         ) : null}
+        {/* A board is drawn as columns, so it cannot be dragged over: this takes the whole of it at once. */}
+        {board ? (
+          <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => write(board))()}>
+            <Word icon={Copy} label="Copy board" />
+          </button>
+        ) : null}
         {selected && onFind && to - from <= 120 ? (
           <button
             type="button"
@@ -438,18 +482,23 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
         <button type="button" role="menuitem" className={styles.item} onClick={() => void act(selectAll)()}>
           <Word icon={TextSelect} label="Select all" />
         </button>
-        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && duplicateSelection(view))()}>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole(duplicateSelection))()}>
           <Word icon={CopyPlus} label="Duplicate" />
         </button>
-        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && deleteSelection(view))()}>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole(deleteSelection))()}>
           <Word icon={Trash2} label="Delete" />
         </button>
-        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && moveLines(view, -1))()}>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole((target) => moveLines(target, -1)))()}>
           <Word icon={ArrowUpToLine} label="Move up" />
         </button>
-        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && moveLines(view, 1))()}>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole((target) => moveLines(target, 1)))()}>
           <Word icon={ArrowDownToLine} label="Move down" />
         </button>
+        {boardable ? (
+          <button type="button" role="menuitem" className={styles.item} onClick={() => void act(putOnBoard)()}>
+            <Word icon={LayoutGrid} label="To board" />
+          </button>
+        ) : null}
         {send && lineWords ? (
           <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => send.run(lineWords))()}>
             <Word icon={Link} label={send.label} />

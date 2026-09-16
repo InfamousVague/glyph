@@ -37,12 +37,15 @@ export function TutorialScreen({ onDone, onAllMarks }: { onDone: () => void; onA
   const [passed, setPassed] = useState<string | null>(null);
   /** A lesson picked from the summary to take again. */
   const [again, setAgain] = useState<string | null>(null);
-  const ear = useListening();
-  useBack(true, onDone);
-
   const pick = passed ?? again;
   const lesson = pick ? (lessons.find((l) => l.id === pick) ?? null) : (lessons.find((l) => !done.has(l.id) && !skipped.has(l.id)) ?? null);
   const finished = !lesson;
+
+  // The microphone is open for a lesson that is practised, and for nothing else: a tip is read, not said, and the
+  // summary at the end is not listened to (Matt: "disable the always on microphone only enable it when actually
+  // recording or in memo mode").
+  const ear = useListening(lesson?.kind === 'practice');
+  useBack(true, onDone);
 
   const heard = [...ear.segments.map((s) => s.text), ear.partial].join(' ').trim();
   const written = useMemo(() => renderNote(ear.segments, ear.partial, { titled: false }).markdown, [ear.segments, ear.partial]);

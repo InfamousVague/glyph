@@ -1,7 +1,8 @@
 /*
  * The guide's table of marks (MarksTable.tsx): two columns, what you type and
- * how it reads, in the app's ink and paper. The typed side is the note's mono
- * face with its marks showing, exactly as the editor keeps them.
+ * how it reads. The typed side is the note's mono face with its marks showing;
+ * the read side is the note's own editor (MarkExample.tsx), which brings its
+ * own look, so nothing here draws a mark a second way.
  */
 
 .table {
@@ -53,15 +54,36 @@
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
 }
 
+/* A board is a layout rather than a line: it takes the whole row, its example under what to type. */
+.row[data-looks='board'] {
+  grid-template-columns: 1fr;
+}
+
 .typed {
   display: grid;
   gap: var(--glacier-space-1);
+  justify-items: start;
   min-inline-size: 0;
 }
 
-/* The mark itself, in a ring, so the eye finds it before the line. */
+/* The mark itself, with its icon, so the eye finds it before the line. */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: var(--glacier-radius-md, 8px);
+  background: var(--app-wash, var(--glacier-surface-sunken));
+  color: var(--glacier-text-muted);
+}
+
 .symbol {
-  justify-self: start;
   padding: 0.1em 0.4em;
   border: var(--glacier-hairline) solid var(--glacier-border-strong);
   border-radius: var(--glacier-radius-md, 8px);
@@ -92,211 +114,7 @@
   font-weight: var(--glacier-font-weight-semibold);
 }
 
-.example {
-  font-size: var(--glacier-font-size-md);
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
 .say {
   font-size: var(--glacier-font-size-xs);
   color: var(--glacier-text-subtle);
-}
-
-/* The looks, each the same as the note's own (editor/Editor.module.css). */
-.h1 {
-  font-size: var(--glacier-font-size-xl);
-  font-weight: var(--glacier-font-weight-bold);
-  letter-spacing: -0.02em;
-}
-
-.h2 {
-  font-size: var(--glacier-font-size-lg);
-  font-weight: var(--glacier-font-weight-bold);
-}
-
-.h3 {
-  font-size: var(--glacier-font-size-md);
-  font-weight: var(--glacier-font-weight-semibold);
-}
-
-.mono {
-  font-family: var(--glacier-font-mono);
-  color: var(--glacier-accent-text);
-}
-
-.link {
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-  font-weight: var(--glacier-font-weight-medium);
-}
-
-.quote {
-  display: block;
-  padding-inline-start: var(--glacier-space-3);
-  border-inline-start: var(--glacier-shape-accent-edge, 3px) solid var(--glacier-border-strong);
-  color: var(--glacier-text-muted);
-}
-
-.marker {
-  color: var(--glacier-text-subtle);
-}
-
-/* A to-do's box, drawn rather than typed, with a cross when it is done. */
-.box {
-  display: inline-grid;
-  place-items: center;
-  inline-size: 1.05em;
-  block-size: 1.05em;
-  margin-inline-end: 0.35em;
-  border: 1.5px solid var(--glacier-border-strong);
-  border-radius: 3px;
-  font-size: 0.8em;
-  line-height: 1;
-  vertical-align: -0.15em;
-}
-
-.doneWords {
-  color: var(--glacier-text-muted);
-  text-decoration: line-through;
-}
-
-.rule {
-  display: block;
-  block-size: 0;
-  margin-block: 0.7em;
-  border-block-start: var(--glacier-hairline) solid var(--glacier-border-strong);
-}
-
-/* The drawn table, as the editor draws one: a hairline grid. */
-.grid {
-  border-collapse: collapse;
-  font-size: var(--glacier-font-size-sm);
-}
-
-.grid th,
-.grid td {
-  padding: 0.25em 0.5em;
-  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
-  text-align: start;
-}
-
-.grid th {
-  font-weight: var(--glacier-font-weight-semibold);
-}
-
-/* A picture: its frame, and the caption under it. */
-.frame {
-  display: block;
-  block-size: 2.2em;
-  border: var(--glacier-hairline) solid var(--glacier-border-strong);
-  border-radius: var(--glacier-radius-md, 8px);
-  background: var(--app-paper-2, var(--glacier-surface));
-}
-
-.caption {
-  display: block;
-  font-size: var(--glacier-font-size-xs);
-  color: var(--glacier-text-subtle);
-}
-
-.block {
-  margin: 0;
-  padding: 0.35em 0.5em;
-  border-radius: var(--glacier-radius-md, 8px);
-  background: var(--glacier-surface-sunken);
-  font-family: var(--glacier-font-mono);
-  font-size: var(--glacier-font-size-sm);
-  white-space: pre-wrap;
-}
-
-/* A spoiler, as the note draws it: smoke, until the caret is in the words. */
-.smoke {
-  filter: blur(3.5px);
-  opacity: 0.75;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .smoke {
-    filter: blur(2.5px);
-  }
-}
-
-/*
- * A note on a mark (editor/markNotes.ts): the doubt's dotted words, the ring
- * that stands in for the brackets, and under them the panel a tap opens, drawn
- * here as it looks on the page so the row shows the whole thing at once.
- */
-.noted {
-  text-decoration: underline dotted;
-  text-decoration-color: var(--glacier-text-subtle);
-  text-underline-offset: 0.22em;
-  text-decoration-thickness: 0.09em;
-}
-
-.ring {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: 1.05em;
-  block-size: 1.05em;
-  margin-inline-start: 0.15em;
-  vertical-align: 0.15em;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  font-size: 0.62em;
-  font-style: italic;
-  line-height: 1;
-  opacity: 0.7;
-}
-
-.panel {
-  display: block;
-  inline-size: fit-content;
-  margin-block-start: var(--glacier-space-2);
-  padding: 0.4em 0.6em;
-  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-lg);
-  background: var(--glacier-surface);
-  font-size: 0.86em;
-  line-height: var(--glacier-leading-md);
-}
-
-/* A callout, as the note draws it (editor/extended.ts): a band down the side and its kind above the words. */
-.callout {
-  display: block;
-  padding-inline-start: 0.6em;
-  border-inline-start: 3px solid color-mix(in oklch, currentColor 35%, transparent);
-  background: color-mix(in oklch, currentColor 4%, transparent);
-}
-
-.calloutKind {
-  display: block;
-  font-size: var(--glacier-font-size-xs);
-  letter-spacing: 0.08em;
-  font-weight: var(--glacier-font-weight-semibold);
-  color: var(--glacier-text-muted);
-}
-
-/* A link to another note, a footnote's marker, and a definition under its term. */
-.wiki {
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-  text-decoration-thickness: 0.06em;
-  text-decoration-color: color-mix(in oklch, currentColor 45%, transparent);
-}
-
-.foot {
-  font-size: 0.72em;
-  color: var(--glacier-text-muted);
-}
-
-.term {
-  display: block;
-  font-weight: var(--glacier-font-weight-semibold);
-}
-
-.meaning {
-  display: block;
-  padding-inline-start: 1.2em;
 }

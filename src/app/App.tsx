@@ -18,14 +18,13 @@ import { useVoiceModel } from './capture/useVoiceModel.ts';
 import { installBack } from './core/back.ts';
 import { hapticsImpl, installTapHaptics } from './core/haptics.ts';
 import { answerHost, takeCaptureLaunch } from './core/host.ts';
-import { applyPreferences, usePreferences } from './core/preferences.ts';
-import { useWakeWord } from './capture/useWakeWord.ts';
+import { applyPreferences } from './core/preferences.ts';
 import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
 import { isTauri } from './core/tauri.ts';
 import { getNote, newNoteId, noteTitle, saveNote, useNotes, type Note } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
-import { addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
+import { addBoardNote, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { fileNewNote } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 
@@ -74,7 +73,12 @@ function markGuideSeen(): void {
 
 type Screen =
   | { name: 'list' }
-  | { name: 'note'; note: Note }
+  | {
+      name: 'note';
+      note: Note;
+      /** The item to land on, `^anchor`, when the note was opened by a link that pointed inside it (core/boards.ts). */
+      at?: string;
+    }
   | {
       name: 'capture';
       key: number;
@@ -82,8 +86,6 @@ type Screen =
       stop: number;
       /** Talking into this note, from its Speak: the words go here, and the capture comes back here. */
       noteId?: string;
-      /** Opened by saying "Glyph" while the app was open (capture/wakeWord.ts). */
-      woke?: boolean;
     }
   /** After Stop: the slower models check the take, and the person commits what they find (review/). */
   | { name: 'review'; handoff: ReviewHandoff }
@@ -122,12 +124,6 @@ function Shell() {
   // "Not yet, finish reading.": a relaunch, or the side key, while the guide was still on a reading page.
   const [tooSoon, setTooSoon] = useState(() => screen.name !== 'capture' && launchedTooSoon(guideSeen()));
 
-  // "Glyph", said while the list or a note is open: the recorder opens with it (capture/wakeWord.ts).
-  const wakePrefs = usePreferences();
-  useWakeWord(wakePrefs.commandWord && wakePrefs.listenWhileOpen && (screen.name === 'list' || screen.name === 'note') && !settings && !guide, () => {
-    const current = screenRef.current;
-    setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0, woke: true, noteId: current.name === 'note' ? current.note.id : undefined });
-  });
   const [guidePage, setGuidePage] = useState(0);
   // Read by the side-key handler, which is registered once.
   const guideRef = useRef({ open: guide, page: guidePage });
@@ -212,10 +208,14 @@ function Shell() {
    * A `[[link]]` tapped: the note by that title, or a new note that starts with it as its heading, so a link is a
    * place to write as well as a place to go.
    */
-  const openTitle = async (title: string) => {
+  /**
+   * A [[link]] in the words. `[[The cabin trip#^friday]]` opens that note on that item: the title half is
+   * editor/wikiLinks.ts, the `^anchor` half core/boards.ts, and the note screen does the landing.
+   */
+  const openTitle = async (title: string, at?: string) => {
     const found = notes.find((n) => sameTitle(noteTitle(n.body), title));
     if (found) {
-      setScreen({ name: 'note', note: found });
+      setScreen({ name: 'note', note: found, at });
       return;
     }
     const made = await saveNote(newNoteId(), `# ${title}\n\n`, 'editor');
@@ -239,6 +239,13 @@ function Shell() {
   const sampleNote = async () => {
     setSettings(false);
     const note = await addSampleNote();
+    await refresh();
+    setScreen({ name: 'note', note });
+  };
+
+  const boardNote = async () => {
+    setSettings(false);
+    const note = await addBoardNote();
     await refresh();
     setScreen({ name: 'note', note });
   };
@@ -333,7 +340,6 @@ function Shell() {
           fromAssistant={screen.fromAssistant}
           stopRequests={screen.stop}
           noteId={screen.noteId}
-          woke={screen.woke}
           onFinish={(note, locked, review, sort) => void captureFinished(note, locked, review, sort)}
         />
       ) : screen.name === 'tutorial' ? (
@@ -380,7 +386,8 @@ function Shell() {
           onDelete={removeNote}
           onSpeak={speakInto}
           onPin={(n) => actions.pin(n)}
-          onOpenTitle={(title) => void openTitle(title)}
+          at={screen.at}
+          onOpenTitle={(title, at) => void openTitle(title, at)}
           hasTitle={hasTitle}
           onArchive={(n) => {
             actions.archive(n, true);
@@ -419,6 +426,7 @@ function Shell() {
           setGuide(true);
         }}
         onSample={() => void sampleNote()}
+        onBoard={() => void boardNote()}
         onTutorial={() => {
           setSettings(false);
           setScreen({ name: 'tutorial' });

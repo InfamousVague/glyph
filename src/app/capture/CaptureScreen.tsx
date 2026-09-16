@@ -28,7 +28,6 @@ import type { CaptureContext, VoiceCommand } from '../plugins/types.ts';
 import { tips, TIP_AFTER_MS, type Tip } from './tips.ts';
 import { SideKeyWaves } from './SideKeyWaves.tsx';
 import { publishVoiceLevel } from './voiceLevel.ts';
-import { takeWakeHandoff, wakeSettled } from './wakeWord.ts';
 import { useSideKeySpot } from './sideKey.ts';
 import { LivePage } from './LivePage.tsx';
 import { clearScratch, saveScratch, type Scratch } from './scratch.ts';
@@ -77,8 +76,6 @@ interface CaptureScreenProps {
   stopRequests?: number;
   /** Talking into this note (its Speak): the words go on its end, whatever memo mode says. */
   noteId?: string;
-  /** Opened by saying "Glyph" while the app was open: the microphone and first words are waiting (capture/wakeWord.ts). */
-  woke?: boolean;
   /** The saved note, or null when the capture was cancelled or nothing was said. */
   /** The take is over. `review` is set when the review after a recording should look at it (review/); `sort` when it was a memo, to be sorted (sort/). */
   onFinish: (note: Note | null, locked: boolean, review?: ReviewHandoff, sort?: Scratch) => void;
@@ -115,9 +112,7 @@ const ENGINE_LABEL: Record<EngineKind, string> = {
   simulated: 'Simulated voice',
 };
 
-export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, woke = false, onFinish }: CaptureScreenProps) {
-  /** Opened by the keyword: what came before it in the first phrase wasn't for Glyph, and is dropped. */
-  const wokeRef = useRef(woke);
+export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, onFinish }: CaptureScreenProps) {
   /** The note being written: a new id, or the note this capture continues. */
   const noteId = useRef(newNoteId());
   /**
@@ -895,9 +890,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       return null;
     }
 
-    // "Glyph": the words before it stay; the rest is the command. Opened by the keyword, they weren't for the note.
-    const before = wokeRef.current ? '' : found!.before;
-    wokeRef.current = false;
+    // "Glyph": the words before it stay; the rest is the command.
+    const before = found!.before;
     const from = text.slice(before.length).trim();
     if (before) keywordSpans.current.push(span);
     else skip();
@@ -935,12 +929,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     async function start() {
       const simulate = new URLSearchParams(window.location.search).has('simulate');
       try {
-        const wake = woke ? takeWakeHandoff() : null;
-        if (wake) {
-          // The listener's microphone, still open, and the words that woke it, heard first.
-          held.push(...wake.preroll);
-          micRef.current = wake.mic;
-        }
         if (isTauri() && !simulate) {
           const handlers: MicrophoneHandlers = {
             onChunk: (samples) => {
@@ -961,27 +949,22 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
               quiet.current?.level(rms, performance.now());
             },
           };
-          if (wake) wake.rebind(handlers);
-          else {
-            const opened = await openMicrophone(handlers);
-            // Called off while the microphone was opening (React's development double start, or the screen closed at
-            // once): this start's microphone goes, rather than living on unowned and feeding the next start's session
-            // a second copy of every chunk, interleaved - a take that plays back choppy at half speed, and that the
-            // voice model hears as nonsense.
-            if (cancelled) {
-              opened.stop();
-              return;
-            }
-            micRef.current = opened;
+          const opened = await openMicrophone(handlers);
+          // Called off while the microphone was opening (React's development double start, or the screen closed at
+          // once): this start's microphone goes, rather than living on unowned and feeding the next start's session
+          // a second copy of every chunk, interleaved - a take that plays back choppy at half speed, and that the
+          // voice model hears as nonsense.
+          if (cancelled) {
+            opened.stop();
+            return;
           }
+          micRef.current = opened;
           const mic = micRef.current;
           if (mic) {
             counts.current.deviceRate = mic.deviceRate;
-            console.info(`[glyph] microphone ${wake ? 'handed over by the keyword' : 'open'} at ${mic.deviceRate} Hz, context ${mic.state()}`);
+            console.info(`[glyph] microphone open at ${mic.deviceRate} Hz, context ${mic.state()}`);
           }
         }
-        // A listener for "Glyph" that was just stopped lets go of the voice model first.
-        await wakeSettled();
         const session = await startCapture({
           onPartial: (text) => {
             if (text) {
@@ -1022,7 +1005,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         });
         if (cancelled) {
           session.cancel();
-          if (!wake) micRef.current?.stop();
+          micRef.current?.stop();
           return;
         }
         sessionRef.current = session;

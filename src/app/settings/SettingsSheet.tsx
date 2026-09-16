@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, FlaskConical, Info, Mic, Puzzle, RefreshCw, Sparkles, SunMoon, Terminal, Type, Vibrate, Waves } from '@glacier/icons';
+import { BookOpen, FlaskConical, Info, Mic, Puzzle, Sparkles, SunMoon, Terminal, Type, Vibrate, Waves } from '@glacier/icons';
 import { gb, modelName, MODELS, useModels } from '../core/ai.ts';
 import { hapticsAvailable, useHapticsPref } from '../core/haptics.ts';
 import { isAndroid } from '../core/platform.ts';
@@ -11,7 +11,7 @@ import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { FormattingPane } from './FormattingPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
 import { usePlugins } from '../plugins/registry.ts';
-import { AboutPane, AnimationsPane, DeveloperPane, FeelPane, RecordingPane, ThemePane, TypePane, UpdatesPane, WhatsNewPane } from './panes.tsx';
+import { AboutPane, AnimationsPane, DeveloperPane, FeelPane, RecordingPane, ThemePane, TypePane } from './panes.tsx';
 import { SettingsScreen, type SettingsSection } from './SettingsScreen.tsx';
 import { TestResultsPane } from './TestResultsPane.tsx';
 import { reportSummary } from '../diag/testReport.ts';
@@ -36,6 +36,8 @@ interface SettingsSheetProps {
   onGuide: (page?: number) => void;
   /** Make the sample note, the one with every mark in it (core/seed.ts), and open it. */
   onSample: () => void;
+  /** Adds the example board (core/boardNote.ts). */
+  onBoard: () => void;
   /** Opens the voice tutorial (tutorial/TutorialScreen.tsx). */
   onTutorial: () => void;
 }
@@ -44,7 +46,7 @@ const SIZE_WORDS: Record<string, string> = { large: 'Large', larger: 'Larger', l
 const FACE_WORDS: Record<string, string> = { inter: 'Inter', noto: 'Noto', plex: 'Plex' };
 const THEME_WORDS: Record<string, string> = { system: 'System', light: 'Light', dark: 'Dark' };
 
-export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onTutorial }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onTutorial }: SettingsSheetProps) {
   const prefs = usePreferences();
   const haptics = useHapticsPref();
   const devMode = useDeveloperMode();
@@ -139,14 +141,6 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onTut
       group: 2,
     },
     {
-      id: 'updates',
-      label: 'Updates',
-      icon: <RefreshCw size={16} />,
-      content: <UpdatesPane updates={updates} />,
-      summary: updatesSummary,
-      group: 3,
-    },
-    {
       id: 'animations',
       label: 'Animations',
       icon: <Waves size={16} />,
@@ -164,14 +158,6 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onTut
       group: 3,
     },
     {
-      id: 'changelog',
-      label: "What's new",
-      icon: <Sparkles size={16} />,
-      content: <WhatsNewPane updates={updates} />,
-      summary: 'Every update, newest first',
-      group: 3,
-    },
-    {
       id: 'about',
       label: 'About',
       icon: <Info size={16} />,
@@ -180,13 +166,14 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onTut
           updates={updates}
           onGuide={onGuide}
           onSample={onSample}
+          onBoard={onBoard}
           onTutorial={onTutorial}
           onCheatSheet={() => setGoTo({ id: 'cheatsheet', nonce: Date.now() })}
-          onWhatsNew={() => setGoTo({ id: 'changelog', nonce: Date.now() })}
           onDeveloper={() => setGoTo({ id: 'developer', nonce: Date.now() })}
         />
       ),
-      summary: updates.version,
+      // The version and where it stands, now that updates live on this page too.
+      summary: `${updates.version} · ${updatesSummary}`,
       group: 3,
     },
     ...(devMode

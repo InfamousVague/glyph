@@ -15,6 +15,8 @@
     "lint:fix": "eslint . --fix",
     "check": "npm run lint && npm run typecheck && npm run test",
     "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build --bundles app,dmg",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "ios:dev": "node scripts/ios-clean.mjs && tauri ios dev",

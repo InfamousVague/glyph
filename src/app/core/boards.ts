@@ -37,12 +37,37 @@ export interface Item {
   line: number;
 }
 
+/** What opens a list item: its marker, and the tick box a to-do has. */
+const LEAD = /^(\s*(?:[-*+]|\d+[.)])\s+)(\[([ xX])\]\s?)?/;
 /**
- * A list item, with its marker, any tick box, and any anchor at the end. The words are lazy so the anchor is read
- * off the end of the line: a caret needs a space before it and the end of the line after it, which leaves `E = mc^2^`
- * and `foo ^2^` as the superscript they are.
+ * The anchor at the end of an item: a caret with whitespace before it (or nothing before it at all, on an item whose
+ * words have not been written yet) and the end of the line after it. That is what leaves `E = mc^2^` and `foo ^2^`
+ * the superscripts they are: a closing caret means the line does not end there.
  */
-const ITEM = /^(\s*(?:[-*+]|\d+[.)])\s+)(?:(\[)([ xX])(\]\s*))?(.*?)(?:\s+\^([a-z0-9][a-z0-9_-]*))?\s*$/;
+const TAIL = /(?:^|\s)\^([a-z0-9][a-z0-9_-]*)\s*$/;
+
+/** A list item pulled apart: what opens it, whether it has a box, its words, and the anchor naming it. */
+interface Parsed {
+  lead: string;
+  done: boolean | null;
+  text: string;
+  id: string | null;
+}
+
+function parse(line: string): Parsed | null {
+  const lead = LEAD.exec(line);
+  if (!lead) return null;
+  const rest = line.slice(lead[0].length);
+  const tail = TAIL.exec(rest);
+  const box = lead[3];
+  return {
+    lead: lead[0],
+    done: box === undefined ? null : box !== ' ',
+    text: (tail ? rest.slice(0, rest.length - tail[0].length) : rest).trim(),
+    id: tail?.[1] ?? null,
+  };
+}
+
 /** An anchor name: lower case, the shape a person can type and read. */
 export const ANCHOR = /^[a-z0-9][a-z0-9_-]*$/;
 /** The fence that opens a board. */
@@ -90,34 +115,30 @@ export function itemsIn(doc: string): Item[] {
 
 /** The item a line is, if it is a list item with an anchor. */
 export function itemOnLine(line: string): Item | null {
-  const found = ITEM.exec(line);
-  const id = found?.[6];
-  if (!found || !id) return null;
-  const box = found[3];
-  return { id, text: (found[5] ?? '').trim(), done: box === undefined ? null : box !== ' ', line: 0 };
+  const found = parse(line);
+  return found?.id ? { id: found.id, text: found.text, done: found.done, line: 0 } : null;
 }
 
 /** Whether a line is a list item at all: what can be given an anchor and put on a board. */
 export function isItemLine(line: string): boolean {
-  const found = ITEM.exec(line);
-  return Boolean(found && ((found[5] ?? '').trim() || found[6]));
+  const found = parse(line);
+  return Boolean(found && (found.text || found.id));
 }
 
 /** The words of a list item, box and anchor off, or null where the line is not one. */
 export function itemWords(line: string): string | null {
-  const found = ITEM.exec(line);
-  return found ? (found[5] ?? '').trim() : null;
+  return parse(line)?.text ?? null;
 }
 
-/** That line with its box ticked or cleared. An item with no box is left alone: there is nothing to tick. */
+/**
+ * That line with its box ticked or cleared: the one character between the brackets, and nothing else about the line
+ * touched. An item with no box is left alone, since there is nothing to tick and writing a box is the person's to do.
+ */
 export function setItemDone(line: string, done: boolean): string {
-  const found = ITEM.exec(line);
+  const found = LEAD.exec(line);
   if (!found?.[2]) return line;
-  return line.replace(
-    ITEM,
-    (_all, lead: string, open: string, _state: string, close: string, text: string, anchor?: string) =>
-      `${lead}${open}${done ? 'x' : ' '}${close}${text}${anchor ? ` ^${anchor}` : ''}`,
-  );
+  const at = found[0].indexOf('[');
+  return `${line.slice(0, at + 1)}${done ? 'x' : ' '}${line.slice(at + 2)}`;
 }
 
 /** That line given an anchor, or left as it is when it has one already. */
@@ -222,19 +243,31 @@ export function columnFor(columns: readonly BoardColumn[], item: Item): number {
   return columnOf(columns, item.id);
 }
 
-/** An anchor made from an item's words: short, lower case, and not one the note already uses. */
+/**
+ * Words that say nothing about which item this is: an anchor made of "add-ability-to" names two different items
+ * the same way, and is the name someone then has to point at.
+ */
+const FILLER = new Set(
+  'a an the to of in on at by for from with into onto and or but nor so is are was were be been being it its this that these those as up out'.split(
+    ' ',
+  ),
+);
+
+/**
+ * An anchor made from an item's words: its first three words that carry meaning, lower case, and not one the note
+ * already uses. "Add ability to auto-tag notes" is `add-ability-auto`, not `add-ability-to`; words that are all
+ * filler ("To do") keep them rather than come out empty.
+ */
 export function anchorFor(text: string, taken: readonly string[]): string {
-  const base =
-    text
-      // A link is named by its words, not by where it points: [notion](https://…) anchors as "notion", never as a URL.
-      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .split('-')
-      .filter(Boolean)
-      .slice(0, 3)
-      .join('-') || 'item';
+  const words = text
+    // A link is named by its words, not by where it points: [notion](https://…) anchors as "notion", never as a URL.
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .split('-')
+    .filter(Boolean);
+  const telling = words.filter((word) => !FILLER.has(word));
+  const base = (telling.length ? telling : words).slice(0, 3).join('-') || 'item';
   if (!taken.includes(base)) return base;
   for (let n = 2; ; n += 1) {
     const tried = `${base}-${n}`;
@@ -350,7 +383,7 @@ export function boardFrom(doc: string, columns: readonly string[] = NEW_COLUMNS)
       taken.push(id);
       lines[index] = withAnchor(text, id);
     }
-    cards.push({ id, done: (already?.done ?? boxOf(text)) === true });
+    cards.push({ id, done: parse(text)?.done === true });
   });
   if (!cards.length) return null;
   const named = columns.length ? [...columns] : [...NEW_COLUMNS];
@@ -366,13 +399,6 @@ export function boardFrom(doc: string, columns: readonly string[] = NEW_COLUMNS)
   const blank = title && (lines[1] ?? '').trim() === '';
   lines.splice(blank ? 2 : title, 0, ...(title && !blank ? ['', ...fence] : fence));
   return { doc: lines.join('\n'), cards: cards.length, done: cards.filter((card) => card.done).length };
-}
-
-/** Whether a line's box is ticked, or null where it has none. */
-function boxOf(line: string): boolean | null {
-  const found = ITEM.exec(line);
-  const box = found?.[3];
-  return box === undefined ? null : box !== ' ';
 }
 
 /** Every line inside a fenced block, counting from 1: what is code and not markdown. */
@@ -447,22 +473,28 @@ export interface CardMade {
 }
 
 /**
- * A new card in column `column` of the board whose fence opens on `open` (Matt: "make the UI / UX of these boards
- * friendlier on mobile"): typing markdown to add one is not something to do on a phone, so the board writes the
- * line itself.
+ * A new card in column `column` of the board whose fence opens on `open`, carrying `words` (Matt: "make the UI / UX
+ * of these boards friendlier on mobile", and "a button on each board to add an item, it should add the item to the
+ * list the board is derived from"): typing markdown to add one is not something to do on a phone, so the board
+ * writes the line itself.
+ *
+ * The words come first and the line is made with them, so the anchor is named after what the item says from the
+ * start. A card written empty and named later would be `^item`, `^item-2`, `^item-3` for as long as nobody renamed
+ * it, and those are the names a person points at. No words, no card.
  *
  * The item goes in under the last item the board already names, so a board's items stay together, and under the
- * fence when it names none yet. It is written as a to-do, since a column is a place work waits in; the words are
- * left empty for the caret, which is what the editor puts there next.
+ * fence when it names none yet. It is written as a to-do, since a column is a place work waits in. The card goes in
+ * at `index` in its column: the top by default, under the field it was typed into.
  */
-export function newCard(doc: string, open: number, column: number, words = ''): CardMade | null {
+export function newCard(doc: string, open: number, column: number, words: string, index = 0): CardMade | null {
+  const said = words.replace(/\s+/g, ' ').trim();
   const board = boardAt(doc, open);
-  if (!board || !board.columns.length || column < 0 || column >= board.columns.length) return null;
+  if (!said || !board || !board.columns.length || column < 0 || column >= board.columns.length) return null;
   const named = new Set(board.columns.flatMap((held) => held.cards));
   const taken = itemsIn(doc);
   const last = taken.filter((item) => named.has(item.id) && item.line > board.to).pop();
   const id = anchorFor(
-    words,
+    said,
     taken.map((item) => item.id),
   );
   // Written at the indent of the item it follows, so a card added under a nested list stays in that list.
@@ -471,7 +503,7 @@ export function newCard(doc: string, open: number, column: number, words = ''): 
   return {
     id,
     at: last ? last.line + 1 : board.to + 1,
-    text: `${indent}- [ ] ${words}`.trimEnd() + ` ^${id}`,
-    fence: { from: board.from, to: board.to, body: writeBoard(putCard(board.columns, id, column)) },
+    text: `${indent}- [ ] ${said} ^${id}`,
+    fence: { from: board.from, to: board.to, body: writeBoard(putCardAt(board.columns, id, column, index)) },
   };
 }

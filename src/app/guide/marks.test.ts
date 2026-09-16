@@ -23,6 +23,21 @@ describe('the guide’s table of marks', () => {
     expect(new Set(rows().map((row) => row.name)).size).toBe(rows().length);
   });
 
+  it('gives every mark an icon, which is what both pages lead the row with', () => {
+    for (const row of rows()) expect(row.icon, row.name).toBeTruthy();
+  });
+
+  it('teaches the board: a name for an item, a pointer at it, and the fence itself', () => {
+    const symbols = rows().map((row) => row.symbol);
+    for (const mark of ['^', '[[#^ ]]', '```board']) expect(symbols, mark).toContain(mark);
+    const board = rows().find((row) => row.looks === 'board');
+    // The example is a working board: the fence, and the items its columns name (docs/BOARDS.md).
+    expect(board?.typed).toContain('```board');
+    expect(board?.typed).toContain('^ship-page');
+    expect(rows().find((row) => row.looks === 'anchor')?.typed).toContain('- [ ] Ship the pricing page ^ship-page');
+    expect(rows().find((row) => row.looks === 'itemRef')?.typed).toContain('[[#^ask-sam]]');
+  });
+
   it('shows each mark a switched-on plugin adds, with the words it would say', () => {
     const formats = BUILT_IN.flatMap((plugin) => plugin.formats ?? []);
     const own = markGroups().find((group) => group.title === 'Glyph’s own');
