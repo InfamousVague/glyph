@@ -11,6 +11,7 @@ import { inlineImages } from './images.ts';
 import { doneSync } from './doneSync.ts';
 import { linkedRows, type LinkMenus } from './linkedRows.ts';
 import { shortLinks } from './links.ts';
+import { extendedMarkdown } from './extended.ts';
 import { markNotes } from './markNotes.ts';
 import { drawnTables } from './tables.ts';
 import { swipeItemAction, swipeItemTheme, type SwipeAction } from './swipeItems.ts';
@@ -192,6 +193,8 @@ export function Editor({
         markNotes(formatList),
         syntaxHighlighting(glyphHighlight),
         glyphLines,
+        // Superscript, subscript and GitHub callouts, drawn as what they are (editor/extended.ts).
+        extendedMarkdown(),
         inlineImages((message) => onImageErrorRef.current?.(message)),
         shortLinks(),
         linkedRows(linkMenus ? { say: (message) => linkMenusRef.current?.say(message) } : null),

@@ -109,6 +109,26 @@ export function Drawn({ row }: { row: MarkRow }) {
           <span className={styles.panel}>{row.note}</span>
         </span>
       );
+    case 'sup':
+      return (
+        <span className={styles.example}>
+          the 2<sup>{row.words}</sup> of June
+        </span>
+      );
+    case 'sub':
+      return (
+        <span className={styles.example}>
+          H<sub>{row.words}</sub>O
+        </span>
+      );
+    // A callout: the quote's band down its side, with the kind at the top, as the note draws it.
+    case 'callout':
+      return (
+        <span className={`${styles.example} ${styles.callout}`}>
+          <span className={styles.calloutKind}>{row.note}</span>
+          {row.words}
+        </span>
+      );
     case 'rule':
       return <span className={`${styles.example} ${styles.rule}`} aria-label="a line across the page" />;
     case 'table':

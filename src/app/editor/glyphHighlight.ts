@@ -38,6 +38,8 @@ export const glyphHighlight = HighlightStyle.define([
   { tag: tags.emphasis, class: styles.em },
   { tag: tags.strikethrough, class: styles.strike },
   { tag: tags.monospace, class: styles.code },
+  // `x^2^` and `H~2~O` are both `special(content)`, so the highlighter cannot tell one from the other: they are
+  // drawn by node name instead (editor/extended.ts).
 
   { tag: tags.link, class: styles.link },
   { tag: tags.url, class: styles.url },

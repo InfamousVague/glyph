@@ -261,3 +261,19 @@
   font-size: 0.86em;
   line-height: var(--glacier-leading-md);
 }
+
+/* A callout, as the note draws it (editor/extended.ts): a band down the side and its kind above the words. */
+.callout {
+  display: block;
+  padding-inline-start: 0.6em;
+  border-inline-start: 3px solid color-mix(in oklch, currentColor 35%, transparent);
+  background: color-mix(in oklch, currentColor 4%, transparent);
+}
+
+.calloutKind {
+  display: block;
+  font-size: var(--glacier-font-size-xs);
+  letter-spacing: 0.08em;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-muted);
+}

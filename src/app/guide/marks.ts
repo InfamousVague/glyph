@@ -35,7 +35,10 @@ export type Looks =
   | 'fence'
   | 'wisp'
   | 'style'
-  | 'note';
+  | 'note'
+  | 'sup'
+  | 'sub'
+  | 'callout';
 
 export interface MarkRow {
   /** The mark itself, as a person would type it: `**`, `- [ ]`. */
@@ -90,6 +93,14 @@ const OWN: MarkGroup[] = [
     ],
   },
   {
+    title: 'Raised and lowered',
+    lead: 'Around one part of a word, the way the rest of markdown writes them.',
+    rows: [
+      { symbol: '^ ^', name: 'Raised', typed: 'the 2^nd^ of June', words: 'nd', looks: 'sup' },
+      { symbol: '~ ~', name: 'Lowered', typed: 'H~2~O', words: '2', looks: 'sub' },
+    ],
+  },
+  {
     title: 'Blocks',
     lead: 'A few lines that work together.',
     rows: [
@@ -103,6 +114,14 @@ const OWN: MarkGroup[] = [
       },
       { symbol: '![ ]( )', name: 'A picture', typed: '![A cassette](image/tape.jpg)', words: 'A cassette', looks: 'picture' },
       { symbol: '```', name: 'A block of code', typed: '```js\nconst note = "hello";\n```', words: 'const note = "hello";', looks: 'fence' },
+      {
+        symbol: '[! ]',
+        name: 'A callout',
+        typed: '> [!NOTE]\n> The deposit comes back in full.',
+        words: 'The deposit comes back in full.',
+        looks: 'callout',
+        note: 'NOTE',
+      },
     ],
   },
 ];
