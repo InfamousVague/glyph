@@ -91,8 +91,3 @@ export function Bin({ className }: IconProps) {
 export function Workspace({ className }: IconProps) {
   return icon(className, 'M3.5 6.5a1 1 0 0 1 1-1h5l2 2.5h8a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z');
 }
-
-/** A board: three columns, the first two with a card in them. Turning a list of to-dos into one. */
-export function Board({ className }: IconProps) {
-  return icon(className, 'M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5');
-}

@@ -21,7 +21,6 @@ import { wispArrivals } from './wispArrivals.ts';
 import { noteView, type NoteView } from './viewMode.ts';
 import { findExtension } from './find.ts';
 import { clips, tapeSource } from './clips.ts';
-import { drawnBoards } from './boards.ts';
 import { bookmarkRibbon } from './bookmarkLine.ts';
 import { wispRipples, type RippleSource } from './wispRipples.ts';
 import { plugins } from '../plugins/registry.ts';
@@ -194,8 +193,6 @@ export function Editor({
         shortLinks(),
         linkedRows(linkMenus ? { say: (message) => linkMenusRef.current?.say(message) } : null),
         drawnTables(),
-        // Boards drawn from a ```board fence, their cards the note's own tasks (editor/boards.ts).
-        drawnBoards(),
         swipeItemAction({ action: () => swipeActionRef.current?.() ?? null }),
         lineSuggestions({ suggest: (body) => suggestRef.current?.(body) ?? [] }),
         // A to-do whose task reads as done gets its box ticked (doneSync.ts).

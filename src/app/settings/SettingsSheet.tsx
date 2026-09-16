@@ -35,8 +35,6 @@ interface SettingsSheetProps {
   onGuide: (page?: number) => void;
   /** Make the sample note, the one with every mark in it (core/seed.ts), and open it. */
   onSample: () => void;
-  /** Adds the example board (core/boardNote.ts). */
-  onBoard: () => void;
   /** Opens the voice tutorial (tutorial/TutorialScreen.tsx). */
   onTutorial: () => void;
 }
@@ -45,7 +43,7 @@ const SIZE_WORDS: Record<string, string> = { large: 'Large', larger: 'Larger', l
 const FACE_WORDS: Record<string, string> = { inter: 'Inter', noto: 'Noto', plex: 'Plex' };
 const THEME_WORDS: Record<string, string> = { system: 'System', light: 'Light', dark: 'Dark' };
 
-export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onTutorial }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onTutorial }: SettingsSheetProps) {
   const prefs = usePreferences();
   const haptics = useHapticsPref();
   const devMode = useDeveloperMode();
@@ -164,7 +162,6 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
           updates={updates}
           onGuide={onGuide}
           onSample={onSample}
-          onBoard={onBoard}
           onTutorial={onTutorial}
           onWhatsNew={() => setGoTo({ id: 'changelog', nonce: Date.now() })}
           onDeveloper={() => setGoTo({ id: 'developer', nonce: Date.now() })}

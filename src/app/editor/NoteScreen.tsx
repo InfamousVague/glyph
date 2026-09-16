@@ -7,7 +7,6 @@ import { adoptImagePath, pickImage } from '../core/images.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { placeOf, readBookmark, scrollToPlace, useNotePlace, writeBookmark } from './notePlace.ts';
 import { markedWords, showBookmark } from './bookmarkLine.ts';
-import { boardFrom } from '../core/boards.ts';
 import { hasClips, setTapeId, tapeId } from '../core/clips.ts';
 import { useNoteZoom } from './pinchZoom.ts';
 import { ContextMenu } from './ContextMenu.tsx';
@@ -369,20 +368,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
     showMark(mark.pos);
     fireNativeHaptic('selection');
   };
-  /**
-   * The note's to-dos laid out as a board (core/boards.ts): each one gets a name at the end, and a fence of columns
-   * goes in under the title, ticked tasks in Done. One change, so one Undo puts the note back as it was.
-   */
-  const makeBoard = () => {
-    if (!view) return;
-    const made = boardFrom(view.state.doc.toString());
-    setSettingsOpen(false);
-    if (!made) return;
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: made.doc }, userEvent: 'input.board' });
-    fireNativeHaptic('success');
-    toast({ message: `${made.cards} ${made.cards === 1 ? 'to-do is' : 'to-dos are'} now cards${made.done ? `, ${made.done} in Done` : ''}.` });
-  };
-
   // Two fingers pinch the note's text larger or smaller (editor/pinchZoom.ts).
   useNoteZoom(page, view, shown === 'raw');
 
@@ -625,7 +610,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
               }
             : undefined
         }
-        onMakeBoard={shown === 'raw' && settingsOpen && boardFrom(view?.state.doc.toString() ?? body.current) ? makeBoard : undefined}
         onPin={() => {
           flush();
           onPin({ ...note, starred: pinned });

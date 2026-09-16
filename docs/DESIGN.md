@@ -2257,24 +2257,18 @@ way to see what 1.4.1-3 changed, or what they already had.
   kept for reading with no signal, and the release running is marked. It is words, not code: unsigned, fetched
   plainly, while the bundles it describes stay signed and checked. The web version reads the file beside its own page.
 
-## Boards, written in markdown (2026-09-16)
+## Boards, written in markdown, and taken out again (2026-09-16)
 
-Matt: "define and create a markdown standard we use to create kanban boards and task management boards entirely
-within markdown, linking the tasks in the board to a task on the page. Make the UI cleanly render this and make an
-example note with this functionality." The standard is docs/BOARDS.md; it is two pieces of ordinary markdown.
+Built, shipped in 1.4.1-7 to 1.4.2-1, then removed the same night: "for now the board view is too much remove this
+code". The standard was two pieces of ordinary markdown - a to-do carrying an anchor (`- [ ] Ship it ^ship-page`) and
+a fenced ```board block whose lines were the columns - with `core/boards.ts` as the only reader and writer of the
+syntax, `editor/boards.ts` drawing the fence as columns of cards, an example note, More > Make a board to turn a list
+of to-dos into one, and Copy board / To board in the press-and-hold menu.
 
-- **A task carries an anchor**: `- [ ] Ship the pricing page ^ship-page`, the block id other tools write the same
-  way. **A fenced ```board block lays out the columns**: `To do: ship-page, email-list`, one line each. A renderer
-  that knows nothing of boards shows a code block and a task list, both readable; nothing is stored beside the note.
-- **A card is its task** (`core/boards.ts` reads and writes the whole syntax; `editor/boards.ts` draws it). The
-  card's tick box is the task's box, its words are the task's words, and tapping them puts the caret on that line, so
-  the board is a way around the note. The chevrons move a card and rewrite the fence. A column called Done means
-  done: ticking a card moves it there, and a ticked task is drawn there wherever the fence has it.
-- **The fence stays the truth.** Tapping it puts the caret inside and the drawing steps aside, the way a table does
-  (`editor/tables.ts`), so columns are renamed, added and reordered as text. A card whose task is gone is drawn with
-  its anchor, so nothing disappears quietly; a task with no card is an ordinary to-do.
-- **The example note** (`core/boardNote.ts`, Settings > About > Add the example board) is a working board with two
-  fences in one note, and says in its own words how to change it.
+What it cost is worth remembering, because the parts that stayed came out of it: a card that says its task's words
+wants the markdown taken off them (a to-do ending in a `[notion](…)` link read as a URL, and one long task filled the
+screen), and a block widget cannot be dragged over, so anything drawn in place of text needs its own way to be
+copied. It is all in git at 1.4.2; `git revert` of the removal brings it back whole.
 
 ## The board again, and the robot moves house (2026-09-16)
 
@@ -2325,8 +2319,5 @@ image; it now carries the rest of what a person expects of a line, and two of Gl
 
 - **Duplicate, Delete, Move up, Move down** (`editor/format.ts`). With words selected they work on the selection;
   with none, on the line the caret is on, which is what a finger has usually just tapped.
-- **To board** (`core/boards.ts` `addToBoard`, docs/BOARDS.md). On a to-do in a note that holds a board, this gives
-  the line an anchor made from its own words and adds the card to the nearest board above, in Done when the task is
-  already ticked. Nothing shows on a line that is not a to-do, in a note with no board, or on a task already on one.
 - **Send** is the plugin's own item action, the one a swipe on the item does (a Notion board, a GitHub issue), so the
   same thing can be done without knowing about the swipe.

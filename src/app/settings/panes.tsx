@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, FileText, GraduationCap, LayoutGrid, Sparkles, Terminal } from '@glacier/icons';
+import { BookOpen, FileText, GraduationCap, Sparkles, Terminal } from '@glacier/icons';
 import { SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
 import { setPreferences, usePreferences, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
@@ -87,52 +87,55 @@ export function ThemePane() {
   const prefs = usePreferences();
   return (
     <>
-    <PaneSection title="Page" description="Ink on paper, or paper on ink. System follows the phone.">
-      <SettingRow
-        label="Theme"
-        layout="stacked"
-        control={
-          <SegmentedControl
-            aria-label="Theme"
-            fullWidth
-            size="sm"
-            options={THEMES}
-            value={prefs.theme}
-            onValueChange={(value) => setPreferences({ theme: value as ThemePref })}
-          />
-        }
-      />
-    </PaneSection>
-    <PaneSection title="Code" description="The colours of code in a code block, one set for the light page and one for the dark. Ink keeps code in the page's own ink.">
-      <SettingRow
-        label="On the light page"
-        layout="stacked"
-        control={
-          <SegmentedControl
-            aria-label="Code colours on the light page"
-            fullWidth
-            size="sm"
-            options={CODE_THEMES_LIGHT}
-            value={prefs.codeLight}
-            onValueChange={(value) => setPreferences({ codeLight: value as CodeThemeLight, codeChosen: true })}
-          />
-        }
-      />
-      <SettingRow
-        label="On the dark page"
-        layout="stacked"
-        control={
-          <SegmentedControl
-            aria-label="Code colours on the dark page"
-            fullWidth
-            size="sm"
-            options={CODE_THEMES_DARK}
-            value={prefs.codeDark}
-            onValueChange={(value) => setPreferences({ codeDark: value as CodeThemeDark, codeChosen: true })}
-          />
-        }
-      />
-    </PaneSection>
+      <PaneSection title="Page" description="Ink on paper, or paper on ink. System follows the phone.">
+        <SettingRow
+          label="Theme"
+          layout="stacked"
+          control={
+            <SegmentedControl
+              aria-label="Theme"
+              fullWidth
+              size="sm"
+              options={THEMES}
+              value={prefs.theme}
+              onValueChange={(value) => setPreferences({ theme: value as ThemePref })}
+            />
+          }
+        />
+      </PaneSection>
+      <PaneSection
+        title="Code"
+        description="The colours of code in a code block, one set for the light page and one for the dark. Ink keeps code in the page's own ink."
+      >
+        <SettingRow
+          label="On the light page"
+          layout="stacked"
+          control={
+            <SegmentedControl
+              aria-label="Code colours on the light page"
+              fullWidth
+              size="sm"
+              options={CODE_THEMES_LIGHT}
+              value={prefs.codeLight}
+              onValueChange={(value) => setPreferences({ codeLight: value as CodeThemeLight, codeChosen: true })}
+            />
+          }
+        />
+        <SettingRow
+          label="On the dark page"
+          layout="stacked"
+          control={
+            <SegmentedControl
+              aria-label="Code colours on the dark page"
+              fullWidth
+              size="sm"
+              options={CODE_THEMES_DARK}
+              value={prefs.codeDark}
+              onValueChange={(value) => setPreferences({ codeDark: value as CodeThemeDark, codeChosen: true })}
+            />
+          }
+        />
+      </PaneSection>
     </>
   );
 }
@@ -155,7 +158,9 @@ export function RecordingPane() {
         <SettingRow
           label="Commands start with “Glyph”"
           hint="Say “Glyph, add buy milk to HelloTrade” and it asks before it does it. Off, a command can be said without it, and still asks."
-          control={<Switch aria-label="Commands start with Glyph" checked={prefs.commandWord} onCheckedChange={(commandWord) => setPreferences({ commandWord })} />}
+          control={
+            <Switch aria-label="Commands start with Glyph" checked={prefs.commandWord} onCheckedChange={(commandWord) => setPreferences({ commandWord })} />
+          }
         />
         <SettingRow
           label="Listen for “Glyph” while it's open"
@@ -368,7 +373,10 @@ export function WhatsNewPane({ updates }: { updates: Updates }) {
   if (!releases.length) {
     return (
       <PaneSection title="What's new">
-        <SettingRow label={reading ? 'Reading the updates…' : 'No updates to show yet.'} hint={reading ? undefined : 'They are read from where Glyph takes its updates.'} />
+        <SettingRow
+          label={reading ? 'Reading the updates…' : 'No updates to show yet.'}
+          hint={reading ? undefined : 'They are read from where Glyph takes its updates.'}
+        />
       </PaneSection>
     );
   }
@@ -377,10 +385,15 @@ export function WhatsNewPane({ updates }: { updates: Updates }) {
     <>
       {releases.map((release) => (
         <PaneSection key={release.build} title={release.build === running ? `${release.version} · you're on this one` : release.version}>
-          <SettingRow label={releaseWhen(release)} hint={[release.notes, release.apk ? `Installed as Glyph ${release.apk}.` : null].filter(Boolean).join(' ')} />
+          <SettingRow
+            label={releaseWhen(release)}
+            hint={[release.notes, release.apk ? `Installed as Glyph ${release.apk}.` : null].filter(Boolean).join(' ')}
+          />
         </PaneSection>
       ))}
-      <SettingsFootnote>Every update Glyph has published, newest first. Updates arrive over the air; a version with an app number needs installing.</SettingsFootnote>
+      <SettingsFootnote>
+        Every update Glyph has published, newest first. Updates arrive over the air; a version with an app number needs installing.
+      </SettingsFootnote>
     </>
   );
 }
@@ -389,7 +402,6 @@ export function AboutPane({
   updates,
   onGuide,
   onSample,
-  onBoard,
   onTutorial,
   onWhatsNew,
   onDeveloper,
@@ -397,7 +409,6 @@ export function AboutPane({
   updates: Updates;
   onGuide: () => void;
   onSample: () => void;
-  onBoard: () => void;
   onTutorial: () => void;
   onWhatsNew: () => void;
   onDeveloper: () => void;
@@ -422,16 +433,30 @@ export function AboutPane({
         <PaneHero title={updates.version} meta={buildLine(updates)} onPress={knock} />
       </PaneSection>
       <PaneSection title="Help">
-        <SettingRow icon={<Sparkles size={20} />} label="What's new" hint="Every update Glyph has published, and which one you're running." onPress={() => onWhatsNew()} />
-        <SettingRow icon={<GraduationCap size={20} />} label="Voice tutorial" hint="Every voice cue and command, said out loud and ticked off, then a few tips and tricks. A few minutes." onPress={() => onTutorial()} />
-        <SettingRow icon={<BookOpen size={20} />} label="How to talk to Glyph" hint="The side key, and the cues that make markdown." onPress={() => onGuide()} />
         <SettingRow
-          icon={<LayoutGrid size={20} />}
-          label="Add the example board"
-          hint="A working kanban board written in markdown: columns, cards, and the tasks they point at."
-          onPress={onBoard}
+          icon={<Sparkles size={20} />}
+          label="What's new"
+          hint="Every update Glyph has published, and which one you're running."
+          onPress={() => onWhatsNew()}
         />
-        <SettingRow icon={<FileText size={20} />} label="Add the sample note" hint="One note with every mark in it: headings, lists, a table, a picture, a secret in smoke." onPress={onSample} />
+        <SettingRow
+          icon={<GraduationCap size={20} />}
+          label="Voice tutorial"
+          hint="Every voice cue and command, said out loud and ticked off, then a few tips and tricks. A few minutes."
+          onPress={() => onTutorial()}
+        />
+        <SettingRow
+          icon={<BookOpen size={20} />}
+          label="How to talk to Glyph"
+          hint="The side key, and the cues that make markdown."
+          onPress={() => onGuide()}
+        />
+        <SettingRow
+          icon={<FileText size={20} />}
+          label="Add the sample note"
+          hint="One note with every mark in it: headings, lists, a table, a picture, a secret in smoke."
+          onPress={onSample}
+        />
       </PaneSection>
       <SettingsFootnote>Glyph keeps your notes, recordings and models on the phone. Nothing is sent anywhere.</SettingsFootnote>
     </>
