@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { TextSearch } from '@glacier/icons';
+import { ListChecks, TextSearch } from '@glacier/icons';
 import { useBack } from '../core/back.ts';
 import { ArchiveBox, ArrowLeft, Bin, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
+import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
 import { SheetIcon } from '../plugins/kit.tsx';
 import { plugins, usePlugins } from '../plugins/registry.ts';
@@ -68,7 +69,7 @@ export function NoteSettings({
 }: NoteSettingsProps) {
   // Re-rendered when a plugin is switched, so its rows come and go.
   usePlugins();
-  const [page, setPage] = useState<NoteLink | 'workspace' | null>(null);
+  const [page, setPage] = useState<NoteLink | 'workspace' | 'cheatsheet' | null>(null);
   // Re-rendered as the note is filed, so the row says where it is.
   const spaces = useWorkspaces();
   const filed = workspaceOf(noteId);
@@ -98,22 +99,17 @@ export function NoteSettings({
   if (!open) return null;
 
   if (page) {
-    const Picker = page === 'workspace' ? WorkspacePicker : page.Picker;
+    // The cheat sheet is read here rather than picked from, so it is shown whole instead of through a plugin's picker.
+    const Picker = page === 'cheatsheet' ? null : page === 'workspace' ? WorkspacePicker : page.Picker;
+    const label = page === 'cheatsheet' ? 'Formatting cheat sheet' : page === 'workspace' ? 'Workspace' : page.label;
     return (
       <div className={styles.scrim} onClick={onClose}>
-        <section
-          ref={panel}
-          className={styles.sheet}
-          role="dialog"
-          aria-modal="true"
-          aria-label={page === 'workspace' ? 'Workspace' : page.label}
-          onClick={(e) => e.stopPropagation()}
-        >
+        <section ref={panel} className={styles.sheet} role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()}>
           <span className={styles.grip} aria-hidden="true" {...drag} />
           <button type="button" className={styles.back} onClick={() => setPage(null)}>
             <ArrowLeft /> {title || 'This note'}
           </button>
-          <Picker noteId={noteId} onDone={() => setPage(null)} />
+          {Picker ? <Picker noteId={noteId} onDone={() => setPage(null)} /> : <CheatSheet />}
         </section>
       </div>
     );
@@ -266,6 +262,20 @@ export function NoteSettings({
             </div>
           </>
         ) : null}
+
+        {/* Matt: "i want the glossary / lexicon / cheat sheet added for all formatting rules in the help section of the more menu". */}
+        <p className={styles.heading}>Help</p>
+        <div className={styles.group}>
+          <button type="button" className={styles.row} onClick={() => setPage('cheatsheet')}>
+            <span className={styles.icon} aria-hidden="true">
+              <ListChecks size={18} strokeWidth={2.2} />
+            </span>
+            <span className={styles.label}>
+              Formatting cheat sheet
+              <span className={styles.hint}>Every mark you can type, and every cue you can say.</span>
+            </span>
+          </button>
+        </div>
 
         <div className={styles.group}>
           <button type="button" className={`${styles.row} ${styles.danger}`} onClick={onDelete}>

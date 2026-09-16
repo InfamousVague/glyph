@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlaskConical, Info, Mic, Puzzle, RefreshCw, Sparkles, SunMoon, Terminal, Type, Vibrate } from '@glacier/icons';
+import { BookOpen, FlaskConical, Info, Mic, Puzzle, RefreshCw, Sparkles, SunMoon, Terminal, Type, Vibrate } from '@glacier/icons';
 import { gb, modelName, MODELS, useModels } from '../core/ai.ts';
 import { hapticsAvailable, useHapticsPref } from '../core/haptics.ts';
 import { isAndroid } from '../core/platform.ts';
@@ -7,6 +7,7 @@ import type { Updates } from '../core/ota.ts';
 import { usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { useDeveloperMode } from './developerMode.ts';
+import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { FormattingPane } from './FormattingPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
 import { usePlugins } from '../plugins/registry.ts';
@@ -146,6 +147,14 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onTut
       group: 3,
     },
     {
+      id: 'cheatsheet',
+      label: 'Cheat sheet',
+      icon: <BookOpen size={16} />,
+      content: <CheatSheet />,
+      summary: 'Every mark and every cue',
+      group: 3,
+    },
+    {
       id: 'changelog',
       label: "What's new",
       icon: <Sparkles size={16} />,
@@ -163,6 +172,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onTut
           onGuide={onGuide}
           onSample={onSample}
           onTutorial={onTutorial}
+          onCheatSheet={() => setGoTo({ id: 'cheatsheet', nonce: Date.now() })}
           onWhatsNew={() => setGoTo({ id: 'changelog', nonce: Date.now() })}
           onDeveloper={() => setGoTo({ id: 'developer', nonce: Date.now() })}
         />

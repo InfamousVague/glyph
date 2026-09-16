@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, FileText, GraduationCap, Sparkles, Terminal } from '@glacier/icons';
+import { BookOpen, FileText, GraduationCap, ListChecks, Sparkles, Terminal } from '@glacier/icons';
 import { SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
 import { setPreferences, usePreferences, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
@@ -403,6 +403,7 @@ export function AboutPane({
   onGuide,
   onSample,
   onTutorial,
+  onCheatSheet,
   onWhatsNew,
   onDeveloper,
 }: {
@@ -410,6 +411,7 @@ export function AboutPane({
   onGuide: () => void;
   onSample: () => void;
   onTutorial: () => void;
+  onCheatSheet: () => void;
   onWhatsNew: () => void;
   onDeveloper: () => void;
 }) {
@@ -450,6 +452,12 @@ export function AboutPane({
           label="How to talk to Glyph"
           hint="The side key, and the cues that make markdown."
           onPress={() => onGuide()}
+        />
+        <SettingRow
+          icon={<ListChecks size={20} />}
+          label="Formatting cheat sheet"
+          hint="Every mark you can type and every cue you can say, in one page to look things up in."
+          onPress={() => onCheatSheet()}
         />
         <SettingRow
           icon={<FileText size={20} />}

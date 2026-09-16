@@ -1,0 +1,81 @@
+/*
+ * The cheat sheet (CheatSheet.tsx): the spoken rules under the table of marks,
+ * in the same ink and paper. A rule is its words, then the phrase to say,
+ * which is set the way a note sets a quote so the eye finds it at a glance.
+ */
+
+.sheet {
+  padding-block-end: var(--glacier-space-8);
+}
+
+.lead {
+  margin: 0 0 var(--glacier-space-5);
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+  color: var(--glacier-text-muted);
+}
+
+.part + .part {
+  margin-block-start: var(--glacier-space-8);
+}
+
+.partTitle {
+  margin: 0 0 var(--glacier-space-2);
+  font-size: var(--glacier-font-size-lg);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.group + .group {
+  margin-block-start: var(--glacier-space-6);
+}
+
+.groupTitle {
+  margin: 0 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-subtle);
+}
+
+.rule {
+  padding-block: var(--glacier-space-3);
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+.name {
+  margin: 0;
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.teach {
+  margin: var(--glacier-space-1) 0 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+  color: var(--glacier-text-muted);
+}
+
+/* The words to say: a quiet block the eye can pick out, the way the note draws a quote. */
+.say {
+  margin: var(--glacier-space-2) 0 0;
+  padding-inline-start: var(--glacier-space-3);
+  border-inline-start: 2px solid var(--glacier-border-subtle);
+  display: grid;
+  gap: var(--glacier-space-1);
+}
+
+.phrase {
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+}
+
+/* A rule with nothing to say is advice: no quote block, and its words carry it. */
+.tip .name::after {
+  content: ' · tip';
+  font-weight: var(--glacier-font-weight-regular);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: var(--glacier-font-size-xs);
+  color: var(--glacier-text-subtle);
+}
