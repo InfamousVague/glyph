@@ -33,13 +33,33 @@
   }
 }
 
+/*
+ * The handle: a band the width of the sheet answers the finger (editor/sheetDrag.ts), and the bar itself is drawn
+ * inside it. The bar is its own shape rather than this element's background, because a full radius on the band drew
+ * the bar as an ellipse (Matt: "handle on drawers are ovals instead of rectangles with rounded caps").
+ */
 .grip {
   display: block;
-  inline-size: 2.5rem;
+  inline-size: 100%;
+  padding-block: var(--glacier-space-3);
+  margin-block-end: var(--glacier-space-1);
+  touch-action: none;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.grip::before {
+  content: '';
+  display: block;
+  inline-size: 2.75rem;
   block-size: 4px;
-  margin: 0 auto var(--glacier-space-3);
-  border-radius: var(--glacier-radius-full);
+  margin: 0 auto;
+  border-radius: 2px;
   background: var(--glacier-border-strong);
+}
+
+.grip:active {
+  cursor: grabbing;
 }
 
 .title {
@@ -120,6 +140,27 @@
   display: grid;
   gap: 2px;
   font-weight: var(--glacier-font-weight-medium);
+}
+
+/*
+ * The robot's group: glass, so the AI's own rows read as a pane of their own inside the sheet (Matt: "give the
+ * dropdown for the robot tools like formatting glass mode", and "move robot dropdown in topbar into more drawer with
+ * an AI group label").
+ */
+.ai {
+  background: color-mix(in oklch, var(--glacier-text) 7%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid color-mix(in oklch, var(--glacier-text) 12%, transparent);
+}
+
+/* The mode showing now: a dot at the end of its row. */
+.chosen {
+  flex: none;
+  inline-size: 0.55rem;
+  block-size: 0.55rem;
+  border-radius: 50%;
+  background: var(--glacier-text);
 }
 
 .hint {

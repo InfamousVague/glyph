@@ -1,4 +1,5 @@
 import { planCommand } from '../capture/command.ts';
+import { clipsIn } from '../core/clips.ts';
 import { matchNote, type Candidate } from '../capture/route.ts';
 import { readArray, locate } from '../review/findings.ts';
 
@@ -100,4 +101,34 @@ export function leftover(memo: string, kept: readonly Placement[]): string {
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/** What a note of loose voice memos is called, as a note and as the workspace it is filed in. */
+export const UNSORTED_MEMOS = 'Unsorted memos';
+
+/**
+ * Whether what is left of a memo is only voice memos: clips, and the bullets and blank lines around them, with no
+ * words of their own. Matt: "when adding a new voice memo if we don't know where to put it it should go into an
+ * unsorted memos section" - so instead of an untitled note of nothing but players, it becomes the Unsorted memos
+ * note, filed in a workspace of the same name (sort/useSort.ts).
+ */
+export function onlyMemos(rest: string): boolean {
+  const lines = rest.split('\n').filter((line) => line.trim());
+  if (!lines.length) return false;
+  let clips = 0;
+  for (const line of lines) {
+    let words = line;
+    for (const clip of [...clipsIn(line)].reverse()) {
+      words = words.slice(0, clip.from) + words.slice(clip.to);
+      clips += 1;
+    }
+    // What can be left around a clip: a bullet, a number, a tick box, a quote mark.
+    if (words.replace(/^\s*(?:[-*+]|\d+[.)])?\s*(?:\[[ xX]\]\s*)?>?\s*/, '').trim()) return false;
+  }
+  return clips > 0;
+}
+
+/** That note's body: the memos as they are, under a heading that says what they are. */
+export function memosNote(rest: string): string {
+  return /^#{1,6}\s/m.test(rest) ? rest : `# ${UNSORTED_MEMOS}\n\n${rest}`;
 }

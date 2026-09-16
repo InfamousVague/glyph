@@ -4,6 +4,13 @@ import {
   WISP_EDGE_BENT_ID,
   WISP_EDGE_DRIFT_ID,
   WISP_EDGE_FILTER_ID,
+  WISP_EDGE_FOOT_BAND,
+  WISP_EDGE_FOOT_BENT_ID,
+  WISP_EDGE_FOOT_DRIFT_ID,
+  WISP_EDGE_FOOT_NEAR_ID,
+  WISP_EDGE_FOOT_NOISE_ID,
+  WISP_EDGE_FOOT_SOFT_ID,
+  WISP_EDGE_FOOT_STRIP_ID,
   WISP_EDGE_NEAR_ID,
   WISP_EDGE_NOISE_ID,
   WISP_EDGE_REACH,
@@ -34,6 +41,10 @@ import {
  * them but never spreads into the empty paper under the header's edge, where
  * a blurred first line read as a glow along the edge (measured at up to 110
  * of 255 in the gap before the text; Matt: "too transparent").
+ *
+ * The foot is the same band again at the view's bottom edge, for words scrolling off the end, with its own noise and
+ * its own subregions placed by the hook (`placeFoot`); parked far below and computed over nothing while a view has
+ * no foot, so a page that doesn't ask for one pays for a few empty primitives and nothing else.
  */
 export function WispEdgeFilter() {
   return (
@@ -58,13 +69,36 @@ export function WispEdgeFilter() {
         <feComposite in="soft" in2="near" operator="in" result="softNear" />
         <feColorMatrix in="band" type="luminanceToAlpha" result="bandAlpha" />
         <feComposite in="softNear" in2="bandAlpha" operator="in" result="smoke" />
-        {/* The view itself where the band isn't, the bent view where it is, and the smoke over both. */}
-        <feComposite in="SourceGraphic" in2="bandAlpha" operator="out" result="rest" />
+
+        {/* The foot: the same again at the view's bottom edge, its strip rising from below it. */}
+        <feTurbulence id={WISP_EDGE_FOOT_NOISE_ID} type="fractalNoise" baseFrequency="0.018 0.06" numOctaves="2" seed="3" x="-40" y={1e6} width="4000" height={0} result="rawFootNoise" />
+        <feOffset id={WISP_EDGE_FOOT_DRIFT_ID} in="rawFootNoise" dx="0" dy="0" result="footSlid" />
+        <feColorMatrix in="footSlid" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1" result="footNoise" />
+        <feFlood id={WISP_EDGE_FOOT_STRIP_ID} floodColor="#fff" x="-40" y={1e6} width="4000" height={WISP_EDGE_ABOVE + WISP_EDGE_FOOT_BAND} result="footStrip" />
+        <feMerge result="footOnBlack">
+          <feMergeNode in="black" />
+          <feMergeNode in="footStrip" />
+        </feMerge>
+        <feGaussianBlur in="footOnBlack" stdDeviation={`0 ${WISP_EDGE_SOFT}`} result="footBand" />
+        <feComposite in="footNoise" in2="footBand" operator="arithmetic" k1="1" k2="0" k3="-0.5" k4="0.5" result="footField" />
+        <feDisplacementMap id={WISP_EDGE_FOOT_BENT_ID} in="SourceGraphic" in2="footField" scale="36" xChannelSelector="R" yChannelSelector="G" x="-40" y={1e6} width="4000" height={0} result="footBent" />
+        <feGaussianBlur id={WISP_EDGE_FOOT_SOFT_ID} in="footBent" stdDeviation="3.4" x="-40" y={1e6} width="4000" height={0} result="footSoft" />
+        <feMorphology id={WISP_EDGE_FOOT_NEAR_ID} in="footBent" operator="dilate" radius="2.5" x="-40" y={1e6} width="4000" height={0} result="footNear" />
+        <feComposite in="footSoft" in2="footNear" operator="in" result="footSoftNear" />
+        <feColorMatrix in="footBand" type="luminanceToAlpha" result="footAlpha" />
+        <feComposite in="footSoftNear" in2="footAlpha" operator="in" result="footSmoke" />
+
+        {/* The view itself where neither band is, each band's bent view in its own, and the smoke over both. */}
+        <feComposite in="SourceGraphic" in2="bandAlpha" operator="out" result="restTop" />
+        <feComposite in="restTop" in2="footAlpha" operator="out" result="rest" />
         <feComposite in="bent" in2="bandAlpha" operator="in" result="bentIn" />
+        <feComposite in="footBent" in2="footAlpha" operator="in" result="footBentIn" />
         <feMerge>
           <feMergeNode in="rest" />
           <feMergeNode in="bentIn" />
           <feMergeNode in="smoke" />
+          <feMergeNode in="footBentIn" />
+          <feMergeNode in="footSmoke" />
         </feMerge>
       </filter>
     </svg>

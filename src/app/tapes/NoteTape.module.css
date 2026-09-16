@@ -52,11 +52,12 @@
   color: var(--app-ink-3, var(--glacier-text-muted));
 }
 
-/* What to do with the audio, under Play: two quiet words, each with its mark. */
+/* What to do with the audio, under Play: two quiet words, each with its mark; three while Remove is asking. */
 .edits {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--glacier-space-4);
+  gap: var(--glacier-space-1) var(--glacier-space-4);
 }
 
 .edit {
@@ -80,6 +81,21 @@
   gap: var(--glacier-space-2);
   min-block-size: var(--glacier-space-10);
   padding-inline: var(--glacier-space-4);
+}
+
+/* Remove, while it is asking: the word itself says what goes. */
+.edit[data-asking] {
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-bold);
+}
+
+/* What Remove would take with it: one quiet line under the controls. */
+.warning {
+  grid-column: 1 / -1;
+  margin: var(--glacier-space-1) 0 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--glacier-text-muted);
 }
 
 /* A phrase's shape while the recording's words are still being read. */

@@ -18,6 +18,10 @@ import styles from './CaptureScreen.module.css';
  * keywords on a normal page. As we understand and rewrite the text I speak I
  * want the text to appear and disappear with the wisp effect."
  *
+ * Set as it will read, not as it is written: the page is in the formatted view (editor/viewMode.ts), so a heading is
+ * a heading and a bullet a bullet as it is said, without the marks around them (Matt: "show actual stuff being
+ * written out and formatted as i talk"). The marks are all there in the note it saves.
+ *
  * The page is read-only while it is being written. Each change of what was
  * heard is written into the editor as the smallest edit that gets there (the
  * shared start and end kept), marked `wisp` (editor/wispArrivals.ts): new
@@ -85,7 +89,19 @@ export function LivePage({ base, markdown, placeholder, under }: LivePageProps) 
 
   return (
     <div ref={page} className={styles.livePage}>
-      <Editor value={first} onChange={noop} dark={isDarkNow(theme)} assist={false} placeholder={placeholder} onView={setView} readOnly grow arrivals ripples={ripples} />
+      <Editor
+        value={first}
+        onChange={noop}
+        dark={isDarkNow(theme)}
+        assist={false}
+        placeholder={placeholder}
+        onView={setView}
+        readOnly
+        grow
+        arrivals
+        ripples={ripples}
+        display="formatted"
+      />
     </div>
   );
 }

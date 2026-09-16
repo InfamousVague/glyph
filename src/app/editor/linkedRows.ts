@@ -244,6 +244,10 @@ const menuDrawer = ViewPlugin.fromClass(
         if (from !== null) queueMicrotask(() => view.state.field(openMenu, false) !== null && view.dispatch({ effects: toggleMenu.of(null) }));
         return;
       }
+      // The keyboard must not come up under the drawer: a tap on a pill does not move the caret, but the note may
+      // have been being typed in, and Android keeps the keyboard up for the focused editor (Matt: "tapping notion
+      // pill also opens keyboard so the keyboard opens on top of the drawer").
+      if (view.hasFocus) view.contentDOM.blur();
       const host = document.createElement('div');
       host.className = 'cm-linkMenu';
       document.body.append(host);

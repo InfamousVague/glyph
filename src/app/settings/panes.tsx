@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, FileText, GraduationCap, Terminal } from '@glacier/icons';
+import { BookOpen, FileText, GraduationCap, LayoutGrid, Sparkles, Terminal } from '@glacier/icons';
 import { SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
 import { setPreferences, usePreferences, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { hapticsAvailable, setHapticsPref, useHapticsPref, fireNativeHaptic } from '../core/haptics.ts';
 import { describeBuild, sourceHost, STAGING, type Updates } from '../core/ota.ts';
+import { fetchReleases, keptReleases, releaseWhen, type Release } from '../core/changelog.ts';
 import { isTauri } from '../core/tauri.ts';
 import { countKnock, KNOCKS_WANTED, setDeveloperMode, useDeveloperMode } from './developerMode.ts';
 import { useUpdateAlerts } from './useUpdateAlerts.ts';
@@ -345,7 +346,62 @@ function buildLine(updates: Updates): string {
  * seven presses on it, the way Android's own are unlocked, with a countdown
  * from the third press so somebody who knows the gesture knows it is working.
  */
-export function AboutPane({ updates, onGuide, onSample, onTutorial, onDeveloper }: { updates: Updates; onGuide: () => void; onSample: () => void; onTutorial: () => void; onDeveloper: () => void }) {
+/**
+ * What's new: every release published, newest first, with the one running marked (core/changelog.ts). Read from the
+ * site each time the page opens, and from what was kept when there is no signal (Matt: "show a changelog with all
+ * updates including OTA").
+ */
+export function WhatsNewPane({ updates }: { updates: Updates }) {
+  const [releases, setReleases] = useState<Release[]>(keptReleases);
+  const [reading, setReading] = useState(true);
+  const running = window.__glyphBoot?.build ?? updates.build;
+
+  useEffect(() => {
+    const stop = new AbortController();
+    void fetchReleases(updates.status?.sources, stop.signal).then((found) => {
+      setReleases(found);
+      setReading(false);
+    });
+    return () => stop.abort();
+  }, [updates.status?.sources]);
+
+  if (!releases.length) {
+    return (
+      <PaneSection title="What's new">
+        <SettingRow label={reading ? 'Reading the updates…' : 'No updates to show yet.'} hint={reading ? undefined : 'They are read from where Glyph takes its updates.'} />
+      </PaneSection>
+    );
+  }
+
+  return (
+    <>
+      {releases.map((release) => (
+        <PaneSection key={release.build} title={release.build === running ? `${release.version} · you're on this one` : release.version}>
+          <SettingRow label={releaseWhen(release)} hint={[release.notes, release.apk ? `Installed as Glyph ${release.apk}.` : null].filter(Boolean).join(' ')} />
+        </PaneSection>
+      ))}
+      <SettingsFootnote>Every update Glyph has published, newest first. Updates arrive over the air; a version with an app number needs installing.</SettingsFootnote>
+    </>
+  );
+}
+
+export function AboutPane({
+  updates,
+  onGuide,
+  onSample,
+  onBoard,
+  onTutorial,
+  onWhatsNew,
+  onDeveloper,
+}: {
+  updates: Updates;
+  onGuide: () => void;
+  onSample: () => void;
+  onBoard: () => void;
+  onTutorial: () => void;
+  onWhatsNew: () => void;
+  onDeveloper: () => void;
+}) {
   const { toast } = useToast();
   const knock = () => {
     const left = countKnock();
@@ -366,8 +422,15 @@ export function AboutPane({ updates, onGuide, onSample, onTutorial, onDeveloper 
         <PaneHero title={updates.version} meta={buildLine(updates)} onPress={knock} />
       </PaneSection>
       <PaneSection title="Help">
+        <SettingRow icon={<Sparkles size={20} />} label="What's new" hint="Every update Glyph has published, and which one you're running." onPress={() => onWhatsNew()} />
         <SettingRow icon={<GraduationCap size={20} />} label="Voice tutorial" hint="Every voice cue and command, said out loud and ticked off, then a few tips and tricks. A few minutes." onPress={() => onTutorial()} />
         <SettingRow icon={<BookOpen size={20} />} label="How to talk to Glyph" hint="The side key, and the cues that make markdown." onPress={() => onGuide()} />
+        <SettingRow
+          icon={<LayoutGrid size={20} />}
+          label="Add the example board"
+          hint="A working kanban board written in markdown: columns, cards, and the tasks they point at."
+          onPress={onBoard}
+        />
         <SettingRow icon={<FileText size={20} />} label="Add the sample note" hint="One note with every mark in it: headings, lists, a table, a picture, a secret in smoke." onPress={onSample} />
       </PaneSection>
       <SettingsFootnote>Glyph keeps your notes, recordings and models on the phone. Nothing is sent anywhere.</SettingsFootnote>

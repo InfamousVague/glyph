@@ -9,6 +9,8 @@
  *                      whole editor, minus what needs a Rust core (no haptics,
  *                      notes in localStorage rather than SQLite).
  *   /glyph/ota.json    the manifest an installed Glyph checks (src-tauri/src/ota.rs),
+ *                      whose version carries this release's number: 1.4.3-12 is the
+ *                      twelfth update published on 1.4.3, counted from what is live.
  *   /glyph/ota.json.sig  and its Ed25519 signature (scripts/ota-sign.mjs).
  *                      It describes THIS web build: the app downloads the files
  *                      it lists from /glyph/assets/, verifies each SHA-256, and
@@ -17,6 +19,9 @@
  *   /glyph/glyph.apk   the installable app, for first installs and for changes
  *   /glyph/apk.json    to the native layer. apk.json is what makes an installed
  *   /glyph/apk.json.sig  Glyph offer "Install" when this APK is newer than it.
+ *   /glyph/changelog.json  every release published here, newest first: version, build,
+ *                      when, the notes it carried, and the APK that went with it. Written
+ *                      from the live one each deploy, and read by Settings' What's new.
  *   /glyph/install.html  a page to open on the phone: version, size, the link.
  *   /glyph/models/     the Whisper weights, ~250 MB, uploaded once from a
  *                      verified `models/` (scripts/fetch-model.mjs). Never
@@ -51,6 +56,7 @@
  *   node scripts/deploy-ota.mjs --apk --keep-connection && npm run deploy:server   # one login for both
  *                                                # republish an APK whose version is not newer
  *   node scripts/deploy-ota.mjs --public         # build without the formatting token (a public release)
+ *   node scripts/deploy-ota.mjs --release 13     # number this release by hand, after a rollback put an older manifest back
  *   node scripts/deploy-ota.mjs --notes "Faster voice notes."
  *                                                # what changed: the text of the update alert people opt into
  *
@@ -105,6 +111,11 @@ const keepConnection = process.argv.includes('--keep-connection');
 // Ship without running the tests first: only for a release that cannot wait. The
 // Test results page in that build then says its report is from other code.
 const skipTests = process.argv.includes('--skip-tests');
+// The release number by hand, for the one case the live manifest cannot answer: after a rollback it is an older
+// manifest, so the next release must go past the HIGHEST ever published, not past what is live.
+const releaseFlag = process.argv.indexOf('--release');
+const askedRelease = releaseFlag >= 0 ? Number(process.argv[releaseFlag + 1]) : null;
+if (releaseFlag >= 0 && (!Number.isInteger(askedRelease) || askedRelease < 1)) fail('--release needs a whole number, the release this is on the current version.');
 const notesFlag = process.argv.indexOf('--notes');
 const notes = notesFlag >= 0 ? String(process.argv[notesFlag + 1] ?? '').trim() : '';
 if (notesFlag >= 0 && (!notes || notes.startsWith('--'))) fail('--notes needs the text of what changed.');
@@ -247,12 +258,50 @@ if (!skipTests) {
   console.log(c.dim('  --skip-tests: the Test results page in this build will say its report is from other code.'));
 }
 
+// ---- number this release -----------------------------------------------------
+
+/*
+ * Every bundle between two APKs used to call itself the same version, so About could not say which update was
+ * running and a phone that had taken one looked like a phone that had not (Matt: "my phone is still on 1.4.1";
+ * "every ota deploy should do a -version so like 1.4.3-12 for the 12th OTA on 1.4.3"). The count comes from what is
+ * live, not from anything kept here: the next release is one past the live manifest's, and the first on a new
+ * version is 1. The number is chosen BEFORE the build, because the version is compiled into the bundle. A manifest
+ * that cannot be read stops the deploy rather than guessing, so no two releases can claim the same number; and after
+ * a rollback, when an older manifest is live again, pass `--release <n>` past the highest ever published.
+ */
+const base = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
+function nextRelease() {
+  if (askedRelease !== null) return askedRelease;
+  const answer = spawnSync('curl', ['-s', '-m', '20', '-w', '\n%{http_code}', `${URL_}ota.json`], { encoding: 'utf8' });
+  const lines = String(answer.stdout ?? '').trim().split('\n');
+  const code = lines.pop();
+  if (answer.status !== 0 || !code) fail(`Could not reach ${URL_}ota.json to number this release. Try again, or pass --release <n>.`);
+  // Nothing published there yet: this is the first.
+  if (code === '404') return 1;
+  if (code !== '200') fail(`${URL_}ota.json answered ${code}; this release cannot be numbered. Try again, or pass --release <n>.`);
+  let version;
+  try {
+    version = String(JSON.parse(lines.join('\n')).version ?? '');
+  } catch {
+    fail(`${URL_}ota.json is not readable JSON; this release cannot be numbered. Try again, or pass --release <n>.`);
+  }
+  const [, of, n] = /^(\d+\.\d+\.\d+)(?:-(\d+))?$/.exec(version) ?? [];
+  if (!of) fail(`The live manifest's version is ${JSON.stringify(version)}; this release cannot be numbered. Pass --release <n>.`);
+  if (of !== base) return 1;
+  return (Number(n) || 0) + 1;
+}
+const release = nextRelease();
+ok(`release ${base}-${release}`);
+
 // ---- build ------------------------------------------------------------------
 
 step(`Building the web app${isPublic ? c.dim(' (public: no formatting token)') : ''}`);
 // A real environment variable beats .env in Vite, so an empty one keeps the
 // token out of a public build; annotate.ts then formats locally.
-run('npm', ['run', 'build'], { cwd: ROOT, env: isPublic ? { ...process.env, VITE_GLYPH_API_TOKEN: '' } : process.env });
+run('npm', ['run', 'build'], {
+  cwd: ROOT,
+  env: { ...process.env, GLYPH_RELEASE: String(release), ...(isPublic ? { VITE_GLYPH_API_TOKEN: '' } : {}) },
+});
 
 const html = readFileSync(join(DIST, 'index.html'), 'utf8');
 // The hashed entry proves later that the box serves THIS build and not a
@@ -343,6 +392,49 @@ if (withApk) {
   writeFileSync(join(DIST, 'apk.json'), `${JSON.stringify(apkInfo, null, 2)}\n`);
   ok(`APK ${apkInfo.version} (code ${apkInfo.versionCode}, native ${native}), ${(apkInfo.bytes / 1e6).toFixed(0)} MB`);
 }
+
+// ---- the changelog ------------------------------------------------------------
+/*
+ * Every release, newest first, carried forward from the one that is live: the history belongs to the site, so a
+ * deploy from another machine adds to the same list (Matt: "show a changelog with all updates including OTA"). Not
+ * signed, because it is words for a person to read rather than anything the app runs; the bundles it describes are
+ * signed and checked as ever.
+ */
+step('Writing the changelog');
+const KEEP_RELEASES = 60;
+const SEED = join(ROOT, 'scripts/changelog-seed.json');
+/*
+ * The live list AND the seed in the repository, merged by build: a rollback on the box puts an older changelog back,
+ * and carrying only that one forward would quietly drop the releases in between. Whichever copy has an entry, it
+ * stays; the newest wording of a build wins.
+ */
+const releaseList = (json, what) => {
+  try {
+    const list = JSON.parse(json);
+    return Array.isArray(list) ? list.filter((entry) => entry && typeof entry === 'object' && entry.build) : [];
+  } catch {
+    if (what) console.log(c.dim(`  ${what} could not be read; carrying on without it.`));
+    return [];
+  }
+};
+const before = (() => {
+  const live = releaseList(curl(['-s', '-m', '20', `${URL_}changelog.json`]));
+  const seeded = existsSync(SEED) ? releaseList(readFileSync(SEED, 'utf8'), 'the changelog seed') : [];
+  const byBuild = new Map();
+  for (const entry of [...seeded, ...live]) byBuild.set(String(entry.build), entry);
+  return [...byBuild.values()].sort((a, b) => String(b.build).localeCompare(String(a.build)));
+})();
+// Every release says something, so the page never shows a row with nothing on it.
+const entry = {
+  version: manifest.version,
+  build: manifest.build,
+  at: new Date().toISOString(),
+  notes: notes || 'Fixes and polish.',
+  ...(apkInfo ? { apk: apkInfo.version } : {}),
+};
+const history = [entry, ...before.filter((old) => old && old.build !== entry.build)].slice(0, KEEP_RELEASES);
+writeFileSync(join(DIST, 'changelog.json'), `${JSON.stringify(history, null, 2)}\n`);
+ok(`changelog: ${history.length} release${history.length === 1 ? '' : 's'}, newest ${entry.version}`);
 
 // ---- sign ---------------------------------------------------------------------
 
@@ -513,3 +605,4 @@ console.log('');
 // fixed one. (A release that cannot boot at all undoes itself - the app
 // quarantines it and falls back; see src-tauri/src/ota.rs.)
 console.log(c.dim(`  rollback: sudo rsync -a --delete --filter 'P /models/' ${REMOTE}.bak-${stamp}/ ${REMOTE}/`));
+console.log(c.dim(`  after a rollback the live manifest is older, so number the next release by hand: --release ${release + 1} or higher`));

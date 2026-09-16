@@ -44,6 +44,12 @@ export const WISP_EDGE_STRIP_ID = 'wispEdgeStrip';
 export const WISP_EDGE_BENT_ID = 'wispEdgeBent';
 export const WISP_EDGE_SOFT_ID = 'wispEdgeSoft';
 export const WISP_EDGE_NEAR_ID = 'wispEdgeNear';
+export const WISP_EDGE_FOOT_NOISE_ID = 'wispEdgeFootNoise';
+export const WISP_EDGE_FOOT_DRIFT_ID = 'wispEdgeFootDrift';
+export const WISP_EDGE_FOOT_STRIP_ID = 'wispEdgeFootStrip';
+export const WISP_EDGE_FOOT_BENT_ID = 'wispEdgeFootBent';
+export const WISP_EDGE_FOOT_NEAR_ID = 'wispEdgeFootNear';
+export const WISP_EDGE_FOOT_SOFT_ID = 'wispEdgeFootSoft';
 
 /**
  * How far under the header's edge the smoke still bends a little (the strip's
@@ -57,6 +63,8 @@ export const WISP_EDGE_BAND = 10;
 export const WISP_EDGE_DROP = 18;
 /** The strip starts this far above the view, so its blur never opens the top. */
 export const WISP_EDGE_ABOVE = 200;
+/** The foot's full-strength lip at the view's bottom edge, and how far the band is computed above it. */
+export const WISP_EDGE_FOOT_BAND = 10;
 /** How far below the band's lip the bend and blur are computed at all: past the strip's soft edge, with room for the drift. */
 export const WISP_EDGE_REACH = WISP_EDGE_BAND + WISP_EDGE_SOFT * 4 + 48;
 
@@ -108,9 +116,16 @@ function driftStep(now: number): void {
   const t = smokeClock;
   const x = BASE_X + 0.003 * Math.sin(t / 2600);
   const y = BASE_Y + 0.01 * Math.sin(t / 3400 + 1.3);
+  const dx = (4 * Math.sin(t / 2300 + 0.7)).toFixed(2);
+  const dy = (SLIDE_PX / 2 + (SLIDE_PX / 2) * Math.sin(t / 3100)).toFixed(2);
   noise.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
-  slide.setAttribute('dx', (4 * Math.sin(t / 2300 + 0.7)).toFixed(2));
-  slide.setAttribute('dy', (SLIDE_PX / 2 + (SLIDE_PX / 2) * Math.sin(t / 3100)).toFixed(2));
+  slide.setAttribute('dx', dx);
+  slide.setAttribute('dy', dy);
+  // The foot's own noise drifts with the top's, so both ends of a view move as one smoke.
+  document.getElementById(WISP_EDGE_FOOT_NOISE_ID)?.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
+  const footSlide = document.getElementById(WISP_EDGE_FOOT_DRIFT_ID);
+  footSlide?.setAttribute('dx', dx);
+  footSlide?.setAttribute('dy', dy);
 }
 
 /** The drift's own time, advanced only while it runs; and the last frame's, to measure each step by. */
@@ -133,17 +148,53 @@ function drift(on: boolean, reset = true): void {
     // A scroll that stopped leaves the smoke as it was; only a view back at its top puts it back to rest.
     if (!reset) return;
     document.getElementById(WISP_EDGE_NOISE_ID)?.setAttribute('baseFrequency', `${BASE_X} ${BASE_Y}`);
-    const slide = document.getElementById(WISP_EDGE_DRIFT_ID);
-    slide?.setAttribute('dx', '0');
-    slide?.setAttribute('dy', '0');
+    document.getElementById(WISP_EDGE_FOOT_NOISE_ID)?.setAttribute('baseFrequency', `${BASE_X} ${BASE_Y}`);
+    for (const id of [WISP_EDGE_DRIFT_ID, WISP_EDGE_FOOT_DRIFT_ID]) {
+      const slide = document.getElementById(id);
+      slide?.setAttribute('dx', '0');
+      slide?.setAttribute('dy', '0');
+    }
   }
 }
 
-/** Moves the band down to sit under a header `under` px tall (0: at the view's top), and the bend's reach with it. */
-function placeBand(under: number): void {
+/** How far above the view's bottom edge the foot's bend and blur are computed: its lip, its ramp, and room for the drift. */
+export const WISP_EDGE_FOOT_REACH = WISP_EDGE_FOOT_BAND + WISP_EDGE_SOFT * 4 + 48;
+
+/**
+ * Puts the foot band at the view's bottom edge, or takes it away: the same smoke as the top, so words scrolling off
+ * the end dissolve instead of meeting a flat fade (Matt: "replace the areas where it's just a black fade and blur to
+ * use the wisp fade effect"). `height` is the view's own height, since the filter's coordinates start at its top-left.
+ */
+function placeFoot(height: number, on: boolean): void {
+  const strip = document.getElementById(WISP_EDGE_FOOT_STRIP_ID);
+  const reach = WISP_EDGE_FOOT_REACH + 40;
+  const top = height - WISP_EDGE_FOOT_REACH;
+  // Off: the strip is parked far below anything drawn, and nothing is computed for it.
+  strip?.setAttribute('y', String(on ? height - WISP_EDGE_FOOT_BAND : 1e6));
+  strip?.setAttribute('height', String(WISP_EDGE_ABOVE + WISP_EDGE_FOOT_BAND));
+  for (const id of [WISP_EDGE_FOOT_NOISE_ID, WISP_EDGE_FOOT_BENT_ID, WISP_EDGE_FOOT_NEAR_ID, WISP_EDGE_FOOT_SOFT_ID]) {
+    const part = document.getElementById(id);
+    part?.setAttribute('y', String(on ? top : 1e6));
+    part?.setAttribute('height', String(on ? reach : 0));
+  }
+}
+
+/** The phone's status bar, in px: the app sets it on the root as `--app-safe-top` (app.css). */
+function safeTop(): number {
+  if (typeof getComputedStyle === 'undefined') return 0;
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-safe-top')) || 0;
+}
+
+/**
+ * Moves the band down to sit under a header `under` px tall (0: at the view's top), and the bend's reach with it.
+ * Off, the strip has no height at all, so a view wearing the filter for its foot alone has nothing at its top: a
+ * page at rest under the header was smoking because the strip is always there while the filter is (Matt: "when
+ * scrolled to top of page content under topbar shouldn't have ghostly effect").
+ */
+function placeBand(under: number, on = true): void {
   const drop = under > 0 ? WISP_EDGE_DROP : 0;
-  document.getElementById(WISP_EDGE_STRIP_ID)?.setAttribute('height', String(WISP_EDGE_ABOVE + under + drop + WISP_EDGE_BAND));
-  const reach = String(40 + under + drop + WISP_EDGE_REACH);
+  document.getElementById(WISP_EDGE_STRIP_ID)?.setAttribute('height', String(on ? WISP_EDGE_ABOVE + under + drop + WISP_EDGE_BAND : 0));
+  const reach = String(on ? 40 + under + drop + WISP_EDGE_REACH : 0);
   document.getElementById(WISP_EDGE_NOISE_ID)?.setAttribute('height', reach);
   document.getElementById(WISP_EDGE_BENT_ID)?.setAttribute('height', reach);
   document.getElementById(WISP_EDGE_NEAR_ID)?.setAttribute('height', reach);
@@ -155,7 +206,8 @@ function placeBand(under: number): void {
  * whether it is. `key` re-reads it when the content changes; `under` is a
  * header the scroller runs beneath.
  */
-export function useWispEdge(scroller: RefObject<HTMLElement | null>, key?: unknown, under?: RefObject<HTMLElement | null>): boolean {
+export function useWispEdge(scroller: RefObject<HTMLElement | null>, key?: unknown, under?: RefObject<HTMLElement | null>, options: { foot?: boolean } = {}): boolean {
+  const foot = options.foot ?? false;
   const [on, setOn] = useState(false);
   useEffect(() => {
     const el = scroller.current;
@@ -164,6 +216,8 @@ export function useWispEdge(scroller: RefObject<HTMLElement | null>, key?: unkno
     const header = under?.current ?? null;
     const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     let worn = false;
+    /** Whether the foot band is on this view right now. */
+    let footWorn = false;
     /** Whether this view's scrolling is moving the smoke right now, and the wait for the scrolling to stop. */
     let moving = false;
     let idle = 0;
@@ -173,30 +227,59 @@ export function useWispEdge(scroller: RefObject<HTMLElement | null>, key?: unkno
       moving = false;
       drift(false, reset);
     };
+    let fitted = -1;
+    /** What the band sits under: a header, or the phone's status bar on a view that has none. */
+    let beneath = 0;
     const fit = () => {
       const height = header?.offsetHeight ?? 0;
-      el.style.setProperty('--wisp-under', `${height}px`);
-      // Under a header the header hides the top; with no header, the very top dissolves.
-      el.style.setProperty('--wisp-top-fade', height ? '0px' : '29px');
-      if (worn) placeBand(height);
+      // With no header the status bar plays the part of one: the smoke's lip sits at its edge, so a page dissolves
+      // as it reaches the clock instead of sliding under a flat scrim (app.css .app-statusScrim).
+      beneath = height || safeTop();
+      // Only when it really changed: these set the scroller's own top padding, and writing them from a size observer
+      // that then sees a new size would feed itself.
+      if (height !== fitted) {
+        fitted = height;
+        el.style.setProperty('--wisp-under', `${height}px`);
+        // Under a header the header hides the top; with no header the view dissolves into the status bar's own
+        // ground, so what passes the clock is smoke rather than a flat fade (app.css .app-statusScrim).
+        el.style.setProperty('--wisp-top-fade', height ? '0px' : 'calc(var(--app-safe-top, 0px) + 29px)');
+      }
+      if (worn) placeBand(beneath);
     };
     const check = () => {
-      const scrolled = el.scrollTop > 4;
+      // Scrolled off its top AND able to scroll: a view that stops scrolling (a note's page while the robot shows its
+      // own card over it) keeps its scrollTop, and the band would go on smoking over whatever is under the header
+      // (Matt: "when on the page where the AI is analyzing everything the top text looks distorted unexpectedly").
+      const more = el.scrollHeight - el.clientHeight > 4;
+      const scrolled = el.scrollTop > 4 && more;
+      // The foot smokes while there is still something below the view's bottom edge to scroll to.
+      const ending = foot && more && el.scrollTop < el.scrollHeight - el.clientHeight - 4;
+      if (ending !== footWorn) {
+        footWorn = ending;
+        el.toggleAttribute('data-wisp-foot', ending);
+        placeFoot(el.offsetHeight, ending);
+        // Wearing the filter for the foot alone: the top band stays off until this view is scrolled.
+        if (ending && !worn) placeBand(beneath, false);
+      } else if (ending) {
+        placeFoot(el.offsetHeight, true);
+      }
       setOn(scrolled);
       if (scrolled === worn) return;
       worn = scrolled;
       if (scrolled) {
         el.setAttribute('data-wisp-edge', '');
-        placeBand(header?.offsetHeight ?? 0);
+        placeBand(beneath);
       } else {
         el.removeAttribute('data-wisp-edge');
+        // The top band goes with it: a view still wearing the filter for its foot must be crisp at its top.
+        placeBand(beneath, false);
         holdStill(true);
       }
     };
     // Scrolling moves the smoke; a pause in it holds the smoke where it is.
     const onScroll = () => {
       check();
-      if (!worn || still) return;
+      if ((!worn && !footWorn) || still) return;
       if (!moving) {
         moving = true;
         drift(true);
@@ -207,14 +290,23 @@ export function useWispEdge(scroller: RefObject<HTMLElement | null>, key?: unkno
     fit();
     check();
     el.addEventListener('scroll', onScroll, { passive: true });
-    const resized = new ResizeObserver(fit);
+    // The header's height, and the view's own: content that comes or goes can stop it scrolling without a scroll event.
+    const resized = new ResizeObserver(() => {
+      fit();
+      check();
+    });
+    resized.observe(el);
     if (header) resized.observe(header);
     return () => {
       el.removeEventListener('scroll', onScroll);
       resized.disconnect();
       el.removeAttribute('data-wisp-edge');
+      if (footWorn) {
+        el.removeAttribute('data-wisp-foot');
+        placeFoot(0, false);
+      }
       holdStill(true);
     };
-  }, [scroller, key, under]);
+  }, [scroller, key, under, foot]);
   return on;
 }

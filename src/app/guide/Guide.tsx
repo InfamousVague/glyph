@@ -10,6 +10,7 @@ import { preferences, setPreferences, usePreferences, type ThemePref } from '../
 import { gb, MODELS, modelName, useModels } from '../core/ai.ts';
 import { isTauri } from '../core/tauri.ts';
 import { GUIDE_PAGES as PAGES, type GuidePage as Page } from './pages.ts';
+import { MarksTable } from './MarksTable.tsx';
 import { PHRASES, renderExample, TYPED } from './phrases.ts';
 import { plugins } from '../plugins/registry.ts';
 import { AntiAiStage } from './AntiAiStage.tsx';
@@ -173,6 +174,7 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry }: GuideProps) 
         {page === 'model' ? <Model /> : null}
         {page === 'sidekey' ? <SideKey /> : null}
         {page === 'markdown' ? <Markdown /> : null}
+        {page === 'marks' ? <Marks /> : null}
         {page === 'tips' ? <Tips /> : null}
       </div>
 
@@ -592,6 +594,22 @@ function Markdown() {
         </>
       ) : null}
       <p className={styles.note}>Press and hold on any words in a note and choose Style to put one of these marks on them.</p>
+    </>
+  );
+}
+
+/**
+ * Every mark, at a glance: the table of what to type, how it reads and how to say it (guide/MarksTable.tsx). The page
+ * before it teaches the cues one at a time; this one is the whole set on one page, to come back to.
+ */
+function Marks() {
+  return (
+    <>
+      <h1 className={styles.title}>Every mark, side by side.</h1>
+      <p className={styles.lead}>
+        What you type is on the left, how the note reads it on the right. The marks stay on the page as you write, so you can always see what a line is doing.
+      </p>
+      <MarksTable />
     </>
   );
 }

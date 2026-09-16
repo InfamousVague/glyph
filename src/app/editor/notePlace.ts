@@ -3,7 +3,7 @@ import { useEffect, type RefObject } from 'react';
 
 /**
  * Where a note was being read, so it opens there again (Matt: "add bookmarking notes so opening the same note later
- * reopens to the same position").
+ * reopens to the same position"), and the bookmark the header's button puts in it, which wins over that.
  *
  * A place is the line at the top of the page and how far into it the page was scrolled, not a pixel count: a note
  * that grew above that line since (a recording added, a paragraph typed) still opens on the same words. Kept on the
@@ -18,6 +18,7 @@ export interface Place {
 }
 
 const KEY = 'glyph-note-places';
+const MARKS_KEY = 'glyph-note-bookmarks';
 /** Notes remembered; the least recently read are forgotten first. */
 const KEEP = 200;
 /** A page scrolled no further than this is at the top, and nothing is kept for it. */
@@ -55,6 +56,36 @@ export function writePlace(noteId: string, place: Place | null, now = Date.now()
   }
 }
 
+/**
+ * A bookmark is a place put there on purpose, from the note's header (Matt: "add bookmark button to topbar"). The
+ * note opens at it, rather than where it was last left, until it is taken off again.
+ */
+function marks(): Record<string, Place> {
+  try {
+    const value = JSON.parse(localStorage.getItem(MARKS_KEY) ?? '{}') as unknown;
+    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, Place>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function readBookmark(noteId: string): Place | null {
+  const mark = marks()[noteId];
+  return mark && Number.isFinite(mark.pos) && Number.isFinite(mark.offset) ? { pos: mark.pos, offset: mark.offset } : null;
+}
+
+/** Puts a bookmark in `noteId`, or takes it off with null. */
+export function writeBookmark(noteId: string, place: Place | null): void {
+  try {
+    const all = marks();
+    if (place) all[noteId] = place;
+    else delete all[noteId];
+    localStorage.setItem(MARKS_KEY, JSON.stringify(all));
+  } catch {
+    // Without storage the bookmark holds while the note is open.
+  }
+}
+
 /** Where the note's document starts inside the scrolling page, in the page's own scroll coordinates. */
 function documentOffset(view: EditorView, page: HTMLElement): number {
   return view.documentTop - page.getBoundingClientRect().top + page.scrollTop;
@@ -89,7 +120,8 @@ export function useNotePlace(noteId: string, page: RefObject<HTMLElement | null>
   useEffect(() => {
     const scroller = page.current;
     if (!view || !scroller || !active) return undefined;
-    const place = readPlace(noteId);
+    // A bookmark was put there on purpose, so it wins over wherever the note was last left.
+    const place = readBookmark(noteId) ?? readPlace(noteId);
     // Settled: restored, given up on, or scrolled by the person. Only then is the place theirs to write.
     let settled = place === null;
     let frame = 0;

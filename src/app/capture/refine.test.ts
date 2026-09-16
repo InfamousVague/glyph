@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { refinedBody, refinedSegments, type RefineJob, withoutCommands } from './refine.ts';
+import { refinedBody, refinedSegments, type RefineJob, withClips, withoutCommands } from './refine.ts';
 
 const job = (over: Partial<RefineJob> = {}): RefineJob => ({
   id: 'n1',
@@ -54,5 +54,23 @@ describe('the better words leave commands out', () => {
   it('keeps everything for a job from before commands were kept out', () => {
     const refined = [seg('Glyph is the app.', 0, 1000)];
     expect(withoutCommands({}, refined)).toEqual(refined);
+  });
+});
+
+describe('voice memos in the better words', () => {
+  const clip = { text: '![voice 0:05](tape:12000-17000)', startMs: 12_000, endMs: 17_000 };
+  const refined = [
+    { text: 'Before the memo.', startMs: 8_000, endMs: 11_000 },
+    { text: 'After it.', startMs: 18_000, endMs: 20_000 },
+  ];
+
+  it('puts each memo back where it was spoken', () => {
+    const job = { clips: [clip] };
+    expect(withClips(job, refined).map((s) => s.text)).toEqual(['Before the memo.', '![voice 0:05](tape:12000-17000)', 'After it.']);
+  });
+
+  it('leaves a take with no memo exactly as it was', () => {
+    expect(withClips({}, refined)).toEqual(refined);
+    expect(withClips({ clips: [] }, refined)).toEqual(refined);
   });
 });

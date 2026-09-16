@@ -20,6 +20,8 @@ import { wispFormat } from './wispFormat.ts';
 import { wispArrivals } from './wispArrivals.ts';
 import { noteView, type NoteView } from './viewMode.ts';
 import { findExtension } from './find.ts';
+import { clips, tapeSource } from './clips.ts';
+import { drawnBoards } from './boards.ts';
 import { wispRipples, type RippleSource } from './wispRipples.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { InlineFormat } from '../plugins/types.ts';
@@ -80,6 +82,10 @@ interface EditorProps {
    * Read once, when the editor is made.
    */
   grow?: boolean;
+  /** Where this note's recording is played from, for the voice memos in it (editor/clips.ts); null without one. */
+  tape?: string | null;
+  /** Which tape that is (core/clips.ts `tapeId`): a memo of another tape is drawn, not played. */
+  tapeId?: string | null;
   /**
    * Text written in with the `wisp` annotation arrives from smoke and leaves into it (editor/wispArrivals.ts): the
    * recorder writing a note as it is heard. Read once, when the editor is made.
@@ -140,6 +146,8 @@ export function Editor({
   suggest,
   linkMenus,
   grow = false,
+  tape = null,
+  tapeId = null,
   arrivals = false,
   wispTyping = false,
   ripples,
@@ -164,6 +172,7 @@ export function Editor({
   const themeSlot = useRef(new Compartment());
   const assistSlot = useRef(new Compartment());
   const readOnlySlot = useRef(new Compartment());
+  const tapeSlot = useRef(new Compartment());
   const displaySlot = useRef(new Compartment());
 
   useEffect(() => {
@@ -184,10 +193,15 @@ export function Editor({
         shortLinks(),
         linkedRows(linkMenus ? { say: (message) => linkMenusRef.current?.say(message) } : null),
         drawnTables(),
+        // Boards drawn from a ```board fence, their cards the note's own tasks (editor/boards.ts).
+        drawnBoards(),
         swipeItemAction({ action: () => swipeActionRef.current?.() ?? null }),
         lineSuggestions({ suggest: (body) => suggestRef.current?.(body) ?? [] }),
         // A to-do whose task reads as done gets its box ticked (doneSync.ts).
         doneSync(),
+        // Voice memos left in the note, played where they sit (clips.ts).
+        clips(),
+        tapeSlot.current.of(tapeSource.of({ src: tape, id: tapeId })),
         swipeItemTheme,
         EditorView.lineWrapping,
         assistSlot.current.of(EditorView.contentAttributes.of(assist ? PROSE_ATTRS : PLAIN_ATTRS)),
@@ -235,6 +249,11 @@ export function Editor({
   useEffect(() => {
     view.current?.dispatch({ effects: readOnlySlot.current.reconfigure(readOnlyExtensions(readOnly)) });
   }, [readOnly]);
+
+  // The note's recording arrives after the note does, and goes when it is removed.
+  useEffect(() => {
+    view.current?.dispatch({ effects: tapeSlot.current.reconfigure(tapeSource.of({ src: tape, id: tapeId })) });
+  }, [tape, tapeId]);
 
   useEffect(() => {
     view.current?.dispatch({ effects: displaySlot.current.reconfigure(noteView(display)) });

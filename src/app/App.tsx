@@ -7,7 +7,7 @@ import { ReviewScreen } from './review/ReviewScreen.tsx';
 import type { ReviewHandoff } from './review/useReview.ts';
 import { SortScreen } from './sort/SortScreen.tsx';
 import { TutorialScreen } from './tutorial/TutorialScreen.tsx';
-import { GUIDE_PAGES } from './guide/pages.ts';
+import { GUIDE_MARKS_PAGE } from './guide/pages.ts';
 import { readScratch, type Scratch } from './capture/scratch.ts';
 import { CaptureScreen } from './capture/CaptureScreen.tsx';
 import { startRefining } from './capture/refine.ts';
@@ -24,7 +24,7 @@ import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
 import { isTauri } from './core/tauri.ts';
 import { getNote, newNoteId, saveNote, useNotes, type Note } from './core/store.ts';
-import { addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
+import { addBoardNote, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { fileNewNote } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 
@@ -223,6 +223,13 @@ function Shell() {
     setScreen({ name: 'note', note });
   };
 
+  const boardNote = async () => {
+    setSettings(false);
+    const note = await addBoardNote();
+    await refresh();
+    setScreen({ name: 'note', note });
+  };
+
   const newNote = async () => {
     // Written to the store immediately rather than on first keystroke: a note
     // that exists only in memory is a note that a backgrounded webview loses,
@@ -321,7 +328,8 @@ function Shell() {
           onDone={() => setScreen({ name: 'list' })}
           onAllMarks={() => {
             setScreen({ name: 'list' });
-            setGuidePage(GUIDE_PAGES.indexOf('markdown'));
+            // The guide's table of every mark, with what it is typed as and how the note reads it (guide/MarksTable.tsx).
+            setGuidePage(GUIDE_MARKS_PAGE);
             setGuide(true);
           }}
         />
@@ -396,6 +404,7 @@ function Shell() {
           setGuide(true);
         }}
         onSample={() => void sampleNote()}
+        onBoard={() => void boardNote()}
         onTutorial={() => {
           setSettings(false);
           setScreen({ name: 'tutorial' });

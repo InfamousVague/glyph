@@ -18,6 +18,8 @@ import { QuietWatch } from './quiet.ts';
 import { type Candidate } from './route.ts';
 import { actionable, findKeyword, findSoundAlike, planCommand, reply, type Placement, type Plan } from './command.ts';
 import { placeWords } from './listAppend.ts';
+import { clipLength, clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
+import { endsMemo, MEMO_GAP_MS, startsMemo } from './voiceMemo.ts';
 import { commandModel, understandCommand } from './understand.ts';
 import { appendBlock, cellsOf, fitRow, saysDone, tableMarkdown } from './table.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
@@ -215,6 +217,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const [tableView, setTableView] = useState<TableDraft | null>(null);
   /** Tables made for the note being recorded: they follow its words. */
   const tablesRef = useRef<string[]>([]);
+  /** A voice memo being left: the stretch of tape it has taken so far (capture/voiceMemo.ts). */
+  const memo = useRef<{ startMs: number; endMs: number } | null>(null);
+  /** The clips this take wrote, so the better words put them back where they were (capture/refine.ts). */
+  const clipsRef = useRef<Segment[]>([]);
+  /** The tape this take writes to: the continued note's, or a new one (core/clips.ts). Read once, when it is first needed. */
+  const takeTape = useRef<string | null>(null);
   const [tables, setTables] = useState<string[]>([]);
   /** Every phrase the fast model heard, commands and all, for the review to check against a second listen. */
   const heardRef = useRef<string[]>([]);
@@ -730,6 +738,41 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    * and asks; "yes" or a tap does it, "no" or silence doesn't. Answers what of
    * the phrase goes into the note.
    */
+  /**
+   * A voice memo closes: the sound it took is written where it was said, as a clip of the note's tape (core/clips.ts).
+   * Its words were never written, so nothing is lost by keeping the sound instead.
+   */
+  /** Which tape this take is part of: the one a continued note holds, or a fresh one for a new file. */
+  const tapeOfTake = (): string => {
+    if (!takeTape.current) {
+      const continued = targetRef.current;
+      const appending = continued !== null && (continued.recordingMs ?? 0) > 0;
+      takeTape.current = (appending ? tapeId(continued.id) : null) ?? freshTapeId();
+    }
+    return takeTape.current;
+  };
+
+  const closeMemo = (endMs: number) => {
+    const held = memo.current;
+    if (!held) return;
+    memo.current = null;
+    setItemWords('');
+    if (endMs - held.startMs < 500) {
+      setRoute({ phase: 'said', text: 'Nothing was said, so no voice memo was kept.' });
+      return;
+    }
+    // The tape a continued note already has comes first, so the clip points at the right sound in the whole recording.
+    const offset = targetRef.current?.recordingMs ?? 0;
+    const clip = { startMs: held.startMs + offset, endMs: endMs + offset, tape: tapeOfTake() };
+    const written: Segment = { text: clipMarkdown(clip), startMs: held.startMs, endMs };
+    clipsRef.current = [...clipsRef.current, written];
+    segmentsRef.current = [...segmentsRef.current, written].sort((a, b) => a.startMs - b.startMs);
+    setSegments(segmentsRef.current);
+    commandLog.current.push(`Kept a voice memo of ${clipLength(clip)}`);
+    setRoute({ phase: 'done', text: `Voice memo, ${clipLength(clip)}` });
+    fireNativeHaptic('success');
+  };
+
   const takeCommand = (segment: Segment): Segment | null => {
     const now = performance.now();
     const text = segment.text;
@@ -741,6 +784,32 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       plugins.voiceCommands().some((voice) => voice.parse(words) !== null) || actionable(planCommand(words, { notes: candidates.current, targets: itemWordsOfPlugins() }));
     const underWay = tabling.current !== null || awaiting.current !== null || listening.current !== null;
     const found = keywordOn ? (findKeyword(text) ?? (underWay ? null : findSoundAlike(text, readsAsCommand))) : null;
+
+    // A voice memo: what is said is kept as sound, not words, until "end memo" or a breath.
+    const leaving = memo.current;
+    if (leaving) {
+      const breath = segment.startMs - leaving.endMs > MEMO_GAP_MS;
+      if (!breath && !endsMemo(text)) {
+        skip();
+        leaving.endMs = segment.endMs;
+        setItemWords('');
+        return null;
+      }
+      closeMemo(leaving.endMs);
+      if (!breath) {
+        // "End memo" is the cue, not the note's words.
+        skip();
+        return null;
+      }
+      // A breath ended it: this phrase is the note's again, and goes on below.
+    } else if (startsMemo(text)) {
+      skip();
+      memo.current = { startMs: segment.endMs, endMs: segment.endMs };
+      setItemWords('');
+      setRoute({ phase: 'said', text: 'Voice memo: talk, then say “end memo”.' });
+      fireNativeHaptic('light');
+      return null;
+    }
 
     // A table being asked for: every phrase is its next piece, until "done".
     const draft = tabling.current;
@@ -855,6 +924,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   cancelPendingRef.current = cancelPending;
   const cancelTableRef = useRef(cancelTable);
   cancelTableRef.current = cancelTable;
+  const closeMemoRef = useRef(closeMemo);
+  closeMemoRef.current = closeMemo;
 
   // ---- start ------------------------------------------------------------------
   useEffect(() => {
@@ -1056,6 +1127,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     setCapturing(false);
     setPhase('finishing');
     micRef.current?.stop();
+    // A voice memo still running is closed by Done: what was said up to here is its sound.
+    if (memo.current) closeMemoRef.current(sessionRef.current?.positionMs() ?? memo.current.endMs);
     // The tape is kept under the note's id, added to the end of the continued
     // note's tape when there is one, so its words and its sound stay one timeline.
     const continued = targetRef.current;
@@ -1075,7 +1148,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const { plain } = renderNote(spoken);
     const locked = isLocked();
 
-    if (!plain.trim() && !tablesRef.current.length) {
+    if (!plain.trim() && !tablesRef.current.length && !clipsRef.current.length) {
       await undoDraft();
       endCapture(locked);
       onFinish(null, locked);
@@ -1108,6 +1181,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       const prior = continued?.segments ?? [];
       const all = [...prior, ...spoken.map((s) => ({ ...s, startMs: s.startMs + offset, endMs: s.endMs + offset }))];
       await setNoteRecording(saved.id, stopped.recordedMs, all).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
+      // The tape this take wrote to, so its voice memos know it again when the note is opened (core/clips.ts).
+      setTapeId(saved.id, tapeOfTake());
       // The better words: the larger model over this take's recording, later,
       // or now in the review after a recording when that runs.
       const base = continued ? ((await baseBody.current) ?? continued.body) : '';
@@ -1121,6 +1196,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         priorSegments: prior,
         promptTail: renderNote(prior).plain.slice(-200),
         skip: commandSpans.current.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
+        // The voice memos this take left: the better words never heard them, and they go back where they were.
+        clips: clipsRef.current.map((clip) => ({ ...clip, startMs: clip.startMs + offset, endMs: clip.endMs + offset })),
         keywordAt: keywordSpans.current.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
       };
     }

@@ -46,6 +46,11 @@ export interface RefineJob {
    * words leave them out, as the live words did. Absent on jobs from before.
    */
   skip?: Array<{ startMs: number; endMs: number }>;
+  /**
+   * The voice memos this take left (core/clips.ts), each already written as its mark, on the recording's timeline:
+   * the better words never heard them - their stretches are in `skip` - so they are put back where they were.
+   */
+  clips?: Segment[];
   /** Phrases that were words and then "Glyph": the better words keep what came before the keyword. */
   keywordAt?: Array<{ startMs: number; endMs: number }>;
   tries: number;
@@ -115,13 +120,20 @@ export function useRefining(): RefineState {
  * new phrases - the first take titled, a later one not, as the recorder did.
  */
 export function refinedBody(job: RefineJob, refined: readonly Segment[]): string {
-  const take = renderNote(withoutCommands(job, refined), '', { titled: job.titled }).markdown;
+  const take = renderNote(withClips(job, withoutCommands(job, refined)), '', { titled: job.titled }).markdown;
   return appendBody(job.baseBody, take);
+}
+
+/** The better phrases with this take's voice memos back among them, in the order they were spoken. */
+export function withClips(job: Pick<RefineJob, 'clips'>, refined: readonly Segment[]): Segment[] {
+  const clips = job.clips ?? [];
+  if (!clips.length) return [...refined];
+  return [...refined, ...clips].sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
 }
 
 /** The recording's phrases with the take's replaced by the better ones. */
 export function refinedSegments(job: RefineJob, refined: readonly Segment[]): Segment[] {
-  return [...job.priorSegments.filter((s) => s.endMs <= job.fromMs), ...withoutCommands(job, refined)];
+  return [...job.priorSegments.filter((s) => s.endMs <= job.fromMs), ...withClips(job, withoutCommands(job, refined))];
 }
 
 /** How much of `segment` the spans cover, 0 to 1. */

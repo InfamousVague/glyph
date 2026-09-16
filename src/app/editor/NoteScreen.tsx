@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EllipsisVertical, Mic } from '@glacier/icons';
+import { Bookmark, EllipsisVertical, Mic } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import type { EditorView } from '@codemirror/view';
 import { ArrowLeft } from '../art/Icons.tsx';
 import { adoptImagePath, pickImage } from '../core/images.ts';
-import { ScrollFades } from '../art/ScrollFades.tsx';
 import { useWispEdge } from '../art/wispEdge.ts';
-import { useNotePlace } from './notePlace.ts';
+import { placeOf, readBookmark, scrollToPlace, useNotePlace, writeBookmark } from './notePlace.ts';
+import { hasClips, setTapeId, tapeId } from '../core/clips.ts';
 import { useNoteZoom } from './pinchZoom.ts';
 import { ContextMenu } from './ContextMenu.tsx';
 import { FindBar } from './FindBar.tsx';
@@ -24,7 +24,6 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { FormattedView, type ApplyHow } from '../format/FormattedView.tsx';
 import { useFormatter } from '../format/formatter.ts';
 import type { Mode } from '../format/modes.ts';
-import { RobotMenu } from '../format/RobotMenu.tsx';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
 import { LinkMarks } from '../plugins/LinkMarks.tsx';
@@ -49,8 +48,8 @@ import styles from './NoteScreen.module.css';
  * time a re-render could happen the process may be gone.
  *
  * The note, and over it what the robot makes of it: the robot button in the
- * header (format/RobotMenu.tsx) drops Format, Summarize and Enhance, and
- * choosing one opens that mode's view (format/FormattedView.tsx) over the
+ * More sheet's AI group lists Format, Summarize and Enhance, and choosing
+ * one opens that mode's view (format/FormattedView.tsx) over the
  * note, which starts writing the first time it is opened; Close, "Back to
  * note" in the menu, or the back gesture returns to the note. Matt: "make
  * all of these buttons instead of the segmented toggle, make a robot drop
@@ -116,8 +115,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
   /** The tape and the note's scrolling page. */
   const page = useRef<HTMLDivElement>(null);
   const header = useRef<HTMLElement>(null);
-  // The tape and note go to smoke as they slip behind the header (art/wispEdge.ts).
-  useWispEdge(page, undefined, header);
   // A picture that didn't come in is said once, then gets out of the way.
   useEffect(() => {
     if (!photoProblem) return;
@@ -301,34 +298,77 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
 
   // Playing takes the screen for the transcript; the chosen view waits under it.
   const shown: 'transcript' | 'robot' | 'raw' = tape.length && tape.playing ? 'transcript' : mode ? 'robot' : 'raw';
+  // The tape and note go to smoke as they slip behind the header; read again on a view change, since another view may not scroll (art/wispEdge.ts).
+  // The page smokes at both ends: under the header, and off the bottom where the dock is (art/wispEdge.ts).
+  useWispEdge(page, shown, header, { foot: true });
   // The note opens where it was left, and remembers where it is left (editor/notePlace.ts).
   useNotePlace(note.id, page, view, shown === 'raw');
+  /** Whether this note has a bookmark, for the header's button. */
+  const [marked, setMarked] = useState(() => readBookmark(note.id) !== null);
+  useEffect(() => setMarked(readBookmark(note.id) !== null), [note.id]);
+
+  /**
+   * The bookmark: with none, this spot becomes it; with one, the note goes to it; and pressed again where it already
+   * is, it comes off. The note opens at it until then (Matt: "add bookmark button to topbar").
+   */
+  const bookmark = () => {
+    const scroller = page.current;
+    if (!view || !scroller) return;
+    const here = placeOf(view, scroller);
+    const mark = readBookmark(note.id);
+    if (!mark) {
+      if (!here) {
+        toast({ message: 'Scroll to the part you want to keep, then tap the bookmark.' });
+        return;
+      }
+      writeBookmark(note.id, here);
+      setMarked(true);
+      fireNativeHaptic('success');
+      toast({ message: 'Bookmarked. This note opens here.' });
+      return;
+    }
+    const atIt = here !== null && here.pos === mark.pos && Math.abs(here.offset - mark.offset) < 24;
+    if (atIt) {
+      writeBookmark(note.id, null);
+      setMarked(false);
+      fireNativeHaptic('warning');
+      toast({ message: 'Bookmark taken off.' });
+      return;
+    }
+    scrollToPlace(view, scroller, mark);
+    fireNativeHaptic('selection');
+  };
   // Two fingers pinch the note's text larger or smaller (editor/pinchZoom.ts).
   useNoteZoom(page, view, shown === 'raw');
 
   // The tape's Remove: the recording comes off the note (its length and phrases forgotten; the audio file stays
   // until the note is spoken into again or deleted, which is what lets Undo put it back).
   const removeRecording = () => {
+    const memos = hasClips(body.current);
     void (async () => {
       tape.audio.ref.current?.pause();
       const full = await getNote(note.id).catch(() => null);
       const ms = tape.length;
       const segments = full?.segments ?? tape.segments ?? [];
+      // The tape's id goes with it, so the note's voice memos read as quiet marks until it is back (core/clips.ts).
+      const heldTape = tapeId(note.id);
       removed.current = { ms, segments };
       setKept({ ms: null, segments: null });
       fireNativeHaptic('warning');
+      setTapeId(note.id, null);
       try {
         await setNoteRecording(note.id, null, []);
       } catch (failure) {
         removed.current = null;
         setKept({ ms, segments });
+        setTapeId(note.id, heldTape);
         toast({
           message: `The recording couldn’t be removed: ${failure instanceof Error ? failure.message : String(failure)}`,
         });
         return;
       }
       toast({
-        message: 'Recording removed.',
+        message: memos ? 'Recording removed. Its voice memos are quiet until you undo.' : 'Recording removed.',
         duration: 5000,
         action: {
           label: 'Undo',
@@ -337,6 +377,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
             if (!back) return;
             removed.current = null;
             setKept({ ms: back.ms, segments: back.segments });
+            setTapeId(note.id, heldTape);
             void setNoteRecording(note.id, back.ms, back.segments);
           },
         },
@@ -387,14 +428,23 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
               ))}
             </div>
           ) : null}
+          <button
+            type="button"
+            className={`${styles.cog} ${styles.bookmark}`}
+            data-on={marked || undefined}
+            onClick={bookmark}
+            aria-pressed={marked}
+            aria-label={marked ? 'Go to this note’s bookmark, or take it off' : 'Bookmark where you are in this note'}
+          >
+            <Bookmark size={22} strokeWidth={2.1} fill={marked ? 'currentColor' : 'none'} aria-hidden="true" />
+          </button>
           {/* A note with no recording has no tape; talking into it is this mic. Once it has audio, the tape's Add is. */}
           {tape.length > 0 ? null : (
             <button type="button" className={styles.cog} onClick={speakHere} aria-label="Talk into this note">
               <Mic size={22} strokeWidth={2.1} aria-hidden="true" />
             </button>
           )}
-          <RobotMenu mode={mode} onChoose={showMode} />
-          {/* More for this note: pin, archive, links, delete (NoteSettings). Three dots rather than a cog (Matt). */}
+          {/* More for this note: the robot's modes under AI, pin, archive, links, delete (NoteSettings). Three dots rather than a cog (Matt). */}
           <button type="button" className={`${styles.cog} ${styles.more}`} onClick={() => setSettingsOpen(true)} aria-label="More for this note">
             <EllipsisVertical size={22} strokeWidth={2.6} aria-hidden="true" />
           </button>
@@ -436,7 +486,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
                 onError={tape.audio.onError}
               />
             ) : null}
-            <NoteTape note={note} title={title} tape={tape} onSpeak={speakHere} onRemove={removeRecording} />
+            <NoteTape note={note} title={title} tape={tape} onSpeak={speakHere} onRemove={removeRecording} hasMemos={hasClips(currentBody())} />
           </div>
         ) : null}
         {/* What the note is linked to (a Notion board, a repo): a tap opens the cog sheet to change it. */}
@@ -467,6 +517,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
             onView={setView}
             wispTyping
             display={prefs.noteView}
+            tape={!tape.web && tape.length > 0 ? convertFileSrc(`${note.id}.wav`, 'rec') : null}
+            tapeId={tape.length > 0 ? tapeId(note.id) : null}
             onImageError={setPhotoProblem}
             dark={isDarkNow(prefs.theme)}
             assist={prefs.assist}
@@ -498,7 +550,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
       <ContextMenu view={view} onAddImage={() => void addPhoto()} onPasteImage={pasteImage} onFind={setFinding} />
       {finding !== null && view && shown === 'raw' ? <FindBar view={view} initial={finding} onClose={() => setFinding(null)} /> : null}
       {/* The page's top and bottom soften while there is more to scroll to. */}
-      {shown === 'raw' ? <ScrollFades target={page} top={false} /> : null}
       <NoteSettings
         open={settingsOpen}
         noteId={note.id}
@@ -508,6 +559,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
         onClose={() => setSettingsOpen(false)}
         view={!wide && shown === 'raw' ? prefs.noteView : undefined}
         onView={chooseView}
+        mode={mode}
+        onMode={showMode}
         onFind={
           shown === 'raw'
             ? () => {

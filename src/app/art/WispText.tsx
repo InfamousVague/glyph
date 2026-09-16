@@ -57,12 +57,13 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 /** A class from the module, never the empty string (which classList refuses). */
 const cls = (name: string): string => styles[name] ?? name;
 /**
- * How long a letter takes to set, in ms; the fade runs the same length so neither ends first. A third quicker than it
- * was, and letters come a third sooner (`SPEED`): Matt, "the fade in wisp effect needs to be boosted by 33% speed".
+ * How long a letter takes to set, in ms; the fade runs the same length so neither ends first. Quickened twice on
+ * Matt's word - "boosted by 33% speed", then "speed up the wisp animation on text" - so the arc is 0.56 of what it
+ * first was and the letters come in at `SPEED` times the asked-for pace.
  */
-const IN_MS = 461;
-const IN_JITTER_MS = 135;
-const SPEED = 4 / 3;
+const IN_MS = 346;
+const IN_JITTER_MS = 100;
+const SPEED = 16 / 9;
 /** Untyping is quicker than typing. */
 const OUT_MS = 345;
 /** Letters leave this far apart. */

@@ -41,8 +41,9 @@ export const wisp = Annotation.define<{ kind: WispKind }>();
 const typing = Facet.define<boolean, boolean>({ combine: (values) => values.some(Boolean) });
 
 /**
- * A letter deleted by hand leaves quickly, and quicker still in a run of backspaces (Matt: "if the item is being
- * backspaced make the animation quicker"): the smoke is a trace of what went, not something to wait for.
+ * Text deleted by hand leaves quickly, and quicker still in a run of backspaces (Matt: "if the item is being
+ * backspaced make the animation quicker"): the smoke is a trace of what went, not something to wait for. A single
+ * letter leaves no trace at all, because it read as a stutter while typing.
  */
 const DELETE_MS = 140;
 const DELETE_RUN_MS = 85;
@@ -78,13 +79,16 @@ export interface Moving {
  * quickly (Matt: "the text needs to fade in way faster"), but each keeps its full arc: shortening that made the smoke
  * end before it read ("it seems shortening the animation was wrong").
  */
-const STAGGER_MS = 10.5;
+const STAGGER_MS = 8;
 /** However long a word, the next one never waits longer than this behind it. */
-const WORD_MAX_MS = 83;
-const STAGGER_CAP_MS = 1800;
-/** A third quicker than it was (Matt: "the fade in wisp effect needs to be boosted by 33% speed"): arc, jitter and stagger all at 0.75. */
-const IN_MS = 465;
-const IN_JITTER_MS = 135;
+const WORD_MAX_MS = 62;
+const STAGGER_CAP_MS = 1350;
+/**
+ * Quicker again, another quarter off (Matt: "the fade in wisp effect needs to be boosted by 33% speed", then "speed
+ * up the wisp animation on text"): arc, jitter and stagger together, so the words still arrive in order.
+ */
+const IN_MS = 350;
+const IN_JITTER_MS = 100;
 const OUT_MS = 380;
 const POOL_MAX = 32;
 const BEND = 34;
@@ -100,9 +104,9 @@ const settle = StateEffect.define<readonly number[]>();
 export const revealWisp = StateEffect.define<{ from: number; to: number }>();
 
 /** The opening reveal: each piece this far behind the one before, the whole never longer than the cap; and its arc. */
-const REVEAL_STEP_MS = 13.5;
-const REVEAL_CAP_MS = 390;
-const REVEAL_MS = 345;
+const REVEAL_STEP_MS = 10;
+const REVEAL_CAP_MS = 290;
+const REVEAL_MS = 260;
 /**
  * A piece of the reveal is a few words, never more than this many characters: short enough to sit on one row. A
  * whole paragraph as one piece was one filter the width of the page and several rows deep, redrawn every frame (Matt:
@@ -155,7 +159,7 @@ function prefersStill(): boolean {
 }
 
 /** What a wisp transaction sets in motion: the letters it really added, and the text it really took away. */
-function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, outMs = OUT_MS): Moving[] {
+function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, outMs = OUT_MS, singleLetters = true): Moving[] {
   const moving: Moving[] = [];
   let wait = 0;
   let letters = 0;
@@ -164,7 +168,10 @@ function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, 
     const added = inserted.toString();
     const { prefix, suffix } = commonEnds(removed, added);
     const gone = removed.slice(prefix, removed.length - suffix);
-    if (gone.trim()) moving.push({ id: nextId++, from: fromB + prefix, to: fromB + prefix, gone, at: now, dur: outMs });
+    // A letter backspaced by hand just goes: a trace of smoke on each was a stutter under the fingers (Matt:
+    // "deleting characters should be instant and not glitchy when typing"). A word or a selection taken out at once
+    // still smokes, and so does a letter a rewrite takes back while the words are being heard, which is not typing.
+    if (gone.trim() && (singleLetters || gone.trim().length > 1)) moving.push({ id: nextId++, from: fromB + prefix, to: fromB + prefix, gone, at: now, dur: outMs });
     // A word at a time, one filter each, in turn at the pace its letters would type: a letter per filter made a long
     // phrase bend sixty at once, the phone fell behind, and the rest arrived all together (Matt: "it still animates
     // one line or so and then rapidly finishes"). A single typed letter is its own word, so typing is unchanged.
@@ -212,7 +219,8 @@ export const wispState = StateField.define<readonly Moving[]>({
     // Typed, pasted, or deleted by hand.
     if (tr.state.facet(typing) && (tr.isUserEvent('input') || tr.isUserEvent('delete'))) {
       const now = performance.now();
-      return [...next, ...movingIn(tr, now, tr.isUserEvent('input.paste') ? PASTE_MAX : Number.POSITIVE_INFINITY, tr.isUserEvent('delete') ? deleteMs(now) : OUT_MS)];
+      const deleting = tr.isUserEvent('delete');
+      return [...next, ...movingIn(tr, now, tr.isUserEvent('input.paste') ? PASTE_MAX : Number.POSITIVE_INFINITY, deleting ? deleteMs(now) : OUT_MS, !deleting)];
     }
     return next;
   },

@@ -126,23 +126,23 @@ body {
  * The status bar's ground. The page is drawn edge to edge, so a list or a note
  * scrolled up ran under the phone's clock and icons and they sat on words
  * (Matt: "top content when scrolling intercepts the native top menu controls
- * … We need a gradient to fix that at the top"). The paper colour is solid
- * behind the bar and fades out just below it; nothing can be touched through
- * it. Zero high where there is no status bar, as on a desktop.
+ * … We need a gradient to fix that at the top"). Solid paper across the bar
+ * and no further: a view scrolling under it has already gone to smoke by then
+ * (`--wisp-top-fade` reaches the bar's height in art/wispEdge.ts), so the old
+ * gradient tail below the bar is gone, and what the eye sees at the top of a
+ * page is the wisp dissolving rather than a black fade (Matt: "replace the
+ * areas where it's just a black fade and blur to use the wisp fade effect").
+ * Nothing can be touched through it, and it is zero high where there is no
+ * status bar, as on a desktop.
  */
 .app-statusScrim {
   position: fixed;
   inset-block-start: 0;
   inset-inline: 0;
   z-index: 40;
-  block-size: calc(var(--app-safe-top) + min(var(--app-safe-top), 14px));
+  block-size: var(--app-safe-top);
   pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    var(--glacier-bg) 0,
-    var(--glacier-bg) calc(var(--app-safe-top) * 0.7),
-    color-mix(in srgb, var(--glacier-bg) 0%, transparent) 100%
-  );
+  background: linear-gradient(to bottom, var(--glacier-bg) 0, var(--glacier-bg) 78%, color-mix(in srgb, var(--glacier-bg) 0%, transparent) 100%);
 }
 
 /*
@@ -169,15 +169,43 @@ body {
   backdrop-filter: blur(18px) saturate(1.1);
 }
 
-[data-wisp-edge] {
+/*
+ * A view whose top is smoking, whose foot is, or both: the same filter, and a mask that dissolves whichever end is
+ * going (`--wisp-top-fade` above, `--wisp-foot-fade` below; both 0 while that end isn't). Under a solid header the
+ * header hides the top, so only the foot fades.
+ */
+[data-wisp-edge],
+[data-wisp-foot] {
   filter: url(#wispEdge);
-  /* With no header the very top dissolves (`--wisp-top-fade`); under a solid header the header hides it. */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--wisp-top-fade, 29px));
-  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--wisp-top-fade, 29px));
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--wisp-top-fade, 29px),
+    #000 calc(100% - var(--wisp-foot-fade, 0px)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--wisp-top-fade, 29px),
+    #000 calc(100% - var(--wisp-foot-fade, 0px)),
+    transparent 100%
+  );
+}
+
+/* While the foot is smoking, the last stretch of the view dissolves into the paper below it. */
+[data-wisp-foot] {
+  --wisp-foot-fade: 30px;
+}
+
+/* A view smoking at its foot alone is crisp at its top: nothing is going under the header yet. */
+[data-wisp-foot]:not([data-wisp-edge]) {
+  --wisp-top-fade: 0px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-wisp-edge] {
+  [data-wisp-edge],
+  [data-wisp-foot] {
     filter: none;
   }
 }

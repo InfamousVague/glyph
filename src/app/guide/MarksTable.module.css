@@ -1,0 +1,223 @@
+/*
+ * The guide's table of marks (MarksTable.tsx): two columns, what you type and
+ * how it reads, in the app's ink and paper. The typed side is the note's mono
+ * face with its marks showing, exactly as the editor keeps them.
+ */
+
+.table {
+  margin-block-start: var(--glacier-space-6);
+}
+
+.group + .group {
+  margin-block-start: var(--glacier-space-8);
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-subtle);
+}
+
+.groupLead {
+  margin: var(--glacier-space-1) 0 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+  color: var(--glacier-text-muted);
+}
+
+.rows {
+  margin-block-start: var(--glacier-space-3);
+}
+
+.head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--glacier-space-4);
+  padding-block-end: var(--glacier-space-2);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  font-size: var(--glacier-font-size-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--glacier-text-subtle);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--glacier-space-4);
+  align-items: start;
+  padding-block: var(--glacier-space-4);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+.typed {
+  display: grid;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+}
+
+/* The mark itself, in a ring, so the eye finds it before the line. */
+.symbol {
+  justify-self: start;
+  padding: 0.1em 0.4em;
+  border: var(--glacier-hairline) solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-md, 8px);
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.code {
+  margin: 0;
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--glacier-text-muted);
+}
+
+.shown {
+  display: grid;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+}
+
+.name {
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.example {
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.say {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--glacier-text-subtle);
+}
+
+/* The looks, each the same as the note's own (editor/Editor.module.css). */
+.h1 {
+  font-size: var(--glacier-font-size-xl);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: -0.02em;
+}
+
+.h2 {
+  font-size: var(--glacier-font-size-lg);
+  font-weight: var(--glacier-font-weight-bold);
+}
+
+.h3 {
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.mono {
+  font-family: var(--glacier-font-mono);
+  color: var(--glacier-accent-text);
+}
+
+.link {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.quote {
+  display: block;
+  padding-inline-start: var(--glacier-space-3);
+  border-inline-start: var(--glacier-shape-accent-edge, 3px) solid var(--glacier-border-strong);
+  color: var(--glacier-text-muted);
+}
+
+.marker {
+  color: var(--glacier-text-subtle);
+}
+
+/* A to-do's box, drawn rather than typed, with a cross when it is done. */
+.box {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.05em;
+  block-size: 1.05em;
+  margin-inline-end: 0.35em;
+  border: 1.5px solid var(--glacier-border-strong);
+  border-radius: 3px;
+  font-size: 0.8em;
+  line-height: 1;
+  vertical-align: -0.15em;
+}
+
+.doneWords {
+  color: var(--glacier-text-muted);
+  text-decoration: line-through;
+}
+
+.rule {
+  display: block;
+  block-size: 0;
+  margin-block: 0.7em;
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-strong);
+}
+
+/* The drawn table, as the editor draws one: a hairline grid. */
+.grid {
+  border-collapse: collapse;
+  font-size: var(--glacier-font-size-sm);
+}
+
+.grid th,
+.grid td {
+  padding: 0.25em 0.5em;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  text-align: start;
+}
+
+.grid th {
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+/* A picture: its frame, and the caption under it. */
+.frame {
+  display: block;
+  block-size: 2.2em;
+  border: var(--glacier-hairline) solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-md, 8px);
+  background: var(--app-paper-2, var(--glacier-surface));
+}
+
+.caption {
+  display: block;
+  font-size: var(--glacier-font-size-xs);
+  color: var(--glacier-text-subtle);
+}
+
+.block {
+  margin: 0;
+  padding: 0.35em 0.5em;
+  border-radius: var(--glacier-radius-md, 8px);
+  background: var(--glacier-surface-sunken);
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  white-space: pre-wrap;
+}
+
+/* A spoiler, as the note draws it: smoke, until the caret is in the words. */
+.smoke {
+  filter: blur(3.5px);
+  opacity: 0.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .smoke {
+    filter: blur(2.5px);
+  }
+}

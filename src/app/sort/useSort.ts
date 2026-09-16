@@ -6,7 +6,8 @@ import { placeWords } from '../capture/listAppend.ts';
 import { clearScratch, type Scratch } from '../capture/scratch.ts';
 import { enqueueFormat, setFormattingPaused } from '../format/queue.ts';
 import { thinkingModel } from '../review/useReview.ts';
-import { leftover, readPlacements, rulePlacements, type Placement } from './plan.ts';
+import { leftover, memosNote, onlyMemos, readPlacements, rulePlacements, UNSORTED_MEMOS, type Placement } from './plan.ts';
+import { addWorkspace, fileNote } from '../core/workspaces.ts';
 import { SORT_PROMPT, sortBudget, sortMessage } from './prompt.ts';
 
 /**
@@ -130,7 +131,14 @@ export function useSort(scratch: Scratch) {
       const rest = leftover(scratch.markdown, kept);
       let open: string | null = kept[0]?.noteId ?? null;
       if (rest) {
-        const saved = await saveNote(scratch.id, rest, 'capture');
+        // Nothing but voice memos left: they are not an untitled note of players, they are the Unsorted memos note,
+        // filed in a workspace of that name so they are all in one place until they are put somewhere.
+        const loose = onlyMemos(rest);
+        const saved = await saveNote(scratch.id, loose ? memosNote(rest) : rest, 'capture');
+        if (loose) {
+          const space = addWorkspace(UNSORTED_MEMOS);
+          if (space) fileNote(saved.id, space.id);
+        }
         if (scratch.recordedMs !== null) await setNoteRecording(saved.id, scratch.recordedMs, scratch.segments).catch(() => null);
         enqueueFormat(saved.id);
         open = saved.id;

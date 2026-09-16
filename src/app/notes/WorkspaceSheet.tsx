@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
 import { addWorkspace, chooseWorkspace, removeWorkspace, renameWorkspace, type Workspace } from '../core/workspaces.ts';
 import { SheetField, SheetGroup, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import sheet from '../editor/NoteSettings.module.css';
+import { useSheetDrag } from '../editor/sheetDrag.ts';
 
 /**
  * A workspace's sheet, from the row on the list: a name to add, or the name
@@ -13,6 +14,8 @@ import sheet from '../editor/NoteSettings.module.css';
 export function WorkspaceSheet({ which, onClose }: { which: Workspace | 'new' | null; onClose: () => void }) {
   const editing = which && which !== 'new' ? which : null;
   const [name, setName] = useState('');
+  const panel = useRef<HTMLElement>(null);
+  const drag = useSheetDrag(panel, onClose);
   useEffect(() => {
     setName(editing?.name ?? '');
   }, [editing, which]);
@@ -32,8 +35,15 @@ export function WorkspaceSheet({ which, onClose }: { which: Workspace | 'new' | 
   };
   return (
     <div className={sheet.scrim} onClick={onClose}>
-      <section className={sheet.sheet} role="dialog" aria-modal="true" aria-label={editing ? editing.name : 'New workspace'} onClick={(e) => e.stopPropagation()}>
-        <span className={sheet.grip} aria-hidden="true" />
+      <section
+        ref={panel}
+        className={sheet.sheet}
+        role="dialog"
+        aria-modal="true"
+        aria-label={editing ? editing.name : 'New workspace'}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className={sheet.grip} aria-hidden="true" {...drag} />
         <SheetTitle>{editing ? editing.name : 'New workspace'}</SheetTitle>
         {editing ? null : <SheetNote>Notes filed in a workspace show together. A note made while one is chosen goes there.</SheetNote>}
         <SheetGroup>

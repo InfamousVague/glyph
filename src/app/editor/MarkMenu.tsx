@@ -1,9 +1,10 @@
 import { CircleCheck, ExternalLink, PencilLine, RefreshCw, RotateCcw, Unlink } from '@glacier/icons';
-import { useEffect, useReducer, useState, type ComponentType } from 'react';
+import { useEffect, useReducer, useRef, useState, type ComponentType } from 'react';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { agoText, markActions, onMarkDetails, openMarked, peekMarkDetails, wantMarkDetails, type MarkAction } from '../core/markDetails.ts';
 import sheet from './NoteSettings.module.css';
+import { useSheetDrag } from './sheetDrag.ts';
 import styles from './MarkMenu.module.css';
 
 /**
@@ -47,6 +48,9 @@ const ICONS: Record<MarkAction['icon'], ComponentType<{ size?: number; strokeWid
 export function MarkMenu({ name, url, words, say, close, unlink }: MarkMenuProps) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [busy, setBusy] = useState<string | null>(null);
+  // The drawer takes a pull on its handle: down far enough and it closes (editor/sheetDrag.ts).
+  const panel = useRef<HTMLElement>(null);
+  const drag = useSheetDrag(panel, close);
   const title = name.charAt(0).toUpperCase() + name.slice(1);
 
   useEffect(() => onMarkDetails(redraw), []);
@@ -102,13 +106,14 @@ export function MarkMenu({ name, url, words, say, close, unlink }: MarkMenuProps
   return (
     <div className={sheet.scrim} onClick={close}>
       <section
+        ref={panel}
         className={`${sheet.sheet} ${styles.drawer}`}
         role="dialog"
         aria-modal="true"
         aria-label={`${title} ${details?.title ?? 'link'}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <span className={sheet.grip} aria-hidden="true" />
+        <span className={sheet.grip} aria-hidden="true" {...drag} />
         <div className={styles.head}>
           <p className={styles.eyebrow}>
             <span>{title}</span>

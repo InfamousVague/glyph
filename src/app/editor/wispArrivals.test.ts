@@ -46,8 +46,14 @@ describe('text arriving from smoke in the editor', () => {
     const typed = EditorState.create({ doc: '', extensions: [wispArrivals({ typing: true })] });
     const one = typed.update({ changes: { from: 0, insert: 'h' }, userEvent: 'input.type' }).state;
     expect(moving(one).map((m) => one.doc.sliceString(m.from, m.to))).toEqual(['h']);
+    // A letter backspaced by hand goes at once: no smoke to stutter under the fingers.
     const gone = one.update({ changes: { from: 0, to: 1, insert: '' }, userEvent: 'delete.backward' }).state;
-    expect(moving(gone).map((m) => m.gone)).toEqual(['h']);
+    expect(moving(gone).filter((m) => m.gone)).toEqual([]);
+    // A word taken out at once still smokes.
+    const word = EditorState.create({ doc: 'buy milk', extensions: [wispArrivals({ typing: true })] })
+      .update({ changes: { from: 4, to: 8, insert: '' }, userEvent: 'delete.selection' })
+      .state;
+    expect(moving(word).map((m) => m.gone)).toEqual(['milk']);
     const pasted = typed.update({ changes: { from: 0, insert: 'x'.repeat(100) }, userEvent: 'input.paste' }).state;
     expect(moving(pasted).reduce((sum, m) => sum + (m.to - m.from), 0)).toBe(40);
     const programmatic = typed.update({ changes: { from: 0, insert: 'set' } }).state;

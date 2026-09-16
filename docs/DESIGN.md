@@ -2171,3 +2171,120 @@ Matt's list, worked through with each card moved on the board.
 - **Pinch to zoom** (`editor/pinchZoom.ts`). Two fingers set `--note-zoom` on the note's page, which redefines the
   body and heading sizes there (a custom property is computed where it is defined, so the root's could not follow),
   from 0.7 to 2, kept for every note. The position under the fingers is held with `coordsAtPos` each frame.
+
+## Voice memos, and the page set as it is spoken (2026-09-15)
+
+Matt: "show actual stuff being written out and formatted as i talk. allow for voice memos to be left as a bullet
+point or inline audio segment."
+
+- **The live page is set, not marked up.** The recorder already writes into the note's own editor
+  (`capture/LivePage.tsx`); it now shows it in the formatted view, so a heading is a heading and a bullet a bullet as
+  it is said, with no marks around them. The note it saves has every mark, as before.
+- **A voice memo keeps the sound instead of the words.** "Voice memo" said as its own phrase (`capture/voiceMemo.ts`)
+  stops the words being written; what follows stays on the note's tape until "end memo" or a two-second breath, and a
+  clip of it is written where the cue was: after "bullet point" it is a bullet, mid-sentence an inline segment. Done
+  closes an open memo.
+- **A clip is markdown** (`core/clips.ts`): `![voice 0:12](tape:12000-19500@k3f9x2)`, milliseconds into the note's
+  recording, so a note is still a plain file. The times are written with the continued tape's length added, since a
+  take is appended to the tape it already had.
+- **And it says which tape it means.** A note's recording can be removed and another recorded, and the new file
+  starts its own timeline, so times alone would point at whatever sound is there now. Every take names its tape - the
+  one a continued note holds, or a fresh id - kept beside the note on the device (`tapeId`, `setTapeId`), because the
+  audio is on the device too. Remove forgets it and Undo puts it back. A clip plays only while the note's tape still
+  carries its id; otherwise it is the quiet mark. A mark with no id, from the first day of clips, plays while the note
+  has any recording.
+- **The editor plays it where it sits** (`editor/clips.ts`): the mark is replaced by a small player, and comes back
+  on the line the caret is on, the bargain the formatted view makes with every mark. With no tape to play - a note
+  read in a browser, a recording removed, a clip of a tape the note no longer has - it is a quiet dashed mark saying a
+  memo was left here, and nothing to press. One `<audio>` per clip on first
+  tap, over the recordings scheme, which serves byte ranges; one plays at a time; the end is watched as it plays.
+- **The better words keep them.** A memo's stretch is skipped like a command's, so the larger model never writes its
+  words, and `refine.withClips` puts each clip back among the refined phrases in the order they were spoken.
+
+## The board, late on 2026-09-15
+
+- **Backspacing is instant.** A single letter deleted by hand leaves no smoke (`editor/wispArrivals.ts`); it read as
+  a stutter under the fingers. A word or selection taken at once still smokes, and so does a letter a rewrite takes
+  back while you are talking, which is not typing.
+- **The Notion drawer takes the keyboard down with it.** Opening it blurs the note, so the keyboard cannot stand over
+  the drawer (`editor/linkedRows.ts`).
+- **A bookmark in the header** (`editor/NoteScreen.tsx`, `editor/notePlace.ts`). With none it marks where you are;
+  with one it takes you back; pressed again where it already is, it comes off. A note opens at its bookmark ahead of
+  wherever it was last left, and the icon is filled while one is set.
+- **Sheets have a handle you can pull** (`editor/sheetDrag.ts`). The grip follows the finger down and closes the
+  sheet past a hundred pixels or on a flick, judged on how the pull ended rather than its average; a short pull
+  springs back; upward it gives a little and returns. The grip alone is the grab, so the rows inside still scroll.
+- **Voice memos with nowhere to go** (`sort/plan.ts`, `sort/useSort.ts`). When everything left of a sorted memo is
+  clips - bullets and blank lines aside - the note becomes "Unsorted memos" and is filed in a workspace of that name,
+  instead of an untitled note of nothing but players.
+
+## Smoke at both ends, and under the clock
+
+Matt: "replace the areas where it's just a black fade and blur to use the wisp fade effect, like the safe area fade
+and the bottom page blur."
+
+- **The foot.** `art/wispEdge.ts` gained a foot band: the same strip, blur and bend at a view's bottom edge, with its
+  own noise and its own subregions placed by `placeFoot`, so it costs the band and not the page, and parked far below
+  while a view has no foot. `useWispEdge(..., { foot: true })` turns it on; the note screen uses it, and the mask fades
+  the last 30px (`--wisp-foot-fade`). `art/ScrollFades.tsx`, the blurred paper bands it replaces, is gone.
+- **The clock.** On a view with no header the status bar now plays the part of one: the band's lip sits at its edge and
+  the top mask reaches it (`--wisp-top-fade` = safe area + 29px), so a page dissolves in smoke as it passes the clock.
+  `.app-statusScrim` is solid paper across the bar and stops there; the gradient tail below it is gone.
+
+## Every mark, side by side
+
+Matt: "create a guide page, it should show every formatting mode we have in a table and show you an example of how
+it works." The guide has a sixth page (`guide/pages.ts` 'marks', `guide/MarksTable.tsx`): two columns, what you type
+on the left with its marks showing, how the note reads it on the right, and under that the words to say while
+recording where there are any. The rows are data (`guide/marks.ts`): the app's own marks by group (words, lines,
+blocks), then the marks of every switched-on plugin, read from the registry, so a plugin switched off is never
+promised and a new one appears by itself, drawn from the CSS the plugin declares. marks.test.ts pins that every
+mark the app writes has a row, that each plugin format's row is its delimiter around its words, and that the
+spoiler's row is smoke.
+
+
+## What's new: a changelog of every release (2026-09-15)
+
+Matt: "show a changelog with all updates including OTA." Nothing published a history, so a person on 1.4.1-2 had no
+way to see what 1.4.1-3 changed, or what they already had.
+
+- **The site keeps it.** Each deploy writes `/glyph/changelog.json` from the one that is live, newest first, capped
+  at sixty: version, build, when, the notes the deploy carried, and the APK version when one went with it
+  (`scripts/deploy-ota.mjs`). Carried forward from what is published rather than from any machine, so a deploy from
+  another Mac adds to the same list; `scripts/changelog-seed.json` holds the releases that went out before there was
+  one, used only when nothing is published yet.
+- **Settings shows it** (`core/changelog.ts`, Settings > What's new). Read from wherever the app takes its updates,
+  kept for reading with no signal, and the release running is marked. It is words, not code: unsigned, fetched
+  plainly, while the bundles it describes stay signed and checked. The web version reads the file beside its own page.
+
+## Boards, written in markdown (2026-09-16)
+
+Matt: "define and create a markdown standard we use to create kanban boards and task management boards entirely
+within markdown, linking the tasks in the board to a task on the page. Make the UI cleanly render this and make an
+example note with this functionality." The standard is docs/BOARDS.md; it is two pieces of ordinary markdown.
+
+- **A task carries an anchor**: `- [ ] Ship the pricing page ^ship-page`, the block id other tools write the same
+  way. **A fenced ```board block lays out the columns**: `To do: ship-page, email-list`, one line each. A renderer
+  that knows nothing of boards shows a code block and a task list, both readable; nothing is stored beside the note.
+- **A card is its task** (`core/boards.ts` reads and writes the whole syntax; `editor/boards.ts` draws it). The
+  card's tick box is the task's box, its words are the task's words, and tapping them puts the caret on that line, so
+  the board is a way around the note. The chevrons move a card and rewrite the fence. A column called Done means
+  done: ticking a card moves it there, and a ticked task is drawn there wherever the fence has it.
+- **The fence stays the truth.** Tapping it puts the caret inside and the drawing steps aside, the way a table does
+  (`editor/tables.ts`), so columns are renamed, added and reordered as text. A card whose task is gone is drawn with
+  its anchor, so nothing disappears quietly; a task with no card is an ordinary to-do.
+- **The example note** (`core/boardNote.ts`, Settings > About > Add the example board) is a working board with two
+  fences in one note, and says in its own words how to change it.
+
+## The board again, and the robot moves house (2026-09-16)
+
+- **Text arrives quicker still.** Matt asked twice: after the 33% boost, "speed up the wisp animation on text". The
+  arc, its jitter and the stagger are another quarter off in `editor/wispArrivals.ts`, and `art/WispText.tsx` is the
+  same with its letters at 16/9 of the asked-for pace.
+- **The drawer handle is a bar again.** The grab band I gave it (`NoteSettings.module.css .grip`) put a full radius on
+  a 40×30 box, and the clipped background came out an ellipse (Matt: "handle on drawers are ovals instead of
+  rectangles with rounded caps"). The band is now plain and the bar is its `::before`, 44×4 with 2 px caps.
+- **The robot lives in More.** Matt: "move robot dropdown in topbar into more drawer with an AI group label", and
+  "give the dropdown for the robot tools like formatting glass mode". Format, Summarize and Enhance are rows under an
+  AI heading in the note's More sheet, the group in glass, the mode showing marked with a dot; the header keeps the
+  bookmark, the mic and More. `format/RobotMenu.tsx` and its CSS are deleted, nothing imports them.

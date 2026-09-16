@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { leftover, readPlacements, rulePlacements } from './plan.ts';
+import { UNSORTED_MEMOS, leftover, memosNote, onlyMemos, readPlacements, rulePlacements } from './plan.ts';
 
 const notes = [
   { id: 'g', title: 'Groceries' },
@@ -33,5 +33,24 @@ describe('sorting a memo', () => {
     expect(leftover(memo, placed)).toBe('Remember to call Sam about the lease.');
     expect(leftover('# Memo\n\n- Add eggs to groceries\n- call the bank', rulePlacements('# Memo\n\n- Add eggs to groceries\n- call the bank', notes))).toBe('# Memo\n\n- call the bank');
     expect(leftover(memo, [])).toBe(memo);
+  });
+});
+
+describe('a memo with nowhere to go', () => {
+  const clip = '![voice 0:12](tape:12000-24000@k3f9x2)';
+
+  it('is only voice memos when nothing but clips is left', () => {
+    expect(onlyMemos(`- ${clip}\n\n- ${clip}\n`)).toBe(true);
+    expect(onlyMemos(`${clip}`)).toBe(true);
+    expect(onlyMemos(`- [ ] ${clip}`)).toBe(true);
+    expect(onlyMemos(`- ${clip} ring the roofer back`)).toBe(false);
+    expect(onlyMemos('- ring the roofer back')).toBe(false);
+    expect(onlyMemos('')).toBe(false);
+    expect(onlyMemos('   \n\n')).toBe(false);
+  });
+
+  it('becomes the Unsorted memos note, keeping a heading it already has', () => {
+    expect(memosNote(`- ${clip}`)).toBe(`# ${UNSORTED_MEMOS}\n\n- ${clip}`);
+    expect(memosNote(`# Roof\n\n- ${clip}`)).toBe(`# Roof\n\n- ${clip}`);
   });
 });

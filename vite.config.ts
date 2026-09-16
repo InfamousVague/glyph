@@ -9,6 +9,15 @@ import { sourceHash } from './scripts/testReport/source.mjs';
 const root = import.meta.dirname;
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
 
+/**
+ * The version this build calls itself. Over the air it carries the release number this bundle is for its version:
+ * 1.4.1-12 is the twelfth update published on 1.4.1 (scripts/deploy-ota.mjs sets GLYPH_RELEASE). Matt: "every ota
+ * deploy should do a -version so like 1.4.3-12 for the 12th OTA on 1.4.3", so About says which update is running,
+ * where every bundle between APKs used to read the same.
+ */
+const release = (process.env.GLYPH_RELEASE ?? '').trim();
+const version = /^\d+$/.test(release) ? `${pkg.version}-${release}` : pkg.version;
+
 /*
  * One build id per `vite build`, UTC to the second: `20260912221530`. It is how
  * an installed app tells a newer frontend from an older one, so it has to be
@@ -65,7 +74,7 @@ function otaManifest(): Plugin {
           bytes: bytes.length,
         };
       });
-      const manifest = { schema: 1, build, version: pkg.version, native: bundleRequires(), entry, styles, files };
+      const manifest = { schema: 1, build, version, native: bundleRequires(), entry, styles, files };
       writeFileSync(join(outDir, 'ota.json'), `${JSON.stringify(manifest, null, 2)}\n`);
     },
   };
@@ -87,7 +96,7 @@ export default defineConfig({
   plugins: [react(), otaManifest()],
   define: {
     __GLYPH_BUILD__: JSON.stringify(build),
-    __GLYPH_VERSION__: JSON.stringify(pkg.version),
+    __GLYPH_VERSION__: JSON.stringify(version),
     // The code this build is made from, for the test results page to check its report against.
     __GLYPH_SOURCE__: JSON.stringify(sourceHash(root)),
     // A staging build (GLYPH_STAGING=1, see gen/android/app/build.gradle.kts): its own app, no update checks.
