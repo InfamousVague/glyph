@@ -1,6 +1,19 @@
 import { EditorSelection, RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
-import { boardsIn, cardsOf, columnFor, moveCard, putCard, setTaskDone, tasksIn, writeBoard, type BoardColumn, type Card, type Task } from '../core/boards.ts';
+import {
+  boardsIn,
+  cardText,
+  cardsOf,
+  columnFor,
+  moveCard,
+  putCard,
+  setTaskDone,
+  tasksIn,
+  writeBoard,
+  type BoardColumn,
+  type Card,
+  type Task,
+} from '../core/boards.ts';
 
 /**
  * Boards, shown as boards (docs/BOARDS.md, core/boards.ts).
@@ -95,15 +108,18 @@ class BoardWidget extends WidgetType {
     const tick = document.createElement('button');
     tick.type = 'button';
     tick.className = 'cm-boardTick';
-    tick.setAttribute('aria-label', card.task?.done ? `Untick ${card.task.text}` : `Tick ${card.task?.text ?? card.id}`);
+    tick.setAttribute('aria-label', card.task?.done ? `Untick ${cardText(card.task.text)}` : `Tick ${card.task ? cardText(card.task.text) : card.id}`);
     tick.disabled = !card.task;
     press(tick, () => this.tick(view, card));
 
     const words = document.createElement('button');
     words.type = 'button';
     words.className = 'cm-boardWords';
-    words.textContent = card.task ? card.task.text : `^${card.id}`;
-    words.setAttribute('aria-label', card.task ? `Go to ${card.task.text} in the note` : `${card.id}: this task is not in the note`);
+    // What the card says: the words without their markdown, and a few lines of them at most (core/boards.ts).
+    const said = card.task ? cardText(card.task.text) : `^${card.id}`;
+    words.textContent = said;
+    words.title = said;
+    words.setAttribute('aria-label', card.task ? `Go to ${said} in the note` : `${card.id}: this task is not in the note`);
     press(words, () => this.goTo(view, card));
 
     const moves = document.createElement('span');
@@ -116,7 +132,7 @@ class BoardWidget extends WidgetType {
       move.type = 'button';
       move.className = 'cm-boardMove';
       move.textContent = glyph;
-      move.setAttribute('aria-label', `${label}: ${card.task?.text ?? card.id}`);
+      move.setAttribute('aria-label', `${label}: ${card.task ? cardText(card.task.text) : card.id}`);
       move.disabled = (by < 0 && column === 0) || (by > 0 && column === this.board.columns.length - 1);
       press(move, () => this.move(view, card, by));
       moves.append(move);
@@ -267,6 +283,11 @@ const boardTheme = EditorView.baseTheme({
   '.cm-boardTick:disabled': { opacity: '0.4', cursor: 'default' },
   '.cm-boardWords': {
     flex: '1 1 auto',
+    // Three lines at most: one long task must not take the whole board. The words are whole in the note below.
+    display: '-webkit-box',
+    WebkitLineClamp: '3',
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
     padding: '0',
     border: 'none',
     background: 'none',

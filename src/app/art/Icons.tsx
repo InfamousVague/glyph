@@ -61,7 +61,10 @@ export function Plus({ className }: IconProps) {
 
 /** A robot's head: an antenna, a rounded box, two eyes and a level mouth. The AI's button. */
 export function Robot({ className }: IconProps) {
-  return icon(className, 'M12 3v4M5.5 7h13a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9A1.5 1.5 0 0 1 5.5 7M9 12.5h.01M15 12.5h.01M9.5 16h5');
+  return icon(
+    className,
+    'M12 3v4M5.5 7h13a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9A1.5 1.5 0 0 1 5.5 7M9 12.5h.01M15 12.5h.01M9.5 16h5',
+  );
 }
 
 /** A pushpin: a cap, a flared body, and the needle below it. */
@@ -87,4 +90,9 @@ export function Bin({ className }: IconProps) {
 /** A folder: a tab at the top left, then the pocket. Where a note is filed. */
 export function Workspace({ className }: IconProps) {
   return icon(className, 'M3.5 6.5a1 1 0 0 1 1-1h5l2 2.5h8a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z');
+}
+
+/** A board: three columns, the first two with a card in them. Turning a list of to-dos into one. */
+export function Board({ className }: IconProps) {
+  return icon(className, 'M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5');
 }

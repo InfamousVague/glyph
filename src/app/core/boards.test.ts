@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   addToBoard,
+  boardFrom,
+  cardText,
   anchorFor,
   boardsIn,
   cardsOf,
@@ -159,5 +161,67 @@ describe('putting a to-do on a board', () => {
     expect(addToBoard(note, 1)).toBeNull();
     expect(addToBoard('- [ ] Alone in the world', 1)).toBeNull();
     expect(addToBoard(note, 9)).toBeNull();
+  });
+});
+
+describe('a list of to-dos made into a board', () => {
+  const list = [
+    '# Task Management',
+    '',
+    '- [ ] Ship the pricing page',
+    '- [x] Pick a launch date',
+    '- [ ] Email the [beta list](https://example.com/list)',
+    '',
+  ].join('\n');
+
+  it('anchors every to-do and lays the columns out under the title', () => {
+    const made = boardFrom(list)!;
+    expect(made.cards).toBe(3);
+    expect(made.done).toBe(1);
+    expect(made.doc.split('\n')).toEqual([
+      '# Task Management',
+      '',
+      '```board',
+      'To do: ship-the-pricing, email-the-beta',
+      'Doing:',
+      'Done: pick-a-launch',
+      '```',
+      '',
+      '- [ ] Ship the pricing page ^ship-the-pricing',
+      '- [x] Pick a launch date ^pick-a-launch',
+      '- [ ] Email the [beta list](https://example.com/list) ^email-the-beta',
+      '',
+    ]);
+  });
+
+  it('reads back as the board it looks like', () => {
+    const made = boardFrom(list)!;
+    const board = boardsIn(made.doc)[0]!;
+    const cards = cardsOf(board.columns, tasksIn(made.doc));
+    expect(cards.map((card) => card.task?.text)).toEqual(['Ship the pricing page', 'Email the [beta list](https://example.com/list)', 'Pick a launch date']);
+  });
+
+  it('keeps an anchor a task already has, and leaves the words alone', () => {
+    const made = boardFrom('- [ ] Already named ^mine\n- [ ] The other one')!;
+    expect(made.doc.split('\n').slice(6)).toEqual(['- [ ] Already named ^mine', '- [ ] The other one ^the-other-one']);
+    expect(made.doc.split('\n')[1]).toBe('To do: mine, the-other-one');
+  });
+
+  it('takes the columns it is given, and puts what is ticked in the one called Done', () => {
+    const made = boardFrom('- [x] One\n- [ ] Two', ['Later', 'Done now'])!;
+    expect(made.doc.split('\n').slice(0, 4)).toEqual(['```board', 'Later: two', 'Done now: one', '```']);
+  });
+
+  it('answers nothing for a note with no to-dos, or one that is a board already', () => {
+    expect(boardFrom('# Notes\n\nJust words.')).toBeNull();
+    expect(boardFrom(note)).toBeNull();
+  });
+});
+
+describe('what a card says', () => {
+  it('says a link by its words and drops the marks around them', () => {
+    expect(cardText('Fix the [login button](https://example.com/a/very/long/url) *today*')).toBe('Fix the login button today');
+    expect(cardText('Read <https://example.com/x>')).toBe('Read https://example.com/x');
+    expect(cardText('  lots   of   room  ')).toBe('lots of room');
   });
 });

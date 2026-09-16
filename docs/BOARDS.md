@@ -57,3 +57,8 @@ draws the columns as a board and the tasks as cards.
   the way a table steps aside (`editor/tables.ts`).
 - Moving a card, ticking it, or adding one rewrites the fence and the task line as a person would have typed them.
 - `src/app/core/boardNote.ts` is the example note, added from Settings.
+- A note that is already a list of to-dos becomes a board from More → **Make a board**: every to-do is given a name at
+  the end, and a fence of `To do / Doing / Done` goes in under the title, with whatever is ticked already in Done.
+  Nothing else about the note changes, and one Undo puts it back.
+- A card says its task's words with the markdown taken off — a link reads as its own words, not its URL — and shows
+  three lines at most. The note below always has the whole thing.
