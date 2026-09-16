@@ -19,6 +19,7 @@ import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.View
@@ -575,11 +576,23 @@ class MainActivity : TauriActivity() {
      */
     @JavascriptInterface
     fun readClipboard(): String {
-      val clipboard = getSystemService(CLIPBOARD_SERVICE) as? ClipboardManager ?: return "{}"
-      val clip = clipboard.primaryClip ?: return "{}"
-      if (clip.itemCount == 0) return "{}"
-      val item = clip.getItemAt(0)
-      val uri = item.uri
+      // A page's call arrives on a binder thread, and the clipboard is the UI thread's to read: asked from here it
+      // can come back empty or throw, and the note's Paste then did nothing at all. What is on it is taken on the UI
+      // thread and waited for - briefly, and never from the UI thread itself, which would wait on work only it can
+      // do. A picture is shrunk back here, off it.
+      val clip =
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+          clipboardNow()
+        } else {
+          val answer = java.util.concurrent.ArrayBlockingQueue<Array<String?>>(1)
+          runOnUiThread { answer.offer(clipboardNow()) }
+          answer.poll(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+        }
+      if (clip == null) {
+        Log.w(TAG, "clipboard read timed out")
+        return "{}"
+      }
+      val uri = clip[0]?.let { Uri.parse(it) }
       if (uri != null && (contentResolver.getType(uri) ?: "").startsWith("image/")) {
         return try {
           JSONObject().put("path", shrinkPicture(uri).absolutePath).toString()
@@ -588,8 +601,21 @@ class MainActivity : TauriActivity() {
           JSONObject().put("error", "That picture couldn't be read from the clipboard.").toString()
         }
       }
-      val text = item.coerceToText(this@MainActivity)?.toString().orEmpty()
+      val text = clip[1].orEmpty()
+      // Since Android 10 the clipboard only answers an app that holds focus, and a refusal reads as nothing at all:
+      // logged so an empty paste can be told apart from an empty clipboard (logcat -s ClipboardService says which).
+      if (text.isEmpty()) Log.i(TAG, "clipboard read came back empty (uri=${clip[0] != null})")
       return if (text.isEmpty()) "{}" else JSONObject().put("text", text).toString()
+    }
+
+    /** The first thing on the clipboard as `[uri, words]`, read on the UI thread where the clipboard belongs. */
+    private fun clipboardNow(): Array<String?> {
+      val empty = arrayOf<String?>(null, null)
+      val clipboard = getSystemService(CLIPBOARD_SERVICE) as? ClipboardManager ?: return empty
+      val clip = clipboard.primaryClip ?: return empty
+      if (clip.itemCount == 0) return empty
+      val item = clip.getItemAt(0)
+      return arrayOf(item.uri?.toString(), item.coerceToText(this@MainActivity)?.toString())
     }
 
     @JavascriptInterface

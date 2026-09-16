@@ -116,23 +116,35 @@ interface Open {
 type Clipboard = { text?: string; path?: string; error?: string };
 
 /**
- * What is on the clipboard, however this build can find out: the activity's own reader on the phone (which also
- * answers with a picture), and the browser's otherwise - the web app has no activity, and until now had no Paste at
- * all. Null where neither can be asked, and the row is not shown.
+ * What is on the clipboard, however this build can find out.
+ *
+ * The activity is asked first, because it is the only one that answers with a picture, and it is the reader that
+ * works inside the app. Where it answers with nothing at all - no activity (the web app), an older activity, or a
+ * read that came back empty - the browser's own reader is tried as well, so a build that can paste pastes. Both
+ * failing is said out loud rather than passed over in silence (Matt: "it still isnt letting me paste").
  */
-function clipboardReader(): (() => Promise<Clipboard>) | null {
+async function readClipboard(): Promise<Clipboard> {
   const host = (window as { GlyphHost?: { readClipboard?: () => string } }).GlyphHost;
+  let said: Clipboard = {};
   if (typeof host?.readClipboard === 'function') {
-    return async () => {
-      try {
-        return JSON.parse(host.readClipboard!()) as Clipboard;
-      } catch {
-        return {};
-      }
-    };
+    try {
+      const answer = host.readClipboard();
+      said = answer ? (JSON.parse(answer) as Clipboard) : {};
+    } catch {
+      // The activity could not read it (an old build, or a reader that threw): the browser is tried below.
+      said = {};
+    }
   }
-  if (typeof navigator.clipboard?.readText === 'function') return async () => ({ text: await navigator.clipboard.readText() });
-  return null;
+  if (said.text || said.path || said.error) return said;
+  if (typeof navigator.clipboard?.readText !== 'function') return said;
+  const text = await navigator.clipboard.readText();
+  return text ? { text } : said;
+}
+
+/** Whether a Paste row is worth showing at all: one of the two readers is there to try. */
+function canRead(): boolean {
+  const host = (window as { GlyphHost?: { readClipboard?: () => string } }).GlyphHost;
+  return typeof host?.readClipboard === 'function' || typeof navigator.clipboard?.readText === 'function';
 }
 
 export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], onEdit, editsUnavailable = null, onFind, send = null }: ContextMenuProps) {
@@ -142,7 +154,7 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
   // A style pressed changes what is lit: the menu reads the editor again.
   const [, restyled] = useReducer((n: number) => n + 1, 0);
   const menu = useRef<HTMLDivElement>(null);
-  const readClipboard = clipboardReader();
+  const pasteable = canRead();
 
   const close = useCallback(() => setOpen(null), []);
 
@@ -282,21 +294,27 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
   };
 
   const paste = async () => {
-    if (!readClipboard) return;
     let clip: Clipboard;
     try {
       clip = await readClipboard();
     } catch {
-      // The browser refused to be asked: nothing is pasted, and the person is told why rather than left guessing.
-      say?.('Glyph can’t read the clipboard here. Paste with your keyboard instead.');
+      // Refused: nothing is pasted, and the person is told why rather than left guessing at a row that does nothing.
+      say?.('Glyph can’t read the clipboard here. Tap into the note and paste from your keyboard instead.');
       return;
     }
-    if (clip.error) say?.(clip.error);
+    if (clip.error) {
+      say?.(clip.error);
+      return;
+    }
     if (clip.path && onPasteImage) {
       await onPasteImage(clip.path);
-    } else if (clip.text) {
-      view.dispatch({ changes: { from, to, insert: clip.text }, selection: { anchor: from + clip.text.length } });
+      return;
     }
+    if (!clip.text) {
+      say?.('Nothing on the clipboard to paste. Copy the words again, then hold here.');
+      return;
+    }
+    view.dispatch({ changes: { from, to, insert: clip.text }, selection: { anchor: from + clip.text.length } });
   };
 
   const selectAll = () => {
@@ -425,7 +443,7 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
             </button>
           </>
         ) : null}
-        {readClipboard ? (
+        {pasteable ? (
           <button type="button" role="menuitem" className={styles.item} onClick={() => void act(paste)()}>
             <Word icon={ClipboardPaste} label="Paste" />
           </button>
