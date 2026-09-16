@@ -80,3 +80,65 @@ describe('a pill pressed with a finger', () => {
     view.destroy();
   });
 });
+
+describe('what a finger’s press is allowed to do', () => {
+  const pill = () => {
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: 'words\n- [ ] Book the cabin',
+        extensions: [lineSuggestions({ suggest: () => [{ line: 2, label: 'Notion', busyLabel: 'Sending', run: async () => undefined }] })],
+      }),
+      parent: document.body,
+    });
+    return { view, button: view.contentDOM.querySelector('.cm-suggest') as HTMLElement };
+  };
+
+  it('keeps a touch alive so the browser still makes a click of it', () => {
+    const { view, button } = pill();
+    const touch = new Event('touchstart', { bubbles: true, cancelable: true });
+    button.dispatchEvent(touch);
+    // A touchstart whose default is taken away never becomes a click, and the pill stops working on a phone.
+    expect(touch.defaultPrevented, 'a touch on the pill must keep its default').toBe(false);
+    view.destroy();
+  });
+
+  it('takes the default off a mouse or pointer press, which is what keeps the caret off the line', () => {
+    const { view, button } = pill();
+    for (const kind of ['pointerdown', 'mousedown']) {
+      const press = new Event(kind, { bubbles: true, cancelable: true });
+      button.dispatchEvent(press);
+      expect(press.defaultPrevented, kind).toBe(true);
+    }
+    view.destroy();
+  });
+
+  it('runs what it offers when the click arrives', async () => {
+    let done = 0;
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: 'words\n- [ ] Book the cabin',
+        extensions: [
+          lineSuggestions({
+            suggest: () => [
+              {
+                line: 2,
+                label: 'Notion',
+                busyLabel: 'Sending',
+                run: async () => {
+                  done += 1;
+                },
+              },
+            ],
+          }),
+        ],
+      }),
+      parent: document.body,
+    });
+    const button = view.contentDOM.querySelector('.cm-suggest') as HTMLElement;
+    button.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+    expect(done).toBe(1);
+    view.destroy();
+  });
+});

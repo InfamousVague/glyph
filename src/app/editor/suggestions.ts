@@ -62,17 +62,25 @@ class SuggestWidget extends WidgetType {
     /*
      * A press on the pill must not reach the editor, or the caret moves to this line, the pill is rebuilt without it
      * (a line being typed carries no suggestion) and the tap lands on nothing: the first press did nothing and the
-     * second one worked (Matt: "sometimes i have to press the notion pill twice to create the notion task").
-     * Stopping `pointerdown` alone left the mouse events a phone sends after it, so all three are stopped, and the
-     * line is held from the moment a finger goes down until the tap is over.
+     * second one worked (Matt: "sometimes i have to press the notion pill twice to create the notion task"). So the
+     * press is kept from the editor, and the line is held from the moment a finger goes down until the tap is over.
+     *
+     * The two are stopped differently, and it matters. A pointer or mouse press has its default taken away, which is
+     * what stops the caret moving. A TOUCH does not: a touchstart whose default is taken away never becomes a click,
+     * and the pill stopped working on a phone altogether (Matt: "i can no longer tap notion pills to create tasks").
+     * The touch is only kept from the editor, and the mouse press the phone sends after it is what moves no caret.
      */
-    for (const kind of ['pointerdown', 'mousedown', 'touchstart'] as const) {
+    for (const kind of ['pointerdown', 'mousedown'] as const) {
       button.addEventListener(kind, (event) => {
         event.preventDefault();
         event.stopPropagation();
         this.held();
       });
     }
+    button.addEventListener('touchstart', (event) => {
+      event.stopPropagation();
+      this.held();
+    });
     button.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
