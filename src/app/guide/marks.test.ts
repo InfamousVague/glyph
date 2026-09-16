@@ -26,7 +26,8 @@ describe('the guide’s table of marks', () => {
   it('shows each mark a switched-on plugin adds, with the words it would say', () => {
     const formats = BUILT_IN.flatMap((plugin) => plugin.formats ?? []);
     const own = markGroups().find((group) => group.title === 'Glyph’s own');
-    expect(own?.rows).toHaveLength(formats.length);
+    // The plugin's own marks, and after them the row for a note written on any of them (editor/markNotes.ts).
+    expect(own?.rows).toHaveLength(formats.length + 1);
     for (const format of formats) {
       const row = own?.rows.find((r) => r.name === format.name);
       expect(row, format.name).toBeTruthy();
@@ -43,5 +44,16 @@ describe('the guide’s table of marks', () => {
     expect(highlight?.looks).toBe('style');
     expect(highlight?.css).toContain('background');
     expect(own?.rows.find((row) => row.name === 'Spoiler')?.looks).toBe('wisp');
+  });
+});
+
+describe('a note on a mark', () => {
+  it('is shown last, with the brackets in the example and the words the popover says', () => {
+    const own = markGroups().find((group) => group.title === 'Glyph’s own');
+    const row = own?.rows.at(-1);
+    expect(row?.name).toBe('A note on a mark');
+    expect(row?.looks).toBe('note');
+    expect(row?.typed).toBe('??four hundred??(Sam said 400)');
+    expect(row?.note).toBe('Sam said 400');
   });
 });

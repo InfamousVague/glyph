@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-16T03:58:09.020Z",
+  "generatedAt": "2026-09-16T13:49:59.968Z",
   "version": "1.4.2",
-  "commit": "9c03905",
+  "commit": "bc10ca2",
   "dirty": true,
-  "sourceHash": "573e5f101626f394",
+  "sourceHash": "ef83cbde50efa45f",
   "host": {
     "os": "darwin arm64",
     "node": "v25.9.0"
@@ -16,8 +16,8 @@
   },
   "ok": true,
   "totals": {
-    "total": 680,
-    "passed": 672,
+    "total": 681,
+    "passed": 673,
     "failed": 0,
     "skipped": 8,
     "todo": 0,
@@ -33,10 +33,10 @@
       "status": "passed",
       "reason": null,
       "exitCode": 0,
-      "durationMs": 7991,
+      "durationMs": 8957,
       "counts": {
-        "total": 497,
-        "passed": 497,
+        "total": 498,
+        "passed": 498,
         "failed": 0,
         "skipped": 0,
         "todo": 0
@@ -47,7 +47,7 @@
           "line": 7,
           "name": "reading Vitest’s JSON › files each test with its ancestors, line, time and failure",
           "status": "passed",
-          "ms": 3,
+          "ms": 1,
           "failure": null
         },
         {
@@ -63,7 +63,7 @@
           "line": 56,
           "name": "reading cargo test’s output › files tests by module, with the failure’s own output",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
@@ -87,7 +87,7 @@
           "line": 38,
           "name": "two gears meshing › keeps a tooth of one in a gap of the other as they turn at their rolling speeds",
           "status": "passed",
-          "ms": 7,
+          "ms": 1,
           "failure": null
         },
         {
@@ -95,7 +95,7 @@
           "line": 50,
           "name": "two gears meshing › keeps a planet in step with the ring it turns inside",
           "status": "passed",
-          "ms": 4,
+          "ms": 1,
           "failure": null
         },
         {
@@ -111,7 +111,7 @@
           "line": 87,
           "name": "a machine for a screen › meshes every pair on a phone, at any moment and any point of the swing",
           "status": "passed",
-          "ms": 14,
+          "ms": 15,
           "failure": null
         },
         {
@@ -119,7 +119,7 @@
           "line": 94,
           "name": "a machine for a screen › sets meshing gears exactly a pitch apart, and nothing else touching, on a phone",
           "status": "passed",
-          "ms": 4,
+          "ms": 8,
           "failure": null
         },
         {
@@ -135,7 +135,7 @@
           "line": 87,
           "name": "a machine for a screen › meshes every pair on an unfolded Fold, at any moment and any point of the swing",
           "status": "passed",
-          "ms": 24,
+          "ms": 41,
           "failure": null
         },
         {
@@ -143,7 +143,7 @@
           "line": 94,
           "name": "a machine for a screen › sets meshing gears exactly a pitch apart, and nothing else touching, on an unfolded Fold",
           "status": "passed",
-          "ms": 14,
+          "ms": 9,
           "failure": null
         },
         {
@@ -159,7 +159,7 @@
           "line": 87,
           "name": "a machine for a screen › meshes every pair on a small phone, at any moment and any point of the swing",
           "status": "passed",
-          "ms": 4,
+          "ms": 5,
           "failure": null
         },
         {
@@ -167,7 +167,7 @@
           "line": 94,
           "name": "a machine for a screen › sets meshing gears exactly a pitch apart, and nothing else touching, on a small phone",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -191,7 +191,7 @@
           "line": 148,
           "name": "a machine for a screen › draws a gear with a tooth for each tooth, and a ring with both sets",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -271,7 +271,7 @@
           "line": 19,
           "name": "createResampler › turns one second at 48 kHz into one second at 16 kHz",
           "status": "passed",
-          "ms": 5,
+          "ms": 4,
           "failure": null
         },
         {
@@ -279,7 +279,7 @@
           "line": 24,
           "name": "createResampler › handles a non-integer ratio (44.1 kHz) without drifting",
           "status": "passed",
-          "ms": 9,
+          "ms": 5,
           "failure": null
         },
         {
@@ -295,7 +295,7 @@
           "line": 43,
           "name": "createResampler › keeps a speech-band tone recognisable after decimation",
           "status": "passed",
-          "ms": 9,
+          "ms": 5,
           "failure": null
         },
         {
@@ -303,7 +303,7 @@
           "line": 15,
           "name": "hearing the keyword › finds \"Glyph\" and splits the words around it",
           "status": "passed",
-          "ms": 3,
+          "ms": 2,
           "failure": null
         },
         {
@@ -319,7 +319,7 @@
           "line": 26,
           "name": "hearing the keyword › knows the word as a note’s name when a preposition leads and \"note\" follows",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
@@ -335,7 +335,7 @@
           "line": 45,
           "name": "hearing the keyword › takes a sound-alike word at the start only when a command follows",
           "status": "passed",
-          "ms": 10,
+          "ms": 3,
           "failure": null
         },
         {
@@ -415,7 +415,7 @@
           "line": 117,
           "name": "asking for a table › names the note, or means this one",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -423,7 +423,7 @@
           "line": 122,
           "name": "asking for a table › takes column labels said up front",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
@@ -463,7 +463,7 @@
           "line": 9,
           "name": "toBase64 › matches the platform encoder on float PCM bytes",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -471,7 +471,7 @@
           "line": 19,
           "name": "toBase64 › round-trips a chunk far larger than one slice",
           "status": "passed",
-          "ms": 74,
+          "ms": 69,
           "failure": null
         },
         {
@@ -479,7 +479,7 @@
           "line": 5,
           "name": "adding spoken items to a note’s list › goes on the end of the last list, in its own style",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -487,7 +487,7 @@
           "line": 12,
           "name": "adding spoken items to a note’s list › counts on from a numbered list and keeps its delimiter",
           "status": "passed",
-          "ms": 2,
+          "ms": 0,
           "failure": null
         },
         {
@@ -503,7 +503,7 @@
           "line": 21,
           "name": "adding spoken items to a note’s list › picks the LAST list when a note has several",
           "status": "passed",
-          "ms": 6,
+          "ms": 0,
           "failure": null
         },
         {
@@ -527,7 +527,7 @@
           "line": 38,
           "name": "leaving a spoken note in another note › adds it to the note’s list when it has one, in the list’s style",
           "status": "passed",
-          "ms": 2,
+          "ms": 0,
           "failure": null
         },
         {
@@ -535,7 +535,7 @@
           "line": 46,
           "name": "leaving a spoken note in another note › picks the list it fits when a note has several",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -551,7 +551,7 @@
           "line": 25,
           "name": "toParagraphs › joins segments separated by a breath into one paragraph",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -623,7 +623,7 @@
           "line": 80,
           "name": "renderNote with local rules › turns a short opening into the title",
           "status": "passed",
-          "ms": 7,
+          "ms": 5,
           "failure": null
         },
         {
@@ -927,7 +927,7 @@
           "line": 345,
           "name": "lists said the way people say them › makes a list of \"list item is\", \"the next list item is\" and \"the final item … is\"",
           "status": "passed",
-          "ms": 5,
+          "ms": 3,
           "failure": null
         },
         {
@@ -1071,7 +1071,7 @@
           "line": 18,
           "name": "the better words after a recording › renders a first take with a title, from the better phrases",
           "status": "passed",
-          "ms": 9,
+          "ms": 7,
           "failure": null
         },
         {
@@ -1087,7 +1087,7 @@
           "line": 34,
           "name": "the better words after a recording › replaces only the take's phrases in the recording's list",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
@@ -1095,7 +1095,7 @@
           "line": 48,
           "name": "the better words leave commands out › drops phrases inside a command’s stretch and cuts a phrase at “Glyph”",
           "status": "passed",
-          "ms": 6,
+          "ms": 0,
           "failure": null
         },
         {
@@ -1127,7 +1127,7 @@
           "line": 13,
           "name": "hearing \"add to <note>\" › finds the command at the start and keeps what follows",
           "status": "passed",
-          "ms": 2,
+          "ms": 3,
           "failure": null
         },
         {
@@ -1263,7 +1263,7 @@
           "line": 5,
           "name": "where the side key is › knows the Fold line from its model code",
           "status": "passed",
-          "ms": 2,
+          "ms": 3,
           "failure": null
         },
         {
@@ -1287,7 +1287,7 @@
           "line": 5,
           "name": "a table said out loud › hears column labels and rows the way lists are said",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -1303,7 +1303,7 @@
           "line": 18,
           "name": "a table said out loud › hears when the rows are done, and not in a row that mentions it",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -1319,7 +1319,7 @@
           "line": 7,
           "name": "the recorder lays out the live note › reads each kind of line off its mark",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -1375,7 +1375,7 @@
           "line": 11,
           "name": "the command model’s answer › becomes a plan on one of the person’s notes",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -1479,7 +1479,7 @@
           "line": 31,
           "name": "the voice memo cue › ends on the closing cue, and not on ordinary words",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -1511,7 +1511,7 @@
           "line": 38,
           "name": "reading the test report › trusts the suites, not the report’s own word",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -1543,7 +1543,7 @@
           "line": 10,
           "name": "the changelog › reads releases newest first, and drops what is not one",
           "status": "passed",
-          "ms": 6,
+          "ms": 14,
           "failure": null
         },
         {
@@ -1551,7 +1551,7 @@
           "line": 17,
           "name": "the changelog › keeps one entry per build",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -1559,7 +1559,7 @@
           "line": 21,
           "name": "the changelog › carries the APK version when one went out with it",
           "status": "passed",
-          "ms": 0,
+          "ms": 3,
           "failure": null
         },
         {
@@ -1583,7 +1583,7 @@
           "line": 37,
           "name": "the changelog › answers with nothing when nothing was ever read",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -1711,7 +1711,7 @@
           "line": 18,
           "name": "list items for Notion › finds the items that are not sent yet, skipping done and linked ones of either form",
           "status": "passed",
-          "ms": 2,
+          "ms": 3,
           "failure": null
         },
         {
@@ -1783,7 +1783,7 @@
           "line": 18,
           "name": "versions › describes a build id, and refuses to invent one",
           "status": "passed",
-          "ms": 12,
+          "ms": 15,
           "failure": null
         },
         {
@@ -1791,7 +1791,7 @@
           "line": 51,
           "name": "the sample note › holds one of everything the editor knows, and parses as such",
           "status": "passed",
-          "ms": 12,
+          "ms": 16,
           "failure": null
         },
         {
@@ -1807,7 +1807,7 @@
           "line": 63,
           "name": "the sample note › says nothing of a picture where none could be drawn",
           "status": "passed",
-          "ms": 8,
+          "ms": 11,
           "failure": null
         },
         {
@@ -1871,7 +1871,7 @@
           "line": 5,
           "name": "the unfold › starts as the hinge opens through the hand-over and follows it to flat",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -1943,7 +1943,7 @@
           "line": 35,
           "name": "workspaces › files a note in one workspace at a time, and unfiles it",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -1999,7 +1999,7 @@
           "line": 33,
           "name": "the bookmark shown in the note › marks nothing until a place is given, then the line that place is on",
           "status": "passed",
-          "ms": 170,
+          "ms": 199,
           "failure": null
         },
         {
@@ -2007,7 +2007,7 @@
           "line": 40,
           "name": "the bookmark shown in the note › comes off again, and holds a place past the end of the note",
           "status": "passed",
-          "ms": 6,
+          "ms": 5,
           "failure": null
         },
         {
@@ -2015,7 +2015,7 @@
           "line": 49,
           "name": "the bookmark shown in the note › stays on its words when the note is typed into above them",
           "status": "passed",
-          "ms": 7,
+          "ms": 3,
           "failure": null
         },
         {
@@ -2023,7 +2023,7 @@
           "line": 58,
           "name": "the words a bookmark sits on › says them without the marks that shape them",
           "status": "passed",
-          "ms": 4,
+          "ms": 7,
           "failure": null
         },
         {
@@ -2031,7 +2031,7 @@
           "line": 64,
           "name": "the words a bookmark sits on › looks past blank lines, and cuts a long line short",
           "status": "passed",
-          "ms": 3,
+          "ms": 4,
           "failure": null
         },
         {
@@ -2039,7 +2039,7 @@
           "line": 72,
           "name": "a place on a blank line › ribbons the next line that has words, so the mark is where the words are",
           "status": "passed",
-          "ms": 4,
+          "ms": 2,
           "failure": null
         },
         {
@@ -2047,7 +2047,7 @@
           "line": 61,
           "name": "ticking a to-do whose task is done › ticks the box of an item whose task reads as done, and leaves the rest",
           "status": "passed",
-          "ms": 67,
+          "ms": 87,
           "failure": null
         },
         {
@@ -2063,7 +2063,7 @@
           "line": 82,
           "name": "ticking a to-do whose task is done › is not undone with typing, and does not fight a box unticked by hand",
           "status": "passed",
-          "ms": 8,
+          "ms": 10,
           "failure": null
         },
         {
@@ -2071,7 +2071,7 @@
           "line": 103,
           "name": "ticking a to-do whose task is done › ticks an item linked the old way, its words the link",
           "status": "passed",
-          "ms": 3,
+          "ms": 4,
           "failure": null
         },
         {
@@ -2079,7 +2079,7 @@
           "line": 111,
           "name": "ticking a to-do whose task is done › ticks a linked item pasted into the note",
           "status": "passed",
-          "ms": 8,
+          "ms": 5,
           "failure": null
         },
         {
@@ -2087,7 +2087,7 @@
           "line": 121,
           "name": "ticking a to-do whose task is done › unticks the box of a task reopened in the service",
           "status": "passed",
-          "ms": 5,
+          "ms": 9,
           "failure": null
         },
         {
@@ -2103,7 +2103,7 @@
           "line": 158,
           "name": "a box ticked in the note › sends nothing for a plain to-do, or for a box the sync itself set",
           "status": "passed",
-          "ms": 6,
+          "ms": 9,
           "failure": null
         },
         {
@@ -2111,7 +2111,7 @@
           "line": 170,
           "name": "a box ticked in the note › keeps a box ticked by hand when its task can’t be written",
           "status": "passed",
-          "ms": 5,
+          "ms": 7,
           "failure": null
         },
         {
@@ -2119,7 +2119,7 @@
           "line": 47,
           "name": "feelOf › ticks when a bold mark closes",
           "status": "passed",
-          "ms": 8,
+          "ms": 6,
           "failure": null
         },
         {
@@ -2151,7 +2151,7 @@
           "line": 70,
           "name": "feelOf › is heavier for a heading than for other blocks",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2191,7 +2191,7 @@
           "line": 6,
           "name": "find and replace › finds every match, case forgiven, never overlapping",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2199,7 +2199,7 @@
           "line": 12,
           "name": "find and replace › makes the first match after the caret current, and keeps finding as the words change",
           "status": "passed",
-          "ms": 3,
+          "ms": 15,
           "failure": null
         },
         {
@@ -2207,7 +2207,7 @@
           "line": 22,
           "name": "find and replace › replaces every match in one change",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2215,7 +2215,7 @@
           "line": 23,
           "name": "toggleMark › wraps a selection and keeps it selected",
           "status": "passed",
-          "ms": 94,
+          "ms": 130,
           "failure": null
         },
         {
@@ -2223,7 +2223,7 @@
           "line": 30,
           "name": "toggleMark › puts the caret BETWEEN the delimiters when nothing is selected",
           "status": "passed",
-          "ms": 4,
+          "ms": 6,
           "failure": null
         },
         {
@@ -2231,7 +2231,7 @@
           "line": 39,
           "name": "toggleMark › unwraps when the delimiters sit just outside the selection",
           "status": "passed",
-          "ms": 10,
+          "ms": 4,
           "failure": null
         },
         {
@@ -2239,7 +2239,7 @@
           "line": 45,
           "name": "toggleMark › unwraps when the delimiters are inside the selection",
           "status": "passed",
-          "ms": 3,
+          "ms": 6,
           "failure": null
         },
         {
@@ -2247,7 +2247,7 @@
           "line": 51,
           "name": "toggleMark › uses the kit delimiters, so what the bar writes is what the grammar reads",
           "status": "passed",
-          "ms": 17,
+          "ms": 15,
           "failure": null
         },
         {
@@ -2255,7 +2255,7 @@
           "line": 67,
           "name": "toggleBlock › prefixes the caret line",
           "status": "passed",
-          "ms": 2,
+          "ms": 8,
           "failure": null
         },
         {
@@ -2263,7 +2263,7 @@
           "line": 73,
           "name": "toggleBlock › removes the prefix when every touched line has one",
           "status": "passed",
-          "ms": 22,
+          "ms": 20,
           "failure": null
         },
         {
@@ -2271,7 +2271,7 @@
           "line": 79,
           "name": "toggleBlock › completes a half-formatted run rather than clearing it",
           "status": "passed",
-          "ms": 5,
+          "ms": 7,
           "failure": null
         },
         {
@@ -2279,7 +2279,7 @@
           "line": 85,
           "name": "toggleBlock › numbers an ordered list rather than repeating 1.",
           "status": "passed",
-          "ms": 2,
+          "ms": 15,
           "failure": null
         },
         {
@@ -2287,7 +2287,7 @@
           "line": 91,
           "name": "toggleBlock › recognises a heading of any level as already-a-heading",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -2295,7 +2295,7 @@
           "line": 100,
           "name": "activeMarks › reports the mark surrounding the caret",
           "status": "passed",
-          "ms": 12,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2303,7 +2303,7 @@
           "line": 105,
           "name": "activeMarks › reports nothing in plain text",
           "status": "passed",
-          "ms": 3,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2311,7 +2311,7 @@
           "line": 16,
           "name": "putting a picture into a note › goes under the line the caret is on, never splitting it",
           "status": "passed",
-          "ms": 101,
+          "ms": 158,
           "failure": null
         },
         {
@@ -2319,7 +2319,7 @@
           "line": 22,
           "name": "putting a picture into a note › takes an empty line",
           "status": "passed",
-          "ms": 8,
+          "ms": 6,
           "failure": null
         },
         {
@@ -2327,7 +2327,7 @@
           "line": 28,
           "name": "putting a picture into a note › lands where the caret was when the paste happened, whatever changed since",
           "status": "passed",
-          "ms": 11,
+          "ms": 4,
           "failure": null
         },
         {
@@ -2343,7 +2343,7 @@
           "line": 29,
           "name": "the editor's markdown › still makes headings from #, lists from -, and rules from ---",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2351,7 +2351,7 @@
           "line": 36,
           "name": "the editor's markdown › parses a fenced block in its own language, and a fence with no language as plain code",
           "status": "passed",
-          "ms": 5,
+          "ms": 2,
           "failure": null
         },
         {
@@ -2359,7 +2359,7 @@
           "line": 49,
           "name": "the editor's markdown › parses a plugin's formatting between its delimiters, marks and all",
           "status": "passed",
-          "ms": 1,
+          "ms": 3,
           "failure": null
         },
         {
@@ -2367,7 +2367,7 @@
           "line": 56,
           "name": "the editor's markdown › leaves a lone pipe, an unclosed run, and a longer run alone",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2375,7 +2375,7 @@
           "line": 63,
           "name": "the editor's markdown › knows nothing of a formatting whose plugin is off, and a table's pipes are still a table's",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2383,7 +2383,7 @@
           "line": 15,
           "name": "what a line is linked to › finds an item’s mark, with the item’s words",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -2415,7 +2415,7 @@
           "line": 15,
           "name": "item marks in the editor › draws the mark at the end of an item as one pill with the name on it",
           "status": "passed",
-          "ms": 144,
+          "ms": 136,
           "failure": null
         },
         {
@@ -2431,7 +2431,7 @@
           "line": 32,
           "name": "item marks in the editor › is not a mark when something follows it on the line, or the line is not an item",
           "status": "passed",
-          "ms": 7,
+          "ms": 3,
           "failure": null
         },
         {
@@ -2439,7 +2439,7 @@
           "line": 8,
           "name": "a note written after a mark › finds the words, the brackets and what the note says",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -2447,7 +2447,7 @@
           "line": 17,
           "name": "a note written after a mark › works for every mark, not only a doubt",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2495,7 +2495,7 @@
           "line": 7,
           "name": "where a note was left › is kept per note, and forgotten when the note is left at the top",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2519,7 +2519,7 @@
           "line": 7,
           "name": "pinching a note’s text › follows the fingers: twice as far apart, twice the size",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -2543,7 +2543,7 @@
           "line": 23,
           "name": "inline suggestions › puts the word after every line offered, except the one being typed",
           "status": "passed",
-          "ms": 150,
+          "ms": 209,
           "failure": null
         },
         {
@@ -2551,7 +2551,7 @@
           "line": 32,
           "name": "inline suggestions › follows the note as it changes",
           "status": "passed",
-          "ms": 16,
+          "ms": 14,
           "failure": null
         },
         {
@@ -2559,7 +2559,7 @@
           "line": 42,
           "name": "inline suggestions › says its busy word while it runs, then the word again",
           "status": "passed",
-          "ms": 12,
+          "ms": 26,
           "failure": null
         },
         {
@@ -2583,7 +2583,7 @@
           "line": 14,
           "name": "text arriving from smoke in the editor › finds what a rewrite really changed",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2631,7 +2631,7 @@
           "line": 19,
           "name": "words in smoke › smokes every letter between the pipes, and neither the pipes nor the spaces",
           "status": "passed",
-          "ms": 3,
+          "ms": 19,
           "failure": null
         },
         {
@@ -2639,7 +2639,7 @@
           "line": 26,
           "name": "words in smoke › clears the words while the caret is in them, and only then",
           "status": "passed",
-          "ms": 2,
+          "ms": 5,
           "failure": null
         },
         {
@@ -2647,7 +2647,7 @@
           "line": 35,
           "name": "words in smoke › keeps a letter of more than one code unit whole",
           "status": "passed",
-          "ms": 1,
+          "ms": 5,
           "failure": null
         },
         {
@@ -2691,11 +2691,59 @@
           "failure": null
         },
         {
+          "file": "src/app/notes/groups.test.ts",
+          "line": 8,
+          "name": "grouping the notes list › puts pinned notes in their own category above the others",
+          "status": "passed",
+          "ms": 1,
+          "failure": null
+        },
+        {
+          "file": "src/app/notes/groups.test.ts",
+          "line": 16,
+          "name": "grouping the notes list › shows no labels when nothing is pinned, and no empty Others",
+          "status": "passed",
+          "ms": 0,
+          "failure": null
+        },
+        {
+          "file": "src/app/notes/groups.test.ts",
+          "line": 22,
+          "name": "grouping the notes list › never splits the archive",
+          "status": "passed",
+          "ms": 0,
+          "failure": null
+        },
+        {
+          "file": "src/app/notes/swipe.test.ts",
+          "line": 10,
+          "name": "swipe detents › arms nothing short of the first detent, then the furthest one passed",
+          "status": "passed",
+          "ms": 1,
+          "failure": null
+        },
+        {
+          "file": "src/app/notes/swipe.test.ts",
+          "line": 17,
+          "name": "swipe detents › leaves the screen edges to the back gesture",
+          "status": "passed",
+          "ms": 0,
+          "failure": null
+        },
+        {
+          "file": "src/app/notes/swipe.test.ts",
+          "line": 23,
+          "name": "swipe detents › follows the finger, then resists past the last detent",
+          "status": "passed",
+          "ms": 0,
+          "failure": null
+        },
+        {
           "file": "src/app/format/AiCard.test.tsx",
           "line": 25,
           "name": "the AI card › names the model, says it runs on the phone, and what it is doing",
           "status": "passed",
-          "ms": 29,
+          "ms": 27,
           "failure": null
         },
         {
@@ -2703,7 +2751,7 @@
           "line": 34,
           "name": "the AI card › shows the engine’s readings when a binary reports them, with bars for the shares",
           "status": "passed",
-          "ms": 13,
+          "ms": 14,
           "failure": null
         },
         {
@@ -2711,7 +2759,7 @@
           "line": 49,
           "name": "the AI card › leaves out what nothing reports",
           "status": "passed",
-          "ms": 4,
+          "ms": 11,
           "failure": null
         },
         {
@@ -2719,7 +2767,7 @@
           "line": 7,
           "name": "the note as the model sees it › turns an old Notion item link into the mark form, and leaves other links alone",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2727,7 +2775,7 @@
           "line": 15,
           "name": "the rewrite, tidy › unwinds a link nested in a link, keeping the inner one",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
@@ -2775,7 +2823,7 @@
           "line": 27,
           "name": "what the list shows › shows a gist while it stands for the note: the same body, or one changed in a small way",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2791,7 +2839,7 @@
           "line": 28,
           "name": "the gist runner › writes a gist for a note the list showed, with the smallest model, and keeps it against the body",
           "status": "passed",
-          "ms": 28,
+          "ms": 50,
           "failure": null
         },
         {
@@ -2799,7 +2847,7 @@
           "line": 7,
           "name": "links through the model › swaps a Notion link in a list item for a token and puts it back when the token is copied",
           "status": "passed",
-          "ms": 2,
+          "ms": 4,
           "failure": null
         },
         {
@@ -2839,7 +2887,7 @@
           "line": 45,
           "name": "links through the model › tells link-1 from link-10",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2895,7 +2943,7 @@
           "line": 6,
           "name": "the passes a note gets › runs every model on the phone up to the chosen one, smallest first",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -2983,7 +3031,7 @@
           "line": 9,
           "name": "where each mode keeps its text › keeps a summary and an enhanced text apart, per note, on the page",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -2991,7 +3039,7 @@
           "line": 19,
           "name": "where each mode keeps its text › forgets a mode with a null hash, and a whole note on request",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3007,7 +3055,7 @@
           "line": 9,
           "name": "tables through the model › swaps a table block for one token line and puts the block back verbatim",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3031,7 +3079,7 @@
           "line": 32,
           "name": "tables through the model › numbers several tables and tells table-1 from table-10",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -3047,7 +3095,7 @@
           "line": 45,
           "name": "tables through the model › keeps a link inside a cell whole: tables first, then links, and back in reverse",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3055,7 +3103,7 @@
           "line": 31,
           "name": "the waves from the side key › sit on the edge the key is on, as far down the screen as the key is down the phone",
           "status": "passed",
-          "ms": 13,
+          "ms": 17,
           "failure": null
         },
         {
@@ -3071,7 +3119,7 @@
           "line": 45,
           "name": "the waves from the side key › find a spot for this browser on their own, and leave cleanly",
           "status": "passed",
-          "ms": 1,
+          "ms": 2,
           "failure": null
         },
         {
@@ -3079,7 +3127,7 @@
           "line": 5,
           "name": "the heads-up gags › plays the datacenter, then the hot phone, over and over",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3119,7 +3167,7 @@
           "line": 41,
           "name": "watching the charger › answers unknown when the battery cannot be read",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3135,7 +3183,7 @@
           "line": 12,
           "name": "the cheat sheet’s spoken rules › gives every rule its words, and words to say for the ones that are said",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3151,7 +3199,7 @@
           "line": 11,
           "name": "the spoken-markdown guide › \"Name the note\" still produces \"# Weekend trip\"",
           "status": "passed",
-          "ms": 6,
+          "ms": 4,
           "failure": null
         },
         {
@@ -3271,7 +3319,7 @@
           "line": 9,
           "name": "the guide’s table of marks › has a page of its own in the walkthrough",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3287,13 +3335,21 @@
           "line": 26,
           "name": "the guide’s table of marks › shows each mark a switched-on plugin adds, with the words it would say",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
           "file": "src/app/guide/marks.test.ts",
-          "line": 40,
+          "line": 41,
           "name": "the guide’s table of marks › draws a plugin’s look from the CSS the plugin declares",
+          "status": "passed",
+          "ms": 0,
+          "failure": null
+        },
+        {
+          "file": "src/app/guide/marks.test.ts",
+          "line": 51,
+          "name": "a note on a mark › is shown last, with the brackets in the example and the words the popover says",
           "status": "passed",
           "ms": 0,
           "failure": null
@@ -3303,7 +3359,7 @@
           "line": 5,
           "name": "listening for the rings › hears nothing, quietly, where there is no microphone to ask",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3327,7 +3383,7 @@
           "line": 27,
           "name": "where the side key is › falls back to the maker, then to the common case",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3343,7 +3399,7 @@
           "line": 8,
           "name": "leaving the guide too soon › is not too soon on the very first launch, nor once the guide is finished",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3383,7 +3439,7 @@
           "line": 13,
           "name": "the rings from the side key › send rings out faster, wider and brighter with the voice, eased so a word does not jump",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3403,59 +3459,11 @@
           "failure": null
         },
         {
-          "file": "src/app/notes/groups.test.ts",
-          "line": 8,
-          "name": "grouping the notes list › puts pinned notes in their own category above the others",
-          "status": "passed",
-          "ms": 2,
-          "failure": null
-        },
-        {
-          "file": "src/app/notes/groups.test.ts",
-          "line": 16,
-          "name": "grouping the notes list › shows no labels when nothing is pinned, and no empty Others",
-          "status": "passed",
-          "ms": 0,
-          "failure": null
-        },
-        {
-          "file": "src/app/notes/groups.test.ts",
-          "line": 22,
-          "name": "grouping the notes list › never splits the archive",
-          "status": "passed",
-          "ms": 0,
-          "failure": null
-        },
-        {
-          "file": "src/app/notes/swipe.test.ts",
-          "line": 10,
-          "name": "swipe detents › arms nothing short of the first detent, then the furthest one passed",
-          "status": "passed",
-          "ms": 1,
-          "failure": null
-        },
-        {
-          "file": "src/app/notes/swipe.test.ts",
-          "line": 17,
-          "name": "swipe detents › leaves the screen edges to the back gesture",
-          "status": "passed",
-          "ms": 0,
-          "failure": null
-        },
-        {
-          "file": "src/app/notes/swipe.test.ts",
-          "line": 23,
-          "name": "swipe detents › follows the finger, then resists past the last detent",
-          "status": "passed",
-          "ms": 0,
-          "failure": null
-        },
-        {
           "file": "src/app/plugins/registry.test.ts",
           "line": 44,
           "name": "the plugin registry › has standard plugins on and others off until switched",
           "status": "passed",
-          "ms": 1,
+          "ms": 3,
           "failure": null
         },
         {
@@ -3463,7 +3471,7 @@
           "line": 50,
           "name": "the plugin registry › keeps a switch, tells listeners, and offers nothing from a plugin that is off",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3471,7 +3479,7 @@
           "line": 63,
           "name": "the plugin registry › gives one plugin’s context version as it is, so notes formatted before plugins stay formatted",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3479,7 +3487,7 @@
           "line": 73,
           "name": "the plugin registry › refuses a plugin whose extension points go past its manifest",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3503,7 +3511,7 @@
           "line": 92,
           "name": "the plugin registry › ships Notion, GitHub and Marks as standard, each within its manifest",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3579,6 +3587,62 @@
           "failure": null
         },
         {
+          "file": "src/app/settings/TestResultsPane.test.tsx",
+          "line": null,
+          "name": "reading the test report › trusts the suites, not the report’s own word",
+          "status": "passed",
+          "ms": 2,
+          "failure": null
+        },
+        {
+          "file": "src/app/settings/TestResultsPane.test.tsx",
+          "line": null,
+          "name": "reading the test report › knows whether the report is for this build’s code",
+          "status": "passed",
+          "ms": 0,
+          "failure": null
+        },
+        {
+          "file": "src/app/settings/TestResultsPane.test.tsx",
+          "line": null,
+          "name": "reading the test report › sums up for the Settings row",
+          "status": "passed",
+          "ms": 0,
+          "failure": null
+        },
+        {
+          "file": "src/app/settings/TestResultsPane.test.tsx",
+          "line": null,
+          "name": "reading the test report › groups tests by file, failures first, and finds them by words",
+          "status": "passed",
+          "ms": 1,
+          "failure": null
+        },
+        {
+          "file": "src/app/settings/TestResultsPane.test.tsx",
+          "line": 12,
+          "name": "the test results page › shows the verdict, the numbers, and that the code matches",
+          "status": "passed",
+          "ms": 66,
+          "failure": null
+        },
+        {
+          "file": "src/app/settings/TestResultsPane.test.tsx",
+          "line": 19,
+          "name": "the test results page › warns when the report is for other code, and says what failed",
+          "status": "passed",
+          "ms": 24,
+          "failure": null
+        },
+        {
+          "file": "src/app/settings/TestResultsPane.test.tsx",
+          "line": 36,
+          "name": "the test results page › says how to make a report when the build has none",
+          "status": "passed",
+          "ms": 3,
+          "failure": null
+        },
+        {
           "file": "src/app/review/review.test.ts",
           "line": 7,
           "name": "where the two speech models disagree › finds the runs, ignoring case and punctuation, with context to place them",
@@ -3607,7 +3671,7 @@
           "line": 31,
           "name": "the reviewing model’s findings › keeps findings that quote real text, and drops invented ones",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
@@ -3639,63 +3703,7 @@
           "line": 72,
           "name": "what the reviewing model is shown › labels every piece and puts the note last",
           "status": "passed",
-          "ms": 1,
-          "failure": null
-        },
-        {
-          "file": "src/app/settings/TestResultsPane.test.tsx",
-          "line": null,
-          "name": "reading the test report › trusts the suites, not the report’s own word",
-          "status": "passed",
-          "ms": 1,
-          "failure": null
-        },
-        {
-          "file": "src/app/settings/TestResultsPane.test.tsx",
-          "line": null,
-          "name": "reading the test report › knows whether the report is for this build’s code",
-          "status": "passed",
           "ms": 0,
-          "failure": null
-        },
-        {
-          "file": "src/app/settings/TestResultsPane.test.tsx",
-          "line": null,
-          "name": "reading the test report › sums up for the Settings row",
-          "status": "passed",
-          "ms": 0,
-          "failure": null
-        },
-        {
-          "file": "src/app/settings/TestResultsPane.test.tsx",
-          "line": null,
-          "name": "reading the test report › groups tests by file, failures first, and finds them by words",
-          "status": "passed",
-          "ms": 0,
-          "failure": null
-        },
-        {
-          "file": "src/app/settings/TestResultsPane.test.tsx",
-          "line": 12,
-          "name": "the test results page › shows the verdict, the numbers, and that the code matches",
-          "status": "passed",
-          "ms": 42,
-          "failure": null
-        },
-        {
-          "file": "src/app/settings/TestResultsPane.test.tsx",
-          "line": 19,
-          "name": "the test results page › warns when the report is for other code, and says what failed",
-          "status": "passed",
-          "ms": 12,
-          "failure": null
-        },
-        {
-          "file": "src/app/settings/TestResultsPane.test.tsx",
-          "line": 36,
-          "name": "the test results page › says how to make a report when the build has none",
-          "status": "passed",
-          "ms": 3,
           "failure": null
         },
         {
@@ -3703,7 +3711,7 @@
           "line": 12,
           "name": "sorting a memo › keeps a proposal only for a real note, words really in the memo, and something to add",
           "status": "passed",
-          "ms": 1,
+          "ms": 3,
           "failure": null
         },
         {
@@ -3711,7 +3719,7 @@
           "line": 23,
           "name": "sorting a memo › files the commands the rules understand when there is no model",
           "status": "passed",
-          "ms": 3,
+          "ms": 7,
           "failure": null
         },
         {
@@ -3727,7 +3735,7 @@
           "line": 42,
           "name": "a memo with nowhere to go › is only voice memos when nothing but clips is left",
           "status": "passed",
-          "ms": 0,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3743,7 +3751,7 @@
           "line": 28,
           "name": "the voice tutorial › passes every lesson on its own example, through the recorder’s real rules",
           "status": "passed",
-          "ms": 17,
+          "ms": 14,
           "failure": null
         },
         {
@@ -3790,54 +3798,6 @@
           "file": "src/app/tutorial/lessons.test.ts",
           "line": 84,
           "name": "the voice tutorial › goes on from the first lesson not yet done",
-          "status": "passed",
-          "ms": 0,
-          "failure": null
-        },
-        {
-          "file": "src/app/plugins/marks/marks.test.ts",
-          "line": 19,
-          "name": "Glyph's own marks › are one plugin, with one switch, each mark carrying its own icon",
-          "status": "passed",
-          "ms": 2,
-          "failure": null
-        },
-        {
-          "file": "src/app/plugins/marks/marks.test.ts",
-          "line": 27,
-          "name": "Glyph's own marks › each parses between its own delimiter, with a cue and a line for the guide",
-          "status": "passed",
-          "ms": 7,
-          "failure": null
-        },
-        {
-          "file": "src/app/plugins/marks/marks.test.ts",
-          "line": 36,
-          "name": "Glyph's own marks › shares no delimiter or node name with any other plugin",
-          "status": "passed",
-          "ms": 0,
-          "failure": null
-        },
-        {
-          "file": "src/app/plugins/marks/marks.test.ts",
-          "line": 42,
-          "name": "Glyph's own marks › leaves prose alone: a question, a comparison, a list marker",
-          "status": "passed",
-          "ms": 1,
-          "failure": null
-        },
-        {
-          "file": "src/app/plugins/marks/marks.test.ts",
-          "line": 49,
-          "name": "Glyph's own marks › a mark whose look lifts at the caret keeps the rest lit",
-          "status": "passed",
-          "ms": 1,
-          "failure": null
-        },
-        {
-          "file": "src/app/plugins/marks/marks.test.ts",
-          "line": 65,
-          "name": "Glyph's own marks › has no redaction any more: @@ is plain words (Matt: \"remove redacted its the same as spoiler\")",
           "status": "passed",
           "ms": 0,
           "failure": null
@@ -3919,7 +3879,7 @@
           "line": 5,
           "name": "reading a GitHub project › takes a repo from the ways people paste one",
           "status": "passed",
-          "ms": 2,
+          "ms": 1,
           "failure": null
         },
         {
@@ -3927,7 +3887,7 @@
           "line": 12,
           "name": "reading a GitHub project › picks the files that say what the project is, README first",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
@@ -3947,6 +3907,54 @@
           "failure": null
         },
         {
+          "file": "src/app/plugins/marks/marks.test.ts",
+          "line": 19,
+          "name": "Glyph's own marks › are one plugin, with one switch, each mark carrying its own icon",
+          "status": "passed",
+          "ms": 3,
+          "failure": null
+        },
+        {
+          "file": "src/app/plugins/marks/marks.test.ts",
+          "line": 27,
+          "name": "Glyph's own marks › each parses between its own delimiter, with a cue and a line for the guide",
+          "status": "passed",
+          "ms": 4,
+          "failure": null
+        },
+        {
+          "file": "src/app/plugins/marks/marks.test.ts",
+          "line": 36,
+          "name": "Glyph's own marks › shares no delimiter or node name with any other plugin",
+          "status": "passed",
+          "ms": 0,
+          "failure": null
+        },
+        {
+          "file": "src/app/plugins/marks/marks.test.ts",
+          "line": 42,
+          "name": "Glyph's own marks › leaves prose alone: a question, a comparison, a list marker",
+          "status": "passed",
+          "ms": 1,
+          "failure": null
+        },
+        {
+          "file": "src/app/plugins/marks/marks.test.ts",
+          "line": 49,
+          "name": "Glyph's own marks › a mark whose look lifts at the caret keeps the rest lit",
+          "status": "passed",
+          "ms": 0,
+          "failure": null
+        },
+        {
+          "file": "src/app/plugins/marks/marks.test.ts",
+          "line": 65,
+          "name": "Glyph's own marks › has no redaction any more: @@ is plain words (Matt: \"remove redacted its the same as spoiler\")",
+          "status": "passed",
+          "ms": 0,
+          "failure": null
+        },
+        {
           "file": "src/app/plugins/notion/details.test.ts",
           "line": 26,
           "name": "reading a Notion task back › finds the page id at the end of any Notion address",
@@ -3959,7 +3967,7 @@
           "line": 34,
           "name": "reading a Notion task back › takes the stage from the board’s own status groups",
           "status": "passed",
-          "ms": 15,
+          "ms": 14,
           "failure": null
         },
         {
@@ -3975,7 +3983,7 @@
           "line": 67,
           "name": "reading a Notion task back › gives the pill the status, priority and due date, and the card every property with a value",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
@@ -3983,7 +3991,7 @@
           "line": 79,
           "name": "reading a Notion task back › says a task is overdue until it is done",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
@@ -3991,7 +3999,7 @@
           "line": 86,
           "name": "reading a Notion task back › reads a board with a Done checkbox and no status, and a task in the trash",
           "status": "passed",
-          "ms": 1,
+          "ms": 0,
           "failure": null
         },
         {
@@ -4029,7 +4037,7 @@
       "status": "passed",
       "reason": null,
       "exitCode": 0,
-      "durationMs": 78662,
+      "durationMs": 82578,
       "counts": {
         "total": 136,
         "passed": 128,
@@ -5137,7 +5145,7 @@
       "status": "passed",
       "reason": null,
       "exitCode": 0,
-      "durationMs": 1731,
+      "durationMs": 1718,
       "counts": {
         "total": 47,
         "passed": 47,

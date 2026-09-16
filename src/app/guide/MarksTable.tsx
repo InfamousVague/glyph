@@ -97,6 +97,18 @@ function Shown({ row }: { row: MarkRow }) {
           <span className={row.looks === 'done' ? styles.doneWords : undefined}>{row.words}</span>
         </span>
       );
+    // A note on a mark: the words as the doubt draws them, the ring that stands for the brackets, and the panel a tap
+    // on either of them opens (editor/markNotes.ts).
+    case 'note':
+      return (
+        <span className={styles.example}>
+          <span className={styles.noted}>{row.words}</span>
+          <span className={styles.ring} aria-hidden="true">
+            i
+          </span>
+          <span className={styles.panel}>{row.note}</span>
+        </span>
+      );
     case 'rule':
       return <span className={`${styles.example} ${styles.rule}`} aria-label="a line across the page" />;
     case 'table':

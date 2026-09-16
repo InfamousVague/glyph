@@ -221,3 +221,43 @@
     filter: blur(2.5px);
   }
 }
+
+/*
+ * A note on a mark (editor/markNotes.ts): the doubt's dotted words, the ring
+ * that stands in for the brackets, and under them the panel a tap opens, drawn
+ * here as it looks on the page so the row shows the whole thing at once.
+ */
+.noted {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--glacier-text-subtle);
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: 0.09em;
+}
+
+.ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.05em;
+  block-size: 1.05em;
+  margin-inline-start: 0.15em;
+  vertical-align: 0.15em;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.62em;
+  font-style: italic;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.panel {
+  display: block;
+  inline-size: fit-content;
+  margin-block-start: var(--glacier-space-2);
+  padding: 0.4em 0.6em;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--glacier-surface);
+  font-size: 0.86em;
+  line-height: var(--glacier-leading-md);
+}

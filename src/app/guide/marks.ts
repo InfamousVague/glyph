@@ -34,7 +34,8 @@ export type Looks =
   | 'picture'
   | 'fence'
   | 'wisp'
-  | 'style';
+  | 'style'
+  | 'note';
 
 export interface MarkRow {
   /** The mark itself, as a person would type it: `**`, `- [ ]`. */
@@ -49,6 +50,8 @@ export interface MarkRow {
   css?: string;
   /** Said while recording, where there is a way to say it. */
   say?: string;
+  /** What the popover says, for the row that shows a note on a mark (editor/markNotes.ts). */
+  note?: string;
 }
 
 export interface MarkGroup {
@@ -90,7 +93,14 @@ const OWN: MarkGroup[] = [
     title: 'Blocks',
     lead: 'A few lines that work together.',
     rows: [
-      { symbol: '| |', name: 'A table', typed: '| What | Packed |\n| --- | --- |\n| Tent | Yes |', words: '', looks: 'table', say: '“Glyph, add a table to this note”' },
+      {
+        symbol: '| |',
+        name: 'A table',
+        typed: '| What | Packed |\n| --- | --- |\n| Tent | Yes |',
+        words: '',
+        looks: 'table',
+        say: '“Glyph, add a table to this note”',
+      },
       { symbol: '![ ]( )', name: 'A picture', typed: '![A cassette](image/tape.jpg)', words: 'A cassette', looks: 'picture' },
       { symbol: '```', name: 'A block of code', typed: '```js\nconst note = "hello";\n```', words: 'const note = "hello";', looks: 'fence' },
     ],
@@ -113,5 +123,14 @@ export function markGroups(): MarkGroup[] {
       say: format.cue ? `“${format.cue}” … “end ${format.cue}”` : undefined,
     };
   });
-  return [...OWN, { title: 'Glyph’s own', lead: 'Marks the app adds, each from a plugin you can switch off.', rows }];
+  // A note on a mark is shown last, because it is written on top of any of the marks above it (editor/markNotes.ts).
+  const noted: MarkRow = {
+    symbol: '( )',
+    name: 'A note on a mark',
+    typed: '??four hundred??(Sam said 400)',
+    words: 'four hundred',
+    looks: 'note',
+    note: 'Sam said 400',
+  };
+  return [...OWN, { title: 'Glyph’s own', lead: 'Marks the app adds, each from a plugin you can switch off.', rows: [...rows, noted] }];
 }
