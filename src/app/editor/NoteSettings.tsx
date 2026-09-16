@@ -135,40 +135,43 @@ export function NoteSettings({
         <p className={styles.title}>{title || 'Untitled'}</p>
 
         {onFind || (view && onView) ? (
-          <div className={styles.group}>
-            {view && onView ? (
-              <div className={styles.row} aria-disabled>
-                <span className={styles.label}>Show</span>
-                <div className={styles.viewChoice} role="radiogroup" aria-label="How the note is shown">
-                  {(
-                    [
-                      ['mixed', 'Markdown'],
-                      ['formatted', 'Formatted'],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      role="radio"
-                      aria-checked={view === value}
-                      data-on={view === value || undefined}
-                      onClick={() => onView(value)}
-                    >
-                      {label}
-                    </button>
-                  ))}
+          <>
+            <p className={styles.heading}>Reading it</p>
+            <div className={styles.group}>
+              {view && onView ? (
+                <div className={styles.row} aria-disabled>
+                  <span className={styles.label}>Show</span>
+                  <div className={styles.viewChoice} role="radiogroup" aria-label="How the note is shown">
+                    {(
+                      [
+                        ['mixed', 'Markdown'],
+                        ['formatted', 'Formatted'],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={view === value}
+                        data-on={view === value || undefined}
+                        onClick={() => onView(value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : null}
-            {onFind ? (
-              <button type="button" className={styles.row} onClick={onFind}>
-                <span className={styles.icon} aria-hidden="true">
-                  <TextSearch size={18} strokeWidth={2.2} />
-                </span>
-                <span className={styles.label}>Find and replace</span>
-              </button>
-            ) : null}
-          </div>
+              ) : null}
+              {onFind ? (
+                <button type="button" className={styles.row} onClick={onFind}>
+                  <span className={styles.icon} aria-hidden="true">
+                    <TextSearch size={18} strokeWidth={2.2} />
+                  </span>
+                  <span className={styles.label}>Find and replace</span>
+                </button>
+              ) : null}
+            </div>
+          </>
         ) : null}
 
         {onMode ? (
@@ -200,6 +203,8 @@ export function NoteSettings({
           </>
         ) : null}
 
+        {/* The group under AI, named like the rest of them (Matt: "the section under AI is not labeled"). */}
+        <p className={styles.heading}>Where it sits</p>
         <div className={styles.group}>
           <button type="button" className={styles.row} onClick={onPin}>
             <span className={styles.icon} aria-hidden="true">
