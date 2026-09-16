@@ -216,3 +216,62 @@ export function insertTable(view: EditorView): void {
 export function insertRule(view: EditorView): void {
   insertBelow(view, '---', { from: 3 });
 }
+
+/** The selection gone, or the line the caret is on when nothing is selected. */
+export function deleteSelection(view: EditorView): void {
+  const { state } = view;
+  view.dispatch(
+    state.changeByRange((range) => {
+      if (!range.empty) return { changes: { from: range.from, to: range.to }, range: EditorSelection.cursor(range.from) };
+      const line = state.doc.lineAt(range.head);
+      const to = Math.min(state.doc.length, line.to + 1);
+      return { changes: { from: line.from, to }, range: EditorSelection.cursor(line.from) };
+    }),
+    { userEvent: 'delete.selection', scrollIntoView: true },
+  );
+}
+
+/** The selection again after itself, or the line again under itself. */
+export function duplicateSelection(view: EditorView): void {
+  const { state } = view;
+  const range = state.selection.main;
+  if (!range.empty) {
+    const text = state.sliceDoc(range.from, range.to);
+    view.dispatch({
+      changes: { from: range.to, insert: text },
+      selection: EditorSelection.range(range.to, range.to + text.length),
+      userEvent: 'input.duplicate',
+      scrollIntoView: true,
+    });
+    return;
+  }
+  const line = state.doc.lineAt(range.head);
+  view.dispatch({
+    changes: { from: line.to, insert: `\n${line.text}` },
+    selection: EditorSelection.cursor(range.head + line.length + 1),
+    userEvent: 'input.duplicate',
+    scrollIntoView: true,
+  });
+}
+
+/** The lines the selection touches, moved one line up (`by` -1) or down (1). Nothing happens at either end. */
+export function moveLines(view: EditorView, by: -1 | 1): void {
+  const { state } = view;
+  const range = state.selection.main;
+  const first = state.doc.lineAt(range.from);
+  const last = state.doc.lineAt(range.to);
+  const swapWith = by < 0 ? first.number - 1 : last.number + 1;
+  if (swapWith < 1 || swapWith > state.doc.lines) return;
+  const other = state.doc.line(swapWith);
+  const block = state.sliceDoc(first.from, last.to);
+  const moved = by < 0 ? `${block}\n${other.text}` : `${other.text}\n${block}`;
+  const from = Math.min(first.from, other.from);
+  const to = Math.max(last.to, other.to);
+  const shift = by < 0 ? -(other.length + 1) : other.length + 1;
+  view.dispatch({
+    changes: { from, to, insert: moved },
+    selection: EditorSelection.range(range.from + shift, range.to + shift),
+    userEvent: 'move.line',
+    scrollIntoView: true,
+  });
+}

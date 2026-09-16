@@ -171,3 +171,60 @@ export function columnFor(columns: readonly BoardColumn[], task: Task): number {
   if (task.done && done >= 0) return done;
   return columnOf(columns, task.id);
 }
+
+/** An anchor made from a task's words: short, lower case, and not one the note already uses. */
+export function anchorFor(text: string, taken: readonly string[]): string {
+  const base =
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .split('-')
+      .filter(Boolean)
+      .slice(0, 3)
+      .join('-') || 'task';
+  if (!taken.includes(base)) return base;
+  for (let n = 2; ; n += 1) {
+    const tried = `${base}-${n}`;
+    if (!taken.includes(tried)) return tried;
+  }
+}
+
+/** What putting the to-do on line `line` onto a board changes: the line itself, when it needs an anchor, and the fence. */
+export interface CardAdded {
+  id: string;
+  /** The task's line rewritten with its anchor, or null when it already had one. */
+  line: { number: number; text: string } | null;
+  /** The board's fence body rewritten, and which lines it lies between. */
+  fence: { from: number; to: number; body: string };
+  /** The column it went into. */
+  column: string;
+}
+
+/**
+ * The to-do on `line` put on a board: the nearest board above it, else the first in the note. It lands in the Done
+ * column when it is already ticked, else the first column. Null when the line is not a to-do, there is no board, or
+ * it is on one already.
+ */
+export function addToBoard(doc: string, line: number): CardAdded | null {
+  const lines = doc.split('\n');
+  const text = lines[line - 1];
+  if (text === undefined) return null;
+  const task = taskOnLine(text);
+  if (!task && !/^\s*[-*+]\s+\[[ xX]\]\s+\S/.test(text)) return null;
+  const boards = boardsIn(doc).filter((board) => board.to > board.from && board.columns.length);
+  if (!boards.length) return null;
+  const above = [...boards].reverse().find((board) => board.to < line);
+  const board = above ?? boards[0]!;
+  const id = task?.id ?? anchorFor(taskOnLine(`${text} ^x`)?.text ?? text, tasksIn(doc).map((other) => other.id));
+  if (columnOf(board.columns, id) >= 0) return null;
+  const done = doneColumn(board.columns);
+  const into = task?.done && done >= 0 ? done : 0;
+  const columns = putCard(board.columns, id, into);
+  return {
+    id,
+    line: task?.id ? null : { number: line, text: `${text.replace(/\s+$/, '')} ^${id}` },
+    fence: { from: board.from, to: board.to, body: writeBoard(columns) },
+    column: columns[into]?.name ?? '',
+  };
+}

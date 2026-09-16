@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { boardsIn, cardsOf, columnFor, columnOf, doneColumn, moveCard, putCard, readBoard, setTaskDone, taskOnLine, tasksIn, writeBoard } from './boards.ts';
+import {
+  addToBoard,
+  anchorFor,
+  boardsIn,
+  cardsOf,
+  columnFor,
+  columnOf,
+  doneColumn,
+  moveCard,
+  putCard,
+  readBoard,
+  setTaskDone,
+  taskOnLine,
+  tasksIn,
+  writeBoard,
+} from './boards.ts';
 
 const note = `# Launch week
 
@@ -112,5 +127,37 @@ describe('moving a card', () => {
     // With no Done column, a ticked task stays where the board has it.
     const plain = readBoard('To do: a\nWaiting: b');
     expect(columnFor(plain, { id: 'a', text: 'A', done: true, line: 1 })).toBe(0);
+  });
+});
+
+describe('putting a to-do on a board', () => {
+  it('names a task that has no anchor, from its own words', () => {
+    expect(anchorFor('Book the ferry before Friday', [])).toBe('book-the-ferry');
+    expect(anchorFor('Book the ferry', ['book-the-ferry'])).toBe('book-the-ferry-2');
+    expect(anchorFor('!!!', [])).toBe('task');
+  });
+
+  it('adds the card to the first column, and gives the line its anchor', () => {
+    const added = addToBoard(note, 13)!;
+    expect(added.id).toBe('something-not-on');
+    expect(added.line).toEqual({ number: 13, text: '- [ ] Something not on the board ^something-not-on' });
+    expect(added.fence).toMatchObject({ from: 3, to: 7 });
+    expect(added.fence.body.split('\n')[0]).toBe('To do: ship-page, email-list, something-not-on');
+    expect(added.column).toBe('To do');
+  });
+
+  it('puts a ticked task straight in Done, and keeps the anchor it has', () => {
+    const doc = note.replace('- [ ] Something not on the board', '- [x] Something not on the board ^later');
+    const added = addToBoard(doc, 13)!;
+    expect(added.id).toBe('later');
+    expect(added.line).toBeNull();
+    expect(added.column).toBe('Done');
+    expect(added.fence.body).toContain('Done: pick-date, later');
+  });
+
+  it('answers nothing for a line that is not a to-do, a note with no board, or a task already on one', () => {
+    expect(addToBoard(note, 1)).toBeNull();
+    expect(addToBoard('- [ ] Alone in the world', 1)).toBeNull();
+    expect(addToBoard(note, 9)).toBeNull();
   });
 });

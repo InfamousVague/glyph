@@ -2317,3 +2317,16 @@ overall GitHub plugin that's provided by default like Notion." The Projects plug
   with the note. The storage keys are the same, so repos and links carry over; only the plugin's id changed, which
   resets its switch to on.
 
+
+## The press-and-hold menu, in full (2026-09-16)
+
+Matt: "add a full context menu for text and such." The menu had Cut, Copy, Paste, Find, Select all, Style and Add
+image; it now carries the rest of what a person expects of a line, and two of Glyph's own.
+
+- **Duplicate, Delete, Move up, Move down** (`editor/format.ts`). With words selected they work on the selection;
+  with none, on the line the caret is on, which is what a finger has usually just tapped.
+- **To board** (`core/boards.ts` `addToBoard`, docs/BOARDS.md). On a to-do in a note that holds a board, this gives
+  the line an anchor made from its own words and adds the card to the nearest board above, in Done when the task is
+  already ticked. Nothing shows on a line that is not a to-do, in a note with no board, or on a task already on one.
+- **Send** is the plugin's own item action, the one a swipe on the item does (a Notion board, a GitHub issue), so the
+  same thing can be done without knowing about the swipe.

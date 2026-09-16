@@ -1,11 +1,15 @@
 import {
+  ArrowDownToLine,
+  ArrowUpToLine,
   Bold,
   ChevronLeft,
   ClipboardPaste,
   Code,
   Copy,
+  CopyPlus,
   Heading,
   ImagePlus,
+  LayoutGrid,
   Italic,
   Link,
   List,
@@ -18,6 +22,7 @@ import {
   TextQuote,
   TextSearch,
   TextSelect,
+  Trash2,
   Type,
 } from '@glacier/icons';
 import { useCallback, useEffect, useReducer, useRef, useState, type ComponentType, type CSSProperties, type HTMLAttributes } from 'react';
@@ -25,7 +30,23 @@ import type { EditorView } from '@codemirror/view';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { plugins } from '../plugins/registry.ts';
-import { activeBlock, activeMarks, activeWraps, insertLink, insertRule, insertTable, toggleBlock, toggleMark, toggleWrap, type Block, type Mark } from './format.ts';
+import {
+  activeBlock,
+  activeMarks,
+  activeWraps,
+  deleteSelection,
+  duplicateSelection,
+  insertLink,
+  insertRule,
+  insertTable,
+  moveLines,
+  toggleBlock,
+  toggleMark,
+  toggleWrap,
+  type Block,
+  type Mark,
+} from './format.ts';
+import { addToBoard } from '../core/boards.ts';
 import styles from './ContextMenu.module.css';
 
 /**
@@ -79,6 +100,8 @@ interface ContextMenuProps {
   editsUnavailable?: string | null;
   /** Opens find and replace with the selected words (FindBar.tsx); absent, the word is not shown. */
   onFind?: (text: string) => void;
+  /** Sends the line's words where a plugin takes them (a Notion board, a GitHub issue); absent, nothing is shown. */
+  send?: { label: string; run: (text: string) => Promise<void> | void } | null;
 }
 
 interface Open {
@@ -95,7 +118,7 @@ function hostClipboard(): (() => string) | null {
   return typeof host?.readClipboard === 'function' ? () => host.readClipboard!() : null;
 }
 
-export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit, editsUnavailable = null, onFind }: ContextMenuProps) {
+export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit, editsUnavailable = null, onFind, send = null }: ContextMenuProps) {
   const [open, setOpen] = useState<Open | null>(null);
   /** The menu's words, or its styles. */
   const [styling, setStyling] = useState(false);
@@ -310,6 +333,28 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
     );
   }
 
+  /** The line the caret is on, for the actions that are about a line rather than a selection. */
+  const caretLine = view ? view.state.doc.lineAt(view.state.selection.main.head) : null;
+  const lineWords = caretLine ? caretLine.text.replace(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/, '').trim() : '';
+  /** A to-do that a board in this note could take (core/boards.ts). */
+  const boardable = view && caretLine ? addToBoard(view.state.doc.toString(), caretLine.number) !== null : false;
+
+  /** The to-do joins the nearest board above it: the line gains its anchor, and the fence gains the card. */
+  const putOnBoard = () => {
+    if (!view || !caretLine) return;
+    const added = addToBoard(view.state.doc.toString(), caretLine.number);
+    if (!added) return;
+    const doc = view.state.doc;
+    const open = doc.line(added.fence.from);
+    const close = doc.line(added.fence.to);
+    const changes = [{ from: open.to + 1, to: close.from - 1, insert: added.fence.body }];
+    if (added.line) {
+      const line = doc.line(added.line.number);
+      changes.push({ from: line.from, to: line.to, insert: added.line.text });
+    }
+    view.dispatch({ changes, userEvent: 'input.board' });
+  };
+
   return (
     <div
       ref={menu}
@@ -352,6 +397,28 @@ export function ContextMenu({ view, onAddImage, onPasteImage, edits = [], onEdit
         <button type="button" role="menuitem" className={styles.item} onClick={() => void act(selectAll)()}>
           <Word icon={TextSelect} label="Select all" />
         </button>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && duplicateSelection(view))()}>
+          <Word icon={CopyPlus} label="Duplicate" />
+        </button>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && deleteSelection(view))()}>
+          <Word icon={Trash2} label="Delete" />
+        </button>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && moveLines(view, -1))()}>
+          <Word icon={ArrowUpToLine} label="Move up" />
+        </button>
+        <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => view && moveLines(view, 1))()}>
+          <Word icon={ArrowDownToLine} label="Move down" />
+        </button>
+        {boardable ? (
+          <button type="button" role="menuitem" className={styles.item} onClick={() => void act(putOnBoard)()}>
+            <Word icon={LayoutGrid} label="To board" />
+          </button>
+        ) : null}
+        {send && lineWords ? (
+          <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => send.run(lineWords))()}>
+            <Word icon={Link} label={send.label} />
+          </button>
+        ) : null}
         <button
           type="button"
           role="menuitem"

@@ -547,7 +547,17 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
         </div>
       </div>
       {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image. */}
-      <ContextMenu view={view} onAddImage={() => void addPhoto()} onPasteImage={pasteImage} onFind={setFinding} />
+      <ContextMenu
+        view={view}
+        onAddImage={() => void addPhoto()}
+        onPasteImage={pasteImage}
+        onFind={setFinding}
+        // The same send a swipe on the item does, where a plugin takes this note's items (a Notion board, a GitHub issue).
+        send={(() => {
+          const action = plugins.itemAction(note.id);
+          return action ? { label: action.label, run: (text: string) => action.run(text, editing) } : null;
+        })()}
+      />
       {finding !== null && view && shown === 'raw' ? <FindBar view={view} initial={finding} onClose={() => setFinding(null)} /> : null}
       {/* The page's top and bottom soften while there is more to scroll to. */}
       <NoteSettings
