@@ -226,3 +226,92 @@ fn a_new_note_left_empty_never_becomes_a_file() {
     assert!(library.delete_note("gone").unwrap());
     assert_eq!(library.get_note("gone").unwrap(), None);
 }
+
+fn remote(id: &str, body: &str) -> Note {
+    Note {
+        id: id.to_string(),
+        body: body.to_string(),
+        created_at: parse_iso("2026-01-02T03:04:05.000Z").unwrap(),
+        updated_at: parse_iso("2026-03-04T05:06:07.000Z").unwrap(),
+        source: "capture".to_string(),
+        starred: true,
+        archived_at: None,
+        recording_ms: Some(1500),
+        segments: Some(vec![RecordedSegment { text: "hello".into(), start_ms: 0, end_ms: 900 }]),
+        formatted: Some("# Hello".into()),
+        formatted_for: Some(42),
+        formatted_model: Some("m".into()),
+        path: Some("Work/Trips/Hello.md".into()),
+    }
+}
+
+#[test]
+fn a_synced_note_keeps_its_own_times_folder_and_what_isnt_text() {
+    let root = temp("apply-new");
+    let mut library = Library::open_fs(&root).unwrap();
+    let applied = library.apply_note(&remote("s1", "# Hello\n\nfrom the phone\n")).unwrap();
+    let wanted = remote("s1", "# Hello\n\nfrom the phone\n");
+    assert_eq!(applied, wanted, "the note reads back exactly as it was sent");
+    let text = read(&root, "Work/Trips/Hello.md");
+    assert!(text.contains("pinned: true\n") && text.contains("created: 2026-01-02T03:04:05.000Z\n"), "{text}");
+    // It sorts by when it was written there, not when it arrived here.
+    library.save_note("local", "# Newer\n", "editor").unwrap();
+    let list = library.list_notes().unwrap();
+    assert_eq!(list.iter().map(|n| n.id.as_str()).collect::<Vec<_>>(), ["local", "s1"]);
+}
+
+#[test]
+fn a_synced_edit_updates_the_file_in_place_and_keeps_local_front_matter() {
+    let root = temp("apply-edit");
+    let mut library = Library::open_fs(&root).unwrap();
+    library.apply_note(&remote("s2", "# Hello\n")).unwrap();
+    let path = root.join("Work/Trips/Hello.md");
+    let text = std::fs::read_to_string(&path).unwrap().replacen("---\n", "---\ntags: [trip]\n", 1);
+    std::fs::write(&path, text).unwrap();
+    library.scan().unwrap();
+
+    let mut edit = remote("s2", "# Goodbye\n\nchanged\n");
+    edit.starred = false;
+    edit.archived_at = Some(parse_iso("2026-03-05T00:00:00.000Z").unwrap());
+    edit.recording_ms = None;
+    edit.segments = None;
+    edit.formatted = None;
+    edit.formatted_for = None;
+    edit.formatted_model = None;
+    let applied = library.apply_note(&edit).unwrap();
+    assert_eq!(applied.path.as_deref(), Some("Work/Trips/Goodbye.md"), "a new title elsewhere is a new name here");
+    assert!(!path.exists());
+    let text = read(&root, "Work/Trips/Goodbye.md");
+    assert!(text.contains("tags: [trip]") && !text.contains("pinned") && text.contains("archived: 2026-03-05"), "{text}");
+    assert_eq!(applied.recording_ms, None);
+    assert!(!root.join(".glyph/notes/s2.json").exists(), "nothing left beside it");
+    assert_eq!(library.list_notes().unwrap().len(), 1);
+}
+
+#[test]
+fn a_synced_note_whose_folder_is_taken_or_unsafe_lands_in_the_inbox_or_beside_it() {
+    let root = temp("apply-safe");
+    let mut library = Library::open_fs(&root).unwrap();
+    let mut escape = remote("s3", "# Sneaky\n");
+    escape.path = Some("../outside.md".into());
+    assert_eq!(library.apply_note(&escape).unwrap().path.as_deref(), Some("Inbox/Sneaky.md"));
+    let mut hidden = remote("s4", "# Hidden\n");
+    hidden.path = Some(".glyph/x.md".into());
+    assert_eq!(library.apply_note(&hidden).unwrap().path.as_deref(), Some("Inbox/Hidden.md"));
+    library.save_note("mine", "# Hello\n", "editor").unwrap();
+    let mut clash = remote("s5", "# Hello\n");
+    clash.path = Some("Inbox/Hello.md".into());
+    assert_eq!(library.apply_note(&clash).unwrap().path.as_deref(), Some("Inbox/Hello 2.md"));
+    assert_eq!(library.get_note("mine").unwrap().unwrap().body, "# Hello\n", "the note already there is untouched");
+}
+
+#[test]
+fn a_synced_note_replaces_a_draft_of_the_same_id() {
+    let root = temp("apply-draft");
+    let mut library = Library::open_fs(&root).unwrap();
+    library.save_note("d", "", "editor").unwrap();
+    library.apply_note(&remote("d", "# Hello\n")).unwrap();
+    assert_eq!(library.get_note("d").unwrap().unwrap().body, "# Hello\n");
+    library.save_note("d", "", "editor").unwrap();
+    assert!(library.get_note("d").unwrap().is_some(), "a synced note is not a draft to be dropped");
+}

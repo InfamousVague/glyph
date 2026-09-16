@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, FileText, GraduationCap, LayoutGrid, ListChecks, Terminal } from '@glacier/icons';
 import { SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
-import { setPreferences, usePreferences, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
+import { setPreferences, usePreferences, type MotionSpeed, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { hapticsAvailable, setHapticsPref, useHapticsPref, fireNativeHaptic } from '../core/haptics.ts';
 import { describeBuild, sourceHost, STAGING, type Updates } from '../core/ota.ts';
@@ -31,6 +31,12 @@ const TYPEFACES: { value: Typeface; label: string }[] = [
   { value: 'inter', label: 'Inter' },
   { value: 'noto', label: 'Noto' },
   { value: 'plex', label: 'Plex' },
+];
+
+const SPEEDS: { value: MotionSpeed; label: string }[] = [
+  { value: 'relaxed', label: 'Relaxed' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'brisk', label: 'Brisk' },
 ];
 
 const THEMES: { value: ThemePref; label: string }[] = [
@@ -394,6 +400,22 @@ export function AnimationsPane() {
   const prefs = usePreferences();
   return (
     <>
+      <PaneSection title="Speed" description="How quickly letters gather and screens and sheets move.">
+        <SettingRow
+          label="Animation speed"
+          layout="stacked"
+          control={
+            <SegmentedControl
+              aria-label="Animation speed"
+              fullWidth
+              size="sm"
+              options={SPEEDS}
+              value={prefs.motionSpeed}
+              onValueChange={(value) => setPreferences({ motionSpeed: value as MotionSpeed })}
+            />
+          }
+        />
+      </PaneSection>
       <PaneSection title="Movement" description="Switch any of it off and what it belongs to still works; it simply holds still.">
         <SettingRow
           label="Ghostly typing"
@@ -493,7 +515,10 @@ export function AboutPane({
         />
       </PaneSection>
       <ReleasesSection updates={updates} />
-      <SettingsFootnote>Glyph keeps your notes, recordings and models on the phone. Nothing is sent anywhere.</SettingsFootnote>
+      <SettingsFootnote>
+        Glyph keeps your notes, recordings and models on the phone. Nothing is sent anywhere unless you sign in to an account, and then your notes, recordings and settings are encrypted on the phone
+        first, so only your own devices can read them.
+      </SettingsFootnote>
     </>
   );
 }

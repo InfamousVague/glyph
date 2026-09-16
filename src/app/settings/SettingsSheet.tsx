@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { BookOpen, FlaskConical, Info, Mic, Puzzle, Sparkles, SunMoon, Terminal, Type, Vibrate, Waves } from '@glacier/icons';
+import { BookOpen, CircleUser, FlaskConical, Info, Mic, Puzzle, Sparkles, SunMoon, Terminal, Type, Vibrate, Waves } from '@glacier/icons';
+import { useAccount } from '../core/account/account.ts';
+import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
+import { AccountPane } from './AccountPane.tsx';
 import { gb, modelName, MODELS, useModels } from '../core/ai.ts';
 import { hapticsAvailable, useHapticsPref } from '../core/haptics.ts';
 import { isAndroid } from '../core/platform.ts';
@@ -48,6 +51,8 @@ const THEME_WORDS: Record<string, string> = { system: 'System', light: 'Light', 
 
 export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onTutorial }: SettingsSheetProps) {
   const prefs = usePreferences();
+  const account = useAccount();
+  const syncStatus = useSyncStatus();
   const haptics = useHapticsPref();
   const devMode = useDeveloperMode();
   const { all: allPlugins, enabled: plugins } = usePlugins();
@@ -146,8 +151,18 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
       icon: <Waves size={16} />,
       content: <AnimationsPane />,
       summary:
-        [prefs.wisp ? 'Ghostly typing' : null, prefs.wispEdge ? 'smoke' : null, prefs.ripples ? 'ripples' : null].filter(Boolean).join(' · ') || 'All still',
+        [prefs.wisp ? 'Ghostly typing' : null, prefs.wispEdge ? 'smoke' : null, prefs.ripples ? 'ripples' : null, prefs.motionSpeed !== 'normal' ? prefs.motionSpeed : null]
+          .filter(Boolean)
+          .join(' · ') || 'All still',
       group: 1,
+    },
+    {
+      id: 'account',
+      label: 'Account',
+      icon: <CircleUser size={16} />,
+      content: <AccountPane />,
+      summary: syncSummary(account.session?.handle ?? null, syncStatus),
+      group: 3,
     },
     {
       id: 'cheatsheet',

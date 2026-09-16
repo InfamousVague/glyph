@@ -1,6 +1,6 @@
 import { Facet, StateEffect, StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { itemWords, markOf } from '../core/itemLinks.ts';
+import { ITEM_TAIL, itemWords, markOf } from '../core/itemLinks.ts';
 import { hasMarkDetails, markNameFor, peekMarkDetails, type MarkEntry } from '../core/markDetails.ts';
 import { detailsArrived } from './links.ts';
 import { mountMarkMenu } from './markMenuMount.tsx';
@@ -67,9 +67,12 @@ export function linkedOn(text: string, from = 0): Linked | null {
   return null;
 }
 
+/** An item's mark, and after it a board's anchor or counters, which stay when the mark goes (core/itemLinks.ts). */
+const MARK_THEN_TAIL = new RegExp(String.raw`\s*\[[a-z][a-z0-9-]*\]\((https?:\/\/[^\s)]+)\)((?:\s+(?:${ITEM_TAIL}))*)\s*$`);
+
 /** The line with its link taken off and its words kept. */
 export function unlinked(text: string, linked: Pick<Linked, 'kind' | 'url'>): string {
-  if (linked.kind === 'mark') return text.replace(/\s*\[[a-z][a-z0-9-]*\]\((https?:\/\/[^\s)]+)\)\s*$/, '');
+  if (linked.kind === 'mark') return text.replace(MARK_THEN_TAIL, '$2');
   const escaped = linked.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return text.replace(new RegExp(`\\[([^\\]]*)\\]\\(${escaped}\\)`), '$1');
 }

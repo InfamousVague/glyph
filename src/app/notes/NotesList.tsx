@@ -84,6 +84,8 @@ interface NotesListProps {
   /** A memo was said and not yet sorted into notes (capture/scratch.ts): the card that opens its sorting. */
   memoWaiting?: boolean;
   onSortMemo?: () => void;
+  /** The note open beside the list (the desktop sidebar, App.tsx): its row is marked. */
+  selectedId?: string;
 }
 
 const DELETE: SwipeAction = { id: 'delete', label: 'Delete', icon: 'delete', tone: 'danger', detent: 0.55, removes: true };
@@ -130,6 +132,7 @@ export function NotesList({
   canFlag,
   memoWaiting = false,
   onSortMemo,
+  selectedId,
 }: NotesListProps) {
   const [view, setView] = useState<'notes' | 'archive'>('notes');
   // The phone's back gesture: the archive steps back to the notes.
@@ -242,7 +245,13 @@ export function NotesList({
                 return (
                   <li key={note.id} className={styles.arrive} style={{ '--i': Math.min(i, 8) } as React.CSSProperties}>
                     <SwipeRow start={start} end={end} onAction={act(note)}>
-                      <button type="button" className={styles.row} onClick={() => onOpen(note.id)}>
+                      <button
+                        type="button"
+                        className={styles.row}
+                        data-selected={note.id === selectedId || undefined}
+                        aria-current={note.id === selectedId ? 'true' : undefined}
+                        onClick={() => onOpen(note.id)}
+                      >
                         <span className={styles.rowTitle} data-untitled={title ? undefined : ''}>
                           {title ? shortenUrls(title) : 'Untitled'}
                         </span>

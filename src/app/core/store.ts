@@ -85,6 +85,14 @@ function webWrite(notes: Note[]): void {
 
 // --- the public API ---------------------------------------------------------
 
+/** Sent on `window` after this device changes a note, so sync (core/sync/engine.ts) sends it soon. */
+export const NOTE_SAVED = 'glyph:note-saved';
+
+function touched<T>(value: T): T {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(NOTE_SAVED));
+  return value;
+}
+
 export async function listNotes(): Promise<Note[]> {
   if (isTauri()) return (await invoke<Note[]>('list_notes')).sort(byRecency);
   return webAll().sort(byRecency);
@@ -104,14 +112,14 @@ export async function getNote(id: string): Promise<Note | null> {
  * always is.
  */
 export async function saveNote(id: string, body: string, source: NoteSource = 'editor'): Promise<Note> {
-  if (isTauri()) return await invoke<Note>('save_note', { id, body, source });
+  if (isTauri()) return touched(await invoke<Note>('save_note', { id, body, source }));
 
   const now = Date.now();
   const notes = webAll();
   const existing = notes.find((n) => n.id === id);
   const note: Note = existing ? { ...existing, body, updatedAt: now } : { id, body, createdAt: now, updatedAt: now, source };
   webWrite([note, ...notes.filter((n) => n.id !== id)]);
-  return note;
+  return touched(note);
 }
 
 /**
@@ -120,14 +128,14 @@ export async function saveNote(id: string, body: string, source: NoteSource = 'e
  * it has gone.
  */
 export async function setNoteStarred(id: string, starred: boolean): Promise<Note | null> {
-  if (isTauri()) return await invoke<Note | null>('set_note_starred', { id, starred });
-  return webFlag(id, { starred });
+  if (isTauri()) return touched(await invoke<Note | null>('set_note_starred', { id, starred }));
+  return touched(webFlag(id, { starred }));
 }
 
 /** Archive a note or bring it back. Not an edit either. */
 export async function setNoteArchived(id: string, archived: boolean): Promise<Note | null> {
-  if (isTauri()) return await invoke<Note | null>('set_note_archived', { id, archived });
-  return webFlag(id, { archivedAt: archived ? Date.now() : null });
+  if (isTauri()) return touched(await invoke<Note | null>('set_note_archived', { id, archived }));
+  return touched(webFlag(id, { archivedAt: archived ? Date.now() : null }));
 }
 
 function webFlag(
@@ -148,14 +156,33 @@ function webFlag(
  * body and its time stand.
  */
 export async function setNoteFormatted(id: string, formatted: string | null, formattedFor: number | null, model: string | null): Promise<Note | null> {
-  if (isTauri()) return await invoke<Note | null>('set_note_formatted', { id, formatted, formattedFor, model });
-  return webFlag(id, { formatted, formattedFor, formattedModel: model });
+  if (isTauri()) return touched(await invoke<Note | null>('set_note_formatted', { id, formatted, formattedFor, model }));
+  return touched(webFlag(id, { formatted, formattedFor, formattedModel: model }));
 }
 
 /** Keep a spoken note's recording length and phrases (or forget both with null). Not an edit. */
 export async function setNoteRecording(id: string, recordingMs: number | null, segments: Segment[]): Promise<Note | null> {
-  if (isTauri()) return await invoke<Note | null>('set_note_recording', { id, recordingMs, segments });
-  return webFlag(id, { recordingMs, segments: recordingMs === null ? null : segments });
+  if (isTauri()) return touched(await invoke<Note | null>('set_note_recording', { id, recordingMs, segments }));
+  return touched(webFlag(id, { recordingMs, segments: recordingMs === null ? null : segments }));
+}
+
+/**
+ * Write a note exactly as another device has it (core/sync/notes.ts): its own
+ * times, pin, archive and recording, not now's. Native generation 16; the sync
+ * engine checks the generation before it calls. Answers the note as stored.
+ */
+export async function applyNote(note: Note): Promise<Note> {
+  if (isTauri()) return await invoke<Note>('store_apply', { note });
+  const notes = webAll();
+  webWrite([note, ...notes.filter((n) => n.id !== note.id)]);
+  return note;
+}
+
+/** Sent on `window` when notes changed without the list's doing - sync wrote some - so the list asks again. */
+export const NOTES_CHANGED = 'glyph:notes-changed';
+
+export function announceNotesChanged(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(NOTES_CHANGED));
 }
 
 /**
@@ -172,11 +199,9 @@ export function archiveOrder(notes: readonly Note[]): Note[] {
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  if (isTauri()) {
-    await invoke<void>('delete_note', { id });
-    return;
-  }
-  webWrite(webAll().filter((n) => n.id !== id));
+  if (isTauri()) await invoke<void>('delete_note', { id });
+  else webWrite(webAll().filter((n) => n.id !== id));
+  touched(null);
 }
 
 /**
@@ -320,11 +345,14 @@ export function useNotes(): NotesState {
     const onVisible = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
+    const onChanged = () => void refresh();
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener(NOTES_CHANGED, onChanged);
     const unanswer = answerHost('refresh', () => void refresh());
     return () => {
       cancelled = true;
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener(NOTES_CHANGED, onChanged);
       unanswer();
     };
   }, [refresh]);

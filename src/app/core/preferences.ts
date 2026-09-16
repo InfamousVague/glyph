@@ -19,6 +19,12 @@ export type TextSize = 'large' | 'larger' | 'largest';
 /** The kit's three sans families. 'inter' is the token default. */
 export type Typeface = 'inter' | 'noto' | 'plex';
 
+/** How quickly things move (Settings > Animations; Matt: "add controls to animation speeds"). */
+export type MotionSpeed = 'relaxed' | 'normal' | 'brisk';
+
+/** How much longer (above 1) or shorter (below 1) every animation runs at a speed. */
+export const MOTION_SCALE: Record<MotionSpeed, number> = { relaxed: 1.6, normal: 1, brisk: 0.6 };
+
 export interface Preferences {
   theme: ThemePref;
   /**
@@ -90,6 +96,8 @@ export interface Preferences {
   wisp: boolean;
   wispEdge: boolean;
   ripples: boolean;
+  /** The pace of all of it: the typing smoke, and the app's own movement between screens and sheets. */
+  motionSpeed: MotionSpeed;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -113,6 +121,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   wisp: true,
   wispEdge: true,
   ripples: true,
+  motionSpeed: 'normal',
 };
 
 const STORAGE_KEY = 'glyph-preferences';
@@ -128,6 +137,7 @@ function load(): Preferences {
     if (!isCodeThemeLight(loaded.codeLight) || !loaded.codeChosen) loaded.codeLight = DEFAULT_PREFERENCES.codeLight;
     if (!isCodeThemeDark(loaded.codeDark) || !loaded.codeChosen) loaded.codeDark = DEFAULT_PREFERENCES.codeDark;
     if (!isNoteView(loaded.noteView)) loaded.noteView = DEFAULT_PREFERENCES.noteView;
+    if (!(loaded.motionSpeed in MOTION_SCALE)) loaded.motionSpeed = DEFAULT_PREFERENCES.motionSpeed;
     return loaded;
   } catch {
     return DEFAULT_PREFERENCES;
@@ -137,6 +147,20 @@ function load(): Preferences {
 export function preferences(): Preferences {
   return current;
 }
+
+/** The chosen pace as a multiplier for a duration: 1 at the normal speed. */
+export function motionScale(prefs: Preferences = current): number {
+  return MOTION_SCALE[prefs.motionSpeed] ?? 1;
+}
+
+/** The kit's duration tokens (Glacier's tokens.css), which its components and app.css move by. */
+const DURATIONS: [string, number][] = [
+  ['--glacier-duration-instant', 75],
+  ['--glacier-duration-fast', 150],
+  ['--glacier-duration-normal', 250],
+  ['--glacier-duration-slow', 400],
+  ['--glacier-duration-slower', 600],
+];
 
 export function setPreferences(next: Partial<Preferences>): void {
   current = { ...current, ...next };
@@ -232,4 +256,13 @@ export function applyPreferences(prefs: Preferences = current): void {
   // Both code themes are stamped; editor/codeThemes.css applies whichever side of the page is showing.
   root.setAttribute('data-code-light', prefs.codeLight);
   root.setAttribute('data-code-dark', prefs.codeDark);
+  // The pace: the kit's durations stretched or shortened. Inline, so the kit's own reduced-motion rule, which sets
+  // them in a media query, would lose to it: that case is left alone and the page reads the phone's setting instead.
+  const scale = motionScale(prefs);
+  const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  for (const [name, ms] of DURATIONS) {
+    if (scale === 1 || still) root.style.removeProperty(name);
+    else root.style.setProperty(name, `${Math.round(ms * scale)}ms`);
+  }
+  root.style.setProperty('--app-motion-scale', String(still ? 1 : scale));
 }

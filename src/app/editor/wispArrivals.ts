@@ -1,5 +1,6 @@
 import { Annotation, Facet, StateEffect, StateField, type EditorState, type Extension, type Range, type Transaction } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { motionScale } from '../core/preferences.ts';
 
 /**
  * Words arriving in the editor from smoke, and leaving into it: the Wisp
@@ -193,6 +194,13 @@ function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, 
   return moving;
 }
 
+/** Motion set at the chosen pace (Settings > Animations): each piece's wait and its arc stretched or shortened alike. */
+function paced(list: Moving[], now: number): Moving[] {
+  const scale = motionScale();
+  if (scale === 1) return list;
+  return list.map((m) => ({ ...m, at: now + (m.at - now) * scale, dur: m.dur * scale }));
+}
+
 /** Everything in motion, mapped through every change, until the frame loop says it has settled. */
 export const wispState = StateField.define<readonly Moving[]>({
   create: () => [],
@@ -208,19 +216,25 @@ export const wispState = StateField.define<readonly Moving[]>({
       });
     }
     for (const effect of tr.effects) {
-      if (effect.is(revealWisp) && !prefersStill()) next = [...next, ...revealing(tr.state, effect.value.from, effect.value.to, performance.now())];
+      if (effect.is(revealWisp) && !prefersStill()) {
+        const now = performance.now();
+        next = [...next, ...paced(revealing(tr.state, effect.value.from, effect.value.to, now), now)];
+      }
       if (effect.is(settle)) {
         const done = new Set(effect.value);
         next = next.filter((m) => !done.has(m.id));
       }
     }
     if (!tr.docChanged || prefersStill()) return next;
-    if (tr.annotation(wisp)) return [...next, ...movingIn(tr, performance.now())];
+    if (tr.annotation(wisp)) {
+      const now = performance.now();
+      return [...next, ...paced(movingIn(tr, now), now)];
+    }
     // Typed, pasted, or deleted by hand.
     if (tr.state.facet(typing) && (tr.isUserEvent('input') || tr.isUserEvent('delete'))) {
       const now = performance.now();
       const deleting = tr.isUserEvent('delete');
-      return [...next, ...movingIn(tr, now, tr.isUserEvent('input.paste') ? PASTE_MAX : Number.POSITIVE_INFINITY, deleting ? deleteMs(now) : OUT_MS, !deleting)];
+      return [...next, ...paced(movingIn(tr, now, tr.isUserEvent('input.paste') ? PASTE_MAX : Number.POSITIVE_INFINITY, deleting ? deleteMs(now) : OUT_MS, !deleting), now)];
     }
     return next;
   },

@@ -13,6 +13,12 @@ import { linkedRows, type LinkMenus } from './linkedRows.ts';
 import { shortLinks } from './links.ts';
 import { extendedMarkdown } from './extended.ts';
 import { footnotes } from './footnotes.ts';
+import { taskToggle } from './taskToggle.ts';
+import { tags } from './tags.ts';
+import { counters } from './counters.ts';
+import { sums } from './sums.ts';
+import { headingProgress } from './headingProgress.ts';
+import { choices } from './choices.ts';
 import { wikiLinks, type WikiOptions } from './wikiLinks.ts';
 import { markNotes } from './markNotes.ts';
 import { drawnTables } from './tables.ts';
@@ -205,6 +211,14 @@ export function Editor({
         extendedMarkdown(),
         // [^a] raised and quiet, its words on a tap (editor/footnotes.ts).
         footnotes(),
+        // #tags drawn as small chips (editor/tags.ts).
+        tags(),
+        // [3/8] counters, `= 450 + 120` sums, "3 of 7" after a heading, and `- ( )` choices (editor/counters.ts, sums.ts,
+        // headingProgress.ts, choices.ts).
+        counters(),
+        sums(),
+        headingProgress(),
+        choices(),
         // [[Another note]] opens that note, or makes it (editor/wikiLinks.ts).
         wikiLinks(wiki ? { known: (title) => wikiRef.current?.known(title) ?? false, open: (title, anchor) => wikiRef.current?.open(title, anchor) } : null),
         inlineImages((message) => onImageErrorRef.current?.(message)),
@@ -215,6 +229,8 @@ export function Editor({
         drawnBoards(),
         swipeItemAction({ action: () => swipeActionRef.current?.() ?? null }),
         lineSuggestions({ suggest: (body) => suggestRef.current?.(body) ?? [] }),
+        // A tap on a to-do's box ticks or clears it (taskToggle.ts).
+        taskToggle(),
         // A to-do whose task reads as done gets its box ticked (doneSync.ts).
         doneSync(),
         // Voice memos left in the note, played where they sit (clips.ts).

@@ -238,6 +238,26 @@
   border-radius: var(--glacier-radius-sm);
 }
 
+/*
+ * In the desktop sidebar (App.tsx) the rows take a little inner room, so the
+ * open note's row can be marked with a tint that doesn't move its words, and
+ * hovering a row shows it can be opened.
+ */
+:global(.app-sidebar) .row {
+  padding-inline: var(--glacier-space-3);
+  border-radius: var(--glacier-radius-md, 10px);
+  transition: background-color 120ms ease;
+}
+
+:global(.app-sidebar) .row:hover {
+  background: var(--app-paper-2, var(--glacier-surface));
+}
+
+:global(.app-sidebar) .row[data-selected] {
+  background: var(--app-paper-3, var(--glacier-active));
+  border-block-start-color: transparent;
+}
+
 /* Two lines of title before it truncates: a title is worth more than its row's height. */
 .rowTitle {
   display: -webkit-box;

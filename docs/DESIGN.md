@@ -2387,3 +2387,25 @@ itself reversed the pause of 2026-09-13.
   rings could answer a voice; a page that is only read is no place for it, and the rings keep their resting beat.
   The file is gone.
 - Nothing in the Kotlin side ever held a microphone: the side key launches the recorder, it does not listen.
+
+## 51. Glyph on a Mac
+
+The desktop app (`npm run desktop:dev`, `desktop:build`) is the same page in WebKit, the engine the Mac and iPhone
+apps share, so three things are shaped for it:
+
+- **The title bar.** The window draws under a transparent bar, with its three buttons inset into it
+  (`src-tauri/src/lib.rs`). `core/platform.ts` marks the Mac app with `data-titlebar="overlay"`, so app.css gives
+  `--app-safe-top` 44px there (every header already pads by it) and lays `.app-dragBar`, a
+  `data-tauri-drag-region`, over the strip, which drags the window and zooms it on a double click.
+- **What WebKit can't draw.** A page element wearing an SVG filter measured in its own coordinates
+  (`filterUnits="userSpaceOnUse"`) paints as nothing: the scroller went black under the wisp edge (Matt: "the whole
+  page is going black when I scroll down"), and the guide's first headline vanished under its heat haze.
+  Reproduced in headless WebKit. `isWebKit` (core/platform.ts, also `data-engine="webkit"`) stands both down; the
+  edge keeps its mask fade. Filters sized to an element's box, as every letter's in WispText, draw fine.
+- **The sidebar.** On a desktop window at least 900px across (`useSidebar`, core/useWideScreen.ts) the notes list
+  sits in a column beside the open note (Matt: "on widescreen desktop I would like to see a sidebar with all notes
+  in them"): each is its phone screen, sized to its pane. The open note's row is marked (`selectedId`), the note
+  drops its "← Notes" (`showBack`), the list is read again a moment after each save so titles follow the typing,
+  and with nothing open the pane says so and offers Speak and New note (notes/NoNoteOpen.tsx). Recording, review,
+  sorting and the tutorial still take the whole window.
+

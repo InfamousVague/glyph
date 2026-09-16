@@ -1,5 +1,5 @@
 import { EditorState } from '@codemirror/state';
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree } from '@codemirror/language';
 import { describe, expect, it } from 'vitest';
 import { glyphMarkdown } from '../editor/language.ts';
 import { BUILT_IN } from '../plugins/registry.ts';
@@ -11,7 +11,9 @@ import { notePreview, noteTitle } from './store.ts';
 function found(doc: string): Set<string> {
   const state = EditorState.create({ doc, extensions: [glyphMarkdown(BUILT_IN.flatMap((plugin) => plugin.formats ?? []))] });
   const names = new Set<string>();
-  syntaxTree(state).iterate({ enter: (node) => void names.add(node.name) });
+  // The whole note, however long the parse takes: the plain tree is only what the parser reached in its time slice,
+  // and on a busy machine that stopped short of the table.
+  ensureSyntaxTree(state, state.doc.length, 10_000)?.iterate({ enter: (node) => void names.add(node.name) });
   return names;
 }
 

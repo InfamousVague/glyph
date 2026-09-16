@@ -58,6 +58,22 @@ describe('the + on a board column', () => {
     expect(doc).not.toContain('^item');
   });
 
+  it('looks like the card it will be: an empty box where the tick goes, and Add waiting until there are words', () => {
+    // Matt: "Add task input and button dont match up".
+    const target = open(note);
+    const field = addTo(target, 0);
+    const form = field.form!;
+    expect([...form.children].map((child) => child.className)).toEqual(['cm-boardComposeTick', 'cm-boardComposeField', 'cm-boardComposeAdd']);
+    const add = form.querySelector<HTMLButtonElement>('.cm-boardComposeAdd')!;
+    expect(add.disabled).toBe(true);
+    field.value = 'Pack the stove';
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(add.disabled).toBe(false);
+    type(field, 'Pack the stove');
+    // Added, the field is empty again, and so Add waits again.
+    expect(add.disabled).toBe(true);
+  });
+
   it('keeps the same field, emptied, for the next card', () => {
     const target = open(note);
     const field = addTo(target, 1);
@@ -319,5 +335,75 @@ describe('a slow tap on a card’s controls', () => {
     vi.advanceTimersByTime(600);
     expect(on.dom.querySelector('[data-lifted]')).not.toBeNull();
     window.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 8, pointerType: 'touch' }));
+  });
+});
+
+describe('the line under a board', () => {
+  /** The board's divider, and the lanes' height it has set. */
+  function split(target: EditorView) {
+    const line = target.dom.querySelector<HTMLElement>('.cm-boardSplit')!;
+    const board = target.dom.querySelector<HTMLElement>('.cm-board')!;
+    return { line, board, height: () => board.style.getPropertyValue('--cm-lane-height') };
+  }
+
+  it('is a separator under every board, and draws a height the fence sets', () => {
+    const target = open(note.replace('```board', '```board height=18'));
+    const { line, board, height } = split(target);
+    expect(line.getAttribute('role')).toBe('separator');
+    // A handle to take hold of, at its middle: a tab with up and down on it (Matt: "Add resize handle in the bottom
+    // middle of board to resize").
+    expect(line.querySelector('.cm-boardGrip svg')).not.toBeNull();
+    expect(line.title).toBe('Drag to resize the board');
+    expect(line.getAttribute('aria-valuenow')).toBe('18');
+    expect(board.hasAttribute('data-sized')).toBe(true);
+    expect(height()).toBe('18em');
+  });
+
+  it('steps with the arrow keys and goes to either end with Home and End, writing the fence each time', () => {
+    const target = open(note.replace('```board', '```board height=18'));
+    const key = (name: string) => split(target).line.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }));
+    key('ArrowDown');
+    expect(target.state.doc.toString()).toContain('```board height=19\n');
+    key('Home');
+    expect(target.state.doc.toString()).toContain('```board height=5\n');
+    key('End');
+    expect(target.state.doc.toString()).toContain('```board height=60\n');
+    // The same line is kept through each change, so the focus stays where the keys are.
+    expect(split(target).height()).toBe('60em');
+  });
+
+  it('goes back to the board\u2019s own height on a double tap', () => {
+    const target = open(note.replace('```board', '```board height=18'));
+    split(target).line.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    expect(target.state.doc.toString()).toContain('```board\nTo do:');
+    const { board, height } = split(target);
+    expect(board.hasAttribute('data-sized')).toBe(false);
+    expect(height()).toBe('');
+  });
+
+  it('follows a drag as a style and writes the height when the finger lifts, and not at all when called off', () => {
+    vi.useFakeTimers();
+    try {
+      const target = open(note.replace('```board', '```board height=18'));
+      const { line, height } = split(target);
+      // The lanes' ems are 16px, which jsdom does not work out.
+      vi.spyOn(window, 'getComputedStyle').mockReturnValue({ fontSize: '16px', maxHeight: '304px' } as unknown as CSSStyleDeclaration);
+      pointer(line, 'pointerdown', 3, 100, 500);
+      pointer(window, 'pointermove', 3, 100, 580);
+      // Eighty pixels down is five ems more, drawn but not written.
+      expect(height()).toBe('23em');
+      expect(target.state.doc.toString()).toContain('```board height=18\n');
+      pointer(document.body, 'pointerup', 3, 100, 580);
+      expect(target.state.doc.toString()).toContain('```board height=23\n');
+
+      pointer(split(target).line, 'pointerdown', 4, 100, 500);
+      pointer(window, 'pointermove', 4, 100, 400);
+      pointer(document.body, 'pointercancel', 4);
+      expect(target.state.doc.toString()).toContain('```board height=23\n');
+      expect(split(target).height()).toBe('23em');
+    } finally {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    }
   });
 });

@@ -29,6 +29,18 @@ describe('item marks in the editor', () => {
     view.destroy();
   });
 
+  it('is still the mark with a board\u2019s anchor after it', () => {
+    const view = open(`- [ ] Buy milk [notion](${URL}) ^buy-milk\n`, 0);
+    expect([...view.contentDOM.querySelectorAll('.cm-itemMark')].map((p) => p.textContent)).toEqual(['Notion']);
+    view.destroy();
+  });
+
+  it('is still the mark with a counter after it', () => {
+    const view = open(`- [ ] Pack socks [notion](${URL}) [3/8] ^pack-socks\n`, 0);
+    expect([...view.contentDOM.querySelectorAll('.cm-itemMark')].map((p) => p.textContent)).toEqual(['Notion']);
+    view.destroy();
+  });
+
   it('is not a mark when something follows it on the line, or the line is not an item', () => {
     const view = open(`- [ ] Buy milk [notion](${URL}) today\nSee [notion](${URL})\n`, 0);
     expect(view.contentDOM.querySelectorAll('.cm-itemMark')).toHaveLength(0);

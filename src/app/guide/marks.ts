@@ -5,6 +5,12 @@ import {
   Baseline,
   Bold,
   Code,
+  Hash,
+  Calculator,
+  CircleDot,
+  EyeOff,
+  Gauge,
+  ListChecks,
   Heading1,
   Heading2,
   Heading3,
@@ -81,7 +87,13 @@ export type Looks =
   | 'emoji'
   | 'anchor'
   | 'board'
-  | 'itemRef';
+  | 'itemRef'
+  | 'tag'
+  | 'counter'
+  | 'sum'
+  | 'progress'
+  | 'choice'
+  | 'spoilerLine';
 
 export interface MarkRow {
   /** The mark itself, as a person would type it: `**`, `- [ ]`. */
@@ -120,6 +132,7 @@ const OWN: MarkGroup[] = [
       { symbol: '~~', name: 'Struck through', typed: '~~the old plan~~', words: 'the old plan', looks: 'struck', icon: Strikethrough },
       { symbol: '`', name: 'Code', typed: '`npm run dev`', words: 'npm run dev', looks: 'code', icon: Code },
       { symbol: '[ ]( )', name: 'A link', typed: '[Glyph](https://attack.fm/glyph)', words: 'Glyph', looks: 'link', icon: Link },
+      { symbol: '#', name: 'A tag', typed: '- [ ] Ship the pricing page #web #launch', words: '#web', looks: 'tag', icon: Hash },
     ],
   },
   {
@@ -133,6 +146,9 @@ const OWN: MarkGroup[] = [
       { symbol: '1.', name: 'In order', typed: '1. Unplug it\n2. Wait a minute', words: 'Unplug it', looks: 'number', icon: ListOrdered, say: '“number one”, “first”' },
       { symbol: '- [ ]', name: 'A to-do', typed: '- [ ] Book the cabin', words: 'Book the cabin', looks: 'todo', icon: ListTodo, say: '“remember to”, “check box”' },
       { symbol: '- [x]', name: 'Done', typed: '- [x] Call Sam', words: 'Call Sam', looks: 'done', icon: SquareCheckBig },
+      { symbol: '- ( )', name: 'A choice', typed: 'Where do we stay?\n- ( ) Tent\n- (x) Cabin', words: 'Cabin', looks: 'choice', icon: CircleDot },
+      { symbol: '[ / ]', name: 'A counter', typed: '- Water [3/8]', words: '3/8', looks: 'counter', icon: Gauge },
+      { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator },
       {
         symbol: '>',
         name: 'A quote',
@@ -141,6 +157,15 @@ const OWN: MarkGroup[] = [
         looks: 'quote',
         icon: MessageSquareQuote,
         say: '“quote”',
+      },
+      { symbol: '>|', name: 'A hidden line', typed: '>| The answer is forty-two.', words: 'The answer is forty-two.', looks: 'spoilerLine', icon: EyeOff },
+      {
+        symbol: '#',
+        name: 'Progress',
+        typed: '## Packing\n- [x] Tent\n- [ ] Stove',
+        words: '1 of 2',
+        looks: 'progress',
+        icon: ListChecks,
       },
       { symbol: '---', name: 'A dividing line', typed: '---', words: '', looks: 'rule', icon: Minus, say: '“divider”' },
     ],

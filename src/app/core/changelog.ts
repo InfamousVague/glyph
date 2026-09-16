@@ -96,3 +96,8 @@ export function releaseWhen(release: Release): string {
   if (at && !Number.isNaN(at.getTime())) return at.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   return describeBuild(release.build);
 }
+
+/** The releases a device moving from build `seen` to build `now` has not been told about, newest first. */
+export function releasesSince(releases: readonly Release[], seen: string, now: string): Release[] {
+  return releases.filter((release) => release.build > seen && release.build <= now);
+}

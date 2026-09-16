@@ -1,7 +1,7 @@
 import { RangeSetBuilder, StateEffect, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
-import { itemWords, markOf } from '../core/itemLinks.ts';
+import { ITEM_TAIL, itemWords, markOf } from '../core/itemLinks.ts';
 import { hasMarkDetails, markNameFor, onMarkDetails, peekMarkDetails, wantMarkDetails, type MarkEntry } from '../core/markDetails.ts';
 import { shortUrl } from '../core/shortUrl.ts';
 
@@ -184,6 +184,14 @@ function marksInView(view: EditorView): { name: string; url: string }[] {
   return marks;
 }
 
+/** Whether what follows a link is nothing, or only a board's anchor (core/boards.ts): the link is then the item's mark. */
+function lastOnLine(after: string): boolean {
+  return AFTER_MARK.test(after);
+}
+
+/** What may follow an item's mark: nothing, or a board's anchor and counters (core/itemLinks.ts `ITEM_TAIL`). */
+const AFTER_MARK = new RegExp(String.raw`^(?:\s+(?:${ITEM_TAIL}))*\s*$`);
+
 function decorate(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const editable = view.state.facet(EditorView.editable);
@@ -198,7 +206,7 @@ function decorate(view: EditorView): DecorationSet {
           const text = view.state.sliceDoc(node.from, node.to);
           const mark = markOf(text);
           const line = view.state.doc.lineAt(node.from);
-          if (mark && text === `[${mark.name}](${mark.url})` && node.to === line.from + line.text.trimEnd().length && itemWords(line.text) !== null) {
+          if (mark && text === `[${mark.name}](${mark.url})` && lastOnLine(line.text.slice(node.to - line.from)) && itemWords(line.text) !== null) {
             if (!active.has(line.number)) {
               const widget = hasMarkDetails(mark.name) ? new HiddenMark() : new ItemMark(mark.name, mark.url, peekMarkDetails(mark.name, mark.url));
               builder.add(node.from, node.to, Decoration.replace({ widget }));

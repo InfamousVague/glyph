@@ -91,3 +91,13 @@ describe('item marks through the model', () => {
     expect(links[0]?.item).toBeUndefined();
   });
 });
+
+describe('a mark on an item a board names', () => {
+  it('counts as the item\u2019s mark with the anchor after it, and goes back in before the anchor when lost', () => {
+    const note = `- [ ] Buy milk [notion](${NOTION}) ^buy-milk\n`;
+    const { links } = protectLinks(note);
+    expect(links[0]?.item).toBe('Buy milk');
+    // The model dropped the mark and kept the rest: it goes back where a mark goes, before the anchor.
+    expect(restoreLinks('- [ ] Buy milk ^buy-milk\n', links, true)).toBe(`- [ ] Buy milk [notion](${NOTION}) ^buy-milk\n`);
+  });
+});

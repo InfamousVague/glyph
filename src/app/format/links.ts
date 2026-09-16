@@ -18,7 +18,7 @@
  * though the prompt asks as well (prompt.ts).
  */
 
-import { isMarkName, itemWords } from '../core/itemLinks.ts';
+import { ITEM_TAIL, isMarkName, itemWords, withMark } from '../core/itemLinks.ts';
 
 export interface ProtectedLink {
   /** `link-3`: what stands in for the address while the model works. */
@@ -82,7 +82,9 @@ function markedItem(body: string, offset: number, whole: string, words: string):
   const lineStart = body.lastIndexOf('\n', offset - 1) + 1;
   const lineEndAt = body.indexOf('\n', offset + whole.length);
   const lineEnd = lineEndAt === -1 ? body.length : lineEndAt;
-  if (body.slice(offset + whole.length, lineEnd).trim() !== '') return null;
+  // Nothing after it on the line but, at most, a board's anchor and counters (core/itemLinks.ts `ITEM_TAIL`).
+  const after = body.slice(offset + whole.length, lineEnd);
+  if (!new RegExp(String.raw`^(?:\s+(?:${ITEM_TAIL}))*\s*$`).test(after)) return null;
   return itemWords(body.slice(lineStart, lineEnd)) || null;
 }
 
@@ -151,7 +153,7 @@ export function restoreLinks(text: string, links: readonly ProtectedLink[], fina
   const stillMissing: ProtectedLink[] = [];
   for (const link of missing) {
     const at = link.item ? findItemLine(lines, link.item) : -1;
-    if (at >= 0 && !lines[at]!.includes(`](${link.url})`)) lines[at] = `${lines[at]!.trimEnd()} ${link.original}`;
+    if (at >= 0 && !lines[at]!.includes(`](${link.url})`)) lines[at] = withMark(lines[at]!, link.original);
     else stillMissing.push(link);
   }
   out = lines.join('\n');

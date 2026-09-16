@@ -10,6 +10,7 @@ import {
   Heading,
   ImagePlus,
   LayoutGrid,
+  SquareKanban,
   Italic,
   Link,
   List,
@@ -46,7 +47,8 @@ import {
   type Block,
   type Mark,
 } from './format.ts';
-import { addToBoard, boardAt, boardCopy } from '../core/boards.ts';
+import { addToBoard, boardAt, boardCopy, boardFromList, listAround } from '../core/boards.ts';
+import { itemWords } from '../core/itemLinks.ts';
 import styles from './ContextMenu.module.css';
 
 /**
@@ -396,8 +398,8 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
 
   /** The line the caret is on, for the actions that are about a line rather than a selection. */
   const caretLine = view ? view.state.doc.lineAt(view.state.selection.main.head) : null;
-  const lineWords = caretLine ? caretLine.text.replace(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/, '').trim() : '';
-  /** A to-do that a board in this note could take (core/boards.ts). */
+  // What the item says, as a plugin sends it: no marker, no mark, and not the board's anchor (core/itemLinks.ts).
+  const lineWords = caretLine ? (itemWords(caretLine.text) ?? caretLine.text.trim()) : '';
   /** A list item that a board in this note could take (core/boards.ts). */
   const boardable = view && caretLine ? addToBoard(view.state.doc.toString(), caretLine.number) !== null : false;
   /** The board the press landed on (core/boards.ts), and it as words: the fence and the items it names. */
@@ -416,6 +418,41 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
       view.dispatch({ selection: { anchor: open.from, head: close.to } });
     }
     run(view);
+  };
+
+  /**
+   * The list the press is in - or the lines selected, when more than one is - as a board of its own, set in just
+   * above it (core/boards.ts `boardFromList`; Matt: "add ability to auto list a section of list items into a
+   * board"). Not offered on a board, or on a list that already has one above it.
+   */
+  const listRange = (() => {
+    if (!view || !caretLine || fence) return null;
+    const doc = view.state.doc;
+    const { from: start, to: end } = view.state.selection.main;
+    const first = doc.lineAt(start).number;
+    const last = doc.lineAt(end).number;
+    return last > first ? { from: first, to: last } : listAround(doc.toString(), caretLine.number);
+  })();
+  const listBoard = view && listRange ? boardFromList(view.state.doc.toString(), listRange.from, listRange.to) : null;
+
+  const makeListBoard = () => {
+    if (!view || !listRange) return;
+    const made = boardFromList(view.state.doc.toString(), listRange.from, listRange.to);
+    if (!made) return;
+    const doc = view.state.doc;
+    // The item lines, and the fence put in at the start of the list's first line: where that line changes too, the
+    // fence goes in front of its new words, as one change.
+    const changes = made.lines.map(({ number, text }) => {
+      const line = doc.line(number);
+      return { from: line.from, to: line.to, insert: number === made.fence.before ? `${made.fence.text}${text}` : text };
+    });
+    if (!made.lines.some((line) => line.number === made.fence.before)) {
+      const at = doc.line(made.fence.before).from;
+      changes.push({ from: at, to: at, insert: made.fence.text });
+    }
+    view.dispatch({ changes, userEvent: 'input.board' });
+    fireNativeHaptic('success');
+    say?.(`${made.cards} ${made.cards === 1 ? 'item is' : 'items are'} now a board${made.done ? `, ${made.done} in Done` : ''}.`);
   };
 
   /** The item joins the nearest board above it: the line gains its anchor, and the fence gains the card. */
@@ -497,6 +534,11 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
         {boardable ? (
           <button type="button" role="menuitem" className={styles.item} onClick={() => void act(putOnBoard)()}>
             <Word icon={LayoutGrid} label="To board" />
+          </button>
+        ) : null}
+        {listBoard ? (
+          <button type="button" role="menuitem" className={styles.item} onClick={() => void act(makeListBoard)()}>
+            <Word icon={SquareKanban} label="Board from list" />
           </button>
         ) : null}
         {send && lineWords ? (

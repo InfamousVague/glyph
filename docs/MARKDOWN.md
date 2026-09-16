@@ -89,6 +89,28 @@ face, and the note takes its name from `title:` where it has one, or from the fi
 Set as code, delimiters and all, so it reads as what it is. No renderer: KaTeX is around 280 KB for something a notes
 app meets a few times a year. If someone wants it drawn, that is a plugin.
 
+### Glyph's own: tags, counters, sums, choices, hidden lines, progress
+
+Written in plain characters that read sensibly anywhere; Glyph just does more with them. Matt picked the last five
+from a list of ideas.
+
+- **Tags — `#web`.** A `#` against a letter, on a list item or anywhere in a line; `#work/clients` nests. Drawn as a
+  chip. Not a heading (`# ` has a space), not `#42`, not inside links or code. (`editor/tags.ts`)
+- **Counters — `[3/8]`.** A count and a goal. A tap adds one, a hold takes one away, never past the goal or below
+  nothing. Drawn as a chip that fills. Boards and Notion titles leave them out of an item's words.
+  (`editor/counters.ts`)
+- **Sums — `= $450 + 120 * 2`.** A line (or list item, or quote) starting `= ` shows its answer after it, `→ $690`,
+  never written into the note. Arithmetic only: `+ - * / ^`, brackets, `%` after a number; a currency sign and
+  thousands commas carry over. (`editor/sums.ts`)
+- **Choices — `- ( )` / `- (x)`.** Round boxes on bullets, one picked per group (the choice lines side by side at
+  one indent). A tap picks, and clears the rest; tapping the picked one clears it. (`editor/choices.ts`)
+- **Hidden lines — `>| the answer`.** A quote whose first character is a bar goes to smoke, like `||this||`, until
+  the caret is in it; a run of them clears together. Part of the Spoiler mark: with it off, it's a quote.
+  (`editor/wispFormat.ts`)
+- **Progress under a heading.** Nothing to type: a heading with to-dos under it says "3 of 7", or "All 7 done",
+  counting its subsections too. (`editor/headingProgress.ts`)
+- **Tapping a box.** `- [ ]` and `- [x]` tick and clear on a tap of the box itself. (`editor/taskToggle.ts`)
+
 ### Deliberately not
 
 - **Setext headings.** Taken out on purpose: `-` under a line promoted it every time a list was started.

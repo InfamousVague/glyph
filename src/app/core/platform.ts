@@ -38,6 +38,16 @@ export const isIOS = /iPhone|iPod|iPad/i.test(userAgent()) || (isMobile && /Maci
 
 export const isAndroid = /Android/i.test(userAgent());
 
+/**
+ * Apple's engine: the Mac and iPhone apps, Safari, and every iPhone browser.
+ * It draws an SVG filter set on a page element in that element's own
+ * coordinates (`filterUnits="userSpaceOnUse"`) as nothing at all, so the two
+ * effects built that way stand down here: the scroller's wisp edge (app.css)
+ * and the heat haze on the guide's headline (guide/HeadsUp.tsx). Filters
+ * sized to the element's box, like every letter's in WispText, are fine.
+ */
+export const isWebKit = /AppleWebKit/i.test(userAgent()) && !/Chrome|Chromium|Android/i.test(userAgent());
+
 /** A phone build with a Rust core behind it: the only place a motor exists. */
 export const isNativeMobile = isTauri() && isMobile;
 
@@ -48,4 +58,8 @@ export const isNativeMobile = isTauri() && isMobile;
  */
 if (typeof document !== 'undefined') {
   document.documentElement.dataset.platform = isAndroid ? 'android' : isIOS ? 'ios' : 'desktop';
+  // The Mac app draws under a transparent title bar with the window buttons inset into it (src-tauri/src/lib.rs,
+  // `set_traffic_lights_inset`): the page keeps that bar clear and lets it drag the window (app.css).
+  if (isTauri() && !isMobile && /Macintosh/i.test(userAgent())) document.documentElement.dataset.titlebar = 'overlay';
+  if (isWebKit) document.documentElement.dataset.engine = 'webkit';
 }

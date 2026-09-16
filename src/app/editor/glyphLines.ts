@@ -106,6 +106,11 @@ function buildLines(view: EditorView): DecorationSet {
             if (n === first) classes.push(styles.lineCodeTop ?? '');
             if (n === last) classes.push(styles.lineCodeFoot ?? '');
           }
+          // A quote's first and last lines hold the space between it and the lines around it.
+          if (cls === styles.lineQuote) {
+            if (n === first) classes.push(styles.lineQuoteTop ?? '');
+            if (n === last) classes.push(styles.lineQuoteFoot ?? '');
+          }
           const existing = perLine.get(at);
           if (existing) existing.push(...classes);
           else perLine.set(at, classes);

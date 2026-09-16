@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyLinks, itemAt, itemWords, linkedLine, markOf, registerMarkName, unmarked, unsentItems } from './itemLinks.ts';
+import { applyLinks, itemAt, itemWords, linkedLine, markOf, registerMarkName, unmarked, unsentItems, withMark } from './itemLinks.ts';
 
 describe('list items for Notion', () => {
   const body = [
@@ -71,5 +71,75 @@ describe('links for things sent while talking', () => {
     expect(applyLinks('- x [notion](https://n.so/a)', [{ text: 'x', url: 'https://n.so/a' }])).toBe('- x [notion](https://n.so/a)');
     expect(applyLinks('- [x](https://n.so/a)', [{ text: 'x', url: 'https://n.so/a' }])).toBe('- [x](https://n.so/a)');
     expect(applyLinks('Hello', [{ text: 'bye', url: 'https://n.so/c' }])).toBe('Hello');
+  });
+});
+
+describe('an item a board names', () => {
+  const url = 'https://app.notion.com/p/Add-task-input-3dd5';
+
+  it('sends what the item says, never the anchor', () => {
+    const body = '- [ ] Add task input and button dont match up ^add-task-input\n- ^only-a-name';
+    expect(unsentItems(body)).toEqual([{ line: 1, text: 'Add task input and button dont match up' }]);
+    expect(itemWords('- [ ] Add task input ^add-task-input')).toBe('Add task input');
+    expect(itemAt('- [ ] Add task input ^add-task-input', 4)).toEqual({ line: 4, text: 'Add task input' });
+  });
+
+  it('writes the mark before the anchor, so the anchor still ends the line', () => {
+    expect(linkedLine('- [ ] Add task input ^add-task-input', url)).toBe(`- [ ] Add task input [notion](${url}) ^add-task-input`);
+    expect(linkedLine('  - Ask Sam ^ask-sam', url, 'github')).toBe(`  - Ask Sam [github](${url}) ^ask-sam`);
+    // Linked again, the old mark is replaced and the anchor stays last.
+    expect(linkedLine(`- [ ] Add task input [notion](${url}) ^add-task-input`, 'https://app.notion.com/p/new')).toBe(
+      '- [ ] Add task input [notion](https://app.notion.com/p/new) ^add-task-input',
+    );
+  });
+
+  it('reads the mark with an anchor after it, and keeps the anchor when the mark comes off', () => {
+    const line = `Add task input [notion](${url}) ^add-task-input`;
+    expect(markOf(line)).toEqual({ name: 'notion', url });
+    expect(unmarked(line)).toBe('Add task input ^add-task-input');
+    expect(itemWords(`- [ ] ${line}`)).toBe('Add task input');
+    // A caret that is a superscript is not an anchor, and does not hide a mark before it.
+    expect(markOf(`E = mc^2^ [notion](${url})`)).toEqual({ name: 'notion', url });
+    expect(unmarked('E = mc^2^')).toBe('E = mc^2^');
+  });
+
+  it('is not linked twice when its mark sits before its anchor', () => {
+    expect(unsentItems(`- [ ] Add task input [notion](${url}) ^add-task-input`)).toEqual([]);
+  });
+
+  it('puts a mark back before the anchor', () => {
+    expect(withMark('- [ ] Ship it ^ship-it', `[notion](${url})`)).toBe(`- [ ] Ship it [notion](${url}) ^ship-it`);
+    expect(withMark('- [ ] Ship it', `[notion](${url})`)).toBe(`- [ ] Ship it [notion](${url})`);
+    expect(applyLinks('- [ ] Ship it ^ship-it', [{ text: 'Ship it', url }])).toBe(`- [ ] Ship it [notion](${url}) ^ship-it`);
+  });
+});
+
+describe('a choice or a counter on an item', () => {
+  const url = 'https://app.notion.com/p/Pack-3dd5';
+
+  it('sends what the item says: no choice box, no counter', () => {
+    expect(itemWords('- ( ) Pick the red one')).toBe('Pick the red one');
+    expect(itemWords('- (x) Pick the blue one ^blue')).toBe('Pick the blue one');
+    expect(itemWords('- [ ] Pack socks [3/8] ^pack-socks')).toBe('Pack socks');
+    expect(itemWords('1. ( ) Numbered, so words')).toBe('( ) Numbered, so words');
+    expect(unsentItems('- ( ) Pick red\n- [ ] Pack socks [3/8]')).toEqual([
+      { line: 1, text: 'Pick red' },
+      { line: 2, text: 'Pack socks' },
+    ]);
+  });
+
+  it('keeps the box and the counter in the line when the mark goes on, and the mark before them at the end', () => {
+    expect(linkedLine('- ( ) Pick red', url)).toBe(`- ( ) Pick red [notion](${url})`);
+    expect(linkedLine('- [ ] Pack socks ^pack-socks [3/8]', url)).toBe(`- [ ] Pack socks [notion](${url}) ^pack-socks [3/8]`);
+    // The sent item is found again by what it says, box and counter aside.
+    expect(itemAt('- [ ] Pack socks [3/8]', 5)).toEqual({ line: 5, text: 'Pack socks' });
+  });
+
+  it('reads the mark with a counter typed after it, and does not send the item again', () => {
+    const line = `- [ ] Pack socks [notion](${url}) [4/8]`;
+    expect(markOf(line)).toEqual({ name: 'notion', url });
+    expect(unmarked(`Pack socks [notion](${url}) [4/8] ^pack-socks`)).toBe('Pack socks [4/8] ^pack-socks');
+    expect(unsentItems(line)).toEqual([]);
+    expect(withMark('- [ ] Pack socks [4/8]', `[notion](${url})`)).toBe(`- [ ] Pack socks [notion](${url}) [4/8]`);
   });
 });

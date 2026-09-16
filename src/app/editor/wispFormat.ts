@@ -12,6 +12,9 @@ import type { InlineFormat } from '../plugins/types.ts';
  * The delimiters stay as they are, dimmed marks, so the secret can be found.
  * Matt: "an extreme wisp effect when it's between two pipes".
  *
+ * A whole line can be hidden the same way, written as a quote whose first character is a bar: `>| the answer`
+ * (spoilerLineLetters). It is the same spoiler, so it lives and dies with the Spoiler mark.
+ *
  * The letters keep their places: each is a plain inline mark carrying a
  * filter, as the recorder's arriving words are (editor/wispArrivals.ts), so
  * kerning and wrapping don't change. A dozen filters are shared round the
@@ -73,6 +76,47 @@ export function smokeLetters(state: EditorState, names: ReadonlyMap<string, numb
       return false;
     },
   });
+  return letters;
+}
+
+/** A spoiler line: a quote whose first character is `|`. */
+const SPOILER_LINE = /^(\s{0,3}>\|\s?)/;
+
+/**
+ * The letters to smoke on spoiler lines in `range` (Matt: a whole line hidden, written `>| the answer`): everything
+ * after the `>|`, a run of such lines being one block, which clears together while the selection touches any of it.
+ */
+export function spoilerLineLetters(state: EditorState, range: { from: number; to: number }, clearAtCaret: boolean): SmokeLetter[] {
+  const { doc } = state;
+  const letters: SmokeLetter[] = [];
+  let n = doc.lineAt(range.from).number;
+  const last = doc.lineAt(range.to).number;
+  while (n <= last) {
+    if (!SPOILER_LINE.test(doc.line(n).text)) {
+      n += 1;
+      continue;
+    }
+    // The whole block, even where it runs past the range, so a block half on screen still clears as one.
+    let start = n;
+    while (start > 1 && SPOILER_LINE.test(doc.line(start - 1).text)) start -= 1;
+    let end = n;
+    while (end < doc.lines && SPOILER_LINE.test(doc.line(end + 1).text)) end += 1;
+    const from = doc.line(start).from;
+    const to = doc.line(end).to;
+    const open = clearAtCaret && state.selection.ranges.some((r) => r.to >= from && r.from <= to);
+    if (!open) {
+      for (let k = Math.max(start, n); k <= Math.min(end, last); k += 1) {
+        const line = doc.line(k);
+        const lead = SPOILER_LINE.exec(line.text)![1]!.length;
+        let pos = line.from + lead;
+        for (const ch of line.text.slice(lead)) {
+          if (!/\s/.test(ch)) letters.push({ from: pos, to: pos + ch.length });
+          pos += ch.length;
+        }
+      }
+    }
+    n = end + 1;
+  }
   return letters;
 }
 
@@ -164,7 +208,8 @@ export function wispFormat(formats: readonly InlineFormat[]): Extension {
         const first = view.visibleRanges[0];
         const last = view.visibleRanges[view.visibleRanges.length - 1];
         const clear = view.state.facet(EditorView.editable) && view.hasFocus;
-        const letters = first && last ? smokeLetters(view.state, names, { from: first.from, to: last.to }, clear) : [];
+        const range = first && last ? { from: first.from, to: last.to } : null;
+        const letters = range ? [...smokeLetters(view.state, names, range, clear), ...spoilerLineLetters(view.state, range, clear)].sort((a, b) => a.from - b.from).filter((l, i, all) => i === 0 || all[i - 1]!.from !== l.from) : [];
         const builder = new RangeSetBuilder<Decoration>();
         letters.forEach((letter, i) => builder.add(letter.from, letter.to, this.marks[i % POOL]!));
         this.decorations = builder.finish();

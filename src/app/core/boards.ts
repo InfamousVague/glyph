@@ -43,8 +43,16 @@ const LEAD = /^(\s*(?:[-*+]|\d+[.)])\s+)(\[([ xX])\]\s?)?/;
  * The anchor at the end of an item: a caret with whitespace before it (or nothing before it at all, on an item whose
  * words have not been written yet) and the end of the line after it. That is what leaves `E = mc^2^` and `foo ^2^`
  * the superscripts they are: a closing caret means the line does not end there.
+ *
+ * The things allowed after it are an item's mark (core/itemLinks.ts, `[notion](…)`) and counters (`[3/8]`,
+ * editor/counters.ts), which a person typing at the end of the line puts there. The anchor goes last, but a
+ * mark used to be added after it when an item was sent to Notion, and those lines must still be found: the card
+ * showed its anchor and nothing else (Matt: "the last two items show up weird on the board as only their label no
+ * title"). The marks stay with the item's words.
  */
-const TAIL = /(?:^|\s)\^([a-z0-9][a-z0-9_-]*)\s*$/;
+const TAIL = /(?:^|\s)\^([a-z0-9][a-z0-9_-]*)((?:\s+(?:\[[a-z][a-z0-9-]*\]\(https?:\/\/[^\s)]+\)|\[\d{1,4}\/\d{1,4}\]))*)\s*$/;
+/** A choice's box after a bullet (editor/choices.ts): `- ( ) Pick A`. A choice is picked, not done: it has no tick. */
+const CHOICE = /^\(([ xX])\) /;
 
 /** A list item pulled apart: what opens it, whether it has a box, its words, and the anchor naming it. */
 interface Parsed {
@@ -57,21 +65,30 @@ interface Parsed {
 function parse(line: string): Parsed | null {
   const lead = LEAD.exec(line);
   if (!lead) return null;
-  const rest = line.slice(lead[0].length);
-  const tail = TAIL.exec(rest);
   const box = lead[3];
+  let rest = line.slice(lead[0].length);
+  // A choice's box is not part of what the item says, and not a tick either: a bullet's words start after it.
+  if (box === undefined && /[-*+]\s+$/.test(lead[1] ?? '')) rest = rest.replace(CHOICE, '');
+  const tail = TAIL.exec(rest);
   return {
     lead: lead[0],
     done: box === undefined ? null : box !== ' ',
-    text: (tail ? rest.slice(0, rest.length - tail[0].length) : rest).trim(),
+    text: (tail ? `${rest.slice(0, tail.index)}${tail[2] ?? ''}` : rest).trim(),
     id: tail?.[1] ?? null,
   };
 }
 
 /** An anchor name: lower case, the shape a person can type and read. */
 export const ANCHOR = /^[a-z0-9][a-z0-9_-]*$/;
-/** The fence that opens a board. */
-const OPEN = /^\s*(`{3,}|~{3,})\s*board\s*$/i;
+/**
+ * The fence that opens a board, and what follows the word: `board`, or `board height=18`. What follows is the
+ * board's settings as `name=value` words, which any other renderer takes as part of the block's info string.
+ */
+const OPEN = /^\s*(`{3,}|~{3,})\s*board(?:\s+([^\n]*?))?\s*$/i;
+/** `height=18`: how tall a board's lanes are, in the lanes' own ems (Matt: "make board height configurable"). */
+const HEIGHT = /(?:^|\s)height=(\d+(?:\.\d+)?)(?:em)?(?=\s|$)/i;
+/** The shortest and tallest a board's lanes can be set, in ems: a card and a half, and a long screen. */
+export const BOARD_HEIGHT = { min: 5, max: 60 };
 /** `[[#^ask-sam]]`: an item in this note, pointed at from anywhere in it. */
 const REF = /\[\[#\^([a-z0-9][a-z0-9_-]*)\]\]/g;
 
@@ -200,6 +217,33 @@ export interface Board {
   /** The fence's body: the lines between. */
   body: string;
   columns: BoardColumn[];
+  /** How tall the lanes are set, in ems, or null for the board's own height. */
+  height: number | null;
+}
+
+/** The lanes' height a fence's settings name, held between the shortest and tallest a board can be; or null. */
+function heightOf(settings: string): number | null {
+  const found = HEIGHT.exec(settings);
+  const value = found ? Number(found[1]) : NaN;
+  return Number.isFinite(value) ? clampHeight(value) : null;
+}
+
+/** A height kept within what a board can be, to the half em. */
+export function clampHeight(ems: number): number {
+  return Math.round(Math.min(BOARD_HEIGHT.max, Math.max(BOARD_HEIGHT.min, ems)) * 2) / 2;
+}
+
+/**
+ * A board's opening fence with its lanes' height set, or taken off with null: the rest of the line - the fence, the
+ * word, any other settings - as it was. A line that does not open a board comes back as it is.
+ */
+export function withBoardHeight(openLine: string, height: number | null): string {
+  const open = OPEN.exec(openLine);
+  if (!open) return openLine;
+  const start = /^\s*(?:`{3,}|~{3,})\s*board/i.exec(openLine)?.[0] ?? `${open[1]}board`;
+  const rest = (open[2] ?? '').replace(HEIGHT, ' ').replace(/\s+/g, ' ').trim();
+  const settings = [height === null ? '' : `height=${clampHeight(height)}`, rest].filter(Boolean).join(' ');
+  return `${start}${settings ? ` ${settings}` : ''}`;
 }
 
 /** Every board in the note, in order. */
@@ -218,7 +262,7 @@ export function boardsIn(doc: string): Board[] {
       }
     }
     const body = end > i ? lines.slice(i + 1, end).join('\n') : '';
-    boards.push({ from: i + 1, to: end + 1, body, columns: readBoard(body) });
+    boards.push({ from: i + 1, to: end + 1, body, columns: readBoard(body), height: heightOf(open[2] ?? '') });
     i = end;
   }
   return boards;
@@ -262,6 +306,8 @@ export function anchorFor(text: string, taken: readonly string[]): string {
   const words = text
     // A link is named by its words, not by where it points: [notion](https://…) anchors as "notion", never as a URL.
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // A counter is a count kept on the item, not part of its name.
+    .replace(/\[\d{1,4}\/\d{1,4}\]/g, ' ')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .split('-')
@@ -371,12 +417,28 @@ export interface BoardMade {
 export function boardFrom(doc: string, columns: readonly string[] = NEW_COLUMNS): BoardMade | null {
   if (boardsIn(doc).some((board) => board.to > board.from)) return null;
   const lines = doc.split('\n');
+  const cards = anchorItems(lines, doc, 1, lines.length);
+  if (!cards.length) return null;
+  const fence = fenceFor(cards, columns);
+  // Under the note's title, where a board is read first; a note that opens with words takes the board above them.
+  const title = /^#\s+\S/.test(lines[0] ?? '') ? 1 : 0;
+  const blank = title && (lines[1] ?? '').trim() === '';
+  lines.splice(blank ? 2 : title, 0, ...(title && !blank ? ['', ...fence] : fence));
+  return { doc: lines.join('\n'), cards: cards.length, done: cards.filter((card) => card.done).length };
+}
+
+/**
+ * Every list item from line `from` to line `to` given an anchor where it has none, in place in `lines`, and each
+ * one's anchor and whether it is ticked, in order. A list inside a block of code is code, not a list: its lines are
+ * left exactly as they are.
+ */
+function anchorItems(lines: string[], doc: string, from: number, to: number): { id: string; done: boolean }[] {
   const taken = itemsIn(doc).map((item) => item.id);
-  const cards: { id: string; done: boolean }[] = [];
   const inside = fencedLines(lines);
-  lines.forEach((text, index) => {
-    // A list inside a block of code is code, not a list: its lines are left exactly as they are.
-    if (inside.has(index + 1) || !isItemLine(text)) return;
+  const cards: { id: string; done: boolean }[] = [];
+  for (let index = Math.max(0, from - 1); index < Math.min(lines.length, to); index += 1) {
+    const text = lines[index] ?? '';
+    if (inside.has(index + 1) || !isItemLine(text)) continue;
     const already = itemOnLine(text);
     const id = already?.id ?? anchorFor(itemWords(text) ?? text, taken);
     if (!already) {
@@ -384,8 +446,12 @@ export function boardFrom(doc: string, columns: readonly string[] = NEW_COLUMNS)
       lines[index] = withAnchor(text, id);
     }
     cards.push({ id, done: parse(text)?.done === true });
-  });
-  if (!cards.length) return null;
+  }
+  return cards;
+}
+
+/** A board fence laying `cards` out in `columns`: the ticked ones in the column called Done, the rest in the first. */
+function fenceFor(cards: readonly { id: string; done: boolean }[], columns: readonly string[]): string[] {
   const named = columns.length ? [...columns] : [...NEW_COLUMNS];
   const called = named.findIndex((name) => /^done\b|\bdone$/i.test(name.trim()));
   const last = called >= 0 ? called : named.length - 1;
@@ -393,12 +459,83 @@ export function boardFrom(doc: string, columns: readonly string[] = NEW_COLUMNS)
     name,
     cards: cards.filter((card) => (card.done ? last : 0) === index).map((card) => card.id),
   }));
-  const fence = ['```board', writeBoard(board), '```', ''];
-  // Under the note's title, where a board is read first; a note that opens with words takes the board above them.
-  const title = /^#\s+\S/.test(lines[0] ?? '') ? 1 : 0;
-  const blank = title && (lines[1] ?? '').trim() === '';
-  lines.splice(blank ? 2 : title, 0, ...(title && !blank ? ['', ...fence] : fence));
-  return { doc: lines.join('\n'), cards: cards.length, done: cards.filter((card) => card.done).length };
+  return ['```board', writeBoard(board), '```', ''];
+}
+
+/**
+ * The list line `line` is in, from its first item to its last, counting from 1; or null where the line is in no list
+ * (Matt: "add ability to auto list a section of list items into a board").
+ *
+ * A list is the run of item lines around the line, with the indented lines that belong to its items and a single
+ * blank line between two of them. A heading, a paragraph, a block of code, or two blank lines end it.
+ */
+export function listAround(doc: string, line: number): { from: number; to: number } | null {
+  const lines = doc.split('\n');
+  const inside = fencedLines(lines);
+  const member = (index: number) => {
+    const text = lines[index];
+    if (text === undefined || inside.has(index + 1)) return false;
+    return isItemLine(text) || /^\s{2,}\S/.test(text);
+  };
+  const blank = (index: number) => (lines[index] ?? 'x').trim() === '';
+  let first = line - 1;
+  if (!member(first)) return null;
+  let last = first;
+  for (;;) {
+    if (member(first - 1)) first -= 1;
+    else if (blank(first - 1) && member(first - 2)) first -= 2;
+    else break;
+  }
+  for (;;) {
+    if (member(last + 1)) last += 1;
+    else if (blank(last + 1) && member(last + 2)) last += 2;
+    else break;
+  }
+  // A list starts and ends with an item: indented lines outside those belong to something else.
+  while (first <= last && !isItemLine(lines[first] ?? '')) first += 1;
+  while (last >= first && !isItemLine(lines[last] ?? '')) last -= 1;
+  return first <= last ? { from: first + 1, to: last + 1 } : null;
+}
+
+/** One list made into a board: what changes, where, and the board's opening line once it is in. */
+export interface ListBoard extends BoardMade {
+  /** Item lines that gained an anchor, each with its new words, numbered as the note was. */
+  lines: { number: number; text: string }[];
+  /** The fence, and the line of the note as it was that it goes in above. */
+  fence: { before: number; text: string };
+  /** The line the board opens on, in the note as it becomes. */
+  open: number;
+}
+
+/**
+ * The items from line `from` to line `to` made into a board of their own, set in just above them: each item named,
+ * the ticked ones in Done. The rest of the note, other boards included, is left as it is, so a note can hold one
+ * board per list.
+ *
+ * Null where there is nothing to make: no items in the lines, or a board already sitting right above them.
+ */
+export function boardFromList(doc: string, from: number, to: number, columns: readonly string[] = NEW_COLUMNS): ListBoard | null {
+  const lines = doc.split('\n');
+  let above = from - 2;
+  while (above >= 0 && (lines[above] ?? '').trim() === '') above -= 1;
+  if (above >= 0 && boardsIn(doc).some((board) => board.to > board.from && board.to === above + 1)) return null;
+  const before = [...lines];
+  const cards = anchorItems(lines, doc, from, to);
+  if (!cards.length) return null;
+  const changed = lines.flatMap((text, index) => (text !== before[index] ? [{ number: index + 1, text }] : []));
+  const fence = fenceFor(cards, columns);
+  // A line of words straight above the list keeps a blank line between it and the board.
+  const gap = from > 1 && (lines[from - 2] ?? '').trim() !== '';
+  const block = gap ? ['', ...fence] : fence;
+  lines.splice(from - 1, 0, ...block);
+  return {
+    doc: lines.join('\n'),
+    cards: cards.length,
+    done: cards.filter((card) => card.done).length,
+    lines: changed,
+    fence: { before: from, text: `${block.join('\n')}\n` },
+    open: from + (gap ? 1 : 0),
+  };
 }
 
 /** Every line inside a fenced block, counting from 1: what is code and not markdown. */

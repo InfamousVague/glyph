@@ -138,7 +138,10 @@ use tauri::{AppHandle, Manager, Runtime, State};
 /// 15: notes are a library of Markdown files (library/, docs/LIBRARY.md) in the
 /// app's storage, moved in from the old database on first launch; every note
 /// carries its `path` (1.3.0).
-pub const NATIVE_GENERATION: u32 = 15;
+///
+/// 16: `store_apply`, a note written as another device has it, and
+/// `sync_put_file`, a synced recording or picture, for sync (docs/SYNC.md).
+pub const NATIVE_GENERATION: u32 = 16;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in

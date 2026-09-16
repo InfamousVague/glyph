@@ -1,5 +1,7 @@
+// @vitest-environment jsdom
 import { EditorState } from '@codemirror/state';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { DEFAULT_PREFERENCES, setPreferences } from '../core/preferences.ts';
 import { commonEnds, moving, revealWisp, wisp, wispArrivals } from './wispArrivals.ts';
 
 function state(doc = '') {
@@ -11,6 +13,28 @@ function heard(from: EditorState, changes: { from: number; to?: number; insert: 
 }
 
 describe('text arriving from smoke in the editor', () => {
+  afterEach(() => setPreferences({ motionSpeed: DEFAULT_PREFERENCES.motionSpeed }));
+
+  it('moves at the chosen speed: a relaxed arc is longer and a brisk one shorter, and so is the wait between words', () => {
+    const measure = () => {
+      const letters = moving(heard(state(), { from: 0, insert: 'buy milk' }));
+      return { dur: Math.min(...letters.map((m) => m.dur)), gap: letters[1]!.at - letters[0]!.at };
+    };
+    setPreferences({ motionSpeed: 'normal' });
+    const normal = measure();
+    setPreferences({ motionSpeed: 'relaxed' });
+    const relaxed = measure();
+    setPreferences({ motionSpeed: 'brisk' });
+    const brisk = measure();
+    // The arc carries up to 100 ms of jitter, so compare against its bounds rather than one draw.
+    expect(relaxed.dur).toBeGreaterThanOrEqual(350 * 1.6);
+    expect(brisk.dur).toBeLessThanOrEqual(450 * 0.6);
+    expect(normal.dur).toBeGreaterThanOrEqual(350);
+    expect(relaxed.gap).toBeCloseTo(normal.gap * 1.6, 5);
+    expect(brisk.gap).toBeCloseTo(normal.gap * 0.6, 5);
+    expect(document.documentElement.style.getPropertyValue('--glacier-duration-normal')).toBe('150ms');
+  });
+
   it('finds what a rewrite really changed', () => {
     expect(commonEnds('buy mil', 'buy milk')).toEqual({ prefix: 7, suffix: 0 });
     expect(commonEnds('buy milk', 'buy oat milk')).toEqual({ prefix: 4, suffix: 4 });

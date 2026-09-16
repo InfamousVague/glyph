@@ -135,6 +135,34 @@ body {
  * Nothing can be touched through it, and it is zero high where there is no
  * status bar, as on a desktop.
  */
+/*
+ * The Mac app's title bar (core/platform.ts `data-titlebar`): the window draws
+ * under a transparent bar with its three buttons inset to sit in the middle of
+ * it (src-tauri/src/lib.rs), so the page treats the bar as its status bar.
+ * Every header already pads by `--app-safe-top`, and the scrim above paints
+ * the bar in paper, so this one value moves everything clear of the buttons.
+ * The drag strip over it moves the window, as a title bar does, and a double
+ * click zooms it.
+ */
+:root[data-titlebar='overlay'] {
+  --app-safe-top: 44px;
+}
+
+.app-dragBar {
+  display: none;
+}
+
+:root[data-titlebar='overlay'] .app-dragBar {
+  display: block;
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 41;
+  block-size: var(--app-safe-top);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .app-statusScrim {
   position: fixed;
   inset-block-start: 0;
@@ -222,6 +250,19 @@ body:has(.app-headerPane) .app-statusScrim {
 }
 
 /*
+ * WebKit (the Mac and iPhone apps, Safari) paints a scrolling element wearing
+ * this SVG filter as solid black: reproduced in WebKit with the page scrolled,
+ * at the filter's full region and at one the size of the window alike (Matt,
+ * on the Mac: "the whole page is going black when I scroll down"). There the
+ * edge keeps its mask, so the page still fades under the header, without the
+ * smoke. `data-engine` is set in core/platform.ts.
+ */
+:root[data-engine='webkit'] [data-wisp-edge],
+:root[data-engine='webkit'] [data-wisp-foot] {
+  filter: none;
+}
+
+/*
  * Icons filled the way AttackFM fills them: the outline in ink and its inside a third of the same colour, so a
  * muted icon fills muted and a paper icon fills paper (Matt: "use the filled style we use on AttackFM", then "the
  * icon fill should be slightly opaque, not solid"). `.lucide` is the kit's icon internals showing through
@@ -229,4 +270,27 @@ body:has(.app-headerPane) .app-statusScrim {
  */
 :where(svg.lucide) {
   fill: color-mix(in srgb, currentColor 33%, transparent);
+}
+
+/*
+ * The desktop sidebar (App.tsx, core/useWideScreen.ts `useSidebar`): the notes
+ * list in a phone-width column on the left, the open note in the rest. Each
+ * pane is its screen as it is on a phone, sized to its column; the list's dock
+ * and the note's header stay inside their own pane.
+ */
+.app-split {
+  display: grid;
+  grid-template-columns: clamp(300px, 30vw, 380px) minmax(0, 1fr);
+  block-size: 100dvh;
+}
+
+.app-sidebar,
+.app-notePane {
+  position: relative;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.app-sidebar {
+  border-inline-end: 1px solid var(--glacier-border-subtle);
 }

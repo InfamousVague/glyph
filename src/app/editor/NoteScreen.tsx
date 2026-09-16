@@ -77,6 +77,8 @@ interface NoteScreenProps {
   at?: string;
   /** Whether a note by that title exists, for drawing a [[link]] as written or as waiting. */
   hasTitle?: (title: string) => boolean;
+  /** The "← Notes" in the header; off where the list is already beside the note (the desktop sidebar, App.tsx). */
+  showBack?: boolean;
 }
 
 const SAVE_DEBOUNCE_MS = 400;
@@ -84,7 +86,7 @@ const SAVE_DEBOUNCE_MS = 400;
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, at }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, at, showBack = true }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -495,9 +497,13 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         title only as the back button's accessible description.
       */}
       <header ref={header} className={`app-headerPane ${styles.header}`}>
-        <button type="button" className={`app-word ${styles.back}`} onClick={back} aria-label={`Back to notes from ${title || 'new note'}`}>
-          <ArrowLeft /> Notes
-        </button>
+        {showBack ? (
+          <button type="button" className={`app-word ${styles.back}`} onClick={back} aria-label={`Back to notes from ${title || 'new note'}`}>
+            <ArrowLeft /> Notes
+          </button>
+        ) : (
+          <span />
+        )}
         <div className={styles.tools}>
           {/* Markdown, the marks with the formatting (the default), or just the formatted text (editor/viewMode.ts). */}
           {wide ? (

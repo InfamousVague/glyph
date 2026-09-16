@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { HapticsProvider, ToastProvider } from '@glacier/react';
 import { NotesList } from './notes/NotesList.tsx';
 import { NoteScreen } from './editor/NoteScreen.tsx';
+import { NoNoteOpen } from './notes/NoNoteOpen.tsx';
+import { useSidebar } from './core/useWideScreen.ts';
 import { SettingsSheet } from './settings/SettingsSheet.tsx';
 import { ReviewScreen } from './review/ReviewScreen.tsx';
 import type { ReviewHandoff } from './review/useReview.ts';
@@ -12,6 +14,8 @@ import { readScratch, type Scratch } from './capture/scratch.ts';
 import { CaptureScreen } from './capture/CaptureScreen.tsx';
 import { startRefining } from './capture/refine.ts';
 import { startFormatting } from './format/queue.ts';
+import { startSync } from './core/sync/engine.ts';
+import { WhatsNewSheet } from './notes/WhatsNewSheet.tsx';
 import { Guide } from './guide/Guide.tsx';
 import { clearGuideProgress, isReadingPage, launchedTooSoon, markGuideStarted, rememberGuidePage } from './guide/tooSoon.ts';
 import { useVoiceModel } from './capture/useVoiceModel.ts';
@@ -22,7 +26,7 @@ import { applyPreferences } from './core/preferences.ts';
 import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
 import { isTauri } from './core/tauri.ts';
-import { getNote, newNoteId, noteTitle, saveNote, useNotes, type Note } from './core/store.ts';
+import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { fileNewNote } from './core/workspaces.ts';
@@ -195,6 +199,24 @@ function Shell() {
   useEffect(() => startRefining(() => void refresh()), [refresh]);
   // The staged formatting passes after a recording: draft, then revisions.
   useEffect(() => startFormatting(() => void refresh()), [refresh]);
+  // Sync, for a device signed in to an account (docs/SYNC.md); nothing happens without one.
+  useEffect(() => startSync(), []);
+  // A desktop window wide enough keeps the notes in a sidebar beside the open note (core/useWideScreen.ts).
+  const sidebar = useSidebar();
+  // The list beside a note shows its title and order as it is written: read again a moment after each save.
+  useEffect(() => {
+    if (!sidebar) return undefined;
+    let timer = 0;
+    const saved = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void refresh(), 300);
+    };
+    window.addEventListener(NOTE_SAVED, saved);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(NOTE_SAVED, saved);
+    };
+  }, [sidebar, refresh]);
 
   const openNote = (id: string) => {
     const note = notes.find((n) => n.id === id);
@@ -328,10 +350,57 @@ function Shell() {
 
   const speakInto = (id: string) => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0, noteId: id });
 
+  // The list and the open note sit side by side on a wide desktop window; the capture, review, sort and tutorial
+  // flows still take the whole window.
+  const split = sidebar && (screen.name === 'list' || screen.name === 'note');
+  const noteScreen =
+    screen.name === 'note' ? (
+      <NoteScreen
+        key={screen.note.id}
+        note={screen.note}
+        onBack={() => void backToList()}
+        showBack={!split}
+        onDelete={removeNote}
+        onSpeak={speakInto}
+        onPin={(n) => actions.pin(n)}
+        at={screen.at}
+        onOpenTitle={(title, at) => void openTitle(title, at)}
+        hasTitle={hasTitle}
+        onArchive={(n) => {
+          actions.archive(n, true);
+          void backToList();
+        }}
+      />
+    ) : null;
+  const notesList = (
+    <NotesList
+      selectedId={screen.name === 'note' ? screen.note.id : undefined}
+      notes={notes}
+      loading={loading}
+      onOpen={openNote}
+      onNew={() => void newNote()}
+      onCapture={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
+      voiceModel={voiceModel.state}
+      onRetryVoiceModel={voiceModel.retry}
+      updates={updates}
+      onSettings={() => setSettings(true)}
+      actions={actions}
+      canFlag={canFlag(updates)}
+      memoWaiting={memoWaiting}
+      onSortMemo={() => {
+        const waiting = readScratch();
+        if (waiting) setScreen({ name: 'sort', scratch: { ...waiting, done: true } });
+        else setMemoWaiting(false);
+      }}
+    />
+  );
+
   return (
     <>
       {/* Under the status bar: what scrolls up fades out before it reaches the phone's clock and icons. */}
       <div className="app-statusScrim" aria-hidden="true" />
+      {/* The Mac app's title bar: drags the window (app.css .app-dragBar; nothing on a phone). */}
+      <div className="app-dragBar" data-tauri-drag-region aria-hidden="true" />
       {/* The wisp edge's filter, for every view that scrolls under a header (art/wispEdge.ts). */}
       <WispEdgeFilter />
       {screen.name === 'capture' ? (
@@ -378,43 +447,20 @@ function Shell() {
             })();
           }}
         />
-      ) : screen.name === 'note' ? (
-        <NoteScreen
-          key={screen.note.id}
-          note={screen.note}
-          onBack={() => void backToList()}
-          onDelete={removeNote}
-          onSpeak={speakInto}
-          onPin={(n) => actions.pin(n)}
-          at={screen.at}
-          onOpenTitle={(title, at) => void openTitle(title, at)}
-          hasTitle={hasTitle}
-          onArchive={(n) => {
-            actions.archive(n, true);
-            void backToList();
-          }}
-        />
+      ) : split ? (
+        <div className="app-split">
+          <aside className="app-sidebar" aria-label="All notes">
+            {notesList}
+          </aside>
+          <main className="app-notePane">
+            {noteScreen ?? <NoNoteOpen onNew={() => void newNote()} onCapture={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })} />}
+          </main>
+        </div>
       ) : (
-        <NotesList
-          notes={notes}
-          loading={loading}
-          onOpen={openNote}
-          onNew={() => void newNote()}
-          onCapture={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
-          voiceModel={voiceModel.state}
-          onRetryVoiceModel={voiceModel.retry}
-          updates={updates}
-          onSettings={() => setSettings(true)}
-          actions={actions}
-          canFlag={canFlag(updates)}
-          memoWaiting={memoWaiting}
-          onSortMemo={() => {
-            const waiting = readScratch();
-            if (waiting) setScreen({ name: 'sort', scratch: { ...waiting, done: true } });
-            else setMemoWaiting(false);
-          }}
-        />
+        (noteScreen ?? notesList)
       )}
+      {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
+      <WhatsNewSheet sources={updates.status?.sources} hold={guide || screen.name === 'capture'} />
       <SettingsSheet
         open={settings}
         onClose={() => setSettings(false)}

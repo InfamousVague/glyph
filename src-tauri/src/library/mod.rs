@@ -255,6 +255,11 @@ fn in_folder(folder: &str, name: &str) -> String {
     if folder.is_empty() { name.to_string() } else { format!("{folder}/{name}") }
 }
 
+/// Whether a path from another device can be a note's here: relative, `.md`, no dot folders or `..`.
+fn library_path(path: &str) -> bool {
+    path.to_ascii_lowercase().ends_with(".md") && path.split('/').all(|part| !part.is_empty() && !part.starts_with('.'))
+}
+
 /// Whether a file's name is already its title's: `Stem.md`, or `Stem 2.md` for a clash.
 fn named_for(path: &str, stem: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path);
@@ -637,6 +642,69 @@ impl Library {
         self.drafts.clear();
         self.drafted.clear();
         Ok(())
+    }
+
+    /// A note exactly as another device has it (docs/SYNC.md): its words, times,
+    /// pin, archive, source, recording phrases and formatted version, in the
+    /// folder it is in there when that folder is free here. Unlike a save, the
+    /// times are the note's own: a note synced in is not a note edited now.
+    /// Front matter this device added that Glyph doesn't manage stays.
+    pub fn apply_note(&mut self, note: &Note) -> Result<Note> {
+        self.drafts.remove(&note.id);
+        self.drafted.remove(&note.id);
+        let stem = file_stem(&title_of(&note.body));
+        let wanted = note.path.as_deref().filter(|p| library_path(p));
+        let (mut path, front) = match self.row(&note.id)? {
+            Some(row) => {
+                let text = self.vault.read(&row.path).unwrap_or_default();
+                (row.path, split(&text).0.unwrap_or_default())
+            }
+            None => {
+                let folder = wanted.map_or(INBOX, folder_of).to_string();
+                let name = unique_name(&stem, |name| self.vault.exists(&in_folder(&folder, name)));
+                (in_folder(&folder, &name), FrontMatter::new())
+            }
+        };
+        match wanted {
+            Some(to) if to != path && !self.vault.exists(to) => {
+                if self.vault.exists(&path) {
+                    self.vault.rename(&path, to)?;
+                }
+                path = to.to_string();
+            }
+            _ if !named_for(&path, &stem) => {
+                let folder = folder_of(&path).to_string();
+                let name = unique_name(&stem, |name| self.vault.exists(&in_folder(&folder, name)));
+                let to = in_folder(&folder, &name);
+                if self.vault.exists(&path) {
+                    self.vault.rename(&path, &to)?;
+                }
+                path = to;
+            }
+            _ => {}
+        }
+        let mut front = front;
+        front.set("id", Some(Value::Text(note.id.clone())));
+        front.set("created", Some(Value::Text(iso(note.created_at))));
+        front.set("source", (note.source != "editor").then(|| Value::Text(note.source.clone())));
+        front.set("pinned", note.starred.then_some(Value::Bool(true)));
+        front.set("archived", note.archived_at.map(|at| Value::Text(iso(at))));
+        self.vault.write(&path, &join(Some(&front), &note.body))?;
+        self.write_sidecar(
+            &note.id,
+            &Sidecar {
+                recording_ms: note.recording_ms,
+                segments: note.segments.clone(),
+                formatted: note.formatted.clone(),
+                formatted_for: note.formatted_for,
+                formatted_model: note.formatted_model.clone(),
+            },
+        )?;
+        let entry = self.vault.keep_modified(&path, note.updated_at)?;
+        self.index_file(&entry)?;
+        self.row(&note.id)?
+            .map(|row| self.note_of(row, true))
+            .ok_or_else(|| LibraryError::Index(rusqlite::Error::QueryReturnedNoRows))
     }
 
     pub fn append_capture(&mut self, body: &str, source: &str) -> Result<Note> {

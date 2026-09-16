@@ -31,6 +31,17 @@ since something may already point at it.
 The anchor must have a space before it and nothing after it but the end of the line, which is what keeps it apart
 from a superscript: `E = mc^2^` and `- the 2 ^nd^ of June` are superscripts, `- Ship it ^ship-page` is an anchor.
 
+An item linked to Notion or GitHub carries a mark as well (`core/itemLinks.ts`), and the order is always words, then
+mark, then anchor:
+
+```markdown
+- [ ] Ship the pricing page [notion](https://…) ^ship-page
+```
+
+Glyph writes it that way and reads it that way. A line written the other way round, `^ship-page [notion](https://…)`,
+is still read as the same item: a mark is the one thing allowed after an anchor. An item's anchor is never part of
+what it says, so it is never sent to Notion or GitHub as part of a title.
+
 **2. A fenced `board` block lays the columns out.** Each line is a column: its name, a colon, then the anchors of the
 items in it, in the order they sit:
 
@@ -44,6 +55,18 @@ Done: pick-date
 
 That is all. A renderer that knows nothing about boards shows a code block and a list of items, both readable. Glyph
 draws the columns as a board and the items as cards.
+
+**The board's own settings go after the word.** One so far: `height`, how tall the lanes are, in the lanes' own ems,
+so a board keeps its number of cards when the text size changes. It is kept between 5 and 60, to the half em:
+
+````markdown
+```board height=18
+To do: ship-page, ask-sam
+```
+````
+
+With no height the lanes are as tall as their cards, up to a cap. Anything else after the word is left as it is and
+read by nothing yet, and a renderer that knows nothing about boards takes all of it as the block's info string.
 
 ## Pointing at an item from the words
 
@@ -88,6 +111,13 @@ at from a column, from a sentence, or from another note.
 - A note that is already a list becomes a board from More → **Make a board**: every item is given a name at the end,
   and a fence of `To do / Doing / Done` goes in under the title, with whatever is ticked already in Done. A list
   inside a block of code is left alone. Nothing else about the note changes, and one Undo puts it back.
+- **One list at a time** (Matt: "add ability to auto list a section of list items into a board"): press and hold an
+  item and choose **Board from list**. The list it is in - its items, the lines indented under them, a single blank
+  line between two of them, up to a heading, a paragraph, a block of code or two blank lines - becomes a board set in
+  just above it (`core/boards.ts` `listAround`, `boardFromList`). Select several lines first and those lines are the
+  list instead. The rest of the note is left as it is, so a note can hold a board for each of its lists; a list that
+  already has a board right above it is not offered again. **To board** is still there beside it, for putting the one
+  item on the nearest board above.
 - A card says its item's words with the markdown taken off — a link reads as its own words, not its URL — and shows
   three lines at most. The note below always has the whole thing.
 
@@ -113,3 +143,11 @@ mobile". What that means on the page:
   between them.
 - The anchor at the end of a line is drawn small and faint: the line reads as its words, and the name is there when
   it is wanted.
+- **The line under a board sets its height** (Matt: "make board height configurable with glacierUI split view"). It is
+  Glacier's split-pane divider, a hairline with a grip, made for a board that sits in a scrolling note: drag it, step
+  it with the arrow keys, send it to either end with Home and End, or double-tap it to give the board back its own
+  height. The lanes follow the finger as it moves, and `height=` is written into the fence when the finger lifts:
+  one change, one undo. The line takes a finger's width of touch.
+- **Its handle is a tab at the middle of that line** (Matt: "Add resize handle in the bottom middle of board to
+  resize"): up and down on a small tab in the board's own ground, always showing, since a phone has no hover. It
+  takes the accent while it is held or has the focus, and on a computer it says "Drag to resize the board".

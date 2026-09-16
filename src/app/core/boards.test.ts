@@ -4,8 +4,11 @@ import {
   anchorFor,
   boardCopy,
   boardFrom,
+  boardFromList,
+  BOARD_HEIGHT,
   boardsIn,
   cardText,
+  clampHeight,
   cardsOf,
   columnFor,
   columnOf,
@@ -14,6 +17,7 @@ import {
   itemAt,
   itemOnLine,
   itemsIn,
+  listAround,
   moveCard,
   newCard,
   putCard,
@@ -23,6 +27,7 @@ import {
   refsIn,
   setItemDone,
   withAnchor,
+  withBoardHeight,
   writeBoard,
 } from './boards.ts';
 
@@ -110,6 +115,31 @@ describe('the items a board points at', () => {
     expect(itemOnLine('- [ ] ^item')).toMatchObject({ id: 'item', text: '', done: false });
     expect(isItemLine('- [ ] ^item')).toBe(true);
     expect(setItemDone('- [ ] ^item', true)).toBe('- [x] ^item');
+  });
+
+  it('finds an item whose Notion mark was written after its anchor, and keeps the mark with its words', () => {
+    // Matt: "the last two items show up weird on the board as only their label no title".
+    const doc = [
+      '```board',
+      'To do: add-task-input, make-board-height',
+      '```',
+      '',
+      '- [ ] Add task input and button dont match up ^add-task-input [notion](https://app.notion.com/p/Add-task-input-3dd5)',
+      '- [ ] make board height configurable with glacierUI split view ^make-board-height [notion](https://app.notion.com/p/make-board-height-3dd5)',
+      '- [ ] ',
+    ].join('\n');
+    const cards = cardsOf(boardsIn(doc)[0]!.columns, itemsIn(doc));
+    expect(cards.map((card) => card.item?.text)).toEqual([
+      'Add task input and button dont match up [notion](https://app.notion.com/p/Add-task-input-3dd5)',
+      'make board height configurable with glacierUI split view [notion](https://app.notion.com/p/make-board-height-3dd5)',
+    ]);
+    // Ticking it leaves the line as it was written, anchor and mark both where they were.
+    expect(setItemDone(doc.split('\n')[4]!, true)).toBe(
+      '- [x] Add task input and button dont match up ^add-task-input [notion](https://app.notion.com/p/Add-task-input-3dd5)',
+    );
+    // Only a mark may follow the anchor: anything else, and the caret is words.
+    expect(itemOnLine('- [ ] Ship ^ship-it and then more')).toBeNull();
+    expect(itemOnLine('- [ ] Ship ^ship-it [a link](not-a-url)')).toBeNull();
   });
 
   it('takes the first item of a repeated anchor', () => {
@@ -402,5 +432,167 @@ describe('a board taken away as words', () => {
     expect(boardCopy('```board\nTo do:\n```', 2)).toBe('```board\nTo do:\n```\n');
     expect(boardCopy(note, 9)).toBeNull();
     expect(boardCopy('- [ ] Alone', 1)).toBeNull();
+  });
+});
+
+describe('how tall a board is', () => {
+  it('is read from the fence, and is the board\u2019s own height when the fence says nothing', () => {
+    expect(boardsIn(note)[0]?.height).toBeNull();
+    expect(boardsIn('```board height=18\nTo do: a\n```')[0]).toMatchObject({ height: 18, columns: [{ name: 'To do', cards: ['a'] }] });
+    expect(boardsIn('~~~ board height=12.5em\nTo do:\n~~~')[0]?.height).toBe(12.5);
+    // Junk after the word is a setting nobody reads, and the board is still a board.
+    expect(boardsIn('```board wide\nTo do:\n```')[0]).toMatchObject({ height: null, columns: [{ name: 'To do', cards: [] }] });
+    // A word that only starts with "board" is not a board.
+    expect(boardsIn('```boards\nTo do:\n```')).toEqual([]);
+  });
+
+  it('is kept between a card and a half and a long screen, to the half em', () => {
+    expect(boardsIn('```board height=1\nTo do:\n```')[0]?.height).toBe(BOARD_HEIGHT.min);
+    expect(boardsIn('```board height=900\nTo do:\n```')[0]?.height).toBe(BOARD_HEIGHT.max);
+    expect(clampHeight(17.3)).toBe(17.5);
+  });
+
+  it('is written into the fence and taken out again, the rest of the line as it was', () => {
+    expect(withBoardHeight('```board', 18)).toBe('```board height=18');
+    expect(withBoardHeight('```board height=18', 24.2)).toBe('```board height=24');
+    expect(withBoardHeight('  ~~~~ Board wide height=18 ', 9)).toBe('  ~~~~ Board height=9 wide');
+    expect(withBoardHeight('```board height=18 wide', null)).toBe('```board wide');
+    expect(withBoardHeight('```board height=18', null)).toBe('```board');
+    expect(withBoardHeight('```js', 18)).toBe('```js');
+    // What it writes, it reads back.
+    expect(boardsIn(`${withBoardHeight('```board', 21.5)}\nTo do:\n\`\`\``)[0]?.height).toBe(21.5);
+  });
+});
+
+describe('one list made into a board', () => {
+  // Matt: "add ability to auto list a section of list items into a board".
+  const doc = [
+    '# Trip',
+    '',
+    'Packing:',
+    '- [ ] Tent',
+    '- [x] Stove',
+    '  bring the spare gas',
+    '',
+    '- [ ] Maps',
+    '',
+    '',
+    '- Not this list',
+    '',
+    '## Errands',
+    '1. Post office',
+    '2. Bank',
+    '',
+    '```md',
+    '- [ ] an example, not a list',
+    '```',
+  ].join('\n');
+
+  it('finds the list a line is in, blank line and indented lines included, and stops at two blank lines', () => {
+    expect(listAround(doc, 4)).toEqual({ from: 4, to: 8 });
+    expect(listAround(doc, 6)).toEqual({ from: 4, to: 8 });
+    expect(listAround(doc, 8)).toEqual({ from: 4, to: 8 });
+    expect(listAround(doc, 11)).toEqual({ from: 11, to: 11 });
+    expect(listAround(doc, 15)).toEqual({ from: 14, to: 15 });
+  });
+
+  it('finds no list on a line of words, a heading, a blank line, or inside a block of code', () => {
+    expect(listAround(doc, 3)).toBeNull();
+    expect(listAround(doc, 13)).toBeNull();
+    expect(listAround(doc, 9)).toBeNull();
+    expect(listAround(doc, 18)).toBeNull();
+  });
+
+  it('makes that list a board set in just above it, and leaves everything else alone', () => {
+    const made = boardFromList(doc, 4, 8)!;
+    expect(made).toMatchObject({ cards: 3, done: 1, open: 5 });
+    expect(made.doc.split('\n').slice(2, 14)).toEqual([
+      'Packing:',
+      '',
+      '```board',
+      'To do: tent, maps',
+      'Doing:',
+      'Done: stove',
+      '```',
+      '',
+      '- [ ] Tent ^tent',
+      '- [x] Stove ^stove',
+      '  bring the spare gas',
+      '',
+    ]);
+    // The other lists are untouched.
+    expect(made.doc).toContain('- Not this list\n');
+    expect(made.doc).toContain('1. Post office\n2. Bank\n');
+  });
+
+  it('says what to change in the note as it was: the item lines, and the fence to put in above the list', () => {
+    const made = boardFromList(doc, 4, 8)!;
+    expect(made.lines).toEqual([
+      { number: 4, text: '- [ ] Tent ^tent' },
+      { number: 5, text: '- [x] Stove ^stove' },
+      { number: 8, text: '- [ ] Maps ^maps' },
+    ]);
+    expect(made.fence).toEqual({ before: 4, text: '\n```board\nTo do: tent, maps\nDoing:\nDone: stove\n```\n\n' });
+    // Applied that way round, the note is the one `doc` says.
+    const lines = doc.split('\n');
+    for (const line of made.lines) lines[line.number - 1] = line.text;
+    lines[made.fence.before - 1] = `${made.fence.text}${lines[made.fence.before - 1]}`;
+    expect(lines.join('\n')).toBe(made.doc);
+  });
+
+  it('can be done while the note has another board, and not twice to the same list', () => {
+    const first = boardFromList(doc, 14, 15)!;
+    // Straight under a heading, the board keeps a blank line from it.
+    expect(first.open).toBe(15);
+    expect(first.doc.split('\n').slice(12, 21)).toEqual(['## Errands', '', '```board', 'To do: post-office, bank', 'Doing:', 'Done:', '```', '', '1. Post office ^post-office']);
+    expect(boardsIn(first.doc)).toHaveLength(1);
+    const again = boardFromList(first.doc, 4, 8)!;
+    expect(boardsIn(again.doc)).toHaveLength(2);
+    // The list under the new board is already a board.
+    const list = listAround(first.doc, 21)!;
+    expect(list).toEqual({ from: 21, to: 22 });
+    expect(boardFromList(first.doc, list.from, list.to)).toBeNull();
+  });
+
+  it('keeps anchors an item has, and makes nothing of lines with no items', () => {
+    const made = boardFromList('- [ ] Tent ^mine\n- Stove', 1, 2)!;
+    expect(made.doc).toBe('```board\nTo do: mine, stove\nDoing:\nDone:\n```\n\n- [ ] Tent ^mine\n- Stove ^stove');
+    expect(made.lines).toEqual([{ number: 2, text: '- Stove ^stove' }]);
+    expect(boardFromList(doc, 1, 3)).toBeNull();
+  });
+});
+
+describe('choices and counters on a board', () => {
+  it('reads a choice as an item with no box, its words after the choice\u2019s own', () => {
+    expect(itemOnLine('- ( ) Pick the red one ^red')).toEqual({ id: 'red', text: 'Pick the red one', done: null, line: 0 });
+    expect(itemOnLine('- (x) Pick the blue one ^blue')).toMatchObject({ text: 'Pick the blue one', done: null });
+    // Only after a bullet, and only the exact box: a numbered line and a spaced box are words.
+    expect(itemOnLine('1. ( ) Not a choice ^one')?.text).toBe('( ) Not a choice');
+    expect(itemOnLine('- ( x ) Not a choice ^two')?.text).toBe('( x ) Not a choice');
+    // A picked choice is not a done item: dragging it into Done does not touch its line.
+    expect(setItemDone('- (x) Pick the blue one ^blue', false)).toBe('- (x) Pick the blue one ^blue');
+  });
+
+  it('makes a list of choices into cards named after their words', () => {
+    const made = boardFrom('- ( ) Pick red\n- (x) Pick blue')!;
+    expect(made.done).toBe(0);
+    expect(made.doc.split('\n').slice(6)).toEqual(['- ( ) Pick red ^pick-red', '- (x) Pick blue ^pick-blue']);
+  });
+
+  it('finds an item whose counter was typed after its anchor, and keeps the counter with its words', () => {
+    // Typed at the end of the line, the counter lands after the anchor.
+    expect(itemOnLine('- [ ] Pack socks ^pack-socks [3/8]')).toMatchObject({ id: 'pack-socks', text: 'Pack socks [3/8]' });
+    expect(itemOnLine('- [ ] Pack socks ^pack-socks [3/8] [notion](https://app.notion.com/p/x)')).toMatchObject({
+      id: 'pack-socks',
+      text: 'Pack socks [3/8] [notion](https://app.notion.com/p/x)',
+    });
+    expect(itemOnLine('- [ ] Pack socks [3/8] ^pack-socks')).toMatchObject({ id: 'pack-socks', text: 'Pack socks [3/8]' });
+    // A link after the anchor is still not allowed: only marks and counters.
+    expect(itemOnLine('- [ ] Pack ^pack [3/8](https://x.y)')).toBeNull();
+  });
+
+  it('leaves a counter out of an anchor it makes', () => {
+    expect(anchorFor('Pack socks [3/8]', [])).toBe('pack-socks');
+    expect(withAnchor('- [ ] Pack socks [3/8]', 'pack-socks')).toBe('- [ ] Pack socks [3/8] ^pack-socks');
   });
 });

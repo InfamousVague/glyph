@@ -271,14 +271,44 @@
 }
 
 /*
- * The quote bar. `--glacier-shape-accent-edge` is the kit's 3px edge token.
- * The bar sits where the text's own inline padding already was, and the text
- * steps in past it, so a quote lines up with the paragraph above rather than
- * shifting sideways when the `>` is typed.
+ * SPACE AROUND A BLOCK. A quote and a block of code stand clear of the
+ * screen's edges and of the lines around them (Matt: "code blocks and >
+ * quotes are placed right up against the edges of the screen there should be
+ * some margin around them"). A line is as wide as the page, and the gutter is
+ * its padding, which moves the words in but not what is painted behind them:
+ * so the block's lines take the gutter as margin instead, and their own
+ * padding is the space inside the block.
+ *
+ * Above and below, the space is a transparent border and not a margin, with
+ * the paint clipped inside it. CodeMirror measures a line with
+ * getBoundingClientRect, which leaves a margin out, and a note whose lines are
+ * taller than it thinks puts every scroll-to-a-line out by the difference.
  */
 .editor :global(.cm-line).lineQuote {
-  border-inline-start: var(--glacier-shape-accent-edge) solid var(--glacier-border-strong);
-  padding-inline-start: calc(var(--app-gutter) - var(--glacier-shape-accent-edge));
+  margin-inline: var(--app-gutter);
+  padding-inline: calc(var(--glacier-shape-accent-edge) + 0.75em) 0;
+  /*
+   * The quote bar, `--glacier-shape-accent-edge` (the kit's 3px edge token)
+   * wide. Painted rather than a border, so the space above and below the
+   * quote can be the border, and set as an image alone so a callout's tint
+   * (editor/extended.ts) still shows behind it.
+   */
+  border-inline-start: 0;
+  background-image: linear-gradient(var(--glacier-border-strong), var(--glacier-border-strong));
+  background-size: var(--glacier-shape-accent-edge) 100%;
+  background-position: left top;
+  background-repeat: no-repeat;
+  background-clip: padding-box;
+}
+
+.editor :global(.cm-line).lineQuoteTop {
+  border-block-start: 0.35em solid transparent;
+  padding-block-start: 0.2em;
+}
+
+.editor :global(.cm-line).lineQuoteFoot {
+  border-block-end: 0.35em solid transparent;
+  padding-block-end: 0.2em;
 }
 
 /*
@@ -293,35 +323,50 @@
   text-indent: calc(-1 * var(--hang, 0px));
 }
 
+/* A list inside a quote: the quote's margin already holds the gutter, so the hang starts past the bar. */
+.editor :global(.cm-line).lineQuote.lineItem {
+  padding-inline-start: calc(var(--glacier-shape-accent-edge) + 0.75em + var(--hang, 0px));
+}
+
 /*
  * A fenced block is one card: the paper runs behind every line of it, the
  * first and last lines carry the corners and the block's own top and bottom
- * padding, and the words sit in from the edge rather than against it (Matt:
- * "code blocks missing border radii card shape and padding around the
- * outside"). The lines keep their own left padding from `.cm-line`, so the
- * card is inset by that much and the code lines up with the note's text.
+ * padding, and the words sit in from the card's edge rather than against it
+ * (Matt: "code blocks missing border radii card shape and padding around the
+ * outside"). The card stands in from the screen by the gutter, and clear of
+ * the lines above and below by a transparent border (see SPACE AROUND A
+ * BLOCK). A code line inside a list item keeps no hang: code is not wrapped
+ * under a dash.
  */
 .editor :global(.cm-line).lineCode {
   font-family: var(--glacier-font-mono);
   font-size: calc(var(--app-body) * 0.82);
   background: var(--code-bg);
+  background-clip: padding-box;
   color: var(--code-fg);
   tab-size: 2;
-  padding-inline: calc(var(--app-gutter) + 0.7em) calc(var(--app-gutter) + 0.7em);
+  margin-inline: var(--app-gutter);
+  padding-inline: 0.85em;
+  text-indent: 0;
 }
 
+/*
+ * The corners. With the paint clipped inside a transparent border, a corner's
+ * curve is the border's radius less the border: so the vertical radius is
+ * given that much more, and the corner the eye sees is a circle.
+ */
 .editor :global(.cm-line).lineCodeTop {
-  margin-block-start: 0.5em;
+  border-block-start: 0.5em solid transparent;
   padding-block-start: 0.55em;
-  border-start-start-radius: var(--glacier-radius-lg);
-  border-start-end-radius: var(--glacier-radius-lg);
+  border-start-start-radius: var(--glacier-radius-lg) calc(var(--glacier-radius-lg) + 0.5em);
+  border-start-end-radius: var(--glacier-radius-lg) calc(var(--glacier-radius-lg) + 0.5em);
 }
 
 .editor :global(.cm-line).lineCodeFoot {
-  margin-block-end: 0.5em;
+  border-block-end: 0.5em solid transparent;
   padding-block-end: 0.55em;
-  border-end-start-radius: var(--glacier-radius-lg);
-  border-end-end-radius: var(--glacier-radius-lg);
+  border-end-start-radius: var(--glacier-radius-lg) calc(var(--glacier-radius-lg) + 0.5em);
+  border-end-end-radius: var(--glacier-radius-lg) calc(var(--glacier-radius-lg) + 0.5em);
 }
 
 .editor :global(.cm-line).lineHr {

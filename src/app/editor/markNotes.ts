@@ -1,5 +1,5 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
-import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import type { InlineFormat } from '../plugins/types.ts';
 
 /**
@@ -11,9 +11,9 @@ import type { InlineFormat } from '../plugins/types.ts';
  *   The deposit is ??four hundred??(Sam said 400, the email says 450) and needs checking.
  *
  * Any of Glyph's marks can carry one, not only a doubt: a highlight can say why it is highlighted, a shout why it
- * shouts. The words keep the look the mark gives them (editor/formatLooks.ts); the bracketed part is drawn as a small
- * ring after them so the line reads as a sentence, and tapping either the words or the ring shows the note. The
- * brackets come back as plain text while the caret is in them, so the note is edited like anything else.
+ * shouts. The words keep the look the mark gives them (editor/formatLooks.ts); the bracketed part is hidden so the
+ * line reads as a sentence, and tapping the words shows the note. The brackets come back as plain text while the
+ * caret is in them, so the note is edited like anything else.
  *
  * Nothing is stored anywhere but the note itself: a reader with no Glyph sees `??four hundred??(…)`, which says the
  * same thing in the same order.
@@ -61,31 +61,12 @@ export function noteAt(notes: readonly MarkNote[], pos: number): MarkNote | null
   return notes.find((note) => pos >= note.words.from && pos <= note.to) ?? null;
 }
 
-/** The little ring that stands in for the brackets: something to see, and something to tap. */
-class RingWidget extends WidgetType {
-  constructor(readonly text: string) {
-    super();
-  }
-
-  eq(other: RingWidget): boolean {
-    return other.text === this.text;
-  }
-
-  toDOM(): HTMLElement {
-    const ring = document.createElement('span');
-    ring.className = 'cm-markNote';
-    ring.dataset.note = this.text;
-    ring.setAttribute('role', 'button');
-    ring.setAttribute('tabindex', '0');
-    ring.setAttribute('aria-label', `Note: ${this.text}`);
-    ring.textContent = 'i';
-    return ring;
-  }
-
-  ignoreEvent(): boolean {
-    return false;
-  }
-}
+/**
+ * The brackets, hidden. They were a small ring once, something to see and to tap; Matt asked for it gone ("remove
+ * (?) icon from the end of ??text?? entries with notes"), so the mark's own look is the cue and the words are the
+ * place to tap.
+ */
+const hidden = Decoration.replace({});
 
 function decorate(state: EditorState, pattern: RegExp): { marks: DecorationSet; notes: MarkNote[] } {
   const builder = new RangeSetBuilder<Decoration>();
@@ -94,7 +75,7 @@ function decorate(state: EditorState, pattern: RegExp): { marks: DecorationSet; 
     // The caret inside the brackets: the words are being written, so they stay words.
     const editing = state.selection.ranges.some((range) => range.to >= note.brackets.from && range.from <= note.brackets.to);
     if (editing) continue;
-    builder.add(note.brackets.from, note.brackets.to, Decoration.replace({ widget: new RingWidget(note.text) }));
+    builder.add(note.brackets.from, note.brackets.to, hidden);
   }
   return { marks: builder.finish(), notes };
 }
@@ -123,22 +104,6 @@ function closeNote(view: EditorView): void {
 }
 
 const noteTheme = EditorView.baseTheme({
-  '.cm-markNote': {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    inlineSize: '1.05em',
-    blockSize: '1.05em',
-    marginInlineStart: '0.15em',
-    verticalAlign: '0.15em',
-    borderRadius: '50%',
-    border: '1px solid currentColor',
-    fontSize: '0.62em',
-    fontStyle: 'italic',
-    lineHeight: '1',
-    opacity: '0.7',
-    cursor: 'pointer',
-  },
   '.cm-markNotePanel': {
     position: 'absolute',
     zIndex: '30',
@@ -154,7 +119,7 @@ const noteTheme = EditorView.baseTheme({
   },
 });
 
-/** Notes on marks: the ring after the words, and the panel a tap on them opens. */
+/** Notes on marks: the brackets hidden after the words, and the panel a tap on them opens. */
 export function markNotes(formats: readonly InlineFormat[]): Extension {
   const found = notePattern(formats);
   if (!found) return [];
@@ -182,9 +147,7 @@ export function markNotes(formats: readonly InlineFormat[]): Extension {
       decorations: (value) => value.decorations,
       eventHandlers: {
         mousedown(event, view) {
-          const target = event.target as HTMLElement | null;
-          const ring = target?.closest?.('.cm-markNote');
-          const pos = ring ? view.posAtDOM(ring) : view.posAtCoords({ x: event.clientX, y: event.clientY });
+          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
           if (pos === null) return false;
           const note = noteAt(this.notes, pos);
           if (!note) {

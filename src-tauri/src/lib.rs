@@ -164,6 +164,8 @@ pub fn run() {
             commands::set_note_archived,
             commands::set_note_recording,
             commands::set_note_formatted,
+            commands::store_apply,
+            commands::sync_put_file,
             images::save_image,
             images::save_image_data,
             capture_commands::capture_model_status,

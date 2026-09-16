@@ -3,7 +3,10 @@ import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, typ
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { markOf, unmarked } from '../core/itemLinks.ts';
 import {
+  BOARD_HEIGHT,
   boardsIn,
+  clampHeight,
+  withBoardHeight,
   cardText,
   cardsOf,
   columnFor,
@@ -64,6 +67,8 @@ interface Drawn {
   columns: BoardColumn[];
   items: Item[];
   cards: Card[];
+  /** How tall the lanes are set, in ems (core/boards.ts), or null for their own height. */
+  height: number | null;
 }
 
 function boards(state: EditorState): Drawn[] {
@@ -75,7 +80,15 @@ function boards(state: EditorState): Drawn[] {
       const columns = board.columns;
       // A ticked item sits in Done wherever the fence has it, so the board never disagrees with the note.
       const cards = cardsOf(columns, items).map((card) => (card.item ? { ...card, column: Math.max(0, columnFor(columns, card.item)) } : card));
-      return { from: state.doc.line(board.from).from, to: state.doc.line(board.to).to, open: board.from, columns, items, cards };
+      return {
+        from: state.doc.line(board.from).from,
+        to: state.doc.line(board.to).to,
+        open: board.from,
+        columns,
+        items,
+        cards,
+        height: board.height,
+      };
     });
 }
 
@@ -92,6 +105,8 @@ const ICONS = {
   left: ['m15 18-6-6 6-6'],
   right: ['m9 18 6-6-6-6'],
   check: ['M20 6 9 17l-5-5'],
+  // The resize handle's up-and-down (lucide chevrons-up-down).
+  resize: ['m7 15 5 5 5-5', 'm7 9 5-5 5 5'],
 } as const;
 
 function icon(name: keyof typeof ICONS, size = '1em'): SVGSVGElement {
@@ -133,6 +148,8 @@ class BoardWidget extends WidgetType {
   }
 
   toDOM(view: EditorView): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'cm-boardWrap';
     const board = document.createElement('div');
     board.className = 'cm-board';
     board.setAttribute('role', 'group');
@@ -144,7 +161,10 @@ class BoardWidget extends WidgetType {
       this.fill(view, pane, index);
       board.append(pane);
     }
-    return board;
+    const split = heightSplit(view, wrap);
+    wrap.append(board, split);
+    sized(board, split, this.board.height);
+    return wrap;
   }
 
   /**
@@ -153,9 +173,13 @@ class BoardWidget extends WidgetType {
    * lose its focus and the phone its keyboard after every card. A board whose columns changed is built again.
    */
   updateDOM(dom: HTMLElement, view: EditorView): boolean {
-    const panes = [...dom.children].filter((child): child is HTMLElement => child instanceof HTMLElement && child.classList.contains('cm-boardColumn'));
+    const board = dom.querySelector<HTMLElement>(':scope > .cm-board');
+    const split = dom.querySelector<HTMLElement>(':scope > .cm-boardSplit');
+    if (!board || !split) return false;
+    const panes = [...board.children].filter((child): child is HTMLElement => child instanceof HTMLElement && child.classList.contains('cm-boardColumn'));
     if (panes.length !== this.board.columns.length) return false;
     panes.forEach((pane, index) => this.fill(view, pane, index));
+    sized(board, split, this.board.height);
     return true;
   }
 
@@ -400,8 +424,167 @@ class BoardWidget extends WidgetType {
 
   /** The field a card is typed into is the page's own input: the editor leaves its keys and taps alone. */
   ignoreEvent(event: Event): boolean {
-    return event.target instanceof Element && event.target.closest('.cm-boardCompose') !== null;
+    return event.target instanceof Element && event.target.closest('.cm-boardCompose, .cm-boardSplit') !== null;
   }
+}
+
+/**
+ * How tall a board is, set by dragging the line under it (Matt: "make board height configurable with glacierUI split
+ * view"). The line is Glacier's split-pane divider (@glacier/react `ResizableSplitPane`), made for a board that sits
+ * in a scrolling note rather than in a box of its own: a hairline with a grip, a separator a screen reader can set,
+ * dragged, stepped with the arrow keys, sent to either end with Home and End, and put back with a double tap. The
+ * grip shows all the time, since a phone has no hover to show it on, and the line takes a finger's width of touch.
+ *
+ * The height is the lanes', in their own ems, so a board keeps its number of cards when the text size changes. It is
+ * written into the board's fence when the finger lifts (core/boards.ts `withBoardHeight`), so it goes wherever the
+ * note goes; while the finger moves it is only a style, and nothing is written.
+ */
+function heightSplit(view: EditorView, wrap: HTMLElement): HTMLElement {
+  const split = document.createElement('div');
+  split.className = 'cm-boardSplit';
+  split.setAttribute('role', 'separator');
+  split.setAttribute('aria-orientation', 'horizontal');
+  split.setAttribute('aria-label', 'Board height');
+  split.setAttribute('aria-valuemin', String(BOARD_HEIGHT.min));
+  split.setAttribute('aria-valuemax', String(BOARD_HEIGHT.max));
+  split.tabIndex = 0;
+  split.title = 'Drag to resize the board';
+  // The handle: a tab at the middle of the line under the board with up and down on it, so it is plainly a thing to
+  // take hold of (Matt: "Add resize handle in the bottom middle of board to resize").
+  const grip = document.createElement('span');
+  grip.className = 'cm-boardGrip';
+  grip.setAttribute('aria-hidden', 'true');
+  grip.append(icon('resize', '0.95em'));
+  split.append(grip);
+
+  // The note must not take the press as a caret move, or the finger's drag as a text selection.
+  split.addEventListener('mousedown', (event) => event.preventDefault());
+  split.addEventListener('pointerdown', (event) => dragHeight(view, wrap, split, event));
+  split.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    writeHeight(view, wrap, null);
+  });
+  split.addEventListener('keydown', (event) => {
+    const now = laneHeight(wrap);
+    const next =
+      event.key === 'ArrowUp' ? now - 1 : event.key === 'ArrowDown' ? now + 1 : event.key === 'Home' ? BOARD_HEIGHT.min : event.key === 'End' ? BOARD_HEIGHT.max : null;
+    if (next === null) return;
+    event.preventDefault();
+    writeHeight(view, wrap, clampHeight(next));
+  });
+  return split;
+}
+
+/** The board drawn at its set height, or its own; and the divider saying which. */
+function sized(board: HTMLElement, split: HTMLElement, height: number | null): void {
+  if (height === null) {
+    board.style.removeProperty('--cm-lane-height');
+    delete board.dataset.sized;
+  } else {
+    board.style.setProperty('--cm-lane-height', `${height}em`);
+    board.dataset.sized = '';
+  }
+  if (height !== null) {
+    split.setAttribute('aria-valuenow', String(height));
+    return;
+  }
+  // Left to itself, the height is measured, and a board just built is not on the page to be measured until the
+  // frame after.
+  const measure = () => split.setAttribute('aria-valuenow', String(Math.round(laneHeightOf(board))));
+  if (board.isConnected) measure();
+  else requestAnimationFrame(measure);
+}
+
+/** How tall the lanes are drawn now, in their own ems. */
+function laneHeight(wrap: HTMLElement): number {
+  const board = wrap.querySelector<HTMLElement>(':scope > .cm-board');
+  return board ? laneHeightOf(board) : BOARD_HEIGHT.min;
+}
+
+function laneHeightOf(board: HTMLElement): number {
+  // Set, the height is the one the fence gave; nothing to measure.
+  const set = parseFloat(board.style.getPropertyValue('--cm-lane-height'));
+  if (board.hasAttribute('data-sized') && Number.isFinite(set)) return set;
+  const stack = board.querySelector<HTMLElement>('.cm-boardStack');
+  if (!stack) return BOARD_HEIGHT.min;
+  const look = window.getComputedStyle(stack);
+  const em = parseFloat(look.fontSize) || 16;
+  // Left to themselves, the lanes are as tall as their cap.
+  const px = parseFloat(look.maxHeight);
+  return Number.isFinite(px) && px > 0 ? px / em : BOARD_HEIGHT.min;
+}
+
+/** The height written into the board's fence, or taken out of it with null: one change, one undo. */
+function writeHeight(view: EditorView, wrap: HTMLElement, height: number | null): void {
+  const open = view.state.doc.lineAt(view.posAtDOM(wrap));
+  const next = withBoardHeight(open.text, height);
+  if (next !== open.text) view.dispatch({ changes: { from: open.from, to: open.to, insert: next }, userEvent: 'input.board' });
+}
+
+/**
+ * The line under a board, dragged. The lanes follow the finger as a style; letting go writes the height. Heard on the
+ * window and by pointer id, as the card drag is, so a pointer that wanders off the line still finishes the drag.
+ */
+function dragHeight(view: EditorView, wrap: HTMLElement, split: HTMLElement, event: PointerEvent): void {
+  if (event.button !== 0 && event.pointerType === 'mouse') return;
+  const board = wrap.querySelector<HTMLElement>(':scope > .cm-board');
+  if (!board) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const stack = board.querySelector<HTMLElement>('.cm-boardStack');
+  const em = stack ? parseFloat(window.getComputedStyle(stack).fontSize) || 16 : 16;
+  const was = board.style.getPropertyValue('--cm-lane-height');
+  const wasSized = board.hasAttribute('data-sized');
+  const from = laneHeightOf(board);
+  const startY = event.clientY;
+  let height = from;
+  let edge: 'min' | 'max' | null = null;
+  split.dataset.dragging = '';
+
+  const move = (moving: PointerEvent) => {
+    if (moving.pointerId !== event.pointerId) return;
+    moving.preventDefault();
+    const wanted = from + (moving.clientY - startY) / em;
+    height = clampHeight(wanted);
+    board.style.setProperty('--cm-lane-height', `${height}em`);
+    board.dataset.sized = '';
+    split.setAttribute('aria-valuenow', String(height));
+    // A buzz at either end, as Glacier's divider gives, so the finger knows it can go no further.
+    const at = wanted <= BOARD_HEIGHT.min ? 'min' : wanted >= BOARD_HEIGHT.max ? 'max' : null;
+    if (at !== edge) {
+      edge = at;
+      if (at) fireNativeHaptic('medium');
+    }
+  };
+  const still = (touching: TouchEvent) => {
+    if (touching.cancelable) touching.preventDefault();
+  };
+  const done = (write: boolean) => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', cancel);
+    window.removeEventListener('touchmove', still);
+    delete split.dataset.dragging;
+    if (write && Math.abs(height - from) >= 0.5) {
+      writeHeight(view, wrap, height);
+      return;
+    }
+    // Let go where it started, or called off: the board as it was.
+    if (was) board.style.setProperty('--cm-lane-height', was);
+    else board.style.removeProperty('--cm-lane-height');
+    if (wasSized) board.dataset.sized = '';
+    else delete board.dataset.sized;
+  };
+  const up = (lifting: PointerEvent) => {
+    if (lifting.pointerId === event.pointerId) done(true);
+  };
+  const cancel = (cancelling: PointerEvent) => {
+    if (cancelling.pointerId === event.pointerId) done(false);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', cancel);
+  window.addEventListener('touchmove', still, { passive: false });
 }
 
 /**
@@ -432,9 +615,18 @@ function openComposer(view: EditorView, pane: HTMLElement, name: string): void {
   add.type = 'submit';
   add.className = 'cm-boardComposeAdd';
   add.textContent = 'Add';
+  add.disabled = true;
   // Pressing Add must not take the focus from the field first, or the phone's keyboard drops between cards.
   add.addEventListener('mousedown', (event) => event.preventDefault());
-  form.append(field, add);
+  // Where the card's tick box goes, so the words typed start where a card's words do.
+  const box = document.createElement('span');
+  box.className = 'cm-boardComposeTick';
+  box.setAttribute('aria-hidden', 'true');
+  const ready = () => {
+    add.disabled = !field.value.trim();
+  };
+  field.addEventListener('input', ready);
+  form.append(box, field, add);
 
   const close = () => form.remove();
   form.addEventListener('submit', (event) => {
@@ -445,6 +637,7 @@ function openComposer(view: EditorView, pane: HTMLElement, name: string): void {
     const open = view.state.doc.lineAt(view.posAtDOM(board)).number;
     if (!addCard(view, open, Number(pane.dataset.column ?? 0), field.value)) return;
     field.value = '';
+    ready();
     fireNativeHaptic('selection');
   });
   field.addEventListener('keydown', (event) => {
@@ -690,6 +883,8 @@ function faceOf(board: Drawn): string {
     board.cards
       .map((card) => `${card.id}@${card.column}:${card.item ? `${card.item.done === null ? '-' : card.item.done ? 'x' : ' '}${card.item.text}` : 'gone'}`)
       .join('|'),
+    // A height set, or taken off, redraws the board at it.
+    `h${board.height ?? ''}`,
   ].join('||');
 }
 
@@ -732,17 +927,20 @@ function anchors(state: EditorState): DecorationSet {
     const at = state.doc.line(line);
     const marks: { from: number; to: number; mark: Decoration }[] = [];
     const item = itemOnLineAt(at.text);
-    if (item) marks.push({ from: at.to - item.length, to: at.to, mark: anchorMark });
+    if (item) marks.push({ from: at.from + item.end - item.length, to: at.from + item.end, mark: anchorMark });
     for (const ref of refsIn(at.text, at.from)) marks.push({ from: ref.from, to: ref.to, mark: named.has(ref.id) ? refMark : goneMark });
     for (const mark of marks.sort((one, two) => one.from - two.from)) builder.add(mark.from, mark.to, mark.mark);
   }
   return builder.finish();
 }
 
-/** The `^anchor` at the end of a line, as it is written there, or null. */
-function itemOnLineAt(text: string): string | null {
-  const found = /\s(\^[a-z0-9][a-z0-9_-]*)\s*$/.exec(text);
-  return found && itemsIn(text).length ? (found[1] ?? null) : null;
+/** The `^anchor` that names the item on a line - last, or with an item's mark after it - and where it ends; or null. */
+function itemOnLineAt(text: string): { length: number; end: number } | null {
+  const found = /(?:^|\s)(\^[a-z0-9][a-z0-9_-]*)((?:\s+(?:\[[a-z][a-z0-9-]*\]\(https?:\/\/[^\s)]+\)|\[\d{1,4}\/\d{1,4}\]))*)\s*$/.exec(text);
+  if (!found || !itemsIn(text).length) return null;
+  const anchor = found[1] ?? '';
+  const start = found.index + found[0].indexOf(anchor);
+  return { length: anchor.length, end: start + anchor.length };
 }
 
 const anchorField = StateField.define<DecorationSet>({
@@ -818,7 +1016,7 @@ const boardTheme = EditorView.baseTheme({
     overscrollBehaviorX: 'contain',
     // One column at a time on a phone: a swipe settles on a column rather than between two.
     scrollSnapType: 'x mandatory',
-    marginBlock: '0.4em 0.9em',
+    marginBlock: '0.4em 0',
     paddingBlock: '0.1em 0.5em',
     scrollbarWidth: 'none',
     fontSize: '0.86em',
@@ -875,37 +1073,113 @@ const boardTheme = EditorView.baseTheme({
     cursor: 'pointer',
   },
   /* The field a new card is typed into, under the column's name. */
+  /*
+   * The field a new card is typed into is drawn as the card it is about to be (Matt: "Add task input and button
+   * dont match up"): the card's corners, ground and ring, an empty tick box where the card's box goes so the words
+   * start where a card's do, and an Add whose corners sit inside the field's. The ring is a little stronger than a
+   * card's, which is how the one being written is told from the rest.
+   */
   '.cm-boardCompose': {
-    display: 'flex',
-    gap: '0.4em',
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr auto',
     alignItems: 'center',
-    padding: '0.3em',
-    borderRadius: 'var(--glacier-radius-lg, 0.75rem)',
-    border: '1px solid var(--app-ink-3, var(--glacier-border-strong))',
-    background: 'var(--app-paper-2, var(--glacier-surface))',
+    columnGap: '0.55em',
+    padding: '0.3em 0.3em 0.3em 0.65em',
+    borderRadius: '0.7em',
+    background: 'var(--app-paper, var(--glacier-bg))',
+    boxShadow: 'inset 0 0 0 1.5px color-mix(in oklch, currentColor 30%, transparent), 0 1px 2px rgba(0, 0, 0, 0.12)',
+  },
+  '.cm-boardComposeTick': {
+    inlineSize: '1.15em',
+    blockSize: '1.15em',
+    borderRadius: '0.32em',
+    border: '1.5px solid color-mix(in oklch, var(--app-ink, var(--glacier-text)) 30%, transparent)',
   },
   '.cm-boardComposeField': {
-    flex: '1 1 auto',
     minInlineSize: '0',
-    minBlockSize: '2.2em',
-    padding: '0 0.4em',
+    blockSize: '2.1em',
+    padding: '0',
     border: 'none',
     background: 'none',
     color: 'inherit',
     font: 'inherit',
+    lineHeight: '2.1em',
     outline: 'none',
   },
+  '.cm-boardComposeField::placeholder': { color: 'var(--app-ink-3, var(--glacier-text-muted))' },
   '.cm-boardComposeAdd': {
-    flex: 'none',
-    minBlockSize: '2.2em',
-    padding: '0 0.8em',
+    blockSize: '2.1em',
+    padding: '0 0.85em',
     border: 'none',
-    borderRadius: '0.5em',
+    // The field's corner less its padding: the button's curve runs alongside the field's.
+    borderRadius: 'calc(0.7em - 0.3em)',
     background: 'var(--app-ink, currentColor)',
     color: 'var(--app-paper, var(--glacier-bg))',
+    // The field's own size, so its height and its corner are measured in the same em as the field's.
     font: 'inherit',
     fontWeight: '600',
+    lineHeight: '1',
     cursor: 'pointer',
+    transition: 'background-color 120ms ease, color 120ms ease',
+  },
+  // Nothing typed yet, nothing to add: the button waits, quiet, in the field's own ink.
+  '.cm-boardComposeAdd:disabled': {
+    background: 'color-mix(in oklch, currentColor 10%, transparent)',
+    color: 'var(--app-ink-3, var(--glacier-text-muted))',
+    cursor: 'default',
+  },
+  // Set by the line under the board: the lanes are that tall, cards or not (heightSplit).
+  '.cm-board[data-sized] .cm-boardStack': {
+    blockSize: 'var(--cm-lane-height)',
+    maxBlockSize: 'none',
+  },
+  '.cm-boardWrap': { marginBlockEnd: '0.5em' },
+  /*
+   * Glacier's split-pane divider (@glacier/react ResizableSplitPane): a hairline in the subtle border, a grip pill,
+   * the accent when it is being moved or has the focus. Its touch reaches above and below the hairline.
+   */
+  '.cm-boardSplit': {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    blockSize: 'var(--glacier-hairline, 1px)',
+    marginInline: 'var(--cm-board-bleed, 0px)',
+    // Room above and below for the handle, which sits across the line.
+    marginBlock: '0.85em 1.1em',
+    background: 'var(--glacier-border-subtle, color-mix(in oklch, currentColor 14%, transparent))',
+    cursor: 'row-resize',
+    touchAction: 'none',
+    transition: 'background-color var(--glacier-duration-fast, 120ms) var(--glacier-ease-out, ease-out)',
+  },
+  '.cm-boardSplit::before': { content: '""', position: 'absolute', insetInline: '0', insetBlock: '-1.15em' },
+  '.cm-boardSplit:focus-visible, .cm-boardSplit[data-dragging]': {
+    outline: 'none',
+    background: 'var(--glacier-accent-solid, currentColor)',
+  },
+  /*
+   * The handle, at the middle of the line: a tab in the board's own ground with a ring, and up and down on it. Taken
+   * hold of, or with the focus, it takes the accent the line does.
+   */
+  '.cm-boardGrip': {
+    position: 'relative',
+    zIndex: '1',
+    display: 'grid',
+    placeItems: 'center',
+    inlineSize: '2.75em',
+    blockSize: '1.4em',
+    borderRadius: 'var(--glacier-radius-full, 999px)',
+    background: 'var(--app-paper-2, var(--glacier-surface))',
+    color: 'var(--app-ink-2, currentColor)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in oklch, currentColor 24%, transparent), 0 1px 3px rgba(0, 0, 0, 0.25)',
+    transition:
+      'background-color var(--glacier-duration-fast, 120ms) var(--glacier-ease-out, ease-out), color var(--glacier-duration-fast, 120ms) var(--glacier-ease-out, ease-out)',
+  },
+  '.cm-boardSplit:hover .cm-boardGrip': { color: 'var(--app-ink, currentColor)' },
+  '.cm-boardSplit:focus-visible .cm-boardGrip, .cm-boardSplit[data-dragging] .cm-boardGrip': {
+    background: 'var(--glacier-accent-solid, currentColor)',
+    color: 'var(--glacier-accent-contrast, #fff)',
+    boxShadow: 'none',
   },
   '.cm-boardStack': {
     display: 'flex',

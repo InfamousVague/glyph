@@ -1,0 +1,42 @@
+/* The note pane with nothing open (NoNoteOpen.tsx): a quiet word in the middle of the paper. */
+
+.pane {
+  display: grid;
+  place-items: center;
+  block-size: 100dvh;
+  padding-block-start: var(--app-safe-top, 0px);
+  background: var(--glacier-bg);
+}
+
+.inner {
+  display: grid;
+  justify-items: center;
+  gap: var(--glacier-space-2);
+  max-inline-size: 28rem;
+  padding: var(--glacier-space-6);
+  text-align: center;
+}
+
+.lead {
+  margin: 0;
+  font-size: var(--app-title, var(--glacier-font-size-xl));
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-title, -0.01em);
+  color: var(--glacier-text);
+}
+
+.hint {
+  margin: 0;
+  color: var(--glacier-text-muted);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-5);
+  margin-block-start: var(--glacier-space-5);
+}
+
+.write {
+  font-weight: var(--glacier-font-weight-semibold);
+}

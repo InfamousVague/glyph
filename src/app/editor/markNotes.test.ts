@@ -30,7 +30,7 @@ describe('a note written after a mark', () => {
     expect(note?.words.from).toBe(102);
   });
 
-  it('answers which note a tap landed in: the words or the ring, not the words before them', () => {
+  it('answers which note a tap landed in: its words or its hidden brackets, not the words before them', () => {
     const line = 'Ask ??Sam??(before Friday) today';
     const notes = notesIn(line, pattern());
     expect(noteAt(notes, line.indexOf('Sam') + 1)?.text).toBe('before Friday');

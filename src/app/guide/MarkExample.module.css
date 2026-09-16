@@ -6,6 +6,8 @@
  */
 
 .example {
+  /* The card is the example's room: a quote or a block of code stands clear of the card by its own padding, not the page's gutter. */
+  --app-gutter: 0px;
   min-inline-size: 0;
   font-size: var(--glacier-font-size-md);
   line-height: var(--glacier-leading-md);

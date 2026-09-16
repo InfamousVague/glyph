@@ -176,6 +176,20 @@ async function webGet(name: string): Promise<Blob | null> {
   });
 }
 
+/** A browser picture's bytes, for sync; null when this browser has none by that name. */
+export async function webImageBytes(name: string): Promise<Uint8Array<ArrayBuffer> | null> {
+  const blob = await webGet(name);
+  return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+}
+
+/** Keeps a picture that arrived by sync, under its own name. */
+export async function keepWebImage(name: string, bytes: Uint8Array<ArrayBuffer>): Promise<void> {
+  const blob = new Blob([bytes], { type: name.endsWith('.png') ? 'image/png' : name.endsWith('.webp') ? 'image/webp' : 'image/jpeg' });
+  await webPut(name, blob);
+  urls.set(name, URL.createObjectURL(blob));
+  window.dispatchEvent(new Event(IMAGE_READY));
+}
+
 /** A photo from the file picker, shrunk to at most 1600 px on its long side, as a JPEG. */
 async function pickWeb(): Promise<string | null> {
   const file = await new Promise<File | null>((resolve) => {

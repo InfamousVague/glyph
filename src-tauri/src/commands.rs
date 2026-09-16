@@ -236,6 +236,46 @@ pub fn set_note_recording(
     store.lock().set_recording(&id, recording.as_ref()).map_err(|e| e.to_string())
 }
 
+/// Writes a note as another device has it, for sync (docs/SYNC.md): its own
+/// times, pin, archive, folder, recording phrases and formatted version.
+/// Answers with the note as it now is here. Native generation 16.
+#[tauri::command]
+pub fn store_apply(store: tauri::State<'_, NotesStore>, note: Note) -> std::result::Result<Note, String> {
+    if let Some(segments) = &note.segments {
+        Recording::new(note.recording_ms.unwrap_or(0), segments.clone())?;
+    }
+    store.lock().apply_note(&note).map_err(|e| e.to_string())
+}
+
+/// Keeps a file that arrived by sync (docs/SYNC.md): a note's recording under
+/// the note's id (`kind` "recording", WAV bytes), or a picture under its own
+/// name (`kind` "image"). Written whole or not at all. Native generation 16.
+#[tauri::command]
+pub fn sync_put_file(app: tauri::AppHandle, kind: String, name: String, base64: String) -> std::result::Result<(), String> {
+    match kind.as_str() {
+        "image" => {
+            let images = crate::images::images_dir(&app).ok_or_else(|| "There is no room to keep pictures.".to_string())?;
+            crate::images::place(&images, &name, &base64)
+        }
+        "recording" => {
+            use base64::Engine as _;
+            let dir = recordings_dir(&app).ok_or_else(|| "There is no room to keep recordings.".to_string())?;
+            let file = recording_file(&dir, &name).ok_or_else(|| "That is not a note id.".to_string())?;
+            let bytes = base64::engine::general_purpose::STANDARD.decode(base64.trim()).map_err(|_| "That recording could not be read.".to_string())?;
+            if !bytes.starts_with(b"RIFF") {
+                return Err("That is not a recording Glyph can keep.".to_string());
+            }
+            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            let part = dir.join(format!(".{name}.part"));
+            std::fs::write(&part, &bytes).and_then(|()| std::fs::rename(&part, &file)).map_err(|e| {
+                let _ = std::fs::remove_file(&part);
+                format!("The recording could not be saved: {e}")
+            })
+        }
+        _ => Err(format!("Nothing is kept as {kind}.")),
+    }
+}
+
 /// Stars or unstars a note from the list's swipe. Answers with the note, or
 /// `null` if it has gone. Native generation 3.
 #[tauri::command]

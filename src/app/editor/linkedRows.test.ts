@@ -28,6 +28,10 @@ describe('what a line is linked to', () => {
 
   it('unlinks, keeping the words', () => {
     expect(unlinked(`- [ ] Buy milk [notion](${TASK})`, { kind: 'mark', url: TASK })).toBe('- [ ] Buy milk');
+    // A board's anchor after the mark stays, so the card is still the item (core/boards.ts).
+    expect(unlinked(`- [ ] Buy milk [notion](${TASK}) ^buy-milk`, { kind: 'mark', url: TASK })).toBe('- [ ] Buy milk ^buy-milk');
+    // And a counter typed after it (editor/counters.ts).
+    expect(unlinked(`- [ ] Buy milk [notion](${TASK}) [2/6] ^buy-milk`, { kind: 'mark', url: TASK })).toBe('- [ ] Buy milk [2/6] ^buy-milk');
     expect(unlinked(`- [ ] [Buy milk](${TASK}) on the way home`, { kind: 'link', url: TASK })).toBe('- [ ] Buy milk on the way home');
   });
 });
