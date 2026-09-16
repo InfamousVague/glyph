@@ -23,7 +23,8 @@ import { useWakeWord } from './capture/useWakeWord.ts';
 import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
 import { isTauri } from './core/tauri.ts';
-import { getNote, newNoteId, saveNote, useNotes, type Note } from './core/store.ts';
+import { getNote, newNoteId, noteTitle, saveNote, useNotes, type Note } from './core/store.ts';
+import { sameTitle } from './editor/wikiLinks.ts';
 import { addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { fileNewNote } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
@@ -204,6 +205,25 @@ function Shell() {
     if (note) setScreen({ name: 'note', note });
   };
 
+  /** Whether a note by that title is in the library: what a `[[link]]` is drawn by (editor/wikiLinks.ts). */
+  const hasTitle = (title: string) => notes.some((n) => sameTitle(noteTitle(n.body), title));
+
+  /**
+   * A `[[link]]` tapped: the note by that title, or a new note that starts with it as its heading, so a link is a
+   * place to write as well as a place to go.
+   */
+  const openTitle = async (title: string) => {
+    const found = notes.find((n) => sameTitle(noteTitle(n.body), title));
+    if (found) {
+      setScreen({ name: 'note', note: found });
+      return;
+    }
+    const made = await saveNote(newNoteId(), `# ${title}\n\n`, 'editor');
+    fileNewNote(made.id);
+    await refresh();
+    setScreen({ name: 'note', note: made });
+  };
+
   // A fresh library gets the sample note once (core/seed.ts): a few seconds
   // after the first read comes back empty, past the store's own re-asks, so a
   // slow first answer from the phone is never mistaken for an empty library.
@@ -360,6 +380,8 @@ function Shell() {
           onDelete={removeNote}
           onSpeak={speakInto}
           onPin={(n) => actions.pin(n)}
+          onOpenTitle={(title) => void openTitle(title)}
+          hasTitle={hasTitle}
           onArchive={(n) => {
             actions.archive(n, true);
             void backToList();

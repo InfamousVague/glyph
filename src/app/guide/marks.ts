@@ -38,7 +38,12 @@ export type Looks =
   | 'note'
   | 'sup'
   | 'sub'
-  | 'callout';
+  | 'callout'
+  | 'wiki'
+  | 'foot'
+  | 'definition'
+  | 'maths'
+  | 'emoji';
 
 export interface MarkRow {
   /** The mark itself, as a person would type it: `**`, `- [ ]`. */
@@ -93,6 +98,14 @@ const OWN: MarkGroup[] = [
     ],
   },
   {
+    title: 'Pointing somewhere',
+    lead: 'At another note, or at the small print under this one.',
+    rows: [
+      { symbol: '[[ ]]', name: 'Another note', typed: 'the deposit is in [[The cabin trip]]', words: 'The cabin trip', looks: 'wiki' },
+      { symbol: '[^ ]', name: 'A footnote', typed: 'four hundred[^sam]\n\n[^sam]: Sam said so.', words: 'four hundred', looks: 'foot', note: 'Sam said so.' },
+    ],
+  },
+  {
     title: 'Raised and lowered',
     lead: 'Around one part of a word, the way the rest of markdown writes them.',
     rows: [
@@ -104,6 +117,9 @@ const OWN: MarkGroup[] = [
     title: 'Blocks',
     lead: 'A few lines that work together.',
     rows: [
+      { symbol: ':', name: 'A definition', typed: 'Deposit\n: what you pay up front', words: 'what you pay up front', looks: 'definition', note: 'Deposit' },
+      { symbol: '$', name: 'Maths', typed: 'when $x^2 + y$ holds', words: '$x^2 + y$', looks: 'maths' },
+      { symbol: ': :', name: 'An emoji', typed: 'shipped :tada:', words: '🎉', looks: 'emoji' },
       {
         symbol: '| |',
         name: 'A table',

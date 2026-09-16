@@ -42,3 +42,67 @@ describe('a callout', () => {
     expect(drawn('> just a quote\n> over two lines').callouts).toEqual([]);
   });
 });
+
+describe('front matter', () => {
+  it('is the note’s opening fence and its keys, drawn as keys rather than a rule', () => {
+    const view = new EditorView({
+      state: EditorState.create({ doc: '---\ntitle: A note\ntags: one, two\n---\n\nWords.', extensions: [glyphMarkdown([], []), extendedMarkdown()] }),
+      parent: document.body,
+    });
+    expect(view.contentDOM.querySelectorAll('.cm-front')).toHaveLength(4);
+    view.destroy();
+  });
+
+  it('is not a rule in the middle of a note, nor a fence with prose under it', () => {
+    expect(drawn('Words.\n\n---\n\nMore.').html).not.toContain('cm-front');
+    expect(drawn('---\njust some words\n---').html).not.toContain('cm-front');
+  });
+});
+
+describe('a definition list', () => {
+  it('sets the term apart and hangs the meaning under it', () => {
+    const { html } = drawn('Deposit\n: what you pay up front');
+    expect(html).toContain('cm-term');
+    expect(html).toContain('cm-definition');
+  });
+
+  it('leaves a colon that starts an ordinary line alone', () => {
+    expect(drawn('Words\n\n:not a definition').html).not.toContain('cm-definition');
+  });
+});
+
+describe('maths', () => {
+  it('sets both kinds as code, delimiters and all', () => {
+    expect(drawn('when $x^2 + y$ holds').html).toContain('cm-maths');
+    expect(drawn('$$\nx = y\n$$').html).not.toContain('cm-maths');
+    expect(drawn('the sum $$a + b$$ inline').html).toContain('cm-maths');
+  });
+
+  it('leaves a price alone', () => {
+    expect(drawn('it cost $20 and $30').html).toContain('cm-maths');
+  });
+});
+
+describe('an emoji shortcode', () => {
+  it('is drawn as its emoji', () => {
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'words\nparty :tada: time', extensions: [glyphMarkdown([], []), extendedMarkdown()] }),
+      parent: document.body,
+    });
+    expect(view.contentDOM.querySelector('.cm-emoji')?.textContent).toBe('🎉');
+    view.destroy();
+  });
+
+  it('comes back as words while the caret is on its line', () => {
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'party :tada: time', selection: { anchor: 2 }, extensions: [glyphMarkdown([], []), extendedMarkdown()] }),
+      parent: document.body,
+    });
+    expect(view.contentDOM.querySelector('.cm-emoji')).toBeNull();
+    view.destroy();
+  });
+
+  it('leaves a name it does not know as the words that were typed', () => {
+    expect(drawn('a :not_an_emoji_name: here').html).not.toContain('cm-emoji');
+  });
+});

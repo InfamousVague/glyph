@@ -129,6 +129,27 @@ export function Drawn({ row }: { row: MarkRow }) {
           {row.words}
         </span>
       );
+    case 'wiki':
+      return <span className={`${styles.example} ${styles.wiki}`}>{row.words}</span>;
+    case 'foot':
+      return (
+        <span className={styles.example}>
+          {row.words}
+          <sup className={styles.foot}>[^sam]</sup>
+          <span className={styles.panel}>{row.note}</span>
+        </span>
+      );
+    case 'definition':
+      return (
+        <span className={styles.example}>
+          <span className={styles.term}>{row.note}</span>
+          <span className={styles.meaning}>{row.words}</span>
+        </span>
+      );
+    case 'maths':
+      return <code className={`${styles.example} ${styles.mono}`}>{row.words}</code>;
+    case 'emoji':
+      return <span className={styles.example}>shipped {row.words}</span>;
     case 'rule':
       return <span className={`${styles.example} ${styles.rule}`} aria-label="a line across the page" />;
     case 'table':

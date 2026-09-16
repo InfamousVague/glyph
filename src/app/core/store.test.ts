@@ -8,9 +8,7 @@ describe('the list labels', () => {
   });
 
   it('previews the next line with inline marks taken out', () => {
-    expect(notePreview('Title\nSomething with **negative space** and one `strong` colour.')).toBe(
-      'Something with negative space and one strong colour.',
-    );
+    expect(notePreview('Title\nSomething with **negative space** and one `strong` colour.')).toBe('Something with negative space and one strong colour.');
     expect(notePreview('Title\n> _quiet_ words, ~~gone~~ here')).toBe('quiet words, gone here');
     expect(notePreview('Title\nThe key is ||under the stone||.')).toBe('The key is under the stone.');
   });
@@ -47,5 +45,21 @@ describe('the list order', () => {
   it('shows the archive most recently archived first', () => {
     const notes = [note('a', 1, { archivedAt: 10 }), note('b', 2, { archivedAt: 20 }), note('live', 3)];
     expect(archiveOrder(notes).map((n) => n.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('a note that opens with front matter', () => {
+  it('is named by its own title key, not by the fence', () => {
+    expect(noteTitle('---\ntitle: The deposit\ntags: cabin\n---\n\nWords.')).toBe('The deposit');
+    expect(noteTitle('---\ntitle: "Quoted name"\n---\n\nWords.')).toBe('Quoted name');
+  });
+
+  it('falls back to the first words under the fence when there is no title key', () => {
+    expect(noteTitle('---\ntags: cabin\n---\n\n# The deposit\n\nWords.')).toBe('The deposit');
+  });
+
+  it('leaves a rule in the middle of a note alone, and an unclosed fence', () => {
+    expect(noteTitle('Words first\n\n---\n\nMore.')).toBe('Words first');
+    expect(noteTitle('---\nnot really front matter, just words\n\nMore.')).toBe('---');
   });
 });

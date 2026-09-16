@@ -277,3 +277,26 @@
   font-weight: var(--glacier-font-weight-semibold);
   color: var(--glacier-text-muted);
 }
+
+/* A link to another note, a footnote's marker, and a definition under its term. */
+.wiki {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 0.06em;
+  text-decoration-color: color-mix(in oklch, currentColor 45%, transparent);
+}
+
+.foot {
+  font-size: 0.72em;
+  color: var(--glacier-text-muted);
+}
+
+.term {
+  display: block;
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.meaning {
+  display: block;
+  padding-inline-start: 1.2em;
+}

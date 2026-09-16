@@ -109,9 +109,7 @@ export async function saveNote(id: string, body: string, source: NoteSource = 'e
   const now = Date.now();
   const notes = webAll();
   const existing = notes.find((n) => n.id === id);
-  const note: Note = existing
-    ? { ...existing, body, updatedAt: now }
-    : { id, body, createdAt: now, updatedAt: now, source };
+  const note: Note = existing ? { ...existing, body, updatedAt: now } : { id, body, createdAt: now, updatedAt: now, source };
   webWrite([note, ...notes.filter((n) => n.id !== id)]);
   return note;
 }
@@ -149,12 +147,7 @@ function webFlag(
  * hash of the body it came from, and the model that wrote it. Not an edit: the
  * body and its time stand.
  */
-export async function setNoteFormatted(
-  id: string,
-  formatted: string | null,
-  formattedFor: number | null,
-  model: string | null,
-): Promise<Note | null> {
+export async function setNoteFormatted(id: string, formatted: string | null, formattedFor: number | null, model: string | null): Promise<Note | null> {
   if (isTauri()) return await invoke<Note | null>('set_note_formatted', { id, formatted, formattedFor, model });
   return webFlag(id, { formatted, formattedFor, formattedModel: model });
 }
@@ -171,9 +164,7 @@ export async function setNoteRecording(id: string, recordingMs: number | null, s
  * most recently archived first.
  */
 export function listOrder(notes: readonly Note[]): Note[] {
-  return notes
-    .filter((n) => !n.archivedAt)
-    .sort((a, b) => Number(Boolean(b.starred)) - Number(Boolean(a.starred)) || b.updatedAt - a.updatedAt);
+  return notes.filter((n) => !n.archivedAt).sort((a, b) => Number(Boolean(b.starred)) - Number(Boolean(a.starred)) || b.updatedAt - a.updatedAt);
 }
 
 export function archiveOrder(notes: readonly Note[]): Note[] {
@@ -201,11 +192,36 @@ export function newNoteId(): string {
   return `n-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** A note's lines with its front matter taken off, and its `title:` first where it has one. */
+function withoutFrontMatter(lines: readonly string[]): string[] {
+  if (!/^(---|\+\+\+)\s*$/.test(lines[0] ?? '')) return [...lines];
+  for (let n = 1; n < Math.min(lines.length, 40); n += 1) {
+    const line = lines[n] ?? '';
+    if (/^(---|\+\+\+)\s*$/.test(line)) {
+      const named = lines.slice(1, n).find((key) => /^\s*title\s*:/i.test(key));
+      const title = named
+        ? named
+            .replace(/^\s*title\s*:\s*/i, '')
+            .replace(/^['"]|['"]$/g, '')
+            .trim()
+        : '';
+      return title ? [title, ...lines.slice(n + 1)] : lines.slice(n + 1);
+    }
+    if (!/^\s*[\w.-]+\s*:/.test(line) && line.trim() !== '') return [...lines];
+  }
+  return [...lines];
+}
+
 /** The first line of a note, which is the only title Glyph has. */
 export function noteTitle(body: string): string {
+  // A note that opens with front matter is titled by its words, not by the
+  // fence: `---` in the list looked like a note with no name at all
+  // (docs/MARKDOWN.md). The keys between the fences are skipped with it, and
+  // `title:` among them is taken as the name, which is what wrote it.
+  const lines = withoutFrontMatter(body.split('\n'));
   // The first line that is words, not a picture: a note that opens with a
   // photo is titled by what is said under it.
-  const line = body.split('\n').find((l) => l.trim() && !/^!\[[^\]]*\]\([^)]*\)\s*$/.test(l)) ?? '';
+  const line = lines.find((l) => l.trim() && !/^!\[[^\]]*\]\([^)]*\)\s*$/.test(l)) ?? '';
   // Strip leading heading markers for the LIST only. The note itself keeps
   // every character; this is a label, not an edit.
   return line.replace(/^#{1,6}\s+/, '').trim();

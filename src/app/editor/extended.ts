@@ -1,6 +1,7 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
-import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { shortcodesIn } from '../core/emoji.ts';
 
 /**
  * The extended markdown Glyph draws but had no look for.
@@ -10,11 +11,39 @@ import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate
  * line is `[!NOTE]` - was an ordinary quote. Both are ordinary markdown anywhere else, so a note written in Glyph
  * reads the same in GitHub, Obsidian or a plain text editor, which is the whole point of the format.
  *
- * Nothing is hidden, as everywhere else in the editor: the marks stay, and the words between them take the look.
+ * Nothing is hidden, as everywhere else in the editor: the marks stay, and the words between them take the look. The
+ * one exception is a shortcode, which is replaced by its emoji the way a table is replaced by a table - the drawn
+ * thing being unmistakably the written thing - and comes back as words while the caret is on its line.
+ *
+ * What is drawn here, all of it ordinary markdown elsewhere (docs/MARKDOWN.md):
+ *
+ *   x^2^  H~2~O            raised and lowered runs
+ *   > [!NOTE]              a callout, GitHub's own spelling
+ *   Term / : the meaning   a definition list, as PHP Markdown Extra writes it
+ *   ---\ntitle: …\n---     front matter, which read as a horizontal rule before
+ *   $x^2$  $$ … $$         maths, set as code rather than drawn: a renderer is 280 KB the phone does not need
+ *   :tada:                 a shortcode, drawn as its emoji (core/emoji.ts)
  */
 
 /** The words of a raised or lowered run, by node name: the highlighter gives both the same tag. */
 const SCRIPTS: Record<string, string | undefined> = { Superscript: 'cm-sup', Subscript: 'cm-sub' };
+
+/** A definition's line: `: the meaning`, under the term it belongs to. */
+const DEFINITION = /^(\s{0,3}:)(\s+\S.*)$/;
+/** Maths, inline or on its own lines: `$x^2$`, `$$ … $$`. */
+const MATHS = /\$\$[^$]+\$\$|\$[^$\n]+\$/g;
+/** The fence of a front matter block, which is only front matter on the note's first line. */
+const FRONT = /^(---|\+\+\+)\s*$/;
+
+/** Which lines the note's front matter covers, or null: an opening fence on line 1 and the next one that closes it. */
+export function frontMatter(doc: { line: (n: number) => { text: string }; lines: number }): { from: number; to: number } | null {
+  if (!FRONT.test(doc.line(1).text)) return null;
+  for (let n = 2; n <= Math.min(doc.lines, 40); n += 1) {
+    if (FRONT.test(doc.line(n).text)) return { from: 1, to: n };
+    if (!/^\s*[\w.-]+\s*:/.test(doc.line(n).text) && doc.line(n).text.trim() !== '') return null;
+  }
+  return null;
+}
 
 /** A callout's kind, as GitHub writes it: `> [!NOTE]` on the quote's first line. */
 export const CALLOUT = /^\s*>\s*\[!(note|tip|important|warning|caution)\]\s*(.*)$/i;
@@ -25,8 +54,75 @@ export function calloutKind(firstLine: string): string | null {
   return found ? (found[1] ?? '').toLowerCase() : null;
 }
 
+/** A shortcode, drawn as its emoji. The words come back the moment the caret is on the line. */
+class EmojiWidget extends WidgetType {
+  constructor(
+    readonly emoji: string,
+    readonly name: string,
+  ) {
+    super();
+  }
+
+  eq(other: EmojiWidget): boolean {
+    return other.emoji === this.emoji;
+  }
+
+  toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'cm-emoji';
+    span.textContent = this.emoji;
+    span.title = this.name;
+    return span;
+  }
+}
+
 function decorate(state: EditorState, from: number, to: number): DecorationSet {
   const marks: { from: number; to: number; deco: Decoration }[] = [];
+  const caretLines = new Set(state.selection.ranges.map((range) => state.doc.lineAt(range.head).number));
+
+  // The note's own front matter, which the parser reads as a rule and a run of words.
+  const front = frontMatter(state.doc);
+  if (front) {
+    for (let n = front.from; n <= front.to; n += 1) {
+      const line = state.doc.line(n);
+      marks.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-front' }) });
+    }
+  }
+
+  const first = state.doc.lineAt(from).number;
+  const last = state.doc.lineAt(to).number;
+  for (let n = first; n <= last; n += 1) {
+    const line = state.doc.line(n);
+    if (front && n >= front.from && n <= front.to) continue;
+
+    // A definition under its term: the line hangs off its colon, and the term above it is set apart.
+    const definition = DEFINITION.exec(line.text);
+    if (definition) {
+      marks.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-definition' }) });
+      const above = n > 1 ? state.doc.line(n - 1) : null;
+      if (above && above.text.trim() && !DEFINITION.test(above.text)) {
+        marks.push({ from: above.from, to: above.from, deco: Decoration.line({ class: 'cm-term' }) });
+      }
+    }
+
+    // Maths, set as code: read as what it is without carrying a renderer for it.
+    for (let match = MATHS.exec(line.text); match; match = MATHS.exec(line.text)) {
+      marks.push({ from: line.from + match.index, to: line.from + match.index + match[0].length, deco: Decoration.mark({ class: 'cm-maths' }) });
+    }
+    MATHS.lastIndex = 0;
+
+    // A shortcode becomes its emoji, unless the caret is on that line, where the words are wanted.
+    if (!caretLines.has(n)) {
+      for (const code of shortcodesIn(line.text, line.from)) {
+        marks.push({
+          from: code.from,
+          to: code.to,
+          deco: Decoration.replace({ widget: new EmojiWidget(code.emoji, state.doc.sliceString(code.from, code.to)) }),
+        });
+      }
+    }
+  }
+
   syntaxTree(state).iterate({
     from,
     to,
@@ -92,6 +188,25 @@ const theme = EditorView.baseTheme({
   },
   '.cm-calloutTop': { fontWeight: 'var(--glacier-font-weight-semibold, 600)', paddingBlockStart: '0.25em', borderStartStartRadius: '0.4em' },
   '.cm-callout:not(.cm-calloutTop):last-of-type': { paddingBlockEnd: '0.25em' },
+
+  // Front matter: the note's keys, quiet and set in the note's mono face, and no longer a rule across the page.
+  '.cm-front, .cm-front *': {
+    fontFamily: 'var(--glacier-font-mono)',
+    fontSize: '0.84em',
+    color: 'var(--app-ink-3, var(--glacier-text-muted))',
+    textDecoration: 'none',
+    fontWeight: 'inherit',
+  },
+  '.cm-front': { background: 'color-mix(in oklch, currentColor 3%, transparent)' },
+
+  // A definition hangs under its term, the way a glossary sets one.
+  '.cm-term': { fontWeight: 'var(--glacier-font-weight-semibold, 600)' },
+  '.cm-definition': { paddingInlineStart: '1.2em' },
+
+  // Maths, as code: the delimiters stay, because they are what makes it maths.
+  '.cm-maths': { fontFamily: 'var(--glacier-font-mono)', fontSize: '0.92em', color: 'var(--app-ink-2, var(--glacier-text))' },
+
+  '.cm-emoji': { fontSize: '1.05em', lineHeight: '1' },
 });
 
 /** Superscript, subscript and callouts, drawn as what they are. */
@@ -106,7 +221,7 @@ export function extendedMarkdown(): Extension {
         }
 
         update(update: ViewUpdate) {
-          if (update.docChanged || update.viewportChanged) this.decorations = this.build(update.view);
+          if (update.docChanged || update.viewportChanged || update.selectionSet) this.decorations = this.build(update.view);
         }
 
         private build(view: EditorView): DecorationSet {

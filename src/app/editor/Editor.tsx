@@ -12,6 +12,8 @@ import { doneSync } from './doneSync.ts';
 import { linkedRows, type LinkMenus } from './linkedRows.ts';
 import { shortLinks } from './links.ts';
 import { extendedMarkdown } from './extended.ts';
+import { footnotes } from './footnotes.ts';
+import { wikiLinks, type WikiOptions } from './wikiLinks.ts';
 import { markNotes } from './markNotes.ts';
 import { drawnTables } from './tables.ts';
 import { swipeItemAction, swipeItemTheme, type SwipeAction } from './swipeItems.ts';
@@ -78,6 +80,8 @@ interface EditorProps {
    * made. Absent: the rows show, and open nothing.
    */
   linkMenus?: LinkMenus;
+  /** Links from one note to another, `[[Title]]` (editor/wikiLinks.ts); absent where a note cannot be opened. */
+  wiki?: WikiOptions;
   /**
    * As tall as its words, scrolled by the page around it rather than inside
    * itself: the note screen, where the tape scrolls away with the first lines.
@@ -147,6 +151,7 @@ export function Editor({
   swipeAction,
   suggest,
   linkMenus,
+  wiki,
   grow = false,
   tape = null,
   tapeId = null,
@@ -170,6 +175,8 @@ export function Editor({
   suggestRef.current = suggest;
   const linkMenusRef = useRef(linkMenus);
   linkMenusRef.current = linkMenus;
+  const wikiRef = useRef(wiki);
+  wikiRef.current = wiki;
 
   const themeSlot = useRef(new Compartment());
   const assistSlot = useRef(new Compartment());
@@ -195,6 +202,10 @@ export function Editor({
         glyphLines,
         // Superscript, subscript and GitHub callouts, drawn as what they are (editor/extended.ts).
         extendedMarkdown(),
+        // [^a] raised and quiet, its words on a tap (editor/footnotes.ts).
+        footnotes(),
+        // [[Another note]] opens that note, or makes it (editor/wikiLinks.ts).
+        wikiLinks(wiki ? { known: (title) => wikiRef.current?.known(title) ?? false, open: (title) => wikiRef.current?.open(title) } : null),
         inlineImages((message) => onImageErrorRef.current?.(message)),
         shortLinks(),
         linkedRows(linkMenus ? { say: (message) => linkMenusRef.current?.say(message) } : null),

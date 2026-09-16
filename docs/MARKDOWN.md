@@ -28,61 +28,62 @@ Measured by parsing each sample with the app's own language (`editor/language.ts
 | Superscript `^x^`          | yes    | yes   | Added 2026-09-16; was parsed and drawn as plain words        |
 | Subscript `~x~`            | yes    | yes   | Added 2026-09-16                                            |
 | Callouts `> [!NOTE]`       | as a quote | yes | Added 2026-09-16. NOTE, TIP, IMPORTANT, WARNING, CAUTION    |
-| Emoji `:tada:`             | yes    | as text | Parsed as an `Emoji` node; left as the words that were typed |
-| Footnotes `[^1]`           | no     | as a link | Reads as a link label, which is wrong. See below           |
-| Definition lists           | no     | as text |                                                            |
-| Front matter               | no     | as a rule | The opening `---` becomes a horizontal rule                |
-| Math `$x$`, `$$x$$`        | no     | as text |                                                            |
-| Wiki links `[[Note]]`      | no     | as text |                                                            |
+| Emoji `:tada:`             | yes    | yes   | Drawn as the emoji; the words come back while the caret is on the line. A name Glyph doesn't know stays as words |
+| Footnotes `[^1]`           | yes    | yes   | The marker raised and quiet, what it says on a tap; the definition set as small print. A marker with no definition stays plain, because it is a typo |
+| Definition lists           | yes    | yes   | `Term` then `: the meaning`; the term set apart, the meaning hanging under it |
+| Front matter               | yes    | yes   | Drawn as quiet keys rather than a rule, and the note is named by its `title:` |
+| Math `$x$`, `$$x$$`        | yes    | yes   | Set as code, delimiters and all. No renderer: KaTeX is ~280 KB the phone doesn't need |
+| Wiki links `[[Note]]`      | yes    | yes   | Opens that note; a title with no note is drawn dashed, and tapping it makes the note and opens it |
 
 Glyph's own marks are on top of that, each from the Marks plugin and switched off with it: `||spoiler||`,
 `==highlight==`, `%%aside%%`, `??unsure??`, `^^shout^^`, `++added++`, and a note on any of them in brackets —
 `??four hundred??(Sam said 400)`. They were checked against the extended syntax above: `^^shout^^` and `^x^`,
 `~~struck~~` and `~x~`, `++added++` and a list's `+` marker all parse as themselves.
 
-## What is worth adding, and why
+## What was added, and why
 
-Ordered by what a voice-first notes app actually gains. Each one has to answer three questions: does it read as words
-without Glyph, can it be said out loud, and does it earn its place on a phone screen.
+All six of the gaps above were built on 2026-09-16. What each one had to answer: does it read as words without Glyph,
+can it be said out loud, and does it earn its place on a phone screen.
 
-### 1. Wiki links between notes — `[[Another note]]`
+### Wiki links — `[[Another note]]`
 
-The biggest one, and not really formatting: it is the feature Glyph is missing. A note that can point at another note
-makes a pile of notes into something you can navigate, and the syntax is already what Obsidian and every other notes
-app writes. Said: “link to *the cabin trip*”. Tapping it opens that note; a name with no note offers to make it.
+The one that is really a feature rather than formatting: a note that points at another note makes a pile of notes into
+something you can walk through, and the syntax is what every notes app already writes. A title that matches a note
+opens it. A title that matches nothing is drawn dashed and quiet — a place to go, not a mistake — and tapping it makes
+that note with the title as its heading and opens it. Titles match the way a person says them, case and punctuation
+aside, so `[[the cabin trip]]` finds "The cabin trip."
 
-Cost: resolving a title to a note, a way to show an unresolved link, and navigation. Worth doing properly rather than
-cheaply.
+Nothing is stored: the link IS the title. Renaming a note is a matter of the words in it.
 
-### 2. Footnotes — `[^1]` and `[^1]: the source`
+### Footnotes — `[^sam]` and `[^sam]: what it says`
 
-Already common in extended markdown, and today they read as links, which is actively wrong. A phone screen is the
-place where a reference belongs at the bottom rather than inline. Drawn: the marker raised and quiet, tapping it
-showing the note the way a mark's own note does (`editor/markNotes.ts` already has the panel).
+They used to read as links, which is worse than not supporting them: a link is a promise. The marker is now raised and
+quiet the way print sets one, and tapping it shows what the note says, because on a phone the foot of the note is a
+long way down and the point of a footnote is not to have to go there. The definition line is set as small print. A
+marker with no definition stays plain words — it is a typo, and drawing it as a footnote would hide that.
 
-Small, correct, and it removes a wrong reading. This is the one I would do next.
+### Definition lists — `Term` / `: the meaning`
 
-### 3. Definition lists — `Term` / `: the meaning`
+For the glossary note everybody keeps. The term is set apart, the meaning hangs under it, and both degrade to two
+readable lines anywhere else.
 
-For a glossary note, which is exactly the note people keep. Cheap to parse, easy to draw as a hanging indent, and it
-degrades to two readable lines. Said: “define *deposit* as …”.
+### Emoji — `:tada:` → 🎉
 
-### 4. Emoji shortcodes drawn as emoji — `:tada:` → 🎉
+Parsed already; now drawn. This is the one place besides tables, pictures and clips where Glyph replaces what is
+written, and it earns it because the drawn thing is unmistakably the written thing. The words come back the moment the
+caret is on that line. The list is the hundred-odd names people actually type (`core/emoji.ts`), GitHub's spellings;
+anything else stays as the words that were typed.
 
-Parsed already. Drawing it means replacing the words, which Glyph only does where the thing drawn is unmistakably the
-same thing (a table, a picture, a board). An emoji qualifies. Wants a name table, which is weight; a short list of the
-hundred people actually type would cover it.
+### Front matter
 
-### 5. Front matter
+A note from Obsidian or a static site opens with `---`, which Glyph drew as a horizontal rule — it looked like a
+mistake, and worse, the note was called "---" in the list. The block is now drawn as quiet keys in the note's mono
+face, and the note takes its name from `title:` where it has one, or from the first words under the fence.
 
-Obsidian and every static site write YAML at the top of a note, and Glyph turns the opening `---` into a horizontal
-rule, which looks like a mistake. Drawing it as a quiet block of keys, or at least not as a rule, would make notes
-from other tools open cleanly. No voice cue; nobody dictates front matter.
+### Maths — `$x^2$`, `$$ … $$`
 
-### 6. Math — `$x^2$`
-
-Only with a renderer (KaTeX is ~280 KB), and the app is on-device and small. Parse it so it does not read as
-punctuation, draw it as code, and leave rendering until someone asks.
+Set as code, delimiters and all, so it reads as what it is. No renderer: KaTeX is around 280 KB for something a notes
+app meets a few times a year. If someone wants it drawn, that is a plugin.
 
 ### Deliberately not
 

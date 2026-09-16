@@ -70,11 +70,15 @@ interface NoteScreenProps {
   onSpeak: (id: string) => void;
   onPin: (note: Note) => void;
   onArchive: (note: Note) => void;
+  /** Opens the note by that title, making it where there is none: what a [[link]] in the words does. */
+  onOpenTitle?: (title: string) => void;
+  /** Whether a note by that title exists, for drawing a [[link]] as written or as waiting. */
+  hasTitle?: (title: string) => boolean;
 }
 
 const SAVE_DEBOUNCE_MS = 400;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -573,6 +577,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
               }))
             }
             linkMenus={{ say: (message) => editing.say(message) }}
+            wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle } : undefined}
             grow
           />
         </div>
