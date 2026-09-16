@@ -5,6 +5,9 @@ import { useEffect, type RefObject } from 'react';
  * Where a note was being read, so it opens there again (Matt: "add bookmarking notes so opening the same note later
  * reopens to the same position"), and the bookmark the header's button puts in it, which wins over that.
  *
+ * The two are read differently: the place is wherever the page was left, and the bookmark is the line the caret is on
+ * (`caretPlace`), falling back to the page in a note the caret has not been put in.
+ *
  * A place is the line at the top of the page and how far into it the page was scrolled, not a pixel count: a note
  * that grew above that line since (a recording added, a paragraph typed) still opens on the same words. Kept on the
  * page under one key, for the most recent notes only.
@@ -97,6 +100,21 @@ export function placeOf(view: EditorView, page: HTMLElement): Place | null {
   if (page.scrollTop <= TOP_PX || y < 0) return null;
   const block = view.lineBlockAtHeight(y);
   return { pos: block.from, offset: Math.max(0, y - block.top) };
+}
+
+/**
+ * The caret as a place: the line it is on, from that line's top (Matt: "bookmarking notes is not placing the bookmark
+ * on the carat of the text"). A bookmark is put on the words being read or written, not on whatever happens to be at
+ * the top of the page.
+ *
+ * Null when the caret's line is not on screen, which is the case in a note nobody has touched since it opened: the
+ * caret is at the start and the page is somewhere else, so where the page is scrolled to is what the person means.
+ */
+export function caretPlace(view: EditorView, page: HTMLElement): Place | null {
+  const block = view.lineBlockAt(Math.min(view.state.selection.main.head, view.state.doc.length));
+  const top = documentOffset(view, page) + block.top;
+  const seen = top >= page.scrollTop - 1 && top < page.scrollTop + page.clientHeight;
+  return seen ? { pos: block.from, offset: 0 } : null;
 }
 
 /** Scrolls the page back to `place`, clamped to the note as it is now. */

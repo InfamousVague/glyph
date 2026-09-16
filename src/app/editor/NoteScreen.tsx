@@ -5,7 +5,7 @@ import type { EditorView } from '@codemirror/view';
 import { ArrowLeft } from '../art/Icons.tsx';
 import { adoptImagePath, pickImage } from '../core/images.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
-import { placeOf, readBookmark, scrollToPlace, useNotePlace, writeBookmark } from './notePlace.ts';
+import { caretPlace, placeOf, readBookmark, scrollToPlace, useNotePlace, writeBookmark } from './notePlace.ts';
 import { markedWords, showBookmark } from './bookmarkLine.ts';
 import { hasClips, setTapeId, tapeId } from '../core/clips.ts';
 import { useNoteZoom } from './pinchZoom.ts';
@@ -339,11 +339,12 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
   const bookmark = () => {
     const scroller = page.current;
     if (!view || !scroller) return;
-    const here = placeOf(view, scroller);
+    // The caret's own line first: a bookmark marks the words being read, not the top of the page (editor/notePlace.ts).
+    const here = caretPlace(view, scroller) ?? placeOf(view, scroller);
     const mark = readBookmark(note.id);
     if (!mark) {
       if (!here) {
-        toast({ message: 'Scroll to the part you want to keep, then tap the bookmark.' });
+        toast({ message: 'Tap the line you want to keep, then tap the bookmark.' });
         return;
       }
       writeBookmark(note.id, here);
