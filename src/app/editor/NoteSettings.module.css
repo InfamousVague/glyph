@@ -143,16 +143,9 @@
 }
 
 /*
- * The robot's group: glass, so the AI's own rows read as a pane of their own inside the sheet (Matt: "give the
- * dropdown for the robot tools like formatting glass mode", and "move robot dropdown in topbar into more drawer with
- * an AI group label").
+ * The robot's rows are an ordinary group under their "AI" heading (Matt: "the AI section shouldnt look different from
+ * the background of other items in more"). It had glass of its own before; the heading is enough to set it apart.
  */
-.ai {
-  background: color-mix(in oklch, var(--glacier-text) 7%, transparent);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  border: 1px solid color-mix(in oklch, var(--glacier-text) 12%, transparent);
-}
 
 /* The mode showing now: a dot at the end of its row. */
 .chosen {

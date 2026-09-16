@@ -22,6 +22,7 @@ import { noteView, type NoteView } from './viewMode.ts';
 import { findExtension } from './find.ts';
 import { clips, tapeSource } from './clips.ts';
 import { drawnBoards } from './boards.ts';
+import { bookmarkRibbon } from './bookmarkLine.ts';
 import { wispRipples, type RippleSource } from './wispRipples.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { InlineFormat } from '../plugins/types.ts';
@@ -201,6 +202,8 @@ export function Editor({
         doneSync(),
         // Voice memos left in the note, played where they sit (clips.ts).
         clips(),
+        // The bookmarked line, marked so the place can be seen (bookmarkLine.ts).
+        bookmarkRibbon(),
         tapeSlot.current.of(tapeSource.of({ src: tape, id: tapeId })),
         swipeItemTheme,
         EditorView.lineWrapping,

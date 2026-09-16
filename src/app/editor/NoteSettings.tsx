@@ -174,7 +174,7 @@ export function NoteSettings({
         {onMode ? (
           <>
             <p className={styles.heading}>AI</p>
-            <div className={`${styles.group} ${styles.ai}`}>
+            <div className={styles.group}>
               {MODES.map((words) => (
                 <button
                   key={words.id}

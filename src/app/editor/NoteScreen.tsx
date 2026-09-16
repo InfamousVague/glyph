@@ -6,6 +6,7 @@ import { ArrowLeft } from '../art/Icons.tsx';
 import { adoptImagePath, pickImage } from '../core/images.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { placeOf, readBookmark, scrollToPlace, useNotePlace, writeBookmark } from './notePlace.ts';
+import { markedWords, showBookmark } from './bookmarkLine.ts';
 import { hasClips, setTapeId, tapeId } from '../core/clips.ts';
 import { useNoteZoom } from './pinchZoom.ts';
 import { ContextMenu } from './ContextMenu.tsx';
@@ -306,6 +307,30 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
   /** Whether this note has a bookmark, for the header's button. */
   const [marked, setMarked] = useState(() => readBookmark(note.id) !== null);
   useEffect(() => setMarked(readBookmark(note.id) !== null), [note.id]);
+  /** The bookmarked line, ribboned in the note so the place can be seen (editor/bookmarkLine.ts). */
+  const showMark = useCallback(
+    (at: number | null) => {
+      view?.dispatch({ effects: showBookmark.of(at) });
+    },
+    [view],
+  );
+  // The note's words arrive a moment after its editor, so the ribbon waits for the line it belongs on.
+  useEffect(() => {
+    if (!view) return undefined;
+    const at = readBookmark(note.id)?.pos ?? null;
+    if (at === null || view.state.doc.length >= at) {
+      showMark(at);
+      return undefined;
+    }
+    let frame = 0;
+    const started = performance.now();
+    const wait = () => {
+      if (view.state.doc.length >= at || performance.now() - started > 2500) showMark(at);
+      else frame = requestAnimationFrame(wait);
+    };
+    frame = requestAnimationFrame(wait);
+    return () => cancelAnimationFrame(frame);
+  }, [note.id, view, showMark]);
 
   /**
    * The bookmark: with none, this spot becomes it; with one, the note goes to it; and pressed again where it already
@@ -323,19 +348,24 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive }
       }
       writeBookmark(note.id, here);
       setMarked(true);
+      showMark(here.pos);
       fireNativeHaptic('success');
-      toast({ message: 'Bookmarked. This note opens here.' });
+      // The words it landed on are said back, so the place is known without scrolling to it.
+      const words = markedWords(view, here.pos);
+      toast({ message: words ? `Bookmarked at “${words}”. This note opens here.` : 'Bookmarked. This note opens here.' });
       return;
     }
     const atIt = here !== null && here.pos === mark.pos && Math.abs(here.offset - mark.offset) < 24;
     if (atIt) {
       writeBookmark(note.id, null);
       setMarked(false);
+      showMark(null);
       fireNativeHaptic('warning');
       toast({ message: 'Bookmark taken off.' });
       return;
     }
     scrollToPlace(view, scroller, mark);
+    showMark(mark.pos);
     fireNativeHaptic('selection');
   };
   // Two fingers pinch the note's text larger or smaller (editor/pinchZoom.ts).
