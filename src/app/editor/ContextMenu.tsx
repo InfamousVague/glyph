@@ -116,14 +116,15 @@ interface Open {
 type Clipboard = { text?: string; path?: string; error?: string };
 
 /**
- * What is on the clipboard, however this build can find out.
+ * What is on the clipboard, however this build can find out, and whether anything could actually answer.
  *
- * The activity is asked first, because it is the only one that answers with a picture, and it is the reader that
- * works inside the app. Where it answers with nothing at all - no activity (the web app), an older activity, or a
- * read that came back empty - the browser's own reader is tried as well, so a build that can paste pastes. Both
- * failing is said out loud rather than passed over in silence (Matt: "it still isnt letting me paste").
+ * The activity is asked first: it is the only reader that answers with a picture, and inside the app it is usually
+ * the only reader there is - `navigator.clipboard.readText` is missing or refuses in Android's WebView, where the
+ * permission behind it is not wired up. The browser's reader is tried where the activity gives nothing, which is what
+ * the web app has. When neither answers, that is not the same as an empty clipboard, and `read` says so, because a
+ * message claiming the clipboard is empty when it could not be read sends a person looking in the wrong place.
  */
-async function readClipboard(): Promise<Clipboard> {
+async function readClipboard(): Promise<{ clip: Clipboard; read: boolean }> {
   const host = (window as { GlyphHost?: { readClipboard?: () => string } }).GlyphHost;
   let said: Clipboard = {};
   if (typeof host?.readClipboard === 'function') {
@@ -131,14 +132,15 @@ async function readClipboard(): Promise<Clipboard> {
       const answer = host.readClipboard();
       said = answer ? (JSON.parse(answer) as Clipboard) : {};
     } catch {
-      // The activity could not read it (an old build, or a reader that threw): the browser is tried below.
+      // The activity could not read it (an older build, or a read that threw): the browser is tried below.
       said = {};
     }
   }
-  if (said.text || said.path || said.error) return said;
-  if (typeof navigator.clipboard?.readText !== 'function') return said;
+  if (said.text || said.path || said.error) return { clip: said, read: true };
+  if (typeof navigator.clipboard?.readText !== 'function') return { clip: said, read: false };
+  // A reader that answers, even with nothing, has told us the clipboard is empty. One that throws is the caller's.
   const text = await navigator.clipboard.readText();
-  return text ? { text } : said;
+  return text ? { clip: { text }, read: true } : { clip: {}, read: true };
 }
 
 /** Whether a Paste row is worth showing at all: one of the two readers is there to try. */
@@ -294,14 +296,15 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
   };
 
   const paste = async () => {
-    let clip: Clipboard;
+    let got: { clip: Clipboard; read: boolean };
     try {
-      clip = await readClipboard();
+      got = await readClipboard();
     } catch {
-      // Refused: nothing is pasted, and the person is told why rather than left guessing at a row that does nothing.
-      say?.('Glyph can’t read the clipboard here. Tap into the note and paste from your keyboard instead.');
+      // Refused outright: nothing is pasted, and the person is told why rather than left guessing at a dead row.
+      say?.('Glyph couldn’t reach the clipboard here. Tap into the note and paste from your keyboard instead.');
       return;
     }
+    const { clip, read } = got;
     if (clip.error) {
       say?.(clip.error);
       return;
@@ -311,7 +314,14 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
       return;
     }
     if (!clip.text) {
-      say?.('Nothing on the clipboard to paste. Copy the words again, then hold here.');
+      // Nothing came back. Only a reader that answered can say the clipboard is empty; otherwise it went unread.
+      // An activity that answered with nothing cannot tell an empty clipboard from a read it was refused, so the
+      // words say only what is certain: nothing arrived, and here is the way round it.
+      say?.(
+        read
+          ? 'Nothing on the clipboard to paste. Copy the words again, then hold here.'
+          : 'Nothing came back from the clipboard. Copy it again, or tap into the note and paste from your keyboard.',
+      );
       return;
     }
     view.dispatch({ changes: { from, to, insert: clip.text }, selection: { anchor: from + clip.text.length } });
