@@ -13,6 +13,14 @@ import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate
  *
  * Matching is by the title as a person would say it: case and punctuation aside, so "the cabin trip" finds "The
  * cabin trip." Nothing is stored: the link IS the title, and renaming a note is a matter of the words in it.
+ *
+ * A `#` in the brackets points inside a note rather than at one, the way Obsidian writes a block reference:
+ *
+ *   [[#^ship-page]]              somewhere in THIS note - not a wiki link at all, and left to editor/boards.ts
+ *   [[The cabin trip#^friday]]   a note, and a place in it: the title resolves here, the anchor is passed on
+ *
+ * So a link with nothing before the `#` is not answered here, and one with a title keeps its anchor for whoever
+ * opens it. Everything before the first `#` is the title; everything after it is the anchor, `^` and all.
  */
 
 /** `[[Another note]]`: the brackets, and the title between them. */
@@ -22,8 +30,10 @@ export interface WikiLink {
   /** The whole thing, brackets included. */
   from: number;
   to: number;
-  /** The title as it is written in the note. */
+  /** The title as it is written in the note: everything before a `#`. */
   title: string;
+  /** What followed the first `#`, `^` and all, for a link that points at a place inside the note. */
+  anchor: string | null;
 }
 
 /** Every wiki link in the text, counting positions from `offset`. */
@@ -31,8 +41,13 @@ export function wikiLinksIn(text: string, offset = 0): WikiLink[] {
   const found: WikiLink[] = [];
   WIKI.lastIndex = 0;
   for (let match = WIKI.exec(text); match; match = WIKI.exec(text)) {
-    const title = (match[1] ?? '').trim();
-    if (title) found.push({ from: offset + match.index, to: offset + match.index + match[0].length, title });
+    const inside = (match[1] ?? '').trim();
+    const hash = inside.indexOf('#');
+    const title = (hash >= 0 ? inside.slice(0, hash) : inside).trim();
+    // `[[#^anchor]]` is a place in this note, not a note: another hand draws it (editor/boards.ts).
+    if (!title) continue;
+    const anchor = hash >= 0 ? inside.slice(hash + 1).trim() : '';
+    found.push({ from: offset + match.index, to: offset + match.index + match[0].length, title, anchor: anchor || null });
   }
   return found;
 }
@@ -50,8 +65,8 @@ export function sameTitle(one: string, two: string): boolean {
 export interface WikiOptions {
   /** Whether a note by that title exists; a link to one that does not is drawn as waiting. */
   known: (title: string) => boolean;
-  /** Opens the note by that title, making it first where there is none. */
-  open: (title: string) => void;
+  /** Opens the note by that title, making it first where there is none. `anchor` is what followed a `#`, if any. */
+  open: (title: string, anchor?: string) => void;
 }
 
 function decorate(state: EditorState, known: (title: string) => boolean): DecorationSet {
@@ -103,7 +118,7 @@ export function wikiLinks(given: WikiOptions | null): Extension {
             if (!link) return false;
             // The press does not reach the editor, so the caret stays where it was and the note simply opens.
             event.preventDefault();
-            options.open(link.title);
+            options.open(link.title, link.anchor ?? undefined);
             return true;
           },
         },

@@ -33,7 +33,7 @@ Measured by parsing each sample with the app's own language (`editor/language.ts
 | Definition lists           | yes    | yes   | `Term` then `: the meaning`; the term set apart, the meaning hanging under it |
 | Front matter               | yes    | yes   | Drawn as quiet keys rather than a rule, and the note is named by its `title:` |
 | Math `$x$`, `$$x$$`        | yes    | yes   | Set as code, delimiters and all. No renderer: KaTeX is ~280 KB the phone doesn't need |
-| Wiki links `[[Note]]`      | yes    | yes   | Opens that note; a title with no note is drawn dashed, and tapping it makes the note and opens it |
+| Wiki links `[[Note]]`      | yes    | yes   | Opens that note; a title with no note is drawn dashed, and tapping it makes the note and opens it. `[[Note#^anchor]]` splits on the first `#`; `[[#^anchor]]` is a place in this note and belongs to `editor/boards.ts` |
 
 Glyph's own marks are on top of that, each from the Marks plugin and switched off with it: `||spoiler||`,
 `==highlight==`, `%%aside%%`, `??unsure??`, `^^shout^^`, `++added++`, and a note on any of them in brackets —
@@ -54,6 +54,10 @@ that note with the title as its heading and opens it. Titles match the way a per
 aside, so `[[the cabin trip]]` finds "The cabin trip."
 
 Nothing is stored: the link IS the title. Renaming a note is a matter of the words in it.
+
+A `#` in the brackets points inside a note rather than at one, the way Obsidian writes a block reference.
+`[[The cabin trip#^friday]]` resolves the title here and hands the anchor to whoever opens it; `[[#^friday]]`, which
+has no title at all, is not a wiki link and is left to the board's own drawing (`editor/boards.ts`).
 
 ### Footnotes — `[^sam]` and `[^sam]: what it says`
 
