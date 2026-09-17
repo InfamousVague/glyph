@@ -26,6 +26,10 @@
     "android:build": "JAVA_HOME=\"/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home\" ANDROID_HOME=\"$HOME/Library/Android/sdk\" NDK_HOME=\"$HOME/Library/Android/sdk/ndk/26.3.11579264\" tauri android build",
     "push:fold": "node scripts/push-fold.mjs",
     "fetch:model": "node scripts/fetch-model.mjs",
+    "voice:text": "node scripts/voice-suite-text.mjs",
+    "voice:hear": "cd src-tauri && cargo test --release --lib whisper::suite -- --ignored --nocapture",
+    "voice:check": "GLYPH_VOICE=1 vitest run src/app/capture/voiceSuite",
+    "voice:suite": "npm run voice:hear && npm run voice:check",
     "deploy:ota": "node scripts/deploy-ota.mjs",
     "deploy:server": "node scripts/deploy-server.mjs"
   },

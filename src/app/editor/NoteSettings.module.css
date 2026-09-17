@@ -21,7 +21,11 @@
   overflow-y: auto;
   padding: var(--glacier-space-2) calc(var(--app-safe-right, 0px) + var(--app-gutter)) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-5)) calc(var(--app-safe-left, 0px) + var(--app-gutter));
   border-radius: var(--glacier-radius-xl, 1.5rem) var(--glacier-radius-xl, 1.5rem) 0 0;
-  background: var(--app-paper-2, var(--glacier-surface));
+  /* What is shown in the sheet, the cheat sheet among it, draws against this (guide/CheatSheet.module.css). */
+  --sheet-ground: var(--app-paper-2, var(--glacier-surface));
+  /* The space kept above what scrolls in the sheet, which a pinned strip covers (the padding's first value). */
+  --sheet-inset-top: var(--glacier-space-2);
+  background: var(--sheet-ground);
   border-block-start: 1px solid var(--glacier-border-subtle);
   animation: sheet-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
 }

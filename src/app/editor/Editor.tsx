@@ -19,6 +19,7 @@ import { counters } from './counters.ts';
 import { sums } from './sums.ts';
 import { headingProgress } from './headingProgress.ts';
 import { choices } from './choices.ts';
+import { linkCards } from './linkCards.ts';
 import { wikiLinks, type WikiOptions } from './wikiLinks.ts';
 import { markNotes } from './markNotes.ts';
 import { drawnTables } from './tables.ts';
@@ -223,6 +224,8 @@ export function Editor({
         wikiLinks(wiki ? { known: (title) => wikiRef.current?.known(title) ?? false, open: (title, anchor) => wikiRef.current?.open(title, anchor) } : null),
         inlineImages((message) => onImageErrorRef.current?.(message)),
         shortLinks(),
+        // A card under a line that is only a link (editor/linkCards.ts).
+        linkCards(),
         linkedRows(linkMenus ? { say: (message) => linkMenusRef.current?.say(message) } : null),
         drawnTables(),
         // Boards drawn from a ```board fence, their cards the note's own list items (editor/boards.ts).

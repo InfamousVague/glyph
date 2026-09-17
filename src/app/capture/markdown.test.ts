@@ -151,7 +151,7 @@ describe('renderNote with local rules', () => {
 
   it('emboldens a spoken "important"', () => {
     const { markdown } = renderNote(spoken('This is a longer opening about the deadline itself.', 'Important: it moved to Friday.'));
-    expect(markdown).toContain('**Important:** it moved to Friday.');
+    expect(markdown).toContain('**Important:** It moved to Friday.');
   });
 
   // The paragraph survives rendering, not just toParagraphs: sentences of one
@@ -452,5 +452,12 @@ describe('a plugin formatting said aloud', () => {
     } finally {
       setSpokenFormats([]);
     }
+  });
+});
+
+describe('spoken marks closed with "and"', () => {
+  it('closes a common mark mid-sentence around three words or more, and leaves a short phrase alone', () => {
+    expect(spokenInlineMarkup('the hot tub is italic strictly off limits and italic after ten')).toBe('the hot tub is _strictly off limits_ after ten');
+    expect(spokenInlineMarkup('it was bold thinking and bold action')).toBe('it was bold thinking and bold action');
   });
 });

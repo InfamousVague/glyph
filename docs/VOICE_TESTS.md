@@ -1,4 +1,25 @@
-# Voice tests: six recordings, one note
+# Voice tests
+
+## The suite: one recording per feature
+
+`voice-tests/suite.json` is the whole list: every spoken cue, command and recording behaviour, one short recording
+each, with the notes it must leave. `npm run voice:text` writes it out as a script to record from
+(`~/Desktop/Glyph voice tests.txt`), and `python3 scripts/voice-tests/make_audio.py --voice <id>` makes the recordings
+with ElevenLabs into `~/Desktop/glyph-voice-tests/` (`--say <voice>` uses macOS's own voice instead, to try it
+without a key).
+
+Two runs check it:
+
+- **From the scripts**, always, in `npm test` (`src/app/capture/voiceSuite.test.ts`): each line is one phrase with
+  its silence, replayed through the recorder's own logic (`capture/take.ts`, which CaptureScreen drives), against the
+  standard notes. This is the rules.
+- **From the audio**, `npm run voice:suite`: Whisper on this Mac hears each recording through the phone's streaming
+  path (`src-tauri/src/whisper/suite.rs`, into `.heard/` beside the files), and the same checks run on what it heard.
+  This is the rules against real speech. `GLYPH_VOICE_ONLY=051 npm run voice:hear` hears one.
+
+The older six-take walkthrough below is for playing into the phone by hand.
+
+## By hand: six recordings, one note
 
 Six scripts to record as audio (ElevenLabs), played into the phone's microphone while Glyph listens, to
 check that every spoken cue writes the mark it promises and that plain speech stays plain. Together the
@@ -97,7 +118,7 @@ For the drive we need:
 
 > The deposit comes back in full if the place is clean.
 
-**Important:** they need the balance by Wednesday.
+**Important:** They need the balance by Wednesday.
 
 ---
 
@@ -207,7 +228,7 @@ and a cue said on its own then applied to the next sentence.
 
 > The deposit comes back in full if the place is clean.
 
-**Important:** they need the balance by Wednesday.
+**Important:** They need the balance by Wednesday.
 
 ---
 

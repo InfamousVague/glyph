@@ -107,7 +107,30 @@ const ICONS = {
   check: ['M20 6 9 17l-5-5'],
   // The resize handle's up-and-down (lucide chevrons-up-down).
   resize: ['m7 15 5 5 5-5', 'm7 9 5-5 5 5'],
+  // An empty column's picture, by what the column is for (lucide list-checks, hourglass, check-check, inbox).
+  todo: ['M13 5h8', 'M13 12h8', 'M13 19h8', 'm3 17 2 2 4-4', 'm3 7 2 2 4-4'],
+  doing: [
+    'M5 22h14',
+    'M5 2h14',
+    'M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22',
+    'M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2',
+  ],
+  done: ['M18 6 7 17l-5-5', 'm22 10-7.5 7.5L13 16'],
+  inbox: ['M22 12h-6l-2 3h-4l-2-3H2', 'M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'],
 } as const;
+
+/**
+ * What an empty column shows, by what its name says it is for (Matt: "add an icon when there are no items in a board
+ * like no todo items or no doing tasks"). Column names are free, so this reads the common ones and gives any other
+ * column the plain empty tray.
+ */
+export function emptyLook(name: string): { icon: 'todo' | 'doing' | 'done' | 'inbox'; words: string } {
+  const called = name.trim().toLowerCase();
+  if (/^done\b|\bdone$|^finished|^complete/.test(called)) return { icon: 'done', words: 'Nothing done yet' };
+  if (/doing|in progress|progress|working|active|started|underway/.test(called)) return { icon: 'doing', words: 'Nothing in progress' };
+  if (/to ?do|backlog|up next|^next|later|this week|today|planned|waiting/.test(called)) return { icon: 'todo', words: 'Nothing to do' };
+  return { icon: 'inbox', words: 'No cards' };
+}
 
 function icon(name: keyof typeof ICONS, size = '1em'): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -210,10 +233,23 @@ class BoardWidget extends WidgetType {
     stack.className = 'cm-boardStack';
     stack.dataset.column = String(index);
     for (const card of held) stack.append(this.drawCard(view, card, index));
-    // An empty column is a place, not a blank: it says what it is for, and it is a target while a card is held.
-    const empty = document.createElement('p');
+    // An empty column is a place, not a blank: at rest it shows what it would hold and says it holds nothing, and
+    // while a card is held it is a target, in this column and every other.
+    const empty = document.createElement('div');
     empty.className = 'cm-boardEmpty';
-    empty.textContent = 'Drop a card here';
+    if (!held.length) empty.dataset.none = '';
+    const look = emptyLook(column.name);
+    const rest = document.createElement('span');
+    rest.className = 'cm-boardEmptyRest';
+    const picture = icon(look.icon, '1.5em');
+    picture.classList.add('cm-boardEmptyIcon');
+    const words = document.createElement('span');
+    words.textContent = look.words;
+    rest.append(picture, words);
+    const drop = document.createElement('span');
+    drop.className = 'cm-boardEmptyDrop';
+    drop.textContent = 'Drop a card here';
+    empty.append(rest, drop);
     stack.append(empty);
 
     const hadHead = pane.querySelector(':scope > .cm-boardName');
@@ -1184,6 +1220,8 @@ const boardTheme = EditorView.baseTheme({
   '.cm-boardStack': {
     display: 'flex',
     flexDirection: 'column',
+    // The lane runs to the foot of its column, which is as tall as the board's tallest, so an empty lane has a middle.
+    flex: '1 1 auto',
     gap: '0.4em',
     minBlockSize: '2.5em',
     maxBlockSize: 'min(42vh, 19rem)',
@@ -1247,12 +1285,28 @@ const boardTheme = EditorView.baseTheme({
     margin: '0',
     padding: '0.8em 0.6em',
     borderRadius: 'var(--glacier-radius-lg, 0.75rem)',
-    border: '1px dashed var(--app-rule, var(--glacier-border-subtle))',
+    border: '1px dashed transparent',
     textAlign: 'center',
     fontSize: '0.9em',
     color: 'var(--app-ink-3, var(--glacier-text-muted))',
   },
-  '.cm-board[data-holding] .cm-boardEmpty': { display: 'block' },
+  // At rest, only an empty column shows it: the picture and the words, no outline.
+  // It fills its lane, and the picture and words sit in the middle of it (Matt: "vertically center the icons in the
+  // swimlanes"): a lane beside a full one is as tall as that one, and a board with a set height has tall lanes.
+  // It reaches into the lane's own space at the foot (kept for the fade), so the middle is the whole lane's: the
+  // lane's 0.9em is this element's 1em, its type being 0.9 of the lane's.
+  '.cm-boardEmpty[data-none]': { display: 'grid', flex: '1 1 auto', alignContent: 'center', paddingBlock: '1.1em', marginBlockEnd: '-1em' },
+  '.cm-boardEmptyRest': { display: 'grid', justifyItems: 'center', gap: '0.45em' },
+  '.cm-boardEmptyIcon': { opacity: '0.55' },
+  '.cm-boardEmptyDrop': { display: 'none' },
+  // A card held: every column is a target, outlined, and says so instead.
+  '.cm-board[data-holding] .cm-boardEmpty': {
+    display: 'block',
+    paddingBlock: '0.8em',
+    borderColor: 'var(--app-rule, var(--glacier-border-subtle))',
+  },
+  '.cm-board[data-holding] .cm-boardEmptyRest': { display: 'none' },
+  '.cm-board[data-holding] .cm-boardEmptyDrop': { display: 'block' },
   '.cm-boardStack[data-over] .cm-boardEmpty': { borderStyle: 'solid' },
   // Sized from the card's own text rather than a button's default font, and set on the first line's centre, so every
   // box sits level with the words beside it (Matt: "the checkboxes also dont look like they line up nice").

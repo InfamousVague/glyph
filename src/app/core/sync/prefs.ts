@@ -31,6 +31,7 @@ export const SYNCED_PREFS = [
   'wispEdge',
   'ripples',
   'motionSpeed',
+  'linkPreviews',
 ] as const satisfies readonly (keyof Preferences)[];
 
 export type SyncedPrefs = Pick<Preferences, (typeof SYNCED_PREFS)[number]>;

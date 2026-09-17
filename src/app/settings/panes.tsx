@@ -85,6 +85,13 @@ export function TypePane() {
           }
         />
       </PaneSection>
+      <PaneSection title="Links">
+        <SettingRow
+          label="Link previews"
+          hint="A card with the page's title under a line that is only a link. The title is read from the linked site."
+          control={<Switch aria-label="Link previews" checked={prefs.linkPreviews} onCheckedChange={(linkPreviews) => setPreferences({ linkPreviews })} />}
+        />
+      </PaneSection>
     </>
   );
 }
@@ -516,8 +523,8 @@ export function AboutPane({
       </PaneSection>
       <ReleasesSection updates={updates} />
       <SettingsFootnote>
-        Glyph keeps your notes, recordings and models on the phone. Nothing is sent anywhere unless you sign in to an account, and then your notes, recordings and settings are encrypted on the phone
-        first, so only your own devices can read them.
+        Glyph keeps your notes, recordings and models on the phone. Signed in to an account, your notes, recordings and settings are synced, encrypted on the phone first so only your own devices
+        can read them. With link previews on, a linked page is asked for its title. Nothing else is sent anywhere.
       </SettingsFootnote>
     </>
   );

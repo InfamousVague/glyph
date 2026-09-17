@@ -41,8 +41,6 @@ export interface TypedMark {
 }
 
 export const TYPED: TypedMark[] = [
-  { symbol: '~~struck~~', title: 'Struck through', how: 'Two tildes each side of what you take back.' },
-  { symbol: '`code`', title: 'Code', how: 'Backticks around it, in its own face.' },
   { symbol: '[words](address)', title: 'A link', how: 'Or paste an address on its own; it is shortened on the page.' },
   { symbol: '![caption](image/…)', title: 'A picture', how: 'Paste one, or press and hold and choose Add image.' },
   { symbol: '| a | b |', title: 'A table', how: 'Pipes between cells, or say “Glyph, add a table to this note” and answer.' },
@@ -127,6 +125,55 @@ export const PHRASES: PhraseGroup[] = [
     lead: 'Say where it starts and where it ends, mid-sentence if you like.',
     cues: ['“Bold” then “end bold”', '“Italic” then “end italic”'],
     example: { say: ['The deadline is bold Friday at noon end bold, not Monday.'], expect: '**Friday at noon**' },
+  },
+  {
+    title: 'A smaller section',
+    symbol: '###',
+    lead: 'A section inside a section.',
+    cues: ['“Subheading”'],
+    example: { say: ['Heading: packing.', 'Subheading: the kitchen.', 'Pots and pans.'], expect: '### The kitchen' },
+  },
+  {
+    title: 'A callout',
+    symbol: '> [!NOTE]',
+    lead: 'A boxed note. Say “tip”, “warning” or “important” before it for those.',
+    cues: ['“Callout”', '“Warning callout”'],
+    example: { say: ['Before you arrive, please read this.', 'Callout: the gate sticks, so lift it first.'], expect: '> [!NOTE]\n> The gate sticks' },
+  },
+  {
+    title: 'A hidden line',
+    symbol: '>|',
+    lead: 'Kept in smoke until it is tapped.',
+    cues: ['“Hidden line”'],
+    example: { say: ['The answer to the riddle from the party.', 'Hidden line: it was the butler.'], expect: '>| It was the butler.' },
+  },
+  {
+    title: 'Choices',
+    symbol: '- ( )',
+    lead: 'Things to pick from; say “picked option” for the one you chose.',
+    cues: ['“Option”', '“Picked option”'],
+    example: { say: ['Where should we stay?', 'Option: tent.', 'Picked option: cabin.'], expect: '- (x) Cabin' },
+  },
+  {
+    title: 'A sum',
+    symbol: '=',
+    lead: 'Say the numbers and plus, minus, times or divided by. The answer shows beside it.',
+    cues: ['“Calculate”'],
+    example: { say: ['The trip adds up like this.', 'Calculate: four hundred plus one hundred twenty.'], expect: '= 400 + 120' },
+  },
+  {
+    title: 'Tags, counters and links',
+    symbol: '# [ / ] [[ ]]',
+    lead: 'Mid-sentence: “hashtag” and a word, “counter three of eight”, or “note link” and a note’s name, then “end link”.',
+    cues: ['“Hashtag travel”', '“Counter zero of eight”', '“Note link … end link”'],
+    example: { say: ['Daily goals below.', 'Bullet point: drink water, counter zero of eight hashtag health.'], expect: '- Drink water [0/8] #health' },
+  },
+  {
+    title: 'Struck through and code',
+    symbol: '~~ `',
+    lead: 'Said like bold: where it starts and where it ends.',
+    cues: ['“Strike” then “end strike”', '“Code” then “end code”'],
+    example: { say: ['The meeting moved from strike Tuesday end strike to Wednesday.'], expect: '~~Tuesday~~' },
   },
   {
     title: 'A dividing line',

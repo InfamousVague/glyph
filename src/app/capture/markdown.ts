@@ -31,7 +31,12 @@ export interface RenderedNote {
 }
 
 /**
- * A pause long enough to be a new thought.
+ * A pause long enough to be a new thought, as the gap between two committed phrases.
+ *
+ * Not the pause itself. The streamer (src-tauri/src/whisper/stream.rs) cuts a phrase 300 ms into the quiet after it
+ * and drops quiet once two seconds of it have built up, keeping 300 ms: so any pause from about 2.3 s to 4 s arrives
+ * as a 1.7 s gap between the phrases, and a shorter one as none at all. At 2 s, as this once was, a paragraph break by
+ * pausing could never happen on the phone. 1.5 s is a spoken pause of a little over two seconds.
  *
  * The engine commits a segment on a much shorter pause (about 600 ms), which is
  * a breath rather than a paragraph; treating every commit as a paragraph break
@@ -39,7 +44,7 @@ export interface RenderedNote {
  * spoken notes measurably change subject - long enough that a speaker thinking
  * mid-sentence does not trigger it.
  */
-export const PARAGRAPH_GAP_MS = 2000;
+export const PARAGRAPH_GAP_MS = 1500;
 
 const PARAGRAPH_CUE = /\b(?:new|next) paragraph\b[.,!?]?/gi;
 
@@ -69,7 +74,7 @@ export function toParagraphs(segments: readonly Segment[]): string[] {
 
     text.split(PARAGRAPH_CUE).forEach((piece, index) => {
       if (index > 0) flush();
-      const part = piece.replace(/^[\s.,;:!?]+/, '').trim();
+      const part = piece.replace(/^(?:[\s.,;:?]|!(?!\[))+/, '').trim();
       if (part) current = current ? `${current} ${part}` : part;
     });
   }
@@ -109,6 +114,7 @@ function sentencesOf(paragraph: string): Sentence[] {
 // ---- the local rules --------------------------------------------------------
 
 const HEADING_CUE = /^(?:new\s+section|section|heading)[:,.]?\s+(.+)$/i;
+const SUBHEADING_CUE = /^(?:sub[\s-]?heading|sub[\s-]?section|smaller\s+heading)[:,.]?\s+(.+)$/i;
 const BULLET_CUE = /^(?:bullet(?:\s+point)?|(?:next|new)\s+(?:point|item|bullet))[:,.]?\s+(.+)$/i;
 const TITLE_CUE = /^(?:title|note\s+title|call\s+(?:this|it)(?:\s+note)?)[:,.]?\s+(.+)$/i;
 const IMPORTANT_CUE = /^(important|key\s+point|note)[:,]\s*(.+)$/i;
@@ -127,6 +133,14 @@ const QUOTE_CUE = /^quote[:,]\s*(.+)$/i;
 const NUMBER_CUE = /^number\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2})[:,]\s*(.+)$/i;
 const CHECKBOX_CUE = /^(?:check\s?box[:,.]?|checklist(?:\s+item)?[:,]|check\s+item[:,])\s*(.+)$/i;
 const DIVIDER_CUE = /^(?:divider|horizontal\s+(?:line|rule)|separator)[.!]?$/i;
+/** "Callout: the gate sticks", "warning callout: mind the step": a GitHub callout (`> [!NOTE]`), a note unless said otherwise. */
+const CALLOUT_CUE = /^(?:(note|tip|important|warning|caution)\s+)?(?:callout[:,.]?|call[\s-]out[:,.])\s*(.+)$/i;
+/** "Hidden line: it was the butler": a line kept in smoke until it is tapped (`>|`). */
+const HIDDEN_CUE = /^(?:hidden|secret|spoiler)\s+line[:,.]\s*(.+)$/i;
+/** "Option: tent", "picked option: hotel": choices, one of them picked (`- ( )`, `- (x)`). */
+const CHOICE_CUE = /^(?:(pick(?:ed)?|pict|chosen|selected)[\s-]*)?(?:option|choice)[:,.]\s*(.+)$/i;
+/** "Calculate: four hundred fifty plus one hundred twenty": a sum, worked out on the page (`= 450 + 120`). */
+const SUM_CUE = /^(?:calculate|sum|add\s+up)[:,.]\s*(.+)$/i;
 
 /**
  * A cue said on its own, as its own sentence.
@@ -144,7 +158,7 @@ const DIVIDER_CUE = /^(?:divider|horizontal\s+(?:line|rule)|separator)[.!]?$/i;
  * after it is held forever and never rendered, instead of appearing in the note.
  */
 const STANDALONE_CUE =
-  /^(title|note\s+title|heading|section|new\s+section|bullet(?:\s+point)?|(?:next|new)\s+(?:point|item|bullet)|quote|check\s?box|checklist(?:\s+item)?|check\s+item|to[\s-]?do|task|important|key\s+point|number\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2}))[.,:!]?$/i;
+  /^(title|note\s+title|call\s+(?:this|it)(?:\s+note)?|heading|section|new\s+section|sub[\s-]?heading|sub[\s-]?section|call[\s-]?out|hidden\s+line|option|choice|(?:pick(?:ed)?|pict|chosen|selected)[\s-]*option|calculate|bullet(?:\s+point)?|(?:next|new)\s+(?:point|item|bullet)|quote|check\s?box|checklist(?:\s+item)?|check\s+item|to[\s-]?do|task|important|key\s+point|number\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2}))[.,:!]?$/i;
 
 /** A plugin's formatting said the way bold is: its cue word, and the delimiter the words it wraps are put between. */
 export interface SpokenFormat {
@@ -165,9 +179,18 @@ export function setSpokenFormats(formats: readonly SpokenFormat[]): void {
 
 const escapeWord = (word: string) => word.trim().replace(/\s+/g, '\\s+');
 
+/** How a cue word is heard as well as how it is spelled: "aside" comes back as "a side". */
+const SAID_AS: Record<string, string> = { aside: 'a\\s?side' };
+
 function inlineMarkup(formats: readonly SpokenFormat[]): RegExp {
-  const words = ['bold', 'italics?', 'emphasis', ...formats.map((format) => escapeWord(format.word))];
+  const words = ['bold', 'italics?', 'emphasis', 'strike(?:through)?', 'crossed\\s+out', 'code', ...formats.map((format) => SAID_AS[format.word.trim().toLowerCase()] ?? escapeWord(format.word))];
   return new RegExp(`\\b(${words.join('|')})\\b([.,:;!]?)\\s+([\\s\\S]+?)[.,;:!]?\\s+(end|and)\\s+\\1\\b([.,;:!?]?)`, 'gi');
+}
+
+/** A cue word run into what follows it: "spoiler4417". */
+function inlineGlued(formats: readonly SpokenFormat[]): RegExp {
+  const words = ['bold', 'italic', 'strike', 'code', ...formats.map((format) => escapeWord(format.word))];
+  return new RegExp(`\\b(${words.join('|')})(\\d)`, 'gi');
 }
 
 /**
@@ -192,16 +215,129 @@ function inlineMarkup(formats: readonly SpokenFormat[]): RegExp {
  * second, and is left alone.
  */
 export function spokenInlineMarkup(paragraph: string, formats: readonly SpokenFormat[] = spokenFormats): string {
-  return paragraph.replace(inlineMarkup(formats), (match, kind: string, paused: string, inner: string, closer: string, after: string, offset: number, whole: string) => {
-    // "and bold" closes after a pause at the opening cue, or when it ends the sentence: "… at noon and bold." Mid-sentence, "bold thinking and bold action" is prose.
-    const endsSentence = Boolean(after) || !whole.slice(offset + match.length).trim();
-    if (closer.toLowerCase() === 'and' && !paused && !endsSentence) return match;
-    const words = inner.trim().replace(/[.,;:!]+$/, '');
+  // Whisper's own spellings of the cues: "italics" for "italic", "spoiler4417" run together.
+  const heard = paragraph.replace(/\bitalics\b/gi, (word) => word.slice(0, -1)).replace(inlineGlued(formats), '$1 $2');
+  return heard.replace(inlineMarkup(formats), (match, kind: string, paused: string, inner: string, closer: string, after: string, offset: number, whole: string) => {
     const said = kind.toLowerCase().replace(/\s+/g, ' ');
-    const format = formats.find((f) => f.word.trim().toLowerCase().replace(/\s+/g, ' ') === said);
-    const marker = format ? format.delimiter : said === 'bold' ? '**' : '_';
-    return `${marker}${words}${marker}${after}`;
+    // "and bold" closes after a pause at the opening cue, or when it ends the sentence: "… at noon and bold." Mid-sentence, "bold thinking and bold action" is prose.
+    // The other cue words are rare enough in speech that "and" closes them anywhere.
+    const endsSentence = Boolean(after) || !whole.slice(offset + match.length).trim();
+    const common = /^(?:bold|italic|emphasis)$/.test(said);
+    // Three words or more between them is a stretch someone chose to mark: "bold thinking and bold action" is one.
+    const marked = inner.trim().split(/\s+/).length >= 3;
+    if (closer.toLowerCase() === 'and' && common && !paused && !endsSentence && !marked) return match;
+    const words = inner.trim().replace(/[.,;:!]+$/, '');
+    const format = formats.find((f) => {
+      const word = f.word.trim().toLowerCase().replace(/\s+/g, ' ');
+      return word === said || word === said.replace(/\s+/g, '');
+    });
+    const marker = format ? format.delimiter : said === 'bold' ? '**' : /^(?:strike|strikethrough|crossed out)$/.test(said) ? '~~' : said === 'code' ? '`' : '_';
+    // Code is as it was said, lower case and without the commas Whisper puts at its pauses, as a command is typed.
+    const inside = said === 'code' && !format ? words.toLowerCase().replace(/,/g, '') : words;
+    return `${marker}${inside}${marker}${after}`;
   });
+}
+
+const NUMBER_WORDS: Record<string, number> = {
+  zero: 0, none: 0, nil: 0, oh: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
+
+/**
+ * A number said in words or written in digits: "four hundred fifty", "1,200", "twenty-one", "two thousand and five".
+ * Null when it isn't one.
+ */
+export function spokenNumber(text: string): number | null {
+  const said = text.trim().toLowerCase().replace(/,(?=\d{3})/g, '');
+  if (/^\d+(?:\.\d+)?$/.test(said)) return Number(said);
+  const words = said.split(/[\s-]+/).filter((word) => word && word !== 'and');
+  if (!words.length) return null;
+  // "Four four one seven" is a code read out a digit at a time: 4417, not 16.
+  if (words.length > 1 && words.every((word) => (NUMBER_WORDS[word] ?? 99) < 10 || /^\d$/.test(word))) {
+    return Number(words.map((word) => (/^\d$/.test(word) ? word : String(NUMBER_WORDS[word]))).join(''));
+  }
+  let total = 0;
+  let group = 0;
+  for (const word of words) {
+    if (word in NUMBER_WORDS) group += NUMBER_WORDS[word]!;
+    else if (word === 'hundred') group = (group || 1) * 100;
+    else if (word === 'thousand') {
+      total += (group || 1) * 1000;
+      group = 0;
+    } else if (word === 'million') {
+      total += (group || 1) * 1_000_000;
+      group = 0;
+    } else if (/^\d+(?:\.\d+)?$/.test(word)) group += Number(word);
+    else return null;
+  }
+  return total + group;
+}
+
+const NUMBER_PHRASE = String.raw`(?:\d[\d,]*(?:\.\d+)?|(?:(?:zero|none|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|and)[\s-]*)+)`;
+
+/** "Counter three of eight": a counter (`[3/8]`), at the end of what it counts. */
+const COUNTER_SAID = new RegExp(String.raw`[.,;]?\s*\bcounter\s+(${NUMBER_PHRASE})\s+(?:of|out\s+of)\s+(${NUMBER_PHRASE})(?=[\s.,;:!?]|$)`, 'gi');
+
+/** "Hashtag travel": a tag. Whisper often writes "#travel" itself, which is left as it is. */
+const TAG_SAID = /\bhash[\s-]?tag\s+([A-Za-z][\w-]*)/gi;
+
+/** "Note link weekend trip end link": a link to another note (`[[Weekend trip]]`). */
+const NOTE_LINK_SAID = /\b(?:no(?:te|de)\s?link|link\s+to\s+note)[,:]?\s+(.+?)[.,]?\s+(?:end|and)\s+link\b/gi;
+
+/** Titles of the notes a spoken link can name, set by the recorder: a link takes the note's own spelling. */
+let linkTitles: readonly string[] = [];
+
+export function setLinkTitles(titles: readonly string[]): void {
+  linkTitles = titles;
+}
+
+/** Tags, counters and note links said inside a sentence, written as what they are. */
+export function spokenExtras(paragraph: string): string {
+  return paragraph
+    .replace(NOTE_LINK_SAID, (_all, name: string) => {
+      const said = name.trim().replace(/^(?:the|my|our)\s+/i, '').replace(/\s+note$/i, '');
+      const plain = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const known = linkTitles.find((title) => plain(title) === plain(said));
+      return `[[${known ?? capitalise(said)}]]`;
+    })
+    .replace(TAG_SAID, (_all, word: string) => `#${word.toLowerCase()}`)
+    .replace(COUNTER_SAID, (all, count: string, goal: string) => {
+      const n = spokenNumber(count);
+      const m = spokenNumber(goal);
+      return n === null || m === null || m < 1 ? all : ` [${n}/${m}]`;
+    });
+}
+
+const OPERATORS: [RegExp, string][] = [
+  [/\bto\s+the\s+power\s+of\b/gi, ' ^ '],
+  [/\b(?:multiplied\s+by|times)\b/gi, ' * '],
+  [/\b(?:divided\s+by|over)\b/gi, ' / '],
+  [/\bplus\b/gi, ' + '],
+  [/\bminus\b/gi, ' - '],
+  [/\s[x×]\s/g, ' * '],
+  [/÷/g, ' / '],
+];
+
+/** "Four hundred fifty plus one hundred twenty times two" as `450 + 120 * 2`, or null when it isn't a sum. */
+export function spokenSum(text: string): string | null {
+  let said = ` ${text.trim().replace(/[.?!]+$/, '')} `;
+  for (const [word, symbol] of OPERATORS) said = said.replace(word, symbol);
+  const parts = said.split(/\s*([-+*/^()])\s*/).map((part) => part.trim()).filter(Boolean);
+  if (!parts.some((part) => /^[-+*/^]$/.test(part))) return null;
+  const out: string[] = [];
+  for (const part of parts) {
+    if (/^[-+*/^()]$/.test(part)) {
+      out.push(part);
+      continue;
+    }
+    const sign = /^[$€£]/.exec(part)?.[0] ?? '';
+    const percent = /%$|\s+percent$/i.test(part) ? '%' : '';
+    const value = spokenNumber(part.replace(/^[$€£]/, '').replace(/%$|\s+percent$/i, ''));
+    if (value === null) return null;
+    out.push(`${sign}${value}${percent}`);
+  }
+  return out.join(' ').replace(/\( /g, '(').replace(/ \)/g, ')');
 }
 
 /**
@@ -367,7 +503,14 @@ type Block =
   | { kind: 'task'; text: string }
   | { kind: 'intro'; text: string }
   | { kind: 'quote'; text: string }
-  | { kind: 'rule'; text: string };
+  | { kind: 'rule'; text: string }
+  | { kind: 'subheading'; text: string }
+  /** A line that stands out ("Important: …"): its own paragraph, never run into the next. */
+  | { kind: 'standout'; text: string }
+  | { kind: 'callout'; text: string; type: string }
+  | { kind: 'hidden'; text: string }
+  | { kind: 'choice'; text: string; picked: boolean }
+  | { kind: 'sum'; text: string };
 
 /**
  * Which run a block belongs to, for deciding where blank lines go.
@@ -392,6 +535,10 @@ const family = (block: Block): string => {
       return 'numbers';
     case 'quote':
       return 'quotes';
+    case 'choice':
+      return 'choices';
+    case 'hidden':
+      return 'hidden';
     default:
       return block.kind;
   }
@@ -408,12 +555,28 @@ function localBlocks(text: string, ordinalRun: boolean): Block[] {
   const heading = HEADING_CUE.exec(text);
   if (heading?.[1]) return [{ kind: 'heading', text: capitalise(stripEnd(heading[1])) }];
 
+  const subheading = SUBHEADING_CUE.exec(text);
+  if (subheading?.[1]) return [{ kind: 'subheading', text: capitalise(stripEnd(subheading[1])) }];
+
+  const callout = CALLOUT_CUE.exec(text);
+  if (callout?.[2]) return [{ kind: 'callout', type: (callout[1] ?? 'note').toLowerCase(), text: capitalise(callout[2].trim()) }];
+
+  const hidden = HIDDEN_CUE.exec(text);
+  if (hidden?.[1]) return [{ kind: 'hidden', text: capitalise(hidden[1].trim()) }];
+
+  const choice = CHOICE_CUE.exec(text);
+  if (choice?.[2]) return [{ kind: 'choice', picked: Boolean(choice[1]), text: capitalise(stripEnd(choice[2])) }];
+
+  const sum = SUM_CUE.exec(text);
+  const worked = sum?.[1] ? spokenSum(sum[1]) : null;
+  if (worked) return [{ kind: 'sum', text: `= ${worked}` }];
+
   const bullet = BULLET_CUE.exec(text);
   if (bullet?.[1]) return [{ kind: 'bullet', text: itemOf(bullet[1]) ?? capitalise(stripEnd(bullet[1])) }];
 
   const important = IMPORTANT_CUE.exec(text);
   if (important?.[1] && important[2]) {
-    return [{ kind: 'para', text: `**${capitalise(important[1])}:** ${important[2]}` }];
+    return [{ kind: 'standout', text: `**${capitalise(important[1])}:** ${capitalise(important[2])}` }];
   }
 
   if (DIVIDER_CUE.test(text)) return [{ kind: 'rule', text: '---' }];
@@ -465,7 +628,15 @@ function renderBlocks(blocks: readonly Block[], paragraphStarts: ReadonlySet<num
     // above it rather than as the start of a new list - it rendered inside a
     // to-do before this rule existed.
     const sameRun =
-      previous !== null && family(previous) === family(block) && block.kind !== 'para' && block.kind !== 'intro';
+      previous !== null &&
+      family(previous) === family(block) &&
+      block.kind !== 'para' &&
+      block.kind !== 'intro' &&
+      block.kind !== 'standout' &&
+      block.kind !== 'callout' &&
+      block.kind !== 'sum' &&
+      block.kind !== 'heading' &&
+      block.kind !== 'subheading';
 
     if (joined) {
       out[out.length - 1] = `${out[out.length - 1]} ${block.text}`;
@@ -488,6 +659,18 @@ function renderBlocks(blocks: readonly Block[], paragraphStarts: ReadonlySet<num
           break;
         case 'quote':
           out.push(`> ${block.text}`);
+          break;
+        case 'subheading':
+          out.push(`### ${block.text}`);
+          break;
+        case 'callout':
+          out.push(`> [!${block.type.toUpperCase()}]`, `> ${block.text}`);
+          break;
+        case 'hidden':
+          out.push(`>| ${block.text}`);
+          break;
+        case 'choice':
+          out.push(`- (${block.picked ? 'x' : ' '}) ${block.text}`);
           break;
         case 'rule':
           // Always behind a blank line (a different family from anything
@@ -553,7 +736,7 @@ export function renderNote(
 
   paragraphs.forEach((paragraph) => {
     paragraphStarts.add(blocks.length);
-    const sentences = sentencesOf(spokenInlineMarkup(inlineNumbering(paragraph)));
+    const sentences = sentencesOf(spokenExtras(spokenInlineMarkup(inlineNumbering(paragraph))));
 
     const firstOrdinal = sentences.findIndex((s) => ORDINAL_START.test(s.text));
 
@@ -687,6 +870,8 @@ export function renderNote(
  */
 function isTitleShaped(text: string): boolean {
   if (/\?$/.test(text.trim())) return false;
+  // Marked words, a clip or a picture: something said to be kept as it is, not a name for the note.
+  if (/\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||`|!\[|\[\[|(?:^|\s)_\S/.test(text)) return false;
   if (words(text) > 6) return false;
   if (
     TASK.test(text) ||
@@ -697,6 +882,11 @@ function isTitleShaped(text: string): boolean {
     CHECKBOX_CUE.test(text) ||
     DIVIDER_CUE.test(text) ||
     IMPORTANT_CUE.test(text) ||
+    SUBHEADING_CUE.test(text) ||
+    CALLOUT_CUE.test(text) ||
+    HIDDEN_CUE.test(text) ||
+    CHOICE_CUE.test(text) ||
+    SUM_CUE.test(text) ||
     enumeration(text)
   ) {
     return false;

@@ -12,19 +12,20 @@ import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { enqueueFormat, setFormattingPaused } from '../format/queue.ts';
 import { reviewAvailable, type ReviewHandoff } from '../review/useReview.ts';
 import { startCapture, type CaptureSession, type EngineKind } from './engine.ts';
-import { renderNote, setSpokenFormats, type Segment } from './markdown.ts';
+import { renderNote, setLinkTitles, setSpokenFormats, type Segment } from './markdown.ts';
 import { Opening } from './Opening.tsx';
 import { QuietWatch } from './quiet.ts';
 import { type Candidate } from './route.ts';
-import { actionable, findKeyword, findSoundAlike, planCommand, reply, type Placement, type Plan } from './command.ts';
+import { findKeyword, type Placement } from './command.ts';
 import { placeWords } from './listAppend.ts';
-import { clipLength, clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
-import { endsMemo, MEMO_GAP_MS, startsMemo } from './voiceMemo.ts';
+import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandCommand } from './understand.ts';
-import { appendBlock, cellsOf, fitRow, saysDone, tableMarkdown } from './table.ts';
+import { appendBlock } from './table.ts';
+import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
+import { boardFrom } from '../core/boards.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { plugins } from '../plugins/registry.ts';
-import type { CaptureContext, VoiceCommand } from '../plugins/types.ts';
+import type { CaptureContext } from '../plugins/types.ts';
 import { tips, TIP_AFTER_MS, type Tip } from './tips.ts';
 import { SideKeyWaves } from './SideKeyWaves.tsx';
 import { publishVoiceLevel } from './voiceLevel.ts';
@@ -85,23 +86,6 @@ type Phase = 'starting' | 'listening' | 'finishing' | 'failed';
 
 /** How often the in-progress note is written to the store. */
 const DRAFT_SAVE_MS = 1000;
-
-/** After "Glyph", this long without a word that makes a command, and it gives up. */
-const COMMAND_QUIET_MS = 4500;
-/**
- * A pause after a command the rules can't read: the on-device model is asked (capture/understand.ts). Only in a pause,
- * with no words coming in, and stopped the moment they do: the model and Whisper share the phone's cores, and the
- * recording comes first.
- */
-const UNDERSTAND_AFTER_MS = 1200;
-/** "New items for …": a pause this long after the last one, and they are asked about. */
-const ITEMS_QUIET_MS = 2500;
-/** A note named with nothing said for it: this long, and it gives up. */
-const AWAIT_MS = 9000;
-/** A table being said, and nothing for it: this long, and it is dropped. */
-const TABLE_QUIET_MS = 45_000;
-/** A command asked about and not answered: this long, and it is not done. */
-const CONFIRM_MS = 20_000;
 
 /** How long a quiet after words has to last before "Stop when I go quiet" saves the take. */
 const QUIET_STOP_MS = 4000;
@@ -179,17 +163,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const [moves, setMoves] = useState(0);
   /** The words as they looked just before a move, sliding away. */
   const [ghost, setGhost] = useState<{ markdown: string; key: number } | null>(null);
-  /**
-   * After "new item for AttackFM" said on its own: the note whose list the next
-   * phrase goes into, and for "new items" every phrase until a pause.
-   */
-  /**
-   * After "Glyph": the command being said, across phrases. `said` is what was
-   * heard from the keyword on, to put back in the note if no command comes.
-   */
-  const listening = useRef<{ words: string; said: Segment[]; lastAt: number; asked?: string } | null>(null);
-  /** The command model reading a command the rules couldn't (capture/understand.ts): for which words, and how to stop it. */
-  const understanding = useRef<{ words: string; cancel: () => void } | null>(null);
   /** The phone's command model, once looked up; null without one, and the rules alone read commands. */
   const commandModelId = useRef<string | null>(null);
   useEffect(() => {
@@ -199,36 +172,20 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     });
     return () => {
       live = false;
-      understanding.current?.cancel();
     };
   }, []);
-  /** A command named its note but not what goes in it: the next phrases are that. */
-  const awaiting = useRef<{ plan: Extract<Plan<Candidate & { note: Note }>, { kind: 'await' }>; words: string[]; lastAt: number } | null>(null);
-  /** What a command will do once it is confirmed, by "yes" or a tap. */
-  const pendingRef = useRef<{ offer: Offer; at: number } | null>(null);
-  const [pending, setPendingView] = useState<Offer | null>(null);
   /** "Glyph, add a table to …": the table being asked for, column labels first, then row by row. */
-  const tabling = useRef<TableDraft | null>(null);
-  const [tableView, setTableView] = useState<TableDraft | null>(null);
-  /** Tables made for the note being recorded: they follow its words. */
-  const tablesRef = useRef<string[]>([]);
-  /** A voice memo being left: the stretch of tape it has taken so far (capture/voiceMemo.ts). */
-  const memo = useRef<{ startMs: number; endMs: number } | null>(null);
-  /** The clips this take wrote, so the better words put them back where they were (capture/refine.ts). */
-  const clipsRef = useRef<Segment[]>([]);
+  const [tableView, setTableView] = useState<TableDraft<Note> | null>(null);
+  /** What a command will do once it is confirmed, by "yes" or a tap. */
+  const [pending, setPendingView] = useState<Offer<Note> | null>(null);
+  const [tables, setTables] = useState<string[]>([]);
+  const [asBoard, setAsBoard] = useState(false);
   /** The tape this take writes to: the continued note's, or a new one (core/clips.ts). Read once, when it is first needed. */
   const takeTape = useRef<string | null>(null);
-  const [tables, setTables] = useState<string[]>([]);
   /** Every phrase the fast model heard, commands and all, for the review to check against a second listen. */
   const heardRef = useRef<string[]>([]);
   /** What each command did, or didn't, in words: the review checks them. */
   const commandLog = useRef<string[]>([]);
-  /** Notes other than this one that commands changed. */
-  const touchedRef = useRef<Set<string>>(new Set());
-  /** Recording spans that were commands, for the better-words pass to leave out. */
-  const commandSpans = useRef<Array<{ startMs: number; endMs: number }>>([]);
-  /** Phrases that were words and then "Glyph": the better words keep only what came before it. */
-  const keywordSpans = useRef<Array<{ startMs: number; endMs: number }>>([]);
   /** The last thing said, for plugin commands like "send that to Notion": a phrase of this take, or items added to another note. */
   const lastSaid = useRef<{ kind: 'take'; text: string } | { kind: 'items'; noteId: string; lines: string[] } | null>(null);
   /** When words were last heard, for the tips in a pause. */
@@ -256,8 +213,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const note = useMemo(() => {
     const rendered = renderNote(segments, itemWords ? '' : partial, { titled });
     const linked = sentLinks.length ? { ...rendered, markdown: applyLinks(rendered.markdown, sentLinks), pendingFrom: null } : rendered;
-    return tables.length ? { ...linked, markdown: withTables(linked.markdown, tables) } : linked;
-  }, [segments, partial, titled, itemWords, sentLinks, tables]);
+    const tabled = tables.length ? { ...linked, markdown: tables.reduce((body, table) => appendBlock(body, table), linked.markdown).replace(/\n$/, '') } : linked;
+    return asBoard ? { ...tabled, markdown: asBoardMarkdown(tabled.markdown), pendingFrom: null } : tabled;
+  }, [segments, partial, titled, itemWords, sentLinks, tables, asBoard]);
 
   // The switched-on plugins' formattings can be said like bold ("spoiler … end spoiler"); read as the recorder opens.
   useState(() => setSpokenFormats(plugins.formats().flatMap((format) => (format.cue ? [{ word: format.cue, delimiter: format.delimiter }] : []))));
@@ -313,6 +271,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           .sort((a, b) => b.updatedAt - a.updatedAt)
           .map((note) => ({ id: note.id, title: noteTitle(note.body), note }))
           .filter((c) => c.title);
+        // "Note link weekend trip end link" takes the note's own spelling.
+        setLinkTitles(candidates.current.map((c) => c.title));
       })
       .catch(() => undefined);
     return () => {
@@ -405,37 +365,25 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     });
   };
 
-  // ---- commands: "Glyph", then what to do, then yes or no ---------------------------
+  // ---- commands: "Glyph", then what to do, then yes or no (capture/take.ts) ----------
 
   const commandWordOn = () => preferences().commandWord;
 
-  /** The chip while a command is heard: the note it names, as soon as it can tell. */
-  const showGuess = (text: string) => {
-    const wait = awaiting.current;
-    if (wait) {
-      setRoute({ phase: 'waiting', title: wait.plan.note.title, many: wait.plan.many, leave: wait.plan.how === 'leave' });
-      return;
+  /** A note's body rewritten, and the take told if it is the note being recorded onto. */
+  const updateNote = async (id: string, change: (body: string) => string | null): Promise<string | null> => {
+    const fresh = await getNote(id);
+    if (!fresh) return null;
+    const body = change(fresh.body);
+    if (body === null || body === fresh.body) return null;
+    await saveNote(id, body, fresh.source);
+    // The take may be writing onto this very note: its drafts build on the new body from now on.
+    if (targetRef.current?.id === id) {
+      baseBody.current = Promise.resolve(body);
+      targetRef.current = { ...fresh, body };
     }
-    const heard = listening.current;
-    const found = heard ? null : commandWordOn() ? findKeyword(text) : null;
-    const words = heard ? `${heard.words} ${text}`.trim() : found ? found.after : commandWordOn() ? null : text;
-    setRoute((current) => {
-      const guessing = current === null || current.phase === 'hearing' || current.phase === 'command';
-      if (!guessing) return current;
-      if (words === null || (!heard && !found && !words)) return current?.phase === 'hearing' || current?.phase === 'command' ? null : current;
-      const plugin = plugins.voiceCommands().find((voice) => voice.parse(words) !== null);
-      const plan = plugin ? null : planCommand(words, { notes: candidates.current, targets: itemWordsOfPlugins() });
-      if (!plan || plan.kind === 'no-note') {
-        // Without the keyword, only something that reads as a command shows at all.
-        if (!heard && !found && !plugin) return current?.phase === 'hearing' || current?.phase === 'command' ? null : current;
-        return { phase: 'command', words: heard ? heard.words : '' };
-      }
-      if (plan.kind === 'new') return { phase: 'hearing', name: 'new note', guess: 'New note', lead: 'Start' };
-      if (plan.kind === 'table') return { phase: 'hearing', name: 'table', guess: plan.note?.title ?? 'this note', lead: 'Table for' };
-      const lead = plan.kind === 'move' ? 'Move to' : plan.how === 'item' ? 'New item for' : 'Add to';
-      if (current?.phase === 'hearing' && current.guess === plan.note.title && current.lead === lead) return current;
-      return { phase: 'hearing', name: plan.note.title, guess: plan.note.title, lead };
-    });
+    const known = candidates.current.find((c) => c.id === id);
+    if (known) known.note = { ...fresh, body };
+    return body;
   };
 
   /**
@@ -443,30 +391,21 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    * list grows by them, in its own style, while this take carries on where it
    * was. The chip and the landing preview show the lines arriving.
    */
-  const addItems = async (
-    note: Note,
-    spoken: string,
-    { task, many, target = null, leave = false }: { task: boolean; many: boolean; target?: string | null; leave?: boolean },
-  ) => {
+  const addItems = async (note: Note, spoken: string, { how, task, many, target = null }: Placement) => {
     try {
-      const fresh = (await getNote(note.id).catch(() => null)) ?? note;
-      // "Leave a note for …": into the list it fits, or its own paragraph.
-      const { body, added } = placeWords(fresh.body, spoken, { how: leave ? 'leave' : 'item', task, many });
-      if (!added.length) return;
-      await saveNote(fresh.id, body, fresh.source);
-      // The take may be writing onto this very note: its drafts build on the
-      // grown body from now on, or the next one would put the old list back.
-      if (targetRef.current?.id === fresh.id) {
-        baseBody.current = Promise.resolve(body);
-        targetRef.current = { ...fresh, body };
-      }
-      const known = candidates.current.find((c) => c.id === fresh.id);
-      if (known) known.note = { ...fresh, body };
+      let added: string[] = [];
+      const body = await updateNote(note.id, (current) => {
+        // "Leave a note for …": into the list it fits, or its own paragraph.
+        const placed = placeWords(current, spoken, { how, task, many });
+        added = placed.added;
+        return placed.added.length ? placed.body : null;
+      });
+      if (body === null) return;
       setRoute({ phase: 'added', title: noteTitle(body) || 'that note', body, added });
       fireNativeHaptic('success');
-      lastSaid.current = { kind: 'items', noteId: fresh.id, lines: added };
+      lastSaid.current = { kind: 'items', noteId: note.id, lines: added };
       // "…in Notion": the plugin that offers the word takes the lines from here.
-      if (target) plugins.itemTargets().find((t) => t.word === target)?.afterAdd(fresh.id, added, captureContext);
+      if (target) plugins.itemTargets().find((t) => t.word === target)?.afterAdd(note.id, added, captureContext);
     } catch (failure) {
       console.warn('[glyph] item not added:', failure);
       setRoute({ phase: 'missed', title: noteTitle(note.body) || 'that note' });
@@ -488,236 +427,23 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       setSentLinks(sentLinksRef.current);
     },
     append: (markdown) => {
-      const at = segmentsRef.current[segmentsRef.current.length - 1]?.endMs ?? 0;
-      segmentsRef.current = [...segmentsRef.current, { text: markdown, startMs: at, endMs: at }];
-      setSegments(segmentsRef.current);
+      const at = take.segments[take.segments.length - 1]?.endMs ?? 0;
+      take.segments = [...take.segments, { text: markdown, startMs: at, endMs: at }];
+      syncTake();
     },
     updateNote: async (id, change) => {
-      const fresh = await getNote(id);
-      if (!fresh) return;
-      const body = change(fresh.body);
-      if (body === fresh.body) return;
-      await saveNote(id, body, fresh.source);
-      // The take may be writing onto this very note: its drafts build on the new body from now on.
-      if (targetRef.current?.id === id) {
-        baseBody.current = Promise.resolve(body);
-        targetRef.current = { ...fresh, body };
-      }
-      const known = candidates.current.find((c) => c.id === id);
-      if (known) known.note = { ...fresh, body };
+      await updateNote(id, change);
     },
   };
 
   /** The words switched-on plugins let an item command end a note's name with ("…in Notion"). */
   const itemWordsOfPlugins = () => plugins.itemTargets().map((t) => t.word);
 
-  const setPending = (offer: Offer | null) => {
-    pendingRef.current = offer ? { offer, at: performance.now() } : null;
-    setPendingView(offer);
-  };
-
-  /** A command understood: shown, with what it will do, until yes or no. */
-  const offer = (plan: Plan<Candidate & { note: Note }>, span: { startMs: number; endMs: number }) => {
-    listening.current = null;
-    awaiting.current = null;
-    setItemWords('');
-    if (plan.kind === 'no-note' || plan.kind === 'await' || plan.kind === 'table') return;
-    if (plan.kind === 'place') {
-      const note = plan.note.note;
-      const preview = placeWords(note.body, plan.text, plan);
-      if (!preview.added.length) return;
-      setPending({ kind: 'place', note, title: plan.note.title, text: plan.text, placement: plan, added: preview.added, into: preview.into, span });
-    } else if (plan.kind === 'move') {
-      setPending({ kind: 'move', note: plan.note.note, title: plan.note.title, span });
-    } else {
-      setPending({ kind: 'new', span });
-    }
-    setRoute(null);
-    fireNativeHaptic('selection');
-  };
-
-  const offerPlugin = (voice: VoiceCommand, parsed: unknown, span: { startMs: number; endMs: number }) => {
-    listening.current = null;
-    awaiting.current = null;
-    setItemWords('');
-    const { title, action } = voice.describe(parsed, captureContext);
-    setPending({ kind: 'plugin', voice, parsed, title, action, span });
-    setRoute(null);
-    fireNativeHaptic('selection');
-  };
-
-  /** Yes: the command does what it showed. */
-  const confirmPending = () => {
-    const held = pendingRef.current?.offer;
-    if (!held) return;
-    setPending(null);
-    commandLog.current.push(describeOffer(held, 'done'));
-    if (held.kind === 'place' || (held.kind === 'table' && held.note)) touchedRef.current.add(held.note!.id);
-    if (held.kind === 'place') {
-      void addItems(held.note, held.text, { task: held.placement.task, many: held.placement.many, target: held.placement.target, leave: held.placement.how === 'leave' });
-    } else if (held.kind === 'table') {
-      if (held.note) void addTable(held.note, held.title, held.markdown);
-      else {
-        tablesRef.current = [...tablesRef.current, held.markdown];
-        setTables(tablesRef.current);
-        setRoute({ phase: 'done', text: 'Table added' });
-        fireNativeHaptic('success');
-      }
-    } else if (held.kind === 'move') {
-      void routeTo(held.note);
-    } else if (held.kind === 'new') {
-      setRoute({ phase: 'moved', title: 'New note' });
-      void startNewNote();
-    } else {
-      const keep = held.voice.run(held.parsed, captureContext);
-      if (keep) {
-        // Words the command keeps in the note ("book the cabin, send that to Notion").
-        segmentsRef.current = [...segmentsRef.current, { text: keep, startMs: held.span.startMs, endMs: held.span.endMs }];
-        setSegments(segmentsRef.current);
-      }
-    }
-  };
-
-  /** No, or no answer: nothing happens, and the chip says so. */
-  const cancelPending = (why: string | null) => {
-    if (!pendingRef.current) return;
-    commandLog.current.push(describeOffer(pendingRef.current.offer, why ? 'declined' : 'dropped'));
-    setPending(null);
-    if (why) setRoute({ phase: 'said', text: why });
-  };
-
-  /** No command came after the keyword: what was said goes back into the note, as words. */
-  const giveBack = (why: string) => {
-    stopUnderstanding();
-    const heard = listening.current;
-    listening.current = null;
-    setItemWords('');
-    if (!heard) return;
-    commandLog.current.push(`Heard “Glyph ${heard.words}” but no command in it, so those words stayed in the note`);
-    if (heard.said.length) {
-      const back = new Set(heard.said.map((s) => `${s.startMs}:${s.endMs}`));
-      commandSpans.current = commandSpans.current.filter((span) => !back.has(`${span.startMs}:${span.endMs}`));
-      keywordSpans.current = keywordSpans.current.filter((span) => !back.has(`${span.startMs}:${span.endMs}`));
-      segmentsRef.current = [...segmentsRef.current, ...heard.said].sort((x, y) => x.startMs - y.startMs);
-      setSegments(segmentsRef.current);
-      lastSaid.current = { kind: 'take', text: heard.said.map((s) => s.text).join(' ') };
-    }
-    setRoute({ phase: 'said', text: why });
-  };
-
-  /** Stops the command model, if it is reading something. */
-  const stopUnderstanding = () => {
-    understanding.current?.cancel();
-    understanding.current = null;
-  };
-
-  /**
-   * The rules had no plan for `words`: the phone's command model reads them (capture/understand.ts). Its plan is
-   * confirmed like the rules' would be; with none, `orElse` says why the words stay, or the quiet gives them back.
-   */
-  const askModel = (words: string, span: { startMs: number; endMs: number }, orElse: string | null) => {
-    stopUnderstanding();
-    const heard = listening.current;
-    if (heard) heard.asked = words;
-    const asking = understandCommand(words, candidates.current);
-    understanding.current = { words, cancel: asking.cancel };
-    setRoute({ phase: 'command', words, thinking: true });
-    void asking.done.then((plan) => {
-      if (understanding.current?.words !== words) return;
-      understanding.current = null;
-      if (listening.current?.words !== words) return;
-      if (plan && plan.kind !== 'no-note') {
-        commandLog.current.push(`The on-device model read “Glyph ${words}”`);
-        planRef.current(plan, span);
-      } else if (orElse) {
-        giveBackRef.current(orElse);
-        fireNativeHaptic('warning');
-      } else {
-        setRoute({ phase: 'command', words });
-      }
-    });
-  };
-
-  /** The command so far, read again with every phrase: a plan to confirm, a note to wait on, or more to hear. */
-  const decide = (words: string, span: { startMs: number; endMs: number }) => {
-    if (understanding.current && understanding.current.words !== words) stopUnderstanding();
-    const plugin = plugins.voiceCommands().find((voice) => voice.parse(words) !== null);
-    if (plugin) return offerPlugin(plugin, plugin.parse(words), span);
-    const plan = planCommand(words, { notes: candidates.current, targets: itemWordsOfPlugins() });
-    if (!plan) {
-      setRoute({ phase: 'command', words });
-      return;
-    }
-    if (plan.kind === 'no-note') {
-      const why = `No note called “${plan.name}”, so it stays here.`;
-      if (commandModelId.current) return askModel(words, span, why);
-      giveBack(why);
-      fireNativeHaptic('warning');
-      return;
-    }
-    carryOut(plan, span);
-  };
-
-  /** A plan, from the rules or the model: a table to build, a note to wait on, or something to confirm. */
-  const carryOut = (plan: Exclude<Plan<Candidate & { note: Note }>, { kind: 'no-note' }>, span: { startMs: number; endMs: number }) => {
-    stopUnderstanding();
-    if (plan.kind === 'table') {
-      listening.current = null;
-      setItemWords('');
-      setTable({ note: plan.note?.note ?? null, title: plan.note?.title ?? 'this note', columns: plan.columns, rows: [], lastAt: performance.now() });
-      setRoute(null);
-      fireNativeHaptic('selection');
-      return;
-    }
-    if (plan.kind === 'await') {
-      listening.current = null;
-      awaiting.current = { plan, words: [], lastAt: performance.now() };
-      setItemWords('');
-      setRoute({ phase: 'waiting', title: plan.note.title, many: plan.many, leave: plan.how === 'leave' });
-      fireNativeHaptic('selection');
-      return;
-    }
-    offer(plan, span);
-  };
-
-  const setTable = (draft: TableDraft | null) => {
-    tabling.current = draft;
-    setTableView(draft ? { ...draft, columns: [...draft.columns], rows: draft.rows.map((row) => [...row]) } : null);
-  };
-
-  /** The rows are done: the table as it will look, and a yes. */
-  const finishTable = () => {
-    const draft = tabling.current;
-    if (!draft) return;
-    setTable(null);
-    setItemWords('');
-    if (!draft.columns.length) {
-      setRoute({ phase: 'said', text: 'No table: it had no columns.' });
-      return;
-    }
-    setPending({ kind: 'table', note: draft.note, title: draft.title, columns: draft.columns, rows: draft.rows, markdown: tableMarkdown(draft.columns, draft.rows), span: { startMs: 0, endMs: 0 } });
-    fireNativeHaptic('selection');
-  };
-
-  const cancelTable = (why: string | null) => {
-    if (!tabling.current) return;
-    setTable(null);
-    setItemWords('');
-    if (why) setRoute({ phase: 'said', text: why });
-  };
-
   /** A confirmed table for another note: its own block at the end of that note. */
   const addTable = async (note: Note, title: string, markdown: string) => {
     try {
-      const fresh = (await getNote(note.id).catch(() => null)) ?? note;
-      const body = appendBlock(fresh.body, markdown);
-      await saveNote(fresh.id, body, fresh.source);
-      if (targetRef.current?.id === fresh.id) {
-        baseBody.current = Promise.resolve(body);
-        targetRef.current = { ...fresh, body };
-      }
-      const known = candidates.current.find((c) => c.id === fresh.id);
-      if (known) known.note = { ...fresh, body };
+      const body = await updateNote(note.id, (current) => appendBlock(current, markdown));
+      if (body === null) return;
       setRoute({ phase: 'done', text: `Table added to ${title}` });
       fireNativeHaptic('success');
     } catch (failure) {
@@ -726,17 +452,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
   };
 
-  /**
-   * A committed phrase, read for commands (capture/command.ts). With the
-   * keyword on, only "Glyph" starts one: the words before it stay, and the
-   * words after it, in this phrase and the next, are the command. It is shown
-   * and asks; "yes" or a tap does it, "no" or silence doesn't. Answers what of
-   * the phrase goes into the note.
-   */
-  /**
-   * A voice memo closes: the sound it took is written where it was said, as a clip of the note's tape (core/clips.ts).
-   * Its words were never written, so nothing is lost by keeping the sound instead.
-   */
   /** Which tape this take is part of: the one a continued note holds, or a fresh one for a new file. */
   const tapeOfTake = (): string => {
     if (!takeTape.current) {
@@ -747,179 +462,89 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     return takeTape.current;
   };
 
-  const closeMemo = (endMs: number) => {
-    const held = memo.current;
-    if (!held) return;
-    memo.current = null;
-    setItemWords('');
-    if (endMs - held.startMs < 500) {
-      setRoute({ phase: 'said', text: 'Nothing was said, so no voice memo was kept.' });
-      return;
-    }
-    // The tape a continued note already has comes first, so the clip points at the right sound in the whole recording.
-    const offset = targetRef.current?.recordingMs ?? 0;
-    const clip = { startMs: held.startMs + offset, endMs: endMs + offset, tape: tapeOfTake() };
-    const written: Segment = { text: clipMarkdown(clip), startMs: held.startMs, endMs };
-    clipsRef.current = [...clipsRef.current, written];
-    segmentsRef.current = [...segmentsRef.current, written].sort((a, b) => a.startMs - b.startMs);
-    setSegments(segmentsRef.current);
-    commandLog.current.push(`Kept a voice memo of ${clipLength(clip)}`);
-    setRoute({ phase: 'done', text: `Voice memo, ${clipLength(clip)}` });
-    fireNativeHaptic('success');
+  /** The take's segments and tables, copied to what the screen draws. */
+  const syncTake = () => {
+    segmentsRef.current = take.segments;
+    setSegments(take.segments);
+    setTables(take.tables);
+    setAsBoard(take.asBoard);
   };
 
-  const takeCommand = (segment: Segment): Segment | null => {
-    const now = performance.now();
-    const text = segment.text;
-    const span = { startMs: segment.startMs, endMs: segment.endMs };
-    const skip = () => commandSpans.current.push(span);
-    const keywordOn = commandWordOn();
-    // "Glyph", or a word base.en writes for it ("Life. Add eggs to work.") when a command follows and none is under way.
-    const readsAsCommand = (words: string) =>
-      plugins.voiceCommands().some((voice) => voice.parse(words) !== null) || actionable(planCommand(words, { notes: candidates.current, targets: itemWordsOfPlugins() }));
-    const underWay = tabling.current !== null || awaiting.current !== null || listening.current !== null;
-    const found = keywordOn ? (findKeyword(text) ?? (underWay ? null : findSoundAlike(text, readsAsCommand))) : null;
-
-    // A voice memo: what is said is kept as sound, not words, until "end memo" or a breath.
-    const leaving = memo.current;
-    if (leaving) {
-      const breath = segment.startMs - leaving.endMs > MEMO_GAP_MS;
-      if (!breath && !endsMemo(text)) {
-        skip();
-        leaving.endMs = segment.endMs;
-        setItemWords('');
-        return null;
-      }
-      closeMemo(leaving.endMs);
-      if (!breath) {
-        // "End memo" is the cue, not the note's words.
-        skip();
-        return null;
-      }
-      // A breath ended it: this phrase is the note's again, and goes on below.
-    } else if (startsMemo(text)) {
-      skip();
-      memo.current = { startMs: segment.endMs, endMs: segment.endMs };
-      setItemWords('');
-      setRoute({ phase: 'said', text: 'Voice memo: talk, then say “end memo”.' });
-      fireNativeHaptic('light');
-      return null;
-    }
-
-    // A table being asked for: every phrase is its next piece, until "done".
-    const draft = tabling.current;
-    if (draft) {
-      skip();
-      const said = (findKeyword(text)?.after ?? text).trim();
-      draft.lastAt = now;
-      setItemWords('');
-      if (reply(said) === 'no' || /^(?:cancel|never ?mind|forget (?:it|the table)|no table)\b/i.test(said)) {
-        cancelTable('No table.');
-        return null;
-      }
-      if (!draft.columns.length) {
-        const labels = cellsOf(said);
-        if (labels.length) setTable({ ...draft, columns: labels });
-        return null;
-      }
-      if (saysDone(said)) {
-        finishTable();
-        return null;
-      }
-      const cells = cellsOf(said);
-      if (cells.length) setTable({ ...draft, rows: [...draft.rows, fitRow(cells, draft.columns.length)] });
-      return null;
-    }
-
-    // A command asked "shall I?": this phrase may be the answer.
-    if (pendingRef.current) {
-      const answer = reply(text);
-      if (answer) {
-        skip();
-        if (answer === 'yes') confirmPending();
-        else cancelPending('Not done.');
-        return null;
-      }
-      // Talking on: the words go in the note and the question stays, unless a new command starts.
-      if (!found) {
-        lastSaid.current = { kind: 'take', text };
-        return segment;
-      }
-      cancelPending(null);
-    }
-
-    // A note was named: this phrase is what goes in it.
-    const wait = awaiting.current;
-    if (wait && !found) {
-      skip();
-      wait.words.push(text.replace(/[\s.,;:!?]+$/, ''));
-      wait.lastAt = now;
-      if (!wait.plan.many) offer({ ...wait.plan, kind: 'place', text: wait.words.join(', ') }, span);
-      return null;
-    }
-    awaiting.current = null;
-
-    // After the keyword: more of the command.
-    const heard = listening.current;
-    if (heard && !found) {
-      skip();
-      heard.words = `${heard.words} ${text}`.trim();
-      heard.said.push(segment);
-      heard.lastAt = now;
-      setItemWords('');
-      decide(heard.words, span);
-      return null;
-    }
-
-    if (keywordOn && !found) {
+  // What the take asks of the recorder. Through a ref, so the take (made once) always reaches the newest render's code.
+  const hostImpl = useRef<TakeHost<Note>>(null!);
+  hostImpl.current = {
+    notes: () => candidates.current,
+    target: () => targetRef.current,
+    commandWord: commandWordOn,
+    voiceCommands: () => plugins.voiceCommands(),
+    itemTargets: itemWordsOfPlugins,
+    understand: commandModelId.current ? (words) => understandCommand(words, candidates.current) : undefined,
+    route: setRoute,
+    offer: setPendingView,
+    table: setTableView,
+    itemWords: setItemWords,
+    haptic: (kind) => fireNativeHaptic(kind),
+    changed: syncTake,
+    addItems: (target, spoken, placement) => void addItems(target, spoken, placement),
+    changeNote: (target, change, title) =>
+      void updateNote(target.id, change).then((body) => {
+        if (body === null) setRoute({ phase: 'said', text: `${title} didn’t change.` });
+        else {
+          setRoute({ phase: 'done', text: `Done in ${title}` });
+          fireNativeHaptic('success');
+        }
+      }),
+    addTable: (target, title, markdown) => void addTable(target, title, markdown),
+    moveTo: (target) => void routeTo(target),
+    newNote: () => void startNewNote(),
+    runPlugin: (voice, parsed) => voice.run(parsed, captureContext),
+    describePlugin: (voice, parsed) => voice.describe(parsed, captureContext),
+    clip: (span) => {
+      // The tape a continued note already has comes first, so the clip points at the right sound in the whole recording.
+      const offset = targetRef.current?.recordingMs ?? 0;
+      return clipMarkdown({ startMs: span.startMs + offset, endMs: span.endMs + offset, tape: tapeOfTake() });
+    },
+    log: (line) => commandLog.current.push(line),
+    said: (text) => {
       lastSaid.current = { kind: 'take', text };
-      return segment;
-    }
-
-    if (!keywordOn) {
-      // No keyword needed: a phrase is a command only if it reads as one, and it still asks.
-      const plugin = plugins.voiceCommands().find((voice) => voice.parse(text) !== null);
-      const plan = plugin ? null : planCommand(text, { notes: candidates.current, targets: itemWordsOfPlugins() });
-      if (!plugin && (!plan || plan.kind === 'no-note')) {
-        lastSaid.current = { kind: 'take', text };
-        return segment;
-      }
-      skip();
-      listening.current = { words: text, said: [], lastAt: now };
-      decide(text, span);
-      return null;
-    }
-
-    // "Glyph": the words before it stay; the rest is the command.
-    const before = found!.before;
-    const from = text.slice(before.length).trim();
-    if (before) keywordSpans.current.push(span);
-    else skip();
-    listening.current = { words: found!.after, said: [{ ...segment, text: from }], lastAt: now };
-    setItemWords('');
-    fireNativeHaptic('light');
-    if (found!.after) decide(found!.after, span);
-    else setRoute({ phase: 'command', words: '' });
-    if (!before) return null;
-    lastSaid.current = { kind: 'take', text: before };
-    return { ...segment, text: before };
+    },
   };
+  const [take] = useState(
+    () =>
+      new Take<Note>({
+        notes: () => hostImpl.current.notes(),
+        target: () => hostImpl.current.target(),
+        commandWord: () => hostImpl.current.commandWord(),
+        voiceCommands: () => hostImpl.current.voiceCommands(),
+        itemTargets: () => hostImpl.current.itemTargets(),
+        get understand() {
+          return hostImpl.current.understand;
+        },
+        route: (view) => hostImpl.current.route(view),
+        offer: (offer) => hostImpl.current.offer(offer),
+        table: (draft) => hostImpl.current.table(draft),
+        itemWords: (text) => hostImpl.current.itemWords(text),
+        haptic: (kind) => hostImpl.current.haptic(kind),
+        changed: () => hostImpl.current.changed(),
+        addItems: (target, spoken, placement) => hostImpl.current.addItems(target, spoken, placement),
+        changeNote: (target, change, title) => hostImpl.current.changeNote(target, change, title),
+        addTable: (target, title, markdown) => hostImpl.current.addTable(target, title, markdown),
+        moveTo: (target) => hostImpl.current.moveTo(target),
+        newNote: () => hostImpl.current.newNote(),
+        runPlugin: (voice, parsed) => hostImpl.current.runPlugin(voice, parsed),
+        describePlugin: (voice, parsed) => hostImpl.current.describePlugin(voice, parsed),
+        clip: (span) => hostImpl.current.clip(span),
+        log: (line) => hostImpl.current.log(line),
+        said: (text) => hostImpl.current.said(text),
+      }),
+  );
 
-  // The timer is set up once per phase; these keep it calling the newest copies.
-  const giveBackRef = useRef(giveBack);
-  giveBackRef.current = giveBack;
-  const planRef = useRef(carryOut);
-  planRef.current = carryOut;
-  const askModelRef = useRef(askModel);
-  askModelRef.current = askModel;
-  const offerRef = useRef(offer);
-  offerRef.current = offer;
-  const cancelPendingRef = useRef(cancelPending);
-  cancelPendingRef.current = cancelPending;
-  const cancelTableRef = useRef(cancelTable);
-  cancelTableRef.current = cancelTable;
-  const closeMemoRef = useRef(closeMemo);
-  closeMemoRef.current = closeMemo;
+  const confirmPending = () => take.confirm(performance.now());
+  const cancelPending = (why: string | null) => take.cancel(why, performance.now());
+  const finishTable = () => take.finishTable(performance.now());
+  const cancelTable = (why: string | null) => take.cancelTable(why);
+  /** The chip while a command is heard: the note it names, as soon as it can tell. */
+  const showGuess = (text: string) => setRoute((current) => take.guess(text, current));
 
   // ---- start ------------------------------------------------------------------
   useEffect(() => {
@@ -975,12 +600,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             setPartial(text);
             // Words of a command show in the chip, not in the note.
             // Talking again: the command model stops, so it never takes the phone from the words being heard, and reads the command again at the next pause.
-            if (text && understanding.current) {
-              stopUnderstanding();
-              if (listening.current) listening.current.asked = undefined;
-            }
-            const commanding = listening.current !== null || awaiting.current !== null || tabling.current !== null || (commandWordOn() && findKeyword(text) !== null);
-            setItemWords(commanding ? text : '');
+            if (text) take.heardPartial(performance.now());
+            setItemWords(take.partOfCommand(text) ? text : '');
             showGuess(text);
           },
           onSegment: (raw) => {
@@ -989,11 +610,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             heard();
             counts.current.lastError = null;
             heardRef.current.push(raw.text);
-            const segment = takeCommand(raw);
+            take.phrase(raw, performance.now());
             setPartial('');
-            if (!segment) return;
-            segmentsRef.current = [...segmentsRef.current, segment];
-            setSegments(segmentsRef.current);
           },
           onError: (message) => {
             counts.current.errors += 1;
@@ -1045,30 +663,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       setDiagnostics({ ...counts.current });
       const now = performance.now();
       // A command being said, or waiting for its yes, holds the recording open.
-      const commanding = listening.current !== null || awaiting.current !== null || pendingRef.current !== null || tabling.current !== null;
-      if (tabling.current && now - tabling.current.lastAt > TABLE_QUIET_MS) cancelTableRef.current('No table: nothing was said for it for a while.');
+      const commanding = take.commanding;
+      take.tick(now);
       if (!commanding && quiet.current?.due(now)) void finishRef.current();
-      // The keyword said, words the rules can't read, and a pause: the command model reads them.
-      const saying = listening.current;
-      if (saying?.words && commandModelId.current && saying.asked !== saying.words && !understanding.current && now - saying.lastAt > UNDERSTAND_AFTER_MS && now - lastHeard.current > UNDERSTAND_AFTER_MS) {
-        const last = saying.said[saying.said.length - 1];
-        askModelRef.current(saying.words, last ? { startMs: last.startMs, endMs: last.endMs } : { startMs: 0, endMs: 0 }, null);
-      }
-      // The keyword said, and then nothing that makes a command: the words go back in the note.
-      if (listening.current && !understanding.current && now - listening.current.lastAt > COMMAND_QUIET_MS) {
-        giveBackRef.current(listening.current.words ? 'No command there, so the words stay in the note.' : 'Say a command after “Glyph”.');
-      }
-      const wait = awaiting.current;
-      if (wait && wait.words.length && now - wait.lastAt > ITEMS_QUIET_MS) {
-        // "New items for work": every phrase until a pause, then asked all at once.
-        offerRef.current({ ...wait.plan, kind: 'place', text: wait.words.join(', ') }, { startMs: 0, endMs: 0 });
-      } else if (wait && !wait.words.length && now - wait.lastAt > AWAIT_MS) {
-        awaiting.current = null;
-        setItemWords('');
-        setRoute({ phase: 'said', text: `Nothing said for ${wait.plan.note.title}, so nothing was added.` });
-      }
-      const held = pendingRef.current;
-      if (held && now - held.at > CONFIRM_MS) cancelPendingRef.current('Not done. Say “yes” or tap to confirm a command.');
       // A pause: one tip, until words come again.
       if (now - lastHeard.current > TIP_AFTER_MS) {
         setTip((showing) => {
@@ -1082,7 +679,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       }
     }, 250);
     return () => window.clearInterval(timer);
-  }, [phase]);
+  }, [phase, take]);
 
   // ---- the draft, saved as it is spoken ------------------------------------------
   useEffect(() => {
@@ -1092,16 +689,16 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       savedDraft.current = true;
       const id = noteId.current;
       if (scratchMode.current) {
-        const markdown = withTables(applyLinks(renderNote(segmentsRef.current, '', { titled: true }).markdown, sentLinksRef.current), tablesRef.current);
+        const markdown = take.markdown({ titled: true, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
         saveScratch({ id, markdown, heard: heardRef.current.join(' '), recordedMs: null, segments: segmentsRef.current, done: false, at: Date.now() });
         return;
       }
-      void compose(withTables(applyLinks(renderNote(segmentsRef.current, '', { titled: !targetRef.current }).markdown, sentLinksRef.current), tablesRef.current)).then((body) =>
+      void compose(take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown })).then((body) =>
         saveNote(id, body, 'capture'),
       );
     }, DRAFT_SAVE_MS);
     return () => window.clearTimeout(timer);
-  }, [segments, target, compose]);
+  }, [segments, target, compose, take]);
 
   // ---- ending ----------------------------------------------------------------------
   const finish = useCallback(async () => {
@@ -1111,7 +708,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     setPhase('finishing');
     micRef.current?.stop();
     // A voice memo still running is closed by Done: what was said up to here is its sound.
-    if (memo.current) closeMemoRef.current(sessionRef.current?.positionMs() ?? memo.current.endMs);
+    const position = sessionRef.current?.positionMs() ?? take.segments[take.segments.length - 1]?.endMs ?? 0;
     // The tape is kept under the note's id, added to the end of the continued
     // note's tape when there is one, so its words and its sound stay one timeline.
     const continued = targetRef.current;
@@ -1126,19 +723,19 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
     // Words after a keyword that never became a command go into the note as
     // they were said: Done must never be how dictation is lost.
-    if (listening.current) giveBackRef.current('No command there, so the words stay in the note.');
-    const spoken = segmentsRef.current;
+    take.end(position);
+    const spoken = take.segments;
     const { plain } = renderNote(spoken);
     const locked = isLocked();
 
-    if (!plain.trim() && !tablesRef.current.length && !clipsRef.current.length) {
+    if (!plain.trim() && !take.tables.length && !take.clips.length) {
       await undoDraft();
       endCapture(locked);
       onFinish(null, locked);
       return;
     }
 
-    const markdown = withTables(applyLinks(renderNote(spoken, '', { titled: !targetRef.current }).markdown, sentLinksRef.current), tablesRef.current);
+    const markdown = take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
     // A memo becomes notes only when it is sorted: kept as a finished scratch, and handed on (sort/).
     if (scratchMode.current && !targetRef.current) {
       const scratch: Scratch = {
@@ -1178,10 +775,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         titled: !continued,
         priorSegments: prior,
         promptTail: renderNote(prior).plain.slice(-200),
-        skip: commandSpans.current.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
+        skip: take.commandSpans.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
         // The voice memos this take left: the better words never heard them, and they go back where they were.
-        clips: clipsRef.current.map((clip) => ({ ...clip, startMs: clip.startMs + offset, endMs: clip.endMs + offset })),
-        keywordAt: keywordSpans.current.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
+        clips: take.clips.map((clip) => ({ ...clip, startMs: clip.startMs + offset, endMs: clip.endMs + offset })),
+        keywordAt: take.keywordSpans.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
       };
     }
     rememberCapture(saved.id);
@@ -1190,7 +787,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // The review after a recording: it runs the better words and the formatting when it is done.
     // Not over a locked phone, whose note is not shown to whoever is holding it.
     if (!locked && (await reviewAvailable())) {
-      onFinish(saved, locked, { noteId: saved.id, job: refineJob, heard: heardRef.current.join(' '), commands: [...commandLog.current], touched: [...touchedRef.current] });
+      onFinish(saved, locked, { noteId: saved.id, job: refineJob, heard: heardRef.current.join(' '), commands: [...commandLog.current], touched: [...take.touched] });
       return;
     }
     if (refineJob) enqueueRefine(refineJob);
@@ -1198,7 +795,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // revising it. After the refine job, which it waits for.
     enqueueFormat(saved.id);
     onFinish(saved, locked);
-  }, [onFinish, compose, undoDraft]);
+  }, [onFinish, compose, undoDraft, take]);
 
   // The side key held again: Done.
   useEffect(() => {
@@ -1404,60 +1001,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   );
 }
 
-/** What a command offered, in words, and what came of it: for the review's check of commands. */
-function describeOffer(offer: Offer, outcome: 'done' | 'declined' | 'dropped'): string {
-  const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
-  const what =
-    offer.kind === 'place'
-      ? `add “${offer.added.map(show).join('”, “')}” to ${offer.title}${offer.into === 'list' ? '’s list' : ' as a paragraph'}`
-      : offer.kind === 'move'
-        ? `move this recording to ${offer.title}`
-        : offer.kind === 'new'
-          ? 'start a new note'
-          : offer.kind === 'table'
-            ? `add a table (${offer.columns.join(', ')}; ${offer.rows.length} rows) to ${offer.title}`
-            : offer.title.charAt(0).toLowerCase() + offer.title.slice(1);
-  if (outcome === 'done') return `Did: ${what}`;
-  return outcome === 'declined' ? `Offered to ${what}; the person said no` : `Offered to ${what}; nobody answered, so it was not done`;
+/** The take's words as a board, when "make this a board" was said and there is a list to make one of. */
+function asBoardMarkdown(markdown: string): string {
+  return boardFrom(markdown)?.doc ?? markdown;
 }
-
-/** The take's markdown with its tables after its words. */
-function withTables(markdown: string, tables: readonly string[]): string {
-  return tables.reduce((body, table) => appendBlock(body, table), markdown).replace(/\n$/, '');
-}
-
-/** A table being asked for: its note (null for the one being recorded), its labels, its rows so far. */
-interface TableDraft {
-  note: Note | null;
-  title: string;
-  columns: string[];
-  rows: string[][];
-  lastAt: number;
-}
-
-/** A command understood and waiting for yes or no: what it will do, shown on the card. */
-type Offer =
-  | { kind: 'place'; note: Note; title: string; text: string; placement: Placement; added: string[]; into: 'list' | 'paragraph'; span: { startMs: number; endMs: number } }
-  | { kind: 'move'; note: Note; title: string; span: { startMs: number; endMs: number } }
-  | { kind: 'new'; span: { startMs: number; endMs: number } }
-  | { kind: 'table'; note: Note | null; title: string; columns: string[]; rows: string[][]; markdown: string; span: { startMs: number; endMs: number } }
-  | { kind: 'plugin'; voice: VoiceCommand; parsed: unknown; title: string; action: string; span: { startMs: number; endMs: number } };
-
-type RouteView =
-  | { phase: 'hearing'; name: string; guess: string | null; lead: 'Add to' | 'New item for' | 'Move to' | 'Start' | 'Table for' }
-  /** Something a command did, with a tick. */
-  | { phase: 'done'; text: string }
-  /** After "Glyph": the command's words so far. */
-  | { phase: 'command'; words: string; thinking?: boolean }
-  /** A sentence about what did not happen. */
-  | { phase: 'said'; text: string }
-  | { phase: 'waiting'; title: string; many: boolean; leave: boolean }
-  | { phase: 'added'; title: string; body: string; added: string[] }
-  | { phase: 'moved'; title: string }
-  | { phase: 'missed'; title: string }
-  /** A plugin's voice command: working ("Sending to Board"), done ("In Notion on Board"), or why not. */
-  | { phase: 'plugin'; state: 'working' | 'done' | 'failed'; lead: string | null; title: string }
-  | null;
 
 /** The words of a command still being said, with the keyword taken off if it is in them. */
 function partialCommand(text: string): string {
@@ -1471,7 +1018,7 @@ function partialCommand(text: string): string {
  * paragraph), and the two answers. "Yes" or "no" said aloud answer it as well
  * as a tap does, and saying nothing for a while is a no.
  */
-function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer; onConfirm: () => void; onCancel: () => void }) {
+function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer<Note>; onConfirm: () => void; onCancel: () => void }) {
   const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
   let heading: string;
   let action: string;
@@ -1484,6 +1031,16 @@ function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer; onConfirm: 
       lines = offer.added.map(show);
       detail = offer.into === 'list' ? 'In its list' : 'As a new paragraph';
       if (offer.placement.target) detail += `, then to ${offer.placement.target.charAt(0).toUpperCase()}${offer.placement.target.slice(1)}`;
+      break;
+    case 'change':
+      heading = `${offer.heading} in ${offer.title}`;
+      action = offer.action;
+      lines = offer.lines;
+      break;
+    case 'board':
+      heading = 'Make this note a board';
+      action = 'Make it';
+      detail = 'Its list items become cards';
       break;
     case 'move':
       heading = `Move this recording to ${offer.title}`;
@@ -1558,7 +1115,7 @@ function TablePreview({ columns, rows }: { columns: readonly string[]; rows: rea
  * next or "done", showing the table as it grows and the words being heard
  * for the piece it asked for.
  */
-function TableCard({ draft, heard, onDone, onCancel }: { draft: TableDraft; heard: string; onDone: () => void; onCancel: () => void }) {
+function TableCard({ draft, heard, onDone, onCancel }: { draft: TableDraft<Note>; heard: string; onDone: () => void; onCancel: () => void }) {
   const question = !draft.columns.length ? 'What will the column labels be?' : draft.rows.length ? 'Next row? Or say “done”.' : 'What goes in the first row?';
   const hint = !draft.columns.length ? 'Say them with commas, like “bug, owner, status”.' : `In order: ${draft.columns.join(', ')}.`;
   const words = heard ? (findKeyword(heard)?.after ?? heard) : '';

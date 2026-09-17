@@ -1,3 +1,4 @@
+import { addToLane, lanesOf, matchLane, moveToLane, type Lane } from '../core/boards.ts';
 import { matchNote, parseRoute, type Candidate } from './route.ts';
 import { cellsOf } from './table.ts';
 
@@ -33,7 +34,7 @@ import { cellsOf } from './table.ts';
  * are part of the keyword.
  */
 const KEYWORD =
-  /(^|[\s,.;:!?"“])(?:(?:hey|hi|ok(?:ay)?|so)[,\s]+)?(?:glyph|glyphs|glyphe|glyf|glif|gliff|glyff|gliph|glyth|glith|clith|clyph|gleef|gliv|glive|glit|bliff)(?=$|[\s,.;:!?"”'])[,.;:!?"”]*\s*/i;
+  /(^|[\s,.;:!?"“])(?:(?:hey|hi|ok(?:ay)?|so)[,\s]+)?(?:glyph|glyphs|glyphe|glyf|glif|gliff|glyff|gliph|glyth|glith|glithe|clith|clyph|gleef|gliv|glive|glit|bliff)(?=$|[\s,.;:!?"”'])[,.;:!?"”]*\s*/i;
 
 /**
  * What base.en writes for "Glyph" that is a word of its own: "Life. Add eggs to my list", "Live, new note", "Head
@@ -122,6 +123,12 @@ export type Plan<N extends Candidate = Candidate> =
   | { kind: 'new' }
   /** A table, asked for a piece at a time (capture/table.ts): in a named note, or this one when none is named. */
   | { kind: 'table'; note: N | null; columns: string[] }
+  /** A card for a board's lane: "Glyph, add fix the login bug to Doing" (core/boards.ts). */
+  | { kind: 'lane'; note: N; lane: string; words: string; change: (body: string) => string | null }
+  /** A card moved to a lane: "Glyph, move the pricing page to Done". */
+  | { kind: 'card'; note: N; lane: string; words: string; change: (body: string) => string | null }
+  /** "Glyph, make this a board": the note being recorded is written as a board. */
+  | { kind: 'board' }
   /** A note was named that there is no note for. */
   | { kind: 'no-note'; name: string };
 
@@ -145,7 +152,7 @@ function noteNamed<N extends Candidate>(raw: string, notes: readonly N[]): { not
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/^(?:(?:the|my|our|a)\s+)+/i, '')
-    .replace(/\s+(?:note|notes|list|page)$/i, '')
+    .replace(/\s+(?:note|notes|node|list|page)$/i, '')
     .trim();
   if (name.length < 2) return null;
   return matchNote(name, notes);
@@ -162,15 +169,61 @@ function placementOf(noun: RegExpExecArray | null): Placement {
  * `notes` are the notes that can be named; `targets` the words plugins offer
  * after a note's name.
  */
-export function planCommand<N extends Candidate>(words: string, options: { notes: readonly N[]; targets?: readonly string[] }): Plan<N> | null {
+export interface PlanOptions<N extends Candidate & { note?: { body: string } }> {
+  notes: readonly N[];
+  targets?: readonly string[];
+  /** The note being recorded into, when it has a board: its lanes can be named (core/boards.ts). */
+  board?: N | null;
+}
+
+export function planCommand<N extends Candidate & { note?: { body: string } }>(words: string, options: PlanOptions<N>): Plan<N> | null {
   const plan = readCommand(words, options);
   // What is added is words, not the end of a spoken sentence.
   return plan?.kind === 'place' ? { ...plan, text: plan.text.replace(/[\s.,;:!?]+$/, '') } : plan;
 }
 
-function readCommand<N extends Candidate>(words: string, { notes, targets = [] }: { notes: readonly N[]; targets?: readonly string[] }): Plan<N> | null {
+/** "Make this a board", "turn the list into a kanban board". */
+const MAKE_BOARD = /^(?:make|turn|change)\s+(?:this|it|this\s+note|the\s+note|this\s+list|the\s+list)\s+(?:into\s+)?(?:a\s+)?(?:kanban\s+)?(?:board|kanban)[.!]?$/i;
+/** "Move the pricing page to Done", "drag call Sam into doing". */
+const MOVE_CARD = /^(?:move|drag|shift|put)\s+(.+?)\s+(?:to|into|in|onto|over\s+to)\s+(.+?)[.!?]*$/i;
+
+/** A lane of `board`'s note by spoken name, with the score it won by. */
+function laneNamed<N extends Candidate & { note?: { body: string } }>(name: string, board: N | null | undefined): { lane: Lane; score: number } | null {
+  const body = board?.note?.body;
+  if (!body) return null;
+  return matchLane(name.replace(/[.,;:!?"“”]+/g, ' ').trim(), lanesOf(body));
+}
+
+/** A change to a lane, found again by name in the body it is given, which is the fresh one when it runs. */
+function laneChange(lane: Lane, act: (body: string, lane: Lane) => string | null): (body: string) => string | null {
+  return (body) => {
+    const fresh = lanesOf(body).find((l) => l.name === lane.name && l.board === lane.board) ?? lanesOf(body).find((l) => l.name === lane.name);
+    return fresh ? act(body, fresh) : null;
+  };
+}
+
+function readCommand<N extends Candidate & { note?: { body: string } }>(words: string, { notes, targets = [], board = null }: PlanOptions<N>): Plan<N> | null {
   const text = words.replace(LEAD, '').trim();
   if (!text) return null;
+  if (MAKE_BOARD.test(text)) return { kind: 'board' };
+
+  // "Move the pricing page to Done": a card, when the note being recorded has a board with that lane and no note by
+  // that name is the better match.
+  const moving = board ? MOVE_CARD.exec(text) : null;
+  if (moving && board) {
+    const lane = laneNamed(moving[2] ?? '', board);
+    const note = noteNamed(moving[2] ?? '', notes);
+    const item = (moving[1] ?? '').replace(/^(?:the|my|our)\s+/i, '').trim();
+    if (lane && item && !/^(?:this|that|it|everything|these|those|them)$/i.test(item) && (!note || lane.score > note.score)) {
+      return {
+        kind: 'card',
+        note: board,
+        lane: lane.lane.name,
+        words: item,
+        change: laneChange(lane.lane, (body, fresh) => moveToLane(body, item, fresh)?.body ?? null),
+      };
+    }
+  }
   // The phrase is committed: a command that stops after a name has ended.
   const ended = /[.!?]\s*$/.test(text) ? text : `${text}.`;
   const find = (name: string) => noteNamed(name, notes)?.note ?? null;
@@ -215,6 +268,7 @@ function readCommand<N extends Candidate>(words: string, { notes, targets = [] }
   if (verb) {
     const after = text.slice(verb[0].length);
     let best: { note: N; score: number; thing: string; rest: string } | null = null;
+    let bestLane: { lane: Lane; score: number; thing: string } | null = null;
     for (const split of after.matchAll(INTO)) {
       const thing = after.slice(0, split.index).trim();
       const tail = after.slice((split.index ?? 0) + split[0].length);
@@ -223,6 +277,23 @@ function readCommand<N extends Candidate>(words: string, { notes, targets = [] }
       const target = targets.find((word) => new RegExp(String.raw`\s+(?:in|on|to|into)\s+${word}\s*$`, 'i').test(name)) ?? null;
       const found = noteNamed(target ? name.replace(new RegExp(String.raw`\s+(?:in|on|to|into)\s+${target}\s*$`, 'i'), '') : name, notes);
       if (found && (!best || found.score > best.score)) best = { ...found, thing, rest: rest.trim() };
+      const lane = board && !rest.trim() ? laneNamed(name, board) : null;
+      if (lane && thing && (!bestLane || lane.score > bestLane.score)) bestLane = { ...lane, thing };
+    }
+    // A lane of the board being recorded into, named better than any note: a card for it.
+    if (board && bestLane && (!best || bestLane.score > best.score) && !MOVERS.test(text)) {
+      const noun = OBJECT_NOUN.exec(bestLane.thing);
+      const said = (noun ? bestLane.thing.slice(noun[0].length) : bestLane.thing).trim();
+      const item = said.charAt(0).toUpperCase() + said.slice(1);
+      if (item && !/^(?:this|that|it|everything|these|those|them)$/i.test(item)) {
+        return {
+          kind: 'lane',
+          note: board,
+          lane: bestLane.lane.name,
+          words: item,
+          change: laneChange(bestLane.lane, (body, fresh) => addToLane(body, fresh, item)?.body ?? null),
+        };
+      }
     }
     if (best) {
       if (MOVERS.test(text) && /^(?:this|that|it|everything|these|those|them)?$/i.test(best.thing) && !best.rest) return { kind: 'move', note: best.note };

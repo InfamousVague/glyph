@@ -109,6 +109,10 @@ from a list of ideas.
   (`editor/wispFormat.ts`)
 - **Progress under a heading.** Nothing to type: a heading with to-dos under it says "3 of 7", or "All 7 done",
   counting its subsections too. (`editor/headingProgress.ts`)
+- **Link cards.** A line that is only a link (bare, `<bare>`, or `[words](address)`, in a list or not) gets a card
+  under it with the page's title, site and summary; a tap opens it. The title is read by the app
+  (`link_preview`, native generation 17) for a card on screen, cached for a week, and never with Link previews off
+  (Settings > Type) or "Nothing leaves the phone" on. Links a plugin reads keep their own rows. (`editor/linkCards.ts`)
 - **Tapping a box.** `- [ ]` and `- [x]` tick and clear on a tap of the box itself. (`editor/taskToggle.ts`)
 
 ### Deliberately not

@@ -31,6 +31,7 @@ pub mod llm;
 // run, a cancel, and the progress events. See its header.
 mod ai_commands;
 mod notion;
+mod link_preview;
 
 // Pictures in notes: `save_image` adopts one the Android shell picked, the
 // `img` scheme draws it, and a deleted note takes its pictures with it. See its
@@ -166,6 +167,7 @@ pub fn run() {
             commands::set_note_formatted,
             commands::store_apply,
             commands::sync_put_file,
+            link_preview::link_preview,
             images::save_image,
             images::save_image_data,
             capture_commands::capture_model_status,

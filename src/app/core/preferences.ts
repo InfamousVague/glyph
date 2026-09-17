@@ -98,6 +98,11 @@ export interface Preferences {
   ripples: boolean;
   /** The pace of all of it: the typing smoke, and the app's own movement between screens and sheets. */
   motionSpeed: MotionSpeed;
+  /**
+   * A card under a line that is only a link, with the page's title (editor/linkCards.ts). Reading the title asks
+   * the linked site, so it can be switched off.
+   */
+  linkPreviews: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -122,6 +127,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   wispEdge: true,
   ripples: true,
   motionSpeed: 'normal',
+  linkPreviews: true,
 };
 
 const STORAGE_KEY = 'glyph-preferences';

@@ -121,6 +121,29 @@ at from a column, from a sentence, or from another note.
 - A card says its item's words with the markdown taken off — a link reads as its own words, not its URL — and shows
   three lines at most. The note below always has the whole thing.
 
+## By voice
+
+Matt: "add voice commands and cues for adding to swimlanes on the board". While a note with a board is being
+recorded into, a lane is named the way a note is, and the recorder asks before it acts:
+
+| Say | What happens |
+| --- | --- |
+| "Glyph, add *words* to *lane*" | A new to-do with those words, its card at the top of that lane. "Glyph, add call Sam to Doing." |
+| "Glyph, move *item* to *lane*" | The item the words name moves to that lane; into Done it is ticked, out of Done unticked. "Glyph, move the pricing page to the Done column." |
+| "Glyph, make this a board" | The note's list becomes a board, as More → **Make a board** does. |
+
+A lane can be said with or without "the", "lane", "column" or "swimlane" around it. A lane wins over a note of the
+same name only when it is the better match. The recorder reads the command (`capture/command.ts`, plan kinds `lane`,
+`card` and `board`); `core/boards.ts` finds the lane and makes the change:
+
+- `lanesOf(body)` lists every board's lanes, and `matchLane(spoken, lanes)` finds the one a name says - case,
+  spacing, hyphens, a leading "the" and a trailing "lane", "column" or "swimlane" aside, "finished" or "complete" for
+  Done - with a score on the same footing as a note's name, so a lane and a note called the same are weighed fairly.
+- `addToLane` writes a new to-do under the board's last item, named after its words, with its card at the top of the
+  lane, as the **+** field does.
+- `moveToLane` finds the list item the words best match (three words in five), names it if it has no anchor, and
+  moves its card to the end of the lane. Into Done its box is ticked, out of Done unticked, as a drag would.
+
 ## On a phone
 
 Matt: "add a way to tap and drag to re organize items in lanes and make the UI / UX of these boards friendlier on
@@ -134,7 +157,12 @@ mobile". What that means on the page:
 - The chevrons stay. They do the same thing a tap at a time, for a hand that would rather not drag and for anything
   driving the app by keyboard, and every control on a card is a thumb's width.
 - Columns snap as they scroll, one to a screen, and a column's name stays at the top while its cards go by.
-- An empty column says it will take a card while one is held, rather than being a blank space.
+- An empty column is not a blank space (Matt: "add an icon when there are no items in a board like no todo items or
+  no doing tasks"). At rest it shows a picture and a line by what its name says it is for: a checklist and "Nothing
+  to do" for To do, Backlog, Next and the like; an hourglass and "Nothing in progress" for Doing or In progress; a
+  double tick and "Nothing done yet" for Done; an empty tray and "No cards" for any other name. The lane runs as tall
+  as the board's tallest, or its set height, and the picture sits in the middle of it. While a card is held,
+  every column becomes an outlined target that says "Drop a card here".
 - **+** on a column opens a field at the top of it. The words come first: Enter (or Add) writes
   `- [ ] the words ^anchor` under the board's last item, with the anchor named after the words, and puts the card at
   the top of that column. The field stays open and empty for the next card, and Escape closes it. Nothing is written

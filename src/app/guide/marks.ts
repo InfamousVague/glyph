@@ -129,10 +129,10 @@ const OWN: MarkGroup[] = [
       { symbol: '**', name: 'Bold', typed: '**Friday at noon**', words: 'Friday at noon', looks: 'bold', icon: Bold, say: '“bold” … “end bold”' },
       { symbol: '_', name: 'Italic', typed: '_a quiet aside_', words: 'a quiet aside', looks: 'italic', icon: Italic, say: '“italic” … “end italic”' },
       { symbol: '***', name: 'Both', typed: '***really now***', words: 'really now', looks: 'both', icon: Baseline },
-      { symbol: '~~', name: 'Struck through', typed: '~~the old plan~~', words: 'the old plan', looks: 'struck', icon: Strikethrough },
-      { symbol: '`', name: 'Code', typed: '`npm run dev`', words: 'npm run dev', looks: 'code', icon: Code },
+      { symbol: '~~', name: 'Struck through', typed: '~~the old plan~~', words: 'the old plan', looks: 'struck', icon: Strikethrough, say: '“strike” … “end strike”' },
+      { symbol: '`', name: 'Code', typed: '`npm run dev`', words: 'npm run dev', looks: 'code', icon: Code, say: '“code” … “end code”' },
       { symbol: '[ ]( )', name: 'A link', typed: '[Glyph](https://attack.fm/glyph)', words: 'Glyph', looks: 'link', icon: Link },
-      { symbol: '#', name: 'A tag', typed: '- [ ] Ship the pricing page #web #launch', words: '#web', looks: 'tag', icon: Hash },
+      { symbol: '#', name: 'A tag', typed: '- [ ] Ship the pricing page #web #launch', words: '#web', looks: 'tag', icon: Hash, say: '“hashtag web”' },
     ],
   },
   {
@@ -141,14 +141,14 @@ const OWN: MarkGroup[] = [
     rows: [
       { symbol: '#', name: 'Title', typed: '# Weekend trip', words: 'Weekend trip', looks: 'h1', icon: Heading1, say: '“title” or “call this note”' },
       { symbol: '##', name: 'Heading', typed: '## The budget', words: 'The budget', looks: 'h2', icon: Heading2, say: '“heading” or “new section”' },
-      { symbol: '###', name: 'Smaller heading', typed: '### Friday', words: 'Friday', looks: 'h3', icon: Heading3 },
+      { symbol: '###', name: 'Smaller heading', typed: '### Friday', words: 'Friday', looks: 'h3', icon: Heading3, say: '“subheading”' },
       { symbol: '-', name: 'A list', typed: '- Oat milk\n- Rye bread', words: 'Oat milk', looks: 'bullet', icon: List, say: '“bullet point”' },
       { symbol: '1.', name: 'In order', typed: '1. Unplug it\n2. Wait a minute', words: 'Unplug it', looks: 'number', icon: ListOrdered, say: '“number one”, “first”' },
       { symbol: '- [ ]', name: 'A to-do', typed: '- [ ] Book the cabin', words: 'Book the cabin', looks: 'todo', icon: ListTodo, say: '“remember to”, “check box”' },
       { symbol: '- [x]', name: 'Done', typed: '- [x] Call Sam', words: 'Call Sam', looks: 'done', icon: SquareCheckBig },
-      { symbol: '- ( )', name: 'A choice', typed: 'Where do we stay?\n- ( ) Tent\n- (x) Cabin', words: 'Cabin', looks: 'choice', icon: CircleDot },
-      { symbol: '[ / ]', name: 'A counter', typed: '- Water [3/8]', words: '3/8', looks: 'counter', icon: Gauge },
-      { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator },
+      { symbol: '- ( )', name: 'A choice', typed: 'Where do we stay?\n- ( ) Tent\n- (x) Cabin', words: 'Cabin', looks: 'choice', icon: CircleDot, say: '“option: tent”, “picked option: cabin”' },
+      { symbol: '[ / ]', name: 'A counter', typed: '- Water [3/8]', words: '3/8', looks: 'counter', icon: Gauge, say: '“counter three of eight”' },
+      { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator, say: '“calculate: four fifty plus one twenty”' },
       {
         symbol: '>',
         name: 'A quote',
@@ -158,7 +158,7 @@ const OWN: MarkGroup[] = [
         icon: MessageSquareQuote,
         say: '“quote”',
       },
-      { symbol: '>|', name: 'A hidden line', typed: '>| The answer is forty-two.', words: 'The answer is forty-two.', looks: 'spoilerLine', icon: EyeOff },
+      { symbol: '>|', name: 'A hidden line', typed: '>| The answer is forty-two.', words: 'The answer is forty-two.', looks: 'spoilerLine', icon: EyeOff, say: '“hidden line: …”' },
       {
         symbol: '#',
         name: 'Progress',
@@ -174,7 +174,7 @@ const OWN: MarkGroup[] = [
     title: 'Pointing somewhere',
     lead: 'At another note, at a line of this one, or at the small print underneath.',
     rows: [
-      { symbol: '[[ ]]', name: 'Another note', typed: 'the deposit is in [[The cabin trip]]', words: 'The cabin trip', looks: 'wiki', icon: SquareArrowOutUpRight },
+      { symbol: '[[ ]]', name: 'Another note', typed: 'the deposit is in [[The cabin trip]]', words: 'The cabin trip', looks: 'wiki', icon: SquareArrowOutUpRight, say: '“note link The cabin trip end link”' },
       {
         symbol: '^',
         name: 'A name for an item',
@@ -228,6 +228,7 @@ const OWN: MarkGroup[] = [
         looks: 'callout',
         icon: Info,
         note: 'NOTE',
+        say: '“callout: …”, “warning callout: …”',
       },
       {
         symbol: '```board',

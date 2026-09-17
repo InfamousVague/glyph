@@ -18,8 +18,11 @@ const STARTS =
 const ENDS =
   /^\s*(?:(?:ok(?:ay)?|so|and|then)[,\s]+)*(?:end|stop|finish|close)\s+(?:of\s+)?(?:the\s+|that\s+)?(?:voice\s+|audio\s+|sound\s+)?(?:memo|note|clip|recording)\b[.,!?:]*\s*$/i;
 
-/** A breath this long after the last words closes a memo, the way a pause ends a paragraph. */
-export const MEMO_GAP_MS = 2000;
+/**
+ * A pause this long between phrases closes a memo, the way a pause ends a paragraph: the gap as the streamer reports
+ * it, which is 1.7 s for a spoken pause of two and a half seconds or more (capture/markdown.ts PARAGRAPH_GAP_MS).
+ */
+export const MEMO_GAP_MS = 1500;
 
 /** Whether this phrase asks for a voice memo. */
 export function startsMemo(text: string): boolean {

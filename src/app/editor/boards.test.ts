@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { drawnBoards } from './boards.ts';
+import { drawnBoards, emptyLook } from './boards.ts';
 import { glyphMarkdown } from './language.ts';
 
 const note = [
@@ -405,5 +405,47 @@ describe('the line under a board', () => {
       vi.restoreAllMocks();
       vi.useRealTimers();
     }
+  });
+});
+
+describe('an empty column', () => {
+  // Matt: "add an icon when there are no items in a board like no todo items or no doing tasks".
+  it('shows a picture and says it is empty, by what the column is for', () => {
+    const target = open('```board\nTo do:\nDoing:\nDone: ship\nWaiting on Sam:\n```\n\n- [x] Ship it ^ship\n');
+    const columns = [...target.dom.querySelectorAll<HTMLElement>('.cm-boardColumn')];
+    const empty = columns.map((column) => column.querySelector<HTMLElement>('.cm-boardEmpty')!);
+    // Every column has the place; only the empty ones show it at rest.
+    expect(empty.map((place) => place.hasAttribute('data-none'))).toEqual([true, true, false, true]);
+    expect(empty.map((place) => place.querySelector('.cm-boardEmptyRest')?.textContent)).toEqual([
+      'Nothing to do',
+      'Nothing in progress',
+      'Nothing done yet',
+      'Nothing to do',
+    ]);
+    expect(empty.every((place) => place.querySelector('.cm-boardEmptyIcon') instanceof SVGSVGElement)).toBe(true);
+    // Held, a card is dropped on the same place, which says so.
+    expect(empty[0]?.querySelector('.cm-boardEmptyDrop')?.textContent).toBe('Drop a card here');
+  });
+
+  it('stops being empty when a card arrives, and is empty again when it goes', () => {
+    const target = open('```board\nTo do:\nDone:\n```\n');
+    const place = (index: number) => target.dom.querySelectorAll<HTMLElement>('.cm-boardColumn')[index]!.querySelector('.cm-boardEmpty')!;
+    expect(place(0).hasAttribute('data-none')).toBe(true);
+    type(addTo(target, 0), 'Book the ferry');
+    expect(place(0).hasAttribute('data-none')).toBe(false);
+    expect(place(1).hasAttribute('data-none')).toBe(true);
+    // Moved along with its arrow, the card leaves To do empty and Done not.
+    const right = target.dom.querySelector<HTMLButtonElement>('.cm-boardCard[data-card="book-ferry"] .cm-boardMove:last-child')!;
+    right.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(target.state.doc.toString()).toContain('To do:\nDone: book-ferry');
+    expect(place(0).hasAttribute('data-none')).toBe(true);
+    expect(place(1).hasAttribute('data-none')).toBe(false);
+  });
+
+  it('reads the common column names, and gives any other the plain tray', () => {
+    expect(emptyLook('Backlog')).toEqual({ icon: 'todo', words: 'Nothing to do' });
+    expect(emptyLook('In progress')).toEqual({ icon: 'doing', words: 'Nothing in progress' });
+    expect(emptyLook('Done')).toEqual({ icon: 'done', words: 'Nothing done yet' });
+    expect(emptyLook('Ideas')).toEqual({ icon: 'inbox', words: 'No cards' });
   });
 });

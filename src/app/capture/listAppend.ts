@@ -201,7 +201,8 @@ export interface Placing {
  */
 export function placeWords(body: string, spoken: string, { how, task, many }: Placing): { body: string; added: string[]; into: 'list' | 'paragraph' } {
   if (how === 'leave') return leaveNote(body, spoken);
-  const listed = many || /,/.test(spoken) ? enumeration(`Items: ${spoken}`)?.items : null;
+  // Several said one after another arrive joined with commas: each is an item, two as much as five.
+  const listed = many || /,/.test(spoken) ? (enumeration(`Items: ${spoken}`)?.items ?? (many ? spoken.split(/\s*,\s*/).filter(Boolean) : null)) : null;
   const items = listed?.length ? listed : [spoken];
   return { ...appendToList(body, items, { asTasks: task }), into: 'list' };
 }
