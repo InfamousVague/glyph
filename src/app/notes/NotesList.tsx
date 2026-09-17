@@ -9,7 +9,8 @@ import { ArrowLeft, Cog, Pin, Plus } from '../art/Icons.tsx';
 import { useRefining } from '../capture/refine.ts';
 import { Blank, EmptyArchive } from '../art/Shapes.tsx';
 import { useWispEdge } from '../art/wispEdge.ts';
-import { Mic } from '@glacier/icons';
+import { WorkingGears } from '../art/WorkingGears.tsx';
+import { GraduationCap, Mic, X } from '@glacier/icons';
 import { WorkspaceBar } from './WorkspaceBar.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
 import { LinkMarks } from '../plugins/LinkMarks.tsx';
@@ -40,12 +41,15 @@ import styles from './NotesList.module.css';
  * the screen's one ink pill, because talking is what Glyph is for, and
  * Settings as a cog on the right.
  *
- * The screen title scrolls away with the notes instead of pinning. A 60px
- * header that stayed put would take a fifth of a phone's height from the thing
- * it names. Nothing sits above the title: the count, Tapes and Settings that
- * used to were more words than the list needed (Matt: keep the main page
- * simple). Settings is a cog at the right of the dock; a spoken note's tape is at the top
- * of the note itself.
+ * The screen's name is one word in the top bar, the size every screen's top
+ * word is (Matt: "change 'Notes' on the home page to be way smaller, the title
+ * is too big", and "make notes header bigger in top bar"). It used to be a
+ * display-sized title inside the scroller, which cost a fifth of the phone's
+ * height; at this size the bar can stay put, so the notes run under it and go
+ * to smoke at its edge like every other screen. Nothing else sits up there:
+ * the count, Tapes and Settings that used to were more words than the list
+ * needed (Matt: keep the main page simple). Settings is a cog at the right of
+ * the dock; a spoken note's tape is at the top of the note itself.
  *
  * A row is a plain `<button>`: one tap target with one accessible name. No
  * virtualisation yet - rows are variable height now that titles wrap, and a
@@ -86,6 +90,11 @@ interface NotesListProps {
   onSortMemo?: () => void;
   /** The note open beside the list (the desktop sidebar, App.tsx): its row is marked. */
   selectedId?: string;
+  /** Glyph Academy has not been started: the card that offers it (academy/banner.ts). */
+  showAcademy?: boolean;
+  onAcademy?: () => void;
+  /** Put the Academy's card away for good. */
+  onHideAcademy?: () => void;
 }
 
 const DELETE: SwipeAction = { id: 'delete', label: 'Delete', icon: 'delete', tone: 'danger', detent: 0.55, removes: true };
@@ -133,14 +142,18 @@ export function NotesList({
   memoWaiting = false,
   onSortMemo,
   selectedId,
+  showAcademy = false,
+  onAcademy,
+  onHideAcademy,
 }: NotesListProps) {
   const [view, setView] = useState<'notes' | 'archive'>('notes');
   // The phone's back gesture: the archive steps back to the notes.
   useBack(view === 'archive', () => setView('notes'));
   const refining = useRefining();
   const scroller = useRef<HTMLDivElement>(null);
-  // Notes going up under the status bar go to smoke (art/wispEdge.ts).
-  useWispEdge(scroller);
+  const topBar = useRef<HTMLElement>(null);
+  // Notes going up under the top bar go to smoke, which sits under its edge (art/wispEdge.ts).
+  useWispEdge(scroller, view, topBar);
   const spaces = useWorkspaces();
   // Another workspace chosen: the list glides back to its top rather than jumping there.
   useGlideToTop(scroller, view === 'notes' ? (spaces.current?.id ?? 'all') : null);
@@ -151,11 +164,11 @@ export function NotesList({
   const shown = view === 'archive' ? archived : inWorkspace(listOrder(live), spaces.current?.id ?? null);
   const count = shown.length;
   // A note's workspace, by note id, for the rows that should wear it: none while one workspace is chosen, since every row is in it.
-  const labelled = new Map<string, string>();
+  const labelled = new Map<string, { name: string; hue: string }>();
   if (view === 'archive' || !spaces.current) {
     for (const note of shown) {
-      const name = spaces.list.find((w) => w.id === spaces.of[note.id])?.name;
-      if (name) labelled.set(note.id, name);
+      const space = spaces.list.find((w) => w.id === spaces.of[note.id]);
+      if (space) labelled.set(note.id, { name: space.name, hue: space.hue ?? 'ink' });
     }
   }
   // One line under each title, what the note is about, written on the phone (format/gist.ts).
@@ -169,18 +182,25 @@ export function NotesList({
   };
   return (
     <div className={styles.screen}>
+      <header ref={topBar} className={`app-headerPane ${styles.topBar}`}>
+        {view === 'archive' ? (
+          <div className={styles.topRow}>
+            <button type="button" className={`app-word ${styles.back}`} onClick={() => setView('notes')}>
+              <ArrowLeft /> Notes
+            </button>
+          </div>
+        ) : (
+          /* The word is gone from the top of the list (Matt: "remove the 'notes' header on the homepage it's
+             redundant at this point"): the app's tab bar is above it and the notes themselves are under it, so it
+             named a screen nobody could mistake. The pane stays, because it is the glass behind the bar, and the
+             name stays for a screen reader, which has no bar to look at. */
+          <h1 className={styles.saidOnly}>Notes</h1>
+        )}
+      </header>
       <div ref={scroller} className={styles.scroll}>
-        <header className={styles.header}>
-          {view === 'archive' ? (
-            <div className={styles.topline}>
-              <button type="button" className={`app-word ${styles.settings}`} onClick={() => setView('notes')}>
-                <ArrowLeft /> Notes
-              </button>
-            </div>
-          ) : null}
-          {/* Plain: the smoke is kept for words being typed and deleted (Matt: "this animation is too much and takes too long, save it for things like typing and deleting"). */}
-          <h1 className={styles.display}>{view === 'archive' ? 'Archive' : 'Notes'}</h1>
-        </header>
+        {/* The header scrolls with the notes no more: one word in the top bar, the size every screen's top word is
+            (Matt: "change 'Notes' on the home page to be way smaller", and "make notes header bigger in top bar"). */}
+        {view === 'archive' ? <h1 className={styles.archiveWord}>Archive</h1> : null}
 
         {view === 'notes' ? (
           <>
@@ -188,6 +208,7 @@ export function NotesList({
             <UpdateNotice updates={updates} />
             {memoWaiting && onSortMemo ? <UpdateCard text="A memo is waiting to be sorted into your notes." action="Sort" onAction={onSortMemo} /> : null}
             <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
+            {showAcademy && onAcademy ? <AcademyCard onOpen={onAcademy} onHide={onHideAcademy} /> : null}
             {refining.download ? (
               <p className={styles.notice} role="status">
                 Getting the better voice model, {Math.round(refining.download.received / 1e6)} of {Math.round(refining.download.total / 1e6)} MB.
@@ -259,7 +280,11 @@ export function NotesList({
                         <span className={styles.rowMeta}>
                           {when(view === 'archive' && note.archivedAt ? note.archivedAt : note.updatedAt)}
                           {/* Which workspace it's filed in, where the list isn't already that workspace: All, and the archive. */}
-                          {labelled.has(note.id) ? <span className={styles.rowSpace}>{labelled.get(note.id)}</span> : null}
+                          {labelled.has(note.id) ? (
+                            <span className={styles.rowSpace} data-hue={labelled.get(note.id)?.hue}>
+                              {labelled.get(note.id)?.name}
+                            </span>
+                          ) : null}
                           {/* Small ringed marks for what the note is linked to: a Notion board, a project (plugins/LinkMarks.tsx). */}
                           <LinkMarks noteId={note.id} compact />
                           {refining.pending.has(note.id) ? <span className={styles.improving}> · Improving</span> : null}
@@ -334,6 +359,7 @@ function UpdateNotice({ updates }: { updates: Updates }) {
       <UpdateCard
         text={`Downloading Glyph ${apk.info.version}, ${mb(apk.received)} of ${mb(apk.total)} MB.`}
         progress={apk.total ? apk.received / apk.total : 0}
+        working
       />
     );
   }
@@ -347,10 +373,26 @@ function UpdateNotice({ updates }: { updates: Updates }) {
   return null;
 }
 
-function UpdateCard({ text, action, onAction, progress }: { text: string; action?: string; onAction?: () => void; progress?: number }) {
+function UpdateCard({
+  text,
+  action,
+  onAction,
+  progress,
+  working,
+}: {
+  text: string;
+  action?: string;
+  onAction?: () => void;
+  progress?: number;
+  /** The update is coming down now: cogs turn beside the words while it does (Matt: "show some cogs working together"). */
+  working?: boolean;
+}) {
   return (
     <div className={styles.update} role="status">
-      <p className={styles.updateText}>{text}</p>
+      <p className={styles.updateText}>
+        {working ? <WorkingGears label="Downloading" /> : null}
+        {text}
+      </p>
       {action && onAction ? (
         <button type="button" className={styles.updateAction} onClick={onAction}>
           {action}
@@ -361,6 +403,42 @@ function UpdateCard({ text, action, onAction, progress }: { text: string; action
           <span style={{ inlineSize: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }} />
         </span>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The Academy, offered on the home screen (Matt: "I'd like the academy page to
+ * show up on the home screen kinda like the update banner for new users as a
+ * call to action banner").
+ *
+ * Like the update card in shape and place, unlike it in voice: the update is
+ * news and wears foil, this is an invitation and is the paper it sits on. It
+ * is for someone who has not typed a mark in the Academy yet; passing one
+ * lesson, or the cross, takes it away for good (academy/banner.ts). The
+ * Academy itself stays in Settings either way, so nothing is lost by
+ * dismissing it.
+ */
+function AcademyCard({ onOpen, onHide }: { onOpen: () => void; onHide?: () => void }) {
+  return (
+    <div className={styles.learn}>
+      <div className={styles.learnWords}>
+        <p className={styles.learnLead}>
+          <GraduationCap size={17} strokeWidth={1.9} className={styles.learnMark} aria-hidden="true" />
+          Glyph Academy
+        </p>
+        <p className={styles.learnLine}>Learn the marks, one at a time.</p>
+      </div>
+      <div className={styles.learnDo}>
+        <button type="button" className={styles.learnAction} onClick={onOpen}>
+          Start
+        </button>
+        {onHide ? (
+          <button type="button" className={styles.learnHide} onClick={onHide} aria-label="Not now">
+            <X size={16} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

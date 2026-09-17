@@ -350,9 +350,10 @@ describe('the line under a board', () => {
     const target = open(note.replace('```board', '```board height=18'));
     const { line, board, height } = split(target);
     expect(line.getAttribute('role')).toBe('separator');
-    // A handle to take hold of, at its middle: a tab with up and down on it (Matt: "Add resize handle in the bottom
-    // middle of board to resize").
-    expect(line.querySelector('.cm-boardGrip svg')).not.toBeNull();
+    // A handle to take hold of, at its middle (Matt: "Add resize handle in the bottom middle of board to resize"): the
+    // plain grip pill, nothing drawn on it ("doesnt match the simplistic version anymore").
+    expect(line.querySelector('.cm-boardGrip')).not.toBeNull();
+    expect(line.querySelector('.cm-boardGrip')?.childElementCount).toBe(0);
     expect(line.title).toBe('Drag to resize the board');
     expect(line.getAttribute('aria-valuenow')).toBe('18');
     expect(board.hasAttribute('data-sized')).toBe(true);
@@ -447,5 +448,68 @@ describe('an empty column', () => {
     expect(emptyLook('In progress')).toEqual({ icon: 'doing', words: 'Nothing in progress' });
     expect(emptyLook('Done')).toEqual({ icon: 'done', words: 'Nothing done yet' });
     expect(emptyLook('Ideas')).toEqual({ icon: 'inbox', words: 'No cards' });
+  });
+});
+
+describe('a tap on a card\u2019s words', () => {
+  it('puts the caret at the end of the item\u2019s words, before its mark and anchor', () => {
+    // Clear of the moment after a card was moved in an earlier test, when a tap on words is taken for a near miss.
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 60_000);
+    const url = 'https://app.notion.com/p/x';
+    const target = open(`\`\`\`board\nTo do: ship\n\`\`\`\n\n- [ ] Ship it [notion](${url}) ^ship\n`);
+    const words = target.dom.querySelector<HTMLButtonElement>('.cm-boardCard[data-card="ship"] .cm-boardWords')!;
+    words.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    const head = target.state.selection.main.head;
+    const line = target.state.doc.lineAt(head);
+    expect(line.text.slice(0, head - line.from)).toBe('- [ ] Ship it');
+    vi.useRealTimers();
+  });
+});
+
+describe('a board not yet on the screen', () => {
+  // The editor sizes what it has not drawn by the widget's own guess: a board used to be one line tall until it was
+  // drawn, and the note jumped by the difference as it came into view (Matt: "scrolling past boards is glitchy and
+  // stops scroll momentum").
+  const height = (text: string) => {
+    const target = open(text);
+    const at = target.state.doc.toString().indexOf('```board');
+    const tall = target.lineBlockAt(at).height;
+    target.destroy();
+    view = null;
+    return tall;
+  };
+
+  it('is as tall as its cards, not one line', () => {
+    const two = height(note);
+    expect(two).toBeGreaterThan(120);
+    const more = note.replace('To do: ship-page', 'To do: ship-page, a1, a2, a3') + '- [ ] One ^a1\n- [ ] Two ^a2\n- [ ] Three ^a3\n';
+    expect(height(more)).toBeGreaterThan(two + 150);
+  });
+
+  it('gives long words more lines, and a set height its own', () => {
+    const long = note.replace('Ship the pricing page', 'Ship the pricing page and the launch post and the changelog and the rest of it');
+    expect(height(long)).toBeGreaterThan(height(note));
+    const set = height(note.replace('```board', '```board height=30'));
+    const setTaller = height(note.replace('```board', '```board height=40'));
+    expect(Math.round(setTaller - set)).toBe(Math.round(10 * 16.64));
+  });
+});
+
+describe('the + field and password managers', () => {
+  it('says it is not a login, in each of the ways they read', () => {
+    const target = open(note);
+    addTo(target, 0);
+    const form = target.dom.querySelector<HTMLFormElement>('.cm-boardCompose')!;
+    const field = form.querySelector<HTMLInputElement>('.cm-boardComposeField')!;
+    // Matt: "New Tasks are popping password manager save modal".
+    for (const box of [form, field]) {
+      expect(box.getAttribute('autocomplete')).toBe('off');
+      expect(box.getAttribute('data-form-type')).toBe('other');
+      expect(box.hasAttribute('data-1p-ignore')).toBe(true);
+      expect(box.getAttribute('data-lpignore')).toBe('true');
+    }
+    // A field with a name is a field they can tell apart from a username.
+    expect(field.name).toBe('card');
   });
 });

@@ -1,17 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HapticsProvider, ToastProvider } from '@glacier/react';
 import { NotesList } from './notes/NotesList.tsx';
 import { NoteScreen } from './editor/NoteScreen.tsx';
 import { NoNoteOpen } from './notes/NoNoteOpen.tsx';
+import { NoteTabs } from './notes/NoteTabs.tsx';
+import { NotesDrawer } from './notes/NotesDrawer.tsx';
+import { addOpen, afterClose, closeOpen, moveOpen, openOnly } from './notes/openTabs.ts';
+import { backFrom, canGoBack, canGoOn, FIRST, noteIdOf, notePlace, onFrom, placeAt, went, type Place } from './notes/visited.ts';
 import { useSidebar } from './core/useWideScreen.ts';
 import { SettingsSheet } from './settings/SettingsSheet.tsx';
 import { ReviewScreen } from './review/ReviewScreen.tsx';
 import type { ReviewHandoff } from './review/useReview.ts';
 import { SortScreen } from './sort/SortScreen.tsx';
-import { TutorialScreen } from './tutorial/TutorialScreen.tsx';
-import { GUIDE_MARKS_PAGE } from './guide/pages.ts';
 import { readScratch, type Scratch } from './capture/scratch.ts';
 import { CaptureScreen } from './capture/CaptureScreen.tsx';
+import { AcademyScreen } from './academy/AcademyScreen.tsx';
+import { academyBannerDue, dismissAcademyBanner } from './academy/banner.ts';
 import { startRefining } from './capture/refine.ts';
 import { startFormatting } from './format/queue.ts';
 import { startSync } from './core/sync/engine.ts';
@@ -95,8 +99,8 @@ type Screen =
   | { name: 'review'; handoff: ReviewHandoff }
   /** After a memo: where its parts go, proposed, and filed when committed (sort/). */
   | { name: 'sort'; scratch: Scratch }
-  /** The voice tutorial, open from Settings any time (tutorial/). */
-  | { name: 'tutorial' };
+  /** Glyph Academy: markdown taught a mark at a time, open from Settings whenever it is wanted (academy/). */
+  | { name: 'academy' };
 
 export function App() {
   return (
@@ -122,6 +126,8 @@ function Shell() {
   const screenRef = useRef(screen);
   screenRef.current = screen;
   const [settings, setSettings] = useState(false);
+  /** Settings asked to open at the cheat sheet, from the Academy: the moment it was asked for, or 0. */
+  const [toCheatSheet, setToCheatSheet] = useState(0);
   // The walkthrough opens by itself once, on the first launch that is not a
   // side-key capture - a person who held the key is already mid-sentence.
   const [guide, setGuide] = useState(() => screen.name !== 'capture' && !guideSeen());
@@ -221,6 +227,78 @@ function Shell() {
   const openNote = (id: string) => {
     const note = notes.find((n) => n.id === id);
     if (note) setScreen({ name: 'note', note });
+    setDrawer(false);
+  };
+
+  /*
+   * The notes a person has open, as tabs over a note (notes/openTabs.ts). Every way into a note ends in a
+   * `screen` of its own, so the row is kept here rather than at each of them: a note shown is a note open.
+   */
+  const [open, setOpen] = useState<string[]>([]);
+  const [drawer, setDrawer] = useState(false);
+  const shown = screen.name === 'note' ? screen.note.id : null;
+  useEffect(() => {
+    if (shown) setOpen((was) => addOpen(was, shown));
+  }, [shown]);
+  // A note deleted here or on another device leaves no tab behind.
+  const liveIds = useMemo(() => new Set(notes.map((n) => n.id)), [notes]);
+  const openTabs = useMemo(() => openOnly(open, liveIds).map((id) => notes.find((n) => n.id === id)!), [open, liveIds, notes]);
+  /*
+   * Where he has been, and the arrows that walk it (notes/visited.ts, drawn in the tab bar). Matt: "Add the back and
+   * forward arrows in the top bar to the right of the button used to toggle the sidebar and make sure we have full
+   * forward and backwards support".
+   *
+   * The trail records arriving somewhere rather than every way of getting there, so it does not matter which of the
+   * many paths into a note was taken - a tab, a link in the words, the floating list, a swipe back. `jumped` is how
+   * the arrows say "this move was me": without it, going back would itself be recorded as somewhere new and forward
+   * would never mean anything.
+   */
+  const [trail, setTrail] = useState(FIRST);
+  const jumped = useRef(false);
+  const place: Place | null = screen.name === 'note' ? notePlace(screen.note.id) : screen.name === 'list' ? 'list' : null;
+  useEffect(() => {
+    if (!place) return;
+    if (jumped.current) {
+      jumped.current = false;
+      return;
+    }
+    setTrail((was) => went(was, place));
+  }, [place]);
+  /** A place worth landing on: the list always, a note only while it still exists. */
+  const stillThere = useCallback(
+    (spot: Place) => {
+      const id = noteIdOf(spot);
+      return id === null ? true : liveIds.has(id);
+    },
+    [liveIds],
+  );
+  const land = (spot: Place) => {
+    jumped.current = true;
+    const id = noteIdOf(spot);
+    if (id === null) void backToList();
+    else openNote(id);
+  };
+  const goBack = () => {
+    const next = backFrom(trail, stillThere);
+    const spot = next && placeAt(next);
+    if (!next || !spot) return;
+    setTrail(next);
+    land(spot);
+  };
+  const goOn = () => {
+    const next = onFrom(trail, stillThere);
+    const spot = next && placeAt(next);
+    if (!next || !spot) return;
+    setTrail(next);
+    land(spot);
+  };
+
+  const closeTab = (id: string) => {
+    const next = id === shown ? afterClose(openOnly(open, liveIds), id) : null;
+    setOpen((was) => closeOpen(was, id));
+    if (id !== shown) return;
+    if (next) openNote(next);
+    else void backToList();
   };
 
   /** Whether a note by that title is in the library: what a `[[link]]` is drawn by (editor/wikiLinks.ts). */
@@ -288,6 +366,7 @@ function Shell() {
   // From the editor's Delete: the same undoable delete a swipe does.
   const removeNote = (id: string) => {
     const note = notes.find((n) => n.id === id);
+    setOpen((was) => closeOpen(was, id));
     setScreen({ name: 'list' });
     if (note) actions.remove(note);
     else void refresh();
@@ -311,6 +390,13 @@ function Shell() {
   const [memoWaiting, setMemoWaiting] = useState(() => readScratch() !== null);
   useEffect(() => {
     if (screen.name === 'list') setMemoWaiting(readScratch() !== null);
+  }, [screen.name]);
+
+  // Glyph Academy offered on the home screen, for someone who has not started it (academy/banner.ts). Read again
+  // whenever the list comes back: a lesson passed in there is the card's answer, so it goes.
+  const [academyCard, setAcademyCard] = useState(academyBannerDue);
+  useEffect(() => {
+    if (screen.name === 'list') setAcademyCard(academyBannerDue());
   }, [screen.name]);
 
   const captureFinished = useCallback(
@@ -350,9 +436,23 @@ function Shell() {
 
   const speakInto = (id: string) => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0, noteId: id });
 
-  // The list and the open note sit side by side on a wide desktop window; the capture, review, sort and tutorial
+  // The list and the open note sit side by side on a wide desktop window; the capture, review and sort
   // flows still take the whole window.
   const split = sidebar && (screen.name === 'list' || screen.name === 'note');
+  /*
+   * The routes that carry the app's tab row (app.css .app-tabBar): the list and a note, which are the two places a
+   * tab means anything. A capture, a review, a sort and the Academy are each the whole screen and the way out of them
+   * is their own; the bar's height leaves `--app-safe-top` with it, so those screens keep their own top edge.
+   */
+  const tabBar = screen.name === 'list' || screen.name === 'note';
+  useEffect(() => {
+    const root = document.documentElement;
+    if (tabBar) root.dataset.tabs = 'on';
+    else delete root.dataset.tabs;
+    return () => {
+      delete root.dataset.tabs;
+    };
+  }, [tabBar]);
   const noteScreen =
     screen.name === 'note' ? (
       <NoteScreen
@@ -367,6 +467,7 @@ function Shell() {
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
         onArchive={(n) => {
+          setOpen((was) => closeOpen(was, n.id));
           actions.archive(n, true);
           void backToList();
         }}
@@ -386,6 +487,12 @@ function Shell() {
       onSettings={() => setSettings(true)}
       actions={actions}
       canFlag={canFlag(updates)}
+      showAcademy={academyCard}
+      onAcademy={() => setScreen({ name: 'academy' })}
+      onHideAcademy={() => {
+        dismissAcademyBanner();
+        setAcademyCard(false);
+      }}
       memoWaiting={memoWaiting}
       onSortMemo={() => {
         const waiting = readScratch();
@@ -401,6 +508,30 @@ function Shell() {
       <div className="app-statusScrim" aria-hidden="true" />
       {/* The Mac app's title bar: drags the window (app.css .app-dragBar; nothing on a phone). */}
       <div className="app-dragBar" data-tauri-drag-region aria-hidden="true" />
+      {/*
+        The app's own tab row, one bar of one height on every route that has it (app.css .app-tabBar). It used to be
+        a row each screen's header carried, so it was as tall as that screen felt like being (Matt: "I want the tab
+        nav to be the same height and dimensions across every route so make it part of the main app layout, also put
+        the sidebar toggle in the same row as the tabs"). The screens know nothing about it: `--app-safe-top` carries
+        its height, which is what every header already pads by.
+      */}
+      {tabBar ? (
+        <div className="app-tabBar">
+          <NoteTabs
+            tabs={openTabs}
+            activeId={screen.name === 'note' ? screen.note.id : ''}
+            onOpen={openNote}
+            onClose={closeTab}
+            onSidebar={split ? undefined : () => setDrawer((was) => !was)}
+            sidebarOpen={drawer}
+            onMove={(id, to) => setOpen((was) => moveOpen(was, openTabs.map((n) => n.id), id, to))}
+            onGoBack={goBack}
+            onGoOn={goOn}
+            canGoBack={canGoBack(trail, stillThere)}
+            canGoOn={canGoOn(trail, stillThere)}
+          />
+        </div>
+      ) : null}
       {/* The wisp edge's filter, for every view that scrolls under a header (art/wispEdge.ts). */}
       <WispEdgeFilter />
       {screen.name === 'capture' ? (
@@ -411,14 +542,13 @@ function Shell() {
           noteId={screen.noteId}
           onFinish={(note, locked, review, sort) => void captureFinished(note, locked, review, sort)}
         />
-      ) : screen.name === 'tutorial' ? (
-        <TutorialScreen
+      ) : screen.name === 'academy' ? (
+        <AcademyScreen
           onDone={() => setScreen({ name: 'list' })}
-          onAllMarks={() => {
+          onCheatSheet={() => {
             setScreen({ name: 'list' });
-            // The guide's table of every mark, with what it is typed as and how the note reads it (guide/MarksTable.tsx).
-            setGuidePage(GUIDE_MARKS_PAGE);
-            setGuide(true);
+            setSettings(true);
+            setToCheatSheet(Date.now());
           }}
         />
       ) : screen.name === 'sort' ? (
@@ -461,6 +591,18 @@ function Shell() {
       )}
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
       <WhatsNewSheet sources={updates.status?.sources} hold={guide || screen.name === 'capture'} />
+      {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
+      <NotesDrawer
+        open={drawer && screen.name === 'note'}
+        notes={notes}
+        activeId={shown}
+        onOpen={openNote}
+        onNew={() => {
+          setDrawer(false);
+          void newNote();
+        }}
+        onClose={() => setDrawer(false)}
+      />
       <SettingsSheet
         open={settings}
         onClose={() => setSettings(false)}
@@ -473,10 +615,11 @@ function Shell() {
         }}
         onSample={() => void sampleNote()}
         onBoard={() => void boardNote()}
-        onTutorial={() => {
+        onAcademy={() => {
           setSettings(false);
-          setScreen({ name: 'tutorial' });
+          setScreen({ name: 'academy' });
         }}
+        toCheatSheet={toCheatSheet}
       />
       {/*
         Not over a capture. The side key can arrive while the guide is open -

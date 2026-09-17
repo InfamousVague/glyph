@@ -96,10 +96,26 @@ export interface Updates {
   installApk: () => void;
 }
 
-/** How long a returning app waits before looking again. */
-const RECHECK_MS = 10 * 60_000;
+/**
+ * How long a returning app waits before looking again. A minute: coming back to
+ * Glyph is the moment a wait for an update is felt, and a check is one small
+ * signed manifest.
+ */
+const RECHECK_MS = 60_000;
 /** The first look, after launch has settled and the list has painted. */
 const FIRST_CHECK_MS = 4_000;
+/**
+ * And again, on this beat, for as long as the app is open and on screen.
+ *
+ * Matt: "the OTA update is taking really long to show up in the app". It was:
+ * an app left open looked once, four seconds after launch, and then never
+ * again until it had been away and come back. Published anything after that
+ * first look and the app would not see it for as long as it stayed in front of
+ * you - which is exactly what someone testing a release does. Nothing runs
+ * while the app is hidden or in the background; the native notifier
+ * (UpdateCheckWorker.kt) is what covers that, and it keeps its own six hours.
+ */
+const POLL_MS = 2 * 60_000;
 
 let settled = false;
 
@@ -199,8 +215,13 @@ export function useUpdates(): Updates {
       if (document.visibilityState === 'visible' && Date.now() - lastAt.current > RECHECK_MS) void check();
     };
     document.addEventListener('visibilitychange', onVisible);
+    // On the beat, while the app is in front: a hidden app is asleep and the phone's own notifier covers that.
+    const beat = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void check();
+    }, POLL_MS);
     return () => {
       window.clearTimeout(first);
+      window.clearInterval(beat);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [check]);

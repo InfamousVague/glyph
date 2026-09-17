@@ -1,6 +1,7 @@
 import type { EditorState, Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { fireNativeHaptic } from '../core/haptics.ts';
+import { settleFences } from './boards.ts';
 
 /**
  * A tap on a to-do's box ticks it, and another clears it (Matt: "add ability to tap on todo list item to toggle the x
@@ -25,10 +26,15 @@ export function boxAt(state: EditorState, pos: number): { from: number; to: numb
   return { from, to: from + 3, done: found[2] !== ' ' };
 }
 
-/** The same line with its box turned: an `x` in an empty one, a space in a ticked one. */
+/**
+ * The same line with its box turned: an `x` in an empty one, a space in a ticked one. An item that is a card on a
+ * board moves with it - ticked into Done, cleared back to the first lane - in the same edit and the same undo, so the
+ * fence never drifts from the ticks (editor/boards.ts `settleFences`).
+ */
 export function toggleBox(state: EditorState, box: { from: number; done: boolean }) {
+  const line = state.doc.lineAt(box.from).number;
   return state.update({
-    changes: { from: box.from + 1, to: box.from + 2, insert: box.done ? ' ' : 'x' },
+    changes: [{ from: box.from + 1, to: box.from + 2, insert: box.done ? ' ' : 'x' }, ...settleFences(state, new Map([[line, !box.done]]))],
     userEvent: 'input.toggle',
   });
 }

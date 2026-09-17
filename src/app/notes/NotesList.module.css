@@ -11,6 +11,10 @@
  */
 .scroll {
   block-size: 100%;
+  /* Under the top bar, which is a pane over this (app.css .app-headerPane, art/wispEdge.ts sets `--wisp-under`), and
+     a space clear of it: flush against the pane, the first thing on the list reads as cut off by it (the guide's
+     scroller has always left this room). */
+  padding-block-start: calc(var(--wisp-under, 3.2rem) + var(--glacier-space-3));
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -18,41 +22,57 @@
   padding-block-end: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-24));
 }
 
-.header {
-  padding-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-2));
-  padding-block-end: var(--glacier-space-6);
+/*
+ * The top bar: no word at all on the notes, and the way back on the archive.
+ *
+ * It held "Notes" - first as a display-sized title, then as one small word
+ * (Matt: "change 'Notes' on the home page to be way smaller, the title is too
+ * big") - and now as nothing (Matt: "remove the 'notes' header on the homepage
+ * it's redundant at this point"). What is left is the pane itself, which is
+ * the glass the app's tab bar sits on and the edge the notes go to smoke
+ * against; its height is the tab bar's, because it pads by `--app-safe-top`
+ * and the bar's height lives in that (app.css).
+ */
+.topBar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--glacier-space-2);
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-1)) var(--glacier-space-2);
 }
 
-.topline {
+/* The top line itself: the screen's word at one end, and room for whatever a view puts at the other. */
+.topRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--glacier-space-4);
-  font-size: var(--glacier-font-size-sm);
+  min-block-size: var(--glacier-space-8);
 }
 
-.settings {
-  font-size: var(--glacier-font-size-sm);
+/* The screen's name for a screen reader alone: the list has no visible title any more (NotesList.tsx). */
+.saidOnly {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-/*
- * With nothing above it, the title keeps the space the top line used to take,
- * so it doesn't crowd the status bar.
- */
-.display:first-child {
-  margin-block-start: var(--glacier-space-10);
+.back {
+  font-size: var(--app-action);
+  color: var(--glacier-text);
 }
 
-/*
- * The one word that is the whole header. Display weight, tight tracking, and a
- * line-height under 1 so the cap height - not the font's internal leading -
- * decides how close it sits to the notes below.
- */
-.display {
-  margin: var(--glacier-space-4) 0 0;
-  font-size: var(--app-display);
-  line-height: 0.95;
-  letter-spacing: var(--app-tracking-display);
+/* The archive says so where the notes' first row would be, since the bar holds its way back. */
+.archiveWord {
+  margin: var(--glacier-space-2) 0 var(--glacier-space-4);
+  font-size: var(--app-title);
+  line-height: 1.15;
+  letter-spacing: var(--app-tracking-title);
   font-weight: var(--glacier-font-weight-bold);
   color: var(--glacier-text);
 }
@@ -96,7 +116,9 @@
 .spaces {
   display: flex;
   gap: var(--glacier-space-2);
-  margin: calc(-1 * var(--glacier-space-2)) 0 var(--glacier-space-5);
+  /* No pull upwards: it used to sit the pills a space higher, which put their tops under the header pane and cut
+     them off (Matt: "the notes header is clipping the pills and stuff below it"). */
+  margin: 0 0 var(--glacier-space-5);
   padding-block: 2px;
   overflow-x: auto;
   scrollbar-width: none;
@@ -114,10 +136,11 @@
   align-items: center;
   min-block-size: 2rem;
   padding: 0 var(--glacier-space-4);
-  border: 1px solid color-mix(in oklch, var(--app-ink-3) 55%, transparent);
+  /* A workspace's own colour, or the page's ink where it has none (ink.css `[data-hue]`). */
+  border: 1px solid color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent);
   border-radius: var(--glacier-radius-full);
   background: none;
-  color: var(--app-ink-2);
+  color: var(--app-space, var(--app-ink-2));
   font: inherit;
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-medium);
@@ -130,9 +153,10 @@
   color: var(--app-ink);
 }
 
+/* The one chosen is filled with its colour, and its words take the paper's, so the pill reads at a glance. */
 .space[aria-pressed='true'] {
-  background: var(--app-ink);
-  border-color: var(--app-ink);
+  background: var(--app-space, var(--app-ink));
+  border-color: var(--app-space, var(--app-ink));
   color: var(--app-paper);
 }
 
@@ -333,14 +357,14 @@
   max-inline-size: 14ch;
   margin-inline-start: 0.6em;
   padding: 0.12em 0.6em 0;
-  border: 1px solid color-mix(in oklch, var(--app-ink-3) 55%, transparent);
+  border: 1px solid color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent);
   border-radius: var(--glacier-radius-full);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: -0.4em;
   line-height: 1.5;
-  color: var(--glacier-text-muted);
+  color: var(--app-space, var(--glacier-text-muted));
 }
 
 .empty {
@@ -499,6 +523,114 @@
 
 @media (prefers-reduced-motion: reduce) {
   .update {
+    animation: none;
+  }
+}
+
+/*
+ * The Academy's card: the same shape and place as the update card, in the
+ * app's own ink and paper. The foil belongs to news; an invitation to learn
+ * the marks should look like the page it teaches you to write.
+ */
+.learn {
+  display: flex;
+  align-items: center;
+  /* Narrow places for it: the desktop sidebar's list is a third the width of a phone's, so Start drops under the words rather than squeezing them to one word a line. */
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2) var(--glacier-space-3);
+  margin: 0 0 var(--glacier-space-5);
+  padding: var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-4);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2, var(--glacier-surface));
+  animation: update-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.learnMark {
+  flex: none;
+  color: var(--glacier-text-muted);
+}
+
+.learnWords {
+  flex: 1 1 9rem;
+  min-inline-size: 0;
+}
+
+.learnLead {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.25;
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.learnLine {
+  margin: 2px 0 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--glacier-text-muted);
+}
+
+/* Start and the cross travel together: when the words leave no room they take a line of their own, at its end, rather than the cross going alone. */
+.learnDo {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin-inline-start: auto;
+}
+
+.learnAction {
+  appearance: none;
+  flex: none;
+  min-block-size: var(--glacier-space-10);
+  padding: 0 var(--glacier-space-4);
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: var(--glacier-text);
+  color: var(--glacier-bg);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-bold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.learnAction:active {
+  transform: scale(0.96);
+}
+
+.learnHide {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.learnHide:hover,
+.learnHide:active {
+  color: var(--glacier-text);
+}
+
+.learnAction:focus-visible,
+.learnHide:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .learn {
     animation: none;
   }
 }

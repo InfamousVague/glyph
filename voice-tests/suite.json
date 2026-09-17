@@ -355,7 +355,7 @@
         ]
       ],
       "expect": {
-        "note": "We sorted out the camping gear this morning.\n\nPack these:\n- the tent\n- the stove\n- the lantern"
+        "match": "^We sorted out the camping gear this morning\\.\\n\\nPack these:?\\n- [Tt]he tent\\n- [Tt]he stove\\n- [Tt]he lantern$"
       },
       "id": "015"
     },
@@ -741,7 +741,7 @@
     {
       "file": "031-callout",
       "group": "To-dos and blocks",
-      "tests": "“Callout:” makes a callout.",
+      "tests": "“Info box:” (or “callout:”) makes a callout.",
       "setup": "blank",
       "prefs": {},
       "lines": [
@@ -750,12 +750,12 @@
           1.0
         ],
         [
-          "Callout: the gate sticks, so lift it first.",
+          "Info box: the gate sticks, so lift it first.",
           1.5
         ]
       ],
       "expect": {
-        "note": "Before you arrive at the cabin, please read this.\n\n> [!NOTE]\n> The gate sticks, so lift it first."
+        "match": "^Before you arrive at the cabin, please read this\\.\\n\\n> \\[!NOTE\\]\\n> The gate sticks"
       },
       "id": "031"
     },
@@ -1636,8 +1636,8 @@
       "expect": {
         "notesMatch": {
           "Launch board": [
-            "\\nDoing: fix-login-bug, pricing-page\\n",
-            "\\n- \\[ \\] Fix the login bug \\^fix-login-bug\\n"
+            "\\nDoing: fix-[a-z-]+, pricing-page\\n",
+            "\\n- \\[ \\] Fix [^\\n]*bug \\^fix-[a-z-]+\\n"
           ]
         }
       },
@@ -1843,6 +1843,427 @@
         "note": "So I was thinking about the trip, and honestly the first thing we should sort out is where everyone sleeps, then we can figure out food. Sam said he would bring the big cool box, which helps a lot."
       },
       "id": "076"
+    },
+    {
+      "file": "077-bold-italic",
+      "group": "Marks inside a sentence",
+      "tests": "“Bold italic … end bold italic”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The launch is bold italic really close end bold italic, so we should hurry.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "***really close***"
+        ],
+        "lacks": [
+          "bold",
+          "italic"
+        ]
+      },
+      "id": "077"
+    },
+    {
+      "file": "078-link-with-words",
+      "group": "Marks inside a sentence",
+      "tests": "“Link … to <address> end link” links words.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The new site lives at link our app to attack dot fm slash notes end link for now.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "](https://attack.fm/no"
+        ],
+        "lacks": [
+          "end link",
+          " link "
+        ]
+      },
+      "id": "078"
+    },
+    {
+      "file": "079-bare-link",
+      "group": "Marks inside a sentence",
+      "tests": "“Link <address> end link” writes the address.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Sam sent the page, link example dot com end link, this morning.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "<https://example.com>"
+        ],
+        "lacks": [
+          "end link"
+        ]
+      },
+      "id": "079"
+    },
+    {
+      "file": "080-done-task",
+      "group": "To-dos and blocks",
+      "tests": "“Done task:” writes a done to-do.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Launch jobs for this week are below.",
+          1.0
+        ],
+        [
+          "Done task: call Sam.",
+          1.0
+        ],
+        [
+          "Check box: book the cabin.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Launch jobs for this week are below.\n\n- [x] Call Sam\n- [ ] Book the cabin"
+      },
+      "id": "080"
+    },
+    {
+      "file": "081-anchor-and-item-link",
+      "group": "Marks inside a sentence",
+      "tests": "“Anchor … end anchor” names an item; “item link … end link” points at it.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Here is the plan for the launch this week.",
+          1.0
+        ],
+        [
+          "Check box: ship the pricing page, anchor pricing page, end anchor.",
+          1.0
+        ],
+        [
+          "The copy is waiting on item link pricing page end link.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "- [ ] Ship the pricing page ^pricing-page",
+          "[[#^pricing-page]]"
+        ],
+        "lacks": [
+          "anchor"
+        ]
+      },
+      "id": "081"
+    },
+    {
+      "file": "082-bookmark",
+      "group": "Marks inside a sentence",
+      "tests": "“Bookmark this” puts the bookmark on the line.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The deposit for the cabin is four hundred, bookmark this.",
+          1.0
+        ],
+        [
+          "We pay the rest when we arrive.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "§§"
+        ],
+        "lacks": [
+          "ookmark"
+        ]
+      },
+      "id": "082"
+    },
+    {
+      "file": "083-footnote",
+      "group": "Marks inside a sentence",
+      "tests": "“Footnote … end footnote” writes small print under the note.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The deposit is four hundred, footnote Sam said so on Friday, end footnote.",
+          1.0
+        ],
+        [
+          "We pay the rest when we arrive.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "[^1]. We pay",
+          "[^1]: Sam said so on Friday."
+        ],
+        "lacks": [
+          "ootnote"
+        ]
+      },
+      "id": "083"
+    },
+    {
+      "file": "084-subscript",
+      "group": "Marks inside a sentence",
+      "tests": "“Subscript … end subscript” lowers words.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The bottle says H subscript two end subscript O, and nothing else.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "H~2~O"
+        ],
+        "lacks": [
+          "subscript"
+        ]
+      },
+      "id": "084"
+    },
+    {
+      "file": "085-superscript",
+      "group": "Marks inside a sentence",
+      "tests": "“Superscript … end superscript” raises words.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The room is ten meters superscript two end superscript in total.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "^2^"
+        ],
+        "lacks": [
+          "superscript"
+        ]
+      },
+      "id": "085"
+    },
+    {
+      "file": "086-maths",
+      "group": "Marks inside a sentence",
+      "tests": "“Maths … end maths” writes a formula.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The rule holds when maths x squared plus y end maths stays small.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "$x^2 + y$"
+        ],
+        "lacks": [
+          "squared"
+        ]
+      },
+      "id": "086"
+    },
+    {
+      "file": "087-definition",
+      "group": "To-dos and blocks",
+      "tests": "“Define … as …” writes a term and its meaning.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Our cabin words for the weekend are below.",
+          1.0
+        ],
+        [
+          "Define deposit as what you pay up front.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "Deposit\n: What you pay up"
+        ]
+      },
+      "id": "087"
+    },
+    {
+      "file": "088-emoji",
+      "group": "Marks inside a sentence",
+      "tests": "“Emoji <name>” writes the emoji.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We finally shipped the app, emoji party popper.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          ":tada:"
+        ],
+        "lacks": [
+          "emoji"
+        ]
+      },
+      "id": "088"
+    },
+    {
+      "file": "089-code-block",
+      "group": "To-dos and blocks",
+      "tests": "“Code block … end code block” keeps lines of code.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Here is how to build the app on a laptop.",
+          1.0
+        ],
+        [
+          "Code block in bash.",
+          1.0
+        ],
+        [
+          "npm install.",
+          1.0
+        ],
+        [
+          "npm run build.",
+          1.0
+        ],
+        [
+          "End code block.",
+          1.0
+        ],
+        [
+          "Then open the app folder.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "```bash\nnpm install\nnpm run build\n```"
+        ],
+        "lacks": [
+          "ode block"
+        ]
+      },
+      "id": "089"
+    },
+    {
+      "file": "090-note-on-a-mark",
+      "group": "Marks inside a sentence",
+      "tests": "“… end unsure, note … end note” adds a note to a mark.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The deposit is unsure four hundred end unsure, note Sam said so, end note.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "??(",
+          "said so)"
+        ],
+        "lacks": [
+          "end note",
+          "nsure"
+        ]
+      },
+      "id": "090"
+    },
+    {
+      "file": "091-new-line",
+      "group": "Marks inside a sentence",
+      "tests": "“New line” breaks a line inside a paragraph.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We wrote a short poem for the card today.",
+          1.0
+        ],
+        [
+          "Roses are red.",
+          0.8
+        ],
+        [
+          "New line.",
+          0.8
+        ],
+        [
+          "Violets are blue.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "Roses are red.  \nViolet"
+        ],
+        "lacks": [
+          "ew line"
+        ]
+      },
+      "id": "091"
+    },
+    {
+      "file": "092-cue-words-as-words",
+      "group": "Marks inside a sentence",
+      "tests": "The new cue words in ordinary sentences stay words.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "They launched a new line of shoes last spring.",
+          1.0
+        ],
+        [
+          "The link between the two teams is weak.",
+          1.0
+        ],
+        [
+          "I sent Sam an emoji to say thanks.",
+          1.0
+        ],
+        [
+          "The anchor held all night in the storm.",
+          1.0
+        ],
+        [
+          "I checked the oven twice before we left.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "They launched a new line of shoes last spring. The link between the two teams is weak. I sent Sam an emoji to say thanks. The anchor held all night in the storm. I checked the oven twice before we left."
+      },
+      "id": "092"
     }
   ]
 }

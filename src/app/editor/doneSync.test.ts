@@ -118,6 +118,15 @@ describe('ticking a to-do whose task is done', () => {
     view.destroy();
   });
 
+  it('moves the item\'s card to Done, so a board says what its ticks say', async () => {
+    answers.set(A, ready(A, 'done'));
+    const view = open(`# Jobs\n\n\`\`\`board\nTo do: milk, eggs\nDoing:\nDone:\n\`\`\`\n\n- [ ] milk [notion](${A}) ^milk\n- [ ] eggs ^eggs\n`);
+    await settled();
+    expect(view.state.doc.toString()).toContain('- [x] milk');
+    expect(view.state.doc.toString()).toContain('To do: eggs\nDoing:\nDone: milk');
+    view.destroy();
+  });
+
   it('unticks the box of a task reopened in the service', async () => {
     answers.set(A, ready(A, 'done'));
     const view = open(`- [ ] milk [notion](${A})\n`);

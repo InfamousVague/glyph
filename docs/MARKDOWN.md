@@ -33,6 +33,7 @@ Measured by parsing each sample with the app's own language (`editor/language.ts
 | Definition lists           | yes    | yes   | `Term` then `: the meaning`; the term set apart, the meaning hanging under it |
 | Front matter               | yes    | yes   | Drawn as quiet keys rather than a rule, and the note is named by its `title:` |
 | Math `$x$`, `$$x$$`        | yes    | yes   | Set as code, delimiters and all. No renderer: KaTeX is ~280 KB the phone doesn't need |
+| Mermaid ```` ```mermaid ```` | as a code block | yes | Added 2026-09-17: drawn as the diagram it describes (`editor/mermaid.ts`), the fence tapped to edit. Mermaid itself, every diagram type, loaded the first time a note has one; a diagram that cannot be drawn stays as its text |
 | Wiki links `[[Note]]`      | yes    | yes   | Opens that note; a title with no note is drawn dashed, and tapping it makes the note and opens it. `[[Note#^anchor]]` splits on the first `#`; `[[#^anchor]]` is a place in this note and belongs to `editor/boards.ts` |
 
 Glyph's own marks are on top of that, each from the Marks plugin and switched off with it: `||spoiler||`,
@@ -113,6 +114,9 @@ from a list of ideas.
   under it with the page's title, site and summary; a tap opens it. The title is read by the app
   (`link_preview`, native generation 17) for a card on screen, cached for a week, and never with Link previews off
   (Settings > Type) or "Nothing leaves the phone" on. Links a plugin reads keep their own rows. (`editor/linkCards.ts`)
+- **The bookmark — `§§`.** Two section signs at the end of the bookmarked line's words (before a list item's mark,
+  counters and anchor), one per note. The note opens there; the header's bookmark button moves it to the line being
+  read, or takes it off that line. Drawn as a small ribbon. (`editor/bookmarkLine.ts`)
 - **Tapping a box.** `- [ ]` and `- [x]` tick and clear on a tap of the box itself. (`editor/taskToggle.ts`)
 
 ### Deliberately not
@@ -121,6 +125,33 @@ from a list of ideas.
 - **Raw HTML rendering.** A note is words. HTML is kept as text and never executed.
 - **Abbreviations (`*[HTML]: …`).** The mark-note in brackets already covers “what does this mean”, said out loud and
   shown on a tap, without a second syntax for the same idea.
+
+## Saying every mark
+
+Every mark above has words for it while recording (`capture/markdown.ts`), and the cheat sheet shows them beside
+each row (`guide/marks.ts` `say`). Words that are also everyday words need both halves ("… end link") or a pause
+either side ("…, new line, …"), so a sentence that only mentions them stays a sentence; the voice suite
+(`voice-tests/suite.json`) holds one of those.
+
+| Mark | Said |
+| --- | --- |
+| `***both***` | bold italic … end bold italic |
+| `^raised^`, `~lowered~` | superscript … end superscript, subscript … end subscript |
+| `$x^2 + y$` | maths x squared plus y end maths |
+| `[words](https://…)`, `<https://…>` | link our site to attack dot fm end link, link attack dot fm end link |
+| `[[Note]]`, `[[#^name]]` | note link … end link, item link … end link |
+| ` ^name` | anchor ship page end anchor (moved to the end of its line; a repeat gets `-2`) |
+| `§§` | … bookmark this (the last one said wins) |
+| `[^1]` and its line | footnote Sam said so end footnote |
+| `??words??(why)` | … end unsure, note Sam said so, end note |
+| `- [x]` | done task: … ("checked box" is heard for "check box", so it stays an open to-do) |
+| `Term` / `: meaning` | define deposit as what you pay up front |
+| `:tada:` | emoji party popper (the shortcode, or a spoken name for it) |
+| ```` ``` ```` block | code block in bash … end code block, a line for each sentence, kept whole across pauses |
+| two spaces and a break | …, new line, … |
+| `>\|`, `= sum`, `[3/8]`, `- ( )`, `#tag`, callouts, headings, lists, quotes, `---` | as the cheat sheet says |
+
+Progress under a heading needs nothing said. A picture has no words: it needs a file, not a sentence.
 
 ## Where the code is
 

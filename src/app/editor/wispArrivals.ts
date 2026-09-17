@@ -71,6 +71,8 @@ export interface Moving {
   gone: string;
   /** performance.now() at which its motion starts; later than now for letters still waiting their turn. */
   at: number;
+  /** A tapped box's letter (`- [x]`, `- ( )`): it dissolves where it stands, without the throw or the lift. */
+  box?: boolean;
 
   dur: number;
 }
@@ -93,6 +95,18 @@ const IN_JITTER_MS = 100;
 const OUT_MS = 380;
 const POOL_MAX = 32;
 const BEND = 34;
+/**
+ * How a tapped box's letter moves (`- [x]`, `- ( )`): a gentle throw, and no lift at all.
+ *
+ * The full bend throws a glyph's pixels up to seventeen pixels either way, and an arriving letter starts four
+ * pixels low and rises into place. Across a word both read as smoke; on the one letter between two brackets that
+ * stay put, they are the whole letter moving - sideways out of its box (Matt: "the x button still slides to the
+ * left"), then up into it (Matt: "x button shifts down slightly when changing the status of a Todo checkbox").
+ * A box's letter simply thickens and fades where it stands. Typing keeps both: its letters arrive among others,
+ * with nothing fixed beside them to move against.
+ */
+const BOX_BEND = 8;
+const BOX_LIFT = 0;
 const SOFT = 5;
 const LIFT = 4;
 
@@ -160,11 +174,11 @@ function prefersStill(): boolean {
 }
 
 /** What a wisp transaction sets in motion: the letters it really added, and the text it really took away. */
-function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, outMs = OUT_MS, singleLetters = true): Moving[] {
+function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, outMs = OUT_MS, singleLetters = true, box?: boolean): Moving[] {
   const moving: Moving[] = [];
   let wait = 0;
   let letters = 0;
-  tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+  tr.changes.iterChanges((fromA, toA, fromB, _toB, inserted) => {
     const removed = tr.startState.doc.sliceString(fromA, toA);
     const added = inserted.toString();
     const { prefix, suffix } = commonEnds(removed, added);
@@ -172,7 +186,7 @@ function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, 
     // A letter backspaced by hand just goes: a trace of smoke on each was a stutter under the fingers (Matt:
     // "deleting characters should be instant and not glitchy when typing"). A word or a selection taken out at once
     // still smokes, and so does a letter a rewrite takes back while the words are being heard, which is not typing.
-    if (gone.trim() && (singleLetters || gone.trim().length > 1)) moving.push({ id: nextId++, from: fromB + prefix, to: fromB + prefix, gone, at: now, dur: outMs });
+    if (gone.trim() && (singleLetters || gone.trim().length > 1)) moving.push({ id: nextId++, from: fromB + prefix, to: fromB + prefix, gone, at: now, dur: outMs, box });
     // A word at a time, one filter each, in turn at the pace its letters would type: a letter per filter made a long
     // phrase bend sixty at once, the phone fell behind, and the rest arrived all together (Matt: "it still animates
     // one line or so and then rapidly finishes"). A single typed letter is its own word, so typing is unchanged.
@@ -186,7 +200,7 @@ function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, 
         j += 1;
         letters += 1;
       }
-      moving.push({ id: nextId++, from: fromB + i, to: fromB + j, gone: '', at: now + Math.min(wait, STAGGER_CAP_MS), dur: IN_MS + Math.random() * IN_JITTER_MS });
+      moving.push({ id: nextId++, from: fromB + i, to: fromB + j, gone: '', at: now + Math.min(wait, STAGGER_CAP_MS), dur: IN_MS + Math.random() * IN_JITTER_MS, box });
       wait += Math.min(WORD_MAX_MS, (j - i + 1) * STAGGER_MS);
       i = j;
     }
@@ -230,11 +244,15 @@ export const wispState = StateField.define<readonly Moving[]>({
       const now = performance.now();
       return [...next, ...paced(movingIn(tr, now), now)];
     }
-    // Typed, pasted, or deleted by hand.
+    // A board's own edits are not typing (editor/boards.ts): a card ticked, moved or added rewrites the item's box and
+    // the fence under the drawing, and none of that is a letter someone wrote.
+    if (tr.isUserEvent('input.board')) return next;
     if (tr.state.facet(typing) && (tr.isUserEvent('input') || tr.isUserEvent('delete'))) {
       const now = performance.now();
       const deleting = tr.isUserEvent('delete');
-      return [...next, ...paced(movingIn(tr, now, tr.isUserEvent('input.paste') ? PASTE_MAX : Number.POSITIVE_INFINITY, deleting ? deleteMs(now) : OUT_MS, !deleting), now)];
+      // A tapped box turns one letter between two that stay put: it dissolves where it stands.
+      const box = tr.isUserEvent('input.toggle') || tr.isUserEvent('input.choice');
+      return [...next, ...paced(movingIn(tr, now, tr.isUserEvent('input.paste') ? PASTE_MAX : Number.POSITIVE_INFINITY, deleting ? deleteMs(now) : OUT_MS, !deleting, box), now)];
     }
     return next;
   },
@@ -264,12 +282,14 @@ class Ghost extends WidgetType {
     readonly text: string,
     readonly filterId: string,
     readonly id: number,
+    /** The classes the text had where it stood, so its smoke is the same letters (`lookAt`). */
+    readonly look: string,
   ) {
     super();
   }
 
   eq(other: Ghost): boolean {
-    return other.text === this.text && other.filterId === this.filterId && other.id === this.id;
+    return other.text === this.text && other.filterId === this.filterId && other.id === this.id && other.look === this.look;
   }
 
   /**
@@ -289,7 +309,7 @@ class Ghost extends WidgetType {
     place.dataset.wispGhost = String(this.id);
     place.setAttribute('aria-hidden', 'true');
     const span = document.createElement('span');
-    span.className = 'cm-wispGone';
+    span.className = this.look ? `cm-wispGone ${this.look}` : 'cm-wispGone';
     span.textContent = this.text;
     span.style.filter = `url(#${this.filterId})`;
     place.appendChild(span);
@@ -369,9 +389,9 @@ const wispPlugin = ViewPlugin.fromClass(
           this.slots.set(m.id, slot);
           this.starts.set(m.id, Math.max(m.at, now));
           // Not yet on screen until its moment: fully bent, blurred and clear.
-          this.shape(slot, m.gone ? 1 : 0, Boolean(m.gone));
+          this.shape(slot, m.gone ? 1 : 0, Boolean(m.gone), Boolean(m.box));
         }
-        if (m.gone) ranges.push(Decoration.widget({ widget: new Ghost(m.gone, slot.id, m.id), side: -1 }).range(m.from));
+        if (m.gone) ranges.push(Decoration.widget({ widget: new Ghost(m.gone, slot.id, m.id, this.lookAt(m.from)), side: -1 }).range(m.from));
         else if (m.to > m.from) ranges.push(Decoration.mark({ class: 'cm-wispCh', attributes: { style: `filter:url(#${slot.id})` } }).range(m.from, m.to));
       }
       for (const [id, slot] of this.slots) {
@@ -406,6 +426,23 @@ const wispPlugin = ViewPlugin.fromClass(
         const rect = place.getBoundingClientRect();
         return { place, id: Number(place.dataset.wispGhost), x: rect.left - content.left, y: rect.top - content.top };
       });
+    }
+
+    /**
+     * How the text that went was drawn: the classes on the span it stood in, given to its smoke.
+     *
+     * A ghost is CodeMirror's widget, a child of the line rather than of the span the letters were in, so it took the
+     * note's prose face and plain ink whatever they had been. A to-do's `x` is set in the monospace face and the accent
+     * colour (editor/glyphLines.ts, Editor.module.css), and its smoke, a narrower prose `x` on the same left edge, read
+     * as the letter hopping left before it faded (Matt: "it jumps to the left then fades away instead of fading in
+     * place"). Bold, code and a heading's letters smoke as themselves for the same reason.
+     */
+    private lookAt(pos: number): string {
+      const at = this.view.domAtPos(pos);
+      const node = at.node.nodeType === 3 ? at.node.parentElement : (at.node as HTMLElement);
+      const span = node?.closest('.cm-line > span, .cm-line span') ?? null;
+      if (!span || span.classList.contains('cm-wispGonePlace')) return '';
+      return [...span.classList].filter((cls) => cls !== 'cm-wispCh' && cls !== 'cm-wispWait').join(' ');
     }
 
     /** A new ghost is pinned where it is; one whose place has moved since (the text before it deleted too) is drawn back at its pin. */
@@ -450,7 +487,7 @@ const wispPlugin = ViewPlugin.fromClass(
           done.push(m.id);
           continue;
         }
-        this.shape(slot, Math.max(0, t), Boolean(m.gone));
+        this.shape(slot, Math.max(0, t), Boolean(m.gone), Boolean(m.box));
       }
       if (done.length) {
         this.view.dispatch({ effects: settle.of(done) });
@@ -466,13 +503,15 @@ const wispPlugin = ViewPlugin.fromClass(
      * in over the first third and lifts into place. Leaving: the same curves
      * backwards, thinning as it goes.
      */
-    private shape(slot: Slot, t: number, leaving: boolean) {
+    private shape(slot: Slot, t: number, leaving: boolean, box = false) {
       const p = leaving ? 1 - t : t;
-      const bend = Math.max(0, 1 - p / 0.72);
+      const spread = Math.max(0, 1 - p / 0.72);
       const soft = Math.max(0, 1 - p / 0.9);
       const alpha = leaving ? 1 - t : Math.min(1, t / 0.3);
-      const lift = leaving ? -LIFT * 1.2 * t : LIFT * (1 - Math.min(1, t / 0.5));
-      slot.disp.setAttribute('scale', (BEND * bend * bend).toFixed(2));
+      const bend = box ? BOX_BEND : BEND;
+      const rise = box ? BOX_LIFT : LIFT;
+      const lift = leaving ? -rise * 1.2 * t : rise * (1 - Math.min(1, t / 0.5));
+      slot.disp.setAttribute('scale', (bend * spread * spread).toFixed(2));
       slot.blur.setAttribute('stdDeviation', (SOFT * soft * soft).toFixed(2));
       slot.lift.setAttribute('dy', lift.toFixed(2));
       slot.alpha.setAttribute('slope', alpha.toFixed(3));
@@ -572,8 +611,16 @@ const wispTheme = EditorView.baseTheme({
   '.cm-wispWait': { opacity: '0' },
   // An empty inline box, sitting on the line's own text box: its ghost lines up with the letters beside it.
   '.cm-wispGonePlace': { position: 'relative', display: 'inline' },
-  // Left-aligned at where it went, which is where its first letter was; held there as the text around it moves (`pinGhosts`).
-  '.cm-wispGone': { position: 'absolute', left: '0', top: '0', whiteSpace: 'pre', pointerEvents: 'none', userSelect: 'none' },
+  /*
+   * Left-aligned at where it went, which is where its first letter was; held there as the text around it moves
+   * (`pinGhosts`).
+   *
+   * `text-indent: 0` is what keeps it there. Being positioned makes this span a block, and a block inherits the
+   * hanging indent a list item's line carries (editor/glyphLines.ts writes `--hang`, and the line's first row is
+   * pulled back by it): the smoke of a to-do's `x` was laid out a whole marker to the left - some sixty pixels - and
+   * read as the letter leaping out of the box before it faded (Matt: "the x still jumps super far to the left").
+   */
+  '.cm-wispGone': { position: 'absolute', left: '0', top: '0', textIndent: '0', whiteSpace: 'pre', pointerEvents: 'none', userSelect: 'none' },
 });
 
 /** Text arriving from and leaving into smoke: transactions carrying the `wisp` annotation, and with `typing`, the person's own. */

@@ -54,6 +54,9 @@
   --app-gray-12: oklch(0.16 0 0);
   --app-raised: var(--app-gray-1);
   --app-scrim: oklch(0.16 0 0 / 0.42);
+  /* A workspace's hue on this paper: dark enough to read as ink on white (see "the workspace hues" below). */
+  --app-hue-lift: 0.55;
+  --app-hue-chroma: 0.14;
 }
 
 [data-theme='dark'] {
@@ -71,6 +74,8 @@
   --app-gray-12: oklch(0.965 0 0);
   --app-raised: var(--app-gray-3);
   --app-scrim: oklch(0 0 0 / 0.62);
+  --app-hue-lift: 0.78;
+  --app-hue-chroma: 0.13;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -89,6 +94,8 @@
     --app-gray-12: oklch(0.965 0 0);
     --app-raised: var(--app-gray-3);
     --app-scrim: oklch(0 0 0 / 0.62);
+    --app-hue-lift: 0.78;
+    --app-hue-chroma: 0.13;
   }
 }
 
@@ -107,6 +114,8 @@
   --app-gray-11: oklch(0.81 0 0);
   --app-gray-12: oklch(0.975 0 0);
   --app-raised: var(--app-gray-3);
+  --app-hue-lift: 0.78;
+  --app-hue-chroma: 0.13;
   color-scheme: dark;
 }
 
@@ -143,6 +152,8 @@
     --app-gray-11: oklch(0.34 0 0);
     --app-gray-12: oklch(0.14 0 0);
     --app-raised: var(--app-gray-1);
+    --app-hue-lift: 0.55;
+    --app-hue-chroma: 0.14;
     color-scheme: light;
   }
 }
@@ -358,4 +369,44 @@
   background-image: var(--app-dots);
   background-size: var(--app-dots-size);
   background-position: center;
+}
+
+/*
+ * ---- the workspace hues --------------------------------------------------
+ *
+ * Matt: "add the ability to choose from a swatch of colours for the workspace pill colour". The app is grey
+ * everywhere by design, so a workspace's colour is the one place colour carries meaning, and it is treated as ink
+ * rather than as a fill: the same six hues at the lightness this paper needs (`--app-hue-lift`, set with the scale
+ * above, and flipped again on an inverse surface), so a hue reads on white, on black, and on an inverted card.
+ *
+ * Anything wearing `data-hue` gets `--app-space` and can use it for its border, its words, or its ground; the hue's
+ * name is what a workspace stores (core/workspaces.ts), so these can be retuned without touching a person's notes.
+ * `ink` is the app's own colour, which is what a workspace with no hue wears.
+ */
+[data-hue] {
+  --app-space: var(--app-ink);
+}
+
+[data-hue='ember'] {
+  --app-space: oklch(var(--app-hue-lift) var(--app-hue-chroma) 32);
+}
+
+[data-hue='amber'] {
+  --app-space: oklch(var(--app-hue-lift) var(--app-hue-chroma) 75);
+}
+
+[data-hue='moss'] {
+  --app-space: oklch(var(--app-hue-lift) var(--app-hue-chroma) 150);
+}
+
+[data-hue='sea'] {
+  --app-space: oklch(var(--app-hue-lift) var(--app-hue-chroma) 230);
+}
+
+[data-hue='violet'] {
+  --app-space: oklch(var(--app-hue-lift) var(--app-hue-chroma) 295);
+}
+
+[data-hue='rose'] {
+  --app-space: oklch(var(--app-hue-lift) var(--app-hue-chroma) 355);
 }

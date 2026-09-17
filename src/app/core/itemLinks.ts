@@ -43,6 +43,8 @@ const TAIL_END = new RegExp(String.raw`(?:(?:^|\s+)(?:${ITEM_TAIL}))+\s*$`);
 const COUNTER = /(?<![!\]\w])\[\d{1,4}\/\d{1,4}\](?!\()/g;
 /** A choice's box after a bullet (editor/choices.ts): `- ( ) Pick A`, `- (x) Pick A`. */
 const CHOICE = /^\(([ xX])\) /;
+/** The bookmark (editor/bookmarkLine.ts): `§§` after an item's words, a place in the note and never part of a title. */
+const BOOKMARK = /\s*§§(?=\s|$)/g;
 
 /** `text` without what comes after its mark, and that tail as written (`[3/8] ^buy-milk`, or '' where there is none). */
 function anchorOff(text: string): { body: string; anchor: string } {
@@ -51,12 +53,12 @@ function anchorOff(text: string): { body: string; anchor: string } {
 }
 
 /**
- * What an item says, for a title or for finding it again: no choice box, and no counters, which are a count kept on
- * the item rather than part of its name.
+ * What an item says, for a title or for finding it again: no choice box, no counters, which are a count kept on the
+ * item rather than part of its name, and no bookmark.
  */
 function said(marker: string, text: string): string {
   const unchosen = /[-*+] $/.test(marker) ? text.replace(CHOICE, '') : text;
-  return unchosen.replace(COUNTER, '').replace(/\s+/g, ' ').trim();
+  return unchosen.replace(COUNTER, '').replace(BOOKMARK, '').replace(/\s+/g, ' ').trim();
 }
 
 /** Words with an anchor put back after them, one space between. */

@@ -53,4 +53,15 @@ describe('comparing what was heard', () => {
     expect(heardForm('Calculate: four hundred fifty plus one hundred twenty')).toBe('Calculate: 450 plus 120');
     expect(heardForm('Someone said it')).toBe('Someone said it');
   });
+
+  it('forgives a misheard word, and nothing about the marks', async () => {
+    const { sameShape } = await import('./voiceSuite.ts');
+    expect(sameShape('# Groceries\n\n- Book the ferry #travel', '# Groceries\n\n- Book the fairy #travel')).toBe(true);
+    expect(sameShape('- [ ] Buy ice', '- [ ] By ice')).toBe(true);
+    expect(sameShape('- [ ] Buy ice', '- Buy ice')).toBe(false);
+    expect(sameShape('The deadline is **Friday**.', 'The deadline is Friday.')).toBe(false);
+    expect(sameShape('# Weekend trip\n\nWe leave.', '# We can trip\n\nWe leave.')).toBe(true);
+    expect(sameShape('# Weekend trip\n\nWe leave.', '# Something else entirely\n\nWe leave.')).toBe(false);
+    expect(sameShape('One line.', 'One line.\n\nAnother.')).toBe(false);
+  });
 });

@@ -267,7 +267,8 @@ export function notePreview(body: string): string {
     const text = line
       .replace(/^[#>\-*\s]+/, '')
       .replace(/^\[[ xX]\]\s*/, '')
-      .replace(/(\*\*|__|~~|`|\|\|)/g, '')
+      // Every paired mark Glyph knows, the plugins' own included (plugins/marks/), so a line reads as its words.
+      .replace(/(\*\*|__|~~|`|\|\||==|%%|\?\?|@@|\^\^|\+\+)/g, '')
       .replace(/(^|\s)[*_](\S)/g, '$1$2')
       .replace(/(\S)[*_](?=\s|$|[.,;:!?])/g, '$1')
       .trim();

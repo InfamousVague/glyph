@@ -10,6 +10,7 @@ import {
   reloadWorkspaces,
   removeWorkspace,
   renameWorkspace,
+  setWorkspaceHue,
   workspaceOf,
   workspaces,
 } from './workspaces.ts';
@@ -112,3 +113,40 @@ describe('workspaces', () => {
 });
 
 const KEY = 'glyph-workspaces';
+
+describe('a workspace’s colour', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    reloadWorkspaces();
+  });
+
+  it('is made with one, changed, and taken off again', () => {
+    const made = addWorkspace('Work', 'sea')!;
+    expect(made.hue).toBe('sea');
+    expect(workspaces().list[0]?.hue).toBe('sea');
+    setWorkspaceHue(made.id, 'moss');
+    expect(workspaces().list[0]?.hue).toBe('moss');
+    // Ink is the app's own colour, and is kept as no colour at all rather than as a name.
+    setWorkspaceHue(made.id, 'ink');
+    expect(workspaces().list[0]?.hue).toBeUndefined();
+  });
+
+  it('keeps its colour through a rename, and has none by default', () => {
+    const made = addWorkspace('Home', 'rose')!;
+    renameWorkspace(made.id, 'House');
+    expect(workspaces().list[0]).toMatchObject({ name: 'House', hue: 'rose' });
+    expect(addWorkspace('Plain')?.hue).toBeUndefined();
+  });
+
+  it('ignores a colour it does not know, on the way in and on the way out', () => {
+    const made = addWorkspace('Work', 'amber')!;
+    setWorkspaceHue(made.id, 'chartreuse' as never);
+    expect(workspaces().list[0]?.hue).toBe('amber');
+    setWorkspaceHue('w-nothing', 'sea');
+    expect(workspaces().list.length).toBe(1);
+    // A hue written by a phone further ahead reads as ink rather than as a broken colour.
+    localStorage.setItem('glyph-workspaces', JSON.stringify({ list: [{ id: 'w-1', name: 'Saved', hue: 'octarine' }], notes: {}, current: null }));
+    reloadWorkspaces();
+    expect(workspaces().list[0]).toEqual({ id: 'w-1', name: 'Saved' });
+  });
+});

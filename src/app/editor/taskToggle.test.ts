@@ -25,3 +25,36 @@ describe('tapping a to-do box', () => {
     expect(toggleBox(upper, boxAt(upper, 0)!).state.doc.toString()).toBe('- [ ] done');
   });
 });
+
+describe('a box that is also a card', () => {
+  const note = ['```board', 'To do: milk, eggs', 'Done: bread', '```', '', '- [ ] Milk ^milk', '- [ ] Eggs ^eggs', '- [x] Bread ^bread', ''].join('\n');
+  const tick = (doc: string, line: number) => {
+    const state = EditorState.create({ doc });
+    return toggleBox(state, boxAt(state, state.doc.line(line).from)!).state.doc.toString();
+  };
+
+  it('moves its card to Done when the box is ticked in the list, as one edit', () => {
+    const after = tick(note, 6);
+    expect(after).toContain('To do: eggs\nDone: bread, milk');
+    expect(after).toContain('- [x] Milk ^milk');
+  });
+
+  it('takes the card out of Done when the box is cleared, back to the first lane', () => {
+    const after = tick(note, 8);
+    expect(after).toContain('To do: milk, eggs, bread\nDone:');
+    expect(after).toContain('- [ ] Bread ^bread');
+  });
+
+  it('settles cards that had drifted at the same time, and leaves a board with no Done lane alone', () => {
+    // The note Matt had: ticked items still sitting in To do, drawn in Done but not written there.
+    const drifted = ['```board', 'To do: milk, eggs', 'Done:', '```', '', '- [ ] Milk ^milk', '- [x] Eggs ^eggs', ''].join('\n');
+    expect(tick(drifted, 6)).toContain('To do:\nDone: milk, eggs');
+    const noDone = ['```board', 'To do: milk', 'Next: eggs', '```', '', '- [ ] Milk ^milk', '- [x] Eggs ^eggs', ''].join('\n');
+    expect(tick(noDone, 6)).toContain('To do: milk\nNext: eggs');
+  });
+
+  it('leaves the fence alone for an item that is not on a board', () => {
+    const plain = ['```board', 'To do: milk', 'Done:', '```', '', '- [ ] Milk ^milk', '- [ ] Loose ^loose', ''].join('\n');
+    expect(tick(plain, 7)).toContain('To do: milk\nDone:');
+  });
+});

@@ -11,6 +11,8 @@ describe('the voice memo cue', () => {
       'Okay, record a voice clip.',
       'Start a voice recording.',
       'Voice memo:',
+      // Whisper can open a phrase with the full stop of the one before.
+      '. Voice memo.',
     ]) {
       expect(startsMemo(said), said).toBe(true);
     }
@@ -29,7 +31,7 @@ describe('the voice memo cue', () => {
   });
 
   it('ends on the closing cue, and not on ordinary words', () => {
-    for (const said of ['End memo.', 'end of memo', 'Stop the voice note.', 'Finish clip.', 'Okay, end memo!']) {
+    for (const said of ['End memo.', 'end of memo', 'Stop the voice note.', 'Finish clip.', 'Okay, end memo!', '. End memo.']) {
       expect(endsMemo(said), said).toBe(true);
     }
     for (const said of ['That was the end of the road.', 'End bold.', 'Stop by the shop.', 'And then it ended.']) {

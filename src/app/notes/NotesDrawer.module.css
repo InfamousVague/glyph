@@ -1,0 +1,149 @@
+/*
+ * The floating notes card (NotesDrawer.tsx): a card at the left, over the note,
+ * with the page still visible beside it rather than behind a scrim. It arrives
+ * from the left edge, the way a drawer would.
+ */
+
+.over {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  /* The page beside the card stays live: only the card takes taps, and a tap anywhere else closes it. */
+  pointer-events: none;
+}
+
+.card {
+  pointer-events: auto;
+  position: absolute;
+  inset-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-3)) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-3));
+  inset-inline-start: calc(var(--app-safe-left, 0px) + var(--glacier-space-3));
+  inline-size: min(20rem, calc(100vw - var(--glacier-space-10)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-3);
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg, 16px);
+  background: color-mix(in srgb, var(--glacier-bg) 88%, var(--glacier-text) 4%);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 34%);
+  animation: drawerIn 200ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+}
+
+@keyframes drawerIn {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  flex: none;
+}
+
+.title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--app-action);
+  line-height: 1.2;
+  letter-spacing: var(--app-tracking-title);
+  font-weight: var(--glacier-font-weight-bold);
+}
+
+.round {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  padding: 0;
+  border: 1.5px solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--glacier-text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.round:active {
+  background: var(--app-paper-2, var(--glacier-surface));
+}
+
+.round:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.list {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  appearance: none;
+  display: grid;
+  gap: 2px;
+  inline-size: 100%;
+  text-align: start;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: none;
+  border-radius: var(--glacier-radius-md, 10px);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.row:hover,
+.row:active {
+  background: var(--app-paper-2, var(--glacier-surface));
+}
+
+.row[data-active] {
+  background: var(--app-paper-3, var(--glacier-active));
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: -2px;
+}
+
+.rowTitle {
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+  line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.rowLine {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.empty {
+  padding: var(--glacier-space-3);
+  color: var(--glacier-text-muted);
+}

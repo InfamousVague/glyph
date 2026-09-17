@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { EditorState } from '@codemirror/state';
+import { Decoration, EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DEFAULT_PREFERENCES, setPreferences } from '../core/preferences.ts';
 import { commonEnds, moving, revealWisp, wisp, wispArrivals } from './wispArrivals.ts';
@@ -82,6 +83,16 @@ describe('text arriving from smoke in the editor', () => {
     expect(moving(pasted).reduce((sum, m) => sum + (m.to - m.from), 0)).toBe(40);
     const programmatic = typed.update({ changes: { from: 0, insert: 'set' } }).state;
     expect(moving(programmatic)).toEqual([]);
+    // A tapped box smokes its letter away where it stood; a board's own edits (a card moved, a divider dragged) do not.
+    const box = EditorState.create({ doc: '- [x] milk', extensions: [wispArrivals({ typing: true })] });
+    const tapped = moving(box.update({ changes: { from: 3, to: 4, insert: ' ' }, userEvent: 'input.toggle' }).state);
+    expect(tapped.map((m) => [m.gone, m.from])).toEqual([['x', 3]]);
+    // The one letter between two brackets that stay put dissolves where it stands: no throw across the box, no rise into it.
+    expect(tapped[0]?.box).toBe(true);
+    const byHand = moving(box.update({ changes: { from: 3, to: 4, insert: 'y' }, userEvent: 'input.type' }).state);
+    expect(byHand.every((m) => !m.box)).toBe(true);
+    expect(moving(box.update({ changes: { from: 3, to: 4, insert: ' ' }, userEvent: 'input.board' }).state)).toEqual([]);
+    expect(moving(box.update({ changes: { from: 3, to: 4, insert: ' ' }, userEvent: 'input.board' }).state)).toEqual([]);
   });
 
   it('reveals a note already there a few words at a time, in order, blank lines aside', () => {
@@ -104,5 +115,23 @@ describe('text arriving from smoke in the editor', () => {
     expect(moving(shifted)[0]?.from).toBe(4);
     const deleted = shifted.update({ changes: { from: 4, to: 8, insert: '' } }).state;
     expect(moving(deleted)).toEqual([]);
+  });
+});
+
+describe('the smoke of text that went', () => {
+  it('is drawn in the look the text had, where it stood', () => {
+    // The box of a to-do is set in the monospace face and the accent colour (Editor.module.css `.taskMarker`); its
+    // smoke, drawn as a widget of the line, took the note's prose face until it was given the same classes.
+    const box = EditorView.decorations.of(Decoration.set([Decoration.mark({ class: 'probe-box' }).range(2, 5)]));
+    const view = new EditorView({ doc: '- [x] milk', extensions: [box, wispArrivals({ typing: true })] });
+    document.body.appendChild(view.dom);
+    try {
+      view.dispatch({ changes: { from: 3, to: 4, insert: ' ' }, userEvent: 'input.type' });
+      const ghost = view.dom.querySelector('.cm-wispGone');
+      expect(ghost?.textContent).toBe('x');
+      expect(ghost?.className).toContain('probe-box');
+    } finally {
+      view.destroy();
+    }
   });
 });

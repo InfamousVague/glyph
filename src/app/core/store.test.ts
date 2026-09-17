@@ -11,6 +11,7 @@ describe('the list labels', () => {
     expect(notePreview('Title\nSomething with **negative space** and one `strong` colour.')).toBe('Something with negative space and one strong colour.');
     expect(notePreview('Title\n> _quiet_ words, ~~gone~~ here')).toBe('quiet words, gone here');
     expect(notePreview('Title\nThe key is ||under the stone||.')).toBe('The key is under the stone.');
+    expect(notePreview('Title\nAsk ??Sam?? about the ==deposit==, %%quietly%%, and ++bring++ ^^ice^^.')).toBe('Ask Sam about the deposit, quietly, and bring ice.');
   });
 
   it('previews a task without its box', () => {

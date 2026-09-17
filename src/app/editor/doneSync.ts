@@ -1,6 +1,7 @@
 import { Transaction, type Extension, type Text } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { markActions, onMarkDetails, peekMarkDetails, wantMarkDetails } from '../core/markDetails.ts';
+import { settleFences } from './boards.ts';
 import { linkedOn } from './linkedRows.ts';
 
 /**
@@ -184,8 +185,11 @@ export function doneSync(): Extension {
         const changes = boxesDue(this.view.state.doc, this.acted, new Set(this.sending.keys()));
         if (!changes.length) return;
         for (const change of changes) this.acted.set(change.url, change.stamp);
+        // A task going done in Notion moves its card the way a tap on the box does, in the same change: the lanes
+        // of a board say what its ticks say, however the tick arrived (core/boards.ts, editor/boards.ts).
+        const ticks = new Map(changes.map((change) => [this.view.state.doc.lineAt(change.from).number, change.insert !== ' ']));
         this.view.dispatch({
-          changes: changes.map(({ from, to, insert }) => ({ from, to, insert })),
+          changes: [...changes.map(({ from, to, insert }) => ({ from, to, insert })), ...settleFences(this.view.state, ticks)],
           annotations: [Transaction.addToHistory.of(false), Transaction.userEvent.of('sync.tick')],
         });
       }

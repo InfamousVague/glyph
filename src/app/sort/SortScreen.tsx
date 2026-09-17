@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
-import { useThinkingWhile } from '../core/thinking.ts';
 import type { Scratch } from '../capture/scratch.ts';
 import { leftover } from './plan.ts';
 import { useSort } from './useSort.ts';
@@ -42,8 +41,6 @@ export function SortScreen({ scratch, onDone }: { scratch: Scratch; onDone: (not
   const kept = (placements ?? []).filter((p) => state.accepted.has(p.id));
   const rest = placements ? leftover(scratch.markdown, kept) : scratch.markdown;
   const running = state.step === 'running';
-  // The gears turn over the screen while the model works out where the memo goes (art/ThinkingGears.tsx).
-  useThinkingWhile(running);
 
   return (
     <div className={styles.screen}>

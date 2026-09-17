@@ -1,5 +1,6 @@
-import { EditorSelection, RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
+import { EditorSelection, Facet, RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { wispFoot } from '../art/wispFoot.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { markOf, unmarked } from '../core/itemLinks.ts';
 import {
@@ -17,8 +18,13 @@ import {
   newCard,
   putCard,
   putCardAt,
+  itemWords,
   refsIn,
+  settleBoards,
+  settleColumns,
   setItemDone,
+  wordsEnd,
+  withoutCard,
   writeBoard,
   type BoardColumn,
   type Card,
@@ -74,12 +80,15 @@ interface Drawn {
 function boards(state: EditorState): Drawn[] {
   const doc = state.doc.toString();
   const items = itemsIn(doc);
-  return boardsIn(doc)
+  const all = boardsIn(doc);
+  // Every anchor any board names: an item one of them names is never taken for a card whose anchor has slipped.
+  const named = new Set(all.flatMap((board) => board.columns.flatMap((column) => column.cards)));
+  return all
     .filter((board) => board.to > board.from)
     .map((board) => {
       const columns = board.columns;
       // A ticked item sits in Done wherever the fence has it, so the board never disagrees with the note.
-      const cards = cardsOf(columns, items).map((card) => (card.item ? { ...card, column: Math.max(0, columnFor(columns, card.item)) } : card));
+      const cards = cardsOf(columns, items, named).map((card) => (card.item ? { ...card, column: Math.max(0, columnFor(columns, card.item)) } : card));
       return {
         from: state.doc.line(board.from).from,
         to: state.doc.line(board.to).to,
@@ -105,8 +114,11 @@ const ICONS = {
   left: ['m15 18-6-6 6-6'],
   right: ['m9 18 6-6-6-6'],
   check: ['M20 6 9 17l-5-5'],
-  // The resize handle's up-and-down (lucide chevrons-up-down).
-  resize: ['m7 15 5 5 5-5', 'm7 9 5-5 5 5'],
+  // The card's own menu: three dots (lucide ellipsis).
+  more: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'],
+  // What the menu offers: go to the line, take the card off the board.
+  words: ['M4 6h16', 'M4 12h10', 'M4 18h13'],
+  off: ['M18 6 6 18', 'M6 6l12 12'],
   // An empty column's picture, by what the column is for (lucide list-checks, hourglass, check-check, inbox).
   todo: ['M13 5h8', 'M13 12h8', 'M13 19h8', 'm3 17 2 2 4-4', 'm3 7 2 2 4-4'],
   doing: [
@@ -151,6 +163,23 @@ function icon(name: keyof typeof ICONS, size = '1em'): SVGSVGElement {
   return svg;
 }
 
+/**
+ * What a plugin offers a card, given the item's line and its words (Matt: "Add context menu to board items for moving
+ * lanes and adding to notion etc.").
+ *
+ * The line comes first and the words second on purpose: a card names an exact line, and two items that read the same
+ * way are told apart by nothing else. `suggest` is the per-line offer the note already shows quietly under a line
+ * (editor/suggestions.ts); `action` is the one a swipe on a list item runs (editor/swipeItems.ts), by text, and is
+ * only reached for when there is no offer for that line. Neither goes near a plugin: both are the registry's.
+ */
+export interface CardActions {
+  suggest: (body: string) => { line: number; label: string; run: () => Promise<void> }[];
+  action: () => { label: string; run: (text: string) => Promise<void> } | null;
+}
+
+/** What this editor's plugins offer a card, or nothing where the note is not one a plugin acts on. */
+const cardActions = Facet.define<CardActions, CardActions | null>({ combine: (values) => values[0] ?? null });
+
 /** How long a finger rests on a card before it is picked up, and how far it may stray first. */
 const HOLD = 220;
 const SLOP = 10;
@@ -170,6 +199,16 @@ class BoardWidget extends WidgetType {
     return other.face === this.face;
   }
 
+  /**
+   * How tall the board is before it is drawn: the height it was last drawn at, or a guess from its cards. Left to
+   * CodeMirror, a board not yet on the screen was one line tall, and grew by a screenful as it came into view; the
+   * editor then moved the note to keep its place, and on a phone that move stops a fling dead (Matt: "scrolling past
+   * boards is glitchy and stops scroll momentum").
+   */
+  get estimatedHeight(): number {
+    return drawnHeight(this.face) ?? guessHeight(this.board);
+  }
+
   toDOM(view: EditorView): HTMLElement {
     const wrap = document.createElement('div');
     wrap.className = 'cm-boardWrap';
@@ -187,7 +226,13 @@ class BoardWidget extends WidgetType {
     const split = heightSplit(view, wrap);
     wrap.append(board, split);
     sized(board, split, this.board.height);
+    watch(view, wrap, board, this.face);
     return wrap;
+  }
+
+  destroy(dom: HTMLElement): void {
+    watching.get(dom)?.disconnect();
+    watching.delete(dom);
   }
 
   /**
@@ -203,6 +248,7 @@ class BoardWidget extends WidgetType {
     if (panes.length !== this.board.columns.length) return false;
     panes.forEach((pane, index) => this.fill(view, pane, index));
     sized(board, split, this.board.height);
+    watch(view, dom, board, this.face);
     return true;
   }
 
@@ -232,6 +278,7 @@ class BoardWidget extends WidgetType {
     const stack = document.createElement('div');
     stack.className = 'cm-boardStack';
     stack.dataset.column = String(index);
+    stack.addEventListener('scroll', () => laneFoot(stack), { passive: true });
     for (const card of held) stack.append(this.drawCard(view, card, index));
     // An empty column is a place, not a blank: at rest it shows what it would hold and says it holds nothing, and
     // while a card is held it is a target, in this column and every other.
@@ -318,6 +365,17 @@ class BoardWidget extends WidgetType {
       moves.append(move);
     }
 
+    // The card's own menu: lanes to move to, the line in the note, what a plugin offers, and off the board. A press
+    // and hold is already the drag, so the menu needs a button of its own.
+    const menu = document.createElement('button');
+    menu.type = 'button';
+    menu.className = 'cm-boardMore';
+    menu.append(icon('more', '1.1em'));
+    menu.setAttribute('aria-label', `More for ${said}`);
+    menu.setAttribute('aria-haspopup', 'menu');
+    press(menu, () => this.cardMenu(view, card, box));
+    moves.prepend(menu);
+
     const badge = mark ? document.createElement('span') : null;
     if (badge && mark) {
       badge.className = 'cm-boardLinked';
@@ -341,21 +399,107 @@ class BoardWidget extends WidgetType {
     const put = done ? doneColumn(this.board.columns) : 0;
     const columns = put >= 0 ? putCard(this.board.columns, card.id, put) : null;
     hushGoTo();
-    view.dispatch({ changes: columns ? [...changes, this.fence(view, columns)] : changes, userEvent: 'input.board' });
+    view.dispatch({ changes: columns ? [...changes, this.fence(view, columns, card.id)] : changes, userEvent: 'input.board' });
     fireNativeHaptic('selection');
     if (columns) reveal(view, card.id);
   }
 
   private move(view: EditorView, card: Card, by: number): void {
-    view.dispatch({ changes: this.fence(view, moveCard(this.board.columns, card.id, by)), userEvent: 'input.board' });
+    view.dispatch({ changes: this.fence(view, moveCard(this.board.columns, card.id, by), card.id), userEvent: 'input.board' });
     fireNativeHaptic('selection');
   }
 
+  /**
+   * A card's own menu (Matt: "Add context menu to board items for moving lanes and adding to notion etc.").
+   *
+   * It opens from the card's **more** button rather than a press and hold, because a press and hold is already how a
+   * card is picked up to drag. It sits in the lane right under its card, the way the + field sits at the top of a
+   * column: no floating panel to place, and it scrolls with the board it belongs to.
+   *
+   * What it offers: each other lane to move to, the item's tick, the line in the note, whatever a plugin offers this
+   * item (its own line's offer first, then the one a swipe would run), and the card off the board. Nothing that cannot
+   * be done is shown, so a card whose item is gone offers only to take itself off.
+   */
+  private cardMenu(view: EditorView, card: Card, at: HTMLElement): void {
+    const board = this.board;
+  const stack = at.closest<HTMLElement>('.cm-boardStack');
+  if (!stack) return;
+  // A second press on the button closes it again, and only one is ever open.
+  const already = stack.querySelector('.cm-boardMenu');
+  const mine = already?.previousElementSibling === at;
+  for (const open of board ? [...(at.closest('.cm-board')?.querySelectorAll('.cm-boardMenu') ?? [])] : []) open.remove();
+  if (mine) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'cm-boardMenu';
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', 'Card');
+
+  const row = (label: string, glyph: keyof typeof ICONS, run: () => void) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'cm-boardMenuRow';
+    button.setAttribute('role', 'menuitem');
+    button.append(icon(glyph, '1em'));
+    const words = document.createElement('span');
+    words.textContent = label;
+    button.append(words);
+    press(button, () => {
+      close();
+      run();
+    });
+    menu.append(button);
+    return button;
+  };
+
+  const close = () => {
+    menu.remove();
+    window.removeEventListener('pointerdown', away, true);
+    window.removeEventListener('keydown', escape, true);
+  };
+  const away = (event: PointerEvent) => {
+    if (!(event.target instanceof Node) || (!menu.contains(event.target) && event.target !== at)) close();
+  };
+  const escape = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
+    }
+  };
+
+  const item = card.item;
+  // Every other lane, in the board's own order.
+  board.columns.forEach((column, index) => {
+    if (index === card.column) return;
+      row(`Move to ${column.name}`, index < card.column ? 'left' : 'right', () => this.land(view, card, index, Number.MAX_SAFE_INTEGER));
+  });
+  if (item && item.done !== null) {
+    row(item.done ? 'Untick' : 'Tick', 'check', () => this.tick(view, card));
+  }
+  if (item) {
+    row('Go to the line', 'words', () => goToLine(view, item.line));
+    const offer = pluginOffer(view, item);
+    if (offer) row(offer.label, 'link', () => void offer.run());
+  }
+    row('Take off the board', 'off', () => {
+      view.dispatch({ changes: this.fence(view, withoutCard(board.columns, card.id), card.id), userEvent: 'input.board' });
+      fireNativeHaptic('selection');
+    });
+
+  at.after(menu);
+  menu.querySelector('button')?.focus();
+  menu.scrollIntoView({ block: 'nearest' });
+  window.addEventListener('pointerdown', away, true);
+  window.addEventListener('keydown', escape, true);
+}
+
   /** The fence rewritten: the columns as a person would have typed them, between the two ``` lines. */
-  private fence(view: EditorView, columns: readonly BoardColumn[]) {
+  private fence(view: EditorView, columns: readonly BoardColumn[], moved?: string) {
     const open = view.state.doc.lineAt(this.board.from);
     const close = view.state.doc.lineAt(this.board.to);
-    return { from: open.to + 1, to: close.from - 1, insert: writeBoard(columns) };
+    // What the board shows, written down: the card the person just moved where they put it, and any other card whose
+    // item is ticked in Done, where it is already drawn (core/boards.ts `settleColumns`).
+    return { from: open.to + 1, to: close.from - 1, insert: writeBoard(settleColumns(columns, this.board.items, moved)) };
   }
 
   /** The words are a way into the note: the caret lands on the item, and the note scrolls to it. */
@@ -374,7 +518,7 @@ class BoardWidget extends WidgetType {
       if (event.button !== 0 && event.pointerType === 'mouse') return;
       // A press on one of the card's controls is that control's: a finger resting on the tick box a little past the
       // hold used to lift the card instead of ticking it, so a slow tap did nothing and the next landed on the words.
-      if ((event.target as Element | null)?.closest?.('.cm-boardTick, .cm-boardMove, .cm-boardAdd')) return;
+      if ((event.target as Element | null)?.closest?.('.cm-boardTick, .cm-boardMove, .cm-boardAdd, .cm-boardMore, .cm-boardMenu')) return;
       const board = card.closest('.cm-board') as HTMLElement | null;
       if (!board) return;
       // The card answers its own press and hold: the note's long-press menu is for the words, not for a card.
@@ -444,7 +588,7 @@ class BoardWidget extends WidgetType {
   private land(view: EditorView, card: Card, column: number, index: number): void {
     const was = card.column;
     if (was === column && index === this.board.cards.filter((other) => other.column === column).findIndex((other) => other.id === card.id)) return;
-    const changes = [this.fence(view, putCardAt(this.board.columns, card.id, column, index))];
+    const changes = [this.fence(view, putCardAt(this.board.columns, card.id, column, index), card.id)];
     // Dragged into Done, the item is done; dragged out of it, it is not. The note says so, not only the board.
     const done = doneColumn(this.board.columns);
     const item = card.item;
@@ -460,8 +604,181 @@ class BoardWidget extends WidgetType {
 
   /** The field a card is typed into is the page's own input: the editor leaves its keys and taps alone. */
   ignoreEvent(event: Event): boolean {
-    return event.target instanceof Element && event.target.closest('.cm-boardCompose, .cm-boardSplit') !== null;
+    return event.target instanceof Element && event.target.closest('.cm-boardCompose, .cm-boardSplit, .cm-boardMenu') !== null;
   }
+}
+
+/**
+ * A board on the page, kept an eye on: its size, for the lanes' feet and for the height it is remembered at. The
+ * observer goes when CodeMirror takes the board off the page (`destroy`).
+ */
+const watching = new WeakMap<HTMLElement, ResizeObserver>();
+/** What each board on the page shows, for remembering its height by. */
+const faces = new WeakMap<HTMLElement, string>();
+
+function watch(view: EditorView, wrap: HTMLElement, board: HTMLElement, face: string): void {
+  faces.set(wrap, face);
+  // Drawn or redrawn: the lanes are new, and the board may be a new height, once it is laid out.
+  view.requestMeasure({
+    read: () => null,
+    write: () => {
+      // Its own height, held while it is on the screen, so a card moving lanes never moves the note under a finger.
+      pin(board);
+      lanesFoot(board);
+      remember(wrap, board);
+    },
+  });
+  if (watching.has(wrap) || typeof ResizeObserver === 'undefined') return;
+  const observer = new ResizeObserver(() => {
+    repin(board);
+    lanesFoot(board);
+    remember(wrap, board);
+  });
+  observer.observe(board);
+  watching.set(wrap, observer);
+}
+
+/**
+ * A lane with more cards below than it shows: its foot goes to smoke, the app's wisp edge (art/wispFoot.ts), and
+ * fades into the lane. Only a board with a set height has lanes that scroll; left to itself a lane shows every card.
+ */
+function laneFoot(stack: HTMLElement): void {
+  const board = stack.closest<HTMLElement>('.cm-board');
+  const more = Boolean(board?.hasAttribute('data-sized')) && stack.scrollHeight - stack.clientHeight - stack.scrollTop > 4;
+  stack.toggleAttribute('data-more', more);
+  const smoke = more ? (board?.dataset.wisp ?? '') : '';
+  if ((stack.dataset.smoke ?? '') === smoke) return;
+  if (smoke) {
+    stack.dataset.smoke = smoke;
+    stack.style.filter = smoke;
+  } else {
+    delete stack.dataset.smoke;
+    stack.style.removeProperty('filter');
+  }
+}
+
+/** Every lane's foot, and the smoke they wear: one filter for the board, made for the lanes' height. */
+function lanesFoot(board: HTMLElement): void {
+  const stack = board.querySelector<HTMLElement>('.cm-boardStack');
+  // While the line under the board is being dragged the height changes by the pixel, and a filter for each would be
+  // made and thrown away: the plain fade does until the finger lifts.
+  const moving = board.parentElement?.querySelector(':scope > .cm-boardSplit[data-dragging]');
+  const smoke = stack && board.hasAttribute('data-sized') && !moving ? wispFoot(stack.offsetHeight) : null;
+  if (smoke) board.dataset.wisp = smoke;
+  else delete board.dataset.wisp;
+  for (const lane of board.querySelectorAll<HTMLElement>('.cm-boardStack')) laneFoot(lane);
+}
+
+/**
+ * How tall boards are drawn, remembered by what they show (`faceOf`), in memory and across launches: a note opened
+ * again knows its boards' heights before they are on the screen (`estimatedHeight`). A board being typed into, having
+ * a card dragged, or having its height dragged is not at its own height, and is not remembered.
+ */
+const HEIGHTS_KEY = 'glyph-board-heights';
+const HEIGHTS_KEPT = 300;
+let heights: Map<string, number> | null = null;
+let heightsSaving = 0;
+/** The type a board and the note around it were last drawn in, in px, for guessing at a board not yet drawn. */
+const drawnType = { board: 16.64, note: 19.35 };
+
+function remember(wrap: HTMLElement, board: HTMLElement): void {
+  const face = faces.get(wrap);
+  if (!face || !wrap.isConnected || board.hasAttribute('data-holding')) return;
+  if (wrap.querySelector('.cm-boardCompose, .cm-boardSplit[data-dragging]')) return;
+  const height = wrap.getBoundingClientRect().height;
+  if (!(height > 0)) return;
+  drawnType.board = parseFloat(window.getComputedStyle(board).fontSize) || drawnType.board;
+  drawnType.note = parseFloat(window.getComputedStyle(wrap).fontSize) || drawnType.note;
+  keepHeight(face, height);
+}
+
+function allHeights(): Map<string, number> {
+  if (heights) return heights;
+  heights = new Map();
+  try {
+    const value = JSON.parse(localStorage.getItem(HEIGHTS_KEY) ?? '[]') as unknown;
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'number') heights.set(entry[0], entry[1]);
+      }
+    }
+  } catch {
+    // No storage: boards are guessed at until they are drawn.
+  }
+  return heights;
+}
+
+function drawnHeight(face: string): number | null {
+  return allHeights().get(faceKey(face)) ?? null;
+}
+
+export function keepHeight(face: string, height: number): void {
+  const all = allHeights();
+  const key = faceKey(face);
+  const px = Math.round(height * 10) / 10;
+  if (all.get(key) === px) return;
+  // Newest last, so the oldest are the first let go.
+  all.delete(key);
+  all.set(key, px);
+  for (const old of all.keys()) {
+    if (all.size <= HEIGHTS_KEPT) break;
+    all.delete(old);
+  }
+  if (heightsSaving || typeof window === 'undefined') return;
+  heightsSaving = window.setTimeout(() => {
+    heightsSaving = 0;
+    try {
+      localStorage.setItem(HEIGHTS_KEY, JSON.stringify([...all]));
+    } catch {
+      // No storage: remembered for as long as the app is open.
+    }
+  }, 500);
+}
+
+/** A short name for what a board shows: its length and an FNV-1a hash, since the face itself holds every card's words. */
+function faceKey(face: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < face.length; i += 1) {
+    hash ^= face.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${face.length.toString(36)}.${(hash >>> 0).toString(36)}`;
+}
+
+/** Room under a lane's last card, in the lane's ems; the set-height lanes keep more, for the smoke. */
+const LANE_FOOT = 0.25;
+/** A board's type, against the note's. */
+const BOARD_TYPE = 0.86;
+/** The room above a board, the line under it and the space around that, in the note's ems (`.cm-boardWrap`, `.cm-boardSplit`). */
+const WRAP_ROOM = 0.4 * BOARD_TYPE + 0.3 + 1 + 0.5;
+
+/**
+ * A board's height before it has ever been drawn, worked out the way it is laid out (`boardTheme`): its lanes' heads,
+ * the tallest lane's cards at one to three lines each by how many words they have, and the line under it. Near enough
+ * that the editor's correction, when the board is drawn, is small.
+ */
+export function guessHeight(board: Drawn): number {
+  const em = drawnType.board;
+  // A column is min(78vw, 16rem) across.
+  const rem = typeof window === 'undefined' ? 16 : parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+  const across = typeof window === 'undefined' ? 256 : Math.min(window.innerWidth * 0.78, 16 * rem);
+  // A card's words have its width less the tick, the gaps and the padding, at about 0.45em a letter.
+  const perLine = Math.max(8, (across - 3.7 * em) / (0.45 * em));
+  const lane = (column: number): number => {
+    const cards = board.cards.filter((card) => card.column === column);
+    // An empty lane: its picture and its words.
+    if (!cards.length) return 4.95;
+    const tall = cards.reduce((sum, card) => {
+      const text = card.item?.text ?? '';
+      const words = card.item ? cardText(markOf(text) ? unmarked(text) : text).length : card.id.length + 1;
+      const lines = Math.min(3, Math.max(1, Math.ceil(words / perLine)));
+      return sum + 2.41 + 1.35 * lines + 0.4;
+    }, -0.4);
+    return tall + LANE_FOOT;
+  };
+  const lanes = board.height ?? Math.max(2.5, ...board.columns.map((_, index) => lane(index)));
+  // The board's padding, a column's padding, its head and the gap under it; then the lanes; then the room around.
+  return Math.round((em * (0.6 + 0.7 + 1.6 + 0.4 + lanes) + drawnType.note * WRAP_ROOM + 1) * 10) / 10;
 }
 
 /**
@@ -485,12 +802,12 @@ function heightSplit(view: EditorView, wrap: HTMLElement): HTMLElement {
   split.setAttribute('aria-valuemax', String(BOARD_HEIGHT.max));
   split.tabIndex = 0;
   split.title = 'Drag to resize the board';
-  // The handle: a tab at the middle of the line under the board with up and down on it, so it is plainly a thing to
-  // take hold of (Matt: "Add resize handle in the bottom middle of board to resize").
+  // The handle: Glacier's grip pill at the middle of the line under the board (Matt: "Add resize handle in the bottom
+  // middle of board to resize", then "the resize handle under the board changed and doesnt match the simplistic
+  // version anymore").
   const grip = document.createElement('span');
   grip.className = 'cm-boardGrip';
   grip.setAttribute('aria-hidden', 'true');
-  grip.append(icon('resize', '0.95em'));
   split.append(grip);
 
   // The note must not take the press as a caret move, or the finger's drag as a text selection.
@@ -519,6 +836,9 @@ function sized(board: HTMLElement, split: HTMLElement, height: number | null): v
   } else {
     board.style.setProperty('--cm-lane-height', `${height}em`);
     board.dataset.sized = '';
+    // A height from the fence is the height: no pin under it.
+    board.style.removeProperty('--cm-board-pin');
+    delete board.dataset.pinned;
   }
   if (height !== null) {
     split.setAttribute('aria-valuenow', String(height));
@@ -529,6 +849,41 @@ function sized(board: HTMLElement, split: HTMLElement, height: number | null): v
   const measure = () => split.setAttribute('aria-valuenow', String(Math.round(laneHeightOf(board))));
   if (board.isConnected) measure();
   else requestAnimationFrame(measure);
+}
+
+/**
+ * A board with no height of its own, pinned to the height it was first drawn at (Matt: "Clicking an item to toggle
+ * the done state on and off is now super laggy and doesn't actually change the state off").
+ *
+ * The lanes are as tall as the tallest lane's cards, so moving a card between lanes changed the board's height, and
+ * everything under it jumped - by 48px in the case Matt hit. The second tap then landed on whatever had slid under
+ * the finger: the next item, or the board itself. Nothing was broken about the tick; the note had moved.
+ *
+ * So a board's height is settled when it is drawn and held there: ticking, dragging, adding and taking off all leave
+ * it exactly where it is, and the lanes scroll inside it as a board with a set height does. It is measured once,
+ * from the height the board would have chosen for itself, and let go when the board is built again - the note
+ * reopened, its columns changed - or when the line under it is dragged, which sets a real height in the fence.
+ */
+function pin(board: HTMLElement): void {
+  if (board.dataset.pinned !== undefined || board.hasAttribute('data-sized') || !board.isConnected) return;
+  const stack = board.querySelector<HTMLElement>('.cm-boardStack');
+  const tall = stack?.getBoundingClientRect().height ?? 0;
+  if (!stack || tall <= 0) return;
+  board.style.setProperty('--cm-board-pin', `${Math.round(tall)}px`);
+  board.dataset.pinned = '';
+  // The type it was measured in: a board pinned in px must be measured again when the words change size.
+  board.dataset.pinnedType = window.getComputedStyle(stack).fontSize;
+}
+
+/** A pinned board whose words have changed size is measured again: the pin is px, and a px height ages. */
+function repin(board: HTMLElement): void {
+  const stack = board.querySelector<HTMLElement>('.cm-boardStack');
+  if (board.dataset.pinned === undefined || !stack) return;
+  if (window.getComputedStyle(stack).fontSize === board.dataset.pinnedType) return;
+  board.style.removeProperty('--cm-board-pin');
+  delete board.dataset.pinned;
+  delete board.dataset.pinnedType;
+  pin(board);
 }
 
 /** How tall the lanes are drawn now, in their own ems. */
@@ -543,11 +898,10 @@ function laneHeightOf(board: HTMLElement): number {
   if (board.hasAttribute('data-sized') && Number.isFinite(set)) return set;
   const stack = board.querySelector<HTMLElement>('.cm-boardStack');
   if (!stack) return BOARD_HEIGHT.min;
-  const look = window.getComputedStyle(stack);
-  const em = parseFloat(look.fontSize) || 16;
-  // Left to themselves, the lanes are as tall as their cap.
-  const px = parseFloat(look.maxHeight);
-  return Number.isFinite(px) && px > 0 ? px / em : BOARD_HEIGHT.min;
+  const em = parseFloat(window.getComputedStyle(stack).fontSize) || 16;
+  // Left to themselves, the lanes are as tall as the tallest one's cards.
+  const px = stack.getBoundingClientRect().height;
+  return px > 0 ? px / em : BOARD_HEIGHT.min;
 }
 
 /** The height written into the board's fence, or taken out of it with null: one change, one undo. */
@@ -623,6 +977,17 @@ function dragHeight(view: EditorView, wrap: HTMLElement, split: HTMLElement, eve
   window.addEventListener('touchmove', still, { passive: false });
 }
 
+/** What a plugin offers this item: its own line's offer, else the one a swipe on the line would run. Null for none. */
+function pluginOffer(view: EditorView, item: Item): { label: string; run: () => Promise<void> } | null {
+  const actions = view.state.facet(cardActions);
+  if (!actions) return null;
+  // The line first: a card names an exact line, and two items that read the same way are told apart by nothing else.
+  const here = actions.suggest(view.state.doc.toString()).find((offer) => offer.line === item.line);
+  if (here) return { label: here.label, run: here.run };
+  const action = actions.action();
+  return action ? { label: action.label, run: () => action.run(itemWords(view.state.doc.line(item.line).text) ?? item.text) } : null;
+}
+
 /**
  * The + on a column: a field at the top of it, for the new card's words (Matt: "a button on each board to add an
  * item, it should add the item to the list the board is derived from").
@@ -640,12 +1005,24 @@ function openComposer(view: EditorView, pane: HTMLElement, name: string): void {
   }
   const form = document.createElement('form');
   form.className = 'cm-boardCompose';
+  // A form with a text field and a submit button is what a password manager watches for: 1Password and the rest
+  // offered to save a login every time a card was added (Matt: "New Tasks are popping password manager save modal").
+  // These say what it really is, in each of the ways they read.
+  form.setAttribute('autocomplete', 'off');
+  form.setAttribute('data-form-type', 'other');
+  form.setAttribute('data-1p-ignore', '');
+  form.setAttribute('data-lpignore', 'true');
   const field = document.createElement('input');
   field.type = 'text';
   field.className = 'cm-boardComposeField';
   field.placeholder = 'New card';
   field.enterKeyHint = 'done';
   field.autocapitalize = 'sentences';
+  field.name = 'card';
+  field.autocomplete = 'off';
+  field.setAttribute('data-form-type', 'other');
+  field.setAttribute('data-1p-ignore', '');
+  field.setAttribute('data-lpignore', 'true');
   field.setAttribute('aria-label', `New card in ${name}`);
   const add = document.createElement('button');
   add.type = 'submit';
@@ -735,11 +1112,14 @@ interface Lift {
   dy: number;
   column: number;
   index: number;
+  /** Where the finger is, for placing the gap again while something scrolls under a finger that is still. */
+  x: number;
+  y: number;
   /** The board scrolling itself while a card is held against its edge. */
   scroll: number;
-  /** A column scrolling itself while a card is held against its top or foot, now that a column has a height. */
+  /** A lane, or the note, scrolling while a card is held near its top or foot. */
   rise: number;
-  /** The column that is rising, so the roll can be stopped when the finger moves to another. */
+  /** What is rising, so the roll can be stopped when the finger moves to another. */
   rising: HTMLElement | null;
 }
 
@@ -770,13 +1150,15 @@ function pickUp(board: HTMLElement, card: HTMLElement, held: Card, x: number, y:
   board.dataset.holding = '';
 
   fireNativeHaptic('selection');
-  const lift: Lift = { board, card, ghost, dx: x - box.left, dy: y - box.top, column: held.column, index: 0, scroll: 0, rise: 0, rising: null };
+  const lift: Lift = { board, card, ghost, dx: x - box.left, dy: y - box.top, column: held.column, index: 0, x, y, scroll: 0, rise: 0, rising: null };
   dragTo(lift, x, y);
   return lift;
 }
 
 /** The held card follows the finger, the gap goes where it would land, and the board scrolls at its edges. */
 function dragTo(lift: Lift, x: number, y: number): void {
+  lift.x = x;
+  lift.y = y;
   lift.ghost.style.transform = `translate(${x - lift.dx}px, ${y - lift.dy}px)`;
 
   const box = lift.board.getBoundingClientRect();
@@ -784,6 +1166,7 @@ function dragTo(lift: Lift, x: number, y: number): void {
   if (edge && !lift.scroll) {
     const roll = () => {
       lift.board.scrollLeft += edge;
+      placeGap(lift);
       lift.scroll = requestAnimationFrame(roll);
     };
     lift.scroll = requestAnimationFrame(roll);
@@ -792,8 +1175,35 @@ function dragTo(lift: Lift, x: number, y: number): void {
     lift.scroll = 0;
   }
 
+  const stack = placeGap(lift);
+  if (!stack) return;
+
+  // Up and down: a lane with more cards than it shows rolls itself when the card is held near its top or foot, so a
+  // card can be dropped below what it shows. A lane that shows every card is rolled by the note instead, near the top
+  // or foot of the screen, so a card can be taken down a lane longer than the screen.
+  const roller = stack.scrollHeight - stack.clientHeight > 1 ? stack : noteScroller(lift.board);
+  const lean = roller ? leanAt(roller, y, roller !== stack) : 0;
+  if (lift.rise && (lift.rising !== roller || !lean)) {
+    cancelAnimationFrame(lift.rise);
+    lift.rise = 0;
+    lift.rising = null;
+  }
+  if (roller && lean && !lift.rise) {
+    lift.rising = roller;
+    const roll = () => {
+      roller.scrollTop += lean;
+      placeGap(lift);
+      lift.rise = requestAnimationFrame(roll);
+    };
+    lift.rise = requestAnimationFrame(roll);
+  }
+}
+
+/** The lane under the finger gets the gap, above the first card whose middle the finger is over. */
+function placeGap(lift: Lift): HTMLElement | null {
+  const { x, y } = lift;
   const stacks = [...lift.board.querySelectorAll<HTMLElement>('.cm-boardStack')];
-  if (!stacks.length) return;
+  if (!stacks.length) return null;
   // The column under the finger, or the nearest one when the finger is past the end of the board.
   const stack =
     stacks.find((pane) => {
@@ -805,37 +1215,47 @@ function dragTo(lift: Lift, x: number, y: number): void {
       return gap(pane.getBoundingClientRect()) < gap(near.getBoundingClientRect()) ? pane : near;
     }, stacks[0]!);
 
-  for (const pane of stacks) delete pane.dataset.over;
+  for (const pane of stacks) if (pane !== stack) delete pane.dataset.over;
   stack.dataset.over = '';
 
-  // A column is only so tall and scrolls inside itself, so a card held near its top or foot rolls it, the way the
-  // board rolls sideways at its edges: otherwise a card could never be dropped below what the column shows.
-  const shown = stack.getBoundingClientRect();
-  const lean = y < shown.top + EDGE ? -EDGE_STEP : y > shown.bottom - EDGE ? EDGE_STEP : 0;
-  if (lift.rise && (lift.rising !== stack || !lean)) {
-    cancelAnimationFrame(lift.rise);
-    lift.rise = 0;
-    lift.rising = null;
-  }
-  if (lean && !lift.rise) {
-    lift.rising = stack;
-    const roll = () => {
-      stack.scrollTop += lean;
-      lift.rise = requestAnimationFrame(roll);
-    };
-    lift.rise = requestAnimationFrame(roll);
-  }
-
-  // Where in the column the gap belongs: above the first card whose middle the finger is over.
   const cards = [...stack.querySelectorAll<HTMLElement>('.cm-boardCard')].filter((other) => other !== lift.card);
   const before = cards.find((other) => {
     const at = other.getBoundingClientRect();
     return y < at.top + at.height / 2;
   });
-  stack.insertBefore(lift.card, before ?? stack.querySelector('.cm-boardEmpty'));
+  const place = before ?? stack.querySelector('.cm-boardEmpty');
+  // Moved only when it would land somewhere else: moving it again and again as a roll goes by is work for nothing.
+  if (lift.card.parentElement !== stack || lift.card.nextElementSibling !== place) stack.insertBefore(lift.card, place);
 
   lift.column = Number(stack.dataset.column ?? 0);
   lift.index = [...stack.querySelectorAll<HTMLElement>('.cm-boardCard')].indexOf(lift.card);
+  return stack;
+}
+
+/** The note's own scroller: the nearest box above the board that scrolls up and down. */
+function noteScroller(board: HTMLElement): HTMLElement | null {
+  for (let at = board.parentElement; at; at = at.parentElement) {
+    const flow = window.getComputedStyle(at).overflowY;
+    if ((flow === 'auto' || flow === 'scroll') && at.scrollHeight > at.clientHeight + 1) return at;
+  }
+  const page = document.scrollingElement;
+  return page instanceof HTMLElement && page.scrollHeight > page.clientHeight + 1 ? page : null;
+}
+
+/**
+ * How fast to roll `roller` for a finger at `y`: up near its top, down near its foot, nothing between. The note's
+ * top is under its header, so the zone starts below that (`--wisp-under`, art/wispEdge.ts), and is wider, since the
+ * finger is near the edge of the screen.
+ */
+function leanAt(roller: HTMLElement, y: number, note: boolean): number {
+  const shown = roller.getBoundingClientRect();
+  const under = note ? parseFloat(window.getComputedStyle(roller).getPropertyValue('--wisp-under')) || 0 : 0;
+  const top = Math.max(shown.top, 0) + under;
+  const bottom = Math.min(shown.bottom, window.innerHeight);
+  const zone = note ? EDGE * 2 : EDGE;
+  if (y < top + zone && roller.scrollTop > 0) return -EDGE_STEP;
+  if (y > bottom - zone && roller.scrollTop + roller.clientHeight < roller.scrollHeight - 1) return EDGE_STEP;
+  return 0;
 }
 
 /** The card set down: the copy overhead goes, and the card is a card again, wherever it ended up. */
@@ -855,7 +1275,9 @@ function putDown(lift: Lift): void {
 function goToLine(view: EditorView, line: number): void {
   if (line < 1 || line > view.state.doc.lines) return;
   const at = view.state.doc.line(line);
-  view.dispatch({ selection: EditorSelection.cursor(at.to), effects: EditorView.scrollIntoView(at.from, { y: 'center' }), scrollIntoView: true });
+  // At the end of the item's words, not the end of the line: typed there, a letter would go into the anchor after them.
+  const caret = at.from + wordsEnd(at.text);
+  view.dispatch({ selection: EditorSelection.cursor(caret), effects: EditorView.scrollIntoView(at.from, { y: 'center' }), scrollIntoView: true });
   view.focus();
 }
 
@@ -876,7 +1298,8 @@ function hushGoTo(): void {
 
 /**
  * The card where it landed, shown: its lane brought across the board and the card brought into its lane, then a short
- * flash so the eye finds it. Only the board and the lane are scrolled; the note stays where it is.
+ * flash so the eye finds it. The note is moved only as far as it takes to show the card, when a lane that shows every
+ * card has put it past the top or foot of the screen.
  */
 function reveal(view: EditorView, id: string): void {
   // Twice over a frame: the board is redrawn by the change that moved the card, and the card is in its lane after that.
@@ -894,8 +1317,19 @@ function reveal(view: EditorView, id: string): void {
       }
       const stackBox = stack.getBoundingClientRect();
       const cardBox = card.getBoundingClientRect();
-      if (cardBox.top < stackBox.top || cardBox.bottom > stackBox.bottom) {
-        stack.scrollTo({ top: stack.scrollTop + cardBox.top - stackBox.top - 8, behavior: 'smooth' });
+      if (stack.scrollHeight > stack.clientHeight + 1) {
+        if (cardBox.top < stackBox.top || cardBox.bottom > stackBox.bottom) {
+          stack.scrollTo({ top: stack.scrollTop + cardBox.top - stackBox.top - 8, behavior: 'smooth' });
+        }
+      } else {
+        const note = noteScroller(board);
+        if (note) {
+          const shown = note.getBoundingClientRect();
+          const top = Math.max(shown.top, 0) + (parseFloat(window.getComputedStyle(note).getPropertyValue('--wisp-under')) || 0);
+          const bottom = Math.min(shown.bottom, window.innerHeight);
+          const by = cardBox.bottom > bottom - EDGE ? cardBox.bottom - bottom + EDGE : cardBox.top < top + 8 ? cardBox.top - top - 8 : 0;
+          if (by) note.scrollBy({ top: by, behavior: 'smooth' });
+        }
       }
       card.dataset.arrived = '';
       window.setTimeout(() => delete card.dataset.arrived, 900);
@@ -985,6 +1419,22 @@ const anchorField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 });
 
+/**
+ * The changes that bring every fence in the note back in step with its ticks, for a box turned somewhere other than
+ * the board: a tap in the list (editor/taskToggle.ts) or a task going Done in Notion (editor/doneSync.ts). `ticks` is
+ * each item's line, counting from 1, and the state its box is being set to; several at once are fine.
+ *
+ * Put them in the same transaction as the boxes themselves, so the note and its boards change together, as one undo.
+ * Empty when nothing has to move, which is the usual answer.
+ */
+export function settleFences(state: EditorState, ticks: ReadonlyMap<number, boolean>): { from: number; to: number; insert: string }[] {
+  return settleBoards(state.doc.toString(), ticks).map((edit) => ({
+    from: state.doc.line(edit.from).to + 1,
+    to: state.doc.line(edit.to).from - 1,
+    insert: edit.body,
+  }));
+}
+
 /** A tap on `[[#^anchor]]`: the caret goes to the item it names. */
 const refTaps = EditorView.domEventHandlers({
   mousedown(event, view) {
@@ -1049,13 +1499,15 @@ const boardTheme = EditorView.baseTheme({
     paddingInline: 'var(--cm-board-bleed, 0px)',
     scrollPaddingInline: 'var(--cm-board-bleed, 0px)',
     overflowX: 'auto',
+    // Sideways only. With the columns scrolling, the board is a scroller both ways, and a finger moving up it was
+    // the board's to scroll wherever it overflowed by a pixel, not the note's.
+    overflowY: 'hidden',
     overscrollBehaviorX: 'contain',
     // One column at a time on a phone: a swipe settles on a column rather than between two.
     scrollSnapType: 'x mandatory',
-    marginBlock: '0.4em 0',
     paddingBlock: '0.1em 0.5em',
     scrollbarWidth: 'none',
-    fontSize: '0.86em',
+    fontSize: `${BOARD_TYPE}em`,
     textIndent: '0',
   },
   '.cm-board[data-holding]': { scrollSnapType: 'none', cursor: 'grabbing' },
@@ -1164,12 +1616,33 @@ const boardTheme = EditorView.baseTheme({
     color: 'var(--app-ink-3, var(--glacier-text-muted))',
     cursor: 'default',
   },
-  // Set by the line under the board: the lanes are that tall, cards or not (heightSplit).
+  /*
+   * Set by the line under the board: the lanes are that tall, cards or not (heightSplit), and one with more cards
+   * scrolls inside itself. At either end of it the finger goes on to the note (no `overscroll-behavior`: a lane that
+   * kept the scroll to itself stopped the note dead under a finger that landed on it).
+   */
   '.cm-board[data-sized] .cm-boardStack': {
     blockSize: 'var(--cm-lane-height)',
-    maxBlockSize: 'none',
+    overflowY: 'auto',
+    scrollbarWidth: 'none',
+    paddingBlockEnd: '0.9em',
   },
-  '.cm-boardWrap': { marginBlockEnd: '0.5em' },
+  /* The same, for a board holding the height it was drawn at rather than one the fence set (`pin`). */
+  '.cm-board[data-pinned]:not([data-sized]) .cm-boardStack': {
+    blockSize: 'var(--cm-board-pin)',
+    overflowY: 'auto',
+    scrollbarWidth: 'none',
+    paddingBlockEnd: '0.9em',
+  },
+  // More cards below than the lane shows: its foot fades, and goes to smoke where the app's wisp is on (laneFoot).
+  '.cm-boardStack[data-more]': {
+    WebkitMaskImage: 'linear-gradient(to bottom, #000 calc(100% - 1.2em), transparent)',
+    maskImage: 'linear-gradient(to bottom, #000 calc(100% - 1.2em), transparent)',
+  },
+  // Padding, not margin, above and below: the editor measures a block by its border box, and a margin - the board's
+  // own at the top went straight through this box - put every line under the board that far from where the editor
+  // thought it was. The room above is the board's 0.4em, in the note's type.
+  '.cm-boardWrap': { paddingBlock: `calc(0.4em * ${BOARD_TYPE}) 0.5em` },
   /*
    * Glacier's split-pane divider (@glacier/react ResizableSplitPane): a hairline in the subtle border, a grip pill,
    * the accent when it is being moved or has the focus. Its touch reaches above and below the hairline.
@@ -1181,56 +1654,44 @@ const boardTheme = EditorView.baseTheme({
     justifyContent: 'center',
     blockSize: 'var(--glacier-hairline, 1px)',
     marginInline: 'var(--cm-board-bleed, 0px)',
-    // Room above and below for the handle, which sits across the line.
-    marginBlock: '0.85em 1.1em',
+    marginBlock: '0.3em 1em',
     background: 'var(--glacier-border-subtle, color-mix(in oklch, currentColor 14%, transparent))',
     cursor: 'row-resize',
     touchAction: 'none',
     transition: 'background-color var(--glacier-duration-fast, 120ms) var(--glacier-ease-out, ease-out)',
   },
-  '.cm-boardSplit::before': { content: '""', position: 'absolute', insetInline: '0', insetBlock: '-1.15em' },
+  // A finger's width of touch: down to the next line, and up into the board's own padding but not onto its cards.
+  '.cm-boardSplit::before': { content: '""', position: 'absolute', insetInline: '0', insetBlock: '-0.7em -1em' },
   '.cm-boardSplit:focus-visible, .cm-boardSplit[data-dragging]': {
     outline: 'none',
     background: 'var(--glacier-accent-solid, currentColor)',
   },
-  /*
-   * The handle, at the middle of the line: a tab in the board's own ground with a ring, and up and down on it. Taken
-   * hold of, or with the focus, it takes the accent the line does.
-   */
+  // The grip, at the middle of the line and always there, since a phone has no hover: a small pill, white while it is
+  // held or has the focus.
   '.cm-boardGrip': {
     position: 'relative',
     zIndex: '1',
-    display: 'grid',
-    placeItems: 'center',
-    inlineSize: '2.75em',
-    blockSize: '1.4em',
+    inlineSize: 'var(--glacier-space-6, 1.5rem)',
+    blockSize: '6px',
     borderRadius: 'var(--glacier-radius-full, 999px)',
-    background: 'var(--app-paper-2, var(--glacier-surface))',
-    color: 'var(--app-ink-2, currentColor)',
-    boxShadow: 'inset 0 0 0 1px color-mix(in oklch, currentColor 24%, transparent), 0 1px 3px rgba(0, 0, 0, 0.25)',
-    transition:
-      'background-color var(--glacier-duration-fast, 120ms) var(--glacier-ease-out, ease-out), color var(--glacier-duration-fast, 120ms) var(--glacier-ease-out, ease-out)',
+    background: 'color-mix(in oklch, currentColor 45%, transparent)',
+    transition: 'background-color var(--glacier-duration-fast, 120ms) var(--glacier-ease-out, ease-out)',
   },
-  '.cm-boardSplit:hover .cm-boardGrip': { color: 'var(--app-ink, currentColor)' },
-  '.cm-boardSplit:focus-visible .cm-boardGrip, .cm-boardSplit[data-dragging] .cm-boardGrip': {
-    background: 'var(--glacier-accent-solid, currentColor)',
-    color: 'var(--glacier-accent-contrast, #fff)',
-    boxShadow: 'none',
-  },
+  '.cm-boardSplit:hover .cm-boardGrip': { background: 'color-mix(in oklch, currentColor 70%, transparent)' },
+  '.cm-boardSplit:focus-visible .cm-boardGrip, .cm-boardSplit[data-dragging] .cm-boardGrip': { background: '#fff' },
+  /*
+   * A lane. Left to itself it shows every card and never scrolls: a note is scrolled past a board in one sweep (Matt:
+   * "scrolling past boards is glitchy and stops scroll momentum"), where a lane with a cap of its own took the finger
+   * and kept it. It runs to the foot of its column, which is as tall as the board's tallest, so an empty lane has a
+   * middle.
+   */
   '.cm-boardStack': {
     display: 'flex',
     flexDirection: 'column',
-    // The lane runs to the foot of its column, which is as tall as the board's tallest, so an empty lane has a middle.
     flex: '1 1 auto',
     gap: '0.4em',
     minBlockSize: '2.5em',
-    maxBlockSize: 'min(42vh, 19rem)',
-    overflowY: 'auto',
-    overscrollBehaviorY: 'contain',
-    scrollbarWidth: 'none',
-    paddingBlockEnd: '0.9em',
-    WebkitMaskImage: 'linear-gradient(to bottom, #000 calc(100% - 1.1em), transparent)',
-    maskImage: 'linear-gradient(to bottom, #000 calc(100% - 1.1em), transparent)',
+    paddingBlockEnd: `${LANE_FOOT}em`,
   },
   /*
    * A card is a small grid (Matt: "the cards themselves can have the text go full width and we can move the notion icon
@@ -1293,9 +1754,16 @@ const boardTheme = EditorView.baseTheme({
   // At rest, only an empty column shows it: the picture and the words, no outline.
   // It fills its lane, and the picture and words sit in the middle of it (Matt: "vertically center the icons in the
   // swimlanes"): a lane beside a full one is as tall as that one, and a board with a set height has tall lanes.
-  // It reaches into the lane's own space at the foot (kept for the fade), so the middle is the whole lane's: the
-  // lane's 0.9em is this element's 1em, its type being 0.9 of the lane's.
-  '.cm-boardEmpty[data-none]': { display: 'grid', flex: '1 1 auto', alignContent: 'center', paddingBlock: '1.1em', marginBlockEnd: '-1em' },
+  // It reaches into the lane's own space at the foot, so the middle is the whole lane's: its type is 0.9 of the lane's,
+  // so the lane's room is this element's room over 0.9.
+  '.cm-boardEmpty[data-none]': {
+    display: 'grid',
+    flex: '1 1 auto',
+    alignContent: 'center',
+    paddingBlock: '1.1em',
+    marginBlockEnd: `calc(${-LANE_FOOT}em / 0.9)`,
+  },
+  '.cm-board[data-sized] .cm-boardEmpty[data-none], .cm-board[data-pinned] .cm-boardEmpty[data-none]': { marginBlockEnd: 'calc(-0.9em / 0.9)' },
   '.cm-boardEmptyRest': { display: 'grid', justifyItems: 'center', gap: '0.45em' },
   '.cm-boardEmptyIcon': { opacity: '0.55' },
   '.cm-boardEmptyDrop': { display: 'none' },
@@ -1395,6 +1863,51 @@ const boardTheme = EditorView.baseTheme({
     cursor: 'pointer',
   },
   '.cm-boardMove:disabled': { opacity: '0.25', cursor: 'default' },
+  /* The card's menu button, the same size and weight as the chevrons beside it. */
+  '.cm-boardMore': {
+    display: 'grid',
+    placeItems: 'center',
+    inlineSize: '1.7em',
+    blockSize: '1.7em',
+    padding: '0',
+    border: 'none',
+    borderRadius: '999px',
+    background: 'none',
+    color: 'var(--app-ink-3, var(--glacier-text-muted))',
+    opacity: '0.7',
+    cursor: 'pointer',
+  },
+  /*
+   * The card's menu: in the lane, right under its card, the way the + field sits at the top of a column. A panel of
+   * the board's own ground with a hairline, and rows a thumb can hit.
+   */
+  '.cm-boardMenu': {
+    display: 'grid',
+    flex: 'none',
+    gap: '1px',
+    margin: '0.1em 0 0.2em',
+    padding: '0.25em',
+    borderRadius: '0.7em',
+    background: 'var(--app-paper, var(--glacier-bg))',
+    boxShadow: 'inset 0 0 0 1px color-mix(in oklch, currentColor 14%, transparent), 0 2px 6px rgba(0, 0, 0, 0.18)',
+  },
+  '.cm-boardMenuRow': {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.55em',
+    minBlockSize: '2.4em',
+    padding: '0 0.55em',
+    border: 'none',
+    borderRadius: '0.5em',
+    background: 'none',
+    color: 'var(--app-ink, currentColor)',
+    font: 'inherit',
+    fontSize: '0.95em',
+    textAlign: 'start',
+    cursor: 'pointer',
+  },
+  '.cm-boardMenuRow:hover': { background: 'color-mix(in oklch, currentColor 7%, transparent)' },
+  '.cm-boardMenuRow svg': { flex: 'none', opacity: '0.75' },
   /* The anchor on the line, and a pointer at one from the words. */
   '.cm-itemAnchor': { fontSize: '0.82em', opacity: '0.45' },
   '.cm-itemRef': {
@@ -1408,6 +1921,15 @@ const boardTheme = EditorView.baseTheme({
 });
 
 /** Boards drawn in a note, the fence still there to edit. */
-export function drawnBoards(): Extension {
-  return [focusField, boardField, anchorField, refTaps, boardRoom, boardTheme, EditorView.focusChangeEffect.of((_state, focusing) => setFocus.of(focusing))];
+export function drawnBoards(actions?: CardActions): Extension {
+  return [
+    focusField,
+    boardField,
+    anchorField,
+    refTaps,
+    boardRoom,
+    boardTheme,
+    ...(actions ? [cardActions.of(actions)] : []),
+    EditorView.focusChangeEffect.of((_state, focusing) => setFocus.of(focusing)),
+  ];
 }

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bookmark, EllipsisVertical, Mic } from '@glacier/icons';
+import { BookOpen, Bookmark, Code, EllipsisVertical, Mic } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import type { EditorView } from '@codemirror/view';
 import { ArrowLeft } from '../art/Icons.tsx';
 import { adoptImagePath, pickImage } from '../core/images.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { caretPlace, placeOf, readBookmark, scrollToPlace, useNotePlace, writeBookmark } from './notePlace.ts';
-import { markedWords, showBookmark } from './bookmarkLine.ts';
-import { boardFrom, itemAt } from '../core/boards.ts';
+import { bookmarkLineIn, markedLine, markedWords, placeBookmark, showBookmark } from './bookmarkLine.ts';
+import { boardFrom, itemAt, wordsEnd } from '../core/boards.ts';
 import { hasClips, setTapeId, tapeId } from '../core/clips.ts';
 import { useNoteZoom } from './pinchZoom.ts';
 import { ContextMenu } from './ContextMenu.tsx';
@@ -318,8 +318,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // Opened at an item, the note goes to that line rather than back to where it was left last time.
   useNotePlace(note.id, page, view, shown === 'raw' && !at);
   /** Whether this note has a bookmark, for the header's button. */
-  const [marked, setMarked] = useState(() => readBookmark(note.id) !== null);
-  useEffect(() => setMarked(readBookmark(note.id) !== null), [note.id]);
+  const [marked, setMarked] = useState(() => bookmarkLineIn(note.body) !== null || readBookmark(note.id) !== null);
+  useEffect(() => setMarked(bookmarkLineIn(note.body) !== null || readBookmark(note.id) !== null), [note.id, note.body]);
   /** The bookmarked line, ribboned in the note so the place can be seen (editor/bookmarkLine.ts). */
   const showMark = useCallback(
     (at: number | null) => {
@@ -346,41 +346,41 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   }, [note.id, view, showMark]);
 
   /**
-   * The bookmark: with none, this spot becomes it; with one, the note goes to it; and pressed again where it already
-   * is, it comes off. The note opens at it until then (Matt: "add bookmark button to topbar").
+   * The bookmark, written in the note as `§§` (editor/bookmarkLine.ts): pressed, it goes on the line being read or
+   * written, moving from wherever it was; pressed on the line that already has it, it comes off (Matt: "i should be
+   * able to tap bookmark again to update the position as well right now its stuck"). The note opens at it.
    */
   const bookmark = () => {
     const scroller = page.current;
     if (!view || !scroller) return;
     // The caret's own line first: a bookmark marks the words being read, not the top of the page (editor/notePlace.ts).
     const here = caretPlace(view, scroller) ?? placeOf(view, scroller);
-    const mark = readBookmark(note.id);
-    if (!mark) {
-      if (!here) {
-        toast({ message: 'Tap the line you want to keep, then tap the bookmark.' });
-        return;
-      }
-      writeBookmark(note.id, here);
-      setMarked(true);
-      showMark(here.pos);
-      fireNativeHaptic('success');
-      // The words it landed on are said back, so the place is known without scrolling to it.
-      const words = markedWords(view, here.pos);
-      toast({ message: words ? `Bookmarked at “${words}”. This note opens here.` : 'Bookmarked. This note opens here.' });
+    const current = bookmarkLineIn(view.state.doc);
+    const kept = readBookmark(note.id);
+    const target = here ? markedLine(view.state, here.pos) : view.state.doc.length ? 1 : null;
+    const was = current ?? (kept ? markedLine(view.state, kept.pos) : null);
+    // One kept on this device from before bookmarks were written in goes: the note carries its own from now on.
+    if (kept) writeBookmark(note.id, null);
+    if (target === null) {
+      toast({ message: 'Write something first, then bookmark the line.' });
       return;
     }
-    const atIt = here !== null && here.pos === mark.pos && Math.abs(here.offset - mark.offset) < 24;
-    if (atIt) {
-      writeBookmark(note.id, null);
-      setMarked(false);
+    if (was === target) {
+      view.dispatch(placeBookmark(view.state, null));
       showMark(null);
+      setMarked(false);
       fireNativeHaptic('warning');
       toast({ message: 'Bookmark taken off.' });
       return;
     }
-    scrollToPlace(view, scroller, mark);
-    showMark(mark.pos);
-    fireNativeHaptic('selection');
+    view.dispatch(placeBookmark(view.state, target));
+    showMark(null);
+    setMarked(true);
+    fireNativeHaptic('success');
+    // The words it landed on are said back, so the place is known without scrolling to it.
+    const words = markedWords(view, view.state.doc.line(target).from);
+    const said = was === null ? 'Bookmarked at' : 'Bookmark moved to';
+    toast({ message: words ? `${said} “${words}”. This note opens here.` : `${said} this line. This note opens here.` });
   };
   /**
    * Opened by a link that pointed inside this note (`[[Launch week#^ask-sam]]`), the caret lands on that item and
@@ -398,7 +398,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       const scroller = page.current;
       if (item && scroller) {
         const line = view.state.doc.line(Math.min(item.line, view.state.doc.lines));
-        if (!landed) view.dispatch({ selection: { anchor: line.to } });
+        // At the end of the item's words, before its mark and anchor, so what is typed next goes on the words.
+        if (!landed) view.dispatch({ selection: { anchor: line.from + wordsEnd(line.text) } });
         // The first scroll works from the editor's own idea of where the line is, which is a guess for lines it has
         // not drawn (a board counts for a lot of page). Once the line is really on screen its own top is measured and
         // the last of it taken off, so a note with a board lands on the line and not a screen past it.
@@ -497,6 +498,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         title only as the back button's accessible description.
       */}
       <header ref={header} className={`app-headerPane ${styles.header}`}>
+        <div className={styles.headerRow}>
         {showBack ? (
           <button type="button" className={`app-word ${styles.back}`} onClick={back} aria-label={`Back to notes from ${title || 'new note'}`}>
             <ArrowLeft /> Notes
@@ -505,36 +507,34 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
           <span />
         )}
         <div className={styles.tools}>
-          {/* Markdown, the marks with the formatting (the default), or just the formatted text (editor/viewMode.ts). */}
-          {wide ? (
-            <div className={styles.viewSwitch} role="radiogroup" aria-label="How the note is shown">
-              {(
-                [
-                  ['mixed', 'Markdown'],
-                  ['formatted', 'Formatted'],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={prefs.noteView === value}
-                  data-on={prefs.noteView === value || undefined}
-                  disabled={shown !== 'raw'}
-                  onClick={() => chooseView(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          ) : null}
+          {/*
+            Markdown, the marks with the formatting (the default), or just the formatted text (editor/viewMode.ts).
+            One ring like the others rather than a pair in a capsule (Matt: "change the pencil and book icon to the
+            normal round icon we use for the other items in the toolbar just make it toggle between a code icon and a
+            book icon"): the glyph is the view you are in - the marks, or the page - and the label says what a press
+            does, which is the part a pair of buttons used to say by being two.
+          */}
+          <button
+            type="button"
+            className={styles.cog}
+            disabled={shown !== 'raw'}
+            onClick={() => chooseView(prefs.noteView === 'formatted' ? 'mixed' : 'formatted')}
+            aria-label={prefs.noteView === 'formatted' ? 'Showing the formatted note. Show the marks.' : 'Showing the marks. Show the formatted note.'}
+            title={prefs.noteView === 'formatted' ? 'Formatted' : 'Markdown'}
+          >
+            {prefs.noteView === 'formatted' ? (
+              <BookOpen size={22} strokeWidth={2.1} aria-hidden="true" />
+            ) : (
+              <Code size={22} strokeWidth={2.1} aria-hidden="true" />
+            )}
+          </button>
           <button
             type="button"
             className={`${styles.cog} ${styles.bookmark}`}
             data-on={marked || undefined}
             onClick={bookmark}
             aria-pressed={marked}
-            aria-label={marked ? 'Go to this note’s bookmark, or take it off' : 'Bookmark where you are in this note'}
+            aria-label={marked ? 'Move the bookmark to this line, or take it off here' : 'Bookmark this line'}
           >
             <Bookmark size={22} strokeWidth={2.1} fill={marked ? 'currentColor' : 'none'} aria-hidden="true" />
           </button>
@@ -548,6 +548,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
           <button type="button" className={`${styles.cog} ${styles.more}`} onClick={() => setSettingsOpen(true)} aria-label="More for this note">
             <EllipsisVertical size={22} strokeWidth={2.6} aria-hidden="true" />
           </button>
+        </div>
         </div>
       </header>
       {photoProblem ? (

@@ -33,6 +33,7 @@ import { noteView, type NoteView } from './viewMode.ts';
 import { findExtension } from './find.ts';
 import { clips, tapeSource } from './clips.ts';
 import { drawnBoards } from './boards.ts';
+import { drawnMermaid } from './mermaid.ts';
 import { bookmarkRibbon } from './bookmarkLine.ts';
 import { wispRipples, type RippleSource } from './wispRipples.ts';
 import { plugins } from '../plugins/registry.ts';
@@ -230,6 +231,8 @@ export function Editor({
         drawnTables(),
         // Boards drawn from a ```board fence, their cards the note's own list items (editor/boards.ts).
         drawnBoards(),
+        // Mermaid diagrams drawn from a ```mermaid fence (editor/mermaid.ts).
+        drawnMermaid(),
         swipeItemAction({ action: () => swipeActionRef.current?.() ?? null }),
         lineSuggestions({ suggest: (body) => suggestRef.current?.(body) ?? [] }),
         // A tap on a to-do's box ticks or clears it (taskToggle.ts).

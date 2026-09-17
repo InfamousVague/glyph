@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BookOpen, CircleUser, FlaskConical, Info, Mic, Puzzle, Sparkles, SunMoon, Terminal, Type, Vibrate, Waves } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
@@ -41,15 +41,28 @@ interface SettingsSheetProps {
   onSample: () => void;
   /** Adds the example board (core/boardNote.ts). */
   onBoard: () => void;
-  /** Opens the voice tutorial (tutorial/TutorialScreen.tsx). */
-  onTutorial: () => void;
+  /** Opens Glyph Academy (academy/AcademyScreen.tsx). */
+  onAcademy: () => void;
+  /**
+   * Asked from outside to open at the cheat sheet - the Academy's summary sends people there for the marks it has
+   * not taught yet. The moment it was asked for, so asking twice opens it twice; 0 for not asked.
+   */
+  toCheatSheet?: number;
 }
 
 const SIZE_WORDS: Record<string, string> = { large: 'Large', larger: 'Larger', largest: 'Largest' };
 const FACE_WORDS: Record<string, string> = { inter: 'Inter', noto: 'Noto', plex: 'Plex' };
+// Only said in the row's reading when it is not the one the app is drawn at.
+const DENSITY_WORDS: Record<string, string> = {
+  'extra-compact': 'Tightest',
+  compact: 'Tight',
+  comfortable: 'Comfortable',
+  spacious: 'Roomy',
+  'more-space': 'Roomiest',
+};
 const THEME_WORDS: Record<string, string> = { system: 'System', light: 'Light', dark: 'Dark' };
 
-export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onTutorial }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
   const prefs = usePreferences();
   const account = useAccount();
   const syncStatus = useSyncStatus();
@@ -58,6 +71,10 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
   const { all: allPlugins, enabled: plugins } = usePlugins();
   const { models } = useModels();
   const [goTo, setGoTo] = useState<{ id: string; nonce: number } | null>(null);
+  // Opened from the Academy: the sheet comes up on the cheat sheet itself rather than on the list of sections.
+  useEffect(() => {
+    if (toCheatSheet) setGoTo({ id: 'cheatsheet', nonce: toCheatSheet });
+  }, [toCheatSheet]);
 
   const chosenModel = MODELS.find((m) => m.id === prefs.formatModel);
   const modelHere = models.find((m) => m.id === prefs.formatModel)?.present ?? false;
@@ -74,12 +91,24 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
   else updatesSummary = updates.lastChecked ? 'Up to date' : 'Not checked yet';
 
   const sections: SettingsSection[] = [
+    // Who you are, first and on its own card (Matt: "move account to top of settings section"): it is what a person
+    // opens Settings for on a new phone, and everything below it is how the app behaves once they are in.
+    {
+      id: 'account',
+      label: 'Account',
+      icon: <CircleUser size={16} />,
+      content: <AccountPane />,
+      summary: syncSummary(account.session?.handle ?? null, syncStatus),
+      group: 5,
+    },
     {
       id: 'type',
       label: 'Type',
       icon: <Type size={16} />,
       content: <TypePane />,
-      summary: `${SIZE_WORDS[prefs.textSize] ?? prefs.textSize} · ${FACE_WORDS[prefs.typeface] ?? prefs.typeface}`,
+      summary: `${SIZE_WORDS[prefs.textSize] ?? prefs.textSize} · ${FACE_WORDS[prefs.typeface] ?? prefs.typeface}${
+        prefs.density === 'comfortable' ? '' : ` · ${DENSITY_WORDS[prefs.density] ?? prefs.density}`
+      }`,
       group: 0,
     },
     {
@@ -157,14 +186,6 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
       group: 1,
     },
     {
-      id: 'account',
-      label: 'Account',
-      icon: <CircleUser size={16} />,
-      content: <AccountPane />,
-      summary: syncSummary(account.session?.handle ?? null, syncStatus),
-      group: 3,
-    },
-    {
       id: 'cheatsheet',
       label: 'Cheat sheet',
       icon: <BookOpen size={16} />,
@@ -182,7 +203,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
           onGuide={onGuide}
           onSample={onSample}
           onBoard={onBoard}
-          onTutorial={onTutorial}
+          onAcademy={onAcademy}
           onCheatSheet={() => setGoTo({ id: 'cheatsheet', nonce: Date.now() })}
           onDeveloper={() => setGoTo({ id: 'developer', nonce: Date.now() })}
         />

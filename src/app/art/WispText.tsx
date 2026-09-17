@@ -107,7 +107,6 @@ class WispEngine {
   private readonly pool: Slot[] = [];
   private readonly active = new Map<HTMLElement, Run>();
   private letters: HTMLElement[][] = [];
-  private tokens: Token[] = [];
   private text: string | null = null;
   private phase: Phase | null = null;
   private frame = 0;
@@ -174,7 +173,6 @@ class WispEngine {
       return;
     }
     const plan = planSwap(from ?? '', text, this.wait, OUT_GAP_MS);
-    this.tokens = plan.from;
     // The first text can wait its turn; a later swap is a change the eye is already watching for.
     const steps = from === null && this.delay ? plan.in.map((step) => ({ ...step, at: step.at + this.delay })) : plan.in;
     const arrive = () => {
@@ -235,7 +233,6 @@ class WispEngine {
 
   /** Words of letter spans, gaps as text: every letter of a `hidden` word waits, invisible, holding its place. */
   private layout(tokens: Token[], hidden: Set<number>): void {
-    this.tokens = tokens;
     this.letters = [];
     const body = document.createElement('span');
     body.className = cls('body');

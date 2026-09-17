@@ -1,5 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { useEffect, type RefObject } from 'react';
+import { bookmarkLineIn } from './bookmarkLine.ts';
 
 /**
  * Where a note was being read, so it opens there again (Matt: "add bookmarking notes so opening the same note later
@@ -117,6 +118,12 @@ export function caretPlace(view: EditorView, page: HTMLElement): Place | null {
   return seen ? { pos: block.from, offset: 0 } : null;
 }
 
+/** The bookmark written in the note (editor/bookmarkLine.ts), as a place: its line, from the top. */
+export function writtenBookmark(view: EditorView): Place | null {
+  const number = bookmarkLineIn(view.state.doc);
+  return number === null ? null : { pos: view.state.doc.line(number).from, offset: 0 };
+}
+
 /** Scrolls the page back to `place`, clamped to the note as it is now. */
 export function scrollToPlace(view: EditorView, page: HTMLElement, place: Place): void {
   const block = view.lineBlockAt(Math.min(place.pos, view.state.doc.length));
@@ -138,22 +145,38 @@ export function useNotePlace(noteId: string, page: RefObject<HTMLElement | null>
   useEffect(() => {
     const scroller = page.current;
     if (!view || !scroller || !active) return undefined;
-    // A bookmark was put there on purpose, so it wins over wherever the note was last left.
-    const place = readBookmark(noteId) ?? readPlace(noteId);
+    // A bookmark was put there on purpose, so it wins over wherever the note was last left: the one written in the note,
+    // once its words arrive, then one kept on this device from before bookmarks were written in.
+    let place = readBookmark(noteId) ?? readPlace(noteId);
+    let written = false;
     // Settled: restored, given up on, or scrolled by the person. Only then is the place theirs to write.
-    let settled = place === null;
+    let settled = false;
     let frame = 0;
     let again = 0;
     const started = performance.now();
     const wait = () => {
-      if (settled || !place) return;
-      const ready = view.state.doc.length >= place.pos && scroller.scrollHeight > scroller.clientHeight;
+      if (settled) return;
+      if (!written) {
+        const mark = writtenBookmark(view);
+        if (mark) {
+          place = mark;
+          written = true;
+        }
+      }
+      if (!place) {
+        // Nothing to go back to, unless the note's words bring a bookmark with them.
+        if (view.state.doc.length || performance.now() - started > WAIT_MS) settled = true;
+        else frame = requestAnimationFrame(wait);
+        return;
+      }
+      const target = place;
+      const ready = view.state.doc.length >= target.pos && scroller.scrollHeight > scroller.clientHeight;
       if (ready) {
-        scrollToPlace(view, scroller, place);
+        scrollToPlace(view, scroller, target);
         again = window.setTimeout(() => {
-          scrollToPlace(view, scroller, place);
+          scrollToPlace(view, scroller, target);
           settled = true;
-          latest = placeOf(view, scroller) ?? place;
+          latest = placeOf(view, scroller) ?? target;
         }, 150);
         return;
       }

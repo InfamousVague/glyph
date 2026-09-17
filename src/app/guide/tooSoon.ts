@@ -9,7 +9,7 @@ import { GUIDE_PAGES } from './pages.ts';
  * last page (App.tsx `markGuideSeen`). A launch before that, with the guide
  * started and left on a page before the side-key page, is someone who held
  * the key on page one: the app comes up on the guide again with one line at
- * the top of it (TooSoon.tsx) and does not start a recording. From the
+ * the top of it (Guide.tsx says so in a line of its own) and does not start a recording. From the
  * side-key page on, a press of the key is what the page asks for, and it
  * records as it always did.
  *

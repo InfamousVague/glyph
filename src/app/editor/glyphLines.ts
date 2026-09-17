@@ -57,7 +57,8 @@ const widths = new Map<string, number>();
 
 function markerWidth(view: EditorView, marker: string): number {
   const style = getComputedStyle(view.contentDOM);
-  const key = `${style.fontFamily}|${style.fontSize}|${style.fontWeight}|${style.letterSpacing}|${marker}`;
+  // Ticked or not, a box is the same width: one measure for both.
+  const key = `${style.fontFamily}|${style.fontSize}|${style.fontWeight}|${style.letterSpacing}|${marker.replace(/\[[xX]\]/, '[ ]')}`;
   const known = widths.get(key);
   if (known !== undefined) return known;
   const ruler = document.createElement('span');
@@ -70,7 +71,16 @@ function markerWidth(view: EditorView, marker: string): number {
     insetBlockStart: '0',
     pointerEvents: 'none',
   });
-  ruler.textContent = marker;
+  // A to-do's box is set in the monospace face (Editor.module.css `.taskMarker`), so `[ ]` and `[x]` are one width.
+  const box = /\[[ xX]\]/.exec(marker);
+  if (box) {
+    const drawn = document.createElement('span');
+    drawn.className = styles.taskMarker ?? '';
+    drawn.textContent = box[0];
+    ruler.append(marker.slice(0, box.index), drawn, marker.slice(box.index + box[0].length));
+  } else {
+    ruler.textContent = marker;
+  }
   view.scrollDOM.appendChild(ruler);
   const width = ruler.getBoundingClientRect().width;
   ruler.remove();

@@ -137,8 +137,8 @@ export const PHRASES: PhraseGroup[] = [
     title: 'A callout',
     symbol: '> [!NOTE]',
     lead: 'A boxed note. Say “tip”, “warning” or “important” before it for those.',
-    cues: ['“Callout”', '“Warning callout”'],
-    example: { say: ['Before you arrive, please read this.', 'Callout: the gate sticks, so lift it first.'], expect: '> [!NOTE]\n> The gate sticks' },
+    cues: ['“Info box”', '“Callout”', '“Warning callout”'],
+    example: { say: ['Before you arrive, please read this.', 'Info box: the gate sticks, so lift it first.'], expect: '> [!NOTE]\n> The gate sticks' },
   },
   {
     title: 'A hidden line',

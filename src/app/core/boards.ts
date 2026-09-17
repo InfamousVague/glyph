@@ -55,6 +55,11 @@ const LEAD = /^(\s*(?:[-*+]|\d+[.)])\s+)(\[([ xX])\]\s?)?/;
 const TAIL = /(?:^|\s)\^([a-z0-9][a-z0-9_-]*)((?:\s+(?:\[[a-z][a-z0-9-]*\]\(https?:\/\/[^\s)]+\)|\[\d{1,4}\/\d{1,4}\]))*)\s*$/;
 /** A choice's box after a bullet (editor/choices.ts): `- ( ) Pick A`. A choice is picked, not done: it has no tick. */
 const CHOICE = /^\(([ xX])\) /;
+/**
+ * The bookmark (editor/bookmarkLine.ts): `§§` where the reader left off, after an item's words and before its mark,
+ * counters and anchor. It is a place in the note, not something the item says, so no card, title or anchor has it.
+ */
+const BOOKMARK = /\s*§§(?=\s|$)/g;
 
 /** A list item pulled apart: what opens it, whether it has a box, its words, and the anchor naming it. */
 interface Parsed {
@@ -75,7 +80,7 @@ function parse(line: string): Parsed | null {
   return {
     lead: lead[0],
     done: box === undefined ? null : box !== ' ',
-    text: (tail ? `${rest.slice(0, tail.index)}${tail[2] ?? ''}` : rest).trim(),
+    text: (tail ? `${rest.slice(0, tail.index)}${tail[2] ?? ''}` : rest).replace(BOOKMARK, '').trim(),
     id: tail?.[1] ?? null,
   };
 }
@@ -95,23 +100,50 @@ export const BOARD_HEIGHT = { min: 5, max: 60 };
 const REF = /\[\[#\^([a-z0-9][a-z0-9_-]*)\]\]/g;
 
 /** The columns a board fence's body lays out. A line with no colon is a column with no cards. */
-export function readBoard(body: string): BoardColumn[] {
+export function readBoard(body: string, known: ReadonlySet<string> = new Set()): BoardColumn[] {
   const columns: BoardColumn[] = [];
+  // An anchor names one item, and a card is one card: an id is read into the first lane that has it, and a second
+  // mention of it, in that lane or another, is dropped. Written by hand into two lanes, it used to be drawn twice in
+  // the first of them, and the lane a person had put it in showed nothing at all.
+  const taken = new Set<string>();
   for (const line of body.split('\n')) {
     const text = line.trim();
     if (!text) continue;
     const at = text.indexOf(':');
     const name = (at >= 0 ? text.slice(0, at) : text).trim();
     if (!name) continue;
-    const cards = (at >= 0 ? text.slice(at + 1) : '')
-      .split(',')
-      .map((card) => card.trim().replace(/^\^/, ''))
-      .filter((card) => ANCHOR.test(card));
+    const cards: string[] = [];
+    for (const said of (at >= 0 ? text.slice(at + 1) : '').split(',')) {
+      const id = anchorRead(said, known);
+      if (!id || taken.has(id)) continue;
+      taken.add(id);
+      cards.push(id);
+    }
     const already = columns.find((column) => column.name.toLowerCase() === name.toLowerCase());
-    if (already) already.cards.push(...cards.filter((card) => !already.cards.includes(card)));
-    else columns.push({ name, cards: cards.filter((card, i) => cards.indexOf(card) === i) });
+    if (already) already.cards.push(...cards);
+    else columns.push({ name, cards });
   }
   return columns;
+}
+
+/**
+ * An id in a fence read as the anchor it means: the caret a person may write in front of it taken off, and then, for
+ * anything that is not an anchor already, upper case down and everything an anchor cannot hold turned into the hyphen
+ * it would have been. `Fix Login` is `fix-login`.
+ *
+ * That second reading is only taken when the note really has an item with that anchor (`known`), so a lane written or
+ * dictated by hand still finds its cards, while words after a colon that name nothing are left alone rather than
+ * drawn as a card of their own. Read loosely, written back the one way (`writeBoard`), as an item's own anchor is
+ * (docs/BOARDS.md). Empty for an id this board cannot use.
+ */
+function anchorRead(said: string, known: ReadonlySet<string>): string {
+  const plain = said.trim().replace(/^\^/, '');
+  if (ANCHOR.test(plain)) return plain;
+  const id = plain
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '');
+  return ANCHOR.test(id) && known.has(id) ? id : '';
 }
 
 /** The columns written back as a fence's body, exactly as a person would type them. */
@@ -211,6 +243,74 @@ export function putCardAt(columns: readonly BoardColumn[], id: string, to: numbe
   return columns.map((column, i) => ({ ...column, cards: i === to ? target : (without[i] ?? []) }));
 }
 
+/**
+ * The ticks and the lanes, brought back together.
+ *
+ * A column called Done means done, so an item ticked anywhere is DRAWN in the Done lane whatever its fence says
+ * (`columnFor`). Ticking a box in the note's list, or a task going Done in Notion (editor/doneSync.ts), never moved
+ * the id, so a note could drift until a lane held seventeen ids and drew two of them (Matt, of his Task Management
+ * note: "items are in the Doing swimlane in the board code" while the lane drew nothing). The board was right and the
+ * markdown was stale, which is the wrong way round: the markdown is the note.
+ *
+ * `settleColumns` gives the columns as the board draws them: every ticked item's card in Done. `moved` is a card the
+ * person has just moved by hand, which is left exactly where they put it.
+ */
+export function settleColumns(columns: readonly BoardColumn[], items: readonly Item[], moved?: string): BoardColumn[] {
+  const done = doneColumn(columns);
+  if (done < 0) return copy(columns);
+  let next = copy(columns);
+  for (const item of items) {
+    if (item.id === moved || item.done !== true) continue;
+    const at = columnOf(next, item.id);
+    if (at >= 0 && at !== done) next = putCard(next, item.id, done);
+  }
+  return next;
+}
+
+/** A fence to be written again: the lines it is on, counting from 1, and its new body. */
+export interface FenceEdit {
+  /** The line the opening fence is on. */
+  from: number;
+  /** The line the closing fence is on. */
+  to: number;
+  body: string;
+}
+
+/**
+ * Every fence in the note that has something to say again, given the boxes about to change: `ticks` is each item's
+ * line and the state its box is being set to. One box tapped in the list, or a batch of them arriving from Notion,
+ * are the same thing here.
+ *
+ * A box ticked puts its card in Done; a box cleared takes its card out of Done and back to the first lane, as
+ * unticking a card on the board does. Any other card whose item is already ticked is settled at the same time, so a
+ * note that has drifted comes right with the next change rather than staying wrong. Nothing else about the fence
+ * moves, and a board with no Done lane leaves its ticks alone.
+ */
+export function settleBoards(doc: string, ticks: ReadonlyMap<number, boolean> = new Map()): FenceEdit[] {
+  const items = itemsIn(doc).map((item) => (ticks.has(item.line) ? { ...item, done: ticks.get(item.line) ?? item.done } : item));
+  const cleared = [...ticks].filter(([, on]) => !on).map(([line]) => items.find((item) => item.line === line));
+  const edits: FenceEdit[] = [];
+  for (const board of boardsIn(doc)) {
+    if (board.to <= board.from + 1) continue;
+    let columns = settleColumns(board.columns, items);
+    const done = doneColumn(columns);
+    for (const item of cleared) {
+      if (item && done >= 0 && columnOf(columns, item.id) === done) columns = putCard(columns, item.id, 0);
+    }
+    const body = writeBoard(columns);
+    if (body !== writeBoard(board.columns)) edits.push({ from: board.from, to: board.to, body });
+  }
+  return edits;
+}
+
+/**
+ * The columns without `id`: the card taken off the board, its item left exactly where it is in the note (Matt: "Add
+ * context menu to board items for moving lanes and adding to notion etc."). A board never has to hold every item.
+ */
+export function withoutCard(columns: readonly BoardColumn[], id: string): BoardColumn[] {
+  return columns.map((column) => ({ ...column, cards: column.cards.filter((card) => card !== id) }));
+}
+
 export interface Board {
   /** The line the opening fence is on, counting from 1. */
   from: number;
@@ -252,6 +352,8 @@ export function withBoardHeight(openLine: string, height: number | null): string
 export function boardsIn(doc: string): Board[] {
   const lines = doc.split('\n');
   const boards: Board[] = [];
+  // The note's own anchors, read once and only when a board is found: what a lane's ids are read against.
+  let anchors: Set<string> | null = null;
   for (let i = 0; i < lines.length; i += 1) {
     const open = OPEN.exec(lines[i] ?? '');
     if (!open) continue;
@@ -264,7 +366,7 @@ export function boardsIn(doc: string): Board[] {
       }
     }
     const body = end > i ? lines.slice(i + 1, end).join('\n') : '';
-    boards.push({ from: i + 1, to: end + 1, body, columns: readBoard(body), height: heightOf(open[2] ?? '') });
+    boards.push({ from: i + 1, to: end + 1, body, columns: readBoard(body, anchors ?? (anchors = new Set(itemsIn(doc).map((item) => item.id)))), height: heightOf(open[2] ?? '') });
     i = end;
   }
   return boards;
@@ -277,9 +379,54 @@ export interface Card {
   item: Item | null;
 }
 
-export function cardsOf(columns: readonly BoardColumn[], items: readonly Item[]): Card[] {
+export function cardsOf(
+  columns: readonly BoardColumn[],
+  items: readonly Item[],
+  named: ReadonlySet<string> = new Set(columns.flatMap((column) => column.cards)),
+): Card[] {
   const byId = new Map(items.map((item) => [item.id, item]));
-  return columns.flatMap((column, index) => column.cards.map((id) => ({ id, column: index, item: byId.get(id) ?? null })));
+  // Items no board names: where a card's anchor matches no item, one of these may be the item it meant.
+  const loose = items.filter((item) => !named.has(item.id));
+  return columns.flatMap((column, index) => column.cards.map((id) => ({ id, column: index, item: byId.get(id) ?? slipOf(id, loose) })));
+}
+
+/**
+ * The item a card meant when its anchor matches none: the one item, named by no board, whose anchor is a slip of
+ * the card's (Matt: "the second item got glitched out on the board" - the fence said `blur-bottom-swimlanes`, the
+ * line `^blur-bottom-swimlaness`). Only a single such item counts, and only for an anchor long enough to be sure.
+ */
+function slipOf(id: string, loose: readonly Item[]): Item | null {
+  if (id.length < 4) return null;
+  const near = loose.filter((item) => nearAnchor(id, item.id));
+  return near.length === 1 ? (near[0] ?? null) : null;
+}
+
+/** Two anchors a slip apart: one letter added, dropped or changed, or up to two letters more or fewer at the end. */
+export function nearAnchor(one: string, two: string): boolean {
+  if (one === two) return false;
+  const [short, long] = one.length <= two.length ? [one, two] : [two, one];
+  const more = long.length - short.length;
+  if (more <= 2 && long.startsWith(short)) return true;
+  if (more > 1) return false;
+  let at = 0;
+  while (at < short.length && short[at] === long[at]) at += 1;
+  return more === 0 ? short.slice(at + 1) === long.slice(at + 1) : short.slice(at) === long.slice(at + 1);
+}
+
+/** What may end an item's line after its words: its anchor, an item's mark, a counter, the bookmark. */
+const LINE_TAIL = /\s+(?:\^[a-z0-9][a-z0-9_-]*|\[[a-z][a-z0-9-]*\]\(https?:\/\/[^\s)]+\)|\[\d{1,4}\/\d{1,4}\]|§§)$/;
+
+/**
+ * Where a list item's words end in its line: before its bookmark, mark, counters and anchor. The caret goes here when a card
+ * or a pointer takes the note to the item, so what is typed next goes on the words and not into the anchor that
+ * names them. A line that is not an item ends where its text does.
+ */
+export function wordsEnd(line: string): number {
+  let rest = line.replace(/\s+$/, '');
+  const lead = LEAD.exec(line);
+  if (!lead) return rest.length;
+  for (let found = LINE_TAIL.exec(rest); found; found = LINE_TAIL.exec(rest)) rest = rest.slice(0, found.index);
+  return Math.max(lead[0].length, rest.length);
 }
 
 /** An item's own column: the Done one when it is ticked, else where the board has it. */
@@ -308,8 +455,9 @@ export function anchorFor(text: string, taken: readonly string[]): string {
   const words = text
     // A link is named by its words, not by where it points: [notion](https://…) anchors as "notion", never as a URL.
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    // A counter is a count kept on the item, not part of its name.
+    // A counter is a count kept on the item, and the bookmark a place in the note: neither is part of its name.
     .replace(/\[\d{1,4}\/\d{1,4}\]/g, ' ')
+    .replace(BOOKMARK, ' ')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .split('-')
@@ -387,6 +535,7 @@ export function boardCopy(doc: string, line: number): string | null {
  */
 export function cardText(text: string): string {
   return text
+    .replace(BOOKMARK, '')
     .replace(REF, '^$1')
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/<((?:https?|mailto):[^>]+)>/g, '$1')
@@ -571,9 +720,18 @@ export interface CardAdded {
 }
 
 /**
- * The list item on `line` put on a board: the nearest board above it, else the first in the note. It lands in the
- * Done column when it is already ticked, else the first column. Null when the line is not a list item, there is no
- * board, or it is on one already.
+ * The list item on `line` put on a board (Matt: "add an 'add to board' option when other items in the list are in a
+ * board already").
+ *
+ * The board is the one that already holds the item's neighbours - the list it stands in, `listAround` - since a list
+ * with cards on a board is almost always the board it belongs to; failing that, the nearest board above it, else the
+ * first in the note.
+ *
+ * It lands in the first lane, or in Done when it is already ticked: a new card is something to do, whatever lane the
+ * item next to it sits in. Within that lane it goes in beside the nearest neighbour that is already there, on the
+ * same side as the note has it, so a board keeps the list's own order instead of collecting new cards at the end.
+ *
+ * Null when the line is not a list item, there is no board to put it on, or its anchor is already a card.
  */
 export function addToBoard(doc: string, line: number): CardAdded | null {
   const lines = doc.split('\n');
@@ -582,18 +740,30 @@ export function addToBoard(doc: string, line: number): CardAdded | null {
   const item = itemOnLine(text);
   const boards = boardsIn(doc).filter((board) => board.to > board.from && board.columns.length);
   if (!boards.length) return null;
-  const above = [...boards].reverse().find((board) => board.to < line);
-  const board = above ?? boards[0]!;
   const id =
     item?.id ??
     anchorFor(
       itemWords(text) ?? text,
       itemsIn(doc).map((other) => other.id),
     );
+  // The item's neighbours in its own list, nearest first: which board they are on, and where on it.
+  const around = listAround(doc, line);
+  const mates = around
+    ? itemsIn(doc)
+        .filter((other) => other.line >= around.from && other.line <= around.to && other.line !== line)
+        .sort((one, two) => Math.abs(one.line - line) - Math.abs(two.line - line))
+    : [];
+  const held = mates.map((mate) => ({ mate, board: boards.find((board) => columnOf(board.columns, mate.id) >= 0) })).filter((found) => found.board);
+  const above = [...boards].reverse().find((board) => board.to < line);
+  const board = held[0]?.board ?? above ?? boards[0]!;
   if (columnOf(board.columns, id) >= 0) return null;
   const done = doneColumn(board.columns);
   const into = item?.done === true && done >= 0 ? done : 0;
-  const columns = putCard(board.columns, id, into);
+  // Beside the nearest neighbour already in that lane, on the side the note has it: the list's order, kept.
+  const beside = held.find((found) => found.board === board && columnOf(board.columns, found.mate.id) === into)?.mate;
+  const cards = board.columns[into]?.cards ?? [];
+  const at = beside ? cards.indexOf(beside.id) + (beside.line < line ? 1 : 0) : Number.MAX_SAFE_INTEGER;
+  const columns = putCardAt(board.columns, id, into, at);
   return {
     id,
     line: item ? null : { number: line, text: withAnchor(text, id) },

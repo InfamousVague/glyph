@@ -12,11 +12,11 @@
 
 /** "Voice memo", "audio note", "leave a voice clip": the cue on its own, as a phrase. */
 const STARTS =
-  /^\s*(?:(?:ok(?:ay)?|so|and|then|please)[,\s]+)*(?:(?:leave|take|record|add|insert|start)\s+(?:a\s+|an\s+)?)?(?:voice|audio|sound)\s*(?:memo|note|clip|recording)\b[.,!?:]*\s*$/i;
+  /^[\s.,…]*(?:(?:ok(?:ay)?|so|and|then|please)[,\s]+)*(?:(?:leave|take|record|add|insert|start)\s+(?:a\s+|an\s+)?)?(?:voice|audio|sound)\s*(?:memo|note|clip|recording)\b[.,!?:]*\s*$/i;
 
 /** "End memo", "stop the voice note", "end of memo". */
 const ENDS =
-  /^\s*(?:(?:ok(?:ay)?|so|and|then)[,\s]+)*(?:end|stop|finish|close)\s+(?:of\s+)?(?:the\s+|that\s+)?(?:voice\s+|audio\s+|sound\s+)?(?:memo|note|clip|recording)\b[.,!?:]*\s*$/i;
+  /^[\s.,…]*(?:(?:ok(?:ay)?|so|and|then)[,\s]+)*(?:end|stop|finish|close)\s+(?:of\s+)?(?:the\s+|that\s+)?(?:voice\s+|audio\s+|sound\s+)?(?:memo|note|clip|recording)\b[.,!?:]*\s*$/i;
 
 /**
  * A pause this long between phrases closes a memo, the way a pause ends a paragraph: the gap as the streamer reports

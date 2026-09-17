@@ -95,11 +95,20 @@ pub fn clean(raw: &str) -> String {
 pub const CUE_VOCABULARY: &str = "Glyph. Title. Heading. Bullet point. Number one. Check box. To do. Quote. \
     Important. Bold, end bold. Italics, end italics. Divider. New paragraph.";
 
+/// The cues added since, spoken far less often: in the prompt only where a sentence has just ended, since any word
+/// past the short list above made base.en start a sentence cut in two with a capital (the prompt-tail test in
+/// tests.rs), and a cue only ever starts a sentence anyway.
+pub const MORE_CUES: &str = "Subheading. Option. Info box. Hidden line. Calculate. Hashtag. Counter. \
+    Strike, end strike. Code, end code. Note link, end link. Voice memo, end memo. \
+    Done task. Footnote. Code block. Superscript. Subscript. Maths. Emoji. Anchor. Item link. Bookmark this. New line. Define.";
+
 /// The prompt for the next window: the cue vocabulary, then the committed tail.
 pub fn prompt(committed: &str, tail_chars: usize) -> String {
     let tail = prompt_tail(committed, tail_chars);
     if tail.is_empty() {
-        CUE_VOCABULARY.to_string()
+        format!("{CUE_VOCABULARY} {MORE_CUES}")
+    } else if tail.trim_end().ends_with(['.', '!', '?']) {
+        format!("{CUE_VOCABULARY} {MORE_CUES} {tail}")
     } else {
         format!("{CUE_VOCABULARY} {tail}")
     }
@@ -118,7 +127,7 @@ pub fn prompt(committed: &str, tail_chars: usize) -> String {
 /// exactly how a cue is said before a pause.
 pub fn without_prompt_echo(text: &str) -> String {
     const RUN: usize = 3;
-    let cues: Vec<String> = sentences(CUE_VOCABULARY).map(normalise).collect();
+    let cues: Vec<String> = sentences(CUE_VOCABULARY).chain(sentences(MORE_CUES)).map(normalise).collect();
     let pieces: Vec<&str> = sentences(text).collect();
     let is_cue: Vec<bool> = pieces.iter().map(|p| cues.contains(&normalise(p))).collect();
 
@@ -239,8 +248,10 @@ mod tests {
 
     #[test]
     fn the_prompt_is_the_vocabulary_then_the_committed_tail() {
-        assert_eq!(prompt("", 200), CUE_VOCABULARY);
-        assert_eq!(prompt("   ", 200), CUE_VOCABULARY);
+        assert_eq!(prompt("", 200), format!("{CUE_VOCABULARY} {MORE_CUES}"));
+        assert_eq!(prompt("   ", 200), format!("{CUE_VOCABULARY} {MORE_CUES}"));
+        // After a finished sentence the rarer cues come too; mid-sentence only the short list, so the words carry on.
+        assert_eq!(prompt("Call the plumber.", 200), format!("{CUE_VOCABULARY} {MORE_CUES} Call the plumber."));
         assert_eq!(
             prompt("Remember to descale the kettle before Thursday", 20),
             format!("{CUE_VOCABULARY} before Thursday")
@@ -252,6 +263,7 @@ mod tests {
         // The `\` continuation must not leave a run of spaces in the prompt.
         assert!(!CUE_VOCABULARY.contains("  "), "{CUE_VOCABULARY:?}");
         assert_eq!(sentences(CUE_VOCABULARY).count(), 13);
+        assert!(!MORE_CUES.contains("  "), "{MORE_CUES:?}");
     }
 
     #[test]

@@ -142,4 +142,11 @@ describe('a choice or a counter on an item', () => {
     expect(unsentItems(line)).toEqual([]);
     expect(withMark('- [ ] Pack socks [4/8]', `[notion](${url})`)).toBe(`- [ ] Pack socks [notion](${url}) [4/8]`);
   });
+
+  it('never sends the bookmark as part of a title, and puts the mark after it', () => {
+    expect(itemWords('- [ ] Pack socks §§ ^pack-socks')).toBe('Pack socks');
+    expect(unsentItems('- [ ] Pack socks §§')).toEqual([{ line: 1, text: 'Pack socks' }]);
+    expect(linkedLine('- [ ] Pack socks §§ ^pack-socks', url)).toBe(`- [ ] Pack socks §§ [notion](${url}) ^pack-socks`);
+    expect(markOf(`- [ ] Pack socks §§ [notion](${url}) ^pack-socks`)).toEqual({ name: 'notion', url });
+  });
 });

@@ -1,7 +1,7 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it } from 'vitest';
-import { bookmarkRibbon, markedWords, showBookmark } from './bookmarkLine.ts';
+import { bookmarkLineIn, bookmarkRibbon, markedWords, placeBookmark, showBookmark } from './bookmarkLine.ts';
 
 const doc = [
   '# Launch week',
@@ -74,5 +74,27 @@ describe('a place on a blank line', () => {
     on.dispatch({ effects: showBookmark.of(on.state.doc.line(2).from) });
     expect(ribboned(on)).toEqual([3]);
     expect(markedWords(on, on.state.doc.line(2).from)).toBe('Write the pricing page');
+  });
+});
+
+describe('the bookmark written in the note', () => {
+  const put = (doc: string, line: number | null) => {
+    const state = EditorState.create({ doc });
+    return state.update(placeBookmark(state, line)).state.doc.toString();
+  };
+
+  it('goes at the end of a line, and before a list item’s mark, counter and anchor', () => {
+    expect(put('The deposit is four hundred.', 1)).toBe('The deposit is four hundred. §§');
+    expect(put('- [ ] Ship it [notion](https://notion.so/a) ^ship-it', 1)).toBe('- [ ] Ship it §§ [notion](https://notion.so/a) ^ship-it');
+    expect(put('- Water [3/8]', 1)).toBe('- Water §§ [3/8]');
+  });
+
+  it('moves from wherever it was, keeping one, and comes off with null', () => {
+    const doc = 'One line §§\nTwo line\n- [ ] Three §§ ^three';
+    expect(put(doc, 2)).toBe('One line\nTwo line §§\n- [ ] Three ^three');
+    expect(put(doc, 3)).toBe('One line\nTwo line\n- [ ] Three §§ ^three');
+    expect(put(doc, null)).toBe('One line\nTwo line\n- [ ] Three ^three');
+    expect(bookmarkLineIn('a\nb §§\nc')).toBe(2);
+    expect(bookmarkLineIn('a § b')).toBeNull();
   });
 });

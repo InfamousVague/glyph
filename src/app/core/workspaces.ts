@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { fileNoteInFolder, fileNotesInFolder } from './noteFolders.ts';
 
 /**
  * Workspaces: a name a note can be filed under, and the list shown one
@@ -18,9 +19,24 @@ import { useSyncExternalStore } from 'react';
  * is not filtered: it is the place to find anything.
  */
 
+/**
+ * The hues a workspace can wear (Matt: "add the ability to choose from a swatch of colours for the workspace pill
+ * colour"). A name, not a colour: what each one looks like is the page's (ink.css `[data-hue]`), tuned for the paper
+ * it is read on, so the swatch can be retuned without touching anybody's workspaces. `ink` is the app's own colour,
+ * and what a workspace with no hue wears.
+ */
+export const WORKSPACE_HUES = ['ink', 'ember', 'amber', 'moss', 'sea', 'violet', 'rose'] as const;
+export type WorkspaceHue = (typeof WORKSPACE_HUES)[number];
+
+export function isHue(value: unknown): value is WorkspaceHue {
+  return typeof value === 'string' && (WORKSPACE_HUES as readonly string[]).includes(value);
+}
+
 export interface Workspace {
   id: string;
   name: string;
+  /** Its colour, worn by its pill and its tag on a note. Absent is `ink`, the app's own. */
+  hue?: WorkspaceHue;
 }
 
 export interface Workspaces {
@@ -47,7 +63,10 @@ function read(): Sheet {
   try {
     const value = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Sheet> | null;
     const list = Array.isArray(value?.list)
-      ? value.list.filter((w): w is Workspace => Boolean(w) && typeof w.id === 'string' && typeof w.name === 'string')
+      ? value.list
+          .filter((w): w is Workspace => Boolean(w) && typeof w.id === 'string' && typeof w.name === 'string')
+          // A hue this app does not know - an older name, or a newer one from a phone further ahead - is simply ink.
+          .map((w) => (isHue(w.hue) && w.hue !== 'ink' ? { id: w.id, name: w.name, hue: w.hue } : { id: w.id, name: w.name }))
       : [];
     const ids = new Set(list.map((w) => w.id));
     const notes: Record<string, string> = {};
@@ -119,16 +138,27 @@ function freshId(taken: readonly Workspace[]): string {
   }
 }
 
-/** A new workspace called `name`, or the one already called that; null for an empty name. */
-export function addWorkspace(name: string): Workspace | null {
+/** A new workspace called `name`, in `hue`, or the one already called that; null for an empty name. */
+export function addWorkspace(name: string, hue: WorkspaceHue = 'ink'): Workspace | null {
   const clean = tidy(name);
   if (!clean) return null;
   const { list, notes, current: chosen } = current();
   const had = list.find((w) => w.name.toLowerCase() === clean.toLowerCase());
   if (had) return had;
-  const made = { id: freshId(list), name: clean };
+  const made: Workspace = hue === 'ink' ? { id: freshId(list), name: clean } : { id: freshId(list), name: clean, hue };
   write({ list: [...list, made], notes, current: chosen });
   return made;
+}
+
+/** That workspace in `hue`; `ink` takes its colour off again. Unknown workspace, or unknown hue: nothing happens. */
+export function setWorkspaceHue(id: string, hue: WorkspaceHue): void {
+  const { list, notes, current: chosen } = current();
+  if (!isHue(hue) || !list.some((w) => w.id === id)) return;
+  write({
+    list: list.map((w) => (w.id === id ? (hue === 'ink' ? { id: w.id, name: w.name } : { ...w, hue }) : w)),
+    notes,
+    current: chosen,
+  });
 }
 
 export function renameWorkspace(id: string, name: string): void {
@@ -136,18 +166,38 @@ export function renameWorkspace(id: string, name: string): void {
   const { list, notes, current: chosen } = current();
   if (!clean || !list.some((w) => w.id === id)) return;
   write({ list: list.map((w) => (w.id === id ? { ...w, name: clean } : w)), notes, current: chosen });
+  // The folder is named after the workspace, so renaming one moves its notes into a folder of the new name.
+  void fileNotesInFolder(
+    Object.entries(notes)
+      .filter(([, where]) => where === id)
+      .map(([note]) => note),
+    clean,
+  );
 }
 
 /** Removes the workspace; its notes are simply not filed any more, and the list shows all notes if it was chosen. */
 export function removeWorkspace(id: string): void {
   const { list, notes, current: chosen } = current();
+  // Its notes are not filed any more, so their files go back to the inbox.
+  void fileNotesInFolder(
+    Object.entries(notes)
+      .filter(([, where]) => where === id)
+      .map(([note]) => note),
+    null,
+  );
   if (!list.some((w) => w.id === id)) return;
   const kept: Record<string, string> = {};
   for (const [note, where] of Object.entries(notes)) if (where !== id) kept[note] = where;
   write({ list: list.filter((w) => w.id !== id), notes: kept, current: chosen === id ? null : chosen });
 }
 
-/** Files `noteId` in a workspace, or in none with null. */
+/**
+ * Files `noteId` in a workspace, or in none with null.
+ *
+ * The note's FILE follows its filing: into `workspaces/<the workspace>/`, or back to `Inbox/` when it is taken out
+ * of one (core/noteFolders.ts). The move is asked for and not waited on: the pill changes now, and the file catches
+ * up when the library answers.
+ */
 export function fileNote(noteId: string, id: string | null): void {
   const { list, notes, current: chosen } = current();
   if (id !== null && !list.some((w) => w.id === id)) return;
@@ -156,6 +206,7 @@ export function fileNote(noteId: string, id: string | null): void {
   if (id === null) delete next[noteId];
   else next[noteId] = id;
   write({ list, notes: next, current: chosen });
+  void fileNoteInFolder(noteId, id === null ? null : (list.find((w) => w.id === id)?.name ?? null));
 }
 
 /** A note just made: filed in the chosen workspace, if there is one and the note is not filed yet. */

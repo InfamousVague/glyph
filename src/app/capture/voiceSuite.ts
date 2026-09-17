@@ -4,7 +4,7 @@ import { noteTitle } from '../core/store.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
 import { appendBody } from './continuation.ts';
 import { placeWords } from './listAppend.ts';
-import { renderNote, spokenNumber, type Segment } from './markdown.ts';
+import { renderNote, setLinkTitles, spokenNumber, type Segment } from './markdown.ts';
 import { QuietWatch } from './quiet.ts';
 import { appendBlock } from './table.ts';
 import { Take, type TakeCandidate, type TakeNote } from './take.ts';
@@ -115,6 +115,8 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
     let n = 0;
     for (const [title, body] of Object.entries(fixtures)) store.set(`fixture-${n++}`, { id: `fixture-${n - 1}`, title, body });
   }
+  // The recorder gives spoken note links the titles it knows, as CaptureScreen does.
+  setLinkTitles(withFixtures ? Object.keys(fixtures) : []);
   const byTitle = (title: string) => [...store.values()].find((note) => note.title === title) ?? null;
   let target: StoredNote | null = test.setup.startsWith('continue:') ? byTitle(test.setup.slice('continue:'.length)) : null;
   let newNote = false;
@@ -214,14 +216,61 @@ export function heardForm(text: string): string {
     .replace(/(\d),(?=\d{3}\b)/g, '$1');
 }
 
+/** A line's shape: its block mark, and the inline marks in it, in order. */
+function shapeOf(line: string): string {
+  const lead = /^\s*(?:#{1,6} |[-*+] (?:\[[ xX]\] |\([ xX]\) )?|\d+[.)] |>\| ?|> (?:\[![A-Z]+\])?|\||= |---$)?/.exec(line)?.[0] ?? '';
+  const marks = line.match(/\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||`|\[\[|\]\]|\[\d+\/\d+\]|#[a-z][\w/-]*|!\[voice|\| --- /g) ?? [];
+  return `${lead.replace(/[xX]/, 'x')}${marks.join(' ')}`;
+}
+
+const lettersOf = (line: string) => line.toLowerCase().replace(/[^a-z0-9 ]+/g, '').replace(/\s+/g, ' ').trim();
+
+/** How alike two lines' words are, 0 to 1, by edit distance over their letters. */
+function wordLikeness(a: string, b: string): number {
+  const x = lettersOf(a);
+  const y = lettersOf(b);
+  if (!x.length && !y.length) return 1;
+  const row = Array.from({ length: y.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= x.length; i += 1) {
+    let diagonal = row[0]!;
+    row[0] = i;
+    for (let j = 1; j <= y.length; j += 1) {
+      const above = row[j]!;
+      row[j] = Math.min(row[j]! + 1, row[j - 1]! + 1, diagonal + (x[i - 1] === y[j - 1] ? 0 : 1));
+      diagonal = above;
+    }
+  }
+  return 1 - row[y.length]! / Math.max(x.length, y.length);
+}
+
+/**
+ * Whether a note heard from audio is the note expected, allowing for Whisper mishearing a word or two: every line has
+ * the same marks in the same places, and most of its words. The rules are what is tested; the recogniser's
+ * vocabulary is not.
+ */
+export function sameShape(expected: string, actual: string): boolean {
+  const want = expected.split('\n');
+  const got = actual.split('\n');
+  if (want.length !== got.length) return false;
+  return want.every((line, i) => shapeOf(line) === shapeOf(got[i]!) && wordLikeness(line, got[i]!) >= 0.6);
+}
+
 /** What an outcome gets wrong against its test's expectation, as sentences; empty when it passes. */
 export function problems(test: SuiteTest, outcome: Outcome, { heard = false }: { heard?: boolean } = {}): string[] {
   if (heard) {
     const form = (value: unknown): unknown =>
       typeof value === 'string' ? heardForm(value) : Array.isArray(value) ? value.map(form) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, form(v)])) : value;
-    const loose = { ...test, expect: { ...(form(test.expect) as Expectation), match: test.expect.match } };
+    const expect = { ...(form(test.expect) as Expectation), match: test.expect.match };
+    const note = outcome.note === null ? null : heardForm(outcome.note);
     const notes = Object.fromEntries(Object.entries(outcome.notes).map(([k, v]) => [k, heardForm(v)]));
-    return problems(loose, { ...outcome, note: outcome.note === null ? null : heardForm(outcome.note), notes });
+    // Whole notes are compared by shape; a misheard word in one is Whisper's, not the rules'.
+    const out: string[] = [];
+    if (expect.note !== undefined && !(expect.note === '' ? (note ?? '') === '' : sameShape(expect.note, note ?? ''))) out.push(`the note is ${JSON.stringify(note ?? '')}, not the shape of ${JSON.stringify(expect.note)}`);
+    for (const [title, body] of Object.entries(expect.notes ?? {})) {
+      if (!sameShape(body, notes[title] ?? '')) out.push(`"${title}" is ${JSON.stringify(notes[title] ?? '(missing)')}, not the shape of ${JSON.stringify(body)}`);
+    }
+    const rest = { ...test, expect: { ...expect, note: undefined, notes: undefined } };
+    return [...out, ...problems(rest, { ...outcome, note, notes })];
   }
   const out: string[] = [];
   const expect = test.expect;

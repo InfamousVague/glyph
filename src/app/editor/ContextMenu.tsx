@@ -151,6 +151,14 @@ function canRead(): boolean {
   return typeof host?.readClipboard === 'function' || typeof navigator.clipboard?.readText === 'function';
 }
 
+/**
+ * Whether a press landed on something drawn in place of the note's words - a board (editor/boards.ts) or a mermaid
+ * diagram (editor/mermaid.ts). The note's own menu is about a line of text, and neither of those is one.
+ */
+function drawnBlock(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('.cm-board, .cm-boardWrap, .cm-mermaid') !== null;
+}
+
 export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], onEdit, editsUnavailable = null, onFind, send = null }: ContextMenuProps) {
   const [open, setOpen] = useState<Open | null>(null);
   /** The menu's words, or its styles. */
@@ -174,6 +182,9 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
     };
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault();
+      // Not over something the note draws in place of its words: a board or a diagram is not a line to format
+      // (Matt: "Formatting menu shows up on board unexpectedly"). A board's cards have a menu of their own.
+      if (drawnBlock(event.target)) return;
       // The word the press selected has landed by the next frame.
       window.requestAnimationFrame(() => show(event.clientX, event.clientY));
     };
@@ -191,6 +202,8 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType === 'mouse' || !event.isPrimary) return;
       cancel();
+      // A press on a drawn board or diagram belongs to it: it is picked up, or it opens the card's own menu.
+      if (drawnBlock(event.target)) return;
       const { clientX: x, clientY: y } = event;
       press = {
         x,
@@ -455,7 +468,11 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
     say?.(`${made.cards} ${made.cards === 1 ? 'item is' : 'items are'} now a board${made.done ? `, ${made.done} in Done` : ''}.`);
   };
 
-  /** The item joins the nearest board above it: the line gains its anchor, and the fence gains the card. */
+  /**
+   * The item joins its list's board: the line gains its anchor, and the fence gains the card (core/boards.ts
+   * `addToBoard`; Matt: "add an 'add to board' option when other items in the list are in a board already"). The board
+   * may be well off the screen, so where it went is said aloud.
+   */
   const putOnBoard = () => {
     if (!view || !caretLine) return;
     const added = addToBoard(view.state.doc.toString(), caretLine.number);
@@ -469,6 +486,8 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
       changes.push({ from: line.from, to: line.to, insert: added.line.text });
     }
     view.dispatch({ changes, userEvent: 'input.board' });
+    fireNativeHaptic('success');
+    say?.(`Added to ${added.column}.`);
   };
 
   return (
@@ -533,7 +552,7 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
         </button>
         {boardable ? (
           <button type="button" role="menuitem" className={styles.item} onClick={() => void act(putOnBoard)()}>
-            <Word icon={LayoutGrid} label="To board" />
+            <Word icon={LayoutGrid} label="Add to board" />
           </button>
         ) : null}
         {listBoard ? (

@@ -478,7 +478,9 @@ export class Take<N extends TakeNote> {
     }
   }
 
-  private read(segment: Segment, now: number): Segment | null {
+  private read(said: Segment, now: number): Segment | null {
+    // Whisper opens a phrase with the last one's full stop (". Yes."), which no reply or cue expects.
+    const segment = { ...said, text: said.text.replace(/^[\s.,;:!?…]+/, '') };
     const text = segment.text;
     const span = { startMs: segment.startMs, endMs: segment.endMs };
     const skip = () => this.commandSpans.push(span);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight } from '../art/Icons.tsx';
+import { WispText } from '../art/WispText.tsx';
 import { useBack } from '../core/back.ts';
 import { useSwipeNav } from '../core/swipe.ts';
 import { ArrowDown, CloudOff, ShieldCheck, Smartphone, WifiOff } from '@glacier/icons';
@@ -96,7 +97,7 @@ const NUDGES = ['Down here.', 'Keep scrolling, hon.', 'It’s not up there.', 'S
 const NUDGE_AFTER_MS = 2400;
 const BOTTOM_SLACK_PX = 24;
 
-export function Guide({ index, onIndex: setIndex, onClose, onTry }: GuideProps) {
+export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: GuideProps) {
   const page: Page = PAGES[index] ?? 'welcome';
   const last = index === PAGES.length - 1;
 
@@ -169,6 +170,12 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry }: GuideProps) 
       */}
       {page === 'sidekey' ? <SideKeyWaves /> : null}
       <div ref={pageRef} className={styles.page} key={page}>
+        {/* The reader held the side key before the guide got to it (tooSoon.ts): one line, out of smoke like the rest. */}
+        {tooSoon ? (
+          <p className={styles.tooSoon} role="status">
+            <WispText text="Not yet, finish reading." pace={18} />
+          </p>
+        ) : null}
         {page === 'welcome' ? <Welcome onWatched={() => setWatched(true)} /> : null}
         {page === 'theme' ? <Theme /> : null}
         {page === 'model' ? <Model /> : null}

@@ -147,19 +147,14 @@ export function commandModelOf(models: readonly ModelInfo[]): string | null {
   return COMMAND_MODELS.find((id) => present.has(id)) ?? null;
 }
 
-let known: Promise<string | null> | null = null;
-
-/** The model the command pass runs on, looked up once per launch; null in a browser or with none downloaded. */
+/**
+ * The model the command pass runs on; null in a browser or with none downloaded. Looked up as each recording opens,
+ * so a model downloaded or removed since is seen.
+ */
 export function commandModel(): Promise<string | null> {
-  known ??= listModels()
+  return listModels()
     .then(commandModelOf)
     .catch(() => null);
-  return known;
-}
-
-/** Forgets the lookup, after a model is downloaded or removed. */
-export function forgetCommandModel(): void {
-  known = null;
 }
 
 /** How long a command waits on the model before the rules' answer stands. */

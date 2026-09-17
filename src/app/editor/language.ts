@@ -92,7 +92,3 @@ export function inlineFormat({ name, delimiter }: Pick<InlineFormat, 'name' | 'd
   };
 }
 
-/** The delimiter's length of a formatting node, read off its first mark: how much to step in to reach the words. */
-export function formatMarkLength(nodeName: string, formats: readonly InlineFormat[]): number {
-  return formats.find((format) => format.name === nodeName)?.delimiter.length ?? 0;
-}

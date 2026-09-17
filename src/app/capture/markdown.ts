@@ -1,3 +1,6 @@
+import { emojiFor } from '../core/emoji.ts';
+import { matchNote } from './route.ts';
+
 /**
  * Speech, turned into a note.
  *
@@ -75,7 +78,9 @@ export function toParagraphs(segments: readonly Segment[]): string[] {
     text.split(PARAGRAPH_CUE).forEach((piece, index) => {
       if (index > 0) flush();
       const part = piece.replace(/^(?:[\s.,;:?]|!(?!\[))+/, '').trim();
-      if (part) current = current ? `${current} ${part}` : part;
+      // A phrase after a finished sentence starts one, whatever case Whisper gave it.
+      const said = current && /[.!?]$/.test(current) ? capitalise(part) : part;
+      if (part) current = current ? `${current} ${said}` : said;
     });
   }
   flush();
@@ -98,7 +103,7 @@ function sentencesOf(paragraph: string): Sentence[] {
   // A sentence can now start with inline markup ("**Friday** is the
   // deadline"), so the lookahead allows asterisks and underscores before the
   // capital; without them the two sentences merged.
-  const boundary = /(?<=[.!?*_])\s+(?=["'([*_]*[A-Z0-9])/g;
+  const boundary = /(?<=[.!?*_\uE002])\s+(?=["'([*_]*[A-Z0-9])/g;
   let start = 0;
   for (const match of paragraph.matchAll(boundary)) {
     const end = match.index ?? 0;
@@ -116,7 +121,7 @@ function sentencesOf(paragraph: string): Sentence[] {
 const HEADING_CUE = /^(?:new\s+section|section|heading)[:,.]?\s+(.+)$/i;
 const SUBHEADING_CUE = /^(?:sub[\s-]?heading|sub[\s-]?section|smaller\s+heading)[:,.]?\s+(.+)$/i;
 const BULLET_CUE = /^(?:bullet(?:\s+point)?|(?:next|new)\s+(?:point|item|bullet))[:,.]?\s+(.+)$/i;
-const TITLE_CUE = /^(?:title|note\s+title|call\s+(?:this|it)(?:\s+note)?)[:,.]?\s+(.+)$/i;
+const TITLE_CUE = /^(?:title|note\s+title|call\s+(?:this|it)(?:\s+no(?:te|de))?)[:,.]?\s+(.+)$/i;
 const IMPORTANT_CUE = /^(important|key\s+point|note)[:,]\s*(.+)$/i;
 const TASK = /^(?:(?:i|we)\s+(?:really\s+)?(?:need|have|got)\s+to|remember\s+to|don'?t\s+forget\s+to|do\s+not\s+forget\s+to|remind\s+me\s+to|to[\s-]?do[:,]?|task[:,])\s+(.+)$/i;
 const ORDINAL = /^(first(?:ly)?|second(?:ly)?|third(?:ly)?|fourth(?:ly)?|fifth(?:ly)?|next|then|after\s+that|finally|lastly)[,:]?\s+(.+)$/i;
@@ -131,16 +136,23 @@ const ORDINAL_START = /^first(?:ly)?\b/i;
  */
 const QUOTE_CUE = /^quote[:,]\s*(.+)$/i;
 const NUMBER_CUE = /^number\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2})[:,]\s*(.+)$/i;
-const CHECKBOX_CUE = /^(?:check\s?box[:,.]?|checklist(?:\s+item)?[:,]|check\s+item[:,])\s*(.+)$/i;
+const CHECKBOX_CUE = /^(?:check(?:ed)?\s?box[:,.]?|checklist(?:\s+item)?[:,]|check\s+item[:,])\s*(.+)$/i;
 const DIVIDER_CUE = /^(?:divider|horizontal\s+(?:line|rule)|separator)[.!]?$/i;
 /** "Callout: the gate sticks", "warning callout: mind the step": a GitHub callout (`> [!NOTE]`), a note unless said otherwise. */
-const CALLOUT_CUE = /^(?:(note|tip|important|warning|caution)\s+)?(?:callout[:,.]?|call[\s-]out[:,.])\s*(.+)$/i;
+const CALLOUT_CUE = /^(?:(note|tip|important|warning|caution)\s+)?(?:callout[:,.]?|call[\s-]out[:,.]|info\s?box[:,.]?)\s*(.+)$/i;
 /** "Hidden line: it was the butler": a line kept in smoke until it is tapped (`>|`). */
 const HIDDEN_CUE = /^(?:hidden|secret|spoiler)\s+line[:,.]\s*(.+)$/i;
 /** "Option: tent", "picked option: hotel": choices, one of them picked (`- ( )`, `- (x)`). */
-const CHOICE_CUE = /^(?:(pick(?:ed)?|pict|chosen|selected)[\s-]*)?(?:option|choice)[:,.]\s*(.+)$/i;
+const CHOICE_CUE = /^(?:(pick(?:ed)?|pict|chosen|selected)[\s-]*)?(?:option|choice|auction)[:,.]\s*(.+)$/i;
 /** "Calculate: four hundred fifty plus one hundred twenty": a sum, worked out on the page (`= 450 + 120`). */
 const SUM_CUE = /^(?:calculate|sum|add\s+up)[:,.]\s*(.+)$/i;
+/**
+ * "Done task: call Sam": a to-do already done (`- [x]`). A bare "done" is a reply, not a cue, and "checked box" is how
+ * Whisper hears "check box" often enough that it stays an open one.
+ */
+const DONE_CUE = /^(?:ticked\s+(?:box|off|item)|done\s+(?:item|task|to[\s-]?do)|finished\s+(?:item|task|to[\s-]?do))[:,.]?\s+(.+)$/i;
+/** "Define deposit as what you pay up front": a term and its meaning (`Deposit` / `: What you pay up front`). */
+const DEFINE_CUE = /^(?:define|definition(?:\s+of)?)[:,]?\s+(?!(?:your|my|our|his|her|their|them|it|this|that|what|how|a|an)\b)(.+?)[,]?\s+(?:as|means|is)[:,]?\s+(.+)$/i;
 
 /**
  * A cue said on its own, as its own sentence.
@@ -158,7 +170,7 @@ const SUM_CUE = /^(?:calculate|sum|add\s+up)[:,.]\s*(.+)$/i;
  * after it is held forever and never rendered, instead of appearing in the note.
  */
 const STANDALONE_CUE =
-  /^(title|note\s+title|call\s+(?:this|it)(?:\s+note)?|heading|section|new\s+section|sub[\s-]?heading|sub[\s-]?section|call[\s-]?out|hidden\s+line|option|choice|(?:pick(?:ed)?|pict|chosen|selected)[\s-]*option|calculate|bullet(?:\s+point)?|(?:next|new)\s+(?:point|item|bullet)|quote|check\s?box|checklist(?:\s+item)?|check\s+item|to[\s-]?do|task|important|key\s+point|number\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2}))[.,:!]?$/i;
+  /^(title|note\s+title|call\s+(?:this|it)(?:\s+no(?:te|de))?|heading|section|new\s+section|sub[\s-]?heading|sub[\s-]?section|call[\s-]?out|info\s?box|hidden\s+line|option|choice|(?:pick(?:ed)?|pict|chosen|selected)[\s-]*option|calculate|checked\s?box|ticked\s+box|done\s+(?:item|task|to[\s-]?do)|bullet(?:\s+point)?|(?:next|new)\s+(?:point|item|bullet)|quote|check\s?box|checklist(?:\s+item)?|check\s+item|to[\s-]?do|task|important|key\s+point|number\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2}))[.,:!]?$/i;
 
 /** A plugin's formatting said the way bold is: its cue word, and the delimiter the words it wraps are put between. */
 export interface SpokenFormat {
@@ -180,11 +192,29 @@ export function setSpokenFormats(formats: readonly SpokenFormat[]): void {
 const escapeWord = (word: string) => word.trim().replace(/\s+/g, '\\s+');
 
 /** How a cue word is heard as well as how it is spelled: "aside" comes back as "a side". */
-const SAID_AS: Record<string, string> = { aside: 'a\\s?side' };
+const SAID_AS: Record<string, string> = { aside: 'a\\s?side', unsure: '(?:un|en|in)sure|onshore' };
 
 function inlineMarkup(formats: readonly SpokenFormat[]): RegExp {
-  const words = ['bold', 'italics?', 'emphasis', 'strike(?:through)?', 'crossed\\s+out', 'code', ...formats.map((format) => SAID_AS[format.word.trim().toLowerCase()] ?? escapeWord(format.word))];
-  return new RegExp(`\\b(${words.join('|')})\\b([.,:;!]?)\\s+([\\s\\S]+?)[.,;:!]?\\s+(end|and)\\s+\\1\\b([.,;:!?]?)`, 'gi');
+  const words = ['bold\\s+italics?', 'bold', 'italics?', 'emphasis', 'strike(?:through)?', 'crossed\\s+out', 'code', 'super\\s?script', 'sub\\s?script', 'maths?', ...formats.map((format) => SAID_AS[format.word.trim().toLowerCase()] ?? escapeWord(format.word))];
+  const any = words.join('|');
+  return new RegExp(`\\b(${any})\\b([.,:;!]?)\\s+([\\s\\S]+?)[.,;:!]?\\s+(end|and)\\s+(${any})\\b([.,;:!?]?)`, 'gi');
+}
+
+/** Which cue a spoken word is, however it was heard: "A side" is aside, "ensure" is unsure, "italics" is italic. */
+function cueOf(word: string, formats: readonly SpokenFormat[]): string {
+  const heard = word.toLowerCase().replace(/\s+/g, ' ').trim();
+  for (const format of formats) {
+    const name = format.word.trim().toLowerCase().replace(/\s+/g, ' ');
+    const alias = SAID_AS[name];
+    if (heard === name || (alias && new RegExp(`^(?:${alias})$`, 'i').test(heard))) return name;
+  }
+  if (/^strike(?:through)?$|^crossed out$/.test(heard)) return 'strike';
+  if (/^italics?$/.test(heard)) return 'italic';
+  if (/^bold italics?$/.test(heard)) return 'bold italic';
+  if (/^super ?script$/.test(heard)) return 'superscript';
+  if (/^sub ?script$/.test(heard)) return 'subscript';
+  if (/^maths?$/.test(heard)) return 'maths';
+  return heard;
 }
 
 /** A cue word run into what follows it: "spoiler4417". */
@@ -209,16 +239,17 @@ function inlineGlued(formats: readonly SpokenFormat[]): RegExp {
  * word ("Italics, maybe, and italics.") or when it ends the sentence ("The
  * deadline is bold Friday at noon and bold."). The two words sound almost the
  * same, and on synthesised speech base.en wrote "and" for "end" in most voices
- * even with the cue vocabulary as its prompt; the voice tutorial could not be
- * passed on "end bold" said plainly. "It was bold thinking and bold action"
+ * even with the cue vocabulary as its prompt. "It was bold thinking and bold action"
  * has neither a pause after the first "bold" nor the sentence ending at the
  * second, and is left alone.
  */
 export function spokenInlineMarkup(paragraph: string, formats: readonly SpokenFormat[] = spokenFormats): string {
   // Whisper's own spellings of the cues: "italics" for "italic", "spoiler4417" run together.
   const heard = paragraph.replace(/\bitalics\b/gi, (word) => word.slice(0, -1)).replace(inlineGlued(formats), '$1 $2');
-  return heard.replace(inlineMarkup(formats), (match, kind: string, paused: string, inner: string, closer: string, after: string, offset: number, whole: string) => {
-    const said = kind.toLowerCase().replace(/\s+/g, ' ');
+  return heard.replace(inlineMarkup(formats), (match, kind: string, paused: string, inner: string, closer: string, closing: string, after: string, offset: number, whole: string) => {
+    const said = cueOf(kind, formats);
+    // "A side … end aside" is one mark; "the gate code is spoiler … end spoiler" is not a code mark, but may hold one.
+    if (cueOf(closing, formats) !== said) return `${kind}${spokenInlineMarkup(match.slice(kind.length), formats)}`;
     // "and bold" closes after a pause at the opening cue, or when it ends the sentence: "… at noon and bold." Mid-sentence, "bold thinking and bold action" is prose.
     // The other cue words are rare enough in speech that "and" closes them anywhere.
     const endsSentence = Boolean(after) || !whole.slice(offset + match.length).trim();
@@ -227,15 +258,68 @@ export function spokenInlineMarkup(paragraph: string, formats: readonly SpokenFo
     const marked = inner.trim().split(/\s+/).length >= 3;
     if (closer.toLowerCase() === 'and' && common && !paused && !endsSentence && !marked) return match;
     const words = inner.trim().replace(/[.,;:!]+$/, '');
-    const format = formats.find((f) => {
-      const word = f.word.trim().toLowerCase().replace(/\s+/g, ' ');
-      return word === said || word === said.replace(/\s+/g, '');
-    });
-    const marker = format ? format.delimiter : said === 'bold' ? '**' : /^(?:strike|strikethrough|crossed out)$/.test(said) ? '~~' : said === 'code' ? '`' : '_';
+    const format = formats.find((f) => f.word.trim().toLowerCase().replace(/\s+/g, ' ') === said);
+    if (format) return `${format.delimiter}${words}${format.delimiter}${after}`;
+    const marker = BUILT_IN_MARKERS[said] ?? '_';
     // Code is as it was said, lower case and without the commas Whisper puts at its pauses, as a command is typed.
-    const inside = said === 'code' && !format ? words.toLowerCase().replace(/,/g, '') : words;
-    return `${marker}${inside}${marker}${after}`;
+    const inside =
+      said === 'code' ? words.toLowerCase().replace(/,/g, '') : said === 'maths' ? spokenMaths(words) : said === 'superscript' || said === 'subscript' ? spokenScript(words) : words;
+    // Raised and lowered words hang on the word before them: the 2^nd^, H~2~O.
+    const glued = said === 'superscript' || said === 'subscript';
+    return `${glued ? GLUE : ''}${marker}${inside}${marker}${glued && !after ? GLUE : ''}${after}`;
+  })
+    .replace(new RegExp(`\\s*${GLUE}(?=[\\^~])`, 'g'), '')
+    // After the mark, only a short capital run is part of the same word (H~2~O); "the 2^nd^ of June" keeps its space.
+    .replace(new RegExp(`${GLUE}\\s+(?=[A-Z0-9]{1,2}\\b)`, 'g'), '')
+    .replaceAll(GLUE, '');
+}
+
+/** Where a raised or lowered mark joins its neighbours, while the paragraph is still being read. */
+const GLUE = '\uE003';
+
+const BUILT_IN_MARKERS: Record<string, string> = {
+  'bold italic': '***',
+  bold: '**',
+  strike: '~~',
+  code: '`',
+  superscript: '^',
+  subscript: '~',
+  maths: '$',
+};
+
+/** Raised or lowered words: numbers as digits, and no bare space, which ends the mark (`^2nd^`, `~2~`, `^to\\ be^`). */
+function spokenScript(text: string): string {
+  // Said alone, "to" and "for" are the numbers: "metres superscript two" is heard "superscript to".
+  const alone = { to: '2', too: '2', for: '4', won: '1' }[text.trim().toLowerCase()];
+  if (alone) return alone;
+  const said = text.trim().replace(new RegExp(`\\b${NUMBER_PHRASE}\\b`, 'gi'), (phrase) => {
+    const value = spokenNumber(phrase);
+    return value === null ? phrase : `${phrase.match(/^\s*/)?.[0] ?? ''}${value}${phrase.match(/\s*$/)?.[0] ?? ''}`;
   });
+  return said.trim().replace(/(\d)\s+(?=(?:st|nd|rd|th)\b)/gi, '$1').replace(/\s+/g, '\\ ');
+}
+
+/** "x squared plus two y" as `x^2 + 2 y`: the operators as signs and the numbers as digits, the letters as said. */
+function spokenMaths(text: string): string {
+  let said = ` ${text.trim().toLowerCase()} `
+    .replace(/\bsquared\b/g, '^2')
+    .replace(/\bcubed\b/g, '^3')
+    .replace(/\b(?:is\s+)?equals?(?:\s+to)?\b/g, ' = ')
+    .replace(/\bsquare\s+root\s+of\b/g, ' \\sqrt ')
+    .replace(/\bopen\s+brackets?\b/g, ' ( ')
+    .replace(/\bclose\s+brackets?\b/g, ' ) ');
+  // "x" is a letter here, not "times".
+  for (const [word, symbol] of OPERATORS) if (!word.source.includes('x×')) said = said.replace(word, symbol);
+  said = said.replace(new RegExp(`\\b${NUMBER_PHRASE}\\b`, 'gi'), (phrase) => {
+    const value = spokenNumber(phrase.replace(/\s+and\s*$/, ''));
+    return value === null ? phrase : ` ${value} `;
+  });
+  return said
+    .replace(/\s*\^\s*/g, '^')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 const NUMBER_WORDS: Record<string, number> = {
@@ -292,21 +376,176 @@ export function setLinkTitles(titles: readonly string[]): void {
   linkTitles = titles;
 }
 
-/** Tags, counters and note links said inside a sentence, written as what they are. */
+/** "Item link ask Sam end link": a link to a line of this note by its name (`[[#^ask-sam]]`, editor/boards.ts). */
+const ITEM_LINK_SAID = /\bitem\s?link[,:]?\s+(.+?)[.,]?\s+(?:end|and)\s+link\b/gi;
+
+/** "Link Glyph to attack dot fm end link", "link attack dot fm end link": a link to a page. */
+const LINK_SAID = /\blink[,:]?\s+(.+?)[.,]?\s+(?:end|and)\s+link\b/gi;
+
+/** "Anchor ship page end anchor": the line's own name (` ^ship-page`), moved to the end of its line when the note is laid out. */
+const ANCHOR_SAID = /[.,]?\s*\b(?:anchor|item\s+name)[,:]?\s+(.+?)[.,]?\s+(?:end|and)\s+(?:anchor|name)\b([.,!?]?)/gi;
+
+/** "Bookmark this", "bookmark here", at the end of what it marks: the note's bookmark (`§§`, editor/bookmarkLine.ts). */
+const BOOKMARK_SAID = /[.,]?\s*\bbookmark\s+(?:this(?:\s+line)?|here)\b(?=[.,!?]|\s*$)([.,!?]?)/gi;
+
+/** "Emoji party popper": the emoji by its name, as a shortcode (`:tada:`, core/emoji.ts). */
+const EMOJI_SAID = /\bemoji[,:]?\s+([A-Za-z]+(?:[\s-]+[A-Za-z]+){0,3})/gi;
+
+/** "… end unsure, note Sam said four hundred, end note": what a mark means, shown on a tap (`??four hundred??(Sam said…)`). */
+const MARK_NOTE_SAID = /(\?\?|==|%%|\*\*|\^\^|\+\+|~~|\|\||\b_)[.,]?\s+(?:with\s+(?:a\s+)?)?note[,:]?\s+(.+?)[.,]?\s+(?:end|and)\s+note\b/gi;
+
+/** "…, new line, …" with a pause either side: a line break inside the paragraph. "A new line of shoes" is words. */
+const LINE_BREAK_SAID = /(^|[.,;!?])\s*\b(?:new|next)\s+line\b[.,;!]?(?=\s|$)/gi;
+
+/** Stand-ins while a note is laid out: a line's name, the bookmark, a line break (`finishLines`). */
+const ANCHOR_MARK = '\uE000';
+const BOOKMARK_MARK = '\uE001';
+const BREAK_MARK = '\uE002';
+
+/** The spoken names people give emoji, where they differ from the shortcode. */
+const EMOJI_SAID_AS: Record<string, string> = {
+  thumbs_up: '+1',
+  thumbs_down: '-1',
+  party: 'tada',
+  party_popper: 'tada',
+  celebration: 'tada',
+  check: 'white_check_mark',
+  check_mark: 'white_check_mark',
+  tick: 'white_check_mark',
+  cross: 'x',
+  cross_mark: 'x',
+  light_bulb: 'bulb',
+  laughing: 'joy',
+  crying: 'sob',
+  smiley: 'smile',
+  money_bag: 'moneybag',
+  magnifying_glass: 'mag',
+  lightning: 'zap',
+  plane: 'airplane',
+  sun: 'sunny',
+  pin: 'pushpin',
+};
+
+/** A spoken name as a line's name: "Ship Page" is `ship-page`, as said (core/boards.ts reads `[a-z0-9][a-z0-9_-]*`). */
+export function spokenSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/** "attack dot fm slash glyph" as `https://attack.fm/glyph`, or null when it isn't an address. */
+export function spokenAddress(text: string): string | null {
+  const said = text
+    .trim()
+    .toLowerCase()
+    .replace(/\s*\b(?:dot)\b\s*/g, '.')
+    .replace(/\s*\b(?:forward\s+)?slash\b\s*/g, '/')
+    .replace(/\s*\bcolon\b\s*/g, ':')
+    .replace(/\s*\b(?:dash|hyphen)\b\s*/g, '-')
+    .replace(/\s*\bunderscore\b\s*/g, '_')
+    .replace(/\s*([./:])\s*/g, '$1')
+    .replace(/[.,]+$/, '');
+  // Words still apart are words: "Glyph to attack.fm" is a name and an address, not one address.
+  if (!/^(?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#]\S*)?$/.test(said)) return null;
+  return /^https?:\/\//.test(said) ? said : `https://${said}`;
+}
+
+function spokenEmoji(all: string, words: string): string {
+  const said = words.toLowerCase().split(/[\s-]+/);
+  for (let take = said.length; take >= 1; take -= 1) {
+    const name = said.slice(0, take).join('_');
+    const code = EMOJI_SAID_AS[name] ?? (emojiFor(name) ? name : null);
+    if (code) {
+      const rest = words.split(/[\s-]+/).slice(take).join(' ');
+      return `:${code}:${rest ? ` ${rest}` : ''}`;
+    }
+  }
+  return all;
+}
+
+/** Tags, counters, links, emoji and the other marks said inside a sentence, written as what they are. */
 export function spokenExtras(paragraph: string): string {
   return paragraph
+    .replace(ITEM_LINK_SAID, (all, name: string) => {
+      const slug = spokenSlug(name);
+      return slug ? `[[#^${slug}]]` : all;
+    })
     .replace(NOTE_LINK_SAID, (_all, name: string) => {
       const said = name.trim().replace(/^(?:the|my|our)\s+/i, '').replace(/\s+note$/i, '');
       const plain = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      const known = linkTitles.find((title) => plain(title) === plain(said));
+      // The note's own spelling, and the closest title when the name was misheard ("week and trip").
+      const known = linkTitles.find((title) => plain(title) === plain(said)) ?? matchNote(said, linkTitles.map((title) => ({ id: title, title })))?.note.title;
       return `[[${known ?? capitalise(said)}]]`;
     })
+    .replace(LINK_SAID, (all, inner: string) => {
+      const bare = spokenAddress(inner);
+      if (bare) return `<${bare}>`;
+      // "Glyph to attack dot fm": the words, then where they go, split at the last "to" that leaves an address.
+      const parts = inner.split(/\s+to\s+/i);
+      for (let at = parts.length - 1; at >= 1; at -= 1) {
+        const address = spokenAddress(parts.slice(at).join(' to '));
+        const words = parts.slice(0, at).join(' to ').trim();
+        if (address && words) return `[${words}](${address})`;
+      }
+      return all;
+    })
+    .replace(MARK_NOTE_SAID, (_all, mark: string, note: string) => `${mark}(${note.trim()})`)
+    .replace(ANCHOR_SAID, (all, name: string, after: string) => {
+      const slug = spokenSlug(name);
+      return slug ? `${ANCHOR_MARK}${slug}${ANCHOR_MARK}${after}` : all;
+    })
+    .replace(BOOKMARK_SAID, (_all, after: string) => `${BOOKMARK_MARK}${after}`)
+    .replace(EMOJI_SAID, spokenEmoji)
+    .replace(LINE_BREAK_SAID, (_all, before: string) => `${before && /[.!?]/.test(before) ? before : before ? '.' : ''}${BREAK_MARK}`)
     .replace(TAG_SAID, (_all, word: string) => `#${word.toLowerCase()}`)
     .replace(COUNTER_SAID, (all, count: string, goal: string) => {
       const n = spokenNumber(count);
       const m = spokenNumber(goal);
       return n === null || m === null || m < 1 ? all : ` [${n}/${m}]`;
     });
+}
+
+/**
+ * The stand-ins put back as marks, once the note is laid out: a line break where one was said, a line's name at the
+ * end of its line (after the bookmark, as core/boards.ts reads it), and the bookmark on the last line it was said on,
+ * since a note holds one.
+ */
+export function finishLines(body: string): string {
+  const lines = body
+    .replace(new RegExp(`${BREAK_MARK} *(\\S)`, 'g'), (_all, next: string) => `  \n${next.toUpperCase()}`)
+    .replaceAll(BREAK_MARK, '')
+    .split('\n');
+  let marked = -1;
+  lines.forEach((line, index) => {
+    if (line.includes(BOOKMARK_MARK)) marked = index;
+  });
+  const used = new Set<string>();
+  const nameOn = new RegExp(`${ANCHOR_MARK}([^${ANCHOR_MARK}]*)${ANCHOR_MARK}`, 'g');
+  return lines
+    .map((line, index) => {
+      const names = [...line.matchAll(nameOn)].map((found) => found[1] ?? '');
+      if (!names.length && !line.includes(BOOKMARK_MARK)) return line;
+      const broken = line.endsWith('  ');
+      let text = line
+        .replace(nameOn, '')
+        .replaceAll(BOOKMARK_MARK, '')
+        .replace(/\s+([.,;!?])/g, '$1')
+        .replace(/ {2,}/g, ' ')
+        .trimEnd();
+      // A list item's words end without a stop, before its bookmark and name.
+      if (/^\s*(?:[-*+]|\d+[.)])\s/.test(text)) text = text.replace(/[.,;]+$/, '');
+      if (index === marked) text += ' §§';
+      const name = names[names.length - 1];
+      if (name) {
+        let unique = name;
+        for (let count = 2; used.has(unique); count += 1) unique = `${name}-${count}`;
+        used.add(unique);
+        text += ` ^${unique}`;
+      }
+      return broken ? `${text}  ` : text;
+    })
+    .join('\n');
 }
 
 const OPERATORS: [RegExp, string][] = [
@@ -428,7 +667,11 @@ const LIST_ANNOUNCE =
   /\b(?:add|make|start|create|write|begin|do)\s+(?:up\s+)?(?:a|an|the|my|our|this|another)?\s*(?:new\s+|quick\s+)?(?:(numbered|numbering|ordered|bullet(?:ed)?|bullet\s+point|shopping|grocery|to-?\s?do|packing|reading|check)\s+)?list\b|\b(?:here(?:'s|\s+is)|this\s+is|that'?s)\s+(?:a|the|my|our)\s+(?:(numbered|\w+)\s+)?list\b/i;
 
 /** Whether `text` announces a list, and whether it asked for numbers. */
+/** "Pack these.", "we need the following.": a list said with its colon heard as a full stop. */
+const LIST_LEAD = /^(?:[a-z]+\s+){0,4}(?:these|the\s+following|as\s+follows)[.:]?$/i;
+
 function announcesList(text: string): 'number' | 'bullet' | null {
+  if (LIST_LEAD.test(text.trim()) && LIST_INTRO.test(text.trim().replace(/\s+(?:these|the\s+following|as\s+follows)[.:]?$/i, ''))) return 'bullet';
   const match = LIST_ANNOUNCE.exec(text);
   if (!match) return null;
   const kind = (match[1] ?? match[2] ?? '').toLowerCase();
@@ -473,9 +716,16 @@ export function enumeration(sentence: string): { intro: string; items: string[] 
         break;
       }
     }
-    if (cut < 0 || cut === tokens.length - 1) return null;
-    introPart = tokens.slice(0, cut + 1).join(' ');
-    listPart = [tokens.slice(cut + 1).join(' '), ...chunks.slice(1)].join(', ');
+    // "Pack these, the tent, …": "these" points at the list, so it belongs to the intro, not the first item.
+    const pointsAtList = cut >= 0 && /^(?:these|those|the\s+following)$/i.test(tokens.slice(cut + 1).join(' '));
+    if (cut < 0 || (cut === tokens.length - 1 && !pointsAtList)) return null;
+    if (pointsAtList) {
+      introPart = first;
+      listPart = chunks.slice(1).join(', ');
+    } else {
+      introPart = tokens.slice(0, cut + 1).join(' ');
+      listPart = [tokens.slice(cut + 1).join(' '), ...chunks.slice(1)].join(', ');
+    }
   }
 
   const items = listPart
@@ -510,7 +760,10 @@ type Block =
   | { kind: 'callout'; text: string; type: string }
   | { kind: 'hidden'; text: string }
   | { kind: 'choice'; text: string; picked: boolean }
-  | { kind: 'sum'; text: string };
+  | { kind: 'sum'; text: string }
+  | { kind: 'done'; text: string }
+  | { kind: 'definition'; text: string; term: string }
+  | { kind: 'fence'; text: string; lang: string };
 
 /**
  * Which run a block belongs to, for deciding where blank lines go.
@@ -530,6 +783,7 @@ const family = (block: Block): string => {
       return 'items';
     case 'bullet':
     case 'task':
+    case 'done':
       return 'bullets';
     case 'number':
       return 'numbers';
@@ -570,6 +824,12 @@ function localBlocks(text: string, ordinalRun: boolean): Block[] {
   const sum = SUM_CUE.exec(text);
   const worked = sum?.[1] ? spokenSum(sum[1]) : null;
   if (worked) return [{ kind: 'sum', text: `= ${worked}` }];
+
+  const done = DONE_CUE.exec(text);
+  if (done?.[1]) return [{ kind: 'done', text: itemOf(done[1]) ?? capitalise(stripEnd(done[1])) }];
+
+  const defined = DEFINE_CUE.exec(text);
+  if (defined?.[1] && defined[2] && words(defined[1]) <= 3) return [{ kind: 'definition', term: capitalise(stripEnd(defined[1])), text: capitalise(defined[2].trim()) }];
 
   const bullet = BULLET_CUE.exec(text);
   if (bullet?.[1]) return [{ kind: 'bullet', text: itemOf(bullet[1]) ?? capitalise(stripEnd(bullet[1])) }];
@@ -635,6 +895,7 @@ function renderBlocks(blocks: readonly Block[], paragraphStarts: ReadonlySet<num
       block.kind !== 'standout' &&
       block.kind !== 'callout' &&
       block.kind !== 'sum' &&
+      block.kind !== 'fence' &&
       block.kind !== 'heading' &&
       block.kind !== 'subheading';
 
@@ -652,6 +913,15 @@ function renderBlocks(blocks: readonly Block[], paragraphStarts: ReadonlySet<num
           break;
         case 'task':
           out.push(`- [ ] ${block.text}`);
+          break;
+        case 'done':
+          out.push(`- [x] ${block.text}`);
+          break;
+        case 'definition':
+          out.push(block.term, `: ${block.text}`);
+          break;
+        case 'fence':
+          out.push(`\`\`\`${block.lang}`, block.text, '```');
           break;
         case 'number':
           number += 1;
@@ -687,6 +957,55 @@ function renderBlocks(blocks: readonly Block[], paragraphStarts: ReadonlySet<num
   return out.join('\n');
 }
 
+/** "Footnote Sam said so end footnote": a footnote marker where it was said, its words under the note. */
+const FOOTNOTE_SAID = /([.!?]?)[,]?\s*\bfoot\s?note[,:.]?\s+(.+?)[.,]?\s+(?:end|and)\s+foot\s?note\b([.,!?]?)/gi;
+
+const CODE_LANGUAGES = String.raw`java\s?script|type\s?script|python|rust|bash|shell|json|html|css|sql|swift|kotlin|yaml|ruby|go`;
+
+/** "Code block in bash. npm run build. End code block.": a block of code, a line for each sentence said. */
+const CODE_BLOCK_SAID = new RegExp(
+  String.raw`\bcode\s?block\b[.,:]?\s*(?:(?:in\s+|and\s+)?(${CODE_LANGUAGES})\b[.,:]?\s*)?([\s\S]*?)[.,;]?\s*\b(?:end|and)\s+code\s?block\b[.,!]?`,
+  'gi',
+);
+const CODE_BLOCK_OPEN = /\bcode\s?block\b/gi;
+const CODE_BLOCK_CLOSE = /\b(?:end|and)\s+code\s?block\b/gi;
+
+/** Paragraphs with a spoken code block kept in one, however long the pauses inside it were. */
+function withCodeBlocksWhole(paragraphs: readonly string[]): string[] {
+  const out: string[] = [];
+  let open = false;
+  for (const paragraph of paragraphs) {
+    if (open) out[out.length - 1] = `${out[out.length - 1]} ${paragraph}`;
+    else out.push(paragraph);
+    const opened = (out[out.length - 1]!.match(CODE_BLOCK_OPEN) ?? []).length;
+    const closed = (out[out.length - 1]!.match(CODE_BLOCK_CLOSE) ?? []).length;
+    open = opened > closed;
+  }
+  return out;
+}
+
+type Piece = { kind: 'text'; text: string } | Extract<Block, { kind: 'fence' }>;
+
+/** A paragraph cut around the code blocks said in it. */
+function codeBlocksIn(paragraph: string): Piece[] {
+  const pieces: Piece[] = [];
+  let from = 0;
+  for (const found of paragraph.matchAll(CODE_BLOCK_SAID)) {
+    const code = (found[2] ?? '')
+      .split(/(?<=[.;!?])\s+/)
+      .map((line) => line.trim().replace(/[.;,]+$/, '').replace(/,/g, '').toLowerCase())
+      .filter(Boolean);
+    if (!code.length) continue;
+    const before = paragraph.slice(from, found.index).trim();
+    if (before) pieces.push({ kind: 'text', text: before });
+    pieces.push({ kind: 'fence', lang: (found[1] ?? '').toLowerCase().replace(/\s+/g, ''), text: code.join('\n') });
+    from = (found.index ?? 0) + found[0].length;
+  }
+  const rest = paragraph.slice(from).trim();
+  if (rest || !pieces.length) pieces.push({ kind: 'text', text: capitalise(rest) });
+  return pieces;
+}
+
 // ---- the whole note -------------------------------------------------------------
 
 /**
@@ -710,7 +1029,7 @@ export function renderNote(
   partial = '',
   { titled = true }: RenderOptions = {},
 ): RenderedNote {
-  const paragraphs = toParagraphs(segments);
+  const paragraphs = withCodeBlocksWhole(toParagraphs(segments));
   const plain = paragraphs.join('\n\n');
 
   const blocks: Block[] = [];
@@ -732,122 +1051,148 @@ export function renderNote(
   let pendingItem: string | null = null;
   /** The phrase waiting was a numbered cue ("number three, the next item is"): the item is numbered. */
   let pendingNumbered = false;
+  /** The open list was led by "Pack these.": its items hang under that line, as a list said with a colon does. */
+  let ledList = false;
   const paragraphStarts = new Set<number>();
+  /** What the spoken footnotes say, in order: written under the note. */
+  const footnotes: string[] = [];
 
   paragraphs.forEach((paragraph) => {
     paragraphStarts.add(blocks.length);
-    const sentences = sentencesOf(spokenExtras(spokenInlineMarkup(inlineNumbering(paragraph))));
-
-    const firstOrdinal = sentences.findIndex((s) => ORDINAL_START.test(s.text));
-
-    sentences.forEach((spoken, sentenceIndex) => {
-      const cueOnly = STANDALONE_CUE.exec(spoken.text);
-      if (cueOnly?.[1]) {
-        pendingCue = cueOnly[1];
-        return;
+    for (const piece of codeBlocksIn(paragraph)) {
+      if (piece.kind === 'fence') {
+        blocks.push(piece);
+        pendingCue = null;
+        seenContent = true;
+        openList = null;
+        takesShortItems = false;
+        continue;
       }
-      const sentence: Sentence = pendingCue ? { ...spoken, text: `${pendingCue}: ${spoken.text}` } : spoken;
-      pendingCue = null;
+      const said = piece.text.replace(FOOTNOTE_SAID, (_all, before: string, note: string, after: string) => {
+        const words = capitalise(note.trim().replace(/[,;]+$/, ''));
+        footnotes.push(/[.!?]$/.test(words) ? words : `${words}.`);
+        return `[^${footnotes.length}]${after || before}`;
+      });
+      const sentences = sentencesOf(spokenExtras(spokenInlineMarkup(inlineNumbering(said))));
 
-      // The item after "the next item is", said as its own phrase. A second
-      // item phrase instead means the first was just words.
-      if (pendingItem !== null) {
-        const held = pendingItem;
-        const numbered = pendingNumbered;
-        pendingItem = null;
-        pendingNumbered = false;
-        if (!ITEM_OPENER.test(sentence.text) && !itemOf(sentence.text)) {
+      const firstOrdinal = sentences.findIndex((s) => ORDINAL_START.test(s.text));
+
+      sentences.forEach((spoken, sentenceIndex) => {
+        const cueOnly = STANDALONE_CUE.exec(spoken.text);
+        if (cueOnly?.[1]) {
+          pendingCue = cueOnly[1];
+          return;
+        }
+        const sentence: Sentence = pendingCue ? { ...spoken, text: `${pendingCue}: ${spoken.text}` } : spoken;
+        pendingCue = null;
+
+        // The item after "the next item is", said as its own phrase. A second
+        // item phrase instead means the first was just words.
+        if (pendingItem !== null) {
+          const held = pendingItem;
+          const numbered = pendingNumbered;
+          pendingItem = null;
+          pendingNumbered = false;
+          if (!ITEM_OPENER.test(sentence.text) && !itemOf(sentence.text)) {
+            const last = blocks[blocks.length - 1];
+            const kind = numbered || last?.kind === 'number' ? 'number' : last?.kind === 'bullet' || last?.kind === 'item' ? 'bullet' : (openList ?? 'bullet');
+            blocks.push({ kind, text: capitalise(stripEnd(sentence.text)) });
+            openList = kind;
+            takesShortItems = true;
+            return;
+          }
+          blocks.push({ kind: 'para', text: held });
+        }
+        if (ITEM_OPENER.test(sentence.text)) {
+          pendingItem = sentence.text;
+          seenContent = true;
+          return;
+        }
+        // "Number three, the next item is", with the item after a breath: the
+        // number waits for it too, so the list's count carries on.
+        const numberedOpener = NUMBER_CUE.exec(sentence.text);
+        if (numberedOpener?.[2] && ITEM_OPENER.test(numberedOpener[2])) {
+          pendingItem = sentence.text;
+          pendingNumbered = true;
+          seenContent = true;
+          return;
+        }
+
+        // The very first sentence can be a spoken title, or a short opening that
+        // reads as one.
+        if (!seenContent) {
+          seenContent = true;
+          const cue = TITLE_CUE.exec(sentence.text);
+          if (cue?.[1]) {
+            const words = capitalise(stripEnd(cue[1]));
+            if (titled) title = words;
+            else blocks.push({ kind: 'heading', text: words });
+            return;
+          }
+          if (titled && isTitleShaped(sentence.text) && !itemOf(sentence.text)) {
+            title = stripEnd(sentence.text);
+            openList = announcesList(sentence.text);
+            takesShortItems = openList !== null;
+            return;
+          }
+        }
+
+        // A list item said as a phrase ("the next item is …"), or a short item
+        // under a list someone announced. It takes the list's kind: numbered if
+        // the list is, bullets otherwise.
+        const listKind = (): 'number' | 'bullet' => {
           const last = blocks[blocks.length - 1];
-          const kind = numbered || last?.kind === 'number' ? 'number' : last?.kind === 'bullet' || last?.kind === 'item' ? 'bullet' : (openList ?? 'bullet');
-          blocks.push({ kind, text: capitalise(stripEnd(sentence.text)) });
+          if (last?.kind === 'number') return 'number';
+          if (last?.kind === 'bullet' || last?.kind === 'item') return 'bullet';
+          return openList ?? 'bullet';
+        };
+        const item = itemOf(sentence.text);
+        if (item) {
+          const kind = listKind();
+          blocks.push({ kind, text: item });
           openList = kind;
           takesShortItems = true;
           return;
         }
-        blocks.push({ kind: 'para', text: held });
-      }
-      if (ITEM_OPENER.test(sentence.text)) {
-        pendingItem = sentence.text;
-        seenContent = true;
-        return;
-      }
-      // "Number three, the next item is", with the item after a breath: the
-      // number waits for it too, so the list's count carries on.
-      const numberedOpener = NUMBER_CUE.exec(sentence.text);
-      if (numberedOpener?.[2] && ITEM_OPENER.test(numberedOpener[2])) {
-        pendingItem = sentence.text;
-        pendingNumbered = true;
-        seenContent = true;
-        return;
-      }
 
-      // The very first sentence can be a spoken title, or a short opening that
-      // reads as one.
-      if (!seenContent) {
-        seenContent = true;
-        const cue = TITLE_CUE.exec(sentence.text);
-        if (cue?.[1]) {
-          const words = capitalise(stripEnd(cue[1]));
-          if (titled) title = words;
-          else blocks.push({ kind: 'heading', text: words });
+        const ordinalRun = firstOrdinal >= 0 && sentenceIndex >= firstOrdinal;
+        const made = localBlocks(sentence.text, ordinalRun);
+        // A short plain sentence under an open list is its next item. Only
+        // plain: a cue ("number two, …", "then …" in an ordinal run) has
+        // already said what the sentence is.
+        if (openList && takesShortItems && made.length === 1 && made[0]?.kind === 'para' && itemShaped(sentence.text)) {
+          const kind = listKind();
+          // "The stove and the lantern." is two things; "bread and butter" is one.
+          const parts = stripEnd(sentence.text).split(/\s+and\s+(?=(?:the|a|an|some|two|three)\s)/i);
+          for (const part of parts) blocks.push({ kind: ledList && kind === 'bullet' ? 'item' : kind, text: capitalise(part.trim()) });
+          openList = kind;
           return;
         }
-        if (titled && isTitleShaped(sentence.text) && !itemOf(sentence.text)) {
-          title = stripEnd(sentence.text);
-          openList = announcesList(sentence.text);
-          takesShortItems = openList !== null;
-          return;
+        const led = made.length === 1 && made[0]?.kind === 'para' && LIST_LEAD.test(sentence.text.trim()) && announcesList(sentence.text) !== null;
+        // "Pack these." is the line a list hangs from: "Pack these:", like a list said with its colon.
+        blocks.push(...(led ? [{ kind: 'intro' as const, text: `${stripEnd(sentence.text)}:` }] : made));
+        ledList = led;
+        const last = made[made.length - 1];
+        const announced = announcesList(sentence.text);
+        if (announced) {
+          openList = announced;
+          takesShortItems = true;
+        } else if (last?.kind === 'number' || last?.kind === 'bullet') {
+          openList = last.kind;
+        } else {
+          openList = null;
+          takesShortItems = false;
         }
-      }
-
-      // A list item said as a phrase ("the next item is …"), or a short item
-      // under a list someone announced. It takes the list's kind: numbered if
-      // the list is, bullets otherwise.
-      const listKind = (): 'number' | 'bullet' => {
-        const last = blocks[blocks.length - 1];
-        if (last?.kind === 'number') return 'number';
-        if (last?.kind === 'bullet' || last?.kind === 'item') return 'bullet';
-        return openList ?? 'bullet';
-      };
-      const item = itemOf(sentence.text);
-      if (item) {
-        const kind = listKind();
-        blocks.push({ kind, text: item });
-        openList = kind;
-        takesShortItems = true;
-        return;
-      }
-
-      const ordinalRun = firstOrdinal >= 0 && sentenceIndex >= firstOrdinal;
-      const made = localBlocks(sentence.text, ordinalRun);
-      // A short plain sentence under an open list is its next item. Only
-      // plain: a cue ("number two, …", "then …" in an ordinal run) has
-      // already said what the sentence is.
-      if (openList && takesShortItems && made.length === 1 && made[0]?.kind === 'para' && itemShaped(sentence.text)) {
-        const kind = listKind();
-        blocks.push({ kind, text: capitalise(stripEnd(sentence.text)) });
-        openList = kind;
-        return;
-      }
-      blocks.push(...made);
-      const last = made[made.length - 1];
-      const announced = announcesList(sentence.text);
-      if (announced) {
-        openList = announced;
-        takesShortItems = true;
-      } else if (last?.kind === 'number' || last?.kind === 'bullet') {
-        openList = last.kind;
-      } else {
-        openList = null;
-        takesShortItems = false;
-      }
-    });
+      });
+    }
   });
 
   // A "the next item is" that nothing followed: it was words.
   if (pendingItem !== null) blocks.push({ kind: 'para', text: pendingItem });
 
-  const body = renderBlocks(blocks, paragraphStarts);
+  const notes = footnotes.map((note, index) => `[^${index + 1}]: ${note}`).join('\n');
+  const laidOut = renderBlocks(blocks, paragraphStarts);
+  const body = finishLines(notes ? `${laidOut}${laidOut ? '\n\n' : ''}${notes}` : laidOut);
   let markdown = title ? `# ${title}${body ? `\n\n${body}` : ''}` : body;
 
   let pendingFrom: number | null = null;
@@ -871,7 +1216,7 @@ export function renderNote(
 function isTitleShaped(text: string): boolean {
   if (/\?$/.test(text.trim())) return false;
   // Marked words, a clip or a picture: something said to be kept as it is, not a name for the note.
-  if (/\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||`|!\[|\[\[|(?:^|\s)_\S/.test(text)) return false;
+  if (/\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||`|!\[|\[\[|\[\^|\]\(|<https?:|[\^~$\uE000-\uE002]|:[a-z_+-]+:|(?:^|\s)_\S/.test(text)) return false;
   if (words(text) > 6) return false;
   if (
     TASK.test(text) ||
@@ -887,6 +1232,8 @@ function isTitleShaped(text: string): boolean {
     HIDDEN_CUE.test(text) ||
     CHOICE_CUE.test(text) ||
     SUM_CUE.test(text) ||
+    DONE_CUE.test(text) ||
+    DEFINE_CUE.test(text) ||
     enumeration(text)
   ) {
     return false;

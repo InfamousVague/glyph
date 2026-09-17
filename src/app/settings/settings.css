@@ -174,8 +174,9 @@
   justify-content: space-between;
   gap: var(--glacier-space-4);
   padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-1));
-  font-size: var(--glacier-font-size-md);
+  padding-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-2));
+  padding-block-end: var(--glacier-space-2);
+  font-size: var(--app-action);
 }
 
 .settingsScreen__headWord {
@@ -205,18 +206,18 @@
 }
 
 /* The page's own word, set like the list's "Notes". */
+/*
+ * The page's word: "Settings", or the page's own name. A title rather than a
+ * display word (Matt: "make settings header smaller"), so the rows start near
+ * the top and the bar above carries the way back.
+ */
 .settingsScreen__display {
-  margin: var(--glacier-space-2) 0 var(--glacier-space-2);
-  font-size: var(--app-display);
-  line-height: 0.95;
-  letter-spacing: var(--app-tracking-display);
+  margin: var(--glacier-space-1) 0 var(--glacier-space-3);
+  font-size: var(--app-title);
+  line-height: 1.15;
+  letter-spacing: var(--app-tracking-title);
   font-weight: var(--glacier-font-weight-bold);
   overflow-wrap: anywhere;
-}
-
-/* A pane's word is a step smaller: it sits under "Settings", not in its place. */
-.settingsScreen__pane .settingsScreen__display {
-  font-size: calc(var(--app-display) * 0.72);
 }
 
 /* ── the section list ─────────────────────────────────────────────────────── */
@@ -442,7 +443,6 @@
 }
 
 .setk-hero__glyph,
-.setk-tile,
 .setk-empty__icon {
   display: grid;
   place-items: center;
@@ -452,17 +452,6 @@
   border-radius: var(--glacier-radius-lg);
   background: var(--app-paper-3);
   color: var(--app-ink);
-}
-
-.setk-tile[data-size='sm'] {
-  inline-size: 2rem;
-  block-size: 2rem;
-  border-radius: var(--glacier-radius-md);
-}
-
-.setk-tile[data-size='lg'] {
-  inline-size: 3.25rem;
-  block-size: 3.25rem;
 }
 
 .setk-hero__body {

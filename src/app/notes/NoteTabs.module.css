@@ -1,0 +1,215 @@
+/*
+ * The tab row (NoteTabs.tsx), inside the note's header pane: the sidebar's
+ * icon, then a tab for each open note. The tabs scroll sideways rather than
+ * shrinking to nothing, so the tenth open note is reachable and the first is
+ * still readable.
+ */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+}
+
+.sidebar {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-md, 9px);
+  background: none;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.step {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-7);
+  block-size: var(--glacier-space-8);
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-md, 9px);
+  background: none;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.step:hover,
+.step:active {
+  color: var(--glacier-text);
+  background: var(--app-paper-2, var(--glacier-surface));
+}
+
+/* Nowhere to go that way: still there, so the row never changes width, but plainly dead. */
+.step:disabled {
+  opacity: 0.3;
+  background: none;
+  color: var(--glacier-text-muted);
+  cursor: default;
+}
+
+.step:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.sidebar:hover,
+.sidebar:active {
+  color: var(--glacier-text);
+  background: var(--app-paper-2, var(--glacier-surface));
+}
+
+.sidebar[data-on] {
+  color: var(--glacier-bg);
+  background: var(--glacier-text);
+}
+
+.sidebar:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+/*
+ * The row's end softens, so it reads as going on past the edge - and only when it does (Matt: "only show the wisp
+ * blur effect on the end of the scrolling tab list when it overflows the screen"). On a row that fits, the fade was
+ * dimming the last tab for no reason: there was nothing past the edge to promise.
+ */
+.tabs[data-over] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--glacier-space-6)), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--glacier-space-6)), transparent 100%);
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* One tab: the note's name, and a cross that closes it. */
+.tab {
+  /* Dragged rather than dragged over: the row reorders under the finger (NoteTabs.tsx), so a tab only needs to say
+     that it is the one moving. */
+  transition: transform 140ms var(--glacier-ease-out, ease-out);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  max-inline-size: 11rem;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-paper-2, var(--glacier-surface));
+  color: var(--glacier-text-muted);
+}
+
+.tab[data-active] {
+  background: var(--glacier-text);
+  color: var(--glacier-bg);
+}
+
+.tab[data-moving] {
+  transform: scale(1.04);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 35%);
+  transition: none;
+}
+
+.tab[data-moving] .name {
+  cursor: grabbing;
+}
+
+.name {
+  appearance: none;
+  /* A finger going up or down the page still scrolls it; going sideways along the row is the drag. */
+  touch-action: pan-y;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  max-inline-size: 11rem;
+  padding: var(--glacier-space-1) var(--glacier-space-1) var(--glacier-space-1) var(--glacier-space-2);
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The note's name: what gives way when the tab is too narrow, since the workspace beside it is two or three letters. */
+.title {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * The workspace the note is filed in, in its own colour, before the name (Matt: "show the workspace pill first on
+ * the tab in it's colored pill so we can identity notes with the same name in different workspaces"). The same
+ * outlined pill the list's rows wear (NotesList.module.css .rowSpace) and the workspace bar itself, at tab size.
+ */
+.space {
+  flex: none;
+  max-inline-size: 7ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 0.5em;
+  border: 1px solid color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent);
+  border-radius: var(--glacier-radius-full);
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1.6;
+  color: var(--app-space, var(--glacier-text-muted));
+}
+
+/* On the tab being read, whose ground is ink: the pill fills with its colour and takes the page's paper for its word. */
+.tab[data-active] .space {
+  border-color: transparent;
+  background: var(--app-space, var(--glacier-bg));
+  color: var(--glacier-bg);
+}
+
+.close {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-6);
+  block-size: var(--glacier-space-6);
+  margin-inline-end: var(--glacier-space-1);
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.close:hover,
+.close:active {
+  opacity: 1;
+}
+
+.name:focus-visible,
+.close:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: -2px;
+  border-radius: var(--glacier-radius-full);
+}

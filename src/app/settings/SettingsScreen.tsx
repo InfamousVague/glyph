@@ -9,13 +9,16 @@ import './settings.css';
 /**
  * The settings surface: a full-screen page that opens on the list of
  * sections and pushes into one. The shape is AttackFM's MobileSettings; the
- * words are Glyph's: "Settings" as the page's display word over the clustered
- * list, a section's own word over its pane, and `← Settings` to come back.
+ * words are Glyph's: `← Notes` in the top bar to leave, "Settings" as the
+ * page's title over the clustered list, a section's own word over its pane,
+ * and `← Settings` to come back out of one. Both titles are title-sized rather
+ * than display-sized, so the rows start near the top (Matt: "add back button
+ * at the top of settings and make settings header smaller … make settings in
+ * top bar like the ← notes").
  *
- * No Done word. The page leaves the way a person came: the phone's back
- * gesture, or a swipe to the right across it, steps out of a pane and then
- * closes the page; a swipe to the left goes forward again, back into the pane
- * just left. One handler, registered while the page is open, answers by depth.
+ * The page can also be left the way a person came: the phone's back gesture,
+ * or a swipe to the right across it, steps out of a pane and then closes the
+ * page; a swipe to the left goes forward again, back into the pane just left. One handler, registered while the page is open, answers by depth.
  * Every fresh open lands on the list, and the rows arrive one after another.
  */
 
@@ -130,7 +133,13 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
         </>
       ) : (
         <>
-          <header className="settingsScreen__head" aria-hidden="true" />
+          {/* The way out, in the same words and place the note screen's is (Matt: "add back button at the top of
+              settings … make settings in top bar like the ← notes"). */}
+          <header className="settingsScreen__head">
+            <button type="button" className="app-word settingsScreen__headWord" onClick={onClose}>
+              <ArrowLeft /> Notes
+            </button>
+          </header>
           <nav ref={scroller} className="settingsScreen__list" key="list">
             <h1 className="settingsScreen__display">Settings</h1>
             {clusters.map((cluster) => (

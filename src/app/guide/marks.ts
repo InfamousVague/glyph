@@ -3,6 +3,7 @@ import {
   Anchor,
   Asterisk,
   Baseline,
+  Bookmark,
   Bold,
   Code,
   Hash,
@@ -35,6 +36,7 @@ import {
   Table,
   Text,
   Underline,
+  Workflow,
 } from '@glacier/icons';
 import { plugins } from '../plugins/registry.ts';
 
@@ -87,13 +89,15 @@ export type Looks =
   | 'emoji'
   | 'anchor'
   | 'board'
+  | 'diagram'
   | 'itemRef'
   | 'tag'
   | 'counter'
   | 'sum'
   | 'progress'
   | 'choice'
-  | 'spoilerLine';
+  | 'spoilerLine'
+  | 'bookmark';
 
 export interface MarkRow {
   /** The mark itself, as a person would type it: `**`, `- [ ]`. */
@@ -128,10 +132,10 @@ const OWN: MarkGroup[] = [
     rows: [
       { symbol: '**', name: 'Bold', typed: '**Friday at noon**', words: 'Friday at noon', looks: 'bold', icon: Bold, say: '“bold” … “end bold”' },
       { symbol: '_', name: 'Italic', typed: '_a quiet aside_', words: 'a quiet aside', looks: 'italic', icon: Italic, say: '“italic” … “end italic”' },
-      { symbol: '***', name: 'Both', typed: '***really now***', words: 'really now', looks: 'both', icon: Baseline },
+      { symbol: '***', name: 'Both', typed: '***really now***', words: 'really now', looks: 'both', icon: Baseline, say: '“bold italic” … “end bold italic”' },
       { symbol: '~~', name: 'Struck through', typed: '~~the old plan~~', words: 'the old plan', looks: 'struck', icon: Strikethrough, say: '“strike” … “end strike”' },
       { symbol: '`', name: 'Code', typed: '`npm run dev`', words: 'npm run dev', looks: 'code', icon: Code, say: '“code” … “end code”' },
-      { symbol: '[ ]( )', name: 'A link', typed: '[Glyph](https://attack.fm/glyph)', words: 'Glyph', looks: 'link', icon: Link },
+      { symbol: '[ ]( )', name: 'A link', typed: '[Glyph](https://attack.fm/glyph)', words: 'Glyph', looks: 'link', icon: Link, say: '“link our site to attack dot fm end link”' },
       { symbol: '#', name: 'A tag', typed: '- [ ] Ship the pricing page #web #launch', words: '#web', looks: 'tag', icon: Hash, say: '“hashtag web”' },
     ],
   },
@@ -145,7 +149,7 @@ const OWN: MarkGroup[] = [
       { symbol: '-', name: 'A list', typed: '- Oat milk\n- Rye bread', words: 'Oat milk', looks: 'bullet', icon: List, say: '“bullet point”' },
       { symbol: '1.', name: 'In order', typed: '1. Unplug it\n2. Wait a minute', words: 'Unplug it', looks: 'number', icon: ListOrdered, say: '“number one”, “first”' },
       { symbol: '- [ ]', name: 'A to-do', typed: '- [ ] Book the cabin', words: 'Book the cabin', looks: 'todo', icon: ListTodo, say: '“remember to”, “check box”' },
-      { symbol: '- [x]', name: 'Done', typed: '- [x] Call Sam', words: 'Call Sam', looks: 'done', icon: SquareCheckBig },
+      { symbol: '- [x]', name: 'Done', typed: '- [x] Call Sam', words: 'Call Sam', looks: 'done', icon: SquareCheckBig, say: '“done task: …”' },
       { symbol: '- ( )', name: 'A choice', typed: 'Where do we stay?\n- ( ) Tent\n- (x) Cabin', words: 'Cabin', looks: 'choice', icon: CircleDot, say: '“option: tent”, “picked option: cabin”' },
       { symbol: '[ / ]', name: 'A counter', typed: '- Water [3/8]', words: '3/8', looks: 'counter', icon: Gauge, say: '“counter three of eight”' },
       { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator, say: '“calculate: four fifty plus one twenty”' },
@@ -182,6 +186,7 @@ const OWN: MarkGroup[] = [
         words: 'ship-page',
         looks: 'anchor',
         icon: Anchor,
+        say: '“anchor ship page end anchor”',
       },
       {
         symbol: '[[#^ ]]',
@@ -190,25 +195,27 @@ const OWN: MarkGroup[] = [
         words: 'ask-sam',
         looks: 'itemRef',
         icon: Link,
+        say: '“item link ask Sam end link”',
       },
-      { symbol: '[^ ]', name: 'A footnote', typed: 'four hundred[^sam]\n\n[^sam]: Sam said so.', words: 'four hundred', looks: 'foot', icon: Asterisk, note: 'Sam said so.' },
+      { symbol: '§§', name: 'The bookmark', typed: 'the deposit is four hundred §§', words: 'the deposit is four hundred', looks: 'bookmark', icon: Bookmark, note: 'The note opens here. Tap the bookmark button to move it to the line you are on.', say: '“… bookmark this”' },
+      { symbol: '[^ ]', name: 'A footnote', typed: 'four hundred[^sam]\n\n[^sam]: Sam said so.', words: 'four hundred', looks: 'foot', icon: Asterisk, note: 'Sam said so.', say: '“footnote Sam said so end footnote”' },
     ],
   },
   {
     title: 'Raised and lowered',
     lead: 'Around one part of a word, the way the rest of markdown writes them.',
     rows: [
-      { symbol: '^ ^', name: 'Raised', typed: 'the 2^nd^ of June', words: 'nd', looks: 'sup', icon: Superscript },
-      { symbol: '~ ~', name: 'Lowered', typed: 'H~2~O', words: '2', looks: 'sub', icon: Subscript },
+      { symbol: '^ ^', name: 'Raised', typed: 'the 2^nd^ of June', words: 'nd', looks: 'sup', icon: Superscript, say: '“superscript” … “end superscript”' },
+      { symbol: '~ ~', name: 'Lowered', typed: 'H~2~O', words: '2', looks: 'sub', icon: Subscript, say: '“subscript” … “end subscript”' },
     ],
   },
   {
     title: 'Blocks',
     lead: 'A few lines that work together.',
     rows: [
-      { symbol: ':', name: 'A definition', typed: 'Deposit\n: what you pay up front', words: 'what you pay up front', looks: 'definition', icon: Text, note: 'Deposit' },
-      { symbol: '$', name: 'Maths', typed: 'when $x^2 + y$ holds', words: '$x^2 + y$', looks: 'maths', icon: Sigma },
-      { symbol: ': :', name: 'An emoji', typed: 'shipped :tada:', words: '🎉', looks: 'emoji', icon: Sticker },
+      { symbol: ':', name: 'A definition', typed: 'Deposit\n: what you pay up front', words: 'what you pay up front', looks: 'definition', icon: Text, note: 'Deposit', say: '“define deposit as what you pay up front”' },
+      { symbol: '$', name: 'Maths', typed: 'when $x^2 + y$ holds', words: '$x^2 + y$', looks: 'maths', icon: Sigma, say: '“maths x squared plus y end maths”' },
+      { symbol: ': :', name: 'An emoji', typed: 'shipped :tada:', words: '🎉', looks: 'emoji', icon: Sticker, say: '“emoji party popper”' },
       {
         symbol: '| |',
         name: 'A table',
@@ -219,7 +226,7 @@ const OWN: MarkGroup[] = [
         say: '“Glyph, add a table to this note”',
       },
       { symbol: '![ ]( )', name: 'A picture', typed: '![A cassette](image/tape.jpg)', words: 'A cassette', looks: 'picture', icon: Image },
-      { symbol: '```', name: 'A block of code', typed: '```js\nconst note = "hello";\n```', words: 'const note = "hello";', looks: 'fence', icon: SquareCode },
+      { symbol: '```', name: 'A block of code', typed: '```js\nconst note = "hello";\n```', words: 'const note = "hello";', looks: 'fence', icon: SquareCode, say: '“code block in bash” … “end code block”' },
       {
         symbol: '[! ]',
         name: 'A callout',
@@ -228,7 +235,15 @@ const OWN: MarkGroup[] = [
         looks: 'callout',
         icon: Info,
         note: 'NOTE',
-        say: '“callout: …”, “warning callout: …”',
+        say: '“info box: …”, “warning callout: …”',
+      },
+      {
+        symbol: '```mermaid',
+        name: 'A diagram',
+        typed: '```mermaid\nflowchart TD\n  A[Speak] --> B[Note]\n  B --> C[Board]\n```',
+        words: 'flowchart TD',
+        looks: 'diagram',
+        icon: Workflow,
       },
       {
         symbol: '```board',
@@ -237,6 +252,7 @@ const OWN: MarkGroup[] = [
         words: 'ship-page',
         looks: 'board',
         icon: LayoutGrid,
+        say: '“Glyph, make this a board”',
       },
     ],
   },
@@ -268,6 +284,7 @@ export function markGroups(): MarkGroup[] {
     looks: 'note',
     icon: Info,
     note: 'Sam said 400',
+    say: '“… end unsure, note Sam said 400, end note”',
   };
   return [...OWN, { title: 'Glyph’s own', lead: 'Marks the app adds, each from a plugin you can switch off.', rows: [...rows, noted] }];
 }

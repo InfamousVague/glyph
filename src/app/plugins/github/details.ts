@@ -155,12 +155,5 @@ export const githubDetails: MarkDetailsProvider = {
   },
 };
 
-/** For the tests: forgets everything read, so each one starts clean. */
-export function forgetIssues(): void {
-  known.clear();
-  queue.length = 0;
-  restored = false;
-}
-
 /** Turns GitHub's answer into what a card shows, without a request: for the tests. */
 export const detailsFromRaw = (raw: Parameters<typeof asIssue>[0], owner: string, repo: string): MarkDetails => detailsOf(asIssue(raw, owner, repo));

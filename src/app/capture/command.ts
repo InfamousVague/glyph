@@ -39,7 +39,7 @@ const KEYWORD =
 /**
  * What base.en writes for "Glyph" that is a word of its own: "Life. Add eggs to my list", "Live, new note", "Head
  * life, put call Sam on the work list". Twelve synthesised voices were run through the phone's model saying
- * "Glyph, …"; half came back as one of these, and the voice tutorial's command lessons could not be passed. They are
+ * "Glyph, …"; half came back as one of these. They are
  * ordinary words, so one only counts at the very start of a phrase, followed by a stop or a comma, and only when what
  * follows reads as a command (`findSoundAlike`); "We climbed the cliff at dawn" and "Life is short" stay words.
  */

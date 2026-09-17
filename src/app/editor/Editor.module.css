@@ -194,6 +194,10 @@
 .taskMarker {
   color: var(--glacier-accent-text);
   font-weight: var(--glacier-font-weight-medium);
+  /* One width ticked or not: in the prose face `[x]` is wider than `[ ]`, and the words beside it jumped on a tap. */
+  font-family: var(--glacier-font-mono);
+  /* A tap on the box ticks it (editor/taskToggle.ts), so a pointer says so where there is a cursor to say it to. */
+  cursor: pointer;
 }
 
 /*

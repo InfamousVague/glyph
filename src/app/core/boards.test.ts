@@ -9,6 +9,9 @@ import {
   lanesOf,
   matchLane,
   moveToLane,
+  nearAnchor,
+  wordsEnd,
+  withoutCard,
   BOARD_HEIGHT,
   boardsIn,
   cardText,
@@ -20,6 +23,7 @@ import {
   isItemLine,
   itemAt,
   itemOnLine,
+  itemWords,
   itemsIn,
   listAround,
   moveCard,
@@ -30,6 +34,8 @@ import {
   refFor,
   refsIn,
   setItemDone,
+  settleBoards,
+  settleColumns,
   withAnchor,
   withBoardHeight,
   writeBoard,
@@ -56,6 +62,22 @@ describe('a board in markdown', () => {
     expect(columns.map((c) => c.name)).toEqual(['To do', 'In progress', 'Done']);
     expect(columns[0]?.cards).toEqual(['ship-page', 'email-list']);
     expect(columns[2]?.cards).toEqual(['pick-date']);
+  });
+
+  it('gives an id in two lanes to the first of them, so a card is never drawn twice', () => {
+    const doc = '```board\nTo do: alpha, beta\nDoing: alpha\nDone:\n```\n\n- [ ] Alpha ^alpha\n- [ ] Beta ^beta\n';
+    const columns = boardsIn(doc)[0]!.columns;
+    expect(columns.map((column) => column.cards)).toEqual([['alpha', 'beta'], [], []]);
+    // Written back, the note says what the board shows: the second mention is gone, not drawn in a lane of its own.
+    expect(writeBoard(columns)).toBe('To do: alpha, beta\nDoing:\nDone:');
+  });
+
+  it('reads a lane id written as words when the note has that anchor, and leaves other words alone', () => {
+    const doc = '```board\nTo do: Fix Login, ^Add Controls To\nDoing: Sam to reply\n```\n\n- [ ] Fix login ^fix-login\n- [ ] Add controls ^add-controls-to\n';
+    const columns = boardsIn(doc)[0]!.columns;
+    expect(columns.map((column) => column.cards)).toEqual([['fix-login', 'add-controls-to'], []]);
+    // An id no item answers is not made up out of words after the colon; a plain anchor still is, and shows as missing.
+    expect(boardsIn('```board\nTo do: ship-page\n```\n')[0]?.columns[0]?.cards).toEqual(['ship-page']);
   });
 
   it('keeps an empty column, joins a name said twice, and ignores what is not an anchor', () => {
@@ -279,6 +301,44 @@ describe('putting a list item on a board', () => {
     expect(added.id).toBe('ask-sam-about');
     expect(added.line?.text).toBe('- Ask Sam about the copy ^ask-sam-about');
     expect(added.column).toBe('To do');
+  });
+
+  it('uses the board its own list is already on, not the nearest one above', () => {
+    // Two boards: the list at the foot belongs to the second, though the first is also above it.
+    const doc = [
+      '```board',
+      'To do: alpha',
+      'Done:',
+      '```',
+      '',
+      '- [ ] Alpha ^alpha',
+      '',
+      '## Later',
+      '',
+      '```board',
+      'Next: beta',
+      'Done:',
+      '```',
+      '',
+      '- [ ] Beta ^beta',
+      '- [ ] Gamma',
+      '',
+    ].join('\n');
+    const added = addToBoard(doc, 16)!;
+    expect(added.fence).toMatchObject({ from: 10, to: 13 });
+    expect(added.fence.body).toBe('Next: beta, gamma\nDone:');
+    expect(added.column).toBe('Next');
+  });
+
+  it('goes in beside the neighbour it follows in the list, keeping the list\u2019s order', () => {
+    const doc = ['```board', 'To do: one, three', 'Done:', '```', '', '- [ ] One ^one', '- [ ] Two', '- [ ] Three ^three', ''].join('\n');
+    // Two sits between one and three in the list, so its card goes between theirs.
+    expect(addToBoard(doc, 7)?.fence.body).toBe('To do: one, two, three\nDone:');
+  });
+
+  it('is not offered for an item already on the board', () => {
+    expect(addToBoard(note, 9)).toBeNull();
+    expect(addToBoard(note, 1)).toBeNull();
   });
 
   it('puts a ticked item straight in Done, and keeps the anchor it has', () => {
@@ -696,5 +756,131 @@ describe('lanes, by voice', () => {
     const renamed = doc.replace('In progress:', 'Doing:');
     expect(moveToLane(renamed, 'pricing page', lanes[1]!)).toBeNull();
     expect(addToLane(renamed, lanes[1]!, 'Anything')).toBeNull();
+  });
+});
+
+describe('a card whose anchor has slipped', () => {
+  // Matt's board named `blur-bottom-swimlanes`, and the line had become `^blur-bottom-swimlaness`.
+  const url = 'https://app.notion.com/p/the-blur-3de5';
+  const doc = [
+    '```board height=19',
+    'To do: we-should-show, blur-bottom-swimlanes',
+    'Done: switching',
+    '```',
+    '',
+    '- [x] Switching workspaces scrolls smoothly ^switching',
+    '- [ ] we should show the bookmark as a physical symbol ^we-should-show',
+    `- [ ] the blur at the bottom of the swimlanes should be the wisp effect [notion](${url}) ^blur-bottom-swimlaness`,
+  ].join('\n');
+
+  it('shows the item it meant, when exactly one item no board names is a slip of it', () => {
+    const board = boardsIn(doc)[0]!;
+    const cards = cardsOf(board.columns, itemsIn(doc));
+    expect(cards.map((card) => [card.id, card.item?.id ?? null])).toEqual([
+      ['we-should-show', 'we-should-show'],
+      ['blur-bottom-swimlanes', 'blur-bottom-swimlaness'],
+      ['switching', 'switching'],
+    ]);
+    expect(cards[1]?.item?.text).toBe(`the blur at the bottom of the swimlanes should be the wisp effect [notion](${url})`);
+  });
+
+  it('takes nothing a board already names, nothing when two items could be it, and nothing for a short anchor', () => {
+    const named = doc.replace('Done: switching', 'Done: switching, blur-bottom-swimlaness');
+    const board = boardsIn(named)[0]!;
+    expect(cardsOf(board.columns, itemsIn(named)).find((card) => card.id === 'blur-bottom-swimlanes')?.item).toBeNull();
+
+    const twice = `${doc}\n- [ ] another ^blur-bottom-swimlanez`;
+    expect(cardsOf(boardsIn(twice)[0]!.columns, itemsIn(twice))[1]?.item).toBeNull();
+
+    const short = '```board\nTo do: abc\n```\n\n- [ ] Thing ^abcd';
+    expect(cardsOf(boardsIn(short)[0]!.columns, itemsIn(short))[0]?.item).toBeNull();
+  });
+
+  it('counts one letter added, dropped or changed, or up to two more at the end, as a slip', () => {
+    expect(nearAnchor('blur-bottom-swimlanes', 'blur-bottom-swimlaness')).toBe(true);
+    expect(nearAnchor('ship-page', 'ship-pages-')).toBe(true);
+    expect(nearAnchor('ship-page', 'shp-page')).toBe(true);
+    expect(nearAnchor('ship-page', 'ship-paje')).toBe(true);
+    expect(nearAnchor('ship-page', 'ship-page')).toBe(false);
+    expect(nearAnchor('ship-page', 'ship-pages-now')).toBe(false);
+    expect(nearAnchor('ship-page', 'shop-paje')).toBe(false);
+  });
+});
+
+describe('a card taken off the board', () => {
+  it('goes from every lane and leaves the item where it is', () => {
+    const doc = '```board\nTo do: milk, eggs\nDone:\n```\n\n- [ ] Milk ^milk\n- [ ] Eggs ^eggs\n';
+    const columns = boardsIn(doc)[0]!.columns;
+    expect(writeBoard(withoutCard(columns, 'milk'))).toBe('To do: eggs\nDone:');
+    // An id the board does not have changes nothing.
+    expect(writeBoard(withoutCard(columns, 'bread'))).toBe(writeBoard(columns));
+    expect(itemsIn(doc).map((item) => item.id)).toEqual(['milk', 'eggs']);
+  });
+});
+
+describe('the ticks and the lanes', () => {
+  const note = ['```board', 'To do: milk, eggs, bread', 'Doing:', 'Done:', '```', '', '- [ ] Milk ^milk', '- [x] Eggs ^eggs', '- [x] Bread ^bread', ''].join('\n');
+
+  it('writes the ticked cards where the board draws them: in Done', () => {
+    expect(settleBoards(note)).toEqual([{ from: 1, to: 5, body: 'To do: milk\nDoing:\nDone: eggs, bread' }]);
+  });
+
+  it('moves a box being ticked, and takes a box being cleared out of Done', () => {
+    expect(settleBoards(note, new Map([[7, true]]))[0]?.body).toBe('To do:\nDoing:\nDone: milk, eggs, bread');
+    const settled = '```board\nTo do: milk\nDoing:\nDone: eggs, bread\n```\n\n- [ ] Milk ^milk\n- [x] Eggs ^eggs\n- [x] Bread ^bread\n';
+    expect(settleBoards(settled, new Map([[8, false]]))[0]?.body).toBe('To do: milk, eggs\nDoing:\nDone: bread');
+    // A batch, the way a set of tasks arrives from Notion at once.
+    expect(
+      settleBoards(
+        settled,
+        new Map([
+          [8, false],
+          [9, false],
+        ]),
+      )[0]?.body,
+    ).toBe('To do: milk, eggs, bread\nDoing:\nDone:');
+  });
+
+  it('says nothing when there is nothing to move, and leaves a board with no Done lane alone', () => {
+    const settled = '```board\nTo do: milk\nDone: eggs\n```\n\n- [ ] Milk ^milk\n- [x] Eggs ^eggs\n';
+    expect(settleBoards(settled)).toEqual([]);
+    expect(settleBoards('```board\nTo do: milk\nNext: eggs\n```\n\n- [ ] Milk ^milk\n- [x] Eggs ^eggs\n')).toEqual([]);
+  });
+
+  it('leaves the card a person has just moved where they put it', () => {
+    const board = boardsIn(note)[0]!;
+    const items = itemsIn(note);
+    // Bread dragged into Doing: it stays there, and the other ticked card still settles into Done.
+    const moved = putCard(board.columns, 'bread', 1);
+    expect(writeBoard(settleColumns(moved, items, 'bread'))).toBe('To do: milk\nDoing: bread\nDone: eggs');
+    expect(writeBoard(settleColumns(moved, items))).toBe('To do: milk\nDoing:\nDone: eggs, bread');
+  });
+});
+
+describe('where an item\u2019s words end', () => {
+  it('is before its mark, counters and anchor, so a caret there types on the words', () => {
+    const url = 'https://app.notion.com/p/x';
+    const line = `- [ ] Pack socks [3/8] [notion](${url}) ^pack-socks`;
+    expect(line.slice(0, wordsEnd(line))).toBe('- [ ] Pack socks');
+    expect(wordsEnd('- [ ] Ship it ^ship-it  ')).toBe('- [ ] Ship it'.length);
+    expect(wordsEnd(`- [ ] Old order ^old [notion](${url})`)).toBe('- [ ] Old order'.length);
+    // A superscript at the end is words, and so is a line that is not an item.
+    expect(wordsEnd('- E = mc^2^')).toBe('- E = mc^2^'.length);
+    expect(wordsEnd('Just words ^not-an-item')).toBe('Just words ^not-an-item'.length);
+    // An item with no words yet: the caret goes after its box.
+    expect(wordsEnd('- [ ] ^item')).toBe('- [ ] '.length);
+  });
+
+  it('is before the bookmark too, which no card, anchor or lane match says', () => {
+    const url = 'https://app.notion.com/p/x';
+    const line = `- [ ] Ship it §§ [notion](${url}) ^ship-it`;
+    expect(line.slice(0, wordsEnd(line))).toBe('- [ ] Ship it');
+    expect(wordsEnd('- [ ] §§')).toBe('- [ ] '.length);
+    expect(itemOnLine(line)?.text).toBe(`Ship it [notion](${url})`);
+    expect(itemWords('- [ ] Ship it §§ ^ship-it')).toBe('Ship it');
+    expect(cardText('Ship it §§')).toBe('Ship it');
+    expect(anchorFor('Ship the page §§', [])).toBe('ship-page');
+    // Two section signs in the middle of words are words.
+    expect(itemWords('- See §§12 ^see')).toBe('See §§12');
   });
 });

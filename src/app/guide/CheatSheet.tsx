@@ -16,8 +16,7 @@ import styles from './CheatSheet.module.css';
  * smoke and the code block the real highlighter).
  *
  * The rows are `guide/marks.ts` still, so a plugin switched off is not promised here and a new mark arrives on its
- * own. The voice cues live where they are taught, one row above this in Settings > Help: the tutorial says them out
- * loud and ticks them off, which a table cannot do.
+ * own. The voice cues live where they are taught, in Settings > Help > How to talk to Glyph (guide/phrases.ts).
  */
 export function CheatSheet() {
   const groups = useMemo(() => markGroups(), []);

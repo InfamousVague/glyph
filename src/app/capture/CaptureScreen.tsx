@@ -22,7 +22,7 @@ import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandCommand } from './understand.ts';
 import { appendBlock } from './table.ts';
 import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
-import { boardFrom } from '../core/boards.ts';
+import { boardFrom, lanesOf } from '../core/boards.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { CaptureContext } from '../plugins/types.ts';
@@ -673,7 +673,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           const recent = candidates.current.find((c) => c.id !== noteId.current)?.title ?? null;
           const keyword = commandWordOn();
           const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Glyph, ${t.say.charAt(0).toLowerCase()}${t.say.slice(1)}` } : t));
-          const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword }), ...pluginTips];
+          const lane = targetRef.current ? (lanesOf(targetRef.current.body)[1] ?? lanesOf(targetRef.current.body)[0])?.name ?? null : null;
+          const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane }), ...pluginTips];
           return list[tipTurn.current % list.length] ?? null;
         });
       }

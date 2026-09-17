@@ -13,7 +13,22 @@
   /* The notch and home-indicator insets, named once so every surface that
      hugs an edge reads the same number. Real values only arrive because the
      viewport meta says viewport-fit=cover. */
-  --app-safe-top: env(safe-area-inset-top, 0px);
+  --app-inset-top: env(safe-area-inset-top, 0px);
+  /*
+   * The app's own tab bar (.app-tabBar, notes/NoteTabs.tsx), 0 until a route
+   * turns it on (`data-tabs`). Matt: "I want the tab nav to be the same height
+   * and dimensions across every route so make it part of the main app layout".
+   * It used to be a row each screen's header carried, which made it as tall as
+   * that screen felt like being.
+   */
+  --app-tabs: 0px;
+  /*
+   * What every screen's header clears at the top: the notch or the Mac's title
+   * bar, and the tab bar under it. Headers pad by this and the wisp measures
+   * them, so the bar arriving moves every screen down without one of them
+   * knowing it exists.
+   */
+  --app-safe-top: calc(var(--app-inset-top) + var(--app-tabs));
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
   --app-safe-left: env(safe-area-inset-left, 0px);
   --app-safe-right: env(safe-area-inset-right, 0px);
@@ -145,7 +160,43 @@ body {
  * click zooms it.
  */
 :root[data-titlebar='overlay'] {
-  --app-safe-top: 44px;
+  --app-inset-top: 44px;
+}
+
+/*
+ * The app's tab bar, on the routes that have one (App.tsx sets `data-tabs`):
+ * the open notes and the way to the rest of them, in one row of one height,
+ * the same on the list as on a note. It sits under the notch and over the
+ * screen's own header pane, which paints the glass behind it - the pane
+ * reaches the top of the phone because its padding starts below the bar.
+ */
+:root[data-tabs='on'] {
+  /* A little taller than the row it holds, so the tabs sit in the bar rather than against its top edge (Matt: "add
+     just a bit more padding around the tab bar ... the active tabs are a bit close to the top"). */
+  --app-tabs: 3rem;
+}
+
+.app-tabBar {
+  position: fixed;
+  inset-block-start: var(--app-inset-top);
+  inset-inline: 0;
+  z-index: 5;
+  block-size: var(--app-tabs);
+  display: flex;
+  align-items: center;
+  padding-block-start: var(--glacier-space-2);
+  /* A step wider than the page's gutter: the sidebar button's own ground shows when a mouse is over it, and at the
+     gutter exactly that ground ran into the edge of the window (Matt: "the nav bar button is quite close to the
+     edges when hovered"). */
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter) + var(--glacier-space-1))
+    calc(var(--app-safe-right, 0px) + var(--app-gutter) + var(--glacier-space-1));
+  /* Nothing of its own to paint: the header pane under it is the glass, and its own children take the taps. */
+  pointer-events: none;
+}
+
+.app-tabBar > * {
+  pointer-events: auto;
+  min-inline-size: 0;
 }
 
 .app-dragBar {
@@ -158,7 +209,7 @@ body {
   inset-block-start: 0;
   inset-inline: 0;
   z-index: 41;
-  block-size: var(--app-safe-top);
+  block-size: var(--app-inset-top);
   -webkit-user-select: none;
   user-select: none;
 }
@@ -168,7 +219,7 @@ body {
   inset-block-start: 0;
   inset-inline: 0;
   z-index: 40;
-  block-size: var(--app-safe-top);
+  block-size: var(--app-inset-top);
   pointer-events: none;
   background: linear-gradient(to bottom, var(--glacier-bg) 0, var(--glacier-bg) 78%, color-mix(in srgb, var(--glacier-bg) 0%, transparent) 100%);
 }
@@ -263,12 +314,25 @@ body:has(.app-headerPane) .app-statusScrim {
 }
 
 /*
- * Icons filled the way AttackFM fills them: the outline in ink and its inside a third of the same colour, so a
- * muted icon fills muted and a paper icon fills paper (Matt: "use the filled style we use on AttackFM", then "the
- * icon fill should be slightly opaque, not solid"). `.lucide` is the kit's icon internals showing through
- * (@glacier/icons proxies lucide). Zero specificity, so any icon that colours its own fill (the guide's flames) wins.
+ * Icons are outlines, with a wash inside the few that are one closed shape.
+ *
+ * Every icon used to carry the wash (Matt: "use the filled style we use on AttackFM", then "the icon fill should be
+ * slightly opaque, not solid"), but an icon is several shapes, and a fill set on the icon fills all of them: the
+ * mic's capsule and the arc around it, the cog's body and the hole in its middle, a shield and the tick inside it,
+ * a page and its lines. The inside doubled up and the detail went (Matt: "clean up icons in glacier UI so that
+ * icons like the microphone's fill doesn't double up on the inside stuff").
+ *
+ * So the wash is kept only where there is nothing inside to lose. Of the icons Glyph draws, these are the ones
+ * whose whole shape is a single closed silhouette; every other icon is its outline, which is what lucide draws by
+ * default. `.lucide` is the kit's icon internals showing through (@glacier/icons proxies lucide), and both rules
+ * have zero specificity, so an icon that colours its own fill (the guide's flames, a bookmark that is set) wins.
  */
 :where(svg.lucide) {
+  fill: none;
+}
+
+:where(svg.lucide-bookmark, svg.lucide-play, svg.lucide-puzzle, svg.lucide-square, svg.lucide-thermometer),
+:where(svg.lucide-pause, svg.lucide-layout-grid, svg.lucide-ellipsis-vertical) {
   fill: color-mix(in srgb, currentColor 33%, transparent);
 }
 

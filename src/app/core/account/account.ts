@@ -198,13 +198,6 @@ export async function newRecoveryCodes(password: string, deps: Deps = live): Pro
   return { codes: sheet.codes };
 }
 
-/** How many recovery codes are left unused. */
-export async function recoveryCodesLeft(deps: Deps = live): Promise<number> {
-  const session = state.session;
-  if (!session) return 0;
-  return (await call<{ left: number }>('GET', 'recovery', { token: session.token, fetcher: deps.fetcher })).left;
-}
-
 async function openWithPassword(session: Session, password: string, deps: Deps): Promise<CryptoKey> {
   const { wrapped } = await call<{ wrapped: string }>('GET', 'keys', { token: session.token, fetcher: deps.fetcher });
   const { wrapKey } = await derive(password, passwordSalt(session.handle), deps.rounds);

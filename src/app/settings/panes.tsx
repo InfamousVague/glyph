@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, FileText, GraduationCap, LayoutGrid, ListChecks, Terminal } from '@glacier/icons';
 import { SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
-import { setPreferences, usePreferences, type MotionSpeed, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
+import { setPreferences, usePreferences, type Density, type MotionSpeed, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { hapticsAvailable, setHapticsPref, useHapticsPref, fireNativeHaptic } from '../core/haptics.ts';
 import { describeBuild, sourceHost, STAGING, type Updates } from '../core/ota.ts';
@@ -25,6 +25,21 @@ const TEXT_SIZES: { value: TextSize; label: string }[] = [
   { value: 'large', label: 'Large' },
   { value: 'larger', label: 'Larger' },
   { value: 'largest', label: 'Largest' },
+];
+
+/**
+ * How much air the app gives itself: the kit's own density stops, which Glyph has always stamped on the root and
+ * never offered (Matt: "Bring over preferences from Attack.FM including themes, density options and more, since we
+ * use the same UI kit the settings should port straight over"). Nothing to port but the row: the preference, the
+ * attribute and the tokens were already here. Two stops either side of Comfortable, which is the kit's own default
+ * and Glyph's.
+ */
+const DENSITIES: { value: Density; label: string }[] = [
+  { value: 'extra-compact', label: 'Tightest' },
+  { value: 'compact', label: 'Tight' },
+  { value: 'comfortable', label: 'Comfortable' },
+  { value: 'spacious', label: 'Roomy' },
+  { value: 'more-space', label: 'Roomiest' },
 ];
 
 const TYPEFACES: { value: Typeface; label: string }[] = [
@@ -65,6 +80,23 @@ export function TypePane() {
               options={TEXT_SIZES}
               value={prefs.textSize}
               onValueChange={(value) => setPreferences({ textSize: value as TextSize })}
+            />
+          }
+        />
+      </PaneSection>
+      <PaneSection title="Spacing">
+        <SettingRow
+          label="How much air"
+          hint="The padding and gaps of everything the app draws. The words keep their own size."
+          layout="stacked"
+          control={
+            <SegmentedControl
+              aria-label="Spacing"
+              fullWidth
+              size="sm"
+              options={DENSITIES}
+              value={prefs.density}
+              onValueChange={(value) => setPreferences({ density: value as Density })}
             />
           }
         />
@@ -457,7 +489,7 @@ export function AboutPane({
   onGuide,
   onSample,
   onBoard,
-  onTutorial,
+  onAcademy,
   onCheatSheet,
   onDeveloper,
 }: {
@@ -465,7 +497,7 @@ export function AboutPane({
   onGuide: () => void;
   onSample: () => void;
   onBoard: () => void;
-  onTutorial: () => void;
+  onAcademy: () => void;
   onCheatSheet: () => void;
   onDeveloper: () => void;
 }) {
@@ -492,9 +524,9 @@ export function AboutPane({
       <PaneSection title="Help">
         <SettingRow
           icon={<GraduationCap size={20} />}
-          label="Voice tutorial"
-          hint="Every voice cue and command, said out loud and ticked off, then a few tips and tricks. A few minutes."
-          onPress={() => onTutorial()}
+          label="Glyph Academy"
+          hint="Markdown taught a mark at a time: it shows you one, you type your own, and you watch it format underneath."
+          onPress={() => onAcademy()}
         />
         <SettingRow
           icon={<BookOpen size={20} />}

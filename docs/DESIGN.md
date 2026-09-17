@@ -2061,7 +2061,12 @@ show the tape so we can add or remove audio there."
   starts a fresh file instead of landing after the removed audio.
 
 
-## The voice tutorial: every cue, then tips (2026-09-15)
+## The voice tutorial: every cue, then tips (2026-09-15; removed 2026-09-17)
+
+Removed at Matt's word ("remove the voice tutorial for now its too long"). The cues it taught are in Settings > Help >
+How to talk to Glyph (`guide/phrases.ts`), and the voice test suite (`voice-tests/`, `capture/voiceSuite.ts`) now
+checks every one of them against recorded speech, which is what the tutorial's lessons had come to be used for. What
+follows is how it was.
 
 Matt asked for a tutorial "at any time for the commands you can say in the app" that marks off lesson by lesson, and
 then, on what it was missing: "just learning the voice to markdown commands and tips and tricks".
@@ -2341,10 +2346,9 @@ image; it now carries the rest of what a person expects of a line, and two of Gl
 
 - **Duplicate, Delete, Move up, Move down** (`editor/format.ts`). With words selected they work on the selection;
   with none, on the line the caret is on, which is what a finger has usually just tapped.
-- **To board** (`core/boards.ts` `addToBoard`, docs/BOARDS.md). On a list item in a note that holds a board, this
-  gives the line an anchor made from its own words and adds the card to the nearest board above, in Done when the item
-  is already ticked. Nothing shows on a line that is not a list item, in a note with no board, or on an item already
-  on one.
+- **Add to board** (`core/boards.ts` `addToBoard`, docs/BOARDS.md). On a list item in a note that holds a board, this
+  gives the line an anchor made from its own words and adds the card, in Done when the item is already ticked.
+  Nothing shows on a line that is not a list item, in a note with no board, or on an item already on one.
 - **Send** is the plugin's own item action, the one a swipe on the item does (a Notion board, a GitHub issue), so the
   same thing can be done without knowing about the swipe.
 
@@ -2379,10 +2383,9 @@ itself reversed the pause of 2026-09-13.
 - **`prefs.commandWord` stays.** It does a second job: it is what makes a spoken command need "Glyph" in front of it
   *while a recording is running* (`capture/command.ts`), which is not an open microphone and is what keeps "Glyph, add
   buy milk to HelloTrade" apart from a sentence about Glyph. Only the listening is out.
-- **Two things open a microphone now.** The recorder (`capture/CaptureScreen.tsx`, memo mode included, since a memo is
-  that screen in another mode) and the voice tutorial - and the tutorial now opens it for a lesson that is practised
-  and lets it go between them (`tutorial/useListening.ts` takes an `on`), rather than holding it for the whole
-  tutorial as it did.
+- **One thing opens a microphone.** The recorder (`capture/CaptureScreen.tsx`, memo mode included, since a memo is
+  that screen in another mode). The voice tutorial, which opened it for its practice lessons, was removed on
+  2026-09-17 (see below).
 - **The guide's rings stopped listening too.** `guide/micLevel.ts` opened the microphone on the side-key page so the
   rings could answer a voice; a page that is only read is no place for it, and the rings keep their resting beat.
   The file is gone.
@@ -2409,3 +2412,160 @@ apps share, so three things are shaped for it:
   and with nothing open the pane says so and offers Speak and New note (notes/NoNoteOpen.tsx). Recording, review,
   sorting and the tutorial still take the whole window.
 
+## Scrolling past a board, its handle, and smoke in its lanes (2026-09-16)
+
+Three open cards on the Glyph Tasks board, all in `editor/boards.ts`:
+
+- **Scrolling past boards stopped.** Matt: "scrolling past boards is glitchy and stops scroll momentum". There were
+  three causes:
+  - **The height before drawing.** CodeMirror sizes what it has not drawn by the widget's `estimatedHeight`, and
+    the board had none, so it counted as one line (31 px). When a board came into view from above, the editor
+    moved the page by the difference (345 px on the test note) to keep its place. On Android that move ends a
+    fling. The widget now answers the height it was last drawn at, kept by a hash of what it shows in
+    `glyph-board-heights`, or a height worked out from its lanes and the length of its cards' words. Measured
+    cold, the guess came within 0.03 px of the drawn board and the page did not move.
+  - **Margins.** The board's top margin and the wrapper's bottom margin also stood outside the border box the
+    editor measures, so every line under a board was 16 px from where the editor had it. They are padding now.
+  - **Lanes that kept the finger.** Lanes stopped at a cap, scrolled, and had `overscroll-behavior: contain`, so a
+    fling that landed on a full lane scrolled the lane and stopped the note dead. A lane with no set height now
+    shows every card. A lane with a set height scrolls and passes the finger on at its ends. The board has
+    `overflow-y: hidden`, since a sideways scroller is a vertical one too. A held card near the screen's top or
+    foot rolls the note, because the lane no longer rolls itself.
+- **The handle is the plain grip again.** Matt: "the resize handle under the board changed and doesnt match the
+  simplistic version anymore". The tab with chevrons, a ring and a shadow is back to Glacier's grip pill, 1.5 rem by
+  6 px at 45% ink. It turns white when held.
+- **Lane feet smoke.** Matt: "the blur at the bottom of the swimlanes should be the wisp effect we use on text".
+  - The page's `#wispEdge` filter is placed for one view at a time, so a lane can't wear it. `art/wispFoot.ts`
+    makes the foot half of it at a given height, one filter per lane height, shared and kept.
+  - A lane wears it only while it has cards below its foot (`data-more`), over a 1.2 em fade.
+  - The smoke is off with Settings' smoke, with reduced motion and in WebKit, which paints such a filter black.
+    Those keep the fade.
+
+## The board a list is already on (2026-09-17)
+
+- **Ticks and lanes stopped drifting apart.** An item ticked anywhere is DRAWN in the Done lane, but nothing moved its
+  id, so Matt's Task Management note ended with seventeen ids under `To do:` drawing two cards, and he read the fence
+  and asked where the others had gone. Most of those ticks came from Notion, not from taps. A box turned in the list
+  now moves its card in the same edit and the same undo, and any other card whose item is ticked settles at the same
+  time, so a note that has drifted comes right with the next change (`core/boards.ts` `settleBoards`,
+  `settleColumns`; `editor/boards.ts` `settleFences` for editor/taskToggle.ts and editor/doneSync.ts). A card the
+  person has just moved by hand is left where they put it.
+- **Two reader fixes found while looking for that.** An id written into two lanes was read into both, so it was drawn
+  twice in the first and the lane he had put it in drew nothing; it now belongs to the first lane that has it. An id
+  that was not already an anchor (`Fix Login`) was dropped without a word and gone from the note at the next change;
+  it is now read as the anchor it means, but only when the note has an item with that anchor.
+- **Add to board** (Matt: "add an 'add to board' option when other items in the list are in a board already"). The row
+  was called To board and always used the nearest board above, in its first lane. It now uses the board the item's own
+  list is already on, and puts the card beside the neighbour it follows in the list, so the board keeps the list's
+  order. Where it went is said aloud, since the board is often off the screen.
+
+## Glyph Academy (2026-09-17)
+
+Matt: "we need a Glyph Academy section that teaches you markdown then teaches you the extra stuff we have. Build the
+academy section start with just the markdown basics set it up as a live code type thing where it teaches you then you
+type it and see it format below."
+
+- **A lesson is one mark** (`academy/lessons.ts`): a line or two on what it does, an example to look at, something to
+  write of your own, a check, a word of praise and a hint. Thirteen of them in the first chapter, Markdown basics, in
+  teaching order: title, heading, bold, italic, struck through, code, link, list, in order, to-do, quote, dividing
+  line, block of code. Pure, so every lesson's example is a test that its own check passes.
+- **The check is on the mark, not the words.** Any title passes the title lesson; extra lines and other marks are
+  fine, since somebody learning is usually trying things. A lesson can also be skipped.
+- **The live page** (`academy/Playground.tsx`) is the point: a plain field in the typewriter face above - autocorrect
+  and autocapitalising off, or a phone turns `# weekend` into `# Weekend` and the underscores into quotes - and under
+  it the note's own editor, read-only and formatted, redrawn as the words change. The same trick as the cheat sheet's
+  examples (`guide/MarkExample.tsx`): the real marks drawn by the real app, so what is learned is what a note does.
+- **The lesson in hand is held in state, not worked out from what has been learned.** Deriving it meant passing a
+  lesson moved the page on the instant the mark was typed, and the whole point is to stay and watch it format. It is
+  ticked where it stands, Next appears, and nothing is taken away.
+- **Progress is kept** (`glyph-academy`), so it opens at the first lesson not passed, and any lesson can be taken
+  again from the summary. Nothing typed is saved as a note.
+- **The way in** is Settings > About > Help > **Glyph Academy**, where the voice tutorial's row used to be, and a card
+  on the notes list for anyone who has not started (`academy/banner.ts`, `notes/NotesList.tsx`; Matt: "I'd like the
+  academy page to show up on the home screen kinda like the update banner for new users as a call to action banner").
+  It is shown while no lesson has been passed and it has not been put away, so passing one takes it off.
+- The summary points at the cheat sheet for Glyph's own marks - boards, spoilers, callouts, anchors - until their
+  chapter is written, which is the next piece of this.
+
+## Mermaid diagrams, drawn (2026-09-17)
+
+Matt: "Add support for Mermaid charts".
+
+- **A ```mermaid fence is drawn as its diagram** (`editor/mermaid.ts`), the way a table is drawn as a table and a
+  board as a board: the text is what is kept and edited, the drawing steps aside when the caret goes in, and a tap
+  puts it there. The fence is read by hand rather than from the syntax tree, as boards are, and the word has to be
+  the whole info string, so a note *about* mermaids is not a diagram.
+- **Mermaid itself, every diagram type.** The size was put to Matt before it was built: the app is 5.2 MB over the
+  air, mermaid 12 minified is 5.4 MB across 102 chunks, and flowchart plus sequence alone would have been about
+  1.5 MB. He chose everything, so the payload roughly doubles. It is imported the first time a note actually has a
+  diagram, so startup is unchanged, and since the OTA brings every file down to the phone, that import needs no
+  network: diagrams draw offline.
+- **A diagram that cannot be drawn stays as its own text**, in the typewriter face, with one quiet line saying why -
+  the diagram is wrong, or the library never arrived (a browser with no network). No spinner that never ends.
+- **Drawings are cached** by what the diagram says and which way the app is painted, and **heights are remembered**
+  between launches (`glyph-mermaid-heights`), so the editor knows how tall a diagram is before drawing it and the
+  note does not jump as one scrolls into view. That is the same lesson boards taught (docs/BOARDS.md).
+- **A drawn diagram carries its colours inside its picture**, so unlike everything else in the editor it cannot
+  follow a CSS variable: a small view plugin watches the theme setting and the phone's own scheme, and redraws every
+  diagram on the page when either changes. Found by drawing a dark diagram on a light page.
+- The cheat sheet has a row for it (`guide/marks.ts`), which draws a real diagram with the real editor.
+
+## A board's cards get a menu, and the note's stays off them (2026-09-17)
+
+Two cards of Matt's, which are two halves of one thing: "Formatting menu shows up on board unexpectedly" and "Add
+context menu to board items for moving lanes and adding to notion etc."
+
+- **The note's menu is about a line of text, and a drawn board is not one.** Both ways it opens - the phone's own
+  `contextmenu`, and the timed long press for a line with no word under the finger (editor/ContextMenu.tsx) - now
+  ignore a press that lands inside a drawn board or a mermaid diagram. The fence's own lines still have it: tapping
+  a board puts the caret in the fence and the drawing steps aside, and there the menu is a menu about text again.
+- **A card's menu opens from a button, not a press and hold**, because a press and hold is already how a card is
+  picked up to drag. A small **more** beside the chevrons.
+- **It sits in the lane, under its card**, the way the + field sits at the top of a column: nothing to place, and it
+  scrolls with the board. It closes on a choice, on a press anywhere else, and on Escape.
+- **What it offers**: every other lane to move to (through the same `land` a drag uses, so crossing into Done ticks
+  the item and out of it unticks), the tick, the line in the note, what a plugin offers this item, and **Take off the
+  board** (`core/boards.ts` `withoutCard`), which leaves the item exactly where it is in the note.
+- **The plugin row asks by line first.** `cardActions` carries the same two seams the note already uses: the per-line
+  suggestions (editor/suggestions.ts) and, only where a line has no offer, the action a swipe would run by text
+  (editor/swipeItems.ts). A card names an exact line, and glyph-26 pointed out that sending by text alone would send
+  the wrong one of two items that read the same way. Nothing here reaches into a plugin.
+
+## A board holds its height (2026-09-17)
+
+Matt: "Clicking an item to toggle the done state on and off is now super laggy and doesn't actually change the state
+off." Two taps in the same place, and the second one missed.
+
+- **The note moved, not the tick.** A board's lanes are as tall as the tallest lane's cards, so the moment a tick
+  moved a card between lanes the board's own height changed and everything under it jumped - 48 px in the case
+  measured here, in both directions depending on which lane won. The second tap landed on whatever had slid under
+  the finger: the next item, or the board itself. glyph-26 measured it precisely and reproduced the collapse with a
+  raw character change, which proved it was the drawing and not the fence write.
+- **So a board settles its height when it is drawn and holds it** (`pin`, `--cm-board-pin`): ticking, dragging,
+  adding and taking off all leave it where it is, and the lanes scroll inside as a board with a set height does. It
+  is let go when the board is built again - the note reopened, its columns changed - when the line under it is
+  dragged, which writes a real height, or when the words change size, since the pin is in pixels.
+- It is measured in the editor's own measure cycle rather than on an animation frame, so a note opened in a hidden
+  tab pins as soon as it is looked at.
+- No unit test covers it: jsdom gives every box a height of zero, so a layout pin cannot be seen there. It was
+  verified in the browser instead - board height unchanged across a tick, the lines under it not moving, and the
+  second tap landing on the item it was aimed at.
+
+## A colour for a workspace (2026-09-17)
+
+Matt: "add the ability to choose from a swatch of colours for the workspace pill colour".
+
+- **Colour as ink, not as a fill.** The app is grey everywhere by design, so a workspace's colour is the one place
+  colour carries meaning: which workspace a note is in, seen without reading. Six hues and the app's own ink, and a
+  hue is worn by the workspace's pill on the list and by its tag on a note's row.
+- **A name, not a colour, is stored** (`core/workspaces.ts` `WORKSPACE_HUES`, `setWorkspaceHue`). What each hue looks
+  like belongs to the page (ink.css `[data-hue]`), so the swatch can be retuned without touching anybody's
+  workspaces, and a hue from a newer phone reads as ink rather than as a broken colour.
+- **One lightness per paper.** `--app-hue-lift` sits with the grey scale and flips with it - 0.55 on white, 0.78 on
+  black, and flipped again on an inverse surface - so the same six hues read on every ground the app has. That is
+  why the hues are written as `oklch(var(--app-hue-lift) var(--app-hue-chroma) <angle>)` rather than as fixed
+  colours.
+- **The swatch** (`notes/WorkspaceSwatch.tsx`) is a radio group of dots: arrow keys move between them, and the chosen
+  one wears a tick as well as a ring, so it is never colour alone that says which is picked. On a workspace that
+  exists the colour is set as it is tapped, since it is a thing to look at: the pill behind the sheet changes under
+  your finger. A new one carries its colour into the making.
