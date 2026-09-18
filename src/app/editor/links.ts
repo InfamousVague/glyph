@@ -1,6 +1,7 @@
 import { RangeSetBuilder, StateEffect, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
+import { boardsIn, itemsIn } from '../core/boards.ts';
 import { ITEM_TAIL, itemWords, markOf } from '../core/itemLinks.ts';
 import { hasMarkDetails, markNameFor, onMarkDetails, peekMarkDetails, wantMarkDetails, type MarkEntry } from '../core/markDetails.ts';
 import { shortUrl } from '../core/shortUrl.ts';
@@ -179,6 +180,40 @@ function marksInView(view: EditorView): { name: string; url: string }[] {
         }
       }
       pos = line.to + 1;
+    }
+  }
+  return [...marks, ...marksOnBoards(view)];
+}
+
+/**
+ * The marks of the open to-dos on every board on screen.
+ *
+ * A board is drawn as one block in place of its fence (editor/boards.ts), so its lines are not among `visibleRanges`,
+ * and its cards are items written further down the note, usually well out of view. Read only by their own lines, a
+ * board being looked at never learned its tasks were done, so it never moved them (Matt: "a lot of the notion tickets
+ * aren't moved to done"): his board had four cards in To do whose tasks were all Done in Notion, their items sixty
+ * lines below it, and not one was read until they were scrolled to - then all four ticked and went to Done at once.
+ *
+ * Only the cards not ticked yet: what a board shows of a task is whether it is done, and those are the cards that can
+ * move. The rest are read as ever when their own lines are in view. His board holds 66 cards, and reading every one
+ * each minute the note is open would spend a third of what Notion allows Glyph, for four that could change.
+ */
+function marksOnBoards(view: EditorView): { name: string; url: string }[] {
+  const { doc } = view.state;
+  const { viewport } = view;
+  const text = doc.toString();
+  const shown = boardsIn(text).filter((board) => doc.line(board.from).from <= viewport.to && doc.line(board.to).to >= viewport.from);
+  if (!shown.length) return [];
+  const open = new Map(itemsIn(text).filter((item) => item.done === false).map((item) => [item.id, item.line]));
+  const marks: { name: string; url: string }[] = [];
+  for (const board of shown) {
+    for (const column of board.columns) {
+      for (const id of column.cards) {
+        const number = open.get(id);
+        const line = number === undefined ? null : doc.line(number).text;
+        const mark = line !== null && itemWords(line) !== null ? markOf(line) : null;
+        if (mark) marks.push(mark);
+      }
     }
   }
   return marks;

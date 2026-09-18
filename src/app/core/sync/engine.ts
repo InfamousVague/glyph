@@ -4,10 +4,10 @@ import { accountKey, accountState, resume, signOut } from '../account/account.ts
 import { ApiError } from '../account/api.ts';
 import { keepWebImage, webImageBytes } from '../images.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
-import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED } from '../store.ts';
+import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED, type Note } from '../store.ts';
 import { invoke, isTauri } from '../tauri.ts';
 import { toBase64Url, type Bytes } from './crypto.ts';
-import { emptyState, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncState } from './notes.ts';
+import { emptyState, mark, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncState } from './notes.ts';
 import { syncPrefs, type PrefsState } from './prefs.ts';
 
 /**
@@ -89,6 +89,19 @@ function store(key: string, value: unknown): void {
   } catch {
     // Full or private: the next sync starts from what was last kept, which only costs a longer sync.
   }
+}
+
+/**
+ * Whether this device's copy of a note has changes the pass sync has not sent: its fingerprint against the one kept at
+ * its last sync, or no record of it at all. Live sync asks when a device joins a note another device already has open
+ * (docs/LIVE.md, Seeding): a device that was only behind adopts the room's words; one with changes of its own keeps
+ * them as a copy. Signed out, nothing is pending.
+ */
+export function hasUnsyncedChanges(note: Note): boolean {
+  const session = accountState().session;
+  if (!session) return false;
+  const known = load<SyncState>(stateKey(session.accountId, 'notes'), emptyState()).notes[note.id];
+  return !known || known.mark !== mark(note);
 }
 
 /** Forgets what this device knew of an account's sync: for signing out. */

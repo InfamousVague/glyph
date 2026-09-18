@@ -36,6 +36,10 @@ Measured by parsing each sample with the app's own language (`editor/language.ts
 | Mermaid ```` ```mermaid ```` | as a code block | yes | Added 2026-09-17: drawn as the diagram it describes (`editor/mermaid.ts`), the fence tapped to edit. Mermaid itself, every diagram type, loaded the first time a note has one; a diagram that cannot be drawn stays as its text |
 | Wiki links `[[Note]]`      | yes    | yes   | Opens that note; a title with no note is drawn dashed, and tapping it makes the note and opens it. `[[Note#^anchor]]` splits on the first `#`; `[[#^anchor]]` is a place in this note and belongs to `editor/boards.ts` |
 
+A highlight can be given a colour by name, in the same brackets a note uses: `==the cabin key==(green)`, from the
+kit's own ramps (blue, red, amber, green, teal, purple, gray). A name the build does not know stays the plain
+highlight and its brackets are the note they always were.
+
 Glyph's own marks are on top of that, each from the Marks plugin and switched off with it: `||spoiler||`,
 `==highlight==`, `%%aside%%`, `??unsure??`, `^^shout^^`, `++added++`, and a note on any of them in brackets —
 `??four hundred??(Sam said 400)`. They were checked against the extended syntax above: `^^shout^^` and `^x^`,

@@ -133,15 +133,19 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
         </>
       ) : (
         <>
-          {/* The way out, in the same words and place the note screen's is (Matt: "add back button at the top of
-              settings … make settings in top bar like the ← notes"). */}
+          {/*
+            The way out and the screen's name in one row (Matt: "move settings back arrow next to settings label,
+            replace the back to notes with just putting the settings text there, remove some of the space on the
+            top"). It read "← Notes" over a display-sized "Settings" underneath, which named the screen twice and
+            spent a third of the first page saying so. The arrow still leaves for the notes, which is what it is
+            told to say aloud.
+          */}
           <header className="settingsScreen__head">
-            <button type="button" className="app-word settingsScreen__headWord" onClick={onClose}>
-              <ArrowLeft /> Notes
+            <button type="button" className="app-word settingsScreen__headWord" onClick={onClose} aria-label="Back to your notes">
+              <ArrowLeft /> Settings
             </button>
           </header>
           <nav ref={scroller} className="settingsScreen__list" key="list">
-            <h1 className="settingsScreen__display">Settings</h1>
             {clusters.map((cluster) => (
               <div key={cluster[0]!.id} className="settingsScreen__cluster">
                 <div className="settingsScreen__group">

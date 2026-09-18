@@ -11,15 +11,35 @@
  */
 .scroll {
   block-size: 100%;
-  /* Under the top bar, which is a pane over this (app.css .app-headerPane, art/wispEdge.ts sets `--wisp-under`), and
-     a space clear of it: flush against the pane, the first thing on the list reads as cut off by it (the guide's
-     scroller has always left this room). */
-  padding-block-start: calc(var(--wisp-under, 3.2rem) + var(--glacier-space-3));
+  /*
+   * Under the top bar, which is a pane over this (app.css .app-headerPane, art/wispEdge.ts sets `--wisp-under`), and
+   * a space clear of it: flush against the pane, the first thing on the list reads as cut off by it (the guide's
+   * scroller has always left this room).
+   *
+   * Floored at the bar's own height, never only at the measured one. `--wisp-under` is written by a size observer,
+   * so it can be a frame late or a state behind - and on the Mac it was: the title bar's 44px inset landed after the
+   * header had been measured, the padding stayed at the height of a header without it, and the workspace pills sat
+   * under the bar (Matt: "on the home screen the top bar overlaps the workspace pills"). The old fallback was a flat
+   * 3.2rem, which had no relation to how tall the bar actually is and was wrong the moment the bar grew a second
+   * row. `--app-safe-top` is that height, known without measuring anything, so the list can never begin above it.
+   */
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top, 0px)) + var(--glacier-space-6));
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
   padding-block-end: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-24));
+}
+
+/*
+ * In the desktop sidebar the list sits under the full bar, and the room above the pills there is the header pane's
+ * own padding (which `--wisp-under` measures) plus the gap below - measured at 46px, bar bottom 101 to pills 148.
+ * The larger gap is for the phone's home screen, where Matt asked for more air above the pills; in the sidebar it
+ * doubled up (Matt: "we also don't need all the space above the pills when they're inside the sidebar"). The floor at
+ * the bar's height stays, so this cannot put the pills back under it.
+ */
+:global(.app-sidebar) .scroll {
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top, 0px)) + var(--glacier-space-2));
 }
 
 /*
@@ -115,11 +135,24 @@
  */
 .spaces {
   display: flex;
+  /* Each pill at its own height, or the tallest (the +) would stretch the rest and give them a taller ring than the
+     sides they were matched to. */
+  align-items: center;
   gap: var(--glacier-space-2);
   /* No pull upwards: it used to sit the pills a space higher, which put their tops under the header pane and cut
      them off (Matt: "the notes header is clipping the pills and stuff below it"). */
   margin: 0 0 var(--glacier-space-5);
   padding-block: 2px;
+  /*
+   * Out to the edge of the column it scrolls in, both ends (Matt: "Sidebar on desktop should have workspace pills
+   * scrolling to edge of container"). The row sat inside the list's gutter, so pills scrolled past were cut 27px short of
+   * the sidebar's edge with a dead strip beyond - measured at 1280, the row ended at 352.7 in a 380px column. The same
+   * bleed the tab row uses (notes/NoteTabs.module.css `.tabs`): pulled out by the gutter the list pads by, and given
+   * the same back inside, so the first pill still lines up with the notes under it. The gutter tokens are the list's
+   * own padding (`.scroll` above), in the sidebar and on a phone alike, so it reaches the edge of whichever it is in.
+   */
+  margin-inline: calc(-1 * var(--app-gutter-start)) calc(-1 * var(--app-gutter-end));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -135,7 +168,12 @@
   display: inline-flex;
   align-items: center;
   min-block-size: 2rem;
-  padding: 0 var(--glacier-space-4);
+  /*
+   * An even ring of space round the word (Matt: "Workspace pill doesn't have same left and right padding as top and
+   * bottom around the outside"). It was 17.8px at the sides against 8px above and below, so a pill read as a long
+   * box rather than a badge. In ems, so the ring holds at every text size; the min height keeps the tap target.
+   */
+  padding: 0.6em;
   /* A workspace's own colour, or the page's ink where it has none (ink.css `[data-hue]`). */
   border: 1px solid color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent);
   border-radius: var(--glacier-radius-full);
@@ -144,6 +182,11 @@
   font: inherit;
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-medium);
+  /*
+   * After `font: inherit`, which is a shorthand and would reset it: the line box is pinned to the words themselves,
+   * so the ring the eye sees is the padding rather than the font's own slack above and below.
+   */
+  line-height: 1;
   white-space: nowrap;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -167,7 +210,11 @@
 
 /* The + for another: a square-ish pill so the stroke sits centred. */
 .spaceAdd {
-  padding-inline: var(--glacier-space-3);
+  /* A round button the size of a pill, rather than a pill with one character in it: the + is a stroke, not a word,
+     so an even ring round it means a square box the height of its neighbours. */
+  justify-content: center;
+  inline-size: 2rem;
+  padding: 0;
   font-size: var(--glacier-font-size-md);
 }
 
@@ -273,13 +320,64 @@
   transition: background-color 120ms ease;
 }
 
-:global(.app-sidebar) .row:hover {
-  background: var(--app-paper-2, var(--glacier-surface));
+/*
+ * Hovering a row says it can be opened - so not the row already open, and only where a pointer really hovers.
+ *
+ * The open note is marked by its ring alone (below). The tint landed on it too whenever the pointer rested there,
+ * which is every time, since the pointer is on a row the moment it is clicked: measured, the open card read oklch
+ * 0.17 under its ring until the pointer moved off, and so looked filled after all. And on a folding phone or a tablet
+ * - which have the sidebar now - a tap leaves `:hover` stuck on whatever was touched, so without `(hover: hover)` the
+ * open card would keep that fill until the next tap elsewhere.
+ */
+@media (hover: hover) {
+  :global(.app-sidebar) .row:hover:not([data-selected]) {
+    background: var(--app-paper-2, var(--glacier-surface));
+  }
 }
 
+/*
+ * The open note's row: a ring round the card, on the card's own black ground (Matt: "Active item on sidebar on desktop
+ * should have formatted content inside black card inside or use outline for active selection"). It was a grey fill,
+ * and the card draws the note itself small inside it now (notes/NotePeek.tsx) - to-do boxes, a tinted strip for code,
+ * a quote's rule - which were all drawn for black paper and sat muddy on grey. Inset, so the ring is inside the card's
+ * own box and never meets the row above or below it.
+ */
 :global(.app-sidebar) .row[data-selected] {
-  background: var(--app-paper-3, var(--glacier-active));
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--app-ink) 55%, transparent);
   border-block-start-color: transparent;
+}
+
+/*
+ * The sidebar card: a title the size of a title rather than of a headline, and under it the note itself drawn small
+ * (notes/NotePeek.tsx).
+ *
+ * At display size a two-word title wrapped to two lines and a column of seven notes was four names and no notion of
+ * what any of them held (Matt: "the title is huge and it's not got a long description of what we're doing"). The
+ * words a card can fit are better spent on the note than on the name of it.
+ */
+:global(.app-sidebar) .rowTitle {
+  font-size: calc(var(--glacier-font-size-md) * var(--app-text-scale, 1));
+  line-height: 1.3;
+  letter-spacing: normal;
+}
+
+/* What the note holds, drawn small under its name (notes/NotePeek.module.css has the rest). */
+.rowPeek {
+  margin-block-start: var(--glacier-space-2);
+}
+
+/* The date sits under the preview, quietly: in a card it is the last thing worth reading, not the second. */
+:global(.app-sidebar) .rowMeta {
+  margin-block-start: var(--glacier-space-2);
+}
+
+/*
+ * The gist and the preview say the same thing twice, and the preview is the one that is always right: it is the note
+ * rather than a line written about an older version of it. Where a gist exists - a phone, in a window dragged wide -
+ * the preview keeps its place and the line goes.
+ */
+:global(.app-sidebar) .rowGist {
+  display: none;
 }
 
 /* Two lines of title before it truncates: a title is worth more than its row's height. */
@@ -337,7 +435,17 @@
 }
 
 .rowMeta {
-  display: block;
+  /*
+   * The time, the workspace's pill and the link marks on one line, each centred on the others (Matt: "The text and
+   * pills should be vertically centered"). They used to sit on the text's baseline with the pill nudged back onto it
+   * by a `vertical-align` of its own, which is a number that has to be retuned every time the pill's padding or the
+   * line's size changes - and it was out: measured, the pill's middle sat 4.5px above the time's. A row that centres
+   * its items has nothing to retune, so the pill and the marks stay on the line whatever they grow into.
+   */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
   margin-block-start: var(--glacier-space-2);
   font-size: var(--glacier-font-size-xs);
   font-weight: var(--glacier-font-weight-medium);
@@ -355,15 +463,25 @@
 .rowSpace {
   display: inline-block;
   max-inline-size: 14ch;
-  margin-inline-start: 0.6em;
-  padding: 0.12em 0.6em 0;
+  /*
+   * The same badge a tab wears for the same workspace (notes/NoteTabs.module.css .space), since they name the same
+   * thing in two places and were read side by side (Matt: "The pills on the notes that label the workspace also
+   * don't match the pills in the tabs"). They differed twice over: this ring was 2.8px all round against the tab's
+   * 5.8 above and 8.9 at the sides, so it read as a tight little outline rather than a badge; and it sat inside the
+   * meta line, which sets its words in uppercase with tracking, so the tab said "Sea" and the row said "SEA".
+   * Both are the same 11px word now, in the same ring.
+   */
+  padding: 0.52em 0.8em;
+  text-transform: none;
+  letter-spacing: normal;
   border: 1px solid color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent);
   border-radius: var(--glacier-radius-full);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  vertical-align: -0.4em;
-  line-height: 1.5;
+  /* The line box is pinned to the words, so the ring the eye sees is the padding rather than the font's own slack.
+     What used to hold the tag on the time's line - a `vertical-align` nudge - is now the meta line's own centring. */
+  line-height: 1;
   color: var(--app-space, var(--glacier-text-muted));
 }
 
@@ -671,10 +789,12 @@
      size smaller"). The same height as the rings, set rather than left to the pill's padding, so the three still
      sit on one line. */
   /* The shared pill sets a minimum height (app/ink.css .app-pill); this one is shorter, so the minimum is lowered too. */
-  min-block-size: var(--glacier-space-10);
-  block-size: var(--glacier-space-10);
+  /* A notch smaller again, with the two rings (Matt: "Make the bookmark, more button, speak and book a little bit
+     smaller"): a kit step multiplied, so the three still sit on one line. */
+  min-block-size: calc(var(--glacier-space-10) * 0.88);
+  block-size: calc(var(--glacier-space-10) * 0.88);
   padding-block: 0;
-  padding-inline: var(--glacier-space-5);
+  padding-inline: var(--glacier-space-4);
   font-size: var(--glacier-font-size-md);
 }
 
@@ -688,8 +808,9 @@
   appearance: none;
   display: grid;
   place-items: center;
-  inline-size: var(--glacier-space-10);
-  block-size: var(--glacier-space-10);
+  /* The same notch as Speak beside it, so the three keep one height. */
+  inline-size: calc(var(--glacier-space-10) * 0.88);
+  block-size: calc(var(--glacier-space-10) * 0.88);
   padding: 0;
   border: 1.5px solid var(--glacier-border-strong);
   border-radius: var(--glacier-radius-full);
@@ -709,10 +830,15 @@
   outline-offset: 2px;
 }
 
-/* A new note: the + is a touch heavier than the cog, since it starts something. */
+/*
+ * A new note. The + used to be set a touch heavier than the cog, since it starts something, and that one exception
+ * was the whole of what Matt could see: "make the talk new and settings buttons the same size". The three boxes were
+ * already one size and have been for a while - 40x40 on a phone, 46x46 on a desktop, measured - but inside them the
+ * glyphs drew 21px, 18px and 16px, so the row read as three sizes. The + now takes the size `.round` sets, which is
+ * the cog's.
+ */
 .add {
   justify-self: start;
-  font-size: 1.3rem;
 }
 
 .add:active svg {

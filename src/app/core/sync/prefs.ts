@@ -32,6 +32,11 @@ export const SYNCED_PREFS = [
   'ripples',
   'motionSpeed',
   'linkPreviews',
+  // The notes left open: they belong to the person, so the tabs are the same wherever they pick the app up.
+  'openNotes',
+  'tabGroups',
+  // The workspaces themselves, and which note is filed in each. Which one is being looked at stays on the device.
+  'workspaces',
 ] as const satisfies readonly (keyof Preferences)[];
 
 export type SyncedPrefs = Pick<Preferences, (typeof SYNCED_PREFS)[number]>;

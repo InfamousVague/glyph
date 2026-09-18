@@ -5,7 +5,10 @@ edition = "2021"
 publish = false
 
 [dependencies]
-axum = "0.8"
+# `ws` for live sync's relay (src/live.rs, docs/LIVE.md): a WebSocket per device, passing sealed edits between an
+# account's own devices.
+axum = { version = "0.8", features = ["ws"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
 tower-http = { version = "0.6", features = ["cors"] }
 # rustls rather than native-tls: the binary is cross-compiled with zig and has
@@ -32,3 +35,6 @@ strip = true
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
+# A real WebSocket client for the relay's tests, the same version axum's `ws` speaks: the in-memory router the other
+# tests drive cannot upgrade a connection.
+tokio-tungstenite = "0.29"

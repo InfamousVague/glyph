@@ -20,8 +20,9 @@
   inline-size: min(20rem, calc(100vw - var(--glacier-space-10)));
   display: flex;
   flex-direction: column;
-  gap: var(--glacier-space-2);
-  padding: var(--glacier-space-3);
+  /* The tree inside pads itself and scrolls its own middle (notes/NoteTree.tsx); the card only holds it and rounds it. */
+  padding: 0;
+  overflow: hidden;
   border: 1px solid var(--glacier-border-subtle);
   border-radius: var(--glacier-radius-lg, 16px);
   background: color-mix(in srgb, var(--glacier-bg) 88%, var(--glacier-text) 4%);
@@ -44,106 +45,8 @@
   }
 }
 
-.top {
-  display: flex;
-  align-items: center;
-  gap: var(--glacier-space-2);
-  flex: none;
-}
-
-.title {
-  flex: 1;
-  margin: 0;
-  font-size: var(--app-action);
-  line-height: 1.2;
-  letter-spacing: var(--app-tracking-title);
-  font-weight: var(--glacier-font-weight-bold);
-}
-
-.round {
-  appearance: none;
-  display: grid;
-  place-items: center;
-  inline-size: var(--glacier-space-8);
-  block-size: var(--glacier-space-8);
-  padding: 0;
-  border: 1.5px solid var(--glacier-border-strong);
-  border-radius: var(--glacier-radius-full);
-  background: none;
-  color: var(--glacier-text);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.round:active {
-  background: var(--app-paper-2, var(--glacier-surface));
-}
-
-.round:focus-visible {
-  outline: 2px solid var(--glacier-focus-ring);
-  outline-offset: 2px;
-}
-
-.list {
+/* The tree fills the card, so its tools stay at the top and its foot at the bottom while the notes scroll between. */
+.card > * {
   flex: 1;
   min-block-size: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.row {
-  appearance: none;
-  display: grid;
-  gap: 2px;
-  inline-size: 100%;
-  text-align: start;
-  padding: var(--glacier-space-2) var(--glacier-space-3);
-  border: none;
-  border-radius: var(--glacier-radius-md, 10px);
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.row:hover,
-.row:active {
-  background: var(--app-paper-2, var(--glacier-surface));
-}
-
-.row[data-active] {
-  background: var(--app-paper-3, var(--glacier-active));
-}
-
-.row:focus-visible {
-  outline: 2px solid var(--glacier-focus-ring);
-  outline-offset: -2px;
-}
-
-.rowTitle {
-  font-size: var(--glacier-font-size-md);
-  font-weight: var(--glacier-font-weight-semibold);
-  line-height: 1.25;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow-wrap: anywhere;
-}
-
-.rowLine {
-  font-size: var(--glacier-font-size-sm);
-  color: var(--glacier-text-muted);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.empty {
-  padding: var(--glacier-space-3);
-  color: var(--glacier-text-muted);
 }

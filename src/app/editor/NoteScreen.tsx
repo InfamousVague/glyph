@@ -1,8 +1,10 @@
+import { createPortal } from 'react-dom';
+import { liveEnabled } from '../core/live/enabled.ts';
+import { useTopBarTools } from '../core/topBarTools.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, Bookmark, Code, EllipsisVertical, Mic } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import type { EditorView } from '@codemirror/view';
-import { ArrowLeft } from '../art/Icons.tsx';
 import { adoptImagePath, pickImage } from '../core/images.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { caretPlace, placeOf, readBookmark, scrollToPlace, useNotePlace, writeBookmark } from './notePlace.ts';
@@ -78,7 +80,6 @@ interface NoteScreenProps {
   /** Whether a note by that title exists, for drawing a [[link]] as written or as waiting. */
   hasTitle?: (title: string) => boolean;
   /** The "← Notes" in the header; off where the list is already beside the note (the desktop sidebar, App.tsx). */
-  showBack?: boolean;
 }
 
 const SAVE_DEBOUNCE_MS = 400;
@@ -86,7 +87,7 @@ const SAVE_DEBOUNCE_MS = 400;
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, at, showBack = true }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, at }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -99,6 +100,30 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   };
   const [title, setTitle] = useState(() => noteTitle(note.body));
   const [view, setView] = useState<EditorView | null>(null);
+  /*
+   * Live sync (docs/LIVE.md): this note open on another device too, typed into on either and arriving a character at
+   * a time. Nothing at all unless the switch is on (core/live/enabled.ts), and even then the live code - Yjs and its
+   * CodeMirror binding - is only loaded here, on demand, so the app is the same size for everyone with it off.
+   */
+  const [livePeers, setLivePeers] = useState(0);
+  useEffect(() => {
+    if (!view || !liveEnabled()) return undefined;
+    let stop: (() => void) | null = null;
+    let gone = false;
+    void import('../core/live/open.ts')
+      .then(({ goLive }) => goLive(view, note.id, setLivePeers))
+      .then((stopping) => {
+        if (gone) stopping();
+        else stop = stopping;
+      })
+      .catch(() => {
+        // Could not go live - no network, no account key: the note works as it always has, synced by the pass.
+      });
+    return () => {
+      gone = true;
+      stop?.();
+    };
+  }, [view, note.id]);
   const [photoProblem, setPhotoProblem] = useState<string | null>(null);
   // A spoken note keeps its recording: the tape at the top plays it. Removing it
   // (the tape's Remove) is held here, so the tape goes at once and Undo brings
@@ -488,6 +513,70 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     onSpeak(note.id);
   };
 
+  // Where the app's bar wants this screen's controls, if it is there to hold them (core/topBarTools.ts).
+  const toolsSlot = useTopBarTools();
+
+  const tools = (
+  <div className={styles.tools}>
+    {/* Another device has this note open, and what is typed on either arrives on the other as it is typed. */}
+    {livePeers > 0 ? (
+      <span className={styles.live} role="status" aria-label={livePeers === 1 ? 'Live with another device' : `Live with ${livePeers} other devices`}>
+        Live
+      </span>
+    ) : null}
+    {/*
+      Markdown, the marks with the formatting (the default), or just the formatted text (editor/viewMode.ts).
+      One ring like the others rather than a pair in a capsule (Matt: "change the pencil and book icon to the
+      normal round icon we use for the other items in the toolbar just make it toggle between a code icon and a
+      book icon"): the glyph is the view you are in - the marks, or the page - and the label says what a press
+      does, which is the part a pair of buttons used to say by being two.
+    */}
+    <button
+      type="button"
+      className={styles.cog}
+      disabled={shown !== 'raw'}
+      onClick={() => chooseView(prefs.noteView === 'formatted' ? 'mixed' : 'formatted')}
+      aria-label={prefs.noteView === 'formatted' ? 'Showing the formatted note. Show the marks.' : 'Showing the marks. Show the formatted note.'}
+      title={prefs.noteView === 'formatted' ? 'Formatted' : 'Markdown'}
+    >
+      {prefs.noteView === 'formatted' ? (
+        <BookOpen size={20} strokeWidth={2.1} aria-hidden="true" />
+      ) : (
+        <Code size={20} strokeWidth={2.1} aria-hidden="true" />
+      )}
+    </button>
+    <button
+      type="button"
+      className={`${styles.cog} ${styles.bookmark} app-gold`}
+      data-on={marked || undefined}
+      onClick={bookmark}
+      aria-pressed={marked}
+      aria-label={marked ? 'Move the bookmark to this line, or take it off here' : 'Bookmark this line'}
+    >
+      {/*
+        The same outline and 33% wash as every other filled icon in the app, set or not (Matt: "the bookmark icon on the
+        note should have the outline with semitransparent fill"). app.css gives it that; nothing here overrides it.
+
+        It was solid once set, which read as a different kind of icon from everything beside it. Whether a bookmark is
+        set is said by `aria-pressed` and the button's label, and on the page by the ribbon on the marked line - and,
+        since the mark on the page went gold (Matt: "Make the bookmark icon on the note yellow / gold instead of white so
+        it stands out"), by the button going gold with it (NoteScreen.module.css `.bookmark[data-on]`).
+      */}
+      <Bookmark size={20} strokeWidth={2.1} aria-hidden="true" />
+    </button>
+    {/* A note with no recording has no tape; talking into it is this mic. Once it has audio, the tape's Add is. */}
+    {tape.length > 0 ? null : (
+      <button type="button" className={styles.cog} onClick={speakHere} aria-label="Talk into this note">
+        <Mic size={20} strokeWidth={2.1} aria-hidden="true" />
+      </button>
+    )}
+    {/* More for this note: the robot's modes under AI, pin, archive, links, delete (NoteSettings). Three dots rather than a cog (Matt). */}
+    <button type="button" className={`${styles.cog} ${styles.more}`} onClick={() => setSettingsOpen(true)} aria-label="More for this note">
+      <EllipsisVertical size={20} strokeWidth={2.6} aria-hidden="true" />
+    </button>
+  </div>
+  );
+
   return (
     <div ref={screen} className={styles.screen}>
       {/* The crease's shadow while the note unfolds; nothing the rest of the time. */}
@@ -497,60 +586,21 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         type on the screen, so the header no longer repeats it; it keeps the
         title only as the back button's accessible description.
       */}
+      {/*
+        The note's controls live in the app's top bar now (Matt: "Move the controls for the note into the topbar"),
+        put there by a portal because they hold the editor's state - the view being shown, the bookmark's line, the
+        tape - and lifting them into App.tsx would lift the editor with them. Where there is no bar to take them,
+        they stay in this header, which is where they have always been.
+      */}
       <header ref={header} className={`app-headerPane ${styles.header}`}>
-        <div className={styles.headerRow}>
-        {showBack ? (
-          <button type="button" className={`app-word ${styles.back}`} onClick={back} aria-label={`Back to notes from ${title || 'new note'}`}>
-            <ArrowLeft /> Notes
-          </button>
-        ) : (
-          <span />
+        {toolsSlot ? null : (
+          <div className={styles.headerRow}>
+            <span />
+            {tools}
+          </div>
         )}
-        <div className={styles.tools}>
-          {/*
-            Markdown, the marks with the formatting (the default), or just the formatted text (editor/viewMode.ts).
-            One ring like the others rather than a pair in a capsule (Matt: "change the pencil and book icon to the
-            normal round icon we use for the other items in the toolbar just make it toggle between a code icon and a
-            book icon"): the glyph is the view you are in - the marks, or the page - and the label says what a press
-            does, which is the part a pair of buttons used to say by being two.
-          */}
-          <button
-            type="button"
-            className={styles.cog}
-            disabled={shown !== 'raw'}
-            onClick={() => chooseView(prefs.noteView === 'formatted' ? 'mixed' : 'formatted')}
-            aria-label={prefs.noteView === 'formatted' ? 'Showing the formatted note. Show the marks.' : 'Showing the marks. Show the formatted note.'}
-            title={prefs.noteView === 'formatted' ? 'Formatted' : 'Markdown'}
-          >
-            {prefs.noteView === 'formatted' ? (
-              <BookOpen size={22} strokeWidth={2.1} aria-hidden="true" />
-            ) : (
-              <Code size={22} strokeWidth={2.1} aria-hidden="true" />
-            )}
-          </button>
-          <button
-            type="button"
-            className={`${styles.cog} ${styles.bookmark}`}
-            data-on={marked || undefined}
-            onClick={bookmark}
-            aria-pressed={marked}
-            aria-label={marked ? 'Move the bookmark to this line, or take it off here' : 'Bookmark this line'}
-          >
-            <Bookmark size={22} strokeWidth={2.1} fill={marked ? 'currentColor' : 'none'} aria-hidden="true" />
-          </button>
-          {/* A note with no recording has no tape; talking into it is this mic. Once it has audio, the tape's Add is. */}
-          {tape.length > 0 ? null : (
-            <button type="button" className={styles.cog} onClick={speakHere} aria-label="Talk into this note">
-              <Mic size={22} strokeWidth={2.1} aria-hidden="true" />
-            </button>
-          )}
-          {/* More for this note: the robot's modes under AI, pin, archive, links, delete (NoteSettings). Three dots rather than a cog (Matt). */}
-          <button type="button" className={`${styles.cog} ${styles.more}`} onClick={() => setSettingsOpen(true)} aria-label="More for this note">
-            <EllipsisVertical size={22} strokeWidth={2.6} aria-hidden="true" />
-          </button>
-        </div>
-        </div>
       </header>
+      {toolsSlot ? createPortal(tools, toolsSlot) : null}
       {photoProblem ? (
         <p className={styles.problem} role="alert">
           {photoProblem}

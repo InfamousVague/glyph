@@ -1,5 +1,6 @@
 import { Plus } from '../art/Icons.tsx';
 import { chooseWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
+import { scrollSideways } from '../core/scrollSideways.ts';
 import styles from './NotesList.module.css';
 
 /**
@@ -14,7 +15,7 @@ export function WorkspaceBar({ onManage }: { onManage: (which: Workspace | 'new'
   const { list, current } = useWorkspaces();
   if (!list.length) return null;
   return (
-    <div className={styles.spaces} role="group" aria-label="Workspaces">
+    <div className={styles.spaces} role="group" aria-label="Workspaces" onWheel={scrollSideways}>
       <button type="button" className={styles.space} aria-pressed={current === null} onClick={() => chooseWorkspace(null)}>
         All
       </button>

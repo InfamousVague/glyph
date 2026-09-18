@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { onPreferences, preferences, setPreferences } from './preferences.ts';
 import { fileNoteInFolder, fileNotesInFolder } from './noteFolders.ts';
 
 /**
@@ -54,30 +55,75 @@ interface Sheet {
   current: string | null;
 }
 
+/**
+ * Where a workspace lives.
+ *
+ * The workspaces themselves, and which note is filed in each, are a preference (core/preferences.ts `workspaces`), so
+ * they travel with the rest of a person's settings to their other devices (Matt: "I'm not seeing the workspaces being
+ * in sync"). The one thing that stays on the device is which workspace the list is filtered by: that is where you are
+ * looking, not what you have, and a phone filtered to Home should not filter the desktop too.
+ *
+ * `KEY` is where all three used to live, and is read once to carry an existing set of workspaces into the preferences.
+ */
 const KEY = 'glyph-workspaces';
+const HERE = 'glyph-workspace-current';
 const listeners = new Set<() => void>();
 let sheet: Sheet | null = null;
 let snapshot: Workspaces | null = null;
 
-function read(): Sheet {
+/** The workspaces as the preferences hold them, with a hue this build does not know read as ink. */
+function fromPrefs(): { list: Workspace[]; notes: Record<string, string> } {
+  const held = preferences().workspaces;
+  const list = held.list.map((w) => (isHue(w.hue) && w.hue !== 'ink' ? { id: w.id, name: w.name, hue: w.hue } : { id: w.id, name: w.name }));
+  const ids = new Set(list.map((w) => w.id));
+  const notes: Record<string, string> = {};
+  for (const [note, id] of Object.entries(held.notes)) if (ids.has(id)) notes[note] = id;
+  return { list, notes };
+}
+
+/** The set kept under the old key, for a device that has not moved its workspaces into the preferences yet. */
+function fromOldKey(): { list: Workspace[]; notes: Record<string, string>; current: string | null } | null {
   try {
     const value = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Sheet> | null;
-    const list = Array.isArray(value?.list)
-      ? value.list
-          .filter((w): w is Workspace => Boolean(w) && typeof w.id === 'string' && typeof w.name === 'string')
-          // A hue this app does not know - an older name, or a newer one from a phone further ahead - is simply ink.
-          .map((w) => (isHue(w.hue) && w.hue !== 'ink' ? { id: w.id, name: w.name, hue: w.hue } : { id: w.id, name: w.name }))
-      : [];
+    if (!value || !Array.isArray(value.list) || !value.list.length) return null;
+    const list = value.list
+      .filter((w): w is Workspace => Boolean(w) && typeof w.id === 'string' && typeof w.name === 'string')
+      .map((w) => (isHue(w.hue) && w.hue !== 'ink' ? { id: w.id, name: w.name, hue: w.hue } : { id: w.id, name: w.name }));
     const ids = new Set(list.map((w) => w.id));
     const notes: Record<string, string> = {};
-    if (value?.notes && typeof value.notes === 'object') {
+    if (value.notes && typeof value.notes === 'object') {
       for (const [note, id] of Object.entries(value.notes)) if (typeof id === 'string' && ids.has(id)) notes[note] = id;
     }
-    const current = typeof value?.current === 'string' && ids.has(value.current) ? value.current : null;
-    return { list, notes, current };
+    return { list, notes, current: typeof value.current === 'string' && ids.has(value.current) ? value.current : null };
   } catch {
-    return { list: [], notes: {}, current: null };
+    return null;
   }
+}
+
+function read(): Sheet {
+  const held = fromPrefs();
+  // Workspaces made before they travelled: taken into the preferences once, and the old key left where it is.
+  const old = held.list.length ? null : fromOldKey();
+  if (old) {
+    setPreferences({ workspaces: { list: old.list, notes: old.notes } });
+    if (old.current) {
+      try {
+        localStorage.setItem(HERE, old.current);
+      } catch {
+        // No storage: the filter holds for this run.
+      }
+    }
+    return { list: old.list, notes: old.notes, current: old.current };
+  }
+  const here = (() => {
+    try {
+      return localStorage.getItem(HERE);
+    } catch {
+      return null;
+    }
+  })();
+  const ids = new Set(held.list.map((w) => w.id));
+  return { list: held.list, notes: held.notes, current: here && ids.has(here) ? here : null };
 }
 
 function current(): Sheet {
@@ -88,13 +134,33 @@ function current(): Sheet {
 function write(next: Sheet): void {
   sheet = next;
   snapshot = null;
+  // The workspaces travel; the filter stays here.
+  ours = true;
+  setPreferences({ workspaces: { list: next.list, notes: next.notes } });
+  ours = false;
   try {
-    localStorage.setItem(KEY, JSON.stringify(next));
+    if (next.current) localStorage.setItem(HERE, next.current);
+    else localStorage.removeItem(HERE);
   } catch {
     // No storage: the change holds for this run.
   }
   listeners.forEach((listener) => listener());
 }
+
+/**
+ * A workspace made on another device arrives as a change to the preferences (core/sync/prefs.ts), so the sheet is
+ * read again and everything watching it hears about it. `ours` keeps a write of our own from bouncing back.
+ */
+let ours = false;
+onPreferences(() => {
+  if (ours) return;
+  const held = preferences().workspaces;
+  const now = sheet;
+  if (now && JSON.stringify(held.list) === JSON.stringify(now.list) && JSON.stringify(held.notes) === JSON.stringify(now.notes)) return;
+  sheet = null;
+  snapshot = null;
+  listeners.forEach((listener) => listener());
+});
 
 /** Reads the sheet again: after a reset, and in tests. */
 export function reloadWorkspaces(): void {

@@ -41,8 +41,9 @@ describe('the guide’s table of marks', () => {
   it('shows each mark a switched-on plugin adds, with the words it would say', () => {
     const formats = BUILT_IN.flatMap((plugin) => plugin.formats ?? []);
     const own = markGroups().find((group) => group.title === 'Glyph’s own');
-    // The plugin's own marks, and after them the row for a note written on any of them (editor/markNotes.ts).
-    expect(own?.rows).toHaveLength(formats.length + 1);
+    // The plugin's own marks, then the two rows about what goes in brackets after one: a colour, and a note
+    // (plugins/marks/index.tsx, editor/markNotes.ts).
+    expect(own?.rows).toHaveLength(formats.length + 2);
     for (const format of formats) {
       const row = own?.rows.find((r) => r.name === format.name);
       expect(row, format.name).toBeTruthy();

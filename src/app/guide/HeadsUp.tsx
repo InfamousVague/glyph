@@ -2,7 +2,6 @@ import { Flame } from '@glacier/icons';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { WispText } from '../art/WispText.tsx';
 import { fireMicroTick, fireNativeHaptic } from '../core/haptics.ts';
-import { isWebKit } from '../core/platform.ts';
 import styles from './HeadsUp.module.css';
 
 /**
@@ -208,8 +207,7 @@ export function HeadsUp({ onDone }: { onDone?: () => void }) {
   const fire = useRef<HTMLSpanElement>(null);
   const tick = () => fireMicroTick();
   const lit = phase === 'ai' || phase === 'rest';
-  // WebKit (the Mac app, the iPhone) draws this filter as nothing and the words vanish: no haze there (core/platform.ts).
-  const heat = useHeatSpot(leadWords, fire, lit && !isWebKit);
+  const heat = useHeatSpot(leadWords, fire, lit);
 
   return (
     <h1 className={styles.headsUp} aria-label={`Heads up: we use AI. ${PUNCHLINE_TEXT}`}>

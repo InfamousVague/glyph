@@ -26,7 +26,12 @@ export interface StyleLook {
   length: number;
   css: string;
   clearAtCaret?: boolean;
+  /** A name in brackets after the mark, as extra CSS for those words (plugins/types.ts `InlineFormat.tint`). */
+  tint?: (name: string) => string | null;
 }
+
+/** `(green)` straight after a mark: the name a tint is asked about. */
+const TINT = /^\(([^)\n]+)\)/;
 
 /** The styled stretches in `range`: the words of every node in `looks`, delimiters aside, and not a lifting look's node the selection touches while `atCaret`. */
 export function styledRanges(state: EditorState, looks: ReadonlyMap<string, StyleLook>, range: { from: number; to: number }, atCaret = false): Styled[] {
@@ -40,7 +45,12 @@ export function styledRanges(state: EditorState, looks: ReadonlyMap<string, Styl
       if (look.clearAtCaret && atCaret && state.selection.ranges.some((r) => r.to >= node.from && r.from <= node.to)) return false;
       const from = node.from + look.length;
       const to = node.to - look.length;
-      if (to > from) found.push({ from, to, css: look.css });
+      if (to <= from) return false;
+      // A name in brackets straight after the mark, where this mark takes one: `==the key==(green)`. A name it does
+      // not know is left to editor/markNotes.ts, which reads the same brackets as a note.
+      const after = look.tint ? TINT.exec(state.sliceDoc(node.to, Math.min(node.to + 40, state.doc.length))) : null;
+      const tint = after ? look.tint?.(after[1] ?? '') : null;
+      found.push({ from, to, css: tint ? `${look.css}${tint}` : look.css });
       return false;
     },
   });
@@ -50,7 +60,8 @@ export function styledRanges(state: EditorState, looks: ReadonlyMap<string, Styl
 export function formatLooks(formats: readonly InlineFormat[]): Extension {
   const looks = new Map<string, StyleLook>();
   for (const format of formats) {
-    if (format.look.kind === 'style') looks.set(format.name, { length: format.delimiter.length, css: format.look.css, clearAtCaret: format.look.clearAtCaret });
+    if (format.look.kind === 'style')
+      looks.set(format.name, { length: format.delimiter.length, css: format.look.css, clearAtCaret: format.look.clearAtCaret, tint: format.tint });
   }
   if (!looks.size) return [];
   const lifts = [...looks.values()].some((look) => look.clearAtCaret);

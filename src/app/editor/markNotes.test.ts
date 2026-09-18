@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MARKS } from '../plugins/marks/index.tsx';
-import { noteAt, notePattern, notesIn } from './markNotes.ts';
+import type { InlineFormat } from '../plugins/types.ts';
+import { isTint, noteAt, notePattern, notesIn } from './markNotes.ts';
 
 const pattern = () => notePattern(MARKS)!;
 
@@ -46,5 +47,29 @@ describe('a note written after a mark', () => {
 
   it('has no pattern at all when every mark is switched off', () => {
     expect(notePattern([])).toBeNull();
+  });
+});
+
+describe('brackets that name a colour', () => {
+  const tinted: InlineFormat[] = [
+    { name: 'Highlight', delimiter: '==', look: { kind: 'style', css: '' }, tint: (name) => (name === 'green' ? 'background: green;' : null) },
+    { name: 'Unsure', delimiter: '??', look: { kind: 'style', css: '' } },
+  ];
+
+  it('are a colour on the mark that takes one, and a note anywhere else', () => {
+    const pattern = notePattern(tinted)!;
+    const [colour] = notesIn('the ==key==(green) is under the mat', pattern);
+    expect(colour?.delimiter).toBe('==');
+    expect(isTint(colour!, tinted)).toBe(true);
+    // The same word on a mark that takes no colours is what it always was: a note.
+    const [note] = notesIn('the ??key??(green) is under the mat', pattern);
+    expect(isTint(note!, tinted)).toBe(false);
+  });
+
+  it('are still a note when the name is not one the mark knows', () => {
+    const pattern = notePattern(tinted)!;
+    const [note] = notesIn('the ==key==(Sam has one) is under the mat', pattern);
+    expect(note?.text).toBe('Sam has one');
+    expect(isTint(note!, tinted)).toBe(false);
   });
 });

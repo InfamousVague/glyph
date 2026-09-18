@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { KeyRound, LogOut, RefreshCw, ShieldCheck } from '@glacier/icons';
-import { Input } from '@glacier/react';
+import { Input, Switch } from '@glacier/react';
 import { changePassword, handleProblem, newRecoveryCodes, passwordProblem, recover, signIn, signUp, useAccount } from '../core/account/account.ts';
+import { setLiveEnabled, useLiveEnabled } from '../core/live/enabled.ts';
 import { preferences } from '../core/preferences.ts';
 import { signOutHere, syncNow, syncedWhen, useSyncStatus } from '../core/sync/engine.ts';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from './kit/settingsKit.tsx';
@@ -153,6 +154,7 @@ function PasswordForm({ onCodes, onDone }: { onCodes: (codes: string[]) => void;
 export function AccountPane() {
   const account = useAccount();
   const status = useSyncStatus();
+  const live = useLiveEnabled();
   const [codes, setCodes] = useState<string[] | null>(null);
   const [editing, setEditing] = useState(false);
 
@@ -190,6 +192,12 @@ export function AccountPane() {
       ) : (
         <PaneSection title="Sync" footer="Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.">
           <SettingRow icon={<RefreshCw size={20} />} label="Sync now" onPress={() => void syncNow()} disabled={status.phase === 'syncing'} />
+          {/* Live sync (docs/LIVE.md), on by hand while it is being tried: off, nothing of it is loaded at all. */}
+          <SettingRow
+            label="Live typing (trial)"
+            hint="A note open on two of your devices shows what is typed on either as it is typed, end to end encrypted like everything else. Starts with the next note you open."
+            control={<Switch aria-label="Live typing" checked={live} onCheckedChange={setLiveEnabled} />}
+          />
           <SettingRow icon={<KeyRound size={20} />} label="Password and recovery codes" onPress={() => setEditing(true)} />
           <SettingRow icon={<LogOut size={20} />} label="Sign out" hint="Your notes stay on this device." onPress={() => void signOutHere()} />
         </PaneSection>

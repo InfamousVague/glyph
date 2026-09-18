@@ -108,11 +108,26 @@ at from a column, from a sentence, or from another note.
 - **A column called Done means done.** An item ticked anywhere is drawn in the Done column if the board has one, and
   ticking a card moves it there; unticking puts it back in the first column. Dragging a card into Done ticks it, and
   dragging it out unticks it. A board with no Done column leaves the ticks to the items.
+- **A tick can put an item on the board.** An item that is not a card, ticked in a list whose other items ARE cards,
+  joins that board and lands in Done, its line gaining the anchor that names it (three such items turned up in
+  Matt's own note: ticking them moved nothing while the other 57 worked, and nothing said why). It is scoped to the
+  item's own list on purpose - a to-do in an unrelated list further down stays where it is, since a board never has
+  to hold every item in the note. One tap, one undo, and the card menu's **Take off the board** puts it back.
+  The anchor is **appended at the end of the line**, never written by replacing the line: the tick is changing one
+  character at the start of that same line in the same transaction, and two changes that overlap cannot both be
+  applied. Anything else that writes an anchor while a box is turning has to do the same.
 - **The fence follows the ticks, wherever the box is turned.** Tapping the box in the note's list, or a task going
   Done in Notion, moves that card too, in the same edit and the same undo; and any other card whose item is already
   ticked settles into Done at the same time, so a note that has drifted comes right with the next change (Matt, of a
   lane holding seventeen ids and drawing two: "items are in the Doing swimlane in the board code"). A card someone has
   just moved by hand stays where they put it.
+- **A board on screen reads its open tasks.** A task can only go Done once Glyph has read it again, and an open note
+  re-reads the linked items on screen (`editor/links.ts`). A board is drawn as one block in place of its fence, so it
+  is not among CodeMirror's `visibleRanges`, and its cards' items usually sit far below it. Read only by their own
+  lines, a board being looked at never learned its tasks were done (Matt: "a lot of the notion tickets aren't moved to
+  done": four cards in To do, all Done in Notion, their items sixty lines down). So the unticked to-dos on any board in
+  the viewport are read too. Only those: they are the cards that can move, and his board holds 66 cards, so reading
+  them all each minute would be 66 Notion reads a minute for four that could change.
 - **Column names are free.** "To do", "Waiting on Sam", "This week": anything up to the colon, and the same name
   twice is one column.
 - **Empty columns stay.** `Blocked:` with nothing after it is a column with no cards, not a mistake.

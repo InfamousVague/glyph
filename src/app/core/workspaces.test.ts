@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { preferences, reloadPreferences, setPreferences } from './preferences.ts';
 import {
   addWorkspace,
   chooseWorkspace,
@@ -18,6 +19,8 @@ import {
 describe('workspaces', () => {
   beforeEach(() => {
     localStorage.clear();
+    // The workspaces themselves live in the preferences now (they travel between devices), so both are read again.
+    reloadPreferences();
     reloadWorkspaces();
   });
 
@@ -95,11 +98,21 @@ describe('workspaces', () => {
     off();
   });
 
-  it('comes back from storage, dropping filings to workspaces that are gone', () => {
+  it('takes workspaces kept under the old key into the preferences, where they travel', () => {
+    // Made before workspaces synced: read once from where they were, and from the preferences ever after.
     localStorage.setItem(KEY, JSON.stringify({ list: [{ id: 'w-a', name: 'Work' }], notes: { n1: 'w-a', n2: 'w-gone' }, current: 'w-gone' }));
     reloadWorkspaces();
     expect(workspaces()).toEqual({ list: [{ id: 'w-a', name: 'Work' }], of: { n1: 'w-a' }, current: null });
+    expect(preferences().workspaces).toEqual({ list: [{ id: 'w-a', name: 'Work' }], notes: { n1: 'w-a' } });
+    // The old key is no longer read, so rubbish left in it changes nothing.
     localStorage.setItem(KEY, 'not json');
+    reloadWorkspaces();
+    expect(workspaces().list).toEqual([{ id: 'w-a', name: 'Work' }]);
+  });
+
+  it('reads rubbish in the preference as no workspaces at all', () => {
+    localStorage.setItem('glyph-preferences', JSON.stringify({ workspaces: 'not a sheet' }));
+    reloadPreferences();
     reloadWorkspaces();
     expect(workspaces().list).toEqual([]);
   });
@@ -117,6 +130,7 @@ const KEY = 'glyph-workspaces';
 describe('a workspace’s colour', () => {
   beforeEach(() => {
     localStorage.clear();
+    reloadPreferences();
     reloadWorkspaces();
   });
 
@@ -145,7 +159,7 @@ describe('a workspace’s colour', () => {
     setWorkspaceHue('w-nothing', 'sea');
     expect(workspaces().list.length).toBe(1);
     // A hue written by a phone further ahead reads as ink rather than as a broken colour.
-    localStorage.setItem('glyph-workspaces', JSON.stringify({ list: [{ id: 'w-1', name: 'Saved', hue: 'octarine' }], notes: {}, current: null }));
+    setPreferences({ workspaces: { list: [{ id: 'w-1', name: 'Saved', hue: 'octarine' }], notes: {} } });
     reloadWorkspaces();
     expect(workspaces().list[0]).toEqual({ id: 'w-1', name: 'Saved' });
   });

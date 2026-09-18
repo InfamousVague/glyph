@@ -19,6 +19,13 @@
  *   /glyph/glyph.apk   the installable app, for first installs and for changes
  *   /glyph/apk.json    to the native layer. apk.json is what makes an installed
  *   /glyph/apk.json.sig  Glyph offer "Install" when this APK is newer than it.
+ *   /glyph/glyph.dmg   the Mac app (with --desktop): universal, signed with the
+ *   /glyph/desktop.json  Developer ID, not yet notarised. desktop.json says what
+ *                      it is (version, size, SHA-256, the lowest macOS it runs on)
+ *                      and is what install.html reads to offer it; it lands after
+ *                      glyph.dmg, by rename, like the other manifests. Unsigned for
+ *                      now, because no app reads it - sign it (a CONTEXT in
+ *                      ota-sign.mjs) the day the Mac app offers its own updates.
  *   /glyph/changelog.json  every release published here, newest first: version, build,
  *                      when, the notes it carried, and the APK that went with it. Written
  *                      from the live one each deploy, and read by Settings' What's new.
@@ -51,6 +58,7 @@
  * Usage:
  *   node scripts/deploy-ota.mjs                  # web + OTA update, the quick loop
  *   node scripts/deploy-ota.mjs --apk            # also build and publish the APK
+ *   node scripts/deploy-ota.mjs --desktop        # also build and publish the Mac app (on a Mac, with the Developer ID)
  *   node scripts/deploy-ota.mjs --apk --same-version
  *   node scripts/deploy-ota.mjs --skip-tests     # ship without running the tests first (not recommended)
  *   node scripts/deploy-ota.mjs --apk --keep-connection && npm run deploy:server   # one login for both
@@ -74,7 +82,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -101,8 +109,19 @@ const APK = join(APK_DIR, 'universal/release/app-universal-release.apk');
 const APK_META = join(APK_DIR, 'universal/release/output-metadata.json');
 const SIGNER_PIN = join(ROOT, 'src-tauri/apk-signer.sha256');
 const BUILD_TOOLS = join(process.env.ANDROID_HOME ?? join(process.env.HOME, 'Library/Android/sdk'), 'build-tools/35.0.0');
+// The Mac app: one universal build (Apple silicon and Intel in one file), so the download page needs no question.
+const MAC_TARGET = 'universal-apple-darwin';
+const MAC_BUNDLE = join(ROOT, 'src-tauri/target', MAC_TARGET, 'release/bundle');
+/*
+ * Who may sign it. The team is pinned the way the APK's signer is (apk-signer.sha256): an app signed by anyone else
+ * is refused before it goes out, checked on the built file rather than trusted from the build. The identity is the
+ * certificate's name in this Mac's keychain; $GLYPH_MAC_IDENTITY overrides it on another machine.
+ */
+const MAC_TEAM = 'F6ZAL7ANAD';
+const MAC_IDENTITY = process.env.GLYPH_MAC_IDENTITY ?? `Developer ID Application: Matt Wisniewski (${MAC_TEAM})`;
 
 const withApk = process.argv.includes('--apk');
+const withDesktop = process.argv.includes('--desktop');
 const sameVersion = process.argv.includes('--same-version');
 const isPublic = process.argv.includes('--public');
 // Leave the connection open (it closes itself two minutes after its last use)
@@ -393,6 +412,88 @@ if (withApk) {
   ok(`APK ${apkInfo.version} (code ${apkInfo.versionCode}, native ${native}), ${(apkInfo.bytes / 1e6).toFixed(0)} MB`);
 }
 
+let desktopInfo = null;
+let desktopDmg = null;
+if (withDesktop) {
+  step('Building the Mac app');
+  if (process.platform !== 'darwin') fail('--desktop builds the Mac app, and that needs a Mac.');
+  if (process.env.GLYPH_OTA_BASE) {
+    fail('GLYPH_OTA_BASE is set: that is for test builds, and a Mac app built with it would never look at attack.fm.');
+  }
+  // The certificate is looked for before a twenty-minute build, not found missing at the end of one.
+  const identities = String(spawnSync('security', ['find-identity', '-v', '-p', 'codesigning'], { encoding: 'utf8' }).stdout ?? '');
+  if (!identities.includes(`"${MAC_IDENTITY}"`)) {
+    fail(`No signing identity "${MAC_IDENTITY}" in this Mac's keychain. Set GLYPH_MAC_IDENTITY to the Developer ID Application certificate's name.`);
+  }
+  // As with the APK, the old bundle goes first, so nothing a previous build left behind can be what is published.
+  rmSync(MAC_BUNDLE, { recursive: true, force: true });
+  // The empty beforeBuildCommand is the build-once rule in the header: the app embeds exactly the dist that goes out.
+  run('npx', ['tauri', 'build', '--bundles', 'app,dmg', '--target', MAC_TARGET, '--config', '{"build":{"beforeBuildCommand":""}}'], {
+    cwd: ROOT,
+    env: { ...process.env, APPLE_SIGNING_IDENTITY: MAC_IDENTITY },
+  });
+  const app = join(MAC_BUNDLE, 'macos/Glyph.app');
+  const dmgDir = join(MAC_BUNDLE, 'dmg');
+  const dmgName = existsSync(dmgDir) ? readdirSync(dmgDir).find((name) => name.endsWith('.dmg')) : undefined;
+  if (!existsSync(app) || !dmgName) fail(`The Mac build left no app or no DMG under ${MAC_BUNDLE}.`);
+  desktopDmg = join(dmgDir, dmgName);
+
+  /*
+   * What decides whether it may go out, read off the built app rather than trusted from the config - each of these
+   * has a way of failing without a word. A wrong team is an app nobody's existing install trusts. Without the hardened
+   * runtime it can never be notarised. Without the audio-input entitlement the hardened runtime closes the microphone
+   * and getUserMedia hands back silence, no prompt and no error; without NSMicrophoneUsageDescription macOS refuses
+   * the microphone outright. And one architecture short is a download that will not open on half the Macs there are.
+   */
+  const verified = spawnSync('codesign', ['--verify', '--deep', '--strict', app], { encoding: 'utf8' });
+  if (verified.status !== 0) fail(`codesign does not verify the built app:\n${verified.stderr}`);
+  const signing = String(spawnSync('codesign', ['-dv', '--verbose=2', app], { encoding: 'utf8' }).stderr ?? '');
+  const team = /TeamIdentifier=(\S+)/.exec(signing)?.[1];
+  if (team !== MAC_TEAM) fail(`The app is signed by team ${team ?? 'none'}, not the pinned ${MAC_TEAM}.`);
+  if (!/^Authority=Developer ID Application:/m.test(signing)) fail('The app is not signed with a Developer ID Application certificate.');
+  if (!/flags=\S*\(.*runtime.*\)/.test(signing)) fail('The app is not built with the hardened runtime.');
+  const entitlements = String(spawnSync('codesign', ['-d', '--entitlements', ':-', app], { encoding: 'utf8' }).stdout ?? '');
+  if (!entitlements.includes('com.apple.security.device.audio-input')) {
+    fail('The app has no microphone entitlement: under the hardened runtime recording would return silence (src-tauri/Entitlements.plist).');
+  }
+  const plist = JSON.parse(spawnSync('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents/Info.plist')], { encoding: 'utf8' }).stdout || '{}');
+  if (!plist.NSMicrophoneUsageDescription) {
+    fail('The app has no NSMicrophoneUsageDescription: macOS would refuse it the microphone (src-tauri/Info.macos.plist).');
+  }
+  /*
+   * The lowest macOS it opens on, which the download page quotes. It is the floor of the system's own WebKit, which
+   * draws the app: the styles use color-mix() (Safari 16.2) and oklch() and :has() (15.4), and 13.1 is the first macOS
+   * whose built-in WebKit has all three. Below it the app would open and draw without its colours.
+   */
+  if (!plist.LSMinimumSystemVersion) fail('The app has no LSMinimumSystemVersion for the download page to quote (tauri.conf.json bundle.macOS).');
+  const executable = join(app, 'Contents/MacOS', String(plist.CFBundleExecutable ?? ''));
+  const archs = String(spawnSync('lipo', ['-archs', executable], { encoding: 'utf8' }).stdout ?? '').trim().split(/\s+/);
+  if (!archs.includes('arm64') || !archs.includes('x86_64')) fail(`The app is built for ${archs.join(', ') || 'nothing'}, not both Apple silicon and Intel.`);
+  ok(`Mac app signed by team ${MAC_TEAM} (Developer ID, hardened runtime), microphone allowed, ${archs.join(' + ')}, macOS ${plist.LSMinimumSystemVersion}+`);
+
+  // The build-once rule, checked rather than trusted, as it is for the APK.
+  const afterMac = JSON.parse(readFileSync(join(DIST, 'ota.json'), 'utf8'));
+  if (afterMac.build !== manifest.build) {
+    fail(`The Mac build rebuilt the web app (${manifest.build} -> ${afterMac.build}); the app and dist/ no longer match. Nothing was published.`);
+  }
+
+  const dmgBytes = readFileSync(desktopDmg);
+  desktopInfo = {
+    version: plist.CFBundleShortVersionString,
+    build: manifest.build,
+    sha256: createHash('sha256').update(dmgBytes).digest('hex'),
+    bytes: dmgBytes.length,
+    url: 'glyph.dmg',
+    arch: archs,
+    minimumSystemVersion: plist.LSMinimumSystemVersion,
+    team: MAC_TEAM,
+    // Signed but not notarised (Matt's choice for now): the first launch needs Open Anyway, which install.html explains.
+    notarized: false,
+  };
+  writeFileSync(join(DIST, 'desktop.json'), `${JSON.stringify(desktopInfo, null, 2)}\n`);
+  ok(`Mac app ${desktopInfo.version}, ${(desktopInfo.bytes / 1e6).toFixed(0)} MB`);
+}
+
 // ---- the changelog ------------------------------------------------------------
 /*
  * Every release, newest first, carried forward from the one that is live: the history belongs to the site, so a
@@ -500,6 +601,16 @@ if (withApk) {
   );
 }
 
+if (withDesktop) {
+  // Not compressed on the way: a DMG is already compressed, and -z would only spend time.
+  step(`Uploading the Mac app ${c.dim(`(${(desktopInfo.bytes / 1e6).toFixed(0)} MB)`)}`);
+  run(
+    'sshpass',
+    ['-e', 'rsync', '--progress', '-e', RSYNC_SSH, desktopDmg, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}:${STAGE}/glyph.dmg`],
+    { env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS } },
+  );
+}
+
 step('Publishing');
 ssh(
   env,
@@ -513,9 +624,12 @@ ssh(
    # The two manifests are EXCLUDED here - excluded files are also not deleted
    # on the receiver - and placed below, last, by rename. See ORDER IS THE
    # SAFETY in the header.
+   # glyph.dmg and desktop.json the same way as the APK and its manifest: protected, so a deploy without --desktop
+   # neither deletes the Mac download nor the page's note of it, and desktop.json placed last, after the DMG.
    sudo rsync -a --delete \\
-     --filter 'P /models/' --filter 'P /glyph.apk' \\
+     --filter 'P /models/' --filter 'P /glyph.apk' --filter 'P /glyph.dmg' \\
      --exclude '/ota.json' --exclude '/ota.json.sig' --exclude '/apk.json' --exclude '/apk.json.sig' \\
+     --exclude '/desktop.json' \\
      ${STAGE}/ ${REMOTE}/
    sudo chown -R root:root ${REMOTE}
    # Caddy runs as its own user and only needs to read.
@@ -531,6 +645,11 @@ ssh(
      sudo mv -f ${REMOTE}/.$1.new ${REMOTE}/$1
    }
    ${withApk ? 'place apk.json' : '# no --apk: the published apk.json and its signature stay as they are'}
+   # desktop.json has no signature yet (the header says why), so it is placed on its own by the same rename.
+   ${withDesktop
+     ? `sudo install -m 644 -o root -g root ${STAGE}/desktop.json ${REMOTE}/.desktop.json.new
+   sudo mv -f ${REMOTE}/.desktop.json.new ${REMOTE}/desktop.json`
+     : '# no --desktop: the published glyph.dmg and desktop.json stay as they are'}
    place ota.json
    rm -rf ${STAGE}`,
 );
@@ -588,10 +707,28 @@ if (withApk) {
   ok(`APK live: ${apkInfo.version}, ${apkInfo.bytes} bytes`);
 }
 
+if (withDesktop) {
+  let liveDesktop;
+  try {
+    liveDesktop = JSON.parse(fetchBytes(`${URL_}desktop.json`).toString());
+  } catch {
+    fail(`${URL_}desktop.json is not JSON.`);
+  }
+  if (liveDesktop.sha256 !== desktopInfo.sha256) fail('desktop.json on the box does not describe the Mac app just built.');
+  // The whole download, hashed, rather than its length: it is small enough, and it is the one file a person runs.
+  const servedDmg = fetchBytes(`${URL_}${desktopInfo.url}`);
+  const servedHash = createHash('sha256').update(servedDmg).digest('hex');
+  if (servedHash !== desktopInfo.sha256) {
+    fail(`${desktopInfo.url} is served as ${servedDmg.length} bytes hashing to ${servedHash}, not the DMG just built.`);
+  }
+  ok(`Mac app live: ${desktopInfo.version}, ${desktopInfo.bytes} bytes, SHA-256 matches`);
+}
+
 ok(`Published to ${URL_} ${c.dim(`serving ${built}`)}`);
 console.log('');
 console.log(`  open on the phone   ${URL_}install.html`);
 console.log(`  install the app     ${URL_}glyph.apk`);
+if (withDesktop) console.log(`  the Mac app         ${URL_}glyph.dmg`);
 console.log(`  web version         ${URL_}`);
 console.log(`  OTA manifest        ${URL_}ota.json`);
 console.log('');

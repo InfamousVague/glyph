@@ -11,6 +11,7 @@
 //!   GET  /glyph/api/health                ->  { ok, model, ollama }
 //!   /glyph/api/notion/*                    ->  Notion sign-in, see `notion.rs`
 //!   /glyph/api/v1/*                        ->  accounts and end-to-end encrypted sync, see `accounts.rs`, `sync.rs`
+//!   /glyph/api/v1/live                     ->  live sync's relay, a WebSocket passing sealed edits, see `live.rs`
 //!
 //! This file owns the wire: routes, CORS, the order the guards run in, and
 //! what each failure looks like to the phone. `model.rs` owns the Ollama call,
@@ -34,9 +35,12 @@ mod model;
 mod notion;
 mod shape;
 mod store;
+mod live;
 mod sync;
 #[cfg(test)]
 mod sync_tests;
+#[cfg(test)]
+mod live_tests;
 
 use axum::body::{to_bytes, Body};
 use axum::extract::{ConnectInfo, State};
@@ -285,7 +289,11 @@ fn router(app: Arc<App>, accounts: Option<Arc<accounts::Accounts>>) -> Router {
         .merge(notion::router(notion));
     // Accounts and sync, when the service has somewhere to keep them.
     if let Some(accounts) = accounts {
-        routes = routes.merge(accounts::router(accounts.clone())).merge(sync::router(accounts));
+        routes = routes
+            .merge(accounts::router(accounts.clone()))
+            .merge(sync::router(accounts.clone()))
+            // Live sync's relay (docs/LIVE.md): the same accounts, a socket instead of requests.
+            .merge(live::router(accounts));
     }
     routes
         .fallback(not_found)

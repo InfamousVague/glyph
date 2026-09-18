@@ -114,7 +114,8 @@
 }
 
 .group + .group {
-  margin-block-start: var(--glacier-space-7);
+  /* `space-7` is not on the kit's scale, so this gap was never applied at all. */
+  margin-block-start: var(--glacier-space-8);
 }
 
 .groupHead {

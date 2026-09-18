@@ -14,7 +14,7 @@ import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { FormattingPane } from './FormattingPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
 import { usePlugins } from '../plugins/registry.ts';
-import { AboutPane, AnimationsPane, DeveloperPane, FeelPane, RecordingPane, ThemePane, TypePane } from './panes.tsx';
+import { AboutPane, AnimationsPane, DeveloperPane, FeelPane, RecordingPane, AppearancePane, TypePane } from './panes.tsx';
 import { SettingsScreen, type SettingsSection } from './SettingsScreen.tsx';
 import { TestResultsPane } from './TestResultsPane.tsx';
 import { reportSummary } from '../diag/testReport.ts';
@@ -61,6 +61,8 @@ const DENSITY_WORDS: Record<string, string> = {
   'more-space': 'Roomiest',
 };
 const THEME_WORDS: Record<string, string> = { system: 'System', light: 'Light', dark: 'Dark' };
+const ACCENT_WORDS: Record<string, string> = { graphite: 'Graphite', red: 'Red', amber: 'Amber', green: 'Green', teal: 'Teal', purple: 'Purple' };
+const ROUNDING_WORDS: Record<string, string> = { square: 'Square', soft: 'Soft', round: 'Round', rounder: 'Roundest' };
 
 export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
   const prefs = usePreferences();
@@ -106,17 +108,24 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
       label: 'Type',
       icon: <Type size={16} />,
       content: <TypePane />,
-      summary: `${SIZE_WORDS[prefs.textSize] ?? prefs.textSize} · ${FACE_WORDS[prefs.typeface] ?? prefs.typeface}${
-        prefs.density === 'comfortable' ? '' : ` · ${DENSITY_WORDS[prefs.density] ?? prefs.density}`
-      }`,
+      // Spacing moved to Appearance, where the rest of how the app is drawn lives.
+      summary: `${SIZE_WORDS[prefs.textSize] ?? prefs.textSize} · ${FACE_WORDS[prefs.typeface] ?? prefs.typeface}`,
       group: 0,
     },
     {
       id: 'theme',
-      label: 'Theme',
+      label: 'Appearance',
       icon: <SunMoon size={16} />,
-      content: <ThemePane />,
-      summary: THEME_WORDS[prefs.theme] ?? prefs.theme,
+      content: <AppearancePane />,
+      // The page, then anything else that has been moved off its default: the colour, the air, the corners.
+      summary: [
+        THEME_WORDS[prefs.theme] ?? prefs.theme,
+        prefs.accent === 'ink' ? null : ACCENT_WORDS[prefs.accent] ?? prefs.accent,
+        prefs.density === 'comfortable' ? null : DENSITY_WORDS[prefs.density] ?? prefs.density,
+        prefs.rounding === 'round' ? null : ROUNDING_WORDS[prefs.rounding] ?? prefs.rounding,
+      ]
+        .filter(Boolean)
+        .join(' · '),
       group: 0,
     },
     ...(isAndroid

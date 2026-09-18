@@ -258,6 +258,8 @@ export function detailsOf(page: NotionPage, stages: StageMap | null, now = Date.
 interface Known {
   details?: MarkDetails;
   failed?: string;
+  /** When the last read failed: a task never read is tried again once this is as old as a stale answer. */
+  failedAt?: number;
   loading: boolean;
 }
 
@@ -307,7 +309,7 @@ async function read(id: string, url: string): Promise<void> {
     persist();
   } catch (failure) {
     const message = failure instanceof Error ? failure.message : String(failure);
-    known.set(id, { details: entry.details, failed: entry.details ? undefined : message, loading: false });
+    known.set(id, { details: entry.details, failed: entry.details ? undefined : message, failedAt: Date.now(), loading: false });
   }
   markDetailsChanged();
 }
@@ -346,7 +348,12 @@ export const notionDetails: MarkDetailsProvider = {
     const entry = known.get(id);
     if (entry?.loading) return;
     if (!fresh && entry?.details && Date.now() - entry.details.readAt < FRESH_MS) return;
-    if (!fresh && entry?.failed) return;
+    /*
+     * A failed read is tried again after a while, as a stale answer is. It used to wait for a Refresh by hand, so one
+     * failure - the network not back yet as the phone woke, Notion asking Glyph to slow down - left a new task
+     * unread for as long as the app stayed open, and its item never ticked or moved to Done.
+     */
+    if (!fresh && entry?.failed && Date.now() - (entry.failedAt ?? 0) < FRESH_MS) return;
     known.set(id, { details: entry?.details, loading: true });
     queue.push({ id, url });
     pump();

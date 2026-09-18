@@ -39,6 +39,8 @@ import { useEffect, useState, type RefObject } from 'react';
  */
 
 export const WISP_EDGE_FILTER_ID = 'wispEdge';
+/** The foot's band, a filter of its own so a view that wants only its foot never draws another view's header band. */
+export const WISP_EDGE_FOOT_FILTER_ID = 'wispEdgeFoot';
 export const WISP_EDGE_NOISE_ID = 'wispEdgeNoise';
 export const WISP_EDGE_DRIFT_ID = 'wispEdgeDrift';
 export const WISP_EDGE_STRIP_ID = 'wispEdgeStrip';
@@ -64,6 +66,21 @@ export const WISP_EDGE_BAND = 10;
 export const WISP_EDGE_DROP = 18;
 /** The strip starts this far above the view, so its blur never opens the top. */
 export const WISP_EDGE_ABOVE = 200;
+/**
+ * The filter's region: the view, with room around it for the bend to throw pixels into and for the strip above.
+ *
+ * It used to be one guess big enough for any view - 4000 by 60000 - and that is what took the effect off Apple's
+ * engine for a while (Matt, on the Mac: "the whole page is going black when I scroll down"). A filter region has a
+ * budget of 2^24 device pixels, and over it WebKit draws nothing and the element paints solid black: measured in
+ * WebKit, 4096 x 4096 draws and 4200 x 4000 is black, and at two device pixels to the CSS pixel the boundary moves
+ * to 2048 x 2048 exactly. The old region was forty times over it. Sized to the view it is nowhere near - the app's
+ * own window is 430 x 860 - so `placeRegion` sets it from the view, and a window too large even for that keeps the
+ * plain fade rather than risking the black.
+ */
+const WISP_EDGE_SIDE = 40;
+const WISP_EDGE_CROWN = WISP_EDGE_ABOVE + 40;
+const WISP_EDGE_BELOW = 40;
+export const WISP_EDGE_BUDGET = 2 ** 24;
 /** The foot's full-strength lip at the view's bottom edge, and how far the band is computed above it. */
 export const WISP_EDGE_FOOT_BAND = 10;
 /** How far below the band's lip the bend and blur are computed at all: past the strip's soft edge, with room for the drift. */
@@ -180,6 +197,31 @@ function placeFoot(height: number, on: boolean): void {
   }
 }
 
+/**
+ * Sizes the filter's region to the view about to wear it, and answers whether it fits the budget above.
+ *
+ * The window's size rather than the view's own: two views can be wearing the one filter at a time (a page with a
+ * sheet over it), and a region cut to the smaller would clip the larger - what falls outside a filter's region is not
+ * drawn at all, so the miss would be a page with its edges missing rather than a page without smoke.
+ */
+function placeRegion(el: HTMLElement): boolean {
+  const across = Math.max(el.offsetWidth, typeof innerWidth === 'number' ? innerWidth : 0) + WISP_EDGE_SIDE * 2;
+  const down = Math.max(el.offsetHeight, typeof innerHeight === 'number' ? innerHeight : 0) + WISP_EDGE_CROWN + WISP_EDGE_BELOW;
+  // The budget is counted in the screen's own pixels, so a sharp screen spends two or three for each one here.
+  const dots = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  if (Math.ceil(across * dots) * Math.ceil(down * dots) > WISP_EDGE_BUDGET) return false;
+  // Both bands' filters, each held to the budget on its own: an engine gives every filter its own buffer, so wearing
+  // the two together does not pool them into one region twice the size.
+  for (const id of [WISP_EDGE_FILTER_ID, WISP_EDGE_FOOT_FILTER_ID]) {
+    const filter = document.getElementById(id);
+    filter?.setAttribute('x', String(-WISP_EDGE_SIDE));
+    filter?.setAttribute('y', String(-WISP_EDGE_CROWN));
+    filter?.setAttribute('width', String(across));
+    filter?.setAttribute('height', String(down));
+  }
+  return true;
+}
+
 /** The phone's status bar, in px: the app sets it on the root as `--app-safe-top` (app.css). */
 function safeTop(): number {
   if (typeof getComputedStyle === 'undefined') return 0;
@@ -238,7 +280,10 @@ export function useWispEdge(
     let fitted = -1;
     /** What the band sits under: a header, or the phone's status bar on a view that has none. */
     let beneath = 0;
+    /** Whether the filter's region can cover this view at all: a window past the budget goes without (`placeRegion`). */
+    let roomy = false;
     const fit = () => {
+      roomy = placeRegion(el);
       const height = header?.offsetHeight ?? 0;
       // With no header the status bar plays the part of one: the smoke's lip sits at its edge, so a page dissolves
       // as it reaches the clock instead of sliding under a flat scrim (app.css .app-statusScrim).
@@ -259,9 +304,9 @@ export function useWispEdge(
       // own card over it) keeps its scrollTop, and the band would go on smoking over whatever is under the header
       // (Matt: "when on the page where the AI is analyzing everything the top text looks distorted unexpectedly").
       const more = el.scrollHeight - el.clientHeight > 4;
-      const scrolled = el.scrollTop > 4 && more;
+      const scrolled = el.scrollTop > 4 && more && roomy;
       // The foot smokes while there is still something below the view's bottom edge to scroll to.
-      const ending = foot && more && el.scrollTop < el.scrollHeight - el.clientHeight - 4;
+      const ending = foot && more && roomy && el.scrollTop < el.scrollHeight - el.clientHeight - 4;
       if (ending !== footWorn) {
         footWorn = ending;
         el.toggleAttribute('data-wisp-foot', ending);
@@ -304,7 +349,17 @@ export function useWispEdge(
       check();
     });
     resized.observe(el);
-    if (header) resized.observe(header);
+    /*
+     * The header by its border box, not the default content box. A header here is mostly padding - the list's is
+     * `padding-block: calc(var(--app-safe-top) + ...)` around a title only a screen reader sees - so when the bar
+     * above it changes height (the app stamping its height after the first paint, the Mac's title bar, the bar going
+     * from one row to two) only the padding grows. The content box stays put, a content-box observer never fires,
+     * and `--wisp-under` kept whatever the first `fit()` happened to catch: 16px on one load, 125 on the next, and
+     * the workspace pills either under the bar or crowded against it. Measured: the same padding change fired a
+     * content-box observer 0 times and a border-box one once. `fit()` reads `offsetHeight`, which is the border box,
+     * so what is watched and what is measured now agree.
+     */
+    if (header) resized.observe(header, { box: 'border-box' });
     return () => {
       el.removeEventListener('scroll', onScroll);
       resized.disconnect();

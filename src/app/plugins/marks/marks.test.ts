@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { glyphMarkdown } from '../../editor/language.ts';
 import { styledRanges } from '../../editor/formatLooks.ts';
 import { BUILT_IN } from '../registry.ts';
-import { MARKS, marksPlugin } from './index.tsx';
+import { isMarkColour, MARK_COLOURS, MARKS, marksPlugin, washFor } from './index.tsx';
 
 const formats = MARKS;
 
@@ -65,5 +65,30 @@ describe("Glyph's own marks", () => {
   it('has no redaction any more: @@ is plain words (Matt: "remove redacted its the same as spoiler")', () => {
     expect(formats.map((format) => format.name)).not.toContain('Redact');
     expect(nodes('a @@bar@@ of ink')).not.toContain('Redact');
+  });
+});
+
+describe('a highlight with a colour named after it', () => {
+  const highlight = MARKS.find((mark) => mark.name === 'Highlight')!;
+
+  it('takes the kit’s own colour names, and nothing else', () => {
+    for (const name of MARK_COLOURS) expect(isMarkColour(name)).toBe(true);
+    expect(isMarkColour('chartreuse')).toBe(false);
+    // The wash names a token, never a colour: the kit can retune green without touching a note.
+    expect(washFor('green')).toBe('color-mix(in oklch, var(--glacier-green-9) 34%, transparent)');
+    expect(washFor('GREEN ')).toBe(washFor('green'));
+    expect(washFor('chartreuse')).toBe('');
+  });
+
+  it('tints the words for a name it knows and leaves the rest to the note', () => {
+    expect(highlight.tint?.('amber')).toContain('var(--glacier-amber-9)');
+    expect(highlight.tint?.('amber')).toContain('box-shadow');
+    // A name it does not know is not a colour: those brackets are still a note (editor/markNotes.ts).
+    expect(highlight.tint?.('Sam said 400')).toBeNull();
+    expect(highlight.tint?.('')).toBeNull();
+  });
+
+  it('is the only mark that takes one', () => {
+    for (const mark of MARKS.filter((one) => one.name !== 'Highlight')) expect(mark.tint).toBeUndefined();
   });
 });

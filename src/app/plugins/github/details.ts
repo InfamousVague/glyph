@@ -48,6 +48,8 @@ interface Known {
   details?: MarkDetails;
   issue?: Issue;
   failed?: string;
+  /** When the last read failed: an issue never read is tried again once this is as old as a stale answer. */
+  failedAt?: number;
   loading: boolean;
 }
 
@@ -88,7 +90,7 @@ async function read(key: string, url: string): Promise<void> {
     return;
   } catch (failure) {
     const message = failure instanceof Error ? failure.message : String(failure);
-    known.set(key, { details: entry.details, issue: entry.issue, failed: entry.details ? undefined : message, loading: false });
+    known.set(key, { details: entry.details, issue: entry.issue, failed: entry.details ? undefined : message, failedAt: Date.now(), loading: false });
   }
   markDetailsChanged();
 }
@@ -127,7 +129,9 @@ export const githubDetails: MarkDetailsProvider = {
     const entry = known.get(key);
     if (entry?.loading) return;
     if (!fresh && entry?.details && Date.now() - entry.details.readAt < FRESH_MS) return;
-    if (!fresh && entry?.failed) return;
+    // A failed read is tried again after a while, as a stale answer is, not only on a Refresh by hand (the Notion
+    // plugin's details.ts says why).
+    if (!fresh && entry?.failed && Date.now() - (entry.failedAt ?? 0) < FRESH_MS) return;
     known.set(key, { details: entry?.details, issue: entry?.issue, loading: true });
     queue.push({ key, url });
     pump();

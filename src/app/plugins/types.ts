@@ -223,6 +223,15 @@ export interface InlineFormat {
   about?: string;
   /** Its own mark on the Style page, where a plugin brings several: the plugin's icon otherwise. */
   icon?: ComponentType<{ size?: number }>;
+  /**
+   * A name in brackets after the mark, turned into extra CSS for those words alone: `==the key==(green)` is a green
+   * highlight (Matt: "Add a colour option on the highlight supporting the colour names from the glacierUI kit").
+   *
+   * It is the same shape as a note on a mark (editor/markNotes.ts), and the two share the brackets: a name this
+   * answers is a colour, anything else is still a note. Answer null for a name the mark does not know, and the words
+   * keep the mark's own look - an unknown colour is never nothing.
+   */
+  tint?: (name: string) => string | null;
 }
 
 export type FormatLook =

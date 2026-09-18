@@ -102,10 +102,13 @@ impl Accounts {
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Sign in first."))?;
-        self.issuer
-            .verifier()
-            .verify(raw.trim(), now_secs())
-            .map_err(|_| error(StatusCode::UNAUTHORIZED, "Your session has ended. Sign in again."))
+        self.claims(raw).ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Your session has ended. Sign in again."))
+    }
+
+    /// The account a token speaks for, if it is one of ours and still current. The one check every way in uses: a
+    /// header on the HTTP routes, the first frame on live sync's socket (src/live.rs), which cannot carry a header.
+    pub fn claims(&self, raw: &str) -> Option<Claims> {
+        self.issuer.verifier().verify(raw.trim(), now_secs()).ok()
     }
 
     fn issue(&self, id: i64, handle: &str) -> String {

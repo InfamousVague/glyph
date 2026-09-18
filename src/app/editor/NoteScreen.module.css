@@ -11,7 +11,7 @@
  * 0 to 1 on the screen and `data-unfolding` is on: the note is paper folded
  * down its middle, foreshortened with the crease's shadow in the valley, and
  * it flattens as the hinge does. Only the note moves; the header and the
- * view switch are the phone's, not the paper's. None of this matches once
+ * app's own bar are the phone's, not the paper's. None of this matches once
  * the attribute is gone, so a flat note costs nothing.
  */
 .screen[data-unfolding] .body {
@@ -82,13 +82,9 @@
 }
 
 
-.back {
-  color: var(--glacier-text);
-}
-
 /*
- * The note arrives: the header, then the view control, then the body, each a
- * beat after the last, rising a few pixels as they fade in. On the parts, not
+ * The note arrives: the header, then the tape, then the body, each a beat
+ * after the last, rising a few pixels as they fade in. On the parts, not
  * on `.screen`, whose transform the unfold (core/unfold.ts) drives.
  */
 .header,
@@ -106,19 +102,22 @@
   animation-delay: 90ms;
 }
 
-/* The header's controls on the right: the robot, then the cog, two rings. */
+/* The note's own controls, which now sit in the app's bar beside the sidebar button and the arrows (App.tsx). */
 .tools {
   display: flex;
   align-items: center;
   gap: var(--glacier-space-2);
 }
 
-/* The note's settings: a cog in a ring. */
-/* Markdown or Formatted: two words in one ring, the chosen one filled, the height of the rings beside it. */
-/* A narrow screen keeps Back's arrow and lets its word go, so the header's switch and rings fit. */
+/* A narrow screen keeps Back's arrow and lets its word go, so the header's controls fit. */
 @media (max-width: 440px) {
   .backWord {
     display: none;
+  }
+
+  /* In the app's bar these sit beside the sidebar's button and the two arrows, and the row is only so wide. */
+  .tools {
+    gap: var(--glacier-space-1);
   }
 
   .header {
@@ -126,62 +125,37 @@
   }
 }
 
-.viewSwitch {
-  display: inline-flex;
-  block-size: var(--glacier-space-10);
-  padding: 3px;
-  border: 1.5px solid var(--glacier-border-strong);
-  border-radius: var(--glacier-radius-full);
-}
-
-.viewSwitch button {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* A glyph each rather than a word: square enough to read as a pair of buttons, not a pair of labels. */
-  inline-size: 2rem;
-  padding: 0;
-  border: none;
-  border-radius: var(--glacier-radius-full);
-  background: none;
-  font: inherit;
-  font-size: var(--glacier-font-size-xs, 0.75rem);
-  font-weight: var(--glacier-font-weight-semibold);
-  color: var(--glacier-text-muted);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    background-color 160ms ease-out,
-    color 160ms ease-out;
-}
-
-.viewSwitch button[data-on] {
-  background: var(--glacier-text);
-  color: var(--glacier-bg);
-}
-
-.viewSwitch button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
 .cog {
   appearance: none;
   display: grid;
   place-items: center;
-  inline-size: var(--glacier-space-10);
-  block-size: var(--glacier-space-10);
+  /*
+   * A notch smaller than the kit's step, the four of them together (Matt: "Make the bookmark, more button, speak and
+   * book a little bit smaller"). A step multiplied rather than a new number, as every size in app.css is. The same
+   * expression as the sidebar button and the two arrows (notes/NoteTabs.module.css .sidebar, .step), which is what
+   * these now sit beside: the note's tools were moved into the app's bar, so the row is one set of controls and has
+   * to read as one.
+   */
+  inline-size: calc(var(--glacier-space-10) * 0.88);
+  block-size: calc(var(--glacier-space-10) * 0.88);
   padding: 0;
-  border: 1.5px solid var(--glacier-border-strong);
-  border-radius: var(--glacier-radius-full);
+  /*
+   * No ring (Matt: "Remove the borders around the buttons in the top bar make sure they match the size of the back
+   * and sidebar buttons"). They always were the size of the arrows beside them - measured 40x40 on a phone and 46x46
+   * on a desktop, both alike, since `box-sizing: border-box` keeps a border inside the box - so it was the ring
+   * alone that made them look the larger pair. The corner is the arrows' own, for the ground a hover paints.
+   */
+  border: none;
+  border-radius: var(--glacier-radius-md, 9px);
   background: none;
   color: var(--glacier-text);
   /*
-   * 22 px icons. Tried at 28 px to look the size of the Notion drawer's and they were too big (Matt: "go back to the
-   * previous size and make the icons on the notion drawer smaller to match"), so the drawer came down instead.
+   * The icons came down with the rings, from 22px to 20. They carry their own size in NoteScreen.tsx (`size={20}`),
+   * so this is here for anything drawn in ems rather than for them. They were tried at 28 to look the size of the
+   * Notion drawer's and were too big (Matt: "go back to the previous size and make the icons on the notion drawer
+   * smaller to match"), so the drawer came down instead.
    */
-  font-size: 22px;
+  font-size: 20px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -194,9 +168,17 @@
   transform: rotate(45deg);
 }
 
-/* The bookmark: it does not turn when pressed either, and fills in once the note has one. */
+/* The bookmark: it does not turn when pressed either. */
 .bookmark:active svg {
   transform: scale(0.9);
+}
+
+/*
+ * Gold once the note has a bookmark, the gold of the mark it put on the page (editor/bookmarkLine.ts, ink.css
+ * `.app-gold`), so the button and the mark read as one; ink like the tools beside it while there is none.
+ */
+.bookmark[data-on] {
+  color: var(--app-gold, var(--glacier-text));
 }
 
 /* The note's More: three dots don't turn when pressed, they only answer the press. */
@@ -303,4 +285,27 @@
   min-block-size: auto;
   display: flex;
   flex-direction: column;
+}
+
+/*
+ * "Live": this note is open on another device, and typing on either arrives on the other as it happens (docs/LIVE.md).
+ * A word and a dot in the page's own quiet ink, the size of the tools it sits among, and only there while it is true -
+ * so a person trying live sync can see it is joined up, and nobody else ever sees it at all.
+ */
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding-inline: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  color: var(--glacier-text-muted);
+}
+
+.live::before {
+  content: '';
+  inline-size: 0.5em;
+  block-size: 0.5em;
+  border-radius: var(--glacier-radius-full);
+  background: var(--glacier-green-9, currentColor);
 }

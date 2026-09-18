@@ -1,7 +1,10 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it } from 'vitest';
-import { bookmarkLineIn, bookmarkRibbon, markedWords, placeBookmark, showBookmark } from './bookmarkLine.ts';
+import { Bookmark } from '@glacier/icons';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { BOOKMARK_PATH, bookmarkLineIn, bookmarkRibbon, markedWords, placeBookmark, showBookmark } from './bookmarkLine.ts';
 
 const doc = [
   '# Launch week',
@@ -96,5 +99,31 @@ describe('the bookmark written in the note', () => {
     expect(put(doc, null)).toBe('One line\nTwo line\n- [ ] Three ^three');
     expect(bookmarkLineIn('a\nb §§\nc')).toBe(2);
     expect(bookmarkLineIn('a § b')).toBeNull();
+  });
+});
+
+/*
+ * The mark on the page and the button that put it there are one icon (Matt: "The bookmark icon that renders in the
+ * code should match the bookmark icon in the top controls"). The widget has to copy lucide's path, since a widget is
+ * plain DOM; this is what stops the copy drifting when lucide redraws the icon.
+ */
+describe('the bookmark drawn on the page', () => {
+  it('is the same shape as the Bookmark button draws', () => {
+    const drawn = renderToStaticMarkup(createElement(Bookmark));
+    expect(/<path[^>]*\sd="([^"]+)"/.exec(drawn)?.[1]).toBe(BOOKMARK_PATH);
+  });
+
+  it('wears lucide’s classes, so the one rule that washes the button’s icon washes this too', () => {
+    const view = new EditorView({ state: EditorState.create({ doc: 'Marked here §§', extensions: bookmarkRibbon() }) });
+    const svg = view.dom.querySelector('.cm-bookmarkMark svg');
+    expect(svg?.getAttribute('class')).toBe('lucide lucide-bookmark');
+    expect(svg?.querySelector('path')?.getAttribute('d')).toBe(BOOKMARK_PATH);
+    view.destroy();
+  });
+
+  it('sits in a line wearing the gold, which ink.css works out against that line’s own paper', () => {
+    const view = new EditorView({ state: EditorState.create({ doc: 'Marked here §§', extensions: bookmarkRibbon() }) });
+    expect(view.dom.querySelector('.cm-bookmarkMark')?.closest('.cm-bookmarked')?.classList.contains('app-gold')).toBe(true);
+    view.destroy();
   });
 });

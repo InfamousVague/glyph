@@ -27,6 +27,30 @@ export const manifest: PluginManifest = {
   storage: [],
 };
 
+/**
+ * The colours a highlight can be named (Matt: "Add a colour option on the highlight supporting the colour names from
+ * the glacierUI kit"), which are the kit's own ramps and nothing invented here: `==the key==(green)`.
+ *
+ * A **name** is written in the note, never a colour, so the same reasoning as the workspace hues holds - the kit can
+ * retune green without touching anybody's notes, and a name this build does not know stays the plain highlight with
+ * its words as a note. The wash is mixed against the page the way the blue one is (app/ink.css `--app-mark`): a pale
+ * wash on paper and a deep one on a dark page, with the words keeping the page's own ink so they stay readable.
+ */
+export const MARK_COLOURS = ['blue', 'red', 'amber', 'green', 'teal', 'purple', 'gray'] as const;
+export type MarkColour = (typeof MARK_COLOURS)[number];
+
+export function isMarkColour(name: string): name is MarkColour {
+  return (MARK_COLOURS as readonly string[]).includes(name);
+}
+
+/** The wash for a named colour, or empty for a name this build does not know. */
+export function washFor(name: string): string {
+  const clean = name.trim().toLowerCase();
+  if (!isMarkColour(clean)) return '';
+  // Grey is the kit's own word for it; the token is spelled the American way.
+  return `color-mix(in oklch, var(--glacier-${clean}-9) 34%, transparent)`;
+}
+
 /** The marks, in the order the Style page and the guide show them. */
 export const MARKS: readonly InlineFormat[] = [
   {
@@ -45,8 +69,12 @@ export const MARKS: readonly InlineFormat[] = [
       css: 'background: var(--app-mark, var(--app-wash)); border-radius: 0.2em; box-shadow: 0 0 0 0.12em var(--app-mark, var(--app-wash));',
     },
     cue: 'highlight',
-    about: 'A wash of blue behind the words, for the line you will want again.',
+    about: 'A wash of blue behind the words, for the line you will want again. Name a colour after it - ==this==(green) - for another.',
     icon: Highlighter,
+    tint: (name) => {
+      const wash = washFor(name);
+      return wash ? `background: ${wash}; box-shadow: 0 0 0 0.12em ${wash};` : null;
+    },
   },
   {
     name: 'Aside',

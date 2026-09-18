@@ -7,6 +7,7 @@ import {
   Bold,
   Code,
   Hash,
+  Highlighter,
   Calculator,
   CircleDot,
   EyeOff,
@@ -79,6 +80,7 @@ export type Looks =
   | 'wisp'
   | 'style'
   | 'note'
+  | 'tint'
   | 'sup'
   | 'sub'
   | 'callout'
@@ -275,6 +277,15 @@ export function markGroups(): MarkGroup[] {
       say: format.cue ? `“${format.cue}” … “end ${format.cue}”` : undefined,
     };
   });
+  // A colour named after a highlight, which is the same brackets saying something else (plugins/marks/index.tsx).
+  const tinted: MarkRow = {
+    symbol: '==( )',
+    name: 'A coloured highlight',
+    typed: '==the cabin key==(green) and ==the deadline==(red)',
+    words: 'the cabin key',
+    looks: 'tint',
+    icon: Highlighter,
+  };
   // A note on a mark is shown last, because it is written on top of any of the marks above it (editor/markNotes.ts).
   const noted: MarkRow = {
     symbol: '( )',
@@ -286,5 +297,5 @@ export function markGroups(): MarkGroup[] {
     note: 'Sam said 400',
     say: '“… end unsure, note Sam said 400, end note”',
   };
-  return [...OWN, { title: 'Glyph’s own', lead: 'Marks the app adds, each from a plugin you can switch off.', rows: [...rows, noted] }];
+  return [...OWN, { title: 'Glyph’s own', lead: 'Marks the app adds, each from a plugin you can switch off.', rows: [...rows, tinted, noted] }];
 }

@@ -380,7 +380,18 @@ const wispPlugin = ViewPlugin.fromClass(
           // being set all at once to make room.
           const found = this.slot(Boolean(m.gone));
           if (!found) {
-            this.nextDue = now;
+            /*
+             * It waits, and nothing here asks for another look. When one settles, the `settle` it dispatches redraws
+             * through the editor's own update, and this word takes the filter that was freed.
+             *
+             * It used to set `nextDue = now` to look again next frame, and that was a livelock: `tick` sees
+             * `now >= nextDue` every frame, redraws and returns before the part of it that settles letters - and
+             * settling is the only thing that frees a filter. So past 32 letters in motion none ever finished: 32
+             * stayed mid-blur for good while the frame loop ran on at 60 a second. Measured typing at machine speed:
+             * 20 and 40 letters settled, 60 and 90 froze at exactly 32. It only ever ran with the pool full, so
+             * typing under 32 letters behaves exactly as it did. A paragraph arriving at once - pasted, or from
+             * another device - is the case it broke.
+             */
             if (!m.gone && m.to > m.from) ranges.push(Decoration.mark({ class: 'cm-wispWait' }).range(m.from, m.to));
             continue;
           }

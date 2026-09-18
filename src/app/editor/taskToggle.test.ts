@@ -58,3 +58,23 @@ describe('a box that is also a card', () => {
     expect(tick(plain, 7)).toContain('To do: milk\nDone:');
   });
 });
+
+describe('a box that is not a card yet', () => {
+  it('joins its list’s board in Done, anchor and all, as one edit', () => {
+    const note = ['```board', 'To do: milk', 'Done:', '```', '', '- [ ] Milk ^milk', '- [ ] Bread', ''].join('\n');
+    const state = EditorState.create({ doc: note });
+    const after = toggleBox(state, boxAt(state, state.doc.line(7).from)!).state.doc.toString();
+    // The line gains its name, the box is ticked, and the card lands in Done: one tap, one undo.
+    expect(after).toContain('- [x] Bread ^bread');
+    expect(after).toContain('To do: milk\nDone: bread');
+  });
+
+  it('leaves an item alone when its list has nothing on a board', () => {
+    const note = ['```board', 'To do: milk', 'Done:', '```', '', '- [ ] Milk ^milk', '', '## Later', '', '- [ ] Bread', ''].join('\n');
+    const state = EditorState.create({ doc: note });
+    const after = toggleBox(state, boxAt(state, state.doc.line(10).from)!).state.doc.toString();
+    expect(after).toContain('- [x] Bread');
+    expect(after).not.toContain('^bread');
+    expect(after).toContain('To do: milk\nDone:');
+  });
+});

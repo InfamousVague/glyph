@@ -5,6 +5,7 @@ import {
   WISP_EDGE_DRIFT_ID,
   WISP_EDGE_FILTER_ID,
   WISP_EDGE_FOOT_BAND,
+  WISP_EDGE_FOOT_FILTER_ID,
   WISP_EDGE_FOOT_BENT_ID,
   WISP_EDGE_FOOT_DRIFT_ID,
   WISP_EDGE_FOOT_NEAR_ID,
@@ -45,11 +46,26 @@ import {
  * The foot is the same band again at the view's bottom edge, for words scrolling off the end, with its own noise and
  * its own subregions placed by the hook (`placeFoot`); parked far below and computed over nothing while a view has
  * no foot, so a page that doesn't ask for one pays for a few empty primitives and nothing else.
+ *
+ * Two filters, not one: the header's band and the foot's band each have their own, and a view wearing both chains
+ * them (app.css). They were one filter, and every attribute on it is global - so on a desktop, with the notes list
+ * scrolled in the sidebar and the note beside it wearing the filter only for its foot, the list's header band was
+ * switched on for the note too and smoked along the top of it (Matt: "the wisp effect under the header happens across
+ * the whole page when I scroll just in the sidebar"). Measured: two elements wore the one filter, the sidebar's list
+ * by `data-wisp-edge` and the note's page by `data-wisp-foot`. A view that asks only for its foot now gets only a
+ * foot. The bands never overlap - one at the top, one at the bottom - so running them one after the other draws what
+ * the single filter drew.
+ *
+ * The region on the filter itself is only a starting size, near enough a phone's: the hook sets it to the view that
+ * wears it (`placeRegion`), because a filter region has a budget and a region over it is drawn as solid black rather
+ * than clipped (art/wispEdge.ts). Nothing outside the region is drawn at all, which is why it is the hook's job and
+ * not a guess here.
  */
 export function WispEdgeFilter() {
   return (
     <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false">
-      <filter id={WISP_EDGE_FILTER_ID} filterUnits="userSpaceOnUse" x="-40" y="-40" width="4000" height="60000" colorInterpolationFilters="sRGB">
+      {/* The header's band: the view under a header, bent and smoked along its top edge. */}
+      <filter id={WISP_EDGE_FILTER_ID} filterUnits="userSpaceOnUse" x="-40" y={-(WISP_EDGE_ABOVE + 40)} width="480" height="1200" colorInterpolationFilters="sRGB">
         <feTurbulence id={WISP_EDGE_NOISE_ID} type="fractalNoise" baseFrequency="0.018 0.06" numOctaves="2" seed="3" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="rawNoise" />
         {/* Slid down as it drifts: the gap that opens is above the view, where nothing is drawn. */}
         <feOffset id={WISP_EDGE_DRIFT_ID} in="rawNoise" dx="0" dy="0" result="slid" />
@@ -69,11 +85,22 @@ export function WispEdgeFilter() {
         <feComposite in="soft" in2="near" operator="in" result="softNear" />
         <feColorMatrix in="band" type="luminanceToAlpha" result="bandAlpha" />
         <feComposite in="softNear" in2="bandAlpha" operator="in" result="smoke" />
+        {/* The view itself where the band isn't, the bent view in it, and the smoke over that. */}
+        <feComposite in="SourceGraphic" in2="bandAlpha" operator="out" result="rest" />
+        <feComposite in="bent" in2="bandAlpha" operator="in" result="bentIn" />
+        <feMerge>
+          <feMergeNode in="rest" />
+          <feMergeNode in="bentIn" />
+          <feMergeNode in="smoke" />
+        </feMerge>
+      </filter>
 
-        {/* The foot: the same again at the view's bottom edge, its strip rising from below it. */}
+      {/* The foot's band: the same again at the view's bottom edge, its strip rising from below it. */}
+      <filter id={WISP_EDGE_FOOT_FILTER_ID} filterUnits="userSpaceOnUse" x="-40" y={-(WISP_EDGE_ABOVE + 40)} width="480" height="1200" colorInterpolationFilters="sRGB">
         <feTurbulence id={WISP_EDGE_FOOT_NOISE_ID} type="fractalNoise" baseFrequency="0.018 0.06" numOctaves="2" seed="3" x="-40" y={1e6} width="4000" height={0} result="rawFootNoise" />
         <feOffset id={WISP_EDGE_FOOT_DRIFT_ID} in="rawFootNoise" dx="0" dy="0" result="footSlid" />
         <feColorMatrix in="footSlid" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1" result="footNoise" />
+        <feFlood floodColor="#000" result="black" />
         <feFlood id={WISP_EDGE_FOOT_STRIP_ID} floodColor="#fff" x="-40" y={1e6} width="4000" height={WISP_EDGE_ABOVE + WISP_EDGE_FOOT_BAND} result="footStrip" />
         <feMerge result="footOnBlack">
           <feMergeNode in="black" />
@@ -87,16 +114,10 @@ export function WispEdgeFilter() {
         <feComposite in="footSoft" in2="footNear" operator="in" result="footSoftNear" />
         <feColorMatrix in="footBand" type="luminanceToAlpha" result="footAlpha" />
         <feComposite in="footSoftNear" in2="footAlpha" operator="in" result="footSmoke" />
-
-        {/* The view itself where neither band is, each band's bent view in its own, and the smoke over both. */}
-        <feComposite in="SourceGraphic" in2="bandAlpha" operator="out" result="restTop" />
-        <feComposite in="restTop" in2="footAlpha" operator="out" result="rest" />
-        <feComposite in="bent" in2="bandAlpha" operator="in" result="bentIn" />
+        <feComposite in="SourceGraphic" in2="footAlpha" operator="out" result="rest" />
         <feComposite in="footBent" in2="footAlpha" operator="in" result="footBentIn" />
         <feMerge>
           <feMergeNode in="rest" />
-          <feMergeNode in="bentIn" />
-          <feMergeNode in="smoke" />
           <feMergeNode in="footBentIn" />
           <feMergeNode in="footSmoke" />
         </feMerge>

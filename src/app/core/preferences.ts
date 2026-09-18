@@ -1,5 +1,7 @@
+import type { TabGroups } from '../notes/tabGroups.ts';
 import { useSyncExternalStore } from 'react';
 import { isCodeThemeDark, isCodeThemeLight, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
+import { MOST_TABS } from '../notes/openTabs.ts';
 import { isNoteView, type NoteView } from '../editor/viewMode.ts';
 
 /**
@@ -12,8 +14,109 @@ import { isNoteView, type NoteView } from '../editor/viewMode.ts';
  * and an explicit `data-accent='blue'` matches no selector at all.
  */
 
-export type ThemePref = 'system' | 'light' | 'dark';
+export type ThemePref = 'system' | 'light' | 'dark' | ThemePreset;
+
+/** Tab groups as stored, kept to their shape: a group with a name and a known colour, and tabs that point at one. */
+function readTabGroups(raw: unknown): TabGroups {
+  const none: TabGroups = { list: [], of: {} };
+  if (!raw || typeof raw !== 'object') return none;
+  const { list, of } = raw as { list?: unknown; of?: unknown };
+  if (!Array.isArray(list) || !of || typeof of !== 'object') return none;
+  const groups = list.filter(
+    (g): g is TabGroups['list'][number] =>
+      // The colour is only checked for being a word, not against the list of colours: that list lives in
+      // core/workspaces.ts, which imports this file, and this runs while this file is still loading - importing it back
+      // would read the list before it exists. A colour this build doesn't know draws as ink (ink.css `[data-hue]`).
+      !!g && typeof g === 'object' && typeof (g as { id?: unknown }).id === 'string' && typeof (g as { name?: unknown }).name === 'string' && typeof (g as { hue?: unknown }).hue === 'string',
+  );
+  const known = new Set(groups.map((g) => g.id));
+  const members = Object.fromEntries(Object.entries(of as Record<string, unknown>).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && known.has(entry[1])));
+  return { list: groups, of: members };
+}
+
+/*
+ * The kit's named themes (vendor/@glacier/tokens `theme-presets.ts`), brought over from AttackFM as Matt asked: "port
+ * Attack.FM's set". Each is one side of the page, light or dark, with its own tinted greys, and comes with an accent.
+ * They were already in the vendored kit - `:root[data-theme-preset]` in tokens.css - and nothing in Glyph ever set it.
+ */
+export type ThemePreset = 'dawn' | 'boreal' | 'ember';
+export const THEME_PRESETS: Record<ThemePreset, { scheme: 'light' | 'dark'; accent: Accent }> = {
+  dawn: { scheme: 'light', accent: 'red' },
+  boreal: { scheme: 'dark', accent: 'green' },
+  ember: { scheme: 'dark', accent: 'amber' },
+};
+export const THEMES: readonly ThemePref[] = ['system', 'light', 'dark', 'dawn', 'boreal', 'ember'];
+
+/*
+ * Interface size: every part of the app scaled together, buttons and bars and tabs as well as words (Matt, for the
+ * AttackFM port: "Yes, scale everything"). AttackFM's own steps, and its way of doing it - the root's font size -
+ * which works because the kit sizes everything in rem, so one number carries all of it. Separate from Text size,
+ * which scales only what is read and keeps the taps where they are, and from Spacing, which is the kit's density:
+ * the three stack.
+ */
+export const UI_SCALES = [0.85, 0.925, 1, 1.1, 1.25] as const;
+export type UiScale = (typeof UI_SCALES)[number];
+
+export function isUiScale(scale: unknown): scale is UiScale {
+  return typeof scale === 'number' && (UI_SCALES as readonly number[]).includes(scale);
+}
+
+/**
+ * How the notes sidebar opens from its icon in the top bar, on a window wide enough for two panes (Matt: "the
+ * sidebar ... always be docked by default to the icon in the top bar unless otherwise stated in settings"). Docked
+ * is a column beside the note that the icon shows and hides; floating is the card a phone has, over the note. A
+ * narrow window always floats: there is no room to dock.
+ */
+export type SidebarMode = 'docked' | 'floating';
+
+export function isSidebarMode(mode: unknown): mode is SidebarMode {
+  return mode === 'docked' || mode === 'floating';
+}
+
+export function isThemePreset(theme: unknown): theme is ThemePreset {
+  return typeof theme === 'string' && theme in THEME_PRESETS;
+}
+
+function isTheme(theme: unknown): theme is ThemePref {
+  return typeof theme === 'string' && (THEMES as readonly string[]).includes(theme);
+}
+
+/** Which side of the page a theme is: a named theme is always one, and System follows the device. */
+export function themeScheme(theme: ThemePref): 'system' | 'light' | 'dark' {
+  return isThemePreset(theme) ? THEME_PRESETS[theme].scheme : theme;
+}
+
+/**
+ * The preferences to set when a theme is chosen: the theme, and the accent that comes with a named one, as AttackFM
+ * does. Going back to a plain theme takes the accent back to ink only if it is still the one the named theme put there
+ * - an accent chosen on purpose afterwards is left alone, where AttackFM would have reset it.
+ */
+export function themeChoice(theme: ThemePref, now: { theme: ThemePref; accent: Accent }): { theme: ThemePref; accent?: Accent } {
+  if (isThemePreset(theme)) return { theme, accent: THEME_PRESETS[theme].accent };
+  if (isThemePreset(now.theme) && now.accent === THEME_PRESETS[now.theme].accent) return { theme, accent: 'ink' };
+  return { theme };
+}
 export type Density = 'extra-compact' | 'compact' | 'comfortable' | 'spacious' | 'more-space';
+
+/** The accents the kit carries, and `ink`: the app's own, which is no accent at all. */
+export const ACCENTS = ['ink', 'graphite', 'red', 'amber', 'green', 'teal', 'purple'] as const;
+export type Accent = (typeof ACCENTS)[number];
+
+export function isAccent(value: unknown): value is Accent {
+  return typeof value === 'string' && (ACCENTS as readonly string[]).includes(value);
+}
+
+/**
+ * How round a corner is: the kit's radius scale multiplied. `round` is the kit's own 1. Pills and circles are not
+ * affected - `--glacier-radius-full` is a flat 9999px - so a square setting squares off cards and fields while the
+ * Speak pill stays a pill.
+ */
+export const ROUNDINGS = ['square', 'soft', 'round', 'rounder'] as const;
+export type Rounding = (typeof ROUNDINGS)[number];
+
+export function isRounding(value: unknown): value is Rounding {
+  return typeof value === 'string' && (ROUNDINGS as readonly string[]).includes(value);
+}
 /** The reader's dial on the type scale in app.css; 'large' is already large. */
 export type TextSize = 'large' | 'larger' | 'largest';
 /** The kit's three sans families. 'inter' is the token default. */
@@ -27,12 +130,20 @@ export const MOTION_SCALE: Record<MotionSpeed, number> = { relaxed: 1.6, normal:
 
 export interface Preferences {
   theme: ThemePref;
+  /** Every part of the app scaled together (`UI_SCALES`); 1 is the kit's own size. Kept to this device. */
+  uiScale: UiScale;
+  /** Docked or floating (`SidebarMode`). Kept to this device, since it is about this window's width. */
+  sidebar: SidebarMode;
   /**
-   * Kept only so preferences saved by an older build still load. Glyph is ink
-   * (app/ink.css): there is no accent to choose, and none is ever stamped.
+   * The one colour a person can choose (Matt: "add ... the accent color picker"). `ink` is the app's own answer and
+   * the default: Glyph is grey on purpose (app/ink.css), and with ink chosen nothing is stamped and every accent
+   * token stays mapped onto the grey scale. Any other name stamps `data-accent`, and the kit's ramp for that colour
+   * shows through instead - in the places an accent is actually used: a focus ring, a chosen segment, a swatch.
    */
-  accent: string;
+  accent: Accent;
   density: Density;
+  /** How round the app's corners are: the kit's radius scale, multiplied (`--glacier-radius-scale`). */
+  rounding: Rounding;
   /** Prose input aids in the editor: autocorrect, autocapitalisation, spellcheck. */
   assist: boolean;
   textSize: TextSize;
@@ -85,6 +196,24 @@ export interface Preferences {
   /** How notes are shown: marks and formatting together, or just the formatted text (editor/viewMode.ts). */
   noteView: NoteView;
   /**
+   * The notes left open as tabs, oldest first, and kept so they come back on a reload and on another device
+   * (Matt: "Persist tabs across devices and reloads"). State rather than a setting, but it belongs to the person
+   * and not to the phone, so it travels the way their settings do (core/sync/prefs.ts).
+   */
+  openNotes: string[];
+  /** Chrome-style groups over the open tabs (notes/tabGroups.ts): named, coloured, folding runs of tabs. */
+  tabGroups: TabGroups;
+  /**
+   * The workspaces and which note is filed in each (core/workspaces.ts).
+   *
+   * Kept here because this is what travels between a person's devices: a workspace made on the phone is one the
+   * desktop knows about (Matt: "I'm not seeing the workspaces being in sync"). Which workspace the list is FILTERED
+   * by stays on the device, since that is where you are looking rather than what you have.
+   *
+   * Written structurally rather than as core/workspaces.ts's own types, so the preferences do not depend on it.
+   */
+  workspaces: { list: { id: string; name: string; hue?: string }[]; notes: Record<string, string> };
+  /**
    * The app's movement, three switches under Settings > Animations (Matt: "add animations section to settings").
    * On by default, every one of them: they are what Glyph looks like. A phone asking for less motion is obeyed
    * whatever these say (app.css `prefers-reduced-motion`).
@@ -107,8 +236,11 @@ export interface Preferences {
 
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: 'dark',
-  accent: 'blue',
+  uiScale: 1,
+  sidebar: 'docked',
+  accent: 'ink',
   density: 'comfortable',
+  rounding: 'round',
   assist: true,
   textSize: 'large',
   typeface: 'inter',
@@ -123,6 +255,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   codeDark: 'pastel',
   codeChosen: false,
   noteView: 'mixed',
+  openNotes: [],
+  tabGroups: { list: [], of: {} },
+  workspaces: { list: [], notes: {} },
   wisp: true,
   wispEdge: true,
   ripples: true,
@@ -143,7 +278,29 @@ function load(): Preferences {
     if (!isCodeThemeLight(loaded.codeLight) || !loaded.codeChosen) loaded.codeLight = DEFAULT_PREFERENCES.codeLight;
     if (!isCodeThemeDark(loaded.codeDark) || !loaded.codeChosen) loaded.codeDark = DEFAULT_PREFERENCES.codeDark;
     if (!isNoteView(loaded.noteView)) loaded.noteView = DEFAULT_PREFERENCES.noteView;
+    // A theme from a later build, or from a device with one this build lacks, reads as the default.
+    if (!isTheme(loaded.theme)) loaded.theme = DEFAULT_PREFERENCES.theme;
+    // A size that is not one of the steps - another build's, or a half-written store - is the kit's own.
+    if (!isUiScale(loaded.uiScale)) loaded.uiScale = DEFAULT_PREFERENCES.uiScale;
+    if (!isSidebarMode(loaded.sidebar)) loaded.sidebar = DEFAULT_PREFERENCES.sidebar;
+    // Tabs from another build, or a half-written store: anything but a list of ids is no tabs at all.
+    loaded.openNotes = Array.isArray(loaded.openNotes) ? loaded.openNotes.filter((id): id is string => typeof id === 'string').slice(-MOST_TABS) : [];
+    // Tab groups from another build, or a half-written store: only well-formed groups, and tabs pointing at them.
+    loaded.tabGroups = readTabGroups(loaded.tabGroups);
+    // Workspaces from another build, or a half-written store: anything but the shape below is no workspaces at all.
+    const spaces = loaded.workspaces as Partial<Preferences['workspaces']> | undefined;
+    const list = Array.isArray(spaces?.list) ? spaces.list.filter((w) => w && typeof w.id === 'string' && typeof w.name === 'string') : [];
+    const ids = new Set(list.map((w) => w.id));
+    const notes: Record<string, string> = {};
+    if (spaces?.notes && typeof spaces.notes === 'object') {
+      for (const [note, id] of Object.entries(spaces.notes)) if (typeof id === 'string' && ids.has(id)) notes[note] = id;
+    }
+    loaded.workspaces = { list, notes };
     if (!(loaded.motionSpeed in MOTION_SCALE)) loaded.motionSpeed = DEFAULT_PREFERENCES.motionSpeed;
+    // An accent or a rounding this build does not have - one from an older store, where the accent was a colour the
+    // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.
+    if (!isAccent(loaded.accent)) loaded.accent = DEFAULT_PREFERENCES.accent;
+    if (!isRounding(loaded.rounding)) loaded.rounding = DEFAULT_PREFERENCES.rounding;
     return loaded;
   } catch {
     return DEFAULT_PREFERENCES;
@@ -152,6 +309,12 @@ function load(): Preferences {
 
 export function preferences(): Preferences {
   return current;
+}
+
+/** Reads the stored preferences again: after a reset, and in tests. */
+export function reloadPreferences(): void {
+  current = load();
+  for (const l of listeners) l();
 }
 
 /** The chosen pace as a multiplier for a duration: 1 at the normal speed. */
@@ -198,8 +361,9 @@ export function usePreferences(): Preferences {
 
 /** Whether the editor should be built with CodeMirror's dark base rules. */
 export function isDarkNow(theme: ThemePref): boolean {
-  if (theme === 'dark') return true;
-  if (theme === 'light') return false;
+  const scheme = themeScheme(theme);
+  if (scheme === 'dark') return true;
+  if (scheme === 'light') return false;
   return typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
@@ -240,16 +404,31 @@ function matchChrome(theme: ThemePref): void {
 export function applyPreferences(prefs: Preferences = current): void {
   const root = document.documentElement;
 
-  if (prefs.theme === 'system') root.removeAttribute('data-theme');
-  else root.setAttribute('data-theme', prefs.theme);
+  // A named theme is stamped twice: its side of the page as `data-theme`, so every light-or-dark rule reads it as
+  // that side, and its name as `data-theme-preset`, which the kit's tinted greys and ink.css answer to.
+  const scheme = themeScheme(prefs.theme);
+  if (scheme === 'system') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', scheme);
+  if (isThemePreset(prefs.theme)) root.setAttribute('data-theme-preset', prefs.theme);
+  else root.removeAttribute('data-theme-preset');
   matchChrome(prefs.theme);
+
+  // The root's own size, which every rem in the kit and the app is measured from. Inline, so nothing in a stylesheet
+  // outranks it; taken off entirely at the kit's own size rather than written as 100%.
+  const size = isUiScale(prefs.uiScale) ? prefs.uiScale : 1;
+  if (size === 1) root.style.removeProperty('font-size');
+  else root.style.setProperty('font-size', `${(size * 100).toFixed(1)}%`);
 
   if (prefs.density === DEFAULT_PREFERENCES.density) root.removeAttribute('data-density');
   else root.setAttribute('data-density', prefs.density);
 
-  // Never an accent: ink.css maps the accent to ink, and a stale attribute from
-  // an older build would only re-tint the kit's ramps underneath it.
-  root.removeAttribute('data-accent');
+  // Ink is no accent at all: nothing is stamped, and ink.css keeps every accent token on the grey scale. Any other
+  // is the kit's own ramp, which ink.css steps aside for (`:not([data-accent])`).
+  if (!isAccent(prefs.accent) || prefs.accent === 'ink') root.removeAttribute('data-accent');
+  else root.setAttribute('data-accent', prefs.accent);
+
+  if (!isRounding(prefs.rounding) || prefs.rounding === DEFAULT_PREFERENCES.rounding) root.removeAttribute('data-rounding');
+  else root.setAttribute('data-rounding', prefs.rounding);
 
   if (prefs.textSize === DEFAULT_PREFERENCES.textSize) root.removeAttribute('data-text-size');
   else root.setAttribute('data-text-size', prefs.textSize);

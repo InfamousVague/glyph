@@ -218,7 +218,7 @@ export function newNoteId(): string {
 }
 
 /** A note's lines with its front matter taken off, and its `title:` first where it has one. */
-function withoutFrontMatter(lines: readonly string[]): string[] {
+export function withoutFrontMatter(lines: readonly string[]): string[] {
   if (!/^(---|\+\+\+)\s*$/.test(lines[0] ?? '')) return [...lines];
   for (let n = 1; n < Math.min(lines.length, 40); n += 1) {
     const line = lines[n] ?? '';
@@ -249,32 +249,9 @@ export function noteTitle(body: string): string {
   const line = lines.find((l) => l.trim() && !/^!\[[^\]]*\]\([^)]*\)\s*$/.test(l)) ?? '';
   // Strip leading heading markers for the LIST only. The note itself keeps
   // every character; this is a label, not an edit.
-  return line.replace(/^#{1,6}\s+/, '').trim();
-}
-
-/**
- * The line under the title in a row: the next non-empty line, unmarked - a
- * task's box included, which in a list reads as "[ ]" noise.
- *
- * Inline marks go too - `**`, `__`, `~~`, backticks, and a lone `_` or `*` at
- * a word's edge. The editor keeps every marker on screen because there the
- * text is being edited; in the list it is being scanned, set in a reading
- * size, and `**negative space**` reads as noise. A label, not an edit.
- */
-export function notePreview(body: string): string {
-  const lines = body.split('\n').slice(1);
-  for (const line of lines) {
-    const text = line
-      .replace(/^[#>\-*\s]+/, '')
-      .replace(/^\[[ xX]\]\s*/, '')
-      // Every paired mark Glyph knows, the plugins' own included (plugins/marks/), so a line reads as its words.
-      .replace(/(\*\*|__|~~|`|\|\||==|%%|\?\?|@@|\^\^|\+\+)/g, '')
-      .replace(/(^|\s)[*_](\S)/g, '$1$2')
-      .replace(/(\S)[*_](?=\s|$|[.,;:!?])/g, '$1')
-      .trim();
-    if (text) return text;
-  }
-  return '';
+  // The bookmark's mark too (editor/bookmarkLine.ts): set on the first line, it said "Weekend trip §§" in every tab and
+  // card. It says where the note opens, not what it is called.
+  return line.replace(/^#{1,6}\s+/, '').replace(/\s*§§\s*/g, ' ').trim();
 }
 
 // --- the hook the list uses -------------------------------------------------

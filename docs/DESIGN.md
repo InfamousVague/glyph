@@ -2400,14 +2400,53 @@ apps share, so three things are shaped for it:
   (`src-tauri/src/lib.rs`). `core/platform.ts` marks the Mac app with `data-titlebar="overlay"`, so app.css gives
   `--app-safe-top` 44px there (every header already pads by it) and lays `.app-dragBar`, a
   `data-tauri-drag-region`, over the strip, which drags the window and zooms it on a double click.
-- **What WebKit can't draw.** A page element wearing an SVG filter measured in its own coordinates
-  (`filterUnits="userSpaceOnUse"`) paints as nothing: the scroller went black under the wisp edge (Matt: "the whole
-  page is going black when I scroll down"), and the guide's first headline vanished under its heat haze.
-  Reproduced in headless WebKit. `isWebKit` (core/platform.ts, also `data-engine="webkit"`) stands both down; the
-  edge keeps its mask fade. Filters sized to an element's box, as every letter's in WispText, draw fine.
-- **The sidebar.** On a desktop window at least 900px across (`useSidebar`, core/useWideScreen.ts) the notes list
+- **What a filter's region costs.** A filter region has a budget of 2^24 device pixels, and a filter asking for more
+  is not clipped or scaled down: in WebKit the element paints solid black. That is what took the wisp edge off the
+  Mac (Matt: "the whole page is going black when I scroll down", and later "on desktop the wisp effect isn't working
+  on the scrolling"), and the guide's headline with it. It was read at the time as WebKit being unable to draw a
+  filter measured in its own coordinates (`filterUnits="userSpaceOnUse"`), and both effects were stood down behind
+  an `isWebKit` flag. The units were never the problem. Measured in headless WebKit on the app's own filter:
+  4096 x 4096 draws and 4200 x 4000 is black, 16000 x 1000 and 3000 x 5000 both draw, so it is area and not a limit
+  on a side; at two device pixels to the CSS pixel the boundary moves to 2048 x 2048 exactly, so the budget is
+  counted in the screen's pixels and a sharp screen spends four for each one the page asks for. The region we shipped
+  was 4000 x 60000 - forty times over - because it was one guess big enough for any view.
+
+  So the region is sized to the view that wears it: `placeRegion` (art/wispEdge.ts) sets it from the window each
+  time the hook fits, and `wispFoot` takes the lane's own width instead of a width wide enough for any lane. The
+  app's window is 430 x 860 and a laptop's is not much more, so both sit far under; a window so large that even a
+  fitted region is over budget wears no filter at all and keeps its mask fade, which is the one case the old
+  stand-down still covers. Nothing outside a filter's region is drawn, so the region is set before the element wears
+  the filter, never guessed in the markup. `isWebKit` and `data-engine="webkit"` are gone with the stand-downs.
+
+  The lesson worth keeping is the shape of the mistake, not the number: a fix that worked (percentage units) was
+  read as an explanation, and the explanation was wrong in a way that cost the Mac an effect for a day. What settled
+  it was bisecting the boundary until it had two sides.
+
+  Its sister, found the same night on the workspace pills: **a number quoted in a comment or a message outlives the
+  code it described.** The matched pill geometry was passed between sessions as `0.35em`, which had been true for
+  about an hour before it was replaced by `0.52em 0.8em`; carried forward, it would have quietly un-matched the very
+  pills that had just been matched (notes/NoteTabs.module.css `.space`, notes/NotesList.module.css `.rowSpace`, both
+  on `--glacier-font-size-xs`). The quote was honest and stale, which is the dangerous combination. Grep for the
+  number rather than remember it, and when two files must hold the same one, derive the second from the first -
+  plugins/LinkMarks.module.css sizes its ring off the badge's own tokens for exactly this reason, so a change to the
+  padding carries rather than rots.
+- **The sidebar.** On a window with the shape for two panes (`useSidebar`, core/useWideScreen.ts) the notes list
   sits in a column beside the open note (Matt: "on widescreen desktop I would like to see a sidebar with all notes
-  in them"): each is its phone screen, sized to its pane. The open note's row is marked (`selectedId`), the note
+  in them"): each is its phone screen, sized to its pane.
+
+  The rule asks about the window, not the device (Matt: "On a wider display we should just use the desktop layout").
+  It used to ask `!isMobile` as well, so a Fold opened out or a tablet kept the phone layout however wide it got -
+  the very case the split is for, on the phone Glyph is built on. What it asks now is 660px across (the list's own
+  300px column and a note beside it no narrower than a small phone) AND either 600px tall or a fine pointer: a phone
+  held in landscape is as wide as a small desktop window and about 390px tall, with nowhere to put a list, while a
+  short window on a desktop is one the person chose. Measured across the shapes it has to separate: phone portrait
+  and landscape keep the phone layout, a Fold opened out in either orientation splits, as do a tablet, a 1280px
+  desktop and a 900x500 one, and a 600px-wide desktop window does not.
+
+  The threshold lives in that one expression. App.tsx stamps `data-split` on the root and the stylesheets ask the
+  stamp - the tab bar's ground across a split window (app.css) and Settings becoming a card rather than a screen
+  (settings/settings.css, twice). Those were three copies of `900px` written to agree with it, which is three chances
+  for the app to change shape at three widths and no way to notice when they drift. A stamp carries no number. The open note's row is marked (`selectedId`), the note
   drops its "← Notes" (`showBack`), the list is read again a moment after each save so titles follow the typing,
   and with nothing open the pane says so and offers Speak and New note (notes/NoNoteOpen.tsx). Recording, review,
   sorting and the tutorial still take the whole window.
@@ -2528,8 +2567,193 @@ context menu to board items for moving lanes and adding to notion etc."
   board** (`core/boards.ts` `withoutCard`), which leaves the item exactly where it is in the note.
 - **The plugin row asks by line first.** `cardActions` carries the same two seams the note already uses: the per-line
   suggestions (editor/suggestions.ts) and, only where a line has no offer, the action a swipe would run by text
-  (editor/swipeItems.ts). A card names an exact line, and glyph-26 pointed out that sending by text alone would send
+  (editor/swipeItems.ts). A card names an exact line, and sending by text alone would send
   the wrong one of two items that read the same way. Nothing here reaches into a plugin.
+
+## 52. The top bar carries two rows, and a screen's controls (2026-09-18)
+
+Matt: "Move the controls for the note into the topbar and put the tabs on the next line down", then "This row can be
+hidden when there are no tabs open".
+
+- **Two lines, one bar.** The controls sit on the top line - the sidebar's button, the two arrows, and whatever the
+  screen puts at the far end - and the open notes run underneath. The second line is not rendered at all when nothing
+  is open, so a note reached from the list carries no empty strip. `--app-tabs` says which of the two heights the bar
+  is (`app.css`, `:root[data-tabs='on'|'rows']`, set by `App.tsx` from `openTabs.length`), and `--app-safe-top` carries
+  it as it always did, so every screen's header clears the bar without knowing the bar exists. Measured: 92px with
+  tabs, 56px without.
+- **A screen's controls reach the bar by portal** (`core/topBarTools.ts`, `notes/NoteTabs.tsx`, `editor/NoteScreen.tsx`).
+  The note's tools hold the editor's state - the view being shown, the bookmark's line, the tape - so lifting them into
+  `App.tsx` would lift the editor with them. Instead the bar offers a slot, the screen keeps owning its buttons, and
+  React puts them in the bar's DOM. A screen renders its controls where they have always been when there is no slot,
+  so a route with no bar still works.
+- **The ring takes the tap, never the box around it.** The bar passes clicks through to what is under it
+  (`.app-tabBar > *` is `pointer-events: none`), so anything meant to be pressed has to say so - and saying it on the
+  slot made the slot's whole area a target, swallowing clicks in the few pixels between two rings. This is the same
+  bug the tabs row had at 974px, at a tenth of the size, which is the point: it is a class, not an incident. The test
+  that settles it is `elementFromPoint` at a spot with no control on it, at a narrow width and a wide one; the answer
+  should be the header pane underneath.
+- **Exact is not a fit.** At 360px - a fold closed - the seven rings on that line came to exactly its width, 316
+  against 316. Tightening the air between them bought the ten pixels, but a row that fits exactly is one larger type
+  setting or one more control from cutting the last one off with nothing to show for it, so the line scrolls sideways
+  rather than clipping. Reachable beats invisible.
+
+### Three gestures on one row
+
+The tabs take a press, a drag and a wheel, and each had to be asked for before it was there (Matt: "add dragging
+around tabs into different positions", then "moving tabs doesn't look like you're actually moving it, doesn't follow
+my finger", then "I should be able to scroll left or right on the tabs to see overflowing ones", then "the clicking
+and dragging is eating me moving the tabs - the tabs should only move when I press and hold").
+
+- **Hold to pick up, drag to pan.** A press that stays put for 220ms picks the tab up; a press that moves before then
+  pans the row by its `scrollLeft`. One rule for a finger and a mouse alike: the mouse had its own, reordering the
+  moment it had travelled six pixels, so a click that slid under the hand carried the tab with it.
+- **The wheel pans it too.** A mouse has no sideways wheel, so a vertical one over the row is spent on `scrollLeft`;
+  a trackpad's own `deltaX` is preferred when it is the larger of the two. Without this the row could not be scrolled
+  on a Mac at all, which is how it was for a day.
+- **Why the pan is ours and not the browser's.** The row carries `touch-action: pan-y` so a vertical swipe still
+  scrolls the page natively. That also tells the browser not to pan the row sideways, so the sideways movement
+  arrives as pointer events and is spent by hand. Granting `pan-x` instead would hand the gesture back to the browser
+  and take the reorder with it.
+
+Three things about the drag are easy to get wrong, and all three were:
+
+- **Follow the pointer on the window, not on the tab.** Reordering moves the tab's own element, which drops a pointer
+  capture held on it: the drag then loses its end, no `pointerup` arrives, and every later tap is swallowed as "the
+  click that ends a drag". Window listeners see the whole gesture whatever React does underneath.
+- **Measure the places from the tabs that are not moving.** The dragged tab carries an offset so it can follow the
+  finger, which moves the box it would otherwise be measured by, so including it makes the row swap and swap back as
+  the measurement chases the thing that caused it. The place is counted from the other tabs' middles.
+- **Swallow the click that ends a drag**, and clear that flag on the next turn rather than on the click, since a
+  gesture that ends off the tab sends no click at all.
+
+### What the DOM says depends on when you ask it
+
+Three things looked broken tonight and were not: a wheel that scrolled one way, an overflow fade that never appeared,
+and a blank note pane. All three were reads taken before React had committed, or a screenshot caught mid-load. Each
+would have become a bug report to somebody.
+
+A read straight after an action measures the timing, not the app. Attach a listener and inspect what it captured, or
+wait a frame and read again, before believing that something is broken - and especially before telling someone else it
+is. The suite was green through all three, because none of them were things an assertion can see.
+
+## 53. Make the environment real before calling a bug unreproducible (2026-09-18)
+
+Four bugs got past a green suite in one night, and three of them were found the same way: not by reasoning about the
+difference between here and there, but by making here actually be there.
+
+- **The filter region that painted black** (section 51) was found in a headless WebKit, not argued about from Chrome.
+- **The glide that would not run** was found in a headless Chromium with reduced motion explicitly turned off, which
+  is the state a developer machine is rarely in and a phone often is.
+- **The top bar over the workspace pills** (section 52) could not be reproduced in a browser at any width - 26px clear
+  every time - because it only exists where the window has a title bar. Stamping `data-titlebar='overlay'` on the root
+  turns on the Mac's 44px inset, and the overlap appeared immediately: bar bottom 136, pills at 118.
+
+The shape each time: a report that looks wrong because it cannot be seen locally, and a local setup that differs from
+the reported one in exactly one arrangeable way. The inset, the engine, the motion preference - each is one line to
+turn on. "I cannot reproduce it" is a statement about the setup, not about the bug.
+
+**Test the worst case, not the fix.** Once the overlap was fixed the fix could be proven the easy way, by measuring it
+working. The better test was to delete `--wisp-under` outright at Mac geometry - the state where the observer never
+fires at all, which cannot otherwise be arranged - and measure again: 27px clear, against 85px of overlap before. That
+says the floor holds when the measurement fails entirely, which measuring the happy path never would.
+
+**And a fallback stands in for something, so it has to be related to it.** `var(--wisp-under, 3.2rem)` was picked
+because 3.2rem was roughly the bar at the time; the bar then changed three times in an evening. A fallback that is a
+snapshot of another value is wrong from the first change onward, and silently - it is only read when the real value is
+missing, which is exactly when nobody is looking. Derive it (`--app-safe-top`) or do not have one.
+
+**Emulating a device's size is not emulating the device.** Two sessions measured the same eight window shapes against
+the new split-layout rule and disagreed on one: a phone in landscape, 850x390, which must keep the phone layout. The
+rule asks for width AND either height or `(pointer: fine)`, and a headless browser given only a viewport reports a
+fine pointer at every size - so the shape passed in one harness and failed in the other, which had `hasTouch` and
+`isMobile` set. Neither of us had reasoned it out; one harness happened to include the thing under test. Any rule that
+asks about pointer, hover or touch inverts silently under a viewport-only harness, so set the device emulation, not
+just the size.
+
+**The tab bar is the worked example.** `--app-tabs` began as one number for a row holding a 40px button, became
+`calc(3.5rem + 2.25rem)` when a second row of tabs arrived, and is now the sum of two rows that each measure
+themselves - the controls' own expression and the tab's own height, which is the workspace pill's. Three revisions of
+one rule, and the first two were each a number standing for something that then moved: the pill changed size four
+times, and Appearance > Spacing scales the rings from 27.4px to 56.9px, which is 0.9px past the 56 the bar had set
+aside. Each revision was found by a person looking at the screen, never by a test. What the derived form buys beyond
+not clipping: at the tightest spacing the bar is now SHORTER than the guess it replaced - 91.8px against 99.2 on a
+phone with two tabs - so a setting that asks for less chrome gets it, without anyone choosing a smaller number.
+
+**A limit counts everything inside it unless it says otherwise.** Three of the night's bugs were a number that did not
+count what its name suggested: the filter region measured in device pixels rather than CSS ones (section 51), a ring
+of `max-inline-size: 7ch` on a border-box pill that spent 17.8px of the seven on its own padding and drew about three
+characters of "Engineering", and a tab whose height came from whichever child happened to be tallest. Written as what
+they count - `calc(8ch + 1.6em + 2px)`, a height derived from the pill's own parts - they stay true when the parts
+change. The pill changed size four times in two days.
+
+## A highlight can be told its colour (2026-09-18)
+
+Matt: "Add a colour option on the highlight supporting the colour names from the glacierUI kit."
+
+- **No new syntax.** `==the cabin key==(green)` uses the brackets a note on a mark already uses
+  (editor/markNotes.ts). One shape for "something in brackets after a mark", and **the mark decides what it means**:
+  the format answers `tint(name)` (plugins/types.ts), a name it knows is a colour, and anything else is still a note.
+  The brackets are hidden either way, so the line reads as its words; only the tap differs, since a colour has
+  nothing to say.
+- **A name, not a colour**, as with the workspace hues: the note carries `green`, the wash is
+  `color-mix(in oklch, var(--glacier-green-9) 34%, transparent)`, and the kit can retune green without touching
+  anybody's note. A name this build does not know draws the plain highlight rather than nothing.
+- **The colours are the kit's own ramps** and nothing invented here: blue, red, amber, green, teal, purple, gray.
+- Measured in the browser rather than read: the plain wash draws at hue 250, green at 150, amber at 75, red at 25,
+  and both an unknown name and a real note stay at 250.
+
+## Theme becomes Appearance (2026-09-18)
+
+Matt: "Change theme to be appearance settings and add the density controller, the accent color picker and the
+rounding control in there as well as the other existing theme options."
+
+- **One page for how the app is drawn**: the page (light, dark, system), then its accent, its spacing and its
+  corners, then the colours of code. Spacing moved here from Type, where it had landed first.
+- **The accent is the one way out of grey.** ink.css maps every accent token onto the grey scale, which is what makes
+  Glyph grey; that mapping now sits behind `:not([data-accent])`, so choosing a colour lets the kit's own ramp show
+  through (tokens.css carries graphite, red, amber, green, teal and purple) while paper, ink and every grey stay put.
+  `ink` is the default and stamps nothing. The focus ring came with it: a ring round what has the keyboard is exactly
+  what an accent is for, so it is ink with no accent and the accent's own when there is one.
+- **Rounding is one multiplier** over the kit's whole radius scale (`--glacier-radius-scale`), stamped as
+  `data-rounding`: Square 0, Soft 0.55, Round 1 (the kit's own, stamped nothing), Roundest 1.5. **Pills are untouched
+  at every setting**, since `--glacier-radius-full` is a flat 9999px - so Speak stays a pill while every card squares
+  off. Measured rather than assumed: a `radius-lg` box draws 16px, 0px, 8.8px and 24px at the four settings.
+- **The swatch shows the real thing.** Each dot wears `data-accent` itself, so it is painted by the very ramp that
+  choosing it would give the app rather than by hex values kept beside it.
+- **A name, not a colour, is stored**, as with the workspace hues, and a name this build does not know - `blue` from
+  the old store, where the accent was a colour the app never drew with - reads as the app's own rather than stamping
+  something nothing can draw.
+
+## A tick can put an item on the board (2026-09-18)
+
+Matt: items were not moving to Done when he ticked them. Every function was behaving: measuring his note
+found three ticked items with no `^anchor`, which are therefore not cards at all, while the other 57 moved correctly.
+Two identical-looking to-dos behaved differently and nothing said why - a bug from where a person sits, however
+correct the code.
+
+- **Ticking an item that is not a card now adds it**, to the board its own list is already on, in Done, with the
+  anchor written at the end of its line (`core/boards.ts` `settleTicks`).
+- **Scoped to the list.** docs/BOARDS.md says a board never has to hold every item in the note, so an item in an
+  unrelated list further down must not leap onto the board because it was ticked. Its neighbours decide.
+- **The anchor is appended, not the line rewritten**, so the edit can never overlap the one character the tick itself
+  changes at the start of the line - two changes in one transaction, one undo.
+- The alternative - saying why nothing happened - was smaller but leaves the note holding two kinds of to-do that
+  look identical. This finishes the thought instead, and is visible and reversible: the card menu takes it back off.
+
+## The workspace pill is a badge again (2026-09-17)
+
+Matt: "Workspace pill doesn't have same left and right padding as top and bottom around the outside."
+
+- **It was 17.8px at the sides against 8px above and below** - the pill's height came from `min-block-size` while its
+  sides came from a space token, so the two were never related. An even ring now: `padding: 0.6em`, with the min
+  height kept for the tap target.
+- **The line box is pinned to the words** (`line-height: 1`), or the font's own slack above and below counts as ring
+  and the sides look tight beside it. It has to sit AFTER `font: inherit` in the rule: that shorthand resets
+  line-height, which is why the first attempt did nothing.
+- **The pills stopped stretching to the tallest item in the row** (`align-items: center`). The **+** is a different
+  size, so every pill inherited its height and got a taller ring than the sides they had just been matched to. The +
+  is now a round button the height of a pill rather than a pill with one stroke in it.
+- The tag a note's row wears got the same ring, and is nudged back onto the time's own line.
 
 ## A board holds its height (2026-09-17)
 
@@ -2539,7 +2763,7 @@ off." Two taps in the same place, and the second one missed.
 - **The note moved, not the tick.** A board's lanes are as tall as the tallest lane's cards, so the moment a tick
   moved a card between lanes the board's own height changed and everything under it jumped - 48 px in the case
   measured here, in both directions depending on which lane won. The second tap landed on whatever had slid under
-  the finger: the next item, or the board itself. glyph-26 measured it precisely and reproduced the collapse with a
+  the finger: the next item, or the board itself. Measured precisely, the collapse was reproduced with a
   raw character change, which proved it was the drawing and not the fence write.
 - **So a board settles its height when it is drawn and holds it** (`pin`, `--cm-board-pin`): ticking, dragging,
   adding and taking off all leave it where it is, and the lanes scroll inside as a board with a set height does. It

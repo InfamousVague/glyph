@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, FileText, GraduationCap, LayoutGrid, ListChecks, Terminal } from '@glacier/icons';
 import { SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
-import { setPreferences, usePreferences, type Density, type MotionSpeed, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
+import { isSidebarMode, isUiScale, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
+import { AccentSwatch } from './AccentSwatch.tsx';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { hapticsAvailable, setHapticsPref, useHapticsPref, fireNativeHaptic } from '../core/haptics.ts';
 import { describeBuild, sourceHost, STAGING, type Updates } from '../core/ota.ts';
@@ -42,10 +43,32 @@ const DENSITIES: { value: Density; label: string }[] = [
   { value: 'more-space', label: 'Roomiest' },
 ];
 
+/** How round the app's corners are drawn (core/preferences.ts `ROUNDINGS`). */
+const ROUNDING_WORDS: { value: Rounding; label: string }[] = [
+  { value: 'square', label: 'Square' },
+  { value: 'soft', label: 'Soft' },
+  { value: 'round', label: 'Round' },
+  { value: 'rounder', label: 'Roundest' },
+];
+
 const TYPEFACES: { value: Typeface; label: string }[] = [
   { value: 'inter', label: 'Inter' },
   { value: 'noto', label: 'Noto' },
   { value: 'plex', label: 'Plex' },
+];
+
+/** Interface size, in AttackFM's own words and steps (core/preferences.ts `UI_SCALES`). */
+const UI_SIZES: { value: string; label: string }[] = [
+  { value: '0.85', label: '85%' },
+  { value: '0.925', label: '93%' },
+  { value: '1', label: 'Default' },
+  { value: '1.1', label: '110%' },
+  { value: '1.25', label: '125%' },
+];
+
+const SIDEBAR_MODES: { value: string; label: string }[] = [
+  { value: 'docked', label: 'Docked' },
+  { value: 'floating', label: 'Floating' },
 ];
 
 const SPEEDS: { value: MotionSpeed; label: string }[] = [
@@ -54,10 +77,17 @@ const SPEEDS: { value: MotionSpeed; label: string }[] = [
   { value: 'brisk', label: 'Brisk' },
 ];
 
+/*
+ * The kit's named themes alongside the plain three (Matt: "port Attack.FM's set"): Dawn is light, Boreal and Ember
+ * are dark, each with its own tinted greys and an accent that comes with it (core/preferences.ts THEME_PRESETS).
+ */
 const THEMES: { value: ThemePref; label: string }[] = [
   { value: 'system', label: 'System' },
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
+  { value: 'dawn', label: 'Dawn' },
+  { value: 'boreal', label: 'Boreal' },
+  { value: 'ember', label: 'Ember' },
 ];
 
 export function TypePane() {
@@ -80,23 +110,6 @@ export function TypePane() {
               options={TEXT_SIZES}
               value={prefs.textSize}
               onValueChange={(value) => setPreferences({ textSize: value as TextSize })}
-            />
-          }
-        />
-      </PaneSection>
-      <PaneSection title="Spacing">
-        <SettingRow
-          label="How much air"
-          hint="The padding and gaps of everything the app draws. The words keep their own size."
-          layout="stacked"
-          control={
-            <SegmentedControl
-              aria-label="Spacing"
-              fullWidth
-              size="sm"
-              options={DENSITIES}
-              value={prefs.density}
-              onValueChange={(value) => setPreferences({ density: value as Density })}
             />
           }
         />
@@ -128,11 +141,17 @@ export function TypePane() {
   );
 }
 
-export function ThemePane() {
+/**
+ * Appearance: everything about how the app is drawn (Matt: "Change theme to be appearance settings and add the
+ * density controller, the accent color picker and the rounding control in there as well as the other existing theme
+ * options"). The page first, then its one colour, then how much air it gives itself and how round its corners are,
+ * then the colours of code.
+ */
+export function AppearancePane() {
   const prefs = usePreferences();
   return (
     <>
-      <PaneSection title="Page" description="Ink on paper, or paper on ink. System follows the phone.">
+      <PaneSection title="Page" description="Ink on paper, paper on ink, or one of three tinted themes: Dawn is light, Boreal and Ember are dark, and each brings its own accent. System follows the phone.">
         <SettingRow
           label="Theme"
           layout="stacked"
@@ -143,7 +162,79 @@ export function ThemePane() {
               size="sm"
               options={THEMES}
               value={prefs.theme}
-              onValueChange={(value) => setPreferences({ theme: value as ThemePref })}
+              onValueChange={(value) => setPreferences(themeChoice(value as ThemePref, prefs))}
+            />
+          }
+        />
+      </PaneSection>
+      <PaneSection title="Accent" description="Glyph is ink on paper. An accent colours the few things that mark a choice: a focus ring, a chosen segment. Ink is the app's own.">
+        <AccentSwatch accent={prefs.accent} onAccent={(accent) => setPreferences({ accent })} />
+      </PaneSection>
+      <PaneSection title="Spacing" description="The padding and gaps of everything the app draws. The words keep their own size.">
+        <SettingRow
+          label="How much air"
+          layout="stacked"
+          control={
+            <SegmentedControl
+              aria-label="Spacing"
+              fullWidth
+              size="sm"
+              options={DENSITIES}
+              value={prefs.density}
+              onValueChange={(value) => setPreferences({ density: value as Density })}
+            />
+          }
+        />
+      </PaneSection>
+      <PaneSection title="Size" description="Everything the app draws, larger or smaller together: buttons, bars and tabs as well as words. Text size, under Type, changes only the words.">
+        <SettingRow
+          label="Interface size"
+          layout="stacked"
+          control={
+            <SegmentedControl
+              aria-label="Interface size"
+              fullWidth
+              size="sm"
+              options={UI_SIZES}
+              value={String(prefs.uiScale)}
+              onValueChange={(value) => {
+                const next = Number(value);
+                if (isUiScale(next)) setPreferences({ uiScale: next });
+              }}
+            />
+          }
+        />
+      </PaneSection>
+      <PaneSection title="Sidebar" description="On a wide window, the sidebar icon in the top bar opens your notes as a column beside the note, or as a card over it. A narrow window always uses the card.">
+        <SettingRow
+          label="Sidebar"
+          layout="stacked"
+          control={
+            <SegmentedControl
+              aria-label="Sidebar"
+              fullWidth
+              size="sm"
+              options={SIDEBAR_MODES}
+              value={prefs.sidebar}
+              onValueChange={(value) => {
+                if (isSidebarMode(value)) setPreferences({ sidebar: value });
+              }}
+            />
+          }
+        />
+      </PaneSection>
+      <PaneSection title="Corners" description="How round a card, a field or a card's corner is drawn. Pills stay pills at every setting.">
+        <SettingRow
+          label="Rounding"
+          layout="stacked"
+          control={
+            <SegmentedControl
+              aria-label="Rounding"
+              fullWidth
+              size="sm"
+              options={ROUNDING_WORDS}
+              value={prefs.rounding}
+              onValueChange={(value) => setPreferences({ rounding: value as Rounding })}
             />
           }
         />

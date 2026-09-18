@@ -1,5 +1,5 @@
-import { isWebKit } from '../core/platform.ts';
 import { preferences } from '../core/preferences.ts';
+import { WISP_EDGE_BUDGET } from './wispEdge.ts';
 
 /**
  * The wisp edge's foot (art/wispEdge.ts) for a small box that scrolls inside a page: a board's lane with more cards
@@ -13,9 +13,11 @@ import { preferences } from '../core/preferences.ts';
  * share it. It is made once per height and kept, and nothing about it moves, so a lane at rest costs nothing but its
  * band.
  *
- * `wispFoot(height)` answers the filter to wear, as a CSS value, or null where the smoke is not wanted: switched off
- * under Settings (`wispEdge`), with reduced motion, and in WebKit, which paints an element wearing a filter like this
- * one solid black (app.css). There the lane keeps its plain fade.
+ * `wispFoot(height, width)` answers the filter to wear, as a CSS value, or null where the smoke is not wanted:
+ * switched off under Settings (`wispEdge`), with reduced motion, and where the lane is so large that the filter's
+ * region would not fit its budget (`WISP_EDGE_BUDGET`, art/wispEdge.ts). There the lane keeps its plain fade. The
+ * region is the lane's own box and not a width big enough for any lane: over the budget the lane would be painted
+ * solid black, which is how this effect was lost on Apple's engine for a while.
  */
 
 /** The full-strength lip at the lane's foot, the soft ramp above it, and how far the bend and blur reach. */
@@ -24,29 +26,36 @@ const SOFT = 16;
 const REACH = BAND + SOFT * 4 + 16;
 /** The strip reaches this far below the lane, so its blur never opens the foot. */
 const BELOW = 120;
+/** How far outside the lane the bend may throw a pixel, and so how far the region reaches around it. */
+const SIDE = 40;
 /** Smaller than the page's: a card's words are smaller than a page's. */
 const BEND = 28;
 const BLUR = 2.4;
 const NEAR = 2;
-/** How many heights are kept before the oldest is taken out. */
+/** How many sizes are kept before the oldest is taken out. */
 const KEEP = 24;
 
 const SVG = 'http://www.w3.org/2000/svg';
-const made = new Map<number, string>();
+const made = new Map<string, string>();
 let holder: SVGSVGElement | null = null;
 
-export function wispFoot(height: number): string | null {
-  if (typeof document === 'undefined' || isWebKit || !preferences().wispEdge) return null;
+export function wispFoot(height: number, width: number): string | null {
+  if (typeof document === 'undefined' || !preferences().wispEdge) return null;
   if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
   const tall = Math.round(height);
-  if (tall < REACH) return null;
-  const known = made.get(tall);
+  const wide = Math.round(width) + SIDE * 2;
+  if (tall < REACH || wide <= SIDE * 2) return null;
+  // The budget is counted in the screen's own pixels; a lane past it keeps the plain fade.
+  const dots = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  if (Math.ceil(wide * dots) * Math.ceil((tall + SIDE * 2 + BELOW) * dots) > WISP_EDGE_BUDGET) return null;
+  const key = `${wide}x${tall}`;
+  const known = made.get(key);
   if (known && document.getElementById(known)) return `url(#${known})`;
-  const id = `wispFoot${tall}`;
+  const id = `wispFoot${wide}x${tall}`;
   holder ??= makeHolder();
   if (!holder.isConnected) document.body.append(holder);
-  holder.append(footFilter(id, tall));
-  made.set(tall, id);
+  holder.append(footFilter(id, tall, wide));
+  made.set(key, id);
   if (made.size > KEEP) {
     const [oldest] = made;
     if (oldest) {
@@ -80,18 +89,18 @@ function part(name: string, attributes: Record<string, string | number>, ...chil
  * blurred into a ramp that decides where the noise bends the lane, a softened copy kept to the strokes, and the lane
  * itself everywhere the band isn't. The bend and the blur are only worked out over the band's reach.
  */
-function footFilter(id: string, height: number): Element {
+function footFilter(id: string, height: number, wide: number): Element {
   const top = height - REACH;
-  const reach = { x: -40, y: top, width: 4000, height: REACH + 40 };
+  const reach = { x: -SIDE, y: top, width: wide, height: REACH + 40 };
   const merge = (result: string, ...inputs: string[]) =>
     part('feMerge', result ? { result } : {}, ...inputs.map((input) => part('feMergeNode', { in: input })));
   return part(
     'filter',
-    { id, filterUnits: 'userSpaceOnUse', x: -40, y: -40, width: 4000, height: height + 80 + BELOW, 'color-interpolation-filters': 'sRGB' },
+    { id, filterUnits: 'userSpaceOnUse', x: -SIDE, y: -SIDE, width: wide, height: height + SIDE * 2 + BELOW, 'color-interpolation-filters': 'sRGB' },
     part('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.02 0.07', numOctaves: 2, seed: 3, ...reach, result: 'rawNoise' }),
     part('feColorMatrix', { in: 'rawNoise', type: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1', result: 'noise' }),
     part('feFlood', { 'flood-color': '#000', result: 'black' }),
-    part('feFlood', { 'flood-color': '#fff', x: -40, y: height - BAND, width: 4000, height: BAND + BELOW, result: 'strip' }),
+    part('feFlood', { 'flood-color': '#fff', x: -SIDE, y: height - BAND, width: wide, height: BAND + BELOW, result: 'strip' }),
     merge('stripOnBlack', 'black', 'strip'),
     part('feGaussianBlur', { in: 'stripOnBlack', stdDeviation: `0 ${SOFT}`, result: 'band' }),
     part('feComposite', { in: 'noise', in2: 'band', operator: 'arithmetic', k1: 1, k2: 0, k3: -0.5, k4: 0.5, result: 'field' }),

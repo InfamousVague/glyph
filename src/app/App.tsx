@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HapticsProvider, ToastProvider } from '@glacier/react';
-import { NotesList } from './notes/NotesList.tsx';
+import { NotesList, UpdateCard, UpdateNotice } from './notes/NotesList.tsx';
 import { NoteScreen } from './editor/NoteScreen.tsx';
 import { NoNoteOpen } from './notes/NoNoteOpen.tsx';
 import { NoteTabs } from './notes/NoteTabs.tsx';
 import { NotesDrawer } from './notes/NotesDrawer.tsx';
+import { NoteTree } from './notes/NoteTree.tsx';
 import { addOpen, afterClose, closeOpen, moveOpen, openOnly } from './notes/openTabs.ts';
+import { afterMove, displayOrder, joinGroup, leaveGroup, newGroup, pruneGroups, type TabGroups } from './notes/tabGroups.ts';
 import { backFrom, canGoBack, canGoOn, FIRST, noteIdOf, notePlace, onFrom, placeAt, went, type Place } from './notes/visited.ts';
-import { useSidebar } from './core/useWideScreen.ts';
+import { readSidebarShown, useSidebar, writeSidebarShown } from './core/useWideScreen.ts';
 import { SettingsSheet } from './settings/SettingsSheet.tsx';
 import { ReviewScreen } from './review/ReviewScreen.tsx';
 import type { ReviewHandoff } from './review/useReview.ts';
@@ -15,6 +17,8 @@ import { SortScreen } from './sort/SortScreen.tsx';
 import { readScratch, type Scratch } from './capture/scratch.ts';
 import { CaptureScreen } from './capture/CaptureScreen.tsx';
 import { AcademyScreen } from './academy/AcademyScreen.tsx';
+import { CommandBar } from './commands/CommandBar.tsx';
+import type { NoteView } from './editor/viewMode.ts';
 import { academyBannerDue, dismissAcademyBanner } from './academy/banner.ts';
 import { startRefining } from './capture/refine.ts';
 import { startFormatting } from './format/queue.ts';
@@ -26,14 +30,14 @@ import { useVoiceModel } from './capture/useVoiceModel.ts';
 import { installBack } from './core/back.ts';
 import { hapticsImpl, installTapHaptics } from './core/haptics.ts';
 import { answerHost, takeCaptureLaunch } from './core/host.ts';
-import { applyPreferences } from './core/preferences.ts';
+import { applyPreferences, onPreferences, preferences, setPreferences, themeChoice, usePreferences, type ThemePref } from './core/preferences.ts';
 import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
 import { isTauri } from './core/tauri.ts';
 import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
-import { fileNewNote } from './core/workspaces.ts';
+import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 
 /**
@@ -234,15 +238,62 @@ function Shell() {
    * The notes a person has open, as tabs over a note (notes/openTabs.ts). Every way into a note ends in a
    * `screen` of its own, so the row is kept here rather than at each of them: a note shown is a note open.
    */
-  const [open, setOpen] = useState<string[]>([]);
+  /*
+   * The row survives a reload, and arrives on another device (Matt: "Persist tabs across devices and reloads"): the
+   * ids are a synced preference (core/preferences.ts `openNotes`, core/sync/prefs.ts). Only the row is kept, never
+   * which tab was in front - the app opens on the list as it always has, so tabs whose notes have not synced yet
+   * simply are not drawn rather than opening a note this device cannot show.
+   */
+  const [open, setOpen] = useState<string[]>(() => preferences().openNotes);
+  useEffect(() => {
+    if (open.join('\u0000') !== preferences().openNotes.join('\u0000')) setPreferences({ openNotes: open });
+  }, [open]);
   const [drawer, setDrawer] = useState(false);
+  // The docked sidebar, shown or hidden by the top bar's icon (core/useWideScreen.ts `readSidebarShown`).
+  const [sidebarShown, setSidebarShown] = useState(readSidebarShown);
+  const toggleDock = () => {
+    const next = !sidebarShown;
+    setSidebarShown(next);
+    writeSidebarShown(next);
+  };
   const shown = screen.name === 'note' ? screen.note.id : null;
   useEffect(() => {
     if (shown) setOpen((was) => addOpen(was, shown));
   }, [shown]);
   // A note deleted here or on another device leaves no tab behind.
   const liveIds = useMemo(() => new Set(notes.map((n) => n.id)), [notes]);
-  const openTabs = useMemo(() => openOnly(open, liveIds).map((id) => notes.find((n) => n.id === id)!), [open, liveIds, notes]);
+  const openIds = useMemo(() => openOnly(open, liveIds), [open, liveIds]);
+
+  /*
+   * Tab groups (notes/tabGroups.ts): Chrome-style, named and coloured runs of tabs (Matt chose "Chrome-style groups").
+   * A synced preference like the open tabs, so a group made on the Mac is there on the phone; read again when another
+   * device changes it. A group's tabs are drawn together, so the tabs are handed on in that order.
+   */
+  const [groups, setGroups] = useState<TabGroups>(() => preferences().tabGroups);
+  useEffect(
+    () =>
+      onPreferences(() => {
+        const theirs = preferences().tabGroups;
+        setGroups((ours) => (JSON.stringify(ours) === JSON.stringify(theirs) ? ours : theirs));
+      }),
+    [],
+  );
+  useEffect(() => {
+    if (JSON.stringify(groups) !== JSON.stringify(preferences().tabGroups)) setPreferences({ tabGroups: groups });
+  }, [groups]);
+  /*
+   * A closed tab leaves its group, and a group left with nothing in it goes. Measured against `open` - the tabs as
+   * stored - not the tabs whose notes have loaded: on the first render no note has loaded yet, so that list is empty,
+   * and pruning against it emptied every group and saved the empty result, which lost the groups on every start.
+   */
+  useEffect(() => {
+    setGroups((was) => {
+      const next = pruneGroups(was, open);
+      return JSON.stringify(next) === JSON.stringify(was) ? was : next;
+    });
+  }, [open]);
+  const drawnIds = useMemo(() => displayOrder(openIds, groups), [openIds, groups]);
+  const openTabs = useMemo(() => drawnIds.map((id) => notes.find((n) => n.id === id)!), [drawnIds, notes]);
   /*
    * Where he has been, and the arrows that walk it (notes/visited.ts, drawn in the tab bar). Matt: "Add the back and
    * forward arrows in the top bar to the right of the button used to toggle the sidebar and make sure we have full
@@ -292,6 +343,15 @@ function Shell() {
     setTrail(next);
     land(spot);
   };
+
+  const [openCommands, setOpenCommands] = useState<(() => void) | null>(null);
+  /*
+   * Stable, and the opener kept behind a function of its own: a new identity here would run the palette's effect
+   * again on every render, and a setter handed a bare function would take it for an updater and call it mid-render.
+   */
+  const paletteReady = useCallback((open: () => void) => setOpenCommands(() => open), []);
+  const prefs = usePreferences();
+  const spaces = useWorkspaces();
 
   const closeTab = (id: string) => {
     const next = id === shown ? afterClose(openOnly(open, liveIds), id) : null;
@@ -440,26 +500,56 @@ function Shell() {
   // flows still take the whole window.
   const split = sidebar && (screen.name === 'list' || screen.name === 'note');
   /*
+   * The sidebar docked beside the note, rather than floating over it: a window wide enough, and Settings left at
+   * Docked (Matt: "the sidebar ... always be docked by default to the icon in the top bar unless otherwise stated in
+   * settings"). Either way the top bar's icon is the way to it; docked, the icon shows and hides the column.
+   */
+  const docked = split && prefs.sidebar === 'docked';
+  const dockShown = docked && sidebarShown;
+  // Docking takes over from a card left open, so the notes are never drawn twice.
+  useEffect(() => {
+    if (docked) setDrawer(false);
+  }, [docked]);
+  /*
    * The routes that carry the app's tab row (app.css .app-tabBar): the list and a note, which are the two places a
    * tab means anything. A capture, a review, a sort and the Academy are each the whole screen and the way out of them
    * is their own; the bar's height leaves `--app-safe-top` with it, so those screens keep their own top edge.
    */
   const tabBar = screen.name === 'list' || screen.name === 'note';
+  /*
+   * And how tall it is: one line of controls, or that line with the open notes under it (app.css `--app-tabs`). The
+   * bar is two rows now (Matt: "put the tabs on the next line down"), and the second is not there at all when
+   * nothing is open (Matt: "This row can be hidden when there are no tabs open"), so the height has to say which of
+   * the two it is - every screen's header clears the bar by `--app-safe-top` without knowing the bar exists.
+   */
   useEffect(() => {
     const root = document.documentElement;
-    if (tabBar) root.dataset.tabs = 'on';
+    if (tabBar) root.dataset.tabs = openTabs.length ? 'rows' : 'on';
     else delete root.dataset.tabs;
     return () => {
       delete root.dataset.tabs;
     };
-  }, [tabBar]);
+  }, [tabBar, openTabs.length]);
+  /*
+   * And whether the window is in two panes, said on the root so the stylesheets can ask without holding a copy of the
+   * threshold. The rule is one expression in core/useWideScreen.ts; it used to be that expression plus a `900px` in
+   * app.css and twice more in settings.css, which is three chances for the app to change shape at three widths. A
+   * stamp has no number in it, so the panes and the chrome that dresses them can only agree.
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    if (sidebar) root.dataset.split = 'on';
+    else delete root.dataset.split;
+    return () => {
+      delete root.dataset.split;
+    };
+  }, [sidebar]);
   const noteScreen =
     screen.name === 'note' ? (
       <NoteScreen
         key={screen.note.id}
         note={screen.note}
         onBack={() => void backToList()}
-        showBack={!split}
         onDelete={removeNote}
         onSpeak={speakInto}
         onPin={(n) => actions.pin(n)}
@@ -502,6 +592,96 @@ function Shell() {
     />
   );
 
+  /*
+   * The command palette (commands/palette.ts): what Glyph can do right now, and how. Built here because this is where
+   * the app's doings already live - every command below is something a person can also do by hand.
+   */
+  const paletteWorld = useMemo(
+    () => ({
+      notes: notes.map((n) => ({ id: n.id, title: noteTitle(n.body) })),
+      tabs: openTabs.map((n) => ({ id: n.id, title: noteTitle(n.body) })),
+      workspaces: spaces.list.map((w) => ({ id: w.id, name: w.name })),
+      workspace: spaces.current?.id ?? null,
+      note: screen.name === 'note' ? { id: screen.note.id, title: noteTitle(screen.note.body) } : null,
+      filedIn: screen.name === 'note' ? (workspaceOf(screen.note.id)?.id ?? null) : null,
+      pinned: screen.name === 'note' ? Boolean(screen.note.starred) : false,
+      canBack: canGoBack(trail, stillThere),
+      canForward: canGoOn(trail, stillThere),
+      view: prefs.noteView,
+      theme: prefs.theme,
+      memoWaiting,
+      tabGroups: groups.list.map((g) => ({ id: g.id, name: g.name })),
+      tabGroup: screen.name === 'note' ? (groups.of[screen.note.id] ?? null) : null,
+    }),
+    [notes, openTabs, spaces, screen, trail, stillThere, prefs.noteView, prefs.theme, memoWaiting, groups],
+  );
+  const paletteDoing = useMemo(
+    () => ({
+      openNote,
+      newNote: () => void newNote(),
+      speak: () => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 }),
+      speakInto,
+      closeTab,
+      showList: () => void backToList(),
+      back: goBack,
+      forward: goOn,
+      settings: () => setSettings(true),
+      cheatSheet: () => {
+        setSettings(true);
+        setToCheatSheet(Date.now());
+      },
+      guide: () => {
+        setGuidePage(0);
+        setGuide(true);
+      },
+      academy: () => setScreen({ name: 'academy' }),
+      chooseWorkspace,
+      fileNote,
+      setView: (view: NoteView) => setPreferences({ noteView: view }),
+      setTheme: (theme: ThemePref) => setPreferences(themeChoice(theme, preferences())),
+      groupTab: (id: string) => setGroups((was) => newGroup(was, id).groups),
+      joinTabGroup: (id: string, group: string) => setGroups((was) => joinGroup(was, id, group)),
+      leaveTabGroup: (id: string) => setGroups((was) => leaveGroup(was, id)),
+      pin: (id: string) => {
+        const note = notes.find((n) => n.id === id);
+        if (note) actions.pin(note);
+      },
+      archive: (id: string) => {
+        const note = notes.find((n) => n.id === id);
+        if (note) actions.archive(note, true);
+      },
+      remove: removeNote,
+      sortMemo: () => {
+        const waiting = readScratch();
+        if (waiting) setScreen({ name: 'sort', scratch: { ...waiting, done: true } });
+        else setMemoWaiting(false);
+      },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [notes, actions, trail],
+  );
+
+  /*
+   * An update or a memo waiting: the sidebar's to carry on a wide window, where there is no home list to show them
+   * (notes/NoteTree.tsx `notices`), docked or floating.
+   */
+  const notices = (
+    <>
+      <UpdateNotice updates={updates} />
+      {memoWaiting ? (
+        <UpdateCard
+          text="A memo is waiting to be sorted into your notes."
+          action="Sort"
+          onAction={() => {
+            const waiting = readScratch();
+            if (waiting) setScreen({ name: 'sort', scratch: { ...waiting, done: true } });
+            else setMemoWaiting(false);
+          }}
+        />
+      ) : null}
+    </>
+  );
+
   return (
     <>
       {/* Under the status bar: what scrolls up fades out before it reaches the phone's clock and icons. */}
@@ -522,9 +702,18 @@ function Shell() {
             activeId={screen.name === 'note' ? screen.note.id : ''}
             onOpen={openNote}
             onClose={closeTab}
-            onSidebar={split ? undefined : () => setDrawer((was) => !was)}
-            sidebarOpen={drawer}
-            onMove={(id, to) => setOpen((was) => moveOpen(was, openTabs.map((n) => n.id), id, to))}
+            onNew={() => void newNote()}
+            onSidebar={docked ? toggleDock : () => setDrawer((was) => !was)}
+            sidebarOpen={docked ? sidebarShown : drawer}
+            onMove={(id, to) => {
+              // Moved within the order as drawn, then asked whether it was dropped into a group or out of one.
+              const next = moveOpen(open, drawnIds, id, to);
+              setOpen(next);
+              setGroups((was) => afterMove(was, next.filter((each) => drawnIds.includes(each)), id));
+            }}
+            groups={groups}
+            onGroups={setGroups}
+            onCloseTabs={(ids) => ids.forEach((id) => closeTab(id))}
             onGoBack={goBack}
             onGoOn={goOn}
             canGoBack={canGoBack(trail, stillThere)}
@@ -578,10 +767,27 @@ function Shell() {
           }}
         />
       ) : split ? (
-        <div className="app-split">
-          <aside className="app-sidebar" aria-label="All notes">
-            {notesList}
-          </aside>
+        <div className="app-split" data-sidebar={dockShown ? 'shown' : 'hidden'}>
+          {/*
+            The same tree the pop-up sidebar is (notes/NoteTree.tsx), docked (Matt: "Make the sidebar on desktop the
+            same sidebar that shows up in the pop-up sidebar"). It was the whole home list squeezed into a column; the
+            two things that list carried that a desktop has nowhere else to show - an update waiting, a memo waiting -
+            come with it.
+          */}
+          {dockShown ? (
+            <aside className="app-sidebar" aria-label="All notes">
+              <NoteTree
+                notes={notes}
+                activeId={shown}
+                onOpen={openNote}
+                onNew={() => void newNote()}
+                onCommands={openCommands ?? undefined}
+                onSettings={() => setSettings(true)}
+                onSpeak={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
+                notices={notices}
+              />
+            </aside>
+          ) : null}
           <main className="app-notePane">
             {noteScreen ?? <NoNoteOpen onNew={() => void newNote()} onCapture={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })} />}
           </main>
@@ -593,7 +799,8 @@ function Shell() {
       <WhatsNewSheet sources={updates.status?.sources} hold={guide || screen.name === 'capture'} />
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
       <NotesDrawer
-        open={drawer && screen.name === 'note'}
+        open={drawer}
+        notices={split ? notices : undefined}
         notes={notes}
         activeId={shown}
         onOpen={openNote}
@@ -602,7 +809,25 @@ function Shell() {
           void newNote();
         }}
         onClose={() => setDrawer(false)}
+        onSettings={() => {
+          setDrawer(false);
+          setSettings(true);
+        }}
+        onSpeak={() => {
+          setDrawer(false);
+          setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 });
+        }}
+        onCommands={
+          openCommands
+            ? () => {
+                setDrawer(false);
+                openCommands();
+              }
+            : undefined
+        }
       />
+      {/* Everything Glyph can do, searched (commands/). ⌘K is the kit's; the drawer's first row is the phone's. */}
+      <CommandBar world={paletteWorld} doing={paletteDoing} onReady={paletteReady} />
       <SettingsSheet
         open={settings}
         onClose={() => setSettings(false)}

@@ -181,6 +181,12 @@
 
 .list {
   color: var(--glacier-text);
+  /*
+   * Every digit the same width (Matt: "make numbers on numbered list monospace so they take up the same space for all
+   * single digit characters"). Tabular figures rather than the monospace face: the marker keeps the note's own type,
+   * and 1. through 9. line up, which is what a column of them needs. The bullet marks share the rule and do not care.
+   */
+  font-variant-numeric: tabular-nums;
 }
 
 .hr {

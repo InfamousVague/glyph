@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Compartment, EditorState, Prec } from '@codemirror/state';
 import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap } from '@codemirror/commands';
 import { syntaxHighlighting } from '@codemirror/language';
 import { glyphHighlight } from './glyphHighlight.ts';
 import { glyphLines } from './glyphLines.ts';
@@ -35,6 +35,7 @@ import { clips, tapeSource } from './clips.ts';
 import { drawnBoards } from './boards.ts';
 import { drawnMermaid } from './mermaid.ts';
 import { bookmarkRibbon } from './bookmarkLine.ts';
+import { localUndo, undoSlot } from './undoSlot.ts';
 import { wispRipples, type RippleSource } from './wispRipples.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { InlineFormat } from '../plugins/types.ts';
@@ -200,8 +201,10 @@ export function Editor({
     const state = EditorState.create({
       doc: value,
       extensions: [
-        history(),
-        keymap.of([...historyKeymap, ...defaultKeymap]),
+        // Undo in a slot of its own, ahead of the default keys as it always was, so a note live on two devices can undo
+        // with Yjs's instead and take back only this person's typing (editor/undoSlot.ts, docs/LIVE.md).
+        undoSlot.of(localUndo()),
+        keymap.of(defaultKeymap),
         glyphMarkdown(formatList),
         formatLooks(formatList),
         wispFormat(formatList),

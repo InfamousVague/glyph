@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useBack } from '../core/back.ts';
+import { useSidebar } from '../core/useWideScreen.ts';
 import { archiveOrder, listOrder, noteTitle, type Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import type { NoteActions } from './useNoteActions.ts';
@@ -15,6 +16,7 @@ import { WorkspaceBar } from './WorkspaceBar.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
 import { LinkMarks } from '../plugins/LinkMarks.tsx';
 import { SwipeRow } from './SwipeRow.tsx';
+import { NotePeek } from './NotePeek.tsx';
 import { shortenUrls } from '../core/shortUrl.ts';
 import type { SwipeAction } from './swipe.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
@@ -173,6 +175,12 @@ export function NotesList({
   }
   // One line under each title, what the note is about, written on the phone (format/gist.ts).
   const gists = useGists(shown);
+  /*
+   * In the desktop sidebar each card carries a small drawing of the note itself (notes/NotePeek.tsx) instead of the
+   * gist, which is written by a model on the phone and so never arrives on a desktop at all - the cards there were a
+   * title and a date and nothing else (Matt: "the title is huge and it's not got a long description").
+   */
+  const sidebar = useSidebar();
 
   const act = (note: Note) => (id: string) => {
     if (id === 'pin') actions.pin(note);
@@ -276,6 +284,8 @@ export function NotesList({
                         <span className={styles.rowTitle} data-untitled={title ? undefined : ''}>
                           {title ? shortenUrls(title) : 'Untitled'}
                         </span>
+                        {/* In the sidebar the note itself is the description; on a phone it is the gist a model wrote. */}
+                        {sidebar ? <NotePeek body={note.body} className={styles.rowPeek} /> : null}
                         {gists[note.id] ? <span className={styles.rowGist}>{gists[note.id]}</span> : null}
                         <span className={styles.rowMeta}>
                           {when(view === 'archive' && note.archivedAt ? note.archivedAt : note.updatedAt)}
@@ -317,7 +327,9 @@ export function NotesList({
           <Plus />
         </button>
         <button type="button" className={`app-pill ${styles.speak}`} onClick={onCapture} aria-label="Speak a voice note">
-          <Mic size={16} strokeWidth={2.2} aria-hidden="true" />
+          {/* 18, the size the + and the cog draw beside it: the three glyphs in the dock are one size (Matt: "make
+              the talk new and settings buttons the same size"). The boxes were always equal; the glyphs were not. */}
+          <Mic size={18} strokeWidth={2.2} aria-hidden="true" />
           Speak
         </button>
         <button type="button" className={`${styles.round} ${styles.cog}`} onClick={onSettings} aria-label="Settings">
@@ -336,7 +348,8 @@ export function NotesList({
  * list: a reload here costs nothing, where in the editor or mid-capture it
  * would be an interruption - and a cold start applies the update anyway.
  */
-function UpdateNotice({ updates }: { updates: Updates }) {
+/** Also carried by the desktop sidebar (notes/NoteTree.tsx), which is no longer this list. */
+export function UpdateNotice({ updates }: { updates: Updates }) {
   const { ready, apk } = updates;
   const mb = (bytes: number) => Math.round(bytes / 1e6);
   if (apk.kind === 'available' || apk.kind === 'failed' || apk.kind === 'needs-permission') {
@@ -373,7 +386,7 @@ function UpdateNotice({ updates }: { updates: Updates }) {
   return null;
 }
 
-function UpdateCard({
+export function UpdateCard({
   text,
   action,
   onAction,

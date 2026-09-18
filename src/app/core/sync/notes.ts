@@ -1,6 +1,7 @@
 import { ApiError, call, callBytes } from '../account/api.ts';
 import { imageNames } from '../images.ts';
 import type { Note } from '../store.ts';
+import { isSharedLive } from '../live/shared.ts';
 import { open, openBytes, seal, sealBytes, type Bytes } from './crypto.ts';
 
 /**
@@ -264,6 +265,10 @@ async function pull(ctx: SyncContext, outcome: Outcome): Promise<void> {
       for (const item of page.items) {
         // A revision already seen is this device's own write coming back.
         if (ctx.state.notes[item.id]?.rev === item.rev) continue;
+        // Live with another device right now: its words are arriving a keystroke at a time already, and a merge made
+        // mid-sentence would take the few characters still in flight for a conflict. Its revision stays unrecorded, so
+        // once the session ends the push meets it as a 409 and finds the same words (docs/LIVE.md).
+        if (isSharedLive(item.id)) continue;
         await merge(ctx, item, here.get(item.id), outcome);
       }
     }
@@ -312,6 +317,8 @@ async function push(ctx: SyncContext, outcome: Outcome): Promise<void> {
     present.add(note.id);
     const known = ctx.state.notes[note.id];
     if (known && known.mark === mark(note)) continue;
+    // Live with another device: sent once the session ends, when both hold the same words (docs/LIVE.md).
+    if (isSharedLive(note.id)) continue;
     // A note opened and left empty is not a note yet: it is sent once it has words.
     if (!known && blank(note)) continue;
     await send(ctx, note.id, note, outcome);

@@ -20,7 +20,7 @@ import {
   putCardAt,
   itemWords,
   refsIn,
-  settleBoards,
+  settleTicks,
   settleColumns,
   setItemDone,
   wordsEnd,
@@ -148,6 +148,13 @@ function icon(name: keyof typeof ICONS, size = '1em'): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('aria-hidden', 'true');
+  /*
+   * Named so the page can say which of these wear the soft fill every closed-silhouette icon in the app wears
+   * (app.css). Drawn here rather than imported, so nothing else could reach them: the hourglass over an empty
+   * "in progress" column was the one outline among filled icons (Matt: "even the hour glass icon doesn't have fill").
+   */
+  svg.classList.add('app-drawnIcon');
+  svg.setAttribute('data-icon', name);
   svg.setAttribute('fill', 'none');
   svg.setAttribute('stroke', 'currentColor');
   svg.setAttribute('stroke-width', '2.4');
@@ -663,7 +670,7 @@ function lanesFoot(board: HTMLElement): void {
   // While the line under the board is being dragged the height changes by the pixel, and a filter for each would be
   // made and thrown away: the plain fade does until the finger lifts.
   const moving = board.parentElement?.querySelector(':scope > .cm-boardSplit[data-dragging]');
-  const smoke = stack && board.hasAttribute('data-sized') && !moving ? wispFoot(stack.offsetHeight) : null;
+  const smoke = stack && board.hasAttribute('data-sized') && !moving ? wispFoot(stack.offsetHeight, stack.offsetWidth) : null;
   if (smoke) board.dataset.wisp = smoke;
   else delete board.dataset.wisp;
   for (const lane of board.querySelectorAll<HTMLElement>('.cm-boardStack')) laneFoot(lane);
@@ -1339,9 +1346,41 @@ function reveal(view: EditorView, id: string): void {
 
 function press(button: HTMLElement, run: () => void): void {
   button.addEventListener('mousedown', (event) => event.preventDefault());
+  /*
+   * A finger has to be stopped sooner than a mouse (Matt, on the phone: "I can't create a new issue on the board, as
+   * soon as I open the board it closes again").
+   *
+   * A board shows its own lines instead of itself whenever the editor has the caret anywhere in its range, edges
+   * included (`decorate`). A mouse is kept out by cancelling its `mousedown` above. A tap is not: the phone places a
+   * caret from the touch itself, before any mouse event is sent, and it lands at the board's edge - so the board
+   * turned back into its lines at the moment the + was pressed, and the field that + opens went with it. It worked
+   * with a mouse on a desktop every time, which is why it looked like a phone problem and was.
+   *
+   * Cancelling the `touchstart` is what keeps a caret from being placed, and it also stops the browser sending the
+   * click that would follow, so the button answers on `touchend` instead - only when the finger lifts on the button,
+   * so a finger that slides off to scroll does nothing.
+   */
+  let tapped = 0;
+  button.addEventListener(
+    'touchstart',
+    (event) => {
+      event.preventDefault();
+    },
+    { passive: false },
+  );
+  button.addEventListener('touchend', (event) => {
+    event.preventDefault();
+    const touch = event.changedTouches[0];
+    const box = button.getBoundingClientRect();
+    if (touch && (touch.clientX < box.left || touch.clientX > box.right || touch.clientY < box.top || touch.clientY > box.bottom)) return;
+    tapped = Date.now();
+    run();
+  });
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
+    // A browser that sends the click anyway after a cancelled touch would run it twice.
+    if (Date.now() - tapped < 600) return;
     run();
   });
 }
@@ -1424,15 +1463,24 @@ const anchorField = StateField.define<DecorationSet>({
  * the board: a tap in the list (editor/taskToggle.ts) or a task going Done in Notion (editor/doneSync.ts). `ticks` is
  * each item's line, counting from 1, and the state its box is being set to; several at once are fine.
  *
+ * An item that is not a card, ticked in a list whose neighbours are on a board, joins that board in Done, and its
+ * line gains the anchor that names it (core/boards.ts `settleTicks`).
+ *
  * Put them in the same transaction as the boxes themselves, so the note and its boards change together, as one undo.
  * Empty when nothing has to move, which is the usual answer.
  */
-export function settleFences(state: EditorState, ticks: ReadonlyMap<number, boolean>): { from: number; to: number; insert: string }[] {
-  return settleBoards(state.doc.toString(), ticks).map((edit) => ({
-    from: state.doc.line(edit.from).to + 1,
-    to: state.doc.line(edit.to).from - 1,
-    insert: edit.body,
-  }));
+export function settleFences(state: EditorState, ticks: ReadonlyMap<number, boolean>): { from: number; to?: number; insert: string }[] {
+  const settled = settleTicks(state.doc.toString(), ticks);
+  return [
+    ...settled.fences.map((edit) => ({
+      from: state.doc.line(edit.from).to + 1,
+      to: state.doc.line(edit.to).from - 1,
+      insert: edit.body,
+    })),
+    // The anchor is put at the END of the item's line rather than the line written again, so it can never overlap
+    // the one character the tick itself is changing at the start of it.
+    ...settled.lines.map((line) => ({ from: state.doc.line(line.number).to, insert: ` ^${line.anchor}` })),
+  ];
 }
 
 /** A tap on `[[#^anchor]]`: the caret goes to the item it names. */

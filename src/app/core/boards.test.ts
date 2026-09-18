@@ -35,6 +35,7 @@ import {
   refsIn,
   setItemDone,
   settleBoards,
+  settleTicks,
   settleColumns,
   withAnchor,
   withBoardHeight,
@@ -804,6 +805,53 @@ describe('a card whose anchor has slipped', () => {
     expect(nearAnchor('ship-page', 'ship-page')).toBe(false);
     expect(nearAnchor('ship-page', 'ship-pages-now')).toBe(false);
     expect(nearAnchor('ship-page', 'shop-paje')).toBe(false);
+  });
+});
+
+describe('ticking an item that is not a card', () => {
+  const note = [
+    '```board',
+    'To do: milk, eggs',
+    'Done:',
+    '```',
+    '',
+    '- [ ] Milk ^milk',
+    '- [ ] Eggs ^eggs',
+    '- [ ] Bread',
+    '',
+    '## Later',
+    '',
+    '- [ ] Something else entirely',
+    '',
+  ].join('\n');
+
+  it('puts it on its list\u2019s board, in Done, and names its line', () => {
+    // From Matt's note: three ticked items had no anchor, so ticking them moved nothing while 57 others worked.
+    const settled = settleTicks(note, new Map([[8, true]]));
+    expect(settled.lines).toEqual([{ number: 8, anchor: 'bread' }]);
+    expect(settled.fences[0]?.body).toBe('To do: milk, eggs\nDone: bread');
+  });
+
+  it('leaves a list that is not on a board alone', () => {
+    // The item under a heading of its own belongs to no board: a board never has to hold every item in the note.
+    expect(settleTicks(note, new Map([[12, true]]))).toEqual({ fences: [], lines: [] });
+  });
+
+  it('still just moves an item that is already a card', () => {
+    const settled = settleTicks(note, new Map([[6, true]]));
+    expect(settled.lines).toEqual([]);
+    expect(settled.fences[0]?.body).toBe('To do: eggs\nDone: milk');
+  });
+
+  it('takes a batch, as a set of tasks arriving from Notion does', () => {
+    const settled = settleTicks(note, new Map([[6, true], [8, true]]));
+    expect(settled.lines).toEqual([{ number: 8, anchor: 'bread' }]);
+    expect(settled.fences[0]?.body).toBe('To do: eggs\nDone: milk, bread');
+  });
+
+  it('does nothing for a box being cleared, or a line that is not an item', () => {
+    expect(settleTicks(note, new Map([[8, false]]))).toEqual({ fences: [], lines: [] });
+    expect(settleTicks(note, new Map([[10, true]]))).toEqual({ fences: [], lines: [] });
   });
 });
 

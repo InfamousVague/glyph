@@ -23,8 +23,12 @@
 .back {
   display: grid;
   place-items: center;
-  inline-size: var(--glacier-space-9);
-  block-size: var(--glacier-space-9);
+  /*
+   * The kit's scale runs 0-6, then 8, 10, 12, 16, 20, 24: `space-9` is not a smaller step, it is no rule at all, and
+   * this button was drawn the size of its own arrow rather than a target a thumb can find.
+   */
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
   margin-inline-start: calc(-1 * var(--glacier-space-2));
   padding: 0;
   border: none;
@@ -156,7 +160,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--glacier-space-3);
-  min-block-size: var(--glacier-space-9);
+  min-block-size: var(--glacier-space-8);
 }
 
 .praise {

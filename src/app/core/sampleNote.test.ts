@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { glyphMarkdown } from '../editor/language.ts';
 import { BUILT_IN } from '../plugins/registry.ts';
 import { imageNames } from './images.ts';
+import { notePeek } from '../notes/peek.ts';
 import { SAMPLE_TITLE, sampleNoteBody } from './sampleNote.ts';
-import { notePreview, noteTitle } from './store.ts';
+import { noteTitle } from './store.ts';
 
 /** The set of node names the editor's parser finds in `doc`, plugin formattings included. */
 function found(doc: string): Set<string> {
@@ -58,7 +59,7 @@ describe('the sample note', () => {
   it('is titled, previews plainly, and names its picture', () => {
     const body = sampleNoteBody('a1b2c3.jpg');
     expect(noteTitle(body)).toBe(SAMPLE_TITLE);
-    expect(notePreview(body)).toMatch(/^A note is plain Markdown/);
+    expect(notePeek(body)).toContainEqual({ kind: 'text', text: expect.stringMatching(/^A note is plain Markdown/) as unknown as string });
     expect(imageNames(body)).toEqual(['a1b2c3.jpg']);
   });
 

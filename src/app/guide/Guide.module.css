@@ -24,7 +24,9 @@
   align-items: center;
   justify-content: space-between;
   padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-1)) var(--glacier-space-2);
+  /* The guide covers the whole screen, the app's tab bar included, so it clears the notch alone: --app-safe-top
+     carries the bar's height as well, and padding by it would leave a bar's worth of nothing at the top. */
+  padding-block: calc(var(--app-inset-top, 0px) + var(--glacier-space-1)) var(--glacier-space-2);
   /* Nearly the size of Back and Next below (Matt): the page's corners read as one set of controls. */
   font-size: calc(var(--app-action) * 0.88);
   letter-spacing: var(--app-tracking-title);

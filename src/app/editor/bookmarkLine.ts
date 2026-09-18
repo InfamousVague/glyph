@@ -67,7 +67,25 @@ export function placeBookmark(state: EditorState, number: number | null): Transa
 /** A bookmark kept on the device, shown until the note carries its own: the position, or null. */
 export const showBookmark = StateEffect.define<number | null>();
 
-const ribbon = Decoration.line({ class: 'cm-bookmarked', attributes: { 'data-bookmark': 'The bookmark in this note' } });
+/** `app-gold` gives the line the bookmark's gold (ink.css), for its edge and its mark; its words stay the page's ink. */
+const ribbon = Decoration.line({ class: 'cm-bookmarked app-gold', attributes: { 'data-bookmark': 'The bookmark in this note' } });
+
+/**
+ * The shape drawn where `§§` stands: lucide's bookmark, the very icon the note's Bookmark button draws in the top bar
+ * (editor/NoteScreen.tsx), so the button and the mark it puts on the page are one icon (Matt: "The bookmark icon that
+ * renders in the code should match the bookmark icon in the top controls"). It used to be a notched ribbon cut out of
+ * a solid block with a clip-path: a different drawing of the same idea, filled where the button is an outline.
+ *
+ * Copied, because a widget is plain DOM and lucide exports its icons only as components. A copy is the thing that
+ * drifts, so bookmarkLine.test.ts draws the real component and holds this to its path: if lucide redraws the
+ * bookmark, the test fails rather than the two quietly parting.
+ */
+export const BOOKMARK_PATH =
+  'M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z';
+/** The button's own line weight (NoteScreen.tsx `strokeWidth={2.1}`), so the two are drawn with one pen. */
+const BOOKMARK_STROKE = '2.1';
+
+const SVG = 'http://www.w3.org/2000/svg';
 
 class RibbonWidget extends WidgetType {
   eq(): boolean {
@@ -78,6 +96,24 @@ class RibbonWidget extends WidgetType {
     mark.className = 'cm-bookmarkMark';
     mark.setAttribute('aria-label', 'Bookmark');
     mark.title = 'Bookmark';
+    const icon = document.createElementNS(SVG, 'svg');
+    icon.setAttribute('viewBox', '0 0 24 24');
+    icon.setAttribute('aria-hidden', 'true');
+    /*
+     * Lucide's own classes, so the one rule in app.css that gives every closed-silhouette icon its outline and 33%
+     * wash (`:where(svg.lucide-bookmark, ...)`) dresses this exactly as it dresses the button. The `fill="none"` below
+     * is an attribute, and loses to that rule, which is what lets the wash through.
+     */
+    icon.setAttribute('class', 'lucide lucide-bookmark');
+    icon.setAttribute('fill', 'none');
+    icon.setAttribute('stroke', 'currentColor');
+    icon.setAttribute('stroke-width', BOOKMARK_STROKE);
+    icon.setAttribute('stroke-linecap', 'round');
+    icon.setAttribute('stroke-linejoin', 'round');
+    const path = document.createElementNS(SVG, 'path');
+    path.setAttribute('d', BOOKMARK_PATH);
+    icon.append(path);
+    mark.append(icon);
     return mark;
   }
 }
@@ -129,8 +165,10 @@ const bookmarkTheme = EditorView.baseTheme({
     position: 'relative',
     // The words themselves are untouched: a breath of tint behind the line, and the ribbon in the margin the line
     // already leaves before its first letter, which is the only room there is (the note runs to the page's edge).
+    // Gold, like its edge and its mark, so the three read as one thing (ink.css `.app-gold`). The fallbacks are the ink
+    // they were before, for an editor drawn without ink.css.
     borderRadius: '0.25em',
-    background: 'color-mix(in oklch, currentColor 5%, transparent)',
+    background: 'color-mix(in oklch, var(--app-gold, currentColor) 7%, transparent)',
   },
   '.cm-bookmarked::before': {
     content: '""',
@@ -139,19 +177,19 @@ const bookmarkTheme = EditorView.baseTheme({
     insetBlock: '0.1em',
     inlineSize: '3px',
     borderRadius: '2px',
-    background: 'currentColor',
-    opacity: '0.7',
+    background: 'var(--app-gold, currentColor)',
   },
-  // A small ribbon where the two signs are: a notched tab, in the line's own ink.
+  // The button's bookmark where the two signs are, the height of the line's own letters, in gold.
   '.cm-bookmarkMark': {
     display: 'inline-block',
-    inlineSize: '0.5em',
-    blockSize: '0.75em',
     marginInlineStart: '0.35em',
-    verticalAlign: '-0.05em',
-    background: 'currentColor',
-    opacity: '0.75',
-    clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%)',
+    verticalAlign: '-0.15em',
+    lineHeight: '0',
+    color: 'var(--app-gold, currentColor)',
+  },
+  '.cm-bookmarkMark svg': {
+    inlineSize: '1em',
+    blockSize: '1em',
   },
 });
 

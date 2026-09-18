@@ -29,6 +29,8 @@ export interface MarkNote {
   brackets: { from: number; to: number };
   /** What the note says. */
   text: string;
+  /** The mark it is written on, so a reader can ask that mark whether the name is a colour of its own. */
+  delimiter: string;
 }
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -51,7 +53,7 @@ export function notesIn(text: string, pattern: RegExp, offset = 0): MarkNote[] {
     const note = match[4] ?? '';
     const from = offset + match.index;
     const words = { from: from + delimiter.length, to: from + whole.length - note.length - 2 - delimiter.length };
-    found.push({ from, to: from + whole.length, words, brackets: { from: words.to + delimiter.length, to: from + whole.length }, text: note });
+    found.push({ from, to: from + whole.length, words, brackets: { from: words.to + delimiter.length, to: from + whole.length }, text: note, delimiter });
   }
   return found;
 }
@@ -59,6 +61,16 @@ export function notesIn(text: string, pattern: RegExp, offset = 0): MarkNote[] {
 /** The note whose words `pos` is inside, if there is one. */
 export function noteAt(notes: readonly MarkNote[], pos: number): MarkNote | null {
   return notes.find((note) => pos >= note.words.from && pos <= note.to) ?? null;
+}
+
+/**
+ * Whether these brackets are a colour rather than a note: `==the key==(green)` names a wash, and the mark itself says
+ * which names it knows (plugins/types.ts `InlineFormat.tint`). The brackets are hidden either way, so the line reads
+ * as its words; only the tap differs, since there is nothing to say about a colour.
+ */
+export function isTint(note: MarkNote, formats: readonly InlineFormat[]): boolean {
+  const format = formats.find((one) => one.delimiter === note.delimiter);
+  return Boolean(format?.tint?.(note.text));
 }
 
 /**
@@ -150,6 +162,11 @@ export function markNotes(formats: readonly InlineFormat[]): Extension {
           const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
           if (pos === null) return false;
           const note = noteAt(this.notes, pos);
+          // A colour is not a note: there is nothing to show, and the tap is the editor's as usual.
+          if (note && isTint(note, formats)) {
+            closeNote(view);
+            return false;
+          }
           if (!note) {
             closeNote(view);
             return false;

@@ -1,7 +1,7 @@
 {
   "name": "glyph",
   "private": true,
-  "version": "1.4.3",
+  "version": "1.5.0",
   "type": "module",
   "description": "Glyph: a mobile-first markdown notes app built on Glacier UI.",
   "scripts": {
@@ -51,7 +51,10 @@
     "mermaid": "^12.0.0",
     "motion": "^12.23.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "y-codemirror.next": "^0.3.6",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.32"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

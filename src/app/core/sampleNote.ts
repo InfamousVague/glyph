@@ -79,6 +79,14 @@ A secret between pairs of pipes goes to smoke until you put the caret in it: ||t
 
 A link with words: [Glyph](https://attack.fm/glyph). A bare address is shortened on the page: https://attack.fm/glyph
 
+A line that is nothing but a link gets a card under it, with the page's title and site:
+
+https://attack.fm/glyph
+
+- [The Tauri handbook](https://tauri.app/)
+
+A link in the middle of a sentence, like https://example.com here, stays a link and draws no card.
+
 ## A table
 
 | What | Where | Packed |
