@@ -1,7 +1,7 @@
 import { Plus } from '../art/Icons.tsx';
 import { chooseWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { scrollSideways } from '../core/scrollSideways.ts';
-import styles from './NotesList.module.css';
+import styles from './WorkspaceBar.module.css';
 
 /**
  * The workspaces, in a row under the list's title, once there is one: "All",
@@ -24,7 +24,7 @@ export function WorkspaceBar({ onManage }: { onManage: (which: Workspace | 'new'
           key={workspace.id}
           type="button"
           className={styles.space}
-          // Its hue, if it has one: the pill is drawn in it (ink.css `[data-hue]`, notes/NotesList.module.css).
+          // Its hue, if it has one: the pill is drawn in it (ink.css `[data-hue]`, notes/WorkspaceBar.module.css).
           data-hue={workspace.hue ?? 'ink'}
           aria-pressed={current?.id === workspace.id}
           onClick={() => (current?.id === workspace.id ? onManage(workspace) : chooseWorkspace(workspace.id))}

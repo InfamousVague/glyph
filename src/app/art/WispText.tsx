@@ -475,7 +475,7 @@ export function WispText({ text, pace = 14, still = false, as: Tag = 'span', cla
     if (!element) return undefined;
     const reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const made = new WispEngine(element, `wisp-${id}`, pace, reduced, (shown) => {
-      // Settled: the host says so, for styles that wait for the last letter (a title's clamp, notes/NotesList.module.css).
+      // Settled: the host says so, for styles that wait for the last letter (a title's clamp).
       element.removeAttribute('data-wisp-typing');
       settled.current?.(shown);
     }, unit);

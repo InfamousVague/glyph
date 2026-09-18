@@ -62,15 +62,18 @@ export function isUiScale(scale: unknown): scale is UiScale {
 }
 
 /**
- * How the notes sidebar opens from its icon in the top bar, on a window wide enough for two panes (Matt: "the
- * sidebar ... always be docked by default to the icon in the top bar unless otherwise stated in settings"). Docked
- * is a column beside the note that the icon shows and hides; floating is the card a phone has, over the note. A
- * narrow window always floats: there is no room to dock.
+ * How the notes sidebar opens from its icon in the top bar, on a window wide enough for two panes. A popover by
+ * default, on every screen (Matt: "Sidebar should open and close in a popover not a full sidebar even on desktop"):
+ * the card a phone has, hung from the icon. Docked, chosen in Settings, is a column beside the note that the icon
+ * shows and hides. A narrow window always uses the popover: there is no room to dock.
+ *
+ * Kept under a new name, `sidebarStyle`. The build before this one had `sidebar`, defaulting to docked, and wrote that
+ * default into every device's store; read under the old name, a window would stay docked without anyone choosing it.
  */
-export type SidebarMode = 'docked' | 'floating';
+export type SidebarStyle = 'popover' | 'docked';
 
-export function isSidebarMode(mode: unknown): mode is SidebarMode {
-  return mode === 'docked' || mode === 'floating';
+export function isSidebarStyle(style: unknown): style is SidebarStyle {
+  return style === 'popover' || style === 'docked';
 }
 
 export function isThemePreset(theme: unknown): theme is ThemePreset {
@@ -132,8 +135,8 @@ export interface Preferences {
   theme: ThemePref;
   /** Every part of the app scaled together (`UI_SCALES`); 1 is the kit's own size. Kept to this device. */
   uiScale: UiScale;
-  /** Docked or floating (`SidebarMode`). Kept to this device, since it is about this window's width. */
-  sidebar: SidebarMode;
+  /** A popover or docked (`SidebarStyle`). Kept to this device, since it is about this window's width. */
+  sidebarStyle: SidebarStyle;
   /**
    * The one colour a person can choose (Matt: "add ... the accent color picker"). `ink` is the app's own answer and
    * the default: Glyph is grey on purpose (app/ink.css), and with ink chosen nothing is stamped and every accent
@@ -237,7 +240,7 @@ export interface Preferences {
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: 'dark',
   uiScale: 1,
-  sidebar: 'docked',
+  sidebarStyle: 'popover',
   accent: 'ink',
   density: 'comfortable',
   rounding: 'round',
@@ -282,7 +285,7 @@ function load(): Preferences {
     if (!isTheme(loaded.theme)) loaded.theme = DEFAULT_PREFERENCES.theme;
     // A size that is not one of the steps - another build's, or a half-written store - is the kit's own.
     if (!isUiScale(loaded.uiScale)) loaded.uiScale = DEFAULT_PREFERENCES.uiScale;
-    if (!isSidebarMode(loaded.sidebar)) loaded.sidebar = DEFAULT_PREFERENCES.sidebar;
+    if (!isSidebarStyle(loaded.sidebarStyle)) loaded.sidebarStyle = DEFAULT_PREFERENCES.sidebarStyle;
     // Tabs from another build, or a half-written store: anything but a list of ids is no tabs at all.
     loaded.openNotes = Array.isArray(loaded.openNotes) ? loaded.openNotes.filter((id): id is string => typeof id === 'string').slice(-MOST_TABS) : [];
     // Tab groups from another build, or a half-written store: only well-formed groups, and tabs pointing at them.

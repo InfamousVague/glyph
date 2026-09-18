@@ -84,6 +84,9 @@ describe('the note drawn small', () => {
     expect(bareWords('See [the handbook](https://tauri.app/guides/x) for it')).toBe('See the handbook for it');
     // The bookmark's mark is where the note opens, not part of what the line says.
     expect(bareWords('The deposit is four hundred §§')).toBe('The deposit is four hundred');
+    // A board's name for the item is not something it says: `^flights` stayed in the preview as if it were a word.
+    expect(bareWords('Book flights ^flights')).toBe('Book flights');
+    expect(bareWords('E = mc^2^ holds')).toBe('E = mc^2^ holds');
     // Addresses are shortened the way the list shortens them (core/shortUrl.ts): the host, and the middle elided.
     expect(bareWords('Read https://tauri.app/guides/the-long-one today')).toMatch(/^Read tauri\.app\S* today$/);
   });

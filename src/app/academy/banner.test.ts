@@ -3,7 +3,7 @@ import { academyBannerDue, dismissAcademyBanner } from './banner.ts';
 import { writeProgress } from './lessons.ts';
 
 /**
- * The home screen's Academy card (notes/NotesList.tsx) is for someone who has
+ * The home page's Academy card (notes/Notices.tsx) is for someone who has
  * not started. These are the two ways it goes: a lesson passed, or the cross.
  */
 

@@ -15,8 +15,14 @@
 .card {
   pointer-events: auto;
   position: absolute;
-  inset-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-3)) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-3));
+  /*
+   * A popover hung from the top bar's icon, not a full-height sidebar (Matt: "Sidebar should open and close in a
+   * popover not a full sidebar even on desktop"): as tall as the notes in it, and no taller than the window leaves
+   * below the bar, where the notes scroll inside it.
+   */
+  inset-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-2));
   inset-inline-start: calc(var(--app-safe-left, 0px) + var(--glacier-space-3));
+  max-block-size: calc(100dvh - var(--app-safe-top, 0px) - var(--app-safe-bottom, 0px) - var(--glacier-space-2) - var(--glacier-space-3));
   inline-size: min(20rem, calc(100vw - var(--glacier-space-10)));
   display: flex;
   flex-direction: column;
@@ -29,13 +35,15 @@
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   box-shadow: 0 16px 40px rgb(0 0 0 / 34%);
-  animation: drawerIn 200ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+  /* Grows out of the icon above it, as a popover does, rather than sliding in from the edge like a drawer. */
+  transform-origin: top left;
+  animation: drawerIn 180ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
 }
 
 @keyframes drawerIn {
   from {
     opacity: 0;
-    transform: translateX(-12px);
+    transform: translateY(-6px) scale(0.97);
   }
 }
 

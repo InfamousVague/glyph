@@ -6,6 +6,22 @@
  */
 
 /*
+ * Where the baseline's gap under the tab being read starts and ends, in the row's scrolled coordinates. Registered as
+ * lengths so the gap can slide with the tab's outline (NoteTabs.tsx `glide`) rather than jumping to where it lands.
+ */
+@property --tab-hole-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --tab-hole-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/*
  * Two lines (Matt: "Move the controls for the note into the topbar and put the tabs on the next line down"): the
  * controls above, the open notes below. The second line is not rendered at all when nothing is open, so a note
  * reached from the list carries no empty strip where its tabs would be.
@@ -169,12 +185,22 @@
   min-inline-size: 0;
   overflow-x: auto;
   /*
-   * The baseline the tabs stand on, the whole width of the row. Drawn as an inset shadow rather than a border, and on
-   * purpose: a scroller clips what it holds to inside its border, so the tab being read could never cover a border to
-   * open into the note - but an inset shadow is painted under the row's own contents, so that tab's ground covers the
-   * line beneath it and the others let it show. It doesn't scroll, so it runs unbroken past the last tab too.
+   * The baseline the tabs stand on, the whole width of the row, with a gap cut in it under the tab being read and its
+   * two curves, where that tab opens into the note (`--tab-hole-start` to `--tab-hole-end`, set by NoteTabs.tsx).
+   *
+   * It used to run unbroken, and the tab being read covered it with a ground of solid paper - which on a phone sat on
+   * the header's glass as a flat block (Matt: "Add the glass effect to the tabs right now they have a solid background
+   * and it looks jarring on the glass header"). The tab is see-through now, so the line has to stop under it rather
+   * than be painted over. A background rather than a border: a scroller clips a border, and `local` lets the line and
+   * its gap scroll with the tabs and run the length of a row wider than the screen.
    */
-  box-shadow: inset 0 -1px 0 var(--tab-line);
+  background: linear-gradient(
+      to right,
+      var(--tab-line) var(--tab-hole-start),
+      transparent var(--tab-hole-start) var(--tab-hole-end),
+      var(--tab-line) var(--tab-hole-end)
+    )
+    left bottom / 100% 1px no-repeat local;
   /* At the foot of the bar, whatever air the bar has: a tab's foot is on the line, never above it. */
   margin-block-start: auto;
   /*
@@ -271,8 +297,8 @@
 
 .tab[data-active] {
   position: relative;
-  border-color: var(--tab-line);
-  background: var(--app-paper, var(--glacier-bg));
+  /* Glass, not paper: the bar's own ground shows through, as it does round every other tab. Its outline is `.glide`. */
+  background: none;
   color: var(--app-ink, var(--glacier-text));
 }
 
@@ -280,10 +306,10 @@
  * Where the line meets the tab it bends up into it rather than turning a square corner (Matt: "I want border on the
  * bottom of the tabs to follow the shape of the active tab like in the screenshot" - Obsidian's, where the line
  * sweeps up into the tab's side). A small square outside each bottom corner, drawn as a quarter circle: clear inside
- * the curve, the line along it, and the page's own ground outside it, which covers both the straight baseline under the
- * corner and the straight foot of the tab's side that the curve replaces.
+ * the curve, the line along it, and clear outside it too - the baseline's gap (`.tabs`) takes in both squares, so there
+ * is no straight line under the curve to cover.
  *
- * Each is placed at `100%`, which is measured from the tab's padding box - already inside its 1px border - so the
+ * Each is placed at `100%`, which is measured from the outline's padding box - already inside its 1px border - so the
  * curve's end lands on the border's own column and the two meet in one line. Placed at `100% - 1px`, as it first was,
  * the curve ended a pixel and a half inside the side it was meant to join, and the corner stepped sideways.
  *
@@ -291,19 +317,17 @@
  * line meets is quite jagged"). A gradient that changes colour at an exact radius gets no smoothing from the browser,
  * so a curve drawn that way comes out in steps; given room to blend, it draws as smoothly as a border's own corner.
  */
-.tab[data-active]::before,
-.tab[data-active]::after,
 .glide::before,
 .glide::after {
   content: '';
   position: absolute;
-  inset-block-end: 0;
+  /* Under the outline's lower corners, where its sides stop: the curve carries each side on down to the line. */
+  inset-block-start: 100%;
   inline-size: var(--tab-flare);
   block-size: var(--tab-flare);
   pointer-events: none;
 }
 
-.tab[data-active]::before,
 .glide::before {
   inset-inline-end: 100%;
   background: radial-gradient(
@@ -311,11 +335,10 @@
     transparent calc(var(--tab-flare) - 1.6px),
     var(--tab-line) calc(var(--tab-flare) - 0.85px),
     var(--tab-line) calc(var(--tab-flare) - 0.15px),
-    var(--app-paper, var(--glacier-bg)) calc(var(--tab-flare) + 0.6px)
+    transparent calc(var(--tab-flare) + 0.6px)
   );
 }
 
-.tab[data-active]::after,
 .glide::after {
   inset-inline-start: 100%;
   background: radial-gradient(
@@ -323,15 +346,15 @@
     transparent calc(var(--tab-flare) - 1.6px),
     var(--tab-line) calc(var(--tab-flare) - 0.85px),
     var(--tab-line) calc(var(--tab-flare) - 0.15px),
-    var(--app-paper, var(--glacier-bg)) calc(var(--tab-flare) + 0.6px)
+    transparent calc(var(--tab-flare) + 0.6px)
   );
 }
 
 /*
- * The outline of the tab being read, on its way from the last one to this one (Matt: "add an animation so the tab
- * slides between items"). Only there while it moves (NoteTabs.tsx `glide`); at rest the tab draws its own outline, so
- * the joins measured into it above are the ones on screen. The tab it is heading for holds its own back until it
- * lands, so the outline is never drawn twice.
+ * The outline of the tab being read (NoteTabs.tsx `placeOutline`), laid under it rather than drawn by it: its sides
+ * stop a curve's height above the line, and the curves above hang from its lower corners down onto the line. A tab's
+ * own border runs to its foot, and with the tab see-through that straight foot showed beside each curve. The same
+ * outline slides from tab to tab when another is opened (Matt: "add an animation so the tab slides between items").
  */
 .glide {
   position: absolute;
@@ -340,22 +363,11 @@
   border: 1px solid var(--tab-line);
   border-block-end: 0;
   border-radius: var(--glacier-radius-md, 0.625rem) var(--glacier-radius-md, 0.625rem) 0 0;
-  background: var(--app-paper, var(--glacier-bg));
   pointer-events: none;
 }
 
 .glide:not([data-on]) {
   display: none;
-}
-
-.tab[data-active][data-arriving] {
-  border-color: transparent;
-  background: none;
-}
-
-.tab[data-active][data-arriving]::before,
-.tab[data-active][data-arriving]::after {
-  content: none;
 }
 
 .tab[data-moving] {
@@ -402,7 +414,7 @@
 /*
  * The workspace the note is filed in, in its own colour, before the name (Matt: "show the workspace pill first on
  * the tab in it's colored pill so we can identity notes with the same name in different workspaces"). The same
- * outlined pill the list's rows wear (NotesList.module.css .rowSpace) and the workspace bar itself, at tab size.
+ * outlined pill the workspace bar itself wears (WorkspaceBar.module.css), at tab size.
  */
 .space {
   flex: none;
@@ -419,12 +431,12 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   /*
-   * An even ring of its own words, as a row's tag wears (NotesList.module.css `.rowSpace`): the line box has to be
+   * An even ring of its own words: the line box has to be
    * pinned to the words, or the ring is twice as thick at the sides as above and below.
    *
-   * THREE THINGS ARE MEASURED FROM THIS PADDING, and all three derive rather than copy, so changing it here carries
-   * them with it - which is the only reason it is safe to change:
-   *   - notes/NotesList.module.css `.rowSpace`, the same badge on a note's row, which Matt asked to match this one;
+   * TWO THINGS ARE MEASURED FROM THIS PADDING, and both derive rather than copy, so changing it here carries them
+   * with it - which is the only reason it is safe to change (a third, the badge on the notes list's rows, went with
+   * the list):
    *   - `.tab` above, whose `min-block-size` is this pill's height, so a tab with a pill and a tab without are one
    *     height;
    *   - plugins/LinkMarks.module.css, whose integration ring is sized off `--glacier-font-size-xs` and this padding,
@@ -512,6 +524,31 @@
   border-radius: 2px;
   background: var(--app-space, var(--app-ink-3));
   pointer-events: none;
+  /*
+   * Moving between a group's tabs, the line under each one is drawn in and let out rather than switched (Matt: "some
+   * kind of animation for the bar under the tabs that are in a group so that it doesn't look so flashy when
+   * navigating between"). It was taken away from the tab being opened and put back under the one left, both in the
+   * same frame, while the outline slid between them - two jumps against one glide. Now the line draws in to its
+   * middle and fades as the outline arrives over it, and grows back out under the tab the outline has left, at the
+   * kit's own pace, so the speed chosen in Settings and a phone asking for less motion both reach it.
+   */
+  transform-origin: center;
+  transition:
+    transform var(--glacier-duration-normal, 250ms) var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+    opacity var(--glacier-duration-normal, 250ms) var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+}
+
+.tab[data-active] .groupLine {
+  transform: scaleX(0.2);
+  opacity: 0;
+}
+
+/* A tab put into a group gets its line the same way, drawn out from its middle rather than appearing at full width. */
+@starting-style {
+  .groupLine {
+    transform: scaleX(0.2);
+    opacity: 0;
+  }
 }
 
 /* The chip before a group's first tab: its name, in its colour. A target in a bar that passes clicks through. */

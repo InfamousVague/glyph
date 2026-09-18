@@ -457,7 +457,8 @@ body:has(.app-headerPane) .app-statusScrim {
  * reach them and the hourglass over an empty "in progress" column stood out as the one hollow shape among filled
  * ones. Its `fill="none"` is an attribute, which loses to this rule, as the note above explains.
  */
-:where(svg.app-drawnIcon[data-icon='doing']) {
+/* Glyph's own mark, the home button's (art/Icons.tsx `GlyphMark`), drawn here for the same reason. */
+:where(svg.app-drawnIcon[data-icon='doing'], svg.app-drawnIcon[data-icon='glyph']) {
   fill: color-mix(in srgb, currentColor 33%, transparent);
 }
 

@@ -17,6 +17,43 @@ const icon = (className: string | undefined, d: string) => (
   </svg>
 );
 
+/**
+ * Glyph's own mark as an icon: the dot and the dash of the app icon (design/app-icon.svg: a circle of radius 124 at
+ * x 349, and a pill 296 by 96 from x 503, on 1024), for the button that goes home.
+ *
+ * Traced, not redrawn: the outer edge of each shape is the logo's own silhouette, scaled so the mark spans the box
+ * from 1 to 23 like the lucide icons beside it, with the outline drawn inside that edge - so the stroke never makes it
+ * bigger than the logo, and the dot and dash keep their sizes and the gap between them. It wears the icons' fill,
+ * the 33% wash (app.css `app-drawnIcon`), which shows in the dot; the dash is thinner than two strokes at this size,
+ * so its outline fills it, as the logo's own dash is solid.
+ */
+const MARK = { from: 225, to: 799, middle: 512 };
+const MARK_SCALE = 22 / (MARK.to - MARK.from);
+const mark = (x: number) => 1 + (x - MARK.from) * MARK_SCALE;
+
+export function GlyphMark({ size = 20, strokeWidth = 2.1, className }: IconProps & { size?: number; strokeWidth?: number }) {
+  const inset = strokeWidth / 2;
+  const dot = { cx: mark(349), r: 124 * MARK_SCALE - inset };
+  const dash = { x: mark(503) + inset, width: 296 * MARK_SCALE - strokeWidth, height: 96 * MARK_SCALE - strokeWidth };
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      className={`app-drawnIcon${className ? ` ${className}` : ''}`}
+      data-icon="glyph"
+      aria-hidden="true"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx={dot.cx} cy={12} r={dot.r} />
+      <rect x={dash.x} y={12 - dash.height / 2} width={dash.width} height={dash.height} rx={dash.height / 2} />
+    </svg>
+  );
+}
+
 export function ArrowLeft({ className }: IconProps) {
   return icon(className, 'M20 12H5m6-7-7 7 7 7');
 }
@@ -75,11 +112,6 @@ export function Pin({ className }: IconProps) {
 /** An archive box: a lid, the box, and the handle slot. */
 export function ArchiveBox({ className }: IconProps) {
   return icon(className, 'M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5M10 12.5h4');
-}
-
-/** A box with an arrow rising out of it: take out of the archive. */
-export function Unarchive({ className }: IconProps) {
-  return icon(className, 'M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5M12 17.5v-6M9.2 14.2 12 11.4l2.8 2.8');
 }
 
 /** A bin: lid, handle, can and two ribs. */

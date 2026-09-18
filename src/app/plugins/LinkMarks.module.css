@@ -62,7 +62,7 @@ button.row:active {
 /*
  * On a list row: the marks alone, inline after the time and the workspace's badge.
  *
- * The ring is the height of that badge (notes/NotesList.module.css `.rowSpace`), because the two sit side by side and
+ * The ring is the height of that badge (the notes list's `.rowSpace`, since removed with the list), because the two sit side by side and
  * are read as one row of marks - a 14.5px ring beside a 24.7px badge read as two different things on one line, which
  * is what Matt saw: "the integration bubbles are not inline with the pill that shows the workspace". They were
  * already centred on each other to the pixel; it was the size that was out.

@@ -2793,3 +2793,22 @@ Matt: "add the ability to choose from a swatch of colours for the workspace pill
   one wears a tick as well as a ring, so it is never colour alone that says which is picked. On a workspace that
   exists the colour is set as it is tapped, since it is a thing to look at: the pill behind the sheet changes under
   your finger. A new one carries its colour into the making.
+
+## A home page, and the notes list gone (2026-09-18)
+
+Matt: "Add a 'home' button to take us to a dashboard like page", with Glyph's own mark as its icon; he chose a new
+page on every screen, the phone's start page included, and then "Delete the code" for the list it replaced.
+
+- **The button** is the top bar's second, after the sidebar's (`notes/NoteTabs.tsx`). Its icon is the app icon's dot
+  and dash traced, not redrawn (`art/Icons.tsx` `GlyphMark`): the outer edge of each shape is the logo's silhouette
+  scaled to the lucide box, with the outline drawn inside it, and it wears the icons' 33% wash.
+- **The page** (`home/HomeScreen.tsx`) is what a person comes back for: anything waiting on them (update, memo,
+  voice model, the Academy), the notes they pinned and the six they were in last as live previews, and every
+  unticked to-do from every note (`home/dashboard.ts`), ticked in place by rewriting that one line's box. The
+  workspace pills choose what it shows. Every note is a tap away in the sidebar, so the page does not list them all.
+- **The notes list is deleted**, with what only it used: its swipe rows (`SwipeRow`, `notes/swipe.ts`), its date
+  groups (`notes/groups.ts`) and the empty archive's picture. What it carried that was not the list moved out: the
+  notices to `notes/Notices.tsx`, the workspace pills' styles to `notes/WorkspaceBar.module.css`, the glide to the
+  top on a workspace change to `core/glideToTop.ts`, and the page's glass bar, scroller and dock to the home page.
+- **Left for a decision:** the phone's gist runner (`format/gist.ts`) wrote the line under each row of the list; with
+  no list it is never given a note to write for, so it does nothing, but its code is still there.

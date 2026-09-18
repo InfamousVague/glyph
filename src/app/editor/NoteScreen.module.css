@@ -73,6 +73,22 @@
   font-size: var(--glacier-font-size-md);
 }
 
+/*
+ * With the note's controls up in the app's bar (NoteScreen.tsx puts them there whenever there is one), this header
+ * holds nothing: it is only the glass behind that bar, so it is exactly the bar's height and the blur ends on the tabs'
+ * own line (Matt: "There is extra blur space below the tabs"). Its padding was for the row of controls it used to
+ * carry, a space-1 over it and a space-2 under, and with the row gone it drew a strip of frosted nothing under the
+ * tabs - measured 15px on a desktop, bar 0-100.2 and pane 0-115.3 - before the wisp even began, which starts at the
+ * pane's foot. The page keeps that room as its own instead, so the note's first line stays where it was.
+ */
+.header:empty {
+  padding-block: var(--app-safe-top, 0px) 0;
+}
+
+.header:empty ~ .page {
+  padding-block-start: calc(var(--wisp-under, 3.6rem) + var(--glacier-space-1) + var(--glacier-space-2));
+}
+
 /* The controls themselves: the way back at one end, the tools at the other. */
 .headerRow {
   display: flex;

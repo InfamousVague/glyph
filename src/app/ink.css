@@ -11,9 +11,9 @@
  * 2. Everything a component reads - Glacier's semantic tokens AND its grey and
  *    accent ramps - mapped onto that scale. Accent is ink. Danger, success,
  *    warning and info are ink too: a state is said with a word or a shape, not
- *    a colour. ONE EXCEPTION, at Matt's call: a swipe's Delete is red
- *    (notes/SwipeRow.module.css), using the kit's red ramp, which this file
- *    leaves alone for that reason. The mapping is declared at `:root:root:root` so it outranks
+ *    a colour. ONE EXCEPTION, at Matt's call: a Delete may be red, from the
+ *    kit's red ramp, which this file leaves alone for that reason (it was
+ *    first the notes list's swipe to delete, since removed). The mapping is declared at `:root:root:root` so it outranks
  *    every theme and accent block in tokens.css, including the
  *    `:root:not([data-theme='light'])[data-accent=…]` ones.
  *

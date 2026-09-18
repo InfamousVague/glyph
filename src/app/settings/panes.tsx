@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, FileText, GraduationCap, LayoutGrid, ListChecks, Terminal } from '@glacier/icons';
 import { SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
-import { isSidebarMode, isUiScale, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
+import { isSidebarStyle, isUiScale, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { hapticsAvailable, setHapticsPref, useHapticsPref, fireNativeHaptic } from '../core/haptics.ts';
@@ -67,8 +67,8 @@ const UI_SIZES: { value: string; label: string }[] = [
 ];
 
 const SIDEBAR_MODES: { value: string; label: string }[] = [
+  { value: 'popover', label: 'Popover' },
   { value: 'docked', label: 'Docked' },
-  { value: 'floating', label: 'Floating' },
 ];
 
 const SPEEDS: { value: MotionSpeed; label: string }[] = [
@@ -205,7 +205,7 @@ export function AppearancePane() {
           }
         />
       </PaneSection>
-      <PaneSection title="Sidebar" description="On a wide window, the sidebar icon in the top bar opens your notes as a column beside the note, or as a card over it. A narrow window always uses the card.">
+      <PaneSection title="Sidebar" description="The sidebar icon in the top bar opens your notes in a popover over the note. On a wide window it can dock them as a column beside the note instead.">
         <SettingRow
           label="Sidebar"
           layout="stacked"
@@ -215,9 +215,9 @@ export function AppearancePane() {
               fullWidth
               size="sm"
               options={SIDEBAR_MODES}
-              value={prefs.sidebar}
+              value={prefs.sidebarStyle}
               onValueChange={(value) => {
-                if (isSidebarMode(value)) setPreferences({ sidebar: value });
+                if (isSidebarStyle(value)) setPreferences({ sidebarStyle: value });
               }}
             />
           }

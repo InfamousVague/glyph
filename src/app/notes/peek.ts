@@ -48,6 +48,8 @@ export function bareWords(text: string): string {
       .replace(PAIRED, '')
       // The bookmark's mark (editor/bookmarkLine.ts): it says where the note opens, not anything the line says.
       .replace(/§§/g, '')
+      // An item's anchor at the end of its line (core/boards.ts): the name a board calls it by, not its words.
+      .replace(/(^|\s)\^[a-z0-9][a-z0-9_-]*\s*$/, '$1')
       // A lone `*` or `_` around a word, which the paired rule above leaves behind.
       .replace(/(^|\s)[*_](\S)/g, '$1$2')
       .replace(/(\S)[*_](?=\s|$|[.,;:!?])/g, '$1'),

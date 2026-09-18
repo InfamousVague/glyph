@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HapticsProvider, ToastProvider } from '@glacier/react';
-import { NotesList, UpdateCard, UpdateNotice } from './notes/NotesList.tsx';
+import { UpdateCard, UpdateNotice } from './notes/Notices.tsx';
+import { HomeScreen } from './home/HomeScreen.tsx';
+import type { OpenTask } from './home/dashboard.ts';
+import { setItemDone } from './core/boards.ts';
 import { NoteScreen } from './editor/NoteScreen.tsx';
-import { NoNoteOpen } from './notes/NoNoteOpen.tsx';
 import { NoteTabs } from './notes/NoteTabs.tsx';
 import { NotesDrawer } from './notes/NotesDrawer.tsx';
 import { NoteTree } from './notes/NoteTree.tsx';
@@ -33,7 +35,6 @@ import { answerHost, takeCaptureLaunch } from './core/host.ts';
 import { applyPreferences, onPreferences, preferences, setPreferences, themeChoice, usePreferences, type ThemePref } from './core/preferences.ts';
 import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
-import { isTauri } from './core/tauri.ts';
 import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
@@ -500,11 +501,12 @@ function Shell() {
   // flows still take the whole window.
   const split = sidebar && (screen.name === 'list' || screen.name === 'note');
   /*
-   * The sidebar docked beside the note, rather than floating over it: a window wide enough, and Settings left at
-   * Docked (Matt: "the sidebar ... always be docked by default to the icon in the top bar unless otherwise stated in
-   * settings"). Either way the top bar's icon is the way to it; docked, the icon shows and hides the column.
+   * The sidebar docked beside the note, rather than a popover over it: a window wide enough, and Docked chosen in
+   * Settings. A popover is the default everywhere (Matt: "Sidebar should open and close in a popover not a full
+   * sidebar even on desktop", core/preferences.ts `SidebarStyle`). Either way the top bar's icon is the way to it;
+   * docked, the icon shows and hides the column.
    */
-  const docked = split && prefs.sidebar === 'docked';
+  const docked = split && prefs.sidebarStyle === 'docked';
   const dockShown = docked && sidebarShown;
   // Docking takes over from a card left open, so the notes are never drawn twice.
   useEffect(() => {
@@ -563,20 +565,45 @@ function Shell() {
         }}
       />
     ) : null;
-  const notesList = (
-    <NotesList
-      selectedId={screen.name === 'note' ? screen.note.id : undefined}
+  /*
+   * A to-do ticked on the home page: that one line of its note rewritten with its box ticked (core/boards.ts
+   * `setItemDone`, the same change the editor's tick makes), and the notes read again.
+   */
+  const tickTask = async (task: OpenTask) => {
+    const note = notes.find((n) => n.id === task.noteId);
+    const lines = note?.body.split('\n');
+    const line = lines?.[task.line];
+    if (!note || !lines || line === undefined) return;
+    lines[task.line] = setItemDone(line, true);
+    await saveNote(note.id, lines.join('\n'));
+    await refresh();
+  };
+  // Every note, from the home page's "All notes": the sidebar, docked or as its popover.
+  const showAllNotes = () => {
+    if (!docked) setDrawer(true);
+    else if (!sidebarShown) toggleDock();
+  };
+  /*
+   * The home page (home/HomeScreen.tsx): the start page on every screen (Matt: "Add a 'home' button to take us to a
+   * dashboard like page"). It took the notes list's place on a phone and the empty "No note open" pane beside the
+   * sidebar; the top bar's Glyph mark comes back to it from anywhere.
+   */
+  const home = (
+    <HomeScreen
       notes={notes}
       loading={loading}
-      onOpen={openNote}
+      onOpen={(id, at) => {
+        const note = notes.find((n) => n.id === id);
+        if (note) setScreen({ name: 'note', note, at });
+      }}
       onNew={() => void newNote()}
       onCapture={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
+      onSettings={() => setSettings(true)}
+      onAllNotes={showAllNotes}
+      onTick={(task) => void tickTask(task)}
       voiceModel={voiceModel.state}
       onRetryVoiceModel={voiceModel.retry}
       updates={updates}
-      onSettings={() => setSettings(true)}
-      actions={actions}
-      canFlag={canFlag(updates)}
       showAcademy={academyCard}
       onAcademy={() => setScreen({ name: 'academy' })}
       onHideAcademy={() => {
@@ -704,12 +731,15 @@ function Shell() {
             onClose={closeTab}
             onNew={() => void newNote()}
             onSidebar={docked ? toggleDock : () => setDrawer((was) => !was)}
+            onHome={() => void backToList()}
+            atHome={screen.name === 'list'}
             sidebarOpen={docked ? sidebarShown : drawer}
-            onMove={(id, to) => {
-              // Moved within the order as drawn, then asked whether it was dropped into a group or out of one.
+            onMove={(id, to, grouped) => {
+              // Moved within the order as drawn. A drag has already said which group the tab is in (NoteTabs.tsx
+              // `groupAt`); a move by the keys asks where it landed - into a group, or out of one.
               const next = moveOpen(open, drawnIds, id, to);
               setOpen(next);
-              setGroups((was) => afterMove(was, next.filter((each) => drawnIds.includes(each)), id));
+              if (!grouped) setGroups((was) => afterMove(was, next.filter((each) => drawnIds.includes(each)), id));
             }}
             groups={groups}
             onGroups={setGroups}
@@ -789,11 +819,11 @@ function Shell() {
             </aside>
           ) : null}
           <main className="app-notePane">
-            {noteScreen ?? <NoNoteOpen onNew={() => void newNote()} onCapture={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })} />}
+            {noteScreen ?? home}
           </main>
         </div>
       ) : (
-        (noteScreen ?? notesList)
+        (noteScreen ?? home)
       )}
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
       <WhatsNewSheet sources={updates.status?.sources} hold={guide || screen.name === 'capture'} />
@@ -872,15 +902,4 @@ function Shell() {
       ) : null}
     </>
   );
-}
-
-/**
- * Whether star and archive exist on this binary. They need native generation 3
- * (store.rs's flags); an over-the-air page on an older APK keeps delete only,
- * rather than offering a swipe whose command is not there. A browser keeps its
- * notes in localStorage and has had flags all along.
- */
-function canFlag(updates: ReturnType<typeof useUpdates>): boolean {
-  if (!isTauri()) return true;
-  return (updates.status?.nativeGeneration ?? 0) >= 3;
 }

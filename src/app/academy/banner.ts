@@ -1,7 +1,7 @@
 import { readProgress } from './lessons.ts';
 
 /**
- * Whether the home screen offers Glyph Academy (notes/NotesList.tsx), the way
+ * Whether the home page offers Glyph Academy (notes/Notices.tsx), the way
  * it offers an update (Matt: "the academy page should show up on the home
  * screen kinda like the update banner for new users as a call to action
  * banner").
