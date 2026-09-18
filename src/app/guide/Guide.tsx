@@ -133,7 +133,9 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
   const nudgeReady = page === 'welcome' ? watched : nudgeDue;
   // Content slipping behind the top bar goes to smoke: the app's wisp edge (art/wispEdge.ts).
   const topRef = useRef<HTMLElement>(null);
-  useWispEdge(pageRef, page, topRef);
+  // And into the fade over its buttons at the foot (Matt: "anywhere we use the dark gradient color overlay we should
+  // include a slight wisp effect").
+  useWispEdge(pageRef, page, topRef, { foot: true });
   const toBottom = () => pageRef.current?.scrollTo({ top: pageRef.current.scrollHeight, behavior: 'smooth' });
 
   // The phone's back gesture (and Escape) steps back through the guide before

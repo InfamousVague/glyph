@@ -24,7 +24,7 @@
   --app-tabs: 0px;
   /*
    * How tall one tab in that bar draws (notes/NoteTabs.module.css `.tab`): the workspace pill's own height - a line
-   * of `--glacier-font-size-xs`, 0.52em above and below it, and its 1px ring - plus the air the name gives it.
+   * of `--glacier-font-size-sm`, 0.52em above and below it, and its 1px ring - plus the air the name gives it.
    *
    * Here rather than in the stylesheet that uses it, because the BAR has to be this tall too, and the bar's height is
    * this file's. It was `2.25rem`, a number that stood for the tab row and did not follow it: the kit's type scale
@@ -32,7 +32,7 @@
    * 2.8px past the bar's own hairline (Matt: "tabs are rendering below the header line on widescreen displays"). One
    * expression, read by the tab and by the bar around it, cannot do that.
    */
-  --app-tab-h: calc(var(--glacier-font-size-xs) * 2.04 + 2px + var(--glacier-space-1) * 2.1);
+  --app-tab-h: calc(var(--glacier-font-size-sm) * 2.04 + 2px + var(--glacier-space-1) * 2.6);
   /*
    * And how tall the row above it draws: the round controls it holds (notes/NoteTabs.module.css `.sidebar` and
    * `.step`, editor/NoteScreen.module.css `.cog`), which are all one expression off the kit's space scale.
@@ -457,8 +457,7 @@ body:has(.app-headerPane) .app-statusScrim {
  * reach them and the hourglass over an empty "in progress" column stood out as the one hollow shape among filled
  * ones. Its `fill="none"` is an attribute, which loses to this rule, as the note above explains.
  */
-/* Glyph's own mark, the home button's (art/Icons.tsx `GlyphMark`), drawn here for the same reason. */
-:where(svg.app-drawnIcon[data-icon='doing'], svg.app-drawnIcon[data-icon='glyph']) {
+:where(svg.app-drawnIcon[data-icon='doing']) {
   fill: color-mix(in srgb, currentColor 33%, transparent);
 }
 

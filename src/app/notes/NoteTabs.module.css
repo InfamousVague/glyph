@@ -167,9 +167,15 @@
   background: var(--app-paper-2, var(--glacier-surface));
 }
 
+/*
+ * On - the sidebar showing, or Home being the page - is a ring round the button in its own ink, not the button filled
+ * solid white (Matt: "make the highlight of the active button simply outline instead of highlighting solid white").
+ * Inset, so it sits inside the button's own round and the focus ring outside it stays its own; no ground of its own,
+ * so a hover over an active button still shows the hover's.
+ */
 .sidebar[data-on] {
-  color: var(--glacier-bg);
-  background: var(--glacier-text);
+  color: var(--glacier-text);
+  box-shadow: inset 0 0 0 1.5px var(--glacier-text);
 }
 
 .sidebar:focus-visible {
@@ -236,13 +242,24 @@
 }
 
 /*
- * The row's end softens, so it reads as going on past the edge - and only when it does (Matt: "only show the wisp
+ * The row's ends soften, so each reads as going on past the edge - and only when it does (Matt: "only show the wisp
  * blur effect on the end of the scrolling tab list when it overflows the screen"). On a row that fits, the fade was
- * dimming the last tab for no reason: there was nothing past the edge to promise.
+ * dimming the last tab for no reason: there was nothing past the edge to promise. The left end fades once the row
+ * has been scrolled from its start, and not at the start itself, where nothing is out of sight (NoteTabs.tsx `ends`,
+ * which also puts the wisp on each end that fades).
  */
-.tabs[data-over] {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--glacier-space-6)), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - var(--glacier-space-6)), transparent 100%);
+.tabs[data-fade-start],
+.tabs[data-fade-end] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--tab-fade-start, 0px), #000 calc(100% - var(--tab-fade-end, 0px)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--tab-fade-start, 0px), #000 calc(100% - var(--tab-fade-end, 0px)), transparent 100%);
+}
+
+.tabs[data-fade-start] {
+  --tab-fade-start: var(--glacier-space-6);
+}
+
+.tabs[data-fade-end] {
+  --tab-fade-end: var(--glacier-space-6);
 }
 
 .tabs::-webkit-scrollbar {
@@ -260,7 +277,7 @@
   align-items: center;
   /* Room for a workspace pill and a short name beside it: the pill grew, and at 11rem it was eating names like
      "Alpha note" that have room to spare. */
-  max-inline-size: 15rem;
+  max-inline-size: 17rem;
   /*
    * Every tab the same height, whether or not it carries a workspace pill (Matt: "Notes without pills in the tabs are
    * shorter than ones with the pills in them"). A pill is taller than the name's own line, so it was setting the
@@ -388,17 +405,19 @@
   align-items: center;
   gap: var(--glacier-space-2);
   min-inline-size: 0;
-  max-inline-size: 14rem;
+  max-inline-size: 16rem;
   /* Between the two: bigger than the row was built, smaller than it grew to. */
   /* Down a step again (Matt: "The tabs are just a bit big"). The air inside the pill gives, not the name: the label
      was set to its size in the pass before this one and is the part that has to stay readable. */
-  padding: calc(var(--glacier-space-1) * 1.05) var(--glacier-space-1) calc(var(--glacier-space-1) * 1.05) calc(var(--glacier-space-3) * 0.85);
+  /* And up a step (Matt: "Make the tabs and the pills inside them larger they feel a bit smaller than the rest of the
+     app"): the name a size up, and a little more air round it, which `--app-tab-h` (app.css) counts. */
+  padding: calc(var(--glacier-space-1) * 1.3) var(--glacier-space-1) calc(var(--glacier-space-1) * 1.3) var(--glacier-space-3);
   border: none;
   background: none;
   color: inherit;
   font: inherit;
-  /* A step down (Matt: "also the text on the tabs is too large"); the pill beside it stayed where it was. */
-  font-size: var(--glacier-font-size-sm);
+  /* A step down (Matt: "also the text on the tabs is too large"), and back up with the pill beside it. */
+  font-size: var(--glacier-font-size-md);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -434,13 +453,11 @@
    * An even ring of its own words: the line box has to be
    * pinned to the words, or the ring is twice as thick at the sides as above and below.
    *
-   * TWO THINGS ARE MEASURED FROM THIS PADDING, and both derive rather than copy, so changing it here carries them
-   * with it - which is the only reason it is safe to change (a third, the badge on the notes list's rows, went with
-   * the list):
-   *   - `.tab` above, whose `min-block-size` is this pill's height, so a tab with a pill and a tab without are one
-   *     height;
-   *   - plugins/LinkMarks.module.css, whose integration ring is sized off `--glacier-font-size-xs` and this padding,
-   *     so a bubble and a badge read as the same kind of thing on one line.
+   * THE TAB'S HEIGHT IS MEASURED FROM THIS PADDING AND THIS SIZE: `.tab` above takes `--app-tab-h` (app.css) as its
+   * `min-block-size`, which is this pill's height, so a tab with a pill and a tab without are one height. It derives
+   * rather than copies, so changing either here carries it along - but the expression there names the font size, so
+   * a new size is changed in both. (Two others once matched it and have gone: the badge on the notes list's rows, and
+   * the list-row mode of plugins/LinkMarks.module.css, which only drew on those rows.)
    * The pill has changed size four times in two days. A number copied into any of those would have been wrong within
    * the hour and silently.
    */
@@ -449,7 +466,8 @@
   border-radius: var(--glacier-radius-full);
   /* The pill keeps the room it has and spends it on air rather than letters (Matt: "the text inside the tab pills is
      a little large - add more padding to make the tab take the same space but smaller text"). */
-  font-size: var(--glacier-font-size-xs);
+  /* A step up, with the name (Matt: "Make the tabs and the pills inside them larger"). */
+  font-size: var(--glacier-font-size-sm);
   line-height: 1;
   color: var(--app-space, var(--glacier-text-muted));
 }
@@ -574,7 +592,7 @@
   background: color-mix(in oklch, var(--app-space, var(--app-ink-3)) 22%, transparent);
   color: var(--app-space, var(--app-ink-2));
   font: inherit;
-  font-size: var(--glacier-font-size-xs);
+  font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-semibold);
   white-space: nowrap;
   overflow: hidden;
@@ -602,7 +620,7 @@
   background: transparent;
   color: var(--app-ink, var(--glacier-text));
   font: inherit;
-  font-size: var(--glacier-font-size-xs);
+  font-size: var(--glacier-font-size-sm);
 }
 
 /* Where a group's or a tab's menu hangs from: the foot of what was pressed. */

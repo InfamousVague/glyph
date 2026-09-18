@@ -47,6 +47,9 @@ export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onClose, onC
   useEffect(() => {
     if (!open) return undefined;
     const outside = (event: PointerEvent) => {
+      // The button that opened it is left to close it (Matt: "I should be able to click the sidebar button again to
+      // close the sidebar"). Closed here on the press, the click that followed opened it straight back up.
+      if ((event.target as Element).closest?.('[data-sidebar-toggle]')) return;
       if (!card.current?.contains(event.target as Node)) onClose();
     };
     // On the next frame: the press that opened it would otherwise close it again.

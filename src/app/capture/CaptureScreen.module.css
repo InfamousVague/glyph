@@ -586,6 +586,34 @@
 }
 
 /* The table card's question: the one thing to answer, in the landing line's type. */
+/*
+ * The memo flow's recent notes (capture/memoFlow.ts), to say one of: numbered, since "the second one" picks one, and
+ * the one the words so far seem to mean drawn in ink while the rest wait in the quiet grey.
+ */
+.flowOptions {
+  display: grid;
+  gap: var(--glacier-space-1);
+  margin: 0;
+  padding-inline-start: 1.6em;
+  font-size: var(--glacier-font-size-md);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.flowOption {
+  padding-inline-start: 0.2em;
+  transition: color 160ms ease-out;
+}
+
+.flowOption::marker {
+  color: var(--app-ink-4, var(--glacier-text-subtle));
+  font-variant-numeric: tabular-nums;
+}
+
+.flowOption[data-guess] {
+  color: var(--app-ink, var(--glacier-text));
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
 .tableQuestion {
   margin: 0;
   font-size: var(--glacier-font-size-lg);

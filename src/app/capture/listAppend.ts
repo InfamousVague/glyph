@@ -174,11 +174,12 @@ function itemShaped(text: string): boolean {
  * takes it as its own paragraph at the end. Answers the new body, the lines
  * added and which it was.
  */
-export function leaveNote(body: string, text: string): { body: string; added: string[]; into: 'list' | 'paragraph' } {
+export function leaveNote(body: string, text: string, { asParagraph = false } = {}): { body: string; added: string[]; into: 'list' | 'paragraph' } {
   const words = text.replace(LEAD_IN, '').replace(/^["“]+|["”]+$/g, '').trim();
   if (!words) return { body, added: [], into: 'paragraph' };
   const lines = body.split('\n');
-  if (runsOf(lines).length && itemShaped(words)) {
+  // Asked for as a line (the memo flow's "add a line"), it is one, list or no list.
+  if (!asParagraph && runsOf(lines).length && itemShaped(words)) {
     return { ...appendToList(body, [words], { near: words }), into: 'list' };
   }
   const sentence = words.charAt(0).toUpperCase() + words.slice(1);
@@ -188,7 +189,8 @@ export function leaveNote(body: string, text: string): { body: string; added: st
 }
 
 export interface Placing {
-  how: 'leave' | 'item';
+  /** "leave": where it fits; "item": a list item; "paragraph": its own paragraph, whatever the note holds. */
+  how: 'leave' | 'item' | 'paragraph';
   task: boolean;
   many: boolean;
 }
@@ -200,7 +202,7 @@ export interface Placing {
  * are both this, so the preview is the result.
  */
 export function placeWords(body: string, spoken: string, { how, task, many }: Placing): { body: string; added: string[]; into: 'list' | 'paragraph' } {
-  if (how === 'leave') return leaveNote(body, spoken);
+  if (how === 'leave' || how === 'paragraph') return leaveNote(body, spoken, { asParagraph: how === 'paragraph' });
   // Several said one after another arrive joined with commas: each is an item, two as much as five.
   const listed = many || /,/.test(spoken) ? (enumeration(`Items: ${spoken}`)?.items ?? (many ? spoken.split(/\s*,\s*/).filter(Boolean) : null)) : null;
   const items = listed?.length ? listed : [spoken];

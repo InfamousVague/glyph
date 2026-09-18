@@ -283,7 +283,7 @@ export function RecordingPane() {
       <PaneSection title="The side key">
         <SettingRow
           label="Memo mode"
-          hint="What you say is kept on a scratch page, then sorted into your notes when you’re done: you see where each part goes before it’s filed. Off, every recording is a plain new note."
+          hint="A recording asks which note first, then what you say goes onto it; “add task” and the like ask for one thing at a time. Off, every recording is a plain new note."
           control={<Switch aria-label="Memo mode" checked={prefs.memo} onCheckedChange={(memo) => setPreferences({ memo })} />}
         />
         <SettingRow

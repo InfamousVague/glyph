@@ -18,38 +18,30 @@ const icon = (className: string | undefined, d: string) => (
 );
 
 /**
- * Glyph's own mark as an icon: the dot and the dash of the app icon (design/app-icon.svg: a circle of radius 124 at
- * x 349, and a pill 296 by 96 from x 503, on 1024), for the button that goes home.
+ * A modern house, for the button that goes home (Matt: "change the home logo to be a modern house"; it was Glyph's
+ * own dot and dash). A single-pitch roof rising to the right with its overhang drawn past the walls, and a door.
  *
- * Traced, not redrawn: the outer edge of each shape is the logo's own silhouette, scaled so the mark spans the box
- * from 1 to 23 like the lucide icons beside it, with the outline drawn inside that edge - so the stroke never makes it
- * bigger than the logo, and the dot and dash keep their sizes and the gap between them. It wears the icons' fill,
- * the 33% wash (app.css `app-drawnIcon`), which shows in the dot; the dash is thinner than two strokes at this size,
- * so its outline fills it, as the logo's own dash is solid.
+ * It wears the icons' 33% wash (app.css), on the house's body alone: the door and the roof's line are strokes over it,
+ * and a wash on them as well would lay a second coat over the door, the doubling the icons are kept clear of. So the
+ * wash is set on the body as a style - a `fill` attribute would lose to the stylesheet's rules, a style does not.
  */
-const MARK = { from: 225, to: 799, middle: 512 };
-const MARK_SCALE = 22 / (MARK.to - MARK.from);
-const mark = (x: number) => 1 + (x - MARK.from) * MARK_SCALE;
-
-export function GlyphMark({ size = 20, strokeWidth = 2.1, className }: IconProps & { size?: number; strokeWidth?: number }) {
-  const inset = strokeWidth / 2;
-  const dot = { cx: mark(349), r: 124 * MARK_SCALE - inset };
-  const dash = { x: mark(503) + inset, width: 296 * MARK_SCALE - strokeWidth, height: 96 * MARK_SCALE - strokeWidth };
+export function House({ size = 20, strokeWidth = 2.1, className }: IconProps & { size?: number; strokeWidth?: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
       width={size}
       height={size}
-      className={`app-drawnIcon${className ? ` ${className}` : ''}`}
-      data-icon="glyph"
+      className={className}
       aria-hidden="true"
+      fill="none"
       stroke="currentColor"
       strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <circle cx={dot.cx} cy={12} r={dot.r} />
-      <rect x={dash.x} y={12 - dash.height / 2} width={dash.width} height={dash.height} rx={dash.height / 2} />
+      <path d="M4.5 10.6 19.5 6v13a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2z" style={{ fill: 'color-mix(in srgb, currentColor 33%, transparent)' }} />
+      <path d="M2.5 11.2 21.5 5.4" />
+      <path d="M10 21v-5.5h4V21" />
     </svg>
   );
 }

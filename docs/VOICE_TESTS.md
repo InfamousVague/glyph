@@ -17,6 +17,9 @@ Two runs check it:
   path (`src-tauri/src/whisper/suite.rs`, into `.heard/` beside the files), and the same checks run on what it heard.
   This is the rules against real speech. `GLYPH_VOICE_ONLY=051 npm run voice:hear` hears one.
 
+A test with `"prefs": {"memo": true}` runs as a memo (capture/memoFlow.ts): the take opens by asking which note, so
+its first line names one ("Use note work.") and the rest are trigger words and talk. The "Memo flow" group covers it.
+
 The older six-take walkthrough below is for playing into the phone by hand.
 
 ## By hand: six recordings, one note

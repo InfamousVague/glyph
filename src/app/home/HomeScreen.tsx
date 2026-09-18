@@ -75,7 +75,9 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
-  useWispEdge(scroller, 'home', topBar);
+  // Smoke at both ends: under the bar, and into the dock's fade at the foot (Matt: "anywhere we use the dark gradient
+  // color overlay we should include a slight wisp effect"), as a note's page has.
+  useWispEdge(scroller, 'home', topBar, { foot: true });
   const spaces = useWorkspaces();
   const [manage, setManage] = useState<Workspace | 'new' | null>(null);
   // Another workspace chosen: the page glides back to its top rather than jumping there.

@@ -103,8 +103,8 @@ export function reply(text: string): 'yes' | 'no' | null {
 // ---- the plan ---------------------------------------------------------------------------------
 
 export interface Placement {
-  /** "leave": into the list it fits, or a paragraph (listAppend.ts `leaveNote`). "item": always a list item. */
-  how: 'leave' | 'item';
+  /** "leave": into the list it fits, or a paragraph (listAppend.ts `leaveNote`). "item": always a list item. "paragraph": always its own paragraph. */
+  how: 'leave' | 'item' | 'paragraph';
   task: boolean;
   /** "Items", "tasks": every phrase until a pause is one. */
   many: boolean;

@@ -342,7 +342,29 @@
   justify-content: space-between;
   padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
   padding-block: var(--glacier-space-8) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-3));
-  background: linear-gradient(to bottom, transparent, var(--glacier-bg) 45%);
+  /* Its own layer, so its glass (below) sits under its buttons and not under the page. */
+  isolation: isolate;
+  pointer-events: none;
+}
+
+/*
+ * The dock's ground is the header's glass, not a shadow (Matt: "The shadow at the bottom of the page is also shadow
+ * instead of the wisp blur effect like under the header"). It was a gradient from clear to the page's black, which
+ * read as a shadow cast up the page. Now it is what the header pane is (app.css .app-headerPane) - the page's paper
+ * at two thirds, with the page blurred behind it - rising from nothing at the dock's top edge to full by the time
+ * the buttons begin, so it has no edge; the words going under it smoke first (the wisp's foot, art/wispEdge.ts), as on the home page (home/HomeScreen.module.css).
+ * A layer of its own under the buttons, so the fade in never reaches them.
+ */
+.dock::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--glacier-space-8));
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--glacier-space-8));
   pointer-events: none;
 }
 

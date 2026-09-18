@@ -21,7 +21,8 @@ import { placeWords } from './listAppend.ts';
 import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandCommand } from './understand.ts';
 import { appendBlock } from './table.ts';
-import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
+import { Take, type FlowView, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
+import { askWords } from './memoFlow.ts';
 import { boardFrom, lanesOf } from '../core/boards.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { plugins } from '../plugins/registry.ts';
@@ -31,7 +32,7 @@ import { SideKeyWaves } from './SideKeyWaves.tsx';
 import { publishVoiceLevel } from './voiceLevel.ts';
 import { useSideKeySpot } from './sideKey.ts';
 import { LivePage } from './LivePage.tsx';
-import { clearScratch, saveScratch, type Scratch } from './scratch.ts';
+import type { Scratch } from './scratch.ts';
 import { Tail } from './Tail.tsx';
 import { counter } from './tape.ts';
 import styles from './CaptureScreen.module.css';
@@ -60,10 +61,10 @@ import styles from './CaptureScreen.module.css';
  * chosen at mount; a cancel deletes it; Done writes the final version.
  *
  * With memo mode on (the default), a recording - from the Speak button or the
- * side key - goes onto the last spoken note rather than starting another
- * (continuation.ts), with "New note" one tap away; tapping it makes the new
- * note the one that grows from then on. Over the lock screen the note it continues is not named, and none of its
- * text is shown.
+ * side key - is a conversation (capture/memoFlow.ts, docs/DESIGN.md "Memo mode picks a note first"): it opens by
+ * asking which note, with a few recent ones to choose from, and once one is chosen the words go onto its end, with
+ * trigger words ("add task") asking for one thing at a time. "Switch note" and "New note" leave what was said where
+ * it was said and carry on elsewhere. Over the lock screen no note is named, and none of its text is shown.
  *
  * Done goes back to the list, whatever started the capture: the new note is at
  * the top, a tap away, and a locked phone has already stepped back behind its
@@ -100,10 +101,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** The note being written: a new id, or the note this capture continues. */
   const noteId = useRef(newNoteId());
   /**
-   * Memo mode, and not talking into a particular note: the take is written to a scratch page, not a note, and sorted
-   * into notes when it ends (capture/scratch.ts, sort/). Decided once, as the take opens.
+   * Memo mode, and not talking into a particular note: the take is the memo flow (capture/memoFlow.ts), which asks
+   * which note first. Decided once, as the take opens.
    */
-  const scratchMode = useRef(!aimedAt && preferences().memo);
+  const flowMode = useRef(!aimedAt && preferences().memo);
   /** The note this capture is being added to, if it continues one. */
   const [target, setTarget] = useState<Note | null>(null);
   const targetRef = useRef<Note | null>(null);
@@ -178,6 +179,18 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const [tableView, setTableView] = useState<TableDraft<Note> | null>(null);
   /** What a command will do once it is confirmed, by "yes" or a tap. */
   const [pending, setPendingView] = useState<Offer<Note> | null>(null);
+  /** The memo flow's card: which note, or what a trigger word asked for (capture/memoFlow.ts). */
+  const [flowView, setFlowView] = useState<FlowView<Note> | null>(() =>
+    flowMode.current ? { step: 'choosing', options: [], guess: null, heard: '', missed: null, unsure: false } : null,
+  );
+  /**
+   * Every write to a note, in turn: a command's change, the draft, the take carrying on elsewhere. Two close together
+   * used to read the same body and the second lost the first; and a draft composed from a base that a command was
+   * replacing wrote the old base back.
+   */
+  const writes = useRef<Promise<unknown>>(Promise.resolve());
+  /** What the last command changed in a note, for "undo": the note and its body before. */
+  const lastChange = useRef<{ id: string; before: string; what: string } | null>(null);
   const [tables, setTables] = useState<string[]>([]);
   const [asBoard, setAsBoard] = useState(false);
   /** The tape this take writes to: the continued note's, or a new one (core/clips.ts). Read once, when it is first needed. */
@@ -245,7 +258,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   // with memo mode on.
   useEffect(() => {
     let current = true;
-    const chosen = aimedAt ? getNote(aimedAt).catch(() => null) : scratchMode.current ? Promise.resolve(null) : continuationNote(preferences().memo);
+    const chosen = aimedAt ? getNote(aimedAt).catch(() => null) : flowMode.current ? Promise.resolve(null) : continuationNote(preferences().memo);
     void chosen.then((found) => {
       // Found after a draft was already written to a new note: stay with that one.
       if (!current || !found || savedDraft.current || finished.current) return;
@@ -292,11 +305,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
   /** Undoes whatever drafts wrote: the continued note gets its text back, a new note goes. */
   const undoDraft = useCallback(async () => {
-    if (scratchMode.current) {
-      savedDraft.current = false;
-      clearScratch();
-      return;
-    }
     if (!savedDraft.current) return;
     savedDraft.current = false;
     const continued = targetRef.current;
@@ -304,18 +312,68 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     else await deleteNote(noteId.current);
   }, []);
 
-  /** "New note": this capture stops continuing the last one. */
-  const startNewNote = useCallback(async () => {
-    if (!targetRef.current) return;
-    await undoDraft();
-    targetRef.current = null;
-    baseBody.current = null;
-    noteId.current = newNoteId();
-    setTarget(null);
-    fireNativeHaptic('selection');
-    // The next draft save writes the words so far to the new note.
-    setSegments([...segmentsRef.current]);
-  }, [undoDraft]);
+  /** A write to a note, after every write before it (`writes`). */
+  const queueWrite = <T,>(run: () => Promise<T>): Promise<T> => {
+    const done = writes.current.then(run, run);
+    writes.current = done.catch(() => undefined);
+    return done;
+  };
+
+  /** The words so far, written to the note they were said for now rather than at the draft timer's next tick. */
+  const flushDraft = useCallback(async () => {
+    if (!take.segments.length && !take.tables.length && !take.clips.length) return;
+    await queueWrite(async () => {
+      savedDraft.current = true;
+      const body = await compose(take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown }));
+      await saveNote(noteId.current, body, 'capture');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compose]);
+
+  /**
+   * The take carries on in `chosen`, or in a new note: what was said so far stays on the note it was said for,
+   * written now, and the take starts afresh (take.fork). The memo flow's choice, "switch note", and "New note".
+   */
+  const carryOn = useCallback(
+    async (chosen: Note | null) => {
+      await flushDraft();
+      take.fork();
+      savedDraft.current = false;
+      baseBody.current = null;
+      // The take's tape is the note it ends on: a note with a recording takes it on the end of its own.
+      takeTape.current = null;
+      if (chosen) {
+        const full = (await getNote(chosen.id).catch(() => null)) ?? chosen;
+        targetRef.current = full;
+        noteId.current = full.id;
+        setTarget(full);
+        setRoute({ phase: 'moved', title: noteTitle(full.body) || 'that note' });
+      } else {
+        targetRef.current = null;
+        noteId.current = newNoteId();
+        setTarget(null);
+      }
+      setMoves((n) => n + 1);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flushDraft],
+  );
+
+  /** "New note": a fresh one from here; with a `title`, one already named. */
+  const startNewNote = useCallback(
+    async (title?: string) => {
+      if (!title) {
+        await carryOn(null);
+        fireNativeHaptic('selection');
+        return;
+      }
+      const named = `${title.charAt(0).toUpperCase()}${title.slice(1)}`;
+      const made = await saveNote(newNoteId(), `# ${named}`, 'capture');
+      candidates.current = [{ id: made.id, title: named, note: made }, ...candidates.current];
+      await carryOn(made);
+    },
+    [carryOn],
+  );
 
   /**
    * "Add to <note>": this capture's words move to `note` and carry on there.
@@ -369,21 +427,50 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
   const commandWordOn = () => preferences().commandWord;
 
-  /** A note's body rewritten, and the take told if it is the note being recorded onto. */
-  const updateNote = async (id: string, change: (body: string) => string | null): Promise<string | null> => {
-    const fresh = await getNote(id);
-    if (!fresh) return null;
-    const body = change(fresh.body);
-    if (body === null || body === fresh.body) return null;
-    await saveNote(id, body, fresh.source);
-    // The take may be writing onto this very note: its drafts build on the new body from now on.
-    if (targetRef.current?.id === id) {
-      baseBody.current = Promise.resolve(body);
-      targetRef.current = { ...fresh, body };
-    }
-    const known = candidates.current.find((c) => c.id === id);
-    if (known) known.note = { ...fresh, body };
-    return body;
+  /**
+   * A note's body rewritten. `what` it was, in words, makes it the thing "undo" takes back.
+   *
+   * The note being recorded onto is a special case: the change goes into the note as it was before this take's
+   * words, and the words are composed onto the end of that again. Applied to the stored note, which already holds
+   * the words a draft saved, they were composed on a second time at the next save.
+   */
+  const updateNote = (id: string, change: (body: string) => string | null, what?: string): Promise<string | null> =>
+    queueWrite(async () => {
+      const fresh = await getNote(id);
+      if (!fresh) return null;
+      const continued = targetRef.current;
+      if (continued?.id === id) {
+        // No draft composed yet means the store holds the note as it was; otherwise the base is what drafts build on.
+        const base = await (baseBody.current ??= Promise.resolve(fresh.body));
+        const next = change(base);
+        if (next === null || next === base) return null;
+        if (what) lastChange.current = { id, before: base, what };
+        baseBody.current = Promise.resolve(next);
+        const updated = { ...fresh, body: next };
+        targetRef.current = updated;
+        // The page shows the change land, in its place above the words being said.
+        setTarget(updated);
+        const known = candidates.current.find((c) => c.id === id);
+        if (known) known.note = updated;
+        await saveNote(id, appendBody(next, take.markdown({ titled: false, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown })), fresh.source);
+        return next;
+      }
+      const body = change(fresh.body);
+      if (body === null || body === fresh.body) return null;
+      if (what) lastChange.current = { id, before: fresh.body, what };
+      await saveNote(id, body, fresh.source);
+      const known = candidates.current.find((c) => c.id === id);
+      if (known) known.note = { ...fresh, body };
+      return body;
+    });
+
+  /** "Undo": the last change a command made comes out. What it was, or null when there is nothing to take back. */
+  const undoLast = (): string | null => {
+    const last = lastChange.current;
+    if (!last) return null;
+    lastChange.current = null;
+    void updateNote(last.id, () => last.before).catch((failure: unknown) => console.warn('[glyph] not undone:', failure));
+    return last.what;
   };
 
   /**
@@ -394,14 +481,21 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const addItems = async (note: Note, spoken: string, { how, task, many, target = null }: Placement) => {
     try {
       let added: string[] = [];
-      const body = await updateNote(note.id, (current) => {
-        // "Leave a note for …": into the list it fits, or its own paragraph.
-        const placed = placeWords(current, spoken, { how, task, many });
-        added = placed.added;
-        return placed.added.length ? placed.body : null;
-      });
+      const body = await updateNote(
+        note.id,
+        (current) => {
+          // "Leave a note for …": into the list it fits, or its own paragraph.
+          const placed = placeWords(current, spoken, { how, task, many });
+          added = placed.added;
+          return placed.added.length ? placed.body : null;
+        },
+        `“${spoken}”`,
+      );
       if (body === null) return;
-      setRoute({ phase: 'added', title: noteTitle(body) || 'that note', body, added });
+      const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
+      // Into the note on screen, the page itself shows the line land; into another, its list is shown arriving.
+      if (targetRef.current?.id === note.id) setRoute({ phase: 'done', text: `Added “${show(added[0] ?? '')}”${added.length > 1 ? ` and ${added.length - 1} more` : ''}` });
+      else setRoute({ phase: 'added', title: noteTitle(body) || 'that note', body, added });
       fireNativeHaptic('success');
       lastSaid.current = { kind: 'items', noteId: note.id, lines: added };
       // "…in Notion": the plugin that offers the word takes the lines from here.
@@ -442,7 +536,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** A confirmed table for another note: its own block at the end of that note. */
   const addTable = async (note: Note, title: string, markdown: string) => {
     try {
-      const body = await updateNote(note.id, (current) => appendBlock(current, markdown));
+      const body = await updateNote(note.id, (current) => appendBlock(current, markdown), 'the table');
       if (body === null) return;
       setRoute({ phase: 'done', text: `Table added to ${title}` });
       fireNativeHaptic('success');
@@ -482,12 +576,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     route: setRoute,
     offer: setPendingView,
     table: setTableView,
+    flow: setFlowView,
     itemWords: setItemWords,
     haptic: (kind) => fireNativeHaptic(kind),
     changed: syncTake,
     addItems: (target, spoken, placement) => void addItems(target, spoken, placement),
     changeNote: (target, change, title) =>
-      void updateNote(target.id, change).then((body) => {
+      void updateNote(target.id, change, `the change in ${title}`).then((body) => {
         if (body === null) setRoute({ phase: 'said', text: `${title} didn’t change.` });
         else {
           setRoute({ phase: 'done', text: `Done in ${title}` });
@@ -496,7 +591,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       }),
     addTable: (target, title, markdown) => void addTable(target, title, markdown),
     moveTo: (target) => void routeTo(target),
-    newNote: () => void startNewNote(),
+    carryOn: (target) => void carryOn(target),
+    newNote: (title) => void startNewNote(title),
+    undo: undoLast,
     runPlugin: (voice, parsed) => voice.run(parsed, captureContext),
     describePlugin: (voice, parsed) => voice.describe(parsed, captureContext),
     clip: (span) => {
@@ -523,6 +620,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         route: (view) => hostImpl.current.route(view),
         offer: (offer) => hostImpl.current.offer(offer),
         table: (draft) => hostImpl.current.table(draft),
+        flow: (view) => hostImpl.current.flow(view),
         itemWords: (text) => hostImpl.current.itemWords(text),
         haptic: (kind) => hostImpl.current.haptic(kind),
         changed: () => hostImpl.current.changed(),
@@ -530,13 +628,15 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         changeNote: (target, change, title) => hostImpl.current.changeNote(target, change, title),
         addTable: (target, title, markdown) => hostImpl.current.addTable(target, title, markdown),
         moveTo: (target) => hostImpl.current.moveTo(target),
-        newNote: () => hostImpl.current.newNote(),
+        carryOn: (target) => hostImpl.current.carryOn(target),
+        newNote: (title) => hostImpl.current.newNote(title),
+        undo: () => hostImpl.current.undo(),
         runPlugin: (voice, parsed) => hostImpl.current.runPlugin(voice, parsed),
         describePlugin: (voice, parsed) => hostImpl.current.describePlugin(voice, parsed),
         clip: (span) => hostImpl.current.clip(span),
         log: (line) => hostImpl.current.log(line),
         said: (text) => hostImpl.current.said(text),
-      }),
+      }, { memoFlow: flowMode.current }),
   );
 
   const confirmPending = () => take.confirm(performance.now());
@@ -674,7 +774,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           const keyword = commandWordOn();
           const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Glyph, ${t.say.charAt(0).toLowerCase()}${t.say.slice(1)}` } : t));
           const lane = targetRef.current ? (lanesOf(targetRef.current.body)[1] ?? lanesOf(targetRef.current.body)[0])?.name ?? null : null;
-          const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane }), ...pluginTips];
+          const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane, flow: flowMode.current }), ...pluginTips];
           return list[tipTurn.current % list.length] ?? null;
         });
       }
@@ -687,19 +787,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     if (!segments.length) return undefined;
     const timer = window.setTimeout(() => {
       if (finished.current) return;
-      savedDraft.current = true;
-      const id = noteId.current;
-      if (scratchMode.current) {
-        const markdown = take.markdown({ titled: true, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
-        saveScratch({ id, markdown, heard: heardRef.current.join(' '), recordedMs: null, segments: segmentsRef.current, done: false, at: Date.now() });
-        return;
-      }
-      void compose(take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown })).then((body) =>
-        saveNote(id, body, 'capture'),
-      );
+      void flushDraft();
     }, DRAFT_SAVE_MS);
     return () => window.clearTimeout(timer);
-  }, [segments, target, compose, take]);
+  }, [segments, target, flushDraft]);
 
   // ---- ending ----------------------------------------------------------------------
   const finish = useCallback(async () => {
@@ -725,6 +816,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // Words after a keyword that never became a command go into the note as
     // they were said: Done must never be how dictation is lost.
     take.end(position);
+    // A command's change still landing, or the take carrying on elsewhere: written before the note is.
+    await writes.current;
     const spoken = take.segments;
     const { plain } = renderNote(spoken);
     const locked = isLocked();
@@ -732,28 +825,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     if (!plain.trim() && !take.tables.length && !take.clips.length) {
       await undoDraft();
       endCapture(locked);
-      onFinish(null, locked);
+      // Nothing said for the note, but things asked for and put in it: it is the note that came of this.
+      const changed = flowMode.current && targetRef.current && lastChange.current?.id === targetRef.current.id ? await getNote(targetRef.current.id).catch(() => null) : null;
+      onFinish(changed, locked);
       return;
     }
 
     const markdown = take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
-    // A memo becomes notes only when it is sorted: kept as a finished scratch, and handed on (sort/).
-    if (scratchMode.current && !targetRef.current) {
-      const scratch: Scratch = {
-        id: noteId.current,
-        markdown,
-        heard: heardRef.current.join(' '),
-        recordedMs: stopped.recordedMs !== null && sessionRef.current?.keepsAudio ? stopped.recordedMs : null,
-        segments: spoken,
-        done: true,
-        at: Date.now(),
-      };
-      saveScratch(scratch);
-      fireNativeHaptic('success');
-      endCapture(locked);
-      onFinish(null, locked, undefined, scratch);
-      return;
-    }
     const saved = await saveNote(noteId.current, await compose(markdown), 'capture');
     let refineJob: ReviewHandoff['job'] = null;
     if (stopped.recordedMs !== null && sessionRef.current?.keepsAudio) {
@@ -836,7 +914,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   else if (phase === 'starting') status = 'Starting';
   else if (phase === 'finishing') status = 'Saving';
   else if (error && !segments.length) status = `Problem: ${error}`;
-  const where = target ? (locked ? 'Adding to your last note' : `Adding to “${noteTitle(target.body)}”`) : scratchMode.current ? 'Memo · sorted when you’re done' : 'New note';
+  const choosing = flowView?.step === 'choosing';
+  const where = target ? (locked ? 'Adding to your last note' : `Adding to “${noteTitle(target.body)}”`) : choosing ? 'Which note?' : 'New note';
 
   // A capture that has heard a while and produced nothing is the one worth
   // explaining without being asked: the line that diagnosed the Fold.
@@ -855,7 +934,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             <button type="button" className={`app-word ${styles.where}`} onClick={() => setShowDiagnostics((on) => !on)}>
               {where}
             </button>
-            {target ? (
+            {flowMode.current && !choosing ? (
+              <button type="button" className={`app-word ${styles.newNote}`} onClick={() => take.switchNote()}>
+                Switch note
+              </button>
+            ) : target ? (
               <button type="button" className={`app-word ${styles.newNote}`} onClick={() => void startNewNote()}>
                 New note
               </button>
@@ -884,11 +967,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           // The note's own page, its older text above and the words written onto its end (LivePage.tsx). Over the lock
           // screen the note being continued shows none of its text.
           <LivePage
-            key={`page-${target?.id ?? 'new'}-${moves}`}
+            // The editor reads its placeholder once, so the page is remade when the recorder is up: "Say which note." after "Starting…".
+            key={`page-${target?.id ?? 'new'}-${moves}-${phase === 'starting' ? 'starting' : 'up'}`}
             base={target && !locked ? target.body : ''}
             markdown={note.markdown}
             under={topRef}
-            placeholder={phase === 'starting' ? 'Starting…' : 'Start talking.'}
+            placeholder={phase === 'starting' ? 'Starting…' : choosing ? 'Say which note.' : 'Start talking.'}
           />
         )}
         {!hasWords && phase !== 'failed' && route?.phase !== 'added' ? <p className={styles.pageHint}>{stopHint(fromAssistant, pressStops, quiet.current !== null)}</p> : null}
@@ -898,6 +982,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         <TableCard draft={tableView} heard={itemWords} onDone={finishTable} onCancel={() => cancelTable(null)} />
       ) : pending ? (
         <ConfirmCard offer={pending} onConfirm={confirmPending} onCancel={() => cancelPending(null)} />
+      ) : flowView ? (
+        <FlowCard view={flowView} locked={locked} onCancel={() => take.cancelAsk()} onDone={() => take.finishAsk()} />
       ) : route ? (
         <p
           className={styles.route}
@@ -1131,6 +1217,60 @@ function TableCard({ draft, heard, onDone, onCancel }: { draft: TableDraft<Note>
           Cancel
         </button>
         {draft.columns.length ? (
+          <button type="button" className="app-pill" onClick={onDone}>
+            That’s all
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The memo flow's card (capture/memoFlow.ts): which note, with a few recent ones to choose from and the one the words
+ * so far seem to mean marked; then, after a trigger word, the question it asks - "Adding a task. What task should we
+ * add?" - with the words being heard under it. Over the lock screen the notes are not named.
+ */
+function FlowCard({ view, locked, onCancel, onDone }: { view: FlowView<Note>; locked: boolean; onCancel: () => void; onDone: () => void }) {
+  if (view.step === 'choosing') {
+    const question = view.unsure ? `Which “${view.missed}”?` : view.missed ? `No note called “${view.missed}”. Which note?` : 'Which note?';
+    return (
+      <section className={styles.confirm} aria-live="polite" aria-label="Which note?">
+        <p className={styles.confirmHeading}>Memo</p>
+        <p className={styles.tableQuestion}>{question}</p>
+        {!locked && view.options.length ? (
+          <ol className={styles.flowOptions}>
+            {view.options.map((option) => (
+              <li key={option.id} className={styles.flowOption} data-guess={view.guess?.id === option.id || undefined}>
+                {option.title}
+              </li>
+            ))}
+          </ol>
+        ) : null}
+        {view.heard ? (
+          <p className={styles.confirmDetail}>“{view.heard}”</p>
+        ) : (
+          <p className={styles.confirmHint}>{locked ? 'Say “use note” and its name, or “new note”.' : 'Say “use note” and its name, or “the first one”, or “new note”.'}</p>
+        )}
+      </section>
+    );
+  }
+  const words = askWords(view.ask);
+  return (
+    <section className={styles.confirm} aria-live="assertive" aria-label={words.heading}>
+      <p className={styles.confirmHeading}>{words.heading}</p>
+      <p className={styles.tableQuestion}>{words.question}</p>
+      {view.said.map((line, i) => (
+        <p key={i} className={styles.confirmLine}>
+          {line}
+        </p>
+      ))}
+      {view.heard ? <p className={styles.confirmDetail}>“{view.heard}”</p> : <p className={styles.confirmHint}>{words.hint}</p>}
+      <div className={styles.confirmActions}>
+        <button type="button" className="app-word" onClick={onCancel}>
+          Cancel
+        </button>
+        {view.ask.many && view.said.length ? (
           <button type="button" className="app-pill" onClick={onDone}>
             That’s all
           </button>

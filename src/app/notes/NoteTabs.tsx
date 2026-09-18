@@ -18,7 +18,8 @@ import { noteTitle, type Note } from '../core/store.ts';
 import { motionScale } from '../core/preferences.ts';
 import { useWorkspaces, WORKSPACE_HUES } from '../core/workspaces.ts';
 import { setTopBarTools } from '../core/topBarTools.ts';
-import { GlyphMark } from '../art/Icons.tsx';
+import { House } from '../art/Icons.tsx';
+import { wispSides } from '../art/wispSides.ts';
 import { scrollSideways } from '../core/scrollSideways.ts';
 import styles from './NoteTabs.module.css';
 
@@ -316,25 +317,40 @@ export function NoteTabs({
   };
 
   /*
-   * Whether the row has more tabs than fit, which is the only time its end should go to smoke (Matt: "only show the
-   * wisp blur effect on the end of the scrolling tab list when it overflows the screen"). Watched rather than worked
-   * out once: tabs are added, closed, dragged and renamed, workspaces put a pill in front of a name, and the window
-   * changes width, and each of those can turn a row that fits into one that does not.
+   * Which ends of the row go to smoke: the right while there are tabs past it, the left once the row has been scrolled
+   * away from its start and never at the start itself (Matt: "Blur the right side of the tabs and the left when
+   * scrolled with the wisp animation but don't apply it to the left when it's scrolled all the way"). Watched rather
+   * than worked out once: tabs are added, closed, dragged and renamed, workspaces put a pill in front of a name, the
+   * window changes width and the row is scrolled, and each of those can open an end or close one.
+   *
+   * Each open end fades (NoteTabs.module.css `[data-fade-start]`, `[data-fade-end]`) and wears the wisp
+   * (art/wispSides.ts), the smoke a page makes under its header turned on its side. The filter is set here rather than
+   * in the stylesheet because it is made for the row's size; where it can't be had - the wisp switched off, reduced
+   * motion, a row too big for the filter's budget - the fade is left on its own.
    */
-  const [over, setOver] = useState(false);
+  const [ends, setEnds] = useState({ start: false, end: false });
   useEffect(() => {
     const el = row.current;
     if (!el) return undefined;
     const look = () => {
-      setOver(el.scrollWidth - el.clientWidth > 1);
+      const past = el.scrollWidth - el.clientWidth;
+      const start = past > 1 && el.scrollLeft > 1;
+      const end = past > 1 && el.scrollLeft < past - 1;
+      setEnds((was) => (was.start === start && was.end === end ? was : { start, end }));
+      el.style.filter = wispSides(el.clientWidth, el.clientHeight, start, end, el.getBoundingClientRect().left) ?? '';
       // A tab that changed width without the row being drawn again - its font arriving, the window resized.
       placeOutline();
     };
     look();
     const watch = new ResizeObserver(look);
     watch.observe(el);
-    for (const tab of el.children) watch.observe(tab);
-    return () => watch.disconnect();
+    // Not the outline: it is sized by `look` itself, so watching it would answer every look with another.
+    for (const tab of el.children) if (tab !== glide.current) watch.observe(tab);
+    el.addEventListener('scroll', look, { passive: true });
+    return () => {
+      watch.disconnect();
+      el.removeEventListener('scroll', look);
+    };
     // `placeOutline` reads only the row itself, so a fresh one each render changes nothing worth watching again for.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs]);
@@ -398,19 +414,8 @@ export function NoteTabs({
   return (
     <div className={styles.bar}>
       <div className={styles.top}>
-      {onSidebar ? (
-        <button
-          type="button"
-          className={styles.sidebar}
-          onClick={onSidebar}
-          aria-label="All your notes"
-          aria-expanded={sidebarOpen ?? false}
-          data-on={sidebarOpen || undefined}
-        >
-          <PanelLeft size={20} strokeWidth={2.1} aria-hidden="true" />
-        </button>
-      ) : null}
-      {/* Home, beside the sidebar's button (Matt: "Add a 'home' button"), drawn as Glyph's own mark. */}
+      {/* Home, first in the bar and before the sidebar's button (Matt: "Add a 'home' button", then "Move the home
+          button to the left of the sidebar button"), drawn as a house (art/Icons.tsx). */}
       {onHome ? (
         <button
           type="button"
@@ -421,7 +426,20 @@ export function NoteTabs({
           aria-current={atHome ? 'page' : undefined}
           data-on={atHome || undefined}
         >
-          <GlyphMark size={20} strokeWidth={2.1} />
+          <House size={20} strokeWidth={2.1} />
+        </button>
+      ) : null}
+      {onSidebar ? (
+        <button
+          type="button"
+          className={styles.sidebar}
+          onClick={onSidebar}
+          data-sidebar-toggle
+          aria-label="All your notes"
+          aria-expanded={sidebarOpen ?? false}
+          data-on={sidebarOpen || undefined}
+        >
+          <PanelLeft size={20} strokeWidth={2.1} aria-hidden="true" />
         </button>
       ) : null}
       {/* Where he has been: the same two arrows a browser has, in the same place, beside the sidebar's button. */}
@@ -447,7 +465,8 @@ export function NoteTabs({
         <div
           ref={row}
           className={styles.tabs}
-          data-over={over || undefined}
+          data-fade-start={ends.start || undefined}
+          data-fade-end={ends.end || undefined}
           role="tablist"
           aria-label="Notes you have open"
           onPointerDown={takeHold}
@@ -543,7 +562,7 @@ export function NoteTabs({
                   <span className={styles.title}>{title}</span>
                 </button>
                 <button type="button" data-close className={styles.close} onClick={() => onClose(note.id)} aria-label={`Close ${title}`}>
-                  <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                  <X size={15} strokeWidth={2.4} aria-hidden="true" />
                 </button>
                 {/* The group's colour along the foot of each of its tabs, as Chrome draws a group - drawn in, not
                     taken away, under the one being read, which stays open onto the note (NoteTabs.module.css). */}

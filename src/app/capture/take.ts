@@ -2,6 +2,7 @@ import type { VoiceCommand } from '../plugins/types.ts';
 import { actionable, findKeyword, findSoundAlike, planCommand, reply, type Placement, type Plan } from './command.ts';
 import { placeWords } from './listAppend.ts';
 import { renderNote, type Segment } from './markdown.ts';
+import { chooseNote, guessNote, opensLikeCommand, parseChoice, parseTrigger, saysFinished, saysNeverMind, type Ask, type Chosen } from './memoFlow.ts';
 import type { Candidate } from './route.ts';
 import { appendBlock, cellsOf, fitRow, saysDone, tableMarkdown } from './table.ts';
 import { endsMemo, MEMO_GAP_MS, startsMemo } from './voiceMemo.ts';
@@ -20,6 +21,8 @@ import { endsMemo, MEMO_GAP_MS, startsMemo } from './voiceMemo.ts';
  *   no command comes of them.
  * - A command asks before it acts. "Yes" or "no" answer it, as a tap does; silence for a while is a no.
  * - A table is asked for a piece at a time; a voice memo keeps the sound instead of the words.
+ * - In memo mode the take is a conversation (memoFlow.ts): first which note, then things asked for by their trigger
+ *   words, which go straight in - the trigger and the question were the asking.
  */
 
 /** When a command gives up, in ms: the recorder's timings, one place. */
@@ -84,6 +87,30 @@ export type RouteView =
 
 export type Haptic = 'light' | 'selection' | 'success' | 'warning';
 
+/** How many recent notes the memo flow offers to choose from. */
+export const FLOW_OPTIONS = 5;
+
+/** What the memo flow's card shows (memoFlow.ts): which note, or what is being asked for. */
+export type FlowView<N extends TakeNote> =
+  | {
+      step: 'choosing';
+      /** Recent notes, most recent first; or, after a name fit two, those two. */
+      options: TakeCandidate<N>[];
+      /** The one the words so far seem to mean. */
+      guess: TakeCandidate<N> | null;
+      /** The words being heard. */
+      heard: string;
+      /** A name that fit nothing, or fit two (`unsure`). */
+      missed: string | null;
+      unsure: boolean;
+    }
+  | { step: 'asking'; ask: Ask; heard: string; said: string[] };
+
+type FlowState<N extends TakeNote> =
+  | { step: 'choosing'; missed: string | null; narrowed: TakeCandidate<N>[] | null; shown: string }
+  | { step: 'ready' }
+  | { step: 'asking'; ask: Ask; said: string[]; lastAt: number };
+
 /** What the take asks of whoever runs it. */
 export interface TakeHost<N extends TakeNote> {
   /** The notes a command can name, most recent first. */
@@ -100,6 +127,8 @@ export interface TakeHost<N extends TakeNote> {
   route(view: RouteView): void;
   offer(offer: Offer<N> | null): void;
   table(draft: TableDraft<N> | null): void;
+  /** The memo flow's card, or null when there is nothing to ask. */
+  flow(view: FlowView<N> | null): void;
   /** What of a command is being heard, for the chip; empty when none. */
   itemWords(text: string): void;
   haptic(kind: Haptic): void;
@@ -111,8 +140,17 @@ export interface TakeHost<N extends TakeNote> {
   /** Yes to a change offer: that note's body rewritten. */
   changeNote(note: N, change: (body: string) => string | null, title: string): void;
   addTable(note: N, title: string, markdown: string): void;
+  /** Yes to a move offer: this take's words so far go to `note` and carry on there. */
   moveTo(note: N): void;
-  newNote(): void;
+  /**
+   * The memo flow chose `note`: the words so far stay where they were said (the take is forked, `fork`), and the take
+   * carries on afresh on it.
+   */
+  carryOn(note: N): void;
+  /** A new note from here; with a `title`, one already named, carried on like `carryOn`. */
+  newNote(title?: string): void;
+  /** "Undo": the last thing a command put in a note comes out. What it was, for the chip, or null when there is nothing. */
+  undo(): string | null;
   /** Yes to a plugin's command: what it keeps in the note, if anything. */
   runPlugin(voice: VoiceCommand, parsed: unknown): string | null;
   describePlugin(voice: VoiceCommand, parsed: unknown): { title: string; action: string };
@@ -147,12 +185,24 @@ export class Take<N extends TakeNote> {
   private memo: { startMs: number; endMs: number } | null = null;
   private understanding: { words: string; cancel: () => void } | null = null;
   private lastHeard = 0;
+  /** The memo flow's step (memoFlow.ts), or null when the take is not a memo. */
+  private flow: FlowState<N> | null;
 
-  constructor(private readonly host: TakeHost<N>) {}
+  constructor(
+    private readonly host: TakeHost<N>,
+    { memoFlow = false }: { memoFlow?: boolean } = {},
+  ) {
+    this.flow = memoFlow ? { step: 'choosing', missed: null, narrowed: null, shown: '' } : null;
+  }
 
-  /** A command being said, or waiting for its yes: this holds the recording open. */
+  /** A command being said, or waiting for its yes, or the flow asking: this holds the recording open. */
   get commanding(): boolean {
-    return this.listening !== null || this.awaiting !== null || this.pending !== null || this.tabling !== null;
+    return this.listening !== null || this.awaiting !== null || this.pending !== null || this.tabling !== null || this.asking;
+  }
+
+  /** The memo flow is choosing a note, or waiting for the thing a trigger asked for. */
+  private get asking(): boolean {
+    return this.flow !== null && this.flow.step !== 'ready';
   }
 
   get offering(): Offer<N> | null {
@@ -165,7 +215,10 @@ export class Take<N extends TakeNote> {
 
   /** Whether a partial guess is part of a command, so it shows in the chip rather than the note. */
   partOfCommand(text: string): boolean {
-    return this.listening !== null || this.awaiting !== null || this.tabling !== null || (this.host.commandWord() && findKeyword(text) !== null);
+    if (this.listening !== null || this.awaiting !== null || this.tabling !== null || this.asking) return true;
+    // On the flow's note, a trigger being said ("add a line, …") is the card's, not the page's, from the word that makes it one.
+    if (this.flow?.step === 'ready' && parseTrigger(text) !== null) return true;
+    return this.host.commandWord() && findKeyword(text) !== null;
   }
 
   /** A guess is being heard: the command model stops, so it never takes the phone from the words. */
@@ -190,6 +243,11 @@ export class Take<N extends TakeNote> {
 
   /** The chip while a command is heard: the note it names, as soon as it can tell. */
   guess(text: string, current: RouteView): RouteView {
+    // The flow's card shows the words as they come, and the note they seem to name.
+    if (this.asking) {
+      this.showFlow(text);
+      return current;
+    }
     const wait = this.awaiting;
     if (wait) return { phase: 'waiting', title: wait.plan.note.title, many: wait.plan.many, leave: wait.plan.how === 'leave' };
     const heard = this.listening;
@@ -415,6 +473,200 @@ export class Take<N extends TakeNote> {
     this.offer(plan, span, now);
   }
 
+  // ---- the memo flow (memoFlow.ts) -------------------------------------------------------------------
+
+  /** The recent notes offered, most recent first, the one being recorded onto left out. */
+  private options(): TakeCandidate<N>[] {
+    const current = this.host.target()?.id;
+    return this.host.notes().filter((c) => c.id !== current).slice(0, FLOW_OPTIONS);
+  }
+
+  /** The flow's card as it stands, with `heard` the words being said. */
+  private showFlow(heard = ''): void {
+    const flow = this.flow;
+    if (!flow || flow.step === 'ready') {
+      this.host.flow(null);
+      return;
+    }
+    if (flow.step === 'asking') {
+      this.host.flow({ step: 'asking', ask: flow.ask, heard, said: [...flow.said] });
+      return;
+    }
+    const options = flow.narrowed ?? this.options();
+    flow.shown = options.map((c) => c.id).join(',');
+    const guess = heard ? guessNote(heard, options, flow.narrowed ?? this.host.notes()) : null;
+    this.host.flow({ step: 'choosing', options, guess, heard, missed: flow.missed, unsure: flow.narrowed !== null });
+  }
+
+  private flowReady(): void {
+    this.flow = { step: 'ready' };
+    this.host.itemWords('');
+    this.host.flow(null);
+  }
+
+  /** Back to choosing a note: "switch note", or the button. */
+  switchNote(): void {
+    if (!this.flow) return;
+    this.flow = { step: 'choosing', missed: null, narrowed: null, shown: '' };
+    this.host.itemWords('');
+    this.showFlow();
+    this.host.haptic('selection');
+  }
+
+  /** What a choice came to: the note the take carries on in, a new one, or a name to try again. */
+  private flowChoose(chosen: Chosen<TakeCandidate<N>>): void {
+    if (chosen.kind === 'note') {
+      this.host.log(`Chose the note ${chosen.note.title}`);
+      this.flowReady();
+      this.host.carryOn(chosen.note.note);
+      this.host.haptic('success');
+      return;
+    }
+    if (chosen.kind === 'new') {
+      this.host.log(chosen.title ? `Started a new note called ${chosen.title}` : 'Started a new note');
+      this.flowReady();
+      if (!chosen.title) this.host.route({ phase: 'moved', title: 'New note' });
+      this.host.newNote(chosen.title || undefined);
+      this.host.haptic('success');
+      return;
+    }
+    // Nothing fit, or two did: the card says so and asks again, with the two to pick between.
+    this.host.log(chosen.kind === 'unsure' ? `“${chosen.said}” could be ${chosen.between.map((c) => c.title).join(' or ')}` : `No note called “${chosen.said}”`);
+    this.flow = { step: 'choosing', missed: chosen.said, narrowed: chosen.kind === 'unsure' ? chosen.between : null, shown: '' };
+    this.host.haptic('warning');
+    this.showFlow();
+  }
+
+  /** A trigger's thing, or things, into the note being recorded onto: no yes or no, the trigger was the asking. */
+  private flowAdd(ask: Ask, things: readonly string[]): void {
+    const target = this.host.target();
+    this.flowReady();
+    const items = things.map((thing) => thing.replace(/^[\s,:;]+|[\s.,;:!?]+$/g, '')).filter(Boolean);
+    if (!target || !items.length) {
+      this.host.route({ phase: 'said', text: 'Nothing to add.' });
+      return;
+    }
+    const what = ask.what === 'line' ? 'line' : ask.what;
+    this.host.log(`Did: add ${items.length === 1 ? `a ${what}` : `${items.length} ${what}s`}, “${items.join('”, “')}”, asked for with “add ${what}”`);
+    // A line asked for is a paragraph, however short: "where it fits" would put a short one in the note's list.
+    this.host.addItems(target, items.join(', '), { how: ask.what === 'line' ? 'paragraph' : 'item', task: ask.what === 'task', many: ask.many, target: null });
+  }
+
+  /** The Cancel on the flow's card, or "never mind": nothing is added. */
+  cancelAsk(): void {
+    if (this.flow?.step !== 'asking') return;
+    this.flowReady();
+    this.host.route({ phase: 'said', text: 'Nothing added.' });
+  }
+
+  /** "That's all" on the flow's card: the things said so far go in. */
+  finishAsk(): void {
+    if (this.flow?.step !== 'asking') return;
+    this.flowAdd(this.flow.ask, this.flow.said);
+  }
+
+  /**
+   * The take carries on in another note: what it has is that note's, and stays there. The stretches of the tape it
+   * came from are marked as commands, so the better words never write them into the next note.
+   */
+  fork(): void {
+    for (const segment of this.segments) this.commandSpans.push({ startMs: segment.startMs, endMs: segment.endMs });
+    this.segments = [];
+    this.tables = [];
+    this.clips = [];
+    this.asBoard = false;
+    this.host.changed();
+  }
+
+  /** A phrase while the flow is choosing a note. */
+  private readChoosing(text: string, flow: Extract<FlowState<N>, { step: 'choosing' }>): void {
+    this.host.itemWords('');
+    const choice = parseChoice(text);
+    if (!choice) {
+      this.showFlow();
+      return;
+    }
+    this.flowChoose(chooseNote(choice, flow.narrowed ?? this.options(), this.host.notes()));
+  }
+
+  /** A phrase while the flow waits for the thing a trigger asked for. */
+  private readAsking(text: string, flow: Extract<FlowState<N>, { step: 'asking' }>, now: number): void {
+    this.host.itemWords('');
+    flow.lastAt = now;
+    if (saysNeverMind(text) || reply(text) === 'no') {
+      this.cancelAsk();
+      return;
+    }
+    if (flow.ask.many && saysFinished(text)) {
+      this.flowAdd(flow.ask, flow.said);
+      return;
+    }
+    // "Add task" again: a change of mind about what, before the thing is said.
+    const again = parseTrigger(text);
+    if (again?.kind === 'ask' && !flow.said.length) {
+      if (again.said) this.flowAdd(again.ask, [again.said]);
+      else {
+        this.flow = { step: 'asking', ask: again.ask, said: [], lastAt: now };
+        this.showFlow();
+      }
+      return;
+    }
+    // "Call the bank. Email the landlord." in one breath is two when several were asked for.
+    const said = (flow.ask.many ? text.split(/(?<=[.!?])\s+/) : [text]).map((s) => s.trim()).filter(Boolean);
+    flow.said.push(...said);
+    if (flow.ask.many) this.showFlow();
+    else this.flowAdd(flow.ask, flow.said);
+  }
+
+  /**
+   * On the chosen note, a phrase that opens like a command: a trigger's thing, a switch, an undo, or a command that
+   * names a note, which asks as the keyword's commands do. Answers whether the phrase was taken.
+   */
+  private readTrigger(text: string, span: Span, now: number): boolean {
+    const trigger = parseTrigger(text);
+    if (trigger?.kind === 'undo') {
+      const undone = this.host.undo();
+      this.host.route({ phase: undone ? 'done' : 'said', text: undone ? `Took back ${undone}` : 'Nothing to undo.' });
+      this.host.haptic(undone ? 'success' : 'warning');
+      return true;
+    }
+    if (trigger?.kind === 'new') {
+      this.flowChoose({ kind: 'new', title: trigger.title });
+      return true;
+    }
+    if (trigger?.kind === 'switch') {
+      if (trigger.name) this.flowChoose(chooseNote({ kind: 'name', name: trigger.name, explicit: true }, this.options(), this.host.notes()));
+      else this.switchNote();
+      return true;
+    }
+    // "Add eggs to groceries", "add a table": the rules' own commands, on any note, asked about as always.
+    const plugin = this.pluginFor(text);
+    const plan = plugin ? null : this.plan(text);
+    if (plugin || (plan && plan.kind !== 'no-note')) {
+      this.listening = { words: text, said: [], lastAt: now };
+      this.decide(text, span, now);
+      return true;
+    }
+    if (plan?.kind === 'no-note') {
+      this.host.log(`No note called “${plan.name}”`);
+      this.host.route({ phase: 'said', text: `No note called “${plan.name}”.` });
+      this.host.haptic('warning');
+      return true;
+    }
+    if (trigger?.kind === 'ask') {
+      if (trigger.said) {
+        this.flowAdd(trigger.ask, [trigger.said]);
+        return true;
+      }
+      this.flow = { step: 'asking', ask: trigger.ask, said: [], lastAt: now };
+      this.host.route(null);
+      this.showFlow();
+      this.host.haptic('light');
+      return true;
+    }
+    return false;
+  }
+
   // ---- tables -----------------------------------------------------------------------------------
 
   private setTable(draft: TableDraft<N> | null): void {
@@ -558,6 +810,20 @@ export class Take<N extends TakeNote> {
       this.cancel(null, now);
     }
 
+    // The memo flow (memoFlow.ts): which note, or the thing a trigger asked for. "Glyph, …" still reaches a command.
+    const flow = this.flow;
+    if (flow && flow.step !== 'ready' && !found) {
+      skip();
+      if (flow.step === 'choosing') this.readChoosing(text, flow);
+      else this.readAsking(text, flow, now);
+      return null;
+    }
+    if (flow?.step === 'asking' && found) this.flowReady();
+    if (flow?.step === 'ready' && !found && opensLikeCommand(text) && this.readTrigger(text, span, now)) {
+      skip();
+      return null;
+    }
+
     // A note was named: this phrase is what goes in it.
     const wait = this.awaiting;
     if (wait && !found) {
@@ -651,12 +917,26 @@ export class Take<N extends TakeNote> {
     }
     const held = this.pending;
     if (held && now - held.at > TAKE_TIMING.confirmMs) this.cancel('Not done. Say “yes” or tap to confirm a command.', now);
+    const flow = this.flow;
+    if (flow?.step === 'asking') {
+      // "Add tasks": a pause after the last one, and they go in; nothing said for a while, and it gives up.
+      if (flow.ask.many && flow.said.length && now - flow.lastAt > TAKE_TIMING.itemsQuietMs) this.flowAdd(flow.ask, flow.said);
+      else if (!flow.said.length && now - flow.lastAt > TAKE_TIMING.awaitMs) {
+        this.flowReady();
+        this.host.route({ phase: 'said', text: 'Nothing said, so nothing was added.' });
+      }
+    } else if (flow?.step === 'choosing' && (flow.narrowed ?? this.options()).map((c) => c.id).join(',') !== flow.shown) {
+      // The notes arrived, or one was made: the card's options follow.
+      this.showFlow();
+    }
   }
 
   /** The take is ending: a memo still open is closed, and a command that never came gives its words back. */
   end(atMs: number): void {
     if (this.memo) this.closeMemo(atMs);
     if (this.listening) this.giveBack('No command there, so the words stay in the note.');
+    // Things said for "add tasks" and not yet closed with "done" go in: Done is how they end.
+    if (this.flow?.step === 'asking' && this.flow.said.length) this.flowAdd(this.flow.ask, this.flow.said);
   }
 
   /** The take's markdown: its words as the cues lay them out, with tables after them and links applied by `link`. */

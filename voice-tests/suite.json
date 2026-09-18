@@ -2264,6 +2264,353 @@
         "note": "They launched a new line of shoes last spring. The link between the two teams is weak. I sent Sam an emoji to say thanks. The anchor held all night in the storm. I checked the oven twice before we left."
       },
       "id": "092"
+    },
+    {
+      "file": "093-memo-choose-note",
+      "group": "Memo flow",
+      "tests": "A memo opens by asking which note; “use note …” picks it, and talk goes onto its end.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "Use note weekend trip.",
+          1.2
+        ],
+        [
+          "The cabin has two bedrooms.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "notes": {
+          "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\nThe cabin has two bedrooms."
+        }
+      },
+      "id": "093"
+    },
+    {
+      "file": "094-memo-add-task",
+      "group": "Memo flow",
+      "tests": "“Add task” asks what the task is, and the next phrase goes into the note’s list as a to-do, with no yes or no.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "Select the work note.",
+          1.2
+        ],
+        [
+          "Add task.",
+          1.5
+        ],
+        [
+          "Send the invoice to Jo.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "offers": [],
+        "notes": {
+          "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Send the invoice to Jo\n"
+        }
+      },
+      "id": "094"
+    },
+    {
+      "file": "095-memo-task-in-one-breath",
+      "group": "Memo flow",
+      "tests": "“Add task” with the task in the same breath goes straight in.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "Use note work.",
+          1.2
+        ],
+        [
+          "Add a task: call the bank.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "notes": {
+          "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Call the bank\n"
+        }
+      },
+      "id": "095"
+    },
+    {
+      "file": "096-memo-add-tasks",
+      "group": "Memo flow",
+      "tests": "“Add tasks” takes each phrase until “done”, then puts them all in.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "Use note work.",
+          1.2
+        ],
+        [
+          "Add tasks.",
+          1.2
+        ],
+        [
+          "Book the room.",
+          1.0
+        ],
+        [
+          "Order lunch.",
+          1.0
+        ],
+        [
+          "Done.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "notes": {
+          "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Book the room\n- [ ] Order lunch\n"
+        }
+      },
+      "id": "096"
+    },
+    {
+      "file": "097-memo-the-first-one",
+      "group": "Memo flow",
+      "tests": "A place in the list picks a note, and “add item” makes a bullet in its list.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "The first one.",
+          1.2
+        ],
+        [
+          "Add an item.",
+          1.2
+        ],
+        [
+          "Butter.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Butter\n"
+        }
+      },
+      "id": "097"
+    },
+    {
+      "file": "098-memo-no-such-note",
+      "group": "Memo flow",
+      "tests": "A name that fits no note is said so, and the memo keeps asking; the next name is taken.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "Use note camping.",
+          1.2
+        ],
+        [
+          "Use note groceries.",
+          1.2
+        ],
+        [
+          "Add a line, we're out of coffee.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "notesContain": {
+          "Groceries": [
+            "out of coffee"
+          ]
+        },
+        "notesLack": {
+          "Weekend trip": [
+            "coffee"
+          ],
+          "Work": [
+            "coffee"
+          ]
+        }
+      },
+      "id": "098"
+    },
+    {
+      "file": "099-memo-switch-note",
+      "group": "Memo flow",
+      "tests": "“Switch to …” leaves what was said on the first note and carries on in the second.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "Use note weekend trip.",
+          1.2
+        ],
+        [
+          "We leave at eight.",
+          1.2
+        ],
+        [
+          "Switch to work.",
+          1.2
+        ],
+        [
+          "Add task: pack the laptop.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "notes": {
+          "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\nWe leave at eight.",
+          "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Pack the laptop\n"
+        }
+      },
+      "id": "099"
+    },
+    {
+      "file": "100-memo-new-note-called",
+      "group": "Memo flow",
+      "tests": "“New note called …” makes a named note and carries on in it.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "New note called camping.",
+          1.2
+        ],
+        [
+          "Bullet point: the tent.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "notes": {
+          "Camping": "# Camping\n\n- The tent"
+        }
+      },
+      "id": "100"
+    },
+    {
+      "file": "101-memo-undo",
+      "group": "Memo flow",
+      "tests": "“Undo” takes back the last thing added.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "Use note work.",
+          1.2
+        ],
+        [
+          "Add task: send the invoice.",
+          1.5
+        ],
+        [
+          "Undo.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "notes": {
+          "Work": "# Work\n\n- [ ] Email Jo\n"
+        }
+      },
+      "id": "101"
+    },
+    {
+      "file": "102-memo-talk-stays-talk",
+      "group": "Memo flow",
+      "tests": "Once a note is chosen, sentences that happen to start with a trigger verb stay words.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "Use note weekend trip.",
+          1.2
+        ],
+        [
+          "Put the kettle on when we arrive.",
+          1.0
+        ],
+        [
+          "Add the numbers up before Friday.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "notes": {
+          "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\nPut the kettle on when we arrive. Add the numbers up before Friday."
+        }
+      },
+      "id": "102"
+    },
+    {
+      "file": "103-memo-keyword-still-works",
+      "group": "Memo flow",
+      "tests": "“Glyph, add … to …” still reaches another note from a memo, and asks.",
+      "setup": "fixtures",
+      "prefs": {
+        "memo": true
+      },
+      "lines": [
+        [
+          "Use note work.",
+          1.2
+        ],
+        [
+          "Glyph, add oat milk to groceries.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "offers": [
+          "place"
+        ],
+        "notesContain": {
+          "Groceries": [
+            "- Oat milk"
+          ]
+        }
+      },
+      "id": "103"
     }
   ]
 }

@@ -25,7 +25,8 @@ export interface SuiteTest {
   tests: string;
   /** "blank", "fixtures", or "continue:<title>". */
   setup: string;
-  prefs: { quietStop?: boolean; commandWord?: boolean };
+  /** `memo`: memo mode, so the take is the memo flow (capture/memoFlow.ts) and opens by asking which note. */
+  prefs: { quietStop?: boolean; commandWord?: boolean; memo?: boolean };
   /** Each line, and the seconds of silence after it. */
   lines: [string, number][];
   expect: Expectation;
@@ -123,13 +124,27 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
   const offers: string[] = [];
   const log: string[] = [];
   const candidates = (): TakeCandidate<StoredNote>[] => [...store.values()].map((note) => ({ id: note.id, title: noteTitle(note.body) || note.title, note }));
-  const change = (id: string, next: (body: string) => string | null) => {
+  /** The last change to a note, for "undo": its body before. */
+  let lastChange: { id: string; before: string; what: string } | null = null;
+  const change = (id: string, next: (body: string) => string | null, what?: string) => {
     const note = store.get(id);
     if (!note) return;
     const body = next(note.body);
-    if (body !== null) store.set(id, { ...note, body });
+    if (body !== null) {
+      if (what) lastChange = { id, before: note.body, what };
+      store.set(id, { ...note, body });
+    }
     if (target?.id === id && body !== null) target = { ...target, body };
   };
+  /** The words so far onto the note being recorded, as the recorder's draft saves them, before the take carries on elsewhere. */
+  const flush = () => {
+    const current = target;
+    if (!current) return;
+    const markdown = take.markdown({ titled: false, board: (text) => boardFrom(text)?.doc ?? text });
+    if (renderNote(take.segments).plain.trim() || take.tables.length || take.clips.length) change(current.id, (body) => appendBody(body, markdown));
+    take.fork();
+  };
+  let made = 0;
 
   const take: Take<StoredNote> = new Take<StoredNote>({
     notes: candidates,
@@ -142,28 +157,53 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
       if (offer) offers.push(offer.kind === 'plugin' ? `plugin:${offer.voice.id.split('-')[0] ?? offer.voice.id}` : offer.kind);
     },
     table: () => undefined,
+    flow: () => undefined,
     itemWords: () => undefined,
     haptic: () => undefined,
     changed: () => undefined,
-    addItems: (note, spoken, placement) => change(note.id, (body) => {
-      const placed = placeWords(body, spoken, placement);
-      return placed.added.length ? placed.body : null;
-    }),
-    changeNote: (note, next) => change(note.id, next),
-    addTable: (note, _title, markdown) => change(note.id, (body) => appendBlock(body, markdown)),
+    addItems: (note, spoken, placement) =>
+      change(
+        note.id,
+        (body) => {
+          const placed = placeWords(body, spoken, placement);
+          return placed.added.length ? placed.body : null;
+        },
+        `“${spoken}”`,
+      ),
+    changeNote: (note, next, title) => change(note.id, next, title),
+    addTable: (note, _title, markdown) => change(note.id, (body) => appendBlock(body, markdown), 'the table'),
     moveTo: (note) => {
       target = store.get(note.id) ?? note;
     },
-    newNote: () => {
+    carryOn: (note) => {
+      flush();
+      target = store.get(note.id) ?? note;
+    },
+    newNote: (title) => {
+      flush();
+      if (title) {
+        const named = `${title.charAt(0).toUpperCase()}${title.slice(1)}`;
+        const id = `made-${made++}`;
+        store.set(id, { id, title: named, body: `# ${named}` });
+        target = store.get(id)!;
+        return;
+      }
       target = null;
       newNote = true;
+    },
+    undo: () => {
+      const last = lastChange;
+      if (!last) return null;
+      lastChange = null;
+      change(last.id, () => last.before);
+      return last.what;
     },
     runPlugin: () => null,
     describePlugin: (voice) => ({ title: voice.id, action: 'Go' }),
     clip: (span) => clipMarkdown({ startMs: span.startMs, endMs: span.endMs, tape: 'suite' }),
     log: (line) => log.push(line),
     said: () => undefined,
-  });
+  }, { memoFlow: test.prefs.memo ?? false });
 
   const quiet = test.prefs.quietStop ? new QuietWatch(QUIET_STOP_MS) : null;
   const commits = heard.segments.map((segment) => ({ at: segment.endMs + COMMIT_LAG_MS, segment }));

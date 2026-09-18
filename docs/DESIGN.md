@@ -2044,6 +2044,56 @@ Matt: "when I tell it to add a note to a list by a given title I want it to add 
 - **Sorting** (`sort/`): the reasoning model reads the memo beside the person's note titles (`sort/prompt.ts`) and answers with placements, each a note, what to add, and the memo's words it came from. Every placement must name a real note and quote the memo exactly (`sort/plan.ts` `readPlacements`), and the rules (`rulePlacements`, the recorder's own `planCommand`) add any plain "add X to Y" the model missed, so an explicit command is never lost. Without a model, only the rules sort.
 - **The screen** (`sort/SortScreen.tsx`, the review's styles): each placement with Use this or Skip, and under them the new note that what's left becomes (`leftover`). Commit files the kept placements through `placeWords` and saves the rest as a new note carrying the recording; "Keep as one note" skips them all. Nothing is written before Commit.
 
+## Memo mode picks a note first (2026-09-18)
+
+Matt: "I want to rework how the local AI works to make things a bit easier to flow. I want memo mode to have the
+first step selecting a note - ask for the title of the note and show a few recent options and get a partial match -
+take a keyword as 'select note <note>' or 'use note <note>' or other variations. Then after a note is selected we can
+use words like 'add task' as a trigger word, then the screen should say 'adding task… what task should we add?' and
+we speak the task."
+
+This reverses "Memo mode sorts: the scratch page" above. A memo used to be dictated onto a blank page and sorted
+into notes by a model when it ended; now it opens by asking which note, and everything after that has somewhere to
+go as it is said. The scratch page and the sort (`capture/scratch.ts`, `sort/`) are no longer written by the
+recorder; a scratch left from before still shows on the home page and can be sorted.
+
+- **Which note** (`capture/memoFlow.ts` `parseChoice`, `chooseNote`). The recorder's card asks "Which note?" and
+  lists the five most recently edited notes, numbered. A note is named with a word in front of it - "use note
+  groceries", "select the work note", "open weekend trip", "go to my groceries list" - or bare, or by its place,
+  "the first one", "number two". The name is matched the way every spoken name is (`route.ts` `matchNote`), and
+  more leniently after "use note", since the word said it was a name; a bare phrase that only half fits a title is
+  taken as a miss, not a choice. As the name is said the note it seems to mean is drawn in ink in the list
+  (`guessNote`). A name that fits nothing is said so ("No note called 'camping'. Which note?") and the card keeps
+  asking; a name two notes fit about as well shows those two, so "the first one" settles it. "New note" starts a
+  fresh one, and "new note called camping" starts one already titled. Over the lock screen the list is not shown
+  and the note is not named, as before.
+- **Then the note is the page.** Choosing puts the recorder on that note as its own Speak button would: its text
+  above, the words said written onto its end, "Adding to 'Weekend trip'" in the top line. Plain talk is dictation,
+  every cue works, and "Glyph, …" commands still reach other notes.
+- **Trigger words** (`parseTrigger`), at the start of a phrase, ask for one thing: "add task" (or to-do, check box),
+  "add item" (bullet, point, entry), "add a line" (note, paragraph, sentence). The card says "Adding a task - What
+  task should we add?", the next phrase is the task, and it goes into the note's list (`listAppend.ts`
+  `placeWords`, so it joins the list the note has, in its style, or starts a to-do list); a line asked for is its
+  own paragraph, however short, where "leave a note for …" would have put a short one in the list. **No "shall I?"**: the
+  trigger and the question were the asking, which is what makes it flow; "undo" or "scratch that" takes the last
+  thing back. Said in one breath - "add a task: buy milk" - it goes straight in. "Add tasks" takes each phrase as
+  one until "done" or a pause. "Never mind" drops the question. "Switch note" (or "switch to work") and "new
+  note" leave what was said on the note it was said for and carry on elsewhere (`take.fork`).
+- **A phrase that opens like a command is read by the rules first** (`opensLikeCommand`): "add eggs to groceries"
+  names a note and asks as the keyword's commands do; "put the kettle on when we arrive" names nothing and stays
+  words. The trigger words are Glyph's only where the recorder is in the flow, so a sentence in an ordinary
+  recording is never read as one.
+- **The take runs it** (`capture/take.ts`, the `flow` step and `FlowView`), so the voice suite tests it from
+  scripts like everything else (`voice-tests/suite.json`, the "Memo flow" group, `prefs.memo`). The recorder draws
+  it as a card in the place the table's questions and the "shall I?" card take (`FlowCard`), and the top line's
+  "New note" becomes "Switch note".
+- **Two things came right underneath.** A command that changed the note being recorded onto used to apply its
+  change to the stored note, which already held the words a draft had saved, and set that as the base the next
+  draft composed the words onto: the words appeared twice. The change now goes into the note as it was before this
+  take, and the words follow it (`CaptureScreen.tsx` `updateNote`). And every write to a note - a command's
+  change, the draft, the take carrying on elsewhere - now goes through one queue, since two close together read the
+  same body and the second lost the first.
+
 ## 50. The tape only where there is audio
 
 Matt: "Don't show the tape on notes that don't have any audio recorded; the notes with audio recordings added should
@@ -2799,9 +2849,11 @@ Matt: "add the ability to choose from a swatch of colours for the workspace pill
 Matt: "Add a 'home' button to take us to a dashboard like page", with Glyph's own mark as its icon; he chose a new
 page on every screen, the phone's start page included, and then "Delete the code" for the list it replaced.
 
-- **The button** is the top bar's second, after the sidebar's (`notes/NoteTabs.tsx`). Its icon is the app icon's dot
-  and dash traced, not redrawn (`art/Icons.tsx` `GlyphMark`): the outer edge of each shape is the logo's silhouette
-  scaled to the lucide box, with the outline drawn inside it, and it wears the icons' 33% wash.
+- **The button** comes first in the top bar, before the sidebar's (`notes/NoteTabs.tsx`; Matt: "Move the home
+  button to the left of the sidebar button"). It was first drawn as the app icon's dot and dash, and is now a modern
+  house (`art/Icons.tsx` `House`; Matt: "change the home logo to be a modern house"): a single-pitch roof with its
+  overhang and a door, the icons' wash on its body alone. An active top-bar button is a ring in its own ink rather
+  than a solid white fill.
 - **The page** (`home/HomeScreen.tsx`) is what a person comes back for: anything waiting on them (update, memo,
   voice model, the Academy), the notes they pinned and the six they were in last as live previews, and every
   unticked to-do from every note (`home/dashboard.ts`), ticked in place by rewriting that one line's box. The

@@ -22,8 +22,8 @@ export interface Placement {
   noteTitle: string;
   /** What goes into the note. */
   text: string;
-  /** "leave": into the list it fits, or as a paragraph. "item": always list items. */
-  how: 'leave' | 'item';
+  /** "leave": into the list it fits, or as a paragraph. "item": always list items. "paragraph": its own paragraph. */
+  how: 'leave' | 'item' | 'paragraph';
   task: boolean;
   /** The memo's own words this came from, exactly as they are in it: taken out of what becomes the new note. */
   from: string;
