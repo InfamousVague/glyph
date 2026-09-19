@@ -135,9 +135,11 @@
 }
 
 /*
- * Write and Speak, fixed to the bottom where the thumb is. The dock is glass
- * that fades in rather than a bar, so a note scrolling under it goes soft
- * instead of being cut by an edge.
+ * Write and Speak, fixed to the bottom where the thumb is. The dock has no
+ * ground of its own - not a bar, not a shadow, not glass (Matt: "Make the
+ * bottom bar transparent and move the dark gradient down"): the notes run on
+ * under the buttons, and go to smoke only at the page's very foot
+ * (art/wispEdge.ts).
  */
 .dock {
   position: absolute;
@@ -152,26 +154,6 @@
   pointer-events: none;
 }
 
-/*
- * The dock's ground is the header's glass, not a shadow (Matt: "The shadow at the bottom of the page is also shadow
- * instead of the wisp blur effect like under the header"). It was a gradient from clear to the page's black, which
- * read as a shadow cast up the page. Now it is what the header pane is (app.css .app-headerPane) - the page's paper
- * at two thirds, with the page blurred behind it - rising from nothing at the dock's top edge to full by the time
- * the buttons begin, so it has no edge; the words going under it smoke first (the wisp's foot, art/wispEdge.ts).
- * A layer of its own under the buttons, so the fade in never reaches them.
- */
-.dock::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  backdrop-filter: blur(18px) saturate(1.1);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--glacier-space-8));
-  mask-image: linear-gradient(to bottom, transparent, #000 var(--glacier-space-8));
-  pointer-events: none;
-}
 
 /*
  * Speak is the screen's one ink pill: the thing Glyph is for, where the thumb

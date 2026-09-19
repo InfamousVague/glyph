@@ -36,6 +36,7 @@ mod notion;
 mod shape;
 mod store;
 mod live;
+mod mcp_proxy;
 mod sync;
 #[cfg(test)]
 mod sync_tests;
@@ -295,6 +296,8 @@ fn router(app: Arc<App>, accounts: Option<Arc<accounts::Accounts>>) -> Router {
             // Live sync's relay (docs/LIVE.md): the same accounts, a socket instead of requests.
             .merge(live::router(accounts));
     }
+    // Claude's hosted MCP server (mcp/hosted.ts, docs/MCP.md), running beside this service, reached through it.
+    routes = routes.merge(mcp_proxy::router(mcp_proxy::Upstream::from_env()));
     routes
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)

@@ -1,108 +1,133 @@
-import { useMemo } from 'react';
-import { notePeek, PEEK_LINES, type PeekLine } from './peek.ts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Editor } from '../editor/Editor.tsx';
+import { isDarkNow, usePreferences } from '../core/preferences.ts';
+import { PEEK_LINES, peekMarkdown } from './peek.ts';
 import styles from './NotePeek.module.css';
 
 /**
- * A note drawn small: the first few lines of it, each keeping the shape it has in the note (notes/peek.ts).
+ * A note drawn small: the first lines of it, in the note's own editor, set in the formatted view at a fraction of the
+ * size. The card's description on the home page and in the sidebar.
  *
- * This is the card's description in the desktop sidebar. It is the note itself rather than anything written about it,
- * so it is right the moment the note changes and it needs no model, which is the whole point - the AI gist only ever
- * appears on a phone.
+ * It was a miniature drawn by hand (notes/peek.ts, still there for the sample note's tests): a heading a heavier
+ * line, a to-do a six-pixel box, a bullet a dot. Matt: "the preview for the formatting should use the same formatter
+ * that the actual note uses instead of custom rolled small stuff like the checkboxes are weird for example". So it is
+ * the same editor the note opens in (editor/Editor.tsx), read-only and in its `peek` mode - nothing that fetches,
+ * polls or acts - given the note after its title (`peekMarkdown`) and clipped to a few lines' height. Whatever the
+ * note draws, the card draws the same way: a to-do's box is the note's box, a board is a board, a table a table.
+ * The card is a button, so nothing here takes a tap.
  *
- * Drawn, not read: a heading is a heavier line, a to-do is a box, a block of code is a tinted mono strip, a rule is a
- * rule. Every line is one line - clipped rather than wrapped - so six lines are always six lines and the cards stay
- * the same height whatever is in them. The exception is a note that opens with prose, where there are no shapes to
- * see: there the first paragraph is given three lines, because words are all it has.
+ * An editor is not free: measured at 25-30 ms each on a Mac in the dev build, and the sidebar's tree has one card
+ * per note. So a card holds a blank of about the right height until it is near the screen, then gets its editor -
+ * one card at a time, so the page paints first and the previews fill in behind it - and gives it back once it has
+ * scrolled well away. A page that cannot watch the screen (a test) draws them all at once.
  *
- * It says nothing to a screen reader: the row already has its name and its date, and reading six clipped lines after
- * every title would make the list slower to hear, not richer.
+ * It says nothing to a screen reader: the row already has its name and its date.
  */
 
 export interface NotePeekProps {
   body: string;
-  /** How many lines to draw. The sidebar's default is `PEEK_LINES`. */
-  lines?: number;
   className?: string;
 }
 
-function Line({ line, lead }: { line: PeekLine; lead: boolean }) {
-  switch (line.kind) {
-    case 'heading':
-      return (
-        <span className={styles.heading} data-level={Math.min(line.level, 3)}>
-          {line.text}
-        </span>
-      );
-    case 'quote':
-      return <span className={styles.quote}>{line.text}</span>;
-    case 'bullet':
-      return (
-        <span className={styles.item}>
-          <span className={styles.dot} aria-hidden="true" />
-          <span className={styles.words}>{line.text}</span>
-        </span>
-      );
-    case 'number':
-      return (
-        <span className={styles.item}>
-          <span className={styles.bar} aria-hidden="true" />
-          <span className={styles.words}>{line.text}</span>
-        </span>
-      );
-    case 'task':
-      return (
-        <span className={styles.item}>
-          <span className={styles.box} data-done={line.done ? '' : undefined} aria-hidden="true" />
-          <span className={styles.words} data-done={line.done ? '' : undefined}>
-            {line.text}
-          </span>
-        </span>
-      );
-    case 'code':
-      return <span className={styles.code}>{line.text}</span>;
-    case 'table':
-      return (
-        <span className={styles.table}>
-          {line.cells.map((cell, i) => (
-            <span key={i} className={styles.cell}>
-              {cell}
-            </span>
-          ))}
-        </span>
-      );
-    case 'image':
-      return (
-        <span className={styles.item}>
-          <span className={styles.frame} aria-hidden="true" />
-          <span className={styles.words}>{line.text || 'Picture'}</span>
-        </span>
-      );
-    case 'rule':
-      return <span className={styles.rule} aria-hidden="true" />;
-    default:
-      return (
-        <span className={styles.words} data-lead={lead ? '' : undefined}>
-          {line.text}
-        </span>
-      );
+/** How far off the screen a card is drawn, or kept drawn, in pixels: a scroll's worth. */
+const NEAR_PX = 400;
+
+/**
+ * One editor at a time, whichever card asked first, each in a task of its own: ten cards mounting in one go is a
+ * quarter of a second in which nothing paints, and the same ten one after another is a page that appears and fills
+ * in. A task rather than an animation frame, which a hidden page never gets: a page that comes back to the front
+ * finds its cards drawn, and a job that throws does not stop the ones behind it.
+ */
+const queue: (() => void)[] = [];
+let draining = false;
+function soon(run: () => void): () => void {
+  queue.push(run);
+  if (!draining) {
+    draining = true;
+    const next = () => {
+      const job = queue.shift();
+      if (!job) {
+        draining = false;
+        return;
+      }
+      try {
+        job();
+      } finally {
+        window.setTimeout(next, 0);
+      }
+    };
+    window.setTimeout(next, 0);
   }
+  return () => {
+    const at = queue.indexOf(run);
+    if (at >= 0) queue.splice(at, 1);
+  };
 }
 
-export function NotePeek({ body, lines = PEEK_LINES, className }: NotePeekProps) {
-  const peek = useMemo(() => notePeek(body, lines), [body, lines]);
-  if (!peek.length) return null;
-  // Prose with no shapes in it gets the room to be read; anything else is a stack of single lines.
-  const lead = peek[0]?.kind === 'text';
-  /*
-   * The count is a budget of DRAWN lines, not of the note's: an opening paragraph takes three of them, so it pays for
-   * three. Without that a card of prose stood half again as tall as a card of to-dos and the column looked ragged.
-   */
-  const drawn = lead ? peek.slice(0, Math.max(1, lines - 2)) : peek;
+export function NotePeek({ body, className }: NotePeekProps) {
+  const { theme } = usePreferences();
+  const markdown = useMemo(() => peekMarkdown(body), [body]);
+  const host = useRef<HTMLSpanElement>(null);
+  const [drawn, setDrawn] = useState(() => typeof IntersectionObserver === 'undefined');
+  /** How tall the editor was, so the blank that stands in for it once it is gone keeps the card's height. */
+  const [stood, setStood] = useState<number | null>(null);
+  /** More of the note below the card's edge: the last line fades out, to say so. */
+  const [clipped, setClipped] = useState(false);
+
+  useEffect(() => {
+    const el = host.current;
+    if (!el || !drawn || typeof ResizeObserver === 'undefined') return undefined;
+    const check = () => setClipped(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const watcher = new ResizeObserver(check);
+    watcher.observe(el);
+    for (const child of el.children) watcher.observe(child);
+    return () => watcher.disconnect();
+  }, [drawn, markdown]);
+
+  useEffect(() => {
+    const el = host.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    let cancel: (() => void) | null = null;
+    const watcher = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        if (entry.isIntersecting) {
+          cancel?.();
+          cancel = soon(() => {
+            cancel = null;
+            setDrawn(true);
+          });
+        } else {
+          cancel?.();
+          cancel = null;
+          // Gone well off the screen: its editor goes, and a blank its height stands in.
+          setDrawn((was) => {
+            if (was) setStood(el.offsetHeight);
+            return false;
+          });
+        }
+      },
+      { rootMargin: `${NEAR_PX}px 0px` },
+    );
+    watcher.observe(el);
+    return () => {
+      cancel?.();
+      watcher.disconnect();
+    };
+  }, []);
+
+  if (!markdown) return null;
+  // Before the editor: a blank about as tall as the lines it will draw, so the cards do not jump as they fill in.
+  const lines = Math.min(PEEK_LINES, markdown.split('\n').filter((line) => line.trim()).length);
+  const style = drawn ? undefined : { blockSize: stood !== null ? `${stood}px` : `calc(var(--app-body) * 1.6 * ${lines})` };
   return (
-    <span className={className ? `${styles.peek} ${className}` : styles.peek} aria-hidden="true">
-      {drawn.map((line, i) => (
-        <Line key={i} line={line} lead={lead && i === 0} />
-      ))}
+    <span ref={host} className={className ? `${styles.peek} ${className}` : styles.peek} style={style} data-clipped={drawn && clipped ? '' : undefined} aria-hidden="true">
+      {drawn ? <Editor value={markdown} onChange={noop} dark={isDarkNow(theme)} assist={false} readOnly display="formatted" peek grow /> : null}
     </span>
   );
+}
+
+function noop(): void {
+  // Read-only: nothing typed comes back.
 }

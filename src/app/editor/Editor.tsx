@@ -122,6 +122,12 @@ interface EditorProps {
   formats?: readonly InlineFormat[];
   /** The mixed page, marks and formatting both (the default), or just the formatted text (editor/viewMode.ts). */
   display?: NoteView;
+  /**
+   * A note drawn small on a card (notes/NotePeek.tsx): the same formatter as the note, but nothing that would fetch,
+   * poll or act - no link preview cards, no diagrams, no Notion reads for its marks, no taps on its boxes. Read once,
+   * when the editor is made.
+   */
+  peek?: boolean;
 }
 
 /**
@@ -170,6 +176,7 @@ export function Editor({
   ripples,
   formats,
   display = 'mixed',
+  peek = false,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -227,21 +234,22 @@ export function Editor({
         // [[Another note]] opens that note, or makes it (editor/wikiLinks.ts).
         wikiLinks(wiki ? { known: (title) => wikiRef.current?.known(title) ?? false, open: (title, anchor) => wikiRef.current?.open(title, anchor) } : null),
         inlineImages((message) => onImageErrorRef.current?.(message)),
-        shortLinks(),
+        shortLinks({ still: peek }),
         // A card under a line that is only a link (editor/linkCards.ts).
-        linkCards(),
+        peek ? [] : linkCards(),
         linkedRows(linkMenus ? { say: (message) => linkMenusRef.current?.say(message) } : null),
         drawnTables(),
-        // Boards drawn from a ```board fence, their cards the note's own list items (editor/boards.ts).
-        drawnBoards(),
+        // Boards drawn from a ```board fence, their cards the note's own list items (editor/boards.ts). Not on a card,
+        // where a board is a screen's worth and its items are drawn as the list they are.
+        peek ? [] : drawnBoards(),
         // Mermaid diagrams drawn from a ```mermaid fence (editor/mermaid.ts).
-        drawnMermaid(),
-        swipeItemAction({ action: () => swipeActionRef.current?.() ?? null }),
-        lineSuggestions({ suggest: (body) => suggestRef.current?.(body) ?? [] }),
+        peek ? [] : drawnMermaid(),
+        peek ? [] : swipeItemAction({ action: () => swipeActionRef.current?.() ?? null }),
+        peek ? [] : lineSuggestions({ suggest: (body) => suggestRef.current?.(body) ?? [] }),
         // A tap on a to-do's box ticks or clears it (taskToggle.ts).
-        taskToggle(),
+        peek ? [] : taskToggle(),
         // A to-do whose task reads as done gets its box ticked (doneSync.ts).
-        doneSync(),
+        peek ? [] : doneSync(),
         // Voice memos left in the note, played where they sit (clips.ts).
         clips(),
         // The bookmarked line, marked so the place can be seen (bookmarkLine.ts).

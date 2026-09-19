@@ -179,7 +179,8 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
       id: 'plugins',
       label: 'Plugins',
       icon: <Puzzle size={16} />,
-      content: <PluginsPane />,
+      // A card's row lands on that plugin's own page (plugins/PluginsPane.tsx).
+      content: <PluginsPane onOpen={(id) => setGoTo({ id, nonce: Date.now() })} />,
       summary: `${plugins.length} of ${allPlugins.length} on`,
       group: 2,
     },

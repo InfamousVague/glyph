@@ -394,21 +394,27 @@ body:has(.app-headerPane) .app-statusScrim {
     to bottom,
     transparent 0,
     #000 var(--wisp-top-fade, 29px),
-    #000 calc(100% - var(--wisp-foot-fade, 0px)),
-    transparent 100%
+    #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-foot-fade, 0px)),
+    transparent calc(100% - var(--wisp-foot-inset, 0px))
   );
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
     #000 var(--wisp-top-fade, 29px),
-    #000 calc(100% - var(--wisp-foot-fade, 0px)),
-    transparent 100%
+    #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-foot-fade, 0px)),
+    transparent calc(100% - var(--wisp-foot-inset, 0px))
   );
 }
 
-/* While the foot is smoking, the last stretch of the view dissolves into the paper below it. */
+/*
+ * While the foot is smoking, the last stretch of the view dissolves into the paper below it - a short stretch, under
+ * the smoke rather than instead of it: the band's lip sits above it (art/wispEdge.ts `placeFoot`), so the words are
+ * bent while they can still be seen. At 30px the fade covered the lip and all that showed was the fade.
+ */
 [data-wisp-foot] {
-  --wisp-foot-fade: 30px;
+  /* Longer again, with the taller smoke over it (Matt: "Add a bit of combined black gradient or gradient opacity mask a
+     bit too"): the words dim as they smoke rather than smoking at full strength into a cut. */
+  --wisp-foot-fade: 48px;
 }
 
 /* A view smoking at its foot alone is crisp at its top: nothing is going under the header yet. */

@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p mcp --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --max-warnings 0",
@@ -31,7 +31,9 @@
     "voice:check": "GLYPH_VOICE=1 vitest run src/app/capture/voiceSuite",
     "voice:suite": "npm run voice:hear && npm run voice:check",
     "deploy:ota": "node scripts/deploy-ota.mjs",
-    "deploy:server": "node scripts/deploy-server.mjs"
+    "deploy:server": "node scripts/deploy-server.mjs",
+    "mcp:build": "node scripts/build-mcp.mjs",
+    "mcp": "node scripts/build-mcp.mjs && node mcp/dist/glyph-mcp.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",
@@ -44,9 +46,11 @@
     "@glacier/icons": "file:./vendor/@glacier/icons",
     "@glacier/react": "file:./vendor/@glacier/react",
     "@glacier/tokens": "file:./vendor/@glacier/tokens",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-haptics": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2",
+    "express": "^5.2.1",
     "lucide-react": "^1.23.0",
     "mermaid": "^12.0.0",
     "motion": "^12.23.0",
@@ -54,7 +58,8 @@
     "react-dom": "^19.1.0",
     "y-codemirror.next": "^0.3.6",
     "y-protocols": "^1.0.7",
-    "yjs": "^13.6.32"
+    "yjs": "^13.6.32",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -62,6 +67,7 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
+    "@types/express": "^5.0.6",
     "@types/node": "26.2.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

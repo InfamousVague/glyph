@@ -1,5 +1,7 @@
 node_modules
 /dist
+# The MCP server as one file (scripts/build-mcp.mjs).
+/mcp/dist
 .DS_Store
 src-tauri/target
 /coverage

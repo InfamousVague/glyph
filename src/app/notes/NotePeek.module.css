@@ -1,177 +1,79 @@
 /*
- * The note drawn small on a sidebar card (notes/NotePeek.tsx).
- *
- * Every line is one line: clipped, never wrapped, so a card's height is its number of lines and the column stays even
- * whatever the notes hold. The marks are drawn rather than written - a box, a dot, a rule - because at this size a
- * "[ ]" is four characters of noise and a small square is a to-do at a glance.
+ * The note drawn small on a card (notes/NotePeek.tsx): the note's own editor, in the formatted view, at a fraction of
+ * its size, clipped to a few lines and taking no taps. The type sizes the editor reads (`--app-body`, `--app-h1` to
+ * `--app-h6`; app.css, editor/Editor.module.css) are redefined here at the same ratios, so a heading is still a
+ * heading against the words, only small.
  */
 
 .peek {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  /* Roughly the kit's smallest reading size against the note's body size, keeping the reader's own text-size setting. */
+  --peek-scale: calc(0.62 * var(--app-text-scale, 1));
+  --app-body: calc(var(--glacier-font-size-lg) * var(--peek-scale));
+  --app-h1: calc(var(--glacier-font-size-3xl) * var(--peek-scale));
+  --app-h2: calc(var(--glacier-font-size-2xl) * var(--peek-scale));
+  --app-h3: calc(var(--glacier-font-size-xl) * var(--peek-scale));
+  --app-h4: calc(var(--glacier-font-size-lg) * var(--peek-scale));
+  --app-h5: calc(var(--glacier-font-size-lg) * var(--peek-scale));
+  --app-h6: calc(var(--glacier-font-size-md) * var(--peek-scale));
+  display: block;
   /*
-   * Never wider than what holds it. Without this a card laid out as a grid or a flex row lets the preview grow past
-   * its cell - a grid item's `min-width` is `auto` - and the lines are then cut off by the card's edge rather than
-   * clipped with an ellipsis of their own. It cost nothing in the desktop sidebar, whose rows are plain blocks, and
-   * everything in the drawer, whose rows are a grid.
+   * Never wider than what holds it: a grid item's `min-width` is `auto`, and a card laid out as a grid let the preview
+   * grow past its cell.
    */
   min-inline-size: 0;
   max-inline-size: 100%;
+  /*
+   * As tall as its lines, up to about six of the words; whatever does not fit is cut off, not scrolled. In the words'
+   * own em, so the cap holds wherever the card is (Matt: "the preview is rendering the whole note not just a small
+   * preview").
+   */
+  font-size: var(--app-body);
+  /* The page's gutter is the page's: on a card the words start at the card's edge, and a list's hang still hangs. */
+  --app-gutter: 0px;
+  max-block-size: calc(1.6em * 6.2);
   margin-block-start: var(--glacier-space-2);
-  font-size: calc(var(--glacier-font-size-xs) * var(--app-text-scale, 1));
-  line-height: 1.5;
-  color: var(--app-ink-3, var(--glacier-text-muted));
-}
-
-/* One line each, whatever is in it: nothing wraps, and what will not fit is clipped. */
-.peek > * {
-  min-inline-size: 0;
   overflow: hidden;
-}
-
-.heading,
-.quote,
-.rule,
-.peek > .words {
-  display: block;
-}
-
-.heading,
-.quote,
-.peek > .words {
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.heading {
-  color: var(--app-ink-2, var(--glacier-text-subtle));
-  font-weight: var(--glacier-font-weight-semibold);
-  letter-spacing: -0.005em;
-}
-
-/* A subheading is quieter than a heading, the way it is in the note. */
-.heading[data-level='2'] {
-  font-weight: var(--glacier-font-weight-medium);
-}
-
-.heading[data-level='3'] {
-  font-weight: var(--glacier-font-weight-medium);
   color: var(--app-ink-3, var(--glacier-text-muted));
+  pointer-events: none;
+  user-select: none;
 }
 
-/* A line with a mark in front of it: the mark keeps its column so the words line up down the card. */
-.item {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5ch;
-}
-
-.words {
-  min-inline-size: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+/* More below the edge: the last line goes to nothing, as a mask and never a painted shadow. */
+.peek[data-clipped] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.8em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.8em), transparent);
 }
 
 /*
- * A note that opens with prose has no shapes to show, so its first paragraph is given the room to be read instead.
+ * The card shows through (Matt: "the background and stuff should be transparent on the formatted preview"): the
+ * editor paints the page's paper under its words, and a block of code or a table's header its own fill, which on a
+ * card is a card on a card. The words keep the page's marks; only the grounds go.
  */
-.peek > .words[data-lead] {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  white-space: normal;
-  overflow-wrap: anywhere;
+.peek :global(.cm-editor) {
+  background: transparent;
+  color: inherit;
 }
 
-.dot,
-.box,
-.bar,
-.frame {
-  flex: none;
-  align-self: center;
-  color: var(--app-ink-4, var(--glacier-text-disabled));
+.peek :global(.cm-editor .cm-scroller .cm-line[class*='lineCode']) {
+  background: transparent;
+  margin-inline: 0;
 }
 
-.dot {
-  inline-size: 3px;
-  block-size: 3px;
-  border-radius: 50%;
-  background: currentColor;
+.peek :global(.cm-editor .cm-glyphTable th) {
+  background: transparent;
 }
 
-/* A numbered line: a short stroke rather than the number itself, which is never the part worth reading small. */
-.bar {
-  inline-size: 5px;
-  block-size: 1px;
-  background: currentColor;
+/* The editor's own paddings are a page's; on a card there is none, and the words start at the card's edge. */
+.peek :global(.cm-editor .cm-content) {
+  padding: 0;
 }
 
-.box {
-  inline-size: 6px;
-  block-size: 6px;
-  border: 1px solid currentColor;
-  border-radius: 1px;
-}
-
-.box[data-done] {
-  background: currentColor;
-}
-
-/* Done, and it looks done. */
-.words[data-done] {
-  color: var(--app-ink-4, var(--glacier-text-disabled));
-  text-decoration: line-through;
-}
-
-.frame {
-  inline-size: 7px;
-  block-size: 5px;
-  border: 1px solid currentColor;
-  border-radius: 1px;
-}
-
-.quote {
-  padding-inline-start: 0.5ch;
-  border-inline-start: 2px solid var(--app-rule, var(--glacier-border-subtle));
-  color: var(--app-ink-3, var(--glacier-text-muted));
-  font-style: italic;
-}
-
-/* The tint hugs the code rather than running the width of the card, which read as a bar across the note. */
-.code {
-  display: inline-block;
-  max-inline-size: 100%;
-  align-self: flex-start;
-  padding-inline: 0.4ch;
-  border-radius: var(--glacier-radius-xs);
-  background: var(--app-paper-2, var(--glacier-surface));
-  font-family: var(--glacier-font-mono);
-  font-size: 0.92em;
-}
-
-.rule {
-  block-size: 1px;
-  margin-block: calc(var(--glacier-space-1) / 2);
-  background: var(--app-rule, var(--glacier-border-subtle));
-}
-
-/* A table row: its cells, evenly, each clipped on its own so one long cell can't push the others out. */
-.table {
-  display: flex;
-  gap: 0.75ch;
-}
-
-.cell {
-  flex: 1 1 0;
-  min-inline-size: 0;
+.peek :global(.cm-editor .cm-scroller) {
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
-.cell + .cell {
-  border-inline-start: 1px solid var(--app-rule, var(--glacier-border-subtle));
-  padding-inline-start: 0.75ch;
+/* Growing with its lines (Editor's `grow`), the card clips it; the editor's own height is its lines', not the card's. */
+.peek :global(.cm-editor[data-grow]),
+.peek > :global([data-grow]) {
+  flex: none;
 }

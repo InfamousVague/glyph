@@ -13,7 +13,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     // The test report's parsers are tested with the page (scripts/testReport).
-    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
+    include: ['src/**/*.test.{ts,tsx}', 'mcp/**/*.test.ts', 'scripts/**/*.test.mjs'],
     setupFiles: ['src/test/setup.ts'],
     css: false,
   },

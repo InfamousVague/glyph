@@ -2094,6 +2094,97 @@ recorder; a scratch left from before still shows on the home page and can be sor
   change, the draft, the take carrying on elsewhere - now goes through one queue, since two close together read the
   same body and the second lost the first.
 
+## The card is the note, small (2026-09-18)
+
+Matt: "the preview for the formatting should use the same formatter that the actual note uses instead of custom
+rolled small stuff like the checkboxes are weird for example." Then: "don't render boards in previews", "the
+background and stuff should be transparent on the formatted preview", "the preview is rendering the whole note not
+just a small preview".
+
+- **The card holds the note's own editor** (`notes/NotePeek.tsx`): the same `Editor` the note opens in, read-only, in
+  the formatted view, at 0.62 of the note's type (`--app-body` and the heading sizes redefined on the card, so the
+  ratios hold), given the note after its title (`notes/peek.ts` `peekMarkdown`, fourteen lines at most) and clipped
+  to about six lines in its own em, with a mask fade on the last line only when there is more below. The card is a
+  button, so the editor takes no pointer events. It replaces the hand-drawn miniature (`notePeek`, still there for
+  the sample note's tests), whose six-pixel box for a to-do was the "weird checkbox".
+- **Peek mode** (`Editor`'s `peek`): the same formatter, but nothing that fetches, polls or acts - no link preview
+  cards, no Mermaid, no board drawing, no tap-to-tick, no Notion reads for the marks (`shortLinks({ still })` draws
+  them from what is known). A board's fence is left out of the markdown too: its items follow and are drawn as the
+  list they are, the blank lines around the cut close to one, and an item's anchor is dropped - it is the name a
+  board calls the item by, never part of what it says (BOARDS.md), and on a card it took a line of its own. The
+  editor's paper and a code block's or a table header's fill are transparent on the card, and the page gutter is
+  zero there, so a list's marker still hangs where the note hangs it (with the gutter simply zeroed on the line, the
+  marker hung outside the card and was clipped: the `- [x]` was in the DOM and not on the screen).
+- **An editor costs about 25-30 ms** on a Mac in the dev build (a bare CodeMirror view 8, the formatting extensions
+  most of the rest), and the sidebar's tree has one card per note, so a card draws its editor only when within
+  400px of the screen, one at a time in its own task so the page paints first, and drops it for a blank of its
+  height once it has scrolled well away. Measured with a hundred previews in a scroller: five editors exist at any
+  moment.
+
+## Claude on the account: the MCP server (2026-09-18)
+
+Matt: "make an MCP plugin for Claude so I can use Claude to remote control my account and add and update notes as
+well as read them, be detailed and make sure it all works for every user". docs/MCP.md is the whole of it; the
+choices, briefly:
+
+- **It is a device, not a backdoor.** Synced notes are end-to-end encrypted, so anything that reads them holds the
+  account key. The MCP server (`mcp/`) runs on the person's own computer, started by Claude, signs in with the
+  password once, unwraps the key there with the same code the app runs (`core/sync/crypto.ts`, bundled in), and keeps
+  what a signed-in phone keeps - the token, the key, a signing key of its own for renewing the session - in a file
+  only they can read. The service sees nothing new. This was the question to settle first, and this is the answer.
+- **The wire is the app's wire.** The same sealed payload under `note:<id>`, the same feed and cursor, the same `base`
+  on every write, and a 409 handled the app's way: never written over, shown to Claude as the other device's words.
+  The e2e test runs the app's own `syncNotes` as the phone against the built server, so the two cannot drift apart
+  without a test going red.
+- **Append is the app's append.** `append_to_note` uses `capture/listAppend.ts` `placeWords`, so a task Claude adds
+  joins the note's list in the list's own style, as a spoken "add task" does.
+- **One file to run.** esbuild bundles `mcp/main.ts` with everything under `src/` it reaches and the MCP SDK into
+  `mcp/dist/glyph-mcp.mjs` for Node 20+, published beside the app (`deploy-ota.mjs --mcp`). A person needs Node and
+  that file; `login`, then one line in Claude's config.
+- **The app's modules it could not reuse as-is** are the two that read the page: `core/account/api.ts` reads
+  `import.meta.env` at import, which Node has no such thing as, and `core/store.ts` reaches for Tauri; the client
+  carries its own small `call()` and copies of `noteTitle` and `imageNames`, each pinned by a test.
+- **Then hosted, at Matt's word** ("run the server on our node so that the user doesn't need to"), with the trade
+  put to him first and chosen: the box holds a signed-in person's key **in memory only**, for the session, and the
+  sign-in page says so. `mcp/hosted.ts` is the same tools behind OAuth 2.1 with the SDK's own handlers (dynamic
+  registration, PKCE, refresh, revocation), sessions as maps in RAM, and MCP over plain HTTP, one request one
+  answer. It runs beside glyph-api as `glyph-mcp.service` on the box's own Node 18, and glyph-api hands
+  `/glyph/api/mcp` on to it (`server/src/mcp_proxy.rs`): the shared Caddyfile, edited by hand with care, stays as it
+  is, and the discovery documents live under that path, where the client library looks once the root ones answer
+  404 (which attack.fm's do). The whole flow is tested as Claude's own client library runs it.
+- **The sign-in page is the app's** (Matt: "redo the plugin page with better iconography and typography usage"):
+  Inter carried in the bundle as a data URL so the page needs nothing from anywhere, the ink scale from ink.css with
+  dark as the same page printed in reverse, the Welcome shape on the Blank grid moving as it does in the app, and
+  icons drawn on the app's 24 grid - a lock, a key, a door - one to each of the three things a person should know
+  before typing a password. The one message it can show is ink with a mark beside it, under the password where the
+  eye is, not below the buttons where a phone has scrolled past it. A state is a word and a shape, not a colour.
+- **The Claude plugin's page, and the instructions drawer** (Matt: "add the instructions for the MCP to an
+  instructions drawer we can open from the mcp page in the app"; then "I also don't see the Claude plugin", so it is
+  one - `plugins/claude/`, standard, its switch showing or hiding the page and the page saying so): what it is, the
+  address with a Copy, what the eight tools do in words, and where the key lives. Its rows open a card over the page
+  (`plugins/claude/ClaudeGuide.tsx`): the steps one way at a time, hosted or on your own
+  computer, each command in a block with a Copy, so a phone can hand them to a computer without retyping. It rises
+  from the bottom on a phone and floats on a wide window, in the notes card's materials with a scrim under it, and
+  closes on the X, the scrim, Escape or the back gesture. Drawn into the body: the settings panes move as they
+  change, and a fixed card inside a moving thing moves with it. The words live in `claude/steps.ts`, with the
+  addresses following the sync service the build talks to, so a staging build points Claude at its own server.
+- **Plugins, redone** (Matt: "revamp and redo the plugins page"): a hero with the count and the one rule (a plugin
+  off offers nothing anywhere and keeps what it kept), then a card per plugin that leads with the plugin as a thing -
+  its icon in the hero's chip, its name, one line, its switch - then the way to its own page when it has one and is
+  on, then what it may reach in one line ("Your notes · The internet (api.notion.com) · Voice commands") with the
+  reasons a press away. The old page was a row per permission, which was most of it. "Nothing leaves the phone"
+  holds the internet plugins off whatever their switch says, and the page says so at the top and on each card held.
+- **Appearance in the kit's own clothes** (Matt: "I want the interface size and themes to use the same UI from
+  glacier with the physical representation of the screen densities and colors on the app"): the theme is chosen from
+  cards, each the page painted small in that theme's colours - AttackFM's ThemeSelector in shape, with the
+  miniature redrawn as Glyph's note page: the bar with its two tabs, a heading, lines, a to-do with its box, two
+  segments with the chosen one in the accent, the Speak pill (`settings/ThemeCards.tsx`). Light and Dark are the ink
+  scale, chroma zero, with the accent left as a variable so the cards follow the swatch under them; the named themes
+  take the kit's own preview, which is what the page becomes under one; System is split down the middle. Spacing is
+  the kit's DensitySelector with Glyph's words for the steps. Interface size is five cards, each the same row of the
+  app - icon, two lines, a switch - drawn at that step, in em from a font size that is the step, so what a step does
+  is seen before it is chosen (`settings/ScaleCards.tsx`).
+
 ## 50. The tape only where there is audio
 
 Matt: "Don't show the tape on notes that don't have any audio recorded; the notes with audio recordings added should

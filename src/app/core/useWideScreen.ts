@@ -48,8 +48,33 @@ const SIDEBAR_ASKS = [SIDEBAR_WIDE, SIDEBAR_TALL, SIDEBAR_MOUSE];
  */
 function splitFits(): boolean {
   if (typeof matchMedia === 'undefined') return false;
-  if (!matchMedia(SIDEBAR_WIDE).matches) return false;
-  return matchMedia(SIDEBAR_TALL).matches || matchMedia(SIDEBAR_MOUSE).matches;
+  const wide = matchMedia(SIDEBAR_WIDE).matches;
+  const tall = matchMedia(SIDEBAR_TALL).matches || matchMedia(SIDEBAR_MOUSE).matches;
+  /*
+   * The keyboard is not the window's shape. On the Fold opened out, the keyboard coming up takes the window under the
+   * 600px it has to be tall, and the answer went from two panes to one mid-sentence - which moved the note into another
+   * part of the page, where React made it again, and a new editor is not the one with the focus: the keyboard closed
+   * the moment it opened (Matt: "When trying to type on a note now it closes out the keyboard immediately"). Measured:
+   * split on, focused; window 880x900 to 880x480; split off, a different editor, nothing focused.
+   *
+   * So while something is being typed into, the height keeps the answer it had. Width still decides at once: folding or
+   * unfolding the phone is the shape changing, keyboard or not.
+   */
+  if (heldWide === wide && heldTall !== null && heldTall !== tall && typing()) return wide && heldTall;
+  heldWide = wide;
+  heldTall = tall;
+  return wide && tall;
+}
+
+/** The last answer each half of the question gave, for the keyboard's sake (`splitFits`). */
+let heldWide: boolean | null = null;
+let heldTall: boolean | null = null;
+
+/** Whether a field has the focus: an editor, an input, a text box - what the phone's keyboard comes up for. */
+function typing(): boolean {
+  const el = typeof document === 'undefined' ? null : document.activeElement;
+  if (!(el instanceof HTMLElement)) return false;
+  return el.isContentEditable || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA';
 }
 
 function subscribeSidebar(listener: () => void): () => void {

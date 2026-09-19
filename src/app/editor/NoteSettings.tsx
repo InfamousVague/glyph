@@ -297,7 +297,8 @@ export function NoteSettings({
             <span className={styles.icon} aria-hidden="true">
               <Bin />
             </span>
-            <span className={styles.label}>Delete</span>
+            {/* Into the trash, from where it is brought back or deleted for good (core/trash.ts). */}
+            <span className={styles.label}>Move to Trash</span>
           </button>
         </div>
       </section>

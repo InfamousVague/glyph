@@ -121,6 +121,14 @@ minute per address and 10 per handle.
 - Tests: `core/sync/crypto.test.ts`; `core/sync/sync.e2e.test.ts` runs two devices against a real `glyph-api`
   (`GLYPH_SYNC_E2E=<data dir> VITE_GLYPH_API=http://127.0.0.1:<port>/glyph/api`); `server/src/sync_tests.rs`.
 
+## Claude, as a device
+
+An MCP server (`mcp/`, docs/MCP.md) signs in to an account from outside the app and reads and writes its notes on
+this same wire, sealing and opening them with the account key it unwraps at sign-in and keeps as a phone does. It is
+one more device to the service, and to the other devices its notes arrive as any device's do. Its hosted form runs
+on the box beside this service and holds a signed-in person's key in memory for their session - the one place the
+key is ever held off a device, chosen with that said plainly on the sign-in page.
+
 ## The desktop
 
 The same Tauri app built for macOS (`npm run desktop:dev`, `npm run desktop:build`): on-device Whisper and the

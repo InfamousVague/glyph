@@ -255,11 +255,12 @@
 }
 
 .tabs[data-fade-start] {
-  --tab-fade-start: var(--glacier-space-6);
+  --tab-fade-start: 12px;
 }
 
+/* Short, under the smoke: the wisp's lip sits in from the end (art/wispSides.ts), where the tabs are still drawn. */
 .tabs[data-fade-end] {
-  --tab-fade-end: var(--glacier-space-6);
+  --tab-fade-end: 12px;
 }
 
 .tabs::-webkit-scrollbar {

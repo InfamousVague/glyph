@@ -82,7 +82,14 @@ const WISP_EDGE_CROWN = WISP_EDGE_ABOVE + 40;
 const WISP_EDGE_BELOW = 40;
 export const WISP_EDGE_BUDGET = 2 ** 24;
 /** The foot's full-strength lip at the view's bottom edge, and how far the band is computed above it. */
-export const WISP_EDGE_FOOT_BAND = 10;
+export const WISP_EDGE_FOOT_BAND = 16;
+/**
+ * The foot's own ramp, and how far above the edge its lip sits: taller than the top's (Matt: "Make the bottom
+ * distortion taller"), so words start to smoke well before the edge and go on smoking down to it, where the top's
+ * band is a lip just under the header.
+ */
+export const WISP_EDGE_FOOT_SOFT = 44;
+export const WISP_EDGE_FOOT_LIFT = 36;
 /** How far below the band's lip the bend and blur are computed at all: past the strip's soft edge, with room for the drift. */
 export const WISP_EDGE_REACH = WISP_EDGE_BAND + WISP_EDGE_SOFT * 4 + 48;
 
@@ -176,7 +183,7 @@ function drift(on: boolean, reset = true): void {
 }
 
 /** How far above the view's bottom edge the foot's bend and blur are computed: its lip, its ramp, and room for the drift. */
-export const WISP_EDGE_FOOT_REACH = WISP_EDGE_FOOT_BAND + WISP_EDGE_SOFT * 4 + 48;
+export const WISP_EDGE_FOOT_REACH = WISP_EDGE_FOOT_BAND + WISP_EDGE_FOOT_SOFT * 4 + 48;
 
 /**
  * Puts the foot band at the view's bottom edge, or takes it away: the same smoke as the top, so words scrolling off
@@ -185,10 +192,16 @@ export const WISP_EDGE_FOOT_REACH = WISP_EDGE_FOOT_BAND + WISP_EDGE_SOFT * 4 + 4
  */
 function placeFoot(height: number, on: boolean): void {
   const strip = document.getElementById(WISP_EDGE_FOOT_STRIP_ID);
-  const reach = WISP_EDGE_FOOT_REACH + 40;
-  const top = height - WISP_EDGE_FOOT_REACH;
+  const reach = WISP_EDGE_FOOT_REACH + 40 + WISP_EDGE_FOOT_LIFT;
+  const top = height - WISP_EDGE_FOOT_LIFT - WISP_EDGE_FOOT_REACH;
+  /*
+   * The lip sits above the edge (`WISP_EDGE_FOOT_LIFT`), as the top band's sits below its header: where the words are still
+   * there to bend. At the edge itself, where the lip used to be, the view's own fade (app.css `--wisp-foot-fade`) had
+   * already taken them, so the strongest bend happened to nothing and what showed was the fade - a black gradient
+   * where the header has smoke (Matt: "it's just a black gradient not the cool effect").
+   */
   // Off: the strip is parked far below anything drawn, and nothing is computed for it.
-  strip?.setAttribute('y', String(on ? height - WISP_EDGE_FOOT_BAND : 1e6));
+  strip?.setAttribute('y', String(on ? height - WISP_EDGE_FOOT_LIFT - WISP_EDGE_FOOT_BAND : 1e6));
   strip?.setAttribute('height', String(WISP_EDGE_ABOVE + WISP_EDGE_FOOT_BAND));
   for (const id of [WISP_EDGE_FOOT_NOISE_ID, WISP_EDGE_FOOT_BENT_ID, WISP_EDGE_FOOT_NEAR_ID, WISP_EDGE_FOOT_SOFT_ID]) {
     const part = document.getElementById(id);
@@ -253,9 +266,19 @@ export function useWispEdge(
   scroller: RefObject<HTMLElement | null>,
   key?: unknown,
   under?: RefObject<HTMLElement | null>,
-  options: { foot?: boolean } = {},
+  options: {
+    foot?: boolean;
+    /**
+     * What stands over the view's foot, a dock of buttons: the foot's smoke happens at its top edge rather than the
+     * view's, and the view is gone below it (Matt: "The bottom bar doesn't give the wisp effect when content goes
+     * behind it it shouldn't have the glass background just the wisp effect subtly"). At the view's own edge the
+     * smoke was behind the buttons, where nobody could see it.
+     */
+    footOver?: RefObject<HTMLElement | null>;
+  } = {},
 ): boolean {
   const foot = options.foot ?? false;
+  const footOver = options.footOver;
   const [on, setOn] = useState(false);
   // Switched off under Settings > Animations, a page slips under its header with a clean edge (core/preferences.ts).
   const wanted = usePreferences().wispEdge;
@@ -295,9 +318,21 @@ export function useWispEdge(
         el.style.setProperty('--wisp-under', `${height}px`);
         // Under a header the header hides the top; with no header the view dissolves into the status bar's own
         // ground, so what passes the clock is smoke rather than a flat fade (app.css .app-statusScrim).
-        el.style.setProperty('--wisp-top-fade', height ? '0px' : 'calc(var(--app-safe-top, 0px) + 29px)');
+        // Short, so the smoke has words to bend before they are gone: the lip sits a drop under the status bar, and a
+        // fade that ran past it hid the bend and read as a black gradient (Matt: "not the cool effect").
+        el.style.setProperty('--wisp-top-fade', height ? '0px' : 'calc(var(--app-safe-top, 0px) + 12px)');
       }
       if (worn) placeBand(beneath);
+    };
+    /** How much of the view's foot the dock covers: where the foot band sits, measured up from the view's bottom. */
+    let covered = -1;
+    const footAt = () => {
+      const over = footOver?.current?.offsetHeight ?? 0;
+      if (over !== covered) {
+        covered = over;
+        el.style.setProperty('--wisp-foot-inset', `${over}px`);
+      }
+      return el.offsetHeight - over;
     };
     const check = () => {
       // Scrolled off its top AND able to scroll: a view that stops scrolling (a note's page while the robot shows its
@@ -310,11 +345,11 @@ export function useWispEdge(
       if (ending !== footWorn) {
         footWorn = ending;
         el.toggleAttribute('data-wisp-foot', ending);
-        placeFoot(el.offsetHeight, ending);
+        placeFoot(footAt(), ending);
         // Wearing the filter for the foot alone: the top band stays off until this view is scrolled.
         if (ending && !worn) placeBand(beneath, false);
       } else if (ending) {
-        placeFoot(el.offsetHeight, true);
+        placeFoot(footAt(), true);
       }
       setOn(scrolled);
       if (scrolled === worn) return;
@@ -360,6 +395,8 @@ export function useWispEdge(
      * so what is watched and what is measured now agree.
      */
     if (header) resized.observe(header, { box: 'border-box' });
+    const dock = footOver?.current ?? null;
+    if (dock) resized.observe(dock, { box: 'border-box' });
     return () => {
       el.removeEventListener('scroll', onScroll);
       resized.disconnect();
@@ -370,6 +407,6 @@ export function useWispEdge(
       }
       holdStill(true);
     };
-  }, [wanted, scroller, key, under, foot]);
+  }, [wanted, scroller, key, under, foot, footOver]);
   return on;
 }

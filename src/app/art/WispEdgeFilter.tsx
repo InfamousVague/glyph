@@ -5,6 +5,7 @@ import {
   WISP_EDGE_DRIFT_ID,
   WISP_EDGE_FILTER_ID,
   WISP_EDGE_FOOT_BAND,
+  WISP_EDGE_FOOT_SOFT,
   WISP_EDGE_FOOT_FILTER_ID,
   WISP_EDGE_FOOT_BENT_ID,
   WISP_EDGE_FOOT_DRIFT_ID,
@@ -95,7 +96,9 @@ export function WispEdgeFilter() {
         </feMerge>
       </filter>
 
-      {/* The foot's band: the same again at the view's bottom edge, its strip rising from below it. */}
+      {/* The foot's band: the same again at the view's bottom edge, its strip rising from below it - bent a touch less
+          than the top: softened to 24 for "subtle distortions using the wisp effect", then raised to 34 (Matt: "make the
+          bottom wisp effect a bit more intense"). */}
       <filter id={WISP_EDGE_FOOT_FILTER_ID} filterUnits="userSpaceOnUse" x="-40" y={-(WISP_EDGE_ABOVE + 40)} width="480" height="1200" colorInterpolationFilters="sRGB">
         <feTurbulence id={WISP_EDGE_FOOT_NOISE_ID} type="fractalNoise" baseFrequency="0.018 0.06" numOctaves="2" seed="3" x="-40" y={1e6} width="4000" height={0} result="rawFootNoise" />
         <feOffset id={WISP_EDGE_FOOT_DRIFT_ID} in="rawFootNoise" dx="0" dy="0" result="footSlid" />
@@ -106,9 +109,9 @@ export function WispEdgeFilter() {
           <feMergeNode in="black" />
           <feMergeNode in="footStrip" />
         </feMerge>
-        <feGaussianBlur in="footOnBlack" stdDeviation={`0 ${WISP_EDGE_SOFT}`} result="footBand" />
+        <feGaussianBlur in="footOnBlack" stdDeviation={`0 ${WISP_EDGE_FOOT_SOFT}`} result="footBand" />
         <feComposite in="footNoise" in2="footBand" operator="arithmetic" k1="1" k2="0" k3="-0.5" k4="0.5" result="footField" />
-        <feDisplacementMap id={WISP_EDGE_FOOT_BENT_ID} in="SourceGraphic" in2="footField" scale="36" xChannelSelector="R" yChannelSelector="G" x="-40" y={1e6} width="4000" height={0} result="footBent" />
+        <feDisplacementMap id={WISP_EDGE_FOOT_BENT_ID} in="SourceGraphic" in2="footField" scale="34" xChannelSelector="R" yChannelSelector="G" x="-40" y={1e6} width="4000" height={0} result="footBent" />
         <feGaussianBlur id={WISP_EDGE_FOOT_SOFT_ID} in="footBent" stdDeviation="3.4" x="-40" y={1e6} width="4000" height={0} result="footSoft" />
         <feMorphology id={WISP_EDGE_FOOT_NEAR_ID} in="footBent" operator="dilate" radius="2.5" x="-40" y={1e6} width="4000" height={0} result="footNear" />
         <feComposite in="footSoft" in2="footNear" operator="in" result="footSoftNear" />

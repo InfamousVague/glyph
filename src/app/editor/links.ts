@@ -264,17 +264,22 @@ function decorate(view: EditorView): DecorationSet {
 /** How often an open note reads its tasks again, while it is on screen. */
 const REREAD_MS = 60_000;
 
-function shortLinksPlugin() {
+/** `still`: the marks are drawn from what is already known and never read again - a note drawn small on a card. */
+function shortLinksPlugin(still: boolean) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
       private readonly off: () => void;
-      private readonly timer: number;
+      private readonly timer: number | null;
       private queued = false;
 
       constructor(readonly view: EditorView) {
         this.decorations = decorate(view);
         this.off = onMarkDetails(() => this.redraw());
+        if (still) {
+          this.timer = null;
+          return;
+        }
         this.timer = window.setInterval(() => this.want(false), REREAD_MS);
         document.addEventListener('visibilitychange', this.onVisible);
         this.want(false);
@@ -311,12 +316,12 @@ function shortLinksPlugin() {
           this.decorations = decorate(update.view);
         }
         // A mark just made or scrolled to is read; one already read recently is not.
-        if (update.docChanged || update.viewportChanged) this.want(false);
+        if (!still && (update.docChanged || update.viewportChanged)) this.want(false);
       }
 
       destroy() {
         this.off();
-        window.clearInterval(this.timer);
+        if (this.timer !== null) window.clearInterval(this.timer);
         document.removeEventListener('visibilitychange', this.onVisible);
       }
     },
@@ -395,6 +400,6 @@ const shortLinksTheme = EditorView.baseTheme({
 export { shortUrl };
 
 /** Link addresses shown short, and item marks as pills, away from the caret's line. */
-export function shortLinks(): Extension {
-  return [shortLinksPlugin(), shortLinksTheme];
+export function shortLinks({ still = false }: { still?: boolean } = {}): Extension {
+  return [shortLinksPlugin(still), shortLinksTheme];
 }

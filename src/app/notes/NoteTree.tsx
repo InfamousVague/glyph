@@ -1,10 +1,10 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Archive, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FolderPlus, Mic, Search, Settings, SquarePen, X } from '@glacier/icons';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Archive, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FolderPlus, Mic, RotateCcw, Search, Settings, SquarePen, Trash2, X } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { NotePeek } from './NotePeek.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
-import { ARCHIVE_FOLDER, noteTree, readClosed, writeClosed } from './tree.ts';
+import { ARCHIVE_FOLDER, noteTree, readClosed, readTrashOpen, writeClosed, writeTrashOpen } from './tree.ts';
 import styles from './NoteTree.module.css';
 
 /**
@@ -33,6 +33,11 @@ export interface NoteTreeProps {
   onSpeak?: () => void;
   onClose?: () => void;
   notices?: ReactNode;
+  /** The notes in the trash (core/trash.ts), newest first, and what can be done with them. */
+  trashed?: Note[];
+  onRestore?: (note: Note) => void;
+  onDestroy?: (note: Note) => void;
+  onEmptyTrash?: () => void;
 }
 
 function Tool({ label, onClick, children, end }: { label: string; onClick: () => void; children: ReactNode; end?: boolean }) {
@@ -43,7 +48,21 @@ function Tool({ label, onClick, children, end }: { label: string; onClick: () =>
   );
 }
 
-export function NoteTree({ notes, activeId, onOpen, onNew, onCommands, onSettings, onSpeak, onClose, notices }: NoteTreeProps) {
+export function NoteTree({
+  notes,
+  activeId,
+  onOpen,
+  onNew,
+  onCommands,
+  onSettings,
+  onSpeak,
+  onClose,
+  notices,
+  trashed = [],
+  onRestore,
+  onDestroy,
+  onEmptyTrash,
+}: NoteTreeProps) {
   const spaces = useWorkspaces();
   const tree = useMemo(() => noteTree(notes, spaces), [notes, spaces]);
   const [closed, setClosed] = useState<Set<string>>(readClosed);
@@ -111,7 +130,80 @@ export function NoteTree({ notes, activeId, onOpen, onNew, onCommands, onSetting
     );
   };
 
-  const nothing = !notes.length;
+  /*
+   * The trash (Matt: "Send deleted notes to a trash folder where we can empty it to perma delete notes or restore
+   * notes"): last, under the archive, and shut until opened. A note in it is not opened from here - it has been thrown
+   * away - but brought back, or deleted for good. Emptying asks once, on the button itself: the first press turns it
+   * into the question, a second press within a few seconds answers it. A dialog for it would be the only one in the
+   * app; deleting one note for good needs no question, since it has an Undo.
+   */
+  const [trashOpen, setTrashOpen] = useState(readTrashOpen);
+  const [asking, setAsking] = useState(false);
+  useEffect(() => {
+    if (!asking) return undefined;
+    const timer = window.setTimeout(() => setAsking(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [asking]);
+  const trashFolder = trashed.length ? (
+    <li key="trash" className={styles.folder}>
+      <div className={styles.folderRow}>
+        <button
+          type="button"
+          className={styles.folderToggle}
+          aria-expanded={trashOpen}
+          onClick={() => {
+            writeTrashOpen(!trashOpen);
+            setTrashOpen(!trashOpen);
+          }}
+        >
+          <ChevronRight className={styles.chevron} data-open={trashOpen || undefined} size={15} strokeWidth={2.2} aria-hidden="true" />
+          <Trash2 className={styles.archiveIcon} size={14} strokeWidth={2.1} aria-hidden="true" />
+          <span className={styles.folderName}>Trash</span>
+          <span className={styles.count}>{trashed.length}</span>
+        </button>
+        {onEmptyTrash ? (
+          <button
+            type="button"
+            className={styles.emptyTrash}
+            data-asking={asking || undefined}
+            onClick={() => {
+              if (!asking) return setAsking(true);
+              setAsking(false);
+              onEmptyTrash();
+            }}
+          >
+            {asking ? `Delete ${trashed.length} for good?` : 'Empty'}
+          </button>
+        ) : null}
+      </div>
+      {trashOpen ? (
+        <ul className={styles.inside}>
+          {trashed.map((note) => {
+            const title = noteTitle(note.body);
+            return (
+              <li key={note.id} className={styles.trashRow}>
+                <span className={styles.rowTitle} data-untitled={title ? undefined : ''}>
+                  {title || 'Untitled'}
+                </span>
+                {onRestore ? (
+                  <button type="button" className={styles.trashAction} onClick={() => onRestore(note)} aria-label={`Restore ${title || 'Untitled'}`} title="Restore">
+                    <RotateCcw size={15} strokeWidth={2.2} aria-hidden="true" />
+                  </button>
+                ) : null}
+                {onDestroy ? (
+                  <button type="button" className={styles.trashAction} data-danger onClick={() => onDestroy(note)} aria-label={`Delete ${title || 'Untitled'} for good`} title="Delete for good">
+                    <X size={15} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </li>
+  ) : null;
+
+  const nothing = !notes.length && !trashed.length;
   return (
     <div className={styles.tree} data-popup={onClose ? '' : undefined}>
       <div className={styles.tools} role="toolbar" aria-label="Notes">
@@ -150,6 +242,7 @@ export function NoteTree({ notes, activeId, onOpen, onNew, onCommands, onSetting
                   icon: <Archive className={styles.archiveIcon} size={14} strokeWidth={2.1} aria-hidden="true" />,
                 })
               : null}
+            {trashFolder}
           </ul>
         )}
       </div>

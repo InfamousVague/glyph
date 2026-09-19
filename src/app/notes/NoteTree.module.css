@@ -185,6 +185,80 @@
   }
 }
 
+/* Emptying the trash: a quiet word at the folder's end, which turns into the question on the first press. */
+.emptyTrash {
+  appearance: none;
+  flex: none;
+  padding: 0.25em 0.6em;
+  border: none;
+  border-radius: var(--glacier-radius-sm);
+  background: none;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  font: inherit;
+  font-size: calc(var(--glacier-font-size-xs) * var(--app-text-scale, 1));
+  cursor: pointer;
+}
+
+.emptyTrash:hover {
+  color: var(--app-ink, var(--glacier-text));
+  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
+}
+
+/* Asking: the kit's danger ink, the one colour a Delete may wear (ink.css). */
+.emptyTrash[data-asking] {
+  color: var(--glacier-danger-text, var(--app-ink));
+  background: color-mix(in oklch, var(--glacier-danger-text, currentColor) 14%, transparent);
+}
+
+/* A note in the trash: its name, and the two things to do with it. Not a way into the note. */
+.trashRow {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  margin-block: 1px;
+  padding: 0.35em 0.4em 0.35em 0.6em;
+  border-radius: var(--glacier-radius-md);
+}
+
+.trashRow .rowTitle {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--app-ink-2, var(--glacier-text-muted));
+}
+
+.trashAction {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 1.9em;
+  block-size: 1.9em;
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-sm);
+  background: none;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  cursor: pointer;
+}
+
+.trashAction:hover {
+  color: var(--app-ink, var(--glacier-text));
+  background: color-mix(in oklch, var(--app-ink, currentColor) 8%, transparent);
+}
+
+.trashAction[data-danger]:hover {
+  color: var(--glacier-danger-text, var(--app-ink));
+}
+
+.trashAction:focus-visible,
+.emptyTrash:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 1px;
+}
+
 .emptyFolder {
   margin: 0.2em 0 0.4em 1.3em;
   font-size: calc(var(--glacier-font-size-xs) * var(--app-text-scale, 1));

@@ -4,6 +4,7 @@ import { UpdateCard, UpdateNotice } from './notes/Notices.tsx';
 import { HomeScreen } from './home/HomeScreen.tsx';
 import type { OpenTask } from './home/dashboard.ts';
 import { setItemDone } from './core/boards.ts';
+import { inTrash, outOfTrash, useTrash } from './core/trash.ts';
 import { NoteScreen } from './editor/NoteScreen.tsx';
 import { NoteTabs } from './notes/NoteTabs.tsx';
 import { NotesDrawer } from './notes/NotesDrawer.tsx';
@@ -261,8 +262,22 @@ function Shell() {
   useEffect(() => {
     if (shown) setOpen((was) => addOpen(was, shown));
   }, [shown]);
-  // A note deleted here or on another device leaves no tab behind.
-  const liveIds = useMemo(() => new Set(notes.map((n) => n.id)), [notes]);
+  /*
+   * The notes every screen shows: a note deleted and still undoable is hidden at once (notes/useNoteActions.ts), and
+   * removed from the store only when its Undo runs out. The old list filtered by this; the home page, the sidebar's
+   * tree and the drawer took the full list, so a deleted note sat there until the timer, or a second delete, made it
+   * final (Matt: "Notes need to be deleted twice before the UI updates").
+   */
+  const kept = useMemo(() => (actions.hidden.size ? notes.filter((n) => !actions.hidden.has(n.id)) : notes), [notes, actions.hidden]);
+  /*
+   * And a note in the trash (core/trash.ts) is out of all of them - the home page, the tree, tabs, links and search -
+   * and only in the tree's Trash folder, until it is brought back or deleted for good.
+   */
+  const thrown = useTrash();
+  const shownNotes = useMemo(() => outOfTrash(kept, thrown), [kept, thrown]);
+  const trashedNotes = useMemo(() => inTrash(kept, thrown), [kept, thrown]);
+  // A note deleted, or put in the trash, here or on another device leaves no tab behind.
+  const liveIds = useMemo(() => new Set(shownNotes.map((n) => n.id)), [shownNotes]);
   const openIds = useMemo(() => openOnly(open, liveIds), [open, liveIds]);
 
   /*
@@ -363,7 +378,7 @@ function Shell() {
   };
 
   /** Whether a note by that title is in the library: what a `[[link]]` is drawn by (editor/wikiLinks.ts). */
-  const hasTitle = (title: string) => notes.some((n) => sameTitle(noteTitle(n.body), title));
+  const hasTitle = (title: string) => shownNotes.some((n) => sameTitle(noteTitle(n.body), title));
 
   /**
    * A `[[link]]` tapped: the note by that title, or a new note that starts with it as its heading, so a link is a
@@ -374,7 +389,7 @@ function Shell() {
    * editor/wikiLinks.ts, the `^anchor` half core/boards.ts, and the note screen does the landing.
    */
   const openTitle = async (title: string, at?: string) => {
-    const found = notes.find((n) => sameTitle(noteTitle(n.body), title));
+    const found = shownNotes.find((n) => sameTitle(noteTitle(n.body), title));
     if (found) {
       setScreen({ name: 'note', note: found, at });
       return;
@@ -590,7 +605,7 @@ function Shell() {
    */
   const home = (
     <HomeScreen
-      notes={notes}
+      notes={shownNotes}
       loading={loading}
       onOpen={(id, at) => {
         const note = notes.find((n) => n.id === id);
@@ -625,7 +640,7 @@ function Shell() {
    */
   const paletteWorld = useMemo(
     () => ({
-      notes: notes.map((n) => ({ id: n.id, title: noteTitle(n.body) })),
+      notes: shownNotes.map((n) => ({ id: n.id, title: noteTitle(n.body) })),
       tabs: openTabs.map((n) => ({ id: n.id, title: noteTitle(n.body) })),
       workspaces: spaces.list.map((w) => ({ id: w.id, name: w.name })),
       workspace: spaces.current?.id ?? null,
@@ -640,7 +655,7 @@ function Shell() {
       tabGroups: groups.list.map((g) => ({ id: g.id, name: g.name })),
       tabGroup: screen.name === 'note' ? (groups.of[screen.note.id] ?? null) : null,
     }),
-    [notes, openTabs, spaces, screen, trail, stillThere, prefs.noteView, prefs.theme, memoWaiting, groups],
+    [shownNotes, openTabs, spaces, screen, trail, stillThere, prefs.noteView, prefs.theme, memoWaiting, groups],
   );
   const paletteDoing = useMemo(
     () => ({
@@ -807,7 +822,7 @@ function Shell() {
           {dockShown ? (
             <aside className="app-sidebar" aria-label="All notes">
               <NoteTree
-                notes={notes}
+                notes={shownNotes}
                 activeId={shown}
                 onOpen={openNote}
                 onNew={() => void newNote()}
@@ -815,6 +830,10 @@ function Shell() {
                 onSettings={() => setSettings(true)}
                 onSpeak={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
                 notices={notices}
+                trashed={trashedNotes}
+                onRestore={actions.restore}
+                onDestroy={actions.destroy}
+                onEmptyTrash={() => void actions.emptyTrash(trashedNotes)}
               />
             </aside>
           ) : null}
@@ -831,7 +850,11 @@ function Shell() {
       <NotesDrawer
         open={drawer}
         notices={split ? notices : undefined}
-        notes={notes}
+        notes={shownNotes}
+        trashed={trashedNotes}
+        onRestore={actions.restore}
+        onDestroy={actions.destroy}
+        onEmptyTrash={() => void actions.emptyTrash(trashedNotes)}
         activeId={shown}
         onOpen={openNote}
         onNew={() => {

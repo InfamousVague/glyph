@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, FileText, GraduationCap, LayoutGrid, ListChecks, Terminal } from '@glacier/icons';
-import { SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
-import { isSidebarStyle, isUiScale, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize, type ThemePref, type Typeface } from '../core/preferences.ts';
+import { DensitySelector, SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
+import { isSidebarStyle, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize, type Typeface } from '../core/preferences.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
+import { ScaleCards } from './ScaleCards.tsx';
+import { ThemeCards } from './ThemeCards.tsx';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { hapticsAvailable, setHapticsPref, useHapticsPref, fireNativeHaptic } from '../core/haptics.ts';
 import { describeBuild, sourceHost, STAGING, type Updates } from '../core/ota.ts';
@@ -35,13 +37,13 @@ const TEXT_SIZES: { value: TextSize; label: string }[] = [
  * attribute and the tokens were already here. Two stops either side of Comfortable, which is the kit's own default
  * and Glyph's.
  */
-const DENSITIES: { value: Density; label: string }[] = [
-  { value: 'extra-compact', label: 'Tightest' },
-  { value: 'compact', label: 'Tight' },
-  { value: 'comfortable', label: 'Comfortable' },
-  { value: 'spacious', label: 'Roomy' },
-  { value: 'more-space', label: 'Roomiest' },
-];
+const DENSITY_LABELS: Record<Density, string> = {
+  'extra-compact': 'Tightest',
+  compact: 'Tight',
+  comfortable: 'Comfortable',
+  spacious: 'Roomy',
+  'more-space': 'Roomiest',
+};
 
 /** How round the app's corners are drawn (core/preferences.ts `ROUNDINGS`). */
 const ROUNDING_WORDS: { value: Rounding; label: string }[] = [
@@ -57,15 +59,6 @@ const TYPEFACES: { value: Typeface; label: string }[] = [
   { value: 'plex', label: 'Plex' },
 ];
 
-/** Interface size, in AttackFM's own words and steps (core/preferences.ts `UI_SCALES`). */
-const UI_SIZES: { value: string; label: string }[] = [
-  { value: '0.85', label: '85%' },
-  { value: '0.925', label: '93%' },
-  { value: '1', label: 'Default' },
-  { value: '1.1', label: '110%' },
-  { value: '1.25', label: '125%' },
-];
-
 const SIDEBAR_MODES: { value: string; label: string }[] = [
   { value: 'popover', label: 'Popover' },
   { value: 'docked', label: 'Docked' },
@@ -75,19 +68,6 @@ const SPEEDS: { value: MotionSpeed; label: string }[] = [
   { value: 'relaxed', label: 'Relaxed' },
   { value: 'normal', label: 'Normal' },
   { value: 'brisk', label: 'Brisk' },
-];
-
-/*
- * The kit's named themes alongside the plain three (Matt: "port Attack.FM's set"): Dawn is light, Boreal and Ember
- * are dark, each with its own tinted greys and an accent that comes with it (core/preferences.ts THEME_PRESETS).
- */
-const THEMES: { value: ThemePref; label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'dawn', label: 'Dawn' },
-  { value: 'boreal', label: 'Boreal' },
-  { value: 'ember', label: 'Ember' },
 ];
 
 export function TypePane() {
@@ -152,58 +132,25 @@ export function AppearancePane() {
   return (
     <>
       <PaneSection title="Page" description="Ink on paper, paper on ink, or one of three tinted themes: Dawn is light, Boreal and Ember are dark, and each brings its own accent. System follows the phone.">
-        <SettingRow
-          label="Theme"
-          layout="stacked"
-          control={
-            <SegmentedControl
-              aria-label="Theme"
-              fullWidth
-              size="sm"
-              options={THEMES}
-              value={prefs.theme}
-              onValueChange={(value) => setPreferences(themeChoice(value as ThemePref, prefs))}
-            />
-          }
-        />
+        {/* The kit's theme cards (ThemeCards.tsx): each is the page painted small in that theme, System split light and dark. */}
+        <div className="setk-row">
+          <ThemeCards value={prefs.theme} onValueChange={(value) => setPreferences(themeChoice(value, prefs))} />
+        </div>
       </PaneSection>
       <PaneSection title="Accent" description="Glyph is ink on paper. An accent colours the few things that mark a choice: a focus ring, a chosen segment. Ink is the app's own.">
         <AccentSwatch accent={prefs.accent} onAccent={(accent) => setPreferences({ accent })} />
       </PaneSection>
       <PaneSection title="Spacing" description="The padding and gaps of everything the app draws. The words keep their own size.">
-        <SettingRow
-          label="How much air"
-          layout="stacked"
-          control={
-            <SegmentedControl
-              aria-label="Spacing"
-              fullWidth
-              size="sm"
-              options={DENSITIES}
-              value={prefs.density}
-              onValueChange={(value) => setPreferences({ density: value as Density })}
-            />
-          }
-        />
+        {/* The kit's own density picker: a card per step, each showing how tightly it packs, in Glyph's words. */}
+        <div className="setk-row">
+          <DensitySelector aria-label="Spacing" value={prefs.density} onValueChange={(value) => setPreferences({ density: value })} labels={DENSITY_LABELS} />
+        </div>
       </PaneSection>
       <PaneSection title="Size" description="Everything the app draws, larger or smaller together: buttons, bars and tabs as well as words. Text size, under Type, changes only the words.">
-        <SettingRow
-          label="Interface size"
-          layout="stacked"
-          control={
-            <SegmentedControl
-              aria-label="Interface size"
-              fullWidth
-              size="sm"
-              options={UI_SIZES}
-              value={String(prefs.uiScale)}
-              onValueChange={(value) => {
-                const next = Number(value);
-                if (isUiScale(next)) setPreferences({ uiScale: next });
-              }}
-            />
-          }
-        />
+        {/* A card per step, each the same row of the app drawn at that size (ScaleCards.tsx). */}
+        <div className="setk-row">
+          <ScaleCards value={prefs.uiScale} onValueChange={(uiScale) => setPreferences({ uiScale })} />
+        </div>
       </PaneSection>
       <PaneSection title="Sidebar" description="The sidebar icon in the top bar opens your notes in a popover over the note. On a wide window it can dock them as a column beside the note instead.">
         <SettingRow

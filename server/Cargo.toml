@@ -15,7 +15,8 @@ tower-http = { version = "0.6", features = ["cors"] }
 # to run on a box whose OpenSSL this Mac never sees. It only ever speaks plain
 # HTTP to a loopback Ollama today, but a TLS stack that links against nothing
 # is the one that cannot break on an apt upgrade later.
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# `stream` for src/mcp_proxy.rs, which passes the hosted MCP server's answers on as they come.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Notion sign-in (src/notion.rs): the PKCE check on claim, and base64url for it.

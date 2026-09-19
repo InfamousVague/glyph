@@ -37,6 +37,8 @@ export const SYNCED_PREFS = [
   'tabGroups',
   // The workspaces themselves, and which note is filed in each. Which one is being looked at stays on the device.
   'workspaces',
+  // What is in the trash: thrown away on one device, in the trash on every one.
+  'trash',
 ] as const satisfies readonly (keyof Preferences)[];
 
 export type SyncedPrefs = Pick<Preferences, (typeof SYNCED_PREFS)[number]>;

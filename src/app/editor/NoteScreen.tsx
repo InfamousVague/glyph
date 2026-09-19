@@ -261,10 +261,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const pasteImage = (path: string) => placeImage(() => adoptImagePath(path));
 
   const remove = () => {
-    // Deliberately no confirmation dialog yet: v1 notes are cheap and the
-    // alternative - an AlertDialog on every delete - is the kind of friction
-    // that makes a quick-capture app feel heavy. Undo is the right answer and
-    // is milestone 5's job.
+    // No confirmation: it goes to the trash, with an Undo, and is only deleted
+    // for good from there (core/trash.ts, notes/useNoteActions.ts).
     fireNativeHaptic('warning');
     onDelete(note.id);
   };

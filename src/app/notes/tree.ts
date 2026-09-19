@@ -65,3 +65,25 @@ export function writeClosed(closed: ReadonlySet<string>): void {
     // Private mode: the sidebar just opens as it was for this run.
   }
 }
+
+/**
+ * Whether the trash's folder is open, per device, and shut until it is opened. Kept apart from the folders' own list:
+ * that list stores which are shut, and a device that stored it before there was a trash would show the trash open.
+ */
+const TRASH_KEY = 'glyph-tree-trash-open';
+
+export function readTrashOpen(): boolean {
+  try {
+    return localStorage.getItem(TRASH_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function writeTrashOpen(open: boolean): void {
+  try {
+    localStorage.setItem(TRASH_KEY, open ? '1' : '0');
+  } catch {
+    // Private mode: it opens shut next time.
+  }
+}

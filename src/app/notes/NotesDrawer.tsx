@@ -37,9 +37,14 @@ interface NotesDrawerProps {
   onSpeak?: () => void;
   /** An update or a memo waiting, on a wide window where the card stands in for the docked sidebar. */
   notices?: ReactNode;
+  /** The trash (core/trash.ts), passed through to the tree. */
+  trashed?: Note[];
+  onRestore?: (note: Note) => void;
+  onDestroy?: (note: Note) => void;
+  onEmptyTrash?: () => void;
 }
 
-export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onClose, onCommands, onSettings, onSpeak, notices }: NotesDrawerProps) {
+export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onClose, onCommands, onSettings, onSpeak, notices, trashed, onRestore, onDestroy, onEmptyTrash }: NotesDrawerProps) {
   const card = useRef<HTMLDivElement>(null);
   // The phone's back gesture and Escape close the card before they leave the note.
   useBack(open, onClose);
@@ -82,6 +87,10 @@ export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onClose, onC
           onSettings={onSettings}
           onSpeak={onSpeak}
           notices={notices}
+          trashed={trashed}
+          onRestore={onRestore}
+          onDestroy={onDestroy}
+          onEmptyTrash={onEmptyTrash}
         />
       </div>
     </div>

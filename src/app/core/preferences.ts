@@ -218,6 +218,12 @@ export interface Preferences {
    */
   workspaces: { list: { id: string; name: string; hue?: string }[]; notes: Record<string, string> };
   /**
+   * The notes in the trash, by id, and when each went in (core/trash.ts). Here for the reason the workspaces are: it
+   * travels with the person, so a note thrown away on the phone is in the trash on the Mac, and it ships over the air
+   * rather than as a column in the native store.
+   */
+  trash: Record<string, number>;
+  /**
    * The app's movement, three switches under Settings > Animations (Matt: "add animations section to settings").
    * On by default, every one of them: they are what Glyph looks like. A phone asking for less motion is obeyed
    * whatever these say (app.css `prefers-reduced-motion`).
@@ -262,6 +268,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   openNotes: [],
   tabGroups: { list: [], of: {} },
   workspaces: { list: [], notes: {} },
+  trash: {},
   wisp: true,
   wispEdge: true,
   ripples: true,
@@ -300,6 +307,12 @@ function load(): Preferences {
       for (const [note, id] of Object.entries(spaces.notes)) if (typeof id === 'string' && ids.has(id)) notes[note] = id;
     }
     loaded.workspaces = { list, notes };
+    // The trash from another build, or a half-written store: only ids with a time.
+    const thrown: Record<string, number> = {};
+    if (loaded.trash && typeof loaded.trash === 'object') {
+      for (const [id, at] of Object.entries(loaded.trash)) if (typeof at === 'number' && Number.isFinite(at)) thrown[id] = at;
+    }
+    loaded.trash = thrown;
     if (!(loaded.motionSpeed in MOTION_SCALE)) loaded.motionSpeed = DEFAULT_PREFERENCES.motionSpeed;
     // An accent or a rounding this build does not have - one from an older store, where the accent was a colour the
     // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.

@@ -39,6 +39,11 @@ const SIDE = 24;
 const REACH = 400;
 /** The strip reaches this far past each end, so its blur never opens the row's own edge. */
 const PAST = 60;
+/**
+ * How far in from each end the lip sits: where the tabs are still drawn, as the header's lip sits a little below the
+ * header. At the very end the row's fade had already taken them, and the smoke bent nothing anyone could see.
+ */
+const IN = 14;
 /** Smaller than a page's: a tab's words are small. */
 const BEND = 14;
 const BLUR = 1.6;
@@ -106,8 +111,8 @@ function sidesFilter(id: string, wide: number, tall: number, start: boolean, end
   const merge = (result: string, ...inputs: string[]) =>
     part('feMerge', result ? { result } : {}, ...inputs.map((input) => part('feMergeNode', { in: input })));
   const strips = [
-    ...(start ? [part('feFlood', { 'flood-color': '#fff', x: -PAST, y: -REACH, width: PAST + BAND, height: tall + REACH * 2, result: 'startStrip' })] : []),
-    ...(end ? [part('feFlood', { 'flood-color': '#fff', x: wide - BAND, y: -REACH, width: PAST + BAND, height: tall + REACH * 2, result: 'endStrip' })] : []),
+    ...(start ? [part('feFlood', { 'flood-color': '#fff', x: -PAST, y: -REACH, width: PAST + IN + BAND, height: tall + REACH * 2, result: 'startStrip' })] : []),
+    ...(end ? [part('feFlood', { 'flood-color': '#fff', x: wide - IN - BAND, y: -REACH, width: PAST + IN + BAND, height: tall + REACH * 2, result: 'endStrip' })] : []),
   ];
   return part(
     'filter',

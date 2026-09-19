@@ -59,6 +59,7 @@
  *   node scripts/deploy-ota.mjs                  # web + OTA update, the quick loop
  *   node scripts/deploy-ota.mjs --apk            # also build and publish the APK
  *   node scripts/deploy-ota.mjs --desktop        # also build and publish the Mac app (on a Mac, with the Developer ID)
+ *   node scripts/deploy-ota.mjs --mcp            # also build and publish Claude's MCP server, /glyph/mcp/glyph-mcp.mjs (docs/MCP.md)
  *   node scripts/deploy-ota.mjs --apk --same-version
  *   node scripts/deploy-ota.mjs --skip-tests     # ship without running the tests first (not recommended)
  *   node scripts/deploy-ota.mjs --apk --keep-connection && npm run deploy:server   # one login for both
@@ -122,6 +123,9 @@ const MAC_IDENTITY = process.env.GLYPH_MAC_IDENTITY ?? `Developer ID Application
 
 const withApk = process.argv.includes('--apk');
 const withDesktop = process.argv.includes('--desktop');
+/** Claude's MCP server as one file (scripts/build-mcp.mjs), published at /glyph/mcp/glyph-mcp.mjs beside the app. */
+const withMcp = process.argv.includes('--mcp');
+const MCP_FILE = join(ROOT, 'mcp/dist/glyph-mcp.mjs');
 const sameVersion = process.argv.includes('--same-version');
 const isPublic = process.argv.includes('--public');
 // Leave the connection open (it closes itself two minutes after its last use)
@@ -494,6 +498,16 @@ if (withDesktop) {
   ok(`Mac app ${desktopInfo.version}, ${(desktopInfo.bytes / 1e6).toFixed(0)} MB`);
 }
 
+let mcpInfo = null;
+if (withMcp) {
+  step('Building the MCP server');
+  run('node', [join(ROOT, 'scripts/build-mcp.mjs')]);
+  if (!existsSync(MCP_FILE)) fail(`The MCP build left nothing at ${MCP_FILE}.`);
+  const mcpBytes = readFileSync(MCP_FILE);
+  mcpInfo = { bytes: mcpBytes.length, sha256: createHash('sha256').update(mcpBytes).digest('hex') };
+  ok(`MCP server, ${(mcpInfo.bytes / 1e6).toFixed(1)} MB`);
+}
+
 // ---- the changelog ------------------------------------------------------------
 /*
  * Every release, newest first, carried forward from the one that is live: the history belongs to the site, so a
@@ -611,6 +625,15 @@ if (withDesktop) {
   );
 }
 
+if (withMcp) {
+  step('Uploading the MCP server');
+  run(
+    'sshpass',
+    ['-e', 'rsync', '-z', '-e', RSYNC_SSH, MCP_FILE, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}:${STAGE}/glyph-mcp.mjs`],
+    { env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS } },
+  );
+}
+
 step('Publishing');
 ssh(
   env,
@@ -626,10 +649,12 @@ ssh(
    # SAFETY in the header.
    # glyph.dmg and desktop.json the same way as the APK and its manifest: protected, so a deploy without --desktop
    # neither deletes the Mac download nor the page's note of it, and desktop.json placed last, after the DMG.
+   # mcp/ (Claude's MCP server, docs/MCP.md) is protected the same way, and the staged file is excluded here and
+   # placed into it below by rename, so it is never half-written where a person downloads it from.
    sudo rsync -a --delete \\
-     --filter 'P /models/' --filter 'P /glyph.apk' --filter 'P /glyph.dmg' \\
+     --filter 'P /models/' --filter 'P /glyph.apk' --filter 'P /glyph.dmg' --filter 'P /mcp/' \\
      --exclude '/ota.json' --exclude '/ota.json.sig' --exclude '/apk.json' --exclude '/apk.json.sig' \\
-     --exclude '/desktop.json' \\
+     --exclude '/desktop.json' --exclude '/glyph-mcp.mjs' \\
      ${STAGE}/ ${REMOTE}/
    sudo chown -R root:root ${REMOTE}
    # Caddy runs as its own user and only needs to read.
@@ -650,6 +675,11 @@ ssh(
      ? `sudo install -m 644 -o root -g root ${STAGE}/desktop.json ${REMOTE}/.desktop.json.new
    sudo mv -f ${REMOTE}/.desktop.json.new ${REMOTE}/desktop.json`
      : '# no --desktop: the published glyph.dmg and desktop.json stay as they are'}
+   ${withMcp
+     ? `sudo mkdir -p ${REMOTE}/mcp
+   sudo install -m 644 -o root -g root ${STAGE}/glyph-mcp.mjs ${REMOTE}/mcp/.glyph-mcp.mjs.new
+   sudo mv -f ${REMOTE}/mcp/.glyph-mcp.mjs.new ${REMOTE}/mcp/glyph-mcp.mjs`
+     : '# no --mcp: the published mcp/ stays as it is'}
    place ota.json
    rm -rf ${STAGE}`,
 );
@@ -724,11 +754,19 @@ if (withDesktop) {
   ok(`Mac app live: ${desktopInfo.version}, ${desktopInfo.bytes} bytes, SHA-256 matches`);
 }
 
+if (withMcp) {
+  const servedMcp = fetchBytes(`${URL_}mcp/glyph-mcp.mjs`);
+  const servedHash = createHash('sha256').update(servedMcp).digest('hex');
+  if (servedHash !== mcpInfo.sha256) fail(`mcp/glyph-mcp.mjs is served as ${servedMcp.length} bytes hashing to ${servedHash}, not the file just built.`);
+  ok(`MCP server live: ${mcpInfo.bytes} bytes, SHA-256 matches`);
+}
+
 ok(`Published to ${URL_} ${c.dim(`serving ${built}`)}`);
 console.log('');
 console.log(`  open on the phone   ${URL_}install.html`);
 console.log(`  install the app     ${URL_}glyph.apk`);
 if (withDesktop) console.log(`  the Mac app         ${URL_}glyph.dmg`);
+if (withMcp) console.log(`  Claude's MCP server ${URL_}mcp/glyph-mcp.mjs`);
 console.log(`  web version         ${URL_}`);
 console.log(`  OTA manifest        ${URL_}ota.json`);
 console.log('');
