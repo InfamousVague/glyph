@@ -213,7 +213,34 @@ export function NoteTabs({
   // After every drawing of the row: a tab opened, closed, renamed, moved into a group or out of one each moves it.
   useLayoutEffect(placeOutline);
 
+  /*
+   * A flick along the row keeps going and slows to a stop (Matt: "Scrolling through the tabs doesn't have momentum").
+   * The row is panned by hand rather than by the engine - a finger on it may be about to pick a tab up instead
+   * (`takeHold`), so the pan is spent on `scrollLeft` as the finger moves - and a hand-panned scroller stops dead when
+   * the finger lifts, where the engine would have carried it on. So the speed the finger left at is carried on here,
+   * losing a fifteenth of itself each frame, until it is slower than a pixel every few frames or the row reaches its
+   * end. A new touch on the row stops it where it is, as a finger stops a scrolling page.
+   */
+  const coasting = useRef(0);
+  const coast = (box: HTMLElement, speed: number) => {
+    let last = performance.now();
+    let left = box.scrollLeft;
+    let pace = speed;
+    const step = (now: number) => {
+      const frames = Math.min(4, (now - last) / 16.67);
+      last = now;
+      left += pace * 16.67 * frames;
+      pace *= (1 - 1 / 15) ** frames;
+      const end = box.scrollWidth - box.clientWidth;
+      box.scrollLeft = left;
+      if (Math.abs(pace) < 0.02 || left <= 0 || left >= end) return;
+      coasting.current = requestAnimationFrame(step);
+    };
+    coasting.current = requestAnimationFrame(step);
+  };
+
   const takeHold = (event: React.PointerEvent<HTMLDivElement>) => {
+    cancelAnimationFrame(coasting.current);
     if (!onMove || (event.pointerType === 'mouse' && event.button !== 0)) return;
     const tab = (event.target as HTMLElement).closest<HTMLElement>('[data-tab]');
     const id = tab?.dataset.tabId;
@@ -265,6 +292,9 @@ export function NoteTabs({
      * scrollLeft. It is the phone's own convention: swipe to move along, press and hold to pick something up.
      */
     let panned = from;
+    /** How fast the finger is going along the row, in pixels a millisecond, smoothed so one odd frame cannot throw it. */
+    let pace = 0;
+    let paced = event.timeStamp;
     const along = (moved: PointerEvent) => {
       // Not held yet: this is a drag across the row, so it moves the row rather than anything in it.
       if (!on) {
@@ -272,6 +302,11 @@ export function NoteTabs({
         if (Math.abs(moved.clientX - from) >= TRAVEL && row.current) {
           window.clearTimeout(hold);
           row.current.scrollLeft += step;
+          const since = moved.timeStamp - paced;
+          if (since > 0) {
+            pace = pace * 0.7 + (step / since) * 0.3;
+            paced = moved.timeStamp;
+          }
           panned = moved.clientX;
           // A pan is not a tap: letting go must not open the tab it started on.
           dragged.current = true;
@@ -302,6 +337,8 @@ export function NoteTabs({
       // Let go and it settles into its place, rather than snapping there.
       const el = row.current?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(id)}"]`);
       if (el) el.style.transform = '';
+      // Let go mid-flick: the row carries on at the speed it was going. A tab picked up was not a flick.
+      if (!on && row.current && Math.abs(pace) > 0.05) coast(row.current, pace);
       placeOutline();
       if (dropInto) onGroups?.(joinGroup(base, id, dropInto));
       setMoving(null);
