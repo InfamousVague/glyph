@@ -4,6 +4,40 @@ A canvas is cards on an infinite page with lines between them: the thing Obsidia
 (2026-09-20): "we're going to build something similar for Glyph". His fifteen choices steer it; this is the standard
 they set, and it will grow as the slices land.
 
+## Matt's choices
+
+Fifteen questions, asked on 2026-09-20 before a line was written, and his answers. Build to these; where a thing
+was not asked, say so rather than cite him.
+
+1. **What a canvas is:** both a ```canvas fence in a note and a canvas note of its own.
+2. **Format:** JSON Canvas 1.0 verbatim, so it opens in Obsidian and back; not a grammar of Glyph's own.
+3. **Card kinds, all four in v1:** text; a note (a wiki link, drawn live the way a home card draws one); an item
+   (a `^anchor` list item as a card, tickable from the canvas); pictures and web links.
+4. **Lines:** arrows with labels - directed, a label if wanted, each end picking its side by itself.
+5. **Groups:** yes, in v1: a labelled box whose cards move with it.
+6. **Colour:** the page's workspace hues. Not Obsidian's six presets as a palette of the canvas's own, and not
+   ink-only. The presets are read as rose, ember, amber, moss, sea, violet; a hex is kept as it is.
+7. **Platform:** the phone and the Mac equally - every action by touch and by pointer from the first day.
+8. **Adding a card on the phone, all four:** double-tap empty space (a text card under the fingers, keyboard up);
+   a + in the dock (text, note, picture or link, landing in the middle of the view); a note dragged from the
+   sidebar on a wide screen; by voice ("Glyph, add a card": the words said land near the last card).
+9. **The model, all three from the start:** the gist under a note card's title; "Glyph, make a canvas of this
+   note" (headings to groups, items to cards, links to arrows - a first draft to push around); lines it thinks
+   are missing, offered and accepted with a tap.
+10. **Moving about:** pan and pinch; Fit and zoom-to-card (Obsidian's Shift+1 and Shift+2, as buttons and
+    shortcuts, and a card's title tapped zooms to it); and a minimap in a corner with the view drawn on it.
+11. **Sync:** the same end-to-end encrypted feed as notes; nothing new in the engine.
+12. **Boards:** a separate feature. They share anchors and item cards, and nothing else.
+13. **Embedding:** a canvas in a note (`![[name.canvas]]`, drawn read-only, tap to open) and as its own note.
+    Not chosen: a canvas nested on a canvas, and a home card drawn as a thumbnail.
+14. **Export:** the `.canvas` file, and a picture, and a PDF.
+15. **The first slice:** read and draw a real Obsidian file faithfully, with pan and pinch; editing second.
+
+**Not asked, so not his:** how a card is moved (a drag, or a press-and-hold first, given one finger pans); how a
+card's words are edited (a tap, a double-tap); how a card or a line is deleted; how a line is drawn; resizing,
+snapping, duplicating. Obsidian's answers - drag from a card's edge dot for a line, double-click to edit or to
+label a line, select and Delete - contradict nothing above.
+
 ## The format is JSON Canvas, as it is
 
 A canvas is written in [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/), the open format Obsidian's `.canvas`
