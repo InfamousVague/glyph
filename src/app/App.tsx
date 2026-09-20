@@ -624,6 +624,7 @@ function Shell() {
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
         bodyOfTitle={bodyOfTitle}
+        allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
         onArchive={(n) => {
           setOpen((was) => closeOpen(was, n.id));
           actions.archive(n, true);

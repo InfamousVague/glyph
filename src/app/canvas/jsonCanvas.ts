@@ -237,6 +237,20 @@ export function newTextNode(x: number, y: number, id = newCanvasId()): CanvasNod
   return { id, type: 'text', x: Math.round(x), y: Math.round(y), width: NEW_CARD.width, height: NEW_CARD.height, text: '' };
 }
 
+/** A new card that is a note, by its title: the spec's file node, named as Obsidian names a note's file. */
+export function newFileNode(title: string, x: number, y: number, id = newCanvasId()): CanvasNode {
+  const name = title.trim().replace(/[\\/]/g, '-') || 'Untitled';
+  return { id, type: 'file', x: Math.round(x), y: Math.round(y), width: NEW_CARD.width, height: 160, file: `${name}.md` };
+}
+
+/** A new card that is a web address; a bare address is given https. Null for no address at all. */
+export function newLinkNode(url: string, x: number, y: number, id = newCanvasId()): CanvasNode | null {
+  const given = url.trim();
+  if (!given) return null;
+  const address = /^[a-z][a-z0-9+.-]*:/i.test(given) ? given : `https://${given}`;
+  return { id, type: 'link', x: Math.round(x), y: Math.round(y), width: NEW_CARD.width, height: 100, url: address };
+}
+
 /** The canvas with this node in place of the one with its id, or added at the end where there was none. */
 export function withNode(canvas: Canvas, node: CanvasNode): Canvas {
   const at = canvas.nodes.findIndex((n) => n.id === node.id);

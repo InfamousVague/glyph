@@ -1,4 +1,4 @@
-import { bounds, type Canvas } from './jsonCanvas.ts';
+import { bounds, type Box, type Canvas } from './jsonCanvas.ts';
 
 /**
  * Where the screen is over the canvas (canvas/CanvasView.tsx): the world's offset in screen pixels and its scale.
@@ -33,4 +33,16 @@ export function fitted(canvas: Canvas, width: number, height: number): View {
 export function zoomedAt(view: View, px: number, py: number, scale: number): View {
   const next = clampScale(scale);
   return { x: px - ((px - view.x) / view.scale) * next, y: py - ((py - view.y) / view.scale) * next, scale: next };
+}
+
+/** The view that shows this box in a screen this big, centred, no larger than life: zoom-to-card (choice 10). */
+export function fittedTo(box: Box, width: number, height: number): View {
+  if (width <= 0 || height <= 0) return { x: FIT_ROOM, y: FIT_ROOM, scale: 1 };
+  const scale = clampScale(Math.min((width - FIT_ROOM * 2) / Math.max(box.width, 1), (height - FIT_ROOM * 2) / Math.max(box.height, 1), 1));
+  return { x: (width - box.width * scale) / 2 - box.x * scale, y: (height - box.height * scale) / 2 - box.y * scale, scale };
+}
+
+/** The part of the canvas the screen shows, in the canvas's own pixels: what the minimap draws as the viewport. */
+export function shown(view: View, width: number, height: number): Box {
+  return { x: -view.x / view.scale, y: -view.y / view.scale, width: width / view.scale, height: height / view.scale };
 }

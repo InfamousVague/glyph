@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { CanvasView } from './CanvasView.tsx';
 import { parseCanvas, type Canvas } from './jsonCanvas.ts';
-import { fitted, zoomedAt } from './viewport.ts';
+import { fitted, fittedTo, shown as shownBox, zoomedAt } from './viewport.ts';
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -288,5 +288,73 @@ describe('sizes and groups', () => {
     pointer(corner, 'pointerdown', 200, 80);
     pointer(window as unknown as Element, 'pointerup', 0, 0);
     expect((onChange.mock.calls.at(-1)![0] as Canvas).nodes.find((n) => n.id === 't')).toMatchObject({ width: 120, height: 60 });
+  });
+});
+
+describe('zooming to a card, and what the screen shows', () => {
+  it('fits a card to the screen no larger than life, and reports the box the screen shows', () => {
+    const view = fittedTo({ x: 100, y: 50, width: 200, height: 80 }, 400, 300);
+    expect(view.scale).toBe(1);
+    expect(view).toEqual({ x: 0, y: 60, scale: 1 });
+    const small = fittedTo({ x: 0, y: 0, width: 2000, height: 1000 }, 400, 300);
+    expect(small.scale).toBeCloseTo(0.168, 3);
+    expect(shownBox({ x: -100, y: -50, scale: 0.5 }, 400, 300)).toEqual({ x: 200, y: 100, width: 800, height: 600 });
+  });
+});
+
+describe('more ways to add, and finding your way', () => {
+  const tap = (el: Element) => act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+
+  it('adds a note card from the + sheet by its title, and a link card by its address', () => {
+    const onChange = vi.fn();
+    const titles = () => ['Launch week', 'Cabin trip'];
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} wiki={{ known: () => true, open: vi.fn(), titles }} />);
+    tap(shown.querySelector('button[aria-label="Add a card"]')!);
+    const note = [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent?.startsWith('A note'))!;
+    tap(note);
+    const field = document.querySelector('[role="dialog"] input') as HTMLInputElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, 'cab');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const rows = [...document.querySelectorAll('[role="dialog"] ul button')].map((b) => b.textContent);
+    expect(rows).toEqual(['Cabin trip']);
+    tap(document.querySelector('[role="dialog"] ul button')!);
+    expect((onChange.mock.calls[0]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'file', file: 'Cabin trip.md' });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    tap(shown.querySelector('button[aria-label="Add a card"]')!);
+    tap([...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent?.startsWith('A link'))!);
+    const url = document.querySelector('[role="dialog"] input') as HTMLInputElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(url, 'attack.fm');
+      url.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    act(() => url.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect((onChange.mock.calls[1]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'link', url: 'https://attack.fm' });
+  });
+
+  it('takes a note dropped in from the sidebar as a card where it lands', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const host = shown.firstElementChild as HTMLElement;
+    const data = new Map<string, string>([['application/x-glyph-note', 'n1'], ['text/plain', 'Launch week']]);
+    const drop = new Event('drop', { bubbles: true, cancelable: true }) as Event & { dataTransfer: unknown; clientX: number; clientY: number };
+    Object.assign(drop, { dataTransfer: { getData: (kind: string) => data.get(kind) ?? '' }, clientX: 90, clientY: 70 });
+    act(() => {
+      host.dispatchEvent(drop);
+    });
+    expect((onChange.mock.calls[0]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'file', file: 'Launch week.md' });
+  });
+
+  it('draws a minimap of every card with the screen over it, and a tap on it goes there', () => {
+    const shown = show(<CanvasView canvas={canvas} dark={false} />);
+    const map = shown.querySelector('svg[aria-label^="A map of the canvas"]') as SVGSVGElement;
+    expect(map).not.toBeNull();
+    // Five cards and the screen's box.
+    expect(map.querySelectorAll('rect').length).toBe(6);
+    const world = shown.querySelector('[class*="world"]') as HTMLElement;
+    const before = world.style.transform;
+    act(() => map.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 60, clientY: 40 })));
+    expect(world.style.transform).not.toBe(before);
   });
 });

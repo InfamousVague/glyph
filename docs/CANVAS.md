@@ -141,6 +141,15 @@ box is - and a card lifted on its own leaves its group where it is. A double-tap
 written, and a cross there takes the group off while the cards in it stay. Making a group round cards belongs with
 the other ways to add, in the next slice.
 
-Not yet: making a group, the other three ways to add a card (the dock's +, dragging a note in, by voice), item
-cards, zoom-to-card and the minimap, a canvas inside a note, export, and the model's three moves (a gist on note
-cards, laying a note out as a canvas, suggesting lines). Each is a slice of its own.
+**The fifth slice adds more ways in** (choice 8). The `+ Card` tool is a sheet: words, a note chosen by part of
+its title, or a web address (a bare one is given https). On a wide screen a note dragged from the sidebar lands as a
+card where it is dropped (`notes/NoteTree.tsx` makes the rows draggable). Pictures wait, since Glyph has no picture
+files of its own to point at; adding by voice belongs to the capture and is not built yet.
+
+**The sixth finds the way** (choice 10). A tap on a card's title zooms to the card; `Fit` and Shift+1 show the whole
+canvas, `To card` and Shift+2 zoom to the card open or last tapped. A minimap in the corner draws every card small
+with the screen's box over them, and a tap on it goes there. It appears once a canvas has two cards.
+
+Not yet: making a group round cards, pictures, adding by voice, item cards, a canvas inside a note, export, and the
+model's three moves (a gist on note cards, laying a note out as a canvas, suggesting lines). Each is a slice of its
+own.

@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FileText, Link2, SquarePen } from '@glacier/icons';
 import { Editor } from '../editor/Editor.tsx';
+import { useBack } from '../core/back.ts';
+import { SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
+import sheet from '../editor/NoteSettings.module.css';
+import { useSheetDrag } from '../editor/sheetDrag.ts';
 import { NotePeek } from '../notes/NotePeek.tsx';
 import { openLink } from '../core/linkPreview.ts';
 import { shortUrl } from '../core/shortUrl.ts';
@@ -12,7 +17,10 @@ import {
   labelledGroup,
   movedWithHeld,
   newEdge,
+  newFileNode,
+  newLinkNode,
   newTextNode,
+  bounds,
   NEW_CARD,
   paintOf,
   resizedNode,
@@ -24,7 +32,7 @@ import {
   type CanvasEdge,
   type CanvasNode,
 } from './jsonCanvas.ts';
-import { clampScale, FIT_ROOM, fitted, zoomedAt, type View } from './viewport.ts';
+import { clampScale, FIT_ROOM, fitted, fittedTo, shown as shownBox, zoomedAt, type View } from './viewport.ts';
 import styles from './CanvasView.module.css';
 
 /**
@@ -64,6 +72,14 @@ import styles from './CanvasView.module.css';
  * on a group opens its name to be written, and a cross there takes the group off - the cards in it stay. Making a
  * group round cards is the + menu's, in the next slice with the other ways to add.
  *
+ * More ways to add (the fifth slice, choice 8): the + is a sheet - words, a note chosen by its title, or a web
+ * address - and a note dragged in from the sidebar lands as a card where it is dropped. Pictures wait, since Glyph
+ * has no picture files of its own to point at; by voice belongs to the capture.
+ *
+ * Navigation (the sixth, choice 10): a tap on a card's title zooms to the card, Shift+1 fits the whole canvas and
+ * Shift+2 zooms to the card open or picked, both as buttons too, and a minimap in the corner draws every card small
+ * with the screen's box over them; a tap on it goes there.
+ *
  * Nothing is captured until a press has become a drag, so a tap still reaches the card it landed on; two fingers
  * move the page whatever they are on.
  */
@@ -75,6 +91,8 @@ export interface CanvasWiki {
   open: (title: string, at?: string) => void;
   /** The note's body by title, for drawing it small on its card; null where the note is not there. */
   body?: (title: string) => string | null;
+  /** Every note's title, for choosing one to put on the canvas as a card. */
+  titles?: () => string[];
 }
 
 export interface CanvasViewProps {
@@ -120,6 +138,10 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
   const [lining, setLining] = useState<{ from: string | null } | null>(null);
   /** The line picked by a tap, by id: its words are shown to be written, and its cross to take it off. */
   const [picked, setPicked] = useState<string | null>(null);
+  /** The + sheet, and the step it is at: choosing what to add, a note's title, or a web address. */
+  const [adding, setAdding] = useState<'what' | 'note' | 'link' | null>(null);
+  /** The card last tapped or opened: what Shift+2 and the zoom button go to. */
+  const [chosen, setChosen] = useState<string | null>(null);
   const change = useCallback(
     (next: Canvas) => {
       setLive(next);
@@ -145,11 +167,16 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
   /** The last tap, and what it was on, for telling a double-tap. */
   const lastTap = useRef<{ at: number; x: number; y: number; on: string | null } | null>(null);
 
+  /** The view again, as state, for what is drawn from it (the minimap): written once a frame at most. */
+  const [viewShown, setViewShown] = useState<View>(view.current);
+  const viewFrame = useRef(0);
   const apply = useCallback(() => {
     const el = world.current;
     if (!el) return;
     const { x, y, scale } = view.current;
     el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    cancelAnimationFrame(viewFrame.current);
+    viewFrame.current = requestAnimationFrame(() => setViewShown({ ...view.current }));
   }, []);
 
   const fit = useCallback(() => {
@@ -282,6 +309,12 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     if (editing) setEditing(null);
     const id = target.closest<HTMLElement>('[data-card]')?.dataset.card;
     const node = id ? live.nodes.find((n) => n.id === id) : undefined;
+    if (node && node.id !== chosen) setChosen(node.id);
+    // A tap on a card's title zooms to the card (choice 10); the rest of the card does what it did.
+    if (node && target.closest('[data-card-title]')) {
+      zoomTo(node.id);
+      return;
+    }
     // A tap on a line picks it; a tap anywhere else lets it go.
     const lineId = target.closest<Element>('[data-line]')?.getAttribute('data-line') ?? null;
     if (lineId !== picked) setPicked(lineId);
@@ -307,12 +340,66 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     setEditing(card.id);
   };
 
-  /** A new card in the middle of the screen, from the + tool: for a mouse with no double-tap habit, and for a reader. */
-  const addCardHere = () => {
+  /** The middle of the screen, in the canvas's pixels, where a card added from the + lands. */
+  const middle = () => {
     const el = host.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    addCard(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    const rect = el?.getBoundingClientRect();
+    return under((rect?.left ?? 0) + (rect?.width ?? 0) / 2, (rect?.top ?? 0) + (rect?.height ?? 0) / 2);
+  };
+  /** A new card of words in the middle of the screen, from the + sheet. */
+  const addCardHere = () => {
+    const at = middle();
+    const card = newTextNode(at.x - NEW_CARD.width / 2, at.y - NEW_CARD.height / 2);
+    change(withNode(live, card));
+    setEditing(card.id);
+  };
+  const addNoteCard = (title: string, at = middle()) => {
+    const card = newFileNode(title, at.x - NEW_CARD.width / 2, at.y - 80);
+    change(withNode(live, card));
+    setChosen(card.id);
+  };
+  const addLinkCard = (url: string) => {
+    const at = middle();
+    const card = newLinkNode(url, at.x - NEW_CARD.width / 2, at.y - 50);
+    if (card) {
+      change(withNode(live, card));
+      setChosen(card.id);
+    }
+  };
+
+  /** Zoom to a card: the view fitted to its box, no larger than life. */
+  const zoomTo = useCallback(
+    (id: string) => {
+      const el = host.current;
+      const node = live.nodes.find((n) => n.id === id);
+      if (!el || !node) return;
+      view.current = fittedTo(node, el.clientWidth, el.clientHeight);
+      touched.current = true;
+      apply();
+    },
+    [live, apply],
+  );
+
+  // Shift+1 fits the whole canvas, Shift+2 zooms to the card open or picked (choice 10), as in Obsidian.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!event.shiftKey || (event.target as HTMLElement | null)?.closest('input, textarea, [contenteditable]')) return;
+      if (event.key === '!' || event.code === 'Digit1') fit();
+      else if ((event.key === '@' || event.code === 'Digit2') && (editing ?? chosen)) zoomTo((editing ?? chosen)!);
+      else return;
+      event.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fit, zoomTo, editing, chosen]);
+
+  /** A note dragged in from the sidebar (notes/NoteTree.tsx): a card of that note where it is dropped. */
+  const onDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!editable) return;
+    const title = event.dataTransfer.getData('application/x-glyph-note') ? event.dataTransfer.getData('text/plain') : '';
+    if (!title) return;
+    event.preventDefault();
+    addNoteCard(title, under(event.clientX, event.clientY));
   };
 
   const writeCard = (id: string, text: string) => {
@@ -430,6 +517,8 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
       aria-label={`A canvas of ${live.nodes.length} cards`}
       data-editable={editable || undefined}
       data-lining={lining ? (lining.from ? 'to' : 'from') : undefined}
+      onDragOver={editable ? (event) => event.preventDefault() : undefined}
+      onDrop={editable ? onDrop : undefined}
     >
       <div ref={world} className={styles.world}>
         {live.nodes.map((node) => (
@@ -481,9 +570,14 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
         {pickedLine ? <LineWords key={pickedLine.edge.id} edge={pickedLine.edge} at={pickedLine.path!.mid} onLabel={labelLine} onRemove={removeLine} /> : null}
       </div>
       <div className={styles.tools}>
+        {editing ?? chosen ? (
+          <button type="button" className={`app-word ${styles.tool}`} onClick={() => zoomTo((editing ?? chosen)!)} aria-label="Zoom to the card (Shift+2)">
+            To card
+          </button>
+        ) : null}
         {editable ? (
           <>
-            <button type="button" className={`app-word ${styles.tool}`} onClick={addCardHere} aria-label="Add a card of words">
+            <button type="button" className={`app-word ${styles.tool}`} onClick={() => setAdding('what')} aria-label="Add a card">
               + Card
             </button>
             <button
@@ -501,10 +595,38 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
             </button>
           </>
         ) : null}
-        <button type="button" className={`app-word ${styles.tool}`} onClick={fit} aria-label="Fit the whole canvas on the screen">
+        <button type="button" className={`app-word ${styles.tool}`} onClick={fit} aria-label="Fit the whole canvas on the screen (Shift+1)">
           Fit
         </button>
       </div>
+      <Minimap canvas={live} view={viewShown} host={host} onGo={(x, y) => {
+        const el = host.current;
+        if (!el) return;
+        const { scale } = view.current;
+        view.current = { x: el.clientWidth / 2 - x * scale, y: el.clientHeight / 2 - y * scale, scale };
+        touched.current = true;
+        apply();
+      }} />
+      {adding ? (
+        <AddSheet
+          step={adding}
+          titles={wiki?.titles?.() ?? []}
+          onClose={() => setAdding(null)}
+          onWords={() => {
+            setAdding(null);
+            addCardHere();
+          }}
+          onNote={(title) => {
+            setAdding(null);
+            addNoteCard(title);
+          }}
+          onLink={(url) => {
+            setAdding(null);
+            addLinkCard(url);
+          }}
+          onStep={setAdding}
+        />
+      ) : null}
     </div>
   );
 }
@@ -639,7 +761,7 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
           void openLink(node.url);
         }}
       >
-        <span className={styles.cardTitle}>{shortUrl(node.url)}</span>
+        <span className={styles.cardTitle} data-card-title>{shortUrl(node.url)}</span>
         <span className={styles.cardHint}>{node.url}</span>
       </a>
     );
@@ -665,7 +787,7 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
       onClick={picture ? undefined : () => wiki?.open(title, at)}
       onKeyDown={picture ? undefined : (event) => (event.key === 'Enter' || event.key === ' ') && wiki?.open(title, at)}
     >
-      <span className={styles.cardTitle}>{title}</span>
+      <span className={styles.cardTitle} data-card-title>{title}</span>
       {body ? (
         <Near root={root}>
           <NotePeek body={body} className={styles.cardPeek} />
@@ -673,6 +795,116 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
       ) : (
         <span className={styles.cardHint}>{picture ? 'A picture, in the vault it came from' : known ? '' : 'Not in Glyph yet'}</span>
       )}
+    </div>
+  );
+}
+
+/** The minimap: every card small, the screen's box over them, in a corner; a tap goes there (choice 10). */
+const MINIMAP = { width: 120, height: 80, room: 6 };
+function Minimap({ canvas, view, host, onGo }: { canvas: Canvas; view: View; host: React.RefObject<HTMLDivElement | null>; onGo: (x: number, y: number) => void }) {
+  const box = bounds(canvas);
+  if (!box || canvas.nodes.length < 2) return null;
+  const el = host.current;
+  const seen = shownBox(view, el?.clientWidth ?? 0, el?.clientHeight ?? 0);
+  // The whole of the canvas and the screen's box together, so the screen is always drawn even when it is off the cards.
+  const left = Math.min(box.x, seen.x);
+  const top = Math.min(box.y, seen.y);
+  const right = Math.max(box.x + box.width, seen.x + seen.width);
+  const bottom = Math.max(box.y + box.height, seen.y + seen.height);
+  const scale = Math.min((MINIMAP.width - MINIMAP.room * 2) / Math.max(right - left, 1), (MINIMAP.height - MINIMAP.room * 2) / Math.max(bottom - top, 1));
+  const sx = (x: number) => MINIMAP.room + (x - left) * scale;
+  const sy = (y: number) => MINIMAP.room + (y - top) * scale;
+  return (
+    <svg
+      className={styles.minimap}
+      width={MINIMAP.width}
+      height={MINIMAP.height}
+      role="img"
+      aria-label="A map of the canvas; tap to go there"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        const rect = event.currentTarget.getBoundingClientRect();
+        onGo(left + (event.clientX - rect.left - MINIMAP.room) / scale, top + (event.clientY - rect.top - MINIMAP.room) / scale);
+      }}
+    >
+      {canvas.nodes.map((n) => (
+        <rect key={n.id} className={n.type === 'group' ? styles.mapGroup : styles.mapCard} x={sx(n.x)} y={sy(n.y)} width={Math.max(2, n.width * scale)} height={Math.max(2, n.height * scale)} rx={1} />
+      ))}
+      <rect className={styles.mapSeen} x={sx(seen.x)} y={sy(seen.y)} width={seen.width * scale} height={seen.height * scale} />
+    </svg>
+  );
+}
+
+/** The + sheet: what to add, then a note's title or a web address, in the note's settings' own look (notes/NewSheet.tsx). */
+function AddSheet({
+  step,
+  titles,
+  onClose,
+  onWords,
+  onNote,
+  onLink,
+  onStep,
+}: {
+  step: 'what' | 'note' | 'link';
+  titles: string[];
+  onClose: () => void;
+  onWords: () => void;
+  onNote: (title: string) => void;
+  onLink: (url: string) => void;
+  onStep: (step: 'note' | 'link') => void;
+}) {
+  const panel = useRef<HTMLElement>(null);
+  const drag = useSheetDrag(panel, onClose);
+  useBack(true, onClose);
+  const [words, setWords] = useState('');
+  const found = step === 'note' ? titles.filter((t) => t.toLowerCase().includes(words.trim().toLowerCase())).slice(0, 12) : [];
+  return (
+    <div className={sheet.scrim} onClick={onClose} onPointerDown={(event) => event.stopPropagation()}>
+      <section ref={panel} className={sheet.sheet} role="dialog" aria-modal="true" aria-label="Add a card" onClick={(e) => e.stopPropagation()}>
+        <span className={sheet.grip} aria-hidden="true" {...drag} />
+        <SheetTitle>{step === 'what' ? 'Add a card' : step === 'note' ? 'Which note?' : 'Which address?'}</SheetTitle>
+        {step === 'what' ? (
+          <SheetGroup>
+            <SheetRow icon={SquarePen} label="Words" hint="A card to write on." onPress={onWords} />
+            <SheetRow icon={FileText} label="A note" hint="One of your notes, drawn small; tap it to open." onPress={() => onStep('note')} />
+            <SheetRow icon={Link2} label="A link" hint="A web address, opened with a tap." onPress={() => onStep('link')} />
+          </SheetGroup>
+        ) : (
+          <div className={styles.addField}>
+            <input
+              className={styles.addInput}
+              autoFocus
+              value={words}
+              placeholder={step === 'note' ? 'Type part of its title' : 'attack.fm/glyph'}
+              aria-label={step === 'note' ? 'Part of the note’s title' : 'The web address'}
+              inputMode={step === 'link' ? 'url' : 'text'}
+              onChange={(event) => setWords(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return;
+                if (step === 'link') onLink(words);
+                else if (found[0]) onNote(found[0]);
+              }}
+            />
+            {step === 'link' ? (
+              <button type="button" className={`app-word ${styles.addGo}`} onClick={() => onLink(words)} disabled={!words.trim()}>
+                Add
+              </button>
+            ) : (
+              <ul className={styles.addList} aria-label="Notes">
+                {found.map((title) => (
+                  <li key={title}>
+                    <button type="button" className={styles.addRow} onClick={() => onNote(title)}>
+                      {title}
+                    </button>
+                  </li>
+                ))}
+                {!found.length ? <li className={styles.addNone}>{words.trim() ? 'No note by that name.' : 'No notes yet.'}</li> : null}
+              </ul>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

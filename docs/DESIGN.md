@@ -3108,6 +3108,11 @@ this one changes it (`canvas/CanvasView.tsx`, `canvas/jsonCanvas.ts`).
   half over the edge stays; a double-tap names a group, and its cross takes the group off and leaves the cards. A
   drag is measured from the canvas as it was at pick-up (`carrying.base`), not from the last frame, so a group and
   its cards move by one amount rather than compounding.
+- **More ways in, and the way around.** The fifth and sixth slices: the + is a sheet in the home +'s own look (words,
+  a note by its title, a web address), a sidebar row dragged onto the canvas is a card of that note, a card's title
+  zooms to it, Shift+1 and Shift+2 do what Obsidian's do, and a minimap draws the cards with the screen's box over
+  them. The view lives in a ref so a pan is one style write; the minimap needs it as state, so `apply` mirrors it
+  once a frame at most.
 - **Measured in the browser, not assumed:** a held press of 300ms lifted the card and a move of (60, 90) screen
   pixels at scale 1 put it down at (60, 90); a double-tap made a card with a sixteen-hex id, focused, and what was
   typed was in the saved note with its front matter untouched. In the tests, a move before the hold pans and saves

@@ -84,6 +84,8 @@ interface NoteScreenProps {
   hasTitle?: (title: string) => boolean;
   /** A note's body by its title, for a canvas card that is a note to be drawn small (canvas/CanvasView.tsx). */
   bodyOfTitle?: (title: string) => string | null;
+  /** Every note's title, for a canvas's + to choose a note from. */
+  allTitles?: () => string[];
   /** The "← Notes" in the header; off where the list is already beside the note (the desktop sidebar, App.tsx). */
 }
 
@@ -92,7 +94,7 @@ const SAVE_DEBOUNCE_MS = 400;
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, bodyOfTitle, at }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, bodyOfTitle, allTitles, at }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -695,7 +697,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             <CanvasView
               canvas={canvas}
               dark={isDarkNow(prefs.theme)}
-              wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined}
+              wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle, titles: allTitles } : undefined}
               // A change to the canvas is a change to the note: written into the body as the spec's JSON, front
               // matter kept, and saved the way typing is (the debounce and its flushes above).
               onChange={(next) => onChange(withCanvas(body.current, next))}

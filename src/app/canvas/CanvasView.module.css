@@ -114,6 +114,96 @@
   position: static;
 }
 
+/* A card's title is a way to zoom to the card (choice 10). */
+.cardTitle[data-card-title] {
+  cursor: zoom-in;
+}
+
+/* The minimap, in the corner opposite the tools: every card small, the screen's box over them. */
+.minimap {
+  position: absolute;
+  left: var(--glacier-space-3);
+  bottom: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md);
+  background: color-mix(in oklch, var(--glacier-bg) 80%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+
+.mapCard {
+  fill: color-mix(in oklch, var(--app-ink, currentColor) 45%, transparent);
+}
+
+.mapGroup {
+  fill: color-mix(in oklch, var(--app-ink, currentColor) 8%, transparent);
+  stroke: color-mix(in oklch, var(--app-ink, currentColor) 30%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.mapSeen {
+  fill: none;
+  stroke: var(--app-ink, var(--glacier-text));
+  stroke-width: 1.5;
+}
+
+/* The + sheet's second step: a field, and the notes it finds or the Add. */
+.addField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-4);
+}
+
+.addInput {
+  inline-size: 100%;
+  box-sizing: border-box;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md);
+  background: transparent;
+  color: var(--app-ink, var(--glacier-text));
+  font: inherit;
+}
+
+.addGo {
+  align-self: flex-end;
+}
+
+.addList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-block-size: 40vh;
+  overflow-y: auto;
+}
+
+.addRow {
+  appearance: none;
+  display: block;
+  inline-size: 100%;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: none;
+  border-radius: var(--glacier-radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.addRow:hover {
+  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
+}
+
+.addNone {
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  color: var(--glacier-text-subtle);
+  font-size: var(--glacier-font-size-sm);
+}
+
 /* Taking a card off, from its corner while it is open. */
 .remove {
   position: absolute;
