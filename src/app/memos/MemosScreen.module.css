@@ -10,10 +10,17 @@
   background: var(--glacier-bg);
 }
 
+/*
+ * The bar clears the top the way every header does (app.css): the phone's notch or the Mac's title bar is
+ * `--app-safe-top`, and the tab row is not part of it here, since this screen is the whole screen. Without this the
+ * bar sat under the status bar on the Fold (Matt: "the memo page is missing the header top").
+ */
 .topBar {
   display: flex;
   align-items: center;
   gap: var(--glacier-space-3);
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-2)) var(--glacier-space-2);
 }
 
 .back {
@@ -43,7 +50,11 @@
   min-block-size: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-block-start: var(--wisp-under, 3.6rem);
+  /*
+   * Under the bar's pane (art/wispEdge.ts writes `--wisp-under` as it measures the bar), and never above the safe
+   * top, which is known without measuring - the same floor the home page keeps (home/HomeScreen.module.css).
+   */
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top, 0px)) + var(--glacier-space-6));
 }
 
 .page {
