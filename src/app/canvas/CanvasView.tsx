@@ -188,6 +188,8 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
 
   /** The view again, as state, for what is drawn from it (the minimap): written once a frame at most. */
   const [viewShown, setViewShown] = useState<View>(view.current);
+  /** The minimap grown, from a press on it, until a press lands on the canvas itself. */
+  const [mapBig, setMapBig] = useState(false);
   const viewFrame = useRef(0);
   const apply = useCallback(() => {
     const el = world.current;
@@ -241,6 +243,8 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     const target = event.target as HTMLElement;
     // Typing in a card that is open: the press is the editor's, for its caret and its selection.
     if (editing && target.closest('[data-editing]')) return;
+    // A press on the canvas itself puts the grown minimap back.
+    setMapBig(false);
     // A press is a tap until it moves: a tap on a card that opens something is the card's, and taking the pointer
     // here would take its click with it. It is only captured once it has become a drag.
     window.clearTimeout(holdTimer.current);
@@ -658,14 +662,27 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
         ) : null}
         {lining ? <span className={styles.hint}>{lining.from ? 'Tap the card it goes to' : 'Tap the card it starts from'}</span> : null}
       </div>
-      <Minimap canvas={live} view={viewShown} host={host} onGo={(x, y) => {
-        const el = host.current;
-        if (!el) return;
-        const { scale } = view.current;
-        view.current = { x: el.clientWidth / 2 - x * scale, y: el.clientHeight / 2 - y * scale, scale };
-        touched.current = true;
-        apply();
-      }} />
+      <Minimap
+        canvas={live}
+        view={viewShown}
+        host={host}
+        big={mapBig}
+        onBig={() => setMapBig(true)}
+        onGo={(x, y) => {
+          const el = host.current;
+          if (!el) return;
+          const { scale } = view.current;
+          view.current = { x: el.clientWidth / 2 - x * scale, y: el.clientHeight / 2 - y * scale, scale };
+          touched.current = true;
+          apply();
+        }}
+        onMove={(dx, dy) => {
+          const { x, y, scale } = view.current;
+          view.current = { x: x - dx * scale, y: y - dy * scale, scale };
+          touched.current = true;
+          apply();
+        }}
+      />
       {adding ? (
         <AddSheet
           step={adding}
@@ -903,11 +920,36 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
  * The minimap (choice 10), in the bottom corner: the whole canvas small, with the screen's box over it. Each kind
  * of card is told apart - words filled, a note outlined, a picture filled dark, a link outlined with a dot - and a
  * card with a colour wears it; the lines between cards are drawn between the sides they leave and arrive by, and a
- * group is its dashed box with its name when there is room. A finger on the map goes there, and dragged, keeps going
- * (Matt: "make it more detailed and better organized"). The map keeps the canvas's own shape inside its frame.
+ * group is its dashed box with its name when there is room. The map keeps the canvas's own shape inside its frame.
+ *
+ * A press on it grows it, and it stays grown until a press lands on the canvas (Matt: "make the minimap a bit
+ * bigger when we click on it and allow clicking and dragging to navigate around the canvas"). A drag on the map,
+ * small or grown, moves the screen's box with the finger - the view goes by what the finger moved, so nothing jumps
+ * under it - and a tap on the grown map goes to the spot tapped. The map is drawn in one set of units, whatever its
+ * size on the page, so where a finger is on it is read from the size it has at that moment, mid-growth included.
  */
-const MINIMAP = { width: 180, height: 120, room: 8 };
-function Minimap({ canvas, view, host, onGo }: { canvas: Canvas; view: View; host: React.RefObject<HTMLDivElement | null>; onGo: (x: number, y: number) => void }) {
+const MINIMAP = { width: 180, height: 120, room: 8, big: 1.5 };
+/** A press that moves this far, in pixels on the page, is a drag rather than a tap. */
+const MAP_DRAG = 3;
+function Minimap({
+  canvas,
+  view,
+  host,
+  big,
+  onBig,
+  onGo,
+  onMove,
+}: {
+  canvas: Canvas;
+  view: View;
+  host: React.RefObject<HTMLDivElement | null>;
+  big: boolean;
+  onBig: () => void;
+  onGo: (x: number, y: number) => void;
+  onMove: (dx: number, dy: number) => void;
+}) {
+  /** The press under way: where the finger was last, on the page, and whether it has dragged. */
+  const press = useRef<{ x: number; y: number; moved: boolean; wasBig: boolean } | null>(null);
   const box = bounds(canvas);
   if (!box || canvas.nodes.length < 2) return null;
   const el = host.current;
@@ -923,9 +965,12 @@ function Minimap({ canvas, view, host, onGo }: { canvas: Canvas; view: View; hos
   const oy = MINIMAP.room + (MINIMAP.height - MINIMAP.room * 2 - (bottom - top) * scale) / 2;
   const sx = (x: number) => ox + (x - left) * scale;
   const sy = (y: number) => oy + (y - top) * scale;
-  const go = (event: React.PointerEvent<SVGSVGElement> | React.MouseEvent<SVGSVGElement>) => {
+  /** Pixels on the page per unit of the map, at the size the map has now. */
+  const unit = (rect: DOMRect) => (rect.width || MINIMAP.width) / MINIMAP.width;
+  const go = (event: React.PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    onGo(left + (event.clientX - rect.left - ox) / scale, top + (event.clientY - rect.top - oy) / scale);
+    const k = unit(rect);
+    onGo(left + ((event.clientX - rect.left) / k - ox) / scale, top + ((event.clientY - rect.top) / k - oy) / scale);
   };
   const kind = (n: CanvasNode) => (n.type === 'file' ? (isImageFile(n.file) ? 'picture' : 'note') : n.type);
   const groups = canvas.nodes.filter((n) => n.type === 'group');
@@ -933,21 +978,40 @@ function Minimap({ canvas, view, host, onGo }: { canvas: Canvas; view: View; hos
   return (
     <svg
       className={styles.minimap}
-      width={MINIMAP.width}
-      height={MINIMAP.height}
+      viewBox={`0 0 ${MINIMAP.width} ${MINIMAP.height}`}
+      data-big={big || undefined}
       role="img"
-      aria-label="A map of the canvas; tap or drag on it to go there"
+      aria-label="A map of the canvas; press to grow it, drag on it to move the screen, tap the grown map to go there"
       onPointerDown={(event) => {
         event.stopPropagation();
-        go(event);
+        press.current = { x: event.clientX, y: event.clientY, moved: false, wasBig: big };
+        onBig();
         try {
           event.currentTarget.setPointerCapture(event.pointerId);
         } catch {
-          // A pointer the browser is not tracking: the press still went there; only the drag past the edge is lost.
+          // A pointer the browser is not tracking: the press still counts; only the drag past the edge is lost.
         }
       }}
       onPointerMove={(event) => {
-        if (event.buttons) go(event);
+        const p = press.current;
+        if (!p || !event.buttons) return;
+        const dx = event.clientX - p.x;
+        const dy = event.clientY - p.y;
+        if (!p.moved && Math.hypot(dx, dy) < MAP_DRAG) return;
+        p.moved = true;
+        p.x = event.clientX;
+        p.y = event.clientY;
+        const k = unit(event.currentTarget.getBoundingClientRect());
+        onMove(dx / k / scale, dy / k / scale);
+      }}
+      onPointerUp={(event) => {
+        const p = press.current;
+        press.current = null;
+        // A tap on the grown map goes there; the tap that grew it only grew it.
+        if (p && !p.moved && p.wasBig) go(event);
+      }}
+      onPointerCancel={() => {
+        press.current = null;
       }}
       onClick={(event) => event.stopPropagation()}
     >

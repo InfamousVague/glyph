@@ -145,8 +145,24 @@
   background: color-mix(in oklch, var(--glacier-bg) 82%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  inline-size: 180px;
+  block-size: 120px;
   cursor: pointer;
   touch-action: none;
+  transition:
+    inline-size 180ms ease,
+    block-size 180ms ease;
+}
+
+/* Pressed, the map grows half again, and the screen's box is there to be dragged. */
+.minimap[data-big] {
+  inline-size: 270px;
+  block-size: 180px;
+  cursor: grab;
+}
+
+.minimap[data-big]:active {
+  cursor: grabbing;
 }
 
 /* Words: a filled block. */

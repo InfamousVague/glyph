@@ -382,12 +382,37 @@ describe('more ways to add, and finding your way', () => {
     // The link's dot, the group, four cards and the screen's box.
     expect(map.querySelectorAll('circle').length).toBe(1);
     expect(map.querySelectorAll('rect').length).toBe(6);
+  });
+
+  it('grows the minimap on a press, moves the screen with a drag on it, and goes where a tap on the grown map lands', () => {
+    const shown = show(<CanvasView canvas={canvas} dark={false} />);
+    const map = shown.querySelector('svg[aria-label^="A map of the canvas"]') as SVGSVGElement;
     const world = shown.querySelector('[class*="world"]') as HTMLElement;
+    const at = (type: string, x: number, y: number) =>
+      act(() => map.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, buttons: type === 'pointerup' ? 0 : 1 })));
     const before = world.style.transform;
-    act(() => {
-      map.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 60, clientY: 40, buttons: 1 }));
-    });
+    // The press that grows it only grows it.
+    expect(map.hasAttribute('data-big')).toBe(false);
+    at('pointerdown', 60, 40);
+    expect(map.getAttribute('data-big')).toBe('true');
+    at('pointerup', 60, 40);
+    expect(world.style.transform).toBe(before);
+    // A drag moves the screen's box by what the finger moved: the view goes the other way, by that in world units.
+    at('pointerdown', 60, 40);
+    at('pointermove', 61, 40);
+    at('pointermove', 80, 50);
+    at('pointerup', 80, 50);
     expect(world.style.transform).not.toBe(before);
+    const moved = world.style.transform;
+    // A tap on the grown map goes there.
+    at('pointerdown', 30, 30);
+    at('pointerup', 30, 30);
+    expect(world.style.transform).not.toBe(moved);
+    expect(map.getAttribute('data-big')).toBe('true');
+    // A press on the canvas puts it back.
+    const page = shown.querySelector('[class*="canvas"]') as HTMLElement;
+    act(() => page.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 300, clientY: 300, buttons: 1 })));
+    expect(map.hasAttribute('data-big')).toBe(false);
   });
 
   it('marks a card that is only a table, so the table fills it', () => {
