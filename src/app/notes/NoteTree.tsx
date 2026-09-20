@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Archive, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FolderPlus, Mic, RotateCcw, Search, Settings, SquarePen, Trash2, X } from '@glacier/icons';
+import { Archive, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FolderPlus, Mic, RotateCcw, Search, Settings, SquarePen, StickyNote, Trash2, X } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { NotePeek } from './NotePeek.tsx';
@@ -28,6 +28,8 @@ export interface NoteTreeProps {
   activeId: string | null;
   onOpen: (id: string) => void;
   onNew: () => void;
+  /** The memos' wall (memos/MemosScreen.tsx); no tool without it. */
+  onMemos?: () => void;
   onCommands?: () => void;
   onSettings?: () => void;
   onSpeak?: () => void;
@@ -53,6 +55,7 @@ export function NoteTree({
   activeId,
   onOpen,
   onNew,
+  onMemos,
   onCommands,
   onSettings,
   onSpeak,
@@ -213,6 +216,11 @@ export function NoteTree({
         <Tool label="New workspace" onClick={() => setManage('new')}>
           <FolderPlus size={17} strokeWidth={2.1} aria-hidden="true" />
         </Tool>
+        {onMemos ? (
+          <Tool label="Memos" onClick={onMemos}>
+            <StickyNote size={17} strokeWidth={2.1} aria-hidden="true" />
+          </Tool>
+        ) : null}
         {onCommands ? (
           <Tool label="Search and commands" onClick={onCommands}>
             <Search size={17} strokeWidth={2.1} aria-hidden="true" />

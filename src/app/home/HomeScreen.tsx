@@ -40,6 +40,9 @@ interface HomeScreenProps {
   onSettings: () => void;
   /** Every note: the sidebar, which holds them all. */
   onAllNotes: () => void;
+  /** The memos (memos/MemosScreen.tsx), and how many there are; no row without the screen to open. */
+  onMemos?: () => void;
+  memoCount?: number;
   /** A to-do ticked from here: its note's line rewritten with the box ticked. */
   onTick: (task: OpenTask) => void;
   voiceModel: VoiceModelState;
@@ -64,6 +67,8 @@ export function HomeScreen({
   onCapture,
   onSettings,
   onAllNotes,
+  onMemos,
+  memoCount = 0,
   onTick,
   voiceModel,
   onRetryVoiceModel,
@@ -191,7 +196,12 @@ export function HomeScreen({
             </section>
           ) : null}
 
-          <button type="button" className={`app-word ${styles.allNotes}`} onClick={onAllNotes}>
+          {onMemos ? (
+            <button type="button" className={`app-word ${styles.allNotes}`} onClick={onMemos}>
+              Memos{memoCount ? ` · ${memoCount}` : ''}
+            </button>
+          ) : null}
+          <button type="button" className={`app-word ${styles.allNotes} ${styles.allNotesLast}`} onClick={onAllNotes}>
             All notes · {notes.filter((n) => !n.archivedAt).length}
           </button>
         </div>

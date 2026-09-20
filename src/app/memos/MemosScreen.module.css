@@ -1,0 +1,186 @@
+/*
+ * The memos on a wall (memos/MemosScreen.tsx): the home page's bar and scroller, a field at the top, and the memos
+ * as small cards in columns under it, the way the home page draws its notes as cards.
+ */
+.screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  block-size: 100dvh;
+  background: var(--glacier-bg);
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+}
+
+.heading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+/* How many, beside the name, in the heading's own quiet. */
+.count {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--glacier-font-weight-regular, 400);
+  color: var(--glacier-text-subtle);
+}
+
+.scroll {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block-start: var(--wisp-under, 3.6rem);
+}
+
+.page {
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block-end: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-12, 6rem));
+}
+
+/* The field, and Keep beside it, sitting on the same paper as the cards. */
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--glacier-space-2);
+  margin-block: var(--glacier-space-3) var(--glacier-space-5);
+}
+
+.field {
+  flex: 1;
+  min-inline-size: 0;
+  resize: none;
+  padding: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg, 16px);
+  background: color-mix(in oklch, var(--app-ink, currentColor) 3%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.45;
+}
+
+.field:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.keep {
+  flex: none;
+}
+
+.keep:disabled {
+  opacity: 0.4;
+}
+
+/* The wall: as many columns as fit, each card as tall as its words, newest first down the first column. */
+.wall {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  columns: 14rem;
+  column-gap: var(--glacier-space-3);
+}
+
+.cardItem {
+  break-inside: avoid;
+  margin-block-end: var(--glacier-space-3);
+  animation: arrive 360ms var(--glacier-ease-out, ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+  inline-size: 100%;
+  box-sizing: border-box;
+  padding: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg, 16px);
+  background: color-mix(in oklch, var(--app-ink, currentColor) 3%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.card:hover {
+  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.cardEditing {
+  cursor: auto;
+  padding: var(--glacier-space-2);
+}
+
+/* The words as they were typed, up to a dozen lines; a memo longer than that is a note that got away. */
+.cardText {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 12;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.45;
+}
+
+.cardWhen {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--glacier-text-subtle);
+}
+
+.cardTools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-2);
+}
+
+.bin {
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  color: var(--glacier-text-subtle);
+}
+
+.empty {
+  margin-block: var(--glacier-space-8);
+  color: var(--glacier-text-subtle);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardItem {
+    animation: none;
+  }
+}

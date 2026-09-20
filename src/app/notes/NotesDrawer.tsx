@@ -26,6 +26,8 @@ interface NotesDrawerProps {
   activeId: string | null;
   onOpen: (id: string) => void;
   onNew: () => void;
+  /** The memos' wall (memos/MemosScreen.tsx), handed on to the tree's tool. */
+  onMemos?: () => void;
   onClose: () => void;
   /**
    * The command palette (commands/), where a phone has no ⌘K to open it with. The drawer is the one surface that is a
@@ -44,7 +46,7 @@ interface NotesDrawerProps {
   onEmptyTrash?: () => void;
 }
 
-export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onClose, onCommands, onSettings, onSpeak, notices, trashed, onRestore, onDestroy, onEmptyTrash }: NotesDrawerProps) {
+export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onMemos, onClose, onCommands, onSettings, onSpeak, notices, trashed, onRestore, onDestroy, onEmptyTrash }: NotesDrawerProps) {
   const card = useRef<HTMLDivElement>(null);
   // The phone's back gesture and Escape close the card before they leave the note.
   useBack(open, onClose);
@@ -75,6 +77,7 @@ export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onClose, onC
           activeId={activeId}
           onOpen={onOpen}
           onNew={onNew}
+          onMemos={onMemos}
           onClose={onClose}
           onCommands={
             onCommands

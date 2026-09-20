@@ -56,9 +56,13 @@ function fileName(path: string): string {
  * touched - only where the file sits.
  */
 export async function fileNoteInFolder(noteId: string, workspace: string | null): Promise<void> {
-  if (!isTauri()) return;
   const folder = folderFor(workspace);
-  if (folder === null) return;
+  if (folder !== null) await fileNoteAt(noteId, folder);
+}
+
+/** Moves one note's file into `folder`, whatever names it: a workspace's, or `Memos/` for a memo (memos/memo.ts). */
+export async function fileNoteAt(noteId: string, folder: string): Promise<void> {
+  if (!isTauri()) return;
   try {
     const note = await getNote(noteId);
     if (!note?.path) return;
