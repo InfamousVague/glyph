@@ -3001,9 +3001,19 @@ than written beside it. It was `1.2em`, about 20px in a board's type and about 2
 width of the whole lip - so the two agreed at one end of the reader's own dial and not at the other, which is the
 kind of drift §51's sister lesson is about.
 
-The raised lip raises the floor with it: a lane must now be 106px to carry the band rather than 88, so a board
-written `height=6` keeps the plain fade where it used to smoke. `height=7` and up are unchanged. A lane that short
-shows two cards, and a band reaching most of the way up it was never the effect.
+The raised lip raised the floor with it - a lane had to be 106px to carry the band rather than 88, which took the
+smoke off boards written `height=6` (about 91px) - and Matt asked for those back: "make them smoke again", with the
+ramp shortened to get them. Shortening it for every lane would have paid for the short ones with a tighter, more
+abrupt smoke on the tall ones that already look right, so the band is scaled to the lane instead (`fit`): 1 for any
+lane with room for the whole band, and below that the lip, the room above it and the ramp shrink together, which
+keeps the band's shape and changes only its size. The fade comes down with it, so `WISP_FOOT_FADE` became
+`wispFootFade(height)` - a short lane's smaller band needs a shorter fade or the fade swallows it again, on exactly
+the lanes this was for.
+
+Measured against the shipped filter at seven heights in both engines: 106px and up come out identical to the
+pixel - same band rows, same ink, same fade - and 61, 74 and 91px, which had no smoke at all, now have it. The
+floor is 61px rather than the ~74 the change was costed at, and a board cannot be written shorter than `height=5`
+anyway. Under it the lane still keeps the plain fade, since a band that small is a hairline standing in for smoke.
 
 **And the corner is worth knowing about on its own.** `art/wispSides.ts` had read the same divergence as WebKit
 measuring from the *window's* corner. That is the same corner while the page is at its top, which is where it was

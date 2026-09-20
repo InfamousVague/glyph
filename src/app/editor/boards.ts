@@ -1,6 +1,6 @@
 import { EditorSelection, Facet, RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { WISP_FOOT_FADE, wispFoot } from '../art/wispFoot.ts';
+import { wispFoot, wispFootFade } from '../art/wispFoot.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { markOf, unmarked } from '../core/itemLinks.ts';
 import {
@@ -659,9 +659,10 @@ function laneFoot(stack: HTMLElement): void {
     stack.dataset.smoke = smoke;
     stack.style.filter = smoke;
     // The fade the smoke sits under, from the same place the lip is (art/wispFoot.ts): a longer one would rub out
-    // the strongest bend, which is what the page's foot read as a plain gradient for. Without smoke the lane keeps
-    // the em fade in the stylesheet, where there is no lip for it to agree with.
-    stack.style.setProperty('--cm-lane-fade', `${WISP_FOOT_FADE}px`);
+    // the strongest bend, which is what the page's foot read as a plain gradient for. By the lane's own height,
+    // since a short lane's band is scaled down to fit it and its fade has to come down with it. Without smoke the
+    // lane keeps the em fade in the stylesheet, where there is no lip for it to agree with.
+    stack.style.setProperty('--cm-lane-fade', `${wispFootFade(stack.offsetHeight)}px`);
   } else {
     delete stack.dataset.smoke;
     stack.style.removeProperty('filter');

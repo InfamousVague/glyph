@@ -65,7 +65,37 @@ const BAND = 8;
  */
 const LIFT = 18;
 const SOFT = 16;
-const REACH = BAND + LIFT + SOFT * 4 + 16;
+/** Room above the ramp, so the drift never reaches the top of what is computed. */
+const SLACK = 16;
+/** The band at full size: the lip, the room above it, and the ramp's four sigma. */
+const FULL = BAND + LIFT + SOFT * 4;
+
+/**
+ * A short lane gets the same band, made smaller, rather than no band at all.
+ *
+ * The band has to fit above the lane's foot, so a lane shorter than the band was simply left with the plain fade -
+ * and lifting the lip to clear the fade (above) raised that floor from 88px to 106px, which took the smoke off
+ * boards written `height=6` (about 91px). Matt asked for those back, and for the ramp to shorten to get them:
+ * "make them smoke again". Shortening it for every lane would have paid for the short ones with a tighter, more
+ * abrupt smoke on the tall ones that already look right, so the shortening is only where it is needed. `fit`
+ * answers 1 for any lane with room for the whole band - every lane at `height=7` and up, and so every lane that
+ * smoked before this - and shrinks the lip, the room and the ramp together below that, which keeps the band's
+ * shape and only changes its size. Measured, tall lanes come out identical and a 91px lane smokes.
+ *
+ * Under `LEAST` the band would be a hairline standing in for smoke, so there the lane keeps the plain fade: about
+ * 61px, a card and a half, which is under the shortest lane a board can be written with anyway (`height=5`).
+ */
+const LEAST = 0.5;
+function fit(height: number): number {
+  return Math.min(1, Math.max(LEAST, (height - SLACK) / FULL));
+}
+/** The band's parts at a lane's own height, all scaled together. */
+function band(height: number): { band: number; lift: number; soft: number; reach: number } {
+  const of = fit(height);
+  return { band: BAND * of, lift: LIFT * of, soft: SOFT * of, reach: FULL * of + SLACK };
+}
+/** The shortest lane that still carries a band; under it the plain fade. */
+const SHORTEST = FULL * LEAST + SLACK;
 /** The strip reaches this far below the lane, so its blur never opens the foot. */
 const BELOW = 120;
 /** How far outside the lane the bend may throw a pixel, and so how far the region reaches around it. */
@@ -75,13 +105,18 @@ const BEND = 28;
 const BLUR = 2.4;
 const NEAR = 2;
 /**
- * The lane's own fade, in px (editor/boards.ts `laneFoot` sets it, `.cm-boardStack[data-more]` wears it). Derived
- * from the lip rather than written beside it: the fade must START below where the band reaches full strength, or it
- * is back to rubbing out the bend it was meant to sit under. It was `1.2em`, which is about 20px in a board's type
- * and about 26px at the largest text size - the width of the whole lip - so the two would have drifted apart on
- * the reader's own dial and only at one end of it.
+ * The lane's own fade, in px, for a lane of `height` (editor/boards.ts `laneFoot` sets it,
+ * `.cm-boardStack[data-more]` wears it). Derived from the lip rather than written beside it: the fade must START
+ * below where the band reaches full strength, or it is back to rubbing out the bend it was meant to sit under. It
+ * was `1.2em`, which is about 20px in a board's type and about 26px at the largest text size - the width of the
+ * whole lip - so the two would have drifted apart on the reader's own dial and only at one end of it. It takes the
+ * lane's height because the lip does (`fit`): a short lane's smaller band needs a shorter fade under it, or the
+ * fade swallows the band again on exactly the lanes this was for.
  */
-export const WISP_FOOT_FADE = BAND + LIFT - 4;
+export function wispFootFade(height: number): number {
+  const shape = band(height);
+  return shape.band + shape.lift - 4 * fit(height);
+}
 /** How many sizes are kept before the oldest is taken out. */
 const KEEP = 24;
 
@@ -94,7 +129,7 @@ export function wispFoot(height: number, width: number): string | null {
   if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
   const tall = Math.round(height);
   const wide = Math.round(width) + SIDE * 2;
-  if (tall < REACH || wide <= SIDE * 2) return null;
+  if (tall < SHORTEST || wide <= SIDE * 2) return null;
   // The budget is counted in the screen's own pixels; a lane past it keeps the plain fade.
   const dots = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
   if (Math.ceil(wide * dots) * Math.ceil((tall + SIDE * 2 + BELOW) * dots) > WISP_EDGE_BUDGET) return null;
@@ -146,11 +181,14 @@ function footFilter(id: string, height: number, wide: number): Element {
   // The lane itself, inside the region: the region reaches SIDE past each edge, so the box it is measured against is
   // narrower than the filter by both of those.
   const across = wide - SIDE * 2;
+  // The lip, the room above it and the ramp, at this lane's own size (`fit`): the same band, smaller on a short lane.
+  // Not `part`: that is the element builder above, and a local of the same name would shadow it.
+  const shape = band(height);
   /** A box along the lane's width, its height, or across it - what a length has to be divided by to be a fraction. */
   const box = (x: number, y: number, w: number, h: number) => ({ x: x / across, y: y / height, width: w / across, height: h / height });
   /** feDisplacementMap measures its throw against this, the box's diagonal over root two. */
   const corner = Math.sqrt((across * across + height * height) / 2);
-  const reach = box(-SIDE, height - REACH, wide, REACH + 40);
+  const reach = box(-SIDE, height - shape.reach, wide, shape.reach + 40);
   const merge = (result: string, ...inputs: string[]) =>
     part('feMerge', result ? { result } : {}, ...inputs.map((input) => part('feMergeNode', { in: input })));
   return part(
@@ -166,9 +204,9 @@ function footFilter(id: string, height: number, wide: number): Element {
     part('feTurbulence', { type: 'fractalNoise', baseFrequency: `${0.02 * across} ${0.07 * height}`, numOctaves: 2, seed: 3, ...reach, result: 'rawNoise' }),
     part('feColorMatrix', { in: 'rawNoise', type: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1', result: 'noise' }),
     part('feFlood', { 'flood-color': '#000', result: 'black' }),
-    part('feFlood', { 'flood-color': '#fff', ...box(-SIDE, height - BAND - LIFT, wide, BAND + LIFT + BELOW), result: 'strip' }),
+    part('feFlood', { 'flood-color': '#fff', ...box(-SIDE, height - shape.band - shape.lift, wide, shape.band + shape.lift + BELOW), result: 'strip' }),
     merge('stripOnBlack', 'black', 'strip'),
-    part('feGaussianBlur', { in: 'stripOnBlack', stdDeviation: `0 ${SOFT / height}`, result: 'band' }),
+    part('feGaussianBlur', { in: 'stripOnBlack', stdDeviation: `0 ${shape.soft / height}`, result: 'band' }),
     part('feComposite', { in: 'noise', in2: 'band', operator: 'arithmetic', k1: 1, k2: 0, k3: -0.5, k4: 0.5, result: 'field' }),
     part('feDisplacementMap', { in: 'SourceGraphic', in2: 'field', scale: BEND / corner, xChannelSelector: 'R', yChannelSelector: 'G', ...reach, result: 'bent' }),
     // Both numbers, always: one fraction shared between a wide lane and a short one is two different blurs.
