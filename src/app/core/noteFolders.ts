@@ -60,7 +60,7 @@ export async function fileNoteInFolder(noteId: string, workspace: string | null)
   if (folder !== null) await fileNoteAt(noteId, folder);
 }
 
-/** Moves one note's file into `folder`, whatever names it: a workspace's, or `Memos/` for a memo (memos/memo.ts). */
+/** Moves one note's file into `folder`, whatever names it. */
 export async function fileNoteAt(noteId: string, folder: string): Promise<void> {
   if (!isTauri()) return;
   try {

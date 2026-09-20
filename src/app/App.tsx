@@ -40,11 +40,9 @@ import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Not
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { canvasNoteBody } from './canvas/jsonCanvas.ts';
-import { MEMOS_FOLDER, memoBody, memosOf, withoutMemos } from './memos/memo.ts';
-import { MemosScreen } from './memos/MemosScreen.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
-import { fileNoteAt } from './core/noteFolders.ts';
-import { chooseWorkspace, fileNewNote, fileNote, inWorkspace, useWorkspaces, workspaceOf } from './core/workspaces.ts';
+import { sweepMemos } from './core/sweepMemos.ts';
+import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 
 /**
@@ -111,9 +109,7 @@ type Screen =
   /** After a memo: where its parts go, proposed, and filed when committed (sort/). */
   | { name: 'sort'; scratch: Scratch }
   /** Glyph Academy: markdown taught a mark at a time, open from Settings whenever it is wanted (academy/). */
-  | { name: 'academy' }
-  /** The memos on their wall (memos/); `compose` set focuses the field, from a +. */
-  | { name: 'memos'; compose?: number };
+  | { name: 'academy' };
 
 export function App() {
   return (
@@ -282,9 +278,6 @@ function Shell() {
    */
   const thrown = useTrash();
   const shownNotes = useMemo(() => outOfTrash(kept, thrown), [kept, thrown]);
-  // A memo is a note, but a collection rather than a page (docs/MEMOS.md): out of the home page, the tree and the
-  // tabs, and on its own wall. The wall is the chosen workspace's, as the home page is (`memos`, below `spaces`).
-  const paperNotes = useMemo(() => withoutMemos(shownNotes), [shownNotes]);
   const trashedNotes = useMemo(() => inTrash(kept, thrown), [kept, thrown]);
   // A note deleted, or put in the trash, here or on another device leaves no tab behind.
   const liveIds = useMemo(() => new Set(shownNotes.map((n) => n.id)), [shownNotes]);
@@ -378,8 +371,6 @@ function Shell() {
   const paletteReady = useCallback((open: () => void) => setOpenCommands(() => open), []);
   const prefs = usePreferences();
   const spaces = useWorkspaces();
-  const chosenSpace = spaces.current?.id ?? null;
-  const memos = useMemo(() => memosOf(inWorkspace(shownNotes, chosenSpace)), [shownNotes, chosenSpace]);
 
   const closeTab = (id: string) => {
     const next = id === shown ? afterClose(openOnly(open, liveIds), id) : null;
@@ -413,6 +404,13 @@ function Shell() {
     await refresh();
     setScreen({ name: 'note', note: made });
   };
+
+  // Memos were taken out of the app (Matt: "remove memo's entirely", and the ones written go too): the first read
+  // of the notes after this build puts any left in the trash (core/sweepMemos.ts).
+  useEffect(() => {
+    if (loading) return;
+    if (sweepMemos(notes)) void refresh();
+  }, [loading, notes, refresh]);
 
   // A fresh library gets the sample note once (core/seed.ts): a few seconds
   // after the first read comes back empty, past the store's own re-asks, so a
@@ -461,32 +459,16 @@ function Shell() {
   };
 
   /*
-   * What the + makes (notes/NewSheet.tsx): a note, a memo or a canvas. The sheet is one for every +, so the choice
-   * reads the same wherever it is offered.
+   * What the + makes (notes/NewSheet.tsx): a note or a canvas. The sheet is one for every +, so the choice reads the
+   * same wherever it is offered.
    */
   const [newSheet, setNewSheet] = useState(false);
-
-  const newMemo = () => setScreen({ name: 'memos', compose: Date.now() });
 
   const newCanvas = async () => {
     const note = await saveNote(newNoteId(), canvasNoteBody('Untitled canvas', { nodes: [], edges: [] }), 'editor');
     fileNewNote(note.id);
     await refresh();
     setScreen({ name: 'note', note });
-  };
-
-  // A memo written on the wall: a tiny note of its own (memos/memo.ts). Made while a workspace is chosen, it is
-  // filed there, in that workspace's folder, and shows only there (Matt's choice); with none chosen, it goes to Memos/.
-  const addMemo = async (text: string) => {
-    const note = await saveNote(newNoteId(), memoBody(text), 'editor');
-    if (spaces.current) fileNewNote(note.id);
-    else await fileNoteAt(note.id, MEMOS_FOLDER);
-    await refresh();
-  };
-
-  const changeMemo = async (memo: Note, text: string) => {
-    await saveNote(memo.id, memoBody(text), memo.source);
-    await refresh();
   };
 
   // From the editor's Delete: the same undoable delete a swipe does.
@@ -657,7 +639,7 @@ function Shell() {
    */
   const home = (
     <HomeScreen
-      notes={paperNotes}
+      notes={shownNotes}
       loading={loading}
       onOpen={(id, at) => {
         const note = notes.find((n) => n.id === id);
@@ -667,8 +649,6 @@ function Shell() {
       onCapture={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
       onSettings={() => setSettings(true)}
       onAllNotes={showAllNotes}
-      onMemos={() => setScreen({ name: 'memos' })}
-      memoCount={memos.length}
       onTick={(task) => void tickTask(task)}
       voiceModel={voiceModel.state}
       onRetryVoiceModel={voiceModel.retry}
@@ -830,16 +810,6 @@ function Shell() {
           noteId={screen.noteId}
           onFinish={(note, locked, review, sort) => void captureFinished(note, locked, review, sort)}
         />
-      ) : screen.name === 'memos' ? (
-        <MemosScreen
-          memos={memos}
-          workspace={spaces.current?.name}
-          compose={screen.compose}
-          onBack={() => void backToList()}
-          onAdd={addMemo}
-          onChange={changeMemo}
-          onRemove={(memo) => actions.remove(memo)}
-        />
       ) : screen.name === 'academy' ? (
         <AcademyScreen
           onDone={() => setScreen({ name: 'list' })}
@@ -886,11 +856,10 @@ function Shell() {
           {dockShown ? (
             <aside className="app-sidebar" aria-label="All notes">
               <NoteTree
-                notes={paperNotes}
+                notes={shownNotes}
                 activeId={shown}
                 onOpen={openNote}
                 onNew={() => setNewSheet(true)}
-                onMemos={() => setScreen({ name: 'memos' })}
                 onCommands={openCommands ?? undefined}
                 onSettings={() => setSettings(true)}
                 onSpeak={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
@@ -910,13 +879,13 @@ function Shell() {
         (noteScreen ?? home)
       )}
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
-      <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onMemo={newMemo} onCanvas={() => void newCanvas()} />
+      <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} />
       <WhatsNewSheet sources={updates.status?.sources} hold={guide || screen.name === 'capture'} />
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
       <NotesDrawer
         open={drawer}
         notices={split ? notices : undefined}
-        notes={paperNotes}
+        notes={shownNotes}
         trashed={trashedNotes}
         onRestore={actions.restore}
         onDestroy={actions.destroy}
@@ -926,10 +895,6 @@ function Shell() {
         onNew={() => {
           setDrawer(false);
           setNewSheet(true);
-        }}
-        onMemos={() => {
-          setDrawer(false);
-          setScreen({ name: 'memos' });
         }}
         onClose={() => setDrawer(false)}
         onSettings={() => {
