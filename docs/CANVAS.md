@@ -92,6 +92,16 @@ title: "Cabin weekend, laid out"
 Everything after the front matter is the `.canvas` file, character for character. Settings > About adds an example
 one (`canvas/sampleCanvas.ts`), the way it adds the example board.
 
+**Named from the cog.** A canvas has no heading to rename it in, so the note's cog sheet has a Name field for a
+canvas note (editor/NoteSettings.tsx), which writes the `title:` front matter and nothing else
+(core/frontMatter.ts). Matt chose that over renaming in the tab or editing the front matter by hand.
+
+**Its JSON, behind the view switch.** The header's switch, which on a note of words goes between the marks and the
+formatted page, on a canvas note goes between the canvas and its JSON in the editor, where it can be read and
+changed by hand (Matt: "yes, via the Markdown/Formatted switch"). It is the note's own switch, not the preference
+every note shares - that one defaults to the marks, and a canvas should open as a canvas. The JSON shown is what the
+canvas has written by then; switching back draws what was typed.
+
 **In a note**, as a ```canvas fence, the way a board or a Mermaid diagram sits in a note. Not built yet.
 
 ## What is drawn, so far

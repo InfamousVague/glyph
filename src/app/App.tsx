@@ -44,7 +44,7 @@ import { MEMOS_FOLDER, memoBody, memosOf, withoutMemos } from './memos/memo.ts';
 import { MemosScreen } from './memos/MemosScreen.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
 import { fileNoteAt } from './core/noteFolders.ts';
-import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
+import { chooseWorkspace, fileNewNote, fileNote, inWorkspace, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 
 /**
@@ -283,9 +283,8 @@ function Shell() {
   const thrown = useTrash();
   const shownNotes = useMemo(() => outOfTrash(kept, thrown), [kept, thrown]);
   // A memo is a note, but a collection rather than a page (docs/MEMOS.md): out of the home page, the tree and the
-  // tabs, and on its own wall.
+  // tabs, and on its own wall. The wall is the chosen workspace's, as the home page is (`memos`, below `spaces`).
   const paperNotes = useMemo(() => withoutMemos(shownNotes), [shownNotes]);
-  const memos = useMemo(() => memosOf(shownNotes), [shownNotes]);
   const trashedNotes = useMemo(() => inTrash(kept, thrown), [kept, thrown]);
   // A note deleted, or put in the trash, here or on another device leaves no tab behind.
   const liveIds = useMemo(() => new Set(shownNotes.map((n) => n.id)), [shownNotes]);
@@ -379,6 +378,8 @@ function Shell() {
   const paletteReady = useCallback((open: () => void) => setOpenCommands(() => open), []);
   const prefs = usePreferences();
   const spaces = useWorkspaces();
+  const chosenSpace = spaces.current?.id ?? null;
+  const memos = useMemo(() => memosOf(inWorkspace(shownNotes, chosenSpace)), [shownNotes, chosenSpace]);
 
   const closeTab = (id: string) => {
     const next = id === shown ? afterClose(openOnly(open, liveIds), id) : null;
@@ -474,10 +475,12 @@ function Shell() {
     setScreen({ name: 'note', note });
   };
 
-  // A memo written on the wall: a tiny note of its own, filed in Memos/ (memos/memo.ts).
+  // A memo written on the wall: a tiny note of its own (memos/memo.ts). Made while a workspace is chosen, it is
+  // filed there, in that workspace's folder, and shows only there (Matt's choice); with none chosen, it goes to Memos/.
   const addMemo = async (text: string) => {
     const note = await saveNote(newNoteId(), memoBody(text), 'editor');
-    await fileNoteAt(note.id, MEMOS_FOLDER);
+    if (spaces.current) fileNewNote(note.id);
+    else await fileNoteAt(note.id, MEMOS_FOLDER);
     await refresh();
   };
 
@@ -829,6 +832,7 @@ function Shell() {
       ) : screen.name === 'memos' ? (
         <MemosScreen
           memos={memos}
+          workspace={spaces.current?.name}
           compose={screen.compose}
           onBack={() => void backToList()}
           onAdd={addMemo}
