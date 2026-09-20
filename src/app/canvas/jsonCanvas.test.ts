@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { noteTitle } from '../core/store.ts';
-import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, isCanvasBody, movedNode, newCanvasId, newTextNode, paintOf, parseCanvas, serializeCanvas, sidesOf, withCanvas, withNode, withoutNode, type Canvas } from './jsonCanvas.ts';
+import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, heldBy, isCanvasBody, joined, labelledEdge, labelledGroup, movedNode, movedWithHeld, newCanvasId, newEdge, newFileNode, newGroupAround, newLinkNode, newPictureNode, newTextNode, isOnlyTable, CHART_CARD, TABLE_CARD, paintOf, parseCanvas, resizedNode, serializeCanvas, sidesOf, withCanvas, withEdge, withNode, withoutEdge, withoutNode, type Canvas } from './jsonCanvas.ts';
 
 const SPEC_SAMPLE = `{
   "nodes": [
@@ -170,5 +170,93 @@ describe('changing a canvas', () => {
     const ids = new Set(Array.from({ length: 50 }, () => newCanvasId()));
     expect(ids.size).toBe(50);
     for (const id of ids) expect(id).toMatch(/^[0-9a-f]{16}$/);
+  });
+});
+
+describe('lines between cards', () => {
+  const canvas = parseCanvas(SPEC_SAMPLE) as Canvas;
+
+  it('draws a new line with an arrow at its end and its sides worked out, adds it last, and takes it off again', () => {
+    const line = newEdge('f1', 'l1', 'ln');
+    expect(line).toEqual({ id: 'ln', fromNode: 'f1', toNode: 'l1' });
+    const added = withEdge(canvas, line);
+    expect(added.edges.at(-1)).toBe(line);
+    expect(edgePath(added, line)?.toHead).not.toBeNull();
+    expect(withoutEdge(added, 'ln').edges).toEqual(canvas.edges);
+    // Read back through the spec, it is the same line.
+    expect(parseCanvas(serializeCanvas(added))?.edges.at(-1)).toEqual(line);
+  });
+
+  it('labels a line, replaces the label, and takes it off with blank', () => {
+    const line = newEdge('f1', 'l1', 'ln');
+    expect(labelledEdge(line, '  then  ').label).toBe('then');
+    expect(labelledEdge(labelledEdge(line, 'then'), 'after')).toMatchObject({ label: 'after' });
+    expect('label' in labelledEdge(labelledEdge(line, 'then'), '   ')).toBe(false);
+    expect(withEdge(canvas, labelledEdge(canvas.edges[0]!, 'later')).edges[0]).toMatchObject({ id: 'e1', label: 'later' });
+  });
+
+  it('knows when two cards are already joined, either way round', () => {
+    expect(joined(canvas, 't1', 'f1')).toBe(true);
+    expect(joined(canvas, 'f1', 't1')).toBe(true);
+    expect(joined(canvas, 'f1', 'l1')).toBe(false);
+  });
+});
+
+describe('sizes and groups', () => {
+  const canvas = parseCanvas(SPEC_SAMPLE) as Canvas;
+
+  it('resizes a card to the pixel and never smaller than a word and a cross', () => {
+    const t1 = canvas.nodes.find((n) => n.id === 't1')!;
+    expect(resizedNode(t1, 300.4, 80.6)).toMatchObject({ x: 0, y: 0, width: 300, height: 81 });
+    expect(resizedNode(t1, 10, 10)).toMatchObject({ width: 120, height: 60 });
+  });
+
+  it('moves a group with everything wholly inside it, and a card on its own', () => {
+    const g1 = canvas.nodes.find((n) => n.id === 'g1')!;
+    // g1 is -40,-40 600x300: t1 (0,0 250x60) and f1 (300,0 250x120) are inside; l1 (0,150 250x80) is inside too.
+    expect(heldBy(canvas, g1).map((n) => n.id)).toEqual(['t1', 'f1', 'l1']);
+    const moved = movedWithHeld(canvas, g1, 60, -40);
+    expect(moved.nodes.map((n) => [n.id, n.x, n.y])).toEqual([['g1', 60, -40], ['t1', 100, 0], ['f1', 400, 0], ['l1', 100, 150]]);
+    const alone = movedWithHeld(canvas, canvas.nodes.find((n) => n.id === 't1')!, 20, 20);
+    expect(alone.nodes.map((n) => [n.id, n.x, n.y])).toEqual([['g1', -40, -40], ['t1', 20, 20], ['f1', 300, 0], ['l1', 0, 150]]);
+  });
+
+  it('draws a new group round the cards named, with room, under everything, and names it', () => {
+    const grouped = newGroupAround(canvas, ['t1', 'l1'], 'Trip', 'gg')!;
+    expect(grouped.nodes[0]).toMatchObject({ id: 'gg', type: 'group', label: 'Trip', x: -40, y: -64, width: 330, height: 334 });
+    expect(heldBy(grouped, grouped.nodes[0]!).map((n) => n.id)).toEqual(['t1', 'l1']);
+    expect(newGroupAround(canvas, ['nope'])).toBeNull();
+    expect('label' in labelledGroup(grouped.nodes[0]!, '  ')).toBe(false);
+    expect(labelledGroup(grouped.nodes[0]!, ' Plans ')).toMatchObject({ label: 'Plans' });
+  });
+});
+
+describe('note and link cards made', () => {
+  it('names a note card by its title as a file, and gives a bare address https', () => {
+    expect(newFileNode('Cabin trip', 10.4, 20, 'f')).toMatchObject({ id: 'f', type: 'file', file: 'Cabin trip.md', x: 10, y: 20 });
+    expect(newFileNode('  ', 0, 0, 'f')).toMatchObject({ file: 'Untitled.md' });
+    expect(newFileNode('Plans/Cabin', 0, 0, 'f')).toMatchObject({ file: 'Plans-Cabin.md' });
+    expect(newLinkNode('attack.fm/glyph', 0, 0, 'l')).toMatchObject({ type: 'link', url: 'https://attack.fm/glyph' });
+    expect(newLinkNode('https://x.y', 0, 0, 'l')).toMatchObject({ url: 'https://x.y' });
+    expect(newLinkNode('mailto:a@b.c', 0, 0, 'l')).toMatchObject({ url: 'mailto:a@b.c' });
+    expect(newLinkNode('   ', 0, 0)).toBeNull();
+  });
+});
+
+describe('pictures, charts and tables', () => {
+  it('makes a picture card by the store name, and starts a chart and a table as what they are', () => {
+    expect(newPictureNode('abc.jpg', 5.5, 6, 'p')).toMatchObject({ id: 'p', type: 'file', file: 'abc.jpg', x: 6, y: 6, height: 200 });
+    expect(CHART_CARD.startsWith('```mermaid\n')).toBe(true);
+    expect(TABLE_CARD.split('\n')[1]).toBe('| --- | --- |');
+  });
+});
+
+describe('a card that is only a table', () => {
+  it('knows a table from words with a table in them', () => {
+    expect(isOnlyTable(TABLE_CARD)).toBe(true);
+    expect(isOnlyTable('| a | b |\n| - | - |\n| 1 | 2 |')).toBe(true);
+    expect(isOnlyTable('# Prices\n\n| a | b |\n| - | - |')).toBe(false);
+    expect(isOnlyTable('| just one line |')).toBe(false);
+    expect(isOnlyTable('')).toBe(false);
   });
 });

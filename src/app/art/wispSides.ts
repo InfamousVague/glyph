@@ -29,6 +29,10 @@ import { WISP_EDGE_BUDGET } from './wispEdge.ts';
  * below do that arithmetic in one place. The subregions stay, converted rather than dropped: they are most of what
  * this effect costs, and a draft of wispFoot's without them ran at nearly twice the cost a frame (§54).
  *
+ * One attribute is outside all of that: the noise's `baseFrequency`, which an engine reads in user space whatever
+ * the units say. Converting it with the rest is what made the smoke grainy, and the comment on it says how that was
+ * measured. Everything with a length in it is a fraction of the box; the frequency is per pixel.
+ *
  * The noise stays where it is and the tabs scroll through it, so the edge churns while they move and rests when they
  * stop: that is the animation, and a row at rest costs nothing but its bands. Sliding the noise as well was tried in
  * the plan and left out - a filter draws nothing outside its own region, so noise slid in from past the row's end
@@ -127,8 +131,16 @@ function sidesFilter(id: string, wide: number, tall: number, start: boolean, end
   return part(
     'filter',
     { id, filterUnits: 'objectBoundingBox', primitiveUnits: 'objectBoundingBox', ...region, 'color-interpolation-filters': 'sRGB' },
-    // A frequency per box unit rather than per pixel, so the noise keeps the same grain whatever size the row is.
-    part('feTurbulence', { type: 'fractalNoise', baseFrequency: `${0.07 * wide} ${0.035 * tall}`, numOctaves: 2, seed: 5, ...region, result: 'rawNoise' }),
+    /*
+     * The one length here that is NOT in the box's units, and the only one that must not be: an engine reads
+     * `baseFrequency` in the filter's own user space whatever `primitiveUnits` says. Converted with everything else
+     * it came out multiplied by the row's width and height - 26 cycles across where 0.07 a pixel was meant - and the
+     * smoke turned to static (Matt: "The tabs have a grainy effect on the wisp blur distort ... something changed
+     * that needs reverted"). Drawn side by side at 375x41 from the one seed: per-pixel in user space, the same
+     * frequency in box units, and the multiplied pair. The first two are the same soft cloud; the third is grain.
+     * So it stays the per-pixel frequency every other wisp in the app is written in (art/wispEdge.ts, wispFormat.ts).
+     */
+    part('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.07 0.035', numOctaves: 2, seed: 5, ...region, result: 'rawNoise' }),
     part('feColorMatrix', { in: 'rawNoise', type: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1', result: 'noise' }),
     part('feFlood', { 'flood-color': '#000', result: 'black' }),
     ...strips,

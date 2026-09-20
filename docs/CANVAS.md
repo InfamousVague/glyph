@@ -92,6 +92,16 @@ title: "Cabin weekend, laid out"
 Everything after the front matter is the `.canvas` file, character for character. Settings > About adds an example
 one (`canvas/sampleCanvas.ts`), the way it adds the example board.
 
+**Named from the cog.** A canvas has no heading to rename it in, so the note's cog sheet has a Name field for a
+canvas note (editor/NoteSettings.tsx), which writes the `title:` front matter and nothing else
+(core/frontMatter.ts). Matt chose that over renaming in the tab or editing the front matter by hand.
+
+**Its JSON, behind the view switch.** The header's switch, which on a note of words goes between the marks and the
+formatted page, on a canvas note goes between the canvas and its JSON in the editor, where it can be read and
+changed by hand (Matt: "yes, via the Markdown/Formatted switch"). It is the note's own switch, not the preference
+every note shares - that one defaults to the marks, and a canvas should open as a canvas. The JSON shown is what the
+canvas has written by then; switching back draws what was typed.
+
 **In a note**, as a ```canvas fence, the way a board or a Mermaid diagram sits in a note. Not built yet.
 
 ## What is drawn, so far
@@ -116,7 +126,42 @@ The press-and-hold to move, the double-tap to open and the cross to take off wer
 asked" list below); they are the app's own conventions - a board's card and a tab are moved by a held press too -
 chosen so one habit serves the whole app, and are his to change.
 
-Not yet: drawing lines and labelling them, resizing a card, moving a group with its cards, the other three ways to
-add a card (the dock's +, dragging a note in, by voice), item cards, zoom-to-card and the minimap, a canvas inside a
-note, export, and the model's three moves (a gist on note cards, laying a note out as a canvas, suggesting lines).
-Each is a slice of its own.
+**The third slice draws lines.** The `Line` tool turns the next two taps into a line, from the first card tapped
+to the second, with an arrow at its end and its sides worked out from where the cards are (choice 4); a card cannot
+be joined to itself, and two cards already joined are not joined again. A tap on a line picks it - each line has a
+wide unseen stroke to land on - and a picked line shows its words to be written and a cross to take it off. While a
+line is being drawn a tap on a note card or a link card is the line's, not the card's. A tool rather than a drag
+from a card's edge, because a finger has no hover to find an edge dot by, and the two taps read the same on a phone
+and with a mouse; that choice was not put to Matt.
+
+**The fourth slice sizes and groups.** A card open to be written in has a corner to drag that resizes it, to the
+pixel and no smaller than a word and a cross. A press held on a group lifts it with everything wholly inside it
+(choice 5: "cards inside move with it"), measured the way Obsidian measures it - a card is in a group when its whole
+box is - and a card lifted on its own leaves its group where it is. A double-tap on a group opens its name to be
+written, and a cross there takes the group off while the cards in it stay. Making a group round cards belongs with
+the other ways to add, in the next slice.
+
+**The fifth slice adds more ways in** (choice 8). The `+ Card` tool is a sheet: words, a note chosen by part of
+its title, or a web address (a bare one is given https). On a wide screen a note dragged from the sidebar lands as a
+card where it is dropped (`notes/NoteTree.tsx` makes the rows draggable). Pictures wait, since Glyph has no picture
+files of its own to point at; adding by voice belongs to the capture and is not built yet.
+
+**The sixth finds the way** (choice 10). A tap on a card's title zooms to the card; `Fit` and Shift+1 show the whole
+canvas, `To card` and Shift+2 zoom to the card open or last tapped. A minimap in the corner draws every card small
+with the screen's box over them, and a tap on it goes there. It appears once a canvas has two cards. Redone at Matt's
+asking ("more detailed and better organized"): each kind of card is told apart - words filled, a note outlined, a
+picture filled dark, a link outlined with a dot - a coloured card wears its hue, the lines are drawn between the
+sides they leave and arrive by, a group is its dashed box with its name when there is room, the canvas keeps its own
+shape centred in the frame, and a finger dragged on the map keeps going. A card that is only a table draws the
+table edge to edge, with no padding (Matt: "make the table fill the card").
+
+**The seventh puts pictures, charts and tables on cards** (Matt: "upload and add images and charts and stuff").
+The + offers a picture - chosen from the phone or the computer and kept by the picture store a note's pictures use
+(`core/images.ts`), so it syncs as they do - drawn to fill its card; a chart, a card of words that starts as a small
+Mermaid diagram and is drawn as one (cards draw diagrams, though the sidebar's peeks still do not); and a table. A
+picture file dropped on the canvas from a computer is kept and drawn the same. A picture from another vault, named
+with a folder, is drawn as waiting, since Glyph has no such file. The tools are a floating toolbar of icons at the
+bottom left, each named for a reader, and the map sits at the bottom right.
+
+Not yet: making a group round cards, adding by voice, item cards, a canvas inside a note, export, and the model's
+three moves (a gist on note cards, laying a note out as a canvas, suggesting lines). Each is a slice of its own.

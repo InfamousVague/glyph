@@ -49,8 +49,11 @@ describe('the memos on a wall', () => {
     const shown = show(<MemosScreen memos={[memo('a', 'Milk', 2), memo('b', 'Ask Sam\nabout the dog', 1)]} onBack={() => undefined} onAdd={onAdd} onChange={async () => undefined} onRemove={() => undefined} />);
     const cards = shown.querySelectorAll('ul li');
     expect(cards).toHaveLength(2);
-    expect(cards[0]?.textContent).toContain('Milk');
-    expect(cards[1]?.textContent).toContain('Ask Sam\nabout the dog');
+    // Each card's words are drawn by the note's editor, and are the card's name for a screen reader.
+    expect(cards[0]?.querySelector('.cm-content')?.textContent).toContain('Milk');
+    expect(cards[0]?.querySelector('button')?.getAttribute('aria-label')).toBe('Milk');
+    expect(cards[1]?.querySelector('.cm-content')?.textContent).toContain('Ask Sam');
+    expect(cards[1]?.querySelector('.cm-content')?.textContent).toContain('about the dog');
 
     const field = shown.querySelector('textarea[aria-label="A new memo"]') as HTMLTextAreaElement;
     type(field, 'Eggs and coffee');
@@ -88,8 +91,12 @@ describe('the memos on a wall', () => {
     expect(onRemove).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }));
   });
 
-  it('says so when there is nothing kept yet', () => {
+  it('says so when there is nothing kept yet, and whose wall it is when a workspace is chosen', () => {
     const shown = show(<MemosScreen memos={[]} onBack={() => undefined} onAdd={async () => undefined} onChange={async () => undefined} onRemove={() => undefined} />);
     expect(shown.textContent).toContain('Nothing kept yet');
+    act(() => root?.unmount());
+    const work = show(<MemosScreen memos={[]} workspace="Work" onBack={() => undefined} onAdd={async () => undefined} onChange={async () => undefined} onRemove={() => undefined} />);
+    expect(work.querySelector('h1')?.textContent).toContain('Work');
+    expect(work.textContent).toContain('Nothing kept in Work yet');
   });
 });

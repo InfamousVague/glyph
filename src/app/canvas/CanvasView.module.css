@@ -12,7 +12,20 @@
   user-select: none;
   -webkit-user-select: none;
   cursor: grab;
-  background: var(--glacier-bg);
+  /*
+   * A grid of dots under the cards, as Obsidian's canvas has (Matt: "the grid dots are missing from canvas"): drawn
+   * by the page's background so it costs nothing, and moved and scaled with the world through the three variables
+   * `apply` writes (CanvasView.tsx), so the dots stay under the same points of the canvas as it pans and zooms. At
+   * the smallest zooms the dots would crowd into a grey, so they fade out below a third.
+   */
+  --canvas-x: 0px;
+  --canvas-y: 0px;
+  --canvas-scale: 1;
+  --canvas-dot: color-mix(in oklch, var(--app-ink, currentColor) clamp(0%, calc((var(--canvas-scale) - 0.3) * 40%), 18%), transparent);
+  background-color: var(--glacier-bg);
+  background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1.6px);
+  background-size: calc(24px * var(--canvas-scale)) calc(24px * var(--canvas-scale));
+  background-position: var(--canvas-x) var(--canvas-y);
 }
 
 .canvas:active {
@@ -73,6 +86,212 @@
   transform: scale(1.02);
   box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
   z-index: 1;
+}
+
+/* The corner of an open card: a small wedge to drag, in the card's own ink. */
+.corner {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  inline-size: 22px;
+  block-size: 22px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, color-mix(in oklch, var(--app-ink, currentColor) 35%, transparent) 50%);
+  border-end-end-radius: var(--glacier-radius-lg, 16px);
+}
+
+/* A group open to be named: its name is a field where the label was, with the cross beside it. */
+.groupLabel[data-editing] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+}
+
+.group[data-editing] {
+  border-style: solid;
+}
+
+.groupField {
+  inline-size: 12em;
+  padding: 0.2em 0.6em;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: 999px;
+  background: var(--glacier-bg);
+  color: var(--app-ink, var(--glacier-text));
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+}
+
+.groupLabel .remove {
+  position: static;
+}
+
+/* A card's title is a way to zoom to the card (choice 10). */
+.cardTitle[data-card-title] {
+  cursor: zoom-in;
+}
+
+/*
+ * The minimap, in the corner opposite the tools: the canvas small, each kind of card told apart, the lines between
+ * them, and the screen's box. Coloured cards wear their hue through `--app-space`, as the cards themselves do.
+ */
+.minimap {
+  position: absolute;
+  right: var(--glacier-space-3);
+  bottom: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md);
+  background: color-mix(in oklch, var(--glacier-bg) 82%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  touch-action: none;
+}
+
+/* Words: a filled block. */
+.mapCard rect {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 55%, transparent);
+  stroke: none;
+}
+
+/* A note: outlined, with a faint ground, so it reads as something to open rather than something written here. */
+.mapCard[data-kind='note'] rect {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 12%, transparent);
+  stroke: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 70%, transparent);
+  stroke-width: 1;
+}
+
+/* A picture: filled dark, the one solid thing. */
+.mapCard[data-kind='picture'] rect {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 85%, transparent);
+}
+
+/* A link: outlined, with a dot in it. */
+.mapCard[data-kind='link'] rect {
+  fill: none;
+  stroke: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 60%, transparent);
+  stroke-width: 1;
+}
+
+.mapCard[data-kind='link'] circle {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 70%, transparent);
+}
+
+.mapGroup rect {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 6%, transparent);
+  stroke: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 35%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+
+.mapLabel {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 75%, var(--glacier-text-muted));
+  font-size: 7px;
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+.mapLine {
+  stroke: color-mix(in oklch, var(--app-ink, currentColor) 35%, transparent);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+/* The screen's box: a light wash inside a firm line, so where you are reads at a glance. */
+.mapSeen {
+  fill: color-mix(in oklch, var(--app-ink, currentColor) 7%, transparent);
+  stroke: var(--app-ink, var(--glacier-text));
+  stroke-width: 1.5;
+}
+
+/* On a phone's width the map is smaller, so it takes less of the page. */
+@media (max-width: 600px) {
+  .minimap {
+    transform: scale(0.72);
+    transform-origin: bottom right;
+  }
+}
+
+/* The + sheet's second step: a field, and the notes it finds or the Add. */
+.addField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-4);
+}
+
+.addInput {
+  inline-size: 100%;
+  box-sizing: border-box;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md);
+  background: transparent;
+  color: var(--app-ink, var(--glacier-text));
+  font: inherit;
+}
+
+.addGo {
+  align-self: flex-end;
+}
+
+.addList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-block-size: 40vh;
+  overflow-y: auto;
+}
+
+.addRow {
+  appearance: none;
+  display: block;
+  inline-size: 100%;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: none;
+  border-radius: var(--glacier-radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.addRow:hover {
+  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
+}
+
+.addNone {
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  color: var(--glacier-text-subtle);
+  font-size: var(--glacier-font-size-sm);
+}
+
+/* A card that is only a table: no padding, and the table to every edge, scrolling inside if it is bigger. */
+.card[data-only='table'] {
+  padding: 0;
+}
+
+.card[data-only='table'] .words {
+  overflow: auto;
+}
+
+.card[data-only='table'] :global(.cm-content),
+.card[data-only='table'] :global(.cm-line) {
+  padding: 0;
+}
+
+.card[data-only='table'] :global(.cm-glyphTableWrap) {
+  margin: 0;
+  inline-size: 100%;
+  min-block-size: 100%;
+  overflow: visible;
+}
+
+.card[data-only='table'] :global(.cm-glyphTable) {
+  inline-size: 100%;
+  border-collapse: collapse;
 }
 
 /* Taking a card off, from its corner while it is open. */
@@ -177,7 +396,10 @@
   white-space: nowrap;
 }
 
-/* The lines, one SVG over every card in the same pixels; it takes no taps, so a card under a line is still a card. */
+/*
+ * The lines, one SVG over every card in the same pixels. The SVG takes no taps, so a card under a line is still a
+ * card; on a canvas that can change, each line's own wide unseen stroke (`.lineHit`) does, so a finger can pick it.
+ */
 .edges {
   position: absolute;
   left: 0;
@@ -190,6 +412,67 @@
 
 .edge {
   color: var(--app-space, var(--app-ink-3, var(--glacier-text-muted)));
+}
+
+.lineHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 24;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+/* Picked: the line and its heads in the page's own ink, a step heavier. */
+.edge[data-picked] {
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.edge[data-picked] .line {
+  stroke-width: 3;
+}
+
+/* Drawing a line: the whole page says so, and the card it starts from wears a ring. */
+.canvas[data-lining] .card,
+.canvas[data-lining] .group {
+  cursor: crosshair;
+}
+
+.card[data-line-from] {
+  outline: 2px solid var(--app-ink, var(--glacier-text));
+  outline-offset: 2px;
+}
+
+/* The picked line's words, over its middle: a small field and the cross, centred on the point. */
+.lineWords {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  transform: translate(-50%, -50%);
+  padding: var(--glacier-space-1);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: 999px;
+  background: var(--glacier-bg);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+}
+
+.lineWords .remove {
+  position: static;
+}
+
+.lineField {
+  inline-size: 11em;
+  padding: 0.25em 0.7em;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--app-ink, var(--glacier-text));
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+}
+
+.lineField:focus {
+  outline: none;
 }
 
 .line {
@@ -216,19 +499,70 @@
   dominant-baseline: middle;
 }
 
+/* The toolbar: icons in a floating pill at the bottom left, the map at the bottom right. */
 .tools {
   position: absolute;
-  right: var(--glacier-space-3);
+  left: var(--glacier-space-3);
   bottom: var(--glacier-space-3);
   display: flex;
-  gap: var(--glacier-space-2);
-}
-
-.tool {
-  padding-inline: var(--glacier-space-3);
-  padding-block: var(--glacier-space-1);
+  align-items: center;
+  gap: var(--glacier-space-1);
+  padding: var(--glacier-space-1);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
   border-radius: 999px;
   background: color-mix(in oklch, var(--glacier-bg) 80%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+.tool {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tool:hover {
+  color: var(--app-ink, var(--glacier-text));
+  background: color-mix(in oklch, var(--app-ink, currentColor) 8%, transparent);
+}
+
+.tool:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 1px;
+}
+
+/* What the next tap does, while a line is being drawn, said beside the tools. */
+.hint {
+  padding-inline: var(--glacier-space-2) var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  white-space: nowrap;
+}
+
+/* A picture on a card: the whole card is the picture, kept in shape and cropped to the card's own round. */
+.pictureCard {
+  padding: 0;
+}
+
+.picture {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+/* The Line tool while a line is being drawn: ink, so the page says what the next tap will do. */
+.tool[data-on] {
+  color: var(--glacier-bg);
+  background: var(--app-ink, var(--glacier-text));
 }

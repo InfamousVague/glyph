@@ -128,6 +128,8 @@ interface EditorProps {
    * when the editor is made.
    */
   peek?: boolean;
+  /** Diagrams drawn even on a peek: a canvas card is small but is read, so a chart on it is the point of the card. */
+  diagrams?: boolean;
 }
 
 /**
@@ -177,6 +179,7 @@ export function Editor({
   formats,
   display = 'mixed',
   peek = false,
+  diagrams = false,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -243,7 +246,7 @@ export function Editor({
         // where a board is a screen's worth and its items are drawn as the list they are.
         peek ? [] : drawnBoards(),
         // Mermaid diagrams drawn from a ```mermaid fence (editor/mermaid.ts).
-        peek ? [] : drawnMermaid(),
+        peek && !diagrams ? [] : drawnMermaid(),
         peek ? [] : swipeItemAction({ action: () => swipeActionRef.current?.() ?? null }),
         peek ? [] : lineSuggestions({ suggest: (body) => suggestRef.current?.(body) ?? [] }),
         // A tap on a to-do's box ticks or clears it (taskToggle.ts).

@@ -3113,6 +3113,32 @@ this one changes it (`canvas/CanvasView.tsx`, `canvas/jsonCanvas.ts`).
 - **The editor once, two ways.** A card of words is the note's editor in peek mode until it is opened, and the same
   editor in the note's own mode while it is; the read-only one is only made near the screen (`Near`), the open one
   at once, and the keyboard is asked for a tick after it mounts.
+- **Lines, by two taps.** The third slice: the Line tool makes the next two taps a line, from the first card to the
+  second; a tap on a line picks it, and a picked line shows its words and a cross. A tool rather than Obsidian's
+  drag from an edge dot, since a finger has no hover to find a dot by. The browser caught what the tests could not:
+  in Line mode a tap on a link card ran the card's own handler first and the page left for the address, so Line
+  mode is handled in the capture phase, before any card sees the tap.
+- **Sizes and groups.** The fourth slice: an open card's corner resizes it, no smaller than a word and a cross; a
+  held press on a group lifts it with everything wholly inside it, measured as Obsidian measures it, so a card
+  half over the edge stays; a double-tap names a group, and its cross takes the group off and leaves the cards. A
+  drag is measured from the canvas as it was at pick-up (`carrying.base`), not from the last frame, so a group and
+  its cards move by one amount rather than compounding.
+- **More ways in, and the way around.** The fifth and sixth slices: the + is a sheet in the home +'s own look (words,
+  a note by its title, a web address), a sidebar row dragged onto the canvas is a card of that note, a card's title
+  zooms to it, Shift+1 and Shift+2 do what Obsidian's do, and a minimap draws the cards with the screen's box over
+  them. The view lives in a ref so a pan is one style write; the minimap needs it as state, so `apply` mirrors it
+  once a frame at most.
+- **Pictures, charts, tables, and a toolbar of icons.** The seventh slice: a picture card is the spec's file node
+  named by the picture store's own name, so it syncs with the notes' pictures and a vault's picture (a folder in its
+  name) is told apart; a chart is a card of words that starts as Mermaid, with the editor's diagrams let through on a
+  peek by a `diagrams` prop rather than a second mode; the tools moved to a floating pill of icons at the bottom left
+  (Matt: "use iconography instead of text") with the map at the bottom right, and what a line needs next is said
+  beside them.
+- **The map, redone; a table to the edges.** The minimap tells the kinds of card apart, draws the lines between
+  the sides they use, names groups when there is room, wears each card's hue and keeps the canvas's shape centred;
+  a drag on it pans. `setPointerCapture` is guarded: a browser throws for a pointer it is not tracking, and the press
+  must still go where it landed. A card that is only a table (`isOnlyTable`) loses its padding and the table takes
+  the card, edge to edge.
 - **Measured in the browser, not assumed:** a held press of 300ms lifted the card and a move of (60, 90) screen
   pixels at scale 1 put it down at (60, 90); a double-tap made a card with a sixteen-hex id, focused, and what was
   typed was in the saved note with its front matter untouched. In the tests, a move before the hold pans and saves

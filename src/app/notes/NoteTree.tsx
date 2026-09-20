@@ -95,6 +95,15 @@ export function NoteTree({
           data-active={note.id === activeId || undefined}
           aria-current={note.id === activeId ? 'page' : undefined}
           onClick={() => onOpen(note.id)}
+          // A row can be dragged onto a canvas, where it becomes a card of that note (canvas/CanvasView.tsx; Matt's
+          // choice 8: "drag a note from the sidebar on a wide screen"). The title travels as text, so anything else
+          // that takes a drop gets the note's name and nothing stranger.
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.setData('application/x-glyph-note', note.id);
+            event.dataTransfer.setData('text/plain', title || 'Untitled');
+            event.dataTransfer.effectAllowed = 'copy';
+          }}
         >
           <span className={styles.rowTitle} data-untitled={title ? undefined : ''}>
             {title || 'Untitled'}

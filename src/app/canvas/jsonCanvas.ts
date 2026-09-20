@@ -237,6 +237,36 @@ export function newTextNode(x: number, y: number, id = newCanvasId()): CanvasNod
   return { id, type: 'text', x: Math.round(x), y: Math.round(y), width: NEW_CARD.width, height: NEW_CARD.height, text: '' };
 }
 
+/** A new card that is a note, by its title: the spec's file node, named as Obsidian names a note's file. */
+export function newFileNode(title: string, x: number, y: number, id = newCanvasId()): CanvasNode {
+  const name = title.trim().replace(/[\\/]/g, '-') || 'Untitled';
+  return { id, type: 'file', x: Math.round(x), y: Math.round(y), width: NEW_CARD.width, height: 160, file: `${name}.md` };
+}
+
+/** A new card that is one of Glyph's own pictures, by the name the picture store keeps it under (core/images.ts). */
+export function newPictureNode(name: string, x: number, y: number, id = newCanvasId()): CanvasNode {
+  return { id, type: 'file', x: Math.round(x), y: Math.round(y), width: NEW_CARD.width, height: 200, file: name };
+}
+
+/** What a new chart card starts with: a small Mermaid diagram to change, drawn as a diagram on the card. */
+export const CHART_CARD = '```mermaid\nflowchart LR\n  A[Start] --> B[Then]\n  B --> C[Done]\n```\n';
+/** Whether a card of words is nothing but a table, which is then drawn edge to edge (canvas/CanvasView.tsx). */
+export function isOnlyTable(text: string): boolean {
+  const lines = text.trim().split('\n');
+  return lines.length >= 2 && lines.every((line) => /^\s*\|.*\|\s*$/.test(line));
+}
+
+/** What a new table card starts with. */
+export const TABLE_CARD = '| Thing | Note |\n| --- | --- |\n| One | |\n| Two | |\n';
+
+/** A new card that is a web address; a bare address is given https. Null for no address at all. */
+export function newLinkNode(url: string, x: number, y: number, id = newCanvasId()): CanvasNode | null {
+  const given = url.trim();
+  if (!given) return null;
+  const address = /^[a-z][a-z0-9+.-]*:/i.test(given) ? given : `https://${given}`;
+  return { id, type: 'link', x: Math.round(x), y: Math.round(y), width: NEW_CARD.width, height: 100, url: address };
+}
+
 /** The canvas with this node in place of the one with its id, or added at the end where there was none. */
 export function withNode(canvas: Canvas, node: CanvasNode): Canvas {
   const at = canvas.nodes.findIndex((n) => n.id === node.id);
@@ -247,6 +277,91 @@ export function withNode(canvas: Canvas, node: CanvasNode): Canvas {
 /** The canvas without this node, and without any edge that joined it. */
 export function withoutNode(canvas: Canvas, id: string): Canvas {
   return { nodes: canvas.nodes.filter((n) => n.id !== id), edges: canvas.edges.filter((e) => e.fromNode !== id && e.toNode !== id) };
+}
+
+/** A new line from one card to another: an arrow at its end, its sides chosen from where the cards are (`sidesOf`). */
+export function newEdge(fromNode: string, toNode: string, id = newCanvasId()): CanvasEdge {
+  return { id, fromNode, toNode };
+}
+
+/** The canvas with this line in place of the one with its id, or added at the end where there was none. */
+export function withEdge(canvas: Canvas, edge: CanvasEdge): Canvas {
+  const at = canvas.edges.findIndex((e) => e.id === edge.id);
+  const edges = at < 0 ? [...canvas.edges, edge] : canvas.edges.map((e) => (e.id === edge.id ? edge : e));
+  return { nodes: canvas.nodes, edges };
+}
+
+export function withoutEdge(canvas: Canvas, id: string): Canvas {
+  return { nodes: canvas.nodes, edges: canvas.edges.filter((e) => e.id !== id) };
+}
+
+/** The line with these words on it, or with none: the spec has no empty label, so blank takes the label off. */
+export function labelledEdge(edge: CanvasEdge, label: string): CanvasEdge {
+  const words = label.trim();
+  const { label: _was, ...rest } = edge;
+  return words ? { ...rest, label: words } : rest;
+}
+
+/** Whether a line already joins these two cards, either way round: a second one would only lie on the first. */
+export function joined(canvas: Canvas, a: string, b: string): boolean {
+  return canvas.edges.some((e) => (e.fromNode === a && e.toNode === b) || (e.fromNode === b && e.toNode === a));
+}
+
+/** The smallest a card can be made, in the canvas's pixels: room for a word and the cross. */
+export const LEAST_CARD = { width: 120, height: 60 };
+
+/** The node made this size, to the pixel and no smaller than `LEAST_CARD`; its top-left corner stays put. */
+export function resizedNode(node: CanvasNode, width: number, height: number): CanvasNode {
+  return { ...node, width: Math.max(LEAST_CARD.width, Math.round(width)), height: Math.max(LEAST_CARD.height, Math.round(height)) };
+}
+
+/** The nodes a group holds: every other node whose box is wholly inside the group's, as Obsidian counts them. */
+export function heldBy(canvas: Canvas, group: CanvasNode): CanvasNode[] {
+  return canvas.nodes.filter(
+    (n) => n.id !== group.id && n.x >= group.x && n.y >= group.y && n.x + n.width <= group.x + group.width && n.y + n.height <= group.y + group.height,
+  );
+}
+
+/**
+ * The canvas with this node moved to (x, y) - and, for a group, everything it holds moved with it by the same
+ * amount (choice 5: "cards inside move with it"). A card moved on its own leaves its group where it is.
+ */
+export function movedWithHeld(canvas: Canvas, node: CanvasNode, x: number, y: number): Canvas {
+  const dx = Math.round(x) - node.x;
+  const dy = Math.round(y) - node.y;
+  const moving = new Set(node.type === 'group' ? [node.id, ...heldBy(canvas, node).map((n) => n.id)] : [node.id]);
+  return { nodes: canvas.nodes.map((n) => (moving.has(n.id) ? movedNode(n, n.x + dx, n.y + dy) : n)), edges: canvas.edges };
+}
+
+/** Room a new group leaves around the cards it is drawn round, in the canvas's pixels. */
+export const GROUP_ROOM = 40;
+
+/**
+ * A new group drawn round these nodes with room to spare, placed first so it is drawn under everything (the spec's
+ * z-order is the array's). Null for no nodes: a group holds something.
+ */
+export function newGroupAround(canvas: Canvas, ids: readonly string[], label?: string, id = newCanvasId()): Canvas | null {
+  const held = canvas.nodes.filter((n) => ids.includes(n.id));
+  if (!held.length) return null;
+  const box = bounds({ nodes: held, edges: [] })!;
+  const group: CanvasNode = {
+    id,
+    type: 'group',
+    x: box.x - GROUP_ROOM,
+    y: box.y - GROUP_ROOM - 24,
+    width: box.width + GROUP_ROOM * 2,
+    height: box.height + GROUP_ROOM * 2 + 24,
+    ...(label ? { label } : {}),
+  };
+  return { nodes: [group, ...canvas.nodes], edges: canvas.edges };
+}
+
+/** The group with these words as its name, or with none. */
+export function labelledGroup(node: CanvasNode, label: string): CanvasNode {
+  if (node.type !== 'group') return node;
+  const words = label.trim();
+  const { label: _was, ...rest } = node;
+  return words ? { ...rest, label: words } : rest;
 }
 
 /** The node moved so its top-left corner is at (x, y), to the pixel, as the spec keeps positions. */

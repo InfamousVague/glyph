@@ -17,6 +17,7 @@ import { FindBar } from './FindBar.tsx';
 import { Editor } from './Editor.tsx';
 import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
+import { withFrontMatterTitle } from '../core/frontMatter.ts';
 import { insertImageAt, releaseImageSpot, reserveImageSpot } from './images.ts';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
@@ -83,6 +84,8 @@ interface NoteScreenProps {
   hasTitle?: (title: string) => boolean;
   /** A note's body by its title, for a canvas card that is a note to be drawn small (canvas/CanvasView.tsx). */
   bodyOfTitle?: (title: string) => string | null;
+  /** Every note's title, for a canvas's + to choose a note from. */
+  allTitles?: () => string[];
   /** The "← Notes" in the header; off where the list is already beside the note (the desktop sidebar, App.tsx). */
 }
 
@@ -91,7 +94,7 @@ const SAVE_DEBOUNCE_MS = 400;
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, bodyOfTitle, at }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, bodyOfTitle, allTitles, at }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -104,9 +107,24 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   };
   const [title, setTitle] = useState(() => noteTitle(note.body));
   const [view, setView] = useState<EditorView | null>(null);
-  // A note that is a canvas (docs/CANVAS.md) is drawn as one where its words would be; there is no editor, so
-  // everything that needs one (find, zoom, the caret's place) stands idle on it.
-  const canvas = useMemo(() => canvasOf(note.body), [note.body]);
+  /*
+   * A note that is a canvas (docs/CANVAS.md) is drawn as one where its words would be. Its JSON is there behind the
+   * header's view switch (Matt: "the raw JSON in the editor"), but as the note's own switch rather than the
+   * preference every note shares - that one defaults to the marks, and a canvas should open as a canvas. Switching
+   * to the JSON hands the editor what the canvas has written since (it follows `value`); switching back reads the
+   * canvas from what was typed. While the canvas is drawn there is no editor, so what needs one (find, zoom, the
+   * caret's place) stands idle.
+   */
+  const [source, setSource] = useState(false);
+  const [canvasBody, setCanvasBody] = useState(note.body);
+  const canvas = useMemo(() => canvasOf(canvasBody), [canvasBody]);
+  const drawing = !!canvas && !source;
+  const showSource = (next: boolean) => {
+    if (next === source) return;
+    if (!next) setCanvasBody(body.current);
+    setSource(next);
+    fireNativeHaptic('selection');
+  };
   /*
    * Live sync (docs/LIVE.md): this note open on another device too, typed into on either and arriving a character at
    * a time. Nothing at all unless the switch is on (core/live/enabled.ts), and even then the live code - Yjs and its
@@ -343,7 +361,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const shown: 'transcript' | 'robot' | 'raw' = tape.length && tape.playing ? 'transcript' : mode ? 'robot' : 'raw';
   // The tape and note go to smoke as they slip behind the header; read again on a view change, since another view may not scroll (art/wispEdge.ts).
   // The page smokes at both ends: under the header, and off the bottom where the dock is (art/wispEdge.ts).
-  useWispEdge(page, shown, header, { foot: true });
+  // Not on a canvas: it is not a page that scrolls off its foot, and the band was smoking the canvas's own tools at
+  // the bottom of the screen (Matt: "The bottom wisp effect is effecting canvas view buttons at the bottom").
+  useWispEdge(page, shown, header, { foot: !canvas });
   // The note opens where it was left, and remembers where it is left (editor/notePlace.ts).
   // Opened at an item, the note goes to that line rather than back to where it was left last time.
   useNotePlace(note.id, page, view, shown === 'raw' && !at);
@@ -540,11 +560,19 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       type="button"
       className={styles.cog}
       disabled={shown !== 'raw'}
-      onClick={() => chooseView(prefs.noteView === 'formatted' ? 'mixed' : 'formatted')}
-      aria-label={prefs.noteView === 'formatted' ? 'Showing the formatted note. Show the marks.' : 'Showing the marks. Show the formatted note.'}
-      title={prefs.noteView === 'formatted' ? 'Formatted' : 'Markdown'}
+      onClick={() => (canvas ? showSource(!source) : chooseView(prefs.noteView === 'formatted' ? 'mixed' : 'formatted'))}
+      aria-label={
+        canvas
+          ? source
+            ? 'Showing the canvas as JSON. Show the canvas.'
+            : 'Showing the canvas. Show its JSON.'
+          : prefs.noteView === 'formatted'
+            ? 'Showing the formatted note. Show the marks.'
+            : 'Showing the marks. Show the formatted note.'
+      }
+      title={canvas ? (source ? 'JSON' : 'Canvas') : prefs.noteView === 'formatted' ? 'Formatted' : 'Markdown'}
     >
-      {prefs.noteView === 'formatted' ? (
+      {(canvas ? !source : prefs.noteView === 'formatted') ? (
         <BookOpen size={20} strokeWidth={2.1} aria-hidden="true" />
       ) : (
         <Code size={20} strokeWidth={2.1} aria-hidden="true" />
@@ -627,7 +655,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         Formatted view and the transcript keep their own scrolling, under a
         tape that stays, since each has a bar of words at its top.
       */}
-      <div ref={page} className={styles.page} data-scrolls={(shown === 'raw' && !canvas) || undefined}>
+      <div ref={page} className={styles.page} data-scrolls={(shown === 'raw' && !drawing) || undefined}>
         {tape.length > 0 ? (
           <div className={styles.tapeRow}>
             {!tape.web ? (
@@ -666,25 +694,26 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             />
           </div>
         ) : null}
-        {canvas ? (
+        {drawing ? (
           <div className={`${styles.body} ${styles.canvasBody}`} hidden={shown !== 'raw'}>
             <CanvasView
               canvas={canvas}
               dark={isDarkNow(prefs.theme)}
-              wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined}
+              wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle, titles: allTitles } : undefined}
               // A change to the canvas is a change to the note: written into the body as the spec's JSON, front
               // matter kept, and saved the way typing is (the debounce and its flushes above).
               onChange={(next) => onChange(withCanvas(body.current, next))}
             />
           </div>
         ) : null}
-        <div className={styles.body} hidden={shown !== 'raw' || !!canvas}>
+        <div className={styles.body} hidden={shown !== 'raw' || drawing}>
           <Editor
-            value={note.body}
+            // A canvas's JSON, once asked for, is what the canvas has written by now, not what the note opened with.
+            value={canvas && source ? body.current : note.body}
             onChange={onChange}
             onView={setView}
             wispTyping={prefs.wisp}
-            display={prefs.noteView}
+            display={canvas ? 'mixed' : prefs.noteView}
             tape={!tape.web && tape.length > 0 ? convertFileSrc(`${note.id}.wav`, 'rec') : null}
             tapeId={tape.length > 0 ? tapeId(note.id) : null}
             onImageError={setPhotoProblem}
@@ -737,8 +766,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         pinned={pinned}
         editing={editing}
         onClose={() => setSettingsOpen(false)}
-        view={!wide && shown === 'raw' ? prefs.noteView : undefined}
-        onView={chooseView}
+        name={canvas ? { value: title, onChange: (next) => onChange(withFrontMatterTitle(body.current, next)) } : undefined}
+        view={!wide && shown === 'raw' ? (canvas ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
+        onView={canvas ? (next) => showSource(next === 'mixed') : chooseView}
         mode={mode}
         onMode={showMode}
         onFind={

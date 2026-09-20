@@ -18,15 +18,24 @@ Ask Sam about the dog before Friday.
 ```
 
 No title: the list names it by its first words, as it names any note. Its file lives in the library's `Memos/`
-folder (docs/LIBRARY.md), not the inbox, and not a workspace's folder. `memos/memo.ts` reads and writes it.
+folder (docs/LIBRARY.md) when it is in no workspace, and in the workspace's folder when it is in one, as any note
+is. `memos/memo.ts` reads and writes it.
 
-## One collection: Memos
+## One collection, seen through the chosen workspace
 
-There is one place memos go, newest first (Matt chose one stream over named collections or the workspace). It is
-a screen of its own, `memos/MemosScreen.tsx`, from a row at the foot of the home page and a tool in the sidebar: a
-field at the top to write one - Enter keeps, Shift+Enter is a new line, or Keep - and the memos as a wall of small
-cards under it. A card tapped becomes a field over its own words, with Done and a bin; a memo emptied is deleted,
-undoably, as a note is. Memos are drawn as they were typed; they are short enough that their marks are their words.
+There is one kind of place memos go, newest first (Matt chose one stream over named collections). It is a screen
+of its own, `memos/MemosScreen.tsx`, from a row at the foot of the home page and a tool in the sidebar: a field at
+the top to write one - Enter keeps, Shift+Enter is a new line, or Keep - and the memos as a wall of small cards
+under it. A card tapped becomes a field over its own words, with Done and a bin; a memo emptied is deleted,
+undoably, as a note is.
+
+**Each card draws its words through the note's own formatter**, small, the way a home card draws a note
+(notes/NotePeek.tsx `whole`): Matt chose that over the words as typed, so a `- [ ]` is a box and `**bold**` is
+bold, and a card and a note never disagree about what a mark looks like.
+
+**The wall follows the chosen workspace** (Matt: "filed and filtered"): a memo made while a workspace is chosen
+is filed there and shows only there; the home page's Memos row counts that workspace's memos; with All chosen,
+every memo shows. The heading names the workspace, and so does an empty wall.
 
 Memos are out of the home page's cards, the sidebar's tree and the tabs: they are a collection, not pages.
 
