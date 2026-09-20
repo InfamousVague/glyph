@@ -3,7 +3,7 @@ import { gistFor, gistStands, tidyGist } from './gist.ts';
 import { bodyHash } from './formatter.ts';
 import { keepGist } from './results.ts';
 
-describe('the gist as a list line', () => {
+describe('the gist as a card line', () => {
   it('takes the first line, bare: no heading marks, bullets, quotes, bold or closing punctuation', () => {
     expect(tidyGist('# Call the plumber by Thursday.\n\nMore.')).toBe('Call the plumber by Thursday');
     expect(tidyGist('- "Pick up **eggs** and coffee!"\n')).toBe('Pick up eggs and coffee');
@@ -21,7 +21,7 @@ describe('the gist as a list line', () => {
   });
 });
 
-describe('what the list shows', () => {
+describe('what the home page shows', () => {
   beforeEach(() => localStorage.clear());
 
   it('shows a gist while it stands for the note: the same body, or one changed in a small way', () => {

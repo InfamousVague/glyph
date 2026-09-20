@@ -10,21 +10,21 @@ import { GIST_PROMPT, TEMPERATURE } from './prompt.ts';
 import { keepGist, readGist } from './results.ts';
 
 /**
- * The gist: one quiet line under each note's title in the list, what the note
- * is about, written on the phone in the background.
+ * The gist: one quiet line under each note's title on the home page, what the
+ * note is about, written on the phone in the background.
  *
- * Matt's board: "live on-device AI summaries on the home list". The list hands
- * this the notes it shows (`useGists`); a runner works through the ones with
- * no gist, or a gist written from an older body, one at a time, newest first,
- * only while the app is on screen, and only with a model on the phone - the
- * smallest, since a line of twelve words wants speed, not care. Each gist is
- * kept with the hash of the body it came from (results.ts), so a note that has
- * not changed is never asked about twice, and a note that has shows its old
- * line until the new one lands. A note the runner could not gist is left
- * alone for the rest of the session. Nothing leaves the phone.
+ * Matt's board: "live on-device AI summaries on the home list". The page hands
+ * this the notes it has cards for (`useGists`); a runner works through the
+ * ones with no gist, or a gist written from an older body, one at a time,
+ * newest first, only while the app is on screen, and only with a model on the
+ * phone - the smallest, since a line of twelve words wants speed, not care.
+ * Each gist is kept with the hash of the body it came from (results.ts), so a
+ * note that has not changed is never asked about twice, and a note that has
+ * shows its old line until the new one lands. A note the runner could not gist
+ * is left alone for the rest of the session. Nothing leaves the phone.
  */
 
-/** The model's answer as a list line: the first line, bare, at most this long. */
+/** The model's answer as a card's line: the first line, bare, at most this long. */
 const LONGEST = 90;
 
 export function tidyGist(text: string): string {
@@ -48,7 +48,7 @@ export function tidyGist(text: string): string {
 
 // ---- the runner ----------------------------------------------------------------------------
 
-/** The bodies the list has shown, by note id: what the runner works from. */
+/** The bodies the home page has cards for, by note id: what the runner works from. */
 const bodies = new Map<string, string>();
 const hashes = new Map<string, { body: string; hash: number }>();
 const listeners = new Set<() => void>();
@@ -134,8 +134,8 @@ function kick(): void {
 }
 
 /**
- * The gists for the notes the list shows, by id, and the work to have them:
- * the runner starts when a note has none and the app is on screen.
+ * The gists for the notes the home page shows, by id, and the work to have
+ * them: the runner starts when a note has none and the app is on screen.
  */
 export function useGists(notes: readonly Note[]): Record<string, string> {
   const [, bump] = useState(0);

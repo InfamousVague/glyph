@@ -19,7 +19,7 @@ import type { Mode } from './modes.ts';
 const KEY = 'glyph-ai-results';
 
 type Stored = { text: string; for: number; model: string };
-/** What is kept here per note: the modes that are not Format's, and the list's one-line gist. */
+/** What is kept here per note: the modes that are not Format's, and the home page's one-line gist. */
 type Kind = Exclude<Mode, 'format'> | 'gist';
 type Sheet = Record<string, Partial<Record<Kind, Stored>>>;
 
@@ -66,7 +66,7 @@ export async function keepResult(id: string, mode: Mode, text: string, hash: num
   writeSheet(sheet);
 }
 
-/** The list's gist: its line, the body it came from as a hash, its length and its first line, and the model. */
+/** The home page's gist: its line, the body it came from as a hash, its length and its first line, and the model. */
 export interface Gist {
   text: string;
   for: number;
