@@ -3012,10 +3012,60 @@ user space (0, 0) on a box otherwise drawn plain - the output is clipped to the 
 the origin falls inside it. Chromium drew it at the box's top in every case. WebKit drew it at the box's top for a
 box at document y=0 with the page unscrolled, and nowhere at all for that box at document y=300 with the page
 scrolled 300, where the window's corner is inside the box and the document's is 300px above. Nothing in wispSides
-changes for it - a row at the top of a page that does not scroll sideways has both corners agreeing across, which is
-the only direction it places anything in - but the note is corrected, and the box-units answer here would let that
-filter drop its `left` test and smoke a row anywhere on the page.
+changed for it at the time - a row at the top of a page that does not scroll sideways has both corners agreeing
+across, which is the only direction it placed anything in - but the note was corrected, and the box-units answer here
+was the one that filter wanted: it took it the same day, dropped its `left` test and now smokes a row anywhere on the
+page (§55).
 
 The budget (`WISP_EDGE_BUDGET`, §51) is untouched and still guards the region. Whether box units change where
 WebKit starts painting an over-budget filter black was NOT re-measured - the probe built for it could not reproduce
 the black at 2.3x over, so it proved nothing either way - and the guard earns its place on cost regardless.
+
+## 55. The tab row's smoke, in the row's own box (2026-09-20)
+
+`art/wispSides.ts` - the wisp on the tab row's open ends (`notes/NoteTabs.tsx`) - was the last filter still placed in
+user space, and it carried two workarounds for the corner divergence §54 settled. Both are gone: the whole filter is
+now said in the row's own box, `filterUnits="objectBoundingBox"` AND `primitiveUnits="objectBoundingBox"`, exactly as
+the lane's foot is.
+
+**What it used to do instead.** It could not place anything vertically, so it placed everything everywhere: the region,
+the bands and the noise all ran `REACH` = 400px above and below the row, wide enough that whichever corner an engine
+started from fell inside them. And across it simply refused the job - `wispSides` took the row's `left` and returned
+null unless the row began within a pixel of the page's own left edge, the one place the two frames agree across. A row
+anywhere else kept a plain fade.
+
+Neither held up. Measured in Playwright on a striped row 600x57 with both ends open, counting columns of the row that
+were drawn at all and where the stripes were bent:
+
+| row's place | before, Chromium | before, WebKit | after, both |
+| --- | --- | --- | --- |
+| page top, unscrolled | bands at 0..48 / 551..599 | same, 0..47 / 552..599 | same |
+| in a scroller, 200px down | bands, 600 of 600 columns | bands, 600 columns | same |
+| 900px down, page scrolled 700 | bands, 600 columns | **nothing drawn at all** | bands, 600 columns |
+| 900px down, page scrolled 900 | bands, 600 columns | **nothing drawn at all** | bands, 600 columns |
+| 300px in from the page's left | **no filter** (the `left` test) | **no filter** | bands, 600 columns |
+
+The 400px reach was never a fix, only a reprieve: it bought exactly 400px of page, and a tab row 900px down a scrolled
+document is past it, so WebKit's region stopped covering the row and the tabs went with it. In the row's own box there
+is no corner to pick and no distance to outrun. Chromium is unchanged by the conversion - the same bands, 5579 px of
+bent ink before and 5582 after - and WebKit now matches it to within the one column of antialiasing it always differed
+by.
+
+**The reach could then go.** With the frames agreed, the region only has to hold what the bend can throw, so it is
+`SIDE` = 24px on all four sides like any other margin, not 400 above and below. That takes the region from 648x857 to
+648x105, an eighth of the pixels, and the filter's cost with it. Six rows scrolling at once in headless WebKit: 131.3ms
+a frame before, 29.7ms after, against a 16.7ms floor with no filter at all - the effect's own cost falling from 114.6ms
+to 13.0ms, which tracks the area almost exactly. Two rows, the ordinary case, went from 42.4ms to sitting on the vsync
+floor. The same shrink relaxes `WISP_EDGE_BUDGET`'s guard, which is counted on the region: a row has to be far larger
+now before it gives up and keeps the fade.
+
+**The subregions stayed, converted rather than dropped**, on §54's measurement - they are most of what the effect
+costs, and taking them off the lane's filter nearly doubled its cost a frame. So the conversion is the fiddly kind: a
+length divided by the side of the row it runs along (`box`), `feTurbulence`'s `baseFrequency` multiplied by that side
+instead, both numbers on every `feGaussianBlur` and `feMorphology` - one fraction shared between a wide row and a short
+one is two different blurs - and `feDisplacementMap`'s throw divided by the box's diagonal over root two (`corner`).
+
+**And the tabs gained a layout they never had.** Dropping the `left` test means a row inset from the page's edge
+smokes: checked on the real row pushed 243px in, both ends dissolving where before it wore a plain fade. Nothing in
+today's layout puts it there - the row still starts at the page's left edge - so nothing changes on screen for now,
+but the effect no longer has an opinion about where the row is allowed to sit.

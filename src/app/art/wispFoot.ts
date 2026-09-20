@@ -42,8 +42,9 @@ import { WISP_EDGE_BUDGET } from './wispEdge.ts';
  * square only shows where the origin falls inside it. Chromium drew it at the box's own top in every case. WebKit
  * drew it at the box's top for a box at document y=0 with the page unscrolled, and nowhere at all for the same box
  * scrolled to document y=300 with the page scrolled 300, where the WINDOW's corner sits inside the box and the
- * document's is 300px above it. So it is the document's corner, not the window's: art/wispSides.ts read it as the
+ * document's is 300px above it. So it is the document's corner, not the window's: art/wispSides.ts had read it as the
  * window's, which is the same corner when the probe is run at the top of a page and is where that note was written.
+ * That filter is in its box's own units too now, and has no corner to be wrong about (§55).
  *
  * In the lane's own box there is no corner to pick, and both engines now draw the band at rows 271..299 with every
  * row of the lane present, at every scroll position, in a page and inside a scroller.
