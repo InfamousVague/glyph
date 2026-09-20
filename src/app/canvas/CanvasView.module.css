@@ -1,0 +1,192 @@
+/*
+ * A canvas on the screen (canvas/CanvasView.tsx). The page is the note's ground; the world inside it is moved and
+ * scaled by a transform the fingers write, and everything in the world is placed in the canvas's own pixels.
+ */
+.canvas {
+  position: relative;
+  overflow: hidden;
+  inline-size: 100%;
+  block-size: 100%;
+  /* Every gesture is ours: no scrolling, no browser pinch. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  background: var(--glacier-bg);
+}
+
+.canvas:active {
+  cursor: grabbing;
+}
+
+.world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  inline-size: 0;
+  block-size: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* A card, of any kind: a box with a hairline, the page's ground, and its hue - when it has one - on the line and a wash of the ground. */
+.card {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-1);
+  padding: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg, 16px);
+  background: var(--glacier-bg);
+  color: inherit;
+  overflow: hidden;
+  text-decoration: none;
+}
+
+.card[data-hue],
+.card[style*='--app-space'] {
+  border-color: color-mix(in oklch, var(--app-space) 55%, transparent);
+  background: color-mix(in oklch, var(--app-space) 7%, var(--glacier-bg));
+}
+
+/* A card's editor takes no taps: a drag that starts on the words moves the page, and nothing selects. */
+.card :global(.cm-editor) {
+  pointer-events: none;
+}
+
+/*
+ * The words on a card: the note's editor the way a home card draws one (notes/NotePeek.module.css) - the type at a
+ * fraction of the note's size, the grounds the editor paints made transparent so the card shows through - but the
+ * whole text, not a few lines, in the card's own ink, filling the card and clipped by it.
+ */
+.words {
+  composes: peek from '../notes/NotePeek.module.css';
+  flex: 1;
+  min-block-size: 0;
+  max-block-size: none;
+  margin-block-start: 0;
+  color: inherit;
+  overflow: hidden;
+}
+
+.fileCard,
+.linkCard {
+  cursor: pointer;
+}
+
+.fileCard:focus-visible,
+.linkCard:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/* A note not in Glyph: named, and said to be waiting, the way a [[link]] to nothing is drawn. */
+.fileCard[data-waiting] .cardTitle {
+  color: var(--glacier-text-subtle);
+}
+
+.cardTitle {
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.cardHint {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--glacier-text-subtle);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cardPeek {
+  flex: 1;
+  min-block-size: 0;
+}
+
+/* The editor's room inside a card, and the blank that stands in for it until the card is near the screen. */
+.near {
+  flex: 1;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+/* A group: a wash and a dashed line around the cards it holds, its name above its top-left corner as Obsidian puts it. */
+.group {
+  position: absolute;
+  box-sizing: border-box;
+  border: var(--glacier-hairline) dashed color-mix(in oklch, var(--app-space, var(--app-ink)) 35%, transparent);
+  border-radius: calc(var(--glacier-radius-lg, 16px) + 4px);
+  background: color-mix(in oklch, var(--app-space, var(--app-ink)) 4%, transparent);
+}
+
+.groupLabel {
+  position: absolute;
+  left: var(--glacier-space-2);
+  bottom: 100%;
+  margin-block-end: var(--glacier-space-1);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: 0.02em;
+  color: color-mix(in oklch, var(--app-space, var(--app-ink)) 80%, var(--glacier-text-muted));
+  white-space: nowrap;
+}
+
+/* The lines, one SVG over every card in the same pixels; it takes no taps, so a card under a line is still a card. */
+.edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.edge {
+  color: var(--app-space, var(--app-ink-3, var(--glacier-text-muted)));
+}
+
+.line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.head {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* A label sits on its line, knocking the line out behind it with a stroke of the page. */
+.label {
+  fill: var(--glacier-text-muted);
+  stroke: var(--glacier-bg);
+  stroke-width: 6px;
+  paint-order: stroke;
+  font-size: 13px;
+  font-weight: var(--glacier-font-weight-medium, 500);
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.tools {
+  position: absolute;
+  right: var(--glacier-space-3);
+  bottom: var(--glacier-space-3);
+  display: flex;
+  gap: var(--glacier-space-2);
+}
+
+.tool {
+  padding-inline: var(--glacier-space-3);
+  padding-block: var(--glacier-space-1);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--glacier-bg) 80%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}

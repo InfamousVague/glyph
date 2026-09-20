@@ -1,5 +1,6 @@
 import { saveImageFile } from './images.ts';
 import { boardNoteBody } from './boardNote.ts';
+import { sampleCanvasBody } from '../canvas/sampleCanvas.ts';
 import { sampleImageBlob, sampleNoteBody } from './sampleNote.ts';
 import { newNoteId, saveNote, type Note } from './store.ts';
 
@@ -52,6 +53,11 @@ export async function addSampleNote(): Promise<Note> {
 /** Makes the example board (core/boardNote.ts) now, and answers it. */
 export async function addBoardNote(): Promise<Note> {
   return saveNote(newNoteId(), boardNoteBody(), 'editor');
+}
+
+/** Makes the example canvas (canvas/sampleCanvas.ts) now, and answers it. */
+export async function addCanvasNote(): Promise<Note> {
+  return saveNote(newNoteId(), sampleCanvasBody(), 'editor');
 }
 
 /**

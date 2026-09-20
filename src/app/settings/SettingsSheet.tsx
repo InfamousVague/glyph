@@ -41,6 +41,8 @@ interface SettingsSheetProps {
   onSample: () => void;
   /** Adds the example board (core/boardNote.ts). */
   onBoard: () => void;
+  /** Adds the example canvas (canvas/sampleCanvas.ts). */
+  onCanvas: () => void;
   /** Opens Glyph Academy (academy/AcademyScreen.tsx). */
   onAcademy: () => void;
   /**
@@ -64,7 +66,7 @@ const THEME_WORDS: Record<string, string> = { system: 'System', light: 'Light', 
 const ACCENT_WORDS: Record<string, string> = { graphite: 'Graphite', red: 'Red', amber: 'Amber', green: 'Green', teal: 'Teal', purple: 'Purple' };
 const ROUNDING_WORDS: Record<string, string> = { square: 'Square', soft: 'Soft', round: 'Round', rounder: 'Roundest' };
 
-export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onCanvas, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
   const prefs = usePreferences();
   const account = useAccount();
   const syncStatus = useSyncStatus();
@@ -213,6 +215,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
           onGuide={onGuide}
           onSample={onSample}
           onBoard={onBoard}
+          onCanvas={onCanvas}
           onAcademy={onAcademy}
           onCheatSheet={() => setGoTo({ id: 'cheatsheet', nonce: Date.now() })}
           onDeveloper={() => setGoTo({ id: 'developer', nonce: Date.now() })}

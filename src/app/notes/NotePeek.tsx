@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Editor } from '../editor/Editor.tsx';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { PEEK_LINES, peekMarkdown } from './peek.ts';
+import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import styles from './NotePeek.module.css';
 
 /**
@@ -66,7 +67,8 @@ function soon(run: () => void): () => void {
 
 export function NotePeek({ body, className }: NotePeekProps) {
   const { theme } = usePreferences();
-  const markdown = useMemo(() => peekMarkdown(body), [body]);
+  // A canvas note is JSON, not words: its card shows nothing small until a canvas can be drawn small (docs/CANVAS.md).
+  const markdown = useMemo(() => (isCanvasBody(body) ? '' : peekMarkdown(body)), [body]);
   const host = useRef<HTMLSpanElement>(null);
   const [drawn, setDrawn] = useState(() => typeof IntersectionObserver === 'undefined');
   /** How tall the editor was, so the blank that stands in for it once it is gone keeps the card's height. */
