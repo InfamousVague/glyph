@@ -15,6 +15,8 @@ import { useNoteZoom } from './pinchZoom.ts';
 import { ContextMenu } from './ContextMenu.tsx';
 import { FindBar } from './FindBar.tsx';
 import { Editor } from './Editor.tsx';
+import { CanvasView } from '../canvas/CanvasView.tsx';
+import { canvasOf } from '../canvas/jsonCanvas.ts';
 import { insertImageAt, releaseImageSpot, reserveImageSpot } from './images.ts';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
@@ -79,6 +81,8 @@ interface NoteScreenProps {
   at?: string;
   /** Whether a note by that title exists, for drawing a [[link]] as written or as waiting. */
   hasTitle?: (title: string) => boolean;
+  /** A note's body by its title, for a canvas card that is a note to be drawn small (canvas/CanvasView.tsx). */
+  bodyOfTitle?: (title: string) => string | null;
   /** The "← Notes" in the header; off where the list is already beside the note (the desktop sidebar, App.tsx). */
 }
 
@@ -87,7 +91,7 @@ const SAVE_DEBOUNCE_MS = 400;
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, at }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, bodyOfTitle, at }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -100,6 +104,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   };
   const [title, setTitle] = useState(() => noteTitle(note.body));
   const [view, setView] = useState<EditorView | null>(null);
+  // A note that is a canvas (docs/CANVAS.md) is drawn as one where its words would be; there is no editor, so
+  // everything that needs one (find, zoom, the caret's place) stands idle on it.
+  const canvas = useMemo(() => canvasOf(note.body), [note.body]);
   /*
    * Live sync (docs/LIVE.md): this note open on another device too, typed into on either and arriving a character at
    * a time. Nothing at all unless the switch is on (core/live/enabled.ts), and even then the live code - Yjs and its
@@ -620,7 +627,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         Formatted view and the transcript keep their own scrolling, under a
         tape that stays, since each has a bar of words at its top.
       */}
-      <div ref={page} className={styles.page} data-scrolls={shown === 'raw' || undefined}>
+      <div ref={page} className={styles.page} data-scrolls={(shown === 'raw' && !canvas) || undefined}>
         {tape.length > 0 ? (
           <div className={styles.tapeRow}>
             {!tape.web ? (
@@ -659,7 +666,16 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             />
           </div>
         ) : null}
-        <div className={styles.body} hidden={shown !== 'raw'}>
+        {canvas ? (
+          <div className={`${styles.body} ${styles.canvasBody}`} hidden={shown !== 'raw'}>
+            <CanvasView
+              canvas={canvas}
+              dark={isDarkNow(prefs.theme)}
+              wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined}
+            />
+          </div>
+        ) : null}
+        <div className={styles.body} hidden={shown !== 'raw' || !!canvas}>
           <Editor
             value={note.body}
             onChange={onChange}

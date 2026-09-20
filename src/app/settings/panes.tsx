@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, FileText, GraduationCap, LayoutGrid, ListChecks, Terminal } from '@glacier/icons';
+import { BookOpen, FileText, GraduationCap, LayoutGrid, ListChecks, Terminal, Workflow } from '@glacier/icons';
 import { DensitySelector, SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
 import { isSidebarStyle, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize, type Typeface } from '../core/preferences.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
@@ -527,6 +527,7 @@ export function AboutPane({
   onGuide,
   onSample,
   onBoard,
+  onCanvas,
   onAcademy,
   onCheatSheet,
   onDeveloper,
@@ -535,6 +536,7 @@ export function AboutPane({
   onGuide: () => void;
   onSample: () => void;
   onBoard: () => void;
+  onCanvas: () => void;
   onAcademy: () => void;
   onCheatSheet: () => void;
   onDeveloper: () => void;
@@ -583,6 +585,12 @@ export function AboutPane({
           label="Add the example board"
           hint="A working board written in markdown: columns, cards, and the items they point at."
           onPress={onBoard}
+        />
+        <SettingRow
+          icon={<Workflow size={20} />}
+          label="Add the example canvas"
+          hint="Cards on a page with lines between them, in the same file Obsidian's canvas uses."
+          onPress={onCanvas}
         />
         <SettingRow
           icon={<FileText size={20} />}

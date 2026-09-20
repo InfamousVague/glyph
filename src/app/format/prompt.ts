@@ -103,7 +103,7 @@ Enhance:
 Plain markdown only: no emoji, no tables, no horizontal rules, no "*" bullets. The answer is the markdown note and nothing else: no introduction, no explanation, no closing remark, no code fence around it.`;
 
 /**
- * The gist: one line under a note's title in the list, what the note is
+ * The gist: one line under a note's title on the home page, what the note is
  * about, written on the phone in the background (format/gist.ts). Twelve
  * words at most; the example holds the model to it.
  */
