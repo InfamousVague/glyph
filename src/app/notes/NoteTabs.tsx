@@ -96,8 +96,13 @@ export function NoteTabs({
 }: NoteTabsProps) {
   /*
    * The menus a group's chip and a tab open, and the chip being renamed. A chip opens its menu on a right-click or a
-   * long press - it is never dragged, so a finger's hold is free. A tab opens its menu on a mouse's right-click only:
-   * a finger's hold on a tab picks it up to move it (`takeHold`), and a menu there would fight the drag.
+   * long press - it is never dragged, so a finger's hold is free.
+   *
+   * A tab is dragged by a finger's hold, so its menu is the end of that hold rather than its start: held and moved,
+   * the tab is carried; held and let go where it was, the menu opens (Matt: "Can't open tabs context menu on mobile
+   * it just highlights the tab text"). A mouse keeps its right-click. The highlighting was the phone's own: a long
+   * press with nothing to stop it selects the words under it, so the tabs take no selection at all (the stylesheet's
+   * `user-select`), and the menu the phone would raise is refused here whatever raises it.
    */
   const [menu, setMenu] = useState<{ kind: 'group' | 'tab'; id: string } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -255,6 +260,8 @@ export function NoteTabs({
      * moment it had travelled a few pixels, so a click that slid under the hand carried the tab with it.
      */
     let on = false;
+    /** Whether the finger went anywhere once the tab was picked up: a hold that did not is a menu, not a move. */
+    let travelled = false;
     /*
      * The groups as they were when the tab was picked up, and the group it is in now. Each move says where it belongs
      * from these, not from the last move's answer: a tab dragged out of a group of one empties it, and an empty group
@@ -314,6 +321,7 @@ export function NoteTabs({
         return;
       }
       dragged.current = true;
+      travelled = true;
       const into = groupAt(moved.clientX, id);
       dropInto = null;
       if (into !== undefined && into !== joined) {
@@ -341,6 +349,12 @@ export function NoteTabs({
       if (!on && row.current && Math.abs(pace) > 0.05) coast(row.current, pace);
       placeOutline();
       if (dropInto) onGroups?.(joinGroup(base, id, dropInto));
+      // Held in one place and let go: the menu a mouse gets from a right-click. The tap that ends it must not also
+      // open the note, so it is swallowed the way the end of a drag is.
+      if (on && !travelled && event.pointerType !== 'mouse' && onGroups) {
+        dragged.current = true;
+        setMenu({ kind: 'tab', id });
+      }
       setMoving(null);
       // The click that ends the drag is swallowed below; this clears the flag even when the gesture ends
       // somewhere that sends no click at all.
@@ -575,9 +589,10 @@ export function NoteTabs({
                   pointer.current = event.pointerType;
                 }}
                 onContextMenu={(event) => {
-                  // A mouse's right-click: the tab's own menu. A finger's hold is the drag's, so its menu is left alone.
-                  if (pointer.current !== 'mouse' || !onGroups) return;
+                  // Always refused: on a phone this is the press-and-hold callout, which would land on top of the
+                  // drag and the menu the hold itself opens (`takeHold`). A mouse's right-click opens the menu here.
                   event.preventDefault();
+                  if (pointer.current !== 'mouse' || !onGroups) return;
                   setMenu({ kind: 'tab', id: note.id });
                 }}
               >

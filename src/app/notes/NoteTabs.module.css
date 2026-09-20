@@ -229,8 +229,8 @@
    *
    * The phone's own inset stays out of the bleed: a tab must never sit under a rounded corner or a landscape notch.
    */
-  margin-inline-start: calc(-1 * var(--app-gutter-start));
-  padding-inline-start: calc(var(--app-safe-left, 0px) + var(--glacier-space-1));
+  margin-inline-start: calc(-1 * var(--app-bar-start));
+  padding-inline-start: var(--app-bar-start);
   overscroll-behavior-x: contain;
   scrollbar-width: none;
   /*
@@ -301,6 +301,11 @@
   border-radius: var(--glacier-radius-md, 0.625rem) var(--glacier-radius-md, 0.625rem) 0 0;
   background: none;
   color: var(--glacier-text-muted);
+  /* A tab is held to move it and held to open its menu (NoteTabs.tsx), and a phone answers a hold on words by
+     selecting them - which is all that happened before. There is nothing here to read but the note's name. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .tab {
@@ -582,6 +587,9 @@
 }
 
 .groupChip {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   appearance: none;
   display: inline-flex;
   align-items: center;

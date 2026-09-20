@@ -63,6 +63,18 @@
    * padding has to give back (notes/NoteTabs.module.css `.tabs`). Named once so the two cannot drift apart.
    */
   --app-gutter-start: calc(var(--app-safe-left, 0px) + var(--app-gutter));
+  /*
+   * The top bar's own left inset, which is NOT the page's gutter (Matt: "Sidebar toggle sits too far in from the
+   * left the padding on the left is too much", and of the row below it, "There is not enough padding on the left of
+   * the tabs bar causing the groups to be placed too far up against the edge"). Two complaints about one edge from
+   * either side of it: the buttons were a gutter in at 22px and the first tab was 4px in, so nothing in the bar
+   * lined up with anything else in it. One value now, used by the bar's padding and by the row that bleeds past it
+   * (notes/NoteTabs.module.css `.tabs`), so a button's ground and the tab under it start at the same place.
+   *
+   * Kept under the wisp's reach: the smoke at the row's start is drawn over the first 20px of the row's own box
+   * (art/wispSides.ts), so an inset larger than that would bend empty padding and read as a plain dark gradient.
+   */
+  --app-bar-start: calc(var(--app-safe-left, 0px) + var(--glacier-space-3));
   --app-gutter-end: calc(var(--app-safe-right, 0px) + var(--app-gutter));
 
   /*
@@ -248,7 +260,7 @@ body {
    * glyph inside it on one line, so the ground wins: it is the edge a person sees, especially with a mouse, where
    * the ground is drawn under the pointer. The glyph sits its own half-inset in, as a button's glyph does everywhere.
    */
-  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
+  padding-inline: var(--app-bar-start) var(--app-gutter-end);
   /* Nothing of its own to paint: the header pane under it is the glass, and its own children take the taps. */
   pointer-events: none;
 }
