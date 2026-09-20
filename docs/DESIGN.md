@@ -3069,3 +3069,26 @@ one is two different blurs - and `feDisplacementMap`'s throw divided by the box'
 smokes: checked on the real row pushed 243px in, both ends dissolving where before it wore a plain fade. Nothing in
 today's layout puts it there - the row still starts at the page's left edge - so nothing changes on screen for now,
 but the effect no longer has an opinion about where the row is allowed to sit.
+
+## 56. A canvas edited (2026-09-20)
+
+Matt: "continue progress on canvases, ship what we have so far". The first slice read and drew an Obsidian canvas;
+this one changes it (`canvas/CanvasView.tsx`, `canvas/jsonCanvas.ts`).
+
+- **The gestures the app already has.** Only one of them was Matt's choice - a double-tap on the page makes a card
+  of words there, keyboard up (docs/CANVAS.md, choice 8). Moving, opening and taking off were never put to him, so
+  they follow habits the app already teaches: a press held on a card lifts it, as a board's card and a tab are
+  lifted, and a plain drag pans; a double-tap on a card of words opens it, since a single tap already opens a note
+  card or a link card and a double-tap is what a single tap cannot mean; a card open to be written in wears a cross
+  that takes it off, lines and all. His to change, and the doc says which are his and which are not.
+- **The canvas is what is handed back.** Every change is the whole canvas through `onChange`; the note writes it
+  into its body as the spec's JSON with the front matter kept (`withCanvas`), through the same debounce and flushes
+  typing has. A card mid-drag lives in the view's own copy (`live`) until it is put down, so the lines follow the
+  finger without a save per frame. Positions are rounded to the pixel, as the spec keeps them.
+- **The editor once, two ways.** A card of words is the note's editor in peek mode until it is opened, and the same
+  editor in the note's own mode while it is; the read-only one is only made near the screen (`Near`), the open one
+  at once, and the keyboard is asked for a tick after it mounts.
+- **Measured in the browser, not assumed:** a held press of 300ms lifted the card and a move of (60, 90) screen
+  pixels at scale 1 put it down at (60, 90); a double-tap made a card with a sixteen-hex id, focused, and what was
+  typed was in the saved note with its front matter untouched. In the tests, a move before the hold pans and saves
+  nothing.
