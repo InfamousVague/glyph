@@ -374,7 +374,7 @@ export function NoteTabs({
       const start = past > 1 && el.scrollLeft > 1;
       const end = past > 1 && el.scrollLeft < past - 1;
       setEnds((was) => (was.start === start && was.end === end ? was : { start, end }));
-      el.style.filter = wispSides(el.clientWidth, el.clientHeight, start, end, el.getBoundingClientRect().left) ?? '';
+      el.style.filter = wispSides(el.clientWidth, el.clientHeight, start, end) ?? '';
       // A tab that changed width without the row being drawn again - its font arriving, the window resized.
       placeOutline();
     };

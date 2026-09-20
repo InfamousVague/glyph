@@ -7,27 +7,27 @@ import { WISP_EDGE_BUDGET } from './wispEdge.ts';
  * runs off either end is bent by fractal noise and softened, the smoke a page makes under its header, turned on its
  * side - where the row had only a fade on its right end.
  *
- * Built like a board lane's foot (art/wispFoot.ts): a filter of the row's own size, since a filter's coordinates start
- * at the box wearing it, made once per size and pair of ends and kept. `wispSides(width, height, start, end)` answers
- * the filter to wear, as a CSS value, or null where the smoke is not wanted: switched off under Settings (`wispEdge`),
- * with reduced motion, with neither end open, and where the filter's region would not fit its budget
- * (`WISP_EDGE_BUDGET`, art/wispEdge.ts) - over it Apple's engine paints the whole box black rather than clipping it.
+ * Built like a board lane's foot (art/wispFoot.ts) and in the same units: **the whole filter is said in the row's own
+ * box** - `objectBoundingBox` for the region and for the primitives, so every length here is a fraction of the row's
+ * width or height. Made once per size and pair of ends and kept.
  *
- * Measured in two frames at once, because the engines disagree about which one a filter on an HTML box uses. Chromium
- * measures from the box's own corner; WebKit - the Mac app, and Safari - from the DOCUMENT's, the page's top left
- * before any page scrolling. Probed with a red square at (0, 0): Chromium drew it at the row's corner, 57px down, and
- * WebKit drew nothing, since (0, 0) was above the row and a filter's output is clipped to the box; a green one at
- * (0, 57) was WebKit's row corner. A filter placed for the row's own frame drew the row as nothing at all in WebKit.
- * So nothing here depends on where the row is up and down - the bands and the noise run far above and below it, over
- * both frames - and across, the row starts at the page's left edge in every layout, where the frames agree. `left`
- * says where it starts; anywhere else, no wisp (the fade stays).
+ * `userSpaceOnUse` starts from the element's own corner in Chromium and from the DOCUMENT's in WebKit (§54), and this
+ * row used to work around that twice over: its bands and its noise ran 400px above and below it so that either corner
+ * fell inside them, and it refused to draw at all unless the row began at the page's own left edge, the one place
+ * across where the two frames agree. In the row's own box there is no corner to pick, so both of those are gone. A row
+ * anywhere on the page smokes now - a split window, a row inset beside a sidebar - where the `left` test used to leave
+ * it with a plain fade, and the two engines draw it alike at every scroll position.
  *
- * This note used to say the window's corner, which is the same corner while the page is at its top, and that is
- * where it was probed. Re-probed at a page scrolled down (art/wispFoot.ts), it is the document's. Nothing here
- * changes for it: the row sits at the top of the window inside a page that does not scroll sideways, so the two
- * corners agree across, which is the only direction this filter places anything in. The cleaner answer to all of it
- * is wispFoot's - say the whole filter in the box's own units (`objectBoundingBox`) and there is no corner to pick -
- * and it would let this one drop the `left` test and smoke a row anywhere on the page.
+ * `wispSides(width, height, start, end)` answers the filter to wear, as a CSS value, or null where the smoke is not
+ * wanted: switched off under Settings (`wispEdge`), with reduced motion, with neither end open, and where the filter's
+ * region would not fit its budget (`WISP_EDGE_BUDGET`, art/wispEdge.ts) - over it Apple's engine paints the whole box
+ * black rather than clipping it.
+ *
+ * What the box units cost is legibility, as wispFoot's do: a length has to be divided by the side of the row it runs
+ * along, a blur needs both of its numbers (one fraction shared between a wide row and a short one is two different
+ * blurs), and `feDisplacementMap` measures its throw against the box's diagonal over root two. `box` and `corner`
+ * below do that arithmetic in one place. The subregions stay, converted rather than dropped: they are most of what
+ * this effect costs, and a draft of wispFoot's without them ran at nearly twice the cost a frame (§54).
  *
  * The noise stays where it is and the tabs scroll through it, so the edge churns while they move and rests when they
  * stop: that is the animation, and a row at rest costs nothing but its bands. Sliding the noise as well was tried in
@@ -38,13 +38,8 @@ import { WISP_EDGE_BUDGET } from './wispEdge.ts';
 /** The full-strength lip at each end, and the soft ramp in from it. */
 const BAND = 6;
 const SOFT = 12;
-/** How far outside the row the bend may throw a pixel, and so how far the region reaches around it. */
+/** How far outside the row the bend may throw a pixel, and so how far the region reaches around it, on all four sides. */
 const SIDE = 24;
-/**
- * How far above and below the row the region, the bands and the noise reach: past the row's own top in both frames
- * (it is under 400px from the window's top on every screen, its title bar included), so either engine finds it inside.
- */
-const REACH = 400;
 /** The strip reaches this far past each end, so its blur never opens the row's own edge. */
 const PAST = 60;
 /**
@@ -63,16 +58,15 @@ const SVG = 'http://www.w3.org/2000/svg';
 const made = new Map<string, string>();
 let holder: SVGSVGElement | null = null;
 
-export function wispSides(width: number, height: number, start: boolean, end: boolean, left = 0): string | null {
+export function wispSides(width: number, height: number, start: boolean, end: boolean): string | null {
   if (typeof document === 'undefined' || !preferences().wispEdge || (!start && !end)) return null;
-  // Across, the two frames agree only where the row starts at the window's own left edge.
-  if (Math.abs(left) > 1) return null;
   if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
   const wide = Math.round(width);
   const tall = Math.round(height);
   if (wide <= (BAND + SOFT) * 2 || tall <= 0) return null;
+  // The budget is counted in the screen's own pixels; a row past it keeps the plain fade.
   const dots = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
-  if (Math.ceil((wide + SIDE * 2) * dots) * Math.ceil((tall + REACH * 2) * dots) > WISP_EDGE_BUDGET) return null;
+  if (Math.ceil((wide + SIDE * 2) * dots) * Math.ceil((tall + SIDE * 2) * dots) > WISP_EDGE_BUDGET) return null;
   const key = `${wide}x${tall}${start ? 's' : ''}${end ? 'e' : ''}`;
   const known = made.get(key);
   if (known && document.getElementById(known)) return `url(#${known})`;
@@ -113,28 +107,38 @@ function part(name: string, attributes: Record<string, string | number>, ...chil
  * The header's band of art/WispEdgeFilter.tsx turned on its side: noise, a white strip at each open end on black,
  * blurred across into a ramp that decides where the noise bends the row, a softened copy kept to the strokes, and the
  * row itself everywhere the bands aren't. The noise runs in tall streaks, as the header's runs in long ones.
+ *
+ * Every coordinate is a fraction of the row's own box - `box` divides by the side it runs along - so the region reads
+ * as the row's own rectangle grown by SIDE, and each strip as a bar at one end of it.
  */
 function sidesFilter(id: string, wide: number, tall: number, start: boolean, end: boolean): Element {
-  const region = { x: -SIDE, y: -REACH, width: wide + SIDE * 2, height: tall + REACH * 2 };
+  /** A length along the row's width, or down its height - what it has to be divided by to be a fraction of the box. */
+  const box = (x: number, y: number, w: number, h: number) => ({ x: x / wide, y: y / tall, width: w / wide, height: h / tall });
+  /** feDisplacementMap measures its throw against this, the box's diagonal over root two. */
+  const corner = Math.sqrt((wide * wide + tall * tall) / 2);
+  const region = box(-SIDE, -SIDE, wide + SIDE * 2, tall + SIDE * 2);
   const merge = (result: string, ...inputs: string[]) =>
     part('feMerge', result ? { result } : {}, ...inputs.map((input) => part('feMergeNode', { in: input })));
+  const bar = (x: number) => box(x, -SIDE, PAST + IN + BAND, tall + SIDE * 2);
   const strips = [
-    ...(start ? [part('feFlood', { 'flood-color': '#fff', x: -PAST, y: -REACH, width: PAST + IN + BAND, height: tall + REACH * 2, result: 'startStrip' })] : []),
-    ...(end ? [part('feFlood', { 'flood-color': '#fff', x: wide - IN - BAND, y: -REACH, width: PAST + IN + BAND, height: tall + REACH * 2, result: 'endStrip' })] : []),
+    ...(start ? [part('feFlood', { 'flood-color': '#fff', ...bar(-PAST), result: 'startStrip' })] : []),
+    ...(end ? [part('feFlood', { 'flood-color': '#fff', ...bar(wide - IN - BAND), result: 'endStrip' })] : []),
   ];
   return part(
     'filter',
-    { id, filterUnits: 'userSpaceOnUse', ...region, 'color-interpolation-filters': 'sRGB' },
-    part('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.07 0.035', numOctaves: 2, seed: 5, ...region, result: 'rawNoise' }),
+    { id, filterUnits: 'objectBoundingBox', primitiveUnits: 'objectBoundingBox', ...region, 'color-interpolation-filters': 'sRGB' },
+    // A frequency per box unit rather than per pixel, so the noise keeps the same grain whatever size the row is.
+    part('feTurbulence', { type: 'fractalNoise', baseFrequency: `${0.07 * wide} ${0.035 * tall}`, numOctaves: 2, seed: 5, ...region, result: 'rawNoise' }),
     part('feColorMatrix', { in: 'rawNoise', type: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1', result: 'noise' }),
     part('feFlood', { 'flood-color': '#000', result: 'black' }),
     ...strips,
     merge('stripsOnBlack', 'black', ...(start ? ['startStrip'] : []), ...(end ? ['endStrip'] : [])),
-    part('feGaussianBlur', { in: 'stripsOnBlack', stdDeviation: `${SOFT} 0`, result: 'band' }),
+    part('feGaussianBlur', { in: 'stripsOnBlack', stdDeviation: `${SOFT / wide} 0`, result: 'band' }),
     part('feComposite', { in: 'noise', in2: 'band', operator: 'arithmetic', k1: 1, k2: 0, k3: -0.5, k4: 0.5, result: 'field' }),
-    part('feDisplacementMap', { in: 'SourceGraphic', in2: 'field', scale: BEND, xChannelSelector: 'R', yChannelSelector: 'G', result: 'bent' }),
-    part('feGaussianBlur', { in: 'bent', stdDeviation: BLUR, result: 'soft' }),
-    part('feMorphology', { in: 'bent', operator: 'dilate', radius: NEAR, result: 'near' }),
+    part('feDisplacementMap', { in: 'SourceGraphic', in2: 'field', scale: BEND / corner, xChannelSelector: 'R', yChannelSelector: 'G', result: 'bent' }),
+    // Both numbers, always: one fraction shared between a wide row and a short one is two different blurs.
+    part('feGaussianBlur', { in: 'bent', stdDeviation: `${BLUR / wide} ${BLUR / tall}`, result: 'soft' }),
+    part('feMorphology', { in: 'bent', operator: 'dilate', radius: `${NEAR / wide} ${NEAR / tall}`, result: 'near' }),
     part('feComposite', { in: 'soft', in2: 'near', operator: 'in', result: 'softNear' }),
     part('feColorMatrix', { in: 'band', type: 'luminanceToAlpha', result: 'bandAlpha' }),
     part('feComposite', { in: 'softNear', in2: 'bandAlpha', operator: 'in', result: 'smoke' }),
