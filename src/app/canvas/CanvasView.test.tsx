@@ -229,3 +229,64 @@ describe('lines drawn', () => {
     expect((onChange.mock.calls[1]![0] as Canvas).edges.find((e) => e.id === 'e2')).toBeUndefined();
   });
 });
+
+describe('sizes and groups', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  const pointer = (el: Element, type: string, x: number, y: number) =>
+    act(() => {
+      el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 }));
+    });
+  const tapTwice = (el: Element, x: number, y: number) => {
+    act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y })));
+    act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y })));
+  };
+
+  it('lifts a group with the cards inside it, and leaves the one outside', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    // g is -20,-20 400x200, so its right edge is 380: t (0,0 200x80) and l (0,100 200x80) are wholly inside; f and n
+    // (300 across, 200 wide) reach 500 and are not, so they stay.
+    const group = shown.querySelector('[data-card="g"]') as HTMLElement;
+    pointer(group, 'pointerdown', 10, 10);
+    act(() => vi.advanceTimersByTime(250));
+    pointer(group, 'pointermove', 60, 40);
+    pointer(group, 'pointerup', 60, 40);
+    const next = onChange.mock.calls[0]![0] as Canvas;
+    expect(next.nodes.map((n) => [n.id, n.x, n.y])).toEqual([['g', 30, 10], ['t', 50, 30], ['f', 300, 0], ['n', 300, 100], ['l', 50, 130]]);
+  });
+
+  it('opens a group on a double-tap to be named, and the cross takes only the group off', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const group = shown.querySelector('[data-card="g"]') as HTMLElement;
+    tapTwice(group, 10, 10);
+    const field = group.querySelector('input[aria-label="The group\u2019s name"], input[aria-label="The group\'s name"]') as HTMLInputElement;
+    expect(field).not.toBeNull();
+    act(() => {
+      field.value = 'Trip';
+      field.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    });
+    expect((onChange.mock.calls[0]![0] as Canvas).nodes[0]).toMatchObject({ id: 'g', label: 'Trip' });
+    act(() => (group.querySelector('button[aria-label^="Take this group off"]') as HTMLElement).click());
+    const after = onChange.mock.calls[1]![0] as Canvas;
+    expect(after.nodes.find((n) => n.id === 'g')).toBeUndefined();
+    expect(after.nodes.length).toBe(canvas.nodes.length - 1);
+  });
+
+  it('resizes an open card from its corner, in the canvas\u2019s pixels, no smaller than the least', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const card = shown.querySelector('[data-card="t"]') as HTMLElement;
+    tapTwice(card, 50, 40);
+    const corner = card.querySelector('[aria-label="Drag to resize this card"]') as HTMLElement;
+    expect(corner).not.toBeNull();
+    pointer(corner, 'pointerdown', 200, 80);
+    pointer(window as unknown as Element, 'pointermove', 260.4, 120.6);
+    pointer(window as unknown as Element, 'pointerup', 260.4, 120.6);
+    expect((onChange.mock.calls.at(-1)![0] as Canvas).nodes.find((n) => n.id === 't')).toMatchObject({ width: 260, height: 121 });
+    pointer(corner, 'pointerdown', 200, 80);
+    pointer(window as unknown as Element, 'pointerup', 0, 0);
+    expect((onChange.mock.calls.at(-1)![0] as Canvas).nodes.find((n) => n.id === 't')).toMatchObject({ width: 120, height: 60 });
+  });
+});

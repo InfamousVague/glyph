@@ -3,7 +3,27 @@ import { Editor } from '../editor/Editor.tsx';
 import { NotePeek } from '../notes/NotePeek.tsx';
 import { openLink } from '../core/linkPreview.ts';
 import { shortUrl } from '../core/shortUrl.ts';
-import { edgePath, fileTitle, isImageFile, joined, labelledEdge, movedNode, newEdge, newTextNode, NEW_CARD, paintOf, withEdge, withNode, withoutEdge, withoutNode, type Canvas, type CanvasEdge, type CanvasNode } from './jsonCanvas.ts';
+import {
+  edgePath,
+  fileTitle,
+  isImageFile,
+  joined,
+  labelledEdge,
+  labelledGroup,
+  movedWithHeld,
+  newEdge,
+  newTextNode,
+  NEW_CARD,
+  paintOf,
+  resizedNode,
+  withEdge,
+  withNode,
+  withoutEdge,
+  withoutNode,
+  type Canvas,
+  type CanvasEdge,
+  type CanvasNode,
+} from './jsonCanvas.ts';
 import { clampScale, FIT_ROOM, fitted, zoomedAt, type View } from './viewport.ts';
 import styles from './CanvasView.module.css';
 
@@ -38,6 +58,11 @@ import styles from './CanvasView.module.css';
  * line picks it, and a picked line shows its words to be written and a cross to take it off. A tool rather than a
  * drag from a card's edge, because a finger has no hover to find an edge dot by, and the two taps read the same on
  * a phone and with a mouse.
+ *
+ * Sizes and groups (the fourth slice): a card open to be written in has a corner to drag that resizes it, no smaller
+ * than a word and a cross; a held press on a group lifts it with everything wholly inside it (choice 5); a double-tap
+ * on a group opens its name to be written, and a cross there takes the group off - the cards in it stay. Making a
+ * group round cards is the + menu's, in the next slice with the other ways to add.
  *
  * Nothing is captured until a press has become a drag, so a tap still reaches the card it landed on; two fingers
  * move the page whatever they are on.
@@ -111,8 +136,8 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
   const hold = useRef<{ view: View; x: number; y: number; distance: number } | null>(null);
   /** Whether this press became a drag: the tap that would follow it is not one, and no card opens. */
   const dragged = useRef(false);
-  /** The card a held press lifted, and where the press was: the card follows the finger from there. */
-  const carrying = useRef<{ node: CanvasNode; x: number; y: number } | null>(null);
+  /** The card a held press lifted, where the press was, and the canvas as it was then: the move is measured from there. */
+  const carrying = useRef<{ node: CanvasNode; x: number; y: number; base: Canvas } | null>(null);
   /** The wait for a press on a card to become a hold; cleared by movement or by letting go. */
   const holdTimer = useRef(0);
   /** The card lifted, for its look while it is carried. */
@@ -177,7 +202,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
         const pointerId = event.pointerId;
         holdTimer.current = window.setTimeout(() => {
           if (pointers.current.size !== 1 || !pointers.current.has(pointerId)) return;
-          carrying.current = { node, x: at.x, y: at.y };
+          carrying.current = { node, x: at.x, y: at.y, base: live };
           dragged.current = true;
           setLifted(node.id);
           try {
@@ -216,7 +241,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     if (carried && pointers.current.size < 2) {
       const scale = view.current.scale;
       const { node } = carried;
-      setLive((was) => withNode(was, movedNode(node, node.x + (event.clientX - carried.x) / scale, node.y + (event.clientY - carried.y) / scale)));
+      setLive(movedWithHeld(carried.base, node, node.x + (event.clientX - carried.x) / scale, node.y + (event.clientY - carried.y) / scale));
       return;
     }
     touched.current = true;
@@ -238,7 +263,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
       carrying.current = null;
       setLifted(null);
       const scale = view.current.scale;
-      change(withNode(live, movedNode(carried.node, carried.node.x + (event.clientX - carried.x) / scale, carried.node.y + (event.clientY - carried.y) / scale)));
+      change(movedWithHeld(carried.base, carried.node, carried.node.x + (event.clientX - carried.x) / scale, carried.node.y + (event.clientY - carried.y) / scale));
     }
     if (pointers.current.size) takeHold();
     else hold.current = null;
@@ -261,7 +286,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     const lineId = target.closest<Element>('[data-line]')?.getAttribute('data-line') ?? null;
     if (lineId !== picked) setPicked(lineId);
     if (lineId) return;
-    if (node && node.type !== 'text') return;
+    if (node && node.type !== 'text' && node.type !== 'group') return;
     const now = performance.now();
     const last = lastTap.current;
     const again = !!last && last.on === (node?.id ?? null) && now - last.at < DOUBLE_MS && Math.hypot(event.clientX - last.x, event.clientY - last.y) < DOUBLE_PX;
@@ -293,6 +318,22 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
   const writeCard = (id: string, text: string) => {
     const node = live.nodes.find((n) => n.id === id);
     if (node?.type === 'text' && node.text !== text) change(withNode(live, { ...node, text }));
+  };
+
+  const resizeCard = (id: string, width: number, height: number) => {
+    const node = live.nodes.find((n) => n.id === id);
+    if (node) change(withNode(live, resizedNode(node, width, height)));
+  };
+  /** While the corner is dragged the card is drawn at its size; the canvas is handed on when the corner is let go. */
+  const previewSize = (id: string, width: number, height: number) => {
+    setLive((was) => {
+      const node = was.nodes.find((n) => n.id === id);
+      return node ? withNode(was, resizedNode(node, width, height)) : was;
+    });
+  };
+  const nameGroup = (id: string, label: string) => {
+    const node = live.nodes.find((n) => n.id === id);
+    if (node?.type === 'group' && (node.label ?? '') !== label.trim()) change(withNode(live, labelledGroup(node, label)));
   };
 
   const removeCard = (id: string) => {
@@ -403,6 +444,10 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
             lineFrom={lining?.from === node.id}
             onWrite={editable ? writeCard : undefined}
             onRemove={editable ? removeCard : undefined}
+            onResize={editable ? resizeCard : undefined}
+            onPreviewSize={editable ? previewSize : undefined}
+            onName={editable ? nameGroup : undefined}
+            scale={view}
           />
         ))}
         <svg className={styles.edges} aria-hidden="true">
@@ -478,9 +523,16 @@ interface CardProps {
   lineFrom?: boolean;
   onWrite?: (id: string, text: string) => void;
   onRemove?: (id: string) => void;
+  /** The card made this size when its corner is let go, and drawn at each size on the way. */
+  onResize?: (id: string, width: number, height: number) => void;
+  onPreviewSize?: (id: string, width: number, height: number) => void;
+  /** A group's name written. */
+  onName?: (id: string, label: string) => void;
+  /** The view's scale, read when a corner is dragged: screen pixels into the canvas's own. */
+  scale?: React.RefObject<View>;
 }
 
-function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFrom = false, onWrite, onRemove }: CardProps) {
+function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFrom = false, onWrite, onRemove, onResize, onPreviewSize, onName, scale }: CardProps) {
   const paint = paintOf(node.color);
   // Opened to be written in: the keyboard comes up with it (Matt: "a text card appears under the fingers, keyboard up").
   const opened = useRef<HTMLDivElement>(null);
@@ -495,11 +547,58 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
 
   if (node.type === 'group') {
     return (
-      <div className={styles.group} style={place} data-hue={hue} data-card={node.id} data-lifted={lifted || undefined}>
-        {node.label ? <span className={styles.groupLabel}>{node.label}</span> : null}
+      <div className={styles.group} style={place} data-hue={hue} data-card={node.id} data-lifted={lifted || undefined} data-editing={editing || undefined}>
+        {editing && onName ? (
+          <span className={styles.groupLabel} data-editing>
+            <input
+              ref={(el) => el?.focus()}
+              className={styles.groupField}
+              defaultValue={node.label ?? ''}
+              placeholder="Name this group"
+              aria-label="The group's name"
+              onBlur={(event) => onName(node.id, event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            />
+            {onRemove ? (
+              <button type="button" className={styles.remove} onClick={() => onRemove(node.id)} aria-label="Take this group off the canvas; its cards stay">
+                ×
+              </button>
+            ) : null}
+          </span>
+        ) : node.label ? (
+          <span className={styles.groupLabel}>{node.label}</span>
+        ) : null}
       </div>
     );
   }
+
+  /** The corner of an open card: dragged, it resizes the card, in the canvas's pixels whatever the zoom. */
+  const corner = editing && onResize ? (
+    <span
+      className={styles.corner}
+      aria-label="Drag to resize this card"
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        const at = { x: event.clientX, y: event.clientY };
+        const size = { width: node.width, height: node.height };
+        const zoom = scale?.current.scale ?? 1;
+        const move = (moved: PointerEvent) => onPreviewSize?.(node.id, size.width + (moved.clientX - at.x) / zoom, size.height + (moved.clientY - at.y) / zoom);
+        const done = (moved: PointerEvent) => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', done);
+          window.removeEventListener('pointercancel', done);
+          onResize(node.id, size.width + (moved.clientX - at.x) / zoom, size.height + (moved.clientY - at.y) / zoom);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', done);
+        window.addEventListener('pointercancel', done);
+      }}
+    />
+  ) : null;
 
   if (node.type === 'text') {
     return (
@@ -519,6 +618,7 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
             ×
           </button>
         ) : null}
+        {corner}
       </div>
     );
   }

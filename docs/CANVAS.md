@@ -134,6 +134,13 @@ line is being drawn a tap on a note card or a link card is the line's, not the c
 from a card's edge, because a finger has no hover to find an edge dot by, and the two taps read the same on a phone
 and with a mouse; that choice was not put to Matt.
 
-Not yet: resizing a card, moving a group with its cards, the other three ways to add a card (the dock's +, dragging
-a note in, by voice), item cards, zoom-to-card and the minimap, a canvas inside a note, export, and the model's
-three moves (a gist on note cards, laying a note out as a canvas, suggesting lines). Each is a slice of its own.
+**The fourth slice sizes and groups.** A card open to be written in has a corner to drag that resizes it, to the
+pixel and no smaller than a word and a cross. A press held on a group lifts it with everything wholly inside it
+(choice 5: "cards inside move with it"), measured the way Obsidian measures it - a card is in a group when its whole
+box is - and a card lifted on its own leaves its group where it is. A double-tap on a group opens its name to be
+written, and a cross there takes the group off while the cards in it stay. Making a group round cards belongs with
+the other ways to add, in the next slice.
+
+Not yet: making a group, the other three ways to add a card (the dock's +, dragging a note in, by voice), item
+cards, zoom-to-card and the minimap, a canvas inside a note, export, and the model's three moves (a gist on note
+cards, laying a note out as a canvas, suggesting lines). Each is a slice of its own.

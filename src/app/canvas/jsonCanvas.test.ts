@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { noteTitle } from '../core/store.ts';
-import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, isCanvasBody, joined, labelledEdge, movedNode, newCanvasId, newEdge, newTextNode, paintOf, parseCanvas, serializeCanvas, sidesOf, withCanvas, withEdge, withNode, withoutEdge, withoutNode, type Canvas } from './jsonCanvas.ts';
+import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, heldBy, isCanvasBody, joined, labelledEdge, labelledGroup, movedNode, movedWithHeld, newCanvasId, newEdge, newGroupAround, newTextNode, paintOf, parseCanvas, resizedNode, serializeCanvas, sidesOf, withCanvas, withEdge, withNode, withoutEdge, withoutNode, type Canvas } from './jsonCanvas.ts';
 
 const SPEC_SAMPLE = `{
   "nodes": [
@@ -199,5 +199,34 @@ describe('lines between cards', () => {
     expect(joined(canvas, 't1', 'f1')).toBe(true);
     expect(joined(canvas, 'f1', 't1')).toBe(true);
     expect(joined(canvas, 'f1', 'l1')).toBe(false);
+  });
+});
+
+describe('sizes and groups', () => {
+  const canvas = parseCanvas(SPEC_SAMPLE) as Canvas;
+
+  it('resizes a card to the pixel and never smaller than a word and a cross', () => {
+    const t1 = canvas.nodes.find((n) => n.id === 't1')!;
+    expect(resizedNode(t1, 300.4, 80.6)).toMatchObject({ x: 0, y: 0, width: 300, height: 81 });
+    expect(resizedNode(t1, 10, 10)).toMatchObject({ width: 120, height: 60 });
+  });
+
+  it('moves a group with everything wholly inside it, and a card on its own', () => {
+    const g1 = canvas.nodes.find((n) => n.id === 'g1')!;
+    // g1 is -40,-40 600x300: t1 (0,0 250x60) and f1 (300,0 250x120) are inside; l1 (0,150 250x80) is inside too.
+    expect(heldBy(canvas, g1).map((n) => n.id)).toEqual(['t1', 'f1', 'l1']);
+    const moved = movedWithHeld(canvas, g1, 60, -40);
+    expect(moved.nodes.map((n) => [n.id, n.x, n.y])).toEqual([['g1', 60, -40], ['t1', 100, 0], ['f1', 400, 0], ['l1', 100, 150]]);
+    const alone = movedWithHeld(canvas, canvas.nodes.find((n) => n.id === 't1')!, 20, 20);
+    expect(alone.nodes.map((n) => [n.id, n.x, n.y])).toEqual([['g1', -40, -40], ['t1', 20, 20], ['f1', 300, 0], ['l1', 0, 150]]);
+  });
+
+  it('draws a new group round the cards named, with room, under everything, and names it', () => {
+    const grouped = newGroupAround(canvas, ['t1', 'l1'], 'Trip', 'gg')!;
+    expect(grouped.nodes[0]).toMatchObject({ id: 'gg', type: 'group', label: 'Trip', x: -40, y: -64, width: 330, height: 334 });
+    expect(heldBy(grouped, grouped.nodes[0]!).map((n) => n.id)).toEqual(['t1', 'l1']);
+    expect(newGroupAround(canvas, ['nope'])).toBeNull();
+    expect('label' in labelledGroup(grouped.nodes[0]!, '  ')).toBe(false);
+    expect(labelledGroup(grouped.nodes[0]!, ' Plans ')).toMatchObject({ label: 'Plans' });
   });
 });

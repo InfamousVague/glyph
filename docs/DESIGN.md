@@ -3103,6 +3103,11 @@ this one changes it (`canvas/CanvasView.tsx`, `canvas/jsonCanvas.ts`).
   drag from an edge dot, since a finger has no hover to find a dot by. The browser caught what the tests could not:
   in Line mode a tap on a link card ran the card's own handler first and the page left for the address, so Line
   mode is handled in the capture phase, before any card sees the tap.
+- **Sizes and groups.** The fourth slice: an open card's corner resizes it, no smaller than a word and a cross; a
+  held press on a group lifts it with everything wholly inside it, measured as Obsidian measures it, so a card
+  half over the edge stays; a double-tap names a group, and its cross takes the group off and leaves the cards. A
+  drag is measured from the canvas as it was at pick-up (`carrying.base`), not from the last frame, so a group and
+  its cards move by one amount rather than compounding.
 - **Measured in the browser, not assumed:** a held press of 300ms lifted the card and a move of (60, 90) screen
   pixels at scale 1 put it down at (60, 90); a double-tap made a card with a sixteen-hex id, focused, and what was
   typed was in the saved note with its front matter untouched. In the tests, a move before the hold pans and saves
