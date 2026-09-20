@@ -12,7 +12,20 @@
   user-select: none;
   -webkit-user-select: none;
   cursor: grab;
-  background: var(--glacier-bg);
+  /*
+   * A grid of dots under the cards, as Obsidian's canvas has (Matt: "the grid dots are missing from canvas"): drawn
+   * by the page's background so it costs nothing, and moved and scaled with the world through the three variables
+   * `apply` writes (CanvasView.tsx), so the dots stay under the same points of the canvas as it pans and zooms. At
+   * the smallest zooms the dots would crowd into a grey, so they fade out below a third.
+   */
+  --canvas-x: 0px;
+  --canvas-y: 0px;
+  --canvas-scale: 1;
+  --canvas-dot: color-mix(in oklch, var(--app-ink, currentColor) clamp(0%, calc((var(--canvas-scale) - 0.3) * 40%), 18%), transparent);
+  background-color: var(--glacier-bg);
+  background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1.6px);
+  background-size: calc(24px * var(--canvas-scale)) calc(24px * var(--canvas-scale));
+  background-position: var(--canvas-x) var(--canvas-y);
 }
 
 .canvas:active {

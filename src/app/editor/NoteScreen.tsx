@@ -361,7 +361,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const shown: 'transcript' | 'robot' | 'raw' = tape.length && tape.playing ? 'transcript' : mode ? 'robot' : 'raw';
   // The tape and note go to smoke as they slip behind the header; read again on a view change, since another view may not scroll (art/wispEdge.ts).
   // The page smokes at both ends: under the header, and off the bottom where the dock is (art/wispEdge.ts).
-  useWispEdge(page, shown, header, { foot: true });
+  // Not on a canvas: it is not a page that scrolls off its foot, and the band was smoking the canvas's own tools at
+  // the bottom of the screen (Matt: "The bottom wisp effect is effecting canvas view buttons at the bottom").
+  useWispEdge(page, shown, header, { foot: !canvas });
   // The note opens where it was left, and remembers where it is left (editor/notePlace.ts).
   // Opened at an item, the note goes to that line rather than back to where it was left last time.
   useNotePlace(note.id, page, view, shown === 'raw' && !at);

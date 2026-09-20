@@ -175,6 +175,13 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     if (!el) return;
     const { x, y, scale } = view.current;
     el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    // The dots under the cards move and scale with them (CanvasView.module.css `.canvas`).
+    const page = host.current;
+    if (page) {
+      page.style.setProperty('--canvas-x', `${x}px`);
+      page.style.setProperty('--canvas-y', `${y}px`);
+      page.style.setProperty('--canvas-scale', String(scale));
+    }
     cancelAnimationFrame(viewFrame.current);
     viewFrame.current = requestAnimationFrame(() => setViewShown({ ...view.current }));
   }, []);
