@@ -28,18 +28,10 @@ import styles from './NotePeek.module.css';
 export interface NotePeekProps {
   body: string;
   className?: string;
-  /**
-   * The whole of the text, first line included and a dozen lines rather than six, in the page's ink: a memo's card
-   * (memos/MemosScreen.tsx), whose words are the memo, not a description of it. Matt chose the note's formatter for
-   * memo cards over the words as typed.
-   */
-  whole?: boolean;
 }
 
 /** How far off the screen a card is drawn, or kept drawn, in pixels: a scroll's worth. */
 const NEAR_PX = 400;
-/** How many lines a whole memo is given before it is cut: a memo longer than that is a note that got away. */
-const WHOLE_LINES = 12;
 
 /**
  * One editor at a time, whichever card asked first, each in a task of its own: ten cards mounting in one go is a
@@ -73,10 +65,10 @@ function soon(run: () => void): () => void {
   };
 }
 
-export function NotePeek({ body, className, whole = false }: NotePeekProps) {
+export function NotePeek({ body, className }: NotePeekProps) {
   const { theme } = usePreferences();
   // A canvas note is JSON, not words: its card shows nothing small until a canvas can be drawn small (docs/CANVAS.md).
-  const markdown = useMemo(() => (isCanvasBody(body) ? '' : whole ? body.trim() : peekMarkdown(body)), [body, whole]);
+  const markdown = useMemo(() => (isCanvasBody(body) ? '' : peekMarkdown(body)), [body]);
   const host = useRef<HTMLSpanElement>(null);
   const [drawn, setDrawn] = useState(() => typeof IntersectionObserver === 'undefined');
   /** How tall the editor was, so the blank that stands in for it once it is gone keeps the card's height. */
@@ -129,7 +121,7 @@ export function NotePeek({ body, className, whole = false }: NotePeekProps) {
 
   if (!markdown) return null;
   // Before the editor: a blank about as tall as the lines it will draw, so the cards do not jump as they fill in.
-  const lines = Math.min(whole ? WHOLE_LINES : PEEK_LINES, markdown.split('\n').filter((line) => line.trim()).length);
+  const lines = Math.min(PEEK_LINES, markdown.split('\n').filter((line) => line.trim()).length);
   const style = drawn ? undefined : { blockSize: stood !== null ? `${stood}px` : `calc(var(--app-body) * 1.6 * ${lines})` };
   return (
     <span
@@ -137,7 +129,6 @@ export function NotePeek({ body, className, whole = false }: NotePeekProps) {
       className={className ? `${styles.peek} ${className}` : styles.peek}
       style={style}
       data-clipped={drawn && clipped ? '' : undefined}
-      data-whole={whole ? '' : undefined}
       aria-hidden="true"
     >
       {drawn ? <Editor value={markdown} onChange={noop} dark={isDarkNow(theme)} assist={false} readOnly display="formatted" peek grow /> : null}
