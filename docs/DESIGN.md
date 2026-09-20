@@ -2618,8 +2618,8 @@ Three open cards on the Glyph Tasks board, all in `editor/boards.ts`:
   - The page's `#wispEdge` filter is placed for one view at a time, so a lane can't wear it. `art/wispFoot.ts`
     makes the foot half of it at a given height, one filter per lane height, shared and kept.
   - A lane wears it only while it has cards below its foot (`data-more`), over a 1.2 em fade.
-  - The smoke is off with Settings' smoke, with reduced motion and in WebKit, which paints such a filter black.
-    Those keep the fade.
+  - The smoke is off with Settings' smoke, with reduced motion and where the filter's region would be over budget.
+    Those keep the fade. (It was off in WebKit too, which §51 undid, and which is what left the two faults below.)
 
 ## The board a list is already on (2026-09-17)
 
@@ -2955,3 +2955,67 @@ page on every screen, the phone's start page included, and then "Delete the code
   top on a workspace change to `core/glideToTop.ts`, and the page's glass bar, scroller and dock to the home page.
 - **Left for a decision:** the phone's gist runner (`format/gist.ts`) wrote the line under each row of the list; with
   no list it is never given a note to write for, so it does nothing, but its code is still there.
+
+## 54. A filter on an HTML box, and whose corner it starts from (2026-09-20)
+
+The board lane's foot smoke (`art/wispFoot.ts`) had both of the faults found the same week on the page-level wisps,
+and for the same reasons. Measured in Playwright, Chromium and WebKit side by side, on a striped lane 300px tall.
+
+**The placement.** `filter: url(#...)` with `filterUnits="userSpaceOnUse"` does not mean the same thing in the two
+engines. Chromium measures user space from the element's own corner. WebKit measures it from the document's corner:
+the page's top left, before any page scrolling. A lane places its band at its own foot, so in WebKit the band landed
+as far above the foot as the lane sat down the page, and the region - placed in the same frame - stopped covering the
+lane at all. Nothing outside a filter's region is drawn, so the cards went with it:
+
+| | band, in rows from the lane's own top | rows of the lane drawn |
+| --- | --- | --- |
+| Chromium, lane anywhere, any scroll | 272..299 | 136 of 136 |
+| WebKit, lane 40px down the page | 232..299 | 134 |
+| WebKit, lane 420px down the page | 0..19 | 8 |
+| WebKit, lane in a scroller, scrolled | none | 0 |
+
+The page's wisps escape this because `placeRegion` sizes their region to the window from (0, 0), so which corner the
+engine starts from makes no difference to them. A lane cannot: its band is somewhere in the middle of the page.
+
+The fix is to stop naming a corner at all. The whole filter is now said in the lane's own box -
+`filterUnits="objectBoundingBox"` AND `primitiveUnits="objectBoundingBox"`, every length a fraction of the lane's
+width or height - and both engines draw the band at rows 271..299 with every row present, at every scroll position,
+in a page and inside a scroller. What that costs is legibility: a length has to be divided by the side it runs
+along, a blur needs both of its numbers (one fraction shared between a wide box and a tall one is two different
+blurs), and `feDisplacementMap` measures its throw against the box's diagonal over root two.
+
+The subregions stay, converted rather than dropped. Saying it in box units would have been far tidier without them,
+and the first draft did exactly that, placing the band with a relative `feOffset` off a region-filling flood so no
+absolute coordinate was left anywhere. Measured on two lanes scrolling in headless WebKit, that draft cost 118ms a
+frame against 66ms with the subregions kept and 17ms with no filter at all. The subregions are most of what this
+effect costs; the shipped filter runs at 67ms.
+
+**The band's geometry**, the same fault the page's foot had at 1.5.0-42. The lip sat in the last 8px of the lane,
+inside the 1.2 em mask fade that had already taken the cards to nothing, so the strongest bend happened where there
+was nothing left to bend and what showed was a plain dark gradient. The lip now sits `LIFT` = 18px above the foot -
+half the page's 36, as this band's lip and ramp are half the page's - so full strength begins 26px up, above where
+the fade starts. Measured as smoke surviving above the fade's start: 1921 px of ink before, 6077 after, 3.2x.
+
+The fade is derived from the lip (`WISP_FOOT_FADE` = `BAND + LIFT - 4`, set on the lane as `--cm-lane-fade`) rather
+than written beside it. It was `1.2em`, about 20px in a board's type and about 26px at the largest text size - the
+width of the whole lip - so the two agreed at one end of the reader's own dial and not at the other, which is the
+kind of drift §51's sister lesson is about.
+
+The raised lip raises the floor with it: a lane must now be 106px to carry the band rather than 88, so a board
+written `height=6` keeps the plain fade where it used to smoke. `height=7` and up are unchanged. A lane that short
+shows two cards, and a band reaching most of the way up it was never the effect.
+
+**And the corner is worth knowing about on its own.** `art/wispSides.ts` had read the same divergence as WebKit
+measuring from the *window's* corner. That is the same corner while the page is at its top, which is where it was
+probed, and it is wrong once the page is scrolled. Settled with a filter whose only primitive is a red square at
+user space (0, 0) on a box otherwise drawn plain - the output is clipped to the box, so the square only shows where
+the origin falls inside it. Chromium drew it at the box's top in every case. WebKit drew it at the box's top for a
+box at document y=0 with the page unscrolled, and nowhere at all for that box at document y=300 with the page
+scrolled 300, where the window's corner is inside the box and the document's is 300px above. Nothing in wispSides
+changes for it - a row at the top of a page that does not scroll sideways has both corners agreeing across, which is
+the only direction it places anything in - but the note is corrected, and the box-units answer here would let that
+filter drop its `left` test and smoke a row anywhere on the page.
+
+The budget (`WISP_EDGE_BUDGET`, §51) is untouched and still guards the region. Whether box units change where
+WebKit starts painting an over-budget filter black was NOT re-measured - the probe built for it could not reproduce
+the black at 2.3x over, so it proved nothing either way - and the guard earns its place on cost regardless.

@@ -14,12 +14,20 @@ import { WISP_EDGE_BUDGET } from './wispEdge.ts';
  * (`WISP_EDGE_BUDGET`, art/wispEdge.ts) - over it Apple's engine paints the whole box black rather than clipping it.
  *
  * Measured in two frames at once, because the engines disagree about which one a filter on an HTML box uses. Chromium
- * measures from the box's own corner; WebKit - the Mac app, and Safari - from the window's. Probed with a red square at
- * (0, 0): Chromium drew it at the row's corner, 57px down, and WebKit drew nothing, since (0, 0) was above the row and
- * a filter's output is clipped to the box; a green one at (0, 57) was WebKit's row corner. A filter placed for the row's
- * own frame drew the row as nothing at all in WebKit. So nothing here depends on where the row is up and down - the
- * bands and the noise run far above and below it, over both frames - and across, the row starts at the window's left
- * edge in every layout, where the frames agree. `left` says where it starts; anywhere else, no wisp (the fade stays).
+ * measures from the box's own corner; WebKit - the Mac app, and Safari - from the DOCUMENT's, the page's top left
+ * before any page scrolling. Probed with a red square at (0, 0): Chromium drew it at the row's corner, 57px down, and
+ * WebKit drew nothing, since (0, 0) was above the row and a filter's output is clipped to the box; a green one at
+ * (0, 57) was WebKit's row corner. A filter placed for the row's own frame drew the row as nothing at all in WebKit.
+ * So nothing here depends on where the row is up and down - the bands and the noise run far above and below it, over
+ * both frames - and across, the row starts at the page's left edge in every layout, where the frames agree. `left`
+ * says where it starts; anywhere else, no wisp (the fade stays).
+ *
+ * This note used to say the window's corner, which is the same corner while the page is at its top, and that is
+ * where it was probed. Re-probed at a page scrolled down (art/wispFoot.ts), it is the document's. Nothing here
+ * changes for it: the row sits at the top of the window inside a page that does not scroll sideways, so the two
+ * corners agree across, which is the only direction this filter places anything in. The cleaner answer to all of it
+ * is wispFoot's - say the whole filter in the box's own units (`objectBoundingBox`) and there is no corner to pick -
+ * and it would let this one drop the `left` test and smoke a row anywhere on the page.
  *
  * The noise stays where it is and the tabs scroll through it, so the edge churns while they move and rests when they
  * stop: that is the animation, and a row at rest costs nothing but its bands. Sliding the noise as well was tried in

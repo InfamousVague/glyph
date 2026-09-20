@@ -1,6 +1,6 @@
 import { EditorSelection, Facet, RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { wispFoot } from '../art/wispFoot.ts';
+import { WISP_FOOT_FADE, wispFoot } from '../art/wispFoot.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { markOf, unmarked } from '../core/itemLinks.ts';
 import {
@@ -658,9 +658,14 @@ function laneFoot(stack: HTMLElement): void {
   if (smoke) {
     stack.dataset.smoke = smoke;
     stack.style.filter = smoke;
+    // The fade the smoke sits under, from the same place the lip is (art/wispFoot.ts): a longer one would rub out
+    // the strongest bend, which is what the page's foot read as a plain gradient for. Without smoke the lane keeps
+    // the em fade in the stylesheet, where there is no lip for it to agree with.
+    stack.style.setProperty('--cm-lane-fade', `${WISP_FOOT_FADE}px`);
   } else {
     delete stack.dataset.smoke;
     stack.style.removeProperty('filter');
+    stack.style.removeProperty('--cm-lane-fade');
   }
 }
 
@@ -1683,9 +1688,11 @@ const boardTheme = EditorView.baseTheme({
     paddingBlockEnd: '0.9em',
   },
   // More cards below than the lane shows: its foot fades, and goes to smoke where the app's wisp is on (laneFoot).
+  // With smoke the length comes from the band's own lip (`--cm-lane-fade`, art/wispFoot.ts `WISP_FOOT_FADE`); the
+  // em here is the plain fade, for a lane with no smoke to agree with.
   '.cm-boardStack[data-more]': {
-    WebkitMaskImage: 'linear-gradient(to bottom, #000 calc(100% - 1.2em), transparent)',
-    maskImage: 'linear-gradient(to bottom, #000 calc(100% - 1.2em), transparent)',
+    WebkitMaskImage: 'linear-gradient(to bottom, #000 calc(100% - var(--cm-lane-fade, 1.2em)), transparent)',
+    maskImage: 'linear-gradient(to bottom, #000 calc(100% - var(--cm-lane-fade, 1.2em)), transparent)',
   },
   // Padding, not margin, above and below: the editor measures a block by its border box, and a margin - the board's
   // own at the top went straight through this box - put every line under the board that far from where the editor
