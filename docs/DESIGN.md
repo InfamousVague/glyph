@@ -2984,6 +2984,21 @@ in a page and inside a scroller. What that costs is legibility: a length has to 
 along, a blur needs both of its numbers (one fraction shared between a wide box and a tall one is two different
 blurs), and `feDisplacementMap` measures its throw against the box's diagonal over root two.
 
+One attribute must NOT be converted, and converting it shipped a bug. `primitiveUnits="objectBoundingBox"` does not
+reach `feTurbulence`'s `baseFrequency`: an engine reads a frequency in the filter's own space whatever the units
+attribute says. Converting it with the lengths around it multiplied the frequency by the box, so the noise came out a
+couple of hundred times too fine and the smoke read as fine static rather than cloud - Matt, of the tab row's, which
+had the same line: "grainy". Measured on bare turbulence at 240x120, neighbouring-pixel difference across and down:
+userSpaceOnUse per pixel 1.9 / 5.8, objectBoundingBox per pixel 1.9 / 5.8 - the same cloud, so the units genuinely do
+not touch it - and objectBoundingBox times the box 33.6 / 34.7, the static. WebKit gives 1.8 / 5.7, 1.8 / 5.6 and
+33.6 / 34.6, so both engines agree and one per-pixel constant serves both.
+
+Worth saying how it got past the first round: the check used to accept the conversion counted mixed pixels per row,
+which measures where the band is and how strong it is and is blind to how fine the noise inside it is. The two
+filters matched to within 0.2% on that number while looking completely different. The graininess was even visible in
+the before-and-after picture taken at the time and was read as the effect working harder. A measurement has to be
+able to fail the thing being claimed - the same lesson as the corner probe below, twice in one night.
+
 The subregions stay, converted rather than dropped. Saying it in box units would have been far tidier without them,
 and the first draft did exactly that, placing the band with a relative `feOffset` off a region-filling flood so no
 absolute coordinate was left anywhere. Measured on two lanes scrolling in headless WebKit, that draft cost 118ms a

@@ -200,8 +200,17 @@ function footFilter(id: string, height: number, wide: number): Element {
       ...box(-SIDE, -SIDE, wide, height + SIDE * 2 + BELOW),
       'color-interpolation-filters': 'sRGB',
     },
-    // A frequency per box unit rather than per pixel, so the noise keeps the same grain whatever size the lane is.
-    part('feTurbulence', { type: 'fractalNoise', baseFrequency: `${0.02 * across} ${0.07 * height}`, numOctaves: 2, seed: 3, ...reach, result: 'rawNoise' }),
+    /*
+     * Per pixel, like every other wisp in the app, and NOT converted with the lengths around it.
+     * `primitiveUnits="objectBoundingBox"` does not reach `baseFrequency`: an engine reads a frequency in the
+     * filter's own space whatever the units attribute says. Converting it multiplied the frequency by the lane, so
+     * the noise came out a couple of hundred times too fine and the smoke read as static (Matt, of the tab row's,
+     * which had the same line: "grainy"). Measured on bare turbulence, 240x120, neighbouring-pixel difference:
+     * userSpaceOnUse per pixel 1.9 across / 5.8 down, objectBoundingBox per pixel 1.9 / 5.8 - the same cloud - and
+     * objectBoundingBox times the box 33.6 / 34.7, which is the static. WebKit gives 1.8 / 5.7, 1.8 / 5.6 and
+     * 33.6 / 34.6, so the two engines agree and one per-pixel constant serves both.
+     */
+    part('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.02 0.07', numOctaves: 2, seed: 3, ...reach, result: 'rawNoise' }),
     part('feColorMatrix', { in: 'rawNoise', type: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1', result: 'noise' }),
     part('feFlood', { 'flood-color': '#000', result: 'black' }),
     part('feFlood', { 'flood-color': '#fff', ...box(-SIDE, height - shape.band - shape.lift, wide, shape.band + shape.lift + BELOW), result: 'strip' }),
