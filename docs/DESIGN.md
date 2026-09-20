@@ -3088,6 +3088,11 @@ this one changes it (`canvas/CanvasView.tsx`, `canvas/jsonCanvas.ts`).
 - **The editor once, two ways.** A card of words is the note's editor in peek mode until it is opened, and the same
   editor in the note's own mode while it is; the read-only one is only made near the screen (`Near`), the open one
   at once, and the keyboard is asked for a tick after it mounts.
+- **Lines, by two taps.** The third slice: the Line tool makes the next two taps a line, from the first card to the
+  second; a tap on a line picks it, and a picked line shows its words and a cross. A tool rather than Obsidian's
+  drag from an edge dot, since a finger has no hover to find a dot by. The browser caught what the tests could not:
+  in Line mode a tap on a link card ran the card's own handler first and the page left for the address, so Line
+  mode is handled in the capture phase, before any card sees the tap.
 - **Measured in the browser, not assumed:** a held press of 300ms lifted the card and a move of (60, 90) screen
   pixels at scale 1 put it down at (60, 90); a double-tap made a card with a sixteen-hex id, focused, and what was
   typed was in the saved note with its front matter untouched. In the tests, a move before the hold pans and saves

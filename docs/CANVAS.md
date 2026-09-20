@@ -116,7 +116,14 @@ The press-and-hold to move, the double-tap to open and the cross to take off wer
 asked" list below); they are the app's own conventions - a board's card and a tab are moved by a held press too -
 chosen so one habit serves the whole app, and are his to change.
 
-Not yet: drawing lines and labelling them, resizing a card, moving a group with its cards, the other three ways to
-add a card (the dock's +, dragging a note in, by voice), item cards, zoom-to-card and the minimap, a canvas inside a
-note, export, and the model's three moves (a gist on note cards, laying a note out as a canvas, suggesting lines).
-Each is a slice of its own.
+**The third slice draws lines.** The `Line` tool turns the next two taps into a line, from the first card tapped
+to the second, with an arrow at its end and its sides worked out from where the cards are (choice 4); a card cannot
+be joined to itself, and two cards already joined are not joined again. A tap on a line picks it - each line has a
+wide unseen stroke to land on - and a picked line shows its words to be written and a cross to take it off. While a
+line is being drawn a tap on a note card or a link card is the line's, not the card's. A tool rather than a drag
+from a card's edge, because a finger has no hover to find an edge dot by, and the two taps read the same on a phone
+and with a mouse; that choice was not put to Matt.
+
+Not yet: resizing a card, moving a group with its cards, the other three ways to add a card (the dock's +, dragging
+a note in, by voice), item cards, zoom-to-card and the minimap, a canvas inside a note, export, and the model's
+three moves (a gist on note cards, laying a note out as a canvas, suggesting lines). Each is a slice of its own.

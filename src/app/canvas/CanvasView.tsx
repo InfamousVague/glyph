@@ -261,18 +261,6 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     const lineId = target.closest<Element>('[data-line]')?.getAttribute('data-line') ?? null;
     if (lineId !== picked) setPicked(lineId);
     if (lineId) return;
-    // Drawing a line: the first card tapped is where it starts, the second where it ends.
-    if (lining) {
-      if (!node || node.type === 'group') return;
-      if (!lining.from) setLining({ from: node.id });
-      else if (node.id !== lining.from && !joined(live, lining.from, node.id)) {
-        const line = newEdge(lining.from, node.id);
-        change(withEdge(live, line));
-        setLining(null);
-        setPicked(line.id);
-      }
-      return;
-    }
     if (node && node.type !== 'text') return;
     const now = performance.now();
     const last = lastTap.current;
@@ -335,11 +323,32 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     return () => window.removeEventListener('keydown', onKey);
   }, [editing, picked, lining]);
 
-  // The click at the end of a drag is the drag's, not a card's: it goes no further.
+  /*
+   * Before any card sees a tap: the click at the end of a drag is the drag's and goes no further; and while a line is
+   * being drawn, a tap on a card is the line's, so a note card or a link card must not open (a link card did, and
+   * the page left for its address).
+   */
   const onClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!dragged.current) return;
+    if (dragged.current) {
+      event.stopPropagation();
+      event.preventDefault();
+      return;
+    }
+    if (!lining) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button') || target.closest('[data-line-words]')) return;
     event.stopPropagation();
     event.preventDefault();
+    const id = target.closest<HTMLElement>('[data-card]')?.dataset.card;
+    const node = id ? live.nodes.find((n) => n.id === id) : undefined;
+    if (!node || node.type === 'group') return;
+    if (!lining.from) setLining({ from: node.id });
+    else if (node.id !== lining.from && !joined(live, lining.from, node.id)) {
+      const line = newEdge(lining.from, node.id);
+      change(withEdge(live, line));
+      setLining(null);
+      setPicked(line.id);
+    }
   };
 
   // A wheel pans, as it does in Obsidian; with the modifier held - which is also what a trackpad pinch arrives as -
