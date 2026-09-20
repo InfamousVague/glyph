@@ -141,16 +141,19 @@ button.card:hover {
   padding: var(--glacier-space-2);
 }
 
-/* The words as they were typed, up to a dozen lines; a memo longer than that is a note that got away. */
-.cardText {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 12;
-  overflow: hidden;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: var(--glacier-font-size-md);
-  line-height: 1.45;
+/* The words, drawn by the note's own formatter (notes/NotePeek.tsx, whole): the card's, not a description of it. */
+.cardWords {
+  inline-size: 100%;
+}
+
+/* The workspace whose memos these are, beside the name. */
+.space {
+  padding-inline: var(--glacier-space-2);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--app-ink, currentColor) 8%, transparent);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-regular, 400);
+  color: var(--glacier-text-muted);
 }
 
 .cardWhen {

@@ -4,7 +4,7 @@ import { useBack } from '../core/back.ts';
 import { ArchiveBox, ArrowLeft, Bin, Board, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
-import { SheetIcon } from '../plugins/kit.tsx';
+import { SheetField, SheetIcon } from '../plugins/kit.tsx';
 import { plugins, usePlugins } from '../plugins/registry.ts';
 import type { NoteEditing, NoteLink } from '../plugins/types.ts';
 import { MODES, type Mode } from '../format/modes.ts';
@@ -45,6 +45,11 @@ interface NoteSettingsProps {
   onFind?: () => void;
   /** Lays the note's list out as a board (core/boards.ts); absent where there is nothing to make one of. */
   onMakeBoard?: () => void;
+  /**
+   * A field to name the note by, for a note with no heading to be named in: a canvas (docs/CANVAS.md), whose name
+   * is its `title:` front matter. Absent on a note of words, which is named by its first line.
+   */
+  name?: { value: string; onChange: (title: string) => void };
   /** How the note is shown, when the header has no room for its switch (a folded phone); absent, no row. */
   view?: NoteView;
   /** What the robot is showing over the note, and how to choose (format/modes.ts). Absent on a note that can't be read to. */
@@ -65,6 +70,7 @@ export function NoteSettings({
   onDelete,
   onFind,
   onMakeBoard,
+  name,
   view,
   onView,
   mode,
@@ -132,6 +138,11 @@ export function NoteSettings({
       >
         <span className={styles.grip} aria-hidden="true" {...drag} />
         <p className={styles.title}>{title || 'Untitled'}</p>
+        {name ? (
+          <div className={styles.group}>
+            <SheetField label="Name" value={name.value} onChange={(e) => name.onChange(e.target.value)} placeholder="What this canvas is called" autoComplete="off" />
+          </div>
+        ) : null}
 
         {onFind || onMakeBoard || (view && onView) ? (
           <>

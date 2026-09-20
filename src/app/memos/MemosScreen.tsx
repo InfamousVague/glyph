@@ -4,6 +4,7 @@ import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import type { Note } from '../core/store.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
+import { NotePeek } from '../notes/NotePeek.tsx';
 import { when } from '../notes/when.ts';
 import { memoText } from './memo.ts';
 import styles from './MemosScreen.module.css';
@@ -14,8 +15,12 @@ import styles from './MemosScreen.module.css';
  *
  * A memo is written here, not in the editor: it is a few words, and the editor is a page. The field keeps on Enter
  * (a new line is Shift+Enter) or on Keep, since a phone's keyboard has no Enter to speak of; a card tapped becomes
- * the same field over its own words, with Done and a bin. A memo is text as it was typed, drawn as it was typed:
- * what a memo says is short enough that its marks are its words.
+ * the same field over its own words, with Done and a bin. A card draws its words through the note's own formatter,
+ * small, the way a home card draws a note (Matt chose that over the words as typed): a `- [ ]` is a box, `**bold**`
+ * is bold, and the card and the note never disagree.
+ *
+ * The wall is the chosen workspace's (Matt: a memo made while a workspace is chosen is filed there and shows only
+ * there), so the heading says which, and the empty wall says where.
  */
 
 export interface MemosScreenProps {
@@ -29,9 +34,11 @@ export interface MemosScreenProps {
   onRemove: (memo: Note) => void;
   /** Asked for from a +: the field is focused as the screen opens. A new number focuses it again. */
   compose?: number;
+  /** The chosen workspace's name, when one is chosen: whose memos these are. */
+  workspace?: string;
 }
 
-export function MemosScreen({ memos, onBack, onAdd, onChange, onRemove, compose = 0 }: MemosScreenProps) {
+export function MemosScreen({ memos, onBack, onAdd, onChange, onRemove, compose = 0, workspace }: MemosScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -79,6 +86,7 @@ export function MemosScreen({ memos, onBack, onAdd, onChange, onRemove, compose 
         </button>
         <h1 className={styles.heading}>
           <StickyNote size={16} aria-hidden="true" /> Memos
+          {workspace ? <span className={styles.space}>{workspace}</span> : null}
           {memos.length ? <span className={styles.count}>{memos.length}</span> : null}
         </h1>
       </header>
@@ -127,8 +135,14 @@ export function MemosScreen({ memos, onBack, onAdd, onChange, onRemove, compose 
                         </div>
                       </div>
                     ) : (
-                      <button type="button" className={styles.card} onClick={() => setEditing({ id: memo.id, text: memoText(memo.body) })}>
-                        <span className={styles.cardText}>{memoText(memo.body)}</span>
+                      <button
+                        type="button"
+                        className={styles.card}
+                        // The drawing says nothing to a screen reader; the words themselves are the button's name.
+                        aria-label={memoText(memo.body)}
+                        onClick={() => setEditing({ id: memo.id, text: memoText(memo.body) })}
+                      >
+                        <NotePeek body={memoText(memo.body)} whole className={styles.cardWords} />
                         <span className={styles.cardWhen}>{when(memo.updatedAt)}</span>
                       </button>
                     )}
@@ -137,7 +151,7 @@ export function MemosScreen({ memos, onBack, onAdd, onChange, onRemove, compose 
               })}
             </ul>
           ) : (
-            <p className={styles.empty}>Nothing kept yet. A memo is a thought too small for a note.</p>
+            <p className={styles.empty}>{workspace ? `Nothing kept in ${workspace} yet.` : 'Nothing kept yet.'} A memo is a thought too small for a note.</p>
           )}
         </div>
       </div>
