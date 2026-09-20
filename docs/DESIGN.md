@@ -3159,6 +3159,13 @@ this one changes it (`canvas/CanvasView.tsx`, `canvas/jsonCanvas.ts`).
   a link, a chart, a table and a picture, with words on the lines between them. The picture is the sample note's
   drawing, made and kept by the picture store as the canvas is added, and left out where nothing can draw it, so
   the canvas is whole in a test and on a phone alike.
+- **The map grown, and the screen dragged across it.** "Make the minimap a bit bigger when we click on it and allow
+  clicking and dragging to navigate around the canvas": a press grows the map half again (`data-big`, sized by CSS
+  with a short transition) and it stays grown until a press lands on the canvas. A drag on it moves the screen's box
+  by what the finger moved, so the view goes with the finger and nothing jumps under it; a tap on the grown map
+  goes to the spot tapped, while the tap that grew it only grew it. The map is drawn in one `viewBox` whatever its
+  size on the page, and a finger's place on it is read from the rendered size at that moment, so a press mid-growth,
+  or on a phone where the map is scaled down, still lands where it points.
 - **Measured in the browser, not assumed:** a held press of 300ms lifted the card and a move of (60, 90) screen
   pixels at scale 1 put it down at (60, 90); a double-tap made a card with a sixteen-hex id, focused, and what was
   typed was in the saved note with its front matter untouched. In the tests, a move before the hold pans and saves

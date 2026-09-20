@@ -472,9 +472,9 @@ describe('pictures, charts and the toolbar', () => {
     Object.assign(drop, { dataTransfer: { files: [new File(['x'], 'cat.png', { type: 'image/png' })], getData: () => '' }, clientX: 40, clientY: 40 });
     await act(async () => {
       shown.firstElementChild!.dispatchEvent(drop);
-      await Promise.resolve();
-      await Promise.resolve();
     });
+    // The picture is kept and then the card is made, each a turn of the queue: waited for, not counted.
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalled());
     expect((onChange.mock.calls[0]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'file', file: 'dropped.jpg' });
   });
 });
