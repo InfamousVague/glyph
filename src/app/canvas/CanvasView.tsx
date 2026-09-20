@@ -3,7 +3,7 @@ import { Editor } from '../editor/Editor.tsx';
 import { NotePeek } from '../notes/NotePeek.tsx';
 import { openLink } from '../core/linkPreview.ts';
 import { shortUrl } from '../core/shortUrl.ts';
-import { edgePath, fileTitle, isImageFile, paintOf, type Canvas, type CanvasNode } from './jsonCanvas.ts';
+import { edgePath, fileTitle, isImageFile, movedNode, newTextNode, NEW_CARD, paintOf, withNode, withoutNode, type Canvas, type CanvasNode } from './jsonCanvas.ts';
 import { clampScale, FIT_ROOM, fitted, zoomedAt, type View } from './viewport.ts';
 import styles from './CanvasView.module.css';
 
@@ -21,6 +21,20 @@ import styles from './CanvasView.module.css';
  * A card of words is the note's own editor, read-only and in its peek mode, the way a home card draws a note
  * (notes/NotePeek.tsx) - so a card draws the same way a note does, and an editor is only made once a card is near the
  * screen, since a canvas may hold fifty and each costs a frame.
+ *
+ * The second slice edits (Matt: "continue progress on canvases"). A double-tap on the page makes a card of words
+ * there, open with the keyboard up (Matt's choice, docs/CANVAS.md: "double-tap empty space ... Obsidian's move"), and
+ * the + tool makes one mid-screen. A press held on a card lifts it, and it goes where the finger goes - the way a
+ * board's card and a tab are moved (editor/boards.ts, notes/NoteTabs.tsx), so one habit serves the whole app; a plain
+ * drag still pans, so a finger on a card never moves it by mistake. A double-tap on a card of words opens it to be
+ * written in, its editor in the note's own mode and the words going straight into the canvas; a card open that way
+ * can be taken off. Moving, opening and taking off were not put to Matt, so those are the app's conventions, not his
+ * choices. Every change is the whole canvas handed back (`onChange`), which the note writes into its body as the
+ * spec's JSON, so a canvas edited here still opens in Obsidian. Without `onChange` the canvas is read-only, as the
+ * first slice was.
+ *
+ * Nothing is captured until a press has become a drag, so a tap still reaches the card it landed on; two fingers
+ * move the page whatever they are on.
  */
 
 export interface CanvasWiki {
@@ -37,12 +51,19 @@ export interface CanvasViewProps {
   dark: boolean;
   wiki?: CanvasWiki;
   className?: string;
+  /** The canvas after a change - a card moved, made, written in or taken off. Absent, the canvas cannot be changed. */
+  onChange?: (canvas: Canvas) => void;
 }
 
 /** How far off the screen a card's editor is made, in screen pixels. */
 const NEAR_PX = 300;
 /** How far a finger moves before a press is a drag rather than a tap, in screen pixels. */
 const SLOP_PX = 4;
+/** Two taps this close in time and place are a double-tap: a new card on the page, or a card of words opened. */
+const DOUBLE_MS = 350;
+const DOUBLE_PX = 24;
+/** How long a press stays put before it lifts the card under it rather than panning the page: the boards' own wait. */
+const HOLD_MS = 220;
 
 /** Where two fingers are, as one point between them and the distance apart; one finger is its point and no distance. */
 function grip(pointers: Map<number, { x: number; y: number }>): { x: number; y: number; distance: number } {
@@ -52,8 +73,25 @@ function grip(pointers: Map<number, { x: number; y: number }>): { x: number; y: 
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, distance: Math.hypot(a.x - b.x, a.y - b.y) };
 }
 
-export function CanvasView({ canvas, dark, wiki, className }: CanvasViewProps) {
+export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasViewProps) {
   const host = useRef<HTMLDivElement>(null);
+  /*
+   * The canvas as it is being changed: the one handed in, with a card part-way through a drag on top of it. Every
+   * change goes out through `onChange` and comes back as the next `canvas`; between the two, and while a finger is
+   * still moving a card, this is what is drawn.
+   */
+  const [live, setLive] = useState(canvas);
+  useEffect(() => setLive(canvas), [canvas]);
+  const editable = !!onChange;
+  /** The card of words open to be written in, by id. */
+  const [editing, setEditing] = useState<string | null>(null);
+  const change = useCallback(
+    (next: Canvas) => {
+      setLive(next);
+      onChange?.(next);
+    },
+    [onChange],
+  );
   const world = useRef<HTMLDivElement>(null);
   const view = useRef<View>({ x: FIT_ROOM, y: FIT_ROOM, scale: 1 });
   /** Whether a finger or a wheel has moved the view: until then, a screen that changes size fits the canvas again. */
@@ -63,6 +101,14 @@ export function CanvasView({ canvas, dark, wiki, className }: CanvasViewProps) {
   const hold = useRef<{ view: View; x: number; y: number; distance: number } | null>(null);
   /** Whether this press became a drag: the tap that would follow it is not one, and no card opens. */
   const dragged = useRef(false);
+  /** The card a held press lifted, and where the press was: the card follows the finger from there. */
+  const carrying = useRef<{ node: CanvasNode; x: number; y: number } | null>(null);
+  /** The wait for a press on a card to become a hold; cleared by movement or by letting go. */
+  const holdTimer = useRef(0);
+  /** The card lifted, for its look while it is carried. */
+  const [lifted, setLifted] = useState<string | null>(null);
+  /** The last tap, and what it was on, for telling a double-tap. */
+  const lastTap = useRef<{ at: number; x: number; y: number; on: string | null } | null>(null);
 
   const apply = useCallback(() => {
     const el = world.current;
@@ -96,10 +142,42 @@ export function CanvasView({ canvas, dark, wiki, className }: CanvasViewProps) {
     hold.current = { view: { ...view.current }, x: at.x, y: at.y, distance: at.distance };
   };
 
+  /** The point of the canvas under a point of the screen. */
+  const under = (clientX: number, clientY: number) => {
+    const rect = host.current?.getBoundingClientRect();
+    const { x, y, scale } = view.current;
+    return { x: (clientX - (rect?.left ?? 0) - x) / scale, y: (clientY - (rect?.top ?? 0) - y) / scale };
+  };
+
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    // Typing in a card that is open: the press is the editor's, for its caret and its selection.
+    if (editing && target.closest('[data-editing]')) return;
     // A press is a tap until it moves: a tap on a card that opens something is the card's, and taking the pointer
     // here would take its click with it. It is only captured once it has become a drag.
-    if (!pointers.current.size) dragged.current = false;
+    window.clearTimeout(holdTimer.current);
+    if (!pointers.current.size) {
+      dragged.current = false;
+      carrying.current = null;
+      // One finger on a card, on a canvas that can change: held still for a moment, it lifts the card.
+      const id = editable ? target.closest<HTMLElement>('[data-card]')?.dataset.card : undefined;
+      const node = id ? live.nodes.find((n) => n.id === id) : undefined;
+      if (node) {
+        const at = { x: event.clientX, y: event.clientY };
+        const pointerId = event.pointerId;
+        holdTimer.current = window.setTimeout(() => {
+          if (pointers.current.size !== 1 || !pointers.current.has(pointerId)) return;
+          carrying.current = { node, x: at.x, y: at.y };
+          dragged.current = true;
+          setLifted(node.id);
+          try {
+            host.current?.setPointerCapture(pointerId);
+          } catch {
+            // Already gone: nothing to hold.
+          }
+        }, HOLD_MS);
+      }
+    } else carrying.current = null;
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     takeHold();
   };
@@ -111,8 +189,9 @@ export function CanvasView({ canvas, dark, wiki, className }: CanvasViewProps) {
     const now = grip(pointers.current);
     if (!dragged.current) {
       if (pointers.current.size < 2 && Math.hypot(now.x - start.x, now.y - start.y) < SLOP_PX) return;
+      // Moved before the hold: a pan, and the card stays where it is.
+      window.clearTimeout(holdTimer.current);
       dragged.current = true;
-      touched.current = true;
       // The drag is the page's now, wherever the pointer goes: off a card, out of the window and back.
       for (const id of pointers.current.keys()) {
         try {
@@ -122,6 +201,15 @@ export function CanvasView({ canvas, dark, wiki, className }: CanvasViewProps) {
         }
       }
     }
+    // A card being carried: it follows the finger in the canvas's own pixels, and the page stays put.
+    const carried = carrying.current;
+    if (carried && pointers.current.size < 2) {
+      const scale = view.current.scale;
+      const { node } = carried;
+      setLive((was) => withNode(was, movedNode(node, node.x + (event.clientX - carried.x) / scale, node.y + (event.clientY - carried.y) / scale)));
+      return;
+    }
+    touched.current = true;
     // The point of the canvas that was under the fingers stays under them, whatever they do: a second finger's
     // spread scales about that point, and one finger's move carries it along.
     const scale = start.distance > 0 && now.distance > 0 ? clampScale((start.view.scale * now.distance) / start.distance) : start.view.scale;
@@ -132,10 +220,81 @@ export function CanvasView({ canvas, dark, wiki, className }: CanvasViewProps) {
   };
 
   const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    window.clearTimeout(holdTimer.current);
     if (!pointers.current.delete(event.pointerId)) return;
+    // A card let go where it was carried to: the canvas is handed on with it there.
+    const carried = carrying.current;
+    if (carried) {
+      carrying.current = null;
+      setLifted(null);
+      const scale = view.current.scale;
+      change(withNode(live, movedNode(carried.node, carried.node.x + (event.clientX - carried.x) / scale, carried.node.y + (event.clientY - carried.y) / scale)));
+    }
     if (pointers.current.size) takeHold();
     else hold.current = null;
   };
+
+  /*
+   * A tap closes whatever card was open. A second tap close on the heels of the first, in the same place, is a
+   * double-tap: on the page it makes a new card of words there, open to be written in; on a card of words it opens
+   * that card. A note card and a link card open on a single tap, as they did (`Card`), so a double-tap is kept for
+   * the two things a single tap cannot mean.
+   */
+  const onClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!editable || dragged.current) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('[data-editing]') || target.closest('button')) return;
+    if (editing) setEditing(null);
+    const id = target.closest<HTMLElement>('[data-card]')?.dataset.card;
+    const node = id ? live.nodes.find((n) => n.id === id) : undefined;
+    if (node && node.type !== 'text') return;
+    const now = performance.now();
+    const last = lastTap.current;
+    const again = !!last && last.on === (node?.id ?? null) && now - last.at < DOUBLE_MS && Math.hypot(event.clientX - last.x, event.clientY - last.y) < DOUBLE_PX;
+    if (again) {
+      lastTap.current = null;
+      if (node) setEditing(node.id);
+      else addCard(event.clientX, event.clientY);
+      return;
+    }
+    lastTap.current = { at: now, x: event.clientX, y: event.clientY, on: node?.id ?? null };
+  };
+
+  /** A new card of words centred on a point of the screen, open to be written in. */
+  const addCard = (clientX: number, clientY: number) => {
+    const at = under(clientX, clientY);
+    const card = newTextNode(at.x - NEW_CARD.width / 2, at.y - NEW_CARD.height / 2);
+    change(withNode(live, card));
+    setEditing(card.id);
+  };
+
+  /** A new card in the middle of the screen, from the + tool: for a mouse with no double-tap habit, and for a reader. */
+  const addCardHere = () => {
+    const el = host.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    addCard(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  };
+
+  const writeCard = (id: string, text: string) => {
+    const node = live.nodes.find((n) => n.id === id);
+    if (node?.type === 'text' && node.text !== text) change(withNode(live, { ...node, text }));
+  };
+
+  const removeCard = (id: string) => {
+    if (editing === id) setEditing(null);
+    change(withoutNode(live, id));
+  };
+
+  // Escape closes the card being written in.
+  useEffect(() => {
+    if (!editing) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setEditing(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editing]);
 
   // The click at the end of a drag is the drag's, not a card's: it goes no further.
   const onClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -165,7 +324,7 @@ export function CanvasView({ canvas, dark, wiki, className }: CanvasViewProps) {
     return () => el.removeEventListener('wheel', onWheel);
   }, [apply]);
 
-  const edges = useMemo(() => canvas.edges.map((edge) => ({ edge, path: edgePath(canvas, edge) })).filter((e) => e.path), [canvas]);
+  const edges = useMemo(() => live.edges.map((edge) => ({ edge, path: edgePath(live, edge) })).filter((e) => e.path), [live]);
 
   return (
     <div
@@ -176,12 +335,24 @@ export function CanvasView({ canvas, dark, wiki, className }: CanvasViewProps) {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onClickCapture={onClickCapture}
-      role="img"
-      aria-label={`A canvas of ${canvas.nodes.length} cards`}
+      onClick={onClick}
+      role={editable ? undefined : 'img'}
+      aria-label={`A canvas of ${live.nodes.length} cards`}
+      data-editable={editable || undefined}
     >
       <div ref={world} className={styles.world}>
-        {canvas.nodes.map((node) => (
-          <Card key={node.id} node={node} dark={dark} wiki={wiki} root={host} />
+        {live.nodes.map((node) => (
+          <Card
+            key={node.id}
+            node={node}
+            dark={dark}
+            wiki={wiki}
+            root={host}
+            editing={editing === node.id}
+            lifted={lifted === node.id}
+            onWrite={editable ? writeCard : undefined}
+            onRemove={editable ? removeCard : undefined}
+          />
         ))}
         <svg className={styles.edges} aria-hidden="true">
           {edges.map(({ edge, path }) => {
@@ -203,6 +374,11 @@ export function CanvasView({ canvas, dark, wiki, className }: CanvasViewProps) {
         </svg>
       </div>
       <div className={styles.tools}>
+        {editable ? (
+          <button type="button" className={`app-word ${styles.tool}`} onClick={addCardHere} aria-label="Add a card of words">
+            + Card
+          </button>
+        ) : null}
         <button type="button" className={`app-word ${styles.tool}`} onClick={fit} aria-label="Fit the whole canvas on the screen">
           Fit
         </button>
@@ -217,17 +393,30 @@ interface CardProps {
   wiki?: CanvasWiki;
   /** The canvas, which is what "near the screen" is measured against. */
   root: React.RefObject<HTMLDivElement | null>;
+  /** Open to be written in: a card of words shows its editor as the note does, taking every tap and key. */
+  editing?: boolean;
+  /** Lifted by a held press and following the finger. */
+  lifted?: boolean;
+  onWrite?: (id: string, text: string) => void;
+  onRemove?: (id: string) => void;
 }
 
-function Card({ node, dark, wiki, root }: CardProps) {
+function Card({ node, dark, wiki, root, editing = false, lifted = false, onWrite, onRemove }: CardProps) {
   const paint = paintOf(node.color);
+  // Opened to be written in: the keyboard comes up with it (Matt: "a text card appears under the fingers, keyboard up").
+  const opened = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!editing) return undefined;
+    const timer = window.setTimeout(() => opened.current?.querySelector<HTMLElement>('.cm-content')?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [editing]);
   const hue = paint && 'hue' in paint ? paint.hue : undefined;
   const place: React.CSSProperties = { left: node.x, top: node.y, width: node.width, height: node.height };
   if (paint && 'hex' in paint) (place as Record<string, string>)['--app-space'] = paint.hex;
 
   if (node.type === 'group') {
     return (
-      <div className={styles.group} style={place} data-hue={hue}>
+      <div className={styles.group} style={place} data-hue={hue} data-card={node.id} data-lifted={lifted || undefined}>
         {node.label ? <span className={styles.groupLabel}>{node.label}</span> : null}
       </div>
     );
@@ -235,10 +424,22 @@ function Card({ node, dark, wiki, root }: CardProps) {
 
   if (node.type === 'text') {
     return (
-      <div className={styles.card} style={place} data-hue={hue}>
-        <Near root={root} className={styles.words}>
-          <Editor value={node.text} onChange={noop} dark={dark} assist={false} readOnly display="formatted" peek grow />
-        </Near>
+      <div className={styles.card} style={place} data-hue={hue} data-card={node.id} data-editing={editing || undefined} data-lifted={lifted || undefined}>
+        {editing ? (
+          // Open: the note's own editor in its own mode, the words going straight into the canvas as they are typed.
+          <div ref={opened} className={styles.words}>
+            <Editor value={node.text} onChange={(text) => onWrite?.(node.id, text)} dark={dark} assist display="mixed" placeholder="Write something." grow />
+          </div>
+        ) : (
+          <Near root={root} className={styles.words}>
+            <Editor value={node.text} onChange={noop} dark={dark} assist={false} readOnly display="formatted" peek grow />
+          </Near>
+        )}
+        {editing && onRemove ? (
+          <button type="button" className={styles.remove} onClick={() => onRemove(node.id)} aria-label="Take this card off the canvas">
+            ×
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -250,6 +451,8 @@ function Card({ node, dark, wiki, root }: CardProps) {
         className={`${styles.card} ${styles.linkCard}`}
         style={place}
         data-hue={hue}
+        data-card={node.id}
+        data-lifted={lifted || undefined}
         href={node.url}
         onClick={(event) => {
           event.preventDefault();
@@ -273,6 +476,8 @@ function Card({ node, dark, wiki, root }: CardProps) {
       className={`${styles.card} ${styles.fileCard}`}
       style={place}
       data-hue={hue}
+      data-card={node.id}
+      data-lifted={lifted || undefined}
       data-waiting={known || picture ? undefined : ''}
       role={picture ? undefined : 'button'}
       tabIndex={picture ? undefined : 0}

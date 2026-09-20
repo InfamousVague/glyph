@@ -103,6 +103,20 @@ note does. A note card draws that note small (notes/NotePeek.tsx) and opens it o
 card names one; a note not in Glyph is drawn as waiting, the way a `[[link]]` to nothing is. A link card opens its
 address.
 
-Not yet: making and moving cards, drawing lines, editing a card's words, a canvas inside a note, a home card drawn
-as a thumbnail, export as a picture or PDF, and the model's three moves (a gist on note cards, laying a note out as
-a canvas, suggesting lines). Each is a slice of its own.
+**The second slice edits.** A double-tap on the page makes a card of words there, open with the keyboard up (choice
+8), and the `+ Card` tool makes one mid-screen. A press held on a card lifts it and it goes where the finger goes,
+put down to the pixel; a plain drag still pans, so a finger on a card never moves it by mistake. A double-tap on a
+card of words opens it to be written in - its editor in the note's own mode, the words going straight into the
+canvas - and a card open that way has a cross to take it off, which takes its lines with it. Every change is
+written into the note as the spec's JSON with the front matter kept (`jsonCanvas.ts` `withCanvas`), saved the way
+typing is, so a canvas edited in Glyph still opens in Obsidian. A canvas shown where it cannot be written - a card
+on another canvas, a note not open - stays read-only.
+
+The press-and-hold to move, the double-tap to open and the cross to take off were never put to Matt (the "not
+asked" list below); they are the app's own conventions - a board's card and a tab are moved by a held press too -
+chosen so one habit serves the whole app, and are his to change.
+
+Not yet: drawing lines and labelling them, resizing a card, moving a group with its cards, the other three ways to
+add a card (the dock's +, dragging a note in, by voice), item cards, zoom-to-card and the minimap, a canvas inside a
+note, export, and the model's three moves (a gist on note cards, laying a note out as a canvas, suggesting lines).
+Each is a slice of its own.

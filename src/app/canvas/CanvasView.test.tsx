@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { CanvasView } from './CanvasView.tsx';
@@ -104,5 +104,80 @@ describe('fitting the canvas to the screen', () => {
     expect(doubled).toEqual({ x: 300 - 200 * 2, y: 250 - 200 * 2, scale: 2 });
     expect(zoomedAt(view, 0, 0, 99).scale).toBe(3);
     expect(zoomedAt(view, 0, 0, 0.001).scale).toBe(0.1);
+  });
+});
+
+describe('a canvas edited', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const pointer = (el: Element, type: string, x: number, y: number) =>
+    act(() => {
+      el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 }));
+    });
+  const tapTwice = (el: Element, x: number, y: number) => {
+    act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y })));
+    act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y })));
+  };
+
+  it('is read-only without onChange, and a double-tap on the page then makes a card of words, open', () => {
+    const still = show(<CanvasView canvas={canvas} dark={false} />);
+    expect(still.querySelector('[role="img"]')).not.toBeNull();
+    act(() => root?.unmount());
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const page = shown.firstElementChild as HTMLElement;
+    expect(page.getAttribute('role')).toBeNull();
+    tapTwice(page, 600, 400);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0]![0] as Canvas;
+    expect(next.nodes.length).toBe(canvas.nodes.length + 1);
+    const made = next.nodes.at(-1)!;
+    expect(made).toMatchObject({ type: 'text', text: '', width: 260, height: 120 });
+    expect(made.id).toMatch(/^[0-9a-f]{16}$/);
+    // Open to be written in, at once.
+    expect(shown.querySelector(`[data-card="${made.id}"][data-editing]`)).not.toBeNull();
+  });
+
+  it('lifts a card on a held press and puts it down where the finger let go, to the pixel', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const card = shown.querySelector('[data-card="t"]') as HTMLElement;
+    pointer(card, 'pointerdown', 50, 40);
+    act(() => vi.advanceTimersByTime(250));
+    expect(card.hasAttribute('data-lifted')).toBe(true);
+    pointer(card, 'pointermove', 80.4, 25.6);
+    pointer(card, 'pointerup', 80.4, 25.6);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const moved = (onChange.mock.calls[0]![0] as Canvas).nodes.find((n) => n.id === 't')!;
+    expect(moved).toMatchObject({ x: 30, y: -14 });
+    expect(shown.querySelector('[data-lifted]')).toBeNull();
+  });
+
+  it('pans rather than lifting when the finger moves before the hold, so the card stays put', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const card = shown.querySelector('[data-card="t"]') as HTMLElement;
+    pointer(card, 'pointerdown', 50, 40);
+    pointer(card, 'pointermove', 90, 40);
+    act(() => vi.advanceTimersByTime(300));
+    pointer(card, 'pointerup', 90, 40);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('opens a card of words on a double-tap, writes what is typed into the canvas, and takes the card off', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const card = shown.querySelector('[data-card="t"]') as HTMLElement;
+    tapTwice(card, 50, 40);
+    expect(card.hasAttribute('data-editing')).toBe(true);
+    const remove = card.querySelector('button[aria-label*="off the canvas"]') as HTMLElement;
+    expect(remove).not.toBeNull();
+    act(() => remove.click());
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0]![0] as Canvas;
+    expect(next.nodes.find((n) => n.id === 't')).toBeUndefined();
+    // Its two lines went with it.
+    expect(next.edges).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { noteTitle } from '../core/store.ts';
-import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, isCanvasBody, paintOf, parseCanvas, serializeCanvas, sidesOf, type Canvas } from './jsonCanvas.ts';
+import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, isCanvasBody, movedNode, newCanvasId, newTextNode, paintOf, parseCanvas, serializeCanvas, sidesOf, withCanvas, withNode, withoutNode, type Canvas } from './jsonCanvas.ts';
 
 const SPEC_SAMPLE = `{
   "nodes": [
@@ -136,5 +136,39 @@ describe('colour and names', () => {
     expect(fileTitle('Plans/Cabin trip.md')).toBe('Cabin trip');
     expect(fileTitle('Cabin trip')).toBe('Cabin trip');
     expect(fileTitle('photos/tent.JPG')).toBe('tent.JPG');
+  });
+});
+
+describe('changing a canvas', () => {
+  const canvas = parseCanvas(SPEC_SAMPLE) as Canvas;
+
+  it('puts the canvas back into its note and keeps the front matter as it was', () => {
+    const body = `---\ntitle: "Cabin"\ntags: [trip]\n---\n{ "nodes": [] }\n`;
+    const next = withCanvas(body, canvas);
+    expect(next.startsWith('---\ntitle: "Cabin"\ntags: [trip]\n---\n')).toBe(true);
+    expect(canvasOf(next)).toEqual(canvas);
+    expect(noteTitle(next)).toBe('Cabin');
+    // A body with no front matter is the canvas alone.
+    expect(canvasOf(withCanvas('{ "nodes": [] }', canvas))).toEqual(canvas);
+  });
+
+  it('adds a card, moves it to the pixel, replaces it, and takes it out with its lines', () => {
+    const card = newTextNode(10.4, 20.6, 'abc');
+    expect(card).toMatchObject({ id: 'abc', type: 'text', x: 10, y: 21, text: '' });
+    const added = withNode(canvas, card);
+    expect(added.nodes.at(-1)).toBe(card);
+    const moved = withNode(added, movedNode(card, 99.7, -3.2));
+    expect(moved.nodes.length).toBe(added.nodes.length);
+    expect(moved.nodes.at(-1)).toMatchObject({ id: 'abc', x: 100, y: -3 });
+    // t1 has two edges; both go with it, and nothing else does.
+    const gone = withoutNode(canvas, 't1');
+    expect(gone.nodes.map((n) => n.id)).toEqual(['g1', 'f1', 'l1']);
+    expect(gone.edges).toEqual([]);
+  });
+
+  it('names a new node the way Obsidian does: sixteen hex characters, never the same twice', () => {
+    const ids = new Set(Array.from({ length: 50 }, () => newCanvasId()));
+    expect(ids.size).toBe(50);
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{16}$/);
   });
 });

@@ -204,6 +204,56 @@ export function canvasNoteBody(title: string, canvas: Canvas): string {
   return `---\ntitle: "${safe}"\n---\n${serializeCanvas(canvas)}`;
 }
 
+// ---- changing a canvas ----------------------------------------------------------------------
+
+/**
+ * The note's body with its canvas replaced and everything else kept: the front matter that names it, character for
+ * character, then the canvas as the spec writes it. `canvasNoteBody` is for a new note; this is for a note being
+ * edited, whose front matter may hold more than a title.
+ */
+export function withCanvas(body: string, canvas: Canvas): string {
+  const lines = body.split('\n');
+  if (FENCE.test(lines[0] ?? '')) {
+    for (let n = 1; n < Math.min(lines.length, 40); n += 1) {
+      if (FENCE.test(lines[n] ?? '')) return `${lines.slice(0, n + 1).join('\n')}\n${serializeCanvas(canvas)}`;
+    }
+  }
+  return serializeCanvas(canvas);
+}
+
+/** An id for a new node or edge: sixteen hex characters, the shape Obsidian gives its own. */
+export function newCanvasId(): string {
+  const bytes = new Uint8Array(8);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') crypto.getRandomValues(bytes);
+  else for (let n = 0; n < bytes.length; n += 1) bytes[n] = Math.floor(Math.random() * 256);
+  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** The size a new card of words starts at, in the canvas's pixels: Obsidian's, so a canvas made here looks like one. */
+export const NEW_CARD = { width: 260, height: 120 };
+
+/** A new card of words, empty, with its top-left corner at (x, y). It goes last, so it is drawn on top. */
+export function newTextNode(x: number, y: number, id = newCanvasId()): CanvasNode {
+  return { id, type: 'text', x: Math.round(x), y: Math.round(y), width: NEW_CARD.width, height: NEW_CARD.height, text: '' };
+}
+
+/** The canvas with this node in place of the one with its id, or added at the end where there was none. */
+export function withNode(canvas: Canvas, node: CanvasNode): Canvas {
+  const at = canvas.nodes.findIndex((n) => n.id === node.id);
+  const nodes = at < 0 ? [...canvas.nodes, node] : canvas.nodes.map((n) => (n.id === node.id ? node : n));
+  return { nodes, edges: canvas.edges };
+}
+
+/** The canvas without this node, and without any edge that joined it. */
+export function withoutNode(canvas: Canvas, id: string): Canvas {
+  return { nodes: canvas.nodes.filter((n) => n.id !== id), edges: canvas.edges.filter((e) => e.fromNode !== id && e.toNode !== id) };
+}
+
+/** The node moved so its top-left corner is at (x, y), to the pixel, as the spec keeps positions. */
+export function movedNode(node: CanvasNode, x: number, y: number): CanvasNode {
+  return { ...node, x: Math.round(x), y: Math.round(y) };
+}
+
 // ---- geometry -------------------------------------------------------------------------------
 
 export interface Box {

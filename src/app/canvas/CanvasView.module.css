@@ -51,9 +51,51 @@
   background: color-mix(in oklch, var(--app-space) 7%, var(--glacier-bg));
 }
 
-/* A card's editor takes no taps: a drag that starts on the words moves the page, and nothing selects. */
+/* A card's editor takes no taps: a drag that starts on the words moves the card, and nothing selects. */
 .card :global(.cm-editor) {
   pointer-events: none;
+}
+
+/* Open to be written in: the editor is live again, and the card says so with a ring in the page's own ink. */
+.card[data-editing] {
+  outline: 2px solid var(--app-ink, var(--glacier-text));
+  outline-offset: 2px;
+  cursor: text;
+}
+
+.card[data-editing] :global(.cm-editor) {
+  pointer-events: auto;
+}
+
+/* Lifted by a held press: a little larger and off the page, the way a board's card and a tab are carried. */
+.card[data-lifted],
+.group[data-lifted] {
+  transform: scale(1.02);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
+  z-index: 1;
+}
+
+/* Taking a card off, from its corner while it is open. */
+.remove {
+  position: absolute;
+  top: var(--glacier-space-1);
+  right: var(--glacier-space-1);
+  inline-size: 1.6em;
+  block-size: 1.6em;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--app-ink, currentColor) 10%, transparent);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.remove:hover {
+  color: var(--app-ink, var(--glacier-text));
+  background: color-mix(in oklch, var(--app-ink, currentColor) 18%, transparent);
 }
 
 /*

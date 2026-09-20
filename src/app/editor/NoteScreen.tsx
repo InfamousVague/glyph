@@ -16,7 +16,7 @@ import { ContextMenu } from './ContextMenu.tsx';
 import { FindBar } from './FindBar.tsx';
 import { Editor } from './Editor.tsx';
 import { CanvasView } from '../canvas/CanvasView.tsx';
-import { canvasOf } from '../canvas/jsonCanvas.ts';
+import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
 import { insertImageAt, releaseImageSpot, reserveImageSpot } from './images.ts';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
@@ -672,6 +672,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               canvas={canvas}
               dark={isDarkNow(prefs.theme)}
               wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined}
+              // A change to the canvas is a change to the note: written into the body as the spec's JSON, front
+              // matter kept, and saved the way typing is (the debounce and its flushes above).
+              onChange={(next) => onChange(withCanvas(body.current, next))}
             />
           </div>
         ) : null}
