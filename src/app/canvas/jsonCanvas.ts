@@ -249,6 +249,34 @@ export function withoutNode(canvas: Canvas, id: string): Canvas {
   return { nodes: canvas.nodes.filter((n) => n.id !== id), edges: canvas.edges.filter((e) => e.fromNode !== id && e.toNode !== id) };
 }
 
+/** A new line from one card to another: an arrow at its end, its sides chosen from where the cards are (`sidesOf`). */
+export function newEdge(fromNode: string, toNode: string, id = newCanvasId()): CanvasEdge {
+  return { id, fromNode, toNode };
+}
+
+/** The canvas with this line in place of the one with its id, or added at the end where there was none. */
+export function withEdge(canvas: Canvas, edge: CanvasEdge): Canvas {
+  const at = canvas.edges.findIndex((e) => e.id === edge.id);
+  const edges = at < 0 ? [...canvas.edges, edge] : canvas.edges.map((e) => (e.id === edge.id ? edge : e));
+  return { nodes: canvas.nodes, edges };
+}
+
+export function withoutEdge(canvas: Canvas, id: string): Canvas {
+  return { nodes: canvas.nodes, edges: canvas.edges.filter((e) => e.id !== id) };
+}
+
+/** The line with these words on it, or with none: the spec has no empty label, so blank takes the label off. */
+export function labelledEdge(edge: CanvasEdge, label: string): CanvasEdge {
+  const words = label.trim();
+  const { label: _was, ...rest } = edge;
+  return words ? { ...rest, label: words } : rest;
+}
+
+/** Whether a line already joins these two cards, either way round: a second one would only lie on the first. */
+export function joined(canvas: Canvas, a: string, b: string): boolean {
+  return canvas.edges.some((e) => (e.fromNode === a && e.toNode === b) || (e.fromNode === b && e.toNode === a));
+}
+
 /** The node moved so its top-left corner is at (x, y), to the pixel, as the spec keeps positions. */
 export function movedNode(node: CanvasNode, x: number, y: number): CanvasNode {
   return { ...node, x: Math.round(x), y: Math.round(y) };

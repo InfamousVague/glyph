@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { noteTitle } from '../core/store.ts';
-import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, isCanvasBody, movedNode, newCanvasId, newTextNode, paintOf, parseCanvas, serializeCanvas, sidesOf, withCanvas, withNode, withoutNode, type Canvas } from './jsonCanvas.ts';
+import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, isCanvasBody, joined, labelledEdge, movedNode, newCanvasId, newEdge, newTextNode, paintOf, parseCanvas, serializeCanvas, sidesOf, withCanvas, withEdge, withNode, withoutEdge, withoutNode, type Canvas } from './jsonCanvas.ts';
 
 const SPEC_SAMPLE = `{
   "nodes": [
@@ -170,5 +170,34 @@ describe('changing a canvas', () => {
     const ids = new Set(Array.from({ length: 50 }, () => newCanvasId()));
     expect(ids.size).toBe(50);
     for (const id of ids) expect(id).toMatch(/^[0-9a-f]{16}$/);
+  });
+});
+
+describe('lines between cards', () => {
+  const canvas = parseCanvas(SPEC_SAMPLE) as Canvas;
+
+  it('draws a new line with an arrow at its end and its sides worked out, adds it last, and takes it off again', () => {
+    const line = newEdge('f1', 'l1', 'ln');
+    expect(line).toEqual({ id: 'ln', fromNode: 'f1', toNode: 'l1' });
+    const added = withEdge(canvas, line);
+    expect(added.edges.at(-1)).toBe(line);
+    expect(edgePath(added, line)?.toHead).not.toBeNull();
+    expect(withoutEdge(added, 'ln').edges).toEqual(canvas.edges);
+    // Read back through the spec, it is the same line.
+    expect(parseCanvas(serializeCanvas(added))?.edges.at(-1)).toEqual(line);
+  });
+
+  it('labels a line, replaces the label, and takes it off with blank', () => {
+    const line = newEdge('f1', 'l1', 'ln');
+    expect(labelledEdge(line, '  then  ').label).toBe('then');
+    expect(labelledEdge(labelledEdge(line, 'then'), 'after')).toMatchObject({ label: 'after' });
+    expect('label' in labelledEdge(labelledEdge(line, 'then'), '   ')).toBe(false);
+    expect(withEdge(canvas, labelledEdge(canvas.edges[0]!, 'later')).edges[0]).toMatchObject({ id: 'e1', label: 'later' });
+  });
+
+  it('knows when two cards are already joined, either way round', () => {
+    expect(joined(canvas, 't1', 'f1')).toBe(true);
+    expect(joined(canvas, 'f1', 't1')).toBe(true);
+    expect(joined(canvas, 'f1', 'l1')).toBe(false);
   });
 });

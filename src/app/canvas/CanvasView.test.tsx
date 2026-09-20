@@ -181,3 +181,51 @@ describe('a canvas edited', () => {
     expect(next.edges).toEqual([]);
   });
 });
+
+describe('lines drawn', () => {
+  const tap = (el: Element, x = 10, y = 10) => act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y })));
+
+  it('draws a line from the first card tapped to the second with the Line tool, once, and never onto itself', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const tool = shown.querySelector('button[aria-label^="Draw a line"]') as HTMLElement;
+    act(() => tool.click());
+    expect(shown.firstElementChild?.getAttribute('data-lining')).toBe('from');
+    const from = shown.querySelector('[data-card="f"]') as HTMLElement;
+    const to = shown.querySelector('[data-card="l"]') as HTMLElement;
+    tap(from);
+    expect(from.hasAttribute('data-line-from')).toBe(true);
+    expect(shown.firstElementChild?.getAttribute('data-lining')).toBe('to');
+    // The same card again is not a line.
+    tap(from);
+    expect(onChange).not.toHaveBeenCalled();
+    tap(to);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0]![0] as Canvas;
+    expect(next.edges.at(-1)).toMatchObject({ fromNode: 'f', toNode: 'l' });
+    expect(next.edges.at(-1)!.id).toMatch(/^[0-9a-f]{16}$/);
+    // The tool is put down, and the new line is picked, its words ready to be written.
+    expect(shown.firstElementChild?.hasAttribute('data-lining')).toBe(false);
+    expect(shown.querySelector('input[aria-label="Words on the line"]')).not.toBeNull();
+  });
+
+  it('picks a line on a tap, writes words on it, and takes it off', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const hit = shown.querySelector('[data-line="e2"] path') as SVGPathElement;
+    tap(hit);
+    expect(shown.querySelector('[data-line="e2"]')?.hasAttribute('data-picked')).toBe(true);
+    const field = shown.querySelector('input[aria-label="Words on the line"]') as HTMLInputElement;
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      setter.call(field, 'after');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    act(() => field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect((onChange.mock.calls[0]![0] as Canvas).edges.find((e) => e.id === 'e2')).toMatchObject({ label: 'after' });
+    const remove = shown.querySelector('button[aria-label="Take this line off the canvas"]') as HTMLElement;
+    act(() => remove.click());
+    expect((onChange.mock.calls[1]![0] as Canvas).edges.find((e) => e.id === 'e2')).toBeUndefined();
+  });
+});

@@ -3,7 +3,7 @@ import { Editor } from '../editor/Editor.tsx';
 import { NotePeek } from '../notes/NotePeek.tsx';
 import { openLink } from '../core/linkPreview.ts';
 import { shortUrl } from '../core/shortUrl.ts';
-import { edgePath, fileTitle, isImageFile, movedNode, newTextNode, NEW_CARD, paintOf, withNode, withoutNode, type Canvas, type CanvasNode } from './jsonCanvas.ts';
+import { edgePath, fileTitle, isImageFile, joined, labelledEdge, movedNode, newEdge, newTextNode, NEW_CARD, paintOf, withEdge, withNode, withoutEdge, withoutNode, type Canvas, type CanvasEdge, type CanvasNode } from './jsonCanvas.ts';
 import { clampScale, FIT_ROOM, fitted, zoomedAt, type View } from './viewport.ts';
 import styles from './CanvasView.module.css';
 
@@ -32,6 +32,12 @@ import styles from './CanvasView.module.css';
  * choices. Every change is the whole canvas handed back (`onChange`), which the note writes into its body as the
  * spec's JSON, so a canvas edited here still opens in Obsidian. Without `onChange` the canvas is read-only, as the
  * first slice was.
+ *
+ * Lines (the third slice, Matt's first pick): the Line tool turns the next two taps into a line, from the first
+ * card tapped to the second, with an arrow at its end and its sides worked out from where the cards are; a tap on a
+ * line picks it, and a picked line shows its words to be written and a cross to take it off. A tool rather than a
+ * drag from a card's edge, because a finger has no hover to find an edge dot by, and the two taps read the same on
+ * a phone and with a mouse.
  *
  * Nothing is captured until a press has become a drag, so a tap still reaches the card it landed on; two fingers
  * move the page whatever they are on.
@@ -85,6 +91,10 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
   const editable = !!onChange;
   /** The card of words open to be written in, by id. */
   const [editing, setEditing] = useState<string | null>(null);
+  /** Drawing a line: waiting for its first card, or for its second with the first chosen. */
+  const [lining, setLining] = useState<{ from: string | null } | null>(null);
+  /** The line picked by a tap, by id: its words are shown to be written, and its cross to take it off. */
+  const [picked, setPicked] = useState<string | null>(null);
   const change = useCallback(
     (next: Canvas) => {
       setLive(next);
@@ -243,10 +253,26 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
   const onClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!editable || dragged.current) return;
     const target = event.target as HTMLElement;
-    if (target.closest('[data-editing]') || target.closest('button')) return;
+    if (target.closest('[data-editing]') || target.closest('button') || target.closest('[data-line-words]')) return;
     if (editing) setEditing(null);
     const id = target.closest<HTMLElement>('[data-card]')?.dataset.card;
     const node = id ? live.nodes.find((n) => n.id === id) : undefined;
+    // A tap on a line picks it; a tap anywhere else lets it go.
+    const lineId = target.closest<Element>('[data-line]')?.getAttribute('data-line') ?? null;
+    if (lineId !== picked) setPicked(lineId);
+    if (lineId) return;
+    // Drawing a line: the first card tapped is where it starts, the second where it ends.
+    if (lining) {
+      if (!node || node.type === 'group') return;
+      if (!lining.from) setLining({ from: node.id });
+      else if (node.id !== lining.from && !joined(live, lining.from, node.id)) {
+        const line = newEdge(lining.from, node.id);
+        change(withEdge(live, line));
+        setLining(null);
+        setPicked(line.id);
+      }
+      return;
+    }
     if (node && node.type !== 'text') return;
     const now = performance.now();
     const last = lastTap.current;
@@ -286,15 +312,28 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     change(withoutNode(live, id));
   };
 
-  // Escape closes the card being written in.
+  const labelLine = (id: string, words: string) => {
+    const line = live.edges.find((e) => e.id === id);
+    if (line) change(withEdge(live, labelledEdge(line, words)));
+  };
+
+  const removeLine = (id: string) => {
+    if (picked === id) setPicked(null);
+    change(withoutEdge(live, id));
+  };
+
+  // Escape closes the card being written in, lets a picked line go, and puts the Line tool down.
   useEffect(() => {
-    if (!editing) return undefined;
+    if (!editing && !picked && !lining) return undefined;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setEditing(null);
+      if (event.key !== 'Escape') return;
+      setEditing(null);
+      setPicked(null);
+      setLining(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editing]);
+  }, [editing, picked, lining]);
 
   // The click at the end of a drag is the drag's, not a card's: it goes no further.
   const onClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -325,6 +364,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
   }, [apply]);
 
   const edges = useMemo(() => live.edges.map((edge) => ({ edge, path: edgePath(live, edge) })).filter((e) => e.path), [live]);
+  const pickedLine = picked ? edges.find((e) => e.edge.id === picked) : undefined;
 
   return (
     <div
@@ -339,6 +379,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
       role={editable ? undefined : 'img'}
       aria-label={`A canvas of ${live.nodes.length} cards`}
       data-editable={editable || undefined}
+      data-lining={lining ? (lining.from ? 'to' : 'from') : undefined}
     >
       <div ref={world} className={styles.world}>
         {live.nodes.map((node) => (
@@ -350,6 +391,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
             root={host}
             editing={editing === node.id}
             lifted={lifted === node.id}
+            lineFrom={lining?.from === node.id}
             onWrite={editable ? writeCard : undefined}
             onRemove={editable ? removeCard : undefined}
           />
@@ -359,11 +401,20 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
             const paint = paintOf(edge.color);
             const style = paint && 'hex' in paint ? { '--app-space': paint.hex } : undefined;
             return (
-              <g key={edge.id} className={styles.edge} data-hue={paint && 'hue' in paint ? paint.hue : undefined} style={style as React.CSSProperties}>
+              <g
+                key={edge.id}
+                className={styles.edge}
+                data-hue={paint && 'hue' in paint ? paint.hue : undefined}
+                data-line={editable ? edge.id : undefined}
+                data-picked={picked === edge.id || undefined}
+                style={style as React.CSSProperties}
+              >
+                {/* A wide, unseen stroke under the line, so a finger can land on it. */}
+                {editable ? <path className={styles.lineHit} d={path!.d} /> : null}
                 <path className={styles.line} d={path!.d} />
                 {path!.fromHead ? <path className={styles.head} d={path!.fromHead} /> : null}
                 {path!.toHead ? <path className={styles.head} d={path!.toHead} /> : null}
-                {edge.label ? (
+                {edge.label && picked !== edge.id ? (
                   <text className={styles.label} x={path!.mid.x} y={path!.mid.y}>
                     {edge.label}
                   </text>
@@ -372,12 +423,29 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
             );
           })}
         </svg>
+        {/* The picked line's words and its cross, over the line's middle, in the canvas's own pixels. */}
+        {pickedLine ? <LineWords key={pickedLine.edge.id} edge={pickedLine.edge} at={pickedLine.path!.mid} onLabel={labelLine} onRemove={removeLine} /> : null}
       </div>
       <div className={styles.tools}>
         {editable ? (
-          <button type="button" className={`app-word ${styles.tool}`} onClick={addCardHere} aria-label="Add a card of words">
-            + Card
-          </button>
+          <>
+            <button type="button" className={`app-word ${styles.tool}`} onClick={addCardHere} aria-label="Add a card of words">
+              + Card
+            </button>
+            <button
+              type="button"
+              className={`app-word ${styles.tool}`}
+              data-on={lining ? '' : undefined}
+              aria-pressed={!!lining}
+              onClick={() => {
+                setLining(lining ? null : { from: null });
+                setPicked(null);
+              }}
+              aria-label={lining ? 'Stop drawing a line' : 'Draw a line: tap one card, then another'}
+            >
+              {lining ? (lining.from ? 'Tap the card it goes to' : 'Tap the card it starts from') : 'Line'}
+            </button>
+          </>
         ) : null}
         <button type="button" className={`app-word ${styles.tool}`} onClick={fit} aria-label="Fit the whole canvas on the screen">
           Fit
@@ -397,11 +465,13 @@ interface CardProps {
   editing?: boolean;
   /** Lifted by a held press and following the finger. */
   lifted?: boolean;
+  /** The card a line being drawn starts from. */
+  lineFrom?: boolean;
   onWrite?: (id: string, text: string) => void;
   onRemove?: (id: string) => void;
 }
 
-function Card({ node, dark, wiki, root, editing = false, lifted = false, onWrite, onRemove }: CardProps) {
+function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFrom = false, onWrite, onRemove }: CardProps) {
   const paint = paintOf(node.color);
   // Opened to be written in: the keyboard comes up with it (Matt: "a text card appears under the fingers, keyboard up").
   const opened = useRef<HTMLDivElement>(null);
@@ -424,7 +494,7 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, onWrite
 
   if (node.type === 'text') {
     return (
-      <div className={styles.card} style={place} data-hue={hue} data-card={node.id} data-editing={editing || undefined} data-lifted={lifted || undefined}>
+      <div className={styles.card} style={place} data-hue={hue} data-card={node.id} data-editing={editing || undefined} data-lifted={lifted || undefined} data-line-from={lineFrom || undefined}>
         {editing ? (
           // Open: the note's own editor in its own mode, the words going straight into the canvas as they are typed.
           <div ref={opened} className={styles.words}>
@@ -453,6 +523,7 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, onWrite
         data-hue={hue}
         data-card={node.id}
         data-lifted={lifted || undefined}
+        data-line-from={lineFrom || undefined}
         href={node.url}
         onClick={(event) => {
           event.preventDefault();
@@ -478,6 +549,7 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, onWrite
       data-hue={hue}
       data-card={node.id}
       data-lifted={lifted || undefined}
+      data-line-from={lineFrom || undefined}
       data-waiting={known || picture ? undefined : ''}
       role={picture ? undefined : 'button'}
       tabIndex={picture ? undefined : 0}
@@ -492,6 +564,41 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, onWrite
       ) : (
         <span className={styles.cardHint}>{picture ? 'A picture, in the vault it came from' : known ? '' : 'Not in Glyph yet'}</span>
       )}
+    </div>
+  );
+}
+
+/** A picked line's words, written in place over its middle, and the cross that takes the line off. */
+function LineWords({ edge, at, onLabel, onRemove }: { edge: CanvasEdge; at: { x: number; y: number }; onLabel: (id: string, words: string) => void; onRemove: (id: string) => void }) {
+  const [words, setWords] = useState(edge.label ?? '');
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const timer = window.setTimeout(() => field.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  const commit = () => {
+    if (words.trim() !== (edge.label ?? '')) onLabel(edge.id, words);
+  };
+  return (
+    <div className={styles.lineWords} style={{ left: at.x, top: at.y }} data-line-words onPointerDown={(event) => event.stopPropagation()}>
+      <input
+        ref={field}
+        className={styles.lineField}
+        value={words}
+        placeholder="Words on the line"
+        aria-label="Words on the line"
+        onChange={(event) => setWords(event.currentTarget.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            commit();
+            event.currentTarget.blur();
+          }
+        }}
+      />
+      <button type="button" className={styles.remove} onClick={() => onRemove(edge.id)} aria-label="Take this line off the canvas">
+        ×
+      </button>
     </div>
   );
 }

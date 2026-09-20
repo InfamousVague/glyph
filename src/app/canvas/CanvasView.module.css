@@ -177,7 +177,10 @@
   white-space: nowrap;
 }
 
-/* The lines, one SVG over every card in the same pixels; it takes no taps, so a card under a line is still a card. */
+/*
+ * The lines, one SVG over every card in the same pixels. The SVG takes no taps, so a card under a line is still a
+ * card; on a canvas that can change, each line's own wide unseen stroke (`.lineHit`) does, so a finger can pick it.
+ */
 .edges {
   position: absolute;
   left: 0;
@@ -190,6 +193,67 @@
 
 .edge {
   color: var(--app-space, var(--app-ink-3, var(--glacier-text-muted)));
+}
+
+.lineHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 24;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+/* Picked: the line and its heads in the page's own ink, a step heavier. */
+.edge[data-picked] {
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.edge[data-picked] .line {
+  stroke-width: 3;
+}
+
+/* Drawing a line: the whole page says so, and the card it starts from wears a ring. */
+.canvas[data-lining] .card,
+.canvas[data-lining] .group {
+  cursor: crosshair;
+}
+
+.card[data-line-from] {
+  outline: 2px solid var(--app-ink, var(--glacier-text));
+  outline-offset: 2px;
+}
+
+/* The picked line's words, over its middle: a small field and the cross, centred on the point. */
+.lineWords {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  transform: translate(-50%, -50%);
+  padding: var(--glacier-space-1);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: 999px;
+  background: var(--glacier-bg);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+}
+
+.lineWords .remove {
+  position: static;
+}
+
+.lineField {
+  inline-size: 11em;
+  padding: 0.25em 0.7em;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--app-ink, var(--glacier-text));
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+}
+
+.lineField:focus {
+  outline: none;
 }
 
 .line {
@@ -231,4 +295,10 @@
   background: color-mix(in oklch, var(--glacier-bg) 80%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+/* The Line tool while a line is being drawn: ink, so the page says what the next tap will do. */
+.tool[data-on] {
+  color: var(--glacier-bg);
+  background: var(--app-ink, var(--glacier-text));
 }
