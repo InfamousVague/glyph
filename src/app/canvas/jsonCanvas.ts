@@ -250,6 +250,12 @@ export function newPictureNode(name: string, x: number, y: number, id = newCanva
 
 /** What a new chart card starts with: a small Mermaid diagram to change, drawn as a diagram on the card. */
 export const CHART_CARD = '```mermaid\nflowchart LR\n  A[Start] --> B[Then]\n  B --> C[Done]\n```\n';
+/** Whether a card of words is nothing but a table, which is then drawn edge to edge (canvas/CanvasView.tsx). */
+export function isOnlyTable(text: string): boolean {
+  const lines = text.trim().split('\n');
+  return lines.length >= 2 && lines.every((line) => /^\s*\|.*\|\s*$/.test(line));
+}
+
 /** What a new table card starts with. */
 export const TABLE_CARD = '| Thing | Note |\n| --- | --- |\n| One | |\n| Two | |\n';
 

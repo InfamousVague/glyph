@@ -13,7 +13,10 @@ import {
   edgePath,
   fileTitle,
   isImageFile,
+  isOnlyTable,
   joined,
+  anchorOf,
+  sidesOf,
   labelledEdge,
   labelledGroup,
   movedWithHeld,
@@ -792,7 +795,17 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
 
   if (node.type === 'text') {
     return (
-      <div className={styles.card} style={place} data-hue={hue} data-card={node.id} data-editing={editing || undefined} data-lifted={lifted || undefined} data-line-from={lineFrom || undefined}>
+      <div
+        className={styles.card}
+        style={place}
+        data-hue={hue}
+        data-card={node.id}
+        data-editing={editing || undefined}
+        data-lifted={lifted || undefined}
+        data-line-from={lineFrom || undefined}
+        // A card that is only a table draws the table edge to edge (Matt: "make the table fill the card").
+        data-only={!editing && isOnlyTable(node.text) ? 'table' : undefined}
+      >
         {editing ? (
           // Open: the note's own editor in its own mode, the words going straight into the canvas as they are typed.
           <div ref={opened} className={styles.words}>
@@ -886,8 +899,14 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
   );
 }
 
-/** The minimap: every card small, the screen's box over them, in a corner; a tap goes there (choice 10). */
-const MINIMAP = { width: 120, height: 80, room: 6 };
+/**
+ * The minimap (choice 10), in the bottom corner: the whole canvas small, with the screen's box over it. Each kind
+ * of card is told apart - words filled, a note outlined, a picture filled dark, a link outlined with a dot - and a
+ * card with a colour wears it; the lines between cards are drawn between the sides they leave and arrive by, and a
+ * group is its dashed box with its name when there is room. A finger on the map goes there, and dragged, keeps going
+ * (Matt: "make it more detailed and better organized"). The map keeps the canvas's own shape inside its frame.
+ */
+const MINIMAP = { width: 180, height: 120, room: 8 };
 function Minimap({ canvas, view, host, onGo }: { canvas: Canvas; view: View; host: React.RefObject<HTMLDivElement | null>; onGo: (x: number, y: number) => void }) {
   const box = bounds(canvas);
   if (!box || canvas.nodes.length < 2) return null;
@@ -899,26 +918,72 @@ function Minimap({ canvas, view, host, onGo }: { canvas: Canvas; view: View; hos
   const right = Math.max(box.x + box.width, seen.x + seen.width);
   const bottom = Math.max(box.y + box.height, seen.y + seen.height);
   const scale = Math.min((MINIMAP.width - MINIMAP.room * 2) / Math.max(right - left, 1), (MINIMAP.height - MINIMAP.room * 2) / Math.max(bottom - top, 1));
-  const sx = (x: number) => MINIMAP.room + (x - left) * scale;
-  const sy = (y: number) => MINIMAP.room + (y - top) * scale;
+  // Centred in the frame, so a tall canvas sits in the middle of a wide map rather than against its left edge.
+  const ox = MINIMAP.room + (MINIMAP.width - MINIMAP.room * 2 - (right - left) * scale) / 2;
+  const oy = MINIMAP.room + (MINIMAP.height - MINIMAP.room * 2 - (bottom - top) * scale) / 2;
+  const sx = (x: number) => ox + (x - left) * scale;
+  const sy = (y: number) => oy + (y - top) * scale;
+  const go = (event: React.PointerEvent<SVGSVGElement> | React.MouseEvent<SVGSVGElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    onGo(left + (event.clientX - rect.left - ox) / scale, top + (event.clientY - rect.top - oy) / scale);
+  };
+  const kind = (n: CanvasNode) => (n.type === 'file' ? (isImageFile(n.file) ? 'picture' : 'note') : n.type);
+  const groups = canvas.nodes.filter((n) => n.type === 'group');
+  const cards = canvas.nodes.filter((n) => n.type !== 'group');
   return (
     <svg
       className={styles.minimap}
       width={MINIMAP.width}
       height={MINIMAP.height}
       role="img"
-      aria-label="A map of the canvas; tap to go there"
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
+      aria-label="A map of the canvas; tap or drag on it to go there"
+      onPointerDown={(event) => {
         event.stopPropagation();
-        const rect = event.currentTarget.getBoundingClientRect();
-        onGo(left + (event.clientX - rect.left - MINIMAP.room) / scale, top + (event.clientY - rect.top - MINIMAP.room) / scale);
+        go(event);
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // A pointer the browser is not tracking: the press still went there; only the drag past the edge is lost.
+        }
       }}
+      onPointerMove={(event) => {
+        if (event.buttons) go(event);
+      }}
+      onClick={(event) => event.stopPropagation()}
     >
-      {canvas.nodes.map((n) => (
-        <rect key={n.id} className={n.type === 'group' ? styles.mapGroup : styles.mapCard} x={sx(n.x)} y={sy(n.y)} width={Math.max(2, n.width * scale)} height={Math.max(2, n.height * scale)} rx={1} />
+      {groups.map((n) => (
+        <g key={n.id} className={styles.mapGroup} data-hue={paintOf(n.color) && 'hue' in paintOf(n.color)! ? (paintOf(n.color) as { hue: string }).hue : undefined}>
+          <rect x={sx(n.x)} y={sy(n.y)} width={Math.max(2, n.width * scale)} height={Math.max(2, n.height * scale)} rx={2} />
+          {n.type === 'group' && n.label && n.width * scale > 36 ? (
+            <text x={sx(n.x) + 3} y={sy(n.y) - 2} className={styles.mapLabel}>
+              {n.label}
+            </text>
+          ) : null}
+        </g>
       ))}
-      <rect className={styles.mapSeen} x={sx(seen.x)} y={sy(seen.y)} width={seen.width * scale} height={seen.height * scale} />
+      {canvas.edges.map((edge) => {
+        const from = canvas.nodes.find((n) => n.id === edge.fromNode);
+        const to = canvas.nodes.find((n) => n.id === edge.toNode);
+        if (!from || !to) return null;
+        const sides = sidesOf(from, to, edge);
+        const a = anchorOf(from, sides.from);
+        const b = anchorOf(to, sides.to);
+        return <line key={edge.id} className={styles.mapLine} x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)} />;
+      })}
+      {cards.map((n) => {
+        const paint = paintOf(n.color);
+        const hue = paint && 'hue' in paint ? paint.hue : undefined;
+        const style = paint && 'hex' in paint ? ({ '--app-space': paint.hex } as React.CSSProperties) : undefined;
+        const w = Math.max(3, n.width * scale);
+        const h = Math.max(3, n.height * scale);
+        return (
+          <g key={n.id} className={styles.mapCard} data-kind={kind(n)} data-hue={hue} style={style}>
+            <rect x={sx(n.x)} y={sy(n.y)} width={w} height={h} rx={1.5} />
+            {kind(n) === 'link' ? <circle cx={sx(n.x) + w / 2} cy={sy(n.y) + h / 2} r={Math.min(2, h / 3)} /> : null}
+          </g>
+        );
+      })}
+      <rect className={styles.mapSeen} x={sx(seen.x)} y={sy(seen.y)} width={seen.width * scale} height={seen.height * scale} rx={1} />
     </svg>
   );
 }

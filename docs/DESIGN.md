@@ -3119,6 +3119,11 @@ this one changes it (`canvas/CanvasView.tsx`, `canvas/jsonCanvas.ts`).
   peek by a `diagrams` prop rather than a second mode; the tools moved to a floating pill of icons at the bottom left
   (Matt: "use iconography instead of text") with the map at the bottom right, and what a line needs next is said
   beside them.
+- **The map, redone; a table to the edges.** The minimap tells the kinds of card apart, draws the lines between
+  the sides they use, names groups when there is room, wears each card's hue and keeps the canvas's shape centred;
+  a drag on it pans. `setPointerCapture` is guarded: a browser throws for a pointer it is not tracking, and the press
+  must still go where it landed. A card that is only a table (`isOnlyTable`) loses its padding and the table takes
+  the card, edge to edge.
 - **Measured in the browser, not assumed:** a held press of 300ms lifted the card and a move of (60, 90) screen
   pixels at scale 1 put it down at (60, 90); a double-tap made a card with a sixteen-hex id, focused, and what was
   typed was in the saved note with its front matter untouched. In the tests, a move before the hold pans and saves

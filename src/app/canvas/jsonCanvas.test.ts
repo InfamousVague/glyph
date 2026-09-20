@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { noteTitle } from '../core/store.ts';
-import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, heldBy, isCanvasBody, joined, labelledEdge, labelledGroup, movedNode, movedWithHeld, newCanvasId, newEdge, newFileNode, newGroupAround, newLinkNode, newPictureNode, newTextNode, CHART_CARD, TABLE_CARD, paintOf, parseCanvas, resizedNode, serializeCanvas, sidesOf, withCanvas, withEdge, withNode, withoutEdge, withoutNode, type Canvas } from './jsonCanvas.ts';
+import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, heldBy, isCanvasBody, joined, labelledEdge, labelledGroup, movedNode, movedWithHeld, newCanvasId, newEdge, newFileNode, newGroupAround, newLinkNode, newPictureNode, newTextNode, isOnlyTable, CHART_CARD, TABLE_CARD, paintOf, parseCanvas, resizedNode, serializeCanvas, sidesOf, withCanvas, withEdge, withNode, withoutEdge, withoutNode, type Canvas } from './jsonCanvas.ts';
 
 const SPEC_SAMPLE = `{
   "nodes": [
@@ -248,5 +248,15 @@ describe('pictures, charts and tables', () => {
     expect(newPictureNode('abc.jpg', 5.5, 6, 'p')).toMatchObject({ id: 'p', type: 'file', file: 'abc.jpg', x: 6, y: 6, height: 200 });
     expect(CHART_CARD.startsWith('```mermaid\n')).toBe(true);
     expect(TABLE_CARD.split('\n')[1]).toBe('| --- | --- |');
+  });
+});
+
+describe('a card that is only a table', () => {
+  it('knows a table from words with a table in them', () => {
+    expect(isOnlyTable(TABLE_CARD)).toBe(true);
+    expect(isOnlyTable('| a | b |\n| - | - |\n| 1 | 2 |')).toBe(true);
+    expect(isOnlyTable('# Prices\n\n| a | b |\n| - | - |')).toBe(false);
+    expect(isOnlyTable('| just one line |')).toBe(false);
+    expect(isOnlyTable('')).toBe(false);
   });
 });

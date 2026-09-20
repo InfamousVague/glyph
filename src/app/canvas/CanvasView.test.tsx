@@ -63,7 +63,8 @@ describe('a canvas drawn', () => {
 
   it('draws each line with an arrow at its end unless told not to, and the label on it', () => {
     const shown = show(<CanvasView canvas={canvas} dark={false} />);
-    const edges = shown.querySelectorAll('svg g');
+    // The lines' own SVG: the minimap draws lines and names too.
+    const edges = shown.querySelectorAll('[class*="edges"] g');
     expect(edges).toHaveLength(2);
     expect(edges[0]?.querySelectorAll('path')).toHaveLength(2);
     expect(edges[0]?.querySelector('text')?.textContent).toBe('then');
@@ -370,16 +371,33 @@ describe('more ways to add, and finding your way', () => {
     expect(open).toHaveBeenCalledWith('Launch week', '^photos');
   });
 
-  it('draws a minimap of every card with the screen over it, and a tap on it goes there', () => {
+  it('draws a minimap that tells the cards apart, draws the lines, names the group, and goes where a finger lands', () => {
     const shown = show(<CanvasView canvas={canvas} dark={false} />);
     const map = shown.querySelector('svg[aria-label^="A map of the canvas"]') as SVGSVGElement;
     expect(map).not.toBeNull();
-    // Five cards and the screen's box.
+    const kinds = [...map.querySelectorAll('[data-kind]')].map((g) => g.getAttribute('data-kind'));
+    expect(kinds).toEqual(['text', 'note', 'note', 'link']);
+    expect(map.querySelectorAll('line').length).toBe(2);
+    expect(map.querySelector('text')?.textContent).toBe('Before');
+    // The link's dot, the group, four cards and the screen's box.
+    expect(map.querySelectorAll('circle').length).toBe(1);
     expect(map.querySelectorAll('rect').length).toBe(6);
     const world = shown.querySelector('[class*="world"]') as HTMLElement;
     const before = world.style.transform;
-    act(() => map.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 60, clientY: 40 })));
+    act(() => {
+      map.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 60, clientY: 40, buttons: 1 }));
+    });
     expect(world.style.transform).not.toBe(before);
+  });
+
+  it('marks a card that is only a table, so the table fills it', () => {
+    const tabled = parseCanvas(`{ "nodes": [
+      { "id": "t", "type": "text", "x": 0, "y": 0, "width": 200, "height": 100, "text": "| a | b |\\n| - | - |\\n| 1 | 2 |" },
+      { "id": "w", "type": "text", "x": 300, "y": 0, "width": 200, "height": 100, "text": "# Words\\n\\n| a |\\n| - |" }
+    ] }`) as Canvas;
+    const shown = show(<CanvasView canvas={tabled} dark={false} />);
+    expect(shown.querySelector('[data-card="t"]')?.getAttribute('data-only')).toBe('table');
+    expect(shown.querySelector('[data-card="w"]')?.hasAttribute('data-only')).toBe(false);
   });
 });
 

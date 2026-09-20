@@ -148,7 +148,12 @@ files of its own to point at; adding by voice belongs to the capture and is not 
 
 **The sixth finds the way** (choice 10). A tap on a card's title zooms to the card; `Fit` and Shift+1 show the whole
 canvas, `To card` and Shift+2 zoom to the card open or last tapped. A minimap in the corner draws every card small
-with the screen's box over them, and a tap on it goes there. It appears once a canvas has two cards.
+with the screen's box over them, and a tap on it goes there. It appears once a canvas has two cards. Redone at Matt's
+asking ("more detailed and better organized"): each kind of card is told apart - words filled, a note outlined, a
+picture filled dark, a link outlined with a dot - a coloured card wears its hue, the lines are drawn between the
+sides they leave and arrive by, a group is its dashed box with its name when there is room, the canvas keeps its own
+shape centred in the frame, and a finger dragged on the map keeps going. A card that is only a table draws the
+table edge to edge, with no padding (Matt: "make the table fill the card").
 
 **The seventh puts pictures, charts and tables on cards** (Matt: "upload and add images and charts and stuff").
 The + offers a picture - chosen from the phone or the computer and kept by the picture store a note's pictures use
