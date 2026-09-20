@@ -3170,3 +3170,23 @@ this one changes it (`canvas/CanvasView.tsx`, `canvas/jsonCanvas.ts`).
   pixels at scale 1 put it down at (60, 90); a double-tap made a card with a sixteen-hex id, focused, and what was
   typed was in the saved note with its front matter untouched. In the tests, a move before the hold pans and saves
   nothing.
+
+## 57. The wide window's bar is glass (2026-09-20)
+
+Matt, of the Mac app: "the top header is missing the glass effect, it's showing at the very top but the tabs and
+such are fully opaque." The very top is the title strip, 44px under the window's own buttons, and it was glass; the
+bar under it was not.
+
+- **What painted it.** On a window wide enough for the notes to sit beside a note, App.tsx stamps `data-split` and
+  app.css gave the tab bar a ground of solid paper across the whole window - asked for earlier ("the tabbar should go
+  across 100% of the screen even on widescreen"), because the transparent bar over two panes read as though it
+  stopped at the divider. Solid was the easy way to make it one bar; it also made it the one opaque thing on a page
+  of glass. A phone never had the rule, so the phone kept its glass and the desktop lost it.
+- **Glass across the window instead.** The bar now wears the header pane's own mix and blur (`.app-headerPane`),
+  so it is still one bar from edge to edge and the cards scrolled under it show through it as they do under the
+  title strip. Under it, the note pane's own header pane tints only from the bar's foot down (a gradient that starts
+  at `--app-safe-top`), so the bar's tint is not laid on the pane's: two tints would have made the note's side of the
+  divider darker than the sidebar's. Blur laid on blur looks the same as blur, so the pane keeps its own.
+- **Measured at 1280px with the home page scrolled 226px under the bar:** the bar's ground came out
+  `color(srgb 0.017 0.017 0.017 / 0.66)` with `blur(18px) saturate(1.1)`, the pane's a gradient from transparent
+  at the bar's foot, and the cards read through both.

@@ -278,7 +278,14 @@ body {
 /* Asked of the root rather than of the width: App.tsx stamps `data-split` when the panes are up, so this rule and the
    rule that puts them there cannot part company at some window size. */
 :root[data-split] .app-tabBar {
-  background: var(--glacier-bg);
+  /*
+   * That ground is glass, not paper (Matt: "the top header is missing the glass effect, it's showing at the very top
+   * but the tabs and such are fully opaque"): the same mix and blur as the screen's own header pane, so the cards
+   * scrolled under the bar show through it as they do under the title strip above it, which is the pane alone.
+   */
+  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
 }
 
@@ -376,6 +383,19 @@ body:has(.app-headerPane) .app-statusScrim {
   background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.1);
   backdrop-filter: blur(18px) saturate(1.1);
+}
+
+/*
+ * Under the split layout's bar, which is glass of its own across the whole window (`.app-tabBar` above), the pane's
+ * tint starts where the bar ends: two tints laid on each other would make the note's side of the divider darker than
+ * the sidebar's. The blur is still the pane's over its whole height - blur laid on blur looks the same as blur.
+ */
+:root[data-split] .app-headerPane {
+  background: linear-gradient(
+    to bottom,
+    transparent var(--app-safe-top, 0px),
+    color-mix(in srgb, var(--glacier-bg) 66%, transparent) var(--app-safe-top, 0px)
+  );
 }
 
 /*
