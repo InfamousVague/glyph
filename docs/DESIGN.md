@@ -3113,6 +3113,12 @@ this one changes it (`canvas/CanvasView.tsx`, `canvas/jsonCanvas.ts`).
   zooms to it, Shift+1 and Shift+2 do what Obsidian's do, and a minimap draws the cards with the screen's box over
   them. The view lives in a ref so a pan is one style write; the minimap needs it as state, so `apply` mirrors it
   once a frame at most.
+- **Pictures, charts, tables, and a toolbar of icons.** The seventh slice: a picture card is the spec's file node
+  named by the picture store's own name, so it syncs with the notes' pictures and a vault's picture (a folder in its
+  name) is told apart; a chart is a card of words that starts as Mermaid, with the editor's diagrams let through on a
+  peek by a `diagrams` prop rather than a second mode; the tools moved to a floating pill of icons at the bottom left
+  (Matt: "use iconography instead of text") with the map at the bottom right, and what a line needs next is said
+  beside them.
 - **Measured in the browser, not assumed:** a held press of 300ms lifted the card and a move of (60, 90) screen
   pixels at scale 1 put it down at (60, 90); a double-tap made a card with a sixteen-hex id, focused, and what was
   typed was in the saved note with its front matter untouched. In the tests, a move before the hold pans and saves

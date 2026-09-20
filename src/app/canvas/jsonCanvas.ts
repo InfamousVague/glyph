@@ -243,6 +243,16 @@ export function newFileNode(title: string, x: number, y: number, id = newCanvasI
   return { id, type: 'file', x: Math.round(x), y: Math.round(y), width: NEW_CARD.width, height: 160, file: `${name}.md` };
 }
 
+/** A new card that is one of Glyph's own pictures, by the name the picture store keeps it under (core/images.ts). */
+export function newPictureNode(name: string, x: number, y: number, id = newCanvasId()): CanvasNode {
+  return { id, type: 'file', x: Math.round(x), y: Math.round(y), width: NEW_CARD.width, height: 200, file: name };
+}
+
+/** What a new chart card starts with: a small Mermaid diagram to change, drawn as a diagram on the card. */
+export const CHART_CARD = '```mermaid\nflowchart LR\n  A[Start] --> B[Then]\n  B --> C[Done]\n```\n';
+/** What a new table card starts with. */
+export const TABLE_CARD = '| Thing | Note |\n| --- | --- |\n| One | |\n| Two | |\n';
+
 /** A new card that is a web address; a bare address is given https. Null for no address at all. */
 export function newLinkNode(url: string, x: number, y: number, id = newCanvasId()): CanvasNode | null {
   const given = url.trim();

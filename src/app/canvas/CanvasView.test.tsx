@@ -2,6 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { CanvasView } from './CanvasView.tsx';
+
+// Only the three the canvas calls are stood in for: the editor reads the rest of this module as it is.
+vi.mock('../core/images.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/images.ts')>()),
+  imageUrl: (name: string) => `blob:${name}`,
+  pickImage: vi.fn(async () => 'picked.jpg'),
+  saveImageFile: vi.fn(async () => 'dropped.jpg'),
+}));
 import { parseCanvas, type Canvas } from './jsonCanvas.ts';
 import { fitted, fittedTo, shown as shownBox, zoomedAt } from './viewport.ts';
 
@@ -372,5 +380,58 @@ describe('more ways to add, and finding your way', () => {
     const before = world.style.transform;
     act(() => map.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 60, clientY: 40 })));
     expect(world.style.transform).not.toBe(before);
+  });
+});
+
+describe('pictures, charts and the toolbar', () => {
+  const tap = (el: Element) => act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+
+  it('shows icon tools at the bottom left, named for a reader', () => {
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={vi.fn()} />);
+    const tools = shown.querySelector('[role="toolbar"]') as HTMLElement;
+    const labels = [...tools.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'));
+    expect(labels).toEqual(['Add a card', 'Draw a line: tap one card, then another', 'Fit the whole canvas on the screen (Shift+1)']);
+    for (const b of tools.querySelectorAll('button')) expect(b.querySelector('svg')).not.toBeNull();
+  });
+
+  it('draws a picture of Glyph’s own on its card, and one from elsewhere as waiting', () => {
+    const withPictures = parseCanvas(`{ "nodes": [
+      { "id": "mine", "type": "file", "x": 0, "y": 0, "width": 200, "height": 150, "file": "abc.jpg" },
+      { "id": "theirs", "type": "file", "x": 300, "y": 0, "width": 200, "height": 150, "file": "Pictures/abc.jpg" }
+    ] }`) as Canvas;
+    const shown = show(<CanvasView canvas={withPictures} dark={false} />);
+    expect((shown.querySelector('[data-card="mine"] img') as HTMLImageElement).getAttribute('src')).toBe('blob:abc.jpg');
+    expect(shown.querySelector('[data-card="theirs"] img')).toBeNull();
+    expect(shown.querySelector('[data-card="theirs"]')?.textContent).toContain('vault');
+  });
+
+  it('adds a picture from the + sheet, and a chart that starts as a diagram', async () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    tap(shown.querySelector('button[aria-label="Add a card"]')!);
+    tap([...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent?.startsWith('A picture'))!);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect((onChange.mock.calls[0]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'file', file: 'picked.jpg' });
+    tap(shown.querySelector('button[aria-label="Add a card"]')!);
+    tap([...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent?.startsWith('A chart'))!);
+    const chart = (onChange.mock.calls[1]![0] as Canvas).nodes.at(-1)!;
+    expect(chart).toMatchObject({ type: 'text' });
+    expect((chart as { text: string }).text.startsWith('```mermaid')).toBe(true);
+    expect(shown.querySelector(`[data-card="${chart.id}"][data-editing]`)).not.toBeNull();
+  });
+
+  it('keeps a picture file dropped on the canvas and makes a card of it where it lands', async () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const drop = new Event('drop', { bubbles: true, cancelable: true }) as Event & { dataTransfer: unknown; clientX: number; clientY: number };
+    Object.assign(drop, { dataTransfer: { files: [new File(['x'], 'cat.png', { type: 'image/png' })], getData: () => '' }, clientX: 40, clientY: 40 });
+    await act(async () => {
+      shown.firstElementChild!.dispatchEvent(drop);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect((onChange.mock.calls[0]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'file', file: 'dropped.jpg' });
   });
 });

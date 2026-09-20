@@ -150,6 +150,13 @@ files of its own to point at; adding by voice belongs to the capture and is not 
 canvas, `To card` and Shift+2 zoom to the card open or last tapped. A minimap in the corner draws every card small
 with the screen's box over them, and a tap on it goes there. It appears once a canvas has two cards.
 
-Not yet: making a group round cards, pictures, adding by voice, item cards, a canvas inside a note, export, and the
-model's three moves (a gist on note cards, laying a note out as a canvas, suggesting lines). Each is a slice of its
-own.
+**The seventh puts pictures, charts and tables on cards** (Matt: "upload and add images and charts and stuff").
+The + offers a picture - chosen from the phone or the computer and kept by the picture store a note's pictures use
+(`core/images.ts`), so it syncs as they do - drawn to fill its card; a chart, a card of words that starts as a small
+Mermaid diagram and is drawn as one (cards draw diagrams, though the sidebar's peeks still do not); and a table. A
+picture file dropped on the canvas from a computer is kept and drawn the same. A picture from another vault, named
+with a folder, is drawn as waiting, since Glyph has no such file. The tools are a floating toolbar of icons at the
+bottom left, each named for a reader, and the map sits at the bottom right.
+
+Not yet: making a group round cards, adding by voice, item cards, a canvas inside a note, export, and the model's
+three moves (a gist on note cards, laying a note out as a canvas, suggesting lines). Each is a slice of its own.

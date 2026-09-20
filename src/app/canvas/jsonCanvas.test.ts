@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { noteTitle } from '../core/store.ts';
-import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, heldBy, isCanvasBody, joined, labelledEdge, labelledGroup, movedNode, movedWithHeld, newCanvasId, newEdge, newFileNode, newGroupAround, newLinkNode, newTextNode, paintOf, parseCanvas, resizedNode, serializeCanvas, sidesOf, withCanvas, withEdge, withNode, withoutEdge, withoutNode, type Canvas } from './jsonCanvas.ts';
+import { anchorOf, bounds, canvasNoteBody, canvasOf, edgePath, fileTitle, HEAD, heldBy, isCanvasBody, joined, labelledEdge, labelledGroup, movedNode, movedWithHeld, newCanvasId, newEdge, newFileNode, newGroupAround, newLinkNode, newPictureNode, newTextNode, CHART_CARD, TABLE_CARD, paintOf, parseCanvas, resizedNode, serializeCanvas, sidesOf, withCanvas, withEdge, withNode, withoutEdge, withoutNode, type Canvas } from './jsonCanvas.ts';
 
 const SPEC_SAMPLE = `{
   "nodes": [
@@ -240,5 +240,13 @@ describe('note and link cards made', () => {
     expect(newLinkNode('https://x.y', 0, 0, 'l')).toMatchObject({ url: 'https://x.y' });
     expect(newLinkNode('mailto:a@b.c', 0, 0, 'l')).toMatchObject({ url: 'mailto:a@b.c' });
     expect(newLinkNode('   ', 0, 0)).toBeNull();
+  });
+});
+
+describe('pictures, charts and tables', () => {
+  it('makes a picture card by the store name, and starts a chart and a table as what they are', () => {
+    expect(newPictureNode('abc.jpg', 5.5, 6, 'p')).toMatchObject({ id: 'p', type: 'file', file: 'abc.jpg', x: 6, y: 6, height: 200 });
+    expect(CHART_CARD.startsWith('```mermaid\n')).toBe(true);
+    expect(TABLE_CARD.split('\n')[1]).toBe('| --- | --- |');
   });
 });

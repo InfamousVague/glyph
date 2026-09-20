@@ -135,7 +135,7 @@
 /* The minimap, in the corner opposite the tools: every card small, the screen's box over them. */
 .minimap {
   position: absolute;
-  left: var(--glacier-space-3);
+  right: var(--glacier-space-3);
   bottom: var(--glacier-space-3);
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
   border-radius: var(--glacier-radius-md);
@@ -422,21 +422,66 @@
   dominant-baseline: middle;
 }
 
+/* The toolbar: icons in a floating pill at the bottom left, the map at the bottom right. */
 .tools {
   position: absolute;
-  right: var(--glacier-space-3);
+  left: var(--glacier-space-3);
   bottom: var(--glacier-space-3);
   display: flex;
-  gap: var(--glacier-space-2);
-}
-
-.tool {
-  padding-inline: var(--glacier-space-3);
-  padding-block: var(--glacier-space-1);
+  align-items: center;
+  gap: var(--glacier-space-1);
+  padding: var(--glacier-space-1);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
   border-radius: 999px;
   background: color-mix(in oklch, var(--glacier-bg) 80%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+.tool {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tool:hover {
+  color: var(--app-ink, var(--glacier-text));
+  background: color-mix(in oklch, var(--app-ink, currentColor) 8%, transparent);
+}
+
+.tool:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 1px;
+}
+
+/* What the next tap does, while a line is being drawn, said beside the tools. */
+.hint {
+  padding-inline: var(--glacier-space-2) var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  white-space: nowrap;
+}
+
+/* A picture on a card: the whole card is the picture, kept in shape and cropped to the card's own round. */
+.pictureCard {
+  padding: 0;
+}
+
+.picture {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
 }
 
 /* The Line tool while a line is being drawn: ink, so the page says what the next tap will do. */

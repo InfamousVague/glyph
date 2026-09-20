@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, Link2, SquarePen } from '@glacier/icons';
+import { ChartNoAxesCombined, FileText, Image, Link2, LocateFixed, Maximize, Plus, Spline, SquarePen, Table } from '@glacier/icons';
+import { imageUrl, IMAGE_READY, pickImage, saveImageFile } from '../core/images.ts';
 import { Editor } from '../editor/Editor.tsx';
 import { useBack } from '../core/back.ts';
 import { SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
@@ -19,7 +20,10 @@ import {
   newEdge,
   newFileNode,
   newLinkNode,
+  newPictureNode,
   newTextNode,
+  CHART_CARD,
+  TABLE_CARD,
   bounds,
   NEW_CARD,
   paintOf,
@@ -75,6 +79,11 @@ import styles from './CanvasView.module.css';
  * More ways to add (the fifth slice, choice 8): the + is a sheet - words, a note chosen by its title, or a web
  * address - and a note dragged in from the sidebar lands as a card where it is dropped. Pictures wait, since Glyph
  * has no picture files of its own to point at; by voice belongs to the capture.
+ *
+ * Pictures, charts and tables (the seventh): the + also offers a picture from the phone or the computer, kept by the
+ * picture store the notes use (core/images.ts) and drawn on its card; a chart, which is a card of words starting as
+ * a Mermaid diagram and drawn as one; and a table. A picture file dropped on the canvas is kept and drawn the same.
+ * The tools are a floating toolbar of icons at the bottom left, and the map sits at the bottom right.
  *
  * Navigation (the sixth, choice 10): a tap on a card's title zooms to the card, Shift+1 fits the whole canvas and
  * Shift+2 zooms to the card open or picked, both as buttons too, and a minimap in the corner draws every card small
@@ -140,6 +149,13 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
   const [picked, setPicked] = useState<string | null>(null);
   /** The + sheet, and the step it is at: choosing what to add, a note's title, or a web address. */
   const [adding, setAdding] = useState<'what' | 'note' | 'link' | null>(null);
+  /** A browser's pictures arrive from storage after the card is drawn: drawn again when one does (core/images.ts). */
+  const [, pictureArrived] = useState(0);
+  useEffect(() => {
+    const again = () => pictureArrived((n) => n + 1);
+    window.addEventListener(IMAGE_READY, again);
+    return () => window.removeEventListener(IMAGE_READY, again);
+  }, []);
   /** The card last tapped or opened: what Shift+2 and the zoom button go to. */
   const [chosen, setChosen] = useState<string | null>(null);
   const change = useCallback(
@@ -327,7 +343,8 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     const lineId = target.closest<Element>('[data-line]')?.getAttribute('data-line') ?? null;
     if (lineId !== picked) setPicked(lineId);
     if (lineId) return;
-    if (node && node.type !== 'text' && node.type !== 'group') return;
+    const pictureCard = node?.type === 'file' && isImageFile(node.file) && !node.file.includes('/');
+    if (node && node.type !== 'text' && node.type !== 'group' && !pictureCard) return;
     const now = performance.now();
     const last = lastTap.current;
     const again = !!last && last.on === (node?.id ?? null) && now - last.at < DOUBLE_MS && Math.hypot(event.clientX - last.x, event.clientY - last.y) < DOUBLE_PX;
@@ -366,6 +383,23 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     change(withNode(live, card));
     setChosen(card.id);
   };
+  /** A card of words that starts as something: a chart, a table. Open to be written in at once. */
+  const addStartedCard = (text: string) => {
+    const at = middle();
+    const card = { ...newTextNode(at.x - NEW_CARD.width / 2, at.y - 90), text, height: 180 };
+    change(withNode(live, card));
+    setEditing(card.id);
+  };
+  const addPictureCard = (name: string, at = middle()) => {
+    const card = newPictureNode(name, at.x - NEW_CARD.width / 2, at.y - 100);
+    change(withNode(live, card));
+    setChosen(card.id);
+  };
+  /** A picture chosen from the phone or the computer, kept the way a note's pictures are kept, then a card of it. */
+  const addPicture = async () => {
+    const name = await pickImage();
+    if (name) addPictureCard(name);
+  };
   const addLinkCard = (url: string) => {
     const at = middle();
     const card = newLinkNode(url, at.x - NEW_CARD.width / 2, at.y - 50);
@@ -401,13 +435,23 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     return () => window.removeEventListener('keydown', onKey);
   }, [fit, zoomTo, editing, chosen]);
 
-  /** A note dragged in from the sidebar (notes/NoteTree.tsx): a card of that note where it is dropped. */
+  /** A note dragged in from the sidebar (notes/NoteTree.tsx), or a picture file dropped from the computer: a card where it lands. */
   const onDrop = (event: React.DragEvent<HTMLDivElement>) => {
     if (!editable) return;
+    const at = under(event.clientX, event.clientY);
+    const picture = [...(event.dataTransfer.files ?? [])].find((f) => f.type.startsWith('image/'));
+    if (picture) {
+      event.preventDefault();
+      // A file the store cannot read (not a picture after all, or one it cannot decode) makes no card, and says why.
+      void saveImageFile(picture)
+        .then((name) => addPictureCard(name, at))
+        .catch((error: unknown) => console.warn('[glyph] picture not kept:', error));
+      return;
+    }
     const title = event.dataTransfer.getData('application/x-glyph-note') ? event.dataTransfer.getData('text/plain') : '';
     if (!title) return;
     event.preventDefault();
-    addNoteCard(title, under(event.clientX, event.clientY));
+    addNoteCard(title, at);
   };
 
   const writeCard = (id: string, text: string) => {
@@ -577,20 +621,17 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
         {/* The picked line's words and its cross, over the line's middle, in the canvas's own pixels. */}
         {pickedLine ? <LineWords key={pickedLine.edge.id} edge={pickedLine.edge} at={pickedLine.path!.mid} onLabel={labelLine} onRemove={removeLine} /> : null}
       </div>
-      <div className={styles.tools}>
-        {editing ?? chosen ? (
-          <button type="button" className={`app-word ${styles.tool}`} onClick={() => zoomTo((editing ?? chosen)!)} aria-label="Zoom to the card (Shift+2)">
-            To card
-          </button>
-        ) : null}
+      {/* The toolbar: icons, floating at the bottom left (Matt: "a floating bottom left aligned toolbar and use
+          iconography instead of text"). What a line needs next is said beside it while one is being drawn. */}
+      <div className={styles.tools} role="toolbar" aria-label="Canvas tools">
         {editable ? (
           <>
-            <button type="button" className={`app-word ${styles.tool}`} onClick={() => setAdding('what')} aria-label="Add a card">
-              + Card
+            <button type="button" className={styles.tool} onClick={() => setAdding('what')} aria-label="Add a card" title="Add a card">
+              <Plus size={18} strokeWidth={2.2} aria-hidden="true" />
             </button>
             <button
               type="button"
-              className={`app-word ${styles.tool}`}
+              className={styles.tool}
               data-on={lining ? '' : undefined}
               aria-pressed={!!lining}
               onClick={() => {
@@ -598,14 +639,21 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
                 setPicked(null);
               }}
               aria-label={lining ? 'Stop drawing a line' : 'Draw a line: tap one card, then another'}
+              title={lining ? 'Stop drawing a line' : 'Draw a line'}
             >
-              {lining ? (lining.from ? 'Tap the card it goes to' : 'Tap the card it starts from') : 'Line'}
+              <Spline size={18} strokeWidth={2.2} aria-hidden="true" />
             </button>
           </>
         ) : null}
-        <button type="button" className={`app-word ${styles.tool}`} onClick={fit} aria-label="Fit the whole canvas on the screen (Shift+1)">
-          Fit
+        <button type="button" className={styles.tool} onClick={fit} aria-label="Fit the whole canvas on the screen (Shift+1)" title="Fit (Shift+1)">
+          <Maximize size={18} strokeWidth={2.2} aria-hidden="true" />
         </button>
+        {editing ?? chosen ? (
+          <button type="button" className={styles.tool} onClick={() => zoomTo((editing ?? chosen)!)} aria-label="Zoom to the card (Shift+2)" title="To card (Shift+2)">
+            <LocateFixed size={18} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+        ) : null}
+        {lining ? <span className={styles.hint}>{lining.from ? 'Tap the card it goes to' : 'Tap the card it starts from'}</span> : null}
       </div>
       <Minimap canvas={live} view={viewShown} host={host} onGo={(x, y) => {
         const el = host.current;
@@ -631,6 +679,18 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
           onLink={(url) => {
             setAdding(null);
             addLinkCard(url);
+          }}
+          onPicture={() => {
+            setAdding(null);
+            void addPicture();
+          }}
+          onChart={() => {
+            setAdding(null);
+            addStartedCard(CHART_CARD);
+          }}
+          onTable={() => {
+            setAdding(null);
+            addStartedCard(TABLE_CARD);
           }}
           onStep={setAdding}
         />
@@ -736,11 +796,11 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
         {editing ? (
           // Open: the note's own editor in its own mode, the words going straight into the canvas as they are typed.
           <div ref={opened} className={styles.words}>
-            <Editor value={node.text} onChange={(text) => onWrite?.(node.id, text)} dark={dark} assist display="mixed" placeholder="Write something." grow />
+            <Editor value={node.text} onChange={(text) => onWrite?.(node.id, text)} dark={dark} assist display="mixed" placeholder="Write something." grow diagrams />
           </div>
         ) : (
           <Near root={root} className={styles.words}>
-            <Editor value={node.text} onChange={noop} dark={dark} assist={false} readOnly display="formatted" peek grow />
+            <Editor value={node.text} onChange={noop} dark={dark} assist={false} readOnly display="formatted" peek diagrams grow />
           </Near>
         )}
         {editing && onRemove ? (
@@ -780,6 +840,22 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
   // A file: a note by that name in Glyph, or a picture, or a file Glyph does not have.
   const title = fileTitle(node.file);
   const picture = isImageFile(node.file);
+  // One of Glyph's own pictures, by the name the store keeps it under (core/images.ts); a picture from another vault
+  // has a folder in its name and no such picture here, and is said to be elsewhere.
+  const pictureUrl = picture && !node.file.includes('/') ? imageUrl(node.file) : null;
+  if (pictureUrl) {
+    return (
+      <div className={`${styles.card} ${styles.pictureCard}`} style={place} data-hue={hue} data-card={node.id} data-lifted={lifted || undefined} data-editing={editing || undefined}>
+        <img className={styles.picture} src={pictureUrl} alt="" draggable={false} />
+        {editing && onRemove ? (
+          <button type="button" className={styles.remove} onClick={() => onRemove(node.id)} aria-label="Take this picture off the canvas">
+            ×
+          </button>
+        ) : null}
+        {corner}
+      </div>
+    );
+  }
   const known = !picture && !!wiki?.known(title);
   const body = known ? (wiki?.body?.(title) ?? null) : null;
   const at = node.subpath ? node.subpath.slice(1) : undefined;
@@ -855,6 +931,9 @@ function AddSheet({
   onWords,
   onNote,
   onLink,
+  onPicture,
+  onChart,
+  onTable,
   onStep,
 }: {
   step: 'what' | 'note' | 'link';
@@ -863,6 +942,9 @@ function AddSheet({
   onWords: () => void;
   onNote: (title: string) => void;
   onLink: (url: string) => void;
+  onPicture: () => void;
+  onChart: () => void;
+  onTable: () => void;
   onStep: (step: 'note' | 'link') => void;
 }) {
   const panel = useRef<HTMLElement>(null);
@@ -880,6 +962,9 @@ function AddSheet({
             <SheetRow icon={SquarePen} label="Words" hint="A card to write on." onPress={onWords} />
             <SheetRow icon={FileText} label="A note" hint="One of your notes, drawn small; tap it to open." onPress={() => onStep('note')} />
             <SheetRow icon={Link2} label="A link" hint="A web address, opened with a tap." onPress={() => onStep('link')} />
+            <SheetRow icon={Image} label="A picture" hint="From your phone or computer, kept with your notes' pictures." onPress={onPicture} />
+            <SheetRow icon={ChartNoAxesCombined} label="A chart" hint="A diagram, written as Mermaid and drawn on the card." onPress={onChart} />
+            <SheetRow icon={Table} label="A table" hint="Rows and columns to fill in." onPress={onTable} />
           </SheetGroup>
         ) : (
           <div className={styles.addField}>
