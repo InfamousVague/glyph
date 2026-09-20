@@ -3139,6 +3139,11 @@ this one changes it (`canvas/CanvasView.tsx`, `canvas/jsonCanvas.ts`).
   a drag on it pans. `setPointerCapture` is guarded: a browser throws for a pointer it is not tracking, and the press
   must still go where it landed. A card that is only a table (`isOnlyTable`) loses its padding and the table takes
   the card, edge to edge.
+- **The example canvas has one of everything.** "Make an example canvas with images, charts, tables, notes and lines
+  linking": Settings > About now lays out a group, cards of words, the example board and the sample note as cards,
+  a link, a chart, a table and a picture, with words on the lines between them. The picture is the sample note's
+  drawing, made and kept by the picture store as the canvas is added, and left out where nothing can draw it, so
+  the canvas is whole in a test and on a phone alike.
 - **Measured in the browser, not assumed:** a held press of 300ms lifted the card and a move of (60, 90) screen
   pixels at scale 1 put it down at (60, 90); a double-tap made a card with a sixteen-hex id, focused, and what was
   typed was in the saved note with its front matter untouched. In the tests, a move before the hold pans and saves

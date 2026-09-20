@@ -90,7 +90,9 @@ title: "Cabin weekend, laid out"
 ```
 
 Everything after the front matter is the `.canvas` file, character for character. Settings > About adds an example
-one (`canvas/sampleCanvas.ts`), the way it adds the example board.
+one (`canvas/sampleCanvas.ts`), the way it adds the example board: one of everything a canvas holds - a group, cards
+of words, cards that are the example board and the sample note, a link, a chart drawn from Mermaid, a table, a
+picture (the sample note's drawing, kept by the picture store as it is made), and lines with words on joining them.
 
 **Named from the cog.** A canvas has no heading to rename it in, so the note's cog sheet has a Name field for a
 canvas note (editor/NoteSettings.tsx), which writes the `title:` front matter and nothing else

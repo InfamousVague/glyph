@@ -55,9 +55,17 @@ export async function addBoardNote(): Promise<Note> {
   return saveNote(newNoteId(), boardNoteBody(), 'editor');
 }
 
-/** Makes the example canvas (canvas/sampleCanvas.ts) now, and answers it. */
+/** Makes the example canvas (canvas/sampleCanvas.ts) now, its picture kept where one can be drawn, and answers it. */
 export async function addCanvasNote(): Promise<Note> {
-  return saveNote(newNoteId(), sampleCanvasBody(), 'editor');
+  let picture: string | null = null;
+  try {
+    const blob = await sampleImageBlob();
+    if (blob) picture = await saveImageFile(blob);
+  } catch {
+    // No picture, then: the canvas is made without its picture card.
+    picture = null;
+  }
+  return saveNote(newNoteId(), sampleCanvasBody(picture), 'editor');
 }
 
 /**
