@@ -86,6 +86,15 @@ interface NoteScreenProps {
   bodyOfTitle?: (title: string) => string | null;
   /** Every note's title, for a canvas's + to choose a note from. */
   allTitles?: () => string[];
+  /**
+   * A canvas renamed from its tab (notes/NoteTabs.tsx), while this is the note being read.
+   *
+   * It cannot be written from outside: the live body is a ref here that only this screen's own `onChange` sets, so a
+   * `saveNote` from App would be flushed away by the next keystroke. So the row asks, and the screen writes it the
+   * way the canvas itself writes - through `onChange`, on the same debounce as typing. `asked` rises with each
+   * asking, so renaming twice to the same name still lands.
+   */
+  rename?: { id: string; title: string; asked: number } | null;
   /** The "← Notes" in the header; off where the list is already beside the note (the desktop sidebar, App.tsx). */
 }
 
@@ -94,7 +103,7 @@ const SAVE_DEBOUNCE_MS = 400;
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, bodyOfTitle, allTitles, at }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, bodyOfTitle, allTitles, at, rename }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -235,6 +244,19 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     },
     [flush],
   );
+
+  /*
+   * A rename asked for from this note's tab (notes/NoteTabs.tsx): written here rather than by App, because the live
+   * body is the ref above and only `onChange` may set it - a write from outside would be flushed away by the next
+   * keystroke. The same path the canvas itself writes by, and so the same debounce and the same flushes.
+   */
+  useEffect(() => {
+    if (!rename || rename.id !== note.id) return;
+    const next = withFrontMatterTitle(body.current, rename.title);
+    if (next !== body.current) onChange(next);
+    // Each asking is its own: `asked` is what changes, so renaming twice to the same name still lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rename?.asked]);
 
   useEffect(() => {
     const onHide = () => {

@@ -40,6 +40,7 @@ import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Not
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { canvasNoteBody } from './canvas/jsonCanvas.ts';
+import { withFrontMatterTitle } from './core/frontMatter.ts';
 import { MEMOS_FOLDER, memoBody, memosOf, withoutMemos } from './memos/memo.ts';
 import { MemosScreen } from './memos/MemosScreen.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
@@ -611,6 +612,28 @@ function Shell() {
       delete root.dataset.split;
     };
   }, [sidebar]);
+  /*
+   * A canvas renamed from its tab (notes/NoteTabs.tsx): a canvas is named by `title:` in its front matter, since it
+   * has no first line to write it in, and the only way to that was the note's own cog.
+   *
+   * Two ways to write it, and which one depends on whether the note is open. The note being read is the editor's:
+   * its live body is a ref that only its own onChange sets, so a saveNote from here would be flushed away by the
+   * next keystroke - it is asked instead, and writes it itself. Any other tab has no editor holding it, so it is a
+   * plain write, of the body as the store has it rather than as this render remembers it.
+   */
+  const [rename, setRename] = useState<{ id: string; title: string; asked: number } | null>(null);
+  const renameNote = (id: string, title: string) => {
+    if (screen.name === 'note' && screen.note.id === id) {
+      setRename({ id, title, asked: Date.now() });
+      return;
+    }
+    void (async () => {
+      const note = await getNote(id);
+      if (!note) return;
+      await saveNote(id, withFrontMatterTitle(note.body, title), note.source);
+      await refresh();
+    })();
+  };
   const noteScreen =
     screen.name === 'note' ? (
       <NoteScreen
@@ -625,6 +648,7 @@ function Shell() {
         hasTitle={hasTitle}
         bodyOfTitle={bodyOfTitle}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
+        rename={rename}
         onArchive={(n) => {
           setOpen((was) => closeOpen(was, n.id));
           actions.archive(n, true);
@@ -817,6 +841,7 @@ function Shell() {
             onGoOn={goOn}
             canGoBack={canGoBack(trail, stillThere)}
             canGoOn={canGoOn(trail, stillThere)}
+            onRename={renameNote}
           />
         </div>
       ) : null}

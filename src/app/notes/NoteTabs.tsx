@@ -14,6 +14,7 @@ import {
   type TabGroup,
   type TabGroups,
 } from './tabGroups.ts';
+import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 import { motionScale } from '../core/preferences.ts';
 import { useWorkspaces, WORKSPACE_HUES } from '../core/workspaces.ts';
@@ -68,6 +69,13 @@ interface NoteTabsProps {
   onGoOn?: () => void;
   canGoBack?: boolean;
   canGoOn?: boolean;
+  /**
+   * A canvas renamed from its tab (Matt: "I also need a way to rename canvases maybe through the tabs context
+   * menu?"). Only a canvas: a note is named by its first line, which is written in the note itself, where a
+   * canvas has no line to write - it is named by `title:` in its front matter (core/frontMatter.ts), and the
+   * only way to that was the cog. Absent, and no tab offers it.
+   */
+  onRename?: (id: string, title: string) => void;
 }
 
 /** How far a pointer must travel before a press on a tab is a drag rather than a click. */
@@ -90,6 +98,7 @@ export function NoteTabs({
   canGoBack = false,
   canGoOn = false,
   onNew,
+  onRename,
   groups = NO_GROUPS,
   onGroups,
   onCloseTabs,
@@ -106,6 +115,17 @@ export function NoteTabs({
    */
   const [menu, setMenu] = useState<{ kind: 'group' | 'tab'; id: string } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  /** The tab whose name is open as a field, and the words in it: a canvas being renamed in the row. */
+  const [naming, setNaming] = useState<{ id: string; draft: string } | null>(null);
+  /**
+   * The end of a rename, however it ends: the field closes first, so the blur that follows it finds nothing open and
+   * cannot keep the same name twice. A name is only sent on if it is a name and is not the one the tab already has.
+   */
+  const keepName = (id: string, was: string, keep: boolean) => {
+    const kept = naming?.draft.trim() ?? '';
+    setNaming(null);
+    if (keep && kept && kept !== was) onRename?.(id, kept);
+  };
   const pointer = useRef<string>('mouse');
   const change = (next: TabGroups) => onGroups?.(next);
   const startGroup = (noteId: string) => {
@@ -596,23 +616,50 @@ export function NoteTabs({
                   setMenu({ kind: 'tab', id: note.id });
                 }}
               >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  className={styles.name}
-                  onKeyDown={nudge(note.id, at)}
-                  onClick={() => onOpen(note.id)}
-                  // Said rather than shown twice: the pill is a colour to the eye and the workspace's name to a reader.
-                  aria-label={space ? `${title}, in ${space.name}` : title}
-                >
-                  {space ? (
-                    <span className={styles.space} data-hue={space.hue ?? 'ink'} aria-hidden="true">
-                      {space.name}
-                    </span>
-                  ) : null}
-                  <span className={styles.title}>{title}</span>
-                </button>
+                {naming?.id === note.id ? (
+                  /* The canvas's name, written where the tab's name was. Enter keeps it, Escape leaves it, and
+                     leaving the field keeps it too - a phone has no Escape and losing the words to a stray tap
+                     would be worse than a name kept by accident, which is one more rename to put right. */
+                  <input
+                    className={styles.name}
+                    value={naming.draft}
+                    aria-label="Canvas name"
+                    autoFocus
+                    onFocus={(event) => event.currentTarget.select()}
+                    onChange={(event) => setNaming({ id: note.id, draft: event.currentTarget.value })}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onBlur={() => keepName(note.id, title, true)}
+                    onKeyDown={(event) => {
+                      // Enter keeps it here rather than by blurring the field: measured in the browser, the blur that
+                      // a blur() raises never reached the handler, and the field sat open with the new name in it.
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        keepName(note.id, title, true);
+                      } else if (event.key === 'Escape') {
+                        event.preventDefault();
+                        keepName(note.id, title, false);
+                      }
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className={styles.name}
+                    onKeyDown={nudge(note.id, at)}
+                    onClick={() => onOpen(note.id)}
+                    // Said rather than shown twice: the pill is a colour to the eye and the workspace's name to a reader.
+                    aria-label={space ? `${title}, in ${space.name}` : title}
+                  >
+                    {space ? (
+                      <span className={styles.space} data-hue={space.hue ?? 'ink'} aria-hidden="true">
+                        {space.name}
+                      </span>
+                    ) : null}
+                    <span className={styles.title}>{title}</span>
+                  </button>
+                )}
                 <button type="button" data-close className={styles.close} onClick={() => onClose(note.id)} aria-label={`Close ${title}`}>
                   <X size={15} strokeWidth={2.4} aria-hidden="true" />
                 </button>
@@ -621,6 +668,8 @@ export function NoteTabs({
                 {group ? <span className={styles.groupLine} data-hue={group.hue} aria-hidden="true" /> : null}
                 {menu?.kind === 'tab' && menu.id === note.id ? (
                   <Menu open onOpenChange={(open) => !open && setMenu(null)} trigger={<span className={styles.menuAnchor} />} placement="bottom-start" aria-label={`${title} tab`}>
+                    {/* A canvas is named by its front matter and has no first line to write, so the row offers it. */}
+                    {onRename && isCanvasBody(note.body) ? <MenuItem onSelect={() => setNaming({ id: note.id, draft: title })}>Rename</MenuItem> : null}
                     <MenuItem onSelect={() => startGroup(note.id)}>Add to a new group</MenuItem>
                     {groups.list.filter((g) => g.id !== groupId).length ? (
                       <MenuSub label="Add to group">
