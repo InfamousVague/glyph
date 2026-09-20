@@ -3072,9 +3072,16 @@ were drawn at all and where the stripes were bent:
 
 The 400px reach was never a fix, only a reprieve: it bought exactly 400px of page, and a tab row 900px down a scrolled
 document is past it, so WebKit's region stopped covering the row and the tabs went with it. In the row's own box there
-is no corner to pick and no distance to outrun. Chromium is unchanged by the conversion - the same bands, 5579 px of
-bent ink before and 5582 after - and WebKit now matches it to within the one column of antialiasing it always differed
-by.
+is no corner to pick and no distance to outrun. WebKit now matches Chromium to within the one column of antialiasing
+it always differed by.
+
+**That table is also where this section got something badly wrong, so read the metric before trusting it.** It counts
+columns in which the stripes are no longer pure - where the bend touched them - and by that measure Chromium went
+from 5579 px of bent ink to 5582, which was written up here as the conversion leaving the appearance untouched. It
+was not. A count of bent pixels cannot tell soft smoke from fine static: both bend nearly every pixel in the band,
+and both score the same. The `baseFrequency` conversion below had in fact turned the smoke to grain, the shipped
+bundle carried it for nine builds, and the person who caught it was Matt, looking at his tabs. A measurement that
+cannot fail in the way the thing itself fails is not evidence, however precise the number it prints.
 
 **The reach could then go.** With the frames agreed, the region only has to hold what the bend can throw, so it is
 `SIDE` = 24px on all four sides like any other margin, not 400 above and below. That takes the region from 648x857 to
@@ -3086,9 +3093,17 @@ now before it gives up and keeps the fade.
 
 **The subregions stayed, converted rather than dropped**, on §54's measurement - they are most of what the effect
 costs, and taking them off the lane's filter nearly doubled its cost a frame. So the conversion is the fiddly kind: a
-length divided by the side of the row it runs along (`box`), `feTurbulence`'s `baseFrequency` multiplied by that side
-instead, both numbers on every `feGaussianBlur` and `feMorphology` - one fraction shared between a wide row and a short
-one is two different blurs - and `feDisplacementMap`'s throw divided by the box's diagonal over root two (`corner`).
+length divided by the side of the row it runs along (`box`), both numbers on every `feGaussianBlur` and `feMorphology`
+- one fraction shared between a wide row and a short one is two different blurs - and `feDisplacementMap`'s throw
+divided by the box's diagonal over root two (`corner`).
+
+**One attribute must NOT be converted, and converting it is the bug above.** `feTurbulence`'s `baseFrequency` is read
+in the filter's own user space whatever `primitiveUnits` says, so multiplying it by the box's sides asked for 26
+cycles across a 375px row where 0.07 a pixel was meant - noise hundreds of times too fine, and a displacement map fed
+fine noise bends every pixel on its own account: grain, not smoke. It stays per pixel, as every other wisp in the app
+writes it (`art/wispEdge.ts`, `wispFormat.ts`). Settled by drawing three strips 375x41 side by side from the one seed
+- per-pixel in user space, the same numbers in box units, and the multiplied pair - where the first two are the same
+soft cloud and the third is static. `art/wispFoot.ts` carried the same line from §54 and was grainy the same way.
 
 **And the tabs gained a layout they never had.** Dropping the `left` test means a row inset from the page's edge
 smokes: checked on the real row pushed 243px in, both ends dissolving where before it wore a plain fade. Nothing in
