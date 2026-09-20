@@ -38,7 +38,7 @@ import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
 import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
-import { addBoardNote, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
+import { addBoardNote, addCanvasNote, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 
@@ -379,6 +379,8 @@ function Shell() {
 
   /** Whether a note by that title is in the library: what a `[[link]]` is drawn by (editor/wikiLinks.ts). */
   const hasTitle = (title: string) => shownNotes.some((n) => sameTitle(noteTitle(n.body), title));
+  /** That note's body, for a canvas card that is a note to draw it small (canvas/CanvasView.tsx); null for none. */
+  const bodyOfTitle = (title: string) => shownNotes.find((n) => sameTitle(noteTitle(n.body), title))?.body ?? null;
 
   /**
    * A `[[link]]` tapped: the note by that title, or a new note that starts with it as its heading, so a link is a
@@ -422,6 +424,13 @@ function Shell() {
   const boardNote = async () => {
     setSettings(false);
     const note = await addBoardNote();
+    await refresh();
+    setScreen({ name: 'note', note });
+  };
+
+  const canvasNote = async () => {
+    setSettings(false);
+    const note = await addCanvasNote();
     await refresh();
     setScreen({ name: 'note', note });
   };
@@ -573,6 +582,7 @@ function Shell() {
         at={screen.at}
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
+        bodyOfTitle={bodyOfTitle}
         onArchive={(n) => {
           setOpen((was) => closeOpen(was, n.id));
           actions.archive(n, true);
@@ -893,6 +903,7 @@ function Shell() {
         }}
         onSample={() => void sampleNote()}
         onBoard={() => void boardNote()}
+        onCanvas={() => void canvasNote()}
         onAcademy={() => {
           setSettings(false);
           setScreen({ name: 'academy' });

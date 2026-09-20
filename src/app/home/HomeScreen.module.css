@@ -318,6 +318,28 @@
   color: var(--glacier-text-subtle);
 }
 
+/*
+ * The gist: what the note is about in one line, written on the phone (format/gist.ts), so it fades in under the title
+ * a moment after the card. Two lines at most - the preview below it is the note itself, and wants the room.
+ */
+.cardGist {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  overflow-wrap: anywhere;
+  animation: gist-in 260ms var(--glacier-ease-out, ease-out) both;
+}
+
+@keyframes gist-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* The preview takes the room there is, so the dates of a row of cards line up along their feet. */
 .cardPeek {
   flex: 1;
@@ -421,7 +443,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cardItem {
+  .cardItem,
+  .cardGist {
     animation: none;
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Mic } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
@@ -13,6 +13,7 @@ import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { AcademyCard, RefiningNotice, UpdateCard, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
 import { when } from '../notes/when.ts';
+import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
 import { openTasks, pinnedNotes, recentNotes, type OpenTask } from './dashboard.ts';
 import styles from './HomeScreen.module.css';
@@ -82,11 +83,17 @@ export function HomeScreen({
   const [manage, setManage] = useState<Workspace | 'new' | null>(null);
   // Another workspace chosen: the page glides back to its top rather than jumping there.
   useGlideToTop(scroller, spaces.current?.id ?? 'all');
-  // The chosen workspace chooses the page too, as it chose the list.
-  const shown = inWorkspace(notes, spaces.current?.id ?? null);
-  const pinned = pinnedNotes(shown);
-  const recent = recentNotes(shown, RECENT);
+  // The chosen workspace chooses the page too, as it chose the list. Held steady between renders, since the cards it
+  // works out are what the gist runner is given: a fresh array every time a to-do is ticked would put its work off.
+  const workspace = spaces.current?.id ?? null;
+  const shown = useMemo(() => inWorkspace(notes, workspace), [notes, workspace]);
+  const pinned = useMemo(() => pinnedNotes(shown), [shown]);
+  const recent = useMemo(() => recentNotes(shown, RECENT), [shown]);
   const tasks = openTasks(shown);
+  // One quiet line under each card's title, what the note is about, written by a model on the phone (format/gist.ts).
+  // Only the notes with a card on the page: the runner asks about what is on screen, not about every note there is.
+  const carded = useMemo(() => [...pinned, ...recent], [pinned, recent]);
+  const gists = useGists(carded);
   const titleOf = new Map(notes.map((n) => [n.id, noteTitle(n.body) || 'Untitled']));
   // A tick lands on the page at once; the note catches up when it has been written.
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
@@ -104,6 +111,8 @@ export function HomeScreen({
           <span className={styles.cardTitle} data-untitled={title ? undefined : ''}>
             {title ? shortenUrls(title) : 'Untitled'}
           </span>
+          {/* What the note is about, when the phone has written it; the preview under it is the note itself. */}
+          {gists[note.id] ? <span className={styles.cardGist}>{gists[note.id]}</span> : null}
           <NotePeek body={note.body} className={styles.cardPeek} />
           <span className={styles.cardWhen}>{when(note.updatedAt)}</span>
         </button>

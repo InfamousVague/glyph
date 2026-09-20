@@ -118,6 +118,13 @@
   animation-delay: 90ms;
 }
 
+/* A canvas is not a column of words: it takes the whole page and moves under the fingers rather than scrolling. */
+.canvasBody {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+}
+
 /* The note's own controls, which now sit in the app's bar beside the sidebar button and the arrows (App.tsx). */
 .tools {
   display: flex;

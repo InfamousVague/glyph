@@ -25,18 +25,18 @@ describe('the gist runner', () => {
     vi.mocked(generate).mockClear();
   });
 
-  it('writes a gist for a note the list showed, with the smallest model, and keeps it against the body', async () => {
-    // useGists is a hook; its module-level list of bodies is what the runner reads, so seed it the way the list would.
+  it('writes a gist for a note the home page showed, with the smallest model, and keeps it against the body', async () => {
+    // useGists is a hook; its module-level list of bodies is what the runner reads, so seed it the way the page would.
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
     const host = document.createElement('div');
     const root = createRoot(host);
     const notes = [{ id: 'n1', body: 'things for tomorrow\n- milk\n', updatedAt: 2 }, { id: 'n2', body: '', updatedAt: 1 }] as never[];
-    function List() {
+    function Home() {
       useGists(notes);
       return null;
     }
-    act(() => root.render(<List />));
+    act(() => root.render(<Home />));
     await runGists();
     expect(listModels).toHaveBeenCalled();
     expect(vi.mocked(generate).mock.calls[0]?.[0]).toMatchObject({ model: 'qwen3.5-2b', maxTokens: 40 });
