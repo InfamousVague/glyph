@@ -303,18 +303,19 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
    * the two things a single tap cannot mean.
    */
   const onClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!editable || dragged.current) return;
+    if (dragged.current) return;
     const target = event.target as HTMLElement;
     if (target.closest('[data-editing]') || target.closest('button') || target.closest('[data-line-words]')) return;
-    if (editing) setEditing(null);
     const id = target.closest<HTMLElement>('[data-card]')?.dataset.card;
     const node = id ? live.nodes.find((n) => n.id === id) : undefined;
     if (node && node.id !== chosen) setChosen(node.id);
-    // A tap on a card's title zooms to the card (choice 10); the rest of the card does what it did.
+    // A tap on a card's title zooms to the card (choice 10), on any canvas; the rest of the card does what it did.
     if (node && target.closest('[data-card-title]')) {
       zoomTo(node.id);
       return;
     }
+    if (!editable) return;
+    if (editing) setEditing(null);
     // A tap on a line picks it; a tap anywhere else lets it go.
     const lineId = target.closest<Element>('[data-line]')?.getAttribute('data-line') ?? null;
     if (lineId !== picked) setPicked(lineId);
@@ -383,7 +384,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
   // Shift+1 fits the whole canvas, Shift+2 zooms to the card open or picked (choice 10), as in Obsidian.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!event.shiftKey || (event.target as HTMLElement | null)?.closest('input, textarea, [contenteditable]')) return;
+      if (!event.shiftKey || (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]'))) return;
       if (event.key === '!' || event.code === 'Digit1') fit();
       else if ((event.key === '@' || event.code === 'Digit2') && (editing ?? chosen)) zoomTo((editing ?? chosen)!);
       else return;
@@ -758,6 +759,8 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
         href={node.url}
         onClick={(event) => {
           event.preventDefault();
+          // The title is the way to zoom to the card (choice 10), so a tap there does not open the address.
+          if ((event.target as HTMLElement).closest('[data-card-title]')) return;
           void openLink(node.url);
         }}
       >
@@ -784,7 +787,8 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
       data-waiting={known || picture ? undefined : ''}
       role={picture ? undefined : 'button'}
       tabIndex={picture ? undefined : 0}
-      onClick={picture ? undefined : () => wiki?.open(title, at)}
+      // A tap on the title zooms to the card (choice 10) rather than opening the note; the rest of the card opens it.
+      onClick={picture ? undefined : (event) => !(event.target as HTMLElement).closest('[data-card-title]') && wiki?.open(title, at)}
       onKeyDown={picture ? undefined : (event) => (event.key === 'Enter' || event.key === ' ') && wiki?.open(title, at)}
     >
       <span className={styles.cardTitle} data-card-title>{title}</span>

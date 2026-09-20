@@ -346,6 +346,22 @@ describe('more ways to add, and finding your way', () => {
     expect((onChange.mock.calls[0]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'file', file: 'Launch week.md' });
   });
 
+  it('zooms to a note card on a tap of its title without opening the note, and opens it from the rest', () => {
+    const open = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} wiki={{ known: () => true, open }} />);
+    const card = shown.querySelector('[data-card="f"]') as HTMLElement;
+    const world = shown.querySelector('[class*="world"]') as HTMLElement;
+    // jsdom lays nothing out: give the canvas a screen to fit the card into.
+    Object.defineProperty(shown.firstElementChild, 'clientWidth', { value: 400, configurable: true });
+    Object.defineProperty(shown.firstElementChild, 'clientHeight', { value: 300, configurable: true });
+    const before = world.style.transform;
+    tap(card.querySelector('[data-card-title]')!);
+    expect(open).not.toHaveBeenCalled();
+    expect(world.style.transform).not.toBe(before);
+    tap(card);
+    expect(open).toHaveBeenCalledWith('Launch week', '^photos');
+  });
+
   it('draws a minimap of every card with the screen over it, and a tap on it goes there', () => {
     const shown = show(<CanvasView canvas={canvas} dark={false} />);
     const map = shown.querySelector('svg[aria-label^="A map of the canvas"]') as SVGSVGElement;
