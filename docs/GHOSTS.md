@@ -1,8 +1,9 @@
 # The ghosts
 
-**Paused, 2026-09-21.** Five sets were generated from the prompts below and none looked how Matt wanted ("we're going
-to skip graphics for now"). The empty states keep the abstract shapes in `art/Shapes.tsx`. If this comes back, start
-with an example image of the look he wants; the text-only loop was the slow part.
+**Picking a style, 2026-09-21.** Paused after five sets, then picked up again: the last set was "better but it doesn't
+feel friendly and inviting", so the next step is not another tweak but a choice - ten styles below, each a whole
+prompt, all on the same test scene, for Matt to pick one. Once he picks, it replaces the style block, and the
+fifteen scenes are generated in it.
 
 Prompts for generating Glyph's empty-state characters. Matt (2026-09-20): "default vector character graphics of
 ghosts for the notes for things like empty pages and new notes etc etc like bear notes does".
@@ -11,6 +12,159 @@ A ghost is the right character for this app rather than a borrowed one: Glyph's 
 arrive as wisps and gather into letters (`art/WispText.tsx`), a page going under the header turns to smoke rather
 than sliding under a line (`art/wispEdge.ts`), and the tab row dissolves at its ends. The ghost is that smoke with a
 face on it.
+
+## Ten styles to choose from
+
+Each is a whole prompt: paste it as it is. Every one draws **the same scene** - the ghost asleep on a blank sheet,
+the "no notes yet" picture people meet most - and carries **the same character core**, so the only thing that
+changes from one to the next is the style. All ten are one colour of line on white, so whichever is picked can
+ship on `currentColor` without being redrawn.
+
+The character core, repeated in each (what the earlier rounds taught: a hem, not a tail; hollow, not a person under
+a sheet; floating, not standing):
+
+```
+The ghost is a hollow sheet with nothing inside it, as wide at the bottom as at the top, ending in a
+soft wavy hem that never touches the ground and never narrows to a tail; no body, no legs, no feet.
+Two small eyes. It floats, with a small separate shadow on the ground below it.
+```
+
+**1. Warm storybook pen.** The friendliest of the ten; a bedtime-book warmth without being babyish.
+
+```
+Warm storybook pen illustration, black ink line on plain white. A soft, slightly wobbly hand-drawn
+line of even medium weight, rounded everywhere, with a few short strokes for shadow. Gentle,
+cosy, inviting, like the first page of a much-loved picture book for all ages. No fill, no colour,
+no grey, no shading. The ghost is a hollow sheet with nothing inside it, as wide at the bottom as at
+the top, ending in a soft wavy hem that never touches the ground and never narrows to a tail; no
+body, no legs, no feet. Two small eyes. It floats, with a small separate shadow on the ground below
+it. Scene: the ghost curled up asleep, floating just above a single blank sheet of paper as if it
+were a bed, eyes closed, content. Centred in a square with generous margin, legible at 200 pixels.
+No text, no border.
+```
+
+**2. Mid-century modern.** Friendly and a little graphic, like a 1950s magazine spot.
+
+```
+Mid-century modern spot illustration, black line on plain white. Confident geometric line with
+rounded corners, shapes simplified to circles and soft rectangles, a few playful dashes and
+starbursts around the subject. Optimistic, charming, stylish, like a 1950s magazine drawing. Line
+only: no fill, no colour, no grey, no shading. The ghost is a hollow sheet with nothing inside it,
+as wide at the bottom as at the top, ending in a soft wavy hem that never touches the ground and
+never narrows to a tail; no body, no legs, no feet. Two small eyes. It floats, with a small
+separate shadow on the ground below it. Scene: the ghost curled up asleep, floating just above a
+single blank sheet of paper as if it were a bed, eyes closed, content. Centred in a square with
+generous margin, legible at 200 pixels. No text, no border.
+```
+
+**3. Brush and ink, soft.** East Asian ink-brush feeling, calm and kind.
+
+```
+Soft brush-and-ink illustration, black ink on plain white paper. Each line made in one flowing
+brush stroke that swells and fades, few strokes, lots of air, a calm and kindly mood. Gentle,
+serene, welcoming. Line only: no fill, no wash, no colour, no grey, no splatter. The ghost is a
+hollow sheet with nothing inside it, as wide at the bottom as at the top, ending in a soft wavy hem
+that never touches the ground and never narrows to a tail; no body, no legs, no feet. Two small
+eyes. It floats, with a small separate shadow on the ground below it. Scene: the ghost curled up
+asleep, floating just above a single blank sheet of paper as if it were a bed, eyes closed,
+content. Centred in a square with generous margin, legible at 200 pixels. No text, no border, no
+seal stamp.
+```
+
+**4. Nordic quiet.** Clean, soft and homely, the calm of Scandinavian design.
+
+```
+Scandinavian minimalist line illustration, black line on plain white. Clean, thin-to-medium
+rounded line, simple soft shapes, a few small details like a tiny star or a sprig, lots of white
+space. Calm, homely, friendly, hygge. Line only: no fill, no colour, no grey, no shading, no
+texture. The ghost is a hollow sheet with nothing inside it, as wide at the bottom as at the top,
+ending in a soft wavy hem that never touches the ground and never narrows to a tail; no body, no
+legs, no feet. Two small eyes. It floats, with a small separate shadow on the ground below it.
+Scene: the ghost curled up asleep, floating just above a single blank sheet of paper as if it were
+a bed, eyes closed, content. Centred in a square with generous margin, legible at 200 pixels. No
+text, no border.
+```
+
+**5. Newspaper cartoon.** Witty and warm, the single-panel cartoon a grown-up smiles at.
+
+```
+Single-panel newspaper cartoon, black ink on plain white. A loose, assured pen line with a little
+thick-and-thin, expressive but economical, a knowing gentle humour. Friendly, clever, warm. Line
+only: no fill, no colour, no grey, no hatching beyond a few strokes of shadow. The ghost is a hollow
+sheet with nothing inside it, as wide at the bottom as at the top, ending in a soft wavy hem that
+never touches the ground and never narrows to a tail; no body, no legs, no feet. Two small eyes. It
+floats, with a small separate shadow on the ground below it. Scene: the ghost curled up asleep,
+floating just above a single blank sheet of paper as if it were a bed, eyes closed, content, a tiny
+"z" shape drawn as a line above it. Centred in a square with generous margin, legible at 200
+pixels. No words, no caption, no border.
+```
+
+**6. Rubber-hose classic.** Bouncy 1930s animation charm, very friendly.
+
+```
+1930s rubber-hose animation style line drawing, black line on plain white. Bold, smooth, bouncy
+line of even weight, round shapes, big friendly curves, a little squash and stretch. Cheerful,
+charming, vintage. Line only: no fill, no colour, no grey, no shading. The ghost is a hollow sheet
+with nothing inside it, as wide at the bottom as at the top, ending in a soft wavy hem that never
+touches the ground and never narrows to a tail; no body, no legs, no feet. Two small oval eyes with
+a gleam. It floats, with a small separate shadow on the ground below it. Scene: the ghost curled up
+asleep, floating just above a single blank sheet of paper as if it were a bed, eyes closed,
+content. Centred in a square with generous margin, legible at 200 pixels. No text, no border.
+```
+
+**7. Crayon-soft line.** Hand-made and tender, like a drawing in a notebook margin.
+
+```
+Soft pencil-crayon line drawing, black on plain white, the line slightly grainy and hand-made like
+a drawing in a favourite notebook. Loose, tender, affectionate, imperfect in a lovely way. Line
+only: no fill, no colour, no grey shading, no smudges. The ghost is a hollow sheet with nothing
+inside it, as wide at the bottom as at the top, ending in a soft wavy hem that never touches the
+ground and never narrows to a tail; no body, no legs, no feet. Two small eyes. It floats, with a
+small separate shadow on the ground below it. Scene: the ghost curled up asleep, floating just
+above a single blank sheet of paper as if it were a bed, eyes closed, content. Centred in a square
+with generous margin, legible at 200 pixels. No text, no border.
+```
+
+**8. Modern app mascot, refined.** Polished and welcoming, the kind of character a good app greets you with.
+
+```
+Refined modern line illustration for a friendly app, black line on plain white. Smooth, even,
+medium-weight line with round caps, clean confident curves, a little personality in the pose, one
+or two small accents like sparkles or motion lines. Welcoming, warm, polished, contemporary; charming
+but not babyish. Line only: no fill, no colour, no grey, no gradients. The ghost is a hollow sheet
+with nothing inside it, as wide at the bottom as at the top, ending in a soft wavy hem that never
+touches the ground and never narrows to a tail; no body, no legs, no feet. Two small eyes. It floats,
+with a small separate shadow on the ground below it. Scene: the ghost curled up asleep, floating
+just above a single blank sheet of paper as if it were a bed, eyes closed, content. Centred in a
+square with generous margin, legible at 200 pixels. No text, no border.
+```
+
+**9. Woodland folk tale.** Old-fashioned storybook charm, with small natural details.
+
+```
+Folk-tale storybook line illustration, black ink on plain white. A careful, warm hand-drawn line
+with small decorative touches from nature - a leaf, a little moon, tiny stars - arranged
+gently around the subject. Whimsical, cosy, timeless, like an old fairy-tale book. Line only: no
+fill, no colour, no grey, no heavy hatching. The ghost is a hollow sheet with nothing inside it, as
+wide at the bottom as at the top, ending in a soft wavy hem that never touches the ground and never
+narrows to a tail; no body, no legs, no feet. Two small eyes. It floats, with a small separate
+shadow on the ground below it. Scene: the ghost curled up asleep, floating just above a single blank
+sheet of paper as if it were a bed, eyes closed, content, a small crescent moon above. Centred in a
+square with generous margin, legible at 200 pixels. No text, no border.
+```
+
+**10. One continuous line.** Elegant and playful: the whole picture in a single unbroken line.
+
+```
+Continuous single-line drawing, black line on plain white: the whole picture drawn in one
+unbroken, looping line of even weight that never lifts from the paper. Elegant, playful, light,
+friendly. Line only: no fill, no colour, no grey, no shading. The ghost is a hollow sheet with
+nothing inside it, as wide at the bottom as at the top, ending in a soft wavy hem that never touches
+the ground and never narrows to a tail; no body, no legs, no feet. Two small eyes. It floats, with a
+small separate shadow on the ground below it. Scene: the ghost curled up asleep, floating just above
+a single blank sheet of paper as if it were a bed, eyes closed, content. Centred in a square with
+generous margin, legible at 200 pixels. No text, no border.
+```
 
 ## What the app needs them to be
 
