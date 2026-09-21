@@ -3223,3 +3223,44 @@ from a hand-built rig through three sessions.
   requestAnimationFrame is throttled to once a second while it is not the front window, so nothing read there is
   about any engine. jsdom's frames say nothing either, and the tests do not read them as if they did. The number
   that counts is the one on the Mac app's own screen, which is what the page is for.
+
+## 59. The smoke as a mask, for the engine that cannot afford the filter (2026-09-21)
+
+Matt, of the Mac app: "desktop is still very laggy, can we fix the wisp animation to be more performant?" - the
+direction being make it cheap, not turn it off. The measurement (58 above, the lane session's, in the real
+WKWebView): free at rest, 585-690ms for one repaint with one band's filter, over four seconds a frame scrolling with
+both, against 16-18ms with the filter off; the same page in GPU Chromium at 16.7ms whatever the filter does.
+
+- **Why the filter cannot be made cheap there.** WebKit renders the whole element that wears `filter: url()` into
+  a buffer and pushes it through the graph on every repaint, however small the primitives' subregions are; a
+  scrolling page repaints every frame. Tightening the subregions changes nothing about that. Moving the filter
+  onto a thin band at the header's edge would need `backdrop-filter: url()`, which WebKit does not take (its
+  backdrop-filter is the CSS functions only), so a band could only bend a copy of the words - a second DOM of the
+  note's top edge, kept in step. Not that.
+- **The mask instead** (art/wispMask.ts). The band's shape is made once, as an image: the same turbulence the
+  filter uses, `stitchTiles` so it tiles along the edge, over the same soft ramp the filter blurs from its strip
+  (a grey strip above the lip on white, `feGaussianBlur` down it), the noise added by arithmetic, the red channel
+  taken to alpha and pushed through a steep `feComponentTransfer` table so it tears the words into tendrils rather
+  than misting them. The foot is the same picture turned over, with its taller ramp. An image used as
+  `mask-image` is rasterised one time and cached; a mask composites on the GPU; nothing is re-rendered when the
+  page scrolls under it. The scroller's mask gains a layer per band, added to the ramp gradient it already wore
+  (`mask-composite: add`), laid from `--wisp-lip` (the hook writes it: the header's height and the drop) with
+  `--wisp-mask-above` of smoke over the lip to reach the top of any header. The drift is the same clock writing
+  `--wisp-noise-x/y` on the root into `mask-position`. `filter: none` in that mode: the graph never runs.
+- **What it loses and keeps.** The bend: the letters dissolve through the smoke instead of being pulled into it.
+  Kept: the smoke, its movement with the scroll, both ends, and the engines drawing the one page the same way.
+- **A switch, not a replacement.** `useWispEdge(..., { draw: 'filter' | 'mask' })`; left out, the platform decides
+  (the mask in the Mac app, `data-titlebar='overlay'`; the filter elsewhere, where the phone's GPU draws the bend
+  for nothing), and `glyph-wisp-draw` in localStorage overrides it for anyone comparing. The view says which it
+  wears (`data-wisp-draw`), so the bench (58) and the stylesheet can tell. The lane session's caution stands until
+  measured: a `mask-position` that changes every frame is a property change on the masked element, and if WebKit
+  re-composites for it the fallback is a fixed band with the drift dropped on the Mac, which the switch allows.
+- **Found on the way.** The two modules import each other, and two constants read wispEdge's numbers at
+  wispMask's top level: whichever module was entered first, the other's top level ran in the first's temporal dead
+  zone, and every page importing the editor failed to load. Nothing at the top level now reads across the cycle.
+  And a deploy was refused with every test green: a CodeMirror measure on the animation clock, firing after a
+  doneSync test, hit jsdom's missing `Range.getClientRects`, and Vitest exits 1 on an unhandled error. Every test
+  now gets the stub (src/test/setup.ts) that images.test.ts had for itself.
+- **Seen at 1280px in Chromium with the override:** the note's page wore `data-wisp-draw="mask"`, `filter: none`,
+  three mask layers `add`ed, the lip at 130px under a 112px bar, and a heading at the lip dissolved through the
+  smoke while the lines under it stood whole.
