@@ -4,6 +4,18 @@ import { createRoot, type Root } from 'react-dom/client';
 import { CanvasView } from './CanvasView.tsx';
 
 // Only the three the canvas calls are stood in for: the editor reads the rest of this module as it is.
+/*
+ * The chart card opens as a Mermaid diagram (editor/mermaid.ts), which loads the mermaid library the first time it
+ * draws: a dynamic import that takes seconds to evaluate. Left real, it kept running after the chart test ended and
+ * landed on the next test's turn of the queue - the drop test's `act` took two seconds alone and six under load,
+ * against forty milliseconds with it out of the way. These tests are of the canvas, not of the drawing.
+ */
+vi.mock('mermaid', () => ({
+  default: {
+    initialize: () => undefined,
+    render: async (id: string) => ({ svg: `<svg id="${id}"></svg>` }),
+  },
+}));
 vi.mock('../core/images.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../core/images.ts')>()),
   imageUrl: (name: string) => `blob:${name}`,
