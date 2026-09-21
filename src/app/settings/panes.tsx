@@ -17,6 +17,7 @@ import { GUIDE_MODEL_PAGE } from '../guide/pages.ts';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsFootnote } from './kit/settingsKit.tsx';
 import { SideKeyWaves } from '../capture/SideKeyWaves.tsx';
 import { WispBench } from './WispBench.tsx';
+import { windowFacts } from './windowFacts.ts';
 import { defaultHeight, saveHeight, savedHeight, useSideKeySpot } from '../capture/sideKey.ts';
 
 /**
@@ -632,6 +633,7 @@ export function DeveloperPane({ onGuide }: { onGuide: (page?: number) => void })
         <SettingRow label="Choose your model" hint="The welcome guide's page, on its own." onPress={() => onGuide(GUIDE_MODEL_PAGE)} />
         <SettingRow label="Welcome guide" hint="From the first page." onPress={() => onGuide(0)} />
       </PaneSection>
+      <WindowFacts />
       <PaneSection title="Smoke" description="The wisp edge costs the Mac app frames. This is where it is measured, on the screen it is drawn on.">
         <SettingRow
           icon={<Gauge size={20} />}
@@ -658,6 +660,24 @@ export function DeveloperPane({ onGuide }: { onGuide: (page?: number) => void })
         <ResetRow label="Reset everything" hint="The same, and the downloaded models too. They come back when asked for." models />
       </PaneSection>
     </>
+  );
+}
+
+function WindowFacts() {
+  const [facts, setFacts] = useState(windowFacts);
+  useEffect(() => {
+    const read = () => setFacts(windowFacts());
+    read();
+    window.addEventListener('resize', read);
+    return () => window.removeEventListener('resize', read);
+  }, []);
+  return (
+    <PaneSection title="Window" description="Read off the page: what it is given at its top, its size against the screen, and what draws it.">
+      <SettingRow label="Top inset" hint="The status bar's height when the page is drawn under it; 0 when it is not." value={facts.inset} />
+      <SettingRow label="Page" hint="Its size, and pixels to the point." value={facts.page} />
+      <SettingRow label="Screen" value={facts.screen} />
+      <SettingRow label="Engine" value={facts.engine} />
+    </PaneSection>
   );
 }
 
