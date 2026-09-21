@@ -9,7 +9,7 @@ import { usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { FrameRing, ms, runCell, type CellLimits } from '../diag/frameClock.ts';
 import { RowAction, SettingsCallout } from './kit/settingsKit.tsx';
-import { CONDITIONS, DRAWS, LONG_LIMITS, QUICK_LIMITS, reportText, SCROLLED_TO, wearingOf, whereItRuns, type Condition, type Draw, type Row } from './wispBenchRun.ts';
+import { CONDITIONS, DRAWS, floorVerdict, LONG_LIMITS, QUICK_LIMITS, reportText, SCROLLED_TO, wearingOf, whereItRuns, type Condition, type Draw, type Row } from './wispBenchRun.ts';
 import styles from './WispBench.module.css';
 
 /**
@@ -197,14 +197,20 @@ export function WispBench({ open, onClose, limits = { quick: QUICK_LIMITS, long:
     return () => window.clearTimeout(timer);
   }, [copied]);
 
-  /** Every drawing, every condition, one surface at a time, and the numbers as they come. */
+  /**
+   * Every drawing, every condition, one surface at a time, and the numbers as they come. The page without smoke
+   * goes first: if it cannot hold its frames the machine is busy, and the run stops there and says so rather than
+   * fill the table with numbers that are not about the smoke (wispBenchRun.ts `floorVerdict`).
+   */
   const run = async (long: boolean) => {
     const cell = long ? limits.long : limits.quick;
     const done: Row[] = [];
     setRows([]);
     setWhere(whereItRuns());
     setBeside(false);
-    for (const { value: which } of DRAWS) {
+    const order: Draw[] = ['none', 'filter', 'mask'];
+    for (const which of order) {
+      if (which !== 'none' && floorVerdict(done)?.ok === false) break;
       setRunning(`${which}…`);
       setDraw(which);
       await settle(settleMs);
@@ -231,6 +237,7 @@ export function WispBench({ open, onClose, limits = { quick: QUICK_LIMITS, long:
   if (!open) return null;
 
   const report = reportText(where, rows);
+  const verdict = floorVerdict(rows);
   const shown: Draw[] = beside && !running ? DRAWS.map((option) => option.value) : [draw];
 
   return createPortal(
@@ -303,6 +310,7 @@ export function WispBench({ open, onClose, limits = { quick: QUICK_LIMITS, long:
         {rows.length > 0 && (
           <div className={styles.results}>
             <p className={styles.meta}>{where}</p>
+            {verdict && (verdict.ok ? <p className={styles.lede}>{verdict.words}</p> : <SettingsCallout>{verdict.words}</SettingsCallout>)}
             <table className={styles.table} aria-label="Bench results">
               <thead>
                 <tr>

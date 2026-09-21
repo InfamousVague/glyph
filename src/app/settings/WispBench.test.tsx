@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { WispBench } from './WispBench.tsx';
-import { reportText, wearingOf } from './wispBenchRun.ts';
+import { floorVerdict, reportText, wearingOf, type Row } from './wispBenchRun.ts';
 
 /**
  * The smoke bench, as a page: opens over the developer page, offers the three drawings, wears the one chosen, runs
@@ -104,17 +104,27 @@ describe('the smoke bench', () => {
       });
     }
     const cells = [...document.querySelectorAll<HTMLElement>('table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].slice(0, 2).map((td) => td.textContent));
-    expect(cells).toEqual([
-      ['Filter', 'At rest'],
-      ['Filter', 'One repaint a frame'],
-      ['Filter', 'Scrolling'],
-      ['Mask', 'At rest'],
-      ['Mask', 'One repaint a frame'],
-      ['Mask', 'Scrolling'],
+    // The page without smoke goes first: its floor decides whether the rest is worth running.
+    expect(cells.slice(0, 3)).toEqual([
       ['No smoke', 'At rest'],
       ['No smoke', 'One repaint a frame'],
       ['No smoke', 'Scrolling'],
     ]);
+    // jsdom's frames are whatever the machine gives them; on a quiet one the run goes on to the other six, on a busy
+    // one it stops at the floor and says so. Either is the page doing its job.
+    if (cells.length === 9) {
+      expect(cells.slice(3)).toEqual([
+        ['Filter', 'At rest'],
+        ['Filter', 'One repaint a frame'],
+        ['Filter', 'Scrolling'],
+        ['Mask', 'At rest'],
+        ['Mask', 'One repaint a frame'],
+        ['Mask', 'Scrolling'],
+      ]);
+    } else {
+      expect(cells).toHaveLength(3);
+      expect(document.body.textContent).toContain('this machine was busy');
+    }
     // Only one surface was ever on the page: the run switches them rather than adding them.
     expect(surfaces()).toHaveLength(1);
     // The run's mark is gone with it.
@@ -132,6 +142,26 @@ describe('the smoke bench', () => {
     // No smoke is not a thing the app can be told to draw.
     choose('none');
     expect(() => pick('Use the none app-wide')).toThrow();
+  });
+});
+
+describe('floorVerdict', () => {
+  const row = (draw: Row['draw'], condition: Row['condition'], median: number): Row => ({ draw, condition, wearing: '', reading: { n: 10, median, p90: median, worst: median } });
+
+  it('says nothing until the page without smoke has been measured', () => {
+    expect(floorVerdict([])).toBeNull();
+    expect(floorVerdict([row('filter', 'scroll', 3157)])).toBeNull();
+  });
+
+  it('throws the table away when the bare page cannot hold a frame, and licenses it when it can', () => {
+    // The lane session's own table: a 17ms floor is what made the 585 beside it worth reading.
+    expect(floorVerdict([row('none', 'idle', 16.7), row('none', 'scroll', 17.2)])?.ok).toBe(true);
+    // The browser pane's throttle, or a machine at load 120: every number on the page is the machine's.
+    const busy = floorVerdict([row('none', 'idle', 1016.7), row('none', 'scroll', 83.3)]);
+    expect(busy?.ok).toBe(false);
+    expect(busy?.words).toContain('this machine was busy');
+    // The repaint cell is the page's own doing and is not the floor.
+    expect(floorVerdict([row('none', 'idle', 16.7), row('none', 'repaint', 40)])?.ok).toBe(true);
   });
 });
 
@@ -156,5 +186,10 @@ describe('reportText', () => {
       'draw\tcondition\twearing\tn\tmedian\tp90\tworst',
       'filter\tscroll\tfilter: top + foot\t3\t3157.0\t6507.0\t6507.4',
     ]);
+  });
+
+  it('carries the floor’s verdict under where it ran, so a pasted table cannot lose it', () => {
+    const text = reportText('where', [{ draw: 'none', condition: 'idle', wearing: 'nothing', reading: { n: 7, median: 1016.7, p90: 1016.7, worst: 1016.7 } }]);
+    expect(text.split('\n')[1]).toContain('this machine was busy');
   });
 });

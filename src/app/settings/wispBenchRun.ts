@@ -28,6 +28,29 @@ export const QUICK_LIMITS: CellLimits = { frames: 180, wallMs: 8000 };
 /** A long run, for cells whose frames are seconds, so they get more than a couple. */
 export const LONG_LIMITS: CellLimits = { frames: 180, wallMs: 30_000 };
 
+/**
+ * The floor: what a frame of the page WITHOUT smoke may take before the whole table is thrown away. A display draws
+ * at 60Hz (16.7ms) or 120Hz (8.3ms); a page with nothing on it that cannot hold a frame under this is on a machine
+ * that is busy, and nothing measured beside it is a measurement of the smoke. The lane session's rule, from its own
+ * table: the clean "no filter" floor of 17ms is what licensed the 585 next to it. So the run does the no-smoke
+ * cells first, and stops there rather than spend eight cells on numbers that would sit next to real ones.
+ */
+export const FLOOR_MS = 25;
+
+/** Whether the table can be read at all, from its no-smoke rows; and the words for it either way. */
+export function floorVerdict(rows: readonly Row[]): { ok: boolean; words: string } | null {
+  const bare = rows.filter((row) => row.draw === 'none' && row.condition !== 'repaint');
+  if (bare.length === 0) return null;
+  const worst = Math.max(...bare.map((row) => row.reading.median));
+  if (worst > FLOOR_MS) {
+    return {
+      ok: false,
+      words: `The page without smoke could not hold a frame (median ${ms(worst)}ms): this machine was busy, and nothing here is a measurement of the smoke. Run it again when the machine is quiet.`,
+    };
+  }
+  return { ok: true, words: `The page without smoke held its frames (median ${ms(worst)}ms), so the rest can be read against it.` };
+}
+
 /** Where the surface sits while it is measured: off its top, so both bands are on. */
 export const SCROLLED_TO = 400;
 
@@ -62,6 +85,7 @@ export function reportText(where: string, rows: readonly Row[]): string {
   const lines = rows.map((row) =>
     [row.draw, row.condition, row.wearing, String(row.reading.n), ms(row.reading.median), ms(row.reading.p90), ms(row.reading.worst)].join('\t'),
   );
-  return [where, head, ...lines].join('\n');
+  const verdict = floorVerdict(rows);
+  return [where, ...(verdict ? [verdict.words] : []), head, ...lines].join('\n');
 }
 
