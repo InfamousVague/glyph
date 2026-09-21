@@ -19,22 +19,25 @@ negotiable - they are why the existing set works on both themes at every size:
 - **Flat.** No gradients, no shading, no texture, no outline-plus-fill-in-two-tones.
 - **Square**, drawn at about 120px (`7.5rem` on the home page's empty state). Detail below ~4px of that square is
   mud: no eyelashes, no cross-hatching, no thin whiskers.
-- **Holes are holes**, cut with an even-odd path rather than painted white, so they stay holes on any ground.
+- **Lines, not fills** (Matt, 2026-09-21, of the first set: "I want them to be outlines not solid fill"). One stroke
+  weight for the whole set, about 4% of the square, round caps and joins; the inside of a shape is the paper, so
+  nothing is painted white and nothing needs a hole cut.
 - **Decoration only** - every one is `aria-hidden`, and the words beside it carry the meaning.
 
-So the target is a **one-colour silhouette with cut-out holes**: solid black shapes on white, clean closed curves,
-nothing thinner than about 3% of the square. That is what traces cleanly into an SVG path and what reads at 120px.
+So the target is **one-colour line art**: a single clean black outline on white, one even stroke, closed shapes,
+no fill inside them. That is what traces to stroked SVG paths and what reads at 120px without turning to mud.
 
 ## The style block
 
 Paste this into **every** prompt, unchanged. Consistency across the set comes from repeating it word for word.
 
 ```
-Flat vector illustration, pure solid black shapes on a plain white background. No colour, no grey,
-no gradients, no shading, no texture, no outlines around the shapes. Single continuous silhouette
-with details cut out as holes. Thick, confident forms; nothing thinner than a pen stroke. Centred
-in a square frame with generous empty margin. Simple and geometric enough to read clearly at 120
-pixels. No text, no letters, no words, no watermark, no border.
+Minimal line-art icon, a single clean black outline on a plain white background. Line drawing
+only: no fill inside the shapes, no colour, no grey, no gradients, no shading, no hatching, no
+texture. One even stroke weight throughout, medium-thick, with rounded ends and rounded corners.
+Closed, simple shapes; nothing thinner than the main line. Centred in a square frame with
+generous empty margin. Simple and geometric enough to read clearly at 120 pixels. No text, no
+letters, no words, no watermark, no border, no frame around the drawing.
 ```
 
 ## The character
@@ -43,14 +46,20 @@ Generate this one **first**, and feed the result back as a reference image to ev
 the same ghost each time.
 
 ```
-A small friendly ghost character. Its body is a soft rounded dome that tapers into two or three
-gentle wisps of smoke where feet would be, as if it is a curl of smoke rising. Two simple oval
-eyes cut out of the silhouette, set wide and low. No mouth, no arms unless the scene needs them,
-no eyebrows. Calm and quiet rather than spooky or cute-cartoonish.
+A small friendly ghost character, the classic sheet ghost: a wide rounded head that flows
+straight down into a body about as wide as the head, ending in a soft scalloped hem of three or
+four gentle waves along the bottom. The body stays broad all the way down; it never narrows to a
+point or a tail. Two small oval eyes drawn as outlines, set wide and low. Two short rounded arm
+bumps at the sides. No mouth, no eyebrows, no legs. Calm and quiet rather than spooky or
+cute-cartoonish.
 ```
 
 **Character sheet (prompt 1).** Ask for the same ghost three times in one square - facing forward, three-quarter,
 and drifting sideways - so later prompts have a reference for how it turns.
+
+Why the shape changed: the first set asked for a dome "tapering into wisps", and what came back was a teardrop with a
+tail (Matt: "they look a bit sperm-like"). A ghost reads as a ghost from its hem, not from a tail: the width held all
+the way down and the wave along the bottom are the two things to keep in every prompt.
 
 ## The fifteen
 
@@ -101,14 +110,14 @@ sheet, about to make the first mark. One small dot of ink sits where the nib wil
 
 ```
 The ghost holding a large round magnifying glass up to one eye, its body seen small and distorted
-through the lens. The lens is a clean circle cut out of the silhouette.
+through the lens. The lens is a clean outlined circle, and the ghost's eye shows inside it.
 ```
 
 **6. The trash, empty.**
 
 ```
-The ghost sitting inside an empty waste basket with its wisps hanging over the rim, perfectly at
-home. The basket is a simple tapered shape with two straight bands across it.
+The ghost sitting inside an empty waste basket with its scalloped hem draped over the rim,
+perfectly at home. The basket is a simple tapered shape with two straight bands across it.
 ```
 
 **7. The archive, empty.**
@@ -129,7 +138,7 @@ travelling toward it from the side as sound. The arcs are thick and evenly space
 
 ```
 The ghost sitting cross-legged in mid-air with its eyes closed, three small dots orbiting above
-its head in an arc, as if thinking. The dots are solid circles of increasing size.
+its head in an arc, as if thinking. The dots are outlined circles of increasing size.
 ```
 
 **10. An empty canvas.**
@@ -143,7 +152,7 @@ line that connects two of them, about to join the third. The cards are plain rou
 
 ```
 The ghost leaning proudly against a single large checkbox with a thick tick in it, one arm resting
-on its top edge. The box is a rounded square; the tick is cut out of the solid box as a hole.
+on its top edge. The box is an outlined rounded square with the tick drawn inside it.
 ```
 
 **12. Signed out, not syncing.**
@@ -163,7 +172,7 @@ down at the knot with its eyes. The ribbon is one continuous thick band.
 **14. Welcome, first run.**
 
 ```
-The ghost drifting upward with one hand raised in a small wave, its wisps trailing longer than
+The ghost drifting upward with one hand raised in a small wave, its hem rippling a little more than
 usual beneath it, as if it has just arrived.
 ```
 
@@ -176,17 +185,19 @@ the front. It peers over the top of the parcel.
 
 ## After they come back
 
-1. **Trace to SVG.** Any tracer that outputs paths (Illustrator's Image Trace at Black and White Logo, or SVGcode)
-   works; the flat black silhouette is chosen so that it traces without cleanup.
-2. **Strip the colour.** Remove every `fill` from the paths, set the root `fill="currentColor"`, and delete the
-   white background rectangle a tracer usually adds. Holes become `fill-rule="evenodd"` on the path that owns them.
+1. **Trace to SVG as strokes.** A centreline tracer (Illustrator's Image Trace with Strokes on and Fills off, or
+   Inkscape's Trace Bitmap in centerline mode) turns each line into one path; an outline tracer would give every
+   line two edges and a fill between them, which is twice the geometry and a stroke that cannot be retuned.
+2. **Strip the colour.** Every path `fill="none"`, the root `stroke="currentColor"`, one `stroke-width` for the whole
+   drawing (about 5 in a 120 box), `stroke-linecap="round"` and `stroke-linejoin="round"`; delete the white
+   background rectangle a tracer usually adds. Nothing is painted white and nothing is a hole.
 3. **Square the box.** `viewBox="0 0 120 120"`, which is what every shape in `art/Shapes.tsx` uses, so they can be
    swapped in and out without touching a stylesheet.
 4. **Check both themes at 120px**, and check them at `--app-ink-3`, which is where most of them sit: a shape that
    reads in full ink can vanish at a third of it.
 5. **Give it its thing to do.** Every existing shape moves, slowly and on a loop with long rests
    (`art/Shapes.module.css`), and holds still under reduced motion. A ghost has an obvious one: drift up an eighth
-   of the square and back, with its wisps lagging behind. That is a transform and an opacity, so nothing lays out
+   of the square and back, with its hem lagging behind. That is a transform and an opacity, so nothing lays out
    again.
 
 ## Not asked, so not chosen
