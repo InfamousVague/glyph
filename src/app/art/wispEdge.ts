@@ -147,14 +147,23 @@ function driftStep(now: number): void {
   noise.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
   slide.setAttribute('dx', dx);
   slide.setAttribute('dy', dy);
-  // A view drawn as a mask (art/wispMask.ts) slides its smoke by the same amounts: the mask moves, nothing is redrawn.
-  document.documentElement.style.setProperty('--wisp-noise-x', `${dx}px`);
-  document.documentElement.style.setProperty('--wisp-noise-y', `${dy}px`);
+  // A view drawn as a mask (art/wispMask.ts) slides its smoke by the same amounts. Written on the views wearing it,
+  // never on the root: a custom property set on the root thirty-five times a second invalidates style for everything
+  // that inherits it, which is the whole document, whatever the mask itself costs (the lanes session's point).
+  for (const view of masked()) {
+    view.style.setProperty('--wisp-noise-x', `${dx}px`);
+    view.style.setProperty('--wisp-noise-y', `${dy}px`);
+  }
   // The foot's own noise drifts with the top's, so both ends of a view move as one smoke.
   document.getElementById(WISP_EDGE_FOOT_NOISE_ID)?.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
   const footSlide = document.getElementById(WISP_EDGE_FOOT_DRIFT_ID);
   footSlide?.setAttribute('dx', dx);
   footSlide?.setAttribute('dy', dy);
+}
+
+/** The views drawn as a mask right now: the drift slides their smoke by writing on them (app.css `--wisp-noise-x/y`). */
+function masked(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>('[data-wisp-draw="mask"]')];
 }
 
 /** The drift's own time, advanced only while it runs; and the last frame's, to measure each step by. */
@@ -183,8 +192,10 @@ function drift(on: boolean, reset = true): void {
       slide?.setAttribute('dx', '0');
       slide?.setAttribute('dy', '0');
     }
-    document.documentElement.style.setProperty('--wisp-noise-x', '0px');
-    document.documentElement.style.setProperty('--wisp-noise-y', '0px');
+    for (const view of masked()) {
+      view.style.setProperty('--wisp-noise-x', '0px');
+      view.style.setProperty('--wisp-noise-y', '0px');
+    }
   }
 }
 

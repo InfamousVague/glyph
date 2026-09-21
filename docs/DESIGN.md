@@ -3246,7 +3246,9 @@ both, against 16-18ms with the filter off; the same page in GPU Chromium at 16.7
   page scrolls under it. The scroller's mask gains a layer per band, added to the ramp gradient it already wore
   (`mask-composite: add`), laid from `--wisp-lip` (the hook writes it: the header's height and the drop) with
   `--wisp-mask-above` of smoke over the lip to reach the top of any header. The drift is the same clock writing
-  `--wisp-noise-x/y` on the root into `mask-position`. `filter: none` in that mode: the graph never runs.
+  `--wisp-noise-x/y` into `mask-position` - on the views wearing the mask, not on the root, where a custom property
+  written thirty-five times a second invalidates style for the whole document whatever the mask costs (the lanes
+  session's point, before any measurement). `filter: none` in that mode: the graph never runs.
 - **What it loses and keeps.** The bend: the letters dissolve through the smoke instead of being pulled into it.
   Kept: the smoke, its movement with the scroll, both ends, and the engines drawing the one page the same way.
 - **A switch, not a replacement.** `useWispEdge(..., { draw: 'filter' | 'mask' })`; left out, the platform decides
