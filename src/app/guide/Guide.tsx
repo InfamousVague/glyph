@@ -154,7 +154,7 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
   });
 
   return (
-    <div ref={root} className={styles.guide} role="dialog" aria-modal="true" aria-label="How to use Glyph">
+    <div ref={root} className={styles.guide} role="dialog" aria-modal="true" aria-label="How to use Ghost.md">
       <header ref={topRef} className={`app-headerPane ${styles.top}`}>
         <span className={styles.progress}>
           {index + 1} of {PAGES.length}
@@ -263,10 +263,10 @@ function Welcome({ onWatched }: { onWatched: () => void }) {
       <HeadsUp onDone={() => setShow(true)} />
       <AntiAiStage waiting={!show} onRound={onWatched} />
       <p className={styles.lead}>
-        Glyph uses AI to turn what you say into notes. Every model runs right here on your phone, so nothing you say goes to a cloud, a company, or
+        Ghost.md uses AI to turn what you say into notes. Every model runs right here on your phone, so nothing you say goes to a cloud, a company, or
         anyone. Unless you share them, I guess.
       </p>
-      <ul className={styles.promises} aria-label="How Glyph’s AI works">
+      <ul className={styles.promises} aria-label="How Ghost.md’s AI works">
         {PROMISES.map(({ icon: Icon, label }, index) => (
           <li key={label} className={styles.promise} style={{ animationDelay: `${240 + index * 110}ms` }}>
             <span className={styles.promiseIcon} aria-hidden="true">
@@ -386,7 +386,7 @@ function Model() {
       {isTauri() && chosen ? (
         <p className={styles.fine}>
           {download?.id === formatModel
-            ? `Getting ${modelName(formatModel)}, ${gb(download.received)} of ${gb(download.total)}. Keep Glyph open.`
+            ? `Getting ${modelName(formatModel)}, ${gb(download.received)} of ${gb(download.total)}. Keep Ghost.md open.`
             : here
               ? `${chosen.name} is on the phone.`
               : problem
@@ -437,8 +437,8 @@ function SideKey() {
 
   const assistantPath =
     kind === 'samsung'
-      ? ['Settings', 'Apps', 'Choose default apps', 'Digital assistant app', 'Device assistance app', 'Glyph']
-      : ['Settings', 'Apps', 'Default apps', 'Digital assistant app', 'Default digital assistant app', 'Glyph'];
+      ? ['Settings', 'Apps', 'Choose default apps', 'Digital assistant app', 'Device assistance app', 'Ghost.md']
+      : ['Settings', 'Apps', 'Default apps', 'Digital assistant app', 'Default digital assistant app', 'Ghost.md'];
   const keyPath =
     kind === 'samsung'
       ? ['Settings', 'Advanced features', 'Side button', 'Press and hold', 'Digital assistant']
@@ -452,13 +452,13 @@ function SideKey() {
       <h1 className={styles.title}>Make the side key record.</h1>
       {held ? (
         <p className={styles.done} role="status">
-          <span aria-hidden="true">✓</span> Glyph is your assistant.
+          <span aria-hidden="true">✓</span> Ghost.md is your assistant.
         </p>
       ) : null}
 
       <ol className={styles.steps}>
         <li>
-          <h2 className={styles.stepTitle}>Make Glyph your digital assistant.</h2>
+          <h2 className={styles.stepTitle}>Make Ghost.md your digital assistant.</h2>
           <Path parts={assistantPath} />
           {canOpen && !held ? (
             <button type="button" className={`app-word ${styles.action}`} onClick={open}>
@@ -478,7 +478,7 @@ function SideKey() {
         <li>
           <h2 className={styles.stepTitle}>Hold the key and talk.</h2>
           <p className={styles.note}>
-            Glyph opens already listening, even on the lock screen. Let go and talk. If the phone is locked, the note is
+            Ghost.md opens already listening, even on the lock screen. Let go and talk. If the phone is locked, the note is
             there once you unlock it.
           </p>
         </li>
@@ -487,7 +487,7 @@ function SideKey() {
           <p className={styles.note}>That saves the note. Tapping Done does the same.</p>
         </li>
         <li>
-          <h2 className={styles.stepTitle}>Say where things go, and Glyph sorts it after.</h2>
+          <h2 className={styles.stepTitle}>Say where things go, and Ghost.md sorts it after.</h2>
           <p className={styles.note}>
             “Add oat milk to groceries” goes to your Groceries note, and the rest becomes a new note. You see where
             everything is going before anything is filed. Turn off Memo mode in Settings to get a plain new note every
@@ -534,7 +534,7 @@ function Markdown() {
       <MarkdownArt className={styles.art} />
       <h1 className={styles.title}>The marks, and how to say them.</h1>
       <p className={styles.lead}>
-        A note is Markdown: plain words with a few marks around them. Type the marks, or say the words in quotes and Glyph writes them as you talk. The marks stay
+        A note is Markdown: plain words with a few marks around them. Type the marks, or say the words in quotes and Ghost.md writes them as you talk. The marks stay
         on the page, a little dimmed, so you always see what you wrote.
       </p>
       <h2 className={styles.section}>Said, or typed</h2>
@@ -580,7 +580,7 @@ function Markdown() {
       </ul>
       {own.length ? (
         <>
-          <h2 className={styles.section}>Glyph’s own</h2>
+          <h2 className={styles.section}>Ghost.md’s own</h2>
           <ul className={styles.phrases}>
             {own.map((format) => (
               <li key={format.name} className={`${styles.phrase} ${styles.marked}`}>
@@ -631,7 +631,7 @@ function Tips() {
       <ol className={styles.steps}>
         <li>
           <h2 className={styles.stepTitle}>Pause before a cue word.</h2>
-          <p className={styles.note}>A short pause before “heading” or “bullet point” starts a new sentence. That’s where Glyph listens for cues.</p>
+          <p className={styles.note}>A short pause before “heading” or “bullet point” starts a new sentence. That’s where Ghost.md listens for cues.</p>
         </li>
         <li>
           <h2 className={styles.stepTitle}>Or say the cue on its own.</h2>
@@ -643,7 +643,7 @@ function Tips() {
         </li>
         <li>
           <h2 className={styles.stepTitle}>Talk normally.</h2>
-          <p className={styles.note}>Glyph picks lists and to-dos out of normal speech. It never changes your words, only how they’re laid out.</p>
+          <p className={styles.note}>Ghost.md picks lists and to-dos out of normal speech. It never changes your words, only how they’re laid out.</p>
         </li>
         <li>
           <h2 className={styles.stepTitle}>Fix it after.</h2>

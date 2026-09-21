@@ -201,7 +201,7 @@ async function once(): Promise<void> {
     return;
   }
   if (!(await nativeReady())) {
-    setStatus({ phase: 'error', message: 'Sync needs the newest Glyph. Install it from attack.fm/glyph.' });
+    setStatus({ phase: 'error', message: 'Sync needs the newest Ghost.md. Install it from attack.fm/glyph.' });
     return;
   }
   setStatus({ phase: 'syncing', message: null });

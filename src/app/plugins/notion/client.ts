@@ -79,7 +79,7 @@ async function challengeOf(verifier: string): Promise<string> {
  * Glyph comes back to the front, even if the page reloaded meanwhile.
  */
 export async function startNotionSignIn(): Promise<void> {
-  if (!(await notionAvailable())) throw new Error('Notion needs the newest Glyph. Install it from Settings > Updates.');
+  if (!(await notionAvailable())) throw new Error('Notion needs the newest Ghost.md. Install it from Settings > Updates.');
   const state = randomToken();
   const verifier = randomToken();
   const challenge = await challengeOf(verifier);
@@ -167,8 +167,8 @@ export async function notionRequest<T>(method: 'GET' | 'POST' | 'PATCH', path: s
   const answer = await host.invoke<Answer<T & { message?: string }>>('notion_request', { request: { method, path, body: body ?? null } });
   if (answer.status >= 400) {
     const message = (answer.body as { message?: string } | null)?.message;
-    if (answer.status === 401) throw new Error('Notion signed Glyph out. Sign in again in Settings > Notion.');
-    if (answer.status === 404) throw new Error(path.startsWith('pages/') ? 'Notion can’t see that task. Share its board with Glyph in Notion.' : 'Notion can’t see that board. Share it with Glyph in Notion.');
+    if (answer.status === 401) throw new Error('Notion signed Ghost.md out. Sign in again in Settings > Notion.');
+    if (answer.status === 404) throw new Error(path.startsWith('pages/') ? 'Notion can’t see that task. Share its board with Ghost.md in Notion.' : 'Notion can’t see that board. Share it with Ghost.md in Notion.');
     throw new Error(message ?? `Notion answered ${answer.status}.`);
   }
   return answer.body;

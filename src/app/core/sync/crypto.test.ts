@@ -104,7 +104,7 @@ describe('a sealed blob', () => {
     const key = await newAccountKey();
     const sealed = await sealBytes(key, new Uint8Array([1]), 'prefs');
     sealed[0] = 9;
-    await expect(openBytes(key, sealed, 'prefs')).rejects.toThrow(/newer Glyph/);
+    await expect(openBytes(key, sealed, 'prefs')).rejects.toThrow(/newer Ghost.md/);
   });
 });
 

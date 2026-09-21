@@ -13,7 +13,7 @@ import { canvasNoteBody, type Canvas } from './jsonCanvas.ts';
  * Written in JSON Canvas as the first is (docs/CANVAS.md).
  */
 
-export const HOW_TITLE = 'How Glyph works';
+export const HOW_TITLE = 'How Ghost.md works';
 
 export function howCanvas(): Canvas {
   return {
@@ -28,7 +28,7 @@ export function howCanvas(): Canvas {
         width: 260,
         height: 170,
         color: '4',
-        text: '# Say it\n\nTap **Speak**, or press the side key, and talk. Glyph writes the words as you say them.',
+        text: '# Say it\n\nTap **Speak**, or press the side key, and talk. Ghost.md writes the words as you say them.',
       },
       {
         id: 'marks',
@@ -37,7 +37,7 @@ export function howCanvas(): Canvas {
         y: 0,
         width: 260,
         height: 170,
-        text: '# Say the marks too\n\nSay *heading*, *list*, *done* or *table*, and Glyph draws them. No menus.',
+        text: '# Say the marks too\n\nSay *heading*, *list*, *done* or *table*, and Ghost.md draws them. No menus.',
       },
       {
         id: 'note',

@@ -35,7 +35,7 @@ describe('the theme cards', () => {
     expect(THEME_OPTIONS[0]!.palette).toBe(INK_LIGHT);
   });
 
-  it('paint Light and Dark in Glyph’s own ink - no hue anywhere - with the accent left to the app', () => {
+  it('paint Light and Dark in Ghost.md’s own ink - no hue anywhere - with the accent left to the app', () => {
     const grey = /^oklch\([\d.]+ 0 0\)$/;
     for (const palette of [INK_LIGHT, INK_DARK]) {
       for (const key of ['background', 'sidebar', 'surface', 'border', 'text', 'muted'] as const) expect(palette[key]).toMatch(grey);

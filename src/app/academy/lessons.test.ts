@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHAPTERS, LESSONS, lessonsIn, readProgress, writeProgress } from './lessons.ts';
 
-describe('Glyph Academy’s lessons', () => {
+describe('Ghost.md Academy’s lessons', () => {
   it('teaches every lesson with an example that passes its own check', () => {
     for (const lesson of LESSONS) {
       expect(lesson.passes(lesson.example), `${lesson.id}: its own example`).toBe(true);

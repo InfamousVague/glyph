@@ -37,7 +37,7 @@ function PluginCard({ plugin, on, held, onChange, onOpen }: PluginCardProps) {
   const Icon = plugin.icon;
   const [why, setWhy] = useState(false);
   return (
-    <PaneSection footer={`${manifest.standard ? 'Ships with Glyph' : manifest.author} · version ${manifest.version}`}>
+    <PaneSection footer={`${manifest.standard ? 'Ships with Ghost.md' : manifest.author} · version ${manifest.version}`}>
       <PaneHero glyph={<Icon size={22} />} title={manifest.name} meta={manifest.description} trailing={<Switch aria-label={`${manifest.name} plugin`} checked={on && !held} onCheckedChange={onChange} disabled={held} />} />
       {held ? <SettingRow label="Off while nothing leaves the phone" hint="It uses the internet. Switch “Nothing leaves the phone” off in Developer to use it." /> : null}
       {on && !held && plugin.settings && onOpen ? (
@@ -69,7 +69,7 @@ export function PluginsPane({ onOpen }: { onOpen?: (sectionId: string) => void }
       {all.map((plugin) => (
         <PluginCard key={plugin.manifest.id} plugin={plugin} on={enabled.includes(plugin)} held={localOnly && usesNetwork(plugin.manifest)} onChange={(on) => setEnabled(plugin.manifest.id, on)} onOpen={onOpen} />
       ))}
-      <SettingsFootnote>Plugins ship inside Glyph and update with it. There is nothing to install, and nothing here reaches anywhere its card does not say.</SettingsFootnote>
+      <SettingsFootnote>Plugins ship inside Ghost.md and update with it. There is nothing to install, and nothing here reaches anywhere its card does not say.</SettingsFootnote>
     </>
   );
 }

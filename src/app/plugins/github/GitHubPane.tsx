@@ -42,7 +42,7 @@ export function GitHubPane() {
         )}
       </PaneSection>
 
-      <PaneSection title="Token" description="A token lets Glyph read private repos and make and close issues from your notes. It stays on this phone.">
+      <PaneSection title="Token" description="A token lets Ghost.md read private repos and make and close issues from your notes. It stays on this phone.">
         {hasToken ? (
           <SettingRow
             label="A token is kept"

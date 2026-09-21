@@ -143,7 +143,7 @@ export async function sealBytes(accountKey: CryptoKey, bytes: Bytes, context: st
 
 /** The bytes back out of a sealed blob. Fails on the wrong key, a tampered blob, or a blob moved from another context. */
 export async function openBytes(accountKey: CryptoKey, sealed: Bytes, context: string): Promise<Bytes> {
-  if (sealed[0] !== VERSION) throw new Error('This was sealed by a newer Glyph. Update the app to read it.');
+  if (sealed[0] !== VERSION) throw new Error('This was sealed by a newer Ghost.md. Update the app to read it.');
   const iv = sealed.slice(1, 1 + IV_BYTES);
   return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(context) }, accountKey, sealed.slice(1 + IV_BYTES)));
 }

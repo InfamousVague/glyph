@@ -21,7 +21,7 @@ import type { Plan } from './command.ts';
  * Whisper, and is not loaded ahead of time for the same reason, so the first command of a launch waits on the load.
  */
 
-export const COMMAND_PROMPT = String.raw`You read one spoken command for Glyph, a notes app, and answer with JSON. The person said "Glyph" and then the command. It was written down by speech recognition, so words can be misheard and a note's name can come out spelled or split differently.
+export const COMMAND_PROMPT = String.raw`You read one spoken command for Ghost.md, a notes app, and answer with JSON. The person said "Ghost" and then the command. It was written down by speech recognition, so words can be misheard and a note's name can come out spelled or split differently.
 
 Answer with exactly one JSON object on one line, and nothing else. It is one of:
 {"action":"add","note":"<a title from the list>","text":"<what to add>","item":false,"task":false}

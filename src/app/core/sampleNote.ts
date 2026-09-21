@@ -53,7 +53,7 @@ Six sizes, from one \`#\` to six.
 
 A secret between pairs of pipes goes to smoke until you put the caret in it: ||the cabin key is under the third stone||.
 
-## Glyph's own marks
+## Ghost.md's own marks
 
 ==Highlight== the line you will want again. An aside is a note to yourself, %%smaller and quieter%%. Mark a fact to check as ??unsure??, and say why in brackets after it: ??the deposit??(Sam said 400, the email says 450) — tap the words for the note. ^^Shout^^ without going bold. Show what was ++added++ beside what was ~~struck~~. Each has a word to say while recording: "highlight", then "end highlight".
 
@@ -77,7 +77,7 @@ A secret between pairs of pipes goes to smoke until you put the caret in it: ||t
 
 ## Links
 
-A link with words: [Glyph](https://attack.fm/glyph). A bare address is shortened on the page: https://attack.fm/glyph
+A link with words: [Ghost.md](https://attack.fm/glyph). A bare address is shortened on the page: https://attack.fm/glyph
 
 A line that is nothing but a link gets a card under it, with the page's title and site:
 
@@ -141,7 +141,7 @@ Three dashes on a line of their own:
 
 ${picture}## And the rest
 
-Say "Glyph, add a table to this note" and the phone asks what goes in it. The cog at the top links a note to a Notion board or a repo. Press and hold on any words and choose Style to put one of these marks on them.
+Say "Ghost, add a table to this note" and the phone asks what goes in it. The cog at the top links a note to a Notion board or a repo. Press and hold on any words and choose Style to put one of these marks on them.
 `;
 }
 

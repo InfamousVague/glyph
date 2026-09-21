@@ -64,10 +64,10 @@ export interface Row {
 
 /** What is being measured on, for the top of the table. */
 export function whereItRuns(): string {
-  const app = isTauri() ? 'Glyph app' : 'browser';
+  const app = isTauri() ? 'Ghost.md app' : 'browser';
   const engine = engineName(navigator.userAgent);
   const size = `${window.innerWidth}x${window.innerHeight} @${window.devicePixelRatio}`;
-  return `Glyph ${__GLYPH_VERSION__} · ${app} · ${engine} · ${size}`;
+  return `Ghost.md ${__GLYPH_VERSION__} · ${app} · ${engine} · ${size}`;
 }
 
 /** What the element is wearing right now, in the words the CSS uses. */

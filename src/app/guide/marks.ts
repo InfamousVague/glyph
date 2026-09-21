@@ -137,7 +137,7 @@ const OWN: MarkGroup[] = [
       { symbol: '***', name: 'Both', typed: '***really now***', words: 'really now', looks: 'both', icon: Baseline, say: '“bold italic” … “end bold italic”' },
       { symbol: '~~', name: 'Struck through', typed: '~~the old plan~~', words: 'the old plan', looks: 'struck', icon: Strikethrough, say: '“strike” … “end strike”' },
       { symbol: '`', name: 'Code', typed: '`npm run dev`', words: 'npm run dev', looks: 'code', icon: Code, say: '“code” … “end code”' },
-      { symbol: '[ ]( )', name: 'A link', typed: '[Glyph](https://attack.fm/glyph)', words: 'Glyph', looks: 'link', icon: Link, say: '“link our site to attack dot fm end link”' },
+      { symbol: '[ ]( )', name: 'A link', typed: '[Ghost.md](https://attack.fm/glyph)', words: 'Ghost.md', looks: 'link', icon: Link, say: '“link our site to attack dot fm end link”' },
       { symbol: '#', name: 'A tag', typed: '- [ ] Ship the pricing page #web #launch', words: '#web', looks: 'tag', icon: Hash, say: '“hashtag web”' },
     ],
   },
@@ -225,7 +225,7 @@ const OWN: MarkGroup[] = [
         words: '',
         looks: 'table',
         icon: Table,
-        say: '“Glyph, add a table to this note”',
+        say: '“Ghost, add a table to this note”',
       },
       { symbol: '![ ]( )', name: 'A picture', typed: '![A cassette](image/tape.jpg)', words: 'A cassette', looks: 'picture', icon: Image },
       { symbol: '```', name: 'A block of code', typed: '```js\nconst note = "hello";\n```', words: 'const note = "hello";', looks: 'fence', icon: SquareCode, say: '“code block in bash” … “end code block”' },
@@ -254,7 +254,7 @@ const OWN: MarkGroup[] = [
         words: 'ship-page',
         looks: 'board',
         icon: LayoutGrid,
-        say: '“Glyph, make this a board”',
+        say: '“Ghost, make this a board”',
       },
     ],
   },
@@ -297,5 +297,5 @@ export function markGroups(): MarkGroup[] {
     note: 'Sam said 400',
     say: '“… end unsure, note Sam said 400, end note”',
   };
-  return [...OWN, { title: 'Glyph’s own', lead: 'Marks the app adds, each from a plugin you can switch off.', rows: [...rows, tinted, noted] }];
+  return [...OWN, { title: 'Ghost.md’s own', lead: 'Marks the app adds, each from a plugin you can switch off.', rows: [...rows, tinted, noted] }];
 }

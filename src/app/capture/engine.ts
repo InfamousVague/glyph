@@ -240,7 +240,7 @@ function browser(handlers: CaptureHandlers): CaptureSession {
     stop: () => void;
   };
   const Ctor = (window as unknown as { webkitSpeechRecognition?: new () => Recognition }).webkitSpeechRecognition;
-  if (!Ctor) throw new Error('Voice notes need the Glyph app; this browser has no speech recognition.');
+  if (!Ctor) throw new Error('Voice notes need the Ghost.md app; this browser has no speech recognition.');
 
   const recognition = new Ctor();
   recognition.continuous = true;
@@ -325,15 +325,15 @@ const SCRIPTS: Record<string, string[]> = {
     'Remember to ask Sam about the dog.',
     'Separately the car needs an oil change before we leave.',
   ],
-  route: ['Oat milk, eggs and the good coffee.', 'Glyph, move this to shopping list.', 'Yes.', 'And bin bags.'],
-  leave: ['Quick thought before I forget.', 'Glyph, leave a note on the page for attack FM that says the seek bar drifts on two devices.', 'Yes.', 'Glyph, leave a note for attack FM.', 'Ship the APK on Friday.', 'Yes.'],
-  item: ['Quick thought before I forget.', 'Glyph, new item for attack FM.', 'Fix the login bug on Android.', 'Yes.', 'Glyph, new tasks for attack FM.', 'Update the readme, ship the APK and tell Sam.', 'Yes.'],
-  table: ['Bug bash on Friday.', 'Glyph, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it.", 'Yes.'],
-  giveback: ['Pick up the parcel.', 'Glyph needs a plugin store and a settings search.'],
+  route: ['Oat milk, eggs and the good coffee.', 'Ghost, move this to shopping list.', 'Yes.', 'And bin bags.'],
+  leave: ['Quick thought before I forget.', 'Ghost, leave a note on the page for attack FM that says the seek bar drifts on two devices.', 'Yes.', 'Ghost, leave a note for attack FM.', 'Ship the APK on Friday.', 'Yes.'],
+  item: ['Quick thought before I forget.', 'Ghost, new item for attack FM.', 'Fix the login bug on Android.', 'Yes.', 'Ghost, new tasks for attack FM.', 'Update the readme, ship the APK and tell Sam.', 'Yes.'],
+  table: ['Bug bash on Friday.', 'Ghost, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it.", 'Yes.'],
+  giveback: ['Pick up the parcel.', 'Ghost needs a plugin store and a settings search.'],
   review: ['Bug bash on Friday.', 'Fix the seat bar on two devices.', 'Downloads get stuck on the discover list.'],
-  tableask: ['Bug bash on Friday.', 'Glyph, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it."],
-  ask: ['Quick thought before I forget.', 'Glyph, add a list item to the attack FM.', 'Fix the seek bar.'],
-  command: ['Quick thought before I forget.', 'Glyph, add a list item to the attack FM.', 'Fix the seek bar.', 'Yes.', 'Glyph add ship the APK to attack FM.', 'No.', 'Glyph is going to need a plugin store.'],
+  tableask: ['Bug bash on Friday.', 'Ghost, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it."],
+  ask: ['Quick thought before I forget.', 'Ghost, add a list item to the attack FM.', 'Fix the seek bar.'],
+  command: ['Quick thought before I forget.', 'Ghost, add a list item to the attack FM.', 'Fix the seek bar.', 'Yes.', 'Ghost add ship the APK to attack FM.', 'No.', 'Ghost is going to need a plugin store.'],
 };
 
 function simulated(handlers: CaptureHandlers): CaptureSession {

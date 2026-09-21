@@ -920,7 +920,7 @@ function Card({ node, dark, wiki, root, editing = false, lifted = false, lineFro
           <NotePeek body={body} className={styles.cardPeek} />
         </Near>
       ) : (
-        <span className={styles.cardHint}>{picture ? 'A picture, in the vault it came from' : known ? '' : 'Not in Glyph yet'}</span>
+        <span className={styles.cardHint}>{picture ? 'A picture, in the vault it came from' : known ? '' : 'Not in Ghost.md yet'}</span>
       )}
     </div>
   );

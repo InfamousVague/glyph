@@ -41,7 +41,7 @@ export function guides(handle: string | null): Guide[] {
     {
       way: 'hosted',
       label: 'Hosted',
-      lead: 'Nothing to install. Claude connects to Glyph’s server, and you sign in on a page once.',
+      lead: 'Nothing to install. Claude connects to Ghost.md’s server, and you sign in on a page once.',
       steps: [
         {
           title: 'Add the server to Claude',
@@ -50,7 +50,7 @@ export function guides(handle: string | null): Guide[] {
         },
         {
           title: 'Sign in on the page that opens',
-          body: 'Claude opens a Glyph page in your browser. Sign in with your handle and password, and you are back in Claude with the tools ready. Your password stays in the browser; your account key goes to Glyph’s server, which keeps it in memory only, never on disk, while the connection lasts.',
+          body: 'Claude opens a Ghost.md page in your browser. Sign in with your handle and password, and you are back in Claude with the tools ready. Your password stays in the browser; your account key goes to Ghost.md’s server, which keeps it in memory only, never on disk, while the connection lasts.',
         },
         {
           title: 'Ask in words',
@@ -65,7 +65,7 @@ export function guides(handle: string | null): Guide[] {
     {
       way: 'local',
       label: 'On your computer',
-      lead: 'One file you run with Node. Your account key stays on your machine, and Glyph’s server never sees it.',
+      lead: 'One file you run with Node. Your account key stays on your machine, and Ghost.md’s server never sees it.',
       steps: [
         {
           title: 'Get the file',
@@ -100,7 +100,7 @@ export const CAN_DO: { name: string; words: string }[] = [
   { name: 'Read a note', words: 'One note in full, by its title.' },
   { name: 'List your notes', words: 'Newest change first, with a line of each.' },
   { name: 'Search', words: 'Notes whose words contain something, with the line around it.' },
-  { name: 'Make a note', words: 'From markdown, with a title. Every Glyph mark works: lists, to-dos, tables, boards.' },
+  { name: 'Make a note', words: 'From markdown, with a title. Every Ghost.md mark works: lists, to-dos, tables, boards.' },
   { name: 'Add to a note', words: 'A task or an item joins the note’s list in its own style; a paragraph goes on the end.' },
   { name: 'Rewrite a note', words: 'The whole body replaced, never over a change another device made in between.' },
   { name: 'Pin or archive', words: 'Either, and undo either. There is no delete: archiving is what it can do, and you can undo it here.' },

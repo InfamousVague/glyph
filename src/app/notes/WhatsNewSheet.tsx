@@ -75,13 +75,13 @@ export function WhatsNewSheet({ sources, hold }: { sources: readonly string[] | 
       <section ref={panel} className={sheet.sheet} role="dialog" aria-modal="true" aria-label="What's new" onClick={(e) => e.stopPropagation()}>
         <span className={sheet.grip} aria-hidden="true" {...drag} />
         <SheetTitle>What's new in {newest.version}</SheetTitle>
-        <SheetNote>{releases.length === 1 ? 'Glyph just updated.' : `Glyph just updated, ${releases.length} releases at once.`}</SheetNote>
+        <SheetNote>{releases.length === 1 ? 'Ghost.md just updated.' : `Ghost.md just updated, ${releases.length} releases at once.`}</SheetNote>
         <SheetGroup>
           {releases.map((release) => (
             <SheetRow
               key={release.build}
               label={`${release.version} · ${releaseWhen(release)}`}
-              hint={[release.notes ?? 'Fixes and small changes.', release.apk ? `Installed as Glyph ${release.apk}.` : null].filter(Boolean).join(' ')}
+              hint={[release.notes ?? 'Fixes and small changes.', release.apk ? `Installed as Ghost.md ${release.apk}.` : null].filter(Boolean).join(' ')}
             />
           ))}
         </SheetGroup>

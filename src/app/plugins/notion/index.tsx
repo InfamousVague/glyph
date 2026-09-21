@@ -110,8 +110,8 @@ export const notionPlugin: GlyphPlugin = {
         return board ? `Tasks go to ${board.title}.` : 'Choose where this note’s list items go as tasks.';
       },
       async unavailable() {
-        if (!isTauri()) return 'Works in the Glyph app on your phone.';
-        return (await notionAvailable()) ? null : 'Needs the newest Glyph. Update it in Settings.';
+        if (!isTauri()) return 'Works in the Ghost.md app on your phone.';
+        return (await notionAvailable()) ? null : 'Needs the newest Ghost.md. Update it in Settings.';
       },
       Picker: BoardPicker,
       linked: (noteId) => boardFor(noteId)?.title ?? null,

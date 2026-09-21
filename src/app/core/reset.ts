@@ -29,7 +29,7 @@ export async function resetLocalData({ models }: { models: boolean }): Promise<v
       (status) => status.nativeGeneration ?? 0,
       () => 0,
     );
-    if (generation < RESET_GENERATION) throw new Error('Resetting needs the newest Glyph. Install it from Settings > Updates.');
+    if (generation < RESET_GENERATION) throw new Error('Resetting needs the newest Ghost.md. Install it from Settings > Updates.');
     await invoke<void>('reset_local_data', { models });
   } else {
     await new Promise<void>((resolve) => {

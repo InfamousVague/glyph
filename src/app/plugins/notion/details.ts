@@ -404,7 +404,7 @@ async function setDone(id: string, url: string, done: boolean): Promise<string> 
   } else {
     const board = await boardFor(write.board);
     const name = done ? board?.options.done[0] : (board?.options.todo[0] ?? board?.options.doing[0]);
-    if (!name) throw new Error('Glyph couldn’t read this board’s statuses.');
+    if (!name) throw new Error('Ghost.md couldn’t read this board’s statuses.');
     value = { status: { name } };
   }
   await notionRequest('PATCH', `pages/${id}`, { properties: { [write.done.name]: value } });

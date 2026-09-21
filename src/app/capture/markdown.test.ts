@@ -495,7 +495,7 @@ describe('every mark has words', () => {
   });
 
   it('says links to pages and to lines', () => {
-    expect(said('The site is link Glyph to attack dot fm slash glyph end link for now.')).toBe('The site is [Glyph](https://attack.fm/glyph) for now.');
+    expect(said('The site is link Ghost.md to attack dot fm slash glyph end link for now.')).toBe('The site is [Ghost.md](https://attack.fm/glyph) for now.');
     expect(said('Read link attack.fm end link later.')).toBe('Read <https://attack.fm> later.');
     expect(said('The page waits on item link ship page end link.')).toBe('The page waits on [[#^ship-page]].');
   });
@@ -561,7 +561,7 @@ describe('spoken addresses and names', () => {
   it('reads an address, and nothing else', () => {
     expect(spokenAddress('attack dot fm slash glyph')).toBe('https://attack.fm/glyph');
     expect(spokenAddress('https colon slash slash example dot com')).toBe('https://example.com');
-    expect(spokenAddress('Glyph to attack dot fm')).toBeNull();
+    expect(spokenAddress('Ghost to attack dot fm')).toBeNull();
     expect(spokenAddress('the weekend')).toBeNull();
   });
 

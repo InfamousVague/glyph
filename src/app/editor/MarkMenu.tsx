@@ -148,7 +148,7 @@ export function MarkMenu({ name, url, words, say, close, unlink }: MarkMenuProps
                 ? `${details.editedAt ? `Changed ${agoText(details.editedAt)} · ` : ''}${reading ? 'Reading…' : `Read ${agoText(details.readAt)}`}`
                 : reading
                   ? `Reading from ${title}…`
-                  : `Glyph can’t read ${title} right now.`}
+                  : `Ghost.md can’t read ${title} right now.`}
           </p>
         </div>
 

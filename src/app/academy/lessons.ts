@@ -125,7 +125,7 @@ export const LESSONS: Lesson[] = [
     symbol: '[ ]( )',
     title: 'A link',
     teach: 'The words people read go in square brackets, and where they point goes in round ones after it. The note shows the words, not the address.',
-    example: '[Glyph](https://attack.fm/glyph) is the app this is in',
+    example: '[Ghost.md](https://attack.fm/glyph) is the app this is in',
     task: 'Write a link of your own.',
     passes: line(/\[[^\]\n]+\]\([^)\s]+\)/),
     praise: 'That is a link.',

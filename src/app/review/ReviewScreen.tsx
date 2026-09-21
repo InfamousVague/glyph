@@ -146,7 +146,7 @@ export function ReviewScreen({ handoff, onDone }: { handoff: ReviewHandoff; onDo
             </button>
             {showThought ? (
               <div ref={pane} className={styles.thoughtText} data-live={thinking ? '' : undefined}>
-                {state.think.thought || (state.think.canShowThought ? '…' : 'This version of Glyph can’t show the model’s thinking. Install the newest from Settings > Updates.')}
+                {state.think.thought || (state.think.canShowThought ? '…' : 'This version of Ghost.md can’t show the model’s thinking. Install the newest from Settings > Updates.')}
               </div>
             ) : null}
           </section>

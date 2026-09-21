@@ -15,7 +15,7 @@ function nodes(doc: string): string[] {
   return names;
 }
 
-describe("Glyph's own marks", () => {
+describe("Ghost.md's own marks", () => {
   it('are one plugin, with one switch, each mark carrying its own icon', () => {
     expect(marksPlugin.manifest.id).toBe('marks');
     expect(marksPlugin.formats).toBe(MARKS);

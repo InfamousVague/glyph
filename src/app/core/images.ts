@@ -51,7 +51,7 @@ function listenOnce(): void {
 
 async function pickNative(): Promise<string | null> {
   const bridge = window.GlyphHost;
-  if (typeof bridge?.pickImage !== 'function') throw new Error('This build cannot add pictures yet. Install the newest Glyph.');
+  if (typeof bridge?.pickImage !== 'function') throw new Error('This build cannot add pictures yet. Install the newest Ghost.md.');
   listenOnce();
   const answer = await new Promise<PickAnswer>((resolve) => {
     pending = resolve;
@@ -126,7 +126,7 @@ export async function saveImageFile(file: Blob): Promise<string> {
       (status) => status.nativeGeneration ?? 0,
       () => 0,
     );
-    if (generation < PASTE_GENERATION) throw new Error('Pasting pictures needs the newest Glyph. Install it from attack.fm/glyph.');
+    if (generation < PASTE_GENERATION) throw new Error('Pasting pictures needs the newest Ghost.md. Install it from attack.fm/glyph.');
     const base64 = toBase64(new Uint8Array(await shrunk.arrayBuffer()));
     const { name } = await invoke<{ name: string }>('save_image_data', { base64 });
     return name;

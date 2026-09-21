@@ -40,7 +40,7 @@ describe('the guide’s table of marks', () => {
 
   it('shows each mark a switched-on plugin adds, with the words it would say', () => {
     const formats = BUILT_IN.flatMap((plugin) => plugin.formats ?? []);
-    const own = markGroups().find((group) => group.title === 'Glyph’s own');
+    const own = markGroups().find((group) => group.title === 'Ghost.md’s own');
     // The plugin's own marks, then the two rows about what goes in brackets after one: a colour, and a note
     // (plugins/marks/index.tsx, editor/markNotes.ts).
     expect(own?.rows).toHaveLength(formats.length + 2);
@@ -55,7 +55,7 @@ describe('the guide’s table of marks', () => {
   });
 
   it('draws a plugin’s look from the CSS the plugin declares', () => {
-    const own = markGroups().find((group) => group.title === 'Glyph’s own');
+    const own = markGroups().find((group) => group.title === 'Ghost.md’s own');
     const highlight = own?.rows.find((row) => row.name === 'Highlight');
     expect(highlight?.looks).toBe('style');
     expect(highlight?.css).toContain('background');
@@ -65,7 +65,7 @@ describe('the guide’s table of marks', () => {
 
 describe('a note on a mark', () => {
   it('is shown last, with the brackets in the example and the words the popover says', () => {
-    const own = markGroups().find((group) => group.title === 'Glyph’s own');
+    const own = markGroups().find((group) => group.title === 'Ghost.md’s own');
     const row = own?.rows.at(-1);
     expect(row?.name).toBe('A note on a mark');
     expect(row?.looks).toBe('note');

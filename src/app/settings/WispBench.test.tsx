@@ -178,11 +178,11 @@ describe('wearingOf', () => {
 
 describe('reportText', () => {
   it('is one line a cell, tab-separated, under where it ran', () => {
-    const text = reportText('Glyph 1.5.0 · browser · Chromium · 1024x768 @2', [
+    const text = reportText('Ghost.md 1.5.0 · browser · Chromium · 1024x768 @2', [
       { draw: 'filter', condition: 'scroll', wearing: 'filter: top + foot', reading: { n: 3, median: 3157, p90: 6507, worst: 6507.4 } },
     ]);
     expect(text.split('\n')).toEqual([
-      'Glyph 1.5.0 · browser · Chromium · 1024x768 @2',
+      'Ghost.md 1.5.0 · browser · Chromium · 1024x768 @2',
       'draw\tcondition\twearing\tn\tmedian\tp90\tworst',
       'filter\tscroll\tfilter: top + foot\t3\t3157.0\t6507.0\t6507.4',
     ]);

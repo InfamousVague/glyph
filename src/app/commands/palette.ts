@@ -179,10 +179,10 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing): Palet
   }
 
   // ---- the app ------------------------------------------------------------------------------
-  add({ id: 'settings', label: 'Settings', group: 'Glyph', keywords: 'preferences options account sync type animations' }, () => doing.settings());
-  add({ id: 'cheatsheet', label: 'Cheat sheet', group: 'Glyph', keywords: 'marks markdown reference help' }, () => doing.cheatSheet());
-  add({ id: 'academy', label: 'Glyph Academy', group: 'Glyph', keywords: 'learn lessons markdown teach' }, () => doing.academy());
-  add({ id: 'guide', label: 'How to talk to Glyph', group: 'Glyph', keywords: 'guide walkthrough voice help' }, () => doing.guide());
+  add({ id: 'settings', label: 'Settings', group: 'Ghost.md', keywords: 'preferences options account sync type animations' }, () => doing.settings());
+  add({ id: 'cheatsheet', label: 'Cheat sheet', group: 'Ghost.md', keywords: 'marks markdown reference help' }, () => doing.cheatSheet());
+  add({ id: 'academy', label: 'Ghost.md Academy', group: 'Ghost.md', keywords: 'learn lessons markdown teach' }, () => doing.academy());
+  add({ id: 'guide', label: 'How to talk to Ghost.md', group: 'Ghost.md', keywords: 'guide walkthrough voice help' }, () => doing.guide());
 
   return out;
 }

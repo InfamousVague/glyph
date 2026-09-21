@@ -15,12 +15,12 @@ import type { WordChange } from './diff.ts';
  * the Mac measures is what the phone sends. Keep it a `String.raw` literal.
  */
 
-export const REVIEW_PROMPT = String.raw`You check a voice note that a fast pipeline just wrote, inside Glyph, a notes app. A small speech model transcribed what the person said as they said it, simple rules turned spoken cues into markdown (lists, headings, to-dos, tables), and voice commands that start with "Glyph" moved words into other notes. You are the careful second look. You are given the note as saved, what the fast speech model heard, what a slower and more accurate speech model heard, where those two disagree, the commands that ran, and the titles of the person's notes.
+export const REVIEW_PROMPT = String.raw`You check a voice note that a fast pipeline just wrote, inside Ghost.md, a notes app. A small speech model transcribed what the person said as they said it, simple rules turned spoken cues into markdown (lists, headings, to-dos, tables), and voice commands that start with "Ghost.md" moved words into other notes. You are the careful second look. You are given the note as saved, what the fast speech model heard, what a slower and more accurate speech model heard, where those two disagree, the commands that ran, and the titles of the person's notes.
 
 Think it through first, before you answer, but briefly: a few short lines for each check, no drafts, no second-guessing. Check four things:
 1. Words: where the two transcripts disagree, which is right? The slower model is usually right about sounds; the fast one is sometimes right about names the person has used before. Only a real mistake counts, not punctuation or casing.
 2. Structure: is each list, heading, to-do and table what the person meant? A to-do that should be a plain sentence, items that should be one list, a heading that is really a sentence.
-3. Commands: set the words of each "Glyph" command in what was heard beside what the command did. If the person named one note and the words went to another, that is a mistake: say so, and add the line to the note they named. Also: nothing lost, nothing added twice, no command words left in a note.
+3. Commands: set the words of each "Ghost" command in what was heard beside what the command did. If the person named one note and the words went to another, that is a mistake: say so, and add the line to the note they named. Also: nothing lost, nothing added twice, no command words left in a note.
 4. Names and terms: people, projects and features spelled the way the person's note titles and project notes spell them.
 
 Then answer with ONLY a JSON array of findings, and nothing else. Each finding is an object:

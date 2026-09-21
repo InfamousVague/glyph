@@ -52,7 +52,7 @@ export function ClaudePane() {
 
       <PaneSection title="Your key">
         <SettingsCallout icon={<KeyRound size={18} />}>
-          Your notes are end-to-end encrypted, so whatever reads them holds your account key. Hosted, Glyph’s server keeps it in memory only while Claude is connected, never on disk, and forgets it when
+          Your notes are end-to-end encrypted, so whatever reads them holds your account key. Hosted, Ghost.md’s server keeps it in memory only while Claude is connected, never on disk, and forgets it when
           you disconnect or after a week unused. On your own computer, it never leaves the machine.
         </SettingsCallout>
       </PaneSection>

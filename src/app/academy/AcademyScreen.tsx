@@ -70,7 +70,7 @@ export function AcademyScreen({ onDone, onCheatSheet }: { onDone: () => void; on
           <ArrowLeft size={20} />
         </button>
         <h1 className={styles.heading}>
-          <GraduationCap size={18} aria-hidden="true" /> Glyph Academy
+          <GraduationCap size={18} aria-hidden="true" /> Ghost.md Academy
         </h1>
         <p className={styles.count} aria-label={`${learned} of ${LESSONS.length} learned`}>
           {learned}/{LESSONS.length}
@@ -196,7 +196,7 @@ function Summary({
       <h2 className={styles.title}>{all ? 'That is markdown.' : 'That is the end of the chapter.'}</h2>
       <p className={styles.teach}>
         {all
-          ? 'Every mark in this chapter is one you can now write by hand, anywhere: in Glyph, and in any other app that knows markdown. Take any of them again below.'
+          ? 'Every mark in this chapter is one you can now write by hand, anywhere: in Ghost.md, and in any other app that knows markdown. Take any of them again below.'
           : 'You can come back to the ones you skipped whenever you like. Take any lesson again below.'}
       </p>
 
@@ -219,7 +219,7 @@ function Summary({
         </section>
       ))}
 
-      <p className={styles.teach}>Glyph has marks of its own as well - boards, spoilers, callouts, anchors. They all live in the cheat sheet until their chapter is written.</p>
+      <p className={styles.teach}>Ghost.md has marks of its own as well - boards, spoilers, callouts, anchors. They all live in the cheat sheet until their chapter is written.</p>
       <div className={styles.foot}>
         <button type="button" className="app-word" onClick={onStartOver}>
           <RotateCcw size={16} aria-hidden="true" /> Start again

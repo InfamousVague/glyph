@@ -139,7 +139,7 @@ export function AppearancePane() {
           <ThemeCards value={prefs.theme} onValueChange={(value) => setPreferences(themeChoice(value, prefs))} />
         </div>
       </PaneSection>
-      <PaneSection title="Accent" description="Glyph is ink on paper. An accent colours the few things that mark a choice: a focus ring, a chosen segment. Ink is the app's own.">
+      <PaneSection title="Accent" description="Ghost.md is ink on paper. An accent colours the few things that mark a choice: a focus ring, a chosen segment. Ink is the app's own.">
         <AccentSwatch accent={prefs.accent} onAccent={(accent) => setPreferences({ accent })} />
       </PaneSection>
       <PaneSection title="Spacing" description="The padding and gaps of everything the app draws. The words keep their own size.">
@@ -241,10 +241,10 @@ export function RecordingPane() {
           control={<Switch aria-label="Stop when I go quiet" checked={prefs.quietStop} onCheckedChange={(quietStop) => setPreferences({ quietStop })} />}
         />
         <SettingRow
-          label="Commands start with “Glyph”"
-          hint="Say “Glyph, add buy milk to HelloTrade” and it asks before it does it. Off, a command can be said without it, and still asks."
+          label="Commands start with “Ghost”"
+          hint="Say “Ghost, add buy milk to HelloTrade” and it asks before it does it. Off, a command can be said without it, and still asks."
           control={
-            <Switch aria-label="Commands start with Glyph" checked={prefs.commandWord} onCheckedChange={(commandWord) => setPreferences({ commandWord })} />
+            <Switch aria-label="Commands start with Ghost" checked={prefs.commandWord} onCheckedChange={(commandWord) => setPreferences({ commandWord })} />
           }
         />
         <SettingRow
@@ -322,7 +322,7 @@ function SideKeyPlace() {
       />
       {height !== null ? (
         <SettingRow
-          label="Use Glyph's guess"
+          label="Use Ghost.md's guess"
           control={
             <RowAction
               onPress={() => {
@@ -371,8 +371,8 @@ function UpdatesSection({ updates }: { updates: Updates }) {
 
   let status: string;
   if (checking) status = 'Checking for updates.';
-  else if (apk.kind === 'downloading') status = `Downloading Glyph ${apk.info.version}.`;
-  else if (apk.kind === 'available') status = `Glyph ${apk.info.version} is ready to install.`;
+  else if (apk.kind === 'downloading') status = `Downloading Ghost.md ${apk.info.version}.`;
+  else if (apk.kind === 'available') status = `Ghost.md ${apk.info.version} is ready to install.`;
   else if (ready) status = 'A new version is downloaded.';
   else if (lastError) status = `Couldn't check for updates: ${lastError}`;
   else if (lastChecked) status = 'Up to date.';
@@ -397,8 +397,8 @@ function UpdatesSection({ updates }: { updates: Updates }) {
             label="Update alerts"
             hint={
               alerts.state === 'blocked'
-                ? "It's on, but Android is blocking Glyph's notifications. Allow them in the app's system settings."
-                : 'Get a notification when a new version is out, even when Glyph is closed.'
+                ? "It's on, but Android is blocking Ghost.md's notifications. Allow them in the app's system settings."
+                : 'Get a notification when a new version is out, even when Ghost.md is closed.'
             }
             control={<Switch aria-label="Update alerts" checked={alerts.state !== 'off'} onCheckedChange={alerts.set} />}
           />
@@ -447,7 +447,7 @@ function ReleasesSection({ updates }: { updates: Updates }) {
       <PaneSection title="What's new">
         <SettingRow
           label={reading ? 'Reading the updates…' : 'No updates to show yet.'}
-          hint={reading ? undefined : 'They are read from where Glyph takes its updates.'}
+          hint={reading ? undefined : 'They are read from where Ghost.md takes its updates.'}
         />
       </PaneSection>
     );
@@ -462,7 +462,7 @@ function ReleasesSection({ updates }: { updates: Updates }) {
             key={release.build}
             label={release.build === running ? `${release.version} · you're on this one` : release.version}
             value={releaseWhen(release)}
-            hint={[release.notes, release.apk ? `Installed as Glyph ${release.apk}.` : null].filter(Boolean).join(' ')}
+            hint={[release.notes, release.apk ? `Installed as Ghost.md ${release.apk}.` : null].filter(Boolean).join(' ')}
           />
         ))}
       </PaneSection>
@@ -512,7 +512,7 @@ export function AnimationsPane() {
           control={<Switch aria-label="Ripples while recording" checked={prefs.ripples} onCheckedChange={(ripples) => setPreferences({ ripples })} />}
         />
       </PaneSection>
-      <SettingsFootnote>Your phone's own “reduce motion” setting comes first: with it on, Glyph holds still whatever is switched on here.</SettingsFootnote>
+      <SettingsFootnote>Your phone's own “reduce motion” setting comes first: with it on, Ghost.md holds still whatever is switched on here.</SettingsFootnote>
     </>
   );
 }
@@ -568,13 +568,13 @@ export function AboutPane({
       <PaneSection title="Help">
         <SettingRow
           icon={<GraduationCap size={20} />}
-          label="Glyph Academy"
+          label="Ghost.md Academy"
           hint="Markdown taught a mark at a time: it shows you one, you type your own, and you watch it format underneath."
           onPress={() => onAcademy()}
         />
         <SettingRow
           icon={<BookOpen size={20} />}
-          label="How to talk to Glyph"
+          label="How to talk to Ghost.md"
           hint="The side key, and the cues that make markdown."
           onPress={() => onGuide()}
         />
@@ -598,7 +598,7 @@ export function AboutPane({
         />
         <SettingRow
           icon={<Compass size={20} />}
-          label="Add the “How Glyph works” canvas"
+          label="Add the “How Ghost.md works” canvas"
           hint="Eight plain cards, in order: say it, it lands as a note, and where a note can go."
           onPress={onHowCanvas}
         />
@@ -611,7 +611,7 @@ export function AboutPane({
       </PaneSection>
       <ReleasesSection updates={updates} />
       <SettingsFootnote>
-        Glyph keeps your notes, recordings and models on the phone. Signed in to an account, your notes, recordings and settings are synced, encrypted on the phone first so only your own devices
+        Ghost.md keeps your notes, recordings and models on the phone. Signed in to an account, your notes, recordings and settings are synced, encrypted on the phone first so only your own devices
         can read them. With link previews on, a linked page is asked for its title. Nothing else is sent anywhere.
       </SettingsFootnote>
     </>
@@ -651,7 +651,7 @@ export function DeveloperPane({ onGuide }: { onGuide: (page?: number) => void })
           control={<Switch aria-label="Developer settings" checked={on} onCheckedChange={setDeveloperMode} />}
         />
       </PaneSection>
-      <PaneSection title="Reset" description="Two taps: the first arms it, the second does it. Glyph reloads on the welcome guide afterwards.">
+      <PaneSection title="Reset" description="Two taps: the first arms it, the second does it. Ghost.md reloads on the welcome guide afterwards.">
         <ResetRow
           label="Reset local data"
           hint="Notes, recordings, pictures, settings and the guide go. Downloaded models stay, and so does this page."

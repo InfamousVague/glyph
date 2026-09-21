@@ -5,7 +5,7 @@ import { SAMPLE_TITLE } from '../core/sampleNote.ts';
 import { HOW_TITLE, howCanvas, howCanvasBody } from './howCanvas.ts';
 import { canvasOf, parseCanvas, serializeCanvas } from './jsonCanvas.ts';
 
-describe('the canvas that says how Glyph works', () => {
+describe('the canvas that says how Ghost.md works', () => {
   it('is eight plain cards in a group, opening the example board and the sample note, with the order on the lines', () => {
     const canvas = howCanvas();
     const cards = canvas.nodes.filter((n) => n.type !== 'group');

@@ -341,7 +341,7 @@ function simulatedRun(options: Parameters<typeof generate>[0]): Run {
     '',
     '1. Words. The two transcripts disagree in a few places. The slower model heard "seek bar" where the fast one heard "seat bar"; a seek bar is the scrubber in a player, so "seek" is right.',
     '2. Structure. The heading names the note, the to-dos are things to do, nothing else looks like a list.',
-    '3. Commands. Each "Glyph" command landed where its words said.',
+    '3. Commands. Each "Ghost" command landed where its words said.',
     '4. Names. HelloTrade is written as one word in the note titles.',
   ].join('\n');
   const changes = options.prompt.match(/\[([^\]]*?) → ([^\]]*?)\]/g) ?? [];

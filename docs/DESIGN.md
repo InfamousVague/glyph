@@ -3332,3 +3332,28 @@ middle of its curve, whatever else was there.
   (300, 100) and (340, 100) before, 56px apart after with each still on its own side; two lines into one side
   landing 14px either side of its middle; a label on a straight line over a third card moved to the first clear
   stretch, left on a group, and back at the middle under a card the length of the line.
+
+## 63. The app is Ghost.md (2026-09-21)
+
+Matt: "rename the app from Glyph to 'Ghost.md' since we got that domain name." The rule the rename follows, so the
+next person knows what was and was not meant to move:
+
+- **What a person sees is Ghost.md.** Every line of copy in the app (the guide, About, notices, the palette, the
+  plugins' pages and their authors, the AI prompts' "inside Ghost.md, a notes app"), the page's title, Tauri's
+  `productName` and window title (so the Mac app is Ghost.md.app and the Android launcher says Ghost.md), the
+  download pages, the MCP sign-in page and tool words, the sync service's Notion pages, the README. The two example
+  canvases and the sample note say it too.
+- **What a machine relies on stays.** The bundle and package ids (`com.mattssoftware.glyph`), every localStorage key
+  (`glyph-developer`, `glyph-wisp-draw`, ...), the sync salt `glyph/v1/<handle>` (changing it would change every
+  account's keys), the `glyph1.` token prefix, the attack.fm/glyph paths and API bases (they move with the domain,
+  separately), file and script names, the repo and package name, the design log's history and its quotes.
+- **The spoken word is "Ghost".** Nobody will say "dot md" to a phone, so the address a command follows is the short
+  name: "Ghost, add a table to this note". The recogniser (capture/command.ts `findKeyword`) accepts "ghost" and what
+  speech recognition writes for it beside "glyph" and its own mishearings, so the old word still works and the
+  recorded voice suite still passes. Not accepted: "coast" - a mishearing tried and dropped the moment "Packing for
+  the coast" lost its last word. Two things worth Matt's eye: "ghost" is a commoner word than "glyph" was, so a
+  sentence that starts with it and is not a command will now draw the "no command there, the words stay" notice
+  where it did not before; and the Android settings path the guide walks ("Digital assistant app › Ghost.md") says
+  the new label before the phone shows it, until the next APK.
+- **Reaches the phone and the Mac only as new builds** for the label and the bundle name; the copy goes over the
+  air.

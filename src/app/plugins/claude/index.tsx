@@ -12,13 +12,13 @@ import { ClaudePane } from './ClaudePane.tsx';
 export const manifest: PluginManifest = {
   id: 'claude',
   name: 'Claude',
-  description: 'Read, add to and change your notes from Claude, through Glyph’s MCP server.',
+  description: 'Read, add to and change your notes from Claude, through Ghost.md’s MCP server.',
   version: '1.0.0',
-  author: 'Glyph',
+  author: 'Ghost.md',
   standard: true,
   permissions: [
     { kind: 'notes', why: 'Claude reads and writes the notes of your account once you sign it in: from outside the phone, through the sync service, never through this app.' },
-    { kind: 'network', why: 'Claude talks to Glyph’s sync service and nothing else. This page only carries the instructions.' },
+    { kind: 'network', why: 'Claude talks to Ghost.md’s sync service and nothing else. This page only carries the instructions.' },
   ],
   hosts: ['attack.fm'],
   storage: [],

@@ -184,7 +184,7 @@ describe('what a note is linked to', () => {
   const boards: GlyphPlugin = {
     manifest: manifest('boards'),
     icon: Icon,
-    noteLinks: [{ id: 'board', label: 'Board', icon: Icon, hint: () => '', Picker: () => null, linked: (id) => (id === 'n1' ? 'Glyph Tasks' : null) }],
+    noteLinks: [{ id: 'board', label: 'Board', icon: Icon, hint: () => '', Picker: () => null, linked: (id) => (id === 'n1' ? 'Ghost.md Tasks' : null) }],
   };
   const repos: GlyphPlugin = {
     manifest: manifest('repos', { standard: false }),
@@ -194,7 +194,7 @@ describe('what a note is linked to', () => {
 
   it('names each link from every switched-on plugin, and nothing for a note without one', () => {
     const registry = createRegistry([boards, repos], memoryStore({ repos: true }));
-    expect(registry.linksOf('n1').map((l) => `${l.link.label}: ${l.name}`)).toEqual(['Board: Glyph Tasks', 'Repo: attackfm/app']);
+    expect(registry.linksOf('n1').map((l) => `${l.link.label}: ${l.name}`)).toEqual(['Board: Ghost.md Tasks', 'Repo: attackfm/app']);
     expect(registry.linksOf('n2').map((l) => l.name)).toEqual(['attackfm/app']);
     registry.setEnabled('repos', false);
     expect(registry.linksOf('n2')).toEqual([]);

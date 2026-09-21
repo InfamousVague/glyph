@@ -3,7 +3,7 @@
  * reliably, and every item is checked against the notes and the memo before it can move anything (sort/plan.ts).
  */
 
-export const SORT_PROMPT = String.raw`You sort a voice memo into a person's notes, inside Glyph, a notes app. The person spoke the memo in one go. Some of it is meant for notes they already have: "add oat milk to groceries", "put call Sam on the work list", "for the trip note, book the ferry". The rest is a new note of its own.
+export const SORT_PROMPT = String.raw`You sort a voice memo into a person's notes, inside Ghost.md, a notes app. The person spoke the memo in one go. Some of it is meant for notes they already have: "add oat milk to groceries", "put call Sam on the work list", "for the trip note, book the ferry". The rest is a new note of its own.
 
 Think briefly first: for each sentence, does the person name one of their notes, or clearly mean one? Only the notes listed exist.
 

@@ -28,7 +28,7 @@ export function FormattingPane() {
       <SettingsEmpty
         icon={<Sparkles size={22} />}
         title="Formatting runs on the phone."
-        body="The models are downloaded to and run on the device. Install Glyph on Android to use them; nothing leaves the phone."
+        body="The models are downloaded to and run on the device. Install Ghost.md on Android to use them; nothing leaves the phone."
       />
     );
   }
@@ -40,8 +40,8 @@ export function FormattingPane() {
           label="Local only"
           hint={
             prefs.localOnly
-              ? 'On. No update checks, no downloads, and plugins that use the network are off. Glyph runs from what is on the phone.'
-              : 'Turn off update checks, downloads, and every plugin that uses the network. Glyph then runs from what is on the phone.'
+              ? 'On. No update checks, no downloads, and plugins that use the network are off. Ghost.md runs from what is on the phone.'
+              : 'Turn off update checks, downloads, and every plugin that uses the network. Ghost.md then runs from what is on the phone.'
           }
           control={<Switch aria-label="Local only" checked={prefs.localOnly} onCheckedChange={(localOnly) => setPreferences({ localOnly })} />}
         />
@@ -50,7 +50,7 @@ export function FormattingPane() {
       {downloading && download ? (
         <SettingsCallout icon={<Download size={20} />}>
           <span>
-            Getting {downloading.name}, {gb(download.received)} of {gb(download.total)}. Keep Glyph open.
+            Getting {downloading.name}, {gb(download.received)} of {gb(download.total)}. Keep Ghost.md open.
           </span>
           <ProgressBar aria-label={`Downloading ${downloading.name}`} value={download.received} max={Math.max(download.total, 1)} size="sm" />
         </SettingsCallout>

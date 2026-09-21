@@ -34,7 +34,7 @@ import { cellsOf } from './table.ts';
  * are part of the keyword.
  */
 const KEYWORD =
-  /(^|[\s,.;:!?"“])(?:(?:hey|hi|ok(?:ay)?|so)[,\s]+)?(?:glyph|glyphs|glyphe|glyf|glif|gliff|glyff|gliph|glyth|glith|glithe|clith|clyph|gleef|gliv|glive|glit|bliff)(?=$|[\s,.;:!?"”'])[,.;:!?"”]*\s*/i;
+  /(^|[\s,.;:!?"“])(?:(?:hey|hi|ok(?:ay)?|so)[,\s]+)?(?:ghost|ghosts|goast|gost|ghos|ghoast|ghossed|ghosed|glyph|glyphs|glyphe|glyf|glif|gliff|glyff|gliph|glyth|glith|glithe|clith|clyph|gleef|gliv|glive|glit|bliff)(?=$|[\s,.;:!?"”'])[,.;:!?"”]*\s*/i;
 
 /**
  * What base.en writes for "Glyph" that is a word of its own: "Life. Add eggs to my list", "Live, new note", "Head

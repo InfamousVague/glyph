@@ -26,10 +26,10 @@ export function UpdateNotice({ updates }: { updates: Updates }) {
       <UpdateCard
         text={
           apk.kind === 'failed'
-            ? `Glyph ${apk.info.version} didn’t install. ${apk.message}`
+            ? `Ghost.md ${apk.info.version} didn’t install. ${apk.message}`
             : apk.kind === 'needs-permission'
-              ? 'Let Glyph install apps, then come back.'
-              : `Glyph ${apk.info.version} is out.`
+              ? 'Let Ghost.md install apps, then come back.'
+              : `Ghost.md ${apk.info.version} is out.`
         }
         action={apk.kind === 'failed' ? 'Try again' : 'Install'}
         onAction={updates.installApk}
@@ -39,7 +39,7 @@ export function UpdateNotice({ updates }: { updates: Updates }) {
   if (apk.kind === 'downloading') {
     return (
       <UpdateCard
-        text={`Downloading Glyph ${apk.info.version}, ${mb(apk.received)} of ${mb(apk.total)} MB.`}
+        text={`Downloading Ghost.md ${apk.info.version}, ${mb(apk.received)} of ${mb(apk.total)} MB.`}
         progress={apk.total ? apk.received / apk.total : 0}
         working
       />
@@ -47,10 +47,10 @@ export function UpdateNotice({ updates }: { updates: Updates }) {
   }
   if (apk.kind === 'installing') {
     // Android's own dialog is on top now; this is what is left if it is dismissed.
-    return <UpdateCard text={`Glyph ${apk.info.version} is waiting on Android.`} action="Open" onAction={updates.installApk} />;
+    return <UpdateCard text={`Ghost.md ${apk.info.version} is waiting on Android.`} action="Open" onAction={updates.installApk} />;
   }
   if (ready) {
-    return <UpdateCard text="A new version of Glyph is ready." action="Reload" onAction={updates.reload} />;
+    return <UpdateCard text="A new version of Ghost.md is ready." action="Reload" onAction={updates.reload} />;
   }
   return null;
 }
@@ -107,7 +107,7 @@ export function AcademyCard({ onOpen, onHide }: { onOpen: () => void; onHide?: (
       <div className={styles.learnWords}>
         <p className={styles.learnLead}>
           <GraduationCap size={17} strokeWidth={1.9} className={styles.learnMark} aria-hidden="true" />
-          Glyph Academy
+          Ghost.md Academy
         </p>
         <p className={styles.learnLine}>Learn the marks, one at a time.</p>
       </div>
@@ -137,7 +137,7 @@ export function VoiceModelStatus({ state, onRetry }: { state: VoiceModelState; o
     const mb = (bytes: number) => Math.round(bytes / 1e6);
     return (
       <p className={styles.notice} role="status">
-        Downloading the voice model, {mb(state.received)} of {mb(state.total)} MB. Keep Glyph open.
+        Downloading the voice model, {mb(state.received)} of {mb(state.total)} MB. Keep Ghost.md open.
       </p>
     );
   }

@@ -38,7 +38,7 @@ export const GAGS: Record<Gag, GagWords> = {
   },
   hot: {
     title: 'Just hot phones.',
-    line: 'Your phone may get warm while Glyph thinks. That’s the AI working right here. Everything’s A-OK.',
+    line: 'Your phone may get warm while Ghost.md thinks. That’s the AI working right here. Everything’s A-OK.',
   },
 };
 

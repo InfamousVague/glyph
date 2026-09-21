@@ -5,7 +5,7 @@ import { reviewMessage } from './prompt.ts';
 
 describe('where the two speech models disagree', () => {
   it('finds the runs, ignoring case and punctuation, with context to place them', () => {
-    const changes = wordChanges('Glyph add a list item to the hello trade. Fix the seat bar.', 'Glyph, add a list item to the HelloTrade. Fix the seek bar.');
+    const changes = wordChanges('Ghost add a list item to the hello trade. Fix the seat bar.', 'Ghost, add a list item to the HelloTrade. Fix the seek bar.');
     expect(changes.map((c) => [c.heard, c.careful])).toEqual([
       ['hello trade.', 'HelloTrade.'],
       ['seat', 'seek'],

@@ -19,9 +19,9 @@ import type { GlyphPlugin, InlineFormat, PluginManifest } from '../types.ts';
 export const manifest: PluginManifest = {
   id: 'marks',
   name: 'Marks',
-  description: 'Glyph’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a shout and an addition. Typed or said.',
+  description: 'Ghost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a shout and an addition. Typed or said.',
   version: '1.0.0',
-  author: 'Glyph',
+  author: 'Ghost.md',
   standard: true,
   permissions: [],
   storage: [],

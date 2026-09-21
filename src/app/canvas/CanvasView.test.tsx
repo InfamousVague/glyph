@@ -102,7 +102,7 @@ describe('a canvas drawn', () => {
     expect(open).toHaveBeenCalledWith('Launch week', '^photos');
     const missing = [...shown.querySelectorAll('[role="button"]')].find((el) => el.textContent?.includes('Nowhere')) as HTMLElement;
     expect(missing.hasAttribute('data-waiting')).toBe(true);
-    expect(missing.textContent).toContain('Not in Glyph yet');
+    expect(missing.textContent).toContain('Not in Ghost.md yet');
   });
 });
 
@@ -449,7 +449,7 @@ describe('pictures, charts and the toolbar', () => {
     for (const b of tools.querySelectorAll('button')) expect(b.querySelector('svg')).not.toBeNull();
   });
 
-  it('draws a picture of Glyph’s own on its card, and one from elsewhere as waiting', () => {
+  it('draws a picture of Ghost.md’s own on its card, and one from elsewhere as waiting', () => {
     const withPictures = parseCanvas(`{ "nodes": [
       { "id": "mine", "type": "file", "x": 0, "y": 0, "width": 200, "height": 150, "file": "abc.jpg" },
       { "id": "theirs", "type": "file", "x": 300, "y": 0, "width": 200, "height": 150, "file": "Pictures/abc.jpg" }

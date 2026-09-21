@@ -41,7 +41,7 @@ export function encode(envelope: Envelope): Bytes {
 
 export function decode(bytes: Uint8Array): Envelope {
   const kind = bytes[0];
-  if (kind === undefined || !KINDS.has(kind)) throw new Error('A live message of a kind this Glyph does not know.');
+  if (kind === undefined || !KINDS.has(kind)) throw new Error('A live message of a kind this Ghost.md does not know.');
   return { kind: kind as Kind, payload: bytes.slice(1) };
 }
 

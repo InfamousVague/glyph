@@ -236,7 +236,7 @@ export function generate(options: RunOptions): Run {
   const id = `run-${Date.now().toString(36)}-${(runs += 1)}`;
   let unlisten: (() => void) | null = null;
   const done = (async () => {
-    if (!isTauri()) throw new Error('Formatting runs on the phone. Install Glyph to use it.');
+    if (!isTauri()) throw new Error('Formatting runs on the phone. Install Ghost.md to use it.');
     const { listen } = await import('@tauri-apps/api/event');
     unlisten = await listen<Progress>('ai://progress', (event) => {
       if (event.payload.id === id) options.onProgress(event.payload);

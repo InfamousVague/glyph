@@ -204,7 +204,7 @@ export function AntiAiStage({ waiting = false, onRound }: { waiting?: boolean; o
   const Icon = ICONS[beat.gag];
   // The scene plays, the stamp slaps down over it at --slap, holds, and then scene and words go back into smoke.
   return (
-    <section className={styles.stage} data-leaving={leaving || undefined} aria-live="polite" aria-label="What Glyph’s AI doesn’t do" style={{ '--beat': `${beat.sceneMs}ms`, '--slap': `${beat.sceneMs}ms` } as CSSProperties}>
+    <section className={styles.stage} data-leaving={leaving || undefined} aria-live="polite" aria-label="What Ghost.md’s AI doesn’t do" style={{ '--beat': `${beat.sceneMs}ms`, '--slap': `${beat.sceneMs}ms` } as CSSProperties}>
       <svg key={index} className={styles.scene} viewBox="0 0 320 180" role="img" aria-label={`${words.title} ${words.line}`}>
         {leaving ? <SmokeOut target={picture} /> : null}
         <g ref={picture} filter={leaving ? 'url(#smokeOutWisp)' : undefined}>

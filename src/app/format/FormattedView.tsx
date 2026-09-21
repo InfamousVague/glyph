@@ -180,7 +180,7 @@ export function FormattedView({
 
   let line: React.ReactNode;
   if (!isTauri()) {
-    line = <span>The robot runs on the phone. Install Glyph on Android to use it.</span>;
+    line = <span>The robot runs on the phone. Install Ghost.md on Android to use it.</span>;
   } else if (state.kind === 'running') {
     const { phase } = state;
     const who = state.passes > 1 ? `a draft with ${modelName(state.model)}` : `with ${modelName(state.model)}`;
@@ -223,7 +223,7 @@ export function FormattedView({
   } else if (models.models.length && !anyPresent) {
     // No model at all yet; the passes make do with any that is here, so only
     // an empty phone is asked to get one.
-    line = models.download ? <span>Getting {modelName(models.download.id)}, {gb(models.download.received)} of {gb(models.download.total)}. Keep Glyph open.</span> : null;
+    line = models.download ? <span>Getting {modelName(models.download.id)}, {gb(models.download.received)} of {gb(models.download.total)}. Keep Ghost.md open.</span> : null;
   } else if (!models.models.length) {
     line = <span>Looking for the model.</span>;
   } else if (ready && !currentBody().trim()) {

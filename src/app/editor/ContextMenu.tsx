@@ -316,7 +316,7 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
       got = await readClipboard();
     } catch {
       // Refused outright: nothing is pasted, and the person is told why rather than left guessing at a dead row.
-      say?.('Glyph couldn’t reach the clipboard here. Tap into the note and paste from your keyboard instead.');
+      say?.('Ghost.md couldn’t reach the clipboard here. Tap into the note and paste from your keyboard instead.');
       return;
     }
     const { clip, read } = got;

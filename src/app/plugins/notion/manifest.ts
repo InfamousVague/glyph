@@ -6,7 +6,7 @@ export const manifest: PluginManifest = {
   name: 'Notion',
   description: 'Turns list items into tasks on your Notion boards: swipe an item, say it, or send a whole list.',
   version: '1.0.0',
-  author: 'Glyph',
+  author: 'Ghost.md',
   standard: true,
   permissions: [
     { kind: 'notes', why: 'Turns a sent item’s words into a link to its task, in the note it came from.' },

@@ -69,7 +69,7 @@ const FLOW: readonly Tip[] = [
  * memo flow, whose trigger words need no keyword.
  */
 export function tips({ noteTitle, continuing, keyword = true, lane = null, flow = false }: { noteTitle?: string | null; continuing: boolean; keyword?: boolean; lane?: string | null; flow?: boolean }): Tip[] {
-  const say = (command: string) => (keyword ? `Glyph, ${command.charAt(0).toLowerCase()}${command.slice(1)}` : command);
+  const say = (command: string) => (keyword ? `Ghost, ${command.charAt(0).toLowerCase()}${command.slice(1)}` : command);
   const route: Tip[] = flow ? [...FLOW] : [];
   if (noteTitle) route.push({ say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' });
   if (noteTitle) route.push({ say: say(`New item for ${noteTitle}`), does: 'and then the item, to add to its list' });
