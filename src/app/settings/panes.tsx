@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, FileText, GraduationCap, LayoutGrid, ListChecks, Terminal, Workflow } from '@glacier/icons';
+import { BookOpen, FileText, Gauge, GraduationCap, LayoutGrid, ListChecks, Terminal, Workflow } from '@glacier/icons';
 import { DensitySelector, SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
 import { isSidebarStyle, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize, type Typeface } from '../core/preferences.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
@@ -16,6 +16,7 @@ import { resetLocalData } from '../core/reset.ts';
 import { GUIDE_MODEL_PAGE } from '../guide/pages.ts';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsFootnote } from './kit/settingsKit.tsx';
 import { SideKeyWaves } from '../capture/SideKeyWaves.tsx';
+import { WispBench } from './WispBench.tsx';
 import { defaultHeight, saveHeight, savedHeight, useSideKeySpot } from '../capture/sideKey.ts';
 
 /**
@@ -616,12 +617,22 @@ export function AboutPane({
  */
 export function DeveloperPane({ onGuide }: { onGuide: (page?: number) => void }) {
   const on = useDeveloperMode();
+  const [bench, setBench] = useState(false);
   return (
     <>
       <PaneSection title="Set-up">
         <SettingRow label="Choose your model" hint="The welcome guide's page, on its own." onPress={() => onGuide(GUIDE_MODEL_PAGE)} />
         <SettingRow label="Welcome guide" hint="From the first page." onPress={() => onGuide(0)} />
       </PaneSection>
+      <PaneSection title="Smoke" description="The wisp edge costs the Mac app frames. This is where it is measured, on the screen it is drawn on.">
+        <SettingRow
+          icon={<Gauge size={20} />}
+          label="Smoke bench"
+          hint="A page wearing the filter, the mask or nothing, with its frame times in its header and a run that fills a table."
+          onPress={() => setBench(true)}
+        />
+      </PaneSection>
+      <WispBench open={bench} onClose={() => setBench(false)} />
       <PaneSection title="Developer mode">
         <SettingRow
           icon={<Terminal size={20} />}

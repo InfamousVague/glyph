@@ -3190,3 +3190,36 @@ bar under it was not.
 - **Measured at 1280px with the home page scrolled 226px under the bar:** the bar's ground came out
   `color(srgb 0.017 0.017 0.017 / 0.66)` with `blur(18px) saturate(1.1)`, the pane's a gradient from transparent
   at the bar's foot, and the cards read through both.
+
+## 58. The smoke bench (2026-09-20)
+
+Matt, of the Mac app: "the desktop app is incredibly laggy", and once the cost was found, "can we fix the wisp
+animation to be more performant?" The cost is the wisp edge's filter in WKWebView (54 above; art/wispEdge.ts), and
+the answer being built is the same smoke as a mask (art/wispMask.ts) behind a switch on the hook. What was missing
+was a way to see the two against each other with their cost on the same screen, rather than in numbers relayed
+from a hand-built rig through three sessions.
+
+- **Settings › Developer › Smoke bench** (settings/WispBench.tsx): a page over settings with one scrolling surface
+  wearing the hook with `draw: 'filter'`, `draw: 'mask'`, or no hook at all - the app's own hook and its own
+  switch, so what a surface wears here is exactly what a note would wear. A frame counter sits in the surface's
+  header (the last 120 frames: median, p90, worst, written twice a second from the header, which is over the page
+  and not in it, so the writing is not a repaint of the thing being measured). Scroll by hand and read it.
+- **The run** drives the surface the three ways the rig did - left alone, one repaint a frame (a mark in the
+  scroller with its opacity toggled), scrolling (three pixels a frame, back and forth, never back to the top so the
+  header band stays on) - for each drawing in turn, and prints n, median, p90 and worst per cell. Two rules from
+  the rig are the clock's (diag/frameClock.ts): a cell ends on the wall clock as well as its frame count and says
+  how many frames it got (a four-second cap on a three-second frame gave one frame and no median), and the p90
+  stands beside the median (3157ms median against 6507 p90 is what "laggy" feels like). Quick: 180 frames or 8s
+  a cell; long: 30s.
+- **One surface while measuring.** A frame's length is the page's, so three surfaces would add up. Side by side
+  draws all three for looking and says so; a run puts the page back to one. What each cell's surface wore is read
+  off the element (`data-wisp-edge`, `data-wisp-foot`, `data-wisp-draw`, the computed filter), not assumed from the
+  switch, and is in the row. Copy as text gives the table tab-separated under where it ran (version, app or
+  browser, engine, window).
+- **The whole app, one way.** A line on the page writes the hook's own override (`glyph-wisp-draw` in
+  localStorage) so the app can be flipped to the mask or the filter from its next start and felt, not just read;
+  and taken back. "No smoke" is not a thing the app can be told to draw.
+- **What the pane's numbers are not.** In the desktop app's browser pane the counter read 1000ms flat: that pane's
+  requestAnimationFrame is throttled to once a second while it is not the front window, so nothing read there is
+  about any engine. jsdom's frames say nothing either, and the tests do not read them as if they did. The number
+  that counts is the one on the Mac app's own screen, which is what the page is for.
