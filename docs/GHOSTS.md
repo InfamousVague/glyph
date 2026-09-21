@@ -16,33 +16,38 @@ negotiable - they are why the existing set works on both themes at every size:
 - **One ink, no colour.** Every shape is drawn on `currentColor`, so a page sets its weight (`--app-ink` for a
   picture that leads, `--app-ink-3` for one that sits under the words) and it inverts with the theme. A generated
   image that is grey-on-white, or that relies on white fills, breaks the moment the page is dark.
-- **Flat.** No gradients, no shading, no texture, no outline-plus-fill-in-two-tones.
-- **Square**, drawn at about 120px (`7.5rem` on the home page's empty state). Detail below ~3px of that square is
-  mud: no cross-hatching, no stippling, no whiskers. Detail above it is welcome - a few long contour lines for the
-  folds of the cloth, the weight of a hem - and it is what keeps the drawing from reading as a children's icon.
-- **Lines, not fills** (Matt, 2026-09-21, of the first set: "I want them to be outlines not solid fill"). Two stroke
-  weights for the whole set - the outline at about 4% of the square, interior lines at about two thirds of that -
-  round caps and joins; the inside of a shape is the paper, so nothing is painted white and nothing needs a hole
-  cut.
+- **Flat ink.** No gradients, no grey washes, no painted shading; tone comes only from lines - hatching - so it
+  stays one colour and inverts with the theme.
+- **Square**, and drawn larger than the abstract shapes: about 200px where a picture leads a page (the home page's
+  empty state, welcome), 120px where it sits under the words. An illustration wants the room (Matt, 2026-09-21: "I
+  want them to have an illustrated look"), and the abstract shapes' `7.5rem` is a line in `art/Shapes.module.css`,
+  not a law. Detail below ~2px of the drawn square is still mud: hatching is sparse and bold, a few strokes for a
+  shadow, never a fine mesh; no stippling, no whiskers.
+- **Lines, not fills** (Matt, of the first set: "I want them to be outlines not solid fill"). Varied line weight -
+  a heavier outline, lighter interior and hatching lines - round caps and joins; the inside of a shape is the paper,
+  so nothing is painted white and nothing needs a hole cut.
 - **Decoration only** - every one is `aria-hidden`, and the words beside it carry the meaning.
 
-So the target is **one-colour line art**: a clean black outline on white with a few lighter lines inside it, closed
-shapes, no fill. That is what traces to stroked SVG paths and what reads at 120px without turning to mud.
+So the target is a **one-colour pen-and-ink illustration**: black line on white, weight in the line, shadow in
+sparse hatching, a figure with a little ground and a little scene, no fill. That traces to stroked SVG paths and
+reads at 200px, and at 120px if the hatching is kept coarse.
 
 ## The style block
 
 Paste this into **every** prompt, unchanged. Consistency across the set comes from repeating it word for word.
 
 ```
-Editorial ink line drawing, black ink on plain white, in the manner of a refined spot
-illustration for a serious magazine. Line work only: no fill inside the shapes, no colour, no
-grey, no gradients, no shading, no cross-hatching, no stippling, no texture. A confident, slightly
-hand-drawn main outline of medium weight with rounded ends, and a small number of lighter interior
-contour lines that describe form - folds, drape, the turn of a surface - never decoration. Every
-shape closed and deliberate; nothing scratchy, nothing sketchy, no stray marks. Restrained,
-elegant, quiet, adult; not cute, not cartoonish, not a sticker, not an emoji, not a children's
-book. Centred in a square frame with generous empty margin, and legible at 120 pixels. No text,
-no letters, no words, no watermark, no border, no frame around the drawing.
+Pen-and-ink book illustration, black ink on plain white paper, the kind of drawing that opens a
+chapter in a well-made novel for adults. Hand-drawn line with visible variation in weight: a
+heavier, confident outline, lighter lines inside it for folds and form, and sparse, bold hatching
+where a shadow falls - a few decisive strokes, never a fine mesh, never scribble. No fill inside
+the shapes, no colour, no grey wash, no gradients, no painted shading, no stippling, no texture
+other than the hatching. A small sense of place: a ground line or a cast shadow under the figure,
+and only the objects the scene names. Every shape deliberate; no stray marks, no sketch lines, no
+construction lines. Atmospheric, wry, quietly melancholy; literary rather than cartoonish; not a
+sticker, not an emoji, not an icon, not a children's picture book. Centred in a square frame with
+generous empty margin, and legible at 200 pixels. No text, no letters, no words, no watermark, no
+border, no frame around the drawing.
 ```
 
 ## The character
@@ -51,15 +56,16 @@ Generate this one **first**, and feed the result back as a reference image to ev
 the same ghost each time.
 
 ```
-A ghost as a sheet of cloth hanging over an unseen figure, drawn with the quiet dignity of a
+A ghost as a sheet of old linen hanging over an unseen figure, drawn with the quiet dignity of a
 figure study. The cloth falls from a softly rounded crown straight down, the body as wide at the
 bottom as at the top, and gathers at the floor in an uneven hem of gentle waves that settle with
-real weight, the way linen does; it never narrows to a point or a tail. Three or four long, soft
-interior contour lines run down the cloth to show the folds and where the unseen shoulders and
-arms are; the arms are a slight lift in the cloth at the sides, not stubs. Two small, calm
-almond-shaped eyes as outlines, set wide and a little low; no mouth, no eyebrows, no cheeks, no
-legs. Proportions slightly tall rather than round. Melancholy, composed, a little wry; never
-spooky, never cute.
+real weight; it never narrows to a point or a tail. Long, soft interior lines run down the cloth to
+show the folds and where the unseen shoulders and arms are; a few bold hatching strokes sit in the
+deepest folds and in the shadow the figure casts on the ground beneath it. The arms are a lift in
+the cloth at the sides, not stubs. Two small, calm almond-shaped eyes, set wide and a little low;
+no mouth, no eyebrows, no cheeks, no legs. Proportions slightly tall rather than round. It stands
+a hand's breadth above a simple ground line. Melancholy, composed, a little wry; never spooky,
+never cute.
 ```
 
 **Character sheet (prompt 1).** Ask for the same ghost three times in one square - facing forward, three-quarter,
@@ -74,8 +80,14 @@ Why it changed again: the second set, a bare outline of a "small friendly ghost"
 "friendly" and "simple", which a model reads as a sticker; one even line with nothing inside it; and round, wide
 proportions with big eyes. So the style block is now an editorial ink drawing with lighter interior contour lines,
 the character is cloth with folds and weight rather than a blob with a face, the eyes are small and calm, and the
-words "cute" and "friendly" are gone. The detail rule above moved with it: a few long lines inside the shape are
-what read as drawn rather than stamped, and they hold at 120px; texture and hatching do not.
+words "cute" and "friendly" are gone.
+
+And a third time, before the third set was even judged: "I want them to have an illustrated look." An icon and an
+illustration are different asks - an illustration has weight in its line, shadow, a ground, a scene - so the style
+block is now a pen-and-ink book illustration, hatching is allowed where it is sparse and bold, the ghost casts a
+shadow and stands over a ground line, and the pictures get more room on the page than the abstract shapes had. The
+rule that survives every pass is the same: whatever is drawn must be one ink on the paper, so it inverts with the
+theme, and nothing finer than a couple of pixels at the size it is shown.
 
 ## The fifteen
 
@@ -214,8 +226,11 @@ the front. It peers over the top of the parcel.
    reads in full ink can vanish at a third of it.
 5. **Give it its thing to do.** Every existing shape moves, slowly and on a loop with long rests
    (`art/Shapes.module.css`), and holds still under reduced motion. A ghost has an obvious one: drift up an eighth
-   of the square and back, with its hem lagging behind. That is a transform and an opacity, so nothing lays out
-   again.
+   of the square and back, with its hem lagging behind and its shadow staying put. That is a transform and an
+   opacity, so nothing lays out again.
+6. **Give it its room.** Where a picture leads a page, size it at about 200px rather than the shapes' `7.5rem`
+   (one rule in `art/Shapes.module.css`, keyed on the ghost's own class); under the words it stays at 120px, where
+   the hatching must still read as strokes - check it there before shipping that one.
 
 ## Not asked, so not chosen
 
