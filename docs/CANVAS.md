@@ -93,6 +93,10 @@ Everything after the front matter is the `.canvas` file, character for character
 one (`canvas/sampleCanvas.ts`), the way it adds the example board: one of everything a canvas holds - a group, cards
 of words, cards that are the example board and the sample note, a link, a chart drawn from Mermaid, a table, a
 picture (the sample note's drawing, kept by the picture store as it is made), and lines with words on joining them.
+A second one beside it, "How Glyph works" (`canvas/howCanvas.ts`), says what the app does in eight plain cards with
+the order on the lines - say it, say the marks, it lands as a note, where a note goes, and that it stays on the
+phone - two of them the example board and the sample note themselves (Matt: "a simpler canvas explaining how Glyph
+works in simpler terms").
 
 **Named from the cog.** A canvas has no heading to rename it in, so the note's cog sheet has a Name field for a
 canvas note (editor/NoteSettings.tsx), which writes the `title:` front matter and nothing else

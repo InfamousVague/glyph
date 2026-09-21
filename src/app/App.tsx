@@ -38,7 +38,7 @@ import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
 import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
-import { addBoardNote, addCanvasNote, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
+import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { canvasNoteBody } from './canvas/jsonCanvas.ts';
 import { withFrontMatterTitle } from './core/frontMatter.ts';
 import { NewSheet } from './notes/NewSheet.tsx';
@@ -442,6 +442,13 @@ function Shell() {
   const canvasNote = async () => {
     setSettings(false);
     const note = await addCanvasNote();
+    await refresh();
+    setScreen({ name: 'note', note });
+  };
+
+  const howCanvasNote = async () => {
+    setSettings(false);
+    const note = await addHowCanvas();
     await refresh();
     setScreen({ name: 'note', note });
   };
@@ -954,6 +961,7 @@ function Shell() {
         onSample={() => void sampleNote()}
         onBoard={() => void boardNote()}
         onCanvas={() => void canvasNote()}
+        onHowCanvas={() => void howCanvasNote()}
         onAcademy={() => {
           setSettings(false);
           setScreen({ name: 'academy' });

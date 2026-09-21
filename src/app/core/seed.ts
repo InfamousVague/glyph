@@ -1,5 +1,6 @@
 import { saveImageFile } from './images.ts';
 import { boardNoteBody } from './boardNote.ts';
+import { howCanvasBody } from '../canvas/howCanvas.ts';
 import { sampleCanvasBody } from '../canvas/sampleCanvas.ts';
 import { sampleImageBlob, sampleNoteBody } from './sampleNote.ts';
 import { newNoteId, saveNote, type Note } from './store.ts';
@@ -66,6 +67,11 @@ export async function addCanvasNote(): Promise<Note> {
     picture = null;
   }
   return saveNote(newNoteId(), sampleCanvasBody(picture), 'editor');
+}
+
+/** Makes the canvas that says how Glyph works (canvas/howCanvas.ts) now, and answers it. */
+export async function addHowCanvas(): Promise<Note> {
+  return saveNote(newNoteId(), howCanvasBody(), 'editor');
 }
 
 /**

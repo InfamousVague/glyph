@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, FileText, Gauge, GraduationCap, LayoutGrid, ListChecks, Terminal, Workflow } from '@glacier/icons';
+import { BookOpen, Compass, FileText, Gauge, GraduationCap, LayoutGrid, ListChecks, Terminal, Workflow } from '@glacier/icons';
 import { DensitySelector, SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
 import { isSidebarStyle, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize, type Typeface } from '../core/preferences.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
@@ -529,6 +529,7 @@ export function AboutPane({
   onSample,
   onBoard,
   onCanvas,
+  onHowCanvas,
   onAcademy,
   onCheatSheet,
   onDeveloper,
@@ -538,6 +539,7 @@ export function AboutPane({
   onSample: () => void;
   onBoard: () => void;
   onCanvas: () => void;
+  onHowCanvas: () => void;
   onAcademy: () => void;
   onCheatSheet: () => void;
   onDeveloper: () => void;
@@ -592,6 +594,12 @@ export function AboutPane({
           label="Add the example canvas"
           hint="Cards on a page with lines between them, in the same file Obsidian's canvas uses."
           onPress={onCanvas}
+        />
+        <SettingRow
+          icon={<Compass size={20} />}
+          label="Add the “How Glyph works” canvas"
+          hint="Eight plain cards, in order: say it, it lands as a note, and where a note can go."
+          onPress={onHowCanvas}
         />
         <SettingRow
           icon={<FileText size={20} />}
