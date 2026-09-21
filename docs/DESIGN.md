@@ -3306,3 +3306,29 @@ strip with the phone layout inside it and had to be dragged wide before the side
 - **Reaches the Mac only as a new build.** A window's size is the app's, not the web bundle's, so no over-the-air
   update carries it: it ships as a signed universal Mac build (`deploy-ota.mjs --desktop`), downloaded from
   attack.fm/glyph.
+
+## 62. Lines kept apart, labels kept off the cards (2026-09-21)
+
+Matt, with a screenshot of the HelloTrade canvas: "No two arrows should render pointing too close as they look
+joined like a diamond. Secondly the text that's on arrow paths sometimes overlaps content and we can't read the boxes
+below." Both were the geometry's: every line end sat at the exact middle of its side, and every label at the exact
+middle of its curve, whatever else was there.
+
+- **The diamond.** Two lines into the facing sides of neighbouring cards land at the same height, their heads base
+  to base in the gap between - one shape with a point at each end. Lines are now drawn together rather than one by one
+  (`edgePaths` in canvas/jsonCanvas.ts): ends that share a side of a card are set along it, `END_SPREAD` (28px)
+  apart, in the order their far ends come so the lines leave without crossing; and two heads on different cards
+  nearer each other than `HEAD_CLEAR` (56px, three heads' lengths) are moved apart along their own sides until they
+  are that far apart, each going away from the other along the side's axis, or when level, the one whose line comes
+  from further along that axis going that way. An end keeps 16px from its side's corners. Alone, a line lands on the
+  middle as before.
+- **The label.** It tries the curve's middle and then either way from it, in steps of a twentieth, and takes the
+  first point where its box (about 6.8px a letter at the label's 13px, 20px tall) is over open canvas and not over
+  a card. A group is open canvas. Where one line fits nowhere it is broken onto two, then three, and the tries run
+  again, so words longer than the gap between two cards fit down it (the example canvas's "every mark a note can
+  hold", 26 letters between two cards 120px apart, goes on two). Where nothing fits anywhere it sits in the middle
+  on one line as before and the halo does what it can.
+- **Measured in the tests with the screenshot's shape:** two cards 40px apart, a line into each from above, tips at
+  (300, 100) and (340, 100) before, 56px apart after with each still on its own side; two lines into one side
+  landing 14px either side of its middle; a label on a straight line over a third card moved to the first clear
+  stretch, left on a group, and back at the middle under a card the length of the line.

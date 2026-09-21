@@ -10,7 +10,8 @@ import { NotePeek } from '../notes/NotePeek.tsx';
 import { openLink } from '../core/linkPreview.ts';
 import { shortUrl } from '../core/shortUrl.ts';
 import {
-  edgePath,
+  edgePaths,
+  LABEL_LINE,
   fileTitle,
   isImageFile,
   isOnlyTable,
@@ -559,7 +560,11 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     return () => el.removeEventListener('wheel', onWheel);
   }, [apply]);
 
-  const edges = useMemo(() => live.edges.map((edge) => ({ edge, path: edgePath(live, edge) })).filter((e) => e.path), [live]);
+  // Drawn together: where one line's end sits depends on the others' (jsonCanvas.ts `edgePaths`).
+  const edges = useMemo(() => {
+    const paths = edgePaths(live);
+    return live.edges.map((edge) => ({ edge, path: paths.get(edge.id) ?? null })).filter((e) => e.path);
+  }, [live]);
   const pickedLine = picked ? edges.find((e) => e.edge.id === picked) : undefined;
 
   return (
@@ -617,8 +622,13 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
                 {path!.fromHead ? <path className={styles.head} d={path!.fromHead} /> : null}
                 {path!.toHead ? <path className={styles.head} d={path!.toHead} /> : null}
                 {edge.label && picked !== edge.id ? (
+                  // Its lines, one under another about the point: broken where one line would not fit between cards.
                   <text className={styles.label} x={path!.mid.x} y={path!.mid.y}>
-                    {edge.label}
+                    {path!.lines.map((line, i) => (
+                      <tspan key={i} x={path!.mid.x} dy={i === 0 ? -((path!.lines.length - 1) * LABEL_LINE) / 2 : LABEL_LINE}>
+                        {line}
+                      </tspan>
+                    ))}
                   </text>
                 ) : null}
               </g>
