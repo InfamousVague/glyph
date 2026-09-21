@@ -30,7 +30,7 @@ class Relay {
   send(device: Device, room: string, data: string, to?: number) {
     for (const other of this.rooms.get(room) ?? []) {
       if (other === device || (to !== undefined && other.id !== to)) continue;
-      later(() => void other.session?.message(device.id, data));
+      later(() => other.session?.message(device.id, data));
     }
   }
 }
@@ -53,9 +53,32 @@ class Device implements LiveTransport {
   close() {}
 }
 
-const later = (run: () => void) => void setTimeout(run, 0);
-/** Lets every message in flight arrive, sealing and opening included. */
-const settleDown = () => new Promise((done) => setTimeout(done, 60));
+/** What the relay has in flight: every delivery scheduled and not yet done, the opening of a message included. */
+let inFlight = 0;
+const later = (run: () => void | Promise<void>) => {
+  inFlight++;
+  setTimeout(() => {
+    Promise.resolve()
+      .then(run)
+      .finally(() => inFlight--);
+  }, 0);
+};
+/**
+ * Lets every message in flight arrive, sealing and opening included. The relay is asked rather than given a fixed
+ * wait: the 60ms this used to sleep was less than the WebCrypto work took on a loaded machine, and a different test
+ * in this file failed on each full run, stopping deploys at the test step. Quiet for a while, not merely quiet once,
+ * since a device that has just opened a message may be sealing its answer before anything is sent.
+ */
+const settleDown = async () => {
+  const tick = () => new Promise((done) => setTimeout(done, 15));
+  const until = Date.now() + 5000;
+  let quiet = 0;
+  while (Date.now() < until) {
+    await tick();
+    quiet = inFlight === 0 ? quiet + 1 : 0;
+    if (quiet >= 6) return;
+  }
+};
 
 async function accountKey(): Promise<CryptoKey> {
   return settle(await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']));
