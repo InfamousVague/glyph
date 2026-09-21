@@ -3262,7 +3262,12 @@ both, against 16-18ms with the filter off; the same page in GPU Chromium at 16.7
   zone, and every page importing the editor failed to load. Nothing at the top level now reads across the cycle.
   And a deploy was refused with every test green: a CodeMirror measure on the animation clock, firing after a
   doneSync test, hit jsdom's missing `Range.getClientRects`, and Vitest exits 1 on an unhandled error. Every test
-  now gets the stub (src/test/setup.ts) that images.test.ts had for itself.
+  now gets the stub (src/test/setup.ts) that images.test.ts had for itself. And three first-in-file tests that mount
+  an editor - a cold CodeMirror render, about four seconds idle - timed out at Vitest's five while a second suite ran
+  on the machine, and refused a deploy the same way. The ceiling is twenty seconds now (vitest.config.ts). Re-proven
+  after 1.5.0-68 on the same Mac by the fork session: the same three first-in-file renders took 8.2, 10.0 and 10.1
+  seconds under twelve yes-hogs and passed at the 15s ceiling it had then - by a third, which is why it is twenty.
+  A hang still fails at twenty.
 - **Seen at 1280px in Chromium with the override:** the note's page wore `data-wisp-draw="mask"`, `filter: none`,
   three mask layers `add`ed, the lip at 130px under a 112px bar, and a heading at the lip dissolved through the
   smoke while the lines under it stood whole.

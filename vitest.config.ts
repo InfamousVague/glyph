@@ -19,9 +19,10 @@ export default defineConfig({
     /*
      * The first test of a file that mounts an editor is a cold CodeMirror render: about four seconds on this Mac
      * idle, and past the default five with a second suite or a cargo build on the machine - three such tests timed
-     * out and refused a deploy at its test step with everything else green. A render slowed by load still passes at
-     * this; a test that has really hung still fails at it.
+     * out and refused a deploy at its test step with everything else green. Re-proven after 1.5.0-68: the same
+     * three took 8.2, 10.0 and 10.1 seconds under twelve yes-hogs, so fifteen held by a third and no more. A render
+     * slowed by load still passes at this; a test that has really hung still fails at it.
      */
-    testTimeout: 15000,
+    testTimeout: 20000,
   },
 });
