@@ -62,7 +62,7 @@ async function guarded(run: () => Promise<ReturnType<typeof text> | ReturnType<t
           : failure.message,
       );
     }
-    if (failure instanceof GlyphApiError) return failed(`Glyph's sync service refused: ${failure.message}`);
+    if (failure instanceof GlyphApiError) return failed(`Ghost.md's sync service refused: ${failure.message}`);
     return failed(failure instanceof Error ? failure.message : String(failure));
   }
 }
@@ -96,7 +96,7 @@ export function buildServer(account: GlyphAccount): McpServer {
     {
       title: 'List notes',
       description:
-        'The notes in this Glyph account, newest change first: id, title, dates, pinned, archived, folder and a line of preview. Optionally only those whose title contains `query`. Reads the account fresh first.',
+        'The notes in this Ghost.md account, newest change first: id, title, dates, pinned, archived, folder and a line of preview. Optionally only those whose title contains `query`. Reads the account fresh first.',
       inputSchema: {
         query: z.string().optional().describe('Only notes whose title contains this (case-insensitive).'),
         include_archived: z.boolean().optional().describe('Include archived notes. Off by default.'),
@@ -164,7 +164,7 @@ export function buildServer(account: GlyphAccount): McpServer {
       description:
         'A new note in the account, as if typed in the app: markdown, with the first line as its title. Give a `title` and it becomes a `# Title` heading above the body. It appears on every signed-in device at its next sync.',
       inputSchema: {
-        body: z.string().describe('The note’s markdown. Glyph’s marks all work: headings, lists, `- [ ]` to-dos, tables, ```board fences.'),
+        body: z.string().describe('The note’s markdown. Ghost.md’s marks all work: headings, lists, `- [ ]` to-dos, tables, ```board fences.'),
         title: z.string().optional().describe('A title to put above the body as a heading, if the body does not start with one.'),
         pinned: z.boolean().optional().describe('Pin it to the top of the list.'),
       },
@@ -255,7 +255,7 @@ export function buildServer(account: GlyphAccount): McpServer {
     'account_status',
     {
       title: 'Account status',
-      description: 'Which Glyph account this is signed in to, where its sync service is, and how many notes it holds.',
+      description: 'Which Ghost.md account this is signed in to, where its sync service is, and how many notes it holds.',
       inputSchema: {},
     },
     async () =>

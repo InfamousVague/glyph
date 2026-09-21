@@ -128,7 +128,7 @@ function loginPage({ request, who, apiPublic, base, deny }: { request: string; w
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Glyph · Let ${name} use your notes</title>
+<title>Ghost.md · Let ${name} use your notes</title>
 <style>
   @font-face { font-family: 'Inter Variable'; font-style: normal; font-weight: 100 900; font-display: swap; src: url(${INTER}) format('woff2-variations'); }
   :root {
@@ -194,12 +194,12 @@ function loginPage({ request, who, apiPublic, base, deny }: { request: string; w
 <body>
 <main data-request="${escapeHtml(request)}" data-api="${escapeHtml(apiPublic)}" data-base="${escapeHtml(base)}" data-deny="${escapeHtml(deny)}">
   ${art()}
-  <p class="brand"><b>Glyph</b><i>·</i><span>Connect</span></p>
+  <p class="brand"><b>Ghost.md</b><i>·</i><span>Connect</span></p>
   <h1>Let <b>${name}</b> use your notes.</h1>
-  <p class="lead">Sign in to your Glyph account. ${name} will be able to read your notes, add to them and change them, until you disconnect it.</p>
+  <p class="lead">Sign in to your Ghost.md account. ${name} will be able to read your notes, add to them and change them, until you disconnect it.</p>
   <ul class="facts">
     <li>${icon(ICON.lock)}<span><strong>Still end-to-end encrypted.</strong> Your password stays in this browser; the sync service sees the same login half it sees from your phone.</span></li>
-    <li>${icon(ICON.key)}<span><strong>Your key, held in memory.</strong> Signing in unlocks your account key here and hands it to Glyph's server, which keeps it in memory only, never on disk, while this connection lasts. In that time the server can read your notes: that is what lets ${name}.</span></li>
+    <li>${icon(ICON.key)}<span><strong>Your key, held in memory.</strong> Signing in unlocks your account key here and hands it to Ghost.md's server, which keeps it in memory only, never on disk, while this connection lasts. In that time the server can read your notes: that is what lets ${name}.</span></li>
     <li>${icon(ICON.leave)}<span><strong>Disconnect ${name} and it ends.</strong> So does a week of not using it.</span></li>
   </ul>
   <form id="form" novalidate>
@@ -253,7 +253,7 @@ function loginPage({ request, who, apiPublic, base, deny }: { request: string; w
       location.assign(j.redirect);
     } catch (failure) {
       // A fetch that never got an answer throws a TypeError; anything else is worth its own words.
-      say(failure instanceof TypeError ? 'Could not reach Glyph’s sync service. Check the connection and try again.' : 'Something went wrong: ' + (failure && failure.message ? failure.message : failure));
+      say(failure instanceof TypeError ? 'Could not reach Ghost.md’s sync service. Check the connection and try again.' : 'Something went wrong: ' + (failure && failure.message ? failure.message : failure));
     }
   });
   document.getElementById('cancel').addEventListener('click', () => location.assign(DENY));
@@ -399,7 +399,7 @@ export function hostedApp(options: HostedOptions) {
     service_documentation: 'https://github.com/InfamousVague/glyph/blob/main/docs/MCP.md',
   };
   const resourceMetadataUrl = `${issuer}/.well-known/oauth-protected-resource`;
-  const protectedResource = { resource: issuer, authorization_servers: [issuer], scopes_supported: [SCOPE], bearer_methods_supported: ['header'], resource_name: 'Glyph notes' };
+  const protectedResource = { resource: issuer, authorization_servers: [issuer], scopes_supported: [SCOPE], bearer_methods_supported: ['header'], resource_name: 'Ghost.md notes' };
 
   const app = express();
   // Behind glyph-api and Caddy on the box, both on loopback: the person's own address is what the limits count.

@@ -139,7 +139,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((failure: unknown) => {
-  const words = failure instanceof GlyphApiError ? `Glyph's sync service refused: ${failure.message}` : failure instanceof Error ? failure.message : String(failure);
+  const words = failure instanceof GlyphApiError ? `Ghost.md's sync service refused: ${failure.message}` : failure instanceof Error ? failure.message : String(failure);
   process.stderr.write(`glyph-mcp: ${words}\n`);
   process.exit(1);
 });

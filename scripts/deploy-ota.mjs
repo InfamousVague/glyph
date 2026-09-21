@@ -436,7 +436,7 @@ if (withDesktop) {
     cwd: ROOT,
     env: { ...process.env, APPLE_SIGNING_IDENTITY: MAC_IDENTITY },
   });
-  const app = join(MAC_BUNDLE, 'macos/Glyph.app');
+  const app = join(MAC_BUNDLE, 'macos/Ghost.md.app');
   const dmgDir = join(MAC_BUNDLE, 'dmg');
   const dmgName = existsSync(dmgDir) ? readdirSync(dmgDir).find((name) => name.endsWith('.dmg')) : undefined;
   if (!existsSync(app) || !dmgName) fail(`The Mac build left no app or no DMG under ${MAC_BUNDLE}.`);

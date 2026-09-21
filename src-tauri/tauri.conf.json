@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Glyph",
+  "productName": "Ghost.md",
   "version": "1.5.0",
   "identifier": "com.mattssoftware.glyph",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Glyph",
+        "title": "Ghost.md",
         "label": "main",
         "width": 1280,
         "height": 820,
