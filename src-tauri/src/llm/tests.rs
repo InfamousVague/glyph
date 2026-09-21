@@ -108,7 +108,7 @@ fn run(path: &Path, request: Request, cancel: Arc<AtomicBool>, mut on: impl FnMu
 #[test]
 fn the_prompt_read_from_the_page_is_the_prompt() {
     let prompt = page_system_prompt();
-    assert!(prompt.starts_with("You are the editor inside Glyph"), "{prompt:.80}");
+    assert!(prompt.starts_with("You are the editor inside Ghost.md"), "{prompt:.80}");
     assert!(prompt.ends_with("no code fence around it."), "{prompt}");
 }
 
