@@ -3287,3 +3287,22 @@ lived; the only place that said so was the cog, a tap away.
 - **Read through the store's hook**, so filing the note from the cog, or recolouring the workspace, redraws the
   pill without the note re-rendering for anything else. The tap's label says both: "In the workspace Cabin. Linked
   to Notion Weekend. Change in this note's settings."
+
+## 60. The Mac window opens as a desktop window (2026-09-21)
+
+Matt: "make the desktop version of the app open in a desktop resolution, right now it opens in a portrait layout."
+One `tauri.conf.json` served every platform, and its window was a phone's: 430 x 860. The phone never reads that
+block (Android and iOS take the screen), so the only thing it ever shaped was the Mac app, which opened as a tall
+strip with the phone layout inside it and had to be dragged wide before the sidebar appeared.
+
+- **1280 x 820, centred** (`src-tauri/tauri.conf.json`): wide enough for the split at once - the sidebar wants 660px
+  and a mouse (core/useWideScreen.ts) - and inside a 13-inch laptop's screen with room around it. At two device
+  pixels to the point that is 4.2M, still far under the filter region's 2^24 budget (54 above).
+- **The minimums stay** at 360 x 560: a window dragged narrow gets the phone layout on purpose, which is how the
+  phone's shape is checked on a Mac.
+- **Not remembered between launches.** Tauri does not restore a window's last size and place on its own; every
+  launch opens at 1280 x 820 in the middle of the screen. Remembering would be the window-state plugin, a Rust
+  dependency and a capability, not a number - left for when it is asked for.
+- **Reaches the Mac only as a new build.** A window's size is the app's, not the web bundle's, so no over-the-air
+  update carries it: it ships as a signed universal Mac build (`deploy-ota.mjs --desktop`), downloaded from
+  attack.fm/glyph.
