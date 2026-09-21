@@ -42,8 +42,8 @@ chapter in a well-made novel for adults. Hand-drawn line with visible variation 
 heavier, confident outline, lighter lines inside it for folds and form, and sparse, bold hatching
 where a shadow falls - a few decisive strokes, never a fine mesh, never scribble. No fill inside
 the shapes, no colour, no grey wash, no gradients, no painted shading, no stippling, no texture
-other than the hatching. A small sense of place: a ground line or a cast shadow under the figure,
-and only the objects the scene names. Every shape deliberate; no stray marks, no sketch lines, no
+other than the hatching. A small sense of place: a ground line low in the frame, and only the
+objects the scene names. Every shape deliberate; no stray marks, no sketch lines, no
 construction lines. Atmospheric, wry, quietly melancholy; literary rather than cartoonish; not a
 sticker, not an emoji, not an icon, not a children's picture book. Centred in a square frame with
 generous empty margin, and legible at 200 pixels. No text, no letters, no words, no watermark, no
@@ -56,16 +56,17 @@ Generate this one **first**, and feed the result back as a reference image to ev
 the same ghost each time.
 
 ```
-A ghost as a sheet of old linen hanging over an unseen figure, drawn with the quiet dignity of a
-figure study. The cloth falls from a softly rounded crown straight down, the body as wide at the
-bottom as at the top, and gathers at the floor in an uneven hem of gentle waves that settle with
-real weight; it never narrows to a point or a tail. Long, soft interior lines run down the cloth to
-show the folds and where the unseen shoulders and arms are; a few bold hatching strokes sit in the
-deepest folds and in the shadow the figure casts on the ground beneath it. The arms are a lift in
-the cloth at the sides, not stubs. Two small, calm almond-shaped eyes, set wide and a little low;
-no mouth, no eyebrows, no cheeks, no legs. Proportions slightly tall rather than round. It stands
-a hand's breadth above a simple ground line. Melancholy, composed, a little wry; never spooky,
-never cute.
+A ghost: a hollow sheet of old linen floating in the air with nothing inside it. It hangs from a
+softly rounded crown and falls in loose folds, as wide at the bottom as at the top, ending in an
+uneven hem of soft waves that hangs free and ripples a little in the air; it never narrows to a
+point or a tail, and it never touches the ground. There is no body under the cloth: no shoulders,
+no waist, no hips, no legs, no feet - only the folds of an empty sheet. The whole figure tilts a
+few degrees and the hem trails slightly to one side, as if it is drifting slowly. Two small, calm
+almond-shaped eyes, set wide and a little low on the crown; no mouth, no eyebrows, no cheeks. No
+arms unless the scene needs them, and then only as a fold of the cloth lifting. Long, soft
+interior lines follow the folds, with a few bold hatching strokes in the deepest of them. Far
+below the hem, a small soft shadow on the ground, clearly separate from the ghost, shows how high
+it floats. Melancholy, composed, a little wry; never spooky, never cute.
 ```
 
 **Character sheet (prompt 1).** Ask for the same ghost three times in one square - facing forward, three-quarter,
@@ -88,6 +89,13 @@ block is now a pen-and-ink book illustration, hatching is allowed where it is sp
 shadow and stands over a ground line, and the pictures get more room on the page than the abstract shapes had. The
 rule that survives every pass is the same: whatever is drawn must be one ink on the paper, so it inverts with the
 theme, and nothing finer than a couple of pixels at the size it is shown.
+
+Then the illustrated set came back "too humanoid now and not floating". The prompt had said "hanging over an unseen
+figure", "unseen shoulders and arms", "figure study" and "stands above a ground line", and the model drew exactly that:
+a person under a sheet, standing. So the character is now a hollow sheet with nothing inside it - no shoulders, no
+waist, no legs, said outright - tilted with its drift, its hem hanging free and never touching the ground, and its
+shadow a small separate mark far below, which is the one thing in a still drawing that says it floats. In the
+scenes, anything that has the ghost sitting, leaning or holding is a fold of the cloth doing it, not a limb.
 
 ## The fifteen
 
