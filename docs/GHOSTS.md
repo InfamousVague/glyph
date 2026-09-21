@@ -37,17 +37,19 @@ reads at 200px, and at 120px if the hatching is kept coarse.
 Paste this into **every** prompt, unchanged. Consistency across the set comes from repeating it word for word.
 
 ```
-Pen-and-ink book illustration, black ink on plain white paper, the kind of drawing that opens a
-chapter in a well-made novel for adults. Hand-drawn line with visible variation in weight: a
-heavier, confident outline, lighter lines inside it for folds and form, and sparse, bold hatching
-where a shadow falls - a few decisive strokes, never a fine mesh, never scribble. No fill inside
-the shapes, no colour, no grey wash, no gradients, no painted shading, no stippling, no texture
-other than the hatching. A small sense of place: a ground line low in the frame, and only the
-objects the scene names. Every shape deliberate; no stray marks, no sketch lines, no
-construction lines. Atmospheric, wry, quietly melancholy; literary rather than cartoonish; not a
-sticker, not an emoji, not an icon, not a children's picture book. Centred in a square frame with
-generous empty margin, and legible at 200 pixels. No text, no letters, no words, no watermark, no
-border, no frame around the drawing.
+Pen-and-ink illustration, black ink on plain white paper, drawn with a brush pen or a flexible
+nib: strong contrast between thick and thin. The outer outline is bold and heavy, the lines inside
+it are fine, and each stroke swells and tapers along its length - thick where it turns or carries
+weight, thin where it trails off. Sparse, bold hatching where a shadow falls - a few decisive
+strokes, never a fine mesh, never scribble. No fill inside the shapes, no colour, no grey wash, no
+gradients, no painted shading, no stippling, no texture other than the hatching. A touch of
+cartoon in the drawing: shapes a little simplified and exaggerated, a clear pose, an expression in
+the eyes, the warmth of a good comic - but with the craft of an illustrator, not a sticker, not an
+emoji, not a mascot, not a children's picture book. A small sense of place: a ground line low in
+the frame, and only the objects the scene names. Every shape deliberate; no stray marks, no
+sketch lines, no construction lines. Atmospheric, wry, quietly melancholy, with a little humour.
+Centred in a square frame with generous empty margin, and legible at 200 pixels. No text, no
+letters, no words, no watermark, no border, no frame around the drawing.
 ```
 
 ## The character
@@ -96,6 +98,13 @@ a person under a sheet, standing. So the character is now a hollow sheet with no
 waist, no legs, said outright - tilted with its drift, its hem hanging free and never touching the ground, and its
 shadow a small separate mark far below, which is the one thing in a still drawing that says it floats. In the
 scenes, anything that has the ghost sitting, leaning or holding is a fold of the cloth doing it, not a limb.
+
+Then two dials at once: "a bit more thick lines and thin lines mixed, and bring a touch of cartoon into it." The
+line is now a brush pen's - a bold outer outline, fine lines inside, strokes that swell and taper - and the block
+asks for a touch of cartoon by name: simplified, a little exaggerated, a clear pose, an expression in the eyes, the
+warmth of a good comic. The guard against sliding back to the sticker of the second set is kept in the same
+sentence: the craft of an illustrator, not a mascot. "Literary rather than cartoonish" is gone, since it argued
+with the ask.
 
 ## The fifteen
 
