@@ -2,7 +2,7 @@
 
 **Picking a style, 2026-09-21.** Paused after five sets, then picked up again: the last set was "better but it doesn't
 feel friendly and inviting", so the next step is not another tweak but a choice - ten styles below, each a whole
-prompt, all on the same test scene, for Matt to pick one. Once he picks, it replaces the style block, and the
+prompt that stands on its own, the same mascot in ten different ways of drawing, for Matt to pick one. Once he picks, it replaces the style block, and the
 fifteen scenes are generated in it.
 
 Prompts for generating Glyph's empty-state characters. Matt (2026-09-20): "default vector character graphics of
@@ -15,155 +15,68 @@ face on it.
 
 ## Ten styles to choose from
 
-Each is a whole prompt: paste it as it is. Every one draws **the same scene** - the ghost asleep on a blank sheet,
-the "no notes yet" picture people meet most - and carries **the same character core**, so the only thing that
-changes from one to the next is the style. All ten are one colour of line on white, so whichever is picked can
-ship on `currentColor` without being redrawn.
+Matt, of the first ten: "the styles are relatively the same, I want ghost figures in a mascot that's unique that have 10 unique art styles that will be black and white", and "make each prompt self contained". The first ten all carried the same rule - one even line, no fill - so only a few adjectives changed between them. These ten are held to one thing only, black and white, so solid black, carving, pixels, dots and halftone are all open, and each is a different way of making a picture rather than a different mood.
 
-The character core, repeated in each (what the earlier rounds taught: a hem, not a tail; hollow, not a person under
-a sheet; floating, not standing):
+The mascot is the same in every one, written out in full each time: a ghost made from a sheet of writing paper, with a folded dog-ear corner and a curl of smoke from its head - the page the app is about, and the smoke the app already draws. Paste any prompt on its own; nothing else is needed.
+
+**1. Linocut print.** Carved, bold, hand-made: a block print with solid black shapes and the white cut away.
 
 ```
-The ghost is a hollow sheet with nothing inside it, as wide at the bottom as at the top, ending in a
-soft wavy hem that never touches the ground and never narrows to a tail; no body, no legs, no feet.
-Two small eyes. It floats, with a small separate shadow on the ground below it.
+A bold linocut block print, black ink on white paper: chunky solid black shapes, white areas carved away with visible gouge marks, slightly rough printed edges, strong and graphic. The subject is the mascot of Ghost.md, a notes app: a friendly little ghost made from a single sheet of writing paper. It has a softly rounded top with one small dog-eared corner folded down, a body as wide at the bottom as at the top, and a hem cut in three soft waves that floats above the ground and never narrows to a tail. Two round eyes, a small gentle smile, two short rounded arms, no legs, and nothing inside the sheet. A single small curl of smoke rises from the top of its head like a wisp. Pose: it floats in the air, waving hello with one arm, with a small separate shadow on the ground beneath it. Centred in a square frame with generous empty margin, clear and readable at 200 pixels. Pure black and white only: no grey, no colour, no gradients. No text, no letters, no words, no watermark, no border.
 ```
 
-**1. Warm storybook pen.** The friendliest of the ten; a bedtime-book warmth without being babyish.
+**2. 1-bit pixel art.** Crisp and retro: a tiny grid of square pixels, like an old computer's icon.
 
 ```
-Warm storybook pen illustration, black ink line on plain white. A soft, slightly wobbly hand-drawn
-line of even medium weight, rounded everywhere, with a few short strokes for shadow. Gentle,
-cosy, inviting, like the first page of a much-loved picture book for all ages. No fill, no colour,
-no grey, no shading. The ghost is a hollow sheet with nothing inside it, as wide at the bottom as at
-the top, ending in a soft wavy hem that never touches the ground and never narrows to a tail; no
-body, no legs, no feet. Two small eyes. It floats, with a small separate shadow on the ground below
-it. Scene: the ghost curled up asleep, floating just above a single blank sheet of paper as if it
-were a bed, eyes closed, content. Centred in a square with generous margin, legible at 200 pixels.
-No text, no border.
+1-bit pixel art, drawn on a visible grid of about 32 by 32 square pixels, each pixel pure black or pure white. Crisp hard edges, no anti-aliasing, no dithering, the charm of an early home-computer icon. The subject is the mascot of Ghost.md, a notes app: a friendly little ghost made from a single sheet of writing paper. It has a softly rounded top with one small dog-eared corner folded down, a body as wide at the bottom as at the top, and a hem cut in three soft waves that floats above the ground and never narrows to a tail. Two round eyes, a small gentle smile, two short rounded arms, no legs, and nothing inside the sheet. A single small curl of smoke rises from the top of its head like a wisp. Pose: it floats in the air, waving hello with one arm, with a small separate shadow on the ground beneath it. Centred in a square frame with generous empty margin, clear and readable at 200 pixels. Pure black and white only: no grey, no colour, no gradients. No text, no letters, no words, no watermark, no border.
 ```
 
-**2. Mid-century modern.** Friendly and a little graphic, like a 1950s magazine spot.
+**3. Rubber-hose cartoon.** Bouncy 1930s animation, with solid black shapes and white eyes that shine.
 
 ```
-Mid-century modern spot illustration, black line on plain white. Confident geometric line with
-rounded corners, shapes simplified to circles and soft rectangles, a few playful dashes and
-starbursts around the subject. Optimistic, charming, stylish, like a 1950s magazine drawing. Line
-only: no fill, no colour, no grey, no shading. The ghost is a hollow sheet with nothing inside it,
-as wide at the bottom as at the top, ending in a soft wavy hem that never touches the ground and
-never narrows to a tail; no body, no legs, no feet. Two small eyes. It floats, with a small
-separate shadow on the ground below it. Scene: the ghost curled up asleep, floating just above a
-single blank sheet of paper as if it were a bed, eyes closed, content. Centred in a square with
-generous margin, legible at 200 pixels. No text, no border.
+A 1930s rubber-hose animation cartoon: bold smooth black outlines of even weight, solid black accents, round shapes with a little squash and stretch, pie-cut white highlights in the eyes, cheerful and bouncy. The subject is the mascot of Ghost.md, a notes app: a friendly little ghost made from a single sheet of writing paper. It has a softly rounded top with one small dog-eared corner folded down, a body as wide at the bottom as at the top, and a hem cut in three soft waves that floats above the ground and never narrows to a tail. Two round eyes, a small gentle smile, two short rounded arms, no legs, and nothing inside the sheet. A single small curl of smoke rises from the top of its head like a wisp. Pose: it floats in the air, waving hello with one arm, with a small separate shadow on the ground beneath it. Centred in a square frame with generous empty margin, clear and readable at 200 pixels. Pure black and white only: no grey, no colour, no gradients. No text, no letters, no words, no watermark, no border.
 ```
 
-**3. Brush and ink, soft.** East Asian ink-brush feeling, calm and kind.
+**4. Victorian engraving.** An old book plate: fine etched lines and cross-hatching give the cloth its depth.
 
 ```
-Soft brush-and-ink illustration, black ink on plain white paper. Each line made in one flowing
-brush stroke that swells and fades, few strokes, lots of air, a calm and kindly mood. Gentle,
-serene, welcoming. Line only: no fill, no wash, no colour, no grey, no splatter. The ghost is a
-hollow sheet with nothing inside it, as wide at the bottom as at the top, ending in a soft wavy hem
-that never touches the ground and never narrows to a tail; no body, no legs, no feet. Two small
-eyes. It floats, with a small separate shadow on the ground below it. Scene: the ghost curled up
-asleep, floating just above a single blank sheet of paper as if it were a bed, eyes closed,
-content. Centred in a square with generous margin, legible at 200 pixels. No text, no border, no
-seal stamp.
+A Victorian copperplate engraving, as in an antique book illustration: fine etched lines, careful cross-hatching and parallel hatching to model the folds of the paper, precise and detailed, black lines on white. The subject is the mascot of Ghost.md, a notes app: a friendly little ghost made from a single sheet of writing paper. It has a softly rounded top with one small dog-eared corner folded down, a body as wide at the bottom as at the top, and a hem cut in three soft waves that floats above the ground and never narrows to a tail. Two round eyes, a small gentle smile, two short rounded arms, no legs, and nothing inside the sheet. A single small curl of smoke rises from the top of its head like a wisp. Pose: it floats in the air, waving hello with one arm, with a small separate shadow on the ground beneath it. Centred in a square frame with generous empty margin, clear and readable at 200 pixels. Pure black and white only: no grey, no colour, no gradients. No text, no letters, no words, no watermark, no border.
 ```
 
-**4. Nordic quiet.** Clean, soft and homely, the calm of Scandinavian design.
+**5. Manga with screentone.** Japanese comic art: clean ink lines with shading in halftone dots.
 
 ```
-Scandinavian minimalist line illustration, black line on plain white. Clean, thin-to-medium
-rounded line, simple soft shapes, a few small details like a tiny star or a sprig, lots of white
-space. Calm, homely, friendly, hygge. Line only: no fill, no colour, no grey, no shading, no
-texture. The ghost is a hollow sheet with nothing inside it, as wide at the bottom as at the top,
-ending in a soft wavy hem that never touches the ground and never narrows to a tail; no body, no
-legs, no feet. Two small eyes. It floats, with a small separate shadow on the ground below it.
-Scene: the ghost curled up asleep, floating just above a single blank sheet of paper as if it were
-a bed, eyes closed, content. Centred in a square with generous margin, legible at 200 pixels. No
-text, no border.
+A Japanese manga panel: clean confident ink lines, big expressive eyes with white highlights, and shading done with black halftone screentone dots and a few speed lines, black ink on white. The subject is the mascot of Ghost.md, a notes app: a friendly little ghost made from a single sheet of writing paper. It has a softly rounded top with one small dog-eared corner folded down, a body as wide at the bottom as at the top, and a hem cut in three soft waves that floats above the ground and never narrows to a tail. Two round eyes, a small gentle smile, two short rounded arms, no legs, and nothing inside the sheet. A single small curl of smoke rises from the top of its head like a wisp. Pose: it floats in the air, waving hello with one arm, with a small separate shadow on the ground beneath it. Centred in a square frame with generous empty margin, clear and readable at 200 pixels. Pure black and white only: no grey, no colour, no gradients. No text, no letters, no words, no watermark, no border.
 ```
 
-**5. Newspaper cartoon.** Witty and warm, the single-panel cartoon a grown-up smiles at.
+**6. Bauhaus geometric.** Built from shapes: circles, semicircles and straight edges in solid black and white.
 
 ```
-Single-panel newspaper cartoon, black ink on plain white. A loose, assured pen line with a little
-thick-and-thin, expressive but economical, a knowing gentle humour. Friendly, clever, warm. Line
-only: no fill, no colour, no grey, no hatching beyond a few strokes of shadow. The ghost is a hollow
-sheet with nothing inside it, as wide at the bottom as at the top, ending in a soft wavy hem that
-never touches the ground and never narrows to a tail; no body, no legs, no feet. Two small eyes. It
-floats, with a small separate shadow on the ground below it. Scene: the ghost curled up asleep,
-floating just above a single blank sheet of paper as if it were a bed, eyes closed, content, a tiny
-"z" shape drawn as a line above it. Centred in a square with generous margin, legible at 200
-pixels. No words, no caption, no border.
+A Bauhaus-style geometric illustration: the whole figure constructed from simple circles, semicircles, arcs and rectangles, flat solid black and white areas, crisp edges, balanced and modernist. The subject is the mascot of Ghost.md, a notes app: a friendly little ghost made from a single sheet of writing paper. It has a softly rounded top with one small dog-eared corner folded down, a body as wide at the bottom as at the top, and a hem cut in three soft waves that floats above the ground and never narrows to a tail. Two round eyes, a small gentle smile, two short rounded arms, no legs, and nothing inside the sheet. A single small curl of smoke rises from the top of its head like a wisp. Pose: it floats in the air, waving hello with one arm, with a small separate shadow on the ground beneath it. Centred in a square frame with generous empty margin, clear and readable at 200 pixels. Pure black and white only: no grey, no colour, no gradients. No text, no letters, no words, no watermark, no border.
 ```
 
-**6. Rubber-hose classic.** Bouncy 1930s animation charm, very friendly.
+**7. Cut paper.** Shapes cut from black paper with scissors, soft and a little uneven.
 
 ```
-1930s rubber-hose animation style line drawing, black line on plain white. Bold, smooth, bouncy
-line of even weight, round shapes, big friendly curves, a little squash and stretch. Cheerful,
-charming, vintage. Line only: no fill, no colour, no grey, no shading. The ghost is a hollow sheet
-with nothing inside it, as wide at the bottom as at the top, ending in a soft wavy hem that never
-touches the ground and never narrows to a tail; no body, no legs, no feet. Two small oval eyes with
-a gleam. It floats, with a small separate shadow on the ground below it. Scene: the ghost curled up
-asleep, floating just above a single blank sheet of paper as if it were a bed, eyes closed,
-content. Centred in a square with generous margin, legible at 200 pixels. No text, no border.
+A cut-paper collage: every shape cut from black paper with scissors and laid on white, soft slightly uneven edges, bold simple silhouettes, the white details cut out of the black. The subject is the mascot of Ghost.md, a notes app: a friendly little ghost made from a single sheet of writing paper. It has a softly rounded top with one small dog-eared corner folded down, a body as wide at the bottom as at the top, and a hem cut in three soft waves that floats above the ground and never narrows to a tail. Two round eyes, a small gentle smile, two short rounded arms, no legs, and nothing inside the sheet. A single small curl of smoke rises from the top of its head like a wisp. Pose: it floats in the air, waving hello with one arm, with a small separate shadow on the ground beneath it. Centred in a square frame with generous empty margin, clear and readable at 200 pixels. Pure black and white only: no grey, no colour, no gradients. No text, no letters, no words, no watermark, no border.
 ```
 
-**7. Crayon-soft line.** Hand-made and tender, like a drawing in a notebook margin.
+**8. Tattoo flash.** Classic tattoo sheet: heavy outlines, solid black shading, a little banner-free flourish.
 
 ```
-Soft pencil-crayon line drawing, black on plain white, the line slightly grainy and hand-made like
-a drawing in a favourite notebook. Loose, tender, affectionate, imperfect in a lovely way. Line
-only: no fill, no colour, no grey shading, no smudges. The ghost is a hollow sheet with nothing
-inside it, as wide at the bottom as at the top, ending in a soft wavy hem that never touches the
-ground and never narrows to a tail; no body, no legs, no feet. Two small eyes. It floats, with a
-small separate shadow on the ground below it. Scene: the ghost curled up asleep, floating just
-above a single blank sheet of paper as if it were a bed, eyes closed, content. Centred in a square
-with generous margin, legible at 200 pixels. No text, no border.
+An old-school tattoo flash design: heavy bold black outlines, solid black shading and whip-shaded gradients made of black dashes, a few small stars and sparkles around it, crisp and iconic. The subject is the mascot of Ghost.md, a notes app: a friendly little ghost made from a single sheet of writing paper. It has a softly rounded top with one small dog-eared corner folded down, a body as wide at the bottom as at the top, and a hem cut in three soft waves that floats above the ground and never narrows to a tail. Two round eyes, a small gentle smile, two short rounded arms, no legs, and nothing inside the sheet. A single small curl of smoke rises from the top of its head like a wisp. Pose: it floats in the air, waving hello with one arm, with a small separate shadow on the ground beneath it. Centred in a square frame with generous empty margin, clear and readable at 200 pixels. Pure black and white only: no grey, no colour, no gradients. No text, no letters, no words, no watermark, no border.
 ```
 
-**8. Modern app mascot, refined.** Polished and welcoming, the kind of character a good app greets you with.
+**9. Stipple dotwork.** Built from thousands of black dots, dense in the shadows and sparse in the light.
 
 ```
-Refined modern line illustration for a friendly app, black line on plain white. Smooth, even,
-medium-weight line with round caps, clean confident curves, a little personality in the pose, one
-or two small accents like sparkles or motion lines. Welcoming, warm, polished, contemporary; charming
-but not babyish. Line only: no fill, no colour, no grey, no gradients. The ghost is a hollow sheet
-with nothing inside it, as wide at the bottom as at the top, ending in a soft wavy hem that never
-touches the ground and never narrows to a tail; no body, no legs, no feet. Two small eyes. It floats,
-with a small separate shadow on the ground below it. Scene: the ghost curled up asleep, floating
-just above a single blank sheet of paper as if it were a bed, eyes closed, content. Centred in a
-square with generous margin, legible at 200 pixels. No text, no border.
+A stipple dotwork illustration: form and shadow made entirely of black dots, dense in the shadows and sparse in the light, with a thin clean outline, precise and patient, black dots on white. The subject is the mascot of Ghost.md, a notes app: a friendly little ghost made from a single sheet of writing paper. It has a softly rounded top with one small dog-eared corner folded down, a body as wide at the bottom as at the top, and a hem cut in three soft waves that floats above the ground and never narrows to a tail. Two round eyes, a small gentle smile, two short rounded arms, no legs, and nothing inside the sheet. A single small curl of smoke rises from the top of its head like a wisp. Pose: it floats in the air, waving hello with one arm, with a small separate shadow on the ground beneath it. Centred in a square frame with generous empty margin, clear and readable at 200 pixels. Pure black and white only: no grey, no colour, no gradients. No text, no letters, no words, no watermark, no border.
 ```
 
-**9. Woodland folk tale.** Old-fashioned storybook charm, with small natural details.
+**10. Art Deco poster.** Symmetry, sunbursts and bold stepped shapes, like a 1920s travel poster.
 
 ```
-Folk-tale storybook line illustration, black ink on plain white. A careful, warm hand-drawn line
-with small decorative touches from nature - a leaf, a little moon, tiny stars - arranged
-gently around the subject. Whimsical, cosy, timeless, like an old fairy-tale book. Line only: no
-fill, no colour, no grey, no heavy hatching. The ghost is a hollow sheet with nothing inside it, as
-wide at the bottom as at the top, ending in a soft wavy hem that never touches the ground and never
-narrows to a tail; no body, no legs, no feet. Two small eyes. It floats, with a small separate
-shadow on the ground below it. Scene: the ghost curled up asleep, floating just above a single blank
-sheet of paper as if it were a bed, eyes closed, content, a small crescent moon above. Centred in a
-square with generous margin, legible at 200 pixels. No text, no border.
-```
-
-**10. One continuous line.** Elegant and playful: the whole picture in a single unbroken line.
-
-```
-Continuous single-line drawing, black line on plain white: the whole picture drawn in one
-unbroken, looping line of even weight that never lifts from the paper. Elegant, playful, light,
-friendly. Line only: no fill, no colour, no grey, no shading. The ghost is a hollow sheet with
-nothing inside it, as wide at the bottom as at the top, ending in a soft wavy hem that never touches
-the ground and never narrows to a tail; no body, no legs, no feet. Two small eyes. It floats, with a
-small separate shadow on the ground below it. Scene: the ghost curled up asleep, floating just above
-a single blank sheet of paper as if it were a bed, eyes closed, content. Centred in a square with
-generous margin, legible at 200 pixels. No text, no border.
+An Art Deco poster illustration: strong symmetry, a sunburst of radiating black rays behind the figure, bold stepped and streamlined shapes, elegant thick-and-thin lines, solid black and white. The subject is the mascot of Ghost.md, a notes app: a friendly little ghost made from a single sheet of writing paper. It has a softly rounded top with one small dog-eared corner folded down, a body as wide at the bottom as at the top, and a hem cut in three soft waves that floats above the ground and never narrows to a tail. Two round eyes, a small gentle smile, two short rounded arms, no legs, and nothing inside the sheet. A single small curl of smoke rises from the top of its head like a wisp. Pose: it floats in the air, waving hello with one arm, with a small separate shadow on the ground beneath it. Centred in a square frame with generous empty margin, clear and readable at 200 pixels. Pure black and white only: no grey, no colour, no gradients. No text, no letters, no words, no watermark, no border.
 ```
 
 ## What the app needs them to be
@@ -181,7 +94,12 @@ negotiable - they are why the existing set works on both themes at every size:
   want them to have an illustrated look"), and the abstract shapes' `7.5rem` is a line in `art/Shapes.module.css`,
   not a law. Detail below ~2px of the drawn square is still mud: hatching is sparse and bold, a few strokes for a
   shadow, never a fine mesh; no stippling, no whiskers.
-- **Lines, not fills** (Matt, of the first set: "I want them to be outlines not solid fill"). Varied line weight -
+- **Black and white, any way of making it** (from the ten styles on): solid black, carving, pixels, dots and
+  halftone are all open, since they all stay one ink and invert with the theme. What changes is the cost of putting
+  a picture into the app: flat black shapes and pixel art trace to a handful of paths; engraving, stipple and
+  screentone trace to thousands, so those would be kept as a small image rather than a traced path, or redrawn.
+- **Lines, not fills** (Matt, of the first set: "I want them to be outlines not solid fill"; superseded by the line
+  above once the styles were opened up, kept here for why the middle rounds were line art). Varied line weight -
   a heavier outline, lighter interior and hatching lines - round caps and joins; the inside of a shape is the paper,
   so nothing is painted white and nothing needs a hole cut.
 - **Decoration only** - every one is `aria-hidden`, and the words beside it carry the meaning.
