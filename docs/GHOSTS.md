@@ -1,5 +1,9 @@
 # The ghosts
 
+**Paused, 2026-09-21.** Five sets were generated from the prompts below and none looked how Matt wanted ("we're going
+to skip graphics for now"). The empty states keep the abstract shapes in `art/Shapes.tsx`. If this comes back, start
+with an example image of the look he wants; the text-only loop was the slow part.
+
 Prompts for generating Glyph's empty-state characters. Matt (2026-09-20): "default vector character graphics of
 ghosts for the notes for things like empty pages and new notes etc etc like bear notes does".
 
