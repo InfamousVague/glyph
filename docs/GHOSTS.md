@@ -18,7 +18,7 @@ A stipple dotwork illustration, black ink on pure white: form, folds and shadow 
 
 The same in every prompt, written out in full each time. What each part is for:
 
-- **A plain sheet of writing paper with a dog-eared corner**: the page the app is about. The corner was taken out for one round and put back ("it makes it feel like notes"); ruled lines were tried in its place and then removed ("also remove the notes lines"), so the sheet says it is prompt-plain: no lines, no writing.
+- **A plain sheet of writing paper with a dog-eared corner**: the page the app is about. The corner was taken out for one round and put back ("it makes it feel like notes"); ruled lines were tried in its place and then removed ("also remove the notes lines"), so the prompt says the sheet is plain: no lines, no writing.
 - **As wide at the bottom as the top, a hem of three waves, never a tail**: the first round's taper came back "sperm-like"; a ghost reads from its hem.
 - **Hollow, floating, a separate shadow**: an earlier round came back "too humanoid now and not floating" - a person under a sheet, standing. Nothing inside it is said outright, and the shadow is what says it floats.
 - **Small, simple, solid eyes; no mouth; arms only a lift in the cloth; a little taller than wide**: "a touch more mature". Round, wide and big-eyed read as childish two rounds ago; then almond eyes with heavy lids, shaded in dots, came back realistic ("the realistic eyes are haunting"). Two solid ovals with no lids, iris or highlights are calm without being a face that stares.
