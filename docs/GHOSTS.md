@@ -17,11 +17,13 @@ negotiable - they are why the existing set works on both themes at every size:
   picture that leads, `--app-ink-3` for one that sits under the words) and it inverts with the theme. A generated
   image that is grey-on-white, or that relies on white fills, breaks the moment the page is dark.
 - **Flat.** No gradients, no shading, no texture, no outline-plus-fill-in-two-tones.
-- **Square**, drawn at about 120px (`7.5rem` on the home page's empty state). Detail below ~4px of that square is
-  mud: no eyelashes, no cross-hatching, no thin whiskers.
-- **Lines, not fills** (Matt, 2026-09-21, of the first set: "I want them to be outlines not solid fill"). One stroke
-  weight for the whole set, about 4% of the square, round caps and joins; the inside of a shape is the paper, so
-  nothing is painted white and nothing needs a hole cut.
+- **Square**, drawn at about 120px (`7.5rem` on the home page's empty state). Detail below ~3px of that square is
+  mud: no cross-hatching, no stippling, no whiskers. Detail above it is welcome - a few long contour lines for the
+  folds of the cloth, the weight of a hem - and it is what keeps the drawing from reading as a children's icon.
+- **Lines, not fills** (Matt, 2026-09-21, of the first set: "I want them to be outlines not solid fill"). Two stroke
+  weights for the whole set - the outline at about 4% of the square, interior lines at about two thirds of that -
+  round caps and joins; the inside of a shape is the paper, so nothing is painted white and nothing needs a hole
+  cut.
 - **Decoration only** - every one is `aria-hidden`, and the words beside it carry the meaning.
 
 So the target is **one-colour line art**: a single clean black outline on white, one even stroke, closed shapes,
@@ -32,12 +34,15 @@ no fill inside them. That is what traces to stroked SVG paths and what reads at 
 Paste this into **every** prompt, unchanged. Consistency across the set comes from repeating it word for word.
 
 ```
-Minimal line-art icon, a single clean black outline on a plain white background. Line drawing
-only: no fill inside the shapes, no colour, no grey, no gradients, no shading, no hatching, no
-texture. One even stroke weight throughout, medium-thick, with rounded ends and rounded corners.
-Closed, simple shapes; nothing thinner than the main line. Centred in a square frame with
-generous empty margin. Simple and geometric enough to read clearly at 120 pixels. No text, no
-letters, no words, no watermark, no border, no frame around the drawing.
+Editorial ink line drawing, black ink on plain white, in the manner of a refined spot
+illustration for a serious magazine. Line work only: no fill inside the shapes, no colour, no
+grey, no gradients, no shading, no cross-hatching, no stippling, no texture. A confident, slightly
+hand-drawn main outline of medium weight with rounded ends, and a small number of lighter interior
+contour lines that describe form - folds, drape, the turn of a surface - never decoration. Every
+shape closed and deliberate; nothing scratchy, nothing sketchy, no stray marks. Restrained,
+elegant, quiet, adult; not cute, not cartoonish, not a sticker, not an emoji, not a children's
+book. Centred in a square frame with generous empty margin, and legible at 120 pixels. No text,
+no letters, no words, no watermark, no border, no frame around the drawing.
 ```
 
 ## The character
@@ -46,12 +51,15 @@ Generate this one **first**, and feed the result back as a reference image to ev
 the same ghost each time.
 
 ```
-A small friendly ghost character, the classic sheet ghost: a wide rounded head that flows
-straight down into a body about as wide as the head, ending in a soft scalloped hem of three or
-four gentle waves along the bottom. The body stays broad all the way down; it never narrows to a
-point or a tail. Two small oval eyes drawn as outlines, set wide and low. Two short rounded arm
-bumps at the sides. No mouth, no eyebrows, no legs. Calm and quiet rather than spooky or
-cute-cartoonish.
+A ghost as a sheet of cloth hanging over an unseen figure, drawn with the quiet dignity of a
+figure study. The cloth falls from a softly rounded crown straight down, the body as wide at the
+bottom as at the top, and gathers at the floor in an uneven hem of gentle waves that settle with
+real weight, the way linen does; it never narrows to a point or a tail. Three or four long, soft
+interior contour lines run down the cloth to show the folds and where the unseen shoulders and
+arms are; the arms are a slight lift in the cloth at the sides, not stubs. Two small, calm
+almond-shaped eyes as outlines, set wide and a little low; no mouth, no eyebrows, no cheeks, no
+legs. Proportions slightly tall rather than round. Melancholy, composed, a little wry; never
+spooky, never cute.
 ```
 
 **Character sheet (prompt 1).** Ask for the same ghost three times in one square - facing forward, three-quarter,
@@ -60,6 +68,14 @@ and drifting sideways - so later prompts have a reference for how it turns.
 Why the shape changed: the first set asked for a dome "tapering into wisps", and what came back was a teardrop with a
 tail (Matt: "they look a bit sperm-like"). A ghost reads as a ghost from its hem, not from a tail: the width held all
 the way down and the wave along the bottom are the two things to keep in every prompt.
+
+Why it changed again: the second set, a bare outline of a "small friendly ghost", came back flat and childish (Matt:
+"these are better but lack detail and feel a bit childish"). Three things were doing that - the words "small",
+"friendly" and "simple", which a model reads as a sticker; one even line with nothing inside it; and round, wide
+proportions with big eyes. So the style block is now an editorial ink drawing with lighter interior contour lines,
+the character is cloth with folds and weight rather than a blob with a face, the eyes are small and calm, and the
+words "cute" and "friendly" are gone. The detail rule above moved with it: a few long lines inside the shape are
+what read as drawn rather than stamped, and they hold at 120px; texture and hatching do not.
 
 ## The fifteen
 
