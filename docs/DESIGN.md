@@ -3288,7 +3288,7 @@ lived; the only place that said so was the cog, a tap away.
   pill without the note re-rendering for anything else. The tap's label says both: "In the workspace Cabin. Linked
   to Notion Weekend. Change in this note's settings."
 
-## 60. The Mac window opens as a desktop window (2026-09-21)
+## 61. The Mac window opens as a desktop window (2026-09-21)
 
 Matt: "make the desktop version of the app open in a desktop resolution, right now it opens in a portrait layout."
 One `tauri.conf.json` served every platform, and its window was a phone's: 430 x 860. The phone never reads that
