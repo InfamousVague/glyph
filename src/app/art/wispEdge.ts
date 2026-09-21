@@ -1,5 +1,6 @@
 import { usePreferences } from '../core/preferences.ts';
 import { useEffect, useState, type RefObject } from 'react';
+import { installWispMasks, type WispDraw, wispDraw } from './wispMask.ts';
 
 /**
  * The wisp edge: the app's standard soft top for anything that scrolls under
@@ -146,6 +147,9 @@ function driftStep(now: number): void {
   noise.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
   slide.setAttribute('dx', dx);
   slide.setAttribute('dy', dy);
+  // A view drawn as a mask (art/wispMask.ts) slides its smoke by the same amounts: the mask moves, nothing is redrawn.
+  document.documentElement.style.setProperty('--wisp-noise-x', `${dx}px`);
+  document.documentElement.style.setProperty('--wisp-noise-y', `${dy}px`);
   // The foot's own noise drifts with the top's, so both ends of a view move as one smoke.
   document.getElementById(WISP_EDGE_FOOT_NOISE_ID)?.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
   const footSlide = document.getElementById(WISP_EDGE_FOOT_DRIFT_ID);
@@ -179,6 +183,8 @@ function drift(on: boolean, reset = true): void {
       slide?.setAttribute('dx', '0');
       slide?.setAttribute('dy', '0');
     }
+    document.documentElement.style.setProperty('--wisp-noise-x', '0px');
+    document.documentElement.style.setProperty('--wisp-noise-y', '0px');
   }
 }
 
@@ -275,10 +281,17 @@ export function useWispEdge(
      * smoke was behind the buttons, where nobody could see it.
      */
     footOver?: RefObject<HTMLElement | null>;
+    /**
+     * How the smoke is drawn: the filter that bends the words, or the mask that tears them (art/wispMask.ts). Left
+     * out, the platform decides - the mask in the Mac app, where the filter costs seconds a frame, the filter
+     * elsewhere. A page comparing the two says which it wants.
+     */
+    draw?: WispDraw;
   } = {},
 ): boolean {
   const foot = options.foot ?? false;
   const footOver = options.footOver;
+  const draw = options.draw;
   const [on, setOn] = useState(false);
   // Switched off under Settings > Animations, a page slips under its header with a clean edge (core/preferences.ts).
   const wanted = usePreferences().wispEdge;
@@ -288,6 +301,11 @@ export function useWispEdge(
     // Both refs are set by the time the effect runs; the header is read once so the cleanup sees the same node.
     const header = under?.current ?? null;
     const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Which drawing this view wears, said on the element for the stylesheet (app.css) and for anyone measuring.
+    const mode = draw ?? wispDraw();
+    const masked = mode === 'mask';
+    if (masked) installWispMasks();
+    el.dataset.wispDraw = mode;
     let worn = false;
     /** Whether the foot band is on this view right now. */
     let footWorn = false;
@@ -306,11 +324,14 @@ export function useWispEdge(
     /** Whether the filter's region can cover this view at all: a window past the budget goes without (`placeRegion`). */
     let roomy = false;
     const fit = () => {
-      roomy = placeRegion(el);
+      // A mask has no region and no budget: only the filter is held to one.
+      roomy = masked || placeRegion(el);
       const height = header?.offsetHeight ?? 0;
       // With no header the status bar plays the part of one: the smoke's lip sits at its edge, so a page dissolves
       // as it reaches the clock instead of sliding under a flat scrim (app.css .app-statusScrim).
       beneath = height || safeTop();
+      // The mask's lip, where the filter's strip would end: the stylesheet lays the band from it.
+      if (masked) el.style.setProperty('--wisp-lip', `${beneath + (beneath > 0 ? WISP_EDGE_DROP : 0)}px`);
       // Only when it really changed: these set the scroller's own top padding, and writing them from a size observer
       // that then sees a new size would feed itself.
       if (height !== fitted) {
@@ -322,7 +343,7 @@ export function useWispEdge(
         // fade that ran past it hid the bend and read as a black gradient (Matt: "not the cool effect").
         el.style.setProperty('--wisp-top-fade', height ? '0px' : 'calc(var(--app-safe-top, 0px) + 12px)');
       }
-      if (worn) placeBand(beneath);
+      if (worn && !masked) placeBand(beneath);
     };
     /** How much of the view's foot the dock covers: where the foot band sits, measured up from the view's bottom. */
     let covered = -1;
@@ -345,22 +366,27 @@ export function useWispEdge(
       if (ending !== footWorn) {
         footWorn = ending;
         el.toggleAttribute('data-wisp-foot', ending);
-        placeFoot(footAt(), ending);
-        // Wearing the filter for the foot alone: the top band stays off until this view is scrolled.
-        if (ending && !worn) placeBand(beneath, false);
+        if (!masked) {
+          placeFoot(footAt(), ending);
+          // Wearing the filter for the foot alone: the top band stays off until this view is scrolled.
+          if (ending && !worn) placeBand(beneath, false);
+        } else {
+          footAt();
+        }
       } else if (ending) {
-        placeFoot(footAt(), true);
+        if (masked) footAt();
+        else placeFoot(footAt(), true);
       }
       setOn(scrolled);
       if (scrolled === worn) return;
       worn = scrolled;
       if (scrolled) {
         el.setAttribute('data-wisp-edge', '');
-        placeBand(beneath);
+        if (!masked) placeBand(beneath);
       } else {
         el.removeAttribute('data-wisp-edge');
         // The top band goes with it: a view still wearing the filter for its foot must be crisp at its top.
-        placeBand(beneath, false);
+        if (!masked) placeBand(beneath, false);
         holdStill(true);
       }
     };
@@ -401,12 +427,13 @@ export function useWispEdge(
       el.removeEventListener('scroll', onScroll);
       resized.disconnect();
       el.removeAttribute('data-wisp-edge');
+      delete el.dataset.wispDraw;
       if (footWorn) {
         el.removeAttribute('data-wisp-foot');
-        placeFoot(0, false);
+        if (!masked) placeFoot(0, false);
       }
       holdStill(true);
     };
-  }, [wanted, scroller, key, under, foot, footOver]);
+  }, [wanted, scroller, key, under, foot, footOver, draw]);
   return on;
 }

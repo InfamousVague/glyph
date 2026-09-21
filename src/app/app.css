@@ -462,6 +462,53 @@ body:has(.app-headerPane) .app-statusScrim {
 }
 
 /*
+ * The same smoke as a mask (art/wispMask.ts), for the engine that cannot afford the filter: no filter at all, and the
+ * band is an image of the torn edge laid along the lip - drawn once, moved by the drift, composited by the GPU.
+ * Two or three mask layers, added: the ramp that shows the words whole past the band and dissolves the foot's last
+ * stretch, the top's band tiled along the lip, and the foot's band, turned over, along the view's bottom edge (or
+ * the dock's top, `--wisp-foot-inset`). `--wisp-lip` is where the top band's lip sits, set by the hook; the image
+ * carries `--wisp-mask-above` of smoke over its lip, enough to reach the top of any header, and `--wisp-noise-x/y`
+ * are the drift.
+ */
+[data-wisp-draw='mask'][data-wisp-edge],
+[data-wisp-draw='mask'][data-wisp-foot] {
+  filter: none;
+  --wisp-tear-top: calc(var(--wisp-lip, 0px) + 76px);
+  --wisp-tear-foot: 104px;
+  --wisp-top-band-y: calc(var(--wisp-lip, 0px) - var(--wisp-mask-above, 160px) + var(--wisp-noise-y, 0px));
+  --wisp-foot-band-y: calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-mask-height, 256px) + var(--wisp-mask-above, 160px) - var(--wisp-noise-y, 0px));
+  -webkit-mask-composite: source-over;
+  mask-composite: add;
+}
+
+[data-wisp-draw='mask'][data-wisp-edge]:not([data-wisp-foot]) {
+  -webkit-mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top)), var(--wisp-mask-top);
+  mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top)), var(--wisp-mask-top);
+  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y);
+  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y);
+  -webkit-mask-repeat: no-repeat, repeat-x;
+  mask-repeat: no-repeat, repeat-x;
+}
+
+[data-wisp-draw='mask'][data-wisp-foot]:not([data-wisp-edge]) {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-foot);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-foot);
+  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  -webkit-mask-repeat: no-repeat, repeat-x;
+  mask-repeat: no-repeat, repeat-x;
+}
+
+[data-wisp-draw='mask'][data-wisp-edge][data-wisp-foot] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top), #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-top), var(--wisp-mask-foot);
+  mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top), #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-top), var(--wisp-mask-foot);
+  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y), var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y), var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  -webkit-mask-repeat: no-repeat, repeat-x, repeat-x;
+  mask-repeat: no-repeat, repeat-x, repeat-x;
+}
+
+/*
  * Icons are outlines, with a wash inside the few that are one closed shape.
  *
  * Every icon used to carry the wash (Matt: "use the filled style we use on AttackFM", then "the icon fill should be
