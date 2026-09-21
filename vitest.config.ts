@@ -16,5 +16,12 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}', 'mcp/**/*.test.ts', 'scripts/**/*.test.mjs'],
     setupFiles: ['src/test/setup.ts'],
     css: false,
+    /*
+     * The first test of a file that mounts an editor is a cold CodeMirror render: about four seconds on this Mac
+     * idle, and past the default five with a second suite or a cargo build on the machine - three such tests timed
+     * out and refused a deploy at its test step with everything else green. A render slowed by load still passes at
+     * this; a test that has really hung still fails at it.
+     */
+    testTimeout: 15000,
   },
 });
