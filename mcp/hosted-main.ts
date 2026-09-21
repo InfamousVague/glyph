@@ -1,3 +1,4 @@
+import { ensureWebCrypto } from './webcrypto.ts';
 import { hostedApp } from './hosted.ts';
 import { VERSION } from './server.ts';
 
@@ -12,6 +13,8 @@ import { VERSION } from './server.ts';
  */
 
 const bind = process.env.GLYPH_MCP_BIND || '127.0.0.1:18820';
+ensureWebCrypto();
+
 const issuer = process.env.GLYPH_MCP_ISSUER || 'https://attack.fm/glyph/api/mcp';
 const api = process.env.GLYPH_API || 'http://127.0.0.1:8796/glyph/api';
 const apiPublic = process.env.GLYPH_API_PUBLIC || 'https://attack.fm/glyph/api';

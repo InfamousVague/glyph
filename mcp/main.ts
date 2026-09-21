@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { DEFAULT_API, GlyphAccount, GlyphApiError, type StoredSession } from './glyph.ts';
 import { buildServer, VERSION } from './server.ts';
+import { ensureWebCrypto } from './webcrypto.ts';
 
 /**
  * The `glyph-mcp` command (docs/MCP.md): sign in once, then serve Glyph's notes to Claude over stdio.
@@ -117,6 +118,7 @@ async function serve(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  ensureWebCrypto();
   const [command, ...rest] = process.argv.slice(2);
   switch (command) {
     case 'login':

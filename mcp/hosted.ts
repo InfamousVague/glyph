@@ -440,8 +440,11 @@ export function hostedApp(options: HostedOptions) {
       // Not extractable: this process can use the key and never read it out.
       key = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
       raw.fill(0);
-    } catch {
-      res.status(400).json({ error: 'That is not an account key.' });
+    } catch (failure) {
+      // The message the person reads says what they can act on; the reason goes to the journal, because the last
+      // time this fired it was not the key at all - it was a Node without WebCrypto (mcp/webcrypto.ts).
+      process.stderr.write(`glyph-mcp: the account key was refused: ${failure instanceof Error ? failure.message : String(failure)}\n`);
+      res.status(400).json({ error: globalThis.crypto?.subtle ? 'That is not an account key.' : 'This server cannot open an account key. Its administrator will find the reason in its log.' });
       return;
     }
     const id = randomUUID();
