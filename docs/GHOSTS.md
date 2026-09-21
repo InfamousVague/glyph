@@ -26,8 +26,8 @@ negotiable - they are why the existing set works on both themes at every size:
   cut.
 - **Decoration only** - every one is `aria-hidden`, and the words beside it carry the meaning.
 
-So the target is **one-colour line art**: a single clean black outline on white, one even stroke, closed shapes,
-no fill inside them. That is what traces to stroked SVG paths and what reads at 120px without turning to mud.
+So the target is **one-colour line art**: a clean black outline on white with a few lighter lines inside it, closed
+shapes, no fill. That is what traces to stroked SVG paths and what reads at 120px without turning to mud.
 
 ## The style block
 
@@ -204,9 +204,10 @@ the front. It peers over the top of the parcel.
 1. **Trace to SVG as strokes.** A centreline tracer (Illustrator's Image Trace with Strokes on and Fills off, or
    Inkscape's Trace Bitmap in centerline mode) turns each line into one path; an outline tracer would give every
    line two edges and a fill between them, which is twice the geometry and a stroke that cannot be retuned.
-2. **Strip the colour.** Every path `fill="none"`, the root `stroke="currentColor"`, one `stroke-width` for the whole
-   drawing (about 5 in a 120 box), `stroke-linecap="round"` and `stroke-linejoin="round"`; delete the white
-   background rectangle a tracer usually adds. Nothing is painted white and nothing is a hole.
+2. **Strip the colour.** Every path `fill="none"`, the root `stroke="currentColor"`, two `stroke-width`s for the
+   whole set (about 5 for the outline and 3.5 for the interior lines in a 120 box, on a group each),
+   `stroke-linecap="round"` and `stroke-linejoin="round"`; delete the white background rectangle a tracer usually
+   adds. Nothing is painted white and nothing is a hole.
 3. **Square the box.** `viewBox="0 0 120 120"`, which is what every shape in `art/Shapes.tsx` uses, so they can be
    swapped in and out without touching a stylesheet.
 4. **Check both themes at 120px**, and check them at `--app-ink-3`, which is where most of them sit: a shape that
