@@ -3271,3 +3271,19 @@ both, against 16-18ms with the filter off; the same page in GPU Chromium at 16.7
 - **Seen at 1280px in Chromium with the override:** the note's page wore `data-wisp-draw="mask"`, `filter: none`,
   three mask layers `add`ed, the lip at 130px under a 112px bar, and a heading at the lip dissolved through the
   smoke while the lines under it stood whole.
+
+## 60. The workspace, on the note (2026-09-21)
+
+Matt: "please show the workspace on the view that shows the note itself." The home page said which workspace a
+note was in and the note did not, so a note opened from a tab, a search or a canvas card gave no sign of where it
+lived; the only place that said so was the cog, a tap away.
+
+- **In the link row.** The note already wore a row under its tape for what it is tied to (plugins/LinkMarks.tsx: a
+  Notion board, a repo), and a tap on that row opens the cog, which is also where a note is filed. The workspace
+  goes first in that row, as the pill the home page draws it with (notes/WorkspaceBar.module.css `.space`) in the
+  workspace's own hue, at the row's size so it sits level with the marks. The row now shows for a filed note with
+  no links too; a note in no workspace with no links wears nothing, as before. The list's compact row keeps the
+  marks alone: it has its own place for a workspace.
+- **Read through the store's hook**, so filing the note from the cog, or recolouring the workspace, redraws the
+  pill without the note re-rendering for anything else. The tap's label says both: "In the workspace Cabin. Linked
+  to Notion Weekend. Change in this note's settings."

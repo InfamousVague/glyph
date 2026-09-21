@@ -40,6 +40,26 @@ button.row:active {
   line-height: 1.4;
 }
 
+/*
+ * The workspace the note is in: the home page's pill (notes/WorkspaceBar.module.css `.space`), outlined in its hue,
+ * at the row's own size so it sits level with the marks beside it.
+ */
+.space {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45em 0.65em;
+  border: 1px solid color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent);
+  border-radius: var(--glacier-radius-full, 999px);
+  color: var(--app-space, var(--app-ink-2));
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+  max-inline-size: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* The plugin's mark in a ring, the way the header draws its cog. */
 .icon {
   display: inline-grid;

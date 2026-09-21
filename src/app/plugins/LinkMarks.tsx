@@ -1,3 +1,4 @@
+import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
 import { useNoteLinks } from './registry.ts';
 import styles from './LinkMarks.module.css';
 
@@ -14,10 +15,18 @@ import styles from './LinkMarks.module.css';
  * linked to (`NoteLink.linked`, plugins/types.ts); a plugin switched off says
  * nothing, and its marks go. A tap opens the cog sheet, where the link is
  * changed or removed.
+ *
+ * The workspace the note is filed in comes first in the row, as the pill the home page draws it with, in its own
+ * hue (Matt: "show the workspace on the view that shows the note itself"): the home page said it and the note did
+ * not, so a note opened from a tab or a search gave no sign of where it lived. The same tap opens the cog, where
+ * the note is filed (editor/WorkspacePicker.tsx). On a list row (`compact`) the row stays the marks alone.
  */
 export function LinkMarks({ noteId, compact = false, onPress }: { noteId: string; compact?: boolean; onPress?: () => void }) {
   const links = useNoteLinks(noteId);
-  if (!links.length) return null;
+  // Read through the store's hook, so filing the note from the cog redraws the pill.
+  useWorkspaces();
+  const space = compact ? null : workspaceOf(noteId);
+  if (!links.length && !space) return null;
   const marks = links.map(({ link, name }) => {
     const Icon = link.icon;
     return (
@@ -29,15 +38,25 @@ export function LinkMarks({ noteId, compact = false, onPress }: { noteId: string
       </span>
     );
   });
+  const pill = space ? (
+    <span className={styles.space} data-hue={space.hue ?? 'ink'} title={`Workspace: ${space.name}`}>
+      {space.name}
+    </span>
+  ) : null;
   if (onPress) {
+    const said = [space ? `In the workspace ${space.name}` : '', links.length ? `Linked to ${links.map((l) => `${l.link.label} ${l.name}`).join(' and ')}` : '']
+      .filter(Boolean)
+      .join('. ');
     return (
-      <button type="button" className={styles.row} onClick={onPress} aria-label={`Linked to ${links.map((l) => `${l.link.label} ${l.name}`).join(' and ')}. Change in this note’s settings.`}>
+      <button type="button" className={styles.row} onClick={onPress} aria-label={`${said}. Change in this note’s settings.`}>
+        {pill}
         {marks}
       </button>
     );
   }
   return (
     <span className={styles.row} data-compact={compact || undefined}>
+      {pill}
       {marks}
     </span>
   );
