@@ -41,7 +41,8 @@ import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { canvasNoteBody } from './canvas/jsonCanvas.ts';
 import { withFrontMatterTitle } from './core/frontMatter.ts';
-import { bookNoteBody, bookOf } from './book/book.ts';
+import { bookNoteBody, bookOf, isBookBody } from './book/book.ts';
+import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
 import { sweepMemos } from './core/sweepMemos.ts';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
@@ -454,13 +455,20 @@ function Shell() {
     setScreen({ name: 'note', note });
   };
 
-  /** A book from the + (docs/BOOKS.md): named and empty, opened on its index; it is filed and kept as a note is. */
-  const newBook = async () => {
-    const note = await saveNote(newNoteId(), bookNoteBody('New book'), 'editor');
+  /**
+   * A book from the + (docs/BOOKS.md): the New book sheet asks its name and which notes are its pages, in what
+   * order, and makes one note with that index, opened on it. Filed and kept as a note is.
+   */
+  const [bookSheet, setBookSheet] = useState(false);
+  const newBook = () => setBookSheet(true);
+  const createBook = async (title: string, pages: readonly string[]) => {
+    const note = await saveNote(newNoteId(), bookNoteBody(title, pages), 'editor');
     fileNewNote(note.id);
     await refresh();
     setScreen({ name: 'note', note });
   };
+  /** What can be a page: every note's title but the books' own. */
+  const pageTitles = () => shownNotes.filter((n) => !isBookBody(n.body)).map((n) => noteTitle(n.body)).filter((t) => t.trim());
 
   const newNote = async () => {
     // Written to the store immediately rather than on first keystroke: a note
@@ -921,7 +929,8 @@ function Shell() {
         (noteScreen ?? home)
       )}
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
-      <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={() => void newBook()} />
+      <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={newBook} />
+      <NewBookSheet open={bookSheet} onClose={() => setBookSheet(false)} titles={pageTitles()} onCreate={(title, pages) => void createBook(title, pages)} />
       <WhatsNewSheet sources={updates.status?.sources} hold={guide || screen.name === 'capture'} />
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
       <NotesDrawer

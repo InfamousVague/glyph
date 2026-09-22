@@ -1,3 +1,4 @@
+import { isBookBody } from '../book/book.ts';
 import { itemOnLine, itemWords } from '../core/boards.ts';
 import type { Note } from '../core/store.ts';
 
@@ -11,10 +12,15 @@ export function pinnedNotes(notes: readonly Note[]): Note[] {
   return notes.filter((n) => n.starred && !n.archivedAt).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** The notes touched last, pinned ones left to their own row so nothing shows twice. */
+/** The books (docs/BOOKS.md), newest change first, for the home page's Library. The archive stays out. */
+export function bookNotes(notes: readonly Note[]): Note[] {
+  return notes.filter((n) => !n.archivedAt && isBookBody(n.body)).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/** The notes touched last, pinned ones and books left to their own rows so nothing shows twice. */
 export function recentNotes(notes: readonly Note[], count: number): Note[] {
   return notes
-    .filter((n) => !n.starred && !n.archivedAt)
+    .filter((n) => !n.starred && !n.archivedAt && !isBookBody(n.body))
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, count);
 }

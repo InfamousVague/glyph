@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, X } from '@glacier/icons';
+import { BookOpen, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, X } from '@glacier/icons';
 import { sameTitle } from '../editor/wikiLinks.ts';
 import { chaptersOf, numbered, prefaceOf, withChapter, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
 import styles from './BookView.module.css';
@@ -33,6 +33,8 @@ export function BookView({ body, known, open, titles, title, onChange }: BookVie
   const [adding, setAdding] = useState<'new' | 'existing' | null>(null);
   const [draft, setDraft] = useState('');
   const [filter, setFilter] = useState('');
+  /** The notes ticked so far in the picker, in the order they were ticked. */
+  const [picked, setPicked] = useState<string[]>([]);
 
   const addNew = () => {
     const name = draft.trim();
@@ -42,8 +44,12 @@ export function BookView({ body, known, open, titles, title, onChange }: BookVie
     setAdding(null);
     open(name);
   };
-  const addExisting = (name: string) => {
-    onChange(withChapter(body, name));
+  const togglePick = (name: string) => setPicked((was) => (was.some((p) => sameTitle(p, name)) ? was.filter((p) => !sameTitle(p, name)) : [...was, name]));
+  const addPicked = () => {
+    let next = body;
+    for (const name of picked) next = withChapter(next, name);
+    onChange(next);
+    setPicked([]);
     setFilter('');
     setAdding(null);
   };
@@ -121,15 +127,31 @@ export function BookView({ body, known, open, titles, title, onChange }: BookVie
           <input className={styles.field} aria-label="Find a note to add" placeholder="Find a note" value={filter} autoFocus onChange={(event) => setFilter(event.target.value)} />
           <ul className={styles.picker} aria-label="Notes to add">
             {others.length === 0 ? <li className={styles.none}>{filter.trim() ? 'No note by that name outside the book.' : 'Every note is in the book already.'}</li> : null}
-            {others.slice(0, 40).map((name) => (
-              <li key={name}>
-                <button type="button" className={styles.pick} onClick={() => addExisting(name)}>
-                  {name}
-                </button>
-              </li>
-            ))}
+            {others.slice(0, 40).map((name) => {
+              const on = picked.some((p) => sameTitle(p, name));
+              return (
+                <li key={name}>
+                  <button type="button" className={styles.pick} aria-pressed={on} onClick={() => togglePick(name)}>
+                    <span className={styles.pickMark} aria-hidden="true">
+                      {on ? <Check size={14} /> : null}
+                    </span>
+                    {name}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
-          <button type="button" className={styles.quiet} onClick={() => setAdding(null)}>
+          <button type="button" className={styles.action} disabled={picked.length === 0} onClick={addPicked}>
+            {picked.length <= 1 ? 'Add' : `Add ${picked.length} notes`}
+          </button>
+          <button
+            type="button"
+            className={styles.quiet}
+            onClick={() => {
+              setPicked([]);
+              setAdding(null);
+            }}
+          >
             Cancel
           </button>
         </div>

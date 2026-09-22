@@ -182,7 +182,9 @@
 }
 
 .pick {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
   inline-size: 100%;
   padding: 0.5em 0.8em;
   border: 0;
@@ -259,4 +261,21 @@
 
 .count {
   font-variant-numeric: tabular-nums;
+}
+
+/* The tick beside a note in the picker: an empty ring, filled when the note is picked. */
+.pickMark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.2em;
+  block-size: 1.2em;
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: 999px;
+}
+
+.pick[aria-pressed='true'] .pickMark {
+  background: var(--glacier-text);
+  color: var(--glacier-bg);
+  border-color: var(--glacier-text);
 }

@@ -500,3 +500,49 @@
   font-size: var(--glacier-font-size-md);
   color: var(--glacier-text-muted);
 }
+
+/* The Library's mark stands straight; the pin above it leans. */
+.groupIconStill {
+  font-size: 1.15em;
+}
+
+/* A book's card: how many pages, then the first few as its index, in the card's own quiet type. */
+.bookMeta {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-muted);
+}
+
+.bookPages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-muted);
+}
+
+.bookPages li {
+  display: flex;
+  gap: 0.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookPages li[data-depth='1'] {
+  padding-inline-start: 1.2em;
+}
+
+.bookPageNumber {
+  flex: none;
+  min-inline-size: 1.2em;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  color: var(--glacier-text-subtle);
+}
+
+.bookMore {
+  font-style: italic;
+}

@@ -78,11 +78,14 @@ describe('the index view', () => {
     expect(open).toHaveBeenCalledWith('Rivers');
 
     act(() => button('Add a note you have').click());
-    // The book itself and the chapters already in it are not offered.
-    const offered = [...document.querySelectorAll('ul[aria-label="Notes to add"] button')].map((b) => b.textContent);
+    // The book itself and the chapters already in it are not offered; several can be ticked and added at once.
+    const offered = [...document.querySelectorAll('ul[aria-label="Notes to add"] button')].map((b) => b.textContent?.trim());
     expect(offered).toEqual(['Rivers', 'Mountains']);
     act(() => button('Mountains').click());
-    expect(chaptersOf(onChange.mock.calls[1]![0] as string).map((c) => c.title)).toContain('Mountains');
+    act(() => button('Rivers').click());
+    expect(button('Add 2 notes')).toBeTruthy();
+    act(() => button('Add 2 notes').click());
+    expect(chaptersOf(onChange.mock.calls[1]![0] as string).map((c) => c.title).slice(-2)).toEqual(['Mountains', 'Rivers']);
   });
 
   it('says so when the book has no chapters', () => {

@@ -3541,3 +3541,25 @@ Matt: "On the home page the scrollbar goes behind the header."
 - Only where there is a pointer (`hover: hover` and `pointer: fine`): styling a scrollbar gives up the platform's own,
   and on a phone the thin one that shows only while scrolling is the right one. Chromium and WebKit both take the
   track's margin; checked in Chromium, and the Mac app's WebKit reads the same rule.
+
+## 72. A book made from the +, with its pages picked; a Library on the home page (2026-09-22)
+
+Matt: "Expand in the UI/UX for creating books allow choosing existing notes as pages etc etc and make a library
+section on the home dashboard for books." The first slice (§70) made an empty book and left the pages to its index;
+this is the front door.
+
+- **The New book sheet** (book/NewBookSheet.tsx), in the New sheet's own shell: the name, then the library's notes
+  under a search, each a row that ticks - a tap puts a note in the book, a second takes it out - with the pages so
+  far listed above in the order they were tapped, each movable a place or left out. *Make the book* writes one note
+  with that index (`bookNoteBody(title, pages)`) and opens it; closing the sheet writes nothing. Books are not
+  offered as pages: a book of books is a thing for another day.
+- **The index picks several at once.** *Add a note you have* on a book's index now ticks any number and adds them
+  in the order ticked, the same rows as the sheet's.
+- **The Library** on the home page (home/HomeScreen.tsx, `bookNotes` in home/dashboard.ts): between Pinned and
+  Recent, a card per book - its name, "3 pages", the first four as a small numbered index, when it was last
+  touched - a tap opening the index. A book is no longer also a Recent card, so nothing shows twice; the archive
+  stays out, as everywhere on the page.
+- **Seen in the pane:** the Library with the first slice's book; the +, Book, the sheet; "Field guide" made from
+  two notes tapped in order and opened on its two rows. Tests: the sheet (a name required; pages in the order
+  tapped, found by name, moved, left out; the index made from exactly them), the dashboard (books newest first,
+  the archive out, Recent without them), the index's picker adding two at once; 280 green around the change.

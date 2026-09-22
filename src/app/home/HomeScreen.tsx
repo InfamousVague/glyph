@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Mic } from '@glacier/icons';
+import { Book, Mic } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
@@ -15,7 +15,8 @@ import { AcademyCard, RefiningNotice, UpdateCard, UpdateNotice, VoiceModelStatus
 import { when } from '../notes/when.ts';
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
-import { openTasks, pinnedNotes, recentNotes, tickedTasks, type OpenTask } from './dashboard.ts';
+import { bookNotes, openTasks, pinnedNotes, recentNotes, tickedTasks, type OpenTask } from './dashboard.ts';
+import { chaptersOf } from '../book/book.ts';
 import styles from './HomeScreen.module.css';
 
 /**
@@ -89,6 +90,7 @@ export function HomeScreen({
   const shown = useMemo(() => inWorkspace(notes, workspace), [notes, workspace]);
   const pinned = useMemo(() => pinnedNotes(shown), [shown]);
   const recent = useMemo(() => recentNotes(shown, RECENT), [shown]);
+  const books = useMemo(() => bookNotes(shown), [shown]);
   const tasks = openTasks(shown);
   // One quiet line under each card's title, what the note is about, written by a model on the phone (format/gist.ts).
   // Only the notes with a card on the page: the runner asks about what is on screen, not about every note there is.
@@ -116,6 +118,34 @@ export function HomeScreen({
           {/* What the note is about, when the phone has written it; the preview under it is the note itself. */}
           {gists[note.id] ? <span className={styles.cardGist}>{gists[note.id]}</span> : null}
           <NotePeek body={note.body} className={styles.cardPeek} />
+          <span className={styles.cardWhen}>{when(note.updatedAt)}</span>
+        </button>
+      </li>
+    );
+  };
+
+  /** A book's card (docs/BOOKS.md): its name, how many pages, and the first few of them; a tap opens the index. */
+  const bookCard = (note: Note, i: number) => {
+    const title = noteTitle(note.body);
+    const chapters = chaptersOf(note.body);
+    return (
+      <li key={note.id} className={styles.cardItem} style={{ '--i': Math.min(i, 8) } as React.CSSProperties}>
+        <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
+          <span className={styles.cardTitle} data-untitled={title ? undefined : ''}>
+            {title || 'Untitled book'}
+          </span>
+          <span className={styles.bookMeta}>{chapters.length === 0 ? 'No pages yet' : chapters.length === 1 ? '1 page' : `${chapters.length} pages`}</span>
+          {chapters.length ? (
+            <ol className={styles.bookPages} aria-hidden="true">
+              {chapters.slice(0, 4).map((c, n) => (
+                <li key={`${c.line}-${c.title}`} data-depth={c.depth}>
+                  <span className={styles.bookPageNumber}>{n + 1}</span>
+                  {c.title}
+                </li>
+              ))}
+              {chapters.length > 4 ? <li className={styles.bookMore}>and {chapters.length - 4} more</li> : null}
+            </ol>
+          ) : null}
           <span className={styles.cardWhen}>{when(note.updatedAt)}</span>
         </button>
       </li>
@@ -156,12 +186,22 @@ export function HomeScreen({
             </section>
           ) : null}
 
+          {books.length ? (
+            <section aria-labelledby="home-library">
+              <h2 id="home-library" className={styles.group}>
+                <Book className={styles.groupIconStill} />
+                Library
+              </h2>
+              <ol className={styles.cards}>{books.map((n, i) => bookCard(n, i + pinned.length))}</ol>
+            </section>
+          ) : null}
+
           {recent.length ? (
             <section aria-labelledby="home-recent">
               <h2 id="home-recent" className={styles.group}>
                 Recent
               </h2>
-              <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length))}</ol>
+              <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length + books.length))}</ol>
             </section>
           ) : null}
 

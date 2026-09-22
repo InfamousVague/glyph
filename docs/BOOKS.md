@@ -38,13 +38,19 @@ What to know before the walk.
 
 ## In the app
 
-- **Settings: none.** The + offers a Book beside a Note and a Canvas (notes/NewSheet.tsx); it is made named
-  "New book", empty, and opened on its index. Rename it from its tab's menu or its settings, as a canvas is.
+- **Making one.** The + offers a Book beside a Note and a Canvas (notes/NewSheet.tsx), and opens the New book
+  sheet (book/NewBookSheet.tsx): its name, and which notes are its pages - the library's titles under a search, a tap
+  puts one in and a second takes it out, the pages so far listed above in the order chosen, each movable a place or
+  left out. *Make the book* writes one note with that index and opens it; closing the sheet makes nothing. Rename it
+  later from its tab's menu or its settings, as a canvas is.
+- **The Library** on the home page (home/HomeScreen.tsx, `bookNotes` in home/dashboard.ts): a card per book - its
+  name, how many pages, the first few of them - between Pinned and Recent; a tap opens the index. A book is not
+  also a Recent card.
 - **The index view** (book/BookView.tsx) stands where the note's words would be, the Markdown a toggle away in the
   header, as a canvas's JSON is. Each chapter is a row that opens the note; a chapter not written yet is drawn
   waiting. Every row moves up or down a place, or comes out of the book - the note it names is never touched.
-  *Add a chapter* names a new one and opens it at once; *Add a note you have* picks from the library's titles, less
-  the book's own and those already in it.
+  *Add a chapter* names a new one and opens it at once; *Add a note you have* ticks any number from the library's
+  titles, less the book's own and those already in it, and adds them in the order ticked.
 - **A chapter wears the book** (BookBar): under its header, the book's title with its place (2 of 5) and the
   chapters either side; a tap on the book opens the index. Found by title (book/book.ts `bookOf`): the first book
   in the library whose index names the note. A note can be in more than one book; the bar shows the first.
@@ -56,7 +62,7 @@ What to know before the walk.
 
 - Reading a book straight through as one page, chapter after chapter.
 - Making a book by voice ("Ghost, add a chapter to the field guide").
-- A book mark on a note in the list and the home page.
+- A book mark on a note in the list.
 - Reordering by drag; the rows move a place at a time.
 
 ## Where the code is

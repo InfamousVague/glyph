@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Note } from '../core/store.ts';
-import { openTasks, pinnedNotes, recentNotes, tickedTasks } from './dashboard.ts';
+import { bookNotes, openTasks, pinnedNotes, recentNotes, tickedTasks } from './dashboard.ts';
 
 const note = (id: string, body: string, updatedAt: number, extra: Partial<Note> = {}): Note =>
   ({ id, body, createdAt: 0, updatedAt, source: 'editor', ...extra }) as Note;
@@ -48,5 +48,20 @@ describe('the home page', () => {
       ]),
     ).toBe(3);
     expect(tickedTasks([note('c', '- [ ] only open', 1)])).toBe(0);
+  });
+});
+
+describe('the library', () => {
+  const note = (id: string, body: string, extra: Partial<Note> = {}): Note => ({ id, body, createdAt: 0, updatedAt: 1, source: 'editor', ...extra });
+
+  it('is the books, newest change first, the archive left out, and Recent is without them', () => {
+    const notes = [
+      note('a', '# A plain note', { updatedAt: 5 }),
+      note('b', '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n- [[A plain note]]\n', { updatedAt: 3 }),
+      note('c', '---\ntitle: "Old"\nbook: true\n---\n', { updatedAt: 9, archivedAt: 1 }),
+      note('d', '---\ntitle: "Trip"\nbook: true\n---\n', { updatedAt: 7 }),
+    ];
+    expect(bookNotes(notes).map((n) => n.id)).toEqual(['d', 'b']);
+    expect(recentNotes(notes, 10).map((n) => n.id)).toEqual(['a']);
   });
 });
