@@ -3670,3 +3670,26 @@ shown became a tab (notes/openTabs.ts `addOpen`), so reading a book left a tab p
   and the read-through; the aside opens "within" when it shows a book.
 - Tests: the rule's four cases (in place; the page's own tab used and the book's closed; added where the row has no
   tab to take; the same note twice changes nothing).
+
+## 78. Making a book by voice (2026-09-22)
+
+Matt's fourth Book slice: "Make one by voice." Two commands, both read by the rules in capture/command.ts and asked
+about before they act, as every command is.
+
+- **"Hey Ghost, make a book called Field guide"** makes the book note, empty with its index ready, beside the
+  recording, which carries on where it was; the next command can name the book. Pages can follow the name ("…with
+  Trees, Birds and the work note"): each is a note found by its spoken title, the way any named note is, or a chapter
+  still to be written when no note answers to it. Said without a name, the recorder keeps listening for one, as it
+  does for any command that has not said enough. Only make, create, start, begin and new open a book, because "add a
+  book to my reading list" is a book for a list, and that is what it stays.
+- **"Hey Ghost, add a chapter to the field guide"** and then the name, or the name in the same breath ("add a chapter
+  called Rivers to the field guide", "put Rivers in the field guide"). The rule under it: a note that is a book gets
+  chapters, never words. Whatever the rules or the phone's command model would have placed in a book is read again as
+  a chapter (`forBook`), so the model's "add" lands right without its prompt knowing what a book is, and the prompt
+  stays as it was measured (§ understand.ts). "Add this to the field guide" and "move this to the field guide" make
+  the note being recorded a chapter, which is all that moving a recording into an index could mean. A chapter the
+  book already has, the book itself, or a note with no name yet is said and not offered.
+
+Nothing new is asked of the person: the card is the one a board's lane uses ("New chapter in Field guide", Add), and
+the book's card lists its pages. The take is tested without a recorder (capture/take.test.ts), the way the voice
+suite drives it.
