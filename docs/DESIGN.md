@@ -3655,3 +3655,18 @@ in book view, add a sidebar toggle on the right with the icon reversed."
   opening the book; anywhere else the workspace's other notes in the list's order, the open one and the archive
   left out, named after the workspace or "All notes".
 - Tests: the two faces from the notes and the open note; the component's taps and its close.
+
+## 77. A book stays in one tab (2026-09-22)
+
+Matt, seeing the first cut: "the book should open in one tab instead of each page opening in a new tab." Every note
+shown became a tab (notes/openTabs.ts `addOpen`), so reading a book left a tab per page behind.
+
+- **The rule** (`swapOpen`): a page opened from inside a book - the index, the chapter bar, the right-hand aside, the
+  read-through - takes the current tab's place. A page that already has a tab is used and the book's closes, so the
+  row never gains a tab for a page. A `[[link]]` in the words still opens a tab, as any link does.
+- **The mechanism** (App.tsx): the tab to give up is noted in a ref by `openTitleWithin` / `openNoteWithin`, and the
+  effect that turns a shown note into a tab reads it once; `openNote` and `openTitle` clear it first, so a note opened
+  any other way after a book's is not swapped by mistake. The note screen hands `onOpenWithin` to the index, the bar
+  and the read-through; the aside opens "within" when it shows a book.
+- Tests: the rule's four cases (in place; the page's own tab used and the book's closed; added where the row has no
+  tab to take; the same note twice changes nothing).
