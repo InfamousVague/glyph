@@ -51,32 +51,20 @@ const CUES: readonly Tip[] = [
   { say: 'Anchor … end anchor', does: 'to name an item, and “item link … end link” to point at it' },
 ];
 
-/** What the memo flow answers to, once a note is chosen (capture/memoFlow.ts): a trigger word, then the thing. */
-const FLOW: readonly Tip[] = [
-  { say: 'Add task', does: 'and then the task, to put it in this note’s list' },
-  { say: 'Add tasks', does: 'to add several, then “done”' },
-  { say: 'Add item', does: 'and then the words, for a bullet' },
-  { say: 'Add a line', does: 'and then the words, for a line of the note' },
-  { say: 'Switch note', does: 'to pick another note' },
-  { say: 'New note', does: 'to start a fresh one, and “new note called …” names it' },
-  { say: 'Undo', does: 'to take back the last thing added' },
-];
-
 /**
  * The tips, in the order they come round. `noteTitle` is a recent note's
  * title for the routing tip; `continuing` says a note is already being added
- * to, which is when "new note" is worth knowing; `flow` that the take is the
- * memo flow, whose trigger words need no keyword.
+ * to, which is when "new note" is worth knowing.
  */
-export function tips({ noteTitle, continuing, keyword = true, lane = null, flow = false }: { noteTitle?: string | null; continuing: boolean; keyword?: boolean; lane?: string | null; flow?: boolean }): Tip[] {
+export function tips({ noteTitle, continuing, keyword = true, lane = null }: { noteTitle?: string | null; continuing: boolean; keyword?: boolean; lane?: string | null }): Tip[] {
   const say = (command: string) => (keyword ? `Hey Ghost, ${command.charAt(0).toLowerCase()}${command.slice(1)}` : command);
-  const route: Tip[] = flow ? [...FLOW] : [];
+  const route: Tip[] = [];
   if (noteTitle) route.push({ say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' });
   if (noteTitle) route.push({ say: say(`New item for ${noteTitle}`), does: 'and then the item, to add to its list' });
   // On a note with a board, its lanes can be named (core/boards.ts).
   if (lane) route.push({ say: say(`Add … to ${lane}`), does: 'to put a card in that lane' });
   if (lane) route.push({ say: say(`Move … to ${lane}`), does: 'to move a card there' });
-  if (continuing && !flow) route.push({ say: say('New note'), does: 'to start a fresh one' });
+  if (continuing) route.push({ say: say('New note'), does: 'to start a fresh one' });
   if (noteTitle) route.push({ say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' });
   if (noteTitle) route.push({ say: say(`Add a table to ${noteTitle}`), does: 'and it asks for the columns and rows' });
   // Routing first and then every few cues, since it is the least discoverable.

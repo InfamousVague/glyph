@@ -8,7 +8,6 @@ import { deleteNote, getNote, listNotes, newNoteId, noteTitle, saveNote, setNote
 import { preferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { openMicrophone, type Microphone, type MicrophoneHandlers } from './audio.ts';
-import { appendBody, continuationNote, rememberCapture } from './continuation.ts';
 import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { enqueueFormat, setFormattingPaused } from '../format/queue.ts';
 import { reviewAvailable, type ReviewHandoff } from '../review/useReview.ts';
@@ -22,8 +21,8 @@ import { placeWords } from './listAppend.ts';
 import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandCommand } from './understand.ts';
 import { appendBlock } from './table.ts';
-import { Take, type FlowView, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
-import { askWords } from './memoFlow.ts';
+import { appendBody } from './appendBody.ts';
+import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
 import { boardFrom, lanesOf } from '../core/boards.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { plugins } from '../plugins/registry.ts';
@@ -33,7 +32,6 @@ import { SideKeyWaves } from './SideKeyWaves.tsx';
 import { publishVoiceLevel } from './voiceLevel.ts';
 import { useSideKeySpot } from './sideKey.ts';
 import { LivePage } from './LivePage.tsx';
-import type { Scratch } from './scratch.ts';
 import { Tail } from './Tail.tsx';
 import { counter } from './tape.ts';
 import styles from './CaptureScreen.module.css';
@@ -61,11 +59,7 @@ import styles from './CaptureScreen.module.css';
  * a note that never existed. So each committed phrase is written under an id
  * chosen at mount; a cancel deletes it; Done writes the final version.
  *
- * With memo mode on (the default), a recording - from the Speak button or the
- * side key - is a conversation (capture/memoFlow.ts, docs/DESIGN.md "Memo mode picks a note first"): it opens by
- * asking which note, with a few recent ones to choose from, and once one is chosen the words go onto its end, with
- * trigger words ("add task") asking for one thing at a time. "Switch note" and "New note" leave what was said where
- * it was said and carry on elsewhere. Over the lock screen no note is named, and none of its text is shown.
+ * A recording from the Speak button or the side key is a new note; a note's own Speak adds to that note.
  *
  * Done goes back to the list, whatever started the capture: the new note is at
  * the top, a tap away, and a locked phone has already stepped back behind its
@@ -81,7 +75,7 @@ interface CaptureScreenProps {
   noteId?: string;
   /** The saved note, or null when the capture was cancelled or nothing was said. */
   /** The take is over. `review` is set when the review after a recording should look at it (review/); `sort` when it was a memo, to be sorted (sort/). */
-  onFinish: (note: Note | null, locked: boolean, review?: ReviewHandoff, sort?: Scratch) => void;
+  onFinish: (note: Note | null, locked: boolean, review?: ReviewHandoff) => void;
 }
 
 type Phase = 'starting' | 'listening' | 'finishing' | 'failed';
@@ -101,11 +95,6 @@ const ENGINE_LABEL: Record<EngineKind, string> = {
 export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, onFinish }: CaptureScreenProps) {
   /** The note being written: a new id, or the note this capture continues. */
   const noteId = useRef(newNoteId());
-  /**
-   * Memo mode, and not talking into a particular note: the take is the memo flow (capture/memoFlow.ts), which asks
-   * which note first. Decided once, as the take opens.
-   */
-  const flowMode = useRef(!aimedAt && preferences().memo);
   /** The note this capture is being added to, if it continues one. */
   const [target, setTarget] = useState<Note | null>(null);
   const targetRef = useRef<Note | null>(null);
@@ -180,10 +169,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const [tableView, setTableView] = useState<TableDraft<Note> | null>(null);
   /** What a command will do once it is confirmed, by "yes" or a tap. */
   const [pending, setPendingView] = useState<Offer<Note> | null>(null);
-  /** The memo flow's card: which note, or what a trigger word asked for (capture/memoFlow.ts). */
-  const [flowView, setFlowView] = useState<FlowView<Note> | null>(() =>
-    flowMode.current ? { step: 'choosing', options: [], guess: null, heard: '', missed: null, unsure: false } : null,
-  );
   /**
    * Every write to a note, in turn: a command's change, the draft, the take carrying on elsewhere. Two close together
    * used to read the same body and the second lost the first; and a draft composed from a base that a command was
@@ -253,13 +238,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   }, []);
 
   // ---- which note --------------------------------------------------------------------
-  // A note's own Speak aims the recording at that note. Otherwise memo mode
-  // covers every recording, the Speak button as much as the side key: it was
-  // once side-key only, and a recording started from the list made a new note
-  // with memo mode on.
+  // A note's own Speak aims the recording at that note; otherwise it is a new one.
   useEffect(() => {
     let current = true;
-    const chosen = aimedAt ? getNote(aimedAt).catch(() => null) : flowMode.current ? Promise.resolve(null) : continuationNote(preferences().memo);
+    const chosen = aimedAt ? getNote(aimedAt).catch(() => null) : Promise.resolve<Note | null>(null);
     void chosen.then((found) => {
       // Found after a draft was already written to a new note: stay with that one.
       if (!current || !found || savedDraft.current || finished.current) return;
@@ -333,7 +315,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
   /**
    * The take carries on in `chosen`, or in a new note: what was said so far stays on the note it was said for,
-   * written now, and the take starts afresh (take.fork). The memo flow's choice, "switch note", and "New note".
+   * written now, and the take starts afresh (take.fork). "New note", on a capture aimed at a note.
    */
   const carryOn = useCallback(
     async (chosen: Note | null) => {
@@ -577,7 +559,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     route: setRoute,
     offer: setPendingView,
     table: setTableView,
-    flow: setFlowView,
     itemWords: setItemWords,
     haptic: (kind) => fireNativeHaptic(kind),
     changed: syncTake,
@@ -621,7 +602,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         route: (view) => hostImpl.current.route(view),
         offer: (offer) => hostImpl.current.offer(offer),
         table: (draft) => hostImpl.current.table(draft),
-        flow: (view) => hostImpl.current.flow(view),
         itemWords: (text) => hostImpl.current.itemWords(text),
         haptic: (kind) => hostImpl.current.haptic(kind),
         changed: () => hostImpl.current.changed(),
@@ -637,7 +617,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         clip: (span) => hostImpl.current.clip(span),
         log: (line) => hostImpl.current.log(line),
         said: (text) => hostImpl.current.said(text),
-      }, { memoFlow: flowMode.current }),
+      }),
   );
 
   const confirmPending = () => take.confirm(performance.now());
@@ -775,7 +755,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           const keyword = commandWordOn();
           const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Hey Ghost, ${t.say.charAt(0).toLowerCase()}${t.say.slice(1)}` } : t));
           const lane = targetRef.current ? (lanesOf(targetRef.current.body)[1] ?? lanesOf(targetRef.current.body)[0])?.name ?? null : null;
-          const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane, flow: flowMode.current }), ...pluginTips];
+          const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane }), ...pluginTips];
           return list[tipTurn.current % list.length] ?? null;
         });
       }
@@ -826,9 +806,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     if (!plain.trim() && !take.tables.length && !take.clips.length) {
       await undoDraft();
       endCapture(locked);
-      // Nothing said for the note, but things asked for and put in it: it is the note that came of this.
-      const changed = flowMode.current && targetRef.current && lastChange.current?.id === targetRef.current.id ? await getNote(targetRef.current.id).catch(() => null) : null;
-      onFinish(changed, locked);
+      onFinish(null, locked);
       return;
     }
 
@@ -861,7 +839,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         keywordAt: take.keywordSpans.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
       };
     }
-    rememberCapture(saved.id);
     fireNativeHaptic('success');
     endCapture(locked);
     // The review after a recording: it runs the better words and the formatting when it is done.
@@ -915,8 +892,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   else if (phase === 'starting') status = 'Starting';
   else if (phase === 'finishing') status = 'Saving';
   else if (error && !segments.length) status = `Problem: ${error}`;
-  const choosing = flowView?.step === 'choosing';
-  const where = target ? (locked ? 'Adding to your last note' : `Adding to “${noteTitle(target.body)}”`) : choosing ? 'Which note?' : 'New note';
+  const where = target ? (locked ? 'Adding to your last note' : `Adding to “${noteTitle(target.body)}”`) : 'New note';
 
   // A capture that has heard a while and produced nothing is the one worth
   // explaining without being asked: the line that diagnosed the Fold.
@@ -935,11 +911,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             <button type="button" className={`app-word ${styles.where}`} onClick={() => setShowDiagnostics((on) => !on)}>
               {where}
             </button>
-            {flowMode.current && !choosing ? (
-              <button type="button" className={`app-word ${styles.newNote}`} onClick={() => take.switchNote()}>
-                Switch note
-              </button>
-            ) : target ? (
+            {target ? (
               <button type="button" className={`app-word ${styles.newNote}`} onClick={() => void startNewNote()}>
                 New note
               </button>
@@ -973,7 +945,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             base={target && !locked ? target.body : ''}
             markdown={note.markdown}
             under={topRef}
-            placeholder={phase === 'starting' ? 'Starting…' : choosing ? 'Say which note.' : 'Start talking.'}
+            placeholder={phase === 'starting' ? 'Starting…' : 'Start talking.'}
           />
         )}
         {!hasWords && phase === 'listening' && !route ? <Ghost scene="listening" align="center" className={styles.listenGhost} /> : null}
@@ -984,8 +956,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         <TableCard draft={tableView} heard={itemWords} onDone={finishTable} onCancel={() => cancelTable(null)} />
       ) : pending ? (
         <ConfirmCard offer={pending} onConfirm={confirmPending} onCancel={() => cancelPending(null)} />
-      ) : flowView ? (
-        <FlowCard view={flowView} locked={locked} onCancel={() => take.cancelAsk()} onDone={() => take.finishAsk()} />
       ) : route ? (
         <p
           className={styles.route}
@@ -1219,60 +1189,6 @@ function TableCard({ draft, heard, onDone, onCancel }: { draft: TableDraft<Note>
           Cancel
         </button>
         {draft.columns.length ? (
-          <button type="button" className="app-pill" onClick={onDone}>
-            That’s all
-          </button>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-/**
- * The memo flow's card (capture/memoFlow.ts): which note, with a few recent ones to choose from and the one the words
- * so far seem to mean marked; then, after a trigger word, the question it asks - "Adding a task. What task should we
- * add?" - with the words being heard under it. Over the lock screen the notes are not named.
- */
-function FlowCard({ view, locked, onCancel, onDone }: { view: FlowView<Note>; locked: boolean; onCancel: () => void; onDone: () => void }) {
-  if (view.step === 'choosing') {
-    const question = view.unsure ? `Which “${view.missed}”?` : view.missed ? `No note called “${view.missed}”. Which note?` : 'Which note?';
-    return (
-      <section className={styles.confirm} aria-live="polite" aria-label="Which note?">
-        <p className={styles.confirmHeading}>Memo</p>
-        <p className={styles.tableQuestion}>{question}</p>
-        {!locked && view.options.length ? (
-          <ol className={styles.flowOptions}>
-            {view.options.map((option) => (
-              <li key={option.id} className={styles.flowOption} data-guess={view.guess?.id === option.id || undefined}>
-                {option.title}
-              </li>
-            ))}
-          </ol>
-        ) : null}
-        {view.heard ? (
-          <p className={styles.confirmDetail}>“{view.heard}”</p>
-        ) : (
-          <p className={styles.confirmHint}>{locked ? 'Say “use note” and its name, or “new note”.' : 'Say “use note” and its name, or “the first one”, or “new note”.'}</p>
-        )}
-      </section>
-    );
-  }
-  const words = askWords(view.ask);
-  return (
-    <section className={styles.confirm} aria-live="assertive" aria-label={words.heading}>
-      <p className={styles.confirmHeading}>{words.heading}</p>
-      <p className={styles.tableQuestion}>{words.question}</p>
-      {view.said.map((line, i) => (
-        <p key={i} className={styles.confirmLine}>
-          {line}
-        </p>
-      ))}
-      {view.heard ? <p className={styles.confirmDetail}>“{view.heard}”</p> : <p className={styles.confirmHint}>{words.hint}</p>}
-      <div className={styles.confirmActions}>
-        <button type="button" className="app-word" onClick={onCancel}>
-          Cancel
-        </button>
-        {view.ask.many && view.said.length ? (
           <button type="button" className="app-pill" onClick={onDone}>
             That’s all
           </button>

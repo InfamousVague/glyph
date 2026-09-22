@@ -21,7 +21,6 @@ const doing = (): PaletteDoing => ({
   pin: vi.fn(),
   archive: vi.fn(),
   remove: vi.fn(),
-  sortMemo: vi.fn(),
 });
 
 const world = (over: Partial<PaletteWorld> = {}): PaletteWorld => ({
@@ -36,7 +35,6 @@ const world = (over: Partial<PaletteWorld> = {}): PaletteWorld => ({
   canForward: false,
   view: 'mixed',
   theme: 'dark',
-  memoWaiting: false,
   ...over,
 });
 
@@ -82,18 +80,17 @@ describe('what the palette offers', () => {
     expect(list).toContain('theme:light');
   });
 
-  it('offers the tabs, the trail and the waiting memo only when there are any', () => {
+  it('offers the tabs and the trail only when there are any', () => {
     const quiet = ids(paletteCommands(world(), doing()));
     expect(quiet).not.toContain('back');
     expect(quiet).not.toContain('forward');
-    expect(quiet).not.toContain('memo');
 
     const busy = ids(
-      paletteCommands(world({ tabs: [{ id: 'n1', title: 'A' }, { id: 'n2', title: 'B' }], note: { id: 'n1', title: 'A' }, canBack: true, canForward: true, memoWaiting: true }), doing()),
+      paletteCommands(world({ tabs: [{ id: 'n1', title: 'A' }, { id: 'n2', title: 'B' }], note: { id: 'n1', title: 'A' }, canBack: true, canForward: true }), doing()),
     );
     // The note on screen is not offered as somewhere to go, but the other tab is.
     expect(busy).not.toContain('tab:n1');
-    expect(busy).toEqual(expect.arrayContaining(['tab:n2', 'tab:close:n2', 'back', 'forward', 'memo']));
+    expect(busy).toEqual(expect.arrayContaining(['tab:n2', 'tab:close:n2', 'back', 'forward']));
   });
 
   it('offers every note by name, up to a limit, and not the ones already open', () => {

@@ -152,15 +152,6 @@ export interface Preferences {
   textSize: TextSize;
   typeface: Typeface;
   /**
-   * Memo mode: recording - the Speak button or the side key - is the memo flow
-   * (capture/memoFlow.ts): it asks which note first, and trigger words like
-   * "add task" ask for one thing at a time (Matt: "make things a bit easier to
-   * flow"). It used to write to a scratch page sorted at the end, and before
-   * that to keep adding to the last spoken note. Off, every recording is a new
-   * note.
-   */
-  memo: boolean;
-  /**
    * Better words after recording: a larger, slower model goes over the kept
    * recording in the background and replaces the live words (capture/refine.ts).
    */
@@ -254,7 +245,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
   assist: true,
   textSize: 'large',
   typeface: 'inter',
-  memo: true,
   refine: true,
   quietStop: false,
   commandWord: true,

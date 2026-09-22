@@ -2,7 +2,7 @@ import { boardFrom } from '../core/boards.ts';
 import { clipMarkdown } from '../core/clips.ts';
 import { noteTitle } from '../core/store.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
-import { appendBody } from './continuation.ts';
+import { appendBody } from './appendBody.ts';
 import { placeWords } from './listAppend.ts';
 import { renderNote, setLinkTitles, spokenNumber, type Segment } from './markdown.ts';
 import { QuietWatch } from './quiet.ts';
@@ -25,8 +25,7 @@ export interface SuiteTest {
   tests: string;
   /** "blank", "fixtures", or "continue:<title>". */
   setup: string;
-  /** `memo`: memo mode, so the take is the memo flow (capture/memoFlow.ts) and opens by asking which note. */
-  prefs: { quietStop?: boolean; commandWord?: boolean; memo?: boolean };
+  prefs: { quietStop?: boolean; commandWord?: boolean };
   /** Each line, and the seconds of silence after it. */
   lines: [string, number][];
   expect: Expectation;
@@ -157,7 +156,6 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
       if (offer) offers.push(offer.kind === 'plugin' ? `plugin:${offer.voice.id.split('-')[0] ?? offer.voice.id}` : offer.kind);
     },
     table: () => undefined,
-    flow: () => undefined,
     itemWords: () => undefined,
     haptic: () => undefined,
     changed: () => undefined,
@@ -203,7 +201,7 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
     clip: (span) => clipMarkdown({ startMs: span.startMs, endMs: span.endMs, tape: 'suite' }),
     log: (line) => log.push(line),
     said: () => undefined,
-  }, { memoFlow: test.prefs.memo ?? false });
+  });
 
   const quiet = test.prefs.quietStop ? new QuietWatch(QUIET_STOP_MS) : null;
   const commits = heard.segments.map((segment) => ({ at: segment.endMs + COMMIT_LAG_MS, segment }));

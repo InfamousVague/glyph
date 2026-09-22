@@ -231,11 +231,6 @@ export function RecordingPane() {
     <>
       <PaneSection title="The side key">
         <SettingRow
-          label="Memo mode"
-          hint="A recording asks which note first, then what you say goes onto it; “add task” and the like ask for one thing at a time. Off, every recording is a plain new note."
-          control={<Switch aria-label="Memo mode" checked={prefs.memo} onCheckedChange={(memo) => setPreferences({ memo })} />}
-        />
-        <SettingRow
           label="Stop when I go quiet"
           hint="Saves the recording after four seconds of quiet, once you've started talking. You can still press the side key or tap Done."
           control={<Switch aria-label="Stop when I go quiet" checked={prefs.quietStop} onCheckedChange={(quietStop) => setPreferences({ quietStop })} />}

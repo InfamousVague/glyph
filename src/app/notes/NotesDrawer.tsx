@@ -35,7 +35,7 @@ interface NotesDrawerProps {
   onCommands?: () => void;
   onSettings?: () => void;
   onSpeak?: () => void;
-  /** An update or a memo waiting, on a wide window where the card stands in for the docked sidebar. */
+  /** An update waiting, on a wide window where the card stands in for the docked sidebar. */
   notices?: ReactNode;
   /** The trash (core/trash.ts), passed through to the tree. */
   trashed?: Note[];

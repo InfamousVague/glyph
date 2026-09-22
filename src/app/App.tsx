@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HapticsProvider, ToastProvider } from '@glacier/react';
-import { UpdateCard, UpdateNotice } from './notes/Notices.tsx';
+import { UpdateNotice } from './notes/Notices.tsx';
 import { HomeScreen } from './home/HomeScreen.tsx';
 import type { OpenTask } from './home/dashboard.ts';
 import { setItemDone } from './core/boards.ts';
@@ -16,8 +16,6 @@ import { readSidebarShown, useSidebar, writeSidebarShown } from './core/useWideS
 import { SettingsSheet } from './settings/SettingsSheet.tsx';
 import { ReviewScreen } from './review/ReviewScreen.tsx';
 import type { ReviewHandoff } from './review/useReview.ts';
-import { SortScreen } from './sort/SortScreen.tsx';
-import { readScratch, type Scratch } from './capture/scratch.ts';
 import { CaptureScreen } from './capture/CaptureScreen.tsx';
 import { AcademyScreen } from './academy/AcademyScreen.tsx';
 import { CommandBar } from './commands/CommandBar.tsx';
@@ -36,7 +34,7 @@ import { answerHost, takeCaptureLaunch } from './core/host.ts';
 import { applyPreferences, onPreferences, preferences, setPreferences, themeChoice, usePreferences, type ThemePref } from './core/preferences.ts';
 import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
-import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note } from './core/store.ts';
+import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { canvasNoteBody } from './canvas/jsonCanvas.ts';
@@ -110,7 +108,6 @@ type Screen =
   /** After Stop: the slower models check the take, and the person commits what they find (review/). */
   | { name: 'review'; handoff: ReviewHandoff }
   /** After a memo: where its parts go, proposed, and filed when committed (sort/). */
-  | { name: 'sort'; scratch: Scratch }
   /** Glyph Academy: markdown taught a mark at a time, open from Settings whenever it is wanted (academy/). */
   | { name: 'academy' };
 
@@ -402,6 +399,14 @@ function Shell() {
       setScreen({ name: 'note', note: found, at });
       return;
     }
+    // The list in hand can be a moment old - a chapter just made from a book's index is not in it yet - so the store is
+    // asked once more before a second note by that title is made.
+    const fresh = (await listNotes().catch(() => [])).find((n) => !n.archivedAt && sameTitle(noteTitle(n.body), title));
+    if (fresh) {
+      await refresh();
+      setScreen({ name: 'note', note: fresh, at });
+      return;
+    }
     const made = await saveNote(newNoteId(), `# ${title}\n\n`, 'editor');
     fileNewNote(made.id);
     await refresh();
@@ -518,13 +523,6 @@ function Shell() {
     await refresh();
   };
 
-  // A memo said and not yet sorted: one finished while the phone was locked, left with Back, or cut off when the app
-  // was killed mid-memo (capture/scratch.ts). Read again whenever the list comes back.
-  const [memoWaiting, setMemoWaiting] = useState(() => readScratch() !== null);
-  useEffect(() => {
-    if (screen.name === 'list') setMemoWaiting(readScratch() !== null);
-  }, [screen.name]);
-
   // Glyph Academy offered on the home screen, for someone who has not started it (academy/banner.ts). Read again
   // whenever the list comes back: a lesson passed in there is the card's answer, so it goes.
   const [academyCard, setAcademyCard] = useState(academyBannerDue);
@@ -533,14 +531,7 @@ function Shell() {
   }, [screen.name]);
 
   const captureFinished = useCallback(
-    async (note: Note | null, locked: boolean, review?: ReviewHandoff, sort?: Scratch) => {
-      // A memo: sorted now, or, over a locked phone, waiting on the list until it is unlocked.
-      if (sort) {
-        await refresh();
-        setMemoWaiting(true);
-        setScreen(locked ? { name: 'list' } : { name: 'sort', scratch: sort });
-        return;
-      }
+    async (note: Note | null, locked: boolean, review?: ReviewHandoff) => {
       // A spoken note lands in the workspace the list is showing, unless it is filed already.
       if (note) fileNewNote(note.id);
       await refresh();
@@ -708,12 +699,6 @@ function Shell() {
         dismissAcademyBanner();
         setAcademyCard(false);
       }}
-      memoWaiting={memoWaiting}
-      onSortMemo={() => {
-        const waiting = readScratch();
-        if (waiting) setScreen({ name: 'sort', scratch: { ...waiting, done: true } });
-        else setMemoWaiting(false);
-      }}
     />
   );
 
@@ -734,11 +719,10 @@ function Shell() {
       canForward: canGoOn(trail, stillThere),
       view: prefs.noteView,
       theme: prefs.theme,
-      memoWaiting,
       tabGroups: groups.list.map((g) => ({ id: g.id, name: g.name })),
       tabGroup: screen.name === 'note' ? (groups.of[screen.note.id] ?? null) : null,
     }),
-    [shownNotes, openTabs, spaces, screen, trail, stillThere, prefs.noteView, prefs.theme, memoWaiting, groups],
+    [shownNotes, openTabs, spaces, screen, trail, stillThere, prefs.noteView, prefs.theme, groups],
   );
   const paletteDoing = useMemo(
     () => ({
@@ -776,34 +760,18 @@ function Shell() {
         if (note) actions.archive(note, true);
       },
       remove: removeNote,
-      sortMemo: () => {
-        const waiting = readScratch();
-        if (waiting) setScreen({ name: 'sort', scratch: { ...waiting, done: true } });
-        else setMemoWaiting(false);
-      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [notes, actions, trail],
   );
 
   /*
-   * An update or a memo waiting: the sidebar's to carry on a wide window, where there is no home list to show them
+   * An update waiting: the sidebar's to carry on a wide window, where there is no home list to show them
    * (notes/NoteTree.tsx `notices`), docked or floating.
    */
   const notices = (
     <>
       <UpdateNotice updates={updates} />
-      {memoWaiting ? (
-        <UpdateCard
-          text="A memo is waiting to be sorted into your notes."
-          action="Sort"
-          onAction={() => {
-            const waiting = readScratch();
-            if (waiting) setScreen({ name: 'sort', scratch: { ...waiting, done: true } });
-            else setMemoWaiting(false);
-          }}
-        />
-      ) : null}
     </>
   );
 
@@ -858,7 +826,7 @@ function Shell() {
           fromAssistant={screen.fromAssistant}
           stopRequests={screen.stop}
           noteId={screen.noteId}
-          onFinish={(note, locked, review, sort) => void captureFinished(note, locked, review, sort)}
+          onFinish={(note, locked, review) => void captureFinished(note, locked, review)}
         />
       ) : screen.name === 'academy' ? (
         <AcademyScreen
@@ -867,20 +835,6 @@ function Shell() {
             setScreen({ name: 'list' });
             setSettings(true);
             setToCheatSheet(Date.now());
-          }}
-        />
-      ) : screen.name === 'sort' ? (
-        <SortScreen
-          key={screen.scratch.id}
-          scratch={screen.scratch}
-          onDone={(id) => {
-            void (async () => {
-              setMemoWaiting(readScratch() !== null);
-              await refresh();
-              if (id) fileNewNote(id);
-              const fresh = id ? await getNote(id).catch(() => null) : null;
-              setScreen(fresh ? { name: 'note', note: fresh } : { name: 'list' });
-            })();
           }}
         />
       ) : screen.name === 'review' ? (

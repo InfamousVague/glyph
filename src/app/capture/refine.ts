@@ -3,7 +3,7 @@ import { preferences } from '../core/preferences.ts';
 import { getNote, saveNote, setNoteRecording } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import { findKeyword } from './command.ts';
-import { appendBody } from './continuation.ts';
+import { appendBody } from './appendBody.ts';
 import { renderNote, type Segment } from './markdown.ts';
 
 /**

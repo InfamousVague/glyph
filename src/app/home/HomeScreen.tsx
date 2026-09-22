@@ -11,7 +11,7 @@ import { Cog, Pin, Plus } from '../art/Icons.tsx';
 import { NotePeek } from '../notes/NotePeek.tsx';
 import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
-import { AcademyCard, RefiningNotice, UpdateCard, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
+import { AcademyCard, RefiningNotice, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
 import { when } from '../notes/when.ts';
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
@@ -46,8 +46,6 @@ interface HomeScreenProps {
   voiceModel: VoiceModelState;
   onRetryVoiceModel: () => void;
   updates: Updates;
-  memoWaiting?: boolean;
-  onSortMemo?: () => void;
   showAcademy?: boolean;
   onAcademy?: () => void;
   onHideAcademy?: () => void;
@@ -69,8 +67,6 @@ export function HomeScreen({
   voiceModel,
   onRetryVoiceModel,
   updates,
-  memoWaiting = false,
-  onSortMemo,
   showAcademy = false,
   onAcademy,
   onHideAcademy,
@@ -163,7 +159,6 @@ export function HomeScreen({
           <p className={styles.today}>{today}</p>
           <WorkspaceBar onManage={setManage} />
           <UpdateNotice updates={updates} />
-          {memoWaiting && onSortMemo ? <UpdateCard text="A memo is waiting to be sorted into your notes." action="Sort" onAction={onSortMemo} /> : null}
           <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
           {showAcademy && onAcademy ? <AcademyCard onOpen={onAcademy} onHide={onHideAcademy} /> : null}
           <RefiningNotice />

@@ -4,7 +4,7 @@ import { Editor } from '../editor/Editor.tsx';
 import { commonEnds, wisp } from '../editor/wispArrivals.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { holdWispDrift, useWispEdge } from '../art/wispEdge.ts';
-import { appendBody } from './continuation.ts';
+import { appendBody } from './appendBody.ts';
 import { onVoiceLevel } from './voiceLevel.ts';
 import styles from './CaptureScreen.module.css';
 

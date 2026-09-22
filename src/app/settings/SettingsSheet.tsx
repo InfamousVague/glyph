@@ -139,7 +139,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
             label: 'Recording',
             icon: <Mic size={16} />,
             content: <RecordingPane />,
-            summary: [prefs.memo ? 'Memo mode' : 'A note a take', prefs.refine ? 'better words' : null].filter(Boolean).join(' · '),
+            summary: prefs.refine ? 'A note a take · better words' : 'A note a take',
             group: 1,
           },
         ]

@@ -41,8 +41,6 @@ export interface PaletteWorld {
   canForward: boolean;
   view: NoteView;
   theme: ThemePref;
-  /** A spoken memo waiting to be sorted into notes. */
-  memoWaiting: boolean;
   /** The tab groups (notes/tabGroups.ts), and which one the open note's tab is in. */
   tabGroups?: readonly { id: string; name: string }[];
   tabGroup?: string | null;
@@ -69,7 +67,6 @@ export interface PaletteDoing {
   pin: (id: string, pinned: boolean) => void;
   archive: (id: string) => void;
   remove: (id: string) => void;
-  sortMemo: () => void;
   /** Tab groups, for a phone, which has no right-click to reach a tab's own menu. */
   groupTab?: (noteId: string) => void;
   joinTabGroup?: (noteId: string, group: string) => void;
@@ -132,7 +129,6 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing): Palet
   // ---- making and going ---------------------------------------------------------------------
   add({ id: 'new', label: 'New note', group: 'Notes', keywords: 'write blank create add', shortcut: '⌘N' }, () => doing.newNote());
   add({ id: 'speak', label: 'Speak a new note', group: 'Notes', keywords: 'record voice dictate mic talk' }, () => doing.speak());
-  if (world.memoWaiting) add({ id: 'memo', label: 'Sort the memo that is waiting', group: 'Notes', keywords: 'voice recording scratch' }, () => doing.sortMemo());
   add({ id: 'list', label: 'All notes', group: 'Notes', keywords: 'home list back library' }, () => doing.showList());
 
   // ---- the tabs -----------------------------------------------------------------------------
