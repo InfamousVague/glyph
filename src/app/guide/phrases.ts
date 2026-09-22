@@ -43,7 +43,7 @@ export interface TypedMark {
 export const TYPED: TypedMark[] = [
   { symbol: '[words](address)', title: 'A link', how: 'Or paste an address on its own; it is shortened on the page.' },
   { symbol: '![caption](image/…)', title: 'A picture', how: 'Paste one, or press and hold and choose Add image.' },
-  { symbol: '| a | b |', title: 'A table', how: 'Pipes between cells, or say “Ghost, add a table to this note” and answer.' },
+  { symbol: '| a | b |', title: 'A table', how: 'Pipes between cells, or say “Hey Ghost, add a table to this note” and answer.' },
   { symbol: '```', title: 'A block of code', how: 'Three backticks above and below, the language after the first three.' },
   { symbol: '![voice 0:12](tape:…)', title: 'A voice memo', how: 'Say “voice memo” while recording, talk, then “end memo”: the sound stays, played where you left it.' },
 ];

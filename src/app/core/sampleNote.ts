@@ -92,7 +92,7 @@ https://attack.fm/glyph
 
 ## Tables
 
-Pipes between cells and a row of dashes under the first. Or say "Ghost, add a table to this note" and answer its questions. Tap a drawn table to change it.
+Pipes between cells and a row of dashes under the first. Or say "Hey Ghost, add a table to this note" and answer its questions. Tap a drawn table to change it.
 
 | What | Where |
 | :--- | ---: |

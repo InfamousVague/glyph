@@ -241,10 +241,10 @@ export function RecordingPane() {
           control={<Switch aria-label="Stop when I go quiet" checked={prefs.quietStop} onCheckedChange={(quietStop) => setPreferences({ quietStop })} />}
         />
         <SettingRow
-          label="Commands start with “Ghost”"
-          hint="Say “Ghost, add buy milk to HelloTrade” and it asks before it does it. Off, a command can be said without it, and still asks."
+          label="Commands start with “hey Ghost”"
+          hint="Say “Hey Ghost, add buy milk to HelloTrade” and it asks before it does it. Off, a command can be said without it, and still asks."
           control={
-            <Switch aria-label="Commands start with Ghost" checked={prefs.commandWord} onCheckedChange={(commandWord) => setPreferences({ commandWord })} />
+            <Switch aria-label="Commands start with hey Ghost" checked={prefs.commandWord} onCheckedChange={(commandWord) => setPreferences({ commandWord })} />
           }
         />
         <SettingRow

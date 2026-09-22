@@ -45,8 +45,8 @@ describe('the better words after a recording', () => {
 
 describe('the better words leave commands out', () => {
   const seg = (text: string, startMs: number, endMs: number) => ({ text, startMs, endMs });
-  it('drops phrases inside a command’s stretch and cuts a phrase at “Ghost”', () => {
-    const refined = [seg('Pick up the parcel.', 0, 1800), seg('Pick up milk, Ghost, add eggs to', 2000, 4000), seg('work.', 4000, 4800), seg('Yes.', 5200, 5600), seg('Call Sam.', 6000, 7000)];
+  it('drops phrases inside a command’s stretch and cuts a phrase at “hey Ghost”', () => {
+    const refined = [seg('Pick up the parcel.', 0, 1800), seg('Pick up milk, hey Ghost, add eggs to', 2000, 4000), seg('work.', 4000, 4800), seg('Yes.', 5200, 5600), seg('Call Sam.', 6000, 7000)];
     const kept = withoutCommands({ skip: [{ startMs: 3950, endMs: 4900 }, { startMs: 5100, endMs: 5700 }], keywordAt: [{ startMs: 2100, endMs: 3900 }] }, refined);
     expect(kept.map((s) => s.text)).toEqual(['Pick up the parcel.', 'Pick up milk', 'Call Sam.']);
   });

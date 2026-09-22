@@ -12,8 +12,8 @@ const plan = (words: string, targets: string[] = []) => planCommand(words, { not
 const at = (id: string) => notes.find((n) => n.id === id)!;
 
 describe('hearing the keyword', () => {
-  it('finds "Ghost" and splits the words around it', () => {
-    expect(findKeyword('Ghost, add buy milk to hello trade.')).toEqual({ before: '', after: 'add buy milk to hello trade.' });
+  it('finds "hey Ghost" and splits the words around it', () => {
+    expect(findKeyword('Hey Ghost, add buy milk to hello trade.')).toEqual({ before: '', after: 'add buy milk to hello trade.' });
     expect(findKeyword('Pick up the parcel. Hey Ghost add that to work')).toEqual({ before: 'Pick up the parcel.', after: 'add that to work' });
     expect(findKeyword('Okay, glyph.')).toEqual({ before: '', after: '' });
   });
@@ -23,17 +23,27 @@ describe('hearing the keyword', () => {
     expect(findKeyword('Gliff add eggs to work')?.after).toBe('add eggs to work');
   });
 
+  it('takes "ghost" only after hey, hi, OK or so - a common word - and "glyph" as it always did', () => {
+    // A note that begins with the word is a note, not a command with nothing in it (Matt: "require hey Ghost").
+    expect(findKeyword('Ghost, add buy milk to hello trade.')).toBeNull();
+    expect(findKeyword('Ghost stories at the cabin. Bring a torch.')).toBeNull();
+    expect(findKeyword('OK Ghost, add buy milk to hello trade.')?.after).toBe('add buy milk to hello trade.');
+    expect(findKeyword('so ghost add eggs to the list')?.after).toBe('add eggs to the list');
+    expect(findKeyword('Glyph, add buy milk to hello trade.')?.after).toBe('add buy milk to hello trade.');
+    expect(findKeyword('Hey glyph, new note')?.after).toBe('new note');
+  });
+
   it('knows the word as a note’s name when a preposition leads and "note" follows', () => {
     // No keyword said: the phrase is words, and nothing is lost.
     expect(findKeyword('add a note to the Ghost note saying testing if this works')).toBeNull();
     expect(findKeyword('put that on the glyph page')).toBeNull();
     // Said first, it is the keyword, and the note called Glyph can still be named after it.
-    expect(findKeyword('Ghost, add a note to the Ghost note saying testing if this works')).toEqual({
+    expect(findKeyword('OK Ghost, add a note to the Ghost note saying testing if this works')).toEqual({
       before: '',
       after: 'add a note to the Ghost note saying testing if this works',
     });
     // Later in the phrase, on its own, it is the keyword.
-    expect(findKeyword('call the dentist. Ghost, add that to the Ghost note')?.after).toBe('add that to the Ghost note');
+    expect(findKeyword('call the dentist. Hey Ghost, add that to the Ghost note')?.after).toBe('add that to the Ghost note');
   });
 
   it('takes the other spellings base.en wrote for it across voices', () => {

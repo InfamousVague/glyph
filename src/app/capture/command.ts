@@ -29,12 +29,14 @@ import { cellsOf } from './table.ts';
 // ---- the keyword ------------------------------------------------------------------------------
 
 /**
- * "Glyph", and what speech recognition writes for it: a rare word, so the
- * small model sometimes spells it the way it sounds. "Hey" or "OK" before it
- * are part of the keyword.
+ * The word a command follows, and what speech recognition writes for it. "Glyph" is a rare word, so the small model
+ * sometimes spells it the way it sounds, and "hey" or "OK" before it are part of the keyword but not needed. "Ghost"
+ * - the app's name since it became Ghost.md - is a common word, so a note that begins "Ghost stories…" would have
+ * been a command with no command in it; Matt chose "hey Ghost": the new word only counts after "hey", "hi", "OK" or
+ * "so", and the old word keeps working as it always did.
  */
 const KEYWORD =
-  /(^|[\s,.;:!?"“])(?:(?:hey|hi|ok(?:ay)?|so)[,\s]+)?(?:ghost|ghosts|goast|gost|ghos|ghoast|ghossed|ghosed|glyph|glyphs|glyphe|glyf|glif|gliff|glyff|gliph|glyth|glith|glithe|clith|clyph|gleef|gliv|glive|glit|bliff)(?=$|[\s,.;:!?"”'])[,.;:!?"”]*\s*/i;
+  /(^|[\s,.;:!?"“])(?:(?:hey|hi|ok(?:ay)?|so)[,\s]+(?:ghost|ghosts|goast|gost|ghos|ghoast|ghossed|ghosed)|(?:(?:hey|hi|ok(?:ay)?|so)[,\s]+)?(?:glyph|glyphs|glyphe|glyf|glif|gliff|glyff|gliph|glyth|glith|glithe|clith|clyph|gleef|gliv|glive|glit|bliff))(?=$|[\s,.;:!?"”'])[,.;:!?"”]*\s*/i;
 
 /**
  * What base.en writes for "Glyph" that is a word of its own: "Life. Add eggs to my list", "Live, new note", "Head

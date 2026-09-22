@@ -6,8 +6,8 @@ describe('tips in a pause', () => {
     const said = tips({ noteTitle: 'Groceries', continuing: true, lane: 'Doing' }).map((tip) => tip.say);
     expect(said).toContain('Info box');
     expect(said).toContain('Option');
-    expect(said).toContain('Ghost, add … to Doing');
-    expect(said).toContain('Ghost, move … to Doing');
+    expect(said).toContain('Hey Ghost, add … to Doing');
+    expect(said).toContain('Hey Ghost, move … to Doing');
     expect(tips({ noteTitle: null, continuing: false }).some((tip) => tip.say.includes('to Doing'))).toBe(false);
   });
 });

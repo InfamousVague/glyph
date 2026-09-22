@@ -387,7 +387,7 @@ export class Take<N extends TakeNote> {
     this.listening = null;
     this.host.itemWords('');
     if (!heard) return;
-    this.host.log(`Heard “Ghost ${heard.words}” but no command in it, so those words stayed in the note`);
+    this.host.log(`Heard “hey Ghost ${heard.words}” but no command in it, so those words stayed in the note`);
     if (heard.said.length) {
       const back = new Set(heard.said.map((s) => `${s.startMs}:${s.endMs}`));
       this.commandSpans = this.commandSpans.filter((span) => !back.has(`${span.startMs}:${span.endMs}`));
@@ -419,7 +419,7 @@ export class Take<N extends TakeNote> {
       this.understanding = null;
       if (this.listening?.words !== words) return;
       if (plan && plan.kind !== 'no-note') {
-        this.host.log(`The on-device model read “Ghost ${words}”`);
+        this.host.log(`The on-device model read “hey Ghost ${words}”`);
         this.carryOut(plan, span, this.lastHeard);
       } else if (orElse) {
         this.giveBack(orElse);
@@ -904,7 +904,7 @@ export class Take<N extends TakeNote> {
     }
     // The keyword said, and then nothing that makes a command: the words go back in the note.
     if (this.listening && !this.understanding && now - this.listening.lastAt > TAKE_TIMING.commandQuietMs) {
-      this.giveBack(this.listening.words ? 'No command there, so the words stay in the note.' : 'Say a command after “Ghost”.');
+      this.giveBack(this.listening.words ? 'No command there, so the words stay in the note.' : 'Say a command after “hey Ghost”.');
     }
     const wait = this.awaiting;
     if (wait && wait.words.length && now - wait.lastAt > TAKE_TIMING.itemsQuietMs) {

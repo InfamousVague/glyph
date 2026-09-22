@@ -773,7 +773,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           if (showing) return showing;
           const recent = candidates.current.find((c) => c.id !== noteId.current)?.title ?? null;
           const keyword = commandWordOn();
-          const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Ghost, ${t.say.charAt(0).toLowerCase()}${t.say.slice(1)}` } : t));
+          const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Hey Ghost, ${t.say.charAt(0).toLowerCase()}${t.say.slice(1)}` } : t));
           const lane = targetRef.current ? (lanesOf(targetRef.current.body)[1] ?? lanesOf(targetRef.current.body)[0])?.name ?? null : null;
           const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane, flow: flowMode.current }), ...pluginTips];
           return list[tipTurn.current % list.length] ?? null;
@@ -1030,7 +1030,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             <>
               <span className={styles.routeDots} aria-hidden="true" />
               <span>
-                <strong>Ghost</strong>
+                <strong>Hey Ghost</strong>
                 {route.words || partialCommand(itemWords) ? `: ${[route.words, partialCommand(itemWords)].filter(Boolean).join(' ')}` : ', listening for a command'}
                 {route.thinking ? <span className={styles.routeThinking}> · working it out</span> : null}
               </span>
