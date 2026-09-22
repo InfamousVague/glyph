@@ -1,0 +1,262 @@
+/*
+ * A book's index (BookView.tsx), drawn where a note's words would be: the book's own words, the chapters as a
+ * numbered list of rows in the note's type, and the ways to add one. Ink on paper, in the page's own sizes
+ * (`--app-body` from the note screen), so it reads as the note it is.
+ */
+
+.book {
+  padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8);
+  max-inline-size: 44rem;
+  font-size: var(--app-body, 1rem);
+  line-height: 1.5;
+}
+
+.preface p {
+  margin: 0 0 0.75em;
+  color: var(--glacier-text-muted);
+}
+
+.empty {
+  margin: var(--glacier-space-3) 0;
+  color: var(--glacier-text-muted);
+}
+
+.index {
+  list-style: none;
+  margin: var(--glacier-space-3) 0 0;
+  padding: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 2.4em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-block-size: 2.6em;
+  border-block-end: 1px solid var(--glacier-border-subtle);
+}
+
+.row[data-depth='1'] {
+  padding-inline-start: 1.6em;
+}
+
+.number {
+  font-variant-numeric: tabular-nums;
+  color: var(--glacier-text-muted);
+  text-align: end;
+}
+
+.chapter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1em;
+  min-inline-size: 0;
+  padding: 0.35em 0.2em;
+  border: 0;
+  border-radius: var(--glacier-radius-sm, 6px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.chapter:hover,
+.chapter:focus-visible {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+  outline: none;
+}
+
+.chapterTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-inline-size: 100%;
+}
+
+/* A chapter with no note yet: named, and said so, in the link's own waiting grey. */
+.row[data-waiting] .chapterTitle {
+  color: var(--glacier-text-muted);
+}
+
+.waiting {
+  font-size: 0.75em;
+  color: var(--glacier-text-muted);
+}
+
+.tools {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.tool {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2em;
+  block-size: 2em;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+}
+
+.tool:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--glacier-text) 8%, transparent);
+  color: var(--glacier-text);
+}
+
+.tool:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.adds,
+.add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin-block-start: var(--glacier-space-4);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.45em 0.9em;
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glacier-text);
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+}
+
+.action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.quiet {
+  padding: 0.45em 0.6em;
+  border: 0;
+  background: transparent;
+  color: var(--glacier-text-muted);
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.field {
+  flex: 1 1 14rem;
+  min-inline-size: 0;
+  padding: 0.45em 0.7em;
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md, 10px);
+  background: color-mix(in srgb, var(--glacier-text) 4%, transparent);
+  color: var(--glacier-text);
+  font: inherit;
+}
+
+.field:focus {
+  outline: 2px solid var(--glacier-accent-solid, var(--glacier-text));
+  outline-offset: 1px;
+}
+
+.picker {
+  flex-basis: 100%;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-block-size: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md, 10px);
+}
+
+.pick {
+  display: block;
+  inline-size: 100%;
+  padding: 0.5em 0.8em;
+  border: 0;
+  border-block-end: 1px solid var(--glacier-border-subtle);
+  background: transparent;
+  color: var(--glacier-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.pick:hover {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+}
+
+.none {
+  padding: 0.6em 0.8em;
+  color: var(--glacier-text-muted);
+  font-size: 0.9em;
+}
+
+/* The bar a chapter wears (BookBar): the book and the neighbours, one row under the header. */
+.bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-1) var(--glacier-space-4);
+  border-block-end: 1px solid var(--glacier-border-subtle);
+  font-size: var(--glacier-font-size-sm, 0.875rem);
+}
+
+.end,
+.middle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  min-inline-size: 0;
+  padding: 0.35em 0.5em;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glacier-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.end[data-next] {
+  justify-self: end;
+}
+
+.end:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.end:hover:not(:disabled),
+.middle:hover {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+  color: var(--glacier-text);
+}
+
+.endTitle,
+.bookTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookTitle {
+  color: var(--glacier-text);
+  font-weight: 500;
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+}

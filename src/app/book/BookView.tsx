@@ -1,0 +1,176 @@
+import { useMemo, useState } from 'react';
+import { BookOpen, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, X } from '@glacier/icons';
+import { sameTitle } from '../editor/wikiLinks.ts';
+import { chaptersOf, numbered, prefaceOf, withChapter, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
+import styles from './BookView.module.css';
+
+/**
+ * A book's index, drawn where its words would be (editor/NoteScreen.tsx): its own words first, then the chapters,
+ * numbered, each a row that opens the note - or makes it, where a chapter is a title with no note yet, which the row
+ * says. The index is edited here in the three ways an index is: a chapter added (a new one, named here and opened at
+ * once; or a note already written, picked from the library), moved a place up or down, or taken out - none of which
+ * touches the chapter's own note. Every change is a change to the book note's body (book/book.ts), written the way
+ * typing is, so the Markdown behind the view is always the index it shows, and the view is a toggle away from it.
+ */
+
+interface BookViewProps {
+  body: string;
+  /** Whether a note by that title exists: a chapter still to be written is drawn as waiting. */
+  known: (title: string) => boolean;
+  /** Opens the note by that title, or makes one that starts with it (App.tsx `openTitle`). */
+  open: (title: string) => void;
+  /** Every note's title, for adding one that is already written. */
+  titles: () => string[];
+  /** The book's own title, so it is not offered as a chapter of itself. */
+  title: string;
+  onChange: (body: string) => void;
+}
+
+export function BookView({ body, known, open, titles, title, onChange }: BookViewProps) {
+  const chapters = useMemo(() => chaptersOf(body), [body]);
+  const numbers = useMemo(() => numbered(chapters), [chapters]);
+  const preface = useMemo(() => prefaceOf(body), [body]);
+  const [adding, setAdding] = useState<'new' | 'existing' | null>(null);
+  const [draft, setDraft] = useState('');
+  const [filter, setFilter] = useState('');
+
+  const addNew = () => {
+    const name = draft.trim();
+    if (!name) return;
+    onChange(withChapter(body, name));
+    setDraft('');
+    setAdding(null);
+    open(name);
+  };
+  const addExisting = (name: string) => {
+    onChange(withChapter(body, name));
+    setFilter('');
+    setAdding(null);
+  };
+  const others = adding === 'existing' ? titles().filter((t) => t.trim() && !sameTitle(t, title) && !chapters.some((c) => sameTitle(c.title, t)) && (!filter.trim() || t.toLowerCase().includes(filter.trim().toLowerCase()))) : [];
+
+  return (
+    <div className={styles.book} data-chapters={chapters.length}>
+      {preface.length > 0 ? (
+        <div className={styles.preface}>
+          {preface.map((line, i) => (
+            <p key={i}>{line}</p>
+          ))}
+        </div>
+      ) : null}
+      {chapters.length === 0 ? (
+        <p className={styles.empty}>No chapters yet. Add one below, or a note you have already written.</p>
+      ) : (
+        <ol className={styles.index} aria-label="Chapters">
+          {chapters.map((chapter, i) => {
+            const there = known(chapter.title);
+            return (
+              <li key={`${chapter.line}-${chapter.title}`} className={styles.row} data-depth={chapter.depth} data-waiting={there ? undefined : ''}>
+                <span className={styles.number} aria-hidden="true">
+                  {numbers[i]}
+                </span>
+                <button type="button" className={styles.chapter} onClick={() => open(chapter.title)} aria-label={there ? chapter.title : `${chapter.title}, not written yet`}>
+                  <span className={styles.chapterTitle}>{chapter.title}</span>
+                  {there ? null : <span className={styles.waiting}>not written yet</span>}
+                </button>
+                <span className={styles.tools}>
+                  <button type="button" className={styles.tool} aria-label={`Move ${chapter.title} up`} disabled={i === 0} onClick={() => onChange(withChapterMoved(body, chapter.title, -1))}>
+                    <ChevronUp size={16} aria-hidden="true" />
+                  </button>
+                  <button type="button" className={styles.tool} aria-label={`Move ${chapter.title} down`} disabled={i === chapters.length - 1} onClick={() => onChange(withChapterMoved(body, chapter.title, 1))}>
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </button>
+                  <button type="button" className={styles.tool} aria-label={`Take ${chapter.title} out of the book`} onClick={() => onChange(withoutChapter(body, chapter.title))}>
+                    <X size={16} aria-hidden="true" />
+                  </button>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {adding === 'new' ? (
+        <form
+          className={styles.add}
+          onSubmit={(event) => {
+            event.preventDefault();
+            addNew();
+          }}
+        >
+          <input
+            className={styles.field}
+            aria-label="New chapter's title"
+            placeholder="Chapter title"
+            value={draft}
+            autoFocus
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setAdding(null);
+            }}
+          />
+          <button type="submit" className={styles.action} disabled={!draft.trim()}>
+            Add and open
+          </button>
+          <button type="button" className={styles.quiet} onClick={() => setAdding(null)}>
+            Cancel
+          </button>
+        </form>
+      ) : adding === 'existing' ? (
+        <div className={styles.add}>
+          <input className={styles.field} aria-label="Find a note to add" placeholder="Find a note" value={filter} autoFocus onChange={(event) => setFilter(event.target.value)} />
+          <ul className={styles.picker} aria-label="Notes to add">
+            {others.length === 0 ? <li className={styles.none}>{filter.trim() ? 'No note by that name outside the book.' : 'Every note is in the book already.'}</li> : null}
+            {others.slice(0, 40).map((name) => (
+              <li key={name}>
+                <button type="button" className={styles.pick} onClick={() => addExisting(name)}>
+                  {name}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className={styles.quiet} onClick={() => setAdding(null)}>
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className={styles.adds}>
+          <button type="button" className={styles.action} onClick={() => setAdding('new')}>
+            <Plus size={16} aria-hidden="true" /> Add a chapter
+          </button>
+          <button type="button" className={styles.action} onClick={() => setAdding('existing')}>
+            <BookOpen size={16} aria-hidden="true" /> Add a note you have
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The bar a chapter wears under its header: the book it is in, its place in it, and the chapters either side
+ * (`bookOf` in book/book.ts finds them). A tap on the book opens the index; the ends open the neighbours.
+ */
+export function BookBar({ place, open }: { place: BookPlace; open: (title: string) => void }) {
+  const prev = place.at > 0 ? place.chapters[place.at - 1]!.title : null;
+  const next = place.at < place.chapters.length - 1 ? place.chapters[place.at + 1]!.title : null;
+  return (
+    <nav className={styles.bar} aria-label="Book">
+      <button type="button" className={styles.end} disabled={!prev} onClick={() => prev && open(prev)} aria-label={prev ? `Previous chapter: ${prev}` : 'First chapter'}>
+        <ChevronLeft size={16} aria-hidden="true" />
+        <span className={styles.endTitle}>{prev ?? ''}</span>
+      </button>
+      <button type="button" className={styles.middle} onClick={() => open(place.title)} aria-label={`Open the book ${place.title}`}>
+        <BookOpen size={15} aria-hidden="true" />
+        <span className={styles.bookTitle}>{place.title}</span>
+        <span className={styles.count}>
+          {place.at + 1} of {place.chapters.length}
+        </span>
+      </button>
+      <button type="button" className={styles.end} data-next="" disabled={!next} onClick={() => next && open(next)} aria-label={next ? `Next chapter: ${next}` : 'Last chapter'}>
+        <span className={styles.endTitle}>{next ?? ''}</span>
+        <ChevronRight size={16} aria-hidden="true" />
+      </button>
+    </nav>
+  );
+}

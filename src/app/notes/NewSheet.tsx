@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { SquarePen, Workflow } from '@glacier/icons';
+import { Book, SquarePen, Workflow } from '@glacier/icons';
 import { useBack } from '../core/back.ts';
 import { SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import sheet from '../editor/NoteSettings.module.css';
@@ -16,9 +16,10 @@ export interface NewSheetProps {
   onClose: () => void;
   onNote: () => void;
   onCanvas: () => void;
+  onBook: () => void;
 }
 
-export function NewSheet({ open, onClose, onNote, onCanvas }: NewSheetProps) {
+export function NewSheet({ open, onClose, onNote, onCanvas, onBook }: NewSheetProps) {
   const panel = useRef<HTMLElement>(null);
   const drag = useSheetDrag(panel, onClose);
   useBack(open, onClose);
@@ -36,6 +37,7 @@ export function NewSheet({ open, onClose, onNote, onCanvas }: NewSheetProps) {
         <SheetGroup>
           <SheetRow icon={SquarePen} label="Note" hint="A page of markdown, typed or said." onPress={pick(onNote)} />
           <SheetRow icon={Workflow} label="Canvas" hint="Cards on a page with lines between them." onPress={pick(onCanvas)} />
+          <SheetRow icon={Book} label="Book" hint="Notes in an order, with an index." onPress={pick(onBook)} />
         </SheetGroup>
       </section>
     </div>

@@ -41,6 +41,7 @@ import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { canvasNoteBody } from './canvas/jsonCanvas.ts';
 import { withFrontMatterTitle } from './core/frontMatter.ts';
+import { bookNoteBody, bookOf } from './book/book.ts';
 import { NewSheet } from './notes/NewSheet.tsx';
 import { sweepMemos } from './core/sweepMemos.ts';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
@@ -453,6 +454,14 @@ function Shell() {
     setScreen({ name: 'note', note });
   };
 
+  /** A book from the + (docs/BOOKS.md): named and empty, opened on its index; it is filed and kept as a note is. */
+  const newBook = async () => {
+    const note = await saveNote(newNoteId(), bookNoteBody('New book'), 'editor');
+    fileNewNote(note.id);
+    await refresh();
+    setScreen({ name: 'note', note });
+  };
+
   const newNote = async () => {
     // Written to the store immediately rather than on first keystroke: a note
     // that exists only in memory is a note that a backgrounded webview loses,
@@ -635,6 +644,7 @@ function Shell() {
         at={screen.at}
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
+        book={bookOf(shownNotes, noteTitle(screen.note.body))}
         bodyOfTitle={bodyOfTitle}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
         rename={rename}
@@ -911,7 +921,7 @@ function Shell() {
         (noteScreen ?? home)
       )}
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
-      <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} />
+      <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={() => void newBook()} />
       <WhatsNewSheet sources={updates.status?.sources} hold={guide || screen.name === 'capture'} />
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
       <NotesDrawer

@@ -3499,3 +3499,31 @@ width and at a phone's with the CPU slowed four times.
   control of the app was not given and it was not used while a watcher sampled it - so what WebKit alone makes costly
   (the smoke, the stacked glass) is still to be read on the Mac, from Settings > Developer > Smoke bench. Headless
   Chromium draws a frame only every few hundred ms, so key-to-paint latency was not measured either.
+
+## 70. Books: notes in an order, with an index (2026-09-22)
+
+Matt: "add a Book feature it should be a collection of organized notes with an index." Built the way boards and
+canvases were: a book is a note, its index is its body, and Markdown anywhere reads it (docs/BOOKS.md).
+
+- **The shape.** One line of front matter, `book: true`, makes a note a book; the `title:` names it as a canvas is
+  named. The body is a list of `[[links]]` to the chapters in order, a chapter indented under the one before being a
+  part's chapter (2.1). The book's own words - a paragraph before the list - stay and show over the index. A chapter
+  is any note, found by its title; a title with no note is a chapter still to be written, and opening it makes the
+  note the way opening any `[[link]]` does.
+- **Drawn as its index** (book/BookView.tsx) where the note's words would be, the Markdown a toggle away in the
+  header, exactly as a canvas's JSON is - the same switch, the same rename from a tab's menu, the same write through
+  `onChange` on typing's debounce, so the index behind the view and the view are one thing. Rows open chapters; each
+  moves a place up or down or comes out of the book, and no edit touches a chapter's own note. Two ways in: a
+  chapter named here and opened at once, or a note already written, picked from the library's titles less the
+  book's own and those in it.
+- **A chapter wears its book** (BookBar under the link marks): the book's title, the place (2 of 5), the neighbours
+  either side. Found by title (`bookOf`): the first book in the library whose index names the note; a note in two
+  books shows the first.
+- **The + makes one** (notes/NewSheet.tsx): "New book", empty, opened on its index.
+- **Decided without asking, said here so it can be undone:** the index is a list in a note rather than a folder or
+  a kind of its own (a folder cannot hold an order or a preface, and a note syncs, links and opens everywhere a
+  note does); one level of parts; rows move a place at a time rather than by drag; no reading-through view yet.
+  Not built: reading a book straight through as one page, making one by voice, a book mark in the list.
+- **Seen in the pane:** a book from the +, its empty index; "First steps" added by name, the chapter opened wearing
+  "New book · 1 of 1"; the book opened from the bar with the row in it. 16 tests of the model and the view; the
+  suite 1115 green.

@@ -271,6 +271,17 @@
 }
 
 /*
+ * A body told to hide is hidden, whatever its display rule: the attribute's own `display: none` loses to the flex
+ * the page gives its bodies below (`.page[data-scrolls] > .body`), so this is said at that rule's own weight, and
+ * under a book's index (book/BookView.tsx) the editor it hides showed beneath, front matter and all. A
+ * canvas never showed it only because its page does not scroll and the canvas fills it.
+ */
+.page > .body[hidden],
+.page[data-scrolls] > .body[hidden] {
+  display: none;
+}
+
+/*
  * Under the header: the tape and the note. Writing, they are one page that
  * scrolls as a whole, the editor as tall as its words (Editor's \`grow\`), so
  * the tape goes up with the first lines. In the Formatted view or the

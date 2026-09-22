@@ -18,6 +18,8 @@ import { FindBar } from './FindBar.tsx';
 import { Editor } from './Editor.tsx';
 import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
+import { BookBar, BookView } from '../book/BookView.tsx';
+import { isBookBody, type BookPlace } from '../book/book.ts';
 import { withFrontMatterTitle } from '../core/frontMatter.ts';
 import { insertImageAt, releaseImageSpot, reserveImageSpot } from './images.ts';
 import { useBack } from '../core/back.ts';
@@ -83,6 +85,8 @@ interface NoteScreenProps {
   at?: string;
   /** Whether a note by that title exists, for drawing a [[link]] as written or as waiting. */
   hasTitle?: (title: string) => boolean;
+  /** The book this note is a chapter of, for the bar under its header (book/book.ts `bookOf`); null for none. */
+  book?: BookPlace | null;
   /** A note's body by its title, for a canvas card that is a note to be drawn small (canvas/CanvasView.tsx). */
   bodyOfTitle?: (title: string) => string | null;
   /** Every note's title, for a canvas's + to choose a note from. */
@@ -104,7 +108,7 @@ const SAVE_DEBOUNCE_MS = 400;
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, bodyOfTitle, allTitles, at, rename }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, bodyOfTitle, allTitles, at, rename }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -129,9 +133,21 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const [canvasBody, setCanvasBody] = useState(note.body);
   const canvas = useMemo(() => canvasOf(canvasBody), [canvasBody]);
   const drawing = !!canvas && !source;
+  /*
+   * A note that is a book (docs/BOOKS.md) is drawn as its index the same way, its Markdown behind the same switch.
+   * The view's own changes (a chapter added, moved, taken out) are written through `onChange` like typing and kept
+   * here too, so the index redraws from what it just wrote.
+   */
+  const [bookBody, setBookBody] = useState(note.body);
+  const isBook = useMemo(() => isBookBody(bookBody), [bookBody]);
+  const paging = isBook && !source;
+  const typed = !!canvas || isBook;
   const showSource = (next: boolean) => {
     if (next === source) return;
-    if (!next) setCanvasBody(body.current);
+    if (!next) {
+      setCanvasBody(body.current);
+      setBookBody(body.current);
+    }
     setSource(next);
     fireNativeHaptic('selection');
   };
@@ -586,19 +602,23 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       type="button"
       className={styles.cog}
       disabled={shown !== 'raw'}
-      onClick={() => (canvas ? showSource(!source) : chooseView(prefs.noteView === 'formatted' ? 'mixed' : 'formatted'))}
+      onClick={() => (typed ? showSource(!source) : chooseView(prefs.noteView === 'formatted' ? 'mixed' : 'formatted'))}
       aria-label={
         canvas
           ? source
             ? 'Showing the canvas as JSON. Show the canvas.'
             : 'Showing the canvas. Show its JSON.'
-          : prefs.noteView === 'formatted'
+          : isBook
+            ? source
+              ? 'Showing the index as Markdown. Show the index.'
+              : 'Showing the index. Show its Markdown.'
+            : prefs.noteView === 'formatted'
             ? 'Showing the formatted note. Show the marks.'
             : 'Showing the marks. Show the formatted note.'
       }
-      title={canvas ? (source ? 'JSON' : 'Canvas') : prefs.noteView === 'formatted' ? 'Formatted' : 'Markdown'}
+      title={canvas ? (source ? 'JSON' : 'Canvas') : isBook ? (source ? 'Markdown' : 'Index') : prefs.noteView === 'formatted' ? 'Formatted' : 'Markdown'}
     >
-      {(canvas ? !source : prefs.noteView === 'formatted') ? (
+      {(typed ? !source : prefs.noteView === 'formatted') ? (
         <BookOpen size={20} strokeWidth={2.1} aria-hidden="true" />
       ) : (
         <Code size={20} strokeWidth={2.1} aria-hidden="true" />
@@ -701,6 +721,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         ) : null}
         {/* What the note is linked to (a Notion board, a repo): a tap opens the cog sheet to change it. */}
         <LinkMarks noteId={note.id} onPress={() => setSettingsOpen(true)} />
+        {/* A chapter's book, its place in it and the chapters either side (docs/BOOKS.md). */}
+        {book && onOpenTitle ? <BookBar place={book} open={(t) => onOpenTitle(t)} /> : null}
 
         {shown === 'transcript' ? (
           <div className={styles.body}>
@@ -732,14 +754,29 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             />
           </div>
         ) : null}
-        <div className={styles.body} hidden={shown !== 'raw' || drawing}>
+        {paging ? (
+          <div className={styles.body} hidden={shown !== 'raw'}>
+            <BookView
+              body={bookBody}
+              title={title}
+              known={hasTitle ?? (() => false)}
+              open={(t) => onOpenTitle?.(t)}
+              titles={allTitles ?? (() => [])}
+              onChange={(next) => {
+                setBookBody(next);
+                onChange(next);
+              }}
+            />
+          </div>
+        ) : null}
+        <div className={styles.body} hidden={shown !== 'raw' || drawing || paging}>
           <Editor
-            // A canvas's JSON, once asked for, is what the canvas has written by now, not what the note opened with.
-            value={canvas && source ? body.current : note.body}
+            // A canvas's JSON or a book's Markdown, once asked for, is what the view has written by now, not what the note opened with.
+            value={typed && source ? body.current : note.body}
             onChange={onChange}
             onView={setView}
             wispTyping={prefs.wisp}
-            display={canvas ? 'mixed' : prefs.noteView}
+            display={typed ? 'mixed' : prefs.noteView}
             tape={!tape.web && tape.length > 0 ? convertFileSrc(`${note.id}.wav`, 'rec') : null}
             tapeId={tape.length > 0 ? tapeId(note.id) : null}
             onImageError={setPhotoProblem}
@@ -768,7 +805,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle } : undefined}
             grow
           />
-          {blank && !canvas ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
+          {blank && !typed ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
         </div>
       </div>
       {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image. */}
@@ -793,9 +830,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         pinned={pinned}
         editing={editing}
         onClose={() => setSettingsOpen(false)}
-        name={canvas ? { value: title, onChange: (next) => onChange(withFrontMatterTitle(body.current, next)) } : undefined}
-        view={!wide && shown === 'raw' ? (canvas ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
-        onView={canvas ? (next) => showSource(next === 'mixed') : chooseView}
+        name={typed ? { value: title, onChange: (next) => onChange(withFrontMatterTitle(body.current, next)) } : undefined}
+        view={!wide && shown === 'raw' ? (typed ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
+        onView={typed ? (next) => showSource(next === 'mixed') : chooseView}
         mode={mode}
         onMode={showMode}
         onFind={

@@ -15,6 +15,7 @@ import {
   type TabGroups,
 } from './tabGroups.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
+import { isBookBody } from '../book/book.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 import { motionScale } from '../core/preferences.ts';
 import { useWorkspaces, WORKSPACE_HUES } from '../core/workspaces.ts';
@@ -669,7 +670,7 @@ export function NoteTabs({
                 {menu?.kind === 'tab' && menu.id === note.id ? (
                   <Menu open onOpenChange={(open) => !open && setMenu(null)} trigger={<span className={styles.menuAnchor} />} placement="bottom-start" aria-label={`${title} tab`}>
                     {/* A canvas is named by its front matter and has no first line to write, so the row offers it. */}
-                    {onRename && isCanvasBody(note.body) ? <MenuItem onSelect={() => setNaming({ id: note.id, draft: title })}>Rename</MenuItem> : null}
+                    {onRename && (isCanvasBody(note.body) || isBookBody(note.body)) ? <MenuItem onSelect={() => setNaming({ id: note.id, draft: title })}>Rename</MenuItem> : null}
                     <MenuItem onSelect={() => startGroup(note.id)}>Add to a new group</MenuItem>
                     {groups.list.filter((g) => g.id !== groupId).length ? (
                       <MenuSub label="Add to group">
