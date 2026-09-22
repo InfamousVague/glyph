@@ -3753,3 +3753,32 @@ books and such that the real app uses". Two parts of the reader differed from th
   default, Markdown with the marks dimmed, so the reader now does the same, with the note screen's `grow`.
 - **Seen in the pane:** a book with a preface, a formatted chapter, a canvas and one not written. The index,
   chapter and read-through match the app at 1280 and 375 wide, dark and light.
+
+## 83. A canvas in a frame inside a note (2026-09-22)
+
+Matt: "Please make it so we can embed a frame of a canvas within another note so we can browse the canvas from
+within a frame inside the note." docs/CANVAS.md had pencilled this in as a ```canvas fence with the JSON inline;
+what was asked for is different and better: a note frames a canvas that already exists, so there is one canvas,
+changed in one place, seen from every note that frames it.
+
+- **The syntax is Obsidian's embed**, `![[Cabin weekend, laid out]]` on a line of its own (editor/canvasFrames.ts).
+  The words are a wiki link with a `!` in front, so the note reads as a link to the canvas in any other app, and
+  the link machinery already in the editor - matching a title as a person says it, backlinks, the dashed "not yet
+  written" look - comes for free. A title that names a note of words, or nothing, stays the link it is: the frame
+  is for canvases, which is what was asked, and a note of words has its own way of being read.
+- **The frame is the canvas note's own view** (canvas/CanvasView.tsx) with no `onChange`: browsable, not
+  changeable. Pan, zoom, the minimap, every card drawn as it is on the canvas, the whole of it fitted to the frame
+  to begin with. Nothing was written twice: the view already knew how to be read-only, since the reader page and a
+  book's read-through use it that way. Over it, the canvas's name and an Open, which opens the canvas note itself.
+- **A block widget from a state field**, as pictures and diagrams are, because a block's height must be known
+  before layout. The caret on the line shows the link as typed, the way a diagram's fence does (editor/mermaid.ts),
+  and leaving it draws the frame again; a press on the name in the bar puts the caret there. Every gesture inside
+  the frame is the canvas's, so a drag pans the canvas and never the note; the note scrolls from outside the frame.
+- **Not on a card.** A canvas draws a note card small with the editor in its peek mode, and the frame is off there:
+  a canvas framed in a note framed in a canvas would nest without end.
+- **Fresh when the canvas changes.** The frame is keyed by the canvas note's body, and the editor looks at every
+  frame again when the notes change under it or the app is repainted; a frame whose canvas is the same is kept, one
+  whose canvas changed is drawn again.
+
+The canvas's own JSON parse is cached by body, so a keystroke elsewhere in the note parses nothing. The reader page
+(src/read/) does not draw frames yet; a shared note shows the line as the link it is.
