@@ -74,3 +74,12 @@ What to know before the walk.
 | `src/app/core/frontMatter.ts` | `frontMatterValue`, the one front-matter read the app makes |
 | `src/app/editor/NoteScreen.tsx` | a book note drawn as its index, with the Markdown a toggle away; a chapter's bar |
 | `src/app/notes/NewSheet.tsx`, `src/app/App.tsx` | the + makes one; a chapter's place is found for the screen |
+
+## Canvases as pages
+
+Matt: "Add the ability for canvases to be in books as well." A canvas is a note found by its title like any other, so
+it was already a page a book could hold: offered by the New book sheet and the index's picker, opened as a canvas, and
+wearing the chapter's bar ("Cabin trip · 2 of 3", the pages either side). What the index lacked was saying so. A
+chapter that is a canvas, and a canvas offered in the index's picker, now wear the canvas's own mark after the title -
+the one the + sheet gives a canvas - and a reader hears "Route map, a canvas" (book/BookView.tsx, `bodyOf` from the
+note screen). A chapter with no note yet says nothing of what it will be.

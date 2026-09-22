@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { Note } from '../core/store.ts';
+import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
 import { bookNoteBody, bookOf, chaptersOf } from './book.ts';
 import { BookBar, BookView } from './BookView.tsx';
 
@@ -86,6 +87,40 @@ describe('the index view', () => {
     expect(button('Add 2 notes')).toBeTruthy();
     act(() => button('Add 2 notes').click());
     expect(chaptersOf(onChange.mock.calls[1]![0] as string).map((c) => c.title).slice(-2)).toEqual(['Mountains', 'Rivers']);
+  });
+
+  it('marks a chapter that is a canvas, and a canvas it offers to add, with the canvas mark', () => {
+    const bodies: Record<string, string> = {
+      Trees: '# Trees\n\nWords.',
+      Birds: canvasNoteBody('Birds', { nodes: [], edges: [] }),
+      Rivers: canvasNoteBody('Rivers', { nodes: [], edges: [] }),
+      Mountains: '# Mountains',
+    };
+    show(
+      <BookView
+        body={BOOK}
+        title="Field guide"
+        known={(t) => t in bodies}
+        open={() => {}}
+        titles={() => ['Rivers', 'Mountains']}
+        onChange={() => {}}
+        bodyOf={(t) => bodies[t] ?? null}
+      />,
+    );
+    const marked = [...document.querySelectorAll('ol[aria-label="Chapters"] li')].map((li) => [li.querySelector('[class*=chapterTitle]')?.textContent, !!li.querySelector('[class*=canvasMark]')]);
+    // Introduction has no note yet, so nothing says what it is; Birds is a canvas.
+    expect(marked).toEqual([
+      ['Introduction', false],
+      ['Trees', false],
+      ['Birds', true],
+    ]);
+    expect(button('Birds, a canvas')).toBeTruthy();
+    act(() => button('Add a note you have').click());
+    const offered = [...document.querySelectorAll('ul[aria-label="Notes to add"] button')].map((b) => [b.textContent?.trim(), !!b.querySelector('[class*=canvasMark]')]);
+    expect(offered).toEqual([
+      ['Rivers', true],
+      ['Mountains', false],
+    ]);
   });
 
   it('says so when the book has no chapters', () => {

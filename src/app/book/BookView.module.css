@@ -75,6 +75,14 @@
   max-inline-size: 100%;
 }
 
+/* A chapter that is a canvas: the canvas's own mark after its title, quiet, in the words' line. */
+.canvasMark {
+  display: inline-flex;
+  vertical-align: -0.1em;
+  margin-inline-start: 0.4em;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
 /* A chapter with no note yet: named, and said so, in the link's own waiting grey. */
 .row[data-waiting] .chapterTitle {
   color: var(--glacier-text-muted);

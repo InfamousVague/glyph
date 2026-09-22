@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, X } from '@glacier/icons';
+import { BookOpen, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Workflow, X } from '@glacier/icons';
+import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 import { chaptersOf, numbered, prefaceOf, withChapter, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
 import styles from './BookView.module.css';
@@ -11,6 +12,11 @@ import styles from './BookView.module.css';
  * once; or a note already written, picked from the library), moved a place up or down, or taken out - none of which
  * touches the chapter's own note. Every change is a change to the book note's body (book/book.ts), written the way
  * typing is, so the Markdown behind the view is always the index it shows, and the view is a toggle away from it.
+ *
+ * A chapter can be a canvas (Matt: "Add the ability for canvases to be in books as well"): a canvas is a note found
+ * by its title like any other, so it was always a page a book could hold and open - what the index lacked was saying
+ * so. A chapter that is a canvas, and a canvas offered in the picker, wear the canvas's own mark (the one the + sheet
+ * gives it), so a book reads as the pages and the boards of cards it is made of.
  */
 
 interface BookViewProps {
@@ -24,9 +30,24 @@ interface BookViewProps {
   /** The book's own title, so it is not offered as a chapter of itself. */
   title: string;
   onChange: (body: string) => void;
+  /** A note's body by its title, to tell a chapter that is a canvas from one of words; absent, none is marked. */
+  bodyOf?: (title: string) => string | null;
 }
 
-export function BookView({ body, known, open, titles, title, onChange }: BookViewProps) {
+/** The canvas's mark, beside a title that is a canvas. */
+function CanvasMark() {
+  return (
+    <span className={styles.canvasMark} title="A canvas">
+      <Workflow size={13} strokeWidth={2.2} aria-hidden="true" />
+    </span>
+  );
+}
+
+export function BookView({ body, known, open, titles, title, onChange, bodyOf }: BookViewProps) {
+  const isCanvas = (name: string) => {
+    const found = bodyOf?.(name);
+    return !!found && isCanvasBody(found);
+  };
   const chapters = useMemo(() => chaptersOf(body), [body]);
   const numbers = useMemo(() => numbered(chapters), [chapters]);
   const preface = useMemo(() => prefaceOf(body), [body]);
@@ -70,13 +91,22 @@ export function BookView({ body, known, open, titles, title, onChange }: BookVie
         <ol className={styles.index} aria-label="Chapters">
           {chapters.map((chapter, i) => {
             const there = known(chapter.title);
+            const canvas = there && isCanvas(chapter.title);
             return (
               <li key={`${chapter.line}-${chapter.title}`} className={styles.row} data-depth={chapter.depth} data-waiting={there ? undefined : ''}>
                 <span className={styles.number} aria-hidden="true">
                   {numbers[i]}
                 </span>
-                <button type="button" className={styles.chapter} onClick={() => open(chapter.title)} aria-label={there ? chapter.title : `${chapter.title}, not written yet`}>
-                  <span className={styles.chapterTitle}>{chapter.title}</span>
+                <button
+                  type="button"
+                  className={styles.chapter}
+                  onClick={() => open(chapter.title)}
+                  aria-label={there ? (canvas ? `${chapter.title}, a canvas` : chapter.title) : `${chapter.title}, not written yet`}
+                >
+                  <span className={styles.chapterTitle}>
+                    {chapter.title}
+                    {canvas ? <CanvasMark /> : null}
+                  </span>
                   {there ? null : <span className={styles.waiting}>not written yet</span>}
                 </button>
                 <span className={styles.tools}>
@@ -136,6 +166,7 @@ export function BookView({ body, known, open, titles, title, onChange }: BookVie
                       {on ? <Check size={14} /> : null}
                     </span>
                     {name}
+                    {isCanvas(name) ? <CanvasMark /> : null}
                   </button>
                 </li>
               );

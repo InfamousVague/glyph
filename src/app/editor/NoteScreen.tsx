@@ -762,6 +762,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               known={hasTitle ?? (() => false)}
               open={(t) => onOpenTitle?.(t)}
               titles={allTitles ?? (() => [])}
+              bodyOf={bodyOfTitle}
               onChange={(next) => {
                 setBookBody(next);
                 onChange(next);
