@@ -108,7 +108,10 @@ changed by hand (Matt: "yes, via the Markdown/Formatted switch"). It is the note
 every note shares - that one defaults to the marks, and a canvas should open as a canvas. The JSON shown is what the
 canvas has written by then; switching back draws what was typed.
 
-**In a note**, as a ```canvas fence, the way a board or a Mermaid diagram sits in a note. Not built yet.
+**In a note, in a frame.** `![[Cabin weekend, laid out]]` on a line of its own draws that canvas note inside the
+note, browsable - pan, zoom, minimap - and unchangeable, with its name and an Open over it (editor/canvasFrames.ts;
+docs/MARKDOWN.md, Embeds). It is the canvas note that is drawn, so a change to the canvas shows in every note that
+frames it. A canvas written inline in a note, as a ```canvas fence, is still not built.
 
 ## What is drawn, so far
 

@@ -34,6 +34,7 @@ import { findExtension } from './find.ts';
 import { clips, tapeSource } from './clips.ts';
 import { drawnBoards } from './boards.ts';
 import { drawnMermaid } from './mermaid.ts';
+import { canvasFrames, refreshCanvasFrames } from './canvasFrames.ts';
 import { bookmarkRibbon } from './bookmarkLine.ts';
 import { localUndo, undoSlot } from './undoSlot.ts';
 import { wispRipples, type RippleSource } from './wispRipples.ts';
@@ -197,6 +198,8 @@ export function Editor({
   linkMenusRef.current = linkMenus;
   const wikiRef = useRef(wiki);
   wikiRef.current = wiki;
+  const darkRef = useRef(dark);
+  darkRef.current = dark;
 
   const themeSlot = useRef(new Compartment());
   const assistSlot = useRef(new Compartment());
@@ -236,6 +239,16 @@ export function Editor({
         choices(),
         // [[Another note]] opens that note, or makes it (editor/wikiLinks.ts).
         wikiLinks(wiki ? { known: (title) => wikiRef.current?.known(title) ?? false, open: (title, anchor) => wikiRef.current?.open(title, anchor) } : null),
+        // ![[A canvas]] on a line of its own draws that canvas in a frame (editor/canvasFrames.ts). Not on a card, where
+        // a note is drawn small and a canvas inside it would be a canvas inside a card inside a canvas.
+        peek || !wiki
+          ? []
+          : canvasFrames({
+              body: (title) => wikiRef.current?.body?.(title) ?? null,
+              known: (title) => wikiRef.current?.known(title) ?? false,
+              open: (title, anchor) => wikiRef.current?.open(title, anchor),
+              dark: () => darkRef.current,
+            }),
         inlineImages((message) => onImageErrorRef.current?.(message)),
         shortLinks({ still: peek }),
         // A card under a line that is only a link (editor/linkCards.ts).
@@ -293,8 +306,13 @@ export function Editor({
   // Theme and input aids flip through Compartments, which swap one extension
   // in place: no new state, no lost selection, no interrupted composition.
   useEffect(() => {
-    view.current?.dispatch({ effects: themeSlot.current.reconfigure(glyphTheme(dark)) });
+    view.current?.dispatch({ effects: [themeSlot.current.reconfigure(glyphTheme(dark)), refreshCanvasFrames.of(null)] });
   }, [dark]);
+
+  // The notes changed under the links: a canvas framed in this note may have been drawn on, so its frame is looked at again.
+  useEffect(() => {
+    if (wiki?.body) view.current?.dispatch({ effects: refreshCanvasFrames.of(null) });
+  }, [wiki]);
 
   useEffect(() => {
     view.current?.dispatch({

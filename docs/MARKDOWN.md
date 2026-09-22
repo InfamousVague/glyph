@@ -64,6 +64,16 @@ A `#` in the brackets points inside a note rather than at one, the way Obsidian 
 `[[The cabin trip#^friday]]` resolves the title here and hands the anchor to whoever opens it; `[[#^friday]]`, which
 has no title at all, is not a wiki link and is left to the board's own drawing (`editor/boards.ts`).
 
+### Embeds — `![[A canvas]]`
+
+A wiki link with `!` before it, on a line of its own, draws the canvas it names in a frame inside the note, the way
+Obsidian embeds one note in another (Matt: "embed a frame of a canvas within another note so we can browse the
+canvas from within a frame inside the note"). The frame is the canvas note's own view with no way to change it: pan,
+zoom, the minimap, every card drawn as it is on the canvas, the whole of it fitted to the frame to begin with; over
+it, the canvas's name and an Open that opens the canvas note. With the caret on the line the frame steps aside and
+the line shows as typed. The words are a wiki link like any other, so elsewhere the note reads as a link to the
+canvas; a title that names a note of words, or no note, stays the link it is. (`editor/canvasFrames.ts`)
+
 ### Footnotes — `[^sam]` and `[^sam]: what it says`
 
 They used to read as links, which is worse than not supporting them: a link is a promise. The marker is now raised and
@@ -162,5 +172,6 @@ Progress under a heading needs nothing said. A picture has no words: it needs a 
 - `editor/language.ts` — the parser: GFM, minus setext, plus the plugins' own delimiters.
 - `editor/glyphHighlight.ts` — inline looks by tag; `editor/glyphLines.ts` — everything that belongs to a line.
 - `editor/extended.ts` — superscript, subscript and callouts.
+- `editor/canvasFrames.ts` — `![[A canvas]]` on its own line, drawn as that canvas in a browsable frame.
 - `editor/markNotes.ts` — a note in brackets after a mark, and the panel a tap opens.
 - `guide/marks.ts` — the cheat sheet's rows, read from the same place the editor reads its marks.

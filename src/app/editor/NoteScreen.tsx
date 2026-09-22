@@ -805,7 +805,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               }))
             }
             linkMenus={{ say: (message) => editing.say(message) }}
-            wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle } : undefined}
+            wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined}
             grow
           />
           {blank && !typed ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}

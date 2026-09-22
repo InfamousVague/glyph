@@ -67,6 +67,8 @@ export interface WikiOptions {
   known: (title: string) => boolean;
   /** Opens the note by that title, making it first where there is none. `anchor` is what followed a `#`, if any. */
   open: (title: string, anchor?: string) => void;
+  /** The note's body by title, or null where there is none: what `![[A canvas]]` draws (editor/canvasFrames.ts). */
+  body?: (title: string) => string | null;
 }
 
 function decorate(state: EditorState, known: (title: string) => boolean): DecorationSet {
