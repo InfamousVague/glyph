@@ -3730,3 +3730,12 @@ use for the aside don't show it".
 - **Seen in the pane:** chapters saved out of order under a book that isn't marked as one, with two Task Management
   notes newer than them. The aside lists 1, 2, 6, 8, 9, 10, 35, the glossary marked. Opening 35 from it replaces
   the tab. Task Management and the home page have no aside and no toggle. The floating card shows the same run.
+
+## 81. The reader page's banner (2026-09-22)
+
+Matt: "The buttons on the read page are too big and should be in a banner at the top that prompts to download the
+app too". The header's two full-size pill buttons are now a slim sticky banner across the top. It holds the name, a
+line with "Get the app" (the install page beside the reader), and two small buttons: "Save a copy" and ".md" or
+".zip". The buttons dropped the app's `app-word` class, whose tap-target height made them 63px tall. They're 32px
+now, still a thumb's width. On a phone the line keeps only "Get the app". The save panel ends with "No app yet?
+Get Ghost.md". Seen in the pane at 1280 and 375 wide: the banner is 54px and 51px, with no sideways scroll.

@@ -9,42 +9,79 @@
   min-block-size: 100dvh;
 }
 
-.top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--glacier-space-2) var(--glacier-space-4);
-  padding-block-end: var(--glacier-space-4);
+/* The banner across the top: the name, a word for the app, and the two ways to keep what's shared, small. */
+.banner {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  background: var(--app-paper-2, var(--glacier-surface));
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
-  margin-block-end: var(--glacier-space-5);
+  font-size: var(--glacier-font-size-sm);
+}
+
+.bannerInner {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  max-inline-size: 48rem;
+  margin: 0 auto;
+  padding: var(--glacier-space-2) var(--app-gutter, var(--glacier-space-4));
 }
 
 .brand {
+  flex: none;
   font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: var(--app-tracking-title, -0.01em);
 }
 
-.shared {
+.pitch {
+  flex: 1;
+  min-inline-size: 0;
   color: var(--glacier-text-muted);
-  font-size: var(--glacier-font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.getApp {
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-medium, 500);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* On a phone the pitch keeps its link and drops the rest. */
+@media (max-width: 34rem) {
+  .pitchMore {
+    display: none;
+  }
 }
 
 .actions {
+  flex: none;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--glacier-space-2);
-  margin-inline-start: auto;
+  gap: var(--glacier-space-1);
 }
 
 .action,
 .primary {
+  appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 0.4em;
-  padding: 0.45em 0.8em;
+  gap: 0.3em;
+  margin: 0;
+  /* Small to look at, still a thumb's width to hit. */
+  min-block-size: 2rem;
+  padding: 0 0.75em;
+  font: inherit;
+  font-weight: var(--glacier-font-weight-medium, 500);
+  cursor: pointer;
+  background: none;
   border-radius: var(--glacier-radius-full, 999px);
-  font-size: var(--glacier-font-size-sm);
+  font-size: var(--glacier-font-size-xs, 0.75rem);
+  line-height: 1;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .action {
@@ -53,6 +90,7 @@
 }
 
 .primary {
+  border: var(--glacier-hairline) solid transparent;
   background: var(--app-ink, var(--glacier-text));
   color: var(--app-paper, var(--glacier-bg));
 }

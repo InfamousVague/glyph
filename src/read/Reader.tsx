@@ -20,6 +20,8 @@ import styles from './Reader.module.css';
 const dark = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
 /** The app beside this page: its own copy saves the share into the reader's library (App.tsx, `#fork=`). */
 const APP_URL = new URL('./', typeof location !== 'undefined' ? location.href : 'https://attack.fm/glyph/').href;
+/** Where the app is got: the page that offers the phone app, beside this one. */
+const INSTALL_URL = new URL('./install.html', APP_URL).href;
 
 type State = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind: 'ready'; shared: Shared };
 
@@ -122,34 +124,45 @@ function Read({
   };
 
   return (
-    <main className={styles.page}>
-      <header className={styles.top}>
-        <span className={styles.brand}>Ghost.md</span>
-        <span className={styles.shared}>{isBook ? 'A shared book, read-only' : 'A shared note, read-only'}</span>
-        <span className={styles.actions}>
-          <button type="button" className={`app-word ${styles.primary}`} aria-expanded={saving} onClick={() => setSaving(!saving)}>
-            <Plus size={16} aria-hidden="true" />
-            Save to my Ghost.md
-          </button>
-          <button type="button" className={`app-word ${styles.action}`} onClick={download}>
-            <Download size={16} aria-hidden="true" />
-            {isBook ? 'Download as Markdown (.zip)' : 'Download as Markdown'}
-          </button>
-        </span>
+    <>
+      {/* The banner: what this is, a word for the app, and the two ways to keep it, small (Matt: "The buttons on the
+          read page are too big and should be in a banner at the top that prompts to download the app too"). */}
+      <header className={styles.banner}>
+        <div className={styles.bannerInner}>
+          <span className={styles.brand}>Ghost.md</span>
+          <span className={styles.pitch}>
+            <span className={styles.pitchMore}>{isBook ? 'A shared book.' : 'A shared note.'} </span>
+            <a className={styles.getApp} href={INSTALL_URL}>
+              Get the app
+            </a>{' '}
+            <span className={styles.pitchMore}>to write your own, by typing or by voice.</span>
+          </span>
+          <span className={styles.actions}>
+            <button type="button" className={styles.primary} aria-expanded={saving} onClick={() => setSaving(!saving)}>
+              <Plus size={14} aria-hidden="true" />
+              Save a copy
+            </button>
+            <button type="button" className={styles.action} onClick={download} aria-label={isBook ? 'Download as Markdown (.zip)' : 'Download as Markdown'}>
+              <Download size={14} aria-hidden="true" />
+              {isBook ? '.zip' : '.md'}
+            </button>
+          </span>
+        </div>
       </header>
-
+    <main className={styles.page}>
       {saving && found ? (
         <section className={styles.save} aria-label="Save a copy">
           <p>
             Your copy is yours to change; what you save stays as it is when the owner edits theirs.
           </p>
-          <a className={`app-word ${styles.primary}`} href={`${APP_URL}#fork=${found.id}.${found.key}`}>
+          <a className={styles.primary} href={`${APP_URL}#fork=${found.id}.${found.key}`}>
             Save it in Ghost.md on the web
           </a>
           <p className={styles.quiet}>
             In the Ghost.md app on your phone or Mac: choose <strong>+</strong>, then <strong>From a shared link</strong>, and paste this page’s link.
+            No app yet? <a className={styles.getApp} href={INSTALL_URL}>Get Ghost.md</a>.
           </p>
-          <button type="button" className={`app-word ${styles.action}`} onClick={() => void copy()}>
+          <button type="button" className={styles.action} onClick={() => void copy()}>
             {copied ? 'Link copied' : 'Copy this page’s link'}
           </button>
         </section>
@@ -181,6 +194,7 @@ function Read({
         </article>
       )}
     </main>
+    </>
   );
 }
 

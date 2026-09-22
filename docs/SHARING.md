@@ -62,11 +62,12 @@ read.html is a second Vite entry (src/read/). It is built only from the app's ow
 - the canvas, read-only;
 - a book's index as a list of chapters, and the bar a chapter wears, stepping only between chapters in the share.
 
-It follows the system's light or dark setting. Its header has two ways to keep what's shared:
+It follows the system's light or dark setting. A slim banner across the top, sticky, holds the name, "Get the app"
+(install.html beside it; on a phone the banner keeps only that link) and two small buttons for keeping what's shared:
 
 - **Download as Markdown:** a note as its `.md`; a book as a `.zip` of its pages (share/zip.ts, stored, not
   compressed).
-- **Save to my Ghost.md:** on the web, a link to the app with `#fork=<id>.<key>`, which App.tsx reads once on
+- **Save a copy:** on the web, a link to the app with `#fork=<id>.<key>`, which App.tsx reads once on
   load, removes from the address, and saves. In the phone or Mac app, **+ › From a shared link** takes the pasted
   link, or any text with it inside.
 
