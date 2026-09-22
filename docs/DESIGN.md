@@ -3856,3 +3856,35 @@ disagree, and opens a chapter the way the bar does, in the book's one tab (§77)
 editor inside the page, so it scrolls with the words and stands in the note's gutter; it is there for a canvas
 chapter too, under the canvas. On the reader page it follows the chapter and steps only between the pages the
 share holds, as that page's bar already does. Not on a book's own index, which is the whole list.
+
+## 88. Pictures in a share (2026-09-22)
+
+Matt: "Images for notes are not loading on the attack.fm/glyph/read.html." They could not: a share held its pages'
+Markdown and nothing else, and `![…](image/<name>)` names a picture in the sharing device's store. The reader has
+no account, and the account's copy of a picture is sealed under the account key, which the link does not carry.
+
+So a share now carries the pictures its pages show, sealed under the share's key with the words. No server change:
+the service keeps one ciphertext per share, as before, and its 6 MB limit is on the base64url text it is sent. That
+decided the shape. Pictures as base64 inside the share's JSON would be encoded twice (once in the JSON, once more on
+the way to the server), so a share with pictures is a small container instead: `GSP1`, the JSON's length, the JSON
+with each picture's name and size, then the bytes. A share without pictures is its JSON alone, readable by the page
+as it was. About 4.4 MB fits before sealing: the pictures as kept (at most 1600 px, from when they were added) if
+they fit; otherwise each redrawn at 1024 px, a reading copy; otherwise as many as fit, in the order the pages show
+them. A picture the sharing device does not hold is left out; the reader sees it missing, as the account's other
+devices would. Words alone past the limit are refused with a sentence the share row shows.
+
+- **The reader page** lends the share's pictures to the editor as object URLs (core/images.ts `lendImages`) and
+  writes nothing: it shares attack.fm's origin with the web app, whose picture store is someone's own.
+- **Download** puts the pictures in an `image/` folder beside the pages, where the links point; a note with
+  pictures downloads as a zip rather than a bare `.md` that would point at nothing.
+- **Save a copy** keeps the pictures first, under their own names (`keepImage`), so the copy draws them and the
+  reader's sync sends them on (§86).
+- **Shares already sent** go out again with their pictures: the digest that says whether a share changed now starts
+  with "p", so every share reads as changed once, and shares are refreshed a few seconds after launch as well as
+  after a save.
+- **Names are checked** when a share is opened: only a name a note could write for a picture, so a crafted share
+  cannot put a file anywhere else through a saved copy.
+
+The sync engine's picture reading and writing moved into core/images.ts (`imageBytes`, `keepImage`) so a share
+and sync read and keep pictures the same way. Tested in share/share.test.ts and src/read/Reader.test.tsx; the
+reader test fails with the lending taken out.
