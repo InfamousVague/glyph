@@ -138,3 +138,8 @@
 .note > [data-chapters] {
   padding-inline: 0;
 }
+
+/* Nothing here is typed, so the tall room the editor leaves for a thumb and the phone's bar is dead space. */
+.note :global(.cm-editor) :global(.cm-content) {
+  padding-block-end: var(--glacier-space-8);
+}

@@ -3782,3 +3782,14 @@ changed in one place, seen from every note that frames it.
 
 The canvas's own JSON parse is cached by body, so a keystroke elsewhere in the note parses nothing. The reader page
 (src/read/) does not draw frames yet; a shared note shows the line as the link it is.
+
+## 84. The dead space under a note on a wide screen (2026-09-22)
+
+Matt: "on the bottom of the page on desktop there is a large amount of safe area or white space that can't be used
+when scrolling it gets cut off". The editor's theme (editor/glyphTheme.ts) ends the text with `--glacier-space-24`
+of room, 126px at this size, so a thumb can tap past the last line and the last paragraph clears the phone's
+formatting bar. On the split layout there is no bar and no thumb, and the room is page nobody can reach: scrolled to
+the end, the last line sat 126px above the foot. Under `.app-split` it is `--glacier-space-8`, a paragraph's worth,
+which keeps the last line off the very edge; the phone keeps the tall room. The reader page, where nothing is typed
+at all, takes the smaller one everywhere. Written in Editor.module.css at three classes, since the theme's own rule
+is two. Seen in the pane at 1280 wide: 126px became 42px, the last line ending a paragraph above the foot.

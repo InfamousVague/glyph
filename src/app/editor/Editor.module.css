@@ -258,6 +258,17 @@
 }
 
 /*
+ * The room under the last line. The editor's theme (editor/glyphTheme.ts) leaves a tall one so a thumb can tap past
+ * the words and the last paragraph clears the phone's formatting bar. On the split layout - a wide screen, a pointer,
+ * no bar - that is 126px of page nobody can use (Matt: "on the bottom of the page on desktop there is a large amount
+ * of safe area or white space that can't be used"). There it is a paragraph's worth instead. Three classes, to beat
+ * the theme's own two.
+ */
+:global(.app-split) .editor :global(.cm-editor) :global(.cm-content) {
+  padding-block-end: var(--glacier-space-8);
+}
+
+/*
  * Space above a heading, never below: the gap belongs to the heading's
  * relationship with what came before it, and a trailing margin would push the
  * text the heading introduces away from it. `:first-child` drops the space at
