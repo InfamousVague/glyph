@@ -3693,3 +3693,18 @@ about before they act, as every command is.
 Nothing new is asked of the person: the card is the one a board's lane uses ("New chapter in Field guide", Add), and
 the book's card lists its pages. The take is tested without a recorder (capture/take.test.ts), the way the voice
 suite drives it.
+
+## 79. The aside is the drawer's card (2026-09-22)
+
+Matt: "The new right hand sidebar doesn't match the floating left sidebar." It didn't: the aside (§76) was a docked
+column on the split layout and a full-height slide-over under a scrim on a phone, while the sidebar is, by default,
+a floating card hung from its icon (notes/NotesDrawer.tsx; Matt: "sidebar should open and close in a popover not a
+full sidebar even on desktop"), and a column only when Docked is chosen in Settings.
+
+Now the aside's shell follows the sidebar's. With the sidebar a card, the aside is the same card at the right
+(`AsideCard` in aside/Aside.tsx, drawn by the drawer's own stylesheet with one rule for the right side): the same
+radius, blur, border and shadow, growing out of the mirrored icon that opened it, the page live beside it, closed by
+a tap outside, Escape, the phone's back gesture, its X, or opening a page; its own icon is left to close it, as the
+drawer's is. On a desktop and a phone alike, since the drawer is the same on both. With the sidebar docked, the
+aside is a column beside the note, as it was. The scrim and the slide-over are gone: there is one floating surface
+in the app and now two things use it.
