@@ -491,7 +491,17 @@ export function hostedApp(options: HostedOptions) {
       return;
     }
     session.lastUsed = now();
-    const server = buildServer(session.account);
+    const server = buildServer(session.account, {
+              // The connections this account has: every session signed in with its handle, this one included.
+              connections: () => [...sessions.values()].filter((s) => s.handle === session.handle).length,
+              // Sign out everywhere: every one of them ended, tokens and keys with them; the answer to this call
+              // still goes out, since the transport it rides is already open.
+              signOutEverywhere: () => {
+                const ids = [...sessions.values()].filter((s) => s.handle === session.handle).map((s) => s.id);
+                for (const id of ids) endSession(id);
+                return ids.length;
+              },
+            });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on('close', () => {
       void transport.close();

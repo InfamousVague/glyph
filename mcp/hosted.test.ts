@@ -134,4 +134,34 @@ describe('Claude connecting to the hosted server', () => {
     hosted.sweep();
     expect(hosted.sessions.size).toBe(0);
   });
+  it('counts the connections an account has, and one of them can end them all', async () => {
+    // Two Claudes on Matt's account: a second computer, or a second Claude account.
+    const url = new URL(`${origin}/glyph/api/mcp`);
+    const connect = async () => {
+      const memory = new ClaudeMemory('http://localhost:9999/callback');
+      let transport = new StreamableHTTPClientTransport(url, { authProvider: memory });
+      const client = new Client({ name: 'claude', version: '0' });
+      await expect(client.connect(transport)).rejects.toBeInstanceOf(UnauthorizedError);
+      const back = await signInOnThePage(memory.sentTo!, 'matt', 'correct horse');
+      await transport.finishAuth(back.searchParams.get('code')!);
+      transport = new StreamableHTTPClientTransport(url, { authProvider: memory });
+      await client.connect(transport);
+      return client;
+    };
+    const one = await connect();
+    const two = await connect();
+    const mine = () => [...hosted.sessions.values()].filter((s) => s.handle === 'matt').length;
+    expect(mine()).toBeGreaterThanOrEqual(2);
+    const status = JSON.parse(asText(await one.callTool({ name: 'account_status', arguments: {} }))) as { connections: number };
+    expect(status.connections).toBe(mine());
+
+    // One of them signs out everywhere: every session for the handle goes, the other's token with it.
+    const ended = JSON.parse(asText(await two.callTool({ name: 'sign_out_everywhere', arguments: {} }))) as { endedConnections: number };
+    expect(ended.endedConnections).toBe(status.connections);
+    expect(mine()).toBe(0);
+    await expect(one.callTool({ name: 'account_status', arguments: {} })).rejects.toBeTruthy();
+    await one.close().catch(() => undefined);
+    await two.close().catch(() => undefined);
+  });
+
 });

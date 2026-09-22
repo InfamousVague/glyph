@@ -24,7 +24,8 @@ Once it is connected, ask Claude in words. Behind them are eight tools:
 | `update_note` | A note's whole body replaced. |
 | `append_to_note` | Words added the way the app's own "add task" adds them: a task or an item joins the note's list, in the list's style; a paragraph goes on the end. |
 | `set_note_flags` | Pin or archive a note, or undo either. |
-| `account_status` | Which account this is, where its sync service is, how many notes it holds. |
+| `account_status` | Which account this is, where its sync service is, how many notes it holds, and how many Claude connections it has. |
+| `sign_out_everywhere` | Hosted only. Ends every Claude connection to the account - every Claude account and computer signed in to it, this one included; each signs in again on the page. |
 
 Every tool reads the account fresh before it acts, so Claude sees what your phone last wrote. A write goes from the
 version just read: if another device changed the note in between, the service refuses the write and Claude is shown

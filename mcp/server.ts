@@ -88,7 +88,18 @@ async function find(account: GlyphAccount, id: string | undefined, title: string
   throw new Error('Say which note: its id (from list_notes) or its title.');
 }
 
-export function buildServer(account: GlyphAccount): McpServer {
+/**
+ * What only the hosted server knows (mcp/hosted.ts): how many Claude connections an account has right now, and how to
+ * end them all. The local server is one connection and has nothing to end but itself, so it hands nothing in.
+ */
+export interface HostedHooks {
+  /** Live connections to this account, this one included. */
+  connections: () => number;
+  /** Ends every connection to this account, this one included; answers how many it ended. */
+  signOutEverywhere: () => number;
+}
+
+export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpServer {
   const server = new McpServer({ name: 'glyph', version: VERSION });
 
   server.registerTool(
@@ -269,9 +280,25 @@ export function buildServer(account: GlyphAccount): McpServer {
           archived: notes.filter((r) => r.note.archivedAt).length,
           pinned: notes.filter((r) => r.note.starred).length,
           changedSinceLastRead: changed,
+          // Several Claude accounts, or Claude on several computers, can be signed in to one Ghost.md account (docs/
+          // MCP.md); this says how many are, so a person can tell (Matt: "can I connect multiple Claude accounts").
+          connections: hosted ? hosted.connections() : 1,
         });
       }),
   );
+
+  if (hosted) {
+    server.registerTool(
+      'sign_out_everywhere',
+      {
+        title: 'Sign out everywhere',
+        description:
+          'Ends every Claude connection to this Ghost.md account - every Claude account and every computer signed in to it, this one included. Each signs in again on the page. For a connection you no longer want, or a key you no longer trust here.',
+        inputSchema: {},
+      },
+      async () => text({ endedConnections: hosted.signOutEverywhere() }),
+    );
+  }
 
   return server;
 }
