@@ -3,7 +3,8 @@ import { accountState } from '../core/account/account.ts';
 import { fromBase64Url, openBytes, sealBytes, toBase64Url, type Bytes } from '../core/sync/crypto.ts';
 import { imageBytes, imageNames, keepImage, smallerImage } from '../core/images.ts';
 import { withFrontMatterTitle, frontMatterValue } from '../core/frontMatter.ts';
-import { listNotes, newNoteId, noteTitle, saveNote, NOTE_SAVED, type Note } from '../core/store.ts';
+import { listNotes, newNoteId, noteTitle, saveNote, NOTE_SAVED, NOTES_CHANGED, type Note } from '../core/store.ts';
+import { onPreferences, preferences, setPreferences } from '../core/preferences.ts';
 import { chaptersOf, isBookBody } from '../book/book.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 import { zipFiles } from './zip.ts';
@@ -194,9 +195,13 @@ export function sharedOf(note: Note, notes: readonly Note[]): Shared {
   return { v: 1, kind: 'book', title, pages, at: Date.now() };
 }
 
-// ---- this device's shares -------------------------------------------------------------------------
+// ---- the account's shares --------------------------------------------------------------------------
 
-const KEY = 'glyph-shares';
+/**
+ * Where the shares were kept before they were synced: this device's own storage. Read once, folded into the synced
+ * settings (core/preferences.ts `shares`), and removed, so a share made on the phone is listed on the Mac too.
+ */
+const LEGACY_KEY = 'glyph-shares';
 
 export interface Kept {
   id: string;
@@ -204,39 +209,68 @@ export interface Kept {
   /** What was sent last, as a digest, so a save that changed nothing in it sends nothing. */
   sent: string;
   /**
-   * Pictures the pages showed that this device did not have when it was sent. A picture that arrives later, by sync,
-   * changes no page, so these are looked for on each refresh and the share goes again when one is here.
+   * Pictures the pages showed that the sending device did not have. A picture that arrives later, by sync, changes no
+   * page, so these are looked for on each refresh and the share goes again when one is here.
    */
   lacked?: string[];
 }
 
-function readKept(): Record<string, Kept> {
+let migrated = false;
+function migrateLegacy(): void {
+  if (migrated) return;
+  migrated = true;
   try {
-    const value = JSON.parse(localStorage.getItem(KEY) ?? '{}') as unknown;
-    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, Kept>) : {};
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (!raw) return;
+    const value = JSON.parse(raw) as unknown;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      setPreferences({ shares: { ...(value as Record<string, Kept>), ...preferences().shares } });
+    }
+    localStorage.removeItem(LEGACY_KEY);
   } catch {
-    return {};
+    // Unreadable: nothing to bring over.
   }
 }
 
+function readKept(): Record<string, Kept> {
+  migrateLegacy();
+  return { ...preferences().shares };
+}
+
 function writeKept(kept: Record<string, Kept>): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(kept));
-  } catch {
-    // No storage: the share stays up, and this device forgets it holds it.
-  }
+  setPreferences({ shares: kept });
   for (const listener of listeners) listener();
 }
 
 const listeners = new Set<() => void>();
 
-/** Told whenever this device starts or stops sharing a note. */
+/** Told whenever a note starts or stops being shared, here or (by the synced settings) on another device. */
 export function onShares(listener: () => void): () => void {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  const off = onPreferences(listener);
+  return () => {
+    listeners.delete(listener);
+    off();
+  };
 }
 
-/** The link for a note this device shares, or null. */
+/** Every note shared by a link, by note id, with its link: the settings' list of shares (settings/SharedLinks.tsx). */
+export function sharedLinks(): { noteId: string; link: string; id: string }[] {
+  return Object.entries(readKept()).map(([noteId, kept]) => ({ noteId, id: kept.id, link: shareLink(kept.id, kept.key) }));
+}
+
+/** Every share the account holds on the server, those no device lists any more included, with when each was written (seconds). */
+export async function sharesOnServer(): Promise<{ id: string; updated: number }[]> {
+  const answer = await call<{ shares: { id: string; updated: number }[] }>('GET', 'shares', { token: token() });
+  return answer.shares;
+}
+
+/** Takes down a share by its id alone: one the settings lost track of, so it has no note to stop it from. */
+export async function takeDownShare(id: string): Promise<void> {
+  await call('DELETE', `shares/${id}`, { token: token() });
+}
+
+/** The link for a shared note, or null. */
 export function linkFor(noteId: string): string | null {
   const kept = readKept()[noteId];
   return kept ? shareLink(kept.id, kept.key) : null;
@@ -322,11 +356,14 @@ export function followShares(): void {
   if (following || typeof window === 'undefined') return;
   following = true;
   let timer = 0;
-  window.addEventListener(NOTE_SAVED, () => {
+  const soon = () => {
     if (!Object.keys(readKept()).length) return;
     window.clearTimeout(timer);
     timer = window.setTimeout(() => void refreshShares(), FOLLOW_MS);
-  });
+  };
+  // A save here, or notes changed by sync: a chapter edited on the Mac reaches a book's share from the phone too.
+  window.addEventListener(NOTE_SAVED, soon);
+  window.addEventListener(NOTES_CHANGED, soon);
   // And once at launch, once the app has settled: a share whose notes changed on another device, or that was sent by
   // an older app, goes out as it is now.
   if (Object.keys(readKept()).length) timer = window.setTimeout(() => void refreshShares(), FOLLOW_MS * 4);

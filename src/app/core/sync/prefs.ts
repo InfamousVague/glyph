@@ -38,6 +38,8 @@ export const SYNCED_PREFS = [
   'workspaces',
   // What is in the trash: thrown away on one device, in the trash on every one.
   'trash',
+  // The notes shared by a link, with their keys: listed, followed and stopped from any device (share/share.ts).
+  'shares',
 ] as const satisfies readonly (keyof Preferences)[];
 
 export type SyncedPrefs = Pick<Preferences, (typeof SYNCED_PREFS)[number]>;

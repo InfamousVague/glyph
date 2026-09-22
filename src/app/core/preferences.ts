@@ -215,6 +215,12 @@ export interface Preferences {
    */
   trash: Record<string, number>;
   /**
+   * The notes shared by a read-only link (share/share.ts), by note id: each share's id, its key, and what was last
+   * sent. Synced, so every device lists every share, keeps it up to date and can stop it. The key is end-to-end
+   * encrypted with the rest of the settings: the server that holds the share never sees it.
+   */
+  shares: Record<string, { id: string; key: string; sent: string; lacked?: string[] }>;
+  /**
    * The app's movement, three switches under Settings > Animations (Matt: "add animations section to settings").
    * On by default, every one of them: they are what Glyph looks like. A phone asking for less motion is obeyed
    * whatever these say (app.css `prefers-reduced-motion`).
@@ -259,6 +265,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   tabGroups: { list: [], of: {} },
   workspaces: { list: [], notes: {} },
   trash: {},
+  shares: {},
   wisp: true,
   wispEdge: true,
   ripples: true,
@@ -303,6 +310,18 @@ function load(): Preferences {
       for (const [id, at] of Object.entries(loaded.trash)) if (typeof at === 'number' && Number.isFinite(at)) thrown[id] = at;
     }
     loaded.trash = thrown;
+    // Shares from another build, or a half-written store: only entries with an id and a key a link can carry.
+    const shares: Preferences['shares'] = {};
+    const LINK_PART = /^[A-Za-z0-9_-]{16,64}$/;
+    if (loaded.shares && typeof loaded.shares === 'object') {
+      for (const [note, kept] of Object.entries(loaded.shares as Record<string, unknown>)) {
+        const k = kept as { id?: unknown; key?: unknown; sent?: unknown; lacked?: unknown } | null;
+        if (!k || typeof k.id !== 'string' || typeof k.key !== 'string' || !LINK_PART.test(k.id) || !LINK_PART.test(k.key)) continue;
+        const lacked = Array.isArray(k.lacked) ? k.lacked.filter((n): n is string => typeof n === 'string') : undefined;
+        shares[note] = { id: k.id, key: k.key, sent: typeof k.sent === 'string' ? k.sent : '', ...(lacked?.length ? { lacked } : {}) };
+      }
+    }
+    loaded.shares = shares;
     if (!(loaded.motionSpeed in MOTION_SCALE)) loaded.motionSpeed = DEFAULT_PREFERENCES.motionSpeed;
     // An accent or a rounding this build does not have - one from an older store, where the accent was a colour the
     // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.

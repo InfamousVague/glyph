@@ -6,6 +6,7 @@ import { changePassword, handleProblem, newRecoveryCodes, passwordProblem, recov
 import { setLiveEnabled, useLiveEnabled } from '../core/live/enabled.ts';
 import { preferences } from '../core/preferences.ts';
 import { signOutHere, syncNow, syncedWhen, useSyncStatus } from '../core/sync/engine.ts';
+import { SharedLinks } from './SharedLinks.tsx';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from './kit/settingsKit.tsx';
 
 /**
@@ -204,6 +205,7 @@ export function AccountPane() {
           <SettingRow icon={<LogOut size={20} />} label="Sign out" hint="Your notes stay on this device." onPress={() => void signOutHere()} />
         </PaneSection>
       )}
+      {editing ? null : <SharedLinks />}
     </>
   );
 }

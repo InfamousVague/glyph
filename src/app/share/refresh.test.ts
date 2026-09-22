@@ -33,9 +33,11 @@ vi.mock('../core/images.ts', async (importOriginal) => ({
 }));
 
 const { linkFor, openShare, readShareLink, refreshShares, shareNote } = await import('./share.ts');
+const { preferences, setPreferences } = await import('../core/preferences.ts');
 
 beforeEach(() => {
   localStorage.clear();
+  setPreferences({ shares: {} });
   notes.length = 0;
   onDevice.clear();
   puts.length = 0;
@@ -68,10 +70,10 @@ describe('a share and the pictures it lacked', () => {
     notes.push(note);
     await shareNote(note, notes);
     // As 1.6.0-13 left it: the older digest, and no list.
-    const kept = JSON.parse(localStorage.getItem('glyph-shares')!) as Record<string, { sent: string; lacked?: string[] }>;
+    const kept = { ...preferences().shares };
     kept.n2 = { ...kept.n2!, sent: 'older' };
     delete kept.n2.lacked;
-    localStorage.setItem('glyph-shares', JSON.stringify(kept));
+    setPreferences({ shares: kept });
     expect(await refreshShares()).toBe(1);
     expect(await refreshShares()).toBe(0);
   });
