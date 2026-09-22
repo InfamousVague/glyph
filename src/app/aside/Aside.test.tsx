@@ -35,7 +35,7 @@ describe('the right-hand aside', () => {
   it('shows a page’s book: its chapters with the open one marked, a tap opening another, the title opening the book', () => {
     const onOpen = vi.fn();
     const onOpenTitle = vi.fn();
-    show(<Aside content={asideContent(notes, notes[1]!)} workspace={null} onOpen={onOpen} onOpenTitle={onOpenTitle} />);
+    show(<Aside content={asideContent(notes, notes[1]!)!} onOpen={onOpen} onOpenTitle={onOpenTitle} />);
     expect([...document.querySelectorAll('ol[aria-label="Chapters"] button')].map((b) => b.textContent?.trim())).toEqual(['1Trees', '2Birds']);
     expect(document.querySelector('[aria-current="page"]')?.textContent).toContain('Trees');
     act(() => button('2Birds').click());
@@ -44,14 +44,18 @@ describe('the right-hand aside', () => {
     expect(onOpen).toHaveBeenCalledWith('b');
   });
 
-  it('lists the workspace’s other notes otherwise, named after the workspace, and closes over a phone', () => {
+  it('lays out a run of chapters with no book: their numbers, the open one marked, a tap opening another by id', () => {
     const onOpen = vi.fn();
     const onClose = vi.fn();
-    show(<Aside content={asideContent(notes, notes[2]!)} workspace="Work" onOpen={onOpen} onOpenTitle={() => {}} onClose={onClose} />);
-    expect(document.body.textContent).toContain('Work');
-    expect([...document.querySelectorAll('ol[aria-label="Notes"] button')].map((b) => b.textContent?.trim())).toEqual(['Field guide', 'Trees']);
-    act(() => button('Trees').click());
-    expect(onOpen).toHaveBeenCalledWith('t');
+    const run = [note('c2', '# 02 · Second\n\n« [[The book]]', 1), note('c1', '# 01 · First\n\n« [[The book]]', 2)];
+    show(<Aside content={asideContent(run, run[0]!)!} onOpen={onOpen} onOpenTitle={() => {}} onClose={onClose} />);
+    expect(document.body.textContent).toContain('The book');
+    expect([...document.querySelectorAll('ol[aria-label="Chapters"] button')].map((b) => b.textContent?.trim())).toEqual(['1First', '2Second']);
+    expect(document.querySelector('[aria-current="page"]')?.textContent).toContain('Second');
+    // The book isn't a note, so its name is only a name: nothing to open, and nothing made by tapping it.
+    expect(document.querySelector('button[aria-label="Open The book"]')).toBeNull();
+    act(() => button('1First').click());
+    expect(onOpen).toHaveBeenCalledWith('c1');
     act(() => button('Close').click());
     expect(onClose).toHaveBeenCalled();
   });
@@ -64,9 +68,9 @@ describe('the aside as the drawer’s card', () => {
     const toggle = document.createElement('button');
     toggle.setAttribute('data-aside-toggle', '');
     document.body.appendChild(toggle);
-    show(<AsideCard content={asideContent(notes, notes[1]!)} workspace={null} onOpen={() => {}} onOpenTitle={onOpenTitle} onClose={onClose} />);
+    show(<AsideCard content={asideContent(notes, notes[1]!)!} onOpen={() => {}} onOpenTitle={onOpenTitle} onClose={onClose} />);
     const card = document.querySelector('[role="dialog"][data-side="end"]');
-    expect(card?.getAttribute('aria-label')).toBe('Book index and notes');
+    expect(card?.getAttribute('aria-label')).toBe('Book index');
     expect(card?.querySelector('[data-popup]')).toBeTruthy();
     // The outside listener joins on the next tick, so the press that opened the card cannot close it.
     await new Promise((resolve) => setTimeout(resolve, 5));

@@ -57,7 +57,7 @@ interface NoteTabsProps {
   /** The floating list of every note; absent where the list is already beside the note (the desktop sidebar). */
   onSidebar?: () => void;
   sidebarOpen?: boolean;
-  /** The right-hand aside (aside/Aside.tsx): a book's index, or the workspace's notes; the icon is the sidebar's, mirrored. */
+  /** The right-hand aside (aside/Aside.tsx): a book's index, or a run of chapters; the icon is the sidebar's, mirrored. Absent when there's nothing for it to show, and so is the icon. */
   onAside?: () => void;
   asideOpen?: boolean;
   /** The home page (home/HomeScreen.tsx), and whether it is the page showing. */
@@ -539,7 +539,7 @@ export function NoteTabs({
             className={`${styles.sidebar} ${styles.mirrored}`}
             onClick={onAside}
             data-aside-toggle
-            aria-label="Book index and notes"
+            aria-label="Book index"
             aria-expanded={asideOpen ?? false}
             data-on={asideOpen || undefined}
           >

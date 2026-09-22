@@ -411,7 +411,7 @@ function Shell() {
 
   /** Whether a note by that title is in the library: what a `[[link]]` is drawn by (editor/wikiLinks.ts). */
   const hasTitle = (title: string) => shownNotes.some((n) => sameTitle(noteTitle(n.body), title));
-  /** What the aside holds now: the open note's book, or the workspace's other notes (aside/aside.ts). */
+  /** What the aside holds now: the open note's book, or its numbered chapters in order, or nothing (aside/aside.ts). */
   const asideBody = useMemo(() => asideContent(shownNotes, screen.name === 'note' ? screen.note : null), [shownNotes, screen]);
   /** That note's body, for a canvas card that is a note to draw it small (canvas/CanvasView.tsx); null for none. */
   const bodyOfTitle = (title: string) => shownNotes.find((n) => sameTitle(noteTitle(n.body), title))?.body ?? null;
@@ -632,7 +632,8 @@ function Shell() {
   const docked = split && prefs.sidebarStyle === 'docked';
   const dockShown = docked && sidebarShown;
   // The aside follows the sidebar's shell: a column beside a docked sidebar, else the drawer's card (aside/Aside.tsx).
-  const asideDocked = docked && asideShown;
+  // With nothing to hold - no book, no run of chapters - there is no aside and no toggle for it.
+  const asideDocked = docked && asideShown && asideBody !== null;
   // Docking takes over from a card left open, so the notes are never drawn twice.
   useEffect(() => {
     if (docked) setDrawer(false);
@@ -863,7 +864,7 @@ function Shell() {
             onHome={() => void backToList()}
             atHome={screen.name === 'list'}
             sidebarOpen={docked ? sidebarShown : drawer}
-            onAside={toggleAside}
+            onAside={asideBody ? toggleAside : undefined}
             asideOpen={asideShown}
             onMove={(id, to, grouped) => {
               // Moved within the order as drawn. A drag has already said which group the tab is in (NoteTabs.tsx
@@ -943,10 +944,10 @@ function Shell() {
           <main className="app-notePane">
             {noteScreen ?? home}
           </main>
-          {/* The right-hand aside as a column beside a docked sidebar: a book's index, or the workspace's notes (aside/Aside.tsx). */}
-          {asideDocked ? (
-            <aside className="app-aside" aria-label="Book index and notes">
-              <Aside content={asideBody} workspace={spaces.current?.name ?? null} onOpen={asideBody.kind === 'book' ? openNoteWithin : openNote} onOpenTitle={openTitleWithin} />
+          {/* The right-hand aside as a column beside a docked sidebar: a book's index, or a run of chapters (aside/Aside.tsx). */}
+          {asideDocked && asideBody ? (
+            <aside className="app-aside" aria-label="Book index">
+              <Aside content={asideBody} onOpen={openNoteWithin} onOpenTitle={openTitleWithin} />
             </aside>
           ) : null}
         </div>
@@ -954,8 +955,8 @@ function Shell() {
         (noteScreen ?? home)
       )}
       {/* With the sidebar a floating card, the aside is the same card at the right (aside/Aside.tsx `AsideCard`). */}
-      {asideShown && !asideDocked ? (
-        <AsideCard content={asideBody} workspace={spaces.current?.name ?? null} onOpen={asideBody.kind === 'book' ? openNoteWithin : openNote} onOpenTitle={openTitleWithin} onClose={toggleAside} />
+      {asideShown && !asideDocked && asideBody ? (
+        <AsideCard content={asideBody} onOpen={openNoteWithin} onOpenTitle={openTitleWithin} onClose={toggleAside} />
       ) : null}
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
       <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={newBook} onFromLink={forkFromLink} />

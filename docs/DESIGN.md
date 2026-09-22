@@ -3708,3 +3708,25 @@ a tap outside, Escape, the phone's back gesture, its X, or opening a page; its o
 drawer's is. On a desktop and a phone alike, since the drawer is the same on both. With the sidebar docked, the
 aside is a column beside the note, as it was. The scrim and the slide-over are gone: there is one floating surface
 in the app and now two things use it.
+
+## 80. Chapters numbered in their titles; no aside when it has nothing to show (2026-09-22)
+
+Matt: "the top of the glossary for the hello trade book randomly has task management in it twice, the numbers for
+the chapters are also all out of order". His book's index had no `book: true`, so the app didn't see a book. The
+aside fell back to every other note by last change: his two Task Management notes, then the chapters in the order
+they were saved. His answer: "make chapters numbered with some standard identifiers for books maybe at the end of
+the title and that should let us lay out the chapters in order when there is no book on the page and there is no
+use for the aside don't show it".
+
+- **The standard** (book/chapterNumber.ts, docs/BOOKS.md): "Ch." or "Chapter" and an Arabic or Roman number at the
+  end of the title, as in "The risks · Ch. 8". A number in front ("08 · The risks", "Chapter 8: The risks") is
+  read too, as his chapters are written. "Top 10", "Batch 5" and "Chapter mix" are not chapter numbers.
+- **A run without a book:** the numbered chapters whose pages first point at the same note, else those in the
+  same folder, in number order, headed by that note's name. His chapters all start "« [[HelloTrade — The Book]]",
+  so they line up 1 to 35 under that name.
+- **No aside when it has no use:** the workspace-notes fallback is gone (§76 had it). With no book and no run, the
+  aside and its toggle aren't drawn.
+- **Not changed:** the app doesn't write numbers into titles, and a book's own index keeps its written order.
+- **Seen in the pane:** chapters saved out of order under a book that isn't marked as one, with two Task Management
+  notes newer than them. The aside lists 1, 2, 6, 8, 9, 10, 35, the glossary marked. Opening 35 from it replaces
+  the tab. Task Management and the home page have no aside and no toggle. The floating card shows the same run.

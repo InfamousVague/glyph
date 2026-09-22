@@ -87,6 +87,35 @@ Two commands, read by the rules in capture/command.ts and asked about before the
 - The card is the one a board's lane uses (*New chapter in Field guide*, *Add*); a book's card lists its pages. In a
   pause the recorder suggests "add a chapter to …" naming a book you have, or how to make one.
 
+## Chapter numbers
+
+A chapter can carry its number in its title. Without a book, the numbers put the chapters in order.
+
+The standard is at the end of the title: "Ch." or "Chapter", then an Arabic or Roman number, after a middle dot, a
+dash, a comma or a colon, or in brackets.
+
+    The risks, and a glossary · Ch. 8
+    The risks, and a glossary (Chapter 8)
+    The risks, and a glossary · Chapter VIII
+
+A number in front is read too, since many chapters are already titled that way:
+
+    08 · The risks, and a glossary
+    Chapter 8: The risks, and a glossary
+
+A bare number at the end, as in "Top 10", is not a chapter number, and Roman numbers stop at C's.
+
+**Without a book.** When the open note has a chapter number and no book's index names it, the right-hand aside lays
+out its run: the numbered chapters that belong with it, in number order, the open one marked.
+
+- **What belongs together:** chapters whose page first points at the same note, such as a "« [[The book]]" line.
+  A link to another numbered chapter doesn't count. With no such link, chapters in the same folder belong together.
+- **The name over the run:** that note's title, opening it if it exists, or the folder's name.
+- **A chapter alone** is no run, and shows nothing.
+
+**Nothing to show, no aside.** On a note in no book and with no run, and on the home page, the aside and its toggle
+aren't drawn. It no longer lists the workspace's other notes.
+
 ## Where the code is
 
 | file | what |
@@ -95,7 +124,8 @@ Two commands, read by the rules in capture/command.ts and asked about before the
 | `src/app/book/BookView.tsx` | the index view, reading straight through, and `BookBar` for a chapter |
 | `src/app/book/NewBookSheet.tsx` | the + sheet: a name and the pages, picked and ordered |
 | `src/app/book/rowDrag.ts` | `useRowDrag`: rows lifted by a grip, in the index and the sheet |
-| `src/app/aside/aside.ts` | the right-hand aside's content: a book's index on its pages, else the workspace's notes |
+| `src/app/aside/aside.ts` | the right-hand aside's content: a book's index on its pages, a numbered chapter's run with no book, else nothing |
+| `src/app/book/chapterNumber.ts` | a chapter's number read from its title |
 | `src/app/capture/command.ts` | "make a book called …" and a chapter for a book named (`forBook`, `placedOn`) |
 | `src/app/capture/take.ts` | the chapter offer (the book's index with one more line) and the book offer |
 | `src/app/capture/CaptureScreen.tsx` | `makeBook`: the book note written beside the take |

@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { BookOpen, X } from '@glacier/icons';
 import { useBack } from '../core/back.ts';
-import { noteTitle } from '../core/store.ts';
 import { numbered } from '../book/book.ts';
 import type { AsideContent } from './aside.ts';
 import drawer from '../notes/NotesDrawer.module.css';
@@ -9,15 +8,14 @@ import styles from './Aside.module.css';
 
 /**
  * The right-hand aside (aside.ts says what it holds): a book's index while a book or one of its pages is on screen,
- * the open chapter marked and a tap opening another; otherwise the workspace's other notes. Its shell follows the
+ * the open chapter marked and a tap opening another; or, with no book, a numbered chapter's run in order. With
+ * neither it isn't drawn at all (App.tsx). Its shell follows the
  * sidebar's: a column on the split layout when the sidebar is docked, else the notes drawer's floating card, at the
  * right (`AsideCard`; Matt: "the new right hand sidebar doesn't match the floating left sidebar"). The tab row's
- * mirrored sidebar icon shows and hides it (notes/NoteTabs.tsx). `workspace` names the list's workspace over the
- * notes, or "All notes".
+ * mirrored sidebar icon shows and hides it (notes/NoteTabs.tsx).
  */
 export interface AsideProps {
   content: AsideContent;
-  workspace: string | null;
   onOpen: (id: string) => void;
   onOpenTitle: (title: string) => void;
   /** In the floating card: the close in its head. */
@@ -26,7 +24,7 @@ export interface AsideProps {
   popup?: boolean;
 }
 
-export function Aside({ content, workspace, onOpen, onOpenTitle, onClose, popup }: AsideProps) {
+export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsideProps) {
   return (
     <div className={styles.aside} data-kind={content.kind} data-popup={popup || undefined}>
       {content.kind === 'book' ? (
@@ -65,31 +63,38 @@ export function Aside({ content, workspace, onOpen, onOpenTitle, onClose, popup 
       ) : (
         <>
           <div className={styles.head}>
-            <span className={styles.headTitle}>{workspace ?? 'All notes'}</span>
+            {content.titleId ? (
+              <button type="button" className={styles.headButton} onClick={() => onOpen(content.titleId!)} aria-label={`Open ${content.title}`}>
+                <BookOpen size={15} aria-hidden="true" />
+                <span className={styles.headTitle}>{content.title}</span>
+              </button>
+            ) : (
+              <span className={styles.headButton}>
+                <BookOpen size={15} aria-hidden="true" />
+                <span className={styles.headTitle}>{content.title}</span>
+              </span>
+            )}
             {onClose ? (
               <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
                 <X size={16} aria-hidden="true" />
               </button>
             ) : null}
           </div>
-          {content.notes.length === 0 ? (
-            <p className={styles.empty}>No other notes here.</p>
-          ) : (
-            <ol className={styles.list} aria-label="Notes">
-              {content.notes.map((note) => {
-                const title = noteTitle(note.body);
-                return (
-                  <li key={note.id}>
-                    <button type="button" className={styles.row} onClick={() => onOpen(note.id)}>
-                      <span className={styles.title} data-untitled={title ? undefined : ''}>
-                        {title || 'Untitled'}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
+          <ol className={styles.list} aria-label="Chapters">
+            {content.chapters.map((chapter) => {
+              const current = chapter.id === content.open;
+              return (
+                <li key={chapter.id}>
+                  <button type="button" className={styles.row} aria-current={current ? 'page' : undefined} data-current={current || undefined} onClick={() => onOpen(chapter.id)}>
+                    <span className={styles.number} aria-hidden="true">
+                      {chapter.number}
+                    </span>
+                    <span className={styles.title}>{chapter.name}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
         </>
       )}
     </div>
@@ -118,7 +123,7 @@ export function AsideCard({ onClose, onOpen, onOpenTitle, ...rest }: AsideProps 
   }, [onClose]);
   return (
     <div className={drawer.over}>
-      <div ref={card} className={drawer.card} data-side="end" role="dialog" aria-modal="false" aria-label="Book index and notes">
+      <div ref={card} className={drawer.card} data-side="end" role="dialog" aria-modal="false" aria-label="Book index">
         <Aside
           {...rest}
           popup

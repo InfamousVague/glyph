@@ -48,6 +48,13 @@
   background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
 }
 
+/* A run of chapters whose book isn't a note: its name, not a button. */
+span.headButton,
+span.headButton:hover {
+  background: transparent;
+  cursor: default;
+}
+
 .headTitle {
   flex: 1;
   min-inline-size: 0;
