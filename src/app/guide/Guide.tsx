@@ -1,20 +1,16 @@
-import { Ghost } from '../art/Ghost.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight } from '../art/Icons.tsx';
 import { WispText } from '../art/WispText.tsx';
 import { useBack } from '../core/back.ts';
 import { useSwipeNav } from '../core/swipe.ts';
 import { ArrowDown, CloudOff, ShieldCheck, Smartphone, WifiOff } from '@glacier/icons';
-import { Markdown as MarkdownArt, SideKey as SideKeyArt, Tips as TipsArt } from '../art/Shapes.tsx';
-import { GloveSwitch } from './GloveSwitch.tsx';
+import { SideKey as SideKeyArt, Tips as TipsArt } from '../art/Shapes.tsx';
 import { isAndroid } from '../core/platform.ts';
-import { preferences, setPreferences, usePreferences, type ThemePref } from '../core/preferences.ts';
+import { setPreferences, usePreferences, type ThemePref } from '../core/preferences.ts';
 import { gb, MODELS, modelName, useModels } from '../core/ai.ts';
 import { isTauri } from '../core/tauri.ts';
 import { GUIDE_PAGES as PAGES, type GuidePage as Page } from './pages.ts';
 import { MarksTable } from './MarksTable.tsx';
-import { PHRASES, renderExample, TYPED } from './phrases.ts';
-import { plugins } from '../plugins/registry.ts';
 import { AntiAiStage } from './AntiAiStage.tsx';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { HeadsUp } from './HeadsUp.tsx';
@@ -183,7 +179,6 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
         {page === 'theme' ? <Theme /> : null}
         {page === 'model' ? <Model /> : null}
         {page === 'sidekey' ? <SideKey /> : null}
-        {page === 'markdown' ? <Markdown /> : null}
         {page === 'marks' ? <Marks /> : null}
         {page === 'tips' ? <Tips /> : null}
       </div>
@@ -260,8 +255,6 @@ function Welcome({ onWatched }: { onWatched: () => void }) {
   const [show, setShow] = useState(false);
   return (
     <>
-      {/* The ghost rising to say hello, the first thing a new person meets (art/Ghost.tsx). */}
-      <Ghost scene="welcome" className={styles.welcomeGhost} />
       {/* "Heads up: we use AI." big, a flame behind the AI; "Ethically, on your phone." under it (HeadsUp.tsx). */}
       <HeadsUp onDone={() => setShow(true)} />
       <AntiAiStage waiting={!show} onRound={onWatched} />
@@ -301,25 +294,17 @@ const THEME_CHOICES: Array<{ value: ThemePref; label: string; hint: string }> = 
  * ground behind the words is most of the look. Each choice applies the moment
  * it is tapped - the guide itself changes colour under the thumb - so the
  * person decides by seeing, not by imagining. Changeable any time in Settings.
+ *
+ * The page used to flick the theme on and off by itself a few times, to show there was a choice (GloveSwitch, since
+ * removed: Matt, "remove the effect that flicks it on and off and whatnot automatically it's annoying"). It stays
+ * still now until a choice is tapped.
  */
-/** Once the person has tapped a choice, the glove stops picking for them, this visit and any later one. */
-let themeChosen = false;
-
 function Theme() {
   const { theme } = usePreferences();
-  const [chosen, setChosen] = useState(themeChosen);
-  // The glove's flicks are real theme changes; leaving without choosing puts the theme back.
-  useEffect(() => {
-    const was = preferences().theme;
-    return () => {
-      if (!themeChosen) setPreferences({ theme: was });
-    };
-  }, []);
   return (
     <>
-      <GloveSwitch settled={chosen} />
       <h1 className={styles.title}>Light or dark?</h1>
-      <p className={styles.lead}>Please go ahead and click dark mode like 99.85492% of you so this guy stops with the lights. You can change it later in Settings.</p>
+      <p className={styles.lead}>Pick one to see it. You can change it later in Settings.</p>
       <div className={styles.choices} role="radiogroup" aria-label="Theme">
         {THEME_CHOICES.map((choice) => (
           <button
@@ -329,11 +314,7 @@ function Theme() {
             aria-checked={theme === choice.value}
             className={`${styles.choice} ${theme === choice.value ? 'app-inverse' : ''}`}
             data-selected={theme === choice.value ? '' : undefined}
-            onClick={() => {
-              themeChosen = true;
-              setChosen(true);
-              setPreferences({ theme: choice.value });
-            }}
+            onClick={() => setPreferences({ theme: choice.value })}
           >
             <span className={styles.swatch} data-swatch={choice.value} aria-hidden="true">
               Aa
@@ -520,100 +501,6 @@ function Path({ parts }: { parts: string[] }) {
   );
 }
 
-/**
- * The marks page: a quick rundown of markdown, of Glyph's own marks, and of
- * how to say each one (Matt: "give the user a quick rundown of markdown, our
- * special symbols, and how to trigger each with voice"). Three lists: the
- * marks with a spoken cue, each with the mark itself beside the words to say
- * and an example written by the real rules; the marks that are typed only;
- * and the plugins' own marks, said where the plugin names a cue.
- */
-function Markdown() {
-  // Rendered once per mount: the rules are pure, and these never change mid-guide.
-  const rendered = useMemo(() => PHRASES.map((group) => ({ group, markdown: renderExample(group.example) })), []);
-  const own = useMemo(() => plugins.formats(), []);
-  return (
-    <>
-      <MarkdownArt className={styles.art} />
-      <h1 className={styles.title}>The marks, and how to say them.</h1>
-      <p className={styles.lead}>
-        A note is Markdown: plain words with a few marks around them. Type the marks, or say the words in quotes and Ghost.md writes them as you talk. The marks stay
-        on the page, a little dimmed, so you always see what you wrote.
-      </p>
-      <h2 className={styles.section}>Said, or typed</h2>
-      <ul className={styles.phrases}>
-        {rendered.map(({ group, markdown }) => (
-          <li key={group.title} className={`${styles.phrase} ${styles.marked}`}>
-            <code className={styles.symbol} aria-label={group.symbol ? `The mark: ${group.symbol}` : 'A blank line'}>
-              {group.symbol || '¶'}
-            </code>
-            <div>
-              <h3 className={styles.stepTitle}>{group.title}</h3>
-              <p className={styles.cues}>
-                {group.cues.map((cue) => (
-                  <span key={cue} className={styles.cue}>
-                    {cue}
-                  </span>
-                ))}
-              </p>
-              <p className={styles.note}>{group.lead}</p>
-              <div className={styles.example}>
-                <p className={styles.said}>
-                  {group.example.say.map((line) => (
-                    <span key={line}>“{line}” </span>
-                  ))}
-                </p>
-                <pre className={styles.result}>{markdown}</pre>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <h2 className={styles.section}>Typed only</h2>
-      <ul className={styles.phrases}>
-        {TYPED.map((mark) => (
-          <li key={mark.title} className={`${styles.phrase} ${styles.marked}`}>
-            <code className={styles.symbol}>{mark.symbol}</code>
-            <div>
-              <h3 className={styles.stepTitle}>{mark.title}</h3>
-              <p className={styles.note}>{mark.how}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-      {own.length ? (
-        <>
-          <h2 className={styles.section}>Ghost.md’s own</h2>
-          <ul className={styles.phrases}>
-            {own.map((format) => (
-              <li key={format.name} className={`${styles.phrase} ${styles.marked}`}>
-                <code className={styles.symbol}>{`${format.delimiter}…${format.delimiter}`}</code>
-                <div>
-                  <h3 className={styles.stepTitle}>{format.name}</h3>
-                  {format.cue ? (
-                    <p className={styles.cues}>
-                      <span className={styles.cue}>“{format.cue}” then “end {format.cue}”</span>
-                    </p>
-                  ) : null}
-                  <p className={styles.note}>
-                    {format.about ?? (format.look.kind === 'wisp' ? 'The words go to smoke until you put the caret in them.' : 'Drawn its own way.')}
-                    {format.cue ? '' : ' Typed only.'}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      <p className={styles.note}>Press and hold on any words in a note and choose Style to put one of these marks on them.</p>
-    </>
-  );
-}
-
-/**
- * Every mark, at a glance: the table of what to type, how it reads and how to say it (guide/MarksTable.tsx). The page
- * before it teaches the cues one at a time; this one is the whole set on one page, to come back to.
- */
 function Marks() {
   return (
     <>

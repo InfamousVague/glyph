@@ -3,7 +3,7 @@
  * one of them without knowing the order. Kept out of Guide.tsx so that file
  * exports only components (fast refresh wants it that way).
  */
-export const GUIDE_PAGES = ['welcome', 'theme', 'model', 'sidekey', 'markdown', 'marks', 'tips'] as const;
+export const GUIDE_PAGES = ['welcome', 'theme', 'model', 'sidekey', 'marks', 'tips'] as const;
 
 export type GuidePage = (typeof GUIDE_PAGES)[number];
 

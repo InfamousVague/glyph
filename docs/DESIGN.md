@@ -3386,3 +3386,20 @@ update" (docs/GHOSTS.md has the prompts and the table of where each went).
   at that size on a 3x screen: 2.0 MB for all fourteen. At 400px the empty home page's stack put "A blank page." at
   the foot of a laptop screen, under the foot's smoke, so where the page is wider than 44rem the ghost and its
   words sit side by side (a container query on the home page's column).
+
+## 65. A quieter guide, and a note that teaches formatting (2026-09-22)
+
+Three asks in a row from Matt.
+
+- **"remove the ghost icon from the welcome page."** The welcome page opens on its headline and its gags again; the
+  ghost stays everywhere else it was placed (docs/GHOSTS.md).
+- **"on the theme page remove the effect that flicks it on and off and whatnot automatically it's annoying."** The
+  page flicked the whole theme light and dark four times by itself, to show there was a choice (GloveSwitch, and the
+  code that put the theme back if the person left without choosing). All of it is gone, file and all: the page is
+  still until a choice is tapped, and its line says "Pick one to see it. You can change it later in Settings."
+- **"remove the step showing markdown and instead just replace the 'everything a note can hold' as a short tutorial
+  for formatting everything."** The guide's Markdown step ("The marks, and how to say them") is taken out, so the
+  guide is six pages; its cheat sheet page ("Every mark, side by side", which Settings opens directly) stays. The
+  sample note is now "How to format a note": for each mark, how to type it, the word to say for it while recording,
+  and one example, short, ending with press-and-hold Style. It still holds one of every mark the editor draws - its
+  test says so - so it is still the note that shows everything, only now in the order a person learns it.

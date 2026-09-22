@@ -2,11 +2,15 @@ import { imageMarkdown } from './images.ts';
 import smokeUrl from '../assets/sample-smoke.jpg';
 
 /**
- * The sample note: every kind of mark a note can hold, in one note, so a
- * person can see them all in one place and learn them by looking (Matt: "add
- * a default note with every kind of markdown formatting and table and image
- * and everything we support"). A fresh library gets it once (seed.ts), and
- * Settings > About makes another whenever wanted.
+ * The sample note: a short tutorial for formatting everything, one mark at a
+ * time - how to type it, how to say it, and one example (Matt: "replace the
+ * 'everything a note can hold' as a short tutorial for formatting
+ * everything"). It took over from the guide's Markdown step, which was taken
+ * out. It began as a note with every kind of mark in it ("add a default note
+ * with every kind of markdown formatting and table and image and everything
+ * we support"), and it still has one of each: the tests hold it to that. A
+ * fresh library gets it once (seed.ts), and Settings > About makes another
+ * whenever wanted.
  *
  * The words are the note's own explanation of itself, in the app's voice.
  * The picture is a photograph of smoke by Jocelyn Morales, from Unsplash
@@ -18,26 +22,26 @@ import smokeUrl from '../assets/sample-smoke.jpg';
  * says nothing of one.
  */
 
-export const SAMPLE_TITLE = 'Everything a note can hold';
+export const SAMPLE_TITLE = 'How to format a note';
 
 /** The note's body, with the picture line when there is a picture to show. */
 export function sampleNoteBody(image: string | null): string {
   const picture = image
-    ? `## A picture
+    ? `## Pictures
+
+Paste one, or press and hold and choose Add image. It sits under its own line, and the line stays:
 
 ${imageMarkdown(image, 'A wisp of smoke, by Jocelyn Morales')}
-
-A picture pasted or picked lands under its own line like this one, and the line stays, so you can see what it is.
 
 `
     : '';
   return `# ${SAMPLE_TITLE}
 
-A note is plain Markdown, said or typed. The marks stay on the page, a little dimmed, so what you see is what you wrote. This note holds one of everything.
+A note is plain Markdown: words with a few marks around them. Type a mark, or say its word while recording, and Ghost.md draws it. The marks stay on the page, a little dimmed. Try each one here, then delete this note.
 
 ## Headings
 
-Six sizes, from one \`#\` to six.
+Type \`#\` and a space for the note's name, \`##\` for a section, and more hashes, up to six, for smaller ones. Say "heading", or "subheading".
 
 ### Three hashes
 
@@ -49,99 +53,69 @@ Six sizes, from one \`#\` to six.
 
 ## Words
 
-**Bold** for weight, _italic_ for a lean, ***both at once***, ~~struck~~ when a thought is gone, and \`code\` in its own face. A mark you mean as itself is escaped: \\*not italic\\*.
+Two stars for **bold**, underscores for _italic_, three stars for ***both***, two tildes to ~~strike~~, and backticks for \`code\`. Say "bold", then "end bold"; italic works the same way. A backslash makes a mark mean itself: \\*not italic\\*.
 
-A secret between pairs of pipes goes to smoke until you put the caret in it: ||the cabin key is under the third stone||.
+Two pipes each side keep a secret, drawn as smoke until the caret is in it: ||the key is under the third stone||.
 
 ## Ghost.md's own marks
 
-==Highlight== the line you will want again. An aside is a note to yourself, %%smaller and quieter%%. Mark a fact to check as ??unsure??, and say why in brackets after it: ??the deposit??(Sam said 400, the email says 450) — tap the words for the note. ^^Shout^^ without going bold. Show what was ++added++ beside what was ~~struck~~. Each has a word to say while recording: "highlight", then "end highlight".
+Two of the same sign each side: ==highlight==, %%an aside%%, ??unsure?? (with a reason in brackets after it: ??the deposit??(ask Sam)), ^^shout^^, and ++added++. Say "highlight", then "end highlight"; the others work the same way.
 
 ## Lists
 
+A dash for a point, indented for a smaller one. Say "bullet point".
+
 - Milk
-- Bread
-  - Rye, if they have it
-- Eggs
+  - Oat, if they have it
+
+A number and a dot for steps. Say "number one", "number two".
 
 1. Wake up
-2. Coffee
-3. Write it down
+2. Write it down
+
+A dash and a box for a to-do; tap the box to tick it. Say "remember to".
 
 - [ ] Book the cabin
 - [x] Call Sam
 
-## A quote
+## Quotes
+
+A line that starts with \`>\`. Say "quote".
 
 > The note you make on the way is the one you keep.
 
 ## Links
 
-A link with words: [Ghost.md](https://attack.fm/glyph). A bare address is shortened on the page: https://attack.fm/glyph
-
-A line that is nothing but a link gets a card under it, with the page's title and site:
+Words in brackets and the address after: [Ghost.md](https://attack.fm/glyph). An address on its own line gets a card with the page's title:
 
 https://attack.fm/glyph
 
-- [The Tauri handbook](https://tauri.app/)
+## Tables
 
-A link in the middle of a sentence, like https://example.com here, stays a link and draws no card.
+Pipes between cells and a row of dashes under the first. Or say "Ghost, add a table to this note" and answer its questions. Tap a drawn table to change it.
 
-## A table
-
-| What | Where | Packed |
-| :--- | :---: | ---: |
-| Tent | Garage | Yes |
-| Stove | Loft | No |
-
-Tap a drawn table to see its pipes and change it.
+| What | Where |
+| :--- | ---: |
+| Tent | Garage |
+| Stove | Loft |
 
 ## Code
 
-A fence with its language named is coloured by that language, in the code colours chosen in Settings > Theme.
+Three backticks above and below, with the language after the first three:
 
-\`\`\`rust
-use std::collections::HashMap;
-
-/// A note, and the words that were said to make it.
-#[derive(Debug, Clone)]
-struct Note<'a> {
-    title: &'a str,
-    words: Vec<&'a str>,
-}
-
-impl<'a> Note<'a> {
-    fn new(title: &'a str) -> Self {
-        Self { title, words: Vec::new() }
-    }
-
-    // Counts each word, ignoring case.
-    fn counts(&self) -> HashMap<String, usize> {
-        let mut seen = HashMap::new();
-        for word in &self.words {
-            *seen.entry(word.to_lowercase()).or_insert(0) += 1;
-        }
-        seen
-    }
-}
-
-fn main() {
-    let mut note = Note::new("Groceries");
-    note.words.extend(["Oat", "milk", "and", "oat", "bread"]);
-    let total: usize = note.counts().values().sum();
-    println!("{} has {} words, {:.1}% unique", note.title, total, 60.0);
-}
+\`\`\`js
+const note = 'said, then written';
 \`\`\`
 
-## A rule
+## A line across
 
 Three dashes on a line of their own:
 
 ---
 
-${picture}## And the rest
+${picture}## Without typing
 
-Say "Ghost, add a table to this note" and the phone asks what goes in it. The cog at the top links a note to a Notion board or a repo. Press and hold on any words and choose Style to put one of these marks on them.
+Press and hold on any words and choose Style to put one of these marks on them.
 `;
 }
 
