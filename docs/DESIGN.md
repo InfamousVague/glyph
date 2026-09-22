@@ -3589,7 +3589,30 @@ answers I can click on"), built together.
 - **A chapter made twice, prevented.** App.tsx `openTitle` made a note by a title from the list in hand, which can
   be a moment old; it asks the store again first.
 
-## 74. Sharing a note or a book by a read-only link (2026-09-22)
+## 74. Books: a mark on their pages, pages dragged into order, and a book read straight through (2026-09-22)
+
+Three of the four Book slices Matt picked from the multiple-choice round (the fourth, making one by voice, is next).
+
+- **A page says which book** (home/HomeScreen.tsx cards, notes/NoteTree.tsx rows): a title-to-book map built once
+  per notes change (book/book.ts `bookIndex`, keyed the way `[[links]]` match), and a note that is a page wears the
+  book's mark and name under its title. A book itself, or a note in none, wears nothing; a page in two books is
+  marked with the first, as the chapter bar says.
+- **Drag to reorder** (book/rowDrag.ts): each row has a grip; a finger holds 220ms before the row lifts, so a finger
+  that meant to scroll still scrolls, a mouse lifts at once; the pointer is captured, the lifted row follows, the
+  others make room, and on release the page lands where it was let go - in the index a chapter moved to a place,
+  taking that row's depth (`withChapterAt`); in the New book sheet the pages reordered before the book is made. The
+  shape the canvas and the tab row already drag with. The arrow buttons stay for the keyboard.
+- **Read straight through** (book/BookView.tsx): the chapters one after another, each under its numbered title in
+  the note's own editor, read-only, in the peek mode NotePeek draws with - the same formatter the note opens with -
+  with the front matter and the chapter's own heading taken off (`bodyWithoutTitle`; `withoutFrontMatter` puts the
+  front matter's title where the fences were, so that line goes too). A canvas chapter says so and opens on a tap; a
+  chapter not written says so. A rail at the top scrolls to each; Index goes back.
+- Tests: the map (first book wins; a book and a loose note answer nothing), the move-to-place (depth taken from the
+  landing row; the ends), the drag (a mouse at once; a finger after the hold; a move before the hold is a scroll;
+  a row let go where it was says nothing), the read-through (order, the canvas and the unwritten said, the rail,
+  the way back), the body without its title.
+
+## 75. Sharing a note or a book by a read-only link (2026-09-22)
 
 Matt: "I'd like to be able to share books and notes with people online and allow them to read only the notes and
 give them areas to fork the note into their own Ghost.md app." His answers: anyone with the link, encrypted; the

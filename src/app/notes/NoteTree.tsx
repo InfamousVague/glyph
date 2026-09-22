@@ -1,8 +1,9 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Archive, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FolderPlus, Mic, RotateCcw, Search, Settings, SquarePen, Trash2, X } from '@glacier/icons';
+import { Archive, Book, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FolderPlus, Mic, RotateCcw, Search, Settings, SquarePen, Trash2, X } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { useWorkspaces, type Workspace } from '../core/workspaces.ts';
+import { bookIndex, placeOf } from '../book/book.ts';
 import { NotePeek } from './NotePeek.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
 import { ARCHIVE_FOLDER, noteTree, readClosed, readTrashOpen, writeClosed, writeTrashOpen } from './tree.ts';
@@ -83,8 +84,12 @@ export function NoteTree({
   const allShut = every.length > 0 && every.every((id) => closed.has(id));
   const shutOrOpenAll = () => setAndKeep(allShut ? new Set() : new Set(every));
 
+  /** Every page's book, for the rows' marks (book/book.ts). */
+  const inBooks = useMemo(() => bookIndex(notes), [notes]);
+
   const row = (note: Note) => {
     const title = noteTitle(note.body);
+    const place = placeOf(inBooks, note);
     return (
       <li key={note.id}>
         <button
@@ -106,6 +111,13 @@ export function NoteTree({
           <span className={styles.rowTitle} data-untitled={title ? undefined : ''}>
             {title || 'Untitled'}
           </span>
+          {/* A page of a book says which (docs/BOOKS.md): the mark, and the book's name. */}
+          {place ? (
+            <span className={styles.rowBook} title={`Page ${place.at + 1} of ${place.title}`}>
+              <Book size={12} aria-hidden="true" />
+              <span className={styles.rowBookName}>{place.title}</span>
+            </span>
+          ) : null}
           <NotePeek body={note.body} className={styles.rowPeek} />
         </button>
       </li>

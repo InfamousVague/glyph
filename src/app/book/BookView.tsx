@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react';
-import { BookOpen, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Workflow, X } from '@glacier/icons';
+import { useMemo, useRef, useState } from 'react';
+import { BookOpen, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, GripVertical, List, Plus, Workflow, X } from '@glacier/icons';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
-import { chaptersOf, numbered, prefaceOf, withChapter, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
+import { bodyWithoutTitle, chaptersOf, numbered, prefaceOf, withChapter, withChapterAt, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
+import { Editor } from '../editor/Editor.tsx';
+import { isDarkNow, usePreferences } from '../core/preferences.ts';
+import { useRowDrag } from './rowDrag.ts';
 import styles from './BookView.module.css';
 
 /**
@@ -52,10 +55,22 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
   const numbers = useMemo(() => numbered(chapters), [chapters]);
   const preface = useMemo(() => prefaceOf(body), [body]);
   const [adding, setAdding] = useState<'new' | 'existing' | null>(null);
+  /** Reading straight through: the chapters one after another, each in the note's own read-only editor. */
+  const [reading, setReading] = useState(false);
+  const dark = isDarkNow(usePreferences().theme);
   const [draft, setDraft] = useState('');
   const [filter, setFilter] = useState('');
   /** The notes ticked so far in the picker, in the order they were ticked. */
   const [picked, setPicked] = useState<string[]>([]);
+  /** The rows, for a drag to measure; and the drag itself, which writes the chapter to where it was let go. */
+  const rowEls = useRef<(HTMLElement | null)[]>([]);
+  const drag = useRowDrag(
+    () => rowEls.current,
+    (from, to) => {
+      const chapter = chapters[from];
+      if (chapter) onChange(withChapterAt(body, chapter.title, to));
+    },
+  );
 
   const addNew = () => {
     const name = draft.trim();
@@ -76,6 +91,59 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
   };
   const others = adding === 'existing' ? titles().filter((t) => t.trim() && !sameTitle(t, title) && !chapters.some((c) => sameTitle(c.title, t)) && (!filter.trim() || t.toLowerCase().includes(filter.trim().toLowerCase()))) : [];
 
+  if (reading) {
+    return (
+      <div className={`${styles.book} ${styles.reading}`} data-chapters={chapters.length} data-reading="">
+        {/* The way back, and the chapters as a rail: a tap scrolls to that one. */}
+        <div className={styles.readBar}>
+          <button type="button" className={styles.action} onClick={() => setReading(false)}>
+            <List size={16} aria-hidden="true" /> Index
+          </button>
+          <nav className={styles.rail} aria-label="Chapters">
+            {chapters.map((chapter, i) => (
+              <button
+                key={`${chapter.line}-${chapter.title}`}
+                type="button"
+                className={styles.railItem}
+                data-depth={chapter.depth}
+                onClick={() => document.getElementById(`book-chapter-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              >
+                <span className={styles.railNumber}>{numbers[i]}</span> {chapter.title}
+              </button>
+            ))}
+          </nav>
+        </div>
+        {chapters.map((chapter, i) => {
+          const there = known(chapter.title);
+          const words = there ? (bodyOf?.(chapter.title) ?? null) : null;
+          const canvas = words !== null && isCanvasBody(words);
+          return (
+            <section key={`${chapter.line}-${chapter.title}`} id={`book-chapter-${i}`} className={styles.chapterRead} data-depth={chapter.depth} aria-label={chapter.title}>
+              <h2 className={styles.readTitle}>
+                <button type="button" className={styles.readTitleButton} onClick={() => open(chapter.title)} aria-label={`Open ${chapter.title}`}>
+                  <span className={styles.number} aria-hidden="true">
+                    {numbers[i]}
+                  </span>
+                  {chapter.title}
+                  {canvas ? <CanvasMark /> : null}
+                </button>
+              </h2>
+              {!there ? (
+                <p className={styles.readNote}>Not written yet.</p>
+              ) : canvas ? (
+                <p className={styles.readNote}>A canvas: open it to see the cards.</p>
+              ) : words === null ? null : (
+                <div className={styles.readBody}>
+                  <Editor value={bodyWithoutTitle(words, chapter.title)} onChange={noop} dark={dark} assist={false} readOnly display="formatted" peek grow />
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className={styles.book} data-chapters={chapters.length}>
       {preface.length > 0 ? (
@@ -93,7 +161,17 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
             const there = known(chapter.title);
             const canvas = there && isCanvas(chapter.title);
             return (
-              <li key={`${chapter.line}-${chapter.title}`} className={styles.row} data-depth={chapter.depth} data-waiting={there ? undefined : ''}>
+              <li
+                key={`${chapter.line}-${chapter.title}`}
+                ref={(el) => {
+                  rowEls.current[i] = el;
+                }} className={styles.row} data-depth={chapter.depth} data-waiting={there ? undefined : ''}
+                data-lifted={drag.lifted?.index === i || undefined}
+                style={drag.rowStyle(i)}
+              >
+                <span className={styles.grip} aria-hidden="true" {...drag.grip(i)}>
+                  <GripVertical size={16} />
+                </span>
                 <span className={styles.number} aria-hidden="true">
                   {numbers[i]}
                 </span>
@@ -194,6 +272,11 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
           <button type="button" className={styles.action} onClick={() => setAdding('existing')}>
             <BookOpen size={16} aria-hidden="true" /> Add a note you have
           </button>
+          {chapters.length ? (
+            <button type="button" className={styles.action} onClick={() => setReading(true)}>
+              <BookOpen size={16} aria-hidden="true" /> Read straight through
+            </button>
+          ) : null}
         </div>
       )}
     </div>
@@ -226,4 +309,8 @@ export function BookBar({ place, open }: { place: BookPlace; open: (title: strin
       </button>
     </nav>
   );
+}
+
+function noop(): void {
+  // Read-only: nothing typed comes back.
 }

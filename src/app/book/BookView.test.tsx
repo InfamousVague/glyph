@@ -129,6 +129,27 @@ describe('the index view', () => {
   });
 });
 
+describe('reading straight through', () => {
+  it('draws the chapters one after another, says which is a canvas or not written, and goes back to the index', () => {
+    const bodies: Record<string, string> = {
+      Introduction: '# Introduction\n\nStart here.',
+      Trees: '{"nodes":[{"id":"a","type":"text","text":"a","x":0,"y":0,"width":10,"height":10}],"edges":[]}',
+    };
+    show(<BookView body={BOOK} title="Field guide" known={(t) => t !== 'Birds'} open={() => {}} titles={() => []} onChange={() => {}} bodyOf={(t) => bodies[t] ?? null} />);
+    act(() => button('Read straight through').click());
+    const sections = [...document.querySelectorAll('section[id^="book-chapter-"]')];
+    expect(sections.map((s) => s.getAttribute('aria-label'))).toEqual(['Introduction', 'Trees', 'Birds']);
+    expect(sections[0]?.querySelector('.cm-content')?.textContent).toContain('Start here.');
+    expect(sections[0]?.textContent).not.toContain('# Introduction');
+    expect(sections[1]?.textContent).toContain('A canvas');
+    expect(sections[2]?.textContent).toContain('Not written yet');
+    // The rail names every chapter; Index goes back to the rows.
+    expect([...document.querySelectorAll('nav[aria-label="Chapters"] button')].map((b) => b.textContent?.trim())).toEqual(['1 Introduction', '2 Trees', '3 Birds']);
+    act(() => button('Index').click());
+    expect(rows()).toEqual(['Introduction', 'Trees', 'Birds']);
+  });
+});
+
 describe('the bar a chapter wears', () => {
   const note = (id: string, body: string): Note => ({ id, body, createdAt: 0, updatedAt: 0, source: 'editor' });
 

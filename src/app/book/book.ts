@@ -1,5 +1,5 @@
 import { frontMatterValue } from '../core/frontMatter.ts';
-import { noteTitle, type Note } from '../core/store.ts';
+import { noteTitle, withoutFrontMatter, type Note } from '../core/store.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 
 /**
@@ -117,6 +117,27 @@ export function withChapterMoved(body: string, title: string, by: -1 | 1): strin
   return lines.join('\n');
 }
 
+/**
+ * The body with a chapter moved to the place of the chapter now `to`th in the index (0-based); past the end, last.
+ * What a drag does (book/rowDrag.ts): the line leaves where it was and lands where the finger let go, at that row's
+ * depth.
+ */
+export function withChapterAt(body: string, title: string, to: number): string {
+  const chapters = chaptersOf(body);
+  const from = chapters.findIndex((c) => sameTitle(c.title, title));
+  if (from < 0) return body;
+  const target = Math.max(0, Math.min(chapters.length - 1, to));
+  if (target === from) return body;
+  const lines = body.split('\n');
+  const [line] = lines.splice(chapters[from]!.line, 1);
+  // The lines after the one taken out have moved up by one.
+  const landing = chapters[target]!.line - (target > from ? 1 : 0);
+  const depth = chapters[target]!.depth;
+  const words = (line ?? '').trim();
+  lines.splice(landing + (target > from ? 1 : 0), 0, `${depth === 1 ? '  ' : ''}${words}`);
+  return lines.join('\n');
+}
+
 /** Where a note stands in a book: the book, its chapters, and which one this is. */
 export interface BookPlace {
   book: Note;
@@ -141,6 +162,60 @@ export function bookOf(notes: readonly Note[], title: string): BookPlace | null 
     if (at >= 0) return { book: note, title: bookTitle, chapters, at };
   }
   return null;
+}
+
+/** A title as `sameTitle` matches it (editor/wikiLinks.ts): what a person said, not what they typed. */
+export function titleKey(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Every page's book at once, by the page's title as it is matched: what a list draws its marks from (the sidebar's
+ * rows, the home page's cards; Matt: "book mark in the sidebar"), one pass over the books rather than one per row.
+ * A page in two books is marked with the first, as `bookOf` answers.
+ */
+export function bookIndex(notes: readonly Note[]): Map<string, BookPlace> {
+  const places = new Map<string, BookPlace>();
+  for (const note of notes) {
+    if (!isBookBody(note.body)) continue;
+    const title = noteTitle(note.body);
+    const chapters = chaptersOf(note.body);
+    chapters.forEach((chapter, at) => {
+      const key = titleKey(chapter.title);
+      if (!key || key === titleKey(title) || places.has(key)) return;
+      places.set(key, { book: note, title, chapters, at });
+    });
+  }
+  return places;
+}
+
+/** The book a note is a page of, from the index: null for a note in none, or for a book itself. */
+export function placeOf(index: ReadonlyMap<string, BookPlace>, note: Note): BookPlace | null {
+  if (isBookBody(note.body)) return null;
+  return index.get(titleKey(noteTitle(note.body))) ?? null;
+}
+
+/**
+ * A chapter's words for reading straight through: its front matter gone, and its first heading gone where it is the
+ * chapter's own title, since the section that draws it names it. What is left keeps its marks.
+ */
+export function bodyWithoutTitle(body: string, title: string): string {
+  // `withoutFrontMatter` puts the front matter's `title:` where the fences were, as a line, so the list can name the
+  // note; here that line is the title too, and goes with any heading of the same name under it.
+  const lines = withoutFrontMatter(body.split('\n'));
+  for (let pass = 0; pass < 2; pass += 1) {
+    const first = lines.findIndex((l) => l.trim());
+    if (first < 0) break;
+    const line = lines[first]!;
+    const words = (/^#{1,6}\s+(.*)$/.exec(line)?.[1] ?? line).trim();
+    if (!sameTitle(words, title)) break;
+    lines.splice(0, first + 1);
+  }
+  while (lines.length && !lines[0]!.trim()) lines.shift();
+  return lines.join('\n');
 }
 
 /** The lines of the body that are the book's own words, not its index and not its front matter: shown over it. */
