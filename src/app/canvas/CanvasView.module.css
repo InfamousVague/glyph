@@ -582,3 +582,20 @@
   color: var(--glacier-bg);
   background: var(--app-ink, var(--glacier-text));
 }
+
+/* A canvas with no cards: the ghost joining three empty cards, in the middle, and the one way to start. */
+.emptyCanvas {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--glacier-space-3);
+  pointer-events: none;
+}
+
+.emptyCanvasWords {
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  color: var(--glacier-text-muted);
+}

@@ -1,3 +1,4 @@
+import { Ghost } from '../art/Ghost.tsx';
 import { useState, type FormEvent } from 'react';
 import { KeyRound, LogOut, RefreshCw, ShieldCheck } from '@glacier/icons';
 import { Input, Switch } from '@glacier/react';
@@ -63,6 +64,7 @@ function SignedOut({ onCodes }: { onCodes: (codes: string[]) => void }) {
   return (
     <>
       {offline ? <SettingsCallout>“Nothing leaves the phone” is on in Developer, so nothing syncs until it is off.</SettingsCallout> : null}
+      <Ghost scene="signed-out" align="center" />
       <PaneSection
         title={mode === 'up' ? 'New account' : mode === 'recover' ? 'Recover' : 'Sign in'}
         description="Keep your notes, recordings and settings the same on your phone and computer. They are encrypted on the device first: the service stores only what it cannot read."

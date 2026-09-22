@@ -1,3 +1,4 @@
+import { Ghost } from '../art/Ghost.tsx';
 import { createPortal } from 'react-dom';
 import { liveEnabled } from '../core/live/enabled.ts';
 import { useTopBarTools } from '../core/topBarTools.ts';
@@ -230,9 +231,12 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     void saveNote(note.id, pending, note.source);
   }, [note.id, note.source]);
 
+  // A note with no words in it yet shows the ghost with its pen under the editor, until the first word (art/Ghost.tsx).
+  const [blank, setBlank] = useState(() => !note.body.trim());
   const onChange = useCallback(
     (next: string) => {
       body.current = next;
+      setBlank(!next.trim());
       // The header title is the first line, so it does need to re-render - but
       // only when the first line actually changed, which is rare.
       setTitle((prev) => {
@@ -764,6 +768,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle } : undefined}
             grow
           />
+          {blank && !canvas ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
         </div>
       </div>
       {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image. */}

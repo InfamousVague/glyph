@@ -373,3 +373,12 @@
   outline: 2px solid var(--glacier-focus-ring);
   outline-offset: 2px;
 }
+
+/* The list with no notes in it: the ghost asleep on its blank sheet over the words. */
+.emptyArt {
+  margin-block-end: var(--glacier-space-3);
+}
+
+.emptyWords {
+  margin: 0;
+}

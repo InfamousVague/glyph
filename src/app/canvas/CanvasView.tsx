@@ -1,3 +1,4 @@
+import { Ghost } from '../art/Ghost.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChartNoAxesCombined, FileText, Image, Link2, LocateFixed, Maximize, Plus, Spline, SquarePen, Table } from '@glacier/icons';
 import { imageUrl, IMAGE_READY, pickImage, saveImageFile } from '../core/images.ts';
@@ -584,6 +585,12 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
       onDragOver={editable ? (event) => event.preventDefault() : undefined}
       onDrop={editable ? onDrop : undefined}
     >
+      {!live.nodes.length ? (
+        <div className={styles.emptyCanvas}>
+          <Ghost scene="empty-canvas" align="center" />
+          <p className={styles.emptyCanvasWords}>{editable ? 'Double-tap to add a card.' : 'An empty canvas.'}</p>
+        </div>
+      ) : null}
       <div ref={world} className={styles.world}>
         {live.nodes.map((node) => (
           <Card

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Note } from '../core/store.ts';
-import { openTasks, pinnedNotes, recentNotes } from './dashboard.ts';
+import { openTasks, pinnedNotes, recentNotes, tickedTasks } from './dashboard.ts';
 
 const note = (id: string, body: string, updatedAt: number, extra: Partial<Note> = {}): Note =>
   ({ id, body, createdAt: 0, updatedAt, source: 'editor', ...extra }) as Note;
@@ -37,5 +37,16 @@ describe('the home page', () => {
       note('gone', '- [ ] archived', 2, { archivedAt: 3 }),
     ]);
     expect(tasks.map((t) => t.text)).toEqual(['real']);
+  });
+
+  it('counts the ticked to-dos, leaving out examples in a fence, empty boxes and the archive', () => {
+    expect(
+      tickedTasks([
+        note('a', '- [x] Done\n- [X] Also done\n- [ ] Open\n- [x] ', 1),
+        note('b', '```\n- [x] an example\n```\n1. [x] numbered', 2),
+        note('gone', '- [x] archived', 3, { archivedAt: 4 }),
+      ]),
+    ).toBe(3);
+    expect(tickedTasks([note('c', '- [ ] only open', 1)])).toBe(0);
   });
 });

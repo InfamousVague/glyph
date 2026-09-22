@@ -1,3 +1,4 @@
+import { Ghost } from '../art/Ghost.tsx';
 import { Square } from '@glacier/icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
@@ -975,6 +976,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             placeholder={phase === 'starting' ? 'Starting…' : choosing ? 'Say which note.' : 'Start talking.'}
           />
         )}
+        {!hasWords && phase === 'listening' && !route ? <Ghost scene="listening" align="center" className={styles.listenGhost} /> : null}
         {!hasWords && phase !== 'failed' && route?.phase !== 'added' ? <p className={styles.pageHint}>{stopHint(fromAssistant, pressStops, quiet.current !== null)}</p> : null}
       </div>
 

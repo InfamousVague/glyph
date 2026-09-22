@@ -1,3 +1,4 @@
+import { Ghost } from '../art/Ghost.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight } from '../art/Icons.tsx';
 import { WispText } from '../art/WispText.tsx';
@@ -259,6 +260,8 @@ function Welcome({ onWatched }: { onWatched: () => void }) {
   const [show, setShow] = useState(false);
   return (
     <>
+      {/* The ghost rising to say hello, the first thing a new person meets (art/Ghost.tsx). */}
+      <Ghost scene="welcome" className={styles.welcomeGhost} />
       {/* "Heads up: we use AI." big, a flame behind the AI; "Ethically, on your phone." under it (HeadsUp.tsx). */}
       <HeadsUp onDone={() => setShow(true)} />
       <AntiAiStage waiting={!show} onRound={onWatched} />

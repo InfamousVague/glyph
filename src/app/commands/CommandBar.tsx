@@ -1,3 +1,4 @@
+import { Ghost } from '../art/Ghost.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CommandPalette } from '@glacier/react';
 import { useBack } from '../core/back.ts';
@@ -50,7 +51,12 @@ export function CommandBar({ world, doing, onReady }: CommandBarProps) {
       commands={descriptors}
       onRun={(id) => commands.find((command) => command.descriptor.id === id)?.run()}
       placeholder="What would you like to do?"
-      emptyLabel="Nothing by that name."
+      emptyLabel={
+        <span style={{ display: 'grid', justifyItems: 'center', gap: 'var(--glacier-space-3)', paddingBlock: 'var(--glacier-space-4)' }}>
+          <Ghost scene="search-nothing" />
+          Nothing by that name.
+        </span>
+      }
     />
   );
 }

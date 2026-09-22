@@ -1,3 +1,4 @@
+import { Ghost } from '../art/Ghost.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
@@ -107,6 +108,7 @@ export function ReviewScreen({ handoff, onDone }: { handoff: ReviewHandoff; onDo
       </header>
 
       <div ref={body} className={styles.body}>
+        {thinking ? <Ghost scene="working" className={styles.workingGhost} /> : null}
         <ol className={styles.steps}>
           <li className={styles.step}>
             <StepMark state={state.listen.state} />

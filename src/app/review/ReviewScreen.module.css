@@ -357,3 +357,8 @@
     animation: none;
   }
 }
+
+/* While the model thinks: the ghost spinning in thought, over the steps. */
+.workingGhost {
+  margin-block-end: var(--glacier-space-4);
+}

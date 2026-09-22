@@ -1,0 +1,58 @@
+/*
+ * The ghost (Ghost.tsx): a square of the page's ink, cut to the picture by its mask, so the dots take `currentColor`
+ * and turn with the theme. The colour is the page's to set; by default it is the quiet ink the abstract shapes wore.
+ */
+.ghost {
+  display: block;
+  flex: none;
+  aspect-ratio: 1;
+  inline-size: 7.5rem;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  background-color: currentColor;
+  -webkit-mask-image: var(--ghost-image);
+  mask-image: var(--ghost-image);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  /*
+   * Its thing to do, as every picture in the app has one (Shapes.module.css): a slow drift up and back with long
+   * rests. A transform, so nothing lays out again; still under reduced motion.
+   */
+  animation: ghost-drift 7s cubic-bezier(0.45, 0, 0.35, 1) infinite;
+}
+
+.ghost[data-size='lead'] {
+  inline-size: 12.5rem;
+}
+
+.ghost[data-align='center'] {
+  margin-inline: auto;
+}
+
+.ghost[data-size='tiny'] {
+  inline-size: 4.5rem;
+  animation: none;
+}
+
+@keyframes ghost-drift {
+  0%,
+  18% {
+    transform: translateY(0);
+  }
+  50%,
+  68% {
+    transform: translateY(-5%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ghost {
+    animation: none;
+  }
+}

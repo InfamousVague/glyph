@@ -572,3 +572,8 @@
   color: var(--app-ink-2, var(--glacier-text-muted));
   text-shadow: 0 0 18px color-mix(in oklch, var(--app-ink) 30%, transparent);
 }
+
+/* The welcome page's ghost, over the headline. */
+.welcomeGhost {
+  margin-block-end: var(--glacier-space-4);
+}

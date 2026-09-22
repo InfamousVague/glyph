@@ -6,7 +6,7 @@ import type { VoiceModelState } from '../capture/useVoiceModel.ts';
 import type { Updates } from '../core/ota.ts';
 import { useGlideToTop } from '../core/glideToTop.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
-import { Blank } from '../art/Shapes.tsx';
+import { Ghost } from '../art/Ghost.tsx';
 import { Cog, Pin, Plus } from '../art/Icons.tsx';
 import { NotePeek } from '../notes/NotePeek.tsx';
 import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
@@ -15,7 +15,7 @@ import { AcademyCard, RefiningNotice, UpdateCard, UpdateNotice, VoiceModelStatus
 import { when } from '../notes/when.ts';
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
-import { openTasks, pinnedNotes, recentNotes, type OpenTask } from './dashboard.ts';
+import { openTasks, pinnedNotes, recentNotes, tickedTasks, type OpenTask } from './dashboard.ts';
 import styles from './HomeScreen.module.css';
 
 /**
@@ -100,6 +100,8 @@ export function HomeScreen({
   // Once the notes have been read again they say it themselves, and a line number may now be another to-do's.
   useEffect(() => setTicked(new Set()), [notes]);
   const open = tasks.filter((t) => !ticked.has(`${t.noteId}:${t.line}`));
+  // With none left open, a page that had to-dos says they are done; one that never had any says nothing.
+  const allDone = !open.length && (ticked.size > 0 || tickedTasks(shown) > 0);
 
   const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -138,7 +140,7 @@ export function HomeScreen({
 
           {!loading && shown.filter((n) => !n.archivedAt).length === 0 ? (
             <div className={styles.empty}>
-              <Blank className={styles.emptyArt} />
+              <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
               <p className={styles.emptyLead}>{spaces.current ? `Nothing in ${spaces.current.name} yet.` : 'A blank page.'}</p>
               <p className={styles.emptyHint}>Write it, or hold the side key and say it.</p>
             </div>
@@ -188,6 +190,14 @@ export function HomeScreen({
                 ))}
               </ul>
               {open.length > TASKS ? <p className={styles.more}>and {open.length - TASKS} more in your notes</p> : null}
+            </section>
+          ) : allDone ? (
+            <section aria-labelledby="home-tasks" className={styles.allDone}>
+              <h2 id="home-tasks" className={styles.group}>
+                To do
+              </h2>
+              <Ghost scene="all-ticked" className={styles.allDoneArt} />
+              <p className={styles.allDoneWords}>Every to-do is done.</p>
             </section>
           ) : null}
 

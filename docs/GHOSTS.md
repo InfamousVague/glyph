@@ -2,7 +2,29 @@
 
 Ghost.md's mascot, drawn for the empty pages and quiet moments of the app. Matt (2026-09-20): "default vector character graphics of ghosts for the notes for things like empty pages and new notes etc etc like bear notes does".
 
-**Where this stands, 2026-09-21.** Style picked: **stipple dotwork** ("I like the dotwork ghost"). The ghost itself was then made a touch more mature ("I think the ghost could be just a touch more mature looking"), and its folded corner, taken out for a round, came back: "the more I look at it I like the dog ear on the ghost too it makes it feel like notes". Next: generate the test prompt below, and if it lands, the fifteen. Nothing goes into the app until Matt has approved the images.
+**Shipped, 2026-09-22.** Matt generated the fourteen scenes (2-15) in dotwork and asked for them wired in: "process
+them to be smaller sizes and then wire them all and ship an OTA update". Each 2048px PNG (2-4 MB) became a 600px WebP
+mask of 28-55 KB, 608 KB for all fourteen (`src/app/art/ghosts/`), drawn by `art/Ghost.tsx`: the dots are the
+image's alpha and the element paints them in `currentColor`, so the same file is black on the light page and white on
+the dark one. Only a light set came - both zips held the same light images - and none was needed. Where each went:
+
+| Scene | In the app |
+| --- | --- |
+| 2. No notes yet | the empty home page (was `Blank`), and the sidebar's "No notes yet" |
+| 3. Nothing in this workspace | the empty home page with a workspace chosen |
+| 4. A new note | under the first line of a note with no words, gone at the first word |
+| 5. Search found nothing | the command palette's "Nothing by that name" |
+| 8. Listening | the recorder, listening, before the first word |
+| 9. The model working | the review screen while the model thinks it through |
+| 10. An empty canvas | the middle of a canvas with no cards, over "Double-tap to add a card" |
+| 11. Every to-do ticked | the home page's To do, once every to-do in the notes is ticked |
+| 12. Signed out | Settings › Account, signed out |
+| 14. Welcome | the guide's first page, over the headline |
+| 15. An update is ready | the home page's update card, for an update to take (not while it downloads) |
+| 6, 7. Trash and archive, empty | shipped but not placed: the sidebar shows those folders only when they hold something, so there is no empty page for them |
+| 13. Something went wrong | shipped but not placed: the app has no error screen; the recorder's "Nothing was recorded" is the nearest, and it keeps its own picture for now |
+
+**Before that, 2026-09-21.** Style picked: **stipple dotwork** ("I like the dotwork ghost"). The ghost itself was then made a touch more mature ("I think the ghost could be just a touch more mature looking"), and its folded corner, taken out for a round, came back: "the more I look at it I like the dog ear on the ghost too it makes it feel like notes". Next: generate the test prompt below, and if it lands, the fifteen. Nothing goes into the app until Matt has approved the images.
 
 A ghost is the right character for this app rather than a borrowed one: its motif is already smoke. Words arrive as wisps and gather into letters (`art/WispText.tsx`), a page going under the header turns to smoke (`art/wispEdge.ts`), and the tab row dissolves at its ends. The ghost is that smoke with a face on it, made from the thing the app is about - a sheet of writing paper - with a curl of the same smoke rising from its head.
 

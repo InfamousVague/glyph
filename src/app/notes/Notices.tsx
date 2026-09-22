@@ -1,3 +1,4 @@
+import { Ghost } from '../art/Ghost.tsx';
 import { GraduationCap, X } from '@glacier/icons';
 import { WorkingGears } from '../art/WorkingGears.tsx';
 import { useRefining } from '../capture/refine.ts';
@@ -33,6 +34,7 @@ export function UpdateNotice({ updates }: { updates: Updates }) {
         }
         action={apk.kind === 'failed' ? 'Try again' : 'Install'}
         onAction={updates.installApk}
+        ghost={apk.kind === 'available'}
       />
     );
   }
@@ -50,7 +52,7 @@ export function UpdateNotice({ updates }: { updates: Updates }) {
     return <UpdateCard text={`Ghost.md ${apk.info.version} is waiting on Android.`} action="Open" onAction={updates.installApk} />;
   }
   if (ready) {
-    return <UpdateCard text="A new version of Ghost.md is ready." action="Reload" onAction={updates.reload} />;
+    return <UpdateCard text="A new version of Ghost.md is ready." action="Reload" onAction={updates.reload} ghost />;
   }
   return null;
 }
@@ -61,6 +63,7 @@ export function UpdateCard({
   onAction,
   progress,
   working,
+  ghost,
 }: {
   text: string;
   action?: string;
@@ -68,9 +71,12 @@ export function UpdateCard({
   progress?: number;
   /** The update is coming down now: cogs turn beside the words while it does (Matt: "show some cogs working together"). */
   working?: boolean;
+  /** An update is waiting to be taken: the ghost with its parcel beside the words (art/Ghost.tsx). */
+  ghost?: boolean;
 }) {
   return (
     <div className={styles.update} role="status">
+      {ghost && !working ? <Ghost scene="update" size="tiny" /> : null}
       <p className={styles.updateText}>
         {working ? <WorkingGears label="Downloading" /> : null}
         {text}

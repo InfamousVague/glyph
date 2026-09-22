@@ -679,3 +679,9 @@
   font-size: var(--glacier-font-size-sm);
   color: var(--app-ink-3, var(--glacier-text-muted));
 }
+
+/* Listening, before the first word: the ghost leaning toward the sound, under the page and over the hint. */
+.listenGhost {
+  margin-block: var(--glacier-space-6) var(--glacier-space-3);
+  pointer-events: none;
+}

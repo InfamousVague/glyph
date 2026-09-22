@@ -3357,3 +3357,26 @@ next person knows what was and was not meant to move:
   the new label before the phone shows it, until the next APK.
 - **Reaches the phone and the Mac only as new builds** for the label and the bundle name; the copy goes over the
   air.
+
+## 64. The ghost in the empty places (2026-09-22)
+
+Matt, with the dotwork scenes generated: "process them to be smaller sizes and then wire them all and ship an OTA
+update" (docs/GHOSTS.md has the prompts and the table of where each went).
+
+- **One file for both themes.** The pictures are black dots on white. A plain image would have stayed black on the
+  dark theme, whose paper is black, and a second dark set would be fourteen more files to keep in step. Instead
+  each picture is a mask - the dots are its alpha - and `art/Ghost.tsx` paints a square of `currentColor` through
+  it, so the ghost takes the page's ink like the words do: black dots on the light page, white on the dark, in
+  `--app-ink-3` by default. Seen in the browser in both themes.
+- **Small enough to ship over the air.** 2048px PNGs of 2-4 MB became 600px WebP masks of 28-55 KB (sharp at 200px
+  on a 3x screen), 608 KB for all fourteen, imported through Vite so each is hashed and cached like the code.
+- **Three sizes**: 12.5rem where the picture leads a page (the empty home page), 7.5rem beside words - the abstract
+  shapes' size - and 4.5rem inside a card. Each drifts up and back slowly with long rests, a transform, and holds
+  still under reduced motion.
+- **Twelve places, and two scenes with none.** Where a page already had words for the moment the ghost sits over
+  them; the trash and archive are only shown when they hold something, so their scenes wait for a page, and the app
+  has no error screen for "something went wrong". A new note shows its ghost under the first line - over the
+  editor, not after it, because the editor grows to fill the page and after it the ghost sat at the foot of the
+  screen - and it goes at the first word and comes back if the note is emptied.
+- **"Every to-do is done"** needs to know there were to-dos: `tickedTasks` counts the ticked ones (outside code
+  fences and the archive), so a page that never had any says nothing.

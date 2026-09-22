@@ -1,3 +1,4 @@
+import { Ghost } from '../art/Ghost.tsx';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Archive, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FolderPlus, Mic, RotateCcw, Search, Settings, SquarePen, Trash2, X } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
@@ -241,7 +242,10 @@ export function NoteTree({
 
       <div className={styles.scroll}>
         {nothing ? (
-          <p className={styles.empty}>No notes yet.</p>
+          <div className={styles.empty}>
+            <Ghost scene="no-notes" className={styles.emptyArt} />
+            <p className={styles.emptyWords}>No notes yet.</p>
+          </div>
         ) : (
           <ul className={styles.list} aria-label="Your notes">
             {tree.folders.map((f) => folder(f.id, f.name, f.notes.length, f.notes, { hue: f.hue, space: spaces.list.find((s) => s.id === f.id) }))}

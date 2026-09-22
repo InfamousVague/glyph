@@ -32,6 +32,8 @@ export interface OpenTask {
 
 /** A to-do with its box still empty: `- [ ] words`, `* [ ]`, `1. [ ]`. */
 const OPEN = /^\s*(?:[-*+]|\d+[.)])\s+\[ \]/;
+/** A to-do with its box ticked: `- [x] words`. */
+const TICKED = /^\s*(?:[-*+]|\d+[.)])\s+\[[xX]\]\s*\S/;
 /** A code fence opening or closing: a to-do inside one is an example of a to-do, not one. */
 const FENCE = /^\s*(`{3,}|~{3,})/;
 
@@ -52,4 +54,21 @@ export function openTasks(notes: readonly Note[]): OpenTask[] {
     });
   }
   return tasks;
+}
+
+/**
+ * How many to-dos are ticked in the notes, outside code fences and the archive: with none left open, a page that had
+ * to-dos says they are all done (the ghost on the home page), and a page that never had any says nothing.
+ */
+export function tickedTasks(notes: readonly Note[]): number {
+  let count = 0;
+  for (const note of notes) {
+    if (note.archivedAt) continue;
+    let fenced = false;
+    for (const line of note.body.split('\n')) {
+      if (FENCE.test(line)) fenced = !fenced;
+      else if (!fenced && TICKED.test(line)) count += 1;
+    }
+  }
+  return count;
 }

@@ -332,3 +332,19 @@
   border-radius: var(--glacier-radius-full);
   background: var(--glacier-green-9, currentColor);
 }
+
+/*
+ * A note with no words yet: the ghost with its pen, a little under the first line and in the middle of the column,
+ * gone at the first word. Placed over the editor rather than after it: the editor grows to fill the page, so after it
+ * the ghost sat at the foot of the screen. Nothing to tap, so the editor under it still takes the finger.
+ */
+.blankGhost {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 9rem;
+  pointer-events: none;
+}
+
+.body:has(> .blankGhost) {
+  position: relative;
+}
