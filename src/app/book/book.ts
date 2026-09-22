@@ -143,6 +143,40 @@ export function bookOf(notes: readonly Note[], title: string): BookPlace | null 
   return null;
 }
 
+/** A title as `sameTitle` matches it (editor/wikiLinks.ts): what a person said, not what they typed. */
+export function titleKey(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Every page's book at once, by the page's title as it is matched: what a list draws its marks from (the sidebar's
+ * rows, the home page's cards; Matt: "book mark in the sidebar"), one pass over the books rather than one per row.
+ * A page in two books is marked with the first, as `bookOf` answers.
+ */
+export function bookIndex(notes: readonly Note[]): Map<string, BookPlace> {
+  const places = new Map<string, BookPlace>();
+  for (const note of notes) {
+    if (!isBookBody(note.body)) continue;
+    const title = noteTitle(note.body);
+    const chapters = chaptersOf(note.body);
+    chapters.forEach((chapter, at) => {
+      const key = titleKey(chapter.title);
+      if (!key || key === titleKey(title) || places.has(key)) return;
+      places.set(key, { book: note, title, chapters, at });
+    });
+  }
+  return places;
+}
+
+/** The book a note is a page of, from the index: null for a note in none, or for a book itself. */
+export function placeOf(index: ReadonlyMap<string, BookPlace>, note: Note): BookPlace | null {
+  if (isBookBody(note.body)) return null;
+  return index.get(titleKey(noteTitle(note.body))) ?? null;
+}
+
 /** The lines of the body that are the book's own words, not its index and not its front matter: shown over it. */
 export function prefaceOf(body: string): string[] {
   const lines = body.split('\n');

@@ -16,7 +16,7 @@ import { when } from '../notes/when.ts';
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
 import { bookNotes, openTasks, pinnedNotes, recentNotes, tickedTasks, type OpenTask } from './dashboard.ts';
-import { chaptersOf } from '../book/book.ts';
+import { bookIndex, chaptersOf, placeOf } from '../book/book.ts';
 import styles from './HomeScreen.module.css';
 
 /**
@@ -87,6 +87,8 @@ export function HomeScreen({
   const pinned = useMemo(() => pinnedNotes(shown), [shown]);
   const recent = useMemo(() => recentNotes(shown, RECENT), [shown]);
   const books = useMemo(() => bookNotes(shown), [shown]);
+  /** Every page's book, for the cards' marks (book/book.ts). */
+  const inBooks = useMemo(() => bookIndex(shown), [shown]);
   const tasks = openTasks(shown);
   // One quiet line under each card's title, what the note is about, written by a model on the phone (format/gist.ts).
   // Only the notes with a card on the page: the runner asks about what is on screen, not about every note there is.
@@ -105,12 +107,20 @@ export function HomeScreen({
 
   const card = (note: Note, i: number) => {
     const title = noteTitle(note.body);
+    const place = placeOf(inBooks, note);
     return (
       <li key={note.id} className={styles.cardItem} style={{ '--i': Math.min(i, 8) } as React.CSSProperties}>
         <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
           <span className={styles.cardTitle} data-untitled={title ? undefined : ''}>
             {title ? shortenUrls(title) : 'Untitled'}
           </span>
+          {/* A page of a book says which (docs/BOOKS.md). */}
+          {place ? (
+            <span className={styles.cardBook} title={`Page ${place.at + 1} of ${place.title}`}>
+              <Book size={12} aria-hidden="true" />
+              <span className={styles.cardBookName}>{place.title}</span>
+            </span>
+          ) : null}
           {/* What the note is about, when the phone has written it; the preview under it is the note itself. */}
           {gists[note.id] ? <span className={styles.cardGist}>{gists[note.id]}</span> : null}
           <NotePeek body={note.body} className={styles.cardPeek} />

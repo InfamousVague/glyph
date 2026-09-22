@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Note } from '../core/store.ts';
-import { bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, prefaceOf, withChapter, withChapterMoved, withoutChapter } from './book.ts';
+import { bookIndex, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, titleKey, withChapter, withChapterMoved, withoutChapter } from './book.ts';
 
 /**
  * A book is its index: a list of links in a note that says `book: true`. Read from the body, written back to it a
@@ -107,5 +107,32 @@ describe('the book a note is in', () => {
   it('is not the book itself', () => {
     const selfish = note('s', '---\nbook: true\n---\n# Self\n\n- [[Self]]\n');
     expect(bookOf([selfish], 'Self')).toBeNull();
+  });
+});
+
+describe('the marks a list draws', () => {
+  const notes = [
+    note('b', BOOK),
+    note('t', '# Trees\n\nTall.'),
+    note('o', '# oaks\n'),
+    note('x', '# Loose\n'),
+    note('b2', '---\ntitle: "Other"\nbook: true\n---\n# Other\n\n- [[Trees]]\n'),
+  ];
+
+  it('keys titles the way links are matched', () => {
+    expect(titleKey('  The Oaks!  ')).toBe('the oaks');
+    expect(titleKey('oaks')).toBe(titleKey('Oaks'));
+  });
+
+  it('answers every page’s book in one pass, the first book for a page in two, and nothing for a book or a loose note', () => {
+    const index = bookIndex(notes);
+    expect(placeOf(index, notes[1]!)?.title).toBe('Field guide');
+    expect(placeOf(index, notes[1]!)?.at).toBe(1);
+    // "oaks" is the chapter "Oaks", however it is typed.
+    expect(placeOf(index, notes[2]!)?.at).toBe(2);
+    expect(placeOf(index, notes[3]!)).toBeNull();
+    expect(placeOf(index, notes[0]!)).toBeNull();
+    // Trees is in both books: the first wins, as bookOf answers.
+    expect(placeOf(index, notes[1]!)?.book.id).toBe(bookOf(notes, 'Trees')?.book.id);
   });
 });

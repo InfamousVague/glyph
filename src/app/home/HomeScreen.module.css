@@ -546,3 +546,19 @@
 .bookMore {
   font-style: italic;
 }
+
+/* A page of a book, on its card: the mark and the book's name. */
+.cardBook {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  min-inline-size: 0;
+  font-size: var(--glacier-font-size-xs, 0.75rem);
+  color: var(--glacier-text-muted);
+}
+
+.cardBookName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
