@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Note } from '../core/store.ts';
-import { bookIndex, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, titleKey, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
+import { bodyWithoutTitle, bookIndex, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, titleKey, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 
 /**
  * A book is its index: a list of links in a note that says `book: true`. Read from the body, written back to it a
@@ -118,6 +118,15 @@ describe('the book a note is in', () => {
   it('is not the book itself', () => {
     const selfish = note('s', '---\nbook: true\n---\n# Self\n\n- [[Self]]\n');
     expect(bookOf([selfish], 'Self')).toBeNull();
+  });
+});
+
+describe('a chapter read straight through', () => {
+  it('drops the front matter and the heading that is its own title, and keeps the rest with its marks', () => {
+    expect(bodyWithoutTitle('---\ntitle: "Oaks"\n---\n# Oaks\n\nTall, and *old*.\n\n- [ ] count them\n', 'Oaks')).toBe('Tall, and *old*.\n\n- [ ] count them\n');
+    // A heading that is not the title stays: it is the chapter's own first section.
+    expect(bodyWithoutTitle('# Where they grow\n\nHere.', 'Oaks')).toBe('# Where they grow\n\nHere.');
+    expect(bodyWithoutTitle('\n\nNo heading.', 'Oaks')).toBe('No heading.');
   });
 });
 

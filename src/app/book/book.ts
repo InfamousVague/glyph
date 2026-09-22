@@ -1,5 +1,5 @@
 import { frontMatterValue } from '../core/frontMatter.ts';
-import { noteTitle, type Note } from '../core/store.ts';
+import { noteTitle, withoutFrontMatter, type Note } from '../core/store.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 
 /**
@@ -196,6 +196,26 @@ export function bookIndex(notes: readonly Note[]): Map<string, BookPlace> {
 export function placeOf(index: ReadonlyMap<string, BookPlace>, note: Note): BookPlace | null {
   if (isBookBody(note.body)) return null;
   return index.get(titleKey(noteTitle(note.body))) ?? null;
+}
+
+/**
+ * A chapter's words for reading straight through: its front matter gone, and its first heading gone where it is the
+ * chapter's own title, since the section that draws it names it. What is left keeps its marks.
+ */
+export function bodyWithoutTitle(body: string, title: string): string {
+  // `withoutFrontMatter` puts the front matter's `title:` where the fences were, as a line, so the list can name the
+  // note; here that line is the title too, and goes with any heading of the same name under it.
+  const lines = withoutFrontMatter(body.split('\n'));
+  for (let pass = 0; pass < 2; pass += 1) {
+    const first = lines.findIndex((l) => l.trim());
+    if (first < 0) break;
+    const line = lines[first]!;
+    const words = (/^#{1,6}\s+(.*)$/.exec(line)?.[1] ?? line).trim();
+    if (!sameTitle(words, title)) break;
+    lines.splice(0, first + 1);
+  }
+  while (lines.length && !lines[0]!.trim()) lines.shift();
+  return lines.join('\n');
 }
 
 /** The lines of the body that are the book's own words, not its index and not its front matter: shown over it. */
