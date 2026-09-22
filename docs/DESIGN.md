@@ -3563,3 +3563,28 @@ this is the front door.
   two notes tapped in order and opened on its two rows. Tests: the sheet (a name required; pages in the order
   tapped, found by name, moved, left out; the index made from exactly them), the dashboard (books newest first,
   the archive out, Recent without them), the index's picker adding two at once; 280 green around the change.
+
+## 73. "Hey Ghost", memo mode gone, and Claude's connections counted (2026-09-22)
+
+Three answers from a multiple-choice round Matt asked for ("ask me outstanding questions with multiple choice
+answers I can click on"), built together.
+
+- **"Hey Ghost".** The rename made the spoken word "Ghost" (§63), and "ghost" is a common word: a note that begins
+  "Ghost stories…" was a command with no command in it. Matt chose "require hey Ghost for the new word": the
+  recogniser (capture/command.ts) takes the new word only after "hey", "hi", "OK" or "so", and "Glyph" with or
+  without them, as it always did. The copy that says the word says "Hey Ghost".
+- **Memo mode is gone.** The memos screen went on the 20th; Matt chose "remove it" for the capture side. Out: the
+  memo flow that asked which note first and answered trigger words, the `memo` preference and its synced entry and
+  its row, continuation of the last spoken note, the scratch page and the memo-sorting screen, the waiting-memo card
+  and palette entry, the flow's tips, the suite's eleven memo scripts. A recording is a new note, or the note whose
+  Speak was pressed. Kept on purpose, being a different feature under the same noun: voice memos, the "voice memo …
+  end memo" cue that keeps a clip of the tape inline. The draft, the live page, the better words and the suite kept
+  writing with one `appendBody`, which now has a file of its own.
+- **Claude's connections.** Several Claude accounts, or Claude on several computers, can be signed in to one Ghost.md
+  account, each its own session with its own copy of the key, and nothing said so or could cut one off short of a
+  restart. Matt chose "add both": `account_status` says `connections`, and `sign_out_everywhere` ends every session
+  for the handle, this one included. The local server is one connection and hands in neither. They reach the box
+  with the api.ghost.md move (blocked at the registry as of tonight: the domain is not delegated), or a --mcp
+  deploy of their own.
+- **A chapter made twice, prevented.** App.tsx `openTitle` made a note by a title from the list in hand, which can
+  be a moment old; it asks the store again first.
