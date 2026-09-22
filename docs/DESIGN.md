@@ -3804,3 +3804,41 @@ distance. The header's band 10 to 7 and its ramp 22 to 15, the drop under the he
 29px to 19px at the top, and the top fade under a bar from 12px to 8px. The bend's computed reach follows from the
 band and the ramp, so it shortened on its own. wispMask.test.ts had the two ramps written out as 22 and 44; it now
 reads the constants, and asserts only that the foot's ramp is the taller of the two.
+
+## 86. Pictures that reached a device some other way (2026-09-22)
+
+Matt: "Images in the hello.trade book are not working", and then, from the session that wrote the book: the JPEGs
+"went into the Mac's local Glyph image store but they're never uploaded to my account storage." Another Claude
+session added eighteen screenshots to ten chapters by writing the notes through the MCP (`update_note`) and putting
+the files straight into the Mac's picture folder, since the MCP has no way to send a picture. The Mac drew them; the
+phone showed every one broken.
+
+Two gaps in core/sync/notes.ts, both found by the Glyph session and by this one:
+
+- **The Mac marked them sent without sending them.** A pulled note that names a picture this device already holds
+  wrote the picture's entry as revision 0 and moved on, and a picture is only sent with a push of the note that names
+  it, which skips any picture with an entry. So nothing ever sent it.
+- **The phone asked once.** A picture is fetched when the note naming it arrives in the feed; a 404 then (not sent
+  yet) was never asked again, because the feed brings a note once.
+
+The fix is a third step in every pass, after pull and push: **settle the pictures.** Every picture a note on this
+device names, and that this device has not settled, is either sent (this device holds it) or fetched (it doesn't). A
+send asks the account first with a HEAD on the file's route, which the service already answers (axum answers HEAD on
+a GET route; attack.fm answered 401 without a token rather than 405), so a device signed in again does not upload
+every picture it holds to learn the account has them; where a HEAD cannot be asked at all, the upload goes and a 409
+says the account had it. A fetch that finds nothing is not asked again for four minutes, less than the five between
+timed passes, so a pass a keystroke sets off asks nothing. An entry at revision 0, as the older app left it, is
+settled like no entry at all, which is what repairs the book's eighteen: the Mac that holds them sends them on its
+first pass with this update, and the phone fetches them on its next timed pass. No server change.
+
+A picture that lands while its note is open is drawn at once: the native store answers the same address it failed
+on, so a picture sync wrote gets a fresh one (`imageArrived` in core/images.ts; the `img` scheme reads only the
+path), and the event the browser's pictures already use redraws it.
+
+Tested without a server (core/sync/pictures.test.ts): the Mac sends what the phone asked for too early, the phone
+gets it on the next timed pass and not before, an older revision-0 entry is repaired, a picture the account holds is
+settled by its head with no upload, and a missing HEAD falls back to the upload. All four fail on the old code.
+
+Not done: the MCP still cannot send a picture, so a note written through it can only name pictures that some device
+running the app holds. An upload tool would need the MCP to seal files as the app does, and a deploy of the MCP that
+signs its connector out.
