@@ -35,6 +35,8 @@ interface BookViewProps {
   onChange: (body: string) => void;
   /** A note's body by its title, to tell a chapter that is a canvas from one of words; absent, none is marked. */
   bodyOf?: (title: string) => string | null;
+  /** Makes a canvas by that title and opens it (App.tsx): the new-chapter form's "Add as a canvas". Absent, no such button. */
+  openCanvas?: (title: string) => void;
   /**
    * Read, not changed: no grips, no move or take-out tools, nothing to add. The index, the preface, the canvas marks
    * and reading straight through stay. The reader page (src/read/Reader.tsx) draws a shared book with this.
@@ -44,8 +46,8 @@ interface BookViewProps {
   dark?: boolean;
 }
 
-/** The canvas's mark, beside a title that is a canvas. */
-function CanvasMark() {
+/** The canvas's mark, beside a title that is a canvas: the index's, and the new-book sheet's (book/NewBookSheet.tsx). */
+export function CanvasMark() {
   return (
     <span className={styles.canvasMark} title="A canvas">
       <Workflow size={13} strokeWidth={2.2} aria-hidden="true" />
@@ -53,7 +55,7 @@ function CanvasMark() {
   );
 }
 
-export function BookView({ body, known, open, titles, title, onChange, bodyOf, readOnly = false, dark: darkGiven }: BookViewProps) {
+export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, readOnly = false, dark: darkGiven }: BookViewProps) {
   const isCanvas = (name: string) => {
     const found = bodyOf?.(name);
     return !!found && isCanvasBody(found);
@@ -80,13 +82,15 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, r
     },
   );
 
-  const addNew = () => {
+  /** The chapter named in the form, into the index, then opened: as a page of words, or made as an empty canvas. */
+  const addNew = (asCanvas = false) => {
     const name = draft.trim();
     if (!name) return;
     onChange(withChapter(body, name));
     setDraft('');
     setAdding(null);
-    open(name);
+    if (asCanvas && openCanvas) openCanvas(name);
+    else open(name);
   };
   const togglePick = (name: string) => setPicked((was) => (was.some((p) => sameTitle(p, name)) ? was.filter((p) => !sameTitle(p, name)) : [...was, name]));
   const addPicked = () => {
@@ -246,6 +250,11 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, r
           <button type="submit" className={styles.action} disabled={!draft.trim()}>
             Add and open
           </button>
+          {openCanvas ? (
+            <button type="button" className={styles.action} disabled={!draft.trim()} onClick={() => addNew(true)}>
+              <Workflow size={16} aria-hidden="true" /> Add as a canvas
+            </button>
+          ) : null}
           <button type="button" className={styles.quiet} onClick={() => setAdding(null)}>
             Cancel
           </button>

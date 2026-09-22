@@ -51,6 +51,14 @@ describe('the New book sheet', () => {
     expect(onCreate).not.toHaveBeenCalled();
   });
 
+  it('marks a note that is a canvas with the canvas mark, in the list and among the pages', () => {
+    show(<NewBookSheet open onClose={() => {}} titles={['Packing', 'Route map']} onCreate={() => {}} isCanvas={(t) => t === 'Route map'} />);
+    const marked = () => [...document.querySelectorAll('[title="A canvas"]')].map((m) => m.parentElement?.textContent?.trim());
+    expect(marked()).toEqual(['Route map']);
+    act(() => button('Route map').click());
+    expect(marked()).toEqual(['Route map', 'Route map']);
+  });
+
   it('needs a name before it will make the book', () => {
     const onCreate = vi.fn();
     show(<NewBookSheet open onClose={() => {}} titles={[]} onCreate={onCreate} />);

@@ -40,7 +40,7 @@ import { settleBoot, useUpdates } from './core/ota.ts';
 import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
-import { canvasNoteBody } from './canvas/jsonCanvas.ts';
+import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, isBookBody } from './book/book.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
@@ -453,7 +453,14 @@ function Shell() {
     swap.current = current;
     void openTitleFrom(title);
   };
-  const openTitleFrom = async (title: string, at?: string) => {
+  /** A canvas by that title opened from a book's index, made first if there is none (book/BookView.tsx). */
+  const openCanvasWithin = (title: string) => {
+    const current = screen.name === 'note' ? screen.note.id : null;
+    swap.current = current;
+    void openTitleFrom(title, undefined, (named) => canvasNoteBody(named, { nodes: [], edges: [] }));
+  };
+  /** `make` is what a note made for a title nobody has written yet starts as: a heading, or an empty canvas. */
+  const openTitleFrom = async (title: string, at?: string, make: (title: string) => string = (named) => `# ${named}\n\n`) => {
     const found = shownNotes.find((n) => sameTitle(noteTitle(n.body), title));
     if (found) {
       setScreen({ name: 'note', note: found, at });
@@ -467,7 +474,7 @@ function Shell() {
       setScreen({ name: 'note', note: fresh, at });
       return;
     }
-    const made = await saveNote(newNoteId(), `# ${title}\n\n`, 'editor');
+    const made = await saveNote(newNoteId(), make(title), 'editor');
     fileNewNote(made.id);
     await refresh();
     setScreen({ name: 'note', note: made });
@@ -707,6 +714,7 @@ function Shell() {
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
         onOpenWithin={openTitleWithin}
+        onNewCanvas={openCanvasWithin}
         book={bookOf(shownNotes, noteTitle(screen.note.body))}
         bodyOfTitle={bodyOfTitle}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
@@ -960,7 +968,7 @@ function Shell() {
       ) : null}
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
       <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={newBook} onFromLink={forkFromLink} />
-      <NewBookSheet open={bookSheet} onClose={() => setBookSheet(false)} titles={pageTitles()} onCreate={(title, pages) => void createBook(title, pages)} />
+      <NewBookSheet open={bookSheet} onClose={() => setBookSheet(false)} titles={pageTitles()} isCanvas={(title) => isCanvasBody(bodyOfTitle(title) ?? '')} onCreate={(title, pages) => void createBook(title, pages)} />
       <WhatsNewSheet sources={updates.status?.sources} hold={guide || screen.name === 'capture'} />
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
       <NotesDrawer

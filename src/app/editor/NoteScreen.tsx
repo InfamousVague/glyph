@@ -89,6 +89,8 @@ interface NoteScreenProps {
   book?: BookPlace | null;
   /** Opens a note by its title in this note's tab, for moving within a book; without it, `onOpenTitle`. */
   onOpenWithin?: (title: string) => void;
+  /** Makes a canvas by that title and opens it in this tab: a book's "Add a canvas" (book/BookView.tsx). */
+  onNewCanvas?: (title: string) => void;
   /** A note's body by its title, for a canvas card that is a note to be drawn small (canvas/CanvasView.tsx). */
   bodyOfTitle?: (title: string) => string | null;
   /** Every note's title, for a canvas's + to choose a note from. */
@@ -110,7 +112,7 @@ const SAVE_DEBOUNCE_MS = 400;
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, bodyOfTitle, allTitles, at, rename }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -763,6 +765,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               title={title}
               known={hasTitle ?? (() => false)}
               open={(t) => (onOpenWithin ?? onOpenTitle)?.(t)}
+              openCanvas={onNewCanvas}
               titles={allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
               onChange={(next) => {

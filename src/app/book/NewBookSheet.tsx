@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, GripVertical, X } from '@glacier/icons';
 import { useRowDrag } from './rowDrag.ts';
+import { CanvasMark } from './BookView.tsx';
 import { useBack } from '../core/back.ts';
 import { useSheetDrag } from '../editor/sheetDrag.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
@@ -23,9 +24,11 @@ export interface NewBookSheetProps {
   /** Every note that could be a page: the library's titles, less the books (a book of books is not a page). */
   titles: readonly string[];
   onCreate: (title: string, pages: readonly string[]) => void;
+  /** Whether a title is a canvas, to give it the canvas's mark as the book's index does; absent, none is marked. */
+  isCanvas?: (title: string) => boolean;
 }
 
-export function NewBookSheet({ open, onClose, titles, onCreate }: NewBookSheetProps) {
+export function NewBookSheet({ open, onClose, titles, onCreate, isCanvas }: NewBookSheetProps) {
   const panel = useRef<HTMLElement>(null);
   const drag = useSheetDrag(panel, onClose);
   useBack(open, onClose);
@@ -103,7 +106,10 @@ export function NewBookSheet({ open, onClose, titles, onCreate }: NewBookSheetPr
                   <span className={styles.number} aria-hidden="true">
                     {i + 1}
                   </span>
-                  <span className={styles.pageTitle}>{title}</span>
+                  <span className={styles.pageTitle}>
+                    {title}
+                    {isCanvas?.(title) ? <CanvasMark /> : null}
+                  </span>
                   <span className={styles.tools}>
                     <button type="button" className={styles.tool} aria-label={`Move ${title} up`} disabled={i === 0} onClick={() => move(title, -1)}>
                       <ChevronUp size={16} aria-hidden="true" />
@@ -131,7 +137,10 @@ export function NewBookSheet({ open, onClose, titles, onCreate }: NewBookSheetPr
                     <span className={styles.pickMark} aria-hidden="true">
                       {on ? <Check size={14} /> : null}
                     </span>
-                    <span className={styles.pickTitle}>{title}</span>
+                    <span className={styles.pickTitle}>
+                      {title}
+                      {isCanvas?.(title) ? <CanvasMark /> : null}
+                    </span>
                   </button>
                 </li>
               );

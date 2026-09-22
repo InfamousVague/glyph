@@ -63,6 +63,23 @@ describe('the index view', () => {
     expect(button('Move Birds down').disabled).toBe(true);
   });
 
+  it('adds a new chapter as a canvas when asked, opening it as one, and offers that only where a canvas can be made', () => {
+    const onChange = vi.fn();
+    const open = vi.fn();
+    const openCanvas = vi.fn();
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={open} titles={() => []} onChange={onChange} openCanvas={openCanvas} />);
+    act(() => button('Add a chapter').click());
+    const field = document.querySelector<HTMLInputElement>('input[aria-label="New chapter\'s title"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, 'Trail map');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    act(() => button('Add as a canvas').click());
+    expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Trees', 'Birds', 'Trail map']);
+    expect(openCanvas).toHaveBeenCalledWith('Trail map');
+    expect(open).not.toHaveBeenCalled();
+  });
+
   it('adds a new chapter by name and opens it, and adds a note already written from the library', () => {
     const onChange = vi.fn();
     const open = vi.fn();
