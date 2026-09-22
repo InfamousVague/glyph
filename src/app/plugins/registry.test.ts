@@ -129,6 +129,22 @@ describe('a plugin’s host', () => {
     expect(host.storage.get('glyph-mine', 'gone')).toBe('gone');
   });
 
+  it('parses a key once for as long as its stored text is the same, and again as soon as anything changes it', () => {
+    const host = createHost(manifest('c', { storage: ['glyph-cached'] }));
+    host.storage.set('glyph-cached', { links: { n1: 'b1' } });
+    const first = host.storage.get<{ links: Record<string, string> }>('glyph-cached', { links: {} });
+    // The same text: the same parsed value, not a fresh parse.
+    expect(host.storage.get('glyph-cached', null)).toBe(first);
+    // Written behind the host's back (a reset, another tab): the text differs, so it is read again.
+    localStorage.setItem('glyph-cached', JSON.stringify({ links: { n2: 'b2' } }));
+    expect(host.storage.get('glyph-cached', null)).toEqual({ links: { n2: 'b2' } });
+    // Written through the host: the next read is the new value.
+    host.storage.set('glyph-cached', { links: {} });
+    expect(host.storage.get('glyph-cached', null)).toEqual({ links: {} });
+    host.storage.remove('glyph-cached');
+    expect(host.storage.get('glyph-cached', 'gone')).toBe('gone');
+  });
+
   it('asserts permissions it declared and refuses the rest', () => {
     const host = createHost(manifest('p', { permissions: [{ kind: 'network', why: '' }] }));
     expect(() => host.require('network')).not.toThrow();

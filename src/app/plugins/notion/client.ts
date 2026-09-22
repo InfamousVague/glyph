@@ -266,7 +266,8 @@ export function boardFor(noteId: string): Board | null {
 }
 
 export function linkBoard(noteId: string, board: Board | null): void {
-  const links = boardLinks();
+  // A copy: what a read answers is shared with every other read of it (plugins/host.ts).
+  const links = { ...boardLinks() };
   if (board) links[noteId] = board;
   else delete links[noteId];
   host.storage.set(LINKS_KEY, links);

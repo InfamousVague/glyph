@@ -23,10 +23,21 @@ type Stored = { text: string; for: number; model: string };
 type Kind = Exclude<Mode, 'format'> | 'gist';
 type Sheet = Record<string, Partial<Record<Kind, Stored>>>;
 
+/**
+ * The sheet as last parsed, with the text it came from: the home page reads a gist for every card it draws, and each
+ * read was the whole sheet parsed again (measured: 24 parses to show the home page once). A read asks for the text,
+ * which cannot be stale, and parses only when it has changed. What it answers is shared: a writer copies it first.
+ */
+let parsedSheet: { raw: string; sheet: Sheet } | null = null;
+
 function readSheet(): Sheet {
   try {
-    const value = JSON.parse(localStorage.getItem(KEY) ?? '{}') as unknown;
-    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {};
+    const raw = localStorage.getItem(KEY) ?? '{}';
+    if (parsedSheet && parsedSheet.raw === raw) return parsedSheet.sheet;
+    const value = JSON.parse(raw) as unknown;
+    const sheet = value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {};
+    parsedSheet = { raw, sheet };
+    return sheet;
   } catch {
     return {};
   }
@@ -57,7 +68,7 @@ export async function keepResult(id: string, mode: Mode, text: string, hash: num
     await setNoteFormatted(id, text, hash, model);
     return;
   }
-  const sheet = readSheet();
+  const sheet = { ...readSheet() };
   const mine = { ...(sheet[id] ?? {}) };
   if (hash === null || model === null) delete mine[mode];
   else mine[mode] = { text, for: hash, model };
@@ -81,14 +92,14 @@ export function readGist(id: string): Gist | null {
 }
 
 export function keepGist(id: string, gist: Gist): void {
-  const sheet = readSheet();
+  const sheet = { ...readSheet() };
   sheet[id] = { ...(sheet[id] ?? {}), gist };
   writeSheet(sheet);
 }
 
 /** A note is gone: so are its summary, its enhanced text and its gist. */
 export function forgetResults(id: string): void {
-  const sheet = readSheet();
+  const sheet = { ...readSheet() };
   if (!(id in sheet)) return;
   delete sheet[id];
   writeSheet(sheet);

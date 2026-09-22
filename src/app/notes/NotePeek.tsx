@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Editor } from '../editor/Editor.tsx';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { PEEK_LINES, peekMarkdown } from './peek.ts';
@@ -23,6 +23,13 @@ import styles from './NotePeek.module.css';
  * scrolled well away. A page that cannot watch the screen (a test) draws them all at once.
  *
  * It says nothing to a screen reader: the row already has its name and its date.
+ *
+ * Built once, kept after (measured: one scroll down a sidebar of 150 notes built and tore down 276 editors, 5.4 s of
+ * CPU in the dev build). Once a card's editor has drawn, what it drew is kept as HTML, for that text in that theme,
+ * and the live editor is let go: the next time that card - or any card of the same text - comes near the screen, it is
+ * drawn from what was kept, with no editor at all. The same formatter, run once per note per session instead of once
+ * per scroll past it. The card watches the screen through one observer shared by every card, and does not render
+ * again when the list around it does (`memo`: its props are two strings).
  */
 
 export interface NotePeekProps {
@@ -32,6 +39,41 @@ export interface NotePeekProps {
 
 /** How far off the screen a card is drawn, or kept drawn, in pixels: a scroll's worth. */
 const NEAR_PX = 400;
+
+/** What each card's editor drew, by its text and theme, the most recently drawn last; the oldest go past the cap. */
+const drawings = new Map<string, string>();
+const DRAWINGS = 300;
+
+function remember(key: string, html: string): void {
+  drawings.delete(key);
+  drawings.set(key, html);
+  if (drawings.size > DRAWINGS) {
+    const oldest = drawings.keys().next().value;
+    if (oldest !== undefined) drawings.delete(oldest);
+  }
+}
+
+/** How long after its editor mounts a card's drawing is kept: long enough for the editor to have drawn what it draws. */
+const SETTLE_MS = 250;
+
+/** One observer for every card: each card says what it wants done as it comes near the screen or goes from it. */
+const watched = new Map<Element, (near: boolean) => void>();
+let observer: IntersectionObserver | null = null;
+
+function watch(el: Element, onNear: (near: boolean) => void): () => void {
+  observer ??= new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) watched.get(entry.target)?.(entry.isIntersecting);
+    },
+    { rootMargin: `${NEAR_PX}px 0px` },
+  );
+  watched.set(el, onNear);
+  observer.observe(el);
+  return () => {
+    watched.delete(el);
+    observer?.unobserve(el);
+  };
+}
 
 /**
  * One editor at a time, whichever card asked first, each in a task of its own: ten cards mounting in one go is a
@@ -65,10 +107,17 @@ function soon(run: () => void): () => void {
   };
 }
 
-export function NotePeek({ body, className }: NotePeekProps) {
+export const NotePeek = memo(function NotePeek({ body, className }: NotePeekProps) {
   const { theme } = usePreferences();
+  const dark = isDarkNow(theme);
   // A canvas note is JSON, not words: its card shows nothing small until a canvas can be drawn small (docs/CANVAS.md).
   const markdown = useMemo(() => (isCanvasBody(body) ? '' : peekMarkdown(body)), [body]);
+  /** Which drawing this card is: the same text in the same theme draws the same. */
+  const key = `${dark ? 'dark' : 'light'}\n${markdown}`;
+  const keyRef = useRef(key);
+  keyRef.current = key;
+  /** A drawing was just kept for this card: render again to let its editor go. */
+  const [, setKept] = useState(0);
   const host = useRef<HTMLSpanElement>(null);
   const [drawn, setDrawn] = useState(() => typeof IntersectionObserver === 'undefined');
   /** How tall the editor was, so the blank that stands in for it once it is gone keeps the card's height. */
@@ -91,50 +140,59 @@ export function NotePeek({ body, className }: NotePeekProps) {
     const el = host.current;
     if (!el || typeof IntersectionObserver === 'undefined') return undefined;
     let cancel: (() => void) | null = null;
-    const watcher = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry) return;
-        if (entry.isIntersecting) {
-          cancel?.();
+    const stop = watch(el, (near) => {
+      cancel?.();
+      cancel = null;
+      if (near) {
+        // Drawn before: straight back, with no editor to wait for. Otherwise in its turn, one editor at a time.
+        if (drawings.has(keyRef.current)) setDrawn(true);
+        else
           cancel = soon(() => {
             cancel = null;
             setDrawn(true);
           });
-        } else {
-          cancel?.();
-          cancel = null;
-          // Gone well off the screen: its editor goes, and a blank its height stands in.
-          setDrawn((was) => {
-            if (was) setStood(el.offsetHeight);
-            return false;
-          });
-        }
-      },
-      { rootMargin: `${NEAR_PX}px 0px` },
-    );
-    watcher.observe(el);
+      } else {
+        // Gone well off the screen: its editor goes, and a blank its height stands in.
+        setDrawn((was) => {
+          if (was) setStood(el.offsetHeight);
+          return false;
+        });
+      }
+    });
     return () => {
       cancel?.();
-      watcher.disconnect();
+      stop();
     };
   }, []);
+
+  // A card whose editor has drawn keeps what it drew, then lets the editor go.
+  const kept = drawings.get(key);
+  useEffect(() => {
+    if (!drawn || kept !== undefined || !markdown) return undefined;
+    const timer = window.setTimeout(() => {
+      const el = host.current;
+      if (!el?.querySelector('.cm-editor')) return;
+      remember(key, el.innerHTML);
+      setKept((n) => n + 1);
+    }, SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [drawn, kept, key, markdown]);
 
   if (!markdown) return null;
   // Before the editor: a blank about as tall as the lines it will draw, so the cards do not jump as they fill in.
   const lines = Math.min(PEEK_LINES, markdown.split('\n').filter((line) => line.trim()).length);
   const style = drawn ? undefined : { blockSize: stood !== null ? `${stood}px` : `calc(var(--app-body) * 1.6 * ${lines})` };
+  const peek = className ? `${styles.peek} ${className}` : styles.peek;
+  // Drawn before: the kept drawing is the card's own HTML, what its editor drew, with no editor behind it.
+  if (drawn && kept !== undefined) {
+    return <span ref={host} className={peek} data-clipped={clipped ? '' : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: kept }} />;
+  }
   return (
-    <span
-      ref={host}
-      className={className ? `${styles.peek} ${className}` : styles.peek}
-      style={style}
-      data-clipped={drawn && clipped ? '' : undefined}
-      aria-hidden="true"
-    >
-      {drawn ? <Editor value={markdown} onChange={noop} dark={isDarkNow(theme)} assist={false} readOnly display="formatted" peek grow /> : null}
+    <span ref={host} className={peek} style={style} data-clipped={drawn && clipped ? '' : undefined} aria-hidden="true">
+      {drawn ? <Editor value={markdown} onChange={noop} dark={dark} assist={false} readOnly display="formatted" peek grow /> : null}
     </span>
   );
-}
+});
 
 function noop(): void {
   // Read-only: nothing typed comes back.

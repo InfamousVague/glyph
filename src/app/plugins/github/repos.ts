@@ -93,7 +93,8 @@ function saveProject(project: Project): void {
 
 export function removeProject(id: string): void {
   write(PROJECTS_KEY, projects().filter((p) => p.id !== id));
-  const links = read<Record<string, string>>(LINKS_KEY, {});
+  // A copy: what a read answers is shared with every other read of it (plugins/host.ts).
+  const links = { ...read<Record<string, string>>(LINKS_KEY, {}) };
   for (const [note, project] of Object.entries(links)) if (project === id) delete links[note];
   write(LINKS_KEY, links);
 }
@@ -104,7 +105,7 @@ export function projectFor(noteId: string): Project | null {
 }
 
 export function linkProject(noteId: string, projectId: string | null): void {
-  const links = read<Record<string, string>>(LINKS_KEY, {});
+  const links = { ...read<Record<string, string>>(LINKS_KEY, {}) };
   if (projectId) links[noteId] = projectId;
   else delete links[noteId];
   write(LINKS_KEY, links);

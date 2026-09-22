@@ -3463,3 +3463,39 @@ smaller as right now it makes the update banner huge."
   put the second line of words under the dock. Leading a page it is now up to 45% of the height beside its words and
   38% stacked over them: 360px tall ending at 657 on a laptop, 309px ending at 590 on a phone, the words clear of the
   dock on both.
+
+## 69. Faster: note previews built once, rows that stay put, settings parsed once (2026-09-22)
+
+Matt: "Go through the app and investigate how we can get better performance on desktop and mobile check for render
+storms and others", then "Do it". Measured before touching anything, in headless Chromium with 150 notes, with
+counters installed before React (commits, what rendered and where each render began, frames, timers, listeners,
+observers, long tasks, localStorage reads and JSON parses), on the dev build and the production build, at a laptop's
+width and at a phone's with the CPU slowed four times.
+
+- **What was fine.** No render storm across the app. Idle does nothing: no commits, no animation-frame loops, no
+  polling but the five-minute sync. Typing in a note's body is four commits for forty-one keys; scrolling a note two.
+- **Note previews were editors, built again every time.** Each card on the home page and each of the sidebar's rows
+  is the note's own editor, read-only (notes/NotePeek.tsx), mounted as it neared the screen and torn down as it left.
+  One scroll down a 150-note sidebar built 276 editors, 5.4 s of CPU in the dev build, with long tasks of 51-71 ms;
+  going home built the home cards' again, three long tasks of about 80 ms. Now a card keeps what its editor drew -
+  its HTML, for that text in that theme - and lets the editor go: any card of the same text comes back drawn, with no
+  editor, and the formatter is the note's own as before, run once per note per session. After: going home builds
+  none (one long task of 54 ms, from three), scrolling home has none (from three), the first scroll down the sidebar
+  three of at most 55 ms (from nine to thirteen, up to 76); every later scroll builds none. Every card watches the
+  screen through one shared observer, not one each (156 before).
+- **The sidebar re-rendered every row whenever the app shell did.** Opening a note rendered the shell three times and
+  each time all 150 previews, 450 renders; typing in a note's title did it every keystroke. The preview is memoized
+  (its props are two strings), so a row whose note has not changed is skipped: opening a note now renders none of
+  them.
+- **Settings parsed on hot paths.** The Notion and GitHub links were read and parsed on every keystroke through the
+  plugins' suggestions, and four plugin keys on every render of a note: about a hundred parses for forty-one keys.
+  The home page parsed the whole AI-results sheet once per card, 24 times. Both now keep what they parsed with the
+  text it came from (plugins/host.ts, format/results.ts): a read still asks localStorage for the text, which cannot
+  be stale however the key was written, and parses only when it has changed. The value is shared, so the four places
+  that changed what they read - linking a board, linking or removing a project, keeping an AI result - copy it first.
+  After: four parses for forty-one keys.
+- **Not done, and why.** The main bundle is 2.54 MB (757 KB gzipped) and loads whole; splitting out the guide,
+  settings, canvas and recorder is a larger change, left for its own pass. The Mac app's WebKit was not measured -
+  control of the app was not given and it was not used while a watcher sampled it - so what WebKit alone makes costly
+  (the smoke, the stacked glass) is still to be read on the Mac, from Settings > Developer > Smoke bench. Headless
+  Chromium draws a frame only every few hundred ms, so key-to-paint latency was not measured either.

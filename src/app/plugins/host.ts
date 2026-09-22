@@ -39,6 +39,15 @@ export class PluginPermissionError extends Error {
 
 let generation: Promise<number> | null = null;
 
+/**
+ * Each key's value as last parsed, with the text it was parsed from. A plugin reads its storage in hot places - the
+ * Notion and GitHub links once per keystroke through their suggestions, the token on every render of a note - and
+ * each read was a `JSON.parse` (measured: about a hundred parses for forty-one keystrokes). A read still asks
+ * localStorage for the text, which is cheap and can never be stale however the key was written; it parses only when
+ * the text is not the one parsed last. The value is shared, so a plugin that changes one copies it first.
+ */
+const parsed = new Map<string, { raw: string; value: unknown }>();
+
 /** The binary's native generation (src-tauri/src/ota.rs), read once. */
 function nativeGeneration(): Promise<number> {
   if (!isTauri()) return Promise.resolve(0);
@@ -77,13 +86,19 @@ export function createHost(manifest: PluginManifest, invoke: typeof tauriInvoke 
         owns(key);
         try {
           const raw = localStorage.getItem(key);
-          return raw === null ? fallback : (JSON.parse(raw) as T);
+          if (raw === null) return fallback;
+          const last = parsed.get(key);
+          if (last && last.raw === raw) return last.value as T;
+          const value = JSON.parse(raw) as T;
+          parsed.set(key, { raw, value });
+          return value;
         } catch {
           return fallback;
         }
       },
       set(key: string, value: unknown) {
         owns(key);
+        parsed.delete(key);
         try {
           localStorage.setItem(key, JSON.stringify(value));
         } catch {
@@ -93,6 +108,7 @@ export function createHost(manifest: PluginManifest, invoke: typeof tauriInvoke 
       },
       remove(key: string) {
         owns(key);
+        parsed.delete(key);
         storageChanged();
         try {
           localStorage.removeItem(key);

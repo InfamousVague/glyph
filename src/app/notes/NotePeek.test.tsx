@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { EditorView } from '@codemirror/view';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { NotePeek } from './NotePeek.tsx';
@@ -37,5 +38,24 @@ describe('a note drawn small on a card', () => {
   it('draws nothing for a note that is only its title', () => {
     const shown = show(<NotePeek body={'# Just a title'} />);
     expect(shown.querySelector('.cm-editor')).toBeNull();
+  });
+
+  it('keeps what its editor drew and lets the editor go, and a card of the same text draws with no editor at all', async () => {
+    const body = '# Kept\n\n- [ ] A box\n\nWords drawn once.';
+    const first = show(<NotePeek body={body} />);
+    expect(EditorView.findFromDOM(first.querySelector('.cm-editor') as HTMLElement)).not.toBeNull();
+    await act(async () => {
+      await new Promise((done) => setTimeout(done, 400));
+    });
+    // The drawing is the editor's own, with no view behind it.
+    const kept = first.querySelector('.cm-editor') as HTMLElement;
+    expect(kept.textContent).toContain('Words drawn once.');
+    expect(EditorView.findFromDOM(kept)).toBeNull();
+    act(() => root?.unmount());
+    host?.remove();
+    const again = show(<NotePeek body={body} />);
+    const drawn = again.querySelector('.cm-editor') as HTMLElement;
+    expect(drawn.textContent).toContain('A box');
+    expect(EditorView.findFromDOM(drawn)).toBeNull();
   });
 });
