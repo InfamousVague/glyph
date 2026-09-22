@@ -9,8 +9,7 @@ import { inTrash, outOfTrash, useTrash } from './core/trash.ts';
 import { NoteScreen } from './editor/NoteScreen.tsx';
 import { NoteTabs } from './notes/NoteTabs.tsx';
 import { NotesDrawer } from './notes/NotesDrawer.tsx';
-import { Aside } from './aside/Aside.tsx';
-import { useBack } from './core/back.ts';
+import { Aside, AsideCard } from './aside/Aside.tsx';
 import { asideContent, readAsideShown, writeAsideShown } from './aside/aside.ts';
 import { NoteTree } from './notes/NoteTree.tsx';
 import { addOpen, afterClose, closeOpen, moveOpen, openOnly, swapOpen } from './notes/openTabs.ts';
@@ -632,8 +631,8 @@ function Shell() {
    */
   const docked = split && prefs.sidebarStyle === 'docked';
   const dockShown = docked && sidebarShown;
-  // On a phone the back gesture closes the aside, as it closes a sheet (core/back.ts).
-  useBack(!split && asideShown, toggleAside);
+  // The aside follows the sidebar's shell: a column beside a docked sidebar, else the drawer's card (aside/Aside.tsx).
+  const asideDocked = docked && asideShown;
   // Docking takes over from a card left open, so the notes are never drawn twice.
   useEffect(() => {
     if (docked) setDrawer(false);
@@ -916,7 +915,7 @@ function Shell() {
           }}
         />
       ) : split ? (
-        <div className="app-split" data-sidebar={dockShown ? 'shown' : 'hidden'} data-aside={asideShown ? 'shown' : 'hidden'}>
+        <div className="app-split" data-sidebar={dockShown ? 'shown' : 'hidden'} data-aside={asideDocked ? 'shown' : 'hidden'}>
           {/*
             The same tree the pop-up sidebar is (notes/NoteTree.tsx), docked (Matt: "Make the sidebar on desktop the
             same sidebar that shows up in the pop-up sidebar"). It was the whole home list squeezed into a column; the
@@ -944,8 +943,8 @@ function Shell() {
           <main className="app-notePane">
             {noteScreen ?? home}
           </main>
-          {/* The right-hand aside as a column: a book's index, or the workspace's notes (aside/Aside.tsx). */}
-          {asideShown ? (
+          {/* The right-hand aside as a column beside a docked sidebar: a book's index, or the workspace's notes (aside/Aside.tsx). */}
+          {asideDocked ? (
             <aside className="app-aside" aria-label="Book index and notes">
               <Aside content={asideBody} workspace={spaces.current?.name ?? null} onOpen={asideBody.kind === 'book' ? openNoteWithin : openNote} onOpenTitle={openTitleWithin} />
             </aside>
@@ -954,14 +953,9 @@ function Shell() {
       ) : (
         (noteScreen ?? home)
       )}
-      {/* On a phone the same aside comes over the note from the right; the scrim, the X or the back gesture close it. */}
-      {!split && asideShown ? (
-        <div className="app-asideOver">
-          <div className="app-asideScrim" onClick={toggleAside} />
-          <div className="app-asidePanel" role="dialog" aria-modal="true" aria-label="Book index and notes">
-            <Aside content={asideBody} workspace={spaces.current?.name ?? null} onOpen={(id) => { toggleAside(); (asideBody.kind === 'book' ? openNoteWithin : openNote)(id); }} onOpenTitle={(t) => { toggleAside(); openTitleWithin(t); }} onClose={toggleAside} />
-          </div>
-        </div>
+      {/* With the sidebar a floating card, the aside is the same card at the right (aside/Aside.tsx `AsideCard`). */}
+      {asideShown && !asideDocked ? (
+        <AsideCard content={asideBody} workspace={spaces.current?.name ?? null} onOpen={asideBody.kind === 'book' ? openNoteWithin : openNote} onOpenTitle={openTitleWithin} onClose={toggleAside} />
       ) : null}
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
       <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={newBook} onFromLink={forkFromLink} />

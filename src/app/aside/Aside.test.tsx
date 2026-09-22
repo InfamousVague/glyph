@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { Note } from '../core/store.ts';
 import { asideContent } from './aside.ts';
-import { Aside } from './Aside.tsx';
+import { Aside, AsideCard } from './Aside.tsx';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -54,5 +54,30 @@ describe('the right-hand aside', () => {
     expect(onOpen).toHaveBeenCalledWith('t');
     act(() => button('Close').click());
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('the aside as the drawer’s card', () => {
+  it('is a dialog at the right that closes on a tap outside, not on its own toggle, and on opening a page', async () => {
+    const onClose = vi.fn();
+    const onOpenTitle = vi.fn();
+    const toggle = document.createElement('button');
+    toggle.setAttribute('data-aside-toggle', '');
+    document.body.appendChild(toggle);
+    show(<AsideCard content={asideContent(notes, notes[1]!)} workspace={null} onOpen={() => {}} onOpenTitle={onOpenTitle} onClose={onClose} />);
+    const card = document.querySelector('[role="dialog"][data-side="end"]');
+    expect(card?.getAttribute('aria-label')).toBe('Book index and notes');
+    expect(card?.querySelector('[data-popup]')).toBeTruthy();
+    // The outside listener joins on the next tick, so the press that opened the card cannot close it.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    toggle.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(onClose).not.toHaveBeenCalled();
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    const birds = [...document.querySelectorAll<HTMLButtonElement>('ol[aria-label="Chapters"] button')][1]!;
+    act(() => birds.click());
+    expect(onOpenTitle).toHaveBeenCalledWith('Birds');
+    expect(onClose).toHaveBeenCalledTimes(2);
+    toggle.remove();
   });
 });

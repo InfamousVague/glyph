@@ -40,6 +40,13 @@
   animation: drawerIn 180ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
 }
 
+/* The same card at the right, hung from the tab row's mirrored icon: the aside (aside/Aside.tsx `AsideCard`). */
+.card[data-side='end'] {
+  inset-inline-start: auto;
+  inset-inline-end: calc(var(--app-safe-right, 0px) + var(--glacier-space-3));
+  transform-origin: top right;
+}
+
 @keyframes drawerIn {
   from {
     opacity: 0;

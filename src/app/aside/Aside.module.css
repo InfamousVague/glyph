@@ -1,7 +1,7 @@
 /*
- * The right-hand aside (Aside.tsx): a book's index, or the workspace's notes, in a quiet column. Its shell - a
- * docked column or a card over the note - is the app's (app.css `.app-aside`, `.app-asideOver`); this is what is
- * inside it.
+ * The right-hand aside (Aside.tsx): a book's index, or the workspace's notes, in a quiet column. Its shell is a
+ * docked column (app.css `.app-aside`) or the notes drawer's floating card at the right (notes/NotesDrawer.module.css,
+ * `AsideCard`); this is what is inside it.
  */
 
 .aside {
@@ -12,6 +12,11 @@
   overflow-y: auto;
   padding: calc(var(--app-safe-top, 0px) + var(--glacier-space-3)) var(--glacier-space-3) var(--glacier-space-6);
   font-size: var(--glacier-font-size-sm, 0.875rem);
+}
+
+/* In the floating card there is no bar over it, as the drawer's tree has none (notes/NoteTree.module.css). */
+.aside[data-popup] {
+  padding-block-start: var(--glacier-space-3);
 }
 
 .head {
