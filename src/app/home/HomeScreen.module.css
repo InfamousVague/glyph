@@ -124,7 +124,9 @@
 @container home-page (min-width: 44rem) {
   .empty {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    /* Set proportions rather than an auto column: the ghost fills its column's width, and a width of 100% needs a
+       column whose size does not depend on the ghost. */
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     grid-template-rows: auto auto;
     column-gap: var(--glacier-space-6);
     align-content: center;

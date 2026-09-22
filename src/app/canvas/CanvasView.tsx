@@ -587,7 +587,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     >
       {!live.nodes.length ? (
         <div className={styles.emptyCanvas}>
-          <Ghost scene="empty-canvas" align="center" />
+          <Ghost scene="empty-canvas" align="center" className={styles.emptyCanvasArt} />
           <p className={styles.emptyCanvasWords}>{editable ? 'Double-tap to add a card.' : 'An empty canvas.'}</p>
         </div>
       ) : null}

@@ -3430,3 +3430,18 @@ the bar all along; the strip was missing the tint.
   about how it was tinted. The picture that settled it was the one with a gradient in it. A Developer › Window
   section (§ above) now says the inset the page is given, so the first question - is the page under the bar - has a
   number next time.
+
+## 67. The ghost, still, and as big as the room (2026-09-22)
+
+Matt: "I want the ghost pictures not to float and also they can be larger even still, try to fill 100% width or
+available height without going too big."
+
+- **Still.** The slow drift up and back is gone, keyframes and all (art/Ghost.module.css).
+- **As big as the room, within limits.** A ghost beside words is the column's whole width, up to 40% of the window's
+  height and 28rem; one leading a page up to 60% of the height and 36rem; the one in the update card stays 9rem, since
+  filling the card would push its words out. Measured at 1280x800: the empty home page's ghost 480px (60% of 800)
+  beside its words, the sidebar's 320px in a 337px column, a new note's and an empty canvas's 320px. At 375x812 a new
+  note's is 325px of the page's 331, nothing wider than the screen.
+- **Two places needed a definite size to be a share of.** The wide home page's side-by-side grid had an auto column
+  sized by the ghost, and a width of 100% of that is circular; it is now three parts to the words' two. The empty
+  canvas centres its ghost in a grid sized by its content, so its ghost is sized by the screen instead.

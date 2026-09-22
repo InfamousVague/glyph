@@ -594,6 +594,11 @@
   pointer-events: none;
 }
 
+/* Sized by the screen: in a centred grid a width of 100% has nothing definite to be 100% of. */
+.emptyCanvasArt {
+  inline-size: min(70vw, 40dvh, 28rem);
+}
+
 .emptyCanvasWords {
   margin: 0;
   font-size: var(--glacier-font-size-md);
