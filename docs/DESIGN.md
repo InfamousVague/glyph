@@ -3638,3 +3638,20 @@ Markdown download or as a copy saved into the reader's app. docs/SHARING.md has 
   web link and once by the + sheet ("(shared)", then "(shared 2)"); an edit read through the same link after the
   three seconds; the link reading nothing after "Stop sharing". Tests: sealing and links, what a note and a book
   share, the fork's renames, the downloads, the zip's CRC; the server's owner rules and limits.
+
+## 76. A right-hand aside (2026-09-22)
+
+Matt: "Add a right side aside menu that can pop out book indexes and list other notes from the workspace when not
+in book view, add a sidebar toggle on the right with the icon reversed."
+
+- **The toggle** (notes/NoteTabs.tsx): the sidebar's own icon, mirrored, at the tab row's far end; `aria-expanded`
+  says which way it is, and the choice is kept to the device (`glyph-aside-shown`), hidden until opened once.
+- **The shell** (App.tsx, app.css): on the split layout a third column, `clamp(240px, 22vw, 320px)`, beside the
+  note - the sidebar's mechanism mirrored, `data-aside` on `.app-split` as `data-sidebar` is; on a phone a panel
+  over the note from the right under a scrim, closed by the scrim, its X or the back gesture. Opening a note from
+  the phone's panel closes it; the column stays.
+- **What it holds** (aside/aside.ts, pure): with a book on screen - a page of one, or the book itself - the book's
+  index, the open chapter ringed the way the sidebar rings the open note, a tap opening another, the book's title
+  opening the book; anywhere else the workspace's other notes in the list's order, the open one and the archive
+  left out, named after the workspace or "All notes".
+- Tests: the two faces from the notes and the open note; the component's taps and its close.
