@@ -39,8 +39,11 @@ share/share.ts `sharedOf` builds `{ v: 1, kind, title, pages: [{ title, body }],
 The owner's device keeps a registry in `glyph-shares`: note id to share id, key, and a digest of what was last
 sent. `followShares` listens for saved notes and, three seconds after the last save, re-seals every share whose
 contents changed (a book's share changes when any of its chapters does) and sends it again, and does the same once
-a few seconds after launch. A share never changes its link. Every share sent before pictures travelled reads as
-changed once (the digest's "p"), so it goes out again with them.
+a few seconds after launch. A share never changes its link. A share also remembers which of its pictures this device
+lacked when it was sent (`lacked`), and goes again once one of them is here - a picture that arrives by sync changes
+no page, so the digest alone would never notice. Only those names are looked for, so a picture left out for room is
+not. Every share sent before this reads as changed once (the digest's "p2"), so it goes out again with its pictures
+and that list.
 
 Sharing needs an account (Settings › Account), since the server keeps a share with the account that made it.
 

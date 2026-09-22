@@ -121,7 +121,8 @@ export async function openShare(blob: string, key: string): Promise<Shared> {
 /**
  * `shared` with the pictures its pages show, read from this device (`read`), as many as the share can hold: as they
  * are kept if they fit, else each drawn smaller (`smaller`), else as many as fit in the order the pages show them. A
- * picture this device does not have is left out, and the reader sees it missing, as the owner's other devices would.
+ * picture this device does not have is left out, and the reader sees it missing, as the owner's other devices would;
+ * those are answered as `lacked`, so the share is sent again when one arrives (`refreshShares`).
  */
 export async function withPictures(
   shared: Shared,
@@ -130,13 +131,15 @@ export async function withPictures(
     smaller: (bytes) => smallerImage(bytes, 1024, 0.72),
   },
   budget = SHARE_BYTES,
-): Promise<Shared> {
+): Promise<{ shared: Shared; lacked: string[] }> {
   const names = [...new Set(shared.pages.flatMap((page) => imageNames(page.body)))];
-  if (!names.length) return shared;
+  if (!names.length) return { shared, lacked: [] };
   let found: [string, Bytes][] = [];
+  const lacked: string[] = [];
   for (const name of names) {
     const bytes = await deps.read(name).catch(() => null);
     if (bytes?.length) found.push([name, bytes]);
+    else lacked.push(name);
   }
   const room = budget - new TextEncoder().encode(JSON.stringify(shared)).length;
   const size = (list: [string, Bytes][]) => list.reduce((sum, [, bytes]) => sum + bytes.length, 0);
@@ -153,7 +156,7 @@ export async function withPictures(
     pictures[name] = bytes;
     used += bytes.length;
   }
-  return Object.keys(pictures).length ? { ...shared, pictures } : shared;
+  return { shared: Object.keys(pictures).length ? { ...shared, pictures } : shared, lacked };
 }
 
 /** Sealed for the server, or a refusal a person can read when even the words are more than a share holds. */
@@ -200,6 +203,11 @@ export interface Kept {
   key: string;
   /** What was sent last, as a digest, so a save that changed nothing in it sends nothing. */
   sent: string;
+  /**
+   * Pictures the pages showed that this device did not have when it was sent. A picture that arrives later, by sync,
+   * changes no page, so these are looked for on each refresh and the share goes again when one is here.
+   */
+  lacked?: string[];
 }
 
 function readKept(): Record<string, Kept> {
@@ -236,8 +244,9 @@ export function linkFor(noteId: string): string | null {
 
 /** A short digest of what a share holds, pages only: when it was written does not make it different. */
 function digest(shared: Shared): string {
-  // "p": pictures travel with a share. A share sent before they did reads as changed, so it is sent again with them.
-  const text = JSON.stringify(['p', shared.kind, shared.title, shared.pages]);
+  // "p2": pictures travel with a share, and a share remembers which it lacked. A share sent before either reads as
+  // changed, so it is sent again, with them and with that list.
+  const text = JSON.stringify(['p2', shared.kind, shared.title, shared.pages]);
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
   return `${text.length}:${(h >>> 0).toString(36)}`;
@@ -255,10 +264,17 @@ export async function shareNote(note: Note, notes: readonly Note[]): Promise<str
   const all = readKept();
   const kept = all[note.id] ?? { id: newShareId(), key: newShareKey(), sent: '' };
   const shared = sharedOf(note, notes);
-  await call('PUT', `shares/${kept.id}`, { token: auth, body: { blob: await sealForServer(await withPictures(shared), kept.key) } });
-  all[note.id] = { ...kept, sent: digest(shared) };
+  const carried = await withPictures(shared);
+  await call('PUT', `shares/${kept.id}`, { token: auth, body: { blob: await sealForServer(carried.shared, kept.key) } });
+  all[note.id] = { ...kept, sent: digest(shared), lacked: carried.lacked };
   writeKept(all);
   return shareLink(kept.id, kept.key);
+}
+
+/** Whether a picture a share lacked when it was sent is on this device now. Only those names are looked for. */
+async function lackedArrived(kept: Kept): Promise<boolean> {
+  for (const name of kept.lacked ?? []) if ((await imageBytes(name).catch(() => null))?.length) return true;
+  return false;
 }
 
 /** Stops sharing `noteId`: the share is taken down and its link reads nothing from then on. */
@@ -283,10 +299,12 @@ export async function refreshShares(): Promise<number> {
     const kept = all[id];
     if (!note || !kept) continue;
     const shared = sharedOf(note, notes);
-    if (digest(shared) === kept.sent) continue;
+    // The pages as they were, and every picture they show either sent or still not here: nothing to send.
+    if (digest(shared) === kept.sent && !(await lackedArrived(kept))) continue;
     try {
-      await call('PUT', `shares/${kept.id}`, { token: token(), body: { blob: await sealForServer(await withPictures(shared), kept.key) } });
-      all[id] = { ...kept, sent: digest(shared) };
+      const carried = await withPictures(shared);
+      await call('PUT', `shares/${kept.id}`, { token: token(), body: { blob: await sealForServer(carried.shared, kept.key) } });
+      all[id] = { ...kept, sent: digest(shared), lacked: carried.lacked };
       sent += 1;
     } catch {
       // Offline, or signed out: the next save tries again.

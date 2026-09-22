@@ -111,8 +111,9 @@ describe('the pictures a share carries', () => {
 
   it('carries the pictures the pages show, once each, leaving out one this device lacks', async () => {
     const read = vi.fn(async (name: string) => (name === C ? null : jpeg(name === A ? 1 : 2)));
-    const shared = await withPictures(paged, { read, smaller: async (bytes) => bytes });
+    const { shared, lacked } = await withPictures(paged, { read, smaller: async (bytes) => bytes });
     expect(Object.keys(shared.pictures ?? {})).toEqual([A, B]);
+    expect(lacked).toEqual([C]);
     expect(read.mock.calls.map((c) => c[0])).toEqual([A, B, C]);
   });
 
@@ -120,11 +121,13 @@ describe('the pictures a share carries', () => {
     const words = new TextEncoder().encode(JSON.stringify(paged)).length;
     const read = async (name: string) => (name === C ? null : jpeg(1, 1000));
     // Room for both only once each is drawn at a tenth.
-    const shrunk = await withPictures(paged, { read, smaller: async (bytes) => bytes.slice(0, 100) }, words + 500);
+    const shrunk = (await withPictures(paged, { read, smaller: async (bytes) => bytes.slice(0, 100) }, words + 500)).shared;
     expect(Object.values(shrunk.pictures ?? {}).map((b) => b.length)).toEqual([100, 100]);
     // Room for one, even smaller: the first the pages show.
     const one = await withPictures(paged, { read, smaller: async (bytes) => bytes.slice(0, 400) }, words + 500);
-    expect(Object.keys(one.pictures ?? {})).toEqual([A]);
+    expect(Object.keys(one.shared.pictures ?? {})).toEqual([A]);
+    // Left out for room, not lacked: B is here, so it is not looked for again.
+    expect(one.lacked).toEqual([C]);
   });
 
   it('downloads the pictures beside the pages, and a note with pictures as a zip', async () => {
