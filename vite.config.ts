@@ -114,6 +114,8 @@ export default defineConfig({
     ...(process.env.TAURI_DEV_HOST ? { host: '0.0.0.0', hmr: { host: process.env.TAURI_DEV_HOST, protocol: 'ws', port: portFromArgs() } } : {}),
   },
   // Two pages: the app, and the reader a shared note or book opens in (read.html, src/read, docs/SHARING.md).
-  build: { rollupOptions: { input: { main: join(root, 'index.html'), read: join(root, 'read.html') } } },
+  // The app's entry keeps its name `index`: Vite names the bundle after the key (assets/index-<hash>.js), and the
+  // deploy, the OTA manifest's check and the live-bundle checks all key on that name (scripts/deploy-ota.mjs).
+  build: { rollupOptions: { input: { index: join(root, 'index.html'), read: join(root, 'read.html') } } },
   clearScreen: false,
 });
