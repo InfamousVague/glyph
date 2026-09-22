@@ -214,13 +214,28 @@ export function pickImage(): Promise<string | null> {
 /** Fires when a browser picture has been loaded from storage and `imageUrl` will now answer for it. */
 export const IMAGE_READY = 'glyph:image-ready';
 
+/** Pictures the phone or the Mac was given by sync this run, by name, each with a number that changes when it lands. */
+const arrived = new Map<string, number>();
+
+/** A picture was written to this device's store by sync (core/sync/engine.ts): every page drawing it draws it again. */
+export function imageArrived(name: string): void {
+  arrived.set(name, (arrived.get(name) ?? 0) + 1);
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(IMAGE_READY));
+}
+
 /**
  * Where the editor loads a picture from. On the phone, always at once. In a
  * browser, at once for a picture seen this session; otherwise empty, with the
  * picture fetched from storage and `IMAGE_READY` fired when it is there.
  */
 export function imageUrl(name: string): string {
-  if (isTauri()) return convertFileSrc(name, 'img');
+  if (isTauri()) {
+    // A picture that arrived by sync after the page asked for it: a fresh address, so the page asks again rather than
+    // keeping the failed load. The `img` scheme reads only the path (src-tauri/src/images.rs), so the query is ignored.
+    const base = convertFileSrc(name, 'img');
+    const version = arrived.get(name);
+    return version ? `${base}?v=${version}` : base;
+  }
   const known = urls.get(name);
   if (known !== undefined) return known;
   urls.set(name, '');

@@ -18,6 +18,13 @@ import { open, openBytes, seal, sealBytes, type Bytes } from './crypto.ts';
  *
  * A note's recording and pictures travel beside it as sealed files: the note says which (by hash, for a recording,
  * which can be taken again; by name, for a picture, whose name is never reused), and a device fetches what it lacks.
+ *
+ * 3. **Settle the pictures** (`settlePictures`): every picture a note here refers to, made whole on both sides. A
+ *    picture this device holds and the account lacks is sent; one the account holds and this device lacks is fetched.
+ *    Sending a picture only with its note's push missed a picture that reached a device some other way than the app:
+ *    a note written through the MCP names pictures another program dropped into the Mac's picture folder, the Mac
+ *    pulls the note, finds the files, and nothing sends them, so the phone shows the note with every picture broken.
+ *    And a device that asked for a picture before it was sent only asked when the note arrived, never again.
  */
 
 // --- what this module is given ---------------------------------------------------------
@@ -47,6 +54,8 @@ export interface SyncContext {
   /** Called after each page of the feed and each push, so an interrupted sync resumes where it stopped. */
   save(state: SyncState): void;
   fetcher?: typeof fetch;
+  /** The time, in ms: swapped in by the tests. */
+  now?: () => number;
 }
 
 // --- what a device remembers -----------------------------------------------------------
@@ -56,7 +65,10 @@ export interface SyncState {
   cursor: number;
   /** Per note: the revision last seen, and the note's fingerprint then. */
   notes: Record<string, { rev: number; mark: string }>;
-  /** Per synced file: its revision, and for a recording the hash of what it held. */
+  /**
+   * Per synced file: its revision, and for a recording the hash of what it held. A revision of 0 is what an older app
+   * wrote for a picture it found on this device and never sent: settled like a picture with no entry at all.
+   */
   files: Record<string, { rev: number; sha?: string }>;
 }
 
@@ -143,16 +155,35 @@ async function sendFile(ctx: SyncContext, kind: FileKind, name: string, bytes: B
   ctx.state.files[id] = digest ? { rev, sha: digest } : { rev };
 }
 
-async function fetchFile(ctx: SyncContext, kind: FileKind, name: string, digest?: string): Promise<void> {
+/** Fetches a file into this device; false when the account has none by that id yet. */
+async function fetchFile(ctx: SyncContext, kind: FileKind, name: string, digest?: string): Promise<boolean> {
   const id = fileId(kind, name);
-  if (!id) return;
+  if (!id) return false;
   try {
     const { bytes, rev } = await callBytes('GET', `recordings/${id}`, { token: ctx.token, fetcher: ctx.fetcher, timeoutMs: 300_000 });
     await ctx.files.write(kind, name, await openBytes(ctx.key, bytes, `file:${id}`));
     ctx.state.files[id] = digest ? { rev, sha: digest } : { rev };
+    return true;
   } catch (failure) {
-    // Not there yet (the other device is still sending it): the next sync asks again.
-    if (failure instanceof ApiError && failure.status === 404) return;
+    // Not there yet (the other device is still sending it): the pictures are settled again on a later pass.
+    if (failure instanceof ApiError && failure.status === 404) return false;
+    throw failure;
+  }
+}
+
+/**
+ * Whether the account holds a file: its revision, or null where it has none, or undefined where the question could
+ * not be asked (no answer to a HEAD at all), and sending is the way to find out. Asked by its head, so a picture the
+ * account already has is not uploaded again to learn so.
+ */
+async function heldRev(ctx: SyncContext, id: string): Promise<number | null | undefined> {
+  try {
+    const { rev } = await callBytes('HEAD', `recordings/${id}`, { token: ctx.token, fetcher: ctx.fetcher });
+    // A picture's revision only says the account has it: pictures are never sent against a base.
+    return Math.max(rev || 0, 1);
+  } catch (failure) {
+    if (failure instanceof ApiError && failure.status === 404) return null;
+    if (failure instanceof ApiError && failure.status === 0) return undefined;
     throw failure;
   }
 }
@@ -191,12 +222,45 @@ async function fetchFilesOf(ctx: SyncContext, payload: NotePayload): Promise<voi
   for (const name of payload.images ?? []) {
     const id = fileId('image', name);
     if (!id || ctx.state.files[id]) continue;
-    if (await ctx.files.read('image', name)) {
-      ctx.state.files[id] = { rev: 0 };
-      continue;
-    }
+    // Here already, by some other road than sync: whether the account has it too is the settling's to find out.
+    if (await ctx.files.read('image', name)) continue;
     await fetchFile(ctx, 'image', name);
   }
+}
+
+/** A picture the account did not have when last asked, by id, and when: not asked for again for a while. */
+const unsent = new Map<string, number>();
+/** Less than the five minutes between passes, so every timed pass asks, and the passes a keystroke sets off don't. */
+export const ASK_AGAIN_MS = 4 * 60_000;
+
+/**
+ * Every picture a note on this device refers to, made whole on both sides: one this device holds and the account
+ * lacks is sent, one the account holds and this device lacks is fetched. A picture settled once is not looked at
+ * again. Runs at the end of every pass, after the notes, so a picture is never sent ahead of a note that names it.
+ */
+async function settlePictures(ctx: SyncContext): Promise<void> {
+  const now = ctx.now ?? Date.now;
+  const seen = new Set<string>();
+  for (const note of await ctx.notes.list()) {
+    for (const name of imageNames(note.body)) {
+      const id = fileId('image', name);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      if ((ctx.state.files[id]?.rev ?? 0) > 0) continue;
+      const bytes = await ctx.files.read('image', name);
+      if (bytes) {
+        const held = await heldRev(ctx, id);
+        if (held) ctx.state.files[id] = { rev: held };
+        else await sendFile(ctx, 'image', name, bytes);
+        continue;
+      }
+      const asked = unsent.get(id);
+      if (asked !== undefined && now() - asked < ASK_AGAIN_MS) continue;
+      if (await fetchFile(ctx, 'image', name)) unsent.delete(id);
+      else unsent.set(id, now());
+    }
+  }
+  ctx.save(ctx.state);
 }
 
 // --- merging one note ------------------------------------------------------------------
@@ -328,10 +392,11 @@ async function push(ctx: SyncContext, outcome: Outcome): Promise<void> {
   }
 }
 
-/** One whole sync of the notes: what changed elsewhere first, then what changed here. */
+/** One whole sync of the notes: what changed elsewhere first, then what changed here, then their pictures. */
 export async function syncNotes(ctx: SyncContext): Promise<Outcome> {
   const outcome: Outcome = { changed: 0, conflicts: 0 };
   await pull(ctx, outcome);
   await push(ctx, outcome);
+  await settlePictures(ctx);
   return outcome;
 }

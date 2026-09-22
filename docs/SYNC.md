@@ -107,8 +107,15 @@ minute per address and 10 per handle.
   id, and this device's version becomes a new note beside it (the file gets a number, `Title 2.md`). A note deleted
   on one device and changed on another comes back. A push that loses a race is merged the same way and sent again.
 - **Files follow their notes:** a recording is sent when its hash changes and fetched when a note arrives with a hash
-  this device doesn't have; a picture is sent once and fetched when missing. A browser syncs pictures but keeps no
-  recordings.
+  this device doesn't have; a picture is sent with the note that first names it. A browser syncs pictures but keeps
+  no recordings.
+- **And every pass settles the pictures** (`settlePictures`): each picture a note here names that this device holds
+  and the account lacks is sent (the account asked first by a HEAD on its file, so one it has is not uploaded again),
+  and each the account holds and this device lacks is fetched, asked again at most every four minutes while it is not
+  there yet. A picture can reach a device by another road than the app - a note written through the MCP naming
+  pictures another program put in the Mac's picture folder - and before this the Mac marked such a picture as sent
+  without sending it, and a phone that asked for one too early never asked again (Matt's HelloTrade book, 2026-09-22).
+  A picture that lands while its note is on screen is drawn at once (`imageArrived`, core/images.ts).
 - `core/sync/prefs.ts` — AttackFM's settings blob, sealed. Only the settings about the person travel (theme, type,
   density, recording behaviour, code colours, view, animations); the downloaded model and "Nothing leaves the phone"
   stay on the device. A device that changed nothing takes the account's; one that did sends its own.
