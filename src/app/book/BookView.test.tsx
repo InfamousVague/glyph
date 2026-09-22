@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { Note } from '../core/store.ts';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
 import { bookNoteBody, bookOf, chaptersOf } from './book.ts';
-import { BookBar, BookView } from './BookView.tsx';
+import { BookBar, BookFoot, BookView } from './BookView.tsx';
 
 /**
  * The index view: the chapters as rows that open their notes, a chapter not written yet said so, the three edits
@@ -183,5 +183,31 @@ describe('the bar a chapter wears', () => {
     show(<BookBar place={place} open={() => {}} />);
     expect(button('First chapter').disabled).toBe(true);
     expect(button('Next chapter: Trees').disabled).toBe(false);
+  });
+});
+
+describe('the foot a chapter wears', () => {
+  const note = (id: string, body: string): Note => ({ id, body, createdAt: 0, updatedAt: 0, source: 'editor' });
+
+  it('names the chapters either side under the page and opens them', () => {
+    const open = vi.fn();
+    show(<BookFoot place={bookOf([note('b', BOOK)], 'Trees')!} open={open} />);
+    expect(document.querySelector('nav[aria-label="Previous and next chapter"]')?.textContent).toBe('PreviousIntroductionNextBirds');
+    act(() => button('Previous: Introduction').click());
+    act(() => button('Next: Birds').click());
+    expect(open.mock.calls.map((c) => c[0])).toEqual(['Introduction', 'Birds']);
+  });
+
+  it('has only Next on the first chapter, only Previous on the last, and nothing for a book of one', () => {
+    show(<BookFoot place={bookOf([note('b', BOOK)], 'Introduction')!} open={() => {}} />);
+    expect([...document.querySelectorAll('[data-book-foot] button')].map((b) => b.getAttribute('aria-label'))).toEqual(['Next: Trees']);
+    act(() => root?.unmount());
+    host?.remove();
+    show(<BookFoot place={bookOf([note('b', BOOK)], 'Birds')!} open={() => {}} />);
+    expect([...document.querySelectorAll('[data-book-foot] button')].map((b) => b.getAttribute('aria-label'))).toEqual(['Previous: Trees']);
+    act(() => root?.unmount());
+    host?.remove();
+    show(<BookFoot place={bookOf([note('b', bookNoteBody('Short', ['Only']))], 'Only')!} open={() => {}} />);
+    expect(document.querySelector('[data-book-foot]')).toBeNull();
   });
 });

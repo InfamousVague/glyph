@@ -3,7 +3,7 @@ import { Download, Plus } from '@glacier/icons';
 import { Editor } from '../app/editor/Editor.tsx';
 import { CanvasView } from '../app/canvas/CanvasView.tsx';
 import { canvasOf, isCanvasBody } from '../app/canvas/jsonCanvas.ts';
-import { BookBar, BookView } from '../app/book/BookView.tsx';
+import { BookBar, BookFoot, BookView } from '../app/book/BookView.tsx';
 import { bookOf } from '../app/book/book.ts';
 import { usePreferences } from '../app/core/preferences.ts';
 import { sameTitle } from '../app/editor/wikiLinks.ts';
@@ -204,6 +204,7 @@ function Read({
           />
         </article>
       )}
+      {isBook && page > 0 && place ? <BookFoot place={place} open={open} /> : null}
     </main>
     </>
   );

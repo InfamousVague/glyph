@@ -18,7 +18,7 @@ import { FindBar } from './FindBar.tsx';
 import { Editor } from './Editor.tsx';
 import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
-import { BookBar, BookView } from '../book/BookView.tsx';
+import { BookBar, BookFoot, BookView } from '../book/BookView.tsx';
 import { isBookBody, type BookPlace } from '../book/book.ts';
 import { withFrontMatterTitle } from '../core/frontMatter.ts';
 import { insertImageAt, releaseImageSpot, reserveImageSpot } from './images.ts';
@@ -810,6 +810,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
           />
           {blank && !typed ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
         </div>
+        {/* And under its last line, the chapters either side again, to go on from the end of the page (docs/BOOKS.md). */}
+        {book && onOpenTitle && shown === 'raw' ? <BookFoot place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}
       </div>
       {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image. */}
       <ContextMenu

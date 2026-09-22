@@ -414,3 +414,58 @@
   /* The editor draws at the note's size; the book's own type stays for the rest. */
   font-size: 1rem;
 }
+
+/*
+ * The foot a chapter wears (BookFoot): the chapters either side as two wide buttons under the last line, in the note's
+ * own gutter. Previous keeps the left and Next the right, whichever is there.
+ */
+.foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--glacier-space-3);
+  margin: var(--glacier-space-4) var(--app-gutter, var(--glacier-space-4)) 0;
+  padding-block: var(--glacier-space-4) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-6));
+  border-block-start: 1px solid var(--glacier-border-subtle);
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2em;
+  min-inline-size: 0;
+  padding: 0.7em 0.9em;
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md, 10px);
+  background: transparent;
+  color: var(--glacier-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.step[data-next] {
+  grid-column: 2;
+  align-items: flex-end;
+  text-align: end;
+}
+
+.step:hover {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+}
+
+.stepLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-sm, 0.875rem);
+}
+
+.stepTitle {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}

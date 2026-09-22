@@ -54,6 +54,10 @@ What to know before the walk.
 - **A chapter wears the book** (BookBar): under its header, the book's title with its place (2 of 5) and the
   chapters either side; a tap on the book opens the index. Found by title (book/book.ts `bookOf`): the first book
   in the library whose index names the note. A note can be in more than one book; the bar shows the first.
+- **And under its last line** (BookFoot): Previous and Next as two wide buttons naming the chapters either side, so
+  the end of a page goes on to the next without scrolling back up (Matt: "add the book navigation for next and prev
+  buttons at the bottom of the page"). Only Next on the first chapter, only Previous on the last. On the reader page
+  too, where it steps only between the chapters the share holds.
 - **One tab.** A page opened from inside a book - the index, the chapter bar, the right-hand aside, the read-through -
   takes the current tab's place rather than a tab of its own; a page that already has a tab is used and the book's
   closes (notes/openTabs.ts `swapOpen`). A `[[link]]` in the words still opens a tab, as any link does.
