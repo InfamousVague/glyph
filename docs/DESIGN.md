@@ -3888,3 +3888,17 @@ devices would. Words alone past the limit are refused with a sentence the share 
 The sync engine's picture reading and writing moved into core/images.ts (`imageBytes`, `keepImage`) so a share
 and sync read and keep pictures the same way. Tested in share/share.test.ts and src/read/Reader.test.tsx; the
 reader test fails with the lending taken out.
+
+## 89. A share goes again when a picture it lacked arrives (2026-09-22)
+
+Matt's HelloTrade link showed none of the pictures his phone did. The Glyph session tested §88 end to end against a
+local server and found the reader side sound and a gap on the sending side: whether a share changed was a digest of
+its pages, and a picture arriving on the sharing device later, by sync, changes no page. A share re-sent (once, for
+§88's "p") from a device that had not pulled the pictures yet went without them and was recorded as sent for good.
+
+Now `withPictures` answers which pictures the pages show that this device lacked, the share's record keeps that list
+(`lacked`), and a refresh sends a share whose pages did not change only when one of those pictures is here now. Only
+those names are looked for, so the three-second follow after a save reads nothing for a share that lacks nothing,
+and a picture left out for room is not a lacked one and never sets off a send. The digest's marker became "p2", so
+every share sent before this goes once more, with its pictures and the list. Tested in share/refresh.test.ts (the
+picture arriving, and not before or after), which fails on the code before this.
