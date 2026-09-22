@@ -9,6 +9,9 @@ import { inTrash, outOfTrash, useTrash } from './core/trash.ts';
 import { NoteScreen } from './editor/NoteScreen.tsx';
 import { NoteTabs } from './notes/NoteTabs.tsx';
 import { NotesDrawer } from './notes/NotesDrawer.tsx';
+import { Aside } from './aside/Aside.tsx';
+import { useBack } from './core/back.ts';
+import { asideContent, readAsideShown, writeAsideShown } from './aside/aside.ts';
 import { NoteTree } from './notes/NoteTree.tsx';
 import { addOpen, afterClose, closeOpen, moveOpen, openOnly } from './notes/openTabs.ts';
 import { afterMove, displayOrder, joinGroup, leaveGroup, newGroup, pruneGroups, type TabGroups } from './notes/tabGroups.ts';
@@ -262,6 +265,13 @@ function Shell() {
     setSidebarShown(next);
     writeSidebarShown(next);
   };
+  // The right-hand aside (aside/Aside.tsx), shown or hidden by the tab row's mirrored icon; kept to this device.
+  const [asideShown, setAsideShown] = useState(readAsideShown);
+  const toggleAside = () => {
+    const next = !asideShown;
+    setAsideShown(next);
+    writeAsideShown(next);
+  };
   const shown = screen.name === 'note' ? screen.note.id : null;
   useEffect(() => {
     if (shown) setOpen((was) => addOpen(was, shown));
@@ -383,6 +393,8 @@ function Shell() {
 
   /** Whether a note by that title is in the library: what a `[[link]]` is drawn by (editor/wikiLinks.ts). */
   const hasTitle = (title: string) => shownNotes.some((n) => sameTitle(noteTitle(n.body), title));
+  /** What the aside holds now: the open note's book, or the workspace's other notes (aside/aside.ts). */
+  const asideBody = useMemo(() => asideContent(shownNotes, screen.name === 'note' ? screen.note : null), [shownNotes, screen]);
   /** That note's body, for a canvas card that is a note to draw it small (canvas/CanvasView.tsx); null for none. */
   const bodyOfTitle = (title: string) => shownNotes.find((n) => sameTitle(noteTitle(n.body), title))?.body ?? null;
 
@@ -591,6 +603,8 @@ function Shell() {
    */
   const docked = split && prefs.sidebarStyle === 'docked';
   const dockShown = docked && sidebarShown;
+  // On a phone the back gesture closes the aside, as it closes a sheet (core/back.ts).
+  useBack(!split && asideShown, toggleAside);
   // Docking takes over from a card left open, so the notes are never drawn twice.
   useEffect(() => {
     if (docked) setDrawer(false);
@@ -820,6 +834,8 @@ function Shell() {
             onHome={() => void backToList()}
             atHome={screen.name === 'list'}
             sidebarOpen={docked ? sidebarShown : drawer}
+            onAside={toggleAside}
+            asideOpen={asideShown}
             onMove={(id, to, grouped) => {
               // Moved within the order as drawn. A drag has already said which group the tab is in (NoteTabs.tsx
               // `groupAt`); a move by the keys asks where it landed - into a group, or out of one.
@@ -870,7 +886,7 @@ function Shell() {
           }}
         />
       ) : split ? (
-        <div className="app-split" data-sidebar={dockShown ? 'shown' : 'hidden'}>
+        <div className="app-split" data-sidebar={dockShown ? 'shown' : 'hidden'} data-aside={asideShown ? 'shown' : 'hidden'}>
           {/*
             The same tree the pop-up sidebar is (notes/NoteTree.tsx), docked (Matt: "Make the sidebar on desktop the
             same sidebar that shows up in the pop-up sidebar"). It was the whole home list squeezed into a column; the
@@ -898,10 +914,25 @@ function Shell() {
           <main className="app-notePane">
             {noteScreen ?? home}
           </main>
+          {/* The right-hand aside as a column: a book's index, or the workspace's notes (aside/Aside.tsx). */}
+          {asideShown ? (
+            <aside className="app-aside" aria-label="Book index and notes">
+              <Aside content={asideBody} workspace={spaces.current?.name ?? null} onOpen={openNote} onOpenTitle={(t) => void openTitle(t)} />
+            </aside>
+          ) : null}
         </div>
       ) : (
         (noteScreen ?? home)
       )}
+      {/* On a phone the same aside comes over the note from the right; the scrim, the X or the back gesture close it. */}
+      {!split && asideShown ? (
+        <div className="app-asideOver">
+          <div className="app-asideScrim" onClick={toggleAside} />
+          <div className="app-asidePanel" role="dialog" aria-modal="true" aria-label="Book index and notes">
+            <Aside content={asideBody} workspace={spaces.current?.name ?? null} onOpen={(id) => { toggleAside(); openNote(id); }} onOpenTitle={(t) => { toggleAside(); void openTitle(t); }} onClose={toggleAside} />
+          </div>
+        </div>
+      ) : null}
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
       <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={newBook} onFromLink={forkFromLink} />
       <NewBookSheet open={bookSheet} onClose={() => setBookSheet(false)} titles={pageTitles()} onCreate={(title, pages) => void createBook(title, pages)} />

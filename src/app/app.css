@@ -618,3 +618,48 @@ body:has(.app-headerPane) .app-statusScrim {
 .app-split[data-sidebar='hidden'] {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/*
+ * The right-hand aside (aside/Aside.tsx; Matt: "a right side aside menu that can pop out book indexes and list other
+ * notes from the workspace"): on the split layout a third column, shown and hidden by the tab row's mirrored
+ * sidebar icon (App.tsx `asideShown`), the same way the sidebar is a first column. Both hidden, the note takes the
+ * window; either alone, the note takes the rest.
+ */
+.app-split[data-aside='shown'] {
+  grid-template-columns: clamp(300px, 30vw, 380px) minmax(0, 1fr) clamp(240px, 22vw, 320px);
+}
+
+.app-split[data-sidebar='hidden'][data-aside='shown'] {
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 22vw, 320px);
+}
+
+.app-aside {
+  position: relative;
+  min-inline-size: 0;
+  overflow: hidden;
+  border-inline-start: 1px solid var(--glacier-border-subtle);
+}
+
+/* On a phone the aside comes over the note from the right, under a scrim that closes it. */
+.app-asideOver {
+  position: fixed;
+  inset: 0;
+  z-index: 46;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.app-asideScrim {
+  position: absolute;
+  inset: 0;
+  background: var(--app-scrim, rgb(0 0 0 / 40%));
+}
+
+.app-asidePanel {
+  position: relative;
+  inline-size: min(22rem, 86vw);
+  block-size: 100%;
+  background: var(--glacier-bg);
+  border-inline-start: 1px solid var(--glacier-border-subtle);
+  box-shadow: -12px 0 40px rgb(0 0 0 / 28%);
+}

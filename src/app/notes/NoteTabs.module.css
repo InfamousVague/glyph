@@ -649,3 +649,8 @@
   border-radius: 50%;
   background: var(--app-space, var(--app-ink-3));
 }
+
+/* The aside's toggle: the sidebar's icon, mirrored, at the row's far end. */
+.mirrored svg {
+  transform: scaleX(-1);
+}

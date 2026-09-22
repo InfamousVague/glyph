@@ -57,6 +57,9 @@ interface NoteTabsProps {
   /** The floating list of every note; absent where the list is already beside the note (the desktop sidebar). */
   onSidebar?: () => void;
   sidebarOpen?: boolean;
+  /** The right-hand aside (aside/Aside.tsx): a book's index, or the workspace's notes; the icon is the sidebar's, mirrored. */
+  onAside?: () => void;
+  asideOpen?: boolean;
   /** The home page (home/HomeScreen.tsx), and whether it is the page showing. */
   onHome?: () => void;
   atHome?: boolean;
@@ -91,6 +94,8 @@ export function NoteTabs({
   onClose,
   onSidebar,
   sidebarOpen,
+  onAside,
+  asideOpen,
   onHome,
   atHome = false,
   onMove,
@@ -527,6 +532,20 @@ export function NoteTabs({
       ) : null}
         {/* The screen's own controls, at the far end (Matt: "Move the controls for the note into the topbar"). */}
         <div ref={slot} className={styles.slot} />
+        {/* The aside's toggle, last of all: the sidebar's icon reversed (Matt: "a sidebar toggle on the right with the icon reversed"). */}
+        {onAside ? (
+          <button
+            type="button"
+            className={`${styles.sidebar} ${styles.mirrored}`}
+            onClick={onAside}
+            data-aside-toggle
+            aria-label="Book index and notes"
+            aria-expanded={asideOpen ?? false}
+            data-on={asideOpen || undefined}
+          >
+            <PanelLeft size={20} strokeWidth={2.1} aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
       {/*
         The tabs, on their own line under the controls (Matt: "put the tabs on the next line down"), and no line at
