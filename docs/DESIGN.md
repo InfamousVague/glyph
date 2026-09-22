@@ -3842,3 +3842,17 @@ settled by its head with no upload, and a missing HEAD falls back to the upload.
 Not done: the MCP still cannot send a picture, so a note written through it can only name pictures that some device
 running the app holds. An upload tool would need the MCP to seal files as the app does, and a deploy of the MCP that
 signs its connector out.
+
+## 87. Previous and next under a chapter (2026-09-22)
+
+Matt: "Please add the book navigation for 'next' and 'prev' buttons at the bottom of the page." A chapter already
+wore a bar under its header (§ BookBar): the book, its place, and the chapters either side as small arrows with
+their titles. At the end of a long page that bar is a screen or more above, so going on meant scrolling back up.
+
+BookFoot is the same place drawn under the last line: two wide buttons, "Previous" and "Next" over the chapters'
+titles, Previous on the left and Next on the right whichever is there, none at all for a book of one chapter. It
+reads the chapters either side from the same `BookPlace` as the bar (a shared `sides`), so the two can never
+disagree, and opens a chapter the way the bar does, in the book's one tab (§77). On the note screen it follows the
+editor inside the page, so it scrolls with the words and stands in the note's gutter; it is there for a canvas
+chapter too, under the canvas. On the reader page it follows the chapter and steps only between the pages the
+share holds, as that page's bar already does. Not on a book's own index, which is the whole list.
