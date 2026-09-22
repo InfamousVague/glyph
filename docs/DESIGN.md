@@ -3527,3 +3527,17 @@ canvases were: a book is a note, its index is its body, and Markdown anywhere re
 - **Seen in the pane:** a book from the +, its empty index; "First steps" added by name, the chapter opened wearing
   "New book · 1 of 1"; the book opened from the bar with the row in it. 16 tests of the model and the view; the
   suite 1115 green.
+
+## 71. The scrollbar starts under the header, not behind it (2026-09-22)
+
+Matt: "On the home page the scrollbar goes behind the header."
+
+- The home page's list, like a note's page, runs the whole height of the window so its words can pass under the
+  header's glass, and its scrollbar ran with it, from the window's top edge, under the blur.
+- The hook that already measures the header for every such view (art/wispEdge.ts, `--wisp-under`) now marks the view
+  `data-under-header`, and one rule in app.css starts that view's scrollbar track where the header ends: a slim rounded
+  thumb in the page's ink on no track. Measured at 1280x800: the home page's header ends at 73px and so does the top of
+  its scrollbar's track.
+- Only where there is a pointer (`hover: hover` and `pointer: fine`): styling a scrollbar gives up the platform's own,
+  and on a phone the thin one that shows only while scrolling is the right one. Chromium and WebKit both take the
+  track's margin; checked in Chromium, and the Mac app's WebKit reads the same rule.

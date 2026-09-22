@@ -348,6 +348,8 @@ export function useWispEdge(
       if (height !== fitted) {
         fitted = height;
         el.style.setProperty('--wisp-under', `${height}px`);
+        // Said on the view, for its scrollbar to start where the header ends (app.css `[data-under-header]`).
+        el.toggleAttribute('data-under-header', height > 0);
         // Under a header the header hides the top; with no header the view dissolves into the status bar's own
         // ground, so what passes the clock is smoke rather than a flat fade (app.css .app-statusScrim).
         // Short, so the smoke has words to bend before they are gone: the lip sits a drop under the status bar, and a
@@ -438,6 +440,7 @@ export function useWispEdge(
       el.removeEventListener('scroll', onScroll);
       resized.disconnect();
       el.removeAttribute('data-wisp-edge');
+      el.removeAttribute('data-under-header');
       delete el.dataset.wispDraw;
       if (footWorn) {
         el.removeAttribute('data-wisp-foot');

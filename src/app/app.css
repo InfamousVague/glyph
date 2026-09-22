@@ -375,6 +375,38 @@ body:has(.app-headerPane) .app-statusScrim {
 }
 
 /*
+ * A view that scrolls under a header pane (art/wispEdge.ts marks it, and knows the header's height as `--wisp-under`):
+ * its scrollbar starts where the header ends (Matt: "On the home page the scrollbar goes behind the header"). The view
+ * runs the whole height so its words can pass under the glass, and so did its scrollbar, under the blur, from the
+ * window's top edge. Only where there is a pointer: styling a scrollbar gives up the platform's own, and on a phone
+ * the thin one that shows only while scrolling is the right one. A slim rounded thumb in the page's ink, on no track.
+ */
+@media (hover: hover) and (pointer: fine) {
+  [data-under-header]::-webkit-scrollbar {
+    inline-size: 12px;
+    width: 12px;
+    background: transparent;
+  }
+
+  [data-under-header]::-webkit-scrollbar-track {
+    background: transparent;
+    margin-block-start: max(var(--wisp-under, 0px), var(--app-safe-top, 0px));
+    margin-top: max(var(--wisp-under, 0px), var(--app-safe-top, 0px));
+  }
+
+  [data-under-header]::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+    background-color: color-mix(in oklch, var(--app-ink, currentColor) 22%, transparent);
+  }
+
+  [data-under-header]::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklch, var(--app-ink, currentColor) 40%, transparent);
+  }
+}
+
+/*
  * The wisp edge (art/wispEdge.ts): a view scrolled off its top goes to smoke
  * where it slips behind its header, and fades out into it. The app's standard
  * soft top; worn only while scrolled.
