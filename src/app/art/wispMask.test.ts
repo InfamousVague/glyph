@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { installWispMasks, WISP_DRAW_KEY, WISP_MASK_ABOVE, WISP_MASK_HEIGHT, WISP_MASK_TILE, wispDraw, wispMaskImage } from './wispMask.ts';
+import { WISP_EDGE_FOOT_SOFT, WISP_EDGE_SOFT } from './wispEdge.ts';
 
 describe('the wisp edge drawn as a mask', () => {
   afterEach(() => {
@@ -37,8 +38,10 @@ describe('the wisp edge drawn as a mask', () => {
     const foot = decodeURIComponent(wispMaskImage('foot').slice('url("data:image/svg+xml,'.length, -2));
     expect(foot).toContain(`transform="translate(0 ${WISP_MASK_HEIGHT}) scale(1 -1)"`);
     expect(top).not.toContain('scale(1 -1)');
-    expect(top).toContain('stdDeviation="0 22"');
-    expect(foot).toContain('stdDeviation="0 44"');
+    // The ramps by their constants, so shortening the smoke's reach doesn't have to be said twice.
+    expect(top).toContain(`stdDeviation="0 ${WISP_EDGE_SOFT}"`);
+    expect(foot).toContain(`stdDeviation="0 ${WISP_EDGE_FOOT_SOFT}"`);
+    expect(WISP_EDGE_FOOT_SOFT).toBeGreaterThan(WISP_EDGE_SOFT);
   });
 
   it('puts both images on the root for the stylesheet, once', () => {

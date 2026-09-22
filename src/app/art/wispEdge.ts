@@ -60,11 +60,16 @@ export const WISP_EDGE_FOOT_SOFT_ID = 'wispEdgeFootSoft';
  * blur, a long ramp: Matt found a short one "quite abrupt", and a 40px one
  * "way too subtle"), and its full-strength lip (Matt, of a 10px one under a
  * bend of 24: "can still be stronger on the header").
+ *
+ * Every measure of how far the smoke reaches - these two, the drop under the header, and the foot's three - came
+ * down by a third on 2026-09-22 (Matt: "The wisp effect travels a bit too far below the header and above the
+ * bottom part of the page, reduce how much room this animation / effect has by 33%"). The proportions between them
+ * are the ones the rounds above settled on; only the distance is shorter.
  */
-export const WISP_EDGE_SOFT = 22;
-export const WISP_EDGE_BAND = 10;
+export const WISP_EDGE_SOFT = 15;
+export const WISP_EDGE_BAND = 7;
 /** How far below a header's edge the band's lip sits: the smoke happens under a solid header, not hidden behind it. */
-export const WISP_EDGE_DROP = 18;
+export const WISP_EDGE_DROP = 12;
 /** The strip starts this far above the view, so its blur never opens the top. */
 export const WISP_EDGE_ABOVE = 200;
 /**
@@ -83,14 +88,14 @@ const WISP_EDGE_CROWN = WISP_EDGE_ABOVE + 40;
 const WISP_EDGE_BELOW = 40;
 export const WISP_EDGE_BUDGET = 2 ** 24;
 /** The foot's full-strength lip at the view's bottom edge, and how far the band is computed above it. */
-export const WISP_EDGE_FOOT_BAND = 16;
+export const WISP_EDGE_FOOT_BAND = 11;
 /**
  * The foot's own ramp, and how far above the edge its lip sits: taller than the top's (Matt: "Make the bottom
  * distortion taller"), so words start to smoke well before the edge and go on smoking down to it, where the top's
  * band is a lip just under the header.
  */
-export const WISP_EDGE_FOOT_SOFT = 44;
-export const WISP_EDGE_FOOT_LIFT = 36;
+export const WISP_EDGE_FOOT_SOFT = 29;
+export const WISP_EDGE_FOOT_LIFT = 24;
 /** How far below the band's lip the bend and blur are computed at all: past the strip's soft edge, with room for the drift. */
 export const WISP_EDGE_REACH = WISP_EDGE_BAND + WISP_EDGE_SOFT * 4 + 48;
 
@@ -354,7 +359,7 @@ export function useWispEdge(
         // ground, so what passes the clock is smoke rather than a flat fade (app.css .app-statusScrim).
         // Short, so the smoke has words to bend before they are gone: the lip sits a drop under the status bar, and a
         // fade that ran past it hid the bend and read as a black gradient (Matt: "not the cool effect").
-        el.style.setProperty('--wisp-top-fade', height ? '0px' : 'calc(var(--app-safe-top, 0px) + 12px)');
+        el.style.setProperty('--wisp-top-fade', height ? '0px' : 'calc(var(--app-safe-top, 0px) + 8px)');
       }
       if (worn && !masked) placeBand(beneath);
     };

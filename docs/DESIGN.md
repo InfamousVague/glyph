@@ -3793,3 +3793,14 @@ the end, the last line sat 126px above the foot. Under `.app-split` it is `--gla
 which keeps the last line off the very edge; the phone keeps the tall room. The reader page, where nothing is typed
 at all, takes the smaller one everywhere. Written in Editor.module.css at three classes, since the theme's own rule
 is two. Seen in the pane at 1280 wide: 126px became 42px, the last line ending a paragraph above the foot.
+
+## 85. The wisp's reach, a third shorter (2026-09-22)
+
+Matt: "The wisp effect travels a bit too far below the header and above the bottom part of the page, reduce how much
+room this animation / effect has by 33%". Every measure of how far the smoke reaches came down by a third, and
+nothing about how it looks or moves changed: the drift, the noise and the bend are as they were, over a shorter
+distance. The header's band 10 to 7 and its ramp 22 to 15, the drop under the header 18 to 12; the foot's band 16 to
+11, its ramp 44 to 29 and its lift off the edge 36 to 24; the mask's fades with them, 48px to 32px at the foot and
+29px to 19px at the top, and the top fade under a bar from 12px to 8px. The bend's computed reach follows from the
+band and the ramp, so it shortened on its own. wispMask.test.ts had the two ramps written out as 22 and 44; it now
+reads the constants, and asserts only that the foot's ramp is the taller of the two.

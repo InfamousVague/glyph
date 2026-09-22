@@ -470,14 +470,14 @@ body:has(.app-headerPane) .app-statusScrim {
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    #000 var(--wisp-top-fade, 29px),
+    #000 var(--wisp-top-fade, 19px),
     #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-foot-fade, 0px)),
     transparent calc(100% - var(--wisp-foot-inset, 0px))
   );
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    #000 var(--wisp-top-fade, 29px),
+    #000 var(--wisp-top-fade, 19px),
     #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-foot-fade, 0px)),
     transparent calc(100% - var(--wisp-foot-inset, 0px))
   );
@@ -491,7 +491,7 @@ body:has(.app-headerPane) .app-statusScrim {
 [data-wisp-foot] {
   /* Longer again, with the taller smoke over it (Matt: "Add a bit of combined black gradient or gradient opacity mask a
      bit too"): the words dim as they smoke rather than smoking at full strength into a cut. */
-  --wisp-foot-fade: 48px;
+  --wisp-foot-fade: 32px;
 }
 
 /* A view smoking at its foot alone is crisp at its top: nothing is going under the header yet. */
