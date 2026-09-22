@@ -23,10 +23,14 @@ export interface Chapter {
   line: number;
 }
 
-/** A list item, with what follows its marker. */
-const ITEM = /^(\s*)(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.*)$/;
-/** The first `[[link]]` on a line; a `#heading` or `|alias` after the title is not part of the title. */
-const LINK = /\[\[([^\]\n|#]{1,120})(?:[#|][^\]\n]*)?\]\]/;
+/** A list item: its indent, its marker, and what follows the marker (and a to-do's box). */
+const ITEM = /^(\s*)([-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.*)$/;
+/**
+ * A chapter's link, opening its item: `[[Title]]`, then whatever the index says about it. A `#heading` or `|alias`
+ * after the title is not part of the title. An item that starts with words and links a chapter in passing ("A market
+ * order never travels … ([[A market order is a limit order]])") is prose about the book, not a chapter of it.
+ */
+const LINK = /^\[\[([^\]\n|#]{1,120})(?:[#|][^\]\n]*)?\]\]/;
 
 /** Whether a note is a book: its front matter says so. */
 export function isBookBody(body: string): boolean {
@@ -41,10 +45,25 @@ export function bookNoteBody(title: string, chapters: readonly string[] = []): s
   return `---\ntitle: "${safe}"\nbook: true\n---\n# ${safe}\n\n${index}${index ? '\n' : ''}`;
 }
 
-/** The chapters of a book, in the index's order. */
+/**
+ * The chapters of a book, in the index's order: every list item that starts with a link. An index that numbers its
+ * chapters ("1. [[…]]") is that numbered list: a bullet list beside it at the top level - the book's canvases, its
+ * further reading - is about the book, not in it. Bullets indented under a numbered chapter are its chapters still.
+ */
 export function chaptersOf(body: string): Chapter[] {
+  const found: (Chapter & { ordered: boolean })[] = [];
+  for (const { item, n } of listItems(body)) {
+    const link = LINK.exec(item[3] ?? '');
+    if (!link) continue;
+    found.push({ title: link[1]!.trim(), depth: (item[1] ?? '').length >= 2 ? 1 : 0, line: n, ordered: /\d/.test(item[2] ?? '') });
+  }
+  const numbers = found.some((c) => c.ordered);
+  return found.filter((c) => !numbers || c.ordered || c.depth === 1).map(({ ordered: _ordered, ...chapter }) => chapter);
+}
+
+/** Every list item after the front matter, with its line. */
+function* listItems(body: string): Generator<{ item: RegExpExecArray; n: number }> {
   const lines = body.split('\n');
-  const chapters: Chapter[] = [];
   let inFrontMatter = /^(---|\+\+\+)\s*$/.test(lines[0] ?? '');
   for (let n = inFrontMatter ? 1 : 0; n < lines.length; n += 1) {
     const line = lines[n]!;
@@ -53,12 +72,8 @@ export function chaptersOf(body: string): Chapter[] {
       continue;
     }
     const item = ITEM.exec(line);
-    if (!item) continue;
-    const link = LINK.exec(item[2] ?? '');
-    if (!link) continue;
-    chapters.push({ title: link[1]!.trim(), depth: (item[1] ?? '').length >= 2 ? 1 : 0, line: n });
+    if (item) yield { item, n };
   }
-  return chapters;
 }
 
 /** The chapter numbers as the index shows them: "1", "2", "2.1", "2.2", "3". */
@@ -86,7 +101,10 @@ export function withChapter(body: string, title: string, after: string | null = 
   const place = after ? chapters.find((c) => sameTitle(c.title, after)) : chapters[chapters.length - 1];
   if (place) {
     const indent = place.depth === 1 ? '  ' : '';
-    lines.splice(place.line + 1, 0, `${indent}- [[${clean}]]`);
+    // In the index's own style: a numbered index goes on numbering, or the new chapter would be a bullet it skips.
+    const marker = /^\s*(\d+)([.)])/.exec(lines[place.line] ?? '');
+    const lead = marker ? `${Number(marker[1]) + 1}${marker[2]}` : '-';
+    lines.splice(place.line + 1, 0, `${indent}${lead} [[${clean}]]`);
     return lines.join('\n');
   }
   // No index yet: the first chapter goes at the end, after a blank line, and the body ends with a newline.
@@ -222,6 +240,8 @@ export function bodyWithoutTitle(body: string, title: string): string {
 export function prefaceOf(body: string): string[] {
   const lines = body.split('\n');
   const out: string[] = [];
+  // The index's own lines are drawn as the index; everything else, prose bullets included, is the book's words.
+  const indexLines = new Set(chaptersOf(body).map((c) => c.line));
   let inFrontMatter = /^(---|\+\+\+)\s*$/.test(lines[0] ?? '');
   for (let n = inFrontMatter ? 1 : 0; n < lines.length; n += 1) {
     const line = lines[n]!;
@@ -229,7 +249,7 @@ export function prefaceOf(body: string): string[] {
       if (/^(---|\+\+\+)\s*$/.test(line)) inFrontMatter = false;
       continue;
     }
-    if (ITEM.test(line) && LINK.test(line)) continue;
+    if (indexLines.has(n)) continue;
     // The heading that names the book is the header's, not the page's.
     if (n <= 5 && /^#\s+/.test(line) && out.length === 0) continue;
     if (line.trim()) out.push(line.trim());

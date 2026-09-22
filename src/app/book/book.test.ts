@@ -156,3 +156,63 @@ describe('the marks a list draws', () => {
     expect(placeOf(index, notes[1]!)?.book.id).toBe(bookOf(notes, 'Trees')?.book.id);
   });
 });
+
+describe('what counts as a chapter', () => {
+  // The shape of Matt's HelloTrade book: a numbered index in parts, then a bullet list of canvases, then prose bullets
+  // that link chapters in passing.
+  const HELLO = [
+    '---',
+    'title: Hello.Trade: The Book',
+    'book: true',
+    '---',
+    '# Hello.Trade: The Book',
+    '',
+    '_Everything known, in short chapters._',
+    '',
+    '## Part I',
+    '',
+    '1. [[The two things you can trade]]',
+    '2. [[Leverage, and what it costs you]] — worth reading twice',
+    '',
+    '## Part II',
+    '',
+    '3. [[HelloTrade in one page]]',
+    '   - [[A page inside it]]',
+    '',
+    '## The canvases',
+    '',
+    '- [[Canvas · The tick path]] — embedded in a chapter.',
+    '',
+    '## Five things worth knowing',
+    '',
+    '- A **market order** is a limit order ([[HelloTrade in one page]]).',
+    '- **The key is never on the device** ([[Leverage, and what it costs you]]).',
+  ].join('\n');
+
+  it('is a numbered item that starts with its link, and the bullets indented under one', () => {
+    expect(chaptersOf(HELLO).map((c) => [c.title, c.depth])).toEqual([
+      ['The two things you can trade', 0],
+      ['Leverage, and what it costs you', 0],
+      ['HelloTrade in one page', 0],
+      ['A page inside it', 1],
+    ]);
+  });
+
+  it('keeps the side lists and the prose bullets as the book’s words, over the index', () => {
+    const preface = prefaceOf(HELLO);
+    expect(preface).toContain('- [[Canvas · The tick path]] — embedded in a chapter.');
+    expect(preface).toContain('- A **market order** is a limit order ([[HelloTrade in one page]]).');
+    expect(preface).not.toContain('1. [[The two things you can trade]]');
+  });
+
+  it('still reads an index of bullets, as the app writes one, and skips a bullet that only mentions a note', () => {
+    const plain = bookNoteBody('Trip', ['Packing', 'Route']) + '- We decided in [[Planning]].\n';
+    expect(chaptersOf(plain).map((c) => c.title)).toEqual(['Packing', 'Route']);
+  });
+
+  it('adds a chapter to a numbered index as the next number, so it counts', () => {
+    const next = withChapter(HELLO, 'New chapter', 'Leverage, and what it costs you');
+    expect(next).toContain('2. [[Leverage, and what it costs you]] — worth reading twice\n3. [[New chapter]]');
+    expect(chaptersOf(next).map((c) => c.title)).toContain('New chapter');
+  });
+});
