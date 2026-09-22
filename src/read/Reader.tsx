@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Download, Plus } from '@glacier/icons';
+import { Download, Plus } from '@glacier/icons';
 import { Editor } from '../app/editor/Editor.tsx';
 import { CanvasView } from '../app/canvas/CanvasView.tsx';
 import { canvasOf, isCanvasBody } from '../app/canvas/jsonCanvas.ts';
-import { BookBar } from '../app/book/BookView.tsx';
-import { bookOf, chaptersOf, numbered } from '../app/book/book.ts';
+import { BookBar, BookView } from '../app/book/BookView.tsx';
+import { bookOf } from '../app/book/book.ts';
+import { usePreferences } from '../app/core/preferences.ts';
 import { sameTitle } from '../app/editor/wikiLinks.ts';
 import { noteTitle, type Note } from '../app/core/store.ts';
 import { readShared, readShareLink, sharedAsFile, type Shared } from '../app/share/share.ts';
@@ -88,6 +89,11 @@ function Read({
   // The share's pages as notes, so the book's own helpers find the index and a chapter's place in it.
   const notes = useMemo(() => shared.pages.map((p, i) => ({ id: `page-${i}`, body: p.body, createdAt: 0, updatedAt: 0, source: 'editor' }) as Note), [shared]);
   const indexOf = (title: string) => shared.pages.findIndex((p) => sameTitle(p.title, title));
+  /** A page's words by its title, as the app's views ask for them (a canvas card that is a note, a canvas chapter). */
+  const bodyOf = (title: string) => shared.pages[indexOf(title)]?.body ?? null;
+  const titles = () => shared.pages.map((p) => p.title);
+  // The note's view as the app would open it for someone who has never changed it: its default (core/preferences.ts).
+  const { noteView } = usePreferences();
   const open = (title: string) => {
     const at = indexOf(title);
     if (at >= 0) {
@@ -171,12 +177,16 @@ function Read({
       {isBook && page > 0 && place ? <BookBar place={place} open={(t) => (sameTitle(t, shared.title) ? setPage(0) : open(t))} /> : null}
 
       {isBook && page === 0 ? (
-        <BookIndex shared={shared} open={open} />
+        <article className={styles.note}>
+          <h1 className={styles.title}>{shared.title}</h1>
+          {/* The app's own index (book/BookView.tsx), read-only: its numbers, preface, canvas marks and read-through. */}
+          <BookView body={shared.pages[0]!.body} title={shared.title} known={(t) => indexOf(t) > 0} open={open} titles={titles} bodyOf={bodyOf} onChange={readOnly} readOnly dark={dark} />
+        </article>
       ) : canvas ? (
         <>
           <h1 className={styles.title}>{current.title}</h1>
           <div className={styles.canvas}>
-            <CanvasView canvas={canvas} dark={dark} wiki={{ known: (t) => indexOf(t) >= 0, open }} />
+            <CanvasView canvas={canvas} dark={dark} wiki={{ known: (t) => indexOf(t) >= 0, open, body: bodyOf, titles }} />
           </div>
         </>
       ) : (
@@ -188,8 +198,9 @@ function Read({
             dark={dark}
             assist={false}
             readOnly
-            display="formatted"
+            display={noteView}
             wiki={{ known: (t) => indexOf(t) >= 0, open }}
+            grow
           />
         </article>
       )}
@@ -200,34 +211,4 @@ function Read({
 
 function readOnly(): void {
   // Nothing typed here comes back: the page is read-only.
-}
-
-/** A book's index, read-only: its chapters in order, numbered, each opening its page; one with no page says so. */
-function BookIndex({ shared, open }: { shared: Shared; open: (title: string) => void }) {
-  const chapters = chaptersOf(shared.pages[0]!.body);
-  const numbers = numbered(chapters);
-  const has = (t: string) => shared.pages.some((p, i) => i > 0 && sameTitle(p.title, t));
-  return (
-    <article className={styles.note}>
-      <h1 className={styles.title}>
-        <BookOpen size={22} aria-hidden="true" /> {shared.title}
-      </h1>
-      <ol className={styles.chapters} aria-label="Chapters">
-        {chapters.map((chapter, i) => (
-          <li key={`${chapter.line}-${chapter.title}`} data-depth={chapter.depth}>
-            <span className={styles.number} aria-hidden="true">
-              {numbers[i]}
-            </span>
-            {has(chapter.title) ? (
-              <button type="button" className={styles.chapter} onClick={() => open(chapter.title)}>
-                {chapter.title}
-              </button>
-            ) : (
-              <span className={styles.waiting}>{chapter.title} · not written yet</span>
-            )}
-          </li>
-        ))}
-      </ol>
-    </article>
-  );
 }

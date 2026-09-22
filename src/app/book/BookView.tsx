@@ -35,6 +35,13 @@ interface BookViewProps {
   onChange: (body: string) => void;
   /** A note's body by its title, to tell a chapter that is a canvas from one of words; absent, none is marked. */
   bodyOf?: (title: string) => string | null;
+  /**
+   * Read, not changed: no grips, no move or take-out tools, nothing to add. The index, the preface, the canvas marks
+   * and reading straight through stay. The reader page (src/read/Reader.tsx) draws a shared book with this.
+   */
+  readOnly?: boolean;
+  /** Dark or light, where the page decides rather than the preference (the reader page follows the reader's system). */
+  dark?: boolean;
 }
 
 /** The canvas's mark, beside a title that is a canvas. */
@@ -46,7 +53,7 @@ function CanvasMark() {
   );
 }
 
-export function BookView({ body, known, open, titles, title, onChange, bodyOf }: BookViewProps) {
+export function BookView({ body, known, open, titles, title, onChange, bodyOf, readOnly = false, dark: darkGiven }: BookViewProps) {
   const isCanvas = (name: string) => {
     const found = bodyOf?.(name);
     return !!found && isCanvasBody(found);
@@ -57,7 +64,8 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
   const [adding, setAdding] = useState<'new' | 'existing' | null>(null);
   /** Reading straight through: the chapters one after another, each in the note's own read-only editor. */
   const [reading, setReading] = useState(false);
-  const dark = isDarkNow(usePreferences().theme);
+  const themeDark = isDarkNow(usePreferences().theme);
+  const dark = darkGiven ?? themeDark;
   const [draft, setDraft] = useState('');
   const [filter, setFilter] = useState('');
   /** The notes ticked so far in the picker, in the order they were ticked. */
@@ -145,7 +153,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
   }
 
   return (
-    <div className={styles.book} data-chapters={chapters.length}>
+    <div className={styles.book} data-chapters={chapters.length} data-read-only={readOnly || undefined}>
       {preface.length > 0 ? (
         <div className={styles.preface}>
           {preface.map((line, i) => (
@@ -154,7 +162,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
         </div>
       ) : null}
       {chapters.length === 0 ? (
-        <p className={styles.empty}>No chapters yet. Add one below, or a note you have already written.</p>
+        <p className={styles.empty}>{readOnly ? 'No chapters yet.' : 'No chapters yet. Add one below, or a note you have already written.'}</p>
       ) : (
         <ol className={styles.index} aria-label="Chapters">
           {chapters.map((chapter, i) => {
@@ -169,9 +177,11 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
                 data-lifted={drag.lifted?.index === i || undefined}
                 style={drag.rowStyle(i)}
               >
-                <span className={styles.grip} aria-hidden="true" {...drag.grip(i)}>
-                  <GripVertical size={16} />
-                </span>
+                {readOnly ? null : (
+                  <span className={styles.grip} aria-hidden="true" {...drag.grip(i)}>
+                    <GripVertical size={16} />
+                  </span>
+                )}
                 <span className={styles.number} aria-hidden="true">
                   {numbers[i]}
                 </span>
@@ -187,6 +197,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
                   </span>
                   {there ? null : <span className={styles.waiting}>not written yet</span>}
                 </button>
+                {readOnly ? null : (
                 <span className={styles.tools}>
                   <button type="button" className={styles.tool} aria-label={`Move ${chapter.title} up`} disabled={i === 0} onClick={() => onChange(withChapterMoved(body, chapter.title, -1))}>
                     <ChevronUp size={16} aria-hidden="true" />
@@ -198,13 +209,22 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
                     <X size={16} aria-hidden="true" />
                   </button>
                 </span>
+                )}
               </li>
             );
           })}
         </ol>
       )}
 
-      {adding === 'new' ? (
+      {readOnly ? (
+        chapters.length ? (
+          <div className={styles.adds}>
+            <button type="button" className={styles.action} onClick={() => setReading(true)}>
+              <BookOpen size={16} aria-hidden="true" /> Read straight through
+            </button>
+          </div>
+        ) : null
+      ) : adding === 'new' ? (
         <form
           className={styles.add}
           onSubmit={(event) => {

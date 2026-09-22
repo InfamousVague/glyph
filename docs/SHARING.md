@@ -58,9 +58,14 @@ The `shares` table cascades on the account, so deleting an account deletes its s
 
 read.html is a second Vite entry (src/read/). It is built only from the app's own parts:
 
-- the note's editor, read-only and in its formatted view;
-- the canvas, read-only;
-- a book's index as a list of chapters, and the bar a chapter wears, stepping only between chapters in the share.
+- **A note:** the note's editor, read-only, in the view a new app opens notes in (the preference's default, the
+  marks dimmed on the page), with the same `grow` layout as the note screen.
+- **A canvas:** the canvas, read-only, its note cards drawing the share's pages.
+- **A book:** the app's own index (book/BookView.tsx with `readOnly`): the preface, numbers, canvas marks, "not
+  written yet" and reading straight through. There are no grips, tools or adding. A chapter wears the bar the app
+  gives it, stepping only between chapters in the share.
+
+Nothing on the page is drawn by code of its own, so a change to how the app draws a note or a book reaches it too.
 
 It follows the system's light or dark setting. A slim banner across the top, sticky, holds the name, "Get the app"
 (install.html beside it; on a phone the banner keeps only that link) and two small buttons for keeping what's shared:

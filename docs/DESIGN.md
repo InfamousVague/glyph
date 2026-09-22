@@ -3739,3 +3739,17 @@ line with "Get the app" (the install page beside the reader), and two small butt
 ".zip". The buttons dropped the app's `app-word` class, whose tap-target height made them 63px tall. They're 32px
 now, still a thumb's width. On a phone the line keeps only "Get the app". The save panel ends with "No app yet?
 Get Ghost.md". Seen in the pane at 1280 and 375 wide: the banner is 54px and 51px, with no sideways scroll.
+
+## 82. The reader page draws with the app's own code (2026-09-22)
+
+Matt: "For read.html use the exact code we use for formatting the note and stuff so it matches the formatting of
+books and such that the real app uses". Two parts of the reader differed from the app.
+
+- **Books.** The reader had its own list of chapters. It now uses book/BookView.tsx with a new `readOnly` prop,
+  which hides the grips (and so the drag), the move and take-out tools, and adding. The preface, numbers, canvas
+  marks and "Read straight through" stay. A `dark` prop lets the reader's system setting win over the preference,
+  which defaults to dark, so a read-through in light mode draws light.
+- **Notes.** The reader showed the Formatted view, with the marks hidden. The app opens a note in the preference's
+  default, Markdown with the marks dimmed, so the reader now does the same, with the note screen's `grow`.
+- **Seen in the pane:** a book with a preface, a formatted chapter, a canvas and one not written. The index,
+  chapter and read-through match the app at 1280 and 375 wide, dark and light.

@@ -134,45 +134,7 @@
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
 }
 
-.chapters {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.chapters li {
-  display: flex;
-  align-items: baseline;
-  gap: var(--glacier-space-3);
-  padding-block: var(--glacier-space-2);
-  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
-}
-
-.chapters li[data-depth='1'] {
-  padding-inline-start: var(--glacier-space-5);
-}
-
-.number {
-  min-inline-size: 2ch;
-  color: var(--glacier-text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.chapter {
-  appearance: none;
-  padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-
-.chapter:hover {
-  text-decoration: underline;
-}
-
-.waiting {
-  color: var(--glacier-text-muted);
+/* The app's book view (book/BookView.tsx) pads itself for the note screen; here the page is the column. */
+.note > [data-chapters] {
+  padding-inline: 0;
 }

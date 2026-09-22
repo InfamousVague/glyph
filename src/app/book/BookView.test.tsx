@@ -123,6 +123,19 @@ describe('the index view', () => {
     ]);
   });
 
+  it('read-only, draws the same numbered index with nothing to move, take out or add, and still reads straight through', () => {
+    const open = vi.fn();
+    show(<BookView body={BOOK} title="Field guide" known={(t) => t !== 'Birds'} open={open} titles={() => []} onChange={() => {}} readOnly />);
+    expect(rows()).toEqual(['Introduction', 'Trees', 'Birds']);
+    for (const label of ['Move Birds up', 'Take Trees out of the book', 'Add a chapter', 'Add a note you have']) {
+      expect(document.querySelector(`button[aria-label="${label}"]`) ?? [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === label)).toBeFalsy();
+    }
+    expect(document.querySelector('[class*=grip]')).toBeNull();
+    act(() => button('Trees').click());
+    expect(open).toHaveBeenCalledWith('Trees');
+    expect(button('Read straight through')).toBeTruthy();
+  });
+
   it('says so when the book has no chapters', () => {
     show(<BookView body={bookNoteBody('Trip')} title="Trip" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} />);
     expect(document.body.textContent).toContain('No chapters yet');

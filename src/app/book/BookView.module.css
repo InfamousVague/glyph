@@ -36,6 +36,11 @@
   border-block-end: 1px solid var(--glacier-border-subtle);
 }
 
+/* Read-only (the reader page): no grip in front and no tools behind, so the number leads. */
+.book[data-read-only] .row {
+  grid-template-columns: 2em minmax(0, 1fr);
+}
+
 .row[data-depth='1'] {
   padding-inline-start: 1.6em;
 }
