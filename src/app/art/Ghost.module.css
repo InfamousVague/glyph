@@ -5,13 +5,13 @@
 .ghost {
   display: block;
   flex: none;
-  aspect-ratio: 1;
+  aspect-ratio: var(--ghost-ratio, 1);
   /*
    * As big as the room allows (Matt: "they can be larger even still, try to fill 100% width or available height
    * without going too big"): the column's whole width, but never more than part of the window's height, so it fits
    * on the screen without scrolling, and never more than a ceiling, so a large monitor does not get a poster.
    */
-  inline-size: min(100%, 40dvh, 28rem);
+  inline-size: min(100%, 28rem, calc(40dvh * var(--ghost-ratio, 1)));
   color: var(--app-ink-3, var(--glacier-text-muted));
   background-color: currentColor;
   -webkit-mask-image: var(--ghost-image);
@@ -26,13 +26,17 @@
 }
 
 .ghost[data-size='lead'] {
-  inline-size: min(100%, 60dvh, 36rem);
+  /* 45% of the height, not more: the page it leads has a header, a date and a notice above it and a dock below, and
+     at 60% a cropped ghost ran behind the dock's buttons on a laptop screen. */
+  inline-size: min(100%, 36rem, calc(45dvh * var(--ghost-ratio, 1)));
 }
 
 .ghost[data-align='center'] {
   margin-inline: auto;
 }
 
+/* In a card: the height of a couple of lines of its words, so the card stays the size of a notice. */
 .ghost[data-size='tiny'] {
-  inline-size: 9rem;
+  inline-size: auto;
+  block-size: 3rem;
 }

@@ -47,3 +47,24 @@ export const GHOSTS: Record<GhostScene, string> = {
   welcome,
   update,
 };
+
+/**
+ * Each picture's width over its height. The pictures are cropped to the drawing (Matt: "trim all the white space from
+ * around the images"), so none of them is square any more, and the box each is drawn in takes its shape from this.
+ */
+export const GHOST_RATIOS: Record<GhostScene, number> = {
+  'no-notes': 811 / 1024,
+  'empty-workspace': 1024 / 980,
+  'new-note': 1024 / 949,
+  'search-nothing': 594 / 1024,
+  'trash-empty': 295 / 1024,
+  'archive-empty': 863 / 1024,
+  listening: 1005 / 1024,
+  working: 728 / 1024,
+  'empty-canvas': 1024 / 697,
+  'all-ticked': 649 / 1024,
+  'signed-out': 1024 / 908,
+  'went-wrong': 874 / 1024,
+  welcome: 709 / 1024,
+  update: 776 / 1024,
+};

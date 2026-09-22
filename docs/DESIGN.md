@@ -3445,3 +3445,21 @@ available height without going too big."
 - **Two places needed a definite size to be a share of.** The wide home page's side-by-side grid had an auto column
   sized by the ghost, and a width of 100% of that is circular; it is now three parts to the words' two. The empty
   canvas centres its ghost in a grid sized by its content, so its ghost is sized by the screen instead.
+
+## 68. The ghosts cropped to their drawings, and a small one in the update card (2026-09-22)
+
+Matt: "Trim all the white space from around the images we recently added and make the one on the update banner
+smaller as right now it makes the update banner huge."
+
+- **Cropped.** Each picture was a square with the drawing in its middle. Now each is cut to its drawing with a 2%
+  edge so no dot is lost, remade from the original at 1024px on its long side (2.6 MB for all fourteen). None is
+  square any more - from 0.29 wide per unit of height (the trash) to 1.47 (the empty canvas) - so each ghost's box
+  takes its picture's shape (`GHOST_RATIOS` in art/ghosts.ts, `--ghost-ratio`), and the limits on height are limits on
+  the drawing: a ghost is its column's width, up to 28rem, and up to 40% of the window's height.
+- **The update card's ghost is 3rem tall**, about two lines of the card's words: 36 by 48px, and the card 84px tall,
+  measured with the real card mounted in the browser. At 9rem wide it had made the card as tall as the ghost.
+- **The home page, measured after cropping.** A cropped ghost fills its box, so the old limit put the empty home page's
+  ghost behind the dock's buttons on a laptop (its foot at 777px, the dock at 738 in an 800px window), and on a phone
+  put the second line of words under the dock. Leading a page it is now up to 45% of the height beside its words and
+  38% stacked over them: 360px tall ending at 657 on a laptop, 309px ending at 590 on a phone, the words clear of the
+  dock on both.

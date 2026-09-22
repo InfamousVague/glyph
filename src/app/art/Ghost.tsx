@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import styles from './Ghost.module.css';
-import { GHOSTS, type GhostScene } from './ghosts.ts';
+import { GHOST_RATIOS, GHOSTS, type GhostScene } from './ghosts.ts';
 /**
  * The ghost, Ghost.md's mascot, for the app's empty pages and quiet moments (docs/GHOSTS.md).
  *
@@ -15,10 +15,12 @@ import { GHOSTS, type GhostScene } from './ghosts.ts';
  */
 
 /**
- * `lead`, where the picture leads a page (the empty home page): the column's width, up to 60% of the window's height
+ * `lead`, where the picture leads a page (the empty home page): the column's width, up to 45% of the window's height
  * and 36rem. `small`, under or beside words: the column's width, up to 40% of the height and 28rem. `tiny`, inside a
- * card: 9rem. Matt asked for them bigger twice ("at least 4x more space", then "fill 100% width or available height
- * without going too big"), which is why the pictures are 1024px masks. They sit still; they used to drift.
+ * card: 3rem tall. Matt asked for them bigger twice ("at least 4x more space", then "fill 100% width or available
+ * height without going too big"), which is why the pictures are 1024px masks, and for the card's to be smaller ("it
+ * makes the update banner huge"). They sit still; they used to drift. Each picture is cropped to its drawing and
+ * keeps its own shape (`GHOST_RATIOS`), so the limits on height are limits on the drawing, not on a square round it.
  */
 export type GhostSize = 'lead' | 'small' | 'tiny';
 
@@ -34,6 +36,6 @@ export function Ghost({
   align?: 'start' | 'center';
   className?: string;
 }) {
-  const style = { '--ghost-image': `url("${GHOSTS[scene]}")` } as CSSProperties;
+  const style = { '--ghost-image': `url("${GHOSTS[scene]}")`, '--ghost-ratio': GHOST_RATIOS[scene] } as CSSProperties;
   return <span className={`${styles.ghost}${className ? ` ${className}` : ''}`} data-size={size} data-align={align} data-scene={scene} style={style} aria-hidden="true" />;
 }

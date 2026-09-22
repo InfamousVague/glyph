@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Ghost } from './Ghost.tsx';
-import { GHOSTS, type GhostScene } from './ghosts.ts';
+import { GHOST_RATIOS, GHOSTS, type GhostScene } from './ghosts.ts';
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -33,6 +33,8 @@ describe('the ghost', () => {
     expect(ghost.getAttribute('data-size')).toBe('lead');
     expect(ghost.getAttribute('data-align')).toBe('center');
     expect(ghost.style.getPropertyValue('--ghost-image')).toBe(`url("${GHOSTS['no-notes']}")`);
+    // Its own shape, cropped to the drawing: no picture is a square with room round it any more.
+    expect(Number(ghost.style.getPropertyValue('--ghost-ratio'))).toBeCloseTo(GHOST_RATIOS['no-notes']);
   });
 
   it('is small and at the start unless told otherwise, and keeps a class it is given', () => {
