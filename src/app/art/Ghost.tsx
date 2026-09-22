@@ -15,8 +15,9 @@ import { GHOSTS, type GhostScene } from './ghosts.ts';
  */
 
 /**
- * `lead`, where the picture leads a page (the empty home page): 12.5rem. `small`, under or beside words: 7.5rem, the
- * size the abstract shapes had. `tiny`, inside a card: 4.5rem.
+ * `lead`, where the picture leads a page (the empty home page): 25rem. `small`, under or beside words: 15rem. `tiny`,
+ * inside a card: 9rem. Each is capped at its column's width. Twice the first sizes each way (Matt: "the graphics are
+ * too small they should take up at least 4x more space"), which is why the pictures are 1024px masks.
  */
 export type GhostSize = 'lead' | 'small' | 'tiny';
 

@@ -3380,3 +3380,9 @@ update" (docs/GHOSTS.md has the prompts and the table of where each went).
   screen - and it goes at the first word and comes back if the note is emptied.
 - **"Every to-do is done"** needs to know there were to-dos: `tickedTasks` counts the ticked ones (outside code
   fences and the archive), so a page that never had any says nothing.
+- **Then twice the size each way** (Matt: "the graphics are too small they should take up at least 4x more space"):
+  25rem leading a page, 15rem beside words, 9rem in a card, each capped at its column so a phone's leading ghost
+  fills the page's width (331px at 375) rather than overflowing. The masks were remade at 1024px so they stay sharp
+  at that size on a 3x screen: 2.0 MB for all fourteen. At 400px the empty home page's stack put "A blank page." at
+  the foot of a laptop screen, under the foot's smoke, so where the page is wider than 44rem the ghost and its
+  words sit side by side (a container query on the home page's column).

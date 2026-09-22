@@ -109,12 +109,39 @@
   padding-block: var(--glacier-space-6) var(--glacier-space-8);
 }
 
-/* The empty list's picture (art/Shapes.tsx), in grey under the words' weight. */
+/* The empty page's ghost (art/Ghost.tsx), in grey under the words' weight. */
 .emptyArt {
   display: block;
-  inline-size: 7.5rem;
   margin-block-end: var(--glacier-space-5);
   color: var(--app-ink-3);
+}
+
+/*
+ * On a page wide enough, the ghost and its words sit side by side. At the ghost's full size (Matt: "the graphics are
+ * too small they should take up at least 4x more space") a stack put "A blank page." at the foot of a laptop screen,
+ * under the foot's smoke; beside the ghost the words are at its middle, where they are read.
+ */
+@container home-page (min-width: 44rem) {
+  .empty {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: var(--glacier-space-6);
+    align-content: center;
+  }
+
+  .emptyArt {
+    grid-row: 1 / span 2;
+    margin-block-end: 0;
+  }
+
+  .emptyLead {
+    align-self: end;
+  }
+
+  .emptyHint {
+    align-self: start;
+  }
 }
 
 .emptyLead {
@@ -236,6 +263,8 @@
 .page {
   max-inline-size: 60rem;
   margin-inline: auto;
+  /* Measured by the empty state, which lays its ghost beside its words when the page is wide (`.empty`). */
+  container: home-page / inline-size;
 }
 
 /* Today, quietly, where the page begins: the one line that is about now rather than about a note. */

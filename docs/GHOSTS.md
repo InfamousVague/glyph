@@ -3,8 +3,9 @@
 Ghost.md's mascot, drawn for the empty pages and quiet moments of the app. Matt (2026-09-20): "default vector character graphics of ghosts for the notes for things like empty pages and new notes etc etc like bear notes does".
 
 **Shipped, 2026-09-22.** Matt generated the fourteen scenes (2-15) in dotwork and asked for them wired in: "process
-them to be smaller sizes and then wire them all and ship an OTA update". Each 2048px PNG (2-4 MB) became a 600px WebP
-mask of 28-55 KB, 608 KB for all fourteen (`src/app/art/ghosts/`), drawn by `art/Ghost.tsx`: the dots are the
+them to be smaller sizes and then wire them all and ship an OTA update". Each 2048px PNG (2-4 MB) became a WebP mask -
+600px at first, then 1024px when the ghosts were drawn twice as big ("they should take up at least 4x more space"),
+2.0 MB for all fourteen (`src/app/art/ghosts/`) - drawn by `art/Ghost.tsx`: the dots are the
 image's alpha and the element paints them in `currentColor`, so the same file is black on the light page and white on
 the dark one. Only a light set came - both zips held the same light images - and none was needed. Where each went:
 

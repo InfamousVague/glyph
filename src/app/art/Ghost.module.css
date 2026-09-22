@@ -6,7 +6,9 @@
   display: block;
   flex: none;
   aspect-ratio: 1;
-  inline-size: 7.5rem;
+  inline-size: 15rem;
+  /* Never wider than the column it sits in: on a phone the leading ghost fills the page's width, not more. */
+  max-inline-size: 100%;
   color: var(--app-ink-3, var(--glacier-text-muted));
   background-color: currentColor;
   -webkit-mask-image: var(--ghost-image);
@@ -25,7 +27,7 @@
 }
 
 .ghost[data-size='lead'] {
-  inline-size: 12.5rem;
+  inline-size: 25rem;
 }
 
 .ghost[data-align='center'] {
@@ -33,7 +35,7 @@
 }
 
 .ghost[data-size='tiny'] {
-  inline-size: 4.5rem;
+  inline-size: 9rem;
   animation: none;
 }
 
