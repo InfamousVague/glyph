@@ -3404,7 +3404,7 @@ Three asks in a row from Matt.
   and one example, short, ending with press-and-hold Style. It still holds one of every mark the editor draws - its
   test says so - so it is still the note that shows everything, only now in the order a person learns it.
 
-## 64. The strip behind the clock is the bar (2026-09-22)
+## 66. The strip behind the clock is the bar (2026-09-22)
 
 Matt, of the Fold's inner screen: "The very top bar where the time and battery and stuff show up still has the
 missing semiopaque black background like the rest of the headers have so it looks different." Two sessions had read
