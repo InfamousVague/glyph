@@ -244,6 +244,11 @@
   justify-self: end;
 }
 
+/* A side sized to its title would spill out of its column on a phone and run into the count; it shrinks instead. */
+.end {
+  max-inline-size: 100%;
+}
+
 .end:disabled {
   opacity: 0;
   pointer-events: none;

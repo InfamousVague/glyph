@@ -113,5 +113,7 @@ export default defineConfig({
     // hot-reload socket must be told the Mac's real address; the CLI passes it as TAURI_DEV_HOST.
     ...(process.env.TAURI_DEV_HOST ? { host: '0.0.0.0', hmr: { host: process.env.TAURI_DEV_HOST, protocol: 'ws', port: portFromArgs() } } : {}),
   },
+  // Two pages: the app, and the reader a shared note or book opens in (read.html, src/read, docs/SHARING.md).
+  build: { rollupOptions: { input: { main: join(root, 'index.html'), read: join(root, 'read.html') } } },
   clearScreen: false,
 });

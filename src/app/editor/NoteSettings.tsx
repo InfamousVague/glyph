@@ -10,6 +10,7 @@ import type { NoteEditing, NoteLink } from '../plugins/types.ts';
 import { MODES, type Mode } from '../format/modes.ts';
 import { Robot } from '../art/Icons.tsx';
 import { WorkspacePicker } from './WorkspacePicker.tsx';
+import { ShareRows } from '../share/ShareRows.tsx';
 import type { NoteView } from './viewMode.ts';
 import styles from './NoteSettings.module.css';
 import { useSheetDrag } from './sheetDrag.ts';
@@ -224,6 +225,9 @@ export function NoteSettings({
             </div>
           </>
         ) : null}
+
+        {/* Read by anyone with its link, and nobody else (share/share.ts, docs/SHARING.md). */}
+        <ShareRows noteId={noteId} />
 
         {/* The group under AI, named like the rest of them (Matt: "the section under AI is not labeled"). */}
         <p className={styles.heading}>Where it sits</p>

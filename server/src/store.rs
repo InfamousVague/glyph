@@ -62,6 +62,16 @@ CREATE TABLE IF NOT EXISTS prefs (
     blob       TEXT NOT NULL,
     updated_at INTEGER NOT NULL
 );
+-- A note or a book shared by its link (server/src/shares.rs): the owner, and ciphertext sealed under a key only the
+-- link carries. Taken down with its owner's account.
+CREATE TABLE IF NOT EXISTS shares (
+    id         TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    blob       TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS shares_by_owner ON shares(account_id);
 CREATE TABLE IF NOT EXISTS recordings (
     account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
     id         TEXT NOT NULL,
@@ -95,6 +105,17 @@ pub enum WriteError {
     Stale(NoteRow),
     /// Something below the rules failed.
     Db(String),
+}
+
+/// Why a share was not written.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ShareWrite {
+    /// The id is another account's share.
+    Taken,
+    /// The account already keeps as many shares as it may.
+    Full,
+    /// Something below the rules failed.
+    Failed,
 }
 
 impl From<rusqlite::Error> for WriteError {
@@ -343,6 +364,66 @@ impl Store {
         .map_err(|_| None)?;
         tx.commit().map_err(|_| None)?;
         Ok(rev)
+    }
+
+    // --- shares -----------------------------------------------------------------
+
+    /// Writes an account's share: made if new, written again if it is theirs; refused if it is another's, or if a new
+    /// one would take the account past `most`. Answers when it was written.
+    pub fn put_share(&self, account: i64, id: &str, blob: &str, now: i64, most: i64) -> Result<i64, ShareWrite> {
+        let mut conn = self.lock();
+        let tx = conn.transaction().map_err(|_| ShareWrite::Failed)?;
+        let owner: Option<i64> = tx
+            .query_row("SELECT account_id FROM shares WHERE id = ?1", params![id], |r| r.get(0))
+            .optional()
+            .map_err(|_| ShareWrite::Failed)?;
+        match owner {
+            Some(owner) if owner != account => return Err(ShareWrite::Taken),
+            Some(_) => {
+                tx.execute("UPDATE shares SET blob = ?1, updated_at = ?2 WHERE id = ?3", params![blob, now, id]).map_err(|_| ShareWrite::Failed)?;
+            }
+            None => {
+                let kept: i64 = tx
+                    .query_row("SELECT COUNT(*) FROM shares WHERE account_id = ?1", params![account], |r| r.get(0))
+                    .map_err(|_| ShareWrite::Failed)?;
+                if kept >= most {
+                    return Err(ShareWrite::Full);
+                }
+                tx.execute(
+                    "INSERT INTO shares (id, account_id, blob, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
+                    params![id, account, blob, now],
+                )
+                .map_err(|_| ShareWrite::Failed)?;
+            }
+        }
+        tx.commit().map_err(|_| ShareWrite::Failed)?;
+        Ok(now)
+    }
+
+    /// A share's ciphertext and when it was last written, for anyone who has its id.
+    pub fn share(&self, id: &str) -> Option<(String, i64)> {
+        self.lock()
+            .query_row("SELECT blob, updated_at FROM shares WHERE id = ?1", params![id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .optional()
+            .ok()
+            .flatten()
+    }
+
+    /// Takes down an account's share; another's, or none, is left as it is. Answers whether one went.
+    pub fn delete_share(&self, account: i64, id: &str) -> bool {
+        self.lock().execute("DELETE FROM shares WHERE id = ?1 AND account_id = ?2", params![id, account]).map(|n| n > 0).unwrap_or(false)
+    }
+
+    /// An account's shares, newest written first: their ids and when each was written.
+    pub fn shares_of(&self, account: i64) -> Vec<(String, i64)> {
+        let conn = self.lock();
+        let Ok(mut statement) = conn.prepare("SELECT id, updated_at FROM shares WHERE account_id = ?1 ORDER BY updated_at DESC") else {
+            return Vec::new();
+        };
+        statement
+            .query_map(params![account], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map(|rows| rows.filter_map(Result::ok).collect())
+            .unwrap_or_default()
     }
 
     // --- recordings -------------------------------------------------------------

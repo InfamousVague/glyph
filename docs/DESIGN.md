@@ -3588,3 +3588,30 @@ answers I can click on"), built together.
   deploy of their own.
 - **A chapter made twice, prevented.** App.tsx `openTitle` made a note by a title from the list in hand, which can
   be a moment old; it asks the store again first.
+
+## 74. Sharing a note or a book by a read-only link (2026-09-22)
+
+Matt: "I'd like to be able to share books and notes with people online and allow them to read only the notes and
+give them areas to fork the note into their own Ghost.md app." His answers: anyone with the link, encrypted; the
+share follows his edits; a small reader page made only of the app's own parts; and keeping a copy either as a
+Markdown download or as a copy saved into the reader's app. docs/SHARING.md has the whole of it.
+
+- **The key stays in the link.** A share is sealed on the owner's device with a key of its own, and the key rides
+  after the `#`, which browsers never send. The server holds ciphertext by an id, the same promise sync makes.
+- **Edits follow.** Three seconds after a save, any share whose note (or, for a book, any chapter) changed is
+  sealed and sent again under the same link. Stopping a share deletes it.
+- **The reader page** is read.html, a second Vite entry: the editor read-only in its formatted view, the canvas
+  read-only, a book's index and its chapter bar. It adds nothing the app doesn't already draw, so the formatted
+  view's kept marks (a to-do's box, a wiki link's brackets) show here as they do there.
+- **Keeping a copy.** Download gives the `.md`, or a `.zip` of a book's pages. Saving goes through the web app's
+  `#fork=` or, in the phone and Mac apps, the + sheet's new "From a shared link". A copy is the reader's own: it
+  doesn't follow, clashing titles take "(shared)", and a book's index is rewritten to name the copies.
+- **The book bar on a phone.** A side of the bar was sized to its title and ran into the count at 375px wide; it
+  now shrinks with an ellipsis, in the app as well as on the reader page.
+- **Server:** a `shares` table and four routes beside sync (server/src/shares.rs), limits on size, count per
+  account and public reads per IP. It needs a glyph-api deploy before any of this works outside a local run.
+- **Seen in the pane, against a local server:** a book with a to-do list, a table and a canvas chapter, shared from
+  the cog; read on the reader page at desktop and phone widths; downloaded as a zip; saved back twice, once by the
+  web link and once by the + sheet ("(shared)", then "(shared 2)"); an edit read through the same link after the
+  three seconds; the link reading nothing after "Stop sharing". Tests: sealing and links, what a note and a book
+  share, the fork's renames, the downloads, the zip's CRC; the server's owner rules and limits.

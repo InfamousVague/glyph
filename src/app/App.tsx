@@ -1,3 +1,4 @@
+import { forkShared, readShared } from './share/share.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HapticsProvider, ToastProvider } from '@glacier/react';
 import { UpdateNotice } from './notes/Notices.tsx';
@@ -393,6 +394,25 @@ function Shell() {
    * A [[link]] in the words. `[[The cabin trip#^friday]]` opens that note on that item: the title half is
    * editor/wikiLinks.ts, the `^anchor` half core/boards.ts, and the note screen does the landing.
    */
+  // A copy of something shared with this person, from its link (share/share.ts): saved into the library, then opened.
+  const forkFromLink = async (link: string) => {
+    const made = await forkShared(await readShared(link));
+    await refresh();
+    setScreen({ name: 'note', note: made });
+  };
+
+  // The reader page's "Save it in Ghost.md" opens the app at `#fork=` (src/read/Reader.tsx): once the notes are read,
+  // the copy is saved, and the link comes out of the address bar so a reload does not save it twice.
+  const forking = useRef(false);
+  useEffect(() => {
+    if (loading || forking.current || typeof location === 'undefined' || !location.hash.startsWith('#fork=')) return;
+    forking.current = true;
+    const link = location.hash.slice('#fork='.length);
+    history.replaceState(null, '', location.pathname + location.search);
+    void forkFromLink(link).catch((failure: unknown) => console.warn('[glyph] could not save the shared copy:', failure));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   const openTitle = async (title: string, at?: string) => {
     const found = shownNotes.find((n) => sameTitle(noteTitle(n.body), title));
     if (found) {
@@ -883,7 +903,7 @@ function Shell() {
         (noteScreen ?? home)
       )}
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
-      <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={newBook} />
+      <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={newBook} onFromLink={forkFromLink} />
       <NewBookSheet open={bookSheet} onClose={() => setBookSheet(false)} titles={pageTitles()} onCreate={(title, pages) => void createBook(title, pages)} />
       <WhatsNewSheet sources={updates.status?.sources} hold={guide || screen.name === 'capture'} />
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}

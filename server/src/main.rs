@@ -37,9 +37,12 @@ mod shape;
 mod store;
 mod live;
 mod mcp_proxy;
+mod shares;
 mod sync;
 #[cfg(test)]
 mod sync_tests;
+#[cfg(test)]
+mod shares_tests;
 #[cfg(test)]
 mod live_tests;
 
@@ -293,6 +296,8 @@ fn router(app: Arc<App>, accounts: Option<Arc<accounts::Accounts>>) -> Router {
         routes = routes
             .merge(accounts::router(accounts.clone()))
             .merge(sync::router(accounts.clone()))
+            // Notes and books shared by their links (docs/SHARING.md): the same accounts own them.
+            .merge(shares::router(accounts.clone()))
             // Live sync's relay (docs/LIVE.md): the same accounts, a socket instead of requests.
             .merge(live::router(accounts));
     }
