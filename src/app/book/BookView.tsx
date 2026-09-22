@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
-import { BookOpen, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Workflow, X } from '@glacier/icons';
+import { useMemo, useRef, useState } from 'react';
+import { BookOpen, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, GripVertical, Plus, Workflow, X } from '@glacier/icons';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
-import { chaptersOf, numbered, prefaceOf, withChapter, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
+import { chaptersOf, numbered, prefaceOf, withChapter, withChapterAt, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
+import { useRowDrag } from './rowDrag.ts';
 import styles from './BookView.module.css';
 
 /**
@@ -56,6 +57,15 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
   const [filter, setFilter] = useState('');
   /** The notes ticked so far in the picker, in the order they were ticked. */
   const [picked, setPicked] = useState<string[]>([]);
+  /** The rows, for a drag to measure; and the drag itself, which writes the chapter to where it was let go. */
+  const rowEls = useRef<(HTMLElement | null)[]>([]);
+  const drag = useRowDrag(
+    () => rowEls.current,
+    (from, to) => {
+      const chapter = chapters[from];
+      if (chapter) onChange(withChapterAt(body, chapter.title, to));
+    },
+  );
 
   const addNew = () => {
     const name = draft.trim();
@@ -93,7 +103,17 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf }:
             const there = known(chapter.title);
             const canvas = there && isCanvas(chapter.title);
             return (
-              <li key={`${chapter.line}-${chapter.title}`} className={styles.row} data-depth={chapter.depth} data-waiting={there ? undefined : ''}>
+              <li
+                key={`${chapter.line}-${chapter.title}`}
+                ref={(el) => {
+                  rowEls.current[i] = el;
+                }} className={styles.row} data-depth={chapter.depth} data-waiting={there ? undefined : ''}
+                data-lifted={drag.lifted?.index === i || undefined}
+                style={drag.rowStyle(i)}
+              >
+                <span className={styles.grip} aria-hidden="true" {...drag.grip(i)}>
+                  <GripVertical size={16} />
+                </span>
                 <span className={styles.number} aria-hidden="true">
                   {numbers[i]}
                 </span>

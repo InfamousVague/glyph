@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Note } from '../core/store.ts';
-import { bookIndex, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, titleKey, withChapter, withChapterMoved, withoutChapter } from './book.ts';
+import { bookIndex, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, titleKey, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 
 /**
  * A book is its index: a list of links in a note that says `book: true`. Read from the body, written back to it a
@@ -81,6 +81,17 @@ describe('changing the index', () => {
     expect(chaptersOf(fewer).map((c) => c.title)).toEqual(['Introduction', 'Trees', 'Pines', 'Birds']);
     expect(fewer).toContain('What to know before the walk.');
     expect(withoutChapter(BOOK, 'Nope')).toBe(BOOK);
+  });
+
+  it('moves a chapter to a place, taking that row’s depth, and lands past the end as last', () => {
+    expect(chaptersOf(withChapterAt(BOOK, 'Birds', 0)).map((c) => c.title)).toEqual(['Birds', 'Introduction', 'Trees', 'Oaks', 'Pines']);
+    expect(chaptersOf(withChapterAt(BOOK, 'Introduction', 4)).map((c) => c.title)).toEqual(['Trees', 'Oaks', 'Pines', 'Birds', 'Introduction']);
+    // Dropped among a part's chapters, it becomes one; pulled out, it stands on its own.
+    expect(chaptersOf(withChapterAt(BOOK, 'Birds', 2)).map((c) => [c.title, c.depth])).toEqual([['Introduction', 0], ['Trees', 0], ['Birds', 1], ['Oaks', 1], ['Pines', 1]]);
+    expect(chaptersOf(withChapterAt(BOOK, 'Oaks', 0)).map((c) => [c.title, c.depth])[0]).toEqual(['Oaks', 0]);
+    expect(withChapterAt(BOOK, 'Trees', 1)).toBe(BOOK);
+    expect(withChapterAt(BOOK, 'Nope', 0)).toBe(BOOK);
+    expect(chaptersOf(withChapterAt(BOOK, 'Introduction', 99)).map((c) => c.title).pop()).toBe('Introduction');
   });
 
   it('moves a chapter up or down one place, and not past the ends', () => {

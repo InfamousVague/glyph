@@ -29,7 +29,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 2.4em minmax(0, 1fr) auto;
+  grid-template-columns: 1.4em 2em minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--glacier-space-2);
   min-block-size: 2.6em;
@@ -286,4 +286,24 @@
   background: var(--glacier-text);
   color: var(--glacier-bg);
   border-color: var(--glacier-text);
+}
+
+/* The grip a row is dragged by (rowDrag.ts): a finger's hold or a mouse's press lifts the row. */
+.grip {
+  display: inline-grid;
+  place-items: center;
+  block-size: 2em;
+  color: var(--glacier-text-subtle, var(--glacier-text-muted));
+  cursor: grab;
+  touch-action: none;
+}
+
+.row[data-lifted] {
+  background: color-mix(in srgb, var(--glacier-bg) 88%, var(--glacier-text) 6%);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+  border-radius: var(--glacier-radius-sm, 6px);
+}
+
+.row[data-lifted] .grip {
+  cursor: grabbing;
 }

@@ -117,6 +117,27 @@ export function withChapterMoved(body: string, title: string, by: -1 | 1): strin
   return lines.join('\n');
 }
 
+/**
+ * The body with a chapter moved to the place of the chapter now `to`th in the index (0-based); past the end, last.
+ * What a drag does (book/rowDrag.ts): the line leaves where it was and lands where the finger let go, at that row's
+ * depth.
+ */
+export function withChapterAt(body: string, title: string, to: number): string {
+  const chapters = chaptersOf(body);
+  const from = chapters.findIndex((c) => sameTitle(c.title, title));
+  if (from < 0) return body;
+  const target = Math.max(0, Math.min(chapters.length - 1, to));
+  if (target === from) return body;
+  const lines = body.split('\n');
+  const [line] = lines.splice(chapters[from]!.line, 1);
+  // The lines after the one taken out have moved up by one.
+  const landing = chapters[target]!.line - (target > from ? 1 : 0);
+  const depth = chapters[target]!.depth;
+  const words = (line ?? '').trim();
+  lines.splice(landing + (target > from ? 1 : 0), 0, `${depth === 1 ? '  ' : ''}${words}`);
+  return lines.join('\n');
+}
+
 /** Where a note stands in a book: the book, its chapters, and which one this is. */
 export interface BookPlace {
   book: Note;

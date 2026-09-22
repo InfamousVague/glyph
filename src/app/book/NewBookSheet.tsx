@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronUp, X } from '@glacier/icons';
+import { Check, ChevronDown, ChevronUp, GripVertical, X } from '@glacier/icons';
+import { useRowDrag } from './rowDrag.ts';
 import { useBack } from '../core/back.ts';
 import { useSheetDrag } from '../editor/sheetDrag.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
@@ -31,6 +32,17 @@ export function NewBookSheet({ open, onClose, titles, onCreate }: NewBookSheetPr
   const [name, setName] = useState('');
   const [find, setFind] = useState('');
   const [pages, setPages] = useState<string[]>([]);
+  const pageEls = useRef<(HTMLElement | null)[]>([]);
+  const rows = useRowDrag(
+    () => pageEls.current,
+    (from, to) =>
+      setPages((was) => {
+        const next = [...was];
+        const [moved] = next.splice(from, 1);
+        if (moved !== undefined) next.splice(to, 0, moved);
+        return next;
+      }),
+  );
   const found = useMemo(() => {
     const needle = find.trim().toLowerCase();
     return titles.filter((t) => t.trim() && (!needle || t.toLowerCase().includes(needle))).slice(0, 60);
@@ -76,7 +88,18 @@ export function NewBookSheet({ open, onClose, titles, onCreate }: NewBookSheetPr
           {pages.length ? (
             <ol className={styles.pages} aria-label="Pages in this book">
               {pages.map((title, i) => (
-                <li key={title} className={styles.page}>
+                <li
+                  key={title}
+                  ref={(el) => {
+                    pageEls.current[i] = el;
+                  }}
+                  className={styles.page}
+                  data-lifted={rows.lifted?.index === i || undefined}
+                  style={rows.rowStyle(i)}
+                >
+                  <span className={styles.grip} aria-hidden="true" {...rows.grip(i)}>
+                    <GripVertical size={16} />
+                  </span>
                   <span className={styles.number} aria-hidden="true">
                     {i + 1}
                   </span>
