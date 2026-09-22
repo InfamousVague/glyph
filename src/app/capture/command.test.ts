@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { actionable, findKeyword, findSoundAlike, planCommand, reply } from './command.ts';
+import { bookNoteBody } from '../book/book.ts';
+import { actionable, findKeyword, findSoundAlike, placedOn, planCommand, reply } from './command.ts';
 
 const notes = [
   { id: 'b', title: 'AttackFM Bugbash' },
@@ -136,5 +137,36 @@ describe('asking for a table', () => {
   it('says so for a note that is not there, and is not fooled by other tables', () => {
     expect(plan('add a table to the groceries note')).toEqual({ kind: 'no-note', name: 'groceries' });
     expect(plan('add a table of contents')).toBeNull();
+  });
+});
+
+describe('books by voice', () => {
+  // A book is a note whose body is an index (docs/BOOKS.md); the planner sees bodies through `note`.
+  const guide = { id: 'f', title: 'Field guide', note: { body: bookNoteBody('Field guide', ['Trees']) } };
+  const library = [...notes, guide];
+  const read = (words: string) => planCommand(words, { notes: library });
+
+  it('makes a book by name, the notes named after "with" as its pages', () => {
+    expect(read('make a book called Field notes')).toEqual({ kind: 'book', title: 'Field notes', pages: [] });
+    expect(read('New book called trip, with trees, birds and the work note.')).toEqual({ kind: 'book', title: 'Trip', pages: ['Trees', 'Birds', 'Work'] });
+    expect(read('start a book, Packing.')).toEqual({ kind: 'book', title: 'Packing', pages: [] });
+  });
+
+  it('waits for a name, and is not fooled by a book for a list', () => {
+    expect(read('make a book')).toBeNull();
+    expect(read('new book.')).toBeNull();
+    expect(read('add a book to work')).toMatchObject({ kind: 'place', note: at('w'), text: 'a book' });
+  });
+
+  it('adds a chapter to a book named: by title, this note, or the title in the next phrase', () => {
+    expect(read('add a chapter called Rivers to the field guide')).toEqual({ kind: 'chapter', note: guide, title: 'Rivers' });
+    expect(read('put the rivers in the field guide.')).toEqual({ kind: 'chapter', note: guide, title: 'The rivers' });
+    expect(read('add this to the field guide')).toEqual({ kind: 'chapter', note: guide, title: null });
+    expect(read('move this to the field guide')).toEqual({ kind: 'chapter', note: guide, title: null });
+    expect(read('switch to the field guide')).toEqual({ kind: 'chapter', note: guide, title: null });
+    const waiting = read('add a chapter to the field guide');
+    if (waiting?.kind !== 'await') throw new Error(`expected a wait, got ${JSON.stringify(waiting)}`);
+    expect(waiting).toMatchObject({ note: guide, how: 'leave' });
+    expect(placedOn(waiting, 'Rivers')).toEqual({ kind: 'chapter', note: guide, title: 'Rivers' });
   });
 });

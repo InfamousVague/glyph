@@ -1,5 +1,7 @@
 import type { VoiceCommand } from '../plugins/types.ts';
-import { actionable, findKeyword, findSoundAlike, planCommand, reply, type Placement, type Plan } from './command.ts';
+import { chaptersOf, withChapter } from '../book/book.ts';
+import { sameTitle } from '../editor/wikiLinks.ts';
+import { actionable, findKeyword, findSoundAlike, forBook, placedOn, planCommand, reply, type Placement, type Plan } from './command.ts';
 import { placeWords } from './listAppend.ts';
 import { renderNote, type Segment } from './markdown.ts';
 import type { Candidate } from './route.ts';
@@ -67,12 +69,13 @@ export type Offer<N extends TakeNote> =
   | { kind: 'move'; note: N; title: string; span: Span }
   | { kind: 'new'; span: Span }
   | { kind: 'board'; title: string; span: Span }
+  | { kind: 'book'; title: string; pages: string[]; span: Span }
   | { kind: 'table'; note: N | null; title: string; columns: string[]; rows: string[][]; markdown: string; span: Span }
   | { kind: 'plugin'; voice: VoiceCommand; parsed: unknown; title: string; action: string; span: Span };
 
 /** What the chip at the foot of the recorder says. */
 export type RouteView =
-  | { phase: 'hearing'; name: string; guess: string | null; lead: 'Add to' | 'New item for' | 'Move to' | 'Start' | 'Table for' }
+  | { phase: 'hearing'; name: string; guess: string | null; lead: 'Add to' | 'New item for' | 'Move to' | 'Start' | 'Table for' | 'Chapter for' | 'New book' }
   | { phase: 'done'; text: string }
   | { phase: 'command'; words: string; thinking?: boolean }
   | { phase: 'said'; text: string }
@@ -121,6 +124,8 @@ export interface TakeHost<N extends TakeNote> {
   carryOn(note: N): void;
   /** A new note from here; with a `title`, one already named, carried on like `carryOn`. */
   newNote(title?: string): void;
+  /** Yes to a book offer: a book note with that title and those pages, made beside this take, which carries on (docs/BOOKS.md). */
+  newBook(title: string, pages: readonly string[]): void;
   /** "Undo": the last thing a command put in a note comes out. What it was, for the chip, or null when there is nothing. */
   undo(): string | null;
   /** Yes to a plugin's command: what it keeps in the note, if anything. */
@@ -198,6 +203,13 @@ export class Take<N extends TakeNote> {
     return this.host.voiceCommands().find((voice) => voice.parse(words) !== null) ?? null;
   }
 
+  /** The note being recorded onto, by the title the command list knows it by; null for a new note, which has none yet. */
+  private ownTitle(): string | null {
+    const target = this.host.target();
+    if (!target) return null;
+    return this.host.notes().find((c) => c.id === target.id)?.title ?? null;
+  }
+
   /** The chip while a command is heard: the note it names, as soon as it can tell. */
   guess(text: string, current: RouteView): RouteView {
     const wait = this.awaiting;
@@ -218,6 +230,11 @@ export class Take<N extends TakeNote> {
     if (plan.kind === 'new') return { phase: 'hearing', name: 'new note', guess: 'New note', lead: 'Start' };
     if (plan.kind === 'board') return { phase: 'hearing', name: 'board', guess: 'this note', lead: 'Start' };
     if (plan.kind === 'table') return { phase: 'hearing', name: 'table', guess: plan.note?.title ?? 'this note', lead: 'Table for' };
+    if (plan.kind === 'book') return { phase: 'hearing', name: 'book', guess: plan.title, lead: 'New book' };
+    if (plan.kind === 'chapter') {
+      if (current?.phase === 'hearing' && current.guess === plan.note.title && current.lead === 'Chapter for') return current;
+      return { phase: 'hearing', name: plan.note.title, guess: plan.note.title, lead: 'Chapter for' };
+    }
     const lead = plan.kind === 'move' ? 'Move to' : plan.kind === 'lane' || plan.kind === 'card' || plan.how === 'item' ? 'New item for' : 'Add to';
     if (current?.phase === 'hearing' && current.guess === plan.note.title && current.lead === lead) return current;
     return { phase: 'hearing', name: plan.note.title, guess: plan.note.title, lead };
@@ -261,6 +278,29 @@ export class Take<N extends TakeNote> {
         },
         now,
       );
+    } else if (plan.kind === 'chapter') {
+      // A chapter for a book (docs/BOOKS.md): the title said, or this note's. The change is the index with one more line.
+      const note = plan.note.note;
+      const title = plan.title ?? this.ownTitle();
+      if (title === null) {
+        this.host.route({ phase: 'said', text: 'This note has no name yet, so it can’t be a chapter.' });
+        return;
+      }
+      if (sameTitle(title, plan.note.title) || (plan.title === null && this.host.target()?.id === note.id)) {
+        this.host.route({ phase: 'said', text: `${plan.note.title} can’t be a chapter of itself.` });
+        return;
+      }
+      if (chaptersOf(note.body).some((chapter) => sameTitle(chapter.title, title))) {
+        this.host.route({ phase: 'said', text: `${title} is already in ${plan.note.title}.` });
+        return;
+      }
+      const change = (body: string) => {
+        const next = withChapter(body, title);
+        return next === body ? null : next;
+      };
+      this.setPending({ kind: 'change', note, title: plan.note.title, heading: 'New chapter', action: 'Add', lines: [title], change, span }, now);
+    } else if (plan.kind === 'book') {
+      this.setPending({ kind: 'book', title: plan.title, pages: plan.pages, span }, now);
     } else if (plan.kind === 'move') {
       this.setPending({ kind: 'move', note: plan.note.note, title: plan.note.title, span }, now);
     } else if (plan.kind === 'board') {
@@ -309,6 +349,8 @@ export class Take<N extends TakeNote> {
     } else if (held.kind === 'new') {
       this.host.route({ phase: 'moved', title: 'New note' });
       this.host.newNote();
+    } else if (held.kind === 'book') {
+      this.host.newBook(held.title, held.pages);
     } else if (held.kind === 'board') {
       this.asBoard = true;
       this.host.changed();
@@ -370,9 +412,11 @@ export class Take<N extends TakeNote> {
       if (this.understanding?.words !== words) return;
       this.understanding = null;
       if (this.listening?.words !== words) return;
-      if (plan && plan.kind !== 'no-note') {
+      // The model does not know what a book is; its "add" to one is a chapter all the same.
+      const read = plan ? forBook(plan) : null;
+      if (read && read.kind !== 'no-note') {
         this.host.log(`The on-device model read “hey Ghost ${words}”`);
-        this.carryOut(plan, span, this.lastHeard);
+        this.carryOut(read, span, this.lastHeard);
       } else if (orElse) {
         this.giveBack(orElse);
         this.host.haptic('warning');
@@ -591,7 +635,7 @@ export class Take<N extends TakeNote> {
       const said = wait.plan.many ? text.split(/(?<=[.!?])\s+/) : [text];
       for (const item of said) if (item.trim()) wait.words.push(item.replace(/[\s.,;:!?]+$/, ''));
       wait.lastAt = now;
-      if (!wait.plan.many) this.offer({ ...wait.plan, kind: 'place', text: wait.words.join(', ') }, span, now);
+      if (!wait.plan.many) this.offer(placedOn(wait.plan, wait.words.join(', ')), span, now);
       return null;
     }
     this.awaiting = null;
@@ -668,7 +712,7 @@ export class Take<N extends TakeNote> {
     const wait = this.awaiting;
     if (wait && wait.words.length && now - wait.lastAt > TAKE_TIMING.itemsQuietMs) {
       // "New items for work": every phrase until a pause, then asked all at once.
-      this.offer({ ...wait.plan, kind: 'place', text: wait.words.join(', ') }, { startMs: 0, endMs: 0 }, now);
+      this.offer(placedOn(wait.plan, wait.words.join(', ')), { startMs: 0, endMs: 0 }, now);
     } else if (wait && !wait.words.length && now - wait.lastAt > TAKE_TIMING.awaitMs) {
       this.awaiting = null;
       this.host.itemWords('');
@@ -708,7 +752,9 @@ export function describeOffer<N extends TakeNote>(offer: Offer<N>, outcome: 'don
               ? 'make this note a board'
               : offer.kind === 'table'
                 ? `add a table (${offer.columns.join(', ')}; ${offer.rows.length} rows) to ${offer.title}`
-                : offer.title.charAt(0).toLowerCase() + offer.title.slice(1);
+                : offer.kind === 'book'
+                  ? `make a book called ${offer.title}${offer.pages.length ? ` with ${offer.pages.join(', ')}` : ''}`
+                  : offer.title.charAt(0).toLowerCase() + offer.title.slice(1);
   if (outcome === 'done') return `Did: ${what}`;
   return outcome === 'declined' ? `Offered to ${what}; the person said no` : `Offered to ${what}; nobody answered, so it was not done`;
 }

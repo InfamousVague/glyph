@@ -1,3 +1,4 @@
+import { bookNoteBody } from '../book/book.ts';
 import { boardFrom } from '../core/boards.ts';
 import { clipMarkdown } from '../core/clips.ts';
 import { noteTitle } from '../core/store.ts';
@@ -188,6 +189,10 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
       }
       target = null;
       newNote = true;
+    },
+    newBook: (title, pages) => {
+      const id = `made-${made++}`;
+      store.set(id, { id, title, body: bookNoteBody(title, pages) });
     },
     undo: () => {
       const last = lastChange;

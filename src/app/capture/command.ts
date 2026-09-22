@@ -1,3 +1,4 @@
+import { isBookBody } from '../book/book.ts';
 import { addToLane, lanesOf, matchLane, moveToLane, type Lane } from '../core/boards.ts';
 import { matchNote, parseRoute, type Candidate } from './route.ts';
 import { cellsOf } from './table.ts';
@@ -131,6 +132,10 @@ export type Plan<N extends Candidate = Candidate> =
   | { kind: 'card'; note: N; lane: string; words: string; change: (body: string) => string | null }
   /** "Glyph, make this a board": the note being recorded is written as a board. */
   | { kind: 'board' }
+  /** "Make a book called Field guide with Trees, Birds and Rivers": a book note, its pages the notes named or chapters still to write (docs/BOOKS.md). */
+  | { kind: 'book'; title: string; pages: string[] }
+  /** A chapter for a book: "add a chapter called Trees to the field guide". `title` null is this note: "put this in the field guide". */
+  | { kind: 'chapter'; note: N; title: string | null }
   /** A note was named that there is no note for. */
   | { kind: 'no-note'; name: string };
 
@@ -189,6 +194,47 @@ const MAKE_BOARD = /^(?:make|turn|change)\s+(?:this|it|this\s+note|the\s+note|th
 /** "Move the pricing page to Done", "drag call Sam into doing". */
 const MOVE_CARD = /^(?:move|drag|shift|put)\s+(.+?)\s+(?:to|into|in|onto|over\s+to)\s+(.+?)[.!?]*$/i;
 
+/** "Make a book called Field guide", "new book, Trip". Not "add a book to…": that is a book for a list. */
+const MAKE_BOOK = /^(?:make|create|start|begin|new)\s+(?:(?:a|an|another|one|the)\s+)?(?:new\s+)?book\b(.*)$/i;
+/** "…with Trees, Birds and Rivers" after the name: its pages. */
+const BOOK_PAGES = /\s*,?\s*(?:with|holding|containing|out of)\s+(?:the\s+)?(?:notes?|pages?|chapters?)?\s*(?:of|:|,)?\s*(.+)$/i;
+/** "a chapter called", "the page named": the kind of thing a book gets, not the thing. */
+const CHAPTER_NOUN = /^(?:(?:a|an|another|one more|new|the)\s+)?(?:new\s+)?(?:chapters?|pages?|sections?|parts?)(?:\s+(?:called|named|titled|that says|saying|for|:|,))?\s*/i;
+/** The note being recorded, named as the thing: "add this to the field guide". */
+const SELF = /^(?:this|that|it|this note|that note|the note|this one|this page|these|those|them|everything)$/i;
+
+/** A note that is a book (book/book.ts): what is added "to" it is a chapter, not words. */
+function isBook<N extends Candidate & { note?: { body: string } }>(named: N): boolean {
+  return named.note !== undefined && isBookBody(named.note.body);
+}
+
+/**
+ * What "add … to <book>" adds: a chapter with that title ("a chapter called Trees", "Trees"), this note when that is
+ * what was said ("add this to the field guide"), or nothing yet, and then the next phrase names it.
+ */
+function chapterFor<N extends Candidate & { note?: { body: string } }>(note: N, words: string): Plan<N> {
+  const said = words.replace(/[\s.,;:!?]+$/, '').trim();
+  if (SELF.test(said)) return { kind: 'chapter', note, title: null };
+  const title = said.replace(CHAPTER_NOUN, '').replace(/^["“]|["”]$/g, '').trim();
+  return title ? { kind: 'chapter', note, title: title.charAt(0).toUpperCase() + title.slice(1) } : { kind: 'await', note, how: 'leave', task: false, many: false, target: null };
+}
+
+/**
+ * A plan read for a book (docs/BOOKS.md): words placed in it are a chapter, and moving this recording there makes
+ * this note one. Every plan the rules make goes through it, and the model's too (take.ts), so "add Trees to the field
+ * guide" lands the same whoever read it.
+ */
+export function forBook<N extends Candidate & { note?: { body: string } }>(plan: Plan<N>): Plan<N> {
+  if (plan.kind === 'place' && isBook(plan.note)) return chapterFor(plan.note, plan.text);
+  if (plan.kind === 'move' && isBook(plan.note)) return { kind: 'chapter', note: plan.note, title: null };
+  return plan;
+}
+
+/** The words a named note waited for, as the plan to carry out: a chapter when the note is a book. */
+export function placedOn<N extends Candidate & { note?: { body: string } }>(plan: Extract<Plan<N>, { kind: 'await' }>, text: string): Plan<N> {
+  return forBook({ ...plan, kind: 'place', text });
+}
+
 /** A lane of `board`'s note by spoken name, with the score it won by. */
 function laneNamed<N extends Candidate & { note?: { body: string } }>(name: string, board: N | null | undefined): { lane: Lane; score: number } | null {
   const body = board?.note?.body;
@@ -204,10 +250,33 @@ function laneChange(lane: Lane, act: (body: string, lane: Lane) => string | null
   };
 }
 
-function readCommand<N extends Candidate & { note?: { body: string } }>(words: string, { notes, targets = [], board = null }: PlanOptions<N>): Plan<N> | null {
+function readCommand<N extends Candidate & { note?: { body: string } }>(words: string, options: PlanOptions<N>): Plan<N> | null {
+  const plan = readWords(words, options);
+  return plan ? forBook(plan) : null;
+}
+
+function readWords<N extends Candidate & { note?: { body: string } }>(words: string, { notes, targets = [], board = null }: PlanOptions<N>): Plan<N> | null {
   const text = words.replace(LEAD, '').trim();
   if (!text) return null;
   if (MAKE_BOARD.test(text)) return { kind: 'board' };
+
+  // "Make a book called Field guide with Trees, Birds and Rivers" (docs/BOOKS.md). Said with no name, it waits for one.
+  const making = MAKE_BOOK.exec(text);
+  if (making) {
+    let tail = (making[1] ?? '').replace(/^[\s.,;:!?]+/, '');
+    let pages: string[] = [];
+    const listed = BOOK_PAGES.exec(tail);
+    if (listed) {
+      pages = cellsOf((listed[1] ?? '').replace(/[\s.!?]+$/, '')).map((page) => noteNamed(page, notes)?.note.title ?? page);
+      tail = tail.slice(0, listed.index);
+    }
+    const name = tail
+      .replace(/^(?:called|named|titled|for|about|on)\s+/i, '')
+      .replace(/[\s.,;:!?]+$/, '')
+      .replace(/^["“]|["”]$/g, '')
+      .trim();
+    return name ? { kind: 'book', title: name.charAt(0).toUpperCase() + name.slice(1), pages } : null;
+  }
 
   // "Move the pricing page to Done": a card, when the note being recorded has a board with that lane and no note by
   // that name is the better match.
@@ -298,6 +367,11 @@ function readCommand<N extends Candidate & { note?: { body: string } }>(words: s
       }
     }
     if (best) {
+      // A book named: the thing is a chapter, or this note ("put this in the field guide").
+      if (isBook(best.note)) {
+        const said = [best.thing, best.rest].filter(Boolean).join(' ');
+        return chapterFor(best.note, said || (MOVERS.test(text) ? 'this' : ''));
+      }
       if (MOVERS.test(text) && /^(?:this|that|it|everything|these|those|them)?$/i.test(best.thing) && !best.rest) return { kind: 'move', note: best.note };
       const noun = OBJECT_NOUN.exec(best.thing);
       const placement = placementOf(noun);

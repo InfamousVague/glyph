@@ -23,6 +23,7 @@ import { commandModel, understandCommand } from './understand.ts';
 import { appendBlock } from './table.ts';
 import { appendBody } from './appendBody.ts';
 import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
+import { bookNoteBody, isBookBody } from '../book/book.ts';
 import { boardFrom, lanesOf } from '../core/boards.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { plugins } from '../plugins/registry.ts';
@@ -529,6 +530,23 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
   };
 
+  /**
+   * "Hey Ghost, make a book called Field guide": the book note is written beside this take, which carries on where it
+   * was, and the book can be named by the next command (docs/BOOKS.md).
+   */
+  const makeBook = async (title: string, pages: readonly string[]) => {
+    try {
+      const made = await saveNote(newNoteId(), bookNoteBody(title, pages), 'capture');
+      candidates.current = [{ id: made.id, title, note: made }, ...candidates.current];
+      take.touched.add(made.id);
+      setRoute({ phase: 'done', text: `Made the book ${title}` });
+      fireNativeHaptic('success');
+    } catch (failure) {
+      console.warn('[glyph] book not made:', failure);
+      setRoute({ phase: 'said', text: `The book ${title} wasn’t made.` });
+    }
+  };
+
   /** Which tape this take is part of: the one a continued note holds, or a fresh one for a new file. */
   const tapeOfTake = (): string => {
     if (!takeTape.current) {
@@ -575,6 +593,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     moveTo: (target) => void routeTo(target),
     carryOn: (target) => void carryOn(target),
     newNote: (title) => void startNewNote(title),
+    newBook: (title, pages) => void makeBook(title, pages),
     undo: undoLast,
     runPlugin: (voice, parsed) => voice.run(parsed, captureContext),
     describePlugin: (voice, parsed) => voice.describe(parsed, captureContext),
@@ -611,6 +630,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         moveTo: (target) => hostImpl.current.moveTo(target),
         carryOn: (target) => hostImpl.current.carryOn(target),
         newNote: (title) => hostImpl.current.newNote(title),
+        newBook: (title, pages) => hostImpl.current.newBook(title, pages),
         undo: () => hostImpl.current.undo(),
         runPlugin: (voice, parsed) => hostImpl.current.runPlugin(voice, parsed),
         describePlugin: (voice, parsed) => hostImpl.current.describePlugin(voice, parsed),
@@ -755,7 +775,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           const keyword = commandWordOn();
           const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Hey Ghost, ${t.say.charAt(0).toLowerCase()}${t.say.slice(1)}` } : t));
           const lane = targetRef.current ? (lanesOf(targetRef.current.body)[1] ?? lanesOf(targetRef.current.body)[0])?.name ?? null : null;
-          const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane }), ...pluginTips];
+          const book = candidates.current.find((c) => c.id !== noteId.current && isBookBody(c.note.body))?.title ?? null;
+          const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane, book }), ...pluginTips];
           return list[tipTurn.current % list.length] ?? null;
         });
       }
@@ -1100,6 +1121,12 @@ function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer<Note>; onCon
       heading = 'Make this note a board';
       action = 'Make it';
       detail = 'Its list items become cards';
+      break;
+    case 'book':
+      heading = `Make a book called ${offer.title}`;
+      action = 'Make it';
+      lines = offer.pages;
+      detail = offer.pages.length ? 'Its pages, in this order' : 'Empty, with its index ready';
       break;
     case 'move':
       heading = `Move this recording to ${offer.title}`;

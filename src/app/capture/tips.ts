@@ -54,9 +54,23 @@ const CUES: readonly Tip[] = [
 /**
  * The tips, in the order they come round. `noteTitle` is a recent note's
  * title for the routing tip; `continuing` says a note is already being added
- * to, which is when "new note" is worth knowing.
+ * to, which is when "new note" is worth knowing; `book` is one of the library's
+ * books, for the chapter tip.
  */
-export function tips({ noteTitle, continuing, keyword = true, lane = null }: { noteTitle?: string | null; continuing: boolean; keyword?: boolean; lane?: string | null }): Tip[] {
+export function tips({
+  noteTitle,
+  continuing,
+  keyword = true,
+  lane = null,
+  book = null,
+}: {
+  noteTitle?: string | null;
+  continuing: boolean;
+  keyword?: boolean;
+  lane?: string | null;
+  /** A book in the library, for the chapter tip; with none, the tip is how to make one (docs/BOOKS.md). */
+  book?: string | null;
+}): Tip[] {
   const say = (command: string) => (keyword ? `Hey Ghost, ${command.charAt(0).toLowerCase()}${command.slice(1)}` : command);
   const route: Tip[] = [];
   if (noteTitle) route.push({ say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' });
@@ -67,6 +81,8 @@ export function tips({ noteTitle, continuing, keyword = true, lane = null }: { n
   if (continuing) route.push({ say: say('New note'), does: 'to start a fresh one' });
   if (noteTitle) route.push({ say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' });
   if (noteTitle) route.push({ say: say(`Add a table to ${noteTitle}`), does: 'and it asks for the columns and rows' });
+  if (book) route.push({ say: say(`Add a chapter to ${book}`), does: 'and then its name, to put a page in that book' });
+  else route.push({ say: say('Make a book called …'), does: 'to start a book; name notes after “with” to be its pages' });
   // Routing first and then every few cues, since it is the least discoverable.
   const out: Tip[] = [];
   CUES.forEach((cue, i) => {

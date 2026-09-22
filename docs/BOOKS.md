@@ -57,23 +57,48 @@ What to know before the walk.
 - **One tab.** A page opened from inside a book - the index, the chapter bar, the right-hand aside, the read-through -
   takes the current tab's place rather than a tab of its own; a page that already has a tab is used and the book's
   closes (notes/openTabs.ts `swapOpen`). A `[[link]]` in the words still opens a tab, as any link does.
+- **Reading straight through** (*Read straight through* in the index): the chapters one after another as pages, each
+  drawn as its note reads, with a rail down the side to jump between them; a canvas chapter says to open it, and one
+  not written yet says so. *Index* goes back.
+- **Reordering by drag.** The rows of the index and the pages in the New book sheet lift by their grip
+  (book/rowDrag.ts): at once with a mouse, after a short hold on touch, so a scroll is still a scroll. The arrows stay
+  for a place at a time.
+- **A book mark** on a note that is a chapter, in the list and on the home cards, so a page reads as a page.
+- **By voice:** the section below.
 - **Writing is writing the note.** Every change from the view is a change to the book note's body, saved the way
   typing is, so the index behind the view and the view are one thing, and a book edited as Markdown in another app
   draws the same on the phone.
 
-## Not yet
+## By voice
 
-- Reading a book straight through as one page, chapter after chapter.
-- Making a book by voice ("Ghost, add a chapter to the field guide").
-- A book mark on a note in the list.
-- Reordering by drag; the rows move a place at a time.
+Two commands, read by the rules in capture/command.ts and asked about before they act, as every command is:
+
+- **"Hey Ghost, make a book called Field guide"** makes the book note, empty with its index ready, beside the
+  recording, which carries on where it was. Pages can follow the name: "…with Trees, Birds and the work note", each a
+  note found by its spoken title or, when no note answers to it, a chapter still to write. Said without a name, the
+  recorder keeps listening for one. Only make, create, start, begin and new open a book: "add a book to my reading
+  list" is a book for a list.
+- **"Hey Ghost, add a chapter to the field guide"** and then its name, or the name in the same breath ("add a chapter
+  called Rivers to the field guide", "put Rivers in the field guide"). A book gets chapters, never words: whatever the
+  rules, or the phone's command model, would have placed in a book is read again as a chapter (`forBook`), so the
+  model's prompt need not know what a book is. "Add this to the field guide" and "move this to the field guide" make
+  the note being recorded a chapter. A chapter the book has, the book itself, or a note with no name yet is said and
+  not offered.
+- The card is the one a board's lane uses (*New chapter in Field guide*, *Add*); a book's card lists its pages. In a
+  pause the recorder suggests "add a chapter to …" naming a book you have, or how to make one.
 
 ## Where the code is
 
 | file | what |
 | --- | --- |
 | `src/app/book/book.ts` | the shape: `isBookBody`, `bookNoteBody`, `chaptersOf`, `numbered`, `prefaceOf`, `withChapter`, `withoutChapter`, `withChapterMoved`, `bookOf` |
-| `src/app/book/BookView.tsx` | the index view, and `BookBar` for a chapter |
+| `src/app/book/BookView.tsx` | the index view, reading straight through, and `BookBar` for a chapter |
+| `src/app/book/NewBookSheet.tsx` | the + sheet: a name and the pages, picked and ordered |
+| `src/app/book/rowDrag.ts` | `useRowDrag`: rows lifted by a grip, in the index and the sheet |
+| `src/app/aside/aside.ts` | the right-hand aside's content: a book's index on its pages, else the workspace's notes |
+| `src/app/capture/command.ts` | "make a book called …" and a chapter for a book named (`forBook`, `placedOn`) |
+| `src/app/capture/take.ts` | the chapter offer (the book's index with one more line) and the book offer |
+| `src/app/capture/CaptureScreen.tsx` | `makeBook`: the book note written beside the take |
 | `src/app/core/frontMatter.ts` | `frontMatterValue`, the one front-matter read the app makes |
 | `src/app/editor/NoteScreen.tsx` | a book note drawn as its index, with the Markdown a toggle away; a chapter's bar |
 | `src/app/notes/NewSheet.tsx`, `src/app/App.tsx` | the + makes one; a chapter's place is found for the screen |

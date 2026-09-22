@@ -10,4 +10,9 @@ describe('tips in a pause', () => {
     expect(said).toContain('Hey Ghost, move … to Doing');
     expect(tips({ noteTitle: null, continuing: false }).some((tip) => tip.say.includes('to Doing'))).toBe(false);
   });
+
+  it('teach a chapter for a book the library has, or how to make one', () => {
+    expect(tips({ noteTitle: 'Groceries', continuing: false, book: 'Field guide' }).map((tip) => tip.say)).toContain('Hey Ghost, add a chapter to Field guide');
+    expect(tips({ noteTitle: null, continuing: false }).map((tip) => tip.say)).toContain('Hey Ghost, make a book called …');
+  });
 });
