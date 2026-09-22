@@ -54,6 +54,9 @@ What to know before the walk.
 - **A chapter wears the book** (BookBar): under its header, the book's title with its place (2 of 5) and the
   chapters either side; a tap on the book opens the index. Found by title (book/book.ts `bookOf`): the first book
   in the library whose index names the note. A note can be in more than one book; the bar shows the first.
+- **One tab.** A page opened from inside a book - the index, the chapter bar, the right-hand aside, the read-through -
+  takes the current tab's place rather than a tab of its own; a page that already has a tab is used and the book's
+  closes (notes/openTabs.ts `swapOpen`). A `[[link]]` in the words still opens a tab, as any link does.
 - **Writing is writing the note.** Every change from the view is a change to the book note's body, saved the way
   typing is, so the index behind the view and the view are one thing, and a book edited as Markdown in another app
   draws the same on the phone.

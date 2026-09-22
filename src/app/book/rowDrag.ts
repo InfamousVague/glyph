@@ -68,7 +68,11 @@ export function useRowDrag(rows: () => (HTMLElement | null)[], onMove: (from: nu
     (index: number) => ({
       onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
         if (event.button !== 0 && event.pointerType === 'mouse') return;
-        event.currentTarget.setPointerCapture(event.pointerId);
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // A pointer the browser no longer tracks (a synthetic one, or one already up): the drag goes on uncaptured.
+        }
         const { tops, height } = measure();
         const start = () => {
           if (!press.current) return;

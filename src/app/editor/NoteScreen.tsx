@@ -87,6 +87,8 @@ interface NoteScreenProps {
   hasTitle?: (title: string) => boolean;
   /** The book this note is a chapter of, for the bar under its header (book/book.ts `bookOf`); null for none. */
   book?: BookPlace | null;
+  /** Opens a note by its title in this note's tab, for moving within a book; without it, `onOpenTitle`. */
+  onOpenWithin?: (title: string) => void;
   /** A note's body by its title, for a canvas card that is a note to be drawn small (canvas/CanvasView.tsx). */
   bodyOfTitle?: (title: string) => string | null;
   /** Every note's title, for a canvas's + to choose a note from. */
@@ -108,7 +110,7 @@ const SAVE_DEBOUNCE_MS = 400;
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, bodyOfTitle, allTitles, at, rename }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, bodyOfTitle, allTitles, at, rename }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -722,7 +724,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {/* What the note is linked to (a Notion board, a repo): a tap opens the cog sheet to change it. */}
         <LinkMarks noteId={note.id} onPress={() => setSettingsOpen(true)} />
         {/* A chapter's book, its place in it and the chapters either side (docs/BOOKS.md). */}
-        {book && onOpenTitle ? <BookBar place={book} open={(t) => onOpenTitle(t)} /> : null}
+        {book && onOpenTitle ? <BookBar place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}
 
         {shown === 'transcript' ? (
           <div className={styles.body}>
@@ -760,7 +762,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               body={bookBody}
               title={title}
               known={hasTitle ?? (() => false)}
-              open={(t) => onOpenTitle?.(t)}
+              open={(t) => (onOpenWithin ?? onOpenTitle)?.(t)}
               titles={allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
               onChange={(next) => {

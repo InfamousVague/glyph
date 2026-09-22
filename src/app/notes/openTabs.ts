@@ -20,6 +20,20 @@ export function addOpen(open: readonly string[], id: string, most = MOST_TABS): 
   return [...open, id].slice(-most);
 }
 
+/**
+ * `to` opened in `from`'s place: moving within a book stays in the book's one tab (Matt: "the book should open in
+ * one tab instead of each page opening in a new tab"). Where `to` already has a tab of its own, `from`'s closes and
+ * that one is used, so the row never gains a tab for a page; where `from` is not in the row, `to` is added as any
+ * note is.
+ */
+export function swapOpen(open: readonly string[], from: string, to: string): string[] {
+  if (from === to) return [...open];
+  const at = open.indexOf(from);
+  if (at < 0) return addOpen(open, to);
+  if (open.includes(to)) return open.filter((each) => each !== from);
+  return open.map((each) => (each === from ? to : each));
+}
+
 /** `id` closed, or gone from the library. */
 export function closeOpen(open: readonly string[], id: string): string[] {
   return open.filter((each) => each !== id);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addOpen, afterClose, closeOpen, moveOpen, openOnly } from './openTabs.ts';
+import { swapOpen, addOpen, afterClose, closeOpen, moveOpen, openOnly } from './openTabs.ts';
 
 describe('the open notes', () => {
   it('adds a note once, at the end, and drops the oldest past the limit', () => {
@@ -22,6 +22,16 @@ describe('the open notes', () => {
   it('keeps only the ids that are still notes, in order', () => {
     expect(openOnly(['a', 'b', 'c'], new Set(['c', 'a']))).toEqual(['a', 'c']);
     expect(openOnly(['a'], new Set())).toEqual([]);
+  });
+});
+
+describe('moving within a book', () => {
+  it('opens the page in the book’s tab, uses the page’s own tab if it has one, and adds where there is no tab to take', () => {
+    expect(swapOpen(['a', 'book', 'c'], 'book', 'page')).toEqual(['a', 'page', 'c']);
+    // The page already has a tab: the book's closes and the page's is the one.
+    expect(swapOpen(['a', 'book', 'page'], 'book', 'page')).toEqual(['a', 'page']);
+    expect(swapOpen(['a', 'c'], 'book', 'page')).toEqual(['a', 'c', 'page']);
+    expect(swapOpen(['a', 'book'], 'book', 'book')).toEqual(['a', 'book']);
   });
 });
 

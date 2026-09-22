@@ -13,7 +13,7 @@ import { Aside } from './aside/Aside.tsx';
 import { useBack } from './core/back.ts';
 import { asideContent, readAsideShown, writeAsideShown } from './aside/aside.ts';
 import { NoteTree } from './notes/NoteTree.tsx';
-import { addOpen, afterClose, closeOpen, moveOpen, openOnly } from './notes/openTabs.ts';
+import { addOpen, afterClose, closeOpen, moveOpen, openOnly, swapOpen } from './notes/openTabs.ts';
 import { afterMove, displayOrder, joinGroup, leaveGroup, newGroup, pruneGroups, type TabGroups } from './notes/tabGroups.ts';
 import { backFrom, canGoBack, canGoOn, FIRST, noteIdOf, notePlace, onFrom, placeAt, went, type Place } from './notes/visited.ts';
 import { readSidebarShown, useSidebar, writeSidebarShown } from './core/useWideScreen.ts';
@@ -237,7 +237,23 @@ function Shell() {
     };
   }, [sidebar, refresh]);
 
+  /**
+   * A note opened from inside a book - the index, the chapter bar, the aside, the read-through - takes the current
+   * tab's place rather than a tab of its own (notes/openTabs.ts `swapOpen`; Matt: "the book should open in one tab
+   * instead of each page opening in a new tab"). The tab to give up is noted here and read once by the effect that
+   * turns a shown note into a tab; every other way of opening clears it first.
+   */
+  const swap = useRef<string | null>(null);
   const openNote = (id: string) => {
+    swap.current = null;
+    const note = notes.find((n) => n.id === id);
+    if (note) setScreen({ name: 'note', note });
+    setDrawer(false);
+  };
+  /** `id` opened in the current note's tab. */
+  const openNoteWithin = (id: string) => {
+    const current = screen.name === 'note' ? screen.note.id : null;
+    swap.current = current && current !== id ? current : null;
     const note = notes.find((n) => n.id === id);
     if (note) setScreen({ name: 'note', note });
     setDrawer(false);
@@ -274,7 +290,10 @@ function Shell() {
   };
   const shown = screen.name === 'note' ? screen.note.id : null;
   useEffect(() => {
-    if (shown) setOpen((was) => addOpen(was, shown));
+    if (!shown) return;
+    const from = swap.current;
+    swap.current = null;
+    setOpen((was) => (from ? swapOpen(was, from, shown) : addOpen(was, shown)));
   }, [shown]);
   /*
    * The notes every screen shows: a note deleted and still undoable is hidden at once (notes/useNoteActions.ts), and
@@ -426,6 +445,16 @@ function Shell() {
   }, [loading]);
 
   const openTitle = async (title: string, at?: string) => {
+    swap.current = null;
+    await openTitleFrom(title, at);
+  };
+  /** A title opened from inside a book: in the current tab's place. */
+  const openTitleWithin = (title: string) => {
+    const current = screen.name === 'note' ? screen.note.id : null;
+    swap.current = current;
+    void openTitleFrom(title);
+  };
+  const openTitleFrom = async (title: string, at?: string) => {
     const found = shownNotes.find((n) => sameTitle(noteTitle(n.body), title));
     if (found) {
       setScreen({ name: 'note', note: found, at });
@@ -677,6 +706,7 @@ function Shell() {
         at={screen.at}
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
+        onOpenWithin={openTitleWithin}
         book={bookOf(shownNotes, noteTitle(screen.note.body))}
         bodyOfTitle={bodyOfTitle}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
@@ -917,7 +947,7 @@ function Shell() {
           {/* The right-hand aside as a column: a book's index, or the workspace's notes (aside/Aside.tsx). */}
           {asideShown ? (
             <aside className="app-aside" aria-label="Book index and notes">
-              <Aside content={asideBody} workspace={spaces.current?.name ?? null} onOpen={openNote} onOpenTitle={(t) => void openTitle(t)} />
+              <Aside content={asideBody} workspace={spaces.current?.name ?? null} onOpen={asideBody.kind === 'book' ? openNoteWithin : openNote} onOpenTitle={openTitleWithin} />
             </aside>
           ) : null}
         </div>
@@ -929,7 +959,7 @@ function Shell() {
         <div className="app-asideOver">
           <div className="app-asideScrim" onClick={toggleAside} />
           <div className="app-asidePanel" role="dialog" aria-modal="true" aria-label="Book index and notes">
-            <Aside content={asideBody} workspace={spaces.current?.name ?? null} onOpen={(id) => { toggleAside(); openNote(id); }} onOpenTitle={(t) => { toggleAside(); void openTitle(t); }} onClose={toggleAside} />
+            <Aside content={asideBody} workspace={spaces.current?.name ?? null} onOpen={(id) => { toggleAside(); (asideBody.kind === 'book' ? openNoteWithin : openNote)(id); }} onOpenTitle={(t) => { toggleAside(); openTitleWithin(t); }} onClose={toggleAside} />
           </div>
         </div>
       ) : null}
