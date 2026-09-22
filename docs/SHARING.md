@@ -25,13 +25,22 @@ share/share.ts `sharedOf` builds `{ v: 1, kind, title, pages: [{ title, body }],
 - **A note** is one page: its body as stored, front matter and all. A canvas note is shared the same way.
 - **A book** is its index first, then every chapter that has a note, in the index's order. A chapter with no note
   yet is left out, and the reader shows it as "not written yet".
+- **The pictures the pages show** travel in the share (`withPictures`): a reader has no account to fetch them from.
+  A share with pictures is sealed as `GSP1`, four bytes giving the length of the JSON, the JSON with each picture's
+  name and size, then the pictures' bytes; one without is its JSON alone, as before. Base64 inside the JSON would be
+  encoded twice, since the sealed share reaches the server as base64url and the server's 6 MB limit counts that
+  text. So the share holds about 4.4 MB before sealing: the pictures as kept if they fit, else each redrawn at 1024 px
+  as a reading copy, else as many as fit in the order the pages show them. A picture the sharing device doesn't have
+  is left out. Names are checked on opening, so a share cannot name a picture outside the store. A share whose words
+  alone pass the limit is refused with a sentence saying so.
 
 ## Following edits
 
 The owner's device keeps a registry in `glyph-shares`: note id to share id, key, and a digest of what was last
 sent. `followShares` listens for saved notes and, three seconds after the last save, re-seals every share whose
-contents changed (a book's share changes when any of its chapters does) and sends it again. A share never changes
-its link.
+contents changed (a book's share changes when any of its chapters does) and sends it again, and does the same once
+a few seconds after launch. A share never changes its link. Every share sent before pictures travelled reads as
+changed once (the digest's "p"), so it goes out again with them.
 
 Sharing needs an account (Settings › Account), since the server keeps a share with the account that made it.
 
@@ -70,8 +79,11 @@ Nothing on the page is drawn by code of its own, so a change to how the app draw
 It follows the system's light or dark setting. A slim banner across the top, sticky, holds the name, "Get the app"
 (install.html beside it; on a phone the banner keeps only that link) and two small buttons for keeping what's shared:
 
-- **Download as Markdown:** a note as its `.md`; a book as a `.zip` of its pages (share/zip.ts, stored, not
+- **Download as Markdown:** a note as its `.md`; a book, or a note with pictures, as a `.zip` of its pages with the
+  pictures in an `image/` folder beside them, where the pages' `image/<name>` links point (share/zip.ts, stored, not
   compressed).
+- **Pictures** are drawn from the share: the page lends them to the editor as object URLs for as long as it is open
+  (core/images.ts `lendImages`), and stores nothing, since the page shares its origin with the web app.
 - **Save a copy:** on the web, a link to the app with `#fork=<id>.<key>`, which App.tsx reads once on
   load, removes from the address, and saves. In the phone or Mac app, **+ › From a shared link** takes the pasted
   link, or any text with it inside.
@@ -82,6 +94,8 @@ share/share.ts `forkShared` saves each page as a new note owned by the reader. I
 
 - A title that is already in the library gets "(shared)", then "(shared 2)" and so on.
 - A book's index is rewritten to name the renamed copies, so the copy's chapters are its own.
+- The pictures are kept first, under their own names (core/images.ts `keepImage`), so the copy draws them, and the
+  reader's sync sends them on with the notes that name them.
 
 ## Not yet
 

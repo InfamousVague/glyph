@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Note } from '../core/store.ts';
 import { noteTitle } from '../core/store.ts';
 import { bookNoteBody, chaptersOf } from '../book/book.ts';
-import { forkShared, newShareId, newShareKey, openShare, readShareLink, sealShare, shareLink, sharedAsFile, sharedOf, type Shared } from './share.ts';
+import { forkShared, newShareId, newShareKey, openShare, readShareLink, sealShare, shareLink, sharedAsFile, sharedOf, withPictures, type Shared } from './share.ts';
 import { crc32, zipFiles } from './zip.ts';
 
 const note = (id: string, body: string): Note => ({ id, body, createdAt: 0, updatedAt: 0, source: 'editor' }) as Note;
@@ -72,5 +72,84 @@ describe('the zip', () => {
     expect(crc32(new TextEncoder().encode('The quick brown fox jumps over the lazy dog'))).toBe(0x414fa339);
     const zip = zipFiles([{ name: 'a.md', bytes: new TextEncoder().encode('hi') }]);
     expect(new DataView(zip.buffer).getUint32(14, true)).toBe(crc32(new TextEncoder().encode('hi')));
+  });
+});
+
+describe('the pictures a share carries', () => {
+  const jpeg = (n: number, size = 8) => new Uint8Array(size).fill(n);
+  const A = 'aaaa1111-0000-4000-8000-000000000001.jpg';
+  const B = 'bbbb2222-0000-4000-8000-000000000002.jpg';
+  const C = 'cccc3333-0000-4000-8000-000000000003.jpg';
+  const paged: Shared = {
+    v: 1,
+    kind: 'book',
+    title: 'Trading',
+    pages: [
+      { title: 'Trading', body: '# Trading\n\n- [[Orders]]\n- [[Fills]]' },
+      { title: 'Orders', body: `# Orders\n\n![The ticket](image/${A})\n\n![Again](image/${A})` },
+      { title: 'Fills', body: `# Fills\n\n![The fill](image/${B})\n\n![Gone](image/${C})` },
+    ],
+    at: 1,
+  };
+
+  it('seals them with the words and opens them byte for byte, and a share without any is sealed as before', async () => {
+    const key = newShareKey();
+    const shared: Shared = { ...paged, pictures: { [A]: jpeg(1, 300), [B]: jpeg(2, 40) } };
+    const opened = await openShare(await sealShare(shared, key), key);
+    expect(opened.pages).toEqual(paged.pages);
+    expect(opened.pictures?.[A]).toEqual(jpeg(1, 300));
+    expect(opened.pictures?.[B]).toEqual(jpeg(2, 40));
+    expect(await openShare(await sealShare(paged, key), key)).toEqual(paged);
+  });
+
+  it('refuses a picture named to reach outside the picture store', async () => {
+    const key = newShareKey();
+    const opened = await openShare(await sealShare({ ...paged, pictures: { '../../evil.jpg': jpeg(9), [B]: jpeg(2) } }, key), key);
+    expect(Object.keys(opened.pictures ?? {})).toEqual([B]);
+    expect(opened.pictures?.[B]).toEqual(jpeg(2));
+  });
+
+  it('carries the pictures the pages show, once each, leaving out one this device lacks', async () => {
+    const read = vi.fn(async (name: string) => (name === C ? null : jpeg(name === A ? 1 : 2)));
+    const shared = await withPictures(paged, { read, smaller: async (bytes) => bytes });
+    expect(Object.keys(shared.pictures ?? {})).toEqual([A, B]);
+    expect(read.mock.calls.map((c) => c[0])).toEqual([A, B, C]);
+  });
+
+  it('draws them smaller when they would not fit, and then keeps as many as fit', async () => {
+    const words = new TextEncoder().encode(JSON.stringify(paged)).length;
+    const read = async (name: string) => (name === C ? null : jpeg(1, 1000));
+    // Room for both only once each is drawn at a tenth.
+    const shrunk = await withPictures(paged, { read, smaller: async (bytes) => bytes.slice(0, 100) }, words + 500);
+    expect(Object.values(shrunk.pictures ?? {}).map((b) => b.length)).toEqual([100, 100]);
+    // Room for one, even smaller: the first the pages show.
+    const one = await withPictures(paged, { read, smaller: async (bytes) => bytes.slice(0, 400) }, words + 500);
+    expect(Object.keys(one.pictures ?? {})).toEqual([A]);
+  });
+
+  it('downloads the pictures beside the pages, and a note with pictures as a zip', async () => {
+    const note: Shared = { v: 1, kind: 'note', title: 'Orders', pages: [paged.pages[1]!], at: 1, pictures: { [A]: jpeg(1) } };
+    const file = sharedAsFile(note);
+    expect(file.name).toBe('Orders.zip');
+    const bytes = new Uint8Array(await file.blob.arrayBuffer());
+    const text = new TextDecoder('latin1').decode(bytes);
+    expect(text).toContain('Orders.md');
+    expect(text).toContain(`image/${A}`);
+    expect(bytes[bytes.length - 22 + 8]).toBe(2);
+  });
+
+  it('keeps them in a saved copy, under their own names', async () => {
+    const kept: string[] = [];
+    await forkShared(
+      { ...paged, pictures: { [A]: jpeg(1), [B]: jpeg(2) } },
+      {
+        notes: async () => [],
+        save: async (body) => note(`s-${body.length}`, body),
+        keep: async (name) => {
+          kept.push(name);
+        },
+      },
+    );
+    expect(kept).toEqual([A, B]);
   });
 });

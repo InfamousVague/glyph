@@ -2,7 +2,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { useSyncExternalStore } from 'react';
 import { accountKey, accountState, resume, signOut } from '../account/account.ts';
 import { ApiError } from '../account/api.ts';
-import { imageArrived, keepWebImage, webImageBytes } from '../images.ts';
+import { imageBytes, keepImage } from '../images.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
 import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED, type Note } from '../store.ts';
 import { invoke, isTauri } from '../tauri.ts';
@@ -141,20 +141,17 @@ async function fetchLocal(url: string): Promise<Bytes | null> {
 
 const deviceFiles: LocalFiles = {
   async read(kind: FileKind, name: string) {
-    if (isTauri()) return fetchLocal(convertFileSrc(kind === 'recording' ? `${name}.wav` : name, kind === 'recording' ? 'rec' : 'img'));
-    // A browser keeps pictures, and no recordings.
-    return kind === 'image' ? webImageBytes(name).catch(() => null) : null;
+    if (kind === 'image') return imageBytes(name);
+    // A browser keeps no recordings.
+    return isTauri() ? fetchLocal(convertFileSrc(`${name}.wav`, 'rec')) : null;
   },
   async write(kind: FileKind, name: string, bytes: Bytes) {
-    if (isTauri()) {
-      // Standard base64, which is what Rust reads.
-      const base64 = toBase64Url(bytes).replace(/-/g, '+').replace(/_/g, '/');
-      await invoke('sync_put_file', { kind, name, base64: base64 + '='.repeat((4 - (base64.length % 4)) % 4) });
-      // A note already on screen asked for this picture before it was here: it draws it now.
-      if (kind === 'image') imageArrived(name);
-      return;
-    }
-    if (kind === 'image') await keepWebImage(name, bytes);
+    // A picture is drawn at once wherever a page was waiting for it (core/images.ts).
+    if (kind === 'image') return keepImage(name, bytes);
+    if (!isTauri()) return;
+    // Standard base64, which is what Rust reads.
+    const base64 = toBase64Url(bytes).replace(/-/g, '+').replace(/_/g, '/');
+    await invoke('sync_put_file', { kind, name, base64: base64 + '='.repeat((4 - (base64.length % 4)) % 4) });
   },
 };
 

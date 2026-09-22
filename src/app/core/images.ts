@@ -83,8 +83,8 @@ export async function adoptImagePath(path: string): Promise<string> {
 const PASTE_GENERATION = 9;
 let generation: number | null = null;
 
-/** A picture shrunk so its long side is at most 1600 px, as a JPEG, turned the right way up. */
-async function shrink(file: Blob): Promise<Blob> {
+/** A picture shrunk so its long side is at most `longSide` px (1600 as it is kept), as a JPEG, turned the right way up. */
+async function shrink(file: Blob, longSide = 1600, quality = 0.85): Promise<Blob> {
   // An empty file is a clipboard pointing at a picture that has since been
   // cleaned up: Chrome on Android copies a picture as a link to a file it
   // deletes after a while, and the paste still says "image" with no bytes.
@@ -92,7 +92,7 @@ async function shrink(file: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => {
     throw new Error('That picture couldn’t be opened.');
   });
-  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, longSide / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -103,7 +103,7 @@ async function shrink(file: Blob): Promise<Blob> {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
   if (!blob) throw new Error('The picture could not be read.');
   return blob;
 }
@@ -182,9 +182,14 @@ export async function webImageBytes(name: string): Promise<Uint8Array<ArrayBuffe
   return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
 }
 
+/** The type a picture's name says it is. */
+function typeOf(name: string): string {
+  return name.endsWith('.png') ? 'image/png' : name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+}
+
 /** Keeps a picture that arrived by sync, under its own name. */
 export async function keepWebImage(name: string, bytes: Uint8Array<ArrayBuffer>): Promise<void> {
-  const blob = new Blob([bytes], { type: name.endsWith('.png') ? 'image/png' : name.endsWith('.webp') ? 'image/webp' : 'image/jpeg' });
+  const blob = new Blob([bytes], { type: typeOf(name) });
   await webPut(name, blob);
   urls.set(name, URL.createObjectURL(blob));
   window.dispatchEvent(new Event(IMAGE_READY));
@@ -216,6 +221,51 @@ export const IMAGE_READY = 'glyph:image-ready';
 
 /** Pictures the phone or the Mac was given by sync this run, by name, each with a number that changes when it lands. */
 const arrived = new Map<string, number>();
+
+/**
+ * A picture's bytes on this device, whichever store it is in: the phone's or the Mac's (through the `img` scheme), or
+ * a browser's. Null where this device has no picture by that name. For sync (core/sync/engine.ts) and for a share
+ * (share/share.ts), which carries the pictures its pages show.
+ */
+export async function imageBytes(name: string): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (!isTauri()) return webImageBytes(name).catch(() => null);
+  try {
+    const response = await fetch(convertFileSrc(name, 'img'));
+    return response.ok ? new Uint8Array(await response.arrayBuffer()) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Keeps a picture that came from elsewhere under its own name - by sync, or in a shared copy saved here - and draws
+ * it wherever a page is waiting for it. On the phone or the Mac the bytes go to Rust (`sync_put_file`, native
+ * generation 16); in a browser, to storage.
+ */
+export async function keepImage(name: string, bytes: Uint8Array<ArrayBuffer>): Promise<void> {
+  if (!isTauri()) {
+    await keepWebImage(name, bytes);
+    return;
+  }
+  await invoke('sync_put_file', { kind: 'image', name, base64: toBase64(bytes) });
+  imageArrived(name);
+}
+
+/** A picture drawn smaller, as a JPEG: a reading copy for a share that would not hold them as they are. */
+export async function smallerImage(bytes: Uint8Array<ArrayBuffer>, longSide: number, quality: number): Promise<Uint8Array<ArrayBuffer>> {
+  return new Uint8Array(await (await shrink(new Blob([bytes]), longSide, quality)).arrayBuffer());
+}
+
+/**
+ * Pictures lent to this page for as long as it is open, by name: the reader page's (src/read/), which draws a share's
+ * pictures from the share itself. Nothing is stored: the page's origin is the web app's, whose stored pictures are
+ * someone's own.
+ */
+export function lendImages(pictures: Readonly<Record<string, Uint8Array<ArrayBuffer>>>): void {
+  if (typeof URL.createObjectURL !== 'function') return;
+  for (const [name, bytes] of Object.entries(pictures)) urls.set(name, URL.createObjectURL(new Blob([bytes], { type: typeOf(name) })));
+  if (Object.keys(pictures).length && typeof window !== 'undefined') window.dispatchEvent(new Event(IMAGE_READY));
+}
 
 /** A picture was written to this device's store by sync (core/sync/engine.ts): every page drawing it draws it again. */
 export function imageArrived(name: string): void {

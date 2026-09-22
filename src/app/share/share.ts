@@ -1,6 +1,7 @@
 import { call } from '../core/account/api.ts';
 import { accountState } from '../core/account/account.ts';
-import { fromBase64Url, openBytes, sealBytes, toBase64Url } from '../core/sync/crypto.ts';
+import { fromBase64Url, openBytes, sealBytes, toBase64Url, type Bytes } from '../core/sync/crypto.ts';
+import { imageBytes, imageNames, keepImage, smallerImage } from '../core/images.ts';
 import { withFrontMatterTitle, frontMatterValue } from '../core/frontMatter.ts';
 import { listNotes, newNoteId, noteTitle, saveNote, NOTE_SAVED, type Note } from '../core/store.ts';
 import { chaptersOf, isBookBody } from '../book/book.ts';
@@ -30,6 +31,11 @@ export interface Shared {
   pages: { title: string; body: string }[];
   /** When it was written, in ms. */
   at: number;
+  /**
+   * The pictures its pages show, by name (`![…](image/<name>)`, core/images.ts). Carried in the share itself: a
+   * reader has no account to fetch them from, and the server keeps the share whole or not at all.
+   */
+  pictures?: Record<string, Bytes>;
 }
 
 /** The context a share is sealed in: a synced note's ciphertext cannot be passed off as a share, nor the reverse. */
@@ -61,15 +67,100 @@ function keyOf(key: string): Promise<CryptoKey> {
   return crypto.subtle.importKey('raw', fromBase64Url(key), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
+/**
+ * A share with pictures, sealed: `GSP1`, the length of what follows as four bytes, the share's words as JSON (with
+ * each picture's name and size where the pictures were), and then the pictures' bytes one after another. Pictures
+ * sealed as base64 inside the JSON would be encoded twice over, since the sealed share goes to the server as base64
+ * again, and the server's limit is on that text. A share with no pictures is its JSON alone, as it always was.
+ */
+const PICTURED = [0x47, 0x53, 0x50, 0x31];
+/** The longest share the server keeps (server/src/shares.rs `SHARE_LIMIT`), in the base64url characters it counts. */
+export const SHARE_LIMIT = 6_000_000;
+/** What a share may hold before it is sealed and encoded: three quarters of the limit, less room for the seal. */
+export const SHARE_BYTES = 4_400_000;
+/** A picture's name as a note writes it: nothing a share could use to reach outside the picture store. */
+const PICTURE_NAME = /^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}$/;
+
 export async function sealShare(shared: Shared, key: string): Promise<string> {
-  return toBase64Url(await sealBytes(await keyOf(key), new TextEncoder().encode(JSON.stringify(shared)), CONTEXT));
+  const { pictures = {}, ...words } = shared;
+  const names = Object.keys(pictures);
+  if (!names.length) return toBase64Url(await sealBytes(await keyOf(key), new TextEncoder().encode(JSON.stringify(words)), CONTEXT));
+  const head = new TextEncoder().encode(JSON.stringify({ ...words, pictures: names.map((name) => [name, pictures[name]!.length]) }));
+  const out = new Uint8Array(8 + head.length + names.reduce((sum, name) => sum + pictures[name]!.length, 0));
+  out.set(PICTURED, 0);
+  new DataView(out.buffer).setUint32(4, head.length);
+  out.set(head, 8);
+  let at = 8 + head.length;
+  for (const name of names) {
+    out.set(pictures[name]!, at);
+    at += pictures[name]!.length;
+  }
+  return toBase64Url(await sealBytes(await keyOf(key), out, CONTEXT));
 }
 
 export async function openShare(blob: string, key: string): Promise<Shared> {
   const bytes = await openBytes(await keyOf(key), fromBase64Url(blob), CONTEXT);
-  const shared = JSON.parse(new TextDecoder().decode(bytes)) as Shared;
+  let shared: Shared;
+  if (PICTURED.every((byte, i) => bytes[i] === byte)) {
+    const length = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(4);
+    const head = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + length))) as Omit<Shared, 'pictures'> & { pictures?: [string, number][] };
+    const pictures: Record<string, Bytes> = {};
+    let at = 8 + length;
+    for (const [name, size] of Array.isArray(head.pictures) ? head.pictures : []) {
+      if (typeof name === 'string' && PICTURE_NAME.test(name) && Number.isInteger(size) && size > 0) pictures[name] = bytes.slice(at, at + size);
+      at += Number(size) || 0;
+    }
+    shared = { ...head, pictures };
+  } else {
+    shared = JSON.parse(new TextDecoder().decode(bytes)) as Shared;
+  }
   if (shared?.v !== 1 || !Array.isArray(shared.pages)) throw new Error('This link was shared by a newer Ghost.md. Update the app to read it.');
   return shared;
+}
+
+/**
+ * `shared` with the pictures its pages show, read from this device (`read`), as many as the share can hold: as they
+ * are kept if they fit, else each drawn smaller (`smaller`), else as many as fit in the order the pages show them. A
+ * picture this device does not have is left out, and the reader sees it missing, as the owner's other devices would.
+ */
+export async function withPictures(
+  shared: Shared,
+  deps: { read: (name: string) => Promise<Bytes | null>; smaller: (bytes: Bytes) => Promise<Bytes> } = {
+    read: imageBytes,
+    smaller: (bytes) => smallerImage(bytes, 1024, 0.72),
+  },
+  budget = SHARE_BYTES,
+): Promise<Shared> {
+  const names = [...new Set(shared.pages.flatMap((page) => imageNames(page.body)))];
+  if (!names.length) return shared;
+  let found: [string, Bytes][] = [];
+  for (const name of names) {
+    const bytes = await deps.read(name).catch(() => null);
+    if (bytes?.length) found.push([name, bytes]);
+  }
+  const room = budget - new TextEncoder().encode(JSON.stringify(shared)).length;
+  const size = (list: [string, Bytes][]) => list.reduce((sum, [, bytes]) => sum + bytes.length, 0);
+  if (size(found) > room) {
+    // Too much to carry as kept: a reading copy of each, smaller.
+    const smaller: [string, Bytes][] = [];
+    for (const [name, bytes] of found) smaller.push([name, await deps.smaller(bytes).catch(() => bytes)]);
+    found = smaller;
+  }
+  const pictures: Record<string, Bytes> = {};
+  let used = 0;
+  for (const [name, bytes] of found) {
+    if (used + bytes.length > room) continue;
+    pictures[name] = bytes;
+    used += bytes.length;
+  }
+  return Object.keys(pictures).length ? { ...shared, pictures } : shared;
+}
+
+/** Sealed for the server, or a refusal a person can read when even the words are more than a share holds. */
+async function sealForServer(shared: Shared, key: string): Promise<string> {
+  const blob = await sealShare(shared, key);
+  if (blob.length > SHARE_LIMIT) throw new Error('That is more than a share can hold, even with its pictures drawn smaller. Share a chapter, or fewer of them.');
+  return blob;
 }
 
 /** The link a reader opens: the reader page, and after the `#` the share's id and key. */
@@ -145,7 +236,8 @@ export function linkFor(noteId: string): string | null {
 
 /** A short digest of what a share holds, pages only: when it was written does not make it different. */
 function digest(shared: Shared): string {
-  const text = JSON.stringify([shared.kind, shared.title, shared.pages]);
+  // "p": pictures travel with a share. A share sent before they did reads as changed, so it is sent again with them.
+  const text = JSON.stringify(['p', shared.kind, shared.title, shared.pages]);
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
   return `${text.length}:${(h >>> 0).toString(36)}`;
@@ -163,7 +255,7 @@ export async function shareNote(note: Note, notes: readonly Note[]): Promise<str
   const all = readKept();
   const kept = all[note.id] ?? { id: newShareId(), key: newShareKey(), sent: '' };
   const shared = sharedOf(note, notes);
-  await call('PUT', `shares/${kept.id}`, { token: auth, body: { blob: await sealShare(shared, kept.key) } });
+  await call('PUT', `shares/${kept.id}`, { token: auth, body: { blob: await sealForServer(await withPictures(shared), kept.key) } });
   all[note.id] = { ...kept, sent: digest(shared) };
   writeKept(all);
   return shareLink(kept.id, kept.key);
@@ -193,7 +285,7 @@ export async function refreshShares(): Promise<number> {
     const shared = sharedOf(note, notes);
     if (digest(shared) === kept.sent) continue;
     try {
-      await call('PUT', `shares/${kept.id}`, { token: token(), body: { blob: await sealShare(shared, kept.key) } });
+      await call('PUT', `shares/${kept.id}`, { token: token(), body: { blob: await sealForServer(await withPictures(shared), kept.key) } });
       all[id] = { ...kept, sent: digest(shared) };
       sent += 1;
     } catch {
@@ -217,6 +309,9 @@ export function followShares(): void {
     window.clearTimeout(timer);
     timer = window.setTimeout(() => void refreshShares(), FOLLOW_MS);
   });
+  // And once at launch, once the app has settled: a share whose notes changed on another device, or that was sent by
+  // an older app, goes out as it is now.
+  if (Object.keys(readKept()).length) timer = window.setTimeout(() => void refreshShares(), FOLLOW_MS * 4);
 }
 
 // ---- reading and forking ----------------------------------------------------------------------------
@@ -246,11 +341,16 @@ function retitled(body: string, from: string, to: string): string {
  */
 export async function forkShared(
   shared: Shared,
-  deps: { notes: () => Promise<Note[]>; save: (body: string) => Promise<Note> } = {
+  deps: { notes: () => Promise<Note[]>; save: (body: string) => Promise<Note>; keep?: (name: string, bytes: Bytes) => Promise<void> } = {
     notes: listNotes,
     save: (body) => saveNote(newNoteId(), body, 'editor'),
   },
 ): Promise<Note> {
+  // The pictures first, under their own names, so the pages draw them as they open; sync sends them on from here.
+  const keep = deps.keep ?? keepImage;
+  for (const [name, bytes] of Object.entries(shared.pictures ?? {})) {
+    await keep(name, bytes).catch((failure: unknown) => console.warn('[glyph] a shared picture was not kept:', failure));
+  }
   const have = (await deps.notes()).map((n) => noteTitle(n.body));
   const taken = (t: string) => have.some((h) => sameTitle(h, t));
   const names = new Map<string, string>();
@@ -282,11 +382,13 @@ function fileName(title: string): string {
 
 /** What was shared, as files for any Markdown app: one `.md` for a note, a `.zip` of every page for a book. */
 export function sharedAsFile(shared: Shared): { name: string; blob: Blob } {
-  if (shared.kind === 'note' || shared.pages.length === 1) {
+  // The pictures beside the pages in an `image/` folder, which is where the pages' `image/<name>` links point.
+  const pictures = Object.entries(shared.pictures ?? {}).map(([name, bytes]) => ({ name: `image/${name}`, bytes }));
+  if ((shared.kind === 'note' || shared.pages.length === 1) && !pictures.length) {
     const page = shared.pages[0]!;
     return { name: `${fileName(page.title)}.md`, blob: new Blob([page.body], { type: 'text/markdown' }) };
   }
   const encoder = new TextEncoder();
-  const files = shared.pages.map((page) => ({ name: `${fileName(page.title)}.md`, bytes: encoder.encode(page.body) }));
+  const files = [...shared.pages.map((page) => ({ name: `${fileName(page.title)}.md`, bytes: encoder.encode(page.body) })), ...pictures];
   return { name: `${fileName(shared.title)}.zip`, blob: new Blob([zipFiles(files)], { type: 'application/zip' }) };
 }

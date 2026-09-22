@@ -6,6 +6,7 @@ import { canvasOf, isCanvasBody } from '../app/canvas/jsonCanvas.ts';
 import { BookBar, BookFoot, BookView } from '../app/book/BookView.tsx';
 import { bookOf } from '../app/book/book.ts';
 import { usePreferences } from '../app/core/preferences.ts';
+import { lendImages } from '../app/core/images.ts';
 import { sameTitle } from '../app/editor/wikiLinks.ts';
 import { noteTitle, type Note } from '../app/core/store.ts';
 import { readShared, readShareLink, sharedAsFile, type Shared } from '../app/share/share.ts';
@@ -48,6 +49,8 @@ export function Reader() {
     }
     readShared(location.href).then(
       (shared) => {
+        // The pictures the share carries, drawn from it: this page has no account to fetch them from.
+        lendImages(shared.pictures ?? {});
         setState({ kind: 'ready', shared });
         document.title = `${shared.title} · Ghost.md`;
       },
@@ -111,6 +114,8 @@ function Read({
   const link = typeof location !== 'undefined' ? location.href : '';
   const found = readShareLink(link);
 
+  // A book, or a note with pictures, downloads as a zip: its pages, and the pictures in an image/ folder beside them.
+  const zipped = isBook || Object.keys(shared.pictures ?? {}).length > 0;
   const download = () => {
     const file = sharedAsFile(shared);
     const url = URL.createObjectURL(file.blob);
@@ -148,9 +153,9 @@ function Read({
               <Plus size={14} aria-hidden="true" />
               Save a copy
             </button>
-            <button type="button" className={styles.action} onClick={download} aria-label={isBook ? 'Download as Markdown (.zip)' : 'Download as Markdown'}>
+            <button type="button" className={styles.action} onClick={download} aria-label={zipped ? 'Download as Markdown (.zip)' : 'Download as Markdown'}>
               <Download size={14} aria-hidden="true" />
-              {isBook ? '.zip' : '.md'}
+              {zipped ? '.zip' : '.md'}
             </button>
           </span>
         </div>
