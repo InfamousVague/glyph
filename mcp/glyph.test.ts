@@ -119,6 +119,15 @@ describe('reading and writing notes', () => {
     expect(stored?.images).toEqual(['sea.jpg']);
   });
 
+  it('names a picture the words newly show, so the devices fetch it (Matt: the HelloTrade chapters had none named)', async () => {
+    const { service, account } = await ready();
+    await service.deviceWrites(aNote('b', '# Orders'));
+    await account.edit('b', (note) => ({ ...note, body: '# Orders\n\n![The ticket](image/ticket.jpg)\n\n![](image/fill.png)' }));
+    expect((await service.stored('b'))?.images).toEqual(['ticket.jpg', 'fill.png']);
+    const made = await account.create('# New\n\n![](image/new.jpg)');
+    expect((await service.stored(made.note.id))?.images).toEqual(['new.jpg']);
+  });
+
   it('never writes over what another device wrote first: the conflict carries their note', async () => {
     const { service, account } = await ready();
     await service.deviceWrites(aNote('a', 'Mine, read at rev 1'));

@@ -333,7 +333,8 @@ export class GlyphAccount {
   async create(body: string, { pinned = false }: { pinned?: boolean } = {}): Promise<NoteRecord> {
     const now = Date.now();
     const note: Note = { id: newId(), body, createdAt: now, updatedAt: now, source: 'editor', starred: pinned, archivedAt: null };
-    return this.write({ rev: 0, note }, 0);
+    const images = imageNames(body);
+    return this.write({ rev: 0, note, ...(images.length ? { images } : {}) }, 0);
   }
 
   /**
@@ -352,8 +353,9 @@ export class GlyphAccount {
       note.formattedFor = null;
       note.formattedModel = null;
     }
-    const named = new Set(imageNames(note.body));
-    const images = (current.images ?? []).filter((name) => named.has(name));
+    // Every picture the words show, as a device writing the note would name them: a picture added here, whose file is
+    // on some device, is then fetched by every other one (app core/sync/notes.ts), and one the words dropped goes.
+    const images = imageNames(note.body);
     return this.write({ rev: current.rev, note, recording: current.recording, images }, current.rev);
   }
 }
