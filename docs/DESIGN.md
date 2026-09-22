@@ -3403,3 +3403,30 @@ Three asks in a row from Matt.
   sample note is now "How to format a note": for each mark, how to type it, the word to say for it while recording,
   and one example, short, ending with press-and-hold Style. It still holds one of every mark the editor draws - its
   test says so - so it is still the note that shows everything, only now in the order a person learns it.
+
+## 64. The strip behind the clock is the bar (2026-09-22)
+
+Matt, of the Fold's inner screen: "The very top bar where the time and battery and stuff show up still has the
+missing semiopaque black background like the rest of the headers have so it looks different." Two sessions had read
+the strip as the activity's window background - the page not drawn under the status bar - and the Android 16
+emulator, which draws the page under the bar, did not reproduce it. The second screenshot did what the first could
+not: the strip had a soft light gradient in it, which is what blurred, untinted cards look like. The page was under
+the bar all along; the strip was missing the tint.
+
+- **Why only there.** On a phone the screen's header pane covers the strip, tint and blur, from the top. On the split
+  layout (`data-split`, which the Fold's inner screen is: wide and tall) the tab bar is glass of its own across the
+  window and began at `--app-inset-top`, under the status bar, while the pane's tint below it starts where the bar
+  ends (`--app-safe-top`) so the two would not stack. Between the screen's edge and the bar's top nobody tinted: the
+  pane's blur reached it, its tint did not, and the scrolled cards showed through lighter than through the bar - a
+  grey gradient over a black bar. The Mac's 44px title strip is the same case.
+- **The bar reaches the top.** `:root[data-split] .app-tabBar` now starts at 0 and pads down by the inset, its height
+  grown by the same, so the strip is the bar: one glass from the screen's edge to the bar's line. Its bottom edge,
+  `--app-safe-top` and the pane's gradient are as they were, so nothing under it moves; the Mac's drag bar (z 41)
+  still sits over it (z 5). Measured in the pane at 1024px with a 40px inset forced and the home scrolled under the
+  bar: bar top 40 and height 108 before, top 0 and height 148 after, the row's top at 50 (inset plus the bar's own
+  inset) either way.
+- **What was learned about measuring.** A pixel average of a JPEG told two people "nothing the page paints" when the
+  strip was the page's own blur without its tint; the emulator told the truth about where the page was and nothing
+  about how it was tinted. The picture that settled it was the one with a gradient in it. A Developer › Window
+  section (§ above) now says the inset the page is given, so the first question - is the page under the bar - has a
+  number next time.

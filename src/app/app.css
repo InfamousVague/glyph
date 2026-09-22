@@ -287,6 +287,19 @@ body {
   -webkit-backdrop-filter: blur(18px) saturate(1.1);
   backdrop-filter: blur(18px) saturate(1.1);
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  /*
+   * From the window's top edge, not from under the status bar (Matt, of the Fold: "the very top bar where the time
+   * and battery show up still has the missing semiopaque black background like the rest of the headers have"). The
+   * bar began at `--app-inset-top`, and the pane's tint below starts where the bar ends, so the strip behind the
+   * clock had the pane's blur and nobody's tint: the scrolled cards showed through it lighter than through the bar,
+   * a soft grey gradient over a black bar. The bar now reaches the top and pads down by the inset, so the strip is
+   * the bar - one glass from the screen's edge to the bar's line. Its bottom edge, `--app-safe-top` and the pane's
+   * gradient are as they were, so nothing under it moves. The Mac's title strip is the same 44px, and its drag bar
+   * (z 41) still sits over this (z 5).
+   */
+  inset-block-start: 0;
+  padding-block-start: calc(var(--app-inset-top) + var(--glacier-space-2));
+  block-size: calc(var(--app-inset-top) + var(--app-tabs));
 }
 
 /*
