@@ -18,12 +18,34 @@
   pointer-events: none;
 }
 
-.icon {
-  inline-size: 96px;
-  block-size: 96px;
-  border-radius: 22px;
-  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 55%);
+.chase {
+  inline-size: 128px;
+  block-size: 128px;
+  overflow: visible;
   animation: rise 420ms var(--glacier-ease-out, ease-out) both;
+}
+
+/* The ring the bar runs on: the same line, barely there. */
+.track {
+  fill: none;
+  stroke: color-mix(in srgb, var(--glacier-text) 12%, transparent);
+  stroke-width: 3;
+}
+
+/* The bar: a short stretch of the ring in the page's ink, round at its ends, chasing round once a little over a second. */
+.bar {
+  fill: none;
+  stroke: var(--glacier-text);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 14 86;
+  animation: chase 1.15s linear infinite;
+}
+
+@keyframes chase {
+  to {
+    stroke-dashoffset: -100;
+  }
 }
 
 .name {
@@ -80,7 +102,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .icon,
+  .chase,
+  .bar,
   .name,
   .line,
   .line[data-state='working'] .mark svg {

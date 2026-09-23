@@ -4120,3 +4120,7 @@ page".
   and antiAi.ts. The first page is now "Welcome to Ghost.md" out of smoke, one line on what it is, and three points:
   say it or type it, plain Markdown files, the same on every device. The rest of the flow is as it was: theme, model,
   side key, marks, tips. The page count is a row of dots instead of "1 of 6".
+- **The icon in a squircle** (Matt: "put the app logo in a squircle with a black bar that chases around the outside of
+  the squircle"): the icon is clipped to a superellipse (n = 5), and a short bar in the page's ink runs round a ring
+  of the same shape just outside it, once every 1.15 seconds, over a faint track. The ink is black on the light page
+  and white on the dark, where black would be invisible.

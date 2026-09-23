@@ -35,6 +35,49 @@ interface LaunchScreenProps {
 
 type Line = { key: string; state: 'working' | 'done' | 'note'; words: string };
 
+/**
+ * A squircle's outline as an SVG path: a superellipse, |x|^n + |y|^n = 1, the shape of an app icon's corners rather
+ * than a rounded rectangle's, centred at (c, c) with half-width r.
+ */
+function squircle(c: number, r: number, n = 5, steps = 96): string {
+  const points: string[] = [];
+  for (let i = 0; i < steps; i += 1) {
+    const t = (i / steps) * Math.PI * 2;
+    const cos = Math.cos(t);
+    const sin = Math.sin(t);
+    const x = c + r * Math.sign(cos) * Math.abs(cos) ** (2 / n);
+    const y = c + r * Math.sign(sin) * Math.abs(sin) ** (2 / n);
+    points.push(`${x.toFixed(2)} ${y.toFixed(2)}`);
+  }
+  return `M${points.join('L')}Z`;
+}
+
+/** The drawing's box, the icon's squircle inside it, and the ring the bar runs round, a little outside the icon. */
+const BOX = 128;
+const ICON_PATH = squircle(BOX / 2, 48);
+const RING_PATH = squircle(BOX / 2, 58);
+
+/**
+ * The app's icon in a squircle, and a short bar chasing round a ring outside it while the app opens (Matt: "put the app
+ * logo in a squircle with a black bar that chases around the outside of the squircle"). The bar is the page's ink:
+ * black on the light page, and white on the dark one, where black would be invisible. It runs on a faint track of the
+ * same ring.
+ */
+function IconChase() {
+  return (
+    <svg className={styles.chase} viewBox={`0 0 ${BOX} ${BOX}`} width={BOX} height={BOX} aria-hidden="true">
+      <defs>
+        <clipPath id="launch-squircle">
+          <path d={ICON_PATH} />
+        </clipPath>
+      </defs>
+      <image href={icon} x={BOX / 2 - 48} y={BOX / 2 - 48} width={96} height={96} clipPath="url(#launch-squircle)" preserveAspectRatio="xMidYMid slice" />
+      <path className={styles.track} d={RING_PATH} pathLength={100} />
+      <path className={styles.bar} d={RING_PATH} pathLength={100} />
+    </svg>
+  );
+}
+
 export function LaunchScreen({ loading, notes, updates, sync, onDone }: LaunchScreenProps) {
   const native = isTauri();
   const started = useRef(Date.now());
@@ -116,7 +159,7 @@ export function LaunchScreen({ loading, notes, updates, sync, onDone }: LaunchSc
 
   return (
     <div className={styles.launch} data-leaving={leaving || undefined} role="status" aria-live="polite" aria-label="Opening Ghost.md">
-      <img className={styles.icon} src={icon} width={96} height={96} alt="" />
+      <IconChase />
       <h1 className={styles.name}>Ghost.md</h1>
       <ul className={styles.lines}>
         {lines.map((line) => (
