@@ -22,10 +22,15 @@ import styles from './Reader.module.css';
  */
 
 const dark = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
-/** The app beside this page: its own copy saves the share into the reader's library (App.tsx, `#fork=`). */
-const APP_URL = new URL('./', typeof location !== 'undefined' ? location.href : 'https://attack.fm/glyph/').href;
-/** Where the app is got: the page that offers the phone app, beside this one. */
-const INSTALL_URL = new URL('./install.html', APP_URL).href;
+/**
+ * The page is served in two places: beside the app on attack.fm/glyph (and a dev server), and on ghostmarkdown.com,
+ * where the root is the download page rather than the app. So the app's own copy, which saves the share into the
+ * reader's library (App.tsx, `#fork=`), and the place to get the app, depend on which.
+ */
+const LANDING = typeof location !== 'undefined' && /(^|\.)ghostmarkdown\.com$/.test(location.hostname);
+const APP_URL = LANDING ? 'https://attack.fm/glyph/' : new URL('./', typeof location !== 'undefined' ? location.href : 'https://attack.fm/glyph/').href;
+/** Where the app is got: the download page on ghostmarkdown.com, or the install page beside the app. */
+const INSTALL_URL = LANDING ? 'https://ghostmarkdown.com/' : new URL('./install.html', APP_URL).href;
 
 type State = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind: 'ready'; shared: Shared };
 

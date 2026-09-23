@@ -9,7 +9,12 @@ copy into their app".
 
 ## The link
 
-    https://attack.fm/glyph/read.html#<id>.<key>
+    https://ghostmarkdown.com/read.html#<id>.<key>
+
+The reader page is the release's own, served on ghostmarkdown.com as well as beside the app (docs/LANDING.md). A link
+made before the move, `https://attack.fm/glyph/read.html#…`, still opens, since what opens a share is the part after
+the `#`. On ghostmarkdown.com the page's "Save it in Ghost.md on the web" goes to the app on attack.fm, and "Get the
+app" goes to the download page. The share service lets the page read it from there (server/src/main.rs `ORIGINS`).
 
 - **The id** is 16 random bytes, base64url. The server stores the share under it.
 - **The key** is 32 random bytes, base64url: the AES-GCM key the share is sealed with (sync/crypto.ts `sealBytes`,

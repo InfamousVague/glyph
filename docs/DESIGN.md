@@ -4024,3 +4024,17 @@ provide it's logo and name so we can have it listed when they co author books an
 - **Seen in the pane:** a book with one chapter written with Claude and one alone. The index reads "By infamousvague
   and Claude", and so does the chapter, under its bar. Tests: reading, adding and merging authors, the AI's name from
   what it says or its app's name, and the hosted connector writing `authors: matt, Claude` on an append.
+
+## 96. Share links on ghostmarkdown.com (2026-09-23)
+
+Matt: "The ghost markdown.com page isn't opening my read notes do we need to update the share links in the app", then
+"Do all three". Links were `attack.fm/glyph/read.html#…`, and ghostmarkdown.com served only the download page. Three
+parts, shipped in that order so no link ever pointed at a page that couldn't open it:
+
+- **The page:** the ghostmarkdown.com Caddy block serves `/read.html`, `/assets/*` and `/favicon.svg` from the
+  release, beside the downloads. scripts/deploy-landing.mjs now replaces the domain's own block rather than only
+  adding one, with the same backup, validate and every-other-site checks.
+- **The service:** `https://ghostmarkdown.com` is an allowed origin (server/src/main.rs), so the page can read a share.
+- **The app:** `READER_URL` is `https://ghostmarkdown.com/read.html`. On that domain the reader's "Save it in
+  Ghost.md on the web" goes to attack.fm/glyph, where the app is, and "Get the app" goes to the download page. Old
+  links still open on attack.fm, and so do new ones, since the id and key after the `#` are the whole link.

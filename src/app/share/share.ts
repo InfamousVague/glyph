@@ -42,9 +42,13 @@ export interface Shared {
 /** The context a share is sealed in: a synced note's ciphertext cannot be passed off as a share, nor the reverse. */
 const CONTEXT = 'glyph/v1/share';
 
-/** Where a reader reads: the small page beside the app (read.html). */
+/**
+ * Where a reader reads: the small page (read.html), on ghostmarkdown.com (Matt: "The ghost markdown.com page isn't
+ * opening my read notes"). The page is the release's own, served there too (scripts/deploy-landing.mjs), so a link from
+ * before, on attack.fm/glyph/read.html, opens the same share as well: the id and key after the # are the whole link.
+ */
 export const READER_URL: string =
-  (import.meta.env.VITE_GLYPH_READER as string | undefined)?.replace(/\/+$/, '') || 'https://attack.fm/glyph/read.html';
+  (import.meta.env.VITE_GLYPH_READER as string | undefined)?.replace(/\/+$/, '') || 'https://ghostmarkdown.com/read.html';
 
 // ---- keys, ids and links --------------------------------------------------------------------
 

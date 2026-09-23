@@ -3,14 +3,19 @@
  * Ships ghostmarkdown.com, the download page (landing/, docs/LANDING.md), to the box in one ssh session.
  *
  *   node scripts/deploy-landing.mjs            the page's files into /opt/ghostmarkdown-site
- *   node scripts/deploy-landing.mjs --caddy    that, and the site's block added to /etc/caddy/Caddyfile if it has none
+ *   node scripts/deploy-landing.mjs --caddy    that, and the site's block written to /etc/caddy/Caddyfile: added, or put in place of the one there
  *
  * The page's downloads and the manifests it reads its versions from are the release's own files, served from
  * /opt/attackfm-site/glyph by the site block, so a release (deploy-ota.mjs) updates this page with nothing to do here.
  *
- * THE CADDYFILE IS SHARED: attack.fm, the registry, prettycardboard.com and more are on it. So --caddy touches it only
- * when ghostmarkdown.com is not already there, and only this way: a timestamped backup; every site on it asked for its
- * page, on the box, before; the block appended; `caddy validate`; a reload; every site asked again. A validate that
+ * The reader page for shared notes is the release's too (/read.html, /assets/*, /favicon.svg): share links are
+ * `https://ghostmarkdown.com/read.html#…` (share/share.ts READER_URL), and the page they open is whatever the last
+ * release published, beside the app on attack.fm.
+ *
+ * THE CADDYFILE IS SHARED: attack.fm, the registry, prettycardboard.com and more are on it. So --caddy touches only
+ * ghostmarkdown.com's own block (from its first line to the closing brace at the start of a line), and only this way:
+ * a timestamped backup; every other site on it asked for its page, on the box, before; the block written; `caddy
+ * validate`; a reload; every other site asked again. A validate that
  * fails, or any site answering differently after, puts the backup back and reloads it. Caddy then gets the
  * certificate from Let's Encrypt by itself, and retries on its own while the domain's DNS is still settling.
  *
@@ -53,7 +58,8 @@ const BLOCK = `
 ${DOMAIN} {
 	encode zstd gzip
 	# The release's own files, so a release updates this page's downloads and versions (scripts/deploy-landing.mjs).
-	@release path /glyph.apk /glyph.dmg /apk.json /desktop.json
+	# And the reader page shared links open, with its scripts, styles and icon.
+	@release path /glyph.apk /glyph.dmg /apk.json /desktop.json /read.html /assets/* /favicon.svg
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"
@@ -78,7 +84,7 @@ rm -rf "$STAGE"
 echo "ok page in ${SITE}: $(ls ${SITE} | tr '\\n' ' ')"
 [ "${withCaddy ? 1 : 0}" = 1 ] || exit 0
 CF=/etc/caddy/Caddyfile
-if $SUDO grep -qE '^${DOMAIN.replace('.', '\\.')}[ ,{]' "$CF"; then echo "ok ${DOMAIN} is already on the Caddyfile: left as it is"; exit 0; fi
+
 # Every site on the Caddyfile, asked for its page on the box itself, by name.
 probe() {
   for h in $($SUDO grep -E '^[a-z0-9][a-z0-9.:/, -]*[{]' "$CF" | sed 's/{.*//; s/,/ /g'); do
@@ -91,17 +97,23 @@ probe() {
 BACKUP="$CF.bak-$(date +%Y%m%d-%H%M%S)"
 $SUDO cp -a "$CF" "$BACKUP"
 echo "ok backup $BACKUP"
-BEFORE=$(probe)
+BEFORE=$(probe | grep -v '^${DOMAIN} ' || true)
 echo "before:"; echo "$BEFORE" | sed 's/^/  /'
 restore() { echo "x $1: putting $BACKUP back"; $SUDO cp -a "$BACKUP" "$CF"; $SUDO systemctl reload caddy || true; exit 1; }
-printf '%s\\n' '${BLOCK.replace(/'/g, "'\\''")}' | $SUDO tee -a "$CF" >/dev/null
+# The domain's own block out, if it is there - its first line to the next brace at the start of a line - and the new
+# one on the end.
+$SUDO awk -v start='^${DOMAIN.replace('.', '[.]')}[ ,{]' '$0 ~ start { skip = 1; next } skip && /^}/ { skip = 0; next } !skip' "$CF" | $SUDO tee "$CF.next" >/dev/null
+printf '%s\\n' '${BLOCK.replace(/'/g, "'\\''")}' | $SUDO tee -a "$CF.next" >/dev/null
+# Copied onto the Caddyfile rather than moved over it, so the file keeps its owner and its mode.
+$SUDO cp "$CF.next" "$CF"; $SUDO rm -f "$CF.next"
+echo "the new block:"; $SUDO awk -v start='^${DOMAIN.replace('.', '[.]')}[ ,{]' '$0 ~ start { on = 1 } on { print "  " $0 } on && /^}/ { on = 0 }' "$CF"
 $SUDO caddy validate --config "$CF" --adapter caddyfile >/dev/null 2>&1 || restore "caddy validate refused it"
 $SUDO systemctl reload caddy || restore "caddy would not reload"
 sleep 4
 AFTER=$(probe | grep -v '^${DOMAIN} ' || true)
 echo "after:"; echo "$AFTER" | sed 's/^/  /'
 [ "$BEFORE" = "$AFTER" ] || restore "a site answers differently after the reload"
-echo "ok ${DOMAIN} added; Caddy is getting its certificate"
+echo "ok ${DOMAIN}'s block written and live"
 `;
 
 const tar = spawnSync('tar', ['-czf', '-', '--no-xattrs', '--no-mac-metadata', '-C', LANDING, '.'], { maxBuffer: 64 * 1024 * 1024 });

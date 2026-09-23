@@ -109,7 +109,10 @@ const BREAKER_COOLDOWN: Duration = Duration::from_secs(600);
 /// iOS and macOS use `tauri://localhost`. The last is the Vite dev server
 /// (`vite.config.ts`, port 5250). The web build at attack.fm/glyph/ is
 /// same-origin and needs no entry.
-const ORIGINS: &[&str] = &["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"];
+/// The native apps' webviews, and ghostmarkdown.com: the reader page for shared notes is served there
+/// (scripts/deploy-landing.mjs) and reads a share from this service by its id. The web app on attack.fm needs no
+/// entry, being this service's own origin.
+const ORIGINS: &[&str] = &["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost", "https://ghostmarkdown.com"];
 
 /// Whether a page may call this service from the browser: one of `ORIGINS`,
 /// or a dev server on this machine at any port (`http://localhost:5255`,
@@ -601,10 +604,10 @@ mod tests {
 
     #[test]
     fn any_local_dev_port_is_an_origin_and_nothing_that_only_looks_like_one() {
-        for ok in ["tauri://localhost", "http://tauri.localhost", "http://localhost:5250", "http://localhost:5255", "http://127.0.0.1:5251"] {
+        for ok in ["tauri://localhost", "http://tauri.localhost", "https://ghostmarkdown.com", "http://localhost:5250", "http://localhost:5255", "http://127.0.0.1:5251"] {
             assert!(allowed_origin(ok.as_bytes()), "{ok}");
         }
-        for no in ["https://evil.example", "http://localhost", "http://localhost:", "http://localhost:5250.evil.example", "http://localhost:123456", "http://localhost.evil.example:5250", "https://localhost:5250", "null"] {
+        for no in ["https://evil.example", "http://ghostmarkdown.com", "https://ghostmarkdown.com.evil.example", "http://localhost", "http://localhost:", "http://localhost:5250.evil.example", "http://localhost:123456", "http://localhost.evil.example:5250", "https://localhost:5250", "null"] {
             assert!(!allowed_origin(no.as_bytes()), "{no}");
         }
     }
