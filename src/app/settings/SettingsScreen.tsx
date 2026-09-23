@@ -66,7 +66,7 @@ const HUES: Record<string, string> = {
 };
 
 /** A section's colour by its id; a section added later without one is grey. */
-export function hueOf(id: string): string {
+function hueOf(id: string): string {
   return HUES[id] ?? 'grey';
 }
 
