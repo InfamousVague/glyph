@@ -23,7 +23,7 @@ import { openMicrophone, type Microphone, type MicrophoneHandlers } from './audi
 import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { enqueueFormat, setFormattingPaused } from '../format/queue.ts';
 import { reviewAvailable, type ReviewHandoff } from '../review/useReview.ts';
-import { startCapture, type CaptureSession, type EngineKind } from './engine.ts';
+import { discardRecording, reassignRecording, startCapture, type CaptureSession, type EngineKind } from './engine.ts';
 import { renderNote, setLinkTitles, setSpokenFormats, type Segment } from './markdown.ts';
 import { Opening } from './Opening.tsx';
 import { QuietWatch } from './quiet.ts';
@@ -33,6 +33,7 @@ import { placeWords } from './listAppend.ts';
 import { listTitle } from './instructionMutation.ts';
 import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandInstructionCommand } from './understand.ts';
+import { classifyFinalTranscript } from './finalInstruction.ts';
 import { appendBlock } from './table.ts';
 import { appendBody } from './appendBody.ts';
 import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
@@ -92,9 +93,6 @@ interface CaptureScreenProps {
 }
 
 type Phase = 'starting' | 'listening' | 'finishing' | 'failed';
-
-/** How often the in-progress note is written to the store. */
-const DRAFT_SAVE_MS = 1000;
 
 /** How long a quiet after words has to last before "Stop when I go quiet" saves the take. */
 const QUIET_STOP_MS = 4000;
@@ -208,6 +206,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const tipTurn = useRef(0);
   const savedDraft = useRef(false);
   const finished = useRef(false);
+  /** A stopped command is awaiting its explicit confirmation; its words never become a note. */
+  const finalCommand = useRef<{ note: Note | null; locked: boolean; temporaryId: string; recordedMs: number | null } | null>(null);
   /*
    * What the pipeline has actually done, counted where it happens and copied to
    * the screen a few times a second. The line itself is essential: the first
@@ -716,13 +716,34 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       }),
   );
 
-  const confirmPending = () => take.confirm(performance.now());
-  const cancelPending = (why: string | null) => take.cancel(why, performance.now());
+  const confirmPending = () => {
+    take.confirm(performance.now());
+    const final = finalCommand.current;
+    if (!final) return;
+    finalCommand.current = null;
+    void writes.current.then(async () => {
+      let saved = final.note ? await getNote(final.note.id).catch(() => final.note) : null;
+      if (saved && final.recordedMs !== null) {
+        const recordingMs = await reassignRecording(final.temporaryId, saved.id, (saved.recordingMs ?? 0) > 0).catch(() => null);
+        if (recordingMs !== null) saved = (await setNoteRecording(saved.id, recordingMs, saved.segments ?? []).catch(() => saved)) ?? saved;
+      } else if (final.recordedMs !== null) {
+        void discardRecording(final.temporaryId).catch(() => undefined);
+      }
+      endCapture(final.locked);
+      onFinish(saved, final.locked);
+    });
+  };
+  const cancelPending = (why: string | null) => {
+    take.cancel(why, performance.now());
+    const final = finalCommand.current;
+    if (!final) return;
+    finalCommand.current = null;
+    void discardRecording(final.temporaryId).catch(() => undefined);
+    endCapture(final.locked);
+    onFinish(null, final.locked);
+  };
   const finishTable = () => take.finishTable(performance.now());
   const cancelTable = (why: string | null) => take.cancelTable(why);
-  /** The chip while a command is heard: the note it names, as soon as it can tell. */
-  const showGuess = (text: string) => setRoute((current) => take.guess(text, current));
-
   // ---- start ------------------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
@@ -775,11 +796,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
               heard();
             }
             setPartial(text);
-            // Words of a command show in the chip, not in the note.
-            // Talking again: the command model stops, so it never takes the phone from the words being heard, and reads the command again at the next pause.
-            if (text) take.heardPartial(performance.now());
-            setItemWords(take.partOfCommand(text) ? text : '');
-            showGuess(text);
+            // A partial is display only.  It cannot influence routing or a
+            // model prompt before Whisper has committed the final transcript.
           },
           onSegment: (raw) => {
             counts.current.segments += 1;
@@ -787,7 +805,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             heard();
             counts.current.lastError = null;
             heardRef.current.push(raw.text);
-            take.phrase(raw, performance.now());
+            take.listen(raw);
             setPartial('');
           },
           onError: (message) => {
@@ -859,15 +877,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     return () => window.clearInterval(timer);
   }, [phase, take]);
 
-  // ---- the draft, saved as it is spoken ------------------------------------------
-  useEffect(() => {
-    if (!segments.length) return undefined;
-    const timer = window.setTimeout(() => {
-      if (finished.current) return;
-      void flushDraft();
-    }, DRAFT_SAVE_MS);
-    return () => window.clearTimeout(timer);
-  }, [segments, target, flushDraft]);
+  // No draft timer: phrase commits are display-only.  The complete transcript
+  // is saved exactly once after final instruction classification.
 
   // ---- ending ----------------------------------------------------------------------
   const finish = useCallback(async () => {
@@ -877,7 +888,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     setPhase('finishing');
     micRef.current?.stop();
     // A voice memo still running is closed by Done: what was said up to here is its sound.
-    const position = sessionRef.current?.positionMs() ?? take.segments[take.segments.length - 1]?.endMs ?? 0;
     // The tape is kept under the note's id, added to the end of the continued
     // note's tape when there is one, so its words and its sound stay one timeline.
     const continued = targetRef.current;
@@ -890,14 +900,35 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       setError(failure instanceof Error ? failure.message : String(failure));
     }
 
-    // Words after a keyword that never became a command go into the note as
-    // they were said: Done must never be how dictation is lost.
-    take.end(position);
-    // A command's change still landing, or the take carrying on elsewhere: written before the note is.
-    await writes.current;
     const spoken = take.segments;
+    const transcript = spoken.map((segment) => segment.text).join(' ').trim();
     const { plain } = renderNote(spoken);
     const locked = isLocked();
+
+    const decision = await classifyFinalTranscript(transcript, candidates.current);
+    if (decision.kind === 'offer') {
+      // The stopped audio is already retained under this capture id.  The
+      // mutation remains pending until this card is explicitly confirmed.
+      take.offerFinal(decision.plan, performance.now());
+      const target = decision.plan.kind === 'place' ? decision.plan.note.note : null;
+      finalCommand.current = { note: target, locked, temporaryId: noteId.current, recordedMs: stopped.recordedMs };
+      setPhase('listening');
+      return;
+    }
+    if (decision.kind === 'rejected') {
+      // Unsupported, destructive, ambiguous, and missing-target command
+      // shapes fail closed: do not create a note containing command prose.
+      setRoute({ phase: 'said', text: decision.reason });
+      await discardRecording(noteId.current).catch(() => undefined);
+      await undoDraft();
+      endCapture(locked);
+      onFinish(null, locked);
+      return;
+    }
+    if (decision.notice) setRoute({ phase: 'said', text: decision.notice });
+
+    // A command's change still landing, or the take carrying on elsewhere: written before the note is.
+    await writes.current;
 
     if (!plain.trim() && !take.tables.length && !take.clips.length) {
       await undoDraft();

@@ -56,6 +56,17 @@ export interface CaptureSession {
   cancel: () => void | Promise<void>;
 }
 
+/** Transfer a stopped temporary recording only after final confirmation. */
+export async function reassignRecording(fromId: string, toId: string, append: boolean): Promise<number | null> {
+  if (!isTauri()) return null;
+  return await invoke<number | null>('capture_reassign_recording', { fromId, toId, append });
+}
+
+/** A cancelled/rejected command has no note to own its temporary recording. */
+export async function discardRecording(id: string): Promise<void> {
+  if (isTauri()) await invoke('capture_discard_recording', { id });
+}
+
 // ---- the model ----------------------------------------------------------------
 
 export interface ModelStatus {

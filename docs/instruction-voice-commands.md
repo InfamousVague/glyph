@@ -2,7 +2,9 @@
 
 ## Safety boundary
 
-After each committed transcription, capture re-reads the full utterance before deriving a title or persisting it as note content. A wake word still works, but is not required when the utterance itself begins with narrowly gated explicit command language (`make`, `create`, `new`, `add`, `put`, `append`, or `I need/want a new…`). The gate is anchored at the beginning, so ordinary prose that merely mentions command words later is not eligible. Plugin and deterministic list/task/table routing run first; `ai_infer_command` is called only when that parser returns no plan.
+Whisper phrase commits are listen-only: they update the visible accumulated transcript and nothing else. They do not derive a title, create or update a note, route a command, or invoke a model. Only an explicit Done/stop obtains the complete final transcript and classifies it once. A wake word still works, but is not required when the final utterance itself begins with narrowly gated explicit command language (`make`, `create`, `new`, `add`, `put`, `append`, or `I need/want a new…`). The gate is anchored at the beginning, so ordinary prose that merely mentions command words later—and quoted or reported commands—is not eligible. The deterministic parser runs against that complete transcript first; `ai_infer_command` receives that same complete transcript once only on a parser miss.
+
+Natural append forms include `add to the note labeled Go …`, `add to the note called Go …`, `add to Go …`, and `add to the to-do list …`. The title is matched against actual titles case- and punctuation-insensitively, and only the words after the matched title are payload. Missing and non-unique targets reject rather than choosing a note. New-note, destructive, compound, and other unsupported final instruction shapes reject without saving their command prose. If inference is unavailable or invalid, the complete transcript visibly falls back to an ordinary note; it never executes an action.
 
 The native model can produce only this allowlisted intent set:
 
@@ -17,6 +19,10 @@ The selected formatting model is used only when it is installed. Otherwise the a
 ## Mutation boundary
 
 TypeScript resolves inferred title strings to `resolved`, `ambiguous`, or `not-found`, and creates final Markdown with deterministic placement rules. A confirmation card shows the exact action before any write.
+
+### Stopped audio and lifecycle
+
+On Done, native capture first writes audio under the fresh capture id while classification and confirmation are pending. On a confirmed append it atomically moves (or appends) that WAV to the confirmed note before recording metadata is updated; cancellation and rejection discard only the temporary audio. Unavailable inference finalizes an ordinary note under that original capture id, so both its transcript and audio remain available. This prevents an incomplete phrase from assigning a recording to the wrong note. The confirmation remains on the capture screen, so a normal background/foreground cycle retains both the in-memory final transcript and its temporary WAV; process termination before a decision can leave an unreachable temporary WAV, which is safe but currently not garbage-collected. The transcript is never intentionally dropped for inference failure: that path finalizes a normal note immediately.
 
 List semantics are application policy, not an inference privilege. `Groceries`,
 `Grocery`, `Shopping`, and `List` default to ordinary bullets; `To Do`, `Todo`,

@@ -498,6 +498,27 @@ export class Take<N extends TakeNote> {
 
   // ---- a phrase --------------------------------------------------------------------------------------
 
+  /**
+   * Listen only.  CaptureScreen uses this for every live Whisper commit: it
+   * renders the accumulating transcript but cannot route, infer, write, or
+   * derive a note from an incomplete utterance.
+   */
+  listen(segment: Segment): void {
+    const text = segment.text.replace(/^[\s.,;:!?…]+/, '');
+    if (!text) return;
+    this.lastHeard = performance.now();
+    this.segments = [...this.segments, { ...segment, text }];
+    this.host.said(text);
+    this.host.changed();
+  }
+
+  /** Offer a plan only after the complete capture has been classified. */
+  offerFinal(plan: Plan<TakeCandidate<N>>, now: number): void {
+    this.segments = [];
+    this.host.changed();
+    this.offer(plan, { startMs: 0, endMs: 0 }, now);
+  }
+
   /** A committed phrase: read for commands, and whatever of it is the note's added to its words. */
   phrase(segment: Segment, now: number): void {
     this.lastHeard = now;

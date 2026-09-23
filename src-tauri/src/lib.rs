@@ -182,6 +182,8 @@ pub fn run() {
             capture_commands::capture_start,
             capture_commands::capture_push,
             capture_commands::capture_stop,
+            capture_commands::capture_reassign_recording,
+            capture_commands::capture_discard_recording,
             capture_commands::capture_cancel,
             capture_commands::capture_rewind,
             capture_commands::transcribe_wav,

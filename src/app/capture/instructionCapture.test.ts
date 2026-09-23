@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { placeWords } from './listAppend.ts';
 import { Take, type Offer, type TakeHost } from './take.ts';
+import { classifyFinalTranscript } from './finalInstruction.ts';
 
 type TestNote = { id: string; body: string };
 
@@ -41,11 +42,19 @@ function harness() {
   return { take, todo, addItems, offered: () => offered };
 }
 
-describe('instruction-aware full capture utterances', () => {
-  it('offers and confirms a no-wake To-Do append instead of keeping command prose', () => {
+describe('instruction-aware final capture utterances', () => {
+  it('listens through every phrase, then offers and confirms a final To-Do append', async () => {
     const { take, todo, addItems, offered } = harness();
-    take.phrase({ text: 'add to the to do list wash dishes, take out trash, and fold clothes', startMs: 0, endMs: 4200 }, 5000);
+    take.listen({ text: 'add to the to do', startMs: 0, endMs: 1200 });
+    take.listen({ text: 'list wash dishes, take out trash, and fold clothes', startMs: 1200, endMs: 4200 });
 
+    expect(take.segments.map((segment) => segment.text)).toEqual(['add to the to do', 'list wash dishes, take out trash, and fold clothes']);
+    expect(offered()).toBeNull();
+
+    const read = await classifyFinalTranscript(take.segments.map((segment) => segment.text).join(' '), [{ id: 'todo', title: 'To-Do', note: todo }]);
+    expect(read).toMatchObject({ kind: 'offer', plan: { kind: 'place' } });
+    if (read.kind !== 'offer') throw new Error('expected offer');
+    take.offerFinal(read.plan, 5000);
     expect(take.segments).toEqual([]);
     expect(offered()).toMatchObject({ kind: 'place', title: 'To-Do', added: ['- [ ] Wash dishes', '- [ ] Take out trash', '- [ ] Fold clothes'] });
 
@@ -58,10 +67,11 @@ describe('instruction-aware full capture utterances', () => {
     'my thoughts about the new iPhone, I like the folding display and want to add more later',
     'I told Sam to add wash dishes to the to do list when he gets home',
     'The phrase create a list appears in this ordinary explanation',
-  ])('keeps near-miss prose as an ordinary new note: %s', (utterance) => {
+  ])('keeps near-miss prose as an ordinary new note: %s', async (utterance) => {
     const { take, offered } = harness();
-    take.phrase({ text: utterance, startMs: 0, endMs: 3000 }, 4000);
+    take.listen({ text: utterance, startMs: 0, endMs: 3000 });
     expect(offered()).toBeNull();
+    await expect(classifyFinalTranscript(utterance, [{ id: 'todo', title: 'To-Do', note: { body: 'To-Do' } }])).resolves.toMatchObject({ kind: 'ordinary' });
     expect(take.segments.map((segment) => segment.text)).toEqual([utterance]);
   });
 });

@@ -147,6 +147,7 @@ const OBJECT_NOUN = /^(?:(?:a|an|another|one more|some|new)\s+)?(?:quick\s+)?(?:
 const TABLE = /^(?:add|make|create|start|put|insert|draw|build|new)\s+(?:(?:a|an|another|one)\s+)?(?:new\s+)?table\b(.*)$/i;
 const CREATE_LIST = /^(?:(?:please\s+)?(?:make|create|start)\s+(?:(?:me\s+)?(?:a|another)\s+)?(?:new\s+)?list|(?:i\s+(?:need|want|would\s+like))\s+(?:a\s+)?new\s+list)\s+(?:called|named|titled)\s+(.+)$/i;
 const ADD_TO_LIST = /^(?:please\s+)?(?:add|put|append)\s+(?:these\s+)?(?:items?\s+)?(?:to|in|into|on)\s+(?:the\s+)?(.+?)\s+list(?:\s+(?:that\s+)?(?:i\s+(?:need|want)|with|containing|:))?\s+(.+)$/i;
+const DIRECT_APPEND = /^(?:please\s+)?(?:add|put|append)\s+to\s+(?:the\s+)?(?:(?:note|list)\s+(?:label(?:ed|led)|called)\s+)?(.+)$/i;
 
 /** A terminal voice stop cue is control, never command content. */
 export function isStopCue(text: string): boolean {
@@ -187,6 +188,20 @@ function noteNamed<N extends Candidate>(raw: string, notes: readonly N[]): { not
     .trim();
   if (name.length < 2) return null;
   return matchNote(name, notes);
+}
+
+/** Match an actual title at the start of a spoken tail, case/punctuation-insensitively. */
+function titledPrefix<N extends Candidate>(tail: string, notes: readonly N[]): { note: N; text: string } | null {
+  const found = notes
+    .map((note) => {
+      const words = note.title.trim().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(/\s+/).filter(Boolean);
+      if (!words.length) return null;
+      const pattern = words.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(String.raw`[\s\p{P}_]+`);
+      const match = new RegExp(String.raw`^\s*${pattern}(?:[\s\p{P}_]+)(.+)$`, 'iu').exec(tail);
+      return match?.[1]?.trim() ? { note, text: match[1].trim() } : null;
+    })
+    .filter((value): value is { note: N; text: string } => value !== null);
+  return found.length === 1 ? (found[0] ?? null) : null;
 }
 
 function placementOf(noun: RegExpExecArray | null): Placement {
@@ -254,6 +269,13 @@ function readCommand<N extends Candidate & { note?: { body: string } }>(words: s
     if (!found) return { kind: 'no-note', name: addList[1].trim() };
     const items = splitSpokenItems(addList[2], true);
     return { kind: 'place', note: found.note, text: items.join(', '), how: 'item', task: false, many: items.length > 1, target: null };
+  }
+  const directAppend = DIRECT_APPEND.exec(text);
+  if (directAppend?.[1]) {
+    const found = titledPrefix(directAppend[1], notes);
+    if (found) return { kind: 'place', note: found.note, text: found.text, how: 'leave', task: false, many: false, target: null };
+    // This unmistakable shape must fail closed when no unique title is found.
+    return { kind: 'no-note', name: directAppend[1].trim() };
   }
 
   // "Move the pricing page to Done": a card, when the note being recorded has a board with that lane and no note by
