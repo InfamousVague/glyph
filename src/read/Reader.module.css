@@ -105,6 +105,12 @@
   background: var(--app-paper-2, var(--glacier-surface));
 }
 
+.saveWays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+}
+
 .save p {
   margin: 0;
 }

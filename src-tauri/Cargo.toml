@@ -19,6 +19,8 @@ tauri-plugin-opener = "2"
 # The Taptic Engine. The web layer's HapticsProvider fires through this on a
 # phone instead of the web fallbacks, which never reach WKWebView.
 tauri-plugin-haptics = "2"
+# ghostmd:// links: a shared note's "Open in the Ghost.md app" opens a copy here (src/links.rs).
+tauri-plugin-deep-link = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The notes store. `bundled` compiles SQLite into this binary instead of

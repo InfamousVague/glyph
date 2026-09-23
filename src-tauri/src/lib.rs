@@ -32,6 +32,8 @@ pub mod llm;
 mod ai_commands;
 mod notion;
 mod link_preview;
+// Links that open the app, ghostmd://, kept until the page takes them.
+mod links;
 
 // Pictures in notes: `save_image` adopts one the Android shell picked, the
 // `img` scheme draws it, and a deleted note takes its pictures with it. See its
@@ -104,6 +106,8 @@ pub fn run() {
         // The Taptic Engine: the web layer's HapticsProvider fires through
         // this on the phone instead of the (WKWebView-less) web fallbacks.
         .plugin(tauri_plugin_haptics::init())
+        // ghostmd:// links (a shared note's "Open in the Ghost.md app"): links.rs keeps them for the page.
+        .plugin(tauri_plugin_deep_link::init())
         // Registered on the builder, not in setup: a scheme has to exist before
         // the webview is created, and the webview is created before setup runs.
         .register_uri_scheme_protocol(ota::SCHEME, |ctx, request| ota::serve(ctx.app_handle(), &request))
@@ -132,6 +136,8 @@ pub fn run() {
             ai_commands::install(app);
             // Before the page loads: the loader's first IPC call is the claim.
             ota::install(app);
+            // After the plugin's own setup, which is what reads the link a launch came with.
+            links::install(app);
 
             #[cfg(target_os = "ios")]
             ensure_key_window(&app.handle());
@@ -168,6 +174,7 @@ pub fn run() {
             commands::store_apply,
             commands::sync_put_file,
             link_preview::link_preview,
+            links::links_take,
             images::save_image,
             images::save_image_data,
             capture_commands::capture_model_status,

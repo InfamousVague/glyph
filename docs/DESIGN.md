@@ -3902,3 +3902,28 @@ those names are looked for, so the three-second follow after a save reads nothin
 and a picture left out for room is not a lacked one and never sets off a send. The digest's marker became "p2", so
 every share sent before this goes once more, with its pictures and the list. Tested in share/refresh.test.ts (the
 picture arriving, and not before or after), which fails on the code before this.
+
+## 91. The open items, built (2026-09-22)
+
+Matt, of the list of open items: "go after all the ready to build features and ship an OTA update. ship the APK
+update as well so everyone gets the new icon."
+
+- **Chapters are the items that open with a link** (book/book.ts `chaptersOf`, docs/BOOKS.md). His HelloTrade
+  index counted the "Five things worth knowing" bullets and the canvases list as chapters 36 to 41. Now a prose
+  bullet that links a chapter in passing is the book's words. In an index that numbers its chapters, a bullet list
+  beside it at the top level is too. Both show in the preface, which now leaves out exactly the index's own lines.
+  A chapter added to a numbered index takes the next number.
+- **A chapter can start as a canvas:** "Add as a canvas" in the index's new-chapter form. The New book sheet marks
+  canvases as the index does.
+- **Every shared link in one place, on every device.** The share registry moved from one device's storage into the
+  synced settings, end-to-end encrypted, and is brought over once. Settings › Account lists every share with Copy and
+  Stop. A share the server holds that no list names, untouched for ten minutes, can be taken down: settings sync as
+  one blob, so two devices writing at once can drop one list, while the share stays up. A book's share now also
+  follows edits that arrive by sync, not only ones saved on the sharing device.
+- **Share links open the apps.** A `ghostmd://` scheme (tauri-plugin-deep-link) and "Open in the Ghost.md app" on
+  the reader page. src-tauri/src/links.rs keeps a link until the page asks, since a link that starts the app comes
+  before any page listens. The app saves the copy and opens it. It takes a native build, so it comes with this APK
+  and Mac app. Older apps still have + › From a shared link.
+- **The notes connector names its pictures.** create_note and update_note now list every picture the words show
+  (mcp/glyph.ts), as a device would, so the other devices fetch them. Before, update_note kept only names already
+  listed, which is why the HelloTrade chapters named none. It ships with a server deploy.

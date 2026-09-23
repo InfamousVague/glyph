@@ -36,8 +36,10 @@ share/share.ts `sharedOf` builds `{ v: 1, kind, title, pages: [{ title, body }],
 
 ## Following edits
 
-The owner's device keeps a registry in `glyph-shares`: note id to share id, key, and a digest of what was last
-sent. `followShares` listens for saved notes and, three seconds after the last save, re-seals every share whose
+Every share is listed in the synced settings (core/preferences.ts `shares`): note id to share id, key, and a digest of
+what was last sent, end-to-end encrypted with the rest of the settings, so every device lists every share, keeps it
+up to date and can stop it. A device that kept its own list in `glyph-shares`, as builds before this did, folds it in
+once. `followShares` listens for notes saved here and notes changed by sync, and, three seconds after the last save, re-seals every share whose
 contents changed (a book's share changes when any of its chapters does) and sends it again, and does the same once
 a few seconds after launch. A share never changes its link. A share also remembers which of its pictures this device
 lacked when it was sent (`lacked`), and goes again once one of them is here - a picture that arrives by sync changes
@@ -100,8 +102,19 @@ share/share.ts `forkShared` saves each page as a new note owned by the reader. I
 - The pictures are kept first, under their own names (core/images.ts `keepImage`), so the copy draws them, and the
   reader's sync sends them on with the notes that name them.
 
-## Not yet
+## Every share in one place
 
-- A link that opens the native apps directly. Until the next native build brings a link scheme, the + sheet is
-  the way in.
-- Seeing, in one place, everything that is shared. Each note's cog says whether that note is shared.
+Settings › Account lists every shared note and book (settings/SharedLinks.tsx), from whichever device shared it,
+with Copy and Stop. Two devices changing their settings at once can lose one's list, since the settings sync as one
+blob and the later write wins. The share itself stays up, so the list also asks the server which shares the account
+holds (`GET /glyph/api/v1/shares`). One no device lists, and not written for ten minutes, is counted and can be
+taken down. The ten minutes are there because a share another device made just now may not have synced yet.
+
+## Opening the app from a link
+
+The reader page's save panel leads with "Open in the Ghost.md app": `ghostmd://fork#<id>.<key>`. The phone and Mac
+apps register the scheme (tauri-plugin-deep-link, src-tauri/tauri.conf.json). src-tauri/src/links.rs keeps a link
+that started or reached the app until the page asks for it (`links_take`, and the `glyph://link` event), since a
+link that starts the app arrives before any page is listening. share/appLinks.ts saves the copy and opens it, as
+the web app's `#fork=` does. An app from before this build doesn't answer the scheme, so the panel still says how
+to paste the link under + › From a shared link.

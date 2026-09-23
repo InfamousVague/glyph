@@ -1,4 +1,5 @@
 import { forkShared, readShared } from './share/share.ts';
+import { followAppLinks } from './share/appLinks.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HapticsProvider, ToastProvider } from '@glacier/react';
 import { UpdateNotice } from './notes/Notices.tsx';
@@ -440,6 +441,14 @@ function Shell() {
     const link = location.hash.slice('#fork='.length);
     history.replaceState(null, '', location.pathname + location.search);
     void forkFromLink(link).catch((failure: unknown) => console.warn('[glyph] could not save the shared copy:', failure));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // A share link that opened the app (ghostmd://, the reader page's "Open in the Ghost.md app"): saved as a copy
+  // and opened, as the web app's #fork= is, once the notes are read (share/appLinks.ts).
+  useEffect(() => {
+    if (loading) return undefined;
+    return followAppLinks((link) => void forkFromLink(link).catch((failure: unknown) => console.warn('[glyph] could not save the shared copy:', failure)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 

@@ -166,12 +166,18 @@ function Read({
           <p>
             Your copy is yours to change; what you save stays as it is when the owner edits theirs.
           </p>
-          <a className={styles.primary} href={`${APP_URL}#fork=${found.id}.${found.key}`}>
-            Save it in Ghost.md on the web
-          </a>
+          <span className={styles.saveWays}>
+            {/* The app's own scheme (src-tauri/src/links.rs): the app saves the copy and opens it. */}
+            <a className={styles.primary} href={`ghostmd://fork#${found.id}.${found.key}`}>
+              Open in the Ghost.md app
+            </a>
+            <a className={styles.action} href={`${APP_URL}#fork=${found.id}.${found.key}`}>
+              Save it in Ghost.md on the web
+            </a>
+          </span>
           <p className={styles.quiet}>
-            In the Ghost.md app on your phone or Mac: choose <strong>+</strong>, then <strong>From a shared link</strong>, and paste this page’s link.
-            No app yet? <a className={styles.getApp} href={INSTALL_URL}>Get Ghost.md</a>.
+            If the app doesn’t open, it may be an older one: choose <strong>+</strong>, then <strong>From a shared link</strong>, and paste this
+            page’s link. No app yet? <a className={styles.getApp} href={INSTALL_URL}>Get Ghost.md</a>.
           </p>
           <button type="button" className={styles.action} onClick={() => void copy()}>
             {copied ? 'Link copied' : 'Copy this page’s link'}
