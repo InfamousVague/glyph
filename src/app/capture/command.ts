@@ -112,6 +112,8 @@ export interface Placement {
   many: boolean;
   /** A plugin's word after the note's name ("…in Notion"). */
   target: string | null;
+  /** Semantic list area named explicitly by the command. */
+  near?: 'bugs';
 }
 
 export type Plan<N extends Candidate = Candidate> =
@@ -123,6 +125,8 @@ export type Plan<N extends Candidate = Candidate> =
   | { kind: 'move'; note: N }
   /** This take becomes a new note. */
   | { kind: 'new' }
+  /** A standalone Speak request creates a separately titled list note. */
+  | { kind: 'create-list'; title: string }
   /** A table, asked for a piece at a time (capture/table.ts): in a named note, or this one when none is named. */
   | { kind: 'table'; note: N | null; columns: string[] }
   /** A card for a board's lane: "Glyph, add fix the login bug to Doing" (core/boards.ts). */
@@ -138,9 +142,34 @@ const LEAD = /^\s*(?:(?:please|can you|could you|would you|and|so|ok(?:ay)?|um+|
 const MOVERS = /^\s*(?:switch|go|jump|change|move|carry on|continue)\b/i;
 
 /** "a list item", "a task", "a note that says" at the front of what is being added: the kind of thing, not the thing. */
-const OBJECT_NOUN = /^(?:(?:a|an|another|one more|some|new)\s+)?(?:quick\s+)?(?:(list\s+)?(items?|entry|entries|bullets?|points?)|(tasks?|to-?\s?dos?|check\s?box(?:es)?)|(notes?|lines?|reminders?|comments?|memos?))(?:\s+(?:that\s+says|saying|which\s+says|called|:|,))?\s*/i;
+const OBJECT_NOUN = /^(?:(?:a|an|another|one more|some|new)\s+)?(?:quick\s+)?(?:(list\s+)?(items?|entry|entries|bullets?|points?)|(tasks?|to-?\s?dos?|check\s?box(?:es)?)|(notes?|lines?|reminders?|comments?|memos?)|(bugs?|issues?|defects?))(?:\s+(?:about|that\s+says|saying|which\s+says|called|:|,))?\s*/i;
 
 const TABLE = /^(?:add|make|create|start|put|insert|draw|build|new)\s+(?:(?:a|an|another|one)\s+)?(?:new\s+)?table\b(.*)$/i;
+const CREATE_LIST = /^(?:(?:please\s+)?(?:make|create|start)\s+(?:(?:me\s+)?(?:a|another)\s+)?(?:new\s+)?list|(?:i\s+(?:need|want|would\s+like))\s+(?:a\s+)?new\s+list)\s+(?:called|named|titled)\s+(.+)$/i;
+const ADD_TO_LIST = /^(?:please\s+)?(?:add|put|append)\s+(?:these\s+)?(?:items?\s+)?(?:to|in|into|on)\s+(?:the\s+)?(.+?)\s+list(?:\s+(?:that\s+)?(?:i\s+(?:need|want)|with|containing|:))?\s+(.+)$/i;
+
+/** A terminal voice stop cue is control, never command content. */
+export function isStopCue(text: string): boolean {
+  return /^\s*(?:end|stop)\s*[.!?]*\s*$/i.test(text);
+}
+
+export function stripStopCue(text: string): string {
+  return text.replace(/(?:[.!?]\s*)?\b(?:end|stop)\s*[.!?]*\s*$/i, '').trim();
+}
+
+/** Narrow gate for no-wake commands in a fresh main Speak capture. */
+export function isStandaloneCommandLike(text: string): boolean {
+  return /^(?:please\s+)?(?:make|create|new|add|put|append|i\s+(?:need|want|would\s+like)\s+(?:a\s+)?new)\b/i.test(stripStopCue(text));
+}
+
+/** Split only unmistakable short enumerations; preserve ordinary phrases. */
+export function splitSpokenItems(text: string, allowBareWords = false): string[] {
+  const cleaned = text.trim().replace(/^(?:that\s+)?i\s+(?:need|want)\s+/i, '').replace(/[.!?]+$/, '').trim();
+  const punctuated = cleaned.split(/\s*(?:,|;|\band\b)\s*/i).filter(Boolean);
+  if (punctuated.length > 1) return punctuated;
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  return allowBareWords && words.length >= 2 && words.length <= 8 && words.every((word) => /^[\p{L}\p{N}'-]+$/u.test(word)) ? words : [cleaned];
+}
 /** "…with columns bug, owner and status": the labels said up front, so the first question is skipped. */
 const TABLE_COLUMNS = /\s*,?\s*(?:with|using|that has|having)\s+(?:the\s+)?(?:columns?|column labels?|headings?|headers?|labels?)\s*(?:of|:|,)?\s*(.+)$/i;
 
@@ -162,6 +191,9 @@ function noteNamed<N extends Candidate>(raw: string, notes: readonly N[]): { not
 
 function placementOf(noun: RegExpExecArray | null): Placement {
   if (noun?.[3]) return { how: 'item', task: true, many: /s$|es$/i.test(noun[3]), target: null };
+  // Group 2 is "items"/"bullets", group 5 is "bugs"/"issues": both are list
+  // items. A bug request also carries its semantic area to list placement.
+  if (noun?.[5]) return { how: 'item', task: false, many: /s$|ies$/i.test(noun[5]), target: null, near: 'bugs' };
   if (noun?.[2]) return { how: 'item', task: false, many: /s$|ies$/i.test(noun[2]), target: null };
   return { how: 'leave', task: false, many: false, target: null };
 }
@@ -180,8 +212,11 @@ export interface PlanOptions<N extends Candidate & { note?: { body: string } }> 
 
 export function planCommand<N extends Candidate & { note?: { body: string } }>(words: string, options: PlanOptions<N>): Plan<N> | null {
   const plan = readCommand(words, options);
-  // What is added is words, not the end of a spoken sentence.
-  return plan?.kind === 'place' ? { ...plan, text: plan.text.replace(/[\s.,;:!?]+$/, '') } : plan;
+  // What is added is words, not the end of a spoken sentence. Spoken quote
+  // cues are user punctuation, not literal command prose.
+  return plan?.kind === 'place'
+    ? { ...plan, text: plan.text.replace(/\bquote\s+(.+?)\s+quote\b/gi, '"$1"').replace(/[\s.,;:!?]+$/, '') }
+    : plan;
 }
 
 /** "Make this a board", "turn the list into a kanban board". */
@@ -205,9 +240,21 @@ function laneChange(lane: Lane, act: (body: string, lane: Lane) => string | null
 }
 
 function readCommand<N extends Candidate & { note?: { body: string } }>(words: string, { notes, targets = [], board = null }: PlanOptions<N>): Plan<N> | null {
-  const text = words.replace(LEAD, '').trim();
+  const text = stripStopCue(words.replace(LEAD, '').trim());
   if (!text) return null;
   if (MAKE_BOARD.test(text)) return { kind: 'board' };
+  const createList = CREATE_LIST.exec(text);
+  if (createList?.[1]) {
+    const title = createList[1].replace(/[.!?]+$/, '').trim();
+    return title ? { kind: 'create-list', title } : null;
+  }
+  const addList = ADD_TO_LIST.exec(text);
+  if (addList?.[1] && addList[2]) {
+    const found = noteNamed(addList[1], notes);
+    if (!found) return { kind: 'no-note', name: addList[1].trim() };
+    const items = splitSpokenItems(addList[2], true);
+    return { kind: 'place', note: found.note, text: items.join(', '), how: 'item', task: false, many: items.length > 1, target: null };
+  }
 
   // "Move the pricing page to Done": a card, when the note being recorded has a board with that lane and no note by
   // that name is the better match.

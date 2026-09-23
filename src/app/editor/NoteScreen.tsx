@@ -25,7 +25,7 @@ import { insertImageAt, releaseImageSpot, reserveImageSpot } from './images.ts';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { useUnfold } from '../core/unfold.ts';
-import { getNote, noteTitle, saveNote, setNoteRecording, type Note } from '../core/store.ts';
+import { getNote, noteTitle, setNoteRecording, updateNote, type Note } from '../core/store.ts';
 import type { Segment } from '../capture/markdown.ts';
 import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.ts';
 import { useWideScreen } from '../core/useWideScreen.ts';
@@ -230,6 +230,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // it in state would re-render the screen once per character for nothing.
   const body = useRef(note.body);
   const saved = useRef(note.body);
+  const revision = useRef(note.revision ?? 1);
+  const writes = useRef<Promise<void>>(Promise.resolve());
+  const writable = useRef(true);
   const timer = useRef<number | null>(null);
 
   // The robot's text for the note in the mode showing (the hook looks up
@@ -246,8 +249,19 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     if (body.current === saved.current) return;
     const pending = body.current;
     saved.current = pending;
-    void saveNote(note.id, pending, note.source);
-  }, [note.id, note.source]);
+    writes.current = writes.current.then(async () => {
+      if (!writable.current) return;
+      try {
+        const stored = await updateNote(note.id, pending, revision.current);
+        revision.current = stored.revision ?? revision.current + 1;
+      } catch (failure) {
+        // The row was deleted or another writer won. Most importantly, this
+        // editor has no insertion API and therefore cannot bring Delete back.
+        writable.current = false;
+        console.warn('[glyph] editor save stopped:', failure);
+      }
+    });
+  }, [note.id]);
 
   // A note with no words in it yet shows the ghost with its pen under the editor, until the first word (art/Ghost.tsx).
   const [blank, setBlank] = useState(() => !note.body.trim());

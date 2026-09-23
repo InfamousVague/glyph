@@ -2,7 +2,7 @@ import { call } from '../core/account/api.ts';
 import { accountState } from '../core/account/account.ts';
 import { fromBase64Url, openBytes, sealBytes, toBase64Url } from '../core/sync/crypto.ts';
 import { withFrontMatterTitle, frontMatterValue } from '../core/frontMatter.ts';
-import { listNotes, newNoteId, noteTitle, saveNote, NOTE_SAVED, type Note } from '../core/store.ts';
+import { createNote, listNotes, newNoteId, noteTitle, NOTE_SAVED, type Note } from '../core/store.ts';
 import { chaptersOf, isBookBody } from '../book/book.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 import { zipFiles } from './zip.ts';
@@ -248,7 +248,7 @@ export async function forkShared(
   shared: Shared,
   deps: { notes: () => Promise<Note[]>; save: (body: string) => Promise<Note> } = {
     notes: listNotes,
-    save: (body) => saveNote(newNoteId(), body, 'editor'),
+    save: (body) => createNote(newNoteId(), body, 'editor'),
   },
 ): Promise<Note> {
   const have = (await deps.notes()).map((n) => noteTitle(n.body));

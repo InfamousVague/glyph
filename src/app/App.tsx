@@ -1,6 +1,6 @@
 import { forkShared, readShared } from './share/share.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { HapticsProvider, ToastProvider } from '@glacier/react';
+import { HapticsProvider, ToastProvider, useToast } from '@glacier/react';
 import { UpdateNotice } from './notes/Notices.tsx';
 import { HomeScreen } from './home/HomeScreen.tsx';
 import type { OpenTask } from './home/dashboard.ts';
@@ -38,7 +38,19 @@ import { answerHost, takeCaptureLaunch } from './core/host.ts';
 import { applyPreferences, onPreferences, preferences, setPreferences, themeChoice, usePreferences, type ThemePref } from './core/preferences.ts';
 import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
-import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note, listNotes } from './core/store.ts';
+import {
+  createNote,
+  getNote,
+  latestCommandMutation,
+  newNoteId,
+  NOTE_SAVED,
+  noteTitle,
+  undoCommandMutation,
+  updateNote,
+  useNotes,
+  type Note,
+  listNotes,
+} from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { canvasNoteBody } from './canvas/jsonCanvas.ts';
@@ -49,6 +61,7 @@ import { NewSheet } from './notes/NewSheet.tsx';
 import { sweepMemos } from './core/sweepMemos.ts';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
+import { afterPendingDeletes } from './capture/launch.ts';
 
 /**
  * The whole app: a list, a note, a capture, and a settings sheet.
@@ -129,12 +142,21 @@ export function App() {
 function Shell() {
   const { notes, loading, refresh } = useNotes();
   const actions = useNoteActions(refresh);
-  const [screen, setScreen] = useState<Screen>(() => {
-    const launch = takeCaptureLaunch();
-    // The side key held before the guide got to it: the guide again, not a recording (guide/tooSoon.ts).
-    if (launch && launchedTooSoon(guideSeen())) return { name: 'list' };
-    return launch ? { name: 'capture', key: Date.now(), fromAssistant: true, stop: 0 } : { name: 'list' };
-  });
+  const { flushDeletes } = actions;
+  const { toast } = useToast();
+  const bootCapture = useRef(takeCaptureLaunch());
+  const bootTooSoon = useRef(Boolean(bootCapture.current && launchedTooSoon(guideSeen())));
+  const [screen, setScreen] = useState<Screen>({ name: 'list' });
+
+  /** Capture reads targets immediately, so every deferred permanent delete must finish first. */
+  const launchCapture = useCallback(
+    async (fromAssistant: boolean, noteId?: string) => {
+      await afterPendingDeletes(flushDeletes, () => {
+        setScreen({ name: 'capture', key: Date.now(), fromAssistant, stop: 0, ...(noteId ? { noteId } : {}) });
+      });
+    },
+    [flushDeletes],
+  );
   // Read by the side-key handler, which is registered once.
   const screenRef = useRef(screen);
   screenRef.current = screen;
@@ -143,11 +165,43 @@ function Shell() {
   const [toCheatSheet, setToCheatSheet] = useState(0);
   // The walkthrough opens by itself once, on the first launch that is not a
   // side-key capture - a person who held the key is already mid-sentence.
-  const [guide, setGuide] = useState(() => screen.name !== 'capture' && !guideSeen());
+  const [guide, setGuide] = useState(() => !bootCapture.current && !guideSeen());
   // "Not yet, finish reading.": a relaunch, or the side key, while the guide was still on a reading page.
-  const [tooSoon, setTooSoon] = useState(() => screen.name !== 'capture' && launchedTooSoon(guideSeen()));
+  const [tooSoon, setTooSoon] = useState(() => bootTooSoon.current);
 
   const [guidePage, setGuidePage] = useState(0);
+
+  useEffect(() => {
+    if (!bootCapture.current || bootTooSoon.current) return;
+    bootCapture.current = false;
+    void launchCapture(true);
+  }, [launchCapture]);
+
+  const undoRecoveryChecked = useRef(false);
+  // A confirmed command and its undo record are persisted together. If the
+  // process stopped before its success chip could be used, re-offer the same
+  // guarded undo once; a later edit turns it into a conflict rather than data loss.
+  useEffect(() => {
+    if (undoRecoveryChecked.current) return undefined;
+    undoRecoveryChecked.current = true;
+    let live = true;
+    void latestCommandMutation()
+      .then((pending) => {
+        if (!live || !pending) return;
+        toast({
+          message: pending.kind === 'create' ? 'Voice command created a note.' : 'Voice command changed a note.',
+          duration: 10_000,
+          action: {
+            label: 'Undo',
+            onPress: () => void undoCommandMutation(pending.mutationId).then(() => refresh()),
+          },
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [refresh, toast]);
   // Read by the side-key handler, which is registered once.
   const guideRef = useRef({ open: guide, page: guidePage });
   guideRef.current = { open: guide, page: guidePage };
@@ -204,9 +258,9 @@ function Shell() {
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         setSettings(false);
         setGuide(false);
-        setScreen({ name: 'capture', key: Date.now(), fromAssistant: true, stop: 0 });
+        void launchCapture(true);
       }),
-    [],
+    [launchCapture],
   );
 
   // Fetched when the app opens and again whenever it returns to the screen,
@@ -468,7 +522,7 @@ function Shell() {
       setScreen({ name: 'note', note: fresh, at });
       return;
     }
-    const made = await saveNote(newNoteId(), `# ${title}\n\n`, 'editor');
+    const made = await createNote(newNoteId(), `# ${title}\n\n`, 'editor');
     fileNewNote(made.id);
     await refresh();
     setScreen({ name: 'note', note: made });
@@ -528,7 +582,7 @@ function Shell() {
   const [bookSheet, setBookSheet] = useState(false);
   const newBook = () => setBookSheet(true);
   const createBook = async (title: string, pages: readonly string[]) => {
-    const note = await saveNote(newNoteId(), bookNoteBody(title, pages), 'editor');
+    const note = await createNote(newNoteId(), bookNoteBody(title, pages), 'editor');
     fileNewNote(note.id);
     await refresh();
     setScreen({ name: 'note', note });
@@ -542,7 +596,7 @@ function Shell() {
     // and an empty row in the list is a far smaller problem than a lost one.
     // The library holds it as a draft with no file until its first words
     // (docs/LIBRARY.md), so a note opened and left leaves nothing behind.
-    const note = await saveNote(newNoteId(), '', 'editor');
+    const note = await createNote(newNoteId(), '', 'editor');
     // Made while the list shows one workspace: it belongs there (core/workspaces.ts).
     fileNewNote(note.id);
     await refresh();
@@ -556,7 +610,7 @@ function Shell() {
   const [newSheet, setNewSheet] = useState(false);
 
   const newCanvas = async () => {
-    const note = await saveNote(newNoteId(), canvasNoteBody('Untitled canvas', { nodes: [], edges: [] }), 'editor');
+    const note = await createNote(newNoteId(), canvasNoteBody('Untitled canvas', { nodes: [], edges: [] }), 'editor');
     fileNewNote(note.id);
     await refresh();
     setScreen({ name: 'note', note });
@@ -570,14 +624,6 @@ function Shell() {
     if (note) actions.remove(note);
     else void refresh();
   };
-
-  // A capture over the list takes the Undo toast's place; a delete it hides
-  // becomes final rather than silently waiting behind the recorder.
-  const { flushDeletes } = actions;
-  useEffect(() => {
-    if (screen.name === 'capture') flushDeletes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen.name]);
 
   const backToList = async () => {
     setScreen({ name: 'list' });
@@ -619,7 +665,7 @@ function Shell() {
     [refresh],
   );
 
-  const speakInto = (id: string) => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0, noteId: id });
+  const speakInto = (id: string) => void launchCapture(false, id);
 
   // The list and the open note sit side by side on a wide desktop window; the capture, review and sort
   // flows still take the whole window.
@@ -690,7 +736,7 @@ function Shell() {
     void (async () => {
       const note = await getNote(id);
       if (!note) return;
-      await saveNote(id, withFrontMatterTitle(note.body, title), note.source);
+      await updateNote(id, withFrontMatterTitle(note.body, title), note.revision ?? 1);
       await refresh();
     })();
   };
@@ -728,7 +774,7 @@ function Shell() {
     const line = lines?.[task.line];
     if (!note || !lines || line === undefined) return;
     lines[task.line] = setItemDone(line, true);
-    await saveNote(note.id, lines.join('\n'));
+    await updateNote(note.id, lines.join('\n'), note.revision ?? 1);
     await refresh();
   };
   // Every note, from the home page's "All notes": the sidebar, docked or as its popover.
@@ -750,7 +796,7 @@ function Shell() {
         if (note) setScreen({ name: 'note', note, at });
       }}
       onNew={() => setNewSheet(true)}
-      onCapture={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
+      onCapture={() => void launchCapture(false)}
       onSettings={() => setSettings(true)}
       onAllNotes={showAllNotes}
       onTick={(task) => void tickTask(task)}
@@ -792,7 +838,7 @@ function Shell() {
     () => ({
       openNote,
       newNote: () => void newNote(),
-      speak: () => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 }),
+      speak: () => void launchCapture(false),
       speakInto,
       closeTab,
       showList: () => void backToList(),
@@ -932,7 +978,7 @@ function Shell() {
                 onNew={() => setNewSheet(true)}
                 onCommands={openCommands ?? undefined}
                 onSettings={() => setSettings(true)}
-                onSpeak={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
+                onSpeak={() => void launchCapture(false)}
                 notices={notices}
                 trashed={trashedNotes}
                 onRestore={actions.restore}
@@ -989,7 +1035,7 @@ function Shell() {
         }}
         onSpeak={() => {
           setDrawer(false);
-          setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 });
+          void launchCapture(false);
         }}
         onCommands={
           openCommands
@@ -1043,7 +1089,7 @@ function Shell() {
             // The list underneath loaded while the guide was up; ask again now it shows.
             void refresh();
           }}
-          onTry={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
+          onTry={() => void launchCapture(false)}
         />
       ) : null}
     </>

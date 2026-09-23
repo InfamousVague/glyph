@@ -143,13 +143,16 @@ use tauri::{AppHandle, Manager, Runtime, State};
 /// `sync_put_file`, a synced recording or picture, for sync (docs/SYNC.md).
 ///
 /// 17: `link_preview`, a web page's title for the card under a link.
-pub const NATIVE_GENERATION: u32 = 17;
+///
+/// 18: revision-checked note create/update, guarded command mutation/undo,
+/// and constrained local instruction inference.
+pub const NATIVE_GENERATION: u32 = 18;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in
 /// Rust reads it but the test that keeps it at or under `NATIVE_GENERATION`.
 #[allow(dead_code)]
-pub const BUNDLE_REQUIRES: u32 = 1;
+pub const BUNDLE_REQUIRES: u32 = 18;
 
 /// The public keys a manifest must be signed by (any one of them). Compiled in:
 /// trust belongs to whoever holds a private key, never to whichever domain

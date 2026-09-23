@@ -4,7 +4,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { answerHost, endCapture, isLocked, setCapturing } from '../core/host.ts';
-import { deleteNote, getNote, listNotes, newNoteId, noteTitle, saveNote, setNoteRecording, type Note } from '../core/store.ts';
+import {
+  applyCommandMutation,
+  createNote,
+  deleteNote,
+  getNote,
+  listNotes,
+  newNoteId,
+  noteTitle,
+  setNoteRecording,
+  undoCommandMutation,
+  updateNote as updateStoredNote,
+  type Note,
+} from '../core/store.ts';
 import { preferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { openMicrophone, type Microphone, type MicrophoneHandlers } from './audio.ts';
@@ -18,8 +30,9 @@ import { QuietWatch } from './quiet.ts';
 import { type Candidate } from './route.ts';
 import { findKeyword, type Placement } from './command.ts';
 import { placeWords } from './listAppend.ts';
+import { listTitle } from './instructionMutation.ts';
 import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
-import { commandModel, understandCommand } from './understand.ts';
+import { commandModel, understandInstructionCommand } from './understand.ts';
 import { appendBlock } from './table.ts';
 import { appendBody } from './appendBody.ts';
 import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
@@ -98,6 +111,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** The note this capture is being added to, if it continues one. */
   const [target, setTarget] = useState<Note | null>(null);
   const targetRef = useRef<Note | null>(null);
+  /** The persisted row for a new capture draft, once explicitly created. */
+  const draftNote = useRef<Note | null>(null);
   /**
    * The continued note's text before this capture, read from the store once,
    * when first needed - after the editor that may have been open has flushed
@@ -176,7 +191,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    */
   const writes = useRef<Promise<unknown>>(Promise.resolve());
   /** What the last command changed in a note, for "undo": the note and its body before. */
-  const lastChange = useRef<{ id: string; before: string; what: string } | null>(null);
+  const lastChange = useRef<{ id: string; before: string; what: string; mutationId?: string } | null>(null);
   const [tables, setTables] = useState<string[]>([]);
   const [asBoard, setAsBoard] = useState(false);
   /** The tape this take writes to: the continued note's, or a new one (core/clips.ts). Read once, when it is first needed. */
@@ -246,6 +261,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // Found after a draft was already written to a new note: stay with that one.
       if (!current || !found || savedDraft.current || finished.current) return;
       targetRef.current = found;
+      draftNote.current = null;
       noteId.current = found.id;
       setTarget(found);
     });
@@ -286,12 +302,28 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     return appendBody(await baseBody.current, markdown);
   }, []);
 
+  /** Persist a birth or a revision-checked edit; never upsert a missing id. */
+  const persistBody = async (id: string, body: string, source: Note['source'] = 'capture'): Promise<Note> => {
+    const known = targetRef.current?.id === id ? targetRef.current : draftNote.current?.id === id ? draftNote.current : null;
+    const saved = known ? await updateStoredNote(id, body, known.revision ?? 1) : await createNote(id, body, source);
+    if (targetRef.current?.id === id) {
+      targetRef.current = saved;
+      setTarget(saved);
+    } else if (noteId.current === id) {
+      draftNote.current = saved;
+    }
+    const candidate = candidates.current.find((item) => item.id === id);
+    if (candidate) candidate.note = saved;
+    return saved;
+  };
+
   /** Undoes whatever drafts wrote: the continued note gets its text back, a new note goes. */
   const undoDraft = useCallback(async () => {
     if (!savedDraft.current) return;
     savedDraft.current = false;
+    await writes.current.catch(() => undefined);
     const continued = targetRef.current;
-    if (continued) await saveNote(continued.id, (await baseBody.current) ?? continued.body, continued.source);
+    if (continued) await persistBody(continued.id, (await baseBody.current) ?? continued.body, continued.source);
     else await deleteNote(noteId.current);
   }, []);
 
@@ -308,7 +340,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     await queueWrite(async () => {
       savedDraft.current = true;
       const body = await compose(take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown }));
-      await saveNote(noteId.current, body, 'capture');
+      await persistBody(noteId.current, body, 'capture');
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compose]);
@@ -328,11 +360,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       if (chosen) {
         const full = (await getNote(chosen.id).catch(() => null)) ?? chosen;
         targetRef.current = full;
+        draftNote.current = null;
         noteId.current = full.id;
         setTarget(full);
         setRoute({ phase: 'moved', title: noteTitle(full.body) || 'that note' });
       } else {
         targetRef.current = null;
+        draftNote.current = null;
         noteId.current = newNoteId();
         setTarget(null);
       }
@@ -350,8 +384,24 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         fireNativeHaptic('selection');
         return;
       }
-      const named = `${title.charAt(0).toUpperCase()}${title.slice(1)}`;
-      const made = await saveNote(newNoteId(), `# ${named}`, 'capture');
+      const named = listTitle(title);
+      const id = newNoteId();
+      const mutationId = newNoteId();
+      const result = await applyCommandMutation({
+        mutationId,
+        noteId: id,
+        kind: 'create',
+        beforeRevision: null,
+        beforeBody: null,
+        afterBody: named,
+        source: 'capture',
+      });
+      if (result.status === 'conflict') {
+        setRoute({ phase: 'said', text: 'That note could not be created safely.' });
+        return;
+      }
+      const made = result.note;
+      lastChange.current = { id: made.id, before: '', what: `the new ${named} note`, mutationId };
       candidates.current = [{ id: made.id, title: named, note: made }, ...candidates.current];
       await carryOn(made);
     },
@@ -374,6 +424,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // The full note, for its recording and phrases: this take's tape goes on the end of them.
       const full = (await getNote(chosen.id).catch(() => null)) ?? chosen;
       targetRef.current = full;
+      draftNote.current = null;
       baseBody.current = null;
       noteId.current = full.id;
       setTarget(full);
@@ -435,15 +486,17 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         setTarget(updated);
         const known = candidates.current.find((c) => c.id === id);
         if (known) known.note = updated;
-        await saveNote(id, appendBody(next, take.markdown({ titled: false, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown })), fresh.source);
+        const saved = await updateStoredNote(id, appendBody(next, take.markdown({ titled: false, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown })), fresh.revision ?? 1);
+        targetRef.current = saved;
+        if (known) known.note = saved;
         return next;
       }
       const body = change(fresh.body);
       if (body === null || body === fresh.body) return null;
       if (what) lastChange.current = { id, before: fresh.body, what };
-      await saveNote(id, body, fresh.source);
+      const saved = await updateStoredNote(id, body, fresh.revision ?? 1);
       const known = candidates.current.find((c) => c.id === id);
-      if (known) known.note = { ...fresh, body };
+      if (known) known.note = saved;
       return body;
     });
 
@@ -452,7 +505,33 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const last = lastChange.current;
     if (!last) return null;
     lastChange.current = null;
-    void updateNote(last.id, () => last.before).catch((failure: unknown) => console.warn('[glyph] not undone:', failure));
+    if (last.mutationId) {
+      void undoCommandMutation(last.mutationId)
+        .then((result) => {
+          if (result.status !== 'undone') return;
+          if (result.note) {
+            const known = candidates.current.find((candidate) => candidate.id === result.note?.id);
+            if (known) known.note = result.note;
+            if (targetRef.current?.id === result.note.id) {
+              targetRef.current = result.note;
+              baseBody.current = Promise.resolve(result.note.body);
+              setTarget(result.note);
+            }
+          } else {
+            candidates.current = candidates.current.filter((candidate) => candidate.id !== last.id);
+            if (targetRef.current?.id === last.id) {
+              targetRef.current = null;
+              draftNote.current = null;
+              baseBody.current = null;
+              noteId.current = newNoteId();
+              setTarget(null);
+            }
+          }
+        })
+        .catch((failure: unknown) => console.warn('[glyph] command not undone:', failure));
+    } else {
+      void updateNote(last.id, () => last.before).catch((failure: unknown) => console.warn('[glyph] not undone:', failure));
+    }
     return last.what;
   };
 
@@ -461,28 +540,43 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    * list grows by them, in its own style, while this take carries on where it
    * was. The chip and the landing preview show the lines arriving.
    */
-  const addItems = async (note: Note, spoken: string, { how, task, many, target = null }: Placement) => {
+  const addItems = async (note: Note, spoken: string, { how, task, many, target = null, near }: Placement) => {
     try {
-      let added: string[] = [];
-      const body = await updateNote(
-        note.id,
-        (current) => {
-          // "Leave a note for …": into the list it fits, or its own paragraph.
-          const placed = placeWords(current, spoken, { how, task, many });
-          added = placed.added;
-          return placed.added.length ? placed.body : null;
-        },
-        `“${spoken}”`,
-      );
-      if (body === null) return;
+      // The offer was made from this exact note snapshot. Confirmation is a
+      // compare-and-swap, so a later edit or delete wins instead of being
+      // overwritten by the voice command.
+      const placed = placeWords(note.body, spoken, { how, task, many, near });
+      if (!placed.added.length) return;
+      const mutationId = newNoteId();
+      const result = await applyCommandMutation({
+        mutationId,
+        noteId: note.id,
+        kind: 'append',
+        beforeRevision: note.revision ?? 1,
+        beforeBody: note.body,
+        afterBody: placed.body,
+        source: note.source,
+      });
+      if (result.status === 'conflict') {
+        setRoute({ phase: 'said', text: `${noteTitle(note.body) || 'That note'} changed after the preview, so nothing was added.` });
+        fireNativeHaptic('warning');
+        return;
+      }
+      const saved = result.note;
+      const known = candidates.current.find((candidate) => candidate.id === saved.id);
+      if (known) known.note = saved;
+      if (targetRef.current?.id === saved.id) {
+        targetRef.current = saved;
+        baseBody.current = Promise.resolve(saved.body);
+        setTarget(saved);
+      }
+      lastChange.current = { id: saved.id, before: note.body, what: `“${spoken}”`, mutationId };
       const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
-      // Into the note on screen, the page itself shows the line land; into another, its list is shown arriving.
-      if (targetRef.current?.id === note.id) setRoute({ phase: 'done', text: `Added “${show(added[0] ?? '')}”${added.length > 1 ? ` and ${added.length - 1} more` : ''}` });
-      else setRoute({ phase: 'added', title: noteTitle(body) || 'that note', body, added });
+      if (targetRef.current?.id === saved.id) setRoute({ phase: 'done', text: `Added “${show(placed.added[0] ?? '')}”${placed.added.length > 1 ? ` and ${placed.added.length - 1} more` : ''}` });
+      else setRoute({ phase: 'added', title: noteTitle(saved.body) || 'that note', body: saved.body, added: placed.added });
       fireNativeHaptic('success');
-      lastSaid.current = { kind: 'items', noteId: note.id, lines: added };
-      // "…in Notion": the plugin that offers the word takes the lines from here.
-      if (target) plugins.itemTargets().find((t) => t.word === target)?.afterAdd(note.id, added, captureContext);
+      lastSaid.current = { kind: 'items', noteId: saved.id, lines: placed.added };
+      if (target) plugins.itemTargets().find((itemTarget) => itemTarget.word === target)?.afterAdd(saved.id, placed.added, captureContext);
     } catch (failure) {
       console.warn('[glyph] item not added:', failure);
       setRoute({ phase: 'missed', title: noteTitle(note.body) || 'that note' });
@@ -553,9 +647,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     notes: () => candidates.current,
     target: () => targetRef.current,
     commandWord: commandWordOn,
+    instructionCommands: () => true,
     voiceCommands: () => plugins.voiceCommands(),
     itemTargets: itemWordsOfPlugins,
-    understand: commandModelId.current ? (words) => understandCommand(words, candidates.current) : undefined,
+    understand: commandModelId.current ? (words) => understandInstructionCommand(words, candidates.current) : undefined,
     route: setRoute,
     offer: setPendingView,
     table: setTableView,
@@ -594,6 +689,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         notes: () => hostImpl.current.notes(),
         target: () => hostImpl.current.target(),
         commandWord: () => hostImpl.current.commandWord(),
+        instructionCommands: () => hostImpl.current.instructionCommands(),
         voiceCommands: () => hostImpl.current.voiceCommands(),
         itemTargets: () => hostImpl.current.itemTargets(),
         get understand() {
@@ -811,7 +907,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
 
     const markdown = take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
-    const saved = await saveNote(noteId.current, await compose(markdown), 'capture');
+    const saved = await queueWrite(async () => persistBody(noteId.current, await compose(markdown), 'capture'));
     let refineJob: ReviewHandoff['job'] = null;
     if (stopped.recordedMs !== null && sessionRef.current?.keepsAudio) {
       // New phrases sit after the continued tape's, shifted by its length.

@@ -3,7 +3,7 @@ import { boardNoteBody } from './boardNote.ts';
 import { howCanvasBody } from '../canvas/howCanvas.ts';
 import { sampleCanvasBody } from '../canvas/sampleCanvas.ts';
 import { sampleImageBlob, sampleNoteBody } from './sampleNote.ts';
-import { newNoteId, saveNote, type Note } from './store.ts';
+import { createNote, newNoteId, type Note } from './store.ts';
 
 /**
  * The sample note's arrival (core/sampleNote.ts). A fresh library, with no
@@ -46,14 +46,14 @@ export async function addSampleNote(): Promise<Note> {
     // No picture, then: the note says nothing of one.
     image = null;
   }
-  const note = await saveNote(newNoteId(), sampleNoteBody(image), 'editor');
+  const note = await createNote(newNoteId(), sampleNoteBody(image), 'editor');
   markSeeded();
   return note;
 }
 
 /** Makes the example board (core/boardNote.ts) now, and answers it. */
 export async function addBoardNote(): Promise<Note> {
-  return saveNote(newNoteId(), boardNoteBody(), 'editor');
+  return createNote(newNoteId(), boardNoteBody(), 'editor');
 }
 
 /** Makes the example canvas (canvas/sampleCanvas.ts) now, its picture kept where one can be drawn, and answers it. */
@@ -66,12 +66,12 @@ export async function addCanvasNote(): Promise<Note> {
     // No picture, then: the canvas is made without its picture card.
     picture = null;
   }
-  return saveNote(newNoteId(), sampleCanvasBody(picture), 'editor');
+  return createNote(newNoteId(), sampleCanvasBody(picture), 'editor');
 }
 
 /** Makes the canvas that says how Glyph works (canvas/howCanvas.ts) now, and answers it. */
 export async function addHowCanvas(): Promise<Note> {
-  return saveNote(newNoteId(), howCanvasBody(), 'editor');
+  return createNote(newNoteId(), howCanvasBody(), 'editor');
 }
 
 /**

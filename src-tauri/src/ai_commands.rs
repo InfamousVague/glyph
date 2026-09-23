@@ -38,6 +38,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
+use crate::llm::command::{self, CommandIntent};
 use crate::llm::model::{self, LlmSpec};
 
 #[cfg(not(target_os = "ios"))]
@@ -75,6 +76,23 @@ pub struct GenerateRequest {
 fn default_temperature() -> f32 {
     0.3
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CommandInferenceRequest {
+    pub id: String,
+    pub utterance: String,
+    pub preferred_model: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum CommandInferenceResult {
+    Intent { intent: CommandIntent, model: String },
+    Unavailable { reason: String },
+}
+
+const COMMAND_SYSTEM: &str = "Translate one spoken note command to JSON. Allowed actions: append existing note, create new note, or none. Append target is the spoken note title, content is only what to add, and placement is bugs, tasks, list, notes, or null. Create target is the new note title and optional content is its body. Destructive, compound, unsupported, or unclear requests are none. Never invent content. Output exactly one object in the required schema.";
 
 /// One model of the catalogue, with whether this phone has it.
 #[derive(Debug, Clone, Serialize)]
@@ -278,6 +296,7 @@ pub async fn ai_generate(
             temperature: request.temperature,
             think: request.think,
             think_budget: request.think_budget,
+            grammar: None,
         };
         let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, move |progress| {
             let _ = emitter.emit("ai://progress", progress);
@@ -302,6 +321,76 @@ pub fn ai_cancel(state: State<'_, AiState>, id: String) -> bool {
             true
         }
         None => false,
+    }
+}
+
+/// Interprets one wake-word-qualified utterance using only an already installed
+/// model, a native fixed prompt, and a native fixed grammar.
+#[tauri::command]
+pub async fn ai_infer_command(
+    app: AppHandle,
+    state: State<'_, AiState>,
+    request: CommandInferenceRequest,
+) -> Result<CommandInferenceResult, String> {
+    let utterance = request.utterance.trim();
+    if request.id.is_empty() || utterance.is_empty() || utterance.chars().count() > 4_000 {
+        return Ok(CommandInferenceResult::Unavailable { reason: "The command was empty or too long.".into() });
+    }
+    if let Some(reason) = command::refusal(utterance) {
+        return Ok(CommandInferenceResult::Intent { intent: CommandIntent::None { reason }, model: String::new() });
+    }
+    #[cfg(target_os = "ios")]
+    {
+        let _ = (app, state);
+        return Ok(CommandInferenceResult::Unavailable {
+            reason: "Instruction inference is not available on iOS; Glyph’s built-in commands still work.".into(),
+        });
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let dir = crate::capture_commands::models_dir(&app)?;
+        let preferred = model::find(&request.preferred_model)
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let fallback = model::find("qwen3.5-2b")
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let Some(spec) = preferred.or(fallback) else {
+            return Ok(CommandInferenceResult::Unavailable {
+                reason: "No compatible installed model is available for instruction commands.".into(),
+            });
+        };
+        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let cancel = Arc::new(AtomicBool::new(false));
+        {
+            let mut runs = lock(&state.runs);
+            if !runs.is_empty() {
+                return Ok(CommandInferenceResult::Unavailable { reason: "The on-device model is already working.".into() });
+            }
+            runs.insert(request.id.clone(), Arc::clone(&cancel));
+        }
+        let engine_request = Request {
+            id: request.id.clone(),
+            system: COMMAND_SYSTEM.into(),
+            context: None,
+            prompt: utterance.to_string(),
+            max_tokens: 192,
+            temperature: 0.0,
+            think: false,
+            think_budget: 0,
+            grammar: Some(command::GRAMMAR),
+        };
+        let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, |_| {});
+        let received = tauri::async_runtime::spawn_blocking(move || answer.recv()).await;
+        lock(&state.runs).remove(&request.id);
+        let result = received
+            .map_err(|e| format!("the command inference did not finish: {e}"))?
+            .map_err(|_| "the command inference engine went away".to_string())?;
+        match result {
+            Ok(output) => match command::parse(&output.text, output.truncated) {
+                Ok(intent) => Ok(CommandInferenceResult::Intent { intent, model: spec.id.into() }),
+                Err(reason) => Ok(CommandInferenceResult::Unavailable { reason }),
+            },
+            Err(failure) => Ok(CommandInferenceResult::Unavailable { reason: failure.to_string() }),
+        }
     }
 }
 

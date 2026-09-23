@@ -102,6 +102,8 @@ pub struct Request {
     pub think: bool,
     /// Thinking tokens before the thought is closed for the model (0: no limit).
     pub think_budget: u32,
+    /// Native-owned constrained output, never accepted from an IPC request.
+    pub grammar: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -507,8 +509,12 @@ fn generate<'m>(
     }
     let ctx = ctx_slot.as_mut().expect("a context was just ensured");
 
-    // Prefill: the prefix from its snapshot when it matches, else decoded and
-    // snapshotted; then the rest.
+    // Prefill: the immutable system/template prefix from its snapshot when it
+    // matches, else decoded and snapshotted; then the per-job user remainder.
+    // This clear is the session boundary: generated tokens and the previous
+    // request's user text leave the live KV before any snapshot is restored.
+    // The snapshot is captured before `rest`, so it cannot contain an earlier
+    // utterance (prompt.rs tests that boundary).
     let prefill_started = Instant::now();
     ctx.clear_kv_cache();
     let mut batch = LlamaBatch::new(CHUNK, 1);
@@ -531,8 +537,13 @@ fn generate<'m>(
     decode_prompt(ctx, &mut batch, &rest, prefix.len(), true, &job.cancel, &mut job.progress, report, counts, prefill_started)?;
     let prefill_ms = prefill_started.elapsed().as_millis() as u64;
 
-    // Generate. The sampler is per run: the repeat penalty remembers tokens.
-    let mut sampler = if request.temperature <= 0.0 {
+    // Generate. A command grammar is compiled from this binary's allowlist,
+    // never from web input. Free-form formatting keeps its existing sampler.
+    let mut sampler = if let Some(grammar) = request.grammar {
+        let grammar = LlamaSampler::grammar(model, grammar, "root")
+            .map_err(|e| error("cannot compile the command grammar", &e))?;
+        LlamaSampler::chain_simple([grammar, LlamaSampler::greedy()])
+    } else if request.temperature <= 0.0 {
         LlamaSampler::chain_simple([
             LlamaSampler::penalties(model.n_vocab(), REPEAT_LAST_N, REPEAT_PENALTY, 0.0, 0.0),
             LlamaSampler::greedy(),
