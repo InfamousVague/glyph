@@ -236,23 +236,35 @@ export function bodyWithoutTitle(body: string, title: string): string {
   return lines.join('\n');
 }
 
-/** The lines of the body that are the book's own words, not its index and not its front matter: shown over it. */
-export function prefaceOf(body: string): string[] {
+/**
+ * The book's own words around its index, as Markdown: what comes before the first chapter (less the front matter and
+ * the heading that names the book, which is the header's), and what comes after the last - a book's canvases, its
+ * further reading, notes to self. What sits between chapters, a part's heading, belongs to the list and is left out
+ * of both. Drawn over and under the index by the note's own editor (book/BookView.tsx), so its links open.
+ */
+export function bookWords(body: string): { before: string; after: string } {
   const lines = body.split('\n');
-  const out: string[] = [];
-  // The index's own lines are drawn as the index; everything else, prose bullets included, is the book's words.
-  const indexLines = new Set(chaptersOf(body).map((c) => c.line));
-  let inFrontMatter = /^(---|\+\+\+)\s*$/.test(lines[0] ?? '');
-  for (let n = inFrontMatter ? 1 : 0; n < lines.length; n += 1) {
-    const line = lines[n]!;
-    if (inFrontMatter) {
-      if (/^(---|\+\+\+)\s*$/.test(line)) inFrontMatter = false;
-      continue;
-    }
-    if (indexLines.has(n)) continue;
-    // The heading that names the book is the header's, not the page's.
-    if (n <= 5 && /^#\s+/.test(line) && out.length === 0) continue;
-    if (line.trim()) out.push(line.trim());
+  const chapters = chaptersOf(body);
+  let start = 0;
+  if (/^(---|\+\+\+)\s*$/.test(lines[0] ?? '')) {
+    const close = lines.findIndex((line, n) => n > 0 && /^(---|\+\+\+)\s*$/.test(line));
+    start = close >= 0 ? close + 1 : lines.length;
   }
-  return out;
+  const first = chapters.length ? chapters[0]!.line : lines.length;
+  const last = chapters.length ? chapters[chapters.length - 1]!.line : lines.length - 1;
+  const head = lines.slice(start, first);
+  const named = head.findIndex((line) => line.trim());
+  if (named >= 0 && /^#\s+/.test(head[named]!)) head.splice(named, 1);
+  const tidy = (part: string[]) => part.join('\n').replace(/^\s*\n/, '').trim();
+  // A rule or a heading left dangling at the end of the words before - the lead-in to the list - goes with the list.
+  const before = tidy(head).replace(/(\n+(?:-{3,}|\*{3,}|#{1,6}\s.*))+\s*$/, '').replace(/^(?:-{3,}|\*{3,})$/, '').trim();
+  return { before, after: chapters.length ? tidy(lines.slice(last + 1)) : '' };
+}
+
+/** The lines of the book's words before its index, each trimmed: what a list of books shows as its lead. */
+export function prefaceOf(body: string): string[] {
+  return bookWords(body)
+    .before.split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
 }

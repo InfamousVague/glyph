@@ -35,6 +35,12 @@ What to know before the walk.
 - **The book's own words stay.** Lines that are not chapters - a paragraph before the list, notes to self - are
   kept where they are and shown over the index.
 - **A link's heading or alias is not the title:** `[[Trees#Oaks|the oaks]]` is the chapter Trees.
+- **A chapter is an item that opens with its link.** `- [[Trees]] — the big ones` is a chapter. `- The oaks are in
+  [[Trees]].` is the book's words about a chapter, and stays in the preface.
+- **A numbered index is its numbered list.** In an index written `1. [[…]]`, `2. [[…]]`, a bullet list beside it at
+  the top level, such as the book's canvases or further reading, is about the book rather than in it, and shows in
+  the preface. Bullets indented under a numbered chapter are still its chapters. A chapter added to a numbered index
+  takes the next number, or it would be a bullet the index skips.
 
 ## In the app
 
@@ -145,3 +151,7 @@ wearing the chapter's bar ("Cabin trip · 2 of 3", the pages either side). What 
 chapter that is a canvas, and a canvas offered in the index's picker, now wear the canvas's own mark after the title -
 the one the + sheet gives a canvas - and a reader hears "Route map, a canvas" (book/BookView.tsx, `bodyOf` from the
 note screen). A chapter with no note yet says nothing of what it will be.
+
+A new chapter can start as a canvas: the index's "Add a chapter" form has "Add as a canvas" beside "Add and open",
+which puts the chapter in the index and makes an empty canvas by that name (App.tsx `openCanvasWithin`). The New book
+sheet marks canvases among the notes it offers, and among the pages picked.

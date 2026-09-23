@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Note } from '../core/store.ts';
-import { bodyWithoutTitle, bookIndex, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, titleKey, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
+import { bodyWithoutTitle, bookIndex, bookWords, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, titleKey, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 
 /**
  * A book is its index: a list of links in a note that says `book: true`. Read from the body, written back to it a
@@ -198,11 +198,16 @@ describe('what counts as a chapter', () => {
     ]);
   });
 
-  it('keeps the side lists and the prose bullets as the book’s words, over the index', () => {
-    const preface = prefaceOf(HELLO);
-    expect(preface).toContain('- [[Canvas · The tick path]] — embedded in a chapter.');
-    expect(preface).toContain('- A **market order** is a limit order ([[HelloTrade in one page]]).');
-    expect(preface).not.toContain('1. [[The two things you can trade]]');
+  it('keeps the words before the index over it, and the side lists and prose bullets after it under it', () => {
+    const words = bookWords(HELLO);
+    // The lead, with the part heading that only introduces the list left to the list.
+    expect(words.before).toBe('_Everything known, in short chapters._');
+    expect(words.after).toContain('- [[Canvas · The tick path]] — embedded in a chapter.');
+    expect(words.after).toContain('- A **market order** is a limit order ([[HelloTrade in one page]]).');
+    expect(words.after.startsWith('## The canvases')).toBe(true);
+    // Between the chapters, a part's heading is the list's: in neither.
+    expect(words.before + words.after).not.toContain('## Part II');
+    expect(words.before + words.after).not.toContain('[[The two things you can trade]]');
   });
 
   it('still reads an index of bullets, as the app writes one, and skips a bullet that only mentions a note', () => {

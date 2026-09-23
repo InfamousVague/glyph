@@ -11,9 +11,16 @@
   line-height: 1.5;
 }
 
-.preface p {
-  margin: 0 0 0.75em;
+/* The book's words over and under its index: the note's own editor, in the index's column, with none of the room a
+   note leaves under its last line for typing, since nothing is typed here. */
+.preface {
+  --app-gutter: 0px;
+  margin-block: var(--glacier-space-2) var(--glacier-space-4);
   color: var(--glacier-text-muted);
+}
+
+.preface :global(.cm-editor) :global(.cm-content) {
+  padding-block: 0;
 }
 
 .empty {

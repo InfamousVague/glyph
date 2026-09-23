@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { BookOpen, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, GripVertical, List, Plus, Workflow, X } from '@glacier/icons';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
-import { bodyWithoutTitle, chaptersOf, numbered, prefaceOf, withChapter, withChapterAt, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
+import { bodyWithoutTitle, bookWords, chaptersOf, numbered, withChapter, withChapterAt, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
 import { Editor } from '../editor/Editor.tsx';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { useRowDrag } from './rowDrag.ts';
@@ -46,6 +46,15 @@ interface BookViewProps {
   dark?: boolean;
 }
 
+/** The book's own words around its index, drawn as a note is - read-only, formatted - so a link in them opens. */
+function BookWords({ words, known, open, dark }: { words: string; known: (title: string) => boolean; open: (title: string) => void; dark: boolean }) {
+  return (
+    <div className={styles.preface}>
+      <Editor value={words} onChange={noop} dark={dark} assist={false} readOnly display="formatted" wiki={{ known, open }} grow />
+    </div>
+  );
+}
+
 /** The canvas's mark, beside a title that is a canvas: the index's, and the new-book sheet's (book/NewBookSheet.tsx). */
 export function CanvasMark() {
   return (
@@ -62,7 +71,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   };
   const chapters = useMemo(() => chaptersOf(body), [body]);
   const numbers = useMemo(() => numbered(chapters), [chapters]);
-  const preface = useMemo(() => prefaceOf(body), [body]);
+  const words = useMemo(() => bookWords(body), [body]);
   const [adding, setAdding] = useState<'new' | 'existing' | null>(null);
   /** Reading straight through: the chapters one after another, each in the note's own read-only editor. */
   const [reading, setReading] = useState(false);
@@ -158,13 +167,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
 
   return (
     <div className={styles.book} data-chapters={chapters.length} data-read-only={readOnly || undefined}>
-      {preface.length > 0 ? (
-        <div className={styles.preface}>
-          {preface.map((line, i) => (
-            <p key={i}>{line}</p>
-          ))}
-        </div>
-      ) : null}
+      {words.before ? <BookWords words={words.before} known={known} open={open} dark={dark} /> : null}
       {chapters.length === 0 ? (
         <p className={styles.empty}>{readOnly ? 'No chapters yet.' : 'No chapters yet. Add one below, or a note you have already written.'}</p>
       ) : (
@@ -219,6 +222,8 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
           })}
         </ol>
       )}
+
+      {words.after ? <BookWords words={words.after} known={known} open={open} dark={dark} /> : null}
 
       {readOnly ? (
         chapters.length ? (
