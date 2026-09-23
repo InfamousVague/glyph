@@ -46,6 +46,12 @@ export function barAt(ms: number): { middle: number; offset: number } {
   return { middle: (lap + DASH / 200) % 1, offset: -lap * 100 };
 }
 
+/** Once the app is open: how long the ghost takes to turn and look out of the screen, then how long its wink lasts. */
+export const LOOK_OUT_MS = 240;
+export const WINK_MS = 380;
+/** The eye that winks: the one on the viewer's right. */
+export const WINKING_EYE = 1;
+
 /** How much of the way to its new place an eye goes in `ms`: it catches up in about a tenth of a second, as eyes do. */
 export function easeFor(ms: number): number {
   return 1 - Math.exp(-Math.max(0, ms) / 90);

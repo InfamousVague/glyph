@@ -4195,3 +4195,20 @@ edges (§97, `fade`), but a view with no header of its own still took `[data-wis
 That filter's region is sized only by the views that draw with it, so here it had whatever width another view last
 gave it: 480px, from a phone-sized load, which left the page drawn only to x = 760. `[data-wisp-draw='fade'][data-wisp-edge]`
 now has no filter.
+
+## 107. The ghost winks goodbye (2026-09-23)
+
+Matt: "Remove the blink, when it's done loading have the ghost look at the camera and wink before the loading screen
+goes away." The launch screen's ghost (§105) no longer blinks as it watches the bar. Once the app is open:
+
+- **The bar and its track fade** (200ms), since there is nothing left to wait for.
+- **The ghost looks out of the screen.** Its eyes stop following the bar and ease back to where the picture had them,
+  which is looking straight out at whoever holds the phone. It takes 240ms (`LOOK_OUT_MS`), on the same frame loop
+  and easing the bar-watching uses.
+- **It winks.** The eye on the viewer's right shuts and opens again over 380ms (`WINK_MS`), held shut for about a third
+  of that. The wink squeezes a group round the eye, so the frame loop's move of the eye and the wink's squeeze don't
+  fight over one `transform`.
+- **Then the screen fades** as before (260ms) and hands over. The screen waits for the wink rather than starting its
+  fade when it is ready, so opening now takes about 0.6s longer.
+- **Less motion asked for**, or a page with no geometry to move eyes by: no look and no wink, and the screen fades as
+  soon as it is ready, as it did.

@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, CircleAlert, LoaderCircle } from '@glacier/icons';
 import type { Updates } from '../core/ota.ts';
 import type { SyncStatus } from '../core/sync/engine.ts';
 import { isTauri } from '../core/tauri.ts';
 import icon from './ghost-icon-eyeless.webp';
-import { barAt, easeFor, EYE_RX, EYE_RY, EYES, lookAt } from './eyes.ts';
+import { barAt, easeFor, EYE_RX, EYE_RY, EYES, LOOK_OUT_MS, lookAt, WINK_MS, WINKING_EYE } from './eyes.ts';
 import styles from './LaunchScreen.module.css';
 
 /**
@@ -65,13 +65,25 @@ const RING_PATH = squircle(BOX / 2, 58);
  * same ring.
  *
  * And the ghost watches it (launch/eyes.ts): the picture's eyes are painted out and drawn again over it, and each frame
- * both turn toward the bar's middle, catching up with it as eyes do, and blink now and then. The bar and the eyes run
- * off one clock, so the bar is moved from here too rather than by a CSS animation that would drift from them. Asked
- * for less motion, the bar stands still at the top and the eyes look ahead.
+ * both turn toward the bar's middle, catching up with it as eyes do. The bar and the eyes run off one clock, so the bar
+ * is moved from here too rather than by a CSS animation that would drift from them.
+ *
+ * When the app is open (`finishing`), the bar fades and the ghost turns to look out of the screen, at whoever is
+ * holding it, and winks (Matt: "Remove the blink, when it's done loading have the ghost look at the camera and wink
+ * before the loading screen goes away"); `onFinished` says the wink is over, for the screen to fade. Asked for less
+ * motion, the bar stands still at the top, the eyes look ahead, and there is no wink to wait for.
  */
-function IconChase() {
+function IconChase({ finishing, onFinished }: { finishing: boolean; onFinished: () => void }) {
   const bar = useRef<SVGPathElement>(null);
   const eyes = useRef<(SVGEllipseElement | null)[]>([]);
+  // Read each frame, so the loop that is already running turns the eyes out without starting again.
+  const out = useRef(false);
+  out.current = finishing;
+  // Whether the eyes are moving at all: a still ghost has no look or wink to give.
+  const [moving, setMoving] = useState(false);
+  const [winking, setWinking] = useState(false);
+  const finished = useRef(onFinished);
+  finished.current = onFinished;
   useEffect(() => {
     const path = bar.current;
     // A page with no geometry (a test's DOM) keeps the bar where it starts and the eyes ahead.
@@ -83,6 +95,7 @@ function IconChase() {
     let last = start;
     let frame = 0;
     path.dataset.driven = '';
+    setMoving(true);
     const tick = (now: number) => {
       const { middle, offset } = barAt(now - start);
       path.style.strokeDashoffset = String(offset);
@@ -90,7 +103,8 @@ function IconChase() {
       const ease = easeFor(Math.min(64, now - last));
       last = now;
       EYES.forEach((eye, i) => {
-        const to = lookAt(eye, target);
+        // Looking out of the screen is looking at no point on it: both eyes back to the middle of where they were.
+        const to = out.current ? { x: 0, y: 0 } : lookAt(eye, target);
         const at = looking[i]!;
         at.x += (to.x - at.x) * ease;
         at.y += (to.y - at.y) * ease;
@@ -101,18 +115,34 @@ function IconChase() {
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  // The look out, then the wink, then done; at once for a ghost that isn't moving.
+  useEffect(() => {
+    if (!finishing) return undefined;
+    if (!moving) {
+      finished.current();
+      return undefined;
+    }
+    const wink = window.setTimeout(() => setWinking(true), LOOK_OUT_MS);
+    const done = window.setTimeout(() => finished.current(), LOOK_OUT_MS + WINK_MS);
+    return () => {
+      window.clearTimeout(wink);
+      window.clearTimeout(done);
+    };
+  }, [finishing, moving]);
+
   return (
-    <svg className={styles.chase} viewBox={`0 0 ${BOX} ${BOX}`} width={BOX} height={BOX} aria-hidden="true">
+    <svg className={styles.chase} viewBox={`0 0 ${BOX} ${BOX}`} width={BOX} height={BOX} aria-hidden="true" data-finishing={finishing || undefined}>
       <defs>
         <clipPath id="launch-squircle">
           <path d={ICON_PATH} />
         </clipPath>
       </defs>
       <image href={icon} x={BOX / 2 - 48} y={BOX / 2 - 48} width={96} height={96} clipPath="url(#launch-squircle)" preserveAspectRatio="xMidYMid slice" />
-      <g className={styles.blink}>
-        {EYES.map((eye, i) => (
+      {EYES.map((eye, i) => (
+        // Each eye in a group of its own: the frame loop moves the eye, and the wink squeezes the group round it.
+        <g key={i} className={i === WINKING_EYE && winking ? styles.wink : undefined}>
           <ellipse
-            key={i}
             ref={(el) => {
               eyes.current[i] = el;
             }}
@@ -122,8 +152,8 @@ function IconChase() {
             rx={EYE_RX}
             ry={EYE_RY}
           />
-        ))}
-      </g>
+        </g>
+      ))}
       <path className={styles.track} d={RING_PATH} pathLength={100} />
       <path ref={bar} className={styles.bar} d={RING_PATH} pathLength={100} />
     </svg>
@@ -170,16 +200,18 @@ export function LaunchScreen({ loading, notes, updates, sync, onDone }: LaunchSc
   if (!loading && elapsed >= SHORTEST_MS && (checked || elapsed >= LONGEST_MS)) latched.current = true;
   const ready = latched.current;
 
-  // Once ready it stays ready: fade, then hand over. The callback is read from a ref so a new one each render can't
-  // restart the fade and lose the hand-over.
+  // Once ready it stays ready: the ghost looks out and winks (IconChase), then the screen fades and hands over. The
+  // callback is read from a ref so a new one each render can't restart the fade and lose the hand-over.
   const done = useRef(onDone);
   done.current = onDone;
+  const [winked, setWinked] = useState(false);
+  const onWinked = useCallback(() => setWinked(true), []);
   useEffect(() => {
-    if (!ready) return undefined;
+    if (!winked) return undefined;
     setLeaving(true);
     const timer = window.setTimeout(() => done.current(), FADE_MS);
     return () => window.clearTimeout(timer);
-  }, [ready]);
+  }, [winked]);
 
   const lines: Line[] = [
     loading
@@ -211,7 +243,7 @@ export function LaunchScreen({ loading, notes, updates, sync, onDone }: LaunchSc
 
   return (
     <div className={styles.launch} data-leaving={leaving || undefined} role="status" aria-live="polite" aria-label="Opening Ghost.md">
-      <IconChase />
+      <IconChase finishing={ready} onFinished={onWinked} />
       <h1 className={styles.name}>Ghost.md</h1>
       <ul className={styles.lines}>
         {lines.map((line) => (

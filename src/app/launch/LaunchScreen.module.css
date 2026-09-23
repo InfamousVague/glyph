@@ -53,22 +53,28 @@
   fill: #161616;
 }
 
-/* A blink now and then: both eyes shut together for a moment, the first soon after the screen appears. */
-.blink {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: blink 2.6s 0.5s ease-in-out infinite;
+/* Done: the bar and its track fade, as the ghost turns to look out of the screen. */
+.chase[data-finishing] .bar,
+.chase[data-finishing] .track {
+  opacity: 0;
+  transition: opacity 200ms var(--glacier-ease-out, ease-out);
 }
 
-/* Shut and open again in the first fifth of a second of each turn, so the first blink falls while the screen is up. */
-@keyframes blink {
+/* The wink: one eye shut and open again, held shut a moment in the middle (eyes.ts WINK_MS). */
+.wink {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wink 380ms ease-in-out both;
+}
+
+@keyframes wink {
   0%,
-  8%,
   100% {
     transform: none;
   }
-  4% {
-    transform: scaleY(0.12);
+  30%,
+  62% {
+    transform: scaleY(0.1);
   }
 }
 
@@ -134,7 +140,7 @@
 @media (prefers-reduced-motion: reduce) {
   .chase,
   .bar,
-  .blink,
+  .wink,
   .name,
   .line,
   .line[data-state='working'] .mark svg {
