@@ -4051,3 +4051,12 @@ nothing there. With the home dock a row across the foot, the dead band was under
 A desktop's edges are plain now, top and foot alike (§94's line, `wispHead`). The top is the blur strip, and the foot
 is a 28px fade at the very edge (app.css `[data-wisp-draw='fade']`), with no smoke at either end and no filter. A phone
 keeps the wisp at both.
+
+## 98. Settings is full screen everywhere (2026-09-23)
+
+Matt: "make the settings page full screen". On a wide window Settings had been a card over the page since he asked
+for "a modal" on large displays. Now it's the screen on every size, as on a phone. On a wide window the head, the
+list and the panes keep one centred column, 46rem, so rows don't stretch across a desktop, and the ground runs edge to
+edge (settings.css `--settings-column`). The card's dimmed page behind it and its arrival animation went with it.
+Settings leaves by its back arrow as before. The older card asking for a click outside Settings to close it has
+nothing outside to click now.
