@@ -33,9 +33,28 @@
 }
 
 .progress {
-  color: var(--glacier-text-subtle);
-  font-weight: var(--glacier-font-weight-medium);
-  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A page's dot: a ring still to come, a small filled dot passed, and a longer filled bar for the one on show. */
+.progressDot {
+  inline-size: 7px;
+  block-size: 7px;
+  border-radius: 999px;
+  border: 1.5px solid var(--glacier-text-subtle);
+  transition: inline-size 240ms var(--glacier-ease-out, ease-out), background-color 240ms;
+}
+
+.progressDot[data-done] {
+  background: var(--glacier-text-subtle);
+}
+
+.progressDot[data-on] {
+  inline-size: 18px;
+  border-color: var(--glacier-text);
+  background: var(--glacier-text);
 }
 
 .skip {

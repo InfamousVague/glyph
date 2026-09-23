@@ -3,7 +3,7 @@ import { ArrowRight } from '../art/Icons.tsx';
 import { WispText } from '../art/WispText.tsx';
 import { useBack } from '../core/back.ts';
 import { useSwipeNav } from '../core/swipe.ts';
-import { ArrowDown, CloudOff, ShieldCheck, Smartphone, WifiOff } from '@glacier/icons';
+import { ArrowDown, FileText, Mic, RefreshCw } from '@glacier/icons';
 import { SideKey as SideKeyArt, Tips as TipsArt } from '../art/Shapes.tsx';
 import { isAndroid } from '../core/platform.ts';
 import { setPreferences, usePreferences, type ThemePref } from '../core/preferences.ts';
@@ -11,9 +11,7 @@ import { gb, MODELS, modelName, useModels } from '../core/ai.ts';
 import { isTauri } from '../core/tauri.ts';
 import { GUIDE_PAGES as PAGES, type GuidePage as Page } from './pages.ts';
 import { MarksTable } from './MarksTable.tsx';
-import { AntiAiStage } from './AntiAiStage.tsx';
 import { useWispEdge } from '../art/wispEdge.ts';
-import { HeadsUp } from './HeadsUp.tsx';
 import { SideKeyWaves } from './SideKeyWaves.tsx';
 import styles from './Guide.module.css';
 
@@ -104,8 +102,6 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
   const pageRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [nudgeDue, setNudgeDue] = useState(false);
-  // On the heads-up, the nudge waits for the gags to have played once, through the hot phone (Matt), not for a timer.
-  const [watched, setWatched] = useState(false);
   const [nudge, setNudge] = useState<string>(NUDGES[0]);
   useEffect(() => {
     const el = pageRef.current;
@@ -119,7 +115,7 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
     resized.observe(el);
     const grown = new MutationObserver(check);
     grown.observe(el, { childList: true, subtree: true });
-    const timer = page === 'welcome' ? 0 : window.setTimeout(() => setNudgeDue(true), NUDGE_AFTER_MS);
+    const timer = window.setTimeout(() => setNudgeDue(true), NUDGE_AFTER_MS);
     return () => {
       el.removeEventListener('scroll', check);
       resized.disconnect();
@@ -127,7 +123,7 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
       window.clearTimeout(timer);
     };
   }, [page]);
-  const nudgeReady = page === 'welcome' ? watched : nudgeDue;
+  const nudgeReady = nudgeDue;
   // Content slipping behind the top bar goes to smoke: the app's wisp edge (art/wispEdge.ts).
   const topRef = useRef<HTMLElement>(null);
   // And into the fade over its buttons at the foot (Matt: "anywhere we use the dark gradient color overlay we should
@@ -153,8 +149,11 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
   return (
     <div ref={root} className={styles.guide} role="dialog" aria-modal="true" aria-label="How to use Ghost.md">
       <header ref={topRef} className={`app-headerPane ${styles.top}`}>
-        <span className={styles.progress}>
-          {index + 1} of {PAGES.length}
+        {/* Where the reader is, as a row of dots, the one on show filled: "1 of 6" as words was a count to read. */}
+        <span className={styles.progress} role="img" aria-label={`Page ${index + 1} of ${PAGES.length}`}>
+          {PAGES.map((name, at) => (
+            <span key={name} className={styles.progressDot} data-on={at === index || undefined} data-done={at < index || undefined} />
+          ))}
         </span>
         <button type="button" className={`app-word ${styles.skip}`} onClick={onClose}>
           {last ? 'Close' : 'Skip'}
@@ -175,7 +174,7 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
             <WispText text="Not yet, finish reading." pace={18} />
           </p>
         ) : null}
-        {page === 'welcome' ? <Welcome onWatched={() => setWatched(true)} /> : null}
+        {page === 'welcome' ? <Welcome /> : null}
         {page === 'theme' ? <Theme /> : null}
         {page === 'model' ? <Model /> : null}
         {page === 'sidekey' ? <SideKey /> : null}
@@ -239,32 +238,21 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
 }
 
 /**
- * The first page: a heads-up that there's AI in Glyph, and that all of it runs
- * on the phone.
- *
- * Matt: "a heads up page that we use AI but say that it all runs on local
- * models on your phone", with three funny anti-AI gags played over the top in
- * one ink and simple SVG (AntiAiStage.tsx): no clubbed baby seals, no
- * datacenter water gone toxic, and no help staying clever ("that one's on
- * you"). Then the headline, typed out of smoke (art/WispText.tsx), one
- * sentence, and four promises as ink icon pills that pop in one after
- * another. The headline comes first, then the gags (Matt: "move the heads up
- * … to the very top"); the side key's rings wait for the side-key page.
+ * The first page: what Ghost.md is, in one line and three points (Matt: "revamp the welcome flow remove the AI warning
+ * page"). It used to be a heads-up that the app uses AI, with gags played over it, before anything about notes. The
+ * name comes out of smoke like the app's other headlines, and the points pop in after it. There is no picture: the
+ * launch screen showed the icon a moment ago, and Matt asked for the ghost off this page before.
  */
-function Welcome({ onWatched }: { onWatched: () => void }) {
-  const [show, setShow] = useState(false);
+function Welcome() {
   return (
     <>
-      {/* "Heads up: we use AI." big, a flame behind the AI; "Ethically, on your phone." under it (HeadsUp.tsx). */}
-      <HeadsUp onDone={() => setShow(true)} />
-      <AntiAiStage waiting={!show} onRound={onWatched} />
-      <p className={styles.lead}>
-        Ghost.md uses AI to turn what you say into notes. Every model runs right here on your phone, so nothing you say goes to a cloud, a company, or
-        anyone. Unless you share them, I guess.
-      </p>
-      <ul className={styles.promises} aria-label="How Ghost.md’s AI works">
-        {PROMISES.map(({ icon: Icon, label }, index) => (
-          <li key={label} className={styles.promise} style={{ animationDelay: `${240 + index * 110}ms` }}>
+      <h1 className={styles.title}>
+        <WispText text="Welcome to Ghost.md" pace={16} />
+      </h1>
+      <p className={styles.lead}>Notes you type or say. Plain Markdown, kept on your own devices, the same on every one.</p>
+      <ul className={styles.promises} aria-label="What Ghost.md does">
+        {POINTS.map(({ icon: Icon, label }, index) => (
+          <li key={label} className={styles.promise} style={{ animationDelay: `${420 + index * 120}ms` }}>
             <span className={styles.promiseIcon} aria-hidden="true">
               <Icon size={18} strokeWidth={2.4} />
             </span>
@@ -276,11 +264,10 @@ function Welcome({ onWatched }: { onWatched: () => void }) {
   );
 }
 
-const PROMISES = [
-  { icon: Smartphone, label: 'Runs on your phone' },
-  { icon: CloudOff, label: 'No cloud' },
-  { icon: WifiOff, label: 'Works offline' },
-  { icon: ShieldCheck, label: 'Nothing sent anywhere' },
+const POINTS = [
+  { icon: Mic, label: 'Say it or type it' },
+  { icon: FileText, label: 'Plain Markdown files' },
+  { icon: RefreshCw, label: 'The same on every device' },
 ] as const;
 
 const THEME_CHOICES: Array<{ value: ThemePref; label: string; hint: string }> = [

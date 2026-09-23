@@ -4103,3 +4103,20 @@ for settings with the sidebar on the left and the settings sections on the right
   Settings. A phone keeps the list, then a page.
 - **Seen in the pane:** at 1280 wide, the split with Account showing, then Claude with its icons in coral at a 16%
   tint. At the phone preset, the list with every chip in its colour.
+
+## 102. A launch screen, and a welcome without the AI heads-up (2026-09-23)
+
+Matt: "The loading intro video is too much but I want a loading screen with the logo and checking for updates and stuff
+and show statuses for checking for updates etc etc. also I'd like you to revamp the welcome flow remove the AI warning
+page".
+
+- **The launch screen** (launch/LaunchScreen.tsx): the icon, the name, and a line per step, each turning to a tick.
+  "Opening your notes" becomes a count of them. On the app, "Checking for updates" becomes "Up to date", "An update is
+  ready for next time", "Ghost.md 1.x is out" or "Couldn't check for updates". The check is asked for at once rather
+  than after the app's usual 4-second settle. "Syncing your devices" becomes "In sync" when signed in. It goes when the
+  notes are read and the check has answered, at most three seconds in and at least 0.9 so it can be read. Where no
+  check runs (a staging build, local-only mode, the dev server), the update line is left out rather than waited for.
+- **The welcome:** the heads-up page, "Heads up: we use AI" and its anti-AI gags, is gone, with HeadsUp, AntiAiStage
+  and antiAi.ts. The first page is now "Welcome to Ghost.md" out of smoke, one line on what it is, and three points:
+  say it or type it, plain Markdown files, the same on every device. The rest of the flow is as it was: theme, model,
+  side key, marks, tips. The page count is a row of dots instead of "1 of 6".

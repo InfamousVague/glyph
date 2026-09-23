@@ -1,0 +1,89 @@
+/* The screen opening shows (LaunchScreen.tsx): the icon, the name, and a line per step, in the middle of the page. */
+
+.launch {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--glacier-space-3);
+  background: var(--glacier-bg);
+  color: var(--glacier-text);
+  transition: opacity 260ms var(--glacier-ease-out, ease-out);
+}
+
+.launch[data-leaving] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.icon {
+  inline-size: 96px;
+  block-size: 96px;
+  border-radius: 22px;
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 55%);
+  animation: rise 420ms var(--glacier-ease-out, ease-out) both;
+}
+
+.name {
+  margin: var(--glacier-space-2) 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-2xl, 1.6rem);
+  letter-spacing: var(--app-tracking-title, -0.02em);
+  font-weight: var(--glacier-font-weight-bold, 700);
+  animation: rise 420ms 60ms var(--glacier-ease-out, ease-out) both;
+}
+
+.lines {
+  display: grid;
+  gap: 0.55em;
+  min-block-size: 5.4em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--glacier-font-size-sm, 0.875rem);
+  color: var(--glacier-text-muted);
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  animation: rise 320ms var(--glacier-ease-out, ease-out) both;
+}
+
+.line[data-state='done'] {
+  color: var(--glacier-text);
+}
+
+.mark {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.1em;
+}
+
+.line[data-state='working'] .mark svg {
+  animation: turn 900ms linear infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon,
+  .name,
+  .line,
+  .line[data-state='working'] .mark svg {
+    animation: none;
+  }
+}

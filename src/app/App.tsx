@@ -38,6 +38,8 @@ import { answerHost, takeCaptureLaunch } from './core/host.ts';
 import { applyPreferences, onPreferences, preferences, setPreferences, themeChoice, usePreferences, type ThemePref } from './core/preferences.ts';
 import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
+import { LaunchScreen } from './launch/LaunchScreen.tsx';
+import { useSyncStatus } from './core/sync/engine.ts';
 import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
@@ -176,6 +178,9 @@ function Shell() {
 
   // New builds, looked for after launch and on return; applied on reload.
   const updates = useUpdates();
+  // The screen opening shows, until the notes are read and the update check has answered (launch/LaunchScreen.tsx).
+  const syncStatus = useSyncStatus();
+  const [launching, setLaunching] = useState(true);
 
   // The side key, while Glyph is already open.
   //
@@ -979,6 +984,7 @@ function Shell() {
       <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={newBook} onFromLink={forkFromLink} />
       <NewBookSheet open={bookSheet} onClose={() => setBookSheet(false)} titles={pageTitles()} isCanvas={(title) => isCanvasBody(bodyOfTitle(title) ?? '')} onCreate={(title, pages) => void createBook(title, pages)} />
       <WhatsNewSheet sources={updates.status?.sources} hold={guide || screen.name === 'capture'} />
+      {launching ? <LaunchScreen loading={loading} notes={notes.filter((n) => !n.archivedAt).length} updates={updates} sync={syncStatus} onDone={() => setLaunching(false)} /> : null}
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
       <NotesDrawer
         open={drawer}
