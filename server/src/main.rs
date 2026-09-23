@@ -108,10 +108,8 @@ const BREAKER_COOLDOWN: Duration = Duration::from_secs(600);
 /// https one is here so flipping that flag does not silently break formatting.
 /// iOS and macOS use `tauri://localhost`. The last is the Vite dev server
 /// (`vite.config.ts`, port 5250). The web build at attack.fm/glyph/ is
-/// same-origin and needs no entry.
-/// The native apps' webviews, and ghostmarkdown.com: the reader page for shared notes is served there
-/// (scripts/deploy-landing.mjs) and reads a share from this service by its id. The web app on attack.fm needs no
-/// entry, being this service's own origin.
+/// same-origin and needs no entry. ghostmarkdown.com is the one website: the reader page for shared notes is served
+/// there (scripts/deploy-landing.mjs), and reads a share from this service by its id.
 const ORIGINS: &[&str] = &["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost", "https://ghostmarkdown.com"];
 
 /// Whether a page may call this service from the browser: one of `ORIGINS`,
