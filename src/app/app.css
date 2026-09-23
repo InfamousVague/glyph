@@ -533,6 +533,15 @@ body:has(.app-headerPane) .app-statusScrim {
 }
 
 /*
+ * A desktop's plain foot (art/wispEdge.ts, `fade`): no smoke, only the last stretch of the page going to the ground,
+ * right at the window's edge, so the page reaches the bottom of the screen.
+ */
+[data-wisp-draw='fade'][data-wisp-foot] {
+  filter: none;
+  --wisp-foot-fade: 28px;
+}
+
+/*
  * The same smoke as a mask (art/wispMask.ts), for the engine that cannot afford the filter: no filter at all, and the
  * band is an image of the torn edge laid along the lip - drawn once, moved by the drift, composited by the GPU.
  * Two or three mask layers, added: the ramp that shows the words whole past the band and dissolves the foot's last

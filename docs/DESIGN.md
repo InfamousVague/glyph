@@ -4038,3 +4038,16 @@ parts, shipped in that order so no link ever pointed at a page that couldn't ope
 - **The app:** `READER_URL` is `https://ghostmarkdown.com/read.html`. On that domain the reader's "Save it in
   Ghost.md on the web" goes to attack.fm/glyph, where the app is, and "Get the app" goes to the download page. Old
   links still open on attack.fm, and so do new ones, since the id and key after the `#` are the whole link.
+
+## 97. A desktop page reaches the bottom of the window (2026-09-23)
+
+Matt, with a screenshot of the Mac app: "the desktop UI on the home page isn't reaching to the bottom of the screen",
+then "same when viewing notes". The Mac draws the smoke as a mask (art/wispMask.ts). Its foot showed the page down to
+104px above the view's bottom, and a smoke image was to carry the words the rest of the way, but that image showed
+nothing there. With the home dock a row across the foot, the dead band was under it. With the dock a floating column
+(§92), it was 104px of empty window on the home page and on every note. It reproduced in the pane with
+`glyph-wisp-draw` set to mask.
+
+A desktop's edges are plain now, top and foot alike (§94's line, `wispHead`). The top is the blur strip, and the foot
+is a 28px fade at the very edge (app.css `[data-wisp-draw='fade']`), with no smoke at either end and no filter. A phone
+keeps the wisp at both.

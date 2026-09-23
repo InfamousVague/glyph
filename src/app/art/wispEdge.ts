@@ -318,11 +318,18 @@ export function useWispEdge(
     const header = under?.current ?? null;
     const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     // Which drawing this view wears, said on the element for the stylesheet (app.css) and for anyone measuring.
-    const mode = draw ?? wispDraw();
+    // On a desktop neither end smokes: the top is a blur strip under the header, the foot a short fade at the very edge,
+    // so the page runs down to the window's bottom (Matt: "the desktop UI on the home page isn't reaching to the bottom
+    // of the screen"). The mask's foot hid the last 104px, which a dock row across the bottom used to stand over.
+    const plain = !draw && wispHead() === 'blur';
+    // `fade`: neither drawing, a desktop's plain edges - the blur strip at the top, a short fade at the foot.
+    const mode: WispDraw | 'fade' = plain ? 'fade' : (draw ?? wispDraw());
     const masked = mode === 'mask';
+    /** Whether this view wears the SVG filter, and so has its bands placed in the filter's coordinates. */
+    const filtered = mode === 'filter';
     // On a desktop the top is a blurred strip hung under the header's glass, not smoke (art/wispMask.ts `wispHead`,
     // app.css `.app-headerBlur`). Only with a header to hang it from; the foot smokes as it always did.
-    const blurHead = !!header && !draw && wispHead() === 'blur';
+    const blurHead = !!header && plain;
     // The strip is the header's sibling, laid just under it: a child of the header would blur only the header's own
     // contents, since an element wearing a backdrop filter is where its children's backdrops stop.
     const strip = blurHead ? document.createElement('div') : null;
@@ -352,7 +359,7 @@ export function useWispEdge(
     let roomy = false;
     const fit = () => {
       // A mask has no region and no budget: only the filter is held to one.
-      roomy = masked || placeRegion(el);
+      roomy = !filtered || placeRegion(el);
       const height = header?.offsetHeight ?? 0;
       // With no header the status bar plays the part of one: the smoke's lip sits at its edge, so a page dissolves
       // as it reaches the clock instead of sliding under a flat scrim (app.css .app-statusScrim).
@@ -372,7 +379,7 @@ export function useWispEdge(
         // fade that ran past it hid the bend and read as a black gradient (Matt: "not the cool effect").
         el.style.setProperty('--wisp-top-fade', height ? '0px' : 'calc(var(--app-safe-top, 0px) + 8px)');
       }
-      if (worn && !masked) placeBand(beneath);
+      if (worn && filtered) placeBand(beneath);
       if (strip && header) {
         strip.style.top = `${header.offsetTop + header.offsetHeight}px`;
         strip.style.left = `${header.offsetLeft}px`;
@@ -400,7 +407,7 @@ export function useWispEdge(
       if (ending !== footWorn) {
         footWorn = ending;
         el.toggleAttribute('data-wisp-foot', ending);
-        if (!masked) {
+        if (filtered) {
           placeFoot(footAt(), ending);
           // Wearing the filter for the foot alone: the top band stays off until this view is scrolled.
           if (ending && !worn) placeBand(beneath, false);
@@ -408,7 +415,7 @@ export function useWispEdge(
           footAt();
         }
       } else if (ending) {
-        if (masked) footAt();
+        if (!filtered) footAt();
         else placeFoot(footAt(), true);
       }
       setOn(scrolled);
@@ -420,11 +427,11 @@ export function useWispEdge(
       }
       if (scrolled) {
         el.setAttribute('data-wisp-edge', '');
-        if (!masked) placeBand(beneath);
+        if (filtered) placeBand(beneath);
       } else {
         el.removeAttribute('data-wisp-edge');
         // The top band goes with it: a view still wearing the filter for its foot must be crisp at its top.
-        if (!masked) placeBand(beneath, false);
+        if (filtered) placeBand(beneath, false);
         holdStill(true);
       }
     };
@@ -470,7 +477,7 @@ export function useWispEdge(
       delete el.dataset.wispDraw;
       if (footWorn) {
         el.removeAttribute('data-wisp-foot');
-        if (!masked) placeFoot(0, false);
+        if (filtered) placeFoot(0, false);
       }
       holdStill(true);
     };
