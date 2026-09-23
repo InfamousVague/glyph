@@ -1,7 +1,7 @@
 {
   "name": "glyph",
   "private": true,
-  "version": "1.7.0",
+  "version": "1.7.1",
   "type": "module",
   "description": "Glyph: a mobile-first markdown notes app built on Glacier UI.",
   "scripts": {
