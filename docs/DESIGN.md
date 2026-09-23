@@ -4164,3 +4164,34 @@ squircle with a bar chasing round a ring outside it; now the ghost watches the b
 - **A blink** soon after the screen appears (the screen stays 0.9 to 3 seconds, so the eyes get about one lap), and
   every 2.6 seconds after.
 - **Less motion asked for:** the bar stands still and the eyes look ahead, without a blink.
+
+## 106. Searching Settings (2026-09-23)
+
+Matt: "Add a search bar to the top of the settings sidebar and implement search functionality." A field heads the
+list of sections: the left column of the split view, and the top of the list page on a phone. It stays put while the
+sections scroll under it.
+
+- **What it finds** (settings/settingsSearch.ts): a section by its name, its state line (Appearance's "Dark"), and a
+  few words of its own ("theme", "font"). It also finds a setting inside a section by the name that section's page gives
+  it, plus the words someone might look for it by: "vibrate" finds Haptics, "wisp" finds Smoke at the edges. Each section
+  lists its settings in SettingsSheet.tsx beside its pane. The cheat sheet lists every mark, so "bold" lands on it, and
+  Plugins lists every plugin, on or off.
+- **How it matches:** every word typed has to start a word of what it is matched against, in any order. So "sm ed"
+  finds Smoke at the edges, and "moke" finds nothing. Curly quotes and apostrophes count as straight ones.
+- **What it shows:** the results replace the sections, as one card of rows in the sections' own colours. A section
+  shows its name and state. A setting shows its name, with its section's name under it, so "smoke" says which of the
+  two pages each smoke is on. A section found by its own name doesn't also list its settings. When nothing matches,
+  one quiet line says so.
+- **Opening a result** opens its section's page. A setting is then looked up on the page as drawn: a row's label, a
+  card's title, or the hero line. It is scrolled to the middle, or by its top if it is a tall card, and lit in the
+  section's colour for a moment. A setting that isn't on the page just now (signed out, say) only opens the page.
+- **Keys:** Enter opens the first result. The arrows step through the results and back up to the field. Escape
+  empties the field before it closes anything. ⌘F or Ctrl+F, while Settings is open, goes to the field.
+- **The query stays** until Settings closes. The split view keeps the results in its column while the page changes,
+  and a phone comes back from a page to the same results.
+
+Found while checking it: on a desktop, a scrolled Settings page lost its right-hand side. A desktop's views draw plain
+edges (§97, `fade`), but a view with no header of its own still took `[data-wisp-edge]`'s SVG filter once scrolled.
+That filter's region is sized only by the views that draw with it, so here it had whatever width another view last
+gave it: 480px, from a phone-sized load, which left the page drawn only to x = 760. `[data-wisp-draw='fade'][data-wisp-edge]`
+now has no filter.

@@ -542,6 +542,15 @@ body:has(.app-headerPane) .app-statusScrim {
 }
 
 /*
+ * And its plain top, on a view with no header to hang the blur strip from (Settings' page, scrolled): no filter either.
+ * The filter's region is only placed by views that draw with it, so one worn here had whatever size another view last
+ * gave it, and everything past that edge went undrawn: on a desktop, a scrolled Settings page lost its right-hand side.
+ */
+[data-wisp-draw='fade'][data-wisp-edge] {
+  filter: none;
+}
+
+/*
  * The same smoke as a mask (art/wispMask.ts), for the engine that cannot afford the filter: no filter at all, and the
  * band is an image of the torn edge laid along the lip - drawn once, moved by the drift, composited by the GPU.
  * Two or three mask layers, added: the ramp that shows the words whole past the band and dissolves the foot's last

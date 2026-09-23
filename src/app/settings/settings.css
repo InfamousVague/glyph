@@ -49,11 +49,19 @@
   display: flex;
 }
 
-/* Two classes, so the list's own `flex: 1` further down (it's the whole page on a phone) can't win and halve the split. */
+/* The left column: the search field, fixed, over the sections, which scroll under it. */
 .settingsScreen__split > .settingsScreen__side {
   flex: none;
   inline-size: var(--settings-side);
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
   border-inline-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+/* Two classes, so the list's own gutter further down (it's the whole page on a phone) can't win over the column's. */
+.settingsScreen__side > .settingsScreen__list,
+.settingsScreen__side > .settingsScreen__find {
   padding-inline: calc(var(--app-safe-left, 0px) + var(--glacier-space-4)) var(--glacier-space-4);
 }
 
@@ -819,3 +827,94 @@
   outline-offset: 1px;
 }
 
+
+/* ── search ───────────────────────────────────────────────────────────────── */
+
+/*
+ * The field at the top of the list (SettingsScreen.tsx, settingsSearch.ts): over the sections on a phone, at the head
+ * of the left column in the split view. It stays put while the list under it scrolls. The shape is the cheat sheet's
+ * field, a pill a shade off the page.
+ */
+.settingsScreen__find {
+  flex: none;
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: var(--glacier-space-1) var(--glacier-space-3);
+}
+
+.settingsScreen__findPill {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-block-size: 2.4rem;
+  padding-inline: var(--glacier-space-3);
+  border-radius: 999px;
+  background: var(--app-paper-2);
+}
+
+.settingsScreen__findPill:focus-within {
+  background: var(--app-paper-3);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--glacier-text) 30%, transparent);
+}
+
+.settingsScreen__findIcon,
+.settingsScreen__findClear {
+  flex: none;
+  display: flex;
+  color: var(--app-ink-3);
+}
+
+.settingsScreen__findField {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--glacier-text);
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  outline: none;
+}
+
+.settingsScreen__findField::placeholder {
+  color: var(--app-ink-4);
+}
+
+.settingsScreen__findField::-webkit-search-cancel-button {
+  display: none;
+}
+
+.settingsScreen__findClear {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* Nothing found: said once, quietly, where the results would be. */
+.settingsScreen__none {
+  margin: var(--glacier-space-2) 0 0;
+  padding-inline: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+/* A setting a result opened onto: its row lit in the section's colour for a moment, then let go. */
+.settingsScreen__pane [data-found] {
+  scroll-margin-block-start: var(--glacier-space-8);
+  border-radius: var(--glacier-radius-lg);
+  animation: settingsFound 1.6s var(--glacier-ease-out, ease-out);
+}
+
+@keyframes settingsFound {
+  0%,
+  35% {
+    background: color-mix(in srgb, var(--hue, var(--glacier-text)) 18%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settingsScreen__pane [data-found] {
+    animation: none;
+    background: color-mix(in srgb, var(--hue, var(--glacier-text)) 12%, transparent);
+  }
+}

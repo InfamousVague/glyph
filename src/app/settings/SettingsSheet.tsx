@@ -11,6 +11,7 @@ import { usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { useDeveloperMode } from './developerMode.ts';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
+import { markGroups } from '../guide/marks.ts';
 import { FormattingPane } from './FormattingPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
 import { usePlugins } from '../plugins/registry.ts';
@@ -102,6 +103,21 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
     {
       id: 'account',
       label: 'Account',
+      words: 'sign in login handle encrypted',
+      // Signed in, the page is the account's; signed out, it is the ways in.
+      settings: account.session
+        ? [
+            { name: 'Sync now', words: 'devices' },
+            { name: 'Live typing (trial)', words: 'realtime collaborate' },
+            { name: 'Password and recovery codes', words: 'change' },
+            { name: 'Sign out', words: 'log out logout' },
+            { name: 'Shared links', words: 'share publish read' },
+          ]
+        : [
+            { name: 'I have an account', words: 'sign in login' },
+            { name: 'Create an account', words: 'sign up register' },
+            { name: 'Lost the password', words: 'forgot recovery code reset' },
+          ],
       icon: <CircleUser size={16} />,
       content: <AccountPane />,
       summary: syncSummary(account.session?.handle ?? null, syncStatus),
@@ -110,6 +126,12 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
     {
       id: 'type',
       label: 'Type',
+      words: 'text font',
+      settings: [
+        { name: 'Text size', words: 'font bigger smaller larger' },
+        { name: 'Family', words: 'font typeface inter noto plex' },
+        { name: 'Link previews', words: 'links url cards' },
+      ],
       icon: <Type size={16} />,
       content: <TypePane />,
       // Spacing moved to Appearance, where the rest of how the app is drawn lives.
@@ -119,6 +141,16 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
     {
       id: 'theme',
       label: 'Appearance',
+      words: 'theme look',
+      settings: [
+        { name: 'Page', words: 'theme light dark system dawn boreal ember' },
+        { name: 'Accent', words: 'colour color highlight' },
+        { name: 'Spacing', words: 'density compact padding roomy tight' },
+        { name: 'Size', words: 'scale zoom interface ui bigger smaller' },
+        { name: 'Sidebar', words: 'dock column popover notes list' },
+        { name: 'Corners', words: 'rounding radius round square' },
+        { name: 'Code', words: 'syntax highlighting colours colors' },
+      ],
       icon: <SunMoon size={16} />,
       content: <AppearancePane />,
       // The page, then anything else that has been moved off its default: the colour, the air, the corners.
@@ -137,6 +169,14 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
           {
             id: 'recording',
             label: 'Recording',
+            words: 'voice microphone mic dictate',
+            settings: [
+              { name: 'Stop when I go quiet', words: 'silence auto stop' },
+              { name: 'Commands start with “hey Ghost”', words: 'wake word voice cues' },
+              { name: 'Review after recording', words: 'check transcript' },
+              { name: 'Better words', words: 'refine clean up transcript' },
+              { name: 'Where the side key is', words: 'button height position hardware' },
+            ],
             icon: <Mic size={16} />,
             content: <RecordingPane />,
             summary: prefs.refine ? 'A note a take · better words' : 'A note a take',
@@ -147,6 +187,11 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
     {
       id: 'formatting',
       label: 'Formatting',
+      words: 'ai model',
+      settings: [
+        { name: 'Local only', words: 'offline privacy network internet nothing leaves the phone' },
+        { name: 'Model', words: 'ai download llm' },
+      ],
       icon: <Sparkles size={16} />,
       content: <FormattingPane />,
       summary: formattingSummary,
@@ -157,6 +202,8 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
           {
             id: 'feel',
             label: 'Feel',
+            words: 'vibration',
+            settings: [{ name: 'Haptics', words: 'vibrate vibration buzz touch' }],
             icon: <Vibrate size={16} />,
             content: <FeelPane />,
             summary: haptics ? 'Haptics on' : 'Haptics off',
@@ -172,6 +219,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
         {
           id: `plugin:${plugin.manifest.id}`,
           label: plugin.manifest.name,
+          words: plugin.manifest.description,
           icon: <Icon size={16} />,
           content: <settings.Pane />,
           summary: settings.summary(),
@@ -182,6 +230,9 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
     {
       id: 'plugins',
       label: 'Plugins',
+      words: 'extensions integrations add-ons',
+      // Every plugin, on or off: the way to switch on one that has no page yet.
+      settings: allPlugins.map((plugin) => ({ name: plugin.manifest.name, words: plugin.manifest.description })),
       icon: <Puzzle size={16} />,
       // A card's row lands on that plugin's own page (plugins/PluginsPane.tsx).
       content: <PluginsPane onOpen={(id) => setGoTo({ id, nonce: Date.now() })} />,
@@ -191,6 +242,13 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
     {
       id: 'animations',
       label: 'Animations',
+      words: 'motion movement',
+      settings: [
+        { name: 'Animation speed', words: 'motion fast slow' },
+        { name: 'Ghostly typing', words: 'wisp letters' },
+        { name: 'Smoke at the edges', words: 'wisp fade scroll' },
+        { name: 'Ripples while recording', words: 'waves voice' },
+      ],
       icon: <Waves size={16} />,
       content: <AnimationsPane />,
       summary:
@@ -202,6 +260,11 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
     {
       id: 'cheatsheet',
       label: 'Cheat sheet',
+      words: 'markdown syntax marks help',
+      // Every mark it shows, so looking for "bold" or "spoiler" lands on it.
+      settings: markGroups()
+        .flatMap((group) => group.rows)
+        .map((row) => ({ name: row.name, words: row.symbol })),
       icon: <BookOpen size={16} />,
       content: <CheatSheet />,
       summary: 'Every mark and every cue',
@@ -210,6 +273,17 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
     {
       id: 'about',
       label: 'About',
+      words: 'version help',
+      settings: [
+        { name: 'Updates', words: 'update check upgrade install' },
+        { name: 'Update alerts', words: 'notifications notify' },
+        { name: "What's new", words: 'changelog releases' },
+        { name: 'Ghost.md Academy', words: 'learn tutorial lessons' },
+        { name: 'How to talk to Ghost.md', words: 'voice commands cues' },
+        { name: 'Add the sample note', words: 'example' },
+        { name: 'Add the example board', words: 'kanban' },
+        { name: 'Add the example canvas' },
+      ],
       icon: <Info size={16} />,
       content: (
         <AboutPane
@@ -233,6 +307,16 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
           {
             id: 'developer',
             label: 'Developer',
+            words: 'debug',
+            settings: [
+              { name: 'Welcome guide', words: 'onboarding set-up' },
+              { name: 'Choose your model' },
+              { name: 'Smoke bench', words: 'wisp performance frames' },
+              { name: 'Developer settings', words: 'mode' },
+              { name: 'Reset local data', words: 'clear erase' },
+              { name: 'Reset everything', words: 'clear erase models' },
+              { name: 'Window', words: 'inset screen engine' },
+            ],
             icon: <Terminal size={16} />,
             content: <DeveloperPane onGuide={onGuide} />,
             summary: 'Set-up, reset',
@@ -241,6 +325,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
           {
             id: 'test-results',
             label: 'Test results',
+            words: 'tests report',
             icon: <FlaskConical size={16} />,
             content: <TestResultsPane />,
             summary: reportSummary(),
