@@ -4,6 +4,7 @@ import { ArrowLeft } from '../art/Icons.tsx';
 import { onBack } from '../core/back.ts';
 import { useSwipeNav } from '../core/swipe.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
+import { useSidebar } from '../core/useWideScreen.ts';
 import './settings.css';
 
 /**
@@ -39,6 +40,34 @@ interface SettingsScreenProps {
   sections: SettingsSection[];
   /** Asked from inside a pane: land on another one (About's knock opens Developer). */
   goTo?: { id: string; nonce: number } | null;
+}
+
+/**
+ * Each section's colour (Matt: "Add colors to the icons throughout the settings page make the icon background
+ * semitransparent in the color and the icon full opacity on the same color"): its row's chip in the list, and the icons
+ * on its own page. Names, not values: settings.css draws each, a shade deeper on the light page than on the dark.
+ */
+const HUES: Record<string, string> = {
+  account: 'blue',
+  type: 'indigo',
+  theme: 'purple',
+  recording: 'red',
+  formatting: 'orange',
+  feel: 'teal',
+  'plugin:notion': 'graphite',
+  'plugin:github': 'graphite',
+  'plugin:claude': 'coral',
+  plugins: 'green',
+  animations: 'pink',
+  cheatsheet: 'yellow',
+  about: 'grey',
+  developer: 'brown',
+  'test-results': 'mint',
+};
+
+/** A section's colour by its id; a section added later without one is grey. */
+export function hueOf(id: string): string {
+  return HUES[id] ?? 'grey';
 }
 
 export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreenProps) {
@@ -79,7 +108,20 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
     setActiveId(id);
   }, []);
 
+  /**
+   * On a window with room for the sidebar - a desktop, a large tablet, the Fold opened - Settings is a split view
+   * (Matt: "on full screen and desktop and larger tablets show a split view for settings with the sidebar on the left
+   * and the settings sections on the right"): the sections down the left, the chosen one's page on the right, and
+   * the first section's page until one is chosen. There is no list page to go back to, so back leaves Settings.
+   * Exactly the sidebar's line (core/useWideScreen.ts `useSidebar`), so the app changes shape once.
+   */
+  const split = useSidebar();
+
   const back = useCallback(() => {
+    if (split) {
+      onClose();
+      return;
+    }
     if (activeId !== null) {
       setDirection('out');
       setLeft(activeId);
@@ -87,7 +129,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
     } else {
       onClose();
     }
-  }, [activeId, onClose]);
+  }, [activeId, onClose, split]);
 
   const forward = useCallback(() => {
     if (activeId === null && left && sections.some((s) => s.id === left)) {
@@ -117,6 +159,62 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
   }, []);
 
   let row = 0;
+  /** The sections, clustered into cards: the list page on a phone, the left column of the split view. */
+  const list = (current: string | null) => (
+    <>
+      {clusters.map((cluster) => (
+        <div key={cluster[0]!.id} className="settingsScreen__cluster">
+          <div className="settingsScreen__group">
+            {cluster.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                className="settingsScreen__row"
+                style={{ '--i': row++ } as React.CSSProperties}
+                aria-current={section.id === current ? 'page' : undefined}
+                data-current={section.id === current || undefined}
+                onClick={() => enter(section.id)}
+              >
+                <span className="settingsScreen__rowIcon" data-hue={hueOf(section.id)}>
+                  {section.icon}
+                </span>
+                <span className="settingsScreen__rowText">
+                  <span className="settingsScreen__rowLabel">{section.label}</span>
+                  {section.summary ? <span className="settingsScreen__rowSummary">{section.summary}</span> : null}
+                </span>
+                {split ? null : <ChevronRight size={18} className="settingsScreen__rowChevron" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+
+  if (split) {
+    const shown = active ?? sections[0] ?? null;
+    return (
+      <div ref={root} className="settingsScreen" role="dialog" aria-modal="true" aria-label="Settings" data-layout="split" data-view="pane" data-direction={direction}>
+        <header className="settingsScreen__head">
+          <button type="button" className="app-word settingsScreen__headWord" onClick={onClose} aria-label="Back to your notes">
+            <ArrowLeft /> Settings
+          </button>
+        </header>
+        <div className="settingsScreen__split">
+          <nav className="settingsScreen__list settingsScreen__side" aria-label="Settings sections">
+            {list(shown?.id ?? null)}
+          </nav>
+          {shown ? (
+            <div ref={scroller} className="settingsScreen__pane" key={shown.id} data-hue={hueOf(shown.id)}>
+              <h1 className="settingsScreen__display">{shown.label}</h1>
+              {shown.content}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div ref={root} className="settingsScreen" role="dialog" aria-modal="true" aria-label="Settings" data-view={active ? 'pane' : 'list'} data-direction={direction}>
       {active ? (
@@ -126,7 +224,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
               <ArrowLeft /> Settings
             </button>
           </header>
-          <div ref={scroller} className="settingsScreen__pane" key={active.id}>
+          <div ref={scroller} className="settingsScreen__pane" key={active.id} data-hue={hueOf(active.id)}>
             <h1 className="settingsScreen__display">{active.label}</h1>
             {active.content}
           </div>
@@ -146,28 +244,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
             </button>
           </header>
           <nav ref={scroller} className="settingsScreen__list" key="list">
-            {clusters.map((cluster) => (
-              <div key={cluster[0]!.id} className="settingsScreen__cluster">
-                <div className="settingsScreen__group">
-                  {cluster.map((section) => (
-                    <button
-                      key={section.id}
-                      type="button"
-                      className="settingsScreen__row"
-                      style={{ '--i': row++ } as React.CSSProperties}
-                      onClick={() => enter(section.id)}
-                    >
-                      <span className="settingsScreen__rowIcon">{section.icon}</span>
-                      <span className="settingsScreen__rowText">
-                        <span className="settingsScreen__rowLabel">{section.label}</span>
-                        {section.summary ? <span className="settingsScreen__rowSummary">{section.summary}</span> : null}
-                      </span>
-                      <ChevronRight size={18} className="settingsScreen__rowChevron" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+            {list(null)}
             {left ? <p className="settingsScreen__hint">Swipe left to go back into {sections.find((s) => s.id === left)?.label ?? 'the page'}.</p> : null}
           </nav>
         </>

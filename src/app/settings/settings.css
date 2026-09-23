@@ -32,20 +32,38 @@
 }
 
 /*
- * Full screen everywhere (Matt: "make the settings page full screen"). On a window wide enough to have the notes beside
- * a note it was a card over the page for a while (Matt, earlier: "on a large display, the settings should open in a
- * modal"). Now it's the screen, as on a phone. So a wide window doesn't stretch a row across the whole of it, the head,
- * the list and the panes keep one column a reader's width, centred, with the ground running edge to edge. App.tsx
- * stamps `data-split` on the root when the window is wide (core/useWideScreen.ts).
+ * Full screen everywhere (Matt: "make the settings page full screen"), and on a window with room for the sidebar a
+ * split view (SettingsScreen.tsx `split`): the sections down the left as a column of their own, the chosen section's
+ * page on the right in a column a reader's width. It was a card over the page for a while (Matt, earlier: "on a large
+ * display, the settings should open in a modal").
  */
-:root[data-split] .settingsScreen {
-  --settings-column: 46rem;
+.settingsScreen[data-layout='split'] {
+  --settings-column: 44rem;
+  --settings-side: 20rem;
 }
 
-:root[data-split] .settingsScreen__head,
-:root[data-split] .settingsScreen__list,
-:root[data-split] .settingsScreen__pane {
-  padding-inline: max(var(--app-gutter), calc((100% - var(--settings-column)) / 2));
+.settingsScreen__split {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+}
+
+.settingsScreen__side {
+  flex: none;
+  inline-size: var(--settings-side);
+  border-inline-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--glacier-space-4)) var(--glacier-space-4);
+}
+
+.settingsScreen[data-layout='split'] .settingsScreen__pane {
+  flex: 1;
+  min-inline-size: 0;
+  padding-inline: max(var(--app-gutter), calc((100% - var(--settings-column)) / 2)) calc(var(--app-safe-right, 0px) + max(var(--app-gutter), calc((100% - var(--settings-column)) / 2)));
+}
+
+/* The section on show, in the left column: the row's own ground, a shade deeper. */
+.settingsScreen__row[data-current] {
+  background: color-mix(in srgb, var(--glacier-text) 7%, transparent);
 }
 
 /* A pane drilled into slides in from the right; coming back, the list slides
@@ -299,7 +317,10 @@
   border-block-start: var(--glacier-hairline) solid var(--app-rule);
 }
 
-/* The chip each row wears: a small ink squircle, the glyph in paper. */
+/*
+ * The chip each row wears: a small squircle in its section's colour, see-through, with the glyph in the same colour at
+ * full strength (SettingsScreen.tsx `hueOf`). It used to be ink with the glyph in paper, one chip for every section.
+ */
 .settingsScreen__rowIcon {
   display: inline-flex;
   align-items: center;
@@ -308,13 +329,82 @@
   inline-size: 1.85rem;
   block-size: 1.85rem;
   border-radius: 0.55rem;
-  background: var(--app-ink);
-  color: var(--app-paper);
+  background: color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent);
+  color: var(--hue, var(--app-ink));
 }
 
-.settingsScreen__rowIcon svg {
+/* A section's page wears its colour too: each row's icon in the same chip as the list's, the hero's and the callouts'. */
+.settingsScreen__pane .setk-row__icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.85rem;
+  block-size: 1.85rem;
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent);
+  color: var(--hue, var(--app-ink));
+}
+
+.settingsScreen__pane .setk-row__icon svg {
   inline-size: 1.05rem;
   block-size: 1.05rem;
+}
+
+.settingsScreen__pane .setk-hero__glyph,
+.settingsScreen__pane .setk-empty__icon {
+  background: color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent);
+  color: var(--hue, var(--app-ink));
+}
+
+.settingsScreen__pane .setk-callout__icon {
+  color: var(--hue, var(--app-ink));
+}
+
+/* The colours: a shade deeper on the light page, so the glyph holds its contrast on paper; brighter on the dark one. */
+[data-hue='blue'] { --hue: #0a6fe0; }
+[data-hue='indigo'] { --hue: #5552d4; }
+[data-hue='purple'] { --hue: #9a45c9; }
+[data-hue='red'] { --hue: #dd3a30; }
+[data-hue='orange'] { --hue: #d97706; }
+[data-hue='teal'] { --hue: #1b92a8; }
+[data-hue='graphite'] { --hue: #5f6368; }
+[data-hue='coral'] { --hue: #c8643f; }
+[data-hue='green'] { --hue: #2a9d4b; }
+[data-hue='pink'] { --hue: #d9315a; }
+[data-hue='yellow'] { --hue: #b58400; }
+[data-hue='grey'] { --hue: #7c7c82; }
+[data-hue='brown'] { --hue: #93724e; }
+[data-hue='mint'] { --hue: #1f9e8f; }
+
+:root[data-theme='dark'] [data-hue='blue'] { --hue: #4ea1ff; }
+:root[data-theme='dark'] [data-hue='indigo'] { --hue: #8583ff; }
+:root[data-theme='dark'] [data-hue='purple'] { --hue: #c77dff; }
+:root[data-theme='dark'] [data-hue='red'] { --hue: #ff6b61; }
+:root[data-theme='dark'] [data-hue='orange'] { --hue: #ffa53a; }
+:root[data-theme='dark'] [data-hue='teal'] { --hue: #5ccfe6; }
+:root[data-theme='dark'] [data-hue='graphite'] { --hue: #aeb2b8; }
+:root[data-theme='dark'] [data-hue='coral'] { --hue: #f0906b; }
+:root[data-theme='dark'] [data-hue='green'] { --hue: #4cd571; }
+:root[data-theme='dark'] [data-hue='pink'] { --hue: #ff6b8d; }
+:root[data-theme='dark'] [data-hue='yellow'] { --hue: #ffd43b; }
+:root[data-theme='dark'] [data-hue='grey'] { --hue: #a1a1a8; }
+:root[data-theme='dark'] [data-hue='brown'] { --hue: #c7a57f; }
+:root[data-theme='dark'] [data-hue='mint'] { --hue: #5fe0cf; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) [data-hue='blue'] { --hue: #4ea1ff; }
+  :root:not([data-theme='light']) [data-hue='indigo'] { --hue: #8583ff; }
+  :root:not([data-theme='light']) [data-hue='purple'] { --hue: #c77dff; }
+  :root:not([data-theme='light']) [data-hue='red'] { --hue: #ff6b61; }
+  :root:not([data-theme='light']) [data-hue='orange'] { --hue: #ffa53a; }
+  :root:not([data-theme='light']) [data-hue='teal'] { --hue: #5ccfe6; }
+  :root:not([data-theme='light']) [data-hue='graphite'] { --hue: #aeb2b8; }
+  :root:not([data-theme='light']) [data-hue='coral'] { --hue: #f0906b; }
+  :root:not([data-theme='light']) [data-hue='green'] { --hue: #4cd571; }
+  :root:not([data-theme='light']) [data-hue='pink'] { --hue: #ff6b8d; }
+  :root:not([data-theme='light']) [data-hue='yellow'] { --hue: #ffd43b; }
+  :root:not([data-theme='light']) [data-hue='grey'] { --hue: #a1a1a8; }
+  :root:not([data-theme='light']) [data-hue='brown'] { --hue: #c7a57f; }
+  :root:not([data-theme='light']) [data-hue='mint'] { --hue: #5fe0cf; }
 }
 
 /* Label over the live one-line reading of the section's state. */

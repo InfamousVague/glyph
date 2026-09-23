@@ -4083,3 +4083,23 @@ file browser".
   hidden. The button opens the Files app at that place, or the system's file browser starting there on a phone whose
   Files app won't open a place by itself. It needs native generation 18 (1.7.2), so the page offers it only where the
   binary has it.
+
+## 101. Settings in colour, and split on a wide window (2026-09-23)
+
+Matt: "Add colors to the icons throughout the settings page make the icon background semitransparent in the color and
+the icon full opacity on the same color", then "Also on full screen and desktop and larger tablets show a split view
+for settings with the sidebar on the left and the settings sections on the right".
+
+- **Colour:** each section has a hue (SettingsScreen.tsx `hueOf`). Account is blue, Type indigo, Appearance purple,
+  Recording red, Formatting orange, Feel teal, Notion and GitHub graphite, Claude coral, Plugins green, Animations
+  pink, Cheat sheet yellow, About grey, Developer brown and Test results mint. Its chip in the list is that colour at
+  16% under the glyph in the same colour at full strength, where it was ink with the glyph in paper. Its own page wears
+  it too: every row's icon in the same chip, and the hero's glyph and the callouts' icons. Each hue is a shade deeper
+  on the light page than on the dark (settings.css), written as flat selectors rather than nested ones, which the
+  Mac's WebKit on macOS 13 doesn't read.
+- **Split:** where the sidebar would be up (core/useWideScreen.ts `useSidebar`: a desktop, a large tablet, the Fold
+  opened), the sections are a 20rem column down the left, the one on show a shade deeper, and its page is on the
+  right in a 44rem column. The first section shows until one is chosen. With no list page to return to, back leaves
+  Settings. A phone keeps the list, then a page.
+- **Seen in the pane:** at 1280 wide, the split with Account showing, then Claude with its icons in coral at a 16%
+  tint. At the phone preset, the list with every chip in its colour.
