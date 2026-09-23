@@ -3902,3 +3902,29 @@ those names are looked for, so the three-second follow after a save reads nothin
 and a picture left out for room is not a lacked one and never sets off a send. The digest's marker became "p2", so
 every share sent before this goes once more, with its pictures and the list. Tested in share/refresh.test.ts (the
 picture arriving, and not before or after), which fails on the code before this.
+
+## 90. The ghost is the mark (2026-09-22)
+
+Matt put two files on the desktop, ghost.md.png and ghost.md.svg, and asked for the old logo to be replaced with it.
+The mark is a note with a folded corner drawn as a ghost, waving, a wisp rising from its head: black lines on paper,
+with the paper inside the lines. It replaces §18's bullet, the dot and short bar, everywhere that mark was used.
+
+- **The source.** The SVG came from a vectoriser: six filled shapes (the wisp, the outline, the eyes, and the paper
+  of the body and the folded corner), a white square behind them, and grey outline traces of every shape. Only the
+  six fills are kept. `design/app-icon.svg` is the mark on paper, two thirds of the square's height, centred on its
+  bounds (814 by 1087 of its 1448 canvas). `design/app-icon-foreground.svg` is Android's adaptive layer, the same
+  mark at two thirds of that, so its corners stay inside the circle a round launcher keeps. `design/ghost-mark.svg`
+  is the mark alone.
+- **The app icons** are made from those two by `npx tauri icon design/icon.json`: the Mac's icns, Windows' ico,
+  the Linux and Store PNGs, iOS's set, and Android's launcher, round and adaptive foreground in every density.
+  Android's are in the git-ignored `src-tauri/gen/android`, so they exist in the checkout the APK is built from and
+  are made again from the manifest after a fresh `tauri android init`. They reach phones and Macs with a native
+  build: an OTA cannot change an installed app's icon.
+- **The web pages** had no icon at all. The app, read.html, install.html and the download page now carry
+  `public/favicon.svg`, the mark with its ink and paper swapped where the system is dark so it shows on a dark tab
+  bar, and `apple-touch-icon.png` for a home screen.
+- **The MCP's sign-in page** opened with the old mark drawn as it moves in the app (a dot lands, a line writes out).
+  It now draws the ghost from `art/ghostMark.ts`, the same shapes in the page's ink and paper so it turns over with
+  the page, the wisp drifting. It reaches Claude with the next MCP deploy.
+- **The old mark's art is gone** from art/Shapes.tsx: its `Welcome` shape was no longer drawn anywhere. At 32 px
+  and under, the icon's thin wisp breaks up a little; that is the mark's own line weight.
