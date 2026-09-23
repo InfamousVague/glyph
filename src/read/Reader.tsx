@@ -10,6 +10,8 @@ import { lendImages } from '../app/core/images.ts';
 import { sameTitle } from '../app/editor/wikiLinks.ts';
 import { noteTitle, type Note } from '../app/core/store.ts';
 import { readShared, readShareLink, sharedAsFile, type Shared } from '../app/share/share.ts';
+import { authorsOf } from '../app/core/authors.ts';
+import { Byline } from '../app/authors/Byline.tsx';
 import styles from './Reader.module.css';
 
 /**
@@ -196,12 +198,14 @@ function Read({
       ) : canvas ? (
         <>
           <h1 className={styles.title}>{current.title}</h1>
+          <Byline authors={authorsOf(current.body)} />
           <div className={styles.canvas}>
             <CanvasView canvas={canvas} dark={dark} wiki={{ known: (t) => indexOf(t) >= 0, open, body: bodyOf, titles }} />
           </div>
         </>
       ) : (
         <article className={styles.note}>
+          <Byline authors={authorsOf(current.body)} />
           <Editor
             key={`${page}:${current.title}`}
             value={current.body}

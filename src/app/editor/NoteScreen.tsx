@@ -21,6 +21,8 @@ import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
 import { BookBar, BookFoot, BookView } from '../book/BookView.tsx';
 import { isBookBody, type BookPlace } from '../book/book.ts';
 import { withFrontMatterTitle } from '../core/frontMatter.ts';
+import { authorsOf } from '../core/authors.ts';
+import { Byline } from '../authors/Byline.tsx';
 import { insertImageAt, releaseImageSpot, reserveImageSpot } from './images.ts';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
@@ -727,6 +729,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         <LinkMarks noteId={note.id} onPress={() => setSettingsOpen(true)} />
         {/* A chapter's book, its place in it and the chapters either side (docs/BOOKS.md). */}
         {book && onOpenTitle ? <BookBar place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}
+        {/* Who wrote it, when it names anyone (core/authors.ts): a book says so for all its pages, in its index. */}
+        {!paging ? <Byline authors={authorsOf(note.body)} className={styles.byline} /> : null}
 
         {shown === 'transcript' ? (
           <div className={styles.body}>

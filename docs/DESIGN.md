@@ -4002,3 +4002,25 @@ on mobile, make it more subtle on mobile but keep the wisp effect".
 - **The foot** of a page smokes as it did on every screen. The card named the headers.
 - **Seen in the pane:** at 800 by 600 with a mouse, the line in the strip dims and softens and the next is crisp, with
   no smoke. At the phone preset the wisp is worn, no strip is made, and the bend reads 24.
+
+## 95. Authors on notes, and an AI that signs what it co-writes (2026-09-23)
+
+Matt's card: "Add authors to notes, since in the future we'll have shared / collaborative notes and I want the AI to
+provide it's logo and name so we can have it listed when they co author books and pages and stuff".
+
+- **Where they're kept:** the front matter's `authors:`, names separated by commas (core/authors.ts). It's part of
+  the words, so it goes where the note goes, to every device, a shared link and a download, and needs nothing new in
+  sync or the native store. A note with no line is the person's own and shows nothing.
+- **The AI signs:** create_note, update_note and append_to_note put the AI after the account's handle (mcp/server.ts,
+  docs/MCP.md). It uses the name the AI gives in `author`, else its app's name when it connected. The hosted server
+  keeps that name on the sign-in session, since every request there comes to a fresh server that never saw the
+  connect. The first build missed this, and the hosted test is what showed it. A rewrite keeps the authors the note
+  had.
+- **The byline** (authors/Byline.tsx): each author's mark, then "By infamousvague and Claude". It shows on the note
+  under a chapter's bar, in a book's index gathered from the book and its chapters, and on the reader page. The logo
+  is the app's own sign, a spark, for any AI it knows by name (Claude, ChatGPT, Gemini, Copilot, Cursor), and an
+  initial for everyone else. The app ships no company's artwork, and nothing is fetched to draw one.
+- **Not yet:** the `authors:` line shows as front matter in the Markdown view, as every front matter key does.
+- **Seen in the pane:** a book with one chapter written with Claude and one alone. The index reads "By infamousvague
+  and Claude", and so does the chapter, under its bar. Tests: reading, adding and merging authors, the AI's name from
+  what it says or its app's name, and the hosted connector writing `authors: matt, Claude` on an append.

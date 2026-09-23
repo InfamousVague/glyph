@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import { BookOpen, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, GripVertical, List, Plus, Workflow, X } from '@glacier/icons';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
+import { authorsAcross } from '../core/authors.ts';
+import { Byline } from '../authors/Byline.tsx';
 import { bodyWithoutTitle, bookWords, chaptersOf, numbered, withChapter, withChapterAt, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
 import { Editor } from '../editor/Editor.tsx';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
@@ -72,6 +74,8 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   const chapters = useMemo(() => chaptersOf(body), [body]);
   const numbers = useMemo(() => numbered(chapters), [chapters]);
   const words = useMemo(() => bookWords(body), [body]);
+  // Everyone who wrote the book: its own authors, then each chapter's, first met first (core/authors.ts).
+  const authors = authorsAcross([body, ...chapters.map((c) => bodyOf?.(c.title) ?? '')]);
   const [adding, setAdding] = useState<'new' | 'existing' | null>(null);
   /** Reading straight through: the chapters one after another, each in the note's own read-only editor. */
   const [reading, setReading] = useState(false);
@@ -167,6 +171,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
 
   return (
     <div className={styles.book} data-chapters={chapters.length} data-read-only={readOnly || undefined}>
+      <Byline authors={authors} />
       {words.before ? <BookWords words={words.before} known={known} open={open} dark={dark} /> : null}
       {chapters.length === 0 ? (
         <p className={styles.empty}>{readOnly ? 'No chapters yet.' : 'No chapters yet. Add one below, or a note you have already written.'}</p>

@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { placeWords } from '../src/app/capture/listAppend.ts';
+import { aiName, authorsOf, withAuthor } from '../src/app/core/authors.ts';
 import { Conflict, GlyphApiError, noteTitle, type GlyphAccount, type NoteRecord } from './glyph.ts';
 
 /**
@@ -67,6 +68,13 @@ async function guarded(run: () => Promise<ReturnType<typeof text> | ReturnType<t
   }
 }
 
+/** `next` with the authors `before` named: an AI's whole-body rewrite that dropped the line gets it back. */
+function keepAuthors(before: string, next: string): string {
+  let out = next;
+  for (const name of authorsOf(before)) out = withAuthor(out, name);
+  return out;
+}
+
 /** The note `id` or, failing that, the one titled `title`; a clear complaint when neither finds one. */
 async function find(account: GlyphAccount, id: string | undefined, title: string | undefined): Promise<NoteRecord> {
   if (id) {
@@ -97,10 +105,25 @@ export interface HostedHooks {
   connections: () => number;
   /** Ends every connection to this account, this one included; answers how many it ended. */
   signOutEverywhere: () => number;
+  /** What the AI's app called itself when it connected, kept across the requests that each build a fresh server. */
+  client?: () => { name?: string; title?: string } | undefined;
 }
 
 export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpServer {
   const server = new McpServer({ name: 'glyph', version: VERSION });
+  /**
+   * The words with this AI among the note's authors (core/authors.ts): the name it gave, else what its app called itself
+   * when it connected (Claude's is "claude-ai"), after the account's own handle on a note that named nobody. With no
+   * name to go on the words are left as they came.
+   */
+  const authored = (body: string, said: string | undefined): string => {
+    const name = aiName(said, server.server.getClientVersion() ?? hosted?.client?.());
+    return name ? withAuthor(body, name, account.handle) : body;
+  };
+  const authorField = z
+    .string()
+    .optional()
+    .describe('Your name, as this note’s co-author: it is listed with the account’s own on the note, its book and a shared page. Left out, the name your app connected with is used (Claude for Claude).');
 
   server.registerTool(
     'list_notes',
@@ -178,14 +201,15 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
         body: z.string().describe('The note’s markdown. Ghost.md’s marks all work: headings, lists, `- [ ]` to-dos, tables, ```board fences.'),
         title: z.string().optional().describe('A title to put above the body as a heading, if the body does not start with one.'),
         pinned: z.boolean().optional().describe('Pin it to the top of the list.'),
+        author: authorField,
       },
     },
-    async ({ body, title, pinned }) =>
+    async ({ body, title, pinned, author }) =>
       guarded(async () => {
         const heading = title?.trim();
         const words = heading && !/^#\s/.test(body.trimStart()) ? `# ${heading}\n\n${body.trim()}` : body;
         if (!words.trim()) return failed('A note needs some words.');
-        const made = await account.create(words, { pinned: Boolean(pinned) });
+        const made = await account.create(authored(words, author), { pinned: Boolean(pinned) });
         return text({ created: whole(made) });
       }),
   );
@@ -199,13 +223,15 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
       inputSchema: {
         id: z.string().describe('The note’s id.'),
         body: z.string().describe('The new markdown body, whole.'),
+        author: authorField,
       },
     },
-    async ({ id, body }) =>
+    async ({ id, body, author }) =>
       guarded(async () => {
         await account.pull();
         if (!body.trim()) return failed('A note needs some words. To remove a note, archive it with set_note_flags.');
-        const written = await account.edit(id, (note) => ({ ...note, body }));
+        // The authors the note had stay, whatever the new body says: a rewrite doesn't take anyone off.
+        const written = await account.edit(id, (note) => ({ ...note, body: authored(keepAuthors(note.body, body), author) }));
         return text({ updated: whole(written) });
       }),
   );
@@ -221,9 +247,10 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
         title: z.string().optional().describe('Or its title.'),
         text: z.string().min(1).describe('What to add. Several items may be given with commas.'),
         as: z.enum(['task', 'item', 'paragraph', 'auto']).optional().describe('`task` for a `- [ ]` to-do, `item` for a bullet, `paragraph` for a line of its own, `auto` (default) to put it where it fits.'),
+        author: authorField,
       },
     },
-    async ({ id, title, text: words, as }) =>
+    async ({ id, title, text: words, as, author }) =>
       guarded(async () => {
         await account.pull();
         const target = await find(account, id, title);
@@ -232,7 +259,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
         const written = await account.edit(target.note.id, (note) => {
           const placed = placeWords(note.body, words, { how, task: as === 'task', many: false });
           added = placed.added;
-          return { ...note, body: placed.body };
+          return { ...note, body: authored(placed.body, author) };
         });
         return text({ added, note: summary(written) });
       }),

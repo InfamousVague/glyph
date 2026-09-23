@@ -1,0 +1,48 @@
+/* A note's, a book's, or a shared page's authors (authors/Byline.tsx): quiet, under the title, in the page's ink. */
+
+.byline {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-muted);
+}
+
+.marks {
+  display: inline-flex;
+}
+
+.mark {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.5em;
+  block-size: 1.5em;
+  border-radius: 999px;
+  border: 1px solid var(--glacier-border-strong, var(--glacier-border-subtle));
+  background: var(--glacier-bg);
+  color: var(--glacier-text);
+  font-size: 0.85em;
+  font-weight: var(--glacier-font-weight-semibold, 600);
+}
+
+/* Each after the first tucks under the one before, as a group of faces does. */
+.mark + .mark {
+  margin-inline-start: -0.35em;
+}
+
+.mark[data-ai] {
+  background: var(--glacier-text);
+  color: var(--glacier-bg);
+  border-color: var(--glacier-text);
+}
+
+.initial {
+  line-height: 1;
+}
+
+.names {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

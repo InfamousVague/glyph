@@ -104,7 +104,9 @@ describe('Claude connecting to the hosted server', () => {
     expect(listed.notes.map((n) => n.title)).toEqual(['Groceries']);
     const added = JSON.parse(asText(await client.callTool({ name: 'append_to_note', arguments: { title: 'Groceries', text: 'bread', as: 'item' } }))) as { added: string[] };
     expect(added.added).toEqual(['- Bread']);
-    expect((await service.stored('n1'))?.note.body).toBe('# Groceries\n\nWe need:\n- eggs\n- milk\n- Bread');
+    // Written with Claude, so Claude is among its authors, after the account's own (core/authors.ts): the name its app
+    // connected with, remembered from the connect though each request comes to a fresh server.
+    expect((await service.stored('n1'))?.note.body).toBe('---\nauthors: matt, Claude\n---\n# Groceries\n\nWe need:\n- eggs\n- milk\n- Bread');
 
     // An hour on, the access token has run out: the library refreshes it by itself and carries on.
     clock.now += 61 * 60 * 1000;

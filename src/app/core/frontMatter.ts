@@ -1,7 +1,7 @@
 /**
  * A note's front matter, written to: the `title:` a canvas note is named by (docs/CANVAS.md), since a canvas has
- * no heading to rename it in. Reading is core/store.ts `withoutFrontMatter`; this is the one write the app makes
- * to a note's front matter, and it keeps every other key as it was.
+ * no heading to rename it in, and the `authors:` a note written with an AI carries (core/authors.ts). Reading is
+ * core/store.ts `withoutFrontMatter`; a write keeps every other key as it was.
  */
 
 /** A front matter fence, `---` or `+++`, on a line of its own. */
@@ -44,6 +44,30 @@ export function withFrontMatterTitle(body: string, title: string): string {
   if (close < 0) return clean ? `---\ntitle: ${quoted(clean)}\n---\n${body}` : body;
   const keys = lines.slice(1, close).filter((key) => !/^\s*title\s*:/i.test(key));
   if (clean) keys.unshift(`title: ${quoted(clean)}`);
+  const rest = lines.slice(close + 1);
+  if (!keys.length) return rest.join('\n');
+  return [lines[0], ...keys, lines[close], ...rest].join('\n');
+}
+
+/**
+ * The body with front matter `key` set to `value` as it is written (no quoting added): replaced where the key is, added
+ * last where it isn't, and front matter made where there was none. A null value takes the key off, and front matter
+ * that held nothing else with it. The words are untouched.
+ */
+export function withFrontMatterValue(body: string, key: string, value: string | null): string {
+  const lines = body.split('\n');
+  const pattern = new RegExp(`^\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`, 'i');
+  const line = value === null ? null : `${key}: ${value.replace(/\n/g, ' ').trim()}`;
+  const close = FENCE.test(lines[0] ?? '') ? lines.findIndex((l, n) => n > 0 && FENCE.test(l)) : -1;
+  if (close < 0) return line ? `---\n${line}\n---\n${body}` : body;
+  const keys = lines.slice(1, close);
+  const at = keys.findIndex((k) => pattern.test(k));
+  if (at >= 0) {
+    if (line) keys[at] = line;
+    else keys.splice(at, 1);
+  } else if (line) {
+    keys.push(line);
+  }
   const rest = lines.slice(close + 1);
   if (!keys.length) return rest.join('\n');
   return [lines[0], ...keys, lines[close], ...rest].join('\n');

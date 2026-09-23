@@ -73,6 +73,12 @@ interface Session {
   lastUsed: number;
   /** The sync service would not renew its token: the person has to sign in again. */
   lapsed: boolean;
+  /**
+   * What the AI's app calls itself: its registered name at sign-in, then its clientInfo from `initialize`. Kept here
+   * because each request builds a fresh server that never saw the `initialize`, and a note's authors are named from it
+   * (core/authors.ts).
+   */
+  client?: { name?: string; title?: string };
 }
 
 interface Issued {
@@ -471,7 +477,17 @@ export function hostedApp(options: HostedOptions) {
       return;
     }
     requests.delete(body.request as string);
-    const session: Session = { id, handle, clientId: request.client.client_id, account, createdAt: now(), lastUsed: now(), lapsed: false };
+    const registered = request.client.client_name?.trim();
+    const session: Session = {
+      id,
+      handle,
+      clientId: request.client.client_id,
+      account,
+      createdAt: now(),
+      lastUsed: now(),
+      lapsed: false,
+      ...(registered ? { client: { name: registered } } : {}),
+    };
     sessions.set(id, session);
     const code = token();
     codes.set(code, { clientId: request.client.client_id, codeChallenge: request.params.codeChallenge, redirectUri: request.params.redirectUri, sessionId: id, expiresAt: now() + CODE_MS });
@@ -490,7 +506,11 @@ export function hostedApp(options: HostedOptions) {
       return;
     }
     session.lastUsed = now();
+    // The app says who it is once, when it connects: kept for the requests after, which come to fresh servers.
+    const initialize = (req.body as { method?: string; params?: { clientInfo?: { name?: string; title?: string } } } | undefined) ?? {};
+    if (initialize.method === 'initialize' && initialize.params?.clientInfo) session.client = { ...initialize.params.clientInfo };
     const server = buildServer(session.account, {
+              client: () => session.client,
               // The connections this account has: every session signed in with its handle, this one included.
               connections: () => [...sessions.values()].filter((s) => s.handle === session.handle).length,
               // Sign out everywhere: every one of them ended, tokens and keys with them; the answer to this call

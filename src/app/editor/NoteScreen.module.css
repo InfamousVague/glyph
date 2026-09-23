@@ -359,3 +359,9 @@
 .body:has(> .blankGhost) {
   position: relative;
 }
+
+/* The note's authors (authors/Byline.tsx), in the note's own column, over its first line. */
+.byline {
+  padding-inline: var(--app-gutter);
+  margin-block: var(--glacier-space-2) 0;
+}

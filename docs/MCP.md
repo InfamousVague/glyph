@@ -23,6 +23,14 @@ Once it is connected, ask Claude in words. Behind them are eight tools:
 | `create_note` | A new note from markdown, with a title as its heading. Every Glyph mark works: headings, lists, `- [ ]` to-dos, tables, boards. |
 | `update_note` | A note's whole body replaced. |
 | `append_to_note` | Words added the way the app's own "add task" adds them: a task or an item joins the note's list, in the list's style; a paragraph goes on the end. |
+
+**Authors.** A note the AI creates, rewrites or adds to lists it among the note's authors, after the account's own
+handle: `authors: infamousvague, Claude` in the front matter (core/authors.ts). The name is the tool's `author`
+argument when given, else what the AI's app called itself when it connected ("claude-ai" is Claude). The hosted
+server builds a fresh server for each request, so it keeps that name on the sign-in session: the name the app
+registered with, then its `initialize` clientInfo. A rewrite never drops an author the note already had. The app
+draws the authors as a byline: on the note, gathered across a book in its index, and on a shared page. A known AI
+wears a spark, and anyone else their initial.
 | `set_note_flags` | Pin or archive a note, or undo either. |
 | `account_status` | Which account this is, where its sync service is, how many notes it holds, and how many Claude connections it has. |
 | `sign_out_everywhere` | Hosted only. Ends every Claude connection to the account - every Claude account and computer signed in to it, this one included; each signs in again on the page. |
