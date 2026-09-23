@@ -118,7 +118,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
 
   if (reading) {
     return (
-      <div className={`${styles.book} ${styles.reading}`} data-chapters={chapters.length} data-reading="">
+      <div className={styles.book} data-chapters={chapters.length} data-reading="">
         {/* The way back, and the chapters as a rail: a tap scrolls to that one. */}
         <div className={styles.readBar}>
           <button type="button" className={styles.action} onClick={() => setReading(false)}>

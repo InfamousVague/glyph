@@ -4060,3 +4060,11 @@ list and the panes keep one centred column, 46rem, so rows don't stretch across 
 edge (settings.css `--settings-column`). The card's dimmed page behind it and its arrival animation went with it.
 Settings leaves by its back arrow as before. The older card asking for a click outside Settings to close it has
 nothing outside to click now.
+
+## 99. A book is as wide as a note (2026-09-23)
+
+Matt, with a screenshot of HelloTrade's index on the Mac: "on desktop notes are not taking up 100% width". A note's
+words already take the page's whole width; a book's index was held to 44rem, and its read-through to 48rem, so on a
+wide window the book was a column down the left. Both limits are gone (book/BookView.module.css), and the index, its
+words and reading straight through span the page as a note does. Seen in the pane at 1600 wide: the book is 1588px, the
+page's full width.

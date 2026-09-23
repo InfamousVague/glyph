@@ -4,9 +4,10 @@
  * (`--app-body` from the note screen), so it reads as the note it is.
  */
 
+/* The whole width of the note's page, as a note's words take it (Matt: "on desktop notes are not taking up 100% width"):
+   it was held to 44rem, a column of index down the left of a wide window. */
 .book {
   padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8);
-  max-inline-size: 44rem;
   font-size: var(--app-body, 1rem);
   line-height: 1.5;
 }
@@ -323,11 +324,6 @@
 
 .row[data-lifted] .grip {
   cursor: grabbing;
-}
-
-/* Reading straight through: the chapters one after another, each drawn by the note's own editor, read-only. */
-.reading {
-  max-inline-size: 48rem;
 }
 
 .readBar {
