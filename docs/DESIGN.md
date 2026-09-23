@@ -3964,3 +3964,23 @@ write, then Speak last, nearest the right thumb. Speak keeps its ink fill as a c
 column is one width, and its word is kept for screen readers. A row across the foot of an opened Fold was a reach
 from either hand. A phone keeps the row. The sidebar's own Speak and Settings, at its foot, are unchanged. Seen in the
 pane at 880 by 790, the Fold's inner screen, and at 390 wide.
+
+## 93. The mascot is the app icon (2026-09-23)
+
+Matt: "update the app icon to use the ghost.md-mascot.png from downloads and push a new version of the app to my
+phone and all download endpoints." The picture is the app's own dotwork ghost (docs/GHOSTS.md), waving on lined
+paper, cropped close: a full square, no transparency. It replaces the line mark of §90 as the app icon; the
+line mark stays where a picture that fine would not read - the tab icon (public/favicon.svg) and the MCP's sign-in
+page (art/ghostMark.ts).
+
+- **Desktop and iOS** take the square as it is (`design/app-icon.png`, the picture at 1024), as the icons before it
+  did. It holds up small: at 32 px the ghost, its eyes, the wisp and the folded corner are still there.
+- **Android's adaptive icon** shows only the middle 72 of the layer's 108 dp and masks that, so a full-bleed
+  foreground would lose the wisp and the waving hand. The foreground (`design/app-icon-foreground.png`) is the
+  picture at two thirds on a clear layer, exactly the visible part, over a background of the paper's own colour
+  (#f3f3f0); a round mask keeps the wisp's tip and the hand. The picture's paper and the flat colour meet only in
+  the margin a launcher reveals while it animates.
+- **The home-screen icon** for the web pages (`public/apple-touch-icon.png`) is the picture too.
+- `design/icon.json` points at the two PNGs; `npx tauri icon design/icon.json` makes every set. The line mark's
+  icon SVGs are gone from design/ (the mark itself is `design/ghost-mark.svg`).
+- **1.7.1**, a native release: an installed app's icon changes only with a new APK and Mac app.
