@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ghost.md</title>
+    <meta name="description" content="Ghost.md: notes you type or say, kept as plain Markdown on your own devices. Download it for Android or Mac, or open it in your browser." />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta property="og:title" content="Ghost.md" />
+    <meta property="og:description" content="Notes you type or say, kept as plain Markdown on your own devices." />
+    <meta property="og:image" content="https://ghostmarkdown.com/icon.png" />
+    <!--
+      ghostmarkdown.com: the download page (docs/LANDING.md). Dead simple on purpose: the icon, the name, one line, and
+      the three ways in. The versions and sizes are read from the same manifests the apps update from (/apk.json and
+      /desktop.json, served here from the release on attack.fm), so the page never says an old number.
+    -->
+    <style>
+      :root {
+        --paper: #fbfaf7;
+        --ink: #141414;
+        --ink-2: #5d5b57;
+        --line: #e4e1da;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #0d0d0d;
+          --ink: #f2f0ea;
+          --ink-2: #a19e97;
+          --line: #2a2926;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        min-height: 100dvh;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 22px;
+        padding: 48px 16px;
+        text-align: center;
+      }
+      .icon {
+        width: 168px;
+        height: 168px;
+        border-radius: 38px;
+        box-shadow: 0 1px 0 var(--line), 0 18px 40px -18px rgb(0 0 0 / 0.45);
+      }
+      h1 {
+        margin: 6px 0 0;
+        font-size: clamp(2.2rem, 7vw, 3rem);
+        letter-spacing: -0.03em;
+        line-height: 1;
+      }
+      .lead {
+        margin: 0;
+        max-width: 26rem;
+        font-size: 1.08rem;
+        line-height: 1.5;
+        color: var(--ink-2);
+      }
+      .ways {
+        display: grid;
+        gap: 10px;
+        width: min(100%, 22rem);
+        margin-top: 8px;
+      }
+      .way {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 18px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        color: var(--ink);
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .way:hover {
+        border-color: var(--ink-2);
+      }
+      .way:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 3px;
+      }
+      /* The way for the device in hand comes first and is the filled one. */
+      .way[data-first] {
+        order: -1;
+        background: var(--ink);
+        color: var(--paper);
+        border-color: var(--ink);
+      }
+      .meta {
+        font-weight: 400;
+        font-size: 0.85rem;
+        opacity: 0.7;
+        white-space: nowrap;
+      }
+      .note {
+        margin: 4px 0 0;
+        max-width: 24rem;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        color: var(--ink-2);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img class="icon" src="icon.png" width="168" height="168" alt="The Ghost.md ghost, waving, on lined paper" />
+      <h1>Ghost.md</h1>
+      <p class="lead">Notes you type or say. Plain Markdown, kept on your own devices, the same on every one.</p>
+      <nav class="ways" aria-label="Get Ghost.md">
+        <a class="way" id="android" href="/glyph.apk" download>
+          <span>Download for Android</span><span class="meta" data-meta="apk"></span>
+        </a>
+        <a class="way" id="mac" href="/glyph.dmg" download>
+          <span>Download for Mac</span><span class="meta" data-meta="dmg"></span>
+        </a>
+        <a class="way" id="web" href="https://attack.fm/glyph/">
+          <span>Open in your browser</span><span class="meta">No install</span>
+        </a>
+      </nav>
+      <p class="note" id="mac-note" hidden>The Mac app is signed but not yet notarised: the first time, right-click it and choose Open.</p>
+    </main>
+    <script>
+      // The device in hand's way first. An iPhone or iPad has no app yet, so the browser is its way.
+      const ua = navigator.userAgent;
+      const first = /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua)) ? 'web' : /Macintosh|Mac OS X/.test(ua) ? 'mac' : null;
+      if (first) document.getElementById(first).setAttribute('data-first', '');
+      if (first === 'mac') document.getElementById('mac-note').hidden = false;
+
+      // The version and size of what each button downloads, from the manifests the apps themselves update from.
+      const size = (bytes) => `${Math.round(bytes / 1e6)} MB`;
+      for (const [file, key] of [['apk.json', 'apk'], ['desktop.json', 'dmg']]) {
+        fetch(`/${file}`, { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((m) => {
+            if (!m || !m.version) return;
+            document.querySelector(`[data-meta="${key}"]`).textContent = `${m.version} · ${size(m.bytes)}`;
+          })
+          .catch(() => undefined);
+      }
+    </script>
+  </body>
+</html>
