@@ -4124,3 +4124,15 @@ page".
   the squircle"): the icon is clipped to a superellipse (n = 5), and a short bar in the page's ink runs round a ring
   of the same shape just outside it, once every 1.15 seconds, over a faint track. The ink is black on the light page
   and white on the dark, where black would be invisible.
+
+## 103. Settings' page fills the split (2026-09-23)
+
+Matt, on the Fold: "The right hand side of the split view settings isn't letting the content inside flow to fill the
+available space." The page on the right sat in a narrow strip with wide empty margins. It was meant to be a column a
+reader's width (44rem) centred in the pane, by padding each side with `(100% - 44rem) / 2`; but a padding's
+percentage is of the containing block's width, which is the whole split - the left column included - not of the pane.
+So on the Fold's inner screen each side was padded by half of what the whole screen had over 44rem, and the page came
+out far narrower than 44rem and off to one side.
+
+Matt wants the page to fill, so there is no column any more: the pane's page takes its whole width in the app's
+gutter, as a note's words do (a book's index did the same, §99). The left column keeps its 20rem.

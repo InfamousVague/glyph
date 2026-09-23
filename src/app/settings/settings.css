@@ -34,11 +34,12 @@
 /*
  * Full screen everywhere (Matt: "make the settings page full screen"), and on a window with room for the sidebar a
  * split view (SettingsScreen.tsx `split`): the sections down the left as a column of their own, the chosen section's
- * page on the right in a column a reader's width. It was a card over the page for a while (Matt, earlier: "on a large
- * display, the settings should open in a modal").
+ * page filling the rest (Matt: "the right hand side of the split view settings isn't letting the content inside flow
+ * to fill the available space"). It was a card over the page for a while (Matt, earlier: "on a large display, the
+ * settings should open in a modal"), and then a centred column a reader's width, whose padding was a percentage of
+ * the whole split rather than of the pane, so on the Fold the page sat in a narrow strip off to one side.
  */
 .settingsScreen[data-layout='split'] {
-  --settings-column: 44rem;
   --settings-side: 20rem;
 }
 
@@ -55,10 +56,11 @@
   padding-inline: calc(var(--app-safe-left, 0px) + var(--glacier-space-4)) var(--glacier-space-4);
 }
 
+/* The page takes the pane's whole width, in the app's gutter; the left column already stands off the screen's edge. */
 .settingsScreen[data-layout='split'] .settingsScreen__pane {
   flex: 1;
   min-inline-size: 0;
-  padding-inline: max(var(--app-gutter), calc((100% - var(--settings-column)) / 2)) calc(var(--app-safe-right, 0px) + max(var(--app-gutter), calc((100% - var(--settings-column)) / 2)));
+  padding-inline: var(--app-gutter) calc(var(--app-safe-right, 0px) + var(--app-gutter));
 }
 
 /* The section on show, in the left column: the row's own ground, a shade deeper. */
