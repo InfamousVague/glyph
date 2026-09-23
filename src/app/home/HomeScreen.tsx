@@ -252,14 +252,15 @@ export function HomeScreen({
         </div>
       </div>
 
-      {/* The dock the notes list had: write on the left, Speak in the middle as the one ink pill, Settings on the right. */}
+      {/* The dock the notes list had: write on the left, Speak in the middle as the one ink pill, Settings on the right.
+          On a wide screen, the Fold opened out, a floating column at the bottom right instead (HomeScreen.module.css). */}
       <nav className={styles.dock} aria-label="New note">
         <button type="button" className={`${styles.round} ${styles.add}`} onClick={onNew} aria-label="Write a note">
           <Plus />
         </button>
         <button type="button" className={`app-pill ${styles.speak}`} onClick={onCapture} aria-label="Speak a voice note">
           <Mic size={18} strokeWidth={2.2} aria-hidden="true" />
-          Speak
+          <span className={styles.speakWord}>Speak</span>
         </button>
         <button type="button" className={`${styles.round} ${styles.cog}`} onClick={onSettings} aria-label="Settings">
           <Cog />

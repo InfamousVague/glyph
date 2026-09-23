@@ -3953,3 +3953,14 @@ update as well so everyone gets the new icon."
 - **The notes connector names its pictures.** create_note and update_note now list every picture the words show
   (mcp/glyph.ts), as a device would, so the other devices fetch them. Before, update_note kept only names already
   listed, which is why the HelloTrade chapters named none. It ships with a server deploy.
+
+## 92. The home dock floats in the corner on a wide screen (2026-09-23)
+
+Matt: "Move the controls that are at the bottom of the screen to be locked in a floating dock on the bottom right
+stacked vertically on a wider display like my fold8". At 600px wide and over (core/useWideScreen.ts's line, taken from
+the viewport since a docked sidebar makes the home pane itself narrower), the home page's dock of write, Speak and
+Settings is a floating column locked to the bottom right. It's a rounded card of blurred paper holding Settings, then
+write, then Speak last, nearest the right thumb. Speak keeps its ink fill as a circle the other two's size, so the
+column is one width, and its word is kept for screen readers. A row across the foot of an opened Fold was a reach
+from either hand. A phone keeps the row. The sidebar's own Speak and Settings, at its foot, are unchanged. Seen in the
+pane at 880 by 790, the Fold's inner screen, and at 390 wide.

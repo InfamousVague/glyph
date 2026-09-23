@@ -269,6 +269,57 @@
 }
 
 /*
+ * On a wide screen the dock is a floating column locked to the bottom right (Matt: "Move the controls that are at the
+ * bottom of the screen to be locked in a floating dock on the bottom right stacked vertically on a wider display like
+ * my fold8"). A row across the foot of an opened Fold is a reach from either hand; a column in the corner is where the
+ * right thumb rests. Settings on top, write in the middle, Speak last, nearest the thumb, still the one ink-filled
+ * thing, as a circle the size of the other two so the column is one width. Wide is the app's own line
+ * (core/useWideScreen.ts, 600px): the viewport's, since with the sidebar docked the home pane itself is narrower.
+ */
+@media (min-width: 600px) {
+  .dock {
+    inset-inline: auto calc(var(--app-safe-right, 0px) + var(--glacier-space-4));
+    bottom: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-4));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--glacier-space-2);
+    padding: var(--glacier-space-2);
+    border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+    border-radius: var(--glacier-radius-full);
+    background: color-mix(in srgb, var(--glacier-bg) 82%, transparent);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 28px color-mix(in srgb, #000 22%, transparent);
+    pointer-events: auto;
+  }
+
+  .cog {
+    order: 1;
+  }
+
+  .add {
+    order: 2;
+  }
+
+  .speak {
+    order: 3;
+    inline-size: calc(var(--glacier-space-10) * 0.88);
+    padding-inline: 0;
+    justify-content: center;
+  }
+
+  .speakWord {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/*
  * One column a reader's width, in the middle of a wide window: on a desktop the page ran the whole window across, and
  * a card or a notice two thousand pixels wide reads as a banner rather than as something to pick up.
  */
