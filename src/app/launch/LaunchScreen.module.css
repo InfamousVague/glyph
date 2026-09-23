@@ -32,14 +32,44 @@
   stroke-width: 3;
 }
 
-/* The bar: a short stretch of the ring in the page's ink, round at its ends, chasing round once a little over a second. */
+/*
+ * The bar: a short stretch of the ring in the page's ink, round at its ends, chasing round once a little over a second.
+ * Moved from LaunchScreen.tsx, on the clock the eyes follow; this animation is only for a page where that can't run.
+ */
 .bar {
   fill: none;
   stroke: var(--glacier-text);
   stroke-width: 3;
   stroke-linecap: round;
   stroke-dasharray: 14 86;
+}
+
+.bar:not([data-driven]) {
   animation: chase 1.15s linear infinite;
+}
+
+/* The ghost's eyes, drawn over the picture where its own were: the picture's near-black in any theme, as they are part of it. */
+.eye {
+  fill: #161616;
+}
+
+/* A blink now and then: both eyes shut together for a moment, the first soon after the screen appears. */
+.blink {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 2.6s 0.5s ease-in-out infinite;
+}
+
+/* Shut and open again in the first fifth of a second of each turn, so the first blink falls while the screen is up. */
+@keyframes blink {
+  0%,
+  8%,
+  100% {
+    transform: none;
+  }
+  4% {
+    transform: scaleY(0.12);
+  }
 }
 
 @keyframes chase {
@@ -104,6 +134,7 @@
 @media (prefers-reduced-motion: reduce) {
   .chase,
   .bar,
+  .blink,
   .name,
   .line,
   .line[data-state='working'] .mark svg {

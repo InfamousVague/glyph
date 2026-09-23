@@ -3,7 +3,8 @@ import { Check, CircleAlert, LoaderCircle } from '@glacier/icons';
 import type { Updates } from '../core/ota.ts';
 import type { SyncStatus } from '../core/sync/engine.ts';
 import { isTauri } from '../core/tauri.ts';
-import icon from './ghost-icon.webp';
+import icon from './ghost-icon-eyeless.webp';
+import { barAt, easeFor, EYE_RX, EYE_RY, EYES, lookAt } from './eyes.ts';
 import styles from './LaunchScreen.module.css';
 
 /**
@@ -62,8 +63,44 @@ const RING_PATH = squircle(BOX / 2, 58);
  * logo in a squircle with a black bar that chases around the outside of the squircle"). The bar is the page's ink:
  * black on the light page, and white on the dark one, where black would be invisible. It runs on a faint track of the
  * same ring.
+ *
+ * And the ghost watches it (launch/eyes.ts): the picture's eyes are painted out and drawn again over it, and each frame
+ * both turn toward the bar's middle, catching up with it as eyes do, and blink now and then. The bar and the eyes run
+ * off one clock, so the bar is moved from here too rather than by a CSS animation that would drift from them. Asked
+ * for less motion, the bar stands still at the top and the eyes look ahead.
  */
 function IconChase() {
+  const bar = useRef<SVGPathElement>(null);
+  const eyes = useRef<(SVGEllipseElement | null)[]>([]);
+  useEffect(() => {
+    const path = bar.current;
+    // A page with no geometry (a test's DOM) keeps the bar where it starts and the eyes ahead.
+    if (!path || typeof path.getTotalLength !== 'function' || typeof path.getPointAtLength !== 'function') return undefined;
+    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const length = path.getTotalLength();
+    const looking = EYES.map(() => ({ x: 0, y: 0 }));
+    const start = performance.now();
+    let last = start;
+    let frame = 0;
+    path.dataset.driven = '';
+    const tick = (now: number) => {
+      const { middle, offset } = barAt(now - start);
+      path.style.strokeDashoffset = String(offset);
+      const target = path.getPointAtLength(middle * length);
+      const ease = easeFor(Math.min(64, now - last));
+      last = now;
+      EYES.forEach((eye, i) => {
+        const to = lookAt(eye, target);
+        const at = looking[i]!;
+        at.x += (to.x - at.x) * ease;
+        at.y += (to.y - at.y) * ease;
+        eyes.current[i]?.setAttribute('transform', `translate(${at.x.toFixed(2)} ${at.y.toFixed(2)})`);
+      });
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, []);
   return (
     <svg className={styles.chase} viewBox={`0 0 ${BOX} ${BOX}`} width={BOX} height={BOX} aria-hidden="true">
       <defs>
@@ -72,8 +109,23 @@ function IconChase() {
         </clipPath>
       </defs>
       <image href={icon} x={BOX / 2 - 48} y={BOX / 2 - 48} width={96} height={96} clipPath="url(#launch-squircle)" preserveAspectRatio="xMidYMid slice" />
+      <g className={styles.blink}>
+        {EYES.map((eye, i) => (
+          <ellipse
+            key={i}
+            ref={(el) => {
+              eyes.current[i] = el;
+            }}
+            className={styles.eye}
+            cx={eye.x}
+            cy={eye.y}
+            rx={EYE_RX}
+            ry={EYE_RY}
+          />
+        ))}
+      </g>
       <path className={styles.track} d={RING_PATH} pathLength={100} />
-      <path className={styles.bar} d={RING_PATH} pathLength={100} />
+      <path ref={bar} className={styles.bar} d={RING_PATH} pathLength={100} />
     </svg>
   );
 }

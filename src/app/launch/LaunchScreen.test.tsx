@@ -65,3 +65,44 @@ describe('the screen opening shows', () => {
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('the ghost on the screen', () => {
+  it('draws two eyes over the picture, and turns them toward the bar as it goes round', () => {
+    native = false;
+    // The DOM here has no geometry and no frames: the ring answers with the point the test puts the bar at, and the
+    // frames are run by hand.
+    let target = { x: 124, y: 66 };
+    const proto = SVGElement.prototype as unknown as { getTotalLength?: () => number; getPointAtLength?: (n: number) => DOMPoint };
+    proto.getTotalLength = () => 400;
+    proto.getPointAtLength = () => ({ x: target.x, y: target.y }) as DOMPoint;
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => frames.push(cb));
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    // A frame every 16 ms, up to `until`, as a screen draws them.
+    let clock = 0;
+    const run = (until: number) => {
+      for (; clock < until; clock += 16) act(() => frames.shift()?.(clock));
+    };
+    show(<LaunchScreen loading notes={0} updates={updates()} sync={sync} onDone={() => {}} />);
+    const eyes = [...host!.querySelectorAll('ellipse')];
+    expect(eyes).toHaveLength(2);
+    const moved = () => eyes.map((eye) => (eye.getAttribute('transform') ?? '').match(/-?\d+\.\d+/g)!.map(Number));
+    clock = performance.now();
+    const start = clock;
+    run(start + 300);
+    // The bar off to the right: both look right, and hardly up or down.
+    for (const [x, y] of moved()) {
+      expect(x).toBeGreaterThan(2);
+      expect(Math.abs(y!)).toBeLessThan(0.5);
+    }
+    // The bar below them: both look down.
+    target = { x: 72, y: 124 };
+    run(start + 600);
+    for (const [, y] of moved()) expect(y).toBeGreaterThan(2.5);
+    // And the bar is moved on the same clock.
+    expect(host!.querySelector('path[data-driven]')).toBeTruthy();
+    raf.mockRestore();
+    delete proto.getTotalLength;
+    delete proto.getPointAtLength;
+  });
+});

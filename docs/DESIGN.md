@@ -4143,3 +4143,24 @@ The fork session saw it: Settings' split came out half and half (441 of 880, 721
 meant to be 20rem. The column is also `.settingsScreen__list`, whose `flex: 1` comes later in settings.css at the same
 weight, so it grew alongside the page. The column's rule is now two classes (`.settingsScreen__split >
 .settingsScreen__side`). Measured in the pane: 320px at 880 wide and at 1440, with the page taking the rest.
+
+## 105. The ghost watches the bar (2026-09-23)
+
+Matt: "I want the ghost's eyes to follow around the loading bar that moves around the icon mask over the ghost's eyes
+in the logo and do fake eyes that look around and follow the loader." The launch screen (§102) draws the mascot in a
+squircle with a bar chasing round a ring outside it; now the ghost watches the bar go round.
+
+- **The picture's eyes are painted out** (launch/ghost-icon-eyeless.webp): its two dark ovals filled with the body's
+  own paper colour, which at the icon's size cannot be told from the body around them.
+- **Two eyes are drawn in their place** (launch/eyes.ts): ovals the size of the painted ones, the picture's
+  near-black in either theme since they belong to the picture, not the page.
+- **They look at the bar.** Each frame both eyes turn toward the bar's middle, as far as they go (a little more up and
+  down than across, as the ovals are tall), and ease there over about a tenth of a second rather than jumping, so they
+  follow the bar the way eyes follow something moving. Both look at the same point, so they turn slightly toward each
+  other as it passes between them.
+- **One clock.** The bar was a CSS animation; eyes following it from a separate clock would drift from it. So the
+  bar's dash offset is set on the same frame as the eyes, from the time since the screen appeared (`barAt`), with
+  the CSS animation left only for a page where that can't run.
+- **A blink** soon after the screen appears (the screen stays 0.9 to 3 seconds, so the eyes get about one lap), and
+  every 2.6 seconds after.
+- **Less motion asked for:** the bar stands still and the eyes look ahead, without a blink.
