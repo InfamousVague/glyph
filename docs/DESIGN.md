@@ -4212,3 +4212,16 @@ goes away." The launch screen's ghost (§105) no longer blinks as it watches the
   fade when it is ready, so opening now takes about 0.6s longer.
 - **Less motion asked for**, or a page with no geometry to move eyes by: no look and no wink, and the screen fades as
   soon as it is ready, as it did.
+
+## 108. A segmented control stands off its card (2026-09-23)
+
+Matt, on the Fold's Appearance page: "Segmented toggles that are on the secondary background that's darker need to
+have a different background color as they blend in." The kit's segmented control draws its track in
+`--glacier-segment-track`, which the app sets to paper-2 (ink.css) so a control on the page reads as a well. But a
+Settings card is paper-2 too, so on a card - Rounding, the code colours, the sidebar style - the track was the card
+itself and only the chosen segment showed.
+
+On a Settings card (`.setk__card`, `.settingsScreen__group`) the variable is paper-3: one step further from the
+page, lighter than the card on the dark page and darker on the light one. Measured in the preview: 0.24 on a 0.17 card
+dark, 0.895 on a 0.955 card light. Controls on the page itself keep paper-2, and the search pill over the list is
+untouched. The Claude guide's two-way switch is its own, on a card of another ground, with a border, and is left.

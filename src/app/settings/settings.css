@@ -298,6 +298,12 @@
   border-radius: var(--glacier-radius-lg);
   background: var(--app-paper-2);
   overflow: hidden;
+  /*
+   * A segmented control's track is paper-2 on the page (ink.css), which is this card's own ground: on a card its
+   * choices sat on nothing (Matt: "segmented toggles that are on the secondary background that's darker need to have
+   * a different background color as they blend in"). On a card the track is a step further from the page, paper-3.
+   */
+  --glacier-segment-track: var(--app-paper-3);
 }
 
 .settingsScreen__row {
