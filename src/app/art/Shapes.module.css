@@ -11,48 +11,6 @@
   transform-box: fill-box;
 }
 
-/* Welcome: the dot lands, the line writes out, a rest, then again. */
-.welcome .bullet {
-  transform-origin: center;
-  animation: bullet 5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
-}
-
-.welcome .bulletLine {
-  transform-origin: left center;
-  animation: bullet-line 5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
-}
-
-@keyframes bullet {
-  0% {
-    transform: scale(0);
-  }
-  8% {
-    transform: scale(1.1);
-  }
-  14%,
-  90% {
-    transform: none;
-  }
-  100% {
-    transform: scale(0);
-  }
-}
-
-@keyframes bullet-line {
-  0%,
-  10% {
-    transform: scaleX(0);
-  }
-  26%,
-  88% {
-    transform: none;
-  }
-  98%,
-  100% {
-    transform: scaleX(0);
-  }
-}
-
 /* Light or dark: the square turns over, ink and paper change places, and back. */
 .theme .turn {
   transform-origin: center;

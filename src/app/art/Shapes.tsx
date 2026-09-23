@@ -131,18 +131,6 @@ export function Blank({ className }: ShapeProps) {
   );
 }
 
-/** The app's mark at poster size: a bullet lands and its line writes out. */
-export function Welcome({ className }: ShapeProps) {
-  return svg(
-    className,
-    <>
-      <circle className={styles.bullet} cx="37" cy="60" r="22" fill="currentColor" />
-      <rect className={styles.bulletLine} x="64" y="52" width="48" height="16" rx="8" fill="currentColor" />
-    </>,
-    styles.welcome,
-  );
-}
-
 /** A square split into ink and paper, a dot of the other in each half, turning over: the theme page. */
 export function Theme({ className }: ShapeProps) {
   return svg(
