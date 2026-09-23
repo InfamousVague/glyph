@@ -12,6 +12,7 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { OAuthClientInformationFull, OAuthTokenRevocationRequest, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { fromBase64Url } from '../src/app/core/sync/crypto.ts';
+import { GHOST_MARK, GHOST_MARK_BOX } from '../src/app/art/ghostMark.ts';
 import { GlyphAccount, GlyphApiError } from './glyph.ts';
 import { buildServer, VERSION } from './server.ts';
 // The app's typeface, for the sign-in page: scripts/build-mcp.mjs folds the file into the bundle as a data URL.
@@ -105,13 +106,12 @@ const ICON = {
 const icon = (d: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 /**
- * The picture at the top: the app's Welcome shape (art/Shapes.tsx) on the faint grid of its Blank one - a dot lands
- * and a line writes out, rests, and again - in the page's ink, moving as it does in the app.
+ * The picture at the top: Ghost.md's mark (art/ghostMark.ts), its lines in the page's ink and its paper in the page's
+ * paper, so it turns over with the page; the wisp over its head drifts, as the app's smoke does.
  */
 function art(): string {
-  const dots: string[] = [];
-  for (let x = 20; x <= 100; x += 10) for (let y = 20; y <= 100; y += 10) dots.push(`<circle cx="${x}" cy="${y}" r="1"/>`);
-  return `<svg class="art" viewBox="0 0 120 120" aria-hidden="true"><g class="grid" fill="currentColor">${dots.join('')}</g><circle class="bullet" cx="37" cy="60" r="22" fill="currentColor"/><rect class="line" x="64" y="52" width="48" height="16" rx="8" fill="currentColor"/></svg>`;
+  const shapes = GHOST_MARK.map((shape) => `<path class="${shape.ink ? 'ink' : 'paper'} ${shape.part}" d="${shape.d}"/>`).join('');
+  return `<svg class="art" viewBox="${GHOST_MARK_BOX}" aria-hidden="true">${shapes}</svg>`;
 }
 
 /**
@@ -150,13 +150,12 @@ function loginPage({ request, who, apiPublic, base, deny }: { request: string; w
   }
   main { width: 100%; max-width: 420px; }
   .art { display: block; width: 76px; height: 76px; overflow: visible; color: var(--ink); margin: 0 0 20px -8px; }
-  .art .grid { color: var(--ink-4); }
   .art * { transform-box: fill-box; }
-  .art .bullet { transform-origin: center; animation: bullet 5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite; }
-  .art .line { transform-origin: left center; animation: bullet-line 5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite; }
-  @keyframes bullet { 0% { transform: scale(0); } 8% { transform: scale(1.1); } 14%, 90% { transform: none; } 100% { transform: scale(0); } }
-  @keyframes bullet-line { 0%, 10% { transform: scaleX(0); } 26%, 88% { transform: none; } 98%, 100% { transform: scaleX(0); } }
-  @media (prefers-reduced-motion: reduce) { .art .bullet, .art .line { animation: none; } }
+  .art .ink { fill: var(--ink); }
+  .art .paper { fill: var(--paper); }
+  .art .wisp { transform-origin: bottom center; animation: wisp 4.8s ease-in-out infinite; }
+  @keyframes wisp { 0%, 100% { transform: none; opacity: 1; } 50% { transform: translateY(-5%) rotate(-3deg); opacity: 0.7; } }
+  @media (prefers-reduced-motion: reduce) { .art .wisp { animation: none; } }
   .brand { display: flex; align-items: center; gap: 0.5em; margin: 0 0 10px; font-size: 0.875rem; font-weight: 600; letter-spacing: -0.01em; color: var(--ink-3); }
   .brand b { color: var(--ink); font-weight: 700; }
   .brand i { font-style: normal; color: var(--ink-4); }
