@@ -3984,3 +3984,21 @@ page (art/ghostMark.ts).
 - `design/icon.json` points at the two PNGs; `npx tauri icon design/icon.json` makes every set. The line mark's
   icon SVGs are gone from design/ (the mark itself is `design/ghost-mark.svg`).
 - **1.7.1**, a native release: an installed app's icon changes only with a new APK and Mac app.
+
+## 94. A blur under the header on a desktop, a quieter wisp on a phone (2026-09-23)
+
+Matt's card: "on desktop use a simple blur gradient under the headers where the shadow / wisp effect is that we use
+on mobile, make it more subtle on mobile but keep the wisp effect".
+
+- **Desktop** means a screen with a fine pointer that hovers (art/wispMask.ts `wispHead`): the Mac app and a browser
+  on a computer. The Fold counts as a phone however wide it opens. There, a view scrolled under its header wears no
+  smoke at the top. A strip 28px tall is laid just under the header's glass instead (app.css `.app-headerBlur`),
+  blurred and fading to nothing, so words going under the header go soft rather than being cut. It's the header's
+  sibling, not a child: a child of an element with a backdrop filter blurs only that element's own contents, which
+  under the header is nothing. That was the first try, and a line under it stayed crisp. `glyph-wisp-head` in
+  localStorage picks either on any screen.
+- **Phone:** the wisp stays, a third quieter. The bend's displacement is 36 to 24 under the header and 34 to 23 at
+  the foot (art/WispEdgeFilter.tsx).
+- **The foot** of a page smokes as it did on every screen. The card named the headers.
+- **Seen in the pane:** at 800 by 600 with a mouse, the line in the strip dims and softens and the next is crisp, with
+  no smoke. At the phone preset the wisp is worn, no strip is made, and the bend reads 24.

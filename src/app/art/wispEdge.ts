@@ -1,6 +1,6 @@
 import { usePreferences } from '../core/preferences.ts';
 import { useEffect, useState, type RefObject } from 'react';
-import { installWispMasks, type WispDraw, wispDraw } from './wispMask.ts';
+import { installWispMasks, type WispDraw, wispDraw, wispHead } from './wispMask.ts';
 
 /**
  * The wisp edge: the app's standard soft top for anything that scrolls under
@@ -320,6 +320,17 @@ export function useWispEdge(
     // Which drawing this view wears, said on the element for the stylesheet (app.css) and for anyone measuring.
     const mode = draw ?? wispDraw();
     const masked = mode === 'mask';
+    // On a desktop the top is a blurred strip hung under the header's glass, not smoke (art/wispMask.ts `wispHead`,
+    // app.css `.app-headerBlur`). Only with a header to hang it from; the foot smokes as it always did.
+    const blurHead = !!header && !draw && wispHead() === 'blur';
+    // The strip is the header's sibling, laid just under it: a child of the header would blur only the header's own
+    // contents, since an element wearing a backdrop filter is where its children's backdrops stop.
+    const strip = blurHead ? document.createElement('div') : null;
+    if (strip && header) {
+      strip.className = 'app-headerBlur';
+      strip.setAttribute('aria-hidden', 'true');
+      header.insertAdjacentElement('afterend', strip);
+    }
     if (masked) installWispMasks();
     el.dataset.wispDraw = mode;
     let worn = false;
@@ -362,6 +373,11 @@ export function useWispEdge(
         el.style.setProperty('--wisp-top-fade', height ? '0px' : 'calc(var(--app-safe-top, 0px) + 8px)');
       }
       if (worn && !masked) placeBand(beneath);
+      if (strip && header) {
+        strip.style.top = `${header.offsetTop + header.offsetHeight}px`;
+        strip.style.left = `${header.offsetLeft}px`;
+        strip.style.width = `${header.offsetWidth}px`;
+      }
     };
     /** How much of the view's foot the dock covers: where the foot band sits, measured up from the view's bottom. */
     let covered = -1;
@@ -398,6 +414,10 @@ export function useWispEdge(
       setOn(scrolled);
       if (scrolled === worn) return;
       worn = scrolled;
+      if (blurHead) {
+        strip?.toggleAttribute('data-on', scrolled);
+        return;
+      }
       if (scrolled) {
         el.setAttribute('data-wisp-edge', '');
         if (!masked) placeBand(beneath);
@@ -446,6 +466,7 @@ export function useWispEdge(
       resized.disconnect();
       el.removeAttribute('data-wisp-edge');
       el.removeAttribute('data-under-header');
+      strip?.remove();
       delete el.dataset.wispDraw;
       if (footWorn) {
         el.removeAttribute('data-wisp-foot');

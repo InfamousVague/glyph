@@ -39,6 +39,27 @@ export function wispDraw(): WispDraw {
   return document.documentElement.dataset.titlebar === 'overlay' ? 'mask' : 'filter';
 }
 
+/**
+ * What smokes under a header: the wisp, or on a desktop a plain blurred strip under the glass (Matt: "on desktop use a
+ * simple blur gradient under the headers where the shadow / wisp effect is that we use on mobile, make it more subtle
+ * on mobile but keep the wisp effect"). A desktop is a screen with a fine pointer that hovers: the Mac app and a
+ * browser on a computer, not the Fold, which is a phone however wide it opens. `glyph-wisp-head` overrides it.
+ */
+export type WispHead = 'smoke' | 'blur';
+
+export const WISP_HEAD_KEY = 'glyph-wisp-head';
+
+export function wispHead(): WispHead {
+  try {
+    const asked = localStorage.getItem(WISP_HEAD_KEY);
+    if (asked === 'smoke' || asked === 'blur') return asked;
+  } catch {
+    // Nowhere to ask: the screen decides.
+  }
+  if (typeof matchMedia === 'undefined') return 'smoke';
+  return matchMedia('(hover: hover) and (pointer: fine)').matches ? 'blur' : 'smoke';
+}
+
 /** The image tiles along the edge this wide; the turbulence is stitched so the seam is not there. */
 export const WISP_MASK_TILE = 512;
 /**

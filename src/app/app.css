@@ -435,6 +435,32 @@ body:has(.app-headerPane) .app-statusScrim {
  * tint starts where the bar ends: two tints laid on each other would make the note's side of the divider darker than
  * the sidebar's. The blur is still the pane's over its whole height - blur laid on blur looks the same as blur.
  */
+/*
+ * On a desktop, the edge under a header is a strip of blur that fades to nothing, where a phone has the wisp
+ * (art/wispMask.ts `wispHead`; Matt: "on desktop use a simple blur gradient under the headers"). The header's glass
+ * carries on a little way past its edge, softer the further down, so the page under it goes soft rather than cut.
+ * A sibling laid under the header by art/wispEdge.ts, shown while the view under it is scrolled, as the wisp was: as
+ * a child of the header it would blur only the header's own contents. A backdrop blur on a strip this
+ * thin is cheap on every engine; it is the `filter: url()` over a whole page that WebKit could not afford.
+ */
+.app-headerBlur {
+  position: absolute;
+  z-index: 3;
+  block-size: 28px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--glacier-bg) 55%, transparent), transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
+  mask-image: linear-gradient(to bottom, #000, transparent);
+}
+
+.app-headerBlur[data-on] {
+  opacity: 1;
+}
+
 :root[data-split] .app-headerPane {
   background: linear-gradient(
     to bottom,

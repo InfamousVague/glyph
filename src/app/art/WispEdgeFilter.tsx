@@ -79,7 +79,7 @@ export function WispEdgeFilter() {
         </feMerge>
         <feGaussianBlur in="stripOnBlack" stdDeviation={`0 ${WISP_EDGE_SOFT}`} result="band" />
         <feComposite in="noise" in2="band" operator="arithmetic" k1="1" k2="0" k3="-0.5" k4="0.5" result="field" />
-        <feDisplacementMap id={WISP_EDGE_BENT_ID} in="SourceGraphic" in2="field" scale="36" xChannelSelector="R" yChannelSelector="G" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="bent" />
+        <feDisplacementMap id={WISP_EDGE_BENT_ID} in="SourceGraphic" in2="field" scale="24" xChannelSelector="R" yChannelSelector="G" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="bent" />
         <feGaussianBlur id={WISP_EDGE_SOFT_ID} in="bent" stdDeviation="3.4" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="soft" />
         {/* The bent strokes widened a little: where the blur is allowed to be, so it never glows into empty space. */}
         <feMorphology id={WISP_EDGE_NEAR_ID} in="bent" operator="dilate" radius="2.5" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="near" />
@@ -111,7 +111,7 @@ export function WispEdgeFilter() {
         </feMerge>
         <feGaussianBlur in="footOnBlack" stdDeviation={`0 ${WISP_EDGE_FOOT_SOFT}`} result="footBand" />
         <feComposite in="footNoise" in2="footBand" operator="arithmetic" k1="1" k2="0" k3="-0.5" k4="0.5" result="footField" />
-        <feDisplacementMap id={WISP_EDGE_FOOT_BENT_ID} in="SourceGraphic" in2="footField" scale="34" xChannelSelector="R" yChannelSelector="G" x="-40" y={1e6} width="4000" height={0} result="footBent" />
+        <feDisplacementMap id={WISP_EDGE_FOOT_BENT_ID} in="SourceGraphic" in2="footField" scale="23" xChannelSelector="R" yChannelSelector="G" x="-40" y={1e6} width="4000" height={0} result="footBent" />
         <feGaussianBlur id={WISP_EDGE_FOOT_SOFT_ID} in="footBent" stdDeviation="3.4" x="-40" y={1e6} width="4000" height={0} result="footSoft" />
         <feMorphology id={WISP_EDGE_FOOT_NEAR_ID} in="footBent" operator="dilate" radius="2.5" x="-40" y={1e6} width="4000" height={0} result="footNear" />
         <feComposite in="footSoft" in2="footNear" operator="in" result="footSoftNear" />
