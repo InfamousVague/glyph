@@ -49,7 +49,8 @@
   display: flex;
 }
 
-.settingsScreen__side {
+/* Two classes, so the list's own `flex: 1` further down (it's the whole page on a phone) can't win and halve the split. */
+.settingsScreen__split > .settingsScreen__side {
   flex: none;
   inline-size: var(--settings-side);
   border-inline-end: var(--glacier-hairline) solid var(--glacier-border-subtle);

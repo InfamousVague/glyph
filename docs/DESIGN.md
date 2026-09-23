@@ -4136,3 +4136,10 @@ out far narrower than 44rem and off to one side.
 
 Matt wants the page to fill, so there is no column any more: the pane's page takes its whole width in the app's
 gutter, as a note's words do (a book's index did the same, §99). The left column keeps its 20rem.
+
+## 104. The split's left column is its own width (2026-09-23)
+
+The fork session saw it: Settings' split came out half and half (441 of 880, 721 of 1440), where its left column was
+meant to be 20rem. The column is also `.settingsScreen__list`, whose `flex: 1` comes later in settings.css at the same
+weight, so it grew alongside the page. The column's rule is now two classes (`.settingsScreen__split >
+.settingsScreen__side`). Measured in the pane: 320px at 880 wide and at 1440, with the page taking the rest.
