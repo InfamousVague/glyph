@@ -407,6 +407,38 @@ class MainActivity : TauriActivity() {
       }
     }
 
+    /**
+     * Opens the notes' folder in the phone's Files app (files/LibraryDocuments.kt): the Files app shown at Ghost.md's
+     * place in it, or where a phone's Files app won't open a place by itself, the system's file browser starting there.
+     * Native generation 18.
+     */
+    @JavascriptInterface
+    fun browseFiles() {
+      runOnUiThread {
+        val authority = com.mattssoftware.glyph.files.LibraryDocuments.authority(packageName)
+        val root = android.provider.DocumentsContract.buildRootUri(authority, com.mattssoftware.glyph.files.LibraryDocuments.ROOT_ID)
+        try {
+          startActivity(
+            Intent(Intent.ACTION_VIEW)
+              .setDataAndType(root, android.provider.DocumentsContract.Root.MIME_TYPE_ITEM)
+              .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+          )
+        } catch (notOpened: ActivityNotFoundException) {
+          val start = android.provider.DocumentsContract.buildDocumentUri(authority, com.mattssoftware.glyph.files.LibraryDocuments.rootDocumentId())
+          try {
+            startActivity(
+              Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("*/*")
+                .putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI, start),
+            )
+          } catch (e: ActivityNotFoundException) {
+            Log.w("Glyph", "no file browser to show the library in", e)
+          }
+        }
+      }
+    }
+
     /** "capture" once, if a capture launch is waiting; otherwise "". */
     @JavascriptInterface
     fun takeLaunch(): String {

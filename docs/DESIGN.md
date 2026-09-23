@@ -4068,3 +4068,18 @@ words already take the page's whole width; a book's index was held to 44rem, and
 wide window the book was a column down the left. Both limits are gone (book/BookView.module.css), and the index, its
 words and reading straight through span the page as a note does. Seen in the pane at 1600 wide: the book is 1588px, the
 page's full width.
+
+## 100. Names only in the sidebar, and the notes' folder in Files and Finder (2026-09-23)
+
+Matt: "Start with compact mode, maybe just add a browse local files button somewhere to open the folder on the phones
+file browser".
+
+- **Names only** (notes/NoteTree.tsx): a toggle in the sidebar's top row lists each note as one line, its kind's mark
+  and its name, instead of its drawing. The marks are a page, a book and a canvas. It's kept to the device, as which
+  folders are shut is (notes/tree.ts `glyph-tree-compact`).
+- **Browse files:** a folder button beside it shows the library where the device shows folders (docs/LIBRARY.md). On a
+  Mac that's Finder. On the phone it's the Files app. The library lives in app-private storage, which no other app can
+  open, so Ghost.md shows it there through a DocumentsProvider of its own, "Ghost.md", read-only, with `.glyph/`
+  hidden. The button opens the Files app at that place, or the system's file browser starting there on a phone whose
+  Files app won't open a place by itself. It needs native generation 18 (1.7.2), so the page offers it only where the
+  binary has it.

@@ -143,7 +143,10 @@ use tauri::{AppHandle, Manager, Runtime, State};
 /// `sync_put_file`, a synced recording or picture, for sync (docs/SYNC.md).
 ///
 /// 17: `link_preview`, a web page's title for the card under a link.
-pub const NATIVE_GENERATION: u32 = 17;
+///
+/// 18: the notes' folder shown where the device shows folders: `library_reveal` opens it in Finder, and on Android
+/// the activity's `browseFiles` opens it in the Files app, where files/LibraryDocuments.kt lists it (1.7.2).
+pub const NATIVE_GENERATION: u32 = 18;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in

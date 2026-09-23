@@ -136,5 +136,17 @@
             android:name="android.support.FILE_PROVIDER_PATHS"
             android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- The notes' folder in the phone's Files app, read-only (files/LibraryDocuments.kt). -->
+        <provider
+          android:name=".files.LibraryDocuments"
+          android:authorities="${applicationId}.library"
+          android:exported="true"
+          android:grantUriPermissions="true"
+          android:permission="android.permission.MANAGE_DOCUMENTS">
+          <intent-filter>
+            <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+          </intent-filter>
+        </provider>
     </application>
 </manifest>

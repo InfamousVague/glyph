@@ -398,3 +398,28 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/*
+ * Names only (NoteTree.tsx `compact`): each note one line, its kind's mark, then its name, as a file browser lists
+ * files. Tighter than a row with a drawing, and the name on one line, cut with an ellipsis rather than wrapped.
+ */
+.tree[data-compact] .row {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5em;
+  margin-block: 0;
+  padding: 0.32em 0.6em;
+}
+
+.tree[data-compact] .rowTitle {
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: var(--glacier-font-weight-medium, 500);
+}
+
+.kind {
+  display: inline-grid;
+  place-items: center;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}

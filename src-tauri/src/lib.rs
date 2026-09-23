@@ -173,6 +173,7 @@ pub fn run() {
             commands::set_note_formatted,
             commands::store_apply,
             commands::sync_put_file,
+            commands::library_reveal,
             link_preview::link_preview,
             links::links_take,
             images::save_image,

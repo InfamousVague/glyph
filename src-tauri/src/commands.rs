@@ -146,6 +146,26 @@ fn open_library(dir: &std::path::Path) -> std::result::Result<Library, String> {
     Ok(library)
 }
 
+/// Opens the notes' folder where the computer shows folders: Finder on a Mac (Matt: "add a browse local files button
+/// somewhere to open the folder"). The library's own `.glyph/` stays in it, hidden as dot folders are. On a phone the
+/// page asks the activity instead (MainActivity `GlyphHost.browseFiles`, files/LibraryDocuments.kt), since no other
+/// app can open this app's storage. Native generation 18.
+#[tauri::command]
+pub fn library_reveal(app: tauri::AppHandle) -> std::result::Result<(), String> {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join(LIBRARY_DIR);
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
+    }
+    #[cfg(mobile)]
+    {
+        let _ = app;
+        Err("On a phone the notes' folder opens in the Files app.".into())
+    }
+}
+
 /// Every note, newest edit first. What the list screen draws.
 #[tauri::command]
 pub fn list_notes(store: tauri::State<'_, NotesStore>) -> std::result::Result<Vec<Note>, String> {

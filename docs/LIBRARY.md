@@ -145,6 +145,14 @@ is deleted. The rename happens only once every note is written: a move that stop
 the storage full) leaves the database in place, and the next launch finishes it, since a note already in the
 library is never written twice.
 
+## Seeing the folder
+
+The sidebar's Browse files button shows the library where the device shows folders (core/libraryFiles.ts, native
+generation 18). On a Mac that's Finder (`library_reveal`). On the phone it's the Files app, where Ghost.md lists the
+library as a place of its own (files/LibraryDocuments.kt, a DocumentsProvider). It's read-only there: another app can
+open, copy and share a note, but can't change one behind the library's back, where the index and sync wouldn't see it.
+`.glyph/` is hidden.
+
 ## Phases
 
 1. This spec, and the library in Rust behind the store commands the page already uses, in app storage

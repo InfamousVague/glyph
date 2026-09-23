@@ -66,6 +66,9 @@ interface GlyphHostBridge {
   // The system bars (native generation 15). Optional for the same reason.
   /** Dark status and navigation bar icons on a light page, light ones on a dark page. */
   setLightChrome?(light: boolean): void;
+  // The notes' folder (native generation 18). Optional for the same reason.
+  /** Opens the notes' folder in the phone's Files app (files/LibraryDocuments.kt). */
+  browseFiles?(): void;
 }
 
 declare global {

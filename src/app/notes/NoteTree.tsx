@@ -1,12 +1,14 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Archive, Book, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FolderPlus, Mic, RotateCcw, Search, Settings, SquarePen, Trash2, X } from '@glacier/icons';
+import { Archive, Book, BookOpen, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FileText, FolderOpen, FolderPlus, LayoutList, List, Mic, RotateCcw, Search, Settings, SquarePen, Trash2, Workflow, X } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { useWorkspaces, type Workspace } from '../core/workspaces.ts';
-import { bookIndex, placeOf } from '../book/book.ts';
+import { bookIndex, isBookBody, placeOf } from '../book/book.ts';
+import { isCanvasBody } from '../canvas/jsonCanvas.ts';
+import { browseFiles, canBrowseFiles } from '../core/libraryFiles.ts';
 import { NotePeek } from './NotePeek.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
-import { ARCHIVE_FOLDER, noteTree, readClosed, readTrashOpen, writeClosed, writeTrashOpen } from './tree.ts';
+import { ARCHIVE_FOLDER, noteTree, readClosed, readCompact, readTrashOpen, writeClosed, writeCompact, writeTrashOpen } from './tree.ts';
 import styles from './NoteTree.module.css';
 
 /**
@@ -42,6 +44,16 @@ export interface NoteTreeProps {
   onEmptyTrash?: () => void;
 }
 
+/** A note's kind as a file browser would mark it: a book, a canvas, or a page of words. */
+function KindMark({ body }: { body: string }) {
+  const Icon = isBookBody(body) ? BookOpen : isCanvasBody(body) ? Workflow : FileText;
+  return (
+    <span className={styles.kind} aria-hidden="true">
+      <Icon size={14} strokeWidth={2} />
+    </span>
+  );
+}
+
 function Tool({ label, onClick, children, end }: { label: string; onClick: () => void; children: ReactNode; end?: boolean }) {
   return (
     <button type="button" className={styles.tool} data-end={end || undefined} onClick={onClick} aria-label={label} title={label}>
@@ -69,6 +81,26 @@ export function NoteTree({
   const tree = useMemo(() => noteTree(notes, spaces), [notes, spaces]);
   const [closed, setClosed] = useState<Set<string>>(readClosed);
   const [manage, setManage] = useState<Workspace | 'new' | null>(null);
+  /**
+   * Names only (Matt: "Start with compact mode"): each note a line with its kind's mark, the way a file browser lists
+   * files, instead of its drawing. Kept to this device, as which folders are shut is (notes/tree.ts).
+   */
+  const [compact, setCompact] = useState(readCompact);
+  const flipCompact = () => {
+    writeCompact(!compact);
+    setCompact(!compact);
+  };
+  // Whether this device can show the notes' folder (core/libraryFiles.ts): the Files app, or Finder.
+  const [browsable, setBrowsable] = useState(false);
+  useEffect(() => {
+    let gone = false;
+    void canBrowseFiles().then((can) => {
+      if (!gone) setBrowsable(can);
+    });
+    return () => {
+      gone = true;
+    };
+  }, []);
 
   const setAndKeep = (next: Set<string>) => {
     writeClosed(next);
@@ -108,17 +140,18 @@ export function NoteTree({
             event.dataTransfer.effectAllowed = 'copy';
           }}
         >
+          {compact ? <KindMark body={note.body} /> : null}
           <span className={styles.rowTitle} data-untitled={title ? undefined : ''}>
             {title || 'Untitled'}
           </span>
           {/* A page of a book says which (docs/BOOKS.md): the mark, and the book's name. */}
-          {place ? (
+          {place && !compact ? (
             <span className={styles.rowBook} title={`Page ${place.at + 1} of ${place.title}`}>
               <Book size={12} aria-hidden="true" />
               <span className={styles.rowBookName}>{place.title}</span>
             </span>
           ) : null}
-          <NotePeek body={note.body} className={styles.rowPeek} />
+          {compact ? null : <NotePeek body={note.body} className={styles.rowPeek} />}
         </button>
       </li>
     );
@@ -227,7 +260,7 @@ export function NoteTree({
 
   const nothing = !notes.length && !trashed.length;
   return (
-    <div className={styles.tree} data-popup={onClose ? '' : undefined}>
+    <div className={styles.tree} data-popup={onClose ? '' : undefined} data-compact={compact || undefined}>
       <div className={styles.tools} role="toolbar" aria-label="Notes">
         <Tool label="New note" onClick={onNew}>
           <SquarePen size={17} strokeWidth={2.1} aria-hidden="true" />
@@ -238,6 +271,14 @@ export function NoteTree({
         {onCommands ? (
           <Tool label="Search and commands" onClick={onCommands}>
             <Search size={17} strokeWidth={2.1} aria-hidden="true" />
+          </Tool>
+        ) : null}
+        <Tool label={compact ? 'Show each note drawn small' : 'Show names only'} onClick={flipCompact}>
+          {compact ? <LayoutList size={17} strokeWidth={2.1} aria-hidden="true" /> : <List size={17} strokeWidth={2.1} aria-hidden="true" />}
+        </Tool>
+        {browsable ? (
+          <Tool label="Browse files" onClick={() => void browseFiles().catch((failure: unknown) => console.warn('[glyph] could not show the notes folder:', failure))}>
+            <FolderOpen size={17} strokeWidth={2.1} aria-hidden="true" />
           </Tool>
         ) : null}
         {every.length ? (

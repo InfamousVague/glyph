@@ -45,6 +45,8 @@ src-tauri/gen/android/**
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/capture/**
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/updates/
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/updates/**
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/**
 !src-tauri/gen/android/app/src/main/res/
 !src-tauri/gen/android/app/src/main/res/xml/
 !src-tauri/gen/android/app/src/main/res/xml/glyph_*.xml

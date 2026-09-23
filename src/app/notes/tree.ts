@@ -87,3 +87,22 @@ export function writeTrashOpen(open: boolean): void {
     // Private mode: it opens shut next time.
   }
 }
+
+/** Whether the sidebar lists names only (notes/NoteTree.tsx), per device, and not until asked. */
+const COMPACT_KEY = 'glyph-tree-compact';
+
+export function readCompact(): boolean {
+  try {
+    return localStorage.getItem(COMPACT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function writeCompact(on: boolean): void {
+  try {
+    localStorage.setItem(COMPACT_KEY, on ? '1' : '0');
+  } catch {
+    // Private mode: names only for this run.
+  }
+}
