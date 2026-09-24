@@ -1,0 +1,70 @@
+/*
+ * The coding faces (Settings > Type; Matt: "a monospace capable coding font ... with some cool serifs on things like &
+ * and other symbols ... like fira code also support decorators ... where multiple symbols can combine", then "add fira
+ * code and maple mono"). Two monospace families beside the kit's three sans (tokens.css `[data-font]`), chosen for
+ * their symbols as much as their letters: Maple Mono's looped ampersand and cursive at-sign and cursive italic, and
+ * Fira Code's ampersand and its ligatures. Both are OFL, bundled, and loaded only when chosen: each face is its own
+ * @font-face, fetched by the browser the first time something is set in it.
+ *
+ * A coding face is the note's face and the code's face at once, so a code block reads as one piece with the words
+ * round it. Weights: the four the app sets (400, 500, 600, 700) and Maple's italics; Fira Code is variable, one file for
+ * every weight, and has no italic of its own.
+ */
+@import '@fontsource/maple-mono/400.css';
+@import '@fontsource/maple-mono/500.css';
+@import '@fontsource/maple-mono/600.css';
+@import '@fontsource/maple-mono/700.css';
+@import '@fontsource/maple-mono/400-italic.css';
+@import '@fontsource/maple-mono/700-italic.css';
+@import '@fontsource-variable/fira-code/index.css';
+
+/*
+ * The ligatures: `->` drawn as one arrow, `!=` as one sign, `<=` as one. They are the fonts' contextual alternates and
+ * standard ligatures, which a browser turns on by default - but app.css sets Inter's own features on the whole page
+ * (`cv11`, `ss01`), and in another font those names mean other glyphs. So code, and a coding face, get the fonts' own
+ * features instead.
+ */
+:root {
+  --app-mono-features: 'calt', 'liga';
+}
+
+:root[data-font='maple'] {
+  --glacier-font-sans: 'Maple Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --glacier-font-mono: 'Maple Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+:root[data-font='fira'] {
+  --glacier-font-sans: 'Fira Code Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  --glacier-font-mono: 'Fira Code Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+
+
+/* A coding face sets the whole page: its features in place of Inter's, and no optical-size axis it doesn't have. */
+:root:is([data-font='maple'], [data-font='fira']) {
+  font-feature-settings: var(--app-mono-features);
+  font-optical-sizing: none;
+}
+
+/*
+ * A ligature forms only where the letters are not spaced apart: any letter-spacing but none, and Chrome and Safari set
+ * `->` as two characters (measured: Maple Mono and Fira Code both break at -0.005em). The app tightens
+ * Inter's titles and headings, which a monospace face should never be - its grid is the point - so in a coding face
+ * nothing is spaced.
+ */
+:root:is([data-font='maple'], [data-font='fira']) * {
+  letter-spacing: 0 !important;
+}
+
+/*
+ * Code in any face gets the mono font's own features and no spacing, so the code face's ligatures show with Inter too
+ * (JetBrains Mono has them). The editor's own code - inline code and a code block's lines - says so in
+ * Editor.module.css; this is for code set anywhere else as HTML.
+ */
+code,
+pre,
+kbd,
+samp {
+  font-feature-settings: var(--app-mono-features);
+  letter-spacing: 0;
+}

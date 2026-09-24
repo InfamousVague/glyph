@@ -43,6 +43,8 @@
     "@codemirror/language-data": "^6.5.2",
     "@codemirror/state": "^6.7.4",
     "@codemirror/view": "^6.43.11",
+    "@fontsource-variable/fira-code": "^5.3.0",
+    "@fontsource/maple-mono": "^5.3.0",
     "@glacier/icons": "file:./vendor/@glacier/icons",
     "@glacier/react": "file:./vendor/@glacier/react",
     "@glacier/tokens": "file:./vendor/@glacier/tokens",

@@ -104,6 +104,9 @@
 .code {
   font-family: var(--glacier-font-mono);
   color: var(--glacier-accent-text);
+  /* The mono font's own features and no spacing, so its ligatures show (typefaces.css). */
+  font-feature-settings: var(--app-mono-features, 'calt', 'liga');
+  letter-spacing: 0;
 }
 
 /*
@@ -361,6 +364,8 @@
  */
 .editor :global(.cm-line).lineCode {
   font-family: var(--glacier-font-mono);
+  font-feature-settings: var(--app-mono-features, 'calt', 'liga');
+  letter-spacing: 0;
   font-size: calc(var(--app-body) * 0.82);
   background: var(--code-bg);
   background-clip: padding-box;

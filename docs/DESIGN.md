@@ -4225,3 +4225,32 @@ On a Settings card (`.setk__card`, `.settingsScreen__group`) the variable is pap
 page, lighter than the card on the dark page and darker on the light one. Measured in the preview: 0.24 on a 0.17 card
 dark, 0.895 on a 0.955 card light. Controls on the page itself keep paper-2, and the search pill over the list is
 untouched. The Claude guide's two-way switch is its own, on a card of another ground, with a border, and is left.
+
+## 109. Two coding faces, chosen from cards (2026-09-23)
+
+Matt: "I'd like a few more typefaces added. I want the one we use to have some cool serifs on things like & and other
+symbols but in a monospace capable coding font. Some languages like fira code also support decorators ... where
+multiple symbols can combine", and then "add fira code and maple mono fonts, show the fonts as small cards on the app
+with markdown symbols like a # Quick & Foxy or something to preview what each font looks like".
+
+- **Chosen by looking.** Nine open-licensed coding faces were set side by side, upright and italic, on the same
+  symbols and code: Victor Mono, Fira Code, Cascadia Code, Monaspace Radon and Xenon, Maple Mono, Recursive, Xanh Mono,
+  Iosevka. Maple Mono has the most to its symbols without leaving the grid - an ampersand with a looped flourish, a
+  cursive at-sign, a cursive italic - and joins every pair a programmer types (\`->\` \`=>\` \`!=\` \`<=\` \`&&\`).
+  Fira Code is the one Matt named: its own ampersand, and the ligatures that made the idea known. (Victor Mono's and
+  Cascadia's cursive italics and Monaspace Xenon's slab serifs were the runners-up; the Monaspace builds keep their
+  ligatures behind stylistic sets.)
+- **One face for note and code.** Choosing a coding face sets both the page's face and the code face
+  (typefaces.css), so a code block reads as part of the note. The three sans keep JetBrains Mono for code.
+- **Ligatures need no spacing.** Measured in Chrome: any letter-spacing but none - even the app's -0.005em - and
+  \`->\` stays two characters in all of them. The app tightens Inter's titles and headings; a monospace face is never
+  spaced, since its grid is the point, so in a coding face nothing is. Code in any face is unspaced too, which also
+  lets JetBrains Mono's own ligatures show in code for the sans faces.
+- **The fonts' own features.** app.css turns on Inter's \`cv11\` and \`ss01\` for the whole page; in another font
+  those names are other glyphs. Code, and a coding face, get \`calt\` and \`liga\` instead.
+- **Cards.** The Type page's segmented control for three faces is now a card per face (settings/TypefaceCards.tsx),
+  each setting the same scrap of Markdown in its own face - \`# Quick & Foxy\`, then \`**bold** -> != <=\` - with the
+  marks dimmed as the editor dims them, so the ampersand and the joined signs are seen before choosing.
+- **Weight.** Maple Mono's four weights the app sets (400 to 700) and two italics, and Fira Code's one variable file,
+  bundled and fetched by the browser only when a face is drawn. A face a device doesn't know, synced from a newer one,
+  is the default there.

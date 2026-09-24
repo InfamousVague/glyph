@@ -1,0 +1,113 @@
+/*
+ * The typeface cards (TypefaceCards.tsx): the interface-size cards' language (ScaleCards.module.css) - a hairline, the
+ * accent ring when chosen, the piece of a note on paper-2 over the name - small, as many to a row as fit.
+ */
+
+.grid {
+  display: grid;
+  /* Wide enough for the heading in a monospace face, whose letters are all as wide as its widest. */
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--glacier-space-2);
+  inline-size: 100%;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  min-inline-size: 0;
+  overflow: hidden;
+  border: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md);
+  background: var(--glacier-surface-raised, var(--app-raised));
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out),
+    box-shadow var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out);
+}
+
+.card:hover {
+  border-color: var(--glacier-border-strong);
+}
+
+.card[data-selected] {
+  border-color: var(--glacier-accent-solid);
+  box-shadow: 0 0 0 1px var(--glacier-accent-solid);
+}
+
+.input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.card:has(.input:focus-visible) {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The scrap of a note: a heading and a line, the marks dimmed as the editor dims them. */
+.sample {
+  display: grid;
+  gap: 0.2rem;
+  padding: var(--glacier-space-2);
+  border-block-end: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle);
+  background: var(--app-paper-2);
+  color: var(--app-ink);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* A coding face as the app sets it: its own features, so `->` joins, and no spacing, which would break the joins. */
+.card[data-coding] .sample {
+  font-feature-settings: 'calt', 'liga';
+  letter-spacing: 0;
+}
+
+.heading {
+  font-size: 0.95rem;
+  font-weight: var(--glacier-font-weight-bold);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.line {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.line b {
+  font-weight: var(--glacier-font-weight-bold);
+}
+
+.mark,
+.line .mark {
+  font-weight: var(--glacier-font-weight-regular, 400);
+  color: var(--glacier-text-muted);
+}
+
+.name {
+  padding: var(--glacier-space-1) var(--glacier-space-2) var(--glacier-space-2);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+  line-height: var(--glacier-leading-sm);
+  color: var(--glacier-text-muted);
+}
+
+.card[data-selected] .name {
+  color: var(--glacier-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+}

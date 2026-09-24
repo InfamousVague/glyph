@@ -56,7 +56,7 @@ interface SettingsSheetProps {
 }
 
 const SIZE_WORDS: Record<string, string> = { large: 'Large', larger: 'Larger', largest: 'Largest' };
-const FACE_WORDS: Record<string, string> = { inter: 'Inter', noto: 'Noto', plex: 'Plex' };
+const FACE_WORDS: Record<string, string> = { inter: 'Inter', noto: 'Noto', plex: 'Plex', maple: 'Maple Mono', fira: 'Fira Code' };
 // Only said in the row's reading when it is not the one the app is drawn at.
 const DENSITY_WORDS: Record<string, string> = {
   'extra-compact': 'Tightest',
@@ -129,7 +129,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
       words: 'text font',
       settings: [
         { name: 'Text size', words: 'font bigger smaller larger' },
-        { name: 'Family', words: 'font typeface inter noto plex' },
+        { name: 'Family', words: 'font typeface inter noto plex maple fira mono monospace code coding ligatures' },
         { name: 'Link previews', words: 'links url cards' },
       ],
       icon: <Type size={16} />,

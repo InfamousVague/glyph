@@ -122,8 +122,21 @@ export function isRounding(value: unknown): value is Rounding {
 }
 /** The reader's dial on the type scale in app.css; 'large' is already large. */
 export type TextSize = 'large' | 'larger' | 'largest';
-/** The kit's three sans families. 'inter' is the token default. */
-export type Typeface = 'inter' | 'noto' | 'plex';
+/**
+ * The faces a note and the app can be set in: the kit's three sans ('inter' is the token default), and two monospace
+ * coding faces with ligatures and decorative symbols (typefaces.css): Maple Mono and Fira Code.
+ */
+export const TYPEFACES = ['inter', 'noto', 'plex', 'maple', 'fira'] as const;
+export type Typeface = (typeof TYPEFACES)[number];
+
+export function isTypeface(value: unknown): value is Typeface {
+  return typeof value === 'string' && (TYPEFACES as readonly string[]).includes(value);
+}
+
+/** Whether a face is one of the monospace coding faces, set for code and prose alike. */
+export function isCodingFace(face: Typeface): boolean {
+  return face === 'maple' || face === 'fira';
+}
 
 /** How quickly things move (Settings > Animations; Matt: "add controls to animation speeds"). */
 export type MotionSpeed = 'relaxed' | 'normal' | 'brisk';
@@ -461,7 +474,8 @@ export function applyPreferences(prefs: Preferences = current): void {
 
   // `data-font` is the token layer's own attribute (tokens.css), so the kit's
   // components change face along with the editor.
-  if (prefs.typeface === DEFAULT_PREFERENCES.typeface) root.removeAttribute('data-font');
+  // A face this app doesn't know (set by a newer one on another device, by sync) is the default here.
+  if (!isTypeface(prefs.typeface) || prefs.typeface === DEFAULT_PREFERENCES.typeface) root.removeAttribute('data-font');
   else root.setAttribute('data-font', prefs.typeface);
 
   // Both code themes are stamped; editor/codeThemes.css applies whichever side of the page is showing.

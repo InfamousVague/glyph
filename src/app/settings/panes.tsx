@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, Compass, FileText, Gauge, GraduationCap, LayoutGrid, ListChecks, Terminal, Workflow } from '@glacier/icons';
 import { DensitySelector, SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
-import { isSidebarStyle, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize, type Typeface } from '../core/preferences.ts';
+import { isSidebarStyle, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize } from '../core/preferences.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
 import { ScaleCards } from './ScaleCards.tsx';
+import { TypefaceCards } from './TypefaceCards.tsx';
 import { ThemeCards } from './ThemeCards.tsx';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { hapticsAvailable, setHapticsPref, useHapticsPref, fireNativeHaptic } from '../core/haptics.ts';
@@ -55,12 +56,6 @@ const ROUNDING_WORDS: { value: Rounding; label: string }[] = [
   { value: 'rounder', label: 'Roundest' },
 ];
 
-const TYPEFACES: { value: Typeface; label: string }[] = [
-  { value: 'inter', label: 'Inter' },
-  { value: 'noto', label: 'Noto' },
-  { value: 'plex', label: 'Plex' },
-];
-
 const SIDEBAR_MODES: { value: string; label: string }[] = [
   { value: 'popover', label: 'Popover' },
   { value: 'docked', label: 'Docked' },
@@ -101,14 +96,8 @@ export function TypePane() {
           label="Family"
           layout="stacked"
           control={
-            <SegmentedControl
-              aria-label="Typeface"
-              fullWidth
-              size="sm"
-              options={TYPEFACES}
-              value={prefs.typeface}
-              onValueChange={(value) => setPreferences({ typeface: value as Typeface })}
-            />
+            // A card per face, each a scrap of a note set in it (TypefaceCards.tsx).
+            <TypefaceCards value={prefs.typeface} onValueChange={(typeface) => setPreferences({ typeface })} />
           }
         />
       </PaneSection>

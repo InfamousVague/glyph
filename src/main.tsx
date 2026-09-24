@@ -17,6 +17,7 @@ import '@glacier/react/styles.css';
 import './app/app.css';
 // Last: the ink palette, which maps every token above onto paper and ink.
 import './app/ink.css';
+import './app/typefaces.css';
 import './app/editor/codeThemes.css';
 import { App } from './app/App.tsx';
 import { followShares } from './app/share/share.ts';
