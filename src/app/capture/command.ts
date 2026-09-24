@@ -128,8 +128,8 @@ export type Plan<N extends Candidate = Candidate> =
   | { kind: 'move'; note: N }
   /** This take becomes a new note. */
   | { kind: 'new' }
-  /** A standalone Speak request creates a separately titled list note. */
-  | { kind: 'create-list'; title: string }
+  /** A standalone Speak request creates a separately titled list note, with the items said for it. */
+  | { kind: 'create-list'; title: string; items?: readonly string[] }
   /** A table, asked for a piece at a time (capture/table.ts): in a named note, or this one when none is named. */
   | { kind: 'table'; note: N | null; columns: string[] }
   /** A card for a board's lane: "Glyph, add fix the login bug to Doing" (core/boards.ts). */
@@ -157,6 +157,39 @@ const DIRECT_APPEND = /^(?:please\s+)?(?:add|put|append)\s+(?:(?:this|these|the\
  * tasks…". The words after it are the items, told apart by `spokenListItems`.
  */
 const LIST_INTRO = /^(?:(?:a|an|the|this|my)\s+)?(?:(?:new|short|quick)\s+)?(?:(?:bullet(?:ed)?|bulleted|numbered|check(?:ed)?|(to-?\s?do|task|check)|shopping|grocery)\s+)?(?:list|items?|(tasks?|to-?\s?dos?|check\s?list))\s*(?:(?:of|with|containing|including|that\s+(?:has|says|includes)|saying|for)\b|:|,|-)\s*|^(?:the\s+following(?:\s+(?:items?|things|places|(tasks?|to-?\s?dos?)))?|(?:these|those)\s+(?:items?|things|places|(tasks?|to-?\s?dos?)))\s*(?::|,|-)?\s*/i;
+
+/** "…and add to the list", "…then put", ", add these": where a new list's title ends and its items begin. */
+const THEN_ADD = /(?:\s*[,.;:]\s*|\s+)(?:(?:and|then|and\s+then)\s+)?(?:add|put)\s+/i;
+/** "…with", "…containing", "…:": the same, when what follows is plainly several items. */
+const WITH_ITEMS = /\s+(?:with|containing|including|that\s+has|of)\s+|\s*:\s*/i;
+const THE_LIST = String.raw`(?:(?:the|that|this|my)\s+)?(?:new\s+)?(?:list|note|it)`;
+const INTO_LIST_FIRST = new RegExp(String.raw`^(?:to|in|on|into|onto)\s+${THE_LIST}\b\s*[,:]?\s*`, 'i');
+const INTO_LIST_LAST = new RegExp(String.raw`\s+(?:to|in|on|into|onto)\s+${THE_LIST}\s*$`, 'i');
+const THESE = /^(?:(?:these|the\s+following)(?:\s+(?:items?|things))?|items?)\s*[,:]?\s+/i;
+
+/**
+ * "Comic books and add to the list Spider-Man, Batman and Superman": the new list's title, and its items when some
+ * were said. A title that merely contains "with" ("Books with pictures") stays a title: only several items split it.
+ */
+function titleAndItems(said: string): { title: string; items: string[] } {
+  const added = THEN_ADD.exec(said);
+  if (added && added.index > 0) {
+    const rest = said
+      .slice(added.index + added[0].length)
+      .replace(INTO_LIST_FIRST, '')
+      .replace(INTO_LIST_LAST, '')
+      .replace(THESE, '')
+      .trim();
+    const items = spokenListItems(rest);
+    if (items.length) return { title: said.slice(0, added.index).trim(), items };
+  }
+  const listed = WITH_ITEMS.exec(said);
+  if (listed && listed.index > 0) {
+    const items = spokenListItems(said.slice(listed.index + listed[0].length).replace(THESE, ''));
+    if (items.length > 1) return { title: said.slice(0, listed.index).trim(), items };
+  }
+  return { title: said, items: [] };
+}
 
 /** A named note's words, as a list when they say they are one. */
 function directPayload(text: string): Pick<Placement, 'how' | 'task' | 'many' | 'items'> & { text: string } {
@@ -296,8 +329,8 @@ function readCommand<N extends Candidate & { note?: { body: string } }>(words: s
   if (MAKE_BOARD.test(text)) return { kind: 'board' };
   const createList = CREATE_LIST.exec(text);
   if (createList?.[1]) {
-    const title = createList[1].replace(/[.!?]+$/, '').trim();
-    return title ? { kind: 'create-list', title } : null;
+    const { title, items } = titleAndItems(createList[1].replace(/[.!?]+$/, '').trim());
+    return title ? { kind: 'create-list', title, ...(items.length ? { items } : {}) } : null;
   }
   const addList = ADD_TO_LIST.exec(text);
   if (addList?.[1] && addList[2]) {

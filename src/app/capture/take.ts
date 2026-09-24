@@ -65,7 +65,7 @@ export type Offer<N extends TakeNote> =
   | { kind: 'place'; note: N; title: string; text: string; placement: Placement; added: string[]; into: 'list' | 'paragraph'; span: Span }
   | { kind: 'change'; note: N; title: string; heading: string; action: string; lines: string[]; change: (body: string) => string | null; span: Span }
   | { kind: 'move'; note: N; title: string; span: Span }
-  | { kind: 'new'; title?: string; span: Span }
+  | { kind: 'new'; title?: string; lines?: readonly string[]; span: Span }
   | { kind: 'board'; title: string; span: Span }
   | { kind: 'table'; note: N | null; title: string; columns: string[]; rows: string[][]; markdown: string; span: Span }
   | { kind: 'plugin'; voice: VoiceCommand; parsed: unknown; title: string; action: string; span: Span };
@@ -269,7 +269,7 @@ export class Take<N extends TakeNote> {
     } else if (plan.kind === 'board') {
       this.setPending({ kind: 'board', title: 'this note', span }, now);
     } else if (plan.kind === 'create-list') {
-      this.setPending({ kind: 'new', title: plan.title, span }, now);
+      this.setPending({ kind: 'new', title: plan.title, ...(plan.items?.length ? { lines: plan.items } : {}), span }, now);
     } else {
       this.setPending({ kind: 'new', span }, now);
     }

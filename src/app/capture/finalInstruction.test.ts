@@ -88,4 +88,24 @@ describe('final transcript instruction scan', () => {
       await expect(classifyFinalTranscript('Okay so I told Sam to add to my note labeled Go a list', go, never)).resolves.toEqual({ kind: 'ordinary', notice: null });
     });
   });
+
+  describe('“make a new list called … and add …”', () => {
+    const never = vi.fn(() => inferred({ status: 'unavailable', reason: 'not called' }));
+    const heroes = ['Spider-Man', 'Batman', 'Superman', 'the Fantastic Four', 'the Green Lantern'];
+
+    it.each([
+      'make a new list called comic books and add to the list Spider-Man, Batman, Superman, the Fantastic Four and the Green Lantern.',
+      'Make a new list called comic books, and add Spider-Man, Batman, Superman, the Fantastic Four and the Green Lantern to it.',
+      'Create a new list called comic books with Spider-Man, Batman, Superman, the Fantastic Four and the Green Lantern.',
+      'Okay, make a new list called comic books. Add these: Spider-Man, Batman, Superman, the Fantastic Four and the Green Lantern.',
+    ])('offers one new list titled Comic books with its items: %s', async (words) => {
+      await expect(classifyFinalTranscript(words, notes, never)).resolves.toEqual({ kind: 'offer', plan: { kind: 'create-list', title: 'comic books', items: heroes } });
+      expect(never).not.toHaveBeenCalled();
+    });
+
+    it('keeps a title that only contains “with”, and a list said with no items', async () => {
+      await expect(classifyFinalTranscript('make a new list called books with pictures', notes, never)).resolves.toEqual({ kind: 'offer', plan: { kind: 'create-list', title: 'books with pictures' } });
+      await expect(classifyFinalTranscript('make a new list called comic books', notes, never)).resolves.toEqual({ kind: 'offer', plan: { kind: 'create-list', title: 'comic books' } });
+    });
+  });
 });

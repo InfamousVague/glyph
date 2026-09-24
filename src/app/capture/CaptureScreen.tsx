@@ -29,7 +29,7 @@ import { Opening } from './Opening.tsx';
 import { QuietWatch } from './quiet.ts';
 import { type Candidate } from './route.ts';
 import { findKeyword, type Placement } from './command.ts';
-import { placeWords } from './listAppend.ts';
+import { appendToList, placeWords } from './listAppend.ts';
 import { listTitle } from './instructionMutation.ts';
 import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandInstructionCommand } from './understand.ts';
@@ -239,7 +239,14 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const savedDraft = useRef(false);
   const finished = useRef(false);
   /** A stopped command is awaiting its explicit confirmation; its words never become a note. */
-  const finalCommand = useRef<{ note: Note | null; locked: boolean; temporaryId: string; recordedMs: number | null } | null>(null);
+  const finalCommand = useRef<{
+    note: Note | null;
+    /** "Make a new list called … and add …": the note to create on confirmation, instead of one to add to. */
+    create?: { title: string; items: readonly string[] };
+    locked: boolean;
+    temporaryId: string;
+    recordedMs: number | null;
+  } | null>(null);
   /*
    * What the pipeline has actually done, counted where it happens and copied to
    * the screen a few times a second. The line itself is essential: the first
@@ -701,7 +708,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     addTable: (target, title, markdown) => void addTable(target, title, markdown),
     moveTo: (target) => void routeTo(target),
     carryOn: (target) => void carryOn(target),
-    newNote: (title) => void startNewNote(title),
+    // A finished recording's "new list" is created by `confirmPending`, not by carrying the capture on into it.
+    newNote: (title) => void (finished.current ? undefined : startNewNote(title)),
     undo: undoLast,
     runPlugin: (voice, parsed) => voice.run(parsed, captureContext),
     describePlugin: (voice, parsed) => voice.describe(parsed, captureContext),
@@ -754,7 +762,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     if (!final) return;
     finalCommand.current = null;
     void writes.current.then(async () => {
-      let saved = final.note ? await getNote(final.note.id).catch(() => final.note) : null;
+      let saved = final.create ? await createFinalList(final.create.title, final.create.items) : final.note ? await getNote(final.note.id).catch(() => final.note) : null;
       if (saved && final.recordedMs !== null) {
         const recordingMs = await reassignRecording(final.temporaryId, saved.id, (saved.recordingMs ?? 0) > 0).catch(() => null);
         if (recordingMs !== null) saved = (await setNoteRecording(saved.id, recordingMs, saved.segments ?? []).catch(() => saved)) ?? saved;
@@ -764,6 +772,24 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       endCapture(final.locked);
       onFinish(saved, final.locked);
     });
+  };
+  /** The confirmed new list of a finished recording: its title, then its items as a list. */
+  const createFinalList = async (title: string, items: readonly string[]): Promise<Note | null> => {
+    const named = listTitle(title);
+    const result = await applyCommandMutation({
+      mutationId: newNoteId(),
+      noteId: newNoteId(),
+      kind: 'create',
+      beforeRevision: null,
+      beforeBody: null,
+      afterBody: items.length ? appendToList(named, items).body : named,
+      source: 'capture',
+    }).catch(() => null);
+    if (result?.status !== 'applied') {
+      setRoute({ phase: 'said', text: 'That list could not be created safely.' });
+      return null;
+    }
+    return result.note;
   };
   const cancelPending = (why: string | null) => {
     take.cancel(why, performance.now());
@@ -955,7 +981,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // mutation remains pending until this card is explicitly confirmed.
       take.offerFinal(decision.plan, performance.now());
       const target = decision.plan.kind === 'place' ? decision.plan.note.note : null;
-      finalCommand.current = { note: target, locked, temporaryId: noteId.current, recordedMs: stopped.recordedMs };
+      const create = decision.plan.kind === 'create-list' ? { title: decision.plan.title, items: decision.plan.items ?? [] } : undefined;
+      finalCommand.current = { note: target, ...(create ? { create } : {}), locked, temporaryId: noteId.current, recordedMs: stopped.recordedMs };
       setPhase('listening');
       return;
     }
@@ -1277,8 +1304,10 @@ function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer<Note>; onCon
       action = 'Move';
       break;
     case 'new':
-      heading = 'Start a new note from here';
-      action = 'Start';
+      heading = offer.title ? `Create ${listTitle(offer.title)}` : 'Start a new note from here';
+      action = offer.title ? 'Create' : 'Start';
+      lines = [...(offer.lines ?? [])];
+      if (offer.lines?.length) detail = 'As a new list';
       break;
     case 'table':
       heading = `Add this table to ${offer.title}`;

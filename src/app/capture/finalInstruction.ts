@@ -9,7 +9,8 @@ export type FinalInstruction<N extends Candidate> =
   | { kind: 'offer'; plan: Plan<N> }
   | { kind: 'rejected'; reason: string };
 
-const permitted = <N extends Candidate>(plan: Plan<N>): boolean => plan.kind === 'place';
+/** What a finished recording may do once confirmed: add to a note, or make a new list (with its items). */
+const permitted = <N extends Candidate>(plan: Plan<N>): boolean => plan.kind === 'place' || plan.kind === 'create-list';
 
 /**
  * Read one stopped recording. Live phrase commits never call this: an action
