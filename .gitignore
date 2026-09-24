@@ -45,6 +45,9 @@ src-tauri/gen/android/**
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/capture/**
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/updates/
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/updates/**
+# The store build's manifest overlay (GLYPH_STORE=play, app/build.gradle.kts).
+!src-tauri/gen/android/app/src/store/
+!src-tauri/gen/android/app/src/store/**
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/**
 !src-tauri/gen/android/app/src/main/res/

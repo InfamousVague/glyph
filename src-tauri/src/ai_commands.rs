@@ -244,6 +244,13 @@ pub async fn ai_delete_model(app: AppHandle, state: State<'_, AiState>, id: Stri
     }
 }
 
+/// What formatting answers with: the engine's output, or on iOS, where there is no engine (`llm::engine` isn't built),
+/// nothing, as the command only ever refuses there.
+#[cfg(not(target_os = "ios"))]
+type GenerateOutput = crate::llm::engine::Output;
+#[cfg(target_os = "ios")]
+type GenerateOutput = ();
+
 /// Formats: runs the page's prompt over the note with the model it names,
 /// streaming `ai://progress`, and answers with the whole output at the end.
 #[tauri::command]
@@ -251,7 +258,7 @@ pub async fn ai_generate(
     app: AppHandle,
     state: State<'_, AiState>,
     request: GenerateRequest,
-) -> Result<crate::llm::engine::Output, String> {
+) -> Result<GenerateOutput, String> {
     let spec = known(&request.model)?;
     #[cfg(target_os = "ios")]
     {

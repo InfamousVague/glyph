@@ -32,8 +32,11 @@
 		</dict>
 	</dict>
 
-	<!-- The custom URL scheme: glyph://capture opens straight into a voice
-	     note. Lives here, not in the generated plist, for the reason above. -->
+	<!-- The app's own links. ghostmd:// is the one the app answers today (a
+	     shared note opening in the app: share/appLinks.ts, src/links.rs); the
+	     deep-link plugin writes it at build time too, but REPLACES this key when
+	     it does, so both are named here for whichever writes last. glyph:// is
+	     kept for the voice-note shortcut the iOS capture work will answer. -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -43,20 +46,29 @@
 			<string>com.mattssoftware.glyph</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>ghostmd</string>
 				<string>glyph</string>
 			</array>
 		</dict>
 	</array>
 
-	<!-- The microphone exists for one thing: a held capture button records a
-	     short clip and transcribes it ON THIS DEVICE into a note. Nothing
-	     records unless that button is held, and the audio never leaves the
-	     phone unless the cloud transcription option is turned on. -->
+	<!-- The microphone exists for one thing: recording a voice note, which is
+	     turned into text ON THIS DEVICE. There is no cloud transcription. -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Glyph uses the microphone only while you hold the capture button, to turn what you say into a note.</string>
+	<string>Ghost.md uses the microphone while you record a voice note, and turns what you say into text on this device.</string>
 
-	<!-- Export compliance: the app's only cryptography is standard HTTPS/TLS,
-	     which is exempt. Declaring it stops TestFlight asking every upload. -->
+	<!-- The name under the icon. project.yml's PRODUCT_NAME is still Glyph
+	     (the ids stay glyph), so without this the home screen says Glyph. -->
+	<key>CFBundleDisplayName</key>
+	<string>Ghost.md</string>
+
+	<!-- Export compliance. The app encrypts synced notes end to end (AES-GCM,
+	     PBKDF2, Ed25519: src/app/core/sync/crypto.ts), besides HTTPS. On iOS
+	     all of it is Apple's own implementation, WebCrypto in WKWebView (the
+	     Rust crypto crates aren't built for iOS), which is the "encryption
+	     limited to that within the Apple operating system" exemption, so false
+	     is the right answer. Revisit if Rust crypto is ever built for iOS.
+	     Declaring it stops App Store Connect asking at every upload. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 

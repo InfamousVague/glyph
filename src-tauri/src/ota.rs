@@ -178,6 +178,34 @@ const TEST_SOURCE: Option<&str> = option_env!("GLYPH_OTA_BASE");
 /// for updates, so the page it was built with is the page that runs.
 pub const STAGING: bool = option_env!("GLYPH_STAGING").is_some();
 
+/// `GLYPH_STORE` at COMPILE time: "play" or "appstore" for a build that goes
+/// through a store (docs/store/). A store installs and updates the app itself,
+/// and Google Play forbids an app updating itself any other way, so a store
+/// build never looks for, fetches or offers an APK. The web bundle still
+/// updates over the air: that is JavaScript run in the WebView, which both
+/// stores allow, and it can't change what the app is for. Compile-time for the
+/// same reason as the test source: nothing that can write the app's storage
+/// should be able to turn installing apps back on.
+pub const STORE: Option<&str> = option_env!("GLYPH_STORE");
+
+/// A store as a person reads it.
+#[cfg(not(target_os = "ios"))]
+fn store_name(store: &str) -> &'static str {
+    match store {
+        "appstore" => "App Store",
+        _ => "Play Store",
+    }
+}
+
+/// The APK description, unless this is a store build.
+#[cfg(not(target_os = "ios"))]
+async fn offered_apk(client: &reqwest::Client, source: &str) -> Option<ApkInfo> {
+    if STORE.is_some() {
+        return None;
+    }
+    fetch_signed::<ApkInfo>(client, &format!("{source}/apk.json"), CONTEXT_APK).await.ok()
+}
+
 /// Signature contexts, so a signature over one kind of file cannot be replayed
 /// as another. They must match scripts/ota-sign.mjs byte for byte.
 #[cfg(not(target_os = "ios"))]
@@ -303,6 +331,8 @@ pub struct Status {
     /// Where updates are looked for, in the order they are tried.
     pub sources: Vec<String>,
     pub services: Services,
+    /// The store this build came from ("play", "appstore"), or none for a download from attack.fm (`STORE`).
+    pub store: Option<&'static str>,
 }
 
 /// The APK the server offers, as `deploy:ota --apk` describes it.
@@ -738,6 +768,7 @@ pub fn ota_status<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>) -> 
         quarantined: stored.quarantined,
         sources: effective_sources(&known),
         services: known.services,
+        store: STORE,
     }
 }
 
@@ -936,7 +967,7 @@ pub async fn ota_check<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>
         remember(&root, &manifest);
         // The APK description is advisory, and comes from the same source as
         // the manifest; its absence or a bad signature is not a failed check.
-        let apk = fetch_signed::<ApkInfo>(&client, &format!("{source}/apk.json"), CONTEXT_APK).await.ok();
+        let apk = offered_apk(&client, &source).await;
         let result = |web: &'static str| CheckResult {
             web,
             web_build: Some(manifest.build.clone()),
@@ -1025,7 +1056,7 @@ pub fn peek(root: &Path) -> Result<Peek, String> {
         let client = client()?;
         let (source, manifest) = find_manifest(&client, &effective_sources(&read_known(root))).await?;
         remember(root, &manifest);
-        let apk = fetch_signed::<ApkInfo>(&client, &format!("{source}/apk.json"), CONTEXT_APK).await.ok();
+        let apk = offered_apk(&client, &source).await;
         Ok(Peek {
             web_build: manifest.build,
             web_version: manifest.version,
@@ -1178,6 +1209,10 @@ pub async fn ota_fetch_apk<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaSt
         use std::io::Write;
         use tauri::Emitter;
 
+        if let Some(store) = STORE {
+            let _ = (app, state);
+            return Err(format!("This copy of Ghost.md came from the {}, and updates through it.", store_name(store)));
+        }
         let _one_install = state.installing.lock().await;
         let client = client()?;
         let root = root(&app)?;

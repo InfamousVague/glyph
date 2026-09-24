@@ -45,6 +45,16 @@ val releaseSigning = Properties().apply {
  * build` starts a fresh one each time.
  */
 val staging = !System.getenv("GLYPH_STAGING").isNullOrEmpty()
+/*
+ * GLYPH_STORE=play makes the build that goes to Google Play (docs/store/PLAY_STORE.md):
+ * the same app and id as the download from attack.fm, without the parts Play
+ * forbids an app to have - it never installs an APK itself, so it has no
+ * REQUEST_INSTALL_PACKAGES (src/store/AndroidManifest.xml removes it from the
+ * release manifest), and the installer bridge declines (MainActivity.installApk,
+ * BuildConfig.STORE). ota.rs reads the same switch at compile time and never
+ * looks for an APK; the web bundle still updates over the air.
+ */
+val store = System.getenv("GLYPH_STORE")?.takeIf { it == "play" }
 val channel = System.getenv("GLYPH_CHANNEL")?.takeIf { it == "dev" || it == "staging" } ?: if (staging) "staging" else "production"
 
 android {
@@ -54,6 +64,10 @@ android {
         // What differs by channel - the launcher shortcut's target package - lives in its own res tree.
         res.srcDirs("src/main/res", "src/channel/$channel/res")
     }
+    if (store != null) {
+        // A build type's manifest merges over main's, so its tools:node="remove" takes the permission out.
+        sourceSets.getByName("release").manifest.srcFile("src/store/AndroidManifest.xml")
+    }
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         manifestPlaceholders["appLabel"] = when (channel) { "dev" -> "Glyph Dev"; "staging" -> "Glyph Staging"; else -> "@string/app_name" }
@@ -62,6 +76,7 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+        buildConfigField("String", "STORE", "\"${store ?: ""}\"")
     }
     signingConfigs {
         if (releaseSigning.getProperty("storeFile") != null) {

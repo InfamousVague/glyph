@@ -652,6 +652,8 @@ class MainActivity : TauriActivity() {
 
     @JavascriptInterface
     fun installApk(path: String): String {
+      // A copy from a store updates through the store, and Play forbids installing APKs (build.gradle.kts, GLYPH_STORE).
+      if (BuildConfig.STORE.isNotEmpty()) return "store"
       val updates = File(cacheDir, "updates").canonicalFile
       val apk = File(path).canonicalFile
       if (apk.parentFile != updates || !apk.name.endsWith(".apk") || !apk.isFile) return "not an update"

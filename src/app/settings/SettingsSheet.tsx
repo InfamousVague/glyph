@@ -113,6 +113,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
             { name: 'Password and recovery codes', words: 'change' },
             { name: 'Sign out', words: 'log out logout' },
             { name: 'Shared links', words: 'share publish read' },
+            { name: 'Delete account', words: 'remove close erase data' },
           ]
         : [
             { name: 'I have an account', words: 'sign in login' },
@@ -286,6 +287,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
         { name: 'Add the sample note', words: 'example' },
         { name: 'Add the example board', words: 'kanban' },
         { name: 'Add the example canvas' },
+        { name: 'Privacy policy', words: 'data privacy personal information' },
       ],
       icon: <Info size={16} />,
       content: (

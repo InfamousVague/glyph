@@ -40,6 +40,12 @@ uuid = { version = "1.26.1", features = ["v4"] }
 # (images::save_image_data, which iOS has too, so this is not in the section
 # below). 0.22 is already in the tree through tauri, so this adds no new crate.
 base64 = "0.22"
+# statvfs and sysconf: the free space beside the models (llm/device.rs) and the
+# page size and clock ticks (llm/hardware.rs). On every target, iOS included,
+# because those modules are compiled there too (their commands answer "not on
+# iOS", but the code still has to build). 0.2 is already in the tree under a
+# dozen crates, so this compiles nothing new.
+libc = "0.2"
 
 # On-device transcription and the download that feeds it. Everywhere EXCEPT
 # iOS: whisper.cpp is the Android and desktop engine, and iOS capture is going
@@ -62,9 +68,12 @@ whisper-rs-sys = "0.15"
 # first decode). Moving this version means rebuilding and re-running both
 # engines' model tests. No default features: OpenMP stays off to match the
 # ggml whisper expects, and `common` (a large C++ library) is not needed.
-# `android-shared-stdcxx` because the NDK's default is c++_static and whisper
-# links c++_shared; two C++ runtimes in one .so is its own class of crash.
-llama-cpp-2 = { version = "=0.1.156", default-features = false, features = ["android-shared-stdcxx"] }
+# `android-static-stdcxx`: the C++ runtime is linked into libglyph_lib.so rather
+# than shipped as NDK r26's libc++_shared.so, which is 4 KB page-aligned and so
+# fails Google Play's 16 KB page-size rule (docs/store/PLAY_STORE.md). whisper
+# (vendor/whisper-rs-sys) and the CMake toolchain file use c++_static too: one
+# runtime, in one .so, since two C++ runtimes in one library is its own crash.
+llama-cpp-2 = { version = "=0.1.156", default-features = false, features = ["android-static-stdcxx"] }
 # llama.cpp hands tokens back as bytes that can split a UTF-8 character; the
 # decoder carries the half between tokens. Already in the tree through reqwest.
 encoding_rs = "0.8"
@@ -81,9 +90,6 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 # SHA-256 of the model, computed while the bytes arrive. Already in the tree
 # under tauri, so this compiles nothing new.
 sha2 = "0.10"
-# statvfs, for the free space beside the models (llm/device.rs). 0.2 is
-# already in the tree under a dozen crates, so this compiles nothing new.
-libc = "0.2"
 # Ed25519 verification of over-the-air manifests (src/ota.rs). ring is already
 # compiled into this target as rustls's crypto, so naming it adds no new crate
 # and no second implementation to audit.

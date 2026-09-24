@@ -1,11 +1,11 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { useState, type FormEvent } from 'react';
-import { KeyRound, LogOut, RefreshCw, ShieldCheck } from '@glacier/icons';
+import { KeyRound, LogOut, RefreshCw, ShieldCheck, Trash2 } from '@glacier/icons';
 import { Input, Switch } from '@glacier/react';
 import { changePassword, handleProblem, newRecoveryCodes, passwordProblem, recover, signIn, signUp, useAccount } from '../core/account/account.ts';
 import { setLiveEnabled, useLiveEnabled } from '../core/live/enabled.ts';
 import { preferences } from '../core/preferences.ts';
-import { signOutHere, syncNow, syncedWhen, useSyncStatus } from '../core/sync/engine.ts';
+import { deleteAccountHere, signOutHere, syncNow, syncedWhen, useSyncStatus } from '../core/sync/engine.ts';
 import { SharedLinks } from './SharedLinks.tsx';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from './kit/settingsKit.tsx';
 
@@ -34,7 +34,7 @@ function Codes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
   );
 }
 
-function SignedOut({ onCodes }: { onCodes: (codes: string[]) => void }) {
+function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said?: string | null }) {
   const [mode, setMode] = useState<Mode>('in');
   const [handle, setHandle] = useState('');
   const [password, setPassword] = useState('');
@@ -64,6 +64,7 @@ function SignedOut({ onCodes }: { onCodes: (codes: string[]) => void }) {
   const verb = mode === 'up' ? 'Create account' : mode === 'recover' ? 'Recover and set password' : 'Sign in';
   return (
     <>
+      {said ? <SettingsCallout>{said}</SettingsCallout> : null}
       {offline ? <SettingsCallout>“Nothing leaves the phone” is on in Developer, so nothing syncs until it is off.</SettingsCallout> : null}
       <Ghost scene="signed-out" align="center" />
       <PaneSection
@@ -154,15 +155,62 @@ function PasswordForm({ onCodes, onDone }: { onCodes: (codes: string[]) => void;
   );
 }
 
+/**
+ * Deleting the account (App Store 5.1.1(v) and Google Play both ask for it in the app): what goes and what stays said
+ * first, then the password asked for, as a phone left unlocked shouldn't be able to lose its owner's account.
+ * Everything the account keeps on the service goes at once and for good; the notes on this device stay.
+ */
+function DeleteAccountForm({ onDeleted, onDone }: { onDeleted: () => void; onDone: () => void }) {
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setProblem(null);
+    try {
+      await deleteAccountHere(password);
+      onDeleted();
+    } catch (failure) {
+      setProblem(failure instanceof Error ? failure.message : String(failure));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <PaneSection
+      title="Delete account"
+      description="This deletes your account and everything it keeps on the sync service, for good: your synced notes, their recordings and pictures, your settings, and every link you've shared, which will stop opening. Your other devices are signed out. The notes on this device stay here."
+      footer={<RowAction onPress={onDone}>Cancel</RowAction>}
+    >
+      <form className="setk-form" onSubmit={(e) => void submit(e)}>
+        <Input aria-label="Password" placeholder="Password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        {problem ? (
+          <p className="setk-form__problem" role="alert">
+            {problem}
+          </p>
+        ) : null}
+        <button type="submit" className="app-word setk-form__submit" disabled={busy || !password}>
+          {busy ? 'Deleting…' : 'Delete my account'}
+        </button>
+      </form>
+    </PaneSection>
+  );
+}
+
 export function AccountPane() {
   const account = useAccount();
   const status = useSyncStatus();
   const live = useLiveEnabled();
   const [codes, setCodes] = useState<string[] | null>(null);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  // Said on the signed-out page that follows a deletion, so it is clear the account went and the notes didn't.
+  const [deleted, setDeleted] = useState(false);
 
   if (codes) return <Codes codes={codes} onDone={() => setCodes(null)} />;
-  if (!account.session) return <SignedOut onCodes={setCodes} />;
+  if (!account.session) return <SignedOut onCodes={setCodes} said={deleted ? 'Your account is deleted. The notes on this device are still here.' : null} />;
 
   const statusText =
     status.phase === 'syncing'
@@ -184,7 +232,15 @@ export function AccountPane() {
           {status.conflicts === 1 ? 'A note was' : `${status.conflicts} notes were`} changed on two devices at once. Both versions are kept as separate notes.
         </SettingsCallout>
       ) : null}
-      {editing ? (
+      {deleting ? (
+        <DeleteAccountForm
+          onDeleted={() => {
+            setDeleting(false);
+            setDeleted(true);
+          }}
+          onDone={() => setDeleting(false)}
+        />
+      ) : editing ? (
         <PasswordForm
           onCodes={(next) => {
             setEditing(false);
@@ -205,7 +261,12 @@ export function AccountPane() {
           <SettingRow icon={<LogOut size={20} />} label="Sign out" hint="Your notes stay on this device." onPress={() => void signOutHere()} />
         </PaneSection>
       )}
-      {editing ? null : <SharedLinks />}
+      {editing || deleting ? null : <SharedLinks />}
+      {editing || deleting ? null : (
+        <PaneSection>
+          <SettingRow icon={<Trash2 size={20} />} label="Delete account" hint="Your account and everything synced to it. The notes on this device stay." onPress={() => setDeleting(true)} />
+        </PaneSection>
+      )}
     </>
   );
 }

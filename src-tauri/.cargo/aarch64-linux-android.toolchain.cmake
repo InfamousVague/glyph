@@ -54,12 +54,14 @@ else()
   set(ANDROID_PLATFORM android-24)
 endif()
 
-# whisper-rs-sys links `c++_shared` by name (its build.rs, for every android
-# target), so ggml has to be compiled against that STL and not the static one:
-# mixing them is two copies of the C++ runtime in one process. The NDK's
-# default is already c++_static for a toolchain-file build, which is exactly
-# the silent mismatch this line exists to prevent.
-set(ANDROID_STL c++_shared)
+# The C++ runtime is linked statically into libglyph_lib.so: whisper-rs-sys
+# (vendored build.rs) and llama-cpp-sys-2 (`android-static-stdcxx`) both link
+# c++_static, so ggml is compiled against the same STL - mixing them is two
+# copies of the C++ runtime in one process. Static rather than the shared
+# runtime because NDK r26's libc++_shared.so is 4 KB page-aligned, which Google
+# Play refuses (16 KB page sizes); named here although it is the NDK's default
+# for a toolchain-file build, so the choice is written down in one place.
+set(ANDROID_STL c++_static)
 
 # The CPU features ggml may assume. A cross-compile turns GGML_NATIVE off by
 # itself (ggml/CMakeLists.txt: CMAKE_CROSSCOMPILING), and without a named arch

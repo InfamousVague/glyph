@@ -426,6 +426,19 @@ impl Store {
             .unwrap_or_default()
     }
 
+    /// An account and everything it keeps here, gone (Settings > Account > Delete account). The one row goes, and the
+    /// tables that hang from it cascade: its devices, its recovery codes, its notes, its settings, its shares (so every
+    /// link it made reads nothing from then on) and its recordings' rows. Then its recordings' files. Whether there was
+    /// an account to delete.
+    pub fn delete_account(&self, id: i64) -> rusqlite::Result<bool> {
+        let gone = self.lock().execute("DELETE FROM accounts WHERE id = ?1", params![id])? > 0;
+        let folder = self.recordings.join(id.to_string());
+        if folder.exists() {
+            std::fs::remove_dir_all(&folder).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        }
+        Ok(gone)
+    }
+
     // --- recordings -------------------------------------------------------------
 
     fn recording_path(&self, account: i64, id: &str) -> PathBuf {

@@ -11,8 +11,13 @@ use std::path::PathBuf;
 
 fn main() {
     let target = env::var("TARGET").unwrap();
-    // Link C++ standard library
-    if let Some(cpp_stdlib) = get_cpp_link_stdlib(&target) {
+    // Link C++ standard library. Glyph: on Android, the static runtime and its ABI
+    // library, as llama-cpp-sys-2's `static-stdcxx` links them, so the app ships
+    // no libc++_shared.so (the NDK r26 one fails Play's 16 KB page-size rule).
+    if target.contains("android") {
+        println!("cargo:rustc-link-lib=c++_static");
+        println!("cargo:rustc-link-lib=c++abi");
+    } else if let Some(cpp_stdlib) = get_cpp_link_stdlib(&target) {
         println!("cargo:rustc-link-lib=dylib={}", cpp_stdlib);
     }
     // Link macOS Accelerate framework for matrix calculations

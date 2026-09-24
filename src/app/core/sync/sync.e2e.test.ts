@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { accountState, changePassword, recover, signIn, signUp, type Deps } from '../account/account.ts';
+import { accountState, changePassword, deleteAccount, recover, signIn, signUp, type Deps } from '../account/account.ts';
 import { memoryKeys } from '../account/keystore.ts';
 import { DEFAULT_PREFERENCES, type Preferences } from '../preferences.ts';
 import type { Note } from '../store.ts';
@@ -243,5 +243,23 @@ describe.skipIf(!DATA)('sync between two devices', () => {
     // The old sheet is gone with the recovery.
     await expect(recover(`${handle}r`, codes[1]!, 'fifth password', device().deps)).rejects.toThrow();
     await signIn(`${handle}r`, 'fourth password', device().deps);
+  });
+
+  it('deletes the account with its password, and everything it kept goes with it', async () => {
+    const tablet = device();
+    await signUp(`${handle}d`, 'the password', tablet.deps);
+    tablet.token = accountState().session!.token;
+    tablet.notes.set('d1', note('d1', '# Leaving\n\nThis goes too.\n'));
+    await sync(tablet);
+    await expect(deleteAccount('not the password', tablet.deps)).rejects.toThrow('That is not the password.');
+    expect(accountState().session).not.toBeNull();
+    await deleteAccount('the password', tablet.deps);
+    // Signed out here, keys and all; the note on this device stays.
+    expect(accountState().session).toBeNull();
+    expect(await tablet.deps.keys.accountKey()).toBeNull();
+    expect(tablet.notes.has('d1')).toBe(true);
+    // Nobody can sign in to it, and the old session can't read or write.
+    await expect(signIn(`${handle}d`, 'the password', device().deps)).rejects.toThrow();
+    await expect(sync(tablet)).rejects.toThrow();
   });
 });

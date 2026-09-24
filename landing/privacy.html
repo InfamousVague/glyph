@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy · Ghost.md</title>
+    <meta name="description" content="How Ghost.md handles your notes and your data: kept on your devices, end-to-end encrypted when synced, no ads, no analytics." />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <!--
+      The privacy policy the App Store and Google Play listings link to (docs/store/). Written from what the code does
+      (docs/SYNC.md, SHARING.md, LIVE.md, MCP.md, and the data inventory in docs/DESIGN.md §113): change it when that
+      changes, and move the date. Styled as the download page is (index.html), with a reading column.
+    -->
+    <style>
+      :root {
+        --paper: #fbfaf7;
+        --ink: #141414;
+        --ink-2: #5d5b57;
+        --line: #e4e1da;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #0d0d0d;
+          --ink: #f2f0ea;
+          --ink-2: #a19e97;
+          --line: #2a2926;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.6;
+      }
+      main {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 40px 16px 72px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 28px;
+      }
+      header img {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+      }
+      header a {
+        color: inherit;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 2rem;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+      h2 {
+        margin: 36px 0 8px;
+        font-size: 1.15rem;
+        letter-spacing: -0.01em;
+      }
+      p,
+      li {
+        color: var(--ink);
+      }
+      .muted {
+        color: var(--ink-2);
+      }
+      ul {
+        padding-left: 1.2em;
+      }
+      li + li {
+        margin-top: 6px;
+      }
+      a {
+        color: inherit;
+      }
+      .short {
+        margin: 20px 0 0;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+      }
+      .short ul {
+        margin: 8px 0 0;
+      }
+      footer {
+        margin-top: 48px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icon.png" width="40" height="40" alt="" />
+        <a href="/">Ghost.md</a>
+      </header>
+
+      <h1>Privacy</h1>
+      <p class="muted">Last updated 24 September 2026</p>
+
+      <p>
+        Ghost.md is a notes app made by Matt Wisniewski ("we", "us"). This page says what happens to your notes and your
+        data when you use the Ghost.md apps for Android, iPhone and Mac, the web version, and the ghostmarkdown.com site.
+      </p>
+
+      <div class="short">
+        <strong>The short version</strong>
+        <ul>
+          <li>Your notes are files on your device. You don't need an account to use Ghost.md.</li>
+          <li>In the apps, what you say is turned into text on your device. Your voice isn't sent anywhere to be transcribed.</li>
+          <li>If you make an account to sync, everything is encrypted on your device before it's sent, so we can't read it.</li>
+          <li>No ads, no analytics, no tracking, and we never sell or share your data.</li>
+          <li>You can delete your account, and everything it keeps on our servers, from the app at any time.</li>
+        </ul>
+      </div>
+
+      <h2>On your device</h2>
+      <p>
+        Your notes, their recordings and their pictures are stored on your device, as plain Markdown files and the files
+        beside them. Voice transcription and note formatting run on your device, using models the app downloads once. We
+        can't see anything that stays on your device.
+      </p>
+      <p>
+        Your device's own backup (for example Android's backup to your Google account) may include the app's files. That
+        backup is between you and your device's maker, under their terms.
+      </p>
+
+      <h2>Your account, if you make one</h2>
+      <p>An account is optional. It keeps your notes the same on each of your devices. When you have one, our sync service stores:</p>
+      <ul>
+        <li>Your <strong>handle</strong> (the name you sign in with), and when the account was created and last signed in to.</li>
+        <li>
+          A value made from your password, so you can sign in. <strong>Your password itself never leaves your device</strong>: the
+          app derives two keys from it, and sends only one, which we store as a salted hash. The other, which unlocks your
+          notes, stays on your devices.
+        </li>
+        <li>
+          Your synced <strong>notes, recordings, pictures and settings, encrypted on your device</strong> (AES-256-GCM) with a key
+          only your devices and your recovery codes can open. We can't read them.
+        </li>
+        <li>
+          What's needed to sync, which we can see: random ids for each note and file, when each was changed, their sizes and
+          how many there are, a picture's file type, and which kind of device each of your devices is (for example "Mac").
+        </li>
+        <li>A public key for each of your devices, so a signed-in device can stay signed in.</li>
+      </ul>
+      <p>
+        We don't store your IP address with your account. Our service uses it briefly, in memory, to limit repeated sign-in
+        attempts. Our web server keeps ordinary access logs (IP address, time and the address requested) for security and
+        troubleshooting, and we don't use them for anything else.
+      </p>
+
+      <h2>Shared links</h2>
+      <p>
+        When you share a note or a book, the app encrypts a copy and uploads it. The key to open it is in the link itself,
+        after the "#", which browsers don't send to servers, so we can't read what you shared. Anyone you give the link to can
+        read it. You can stop a link at any time in Settings › Account, and it stops opening at once. Links are deleted with
+        your account.
+      </p>
+
+      <h2>Live typing (optional)</h2>
+      <p>
+        If you turn on live typing, what you type in a note open on two of your devices is passed between them through our
+        service as it's typed. It's encrypted the same way as your notes, and our service doesn't store it.
+      </p>
+
+      <h2>Connecting an AI assistant (optional)</h2>
+      <p>
+        You can connect an AI assistant, such as Claude, to your notes. If you connect it through our hosted connection, you
+        sign in on a page that gives our server your notes' key for the length of that connection, so it can read and write
+        your notes when the assistant asks. The key is held in memory only, never written to disk, and forgotten when you
+        disconnect, when you sign out everywhere, after 7 days without use, or when the server restarts. What the assistant
+        reads goes to its maker (for example Anthropic), under their privacy policy. Notes the assistant writes are marked with
+        its name.
+      </p>
+
+      <h2>Plugins (optional)</h2>
+      <ul>
+        <li>
+          <strong>Notion</strong>: if you connect Notion, your device talks to Notion directly, sending the tasks you choose to
+          send. Signing in to Notion passes through our server, which holds the sign-in tokens in memory for up to ten minutes
+          until your device collects them. The tokens are then kept on your device.
+        </li>
+        <li>
+          <strong>GitHub</strong>: if you connect GitHub, your device talks to GitHub directly with the token you give it, which is
+          kept on your device.
+        </li>
+      </ul>
+      <p>What you send to those services is covered by their own privacy policies.</p>
+
+      <h2>Links, updates and downloads</h2>
+      <ul>
+        <li>
+          <strong>Link previews</strong>: to show a preview of a link in a note, your device fetches that page directly. The site
+          sees your IP address, as it would if you opened the link. You can turn previews off in Settings › Type.
+        </li>
+        <li>
+          <strong>Updates and models</strong>: the apps check attack.fm for updates, and download the voice and formatting models
+          from attack.fm, or from Hugging Face if attack.fm can't be reached. These are plain downloads: no account, device id or
+          anything about you is sent. The servers see your IP address.
+        </li>
+      </ul>
+
+      <h2>The web version</h2>
+      <p>
+        In a web browser, Ghost.md uses the browser's own speech recognition to turn speech into text. In Chrome, that sends your
+        voice to Google to be transcribed, under Google's terms. The Android, iPhone and Mac apps transcribe on your device instead.
+      </p>
+
+      <h2>What we don't do</h2>
+      <p>
+        We don't use analytics, crash reporting, advertising or tracking of any kind, and there's no advertising id. We don't sell
+        your data, share it with anyone, or use it to train AI models.
+      </p>
+
+      <h2>Deleting your data</h2>
+      <p>
+        To delete your account, open Ghost.md, go to <strong>Settings › Account › Delete account</strong>, and enter your password.
+        This deletes, at once and for good, your account and everything it keeps on our servers: your synced notes, recordings,
+        pictures and settings, your shared links, your devices and your recovery codes. Your other devices are signed out. The
+        notes on your device stay, because they're your files. <a href="delete-account.html">More on deleting your account</a>.
+      </p>
+      <p>Without an account, nothing of yours is on our servers. Uninstalling the app removes its files from your device.</p>
+
+      <h2>Children</h2>
+      <p>Ghost.md isn't directed at children under 13, and we don't knowingly collect data from them.</p>
+
+      <h2>Changes</h2>
+      <p>If this policy changes, we'll update this page and the date at the top.</p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions about privacy, or a request about your data: write to
+        <!-- TODO(Matt): the contact address the store listings will use (docs/store/PLAY_STORE.md, "Decisions"). -->
+        <a href="mailto:CONTACT_EMAIL">CONTACT_EMAIL</a>.
+      </p>
+
+      <footer class="muted"><a href="/">ghostmarkdown.com</a> · <a href="delete-account.html">Delete your account</a></footer>
+    </main>
+  </body>
+</html>

@@ -65,9 +65,16 @@ fn page_prompt(name: &str) -> String {
     page_prompt_in("format/prompt.ts", name)
 }
 
+/// The repository, or `GLYPH_REPO_DIR` - for a test binary pushed to a phone or an emulator, where the path this crate
+/// was compiled at doesn't exist (as whisper's tests take `GLYPH_MODELS_DIR`). Only the page files the prompts are
+/// read from need to be there.
+fn repo_dir() -> PathBuf {
+    std::env::var_os("GLYPH_REPO_DIR").map(PathBuf::from).unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join(".."))
+}
+
 /// A prompt from any page file under `src/app/`, by the name of its `String.raw` constant.
 fn page_prompt_in(file: &str, name: &str) -> String {
-    let source = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/app").join(file))
+    let source = std::fs::read_to_string(repo_dir().join("src/app").join(file))
         .unwrap_or_else(|_| panic!("{file} is in the repository"));
     // The declaration, not the docblock's mention of `String.raw` above it.
     let opener = format!("{name} = String.raw`");

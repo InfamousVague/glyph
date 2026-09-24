@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, Compass, FileText, Gauge, GraduationCap, LayoutGrid, ListChecks, Terminal, Workflow } from '@glacier/icons';
+import { BookOpen, Compass, FileText, Gauge, GraduationCap, LayoutGrid, ListChecks, ShieldCheck, Terminal, Workflow } from '@glacier/icons';
 import { DensitySelector, SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
 import { facesOf, INTERFACE_FACES, isSidebarStyle, setPreferences, themeChoice, TYPEFACES, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize } from '../core/preferences.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
@@ -8,9 +8,11 @@ import { TypefaceCards } from './TypefaceCards.tsx';
 import { ThemeCards } from './ThemeCards.tsx';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { hapticsAvailable, setHapticsPref, useHapticsPref, fireNativeHaptic } from '../core/haptics.ts';
-import { describeBuild, sourceHost, STAGING, type Updates } from '../core/ota.ts';
+import { describeBuild, sourceHost, STAGING, storeOf, type Updates } from '../core/ota.ts';
 import { fetchReleases, keptReleases, releaseWhen, type Release } from '../core/changelog.ts';
 import { isTauri } from '../core/tauri.ts';
+import { openLink } from '../core/linkPreview.ts';
+import { isAndroid } from '../core/platform.ts';
 import { countKnock, KNOCKS_WANTED, setDeveloperMode, useDeveloperMode } from './developerMode.ts';
 import { useUpdateAlerts } from './useUpdateAlerts.ts';
 import { resetLocalData } from '../core/reset.ts';
@@ -359,6 +361,16 @@ function UpdatesSection({ updates }: { updates: Updates }) {
     );
   }
 
+  // From the App Store: it updates the app, and there is nothing to check here.
+  const store = storeOf(updates.status);
+  if (store === 'appstore') {
+    return (
+      <PaneSection title="Updates">
+        <SettingRow label="Ghost.md updates through the App Store." />
+      </PaneSection>
+    );
+  }
+
   let status: string;
   if (checking) status = 'Checking for updates.';
   else if (apk.kind === 'downloading') status = `Downloading Ghost.md ${apk.info.version}.`;
@@ -371,7 +383,7 @@ function UpdatesSection({ updates }: { updates: Updates }) {
 
   return (
     <>
-      <PaneSection title="Updates">
+      <PaneSection title="Updates" footer={store === 'play' ? 'New versions of the app itself come through the Play Store.' : undefined}>
         <SettingRow label={status} />
       </PaneSection>
       <div className="settingsScreen__actions">
@@ -422,6 +434,8 @@ function ReleasesSection({ updates }: { updates: Updates }) {
   const [releases, setReleases] = useState<Release[]>(keptReleases);
   const [reading, setReading] = useState(true);
   const running = window.__glyphBoot?.build ?? updates.build;
+  // A store's copy: the list is of builds from attack.fm, where an "app number" is an APK the store build never installs.
+  const store = storeOf(updates.status);
 
   useEffect(() => {
     const stop = new AbortController();
@@ -446,13 +460,13 @@ function ReleasesSection({ updates }: { updates: Updates }) {
   // One group, a row a release: on the About page the list is the foot of it, not a page of cards of its own.
   return (
     <>
-      <PaneSection title="What's new" description="Every update, newest first. A version with an app number needs installing.">
+      <PaneSection title="What's new" description={store ? 'Every update, newest first.' : 'Every update, newest first. A version with an app number needs installing.'}>
         {releases.map((release) => (
           <SettingRow
             key={release.build}
             label={release.build === running ? `${release.version} · you're on this one` : release.version}
             value={releaseWhen(release)}
-            hint={[release.notes, release.apk ? `Installed as Ghost.md ${release.apk}.` : null].filter(Boolean).join(' ')}
+            hint={[release.notes, release.apk && !store ? `Installed as Ghost.md ${release.apk}.` : null].filter(Boolean).join(' ')}
           />
         ))}
       </PaneSection>
@@ -565,7 +579,7 @@ export function AboutPane({
         <SettingRow
           icon={<BookOpen size={20} />}
           label="How to talk to Ghost.md"
-          hint="The side key, and the cues that make markdown."
+          hint={isAndroid ? 'The side key, and the cues that make markdown.' : 'The cues that make markdown.'}
           onPress={() => onGuide()}
         />
         <SettingRow
@@ -599,14 +613,27 @@ export function AboutPane({
           onPress={onSample}
         />
       </PaneSection>
-      <ReleasesSection updates={updates} />
+      {/* The releases are attack.fm's over-the-air builds, which an iPhone never runs: the App Store says what's new there. */}
+      {storeOf(updates.status) === 'appstore' ? null : <ReleasesSection updates={updates} />}
+      {/*
+        The privacy policy, reachable from inside the app as the App Store asks (guideline 5.1.1), and what it comes to
+        in two lines. The page is landing/privacy.html; the footnote is its short version, so the two say the same.
+      */}
+      <PaneSection title="Privacy">
+        <SettingRow icon={<ShieldCheck size={20} />} label="Privacy policy" hint="What stays on this device, and what an account, a shared link or a plugin sends." onPress={() => void openLink(PRIVACY_URL)} />
+      </PaneSection>
       <SettingsFootnote>
-        Ghost.md keeps your notes, recordings and models on the phone. Signed in to an account, your notes, recordings and settings are synced, encrypted on the phone first so only your own devices
-        can read them. With link previews on, a linked page is asked for its title. Nothing else is sent anywhere.
+        {isTauri()
+          ? 'Your notes, recordings and pictures stay on this device, and your voice is turned into text here.'
+          : "Your notes stay in this browser. Speech is turned into text by the browser's own recognition, which in Chrome sends it to Google."}{' '}
+        Signed in to an account, they're synced encrypted on the device first, so only your own devices can read them. No ads, no analytics, no tracking.
       </SettingsFootnote>
     </>
   );
 }
+
+/** The privacy policy (landing/privacy.html), on the download site. */
+const PRIVACY_URL = 'https://ghostmarkdown.com/privacy.html';
 
 /**
  * The developer page, present only while developer mode is on. Projects is

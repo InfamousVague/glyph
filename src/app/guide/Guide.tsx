@@ -400,8 +400,9 @@ function SideKey() {
     return (
       <>
         <SideKeyArt className={styles.art} />
-        <h1 className={styles.title}>The side key is an Android thing.</h1>
-        <p className={styles.lead}>Here, tap Speak at the bottom of your notes to start a voice note.</p>
+        {/* Not "an Android thing": the App Store doesn't allow naming another platform in the app (guideline 2.3.10). */}
+        <h1 className={styles.title}>Start a voice note with Speak.</h1>
+        <p className={styles.lead}>Tap Speak at the bottom of your notes, say what you want to keep, and it becomes a note.</p>
       </>
     );
   }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Merged over the release manifest when GLYPH_STORE=play (app/build.gradle.kts):
+  a copy from Google Play is updated by Play, and Play doesn't allow an app to
+  install APKs itself, so the store build doesn't ask to.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+</manifest>

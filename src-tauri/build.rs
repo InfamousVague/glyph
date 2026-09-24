@@ -1,72 +1,36 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn main() {
-    stage_android_cxx_runtime();
+    android_native_rules();
     tauri_build::build()
 }
 
-/// Put the C++ runtime whisper.cpp links against next to the app's own library
-/// in the Android project, on every Android build.
+/// Two rules for the Android library, both from Google Play (docs/store/PLAY_STORE.md).
 ///
-/// whisper.cpp is C++, and on Android it is built against `c++_shared`, so
-/// `libglyph_lib.so` carries a NEEDED entry for `libc++_shared.so` (checked with
-/// `llvm-readelf -d`). Gradle only packages that runtime for native code IT
-/// builds, and cargo-mobile2 only symlinks the Rust library into `jniLibs/`, so
-/// nothing else puts it there. Missing, the app installs fine and dies the
-/// moment Java loads the library: `dlopen failed: library "libc++_shared.so"
-/// not found`.
+/// **16 KB pages.** Play takes only apps whose native libraries load on phones with 16 KB memory pages, which means
+/// every LOAD segment of every `.so` aligned to 16 KB. NDK r26's linker lays them out at 4 KB unless told otherwise,
+/// so `libglyph_lib.so` is linked with `-z max-page-size=16384`. Here rather than in `.cargo/config.toml`'s rustflags
+/// because Tauri's Android build sets rustflags of its own, which replace the config's rather than adding to them; a
+/// build script's link arguments always reach the link.
 ///
-/// It was first copied in by hand, which works until a fresh clone: Tauri's
-/// generated `gen/android/app/.gitignore` ignores every `.so` under `jniLibs/`,
-/// so the copy was never in git. Copying it here makes the build produce what
-/// the build needs.
-///
-/// The NDK is found the same way the CMake toolchain wrapper finds it - from
-/// the target C compiler cargo was given, falling back to `NDK_HOME` - so the
-/// runtime always comes from the same NDK that compiled the code linking it.
-/// Mismatched runtimes are an ABI hazard, not a style issue.
-fn stage_android_cxx_runtime() {
-    println!("cargo:rerun-if-env-changed=CC_aarch64_linux_android");
-    println!("cargo:rerun-if-env-changed=NDK_HOME");
-
+/// **No libc++_shared.so.** whisper.cpp and llama.cpp are C++, and were built against the shared C++ runtime, which
+/// this script used to copy out of the NDK into `jniLibs/` (Gradle packages it only for native code it builds itself).
+/// NDK r26's copy is 4 KB-aligned, so it would fail the rule above on its own. Both are now linked against the static
+/// runtime inside `libglyph_lib.so` (Cargo.toml `android-static-stdcxx`, vendor/whisper-rs-sys/build.rs, the CMake
+/// toolchain file), so there is nothing to ship - and a copy left in `jniLibs/` from an older build would still be
+/// packaged and still be refused, so it is removed.
+fn android_native_rules() {
     if std::env::var("TARGET").as_deref() != Ok("aarch64-linux-android") {
         return;
     }
-
-    let ndk = std::env::var_os("CC_aarch64_linux_android")
-        .map(PathBuf::from)
-        // .../ndk/<ver>/toolchains/llvm/prebuilt/<host>/bin/<clang>
-        .and_then(|cc| cc.ancestors().nth(6).map(Path::to_path_buf))
-        .or_else(|| std::env::var_os("NDK_HOME").map(PathBuf::from));
-
-    let Some(ndk) = ndk else {
-        println!("cargo:warning=no NDK found (CC_aarch64_linux_android and NDK_HOME unset); libc++_shared.so not staged");
-        return;
-    };
-
-    let prebuilt = ndk.join("toolchains/llvm/prebuilt");
-    let Some(runtime) = std::fs::read_dir(&prebuilt)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|host| host.path().join("sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"))
-        .find(|path| path.exists())
-    else {
-        println!("cargo:warning=libc++_shared.so not found under {}", prebuilt.display());
-        return;
-    };
+    println!("cargo:rustc-link-arg=-Wl,-z,max-page-size=16384");
+    println!("cargo:rustc-link-arg=-Wl,-z,common-page-size=16384");
 
     let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"));
-    let dest_dir = manifest.join("gen/android/app/src/main/jniLibs/arm64-v8a");
-    let dest = dest_dir.join("libc++_shared.so");
-
-    // Skipped when already identical, so an unchanged runtime does not touch the
-    // file and invalidate Gradle's up-to-date check on every build.
-    let same = std::fs::metadata(&dest).ok().map(|m| m.len()) == std::fs::metadata(&runtime).ok().map(|m| m.len());
-    if same {
-        return;
-    }
-    if let Err(error) = std::fs::create_dir_all(&dest_dir).and_then(|()| std::fs::copy(&runtime, &dest).map(|_| ())) {
-        println!("cargo:warning=could not stage libc++_shared.so into {}: {error}", dest_dir.display());
+    let stale = manifest.join("gen/android/app/src/main/jniLibs/arm64-v8a/libc++_shared.so");
+    if std::fs::symlink_metadata(&stale).is_ok() {
+        if let Err(error) = std::fs::remove_file(&stale) {
+            println!("cargo:warning=could not remove the old {}: {error}", stale.display());
+        }
     }
 }

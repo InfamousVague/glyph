@@ -39,7 +39,8 @@
 # The NDK path is absolute because cargo does not expand ~ or $HOME in this
 # file. It is the NDK package.json's android scripts pin
 # ($HOME/Library/Android/sdk/ndk/26.3.11579264); moving to another NDK means
-# changing it here, there, and re-copying libc++_shared.so (see .gitignore).
+# changing it here, there, and in src-tauri/.cargo's toolchain file. (The C++
+# runtime is linked statically, so no libc++_shared.so is copied: src-tauri/build.rs.)
 
 [env]
 # The C and C++ compilers for every build script targeting the phone: SQLite

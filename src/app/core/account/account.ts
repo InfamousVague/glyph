@@ -237,6 +237,20 @@ export async function resume(deps: Deps = live): Promise<void> {
   await signOut(deps);
 }
 
+/**
+ * The account deleted from the service, and everything it kept there: the notes, settings, recordings and pictures
+ * synced to it, the links shared from it, its devices and its recovery codes (server/src/accounts.rs `delete_account`).
+ * Needs the password, as a phone left unlocked shouldn't be able to lose its owner's account. Then signed out here,
+ * as the account is gone. The notes on this device stay; they are the person's own files.
+ */
+export async function deleteAccount(password: string, deps: Deps = live): Promise<void> {
+  const session = state.session;
+  if (!session) throw new ApiError(401, 'Sign in first.');
+  const { login } = await derive(password, passwordSalt(session.handle), deps.rounds);
+  await call('DELETE', 'account', { token: session.token, fetcher: deps.fetcher, body: { loginSecret: login } });
+  await signOut(deps);
+}
+
 /** Off this device: the session and both keys. Notes on the device stay; only what made it an account goes. */
 export async function signOut(deps: Deps = live): Promise<void> {
   await deps.keys.setAccountKey(null);

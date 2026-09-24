@@ -23,6 +23,7 @@
 //!   PUT  /glyph/api/v1/password          a new password (a new login hash, the key wrapped anew)
 //!   GET  /glyph/api/v1/recovery          how many codes are left
 //!   POST /glyph/api/v1/recovery          a new sheet of codes
+//!   DELETE /glyph/api/v1/account         the account and everything it keeps here, with the password
 
 // A refusal here is the response itself, handed straight back from a handler; boxing it would only move it.
 #![allow(clippy::result_large_err)]
@@ -35,7 +36,7 @@ use argon2::Argon2;
 use axum::extract::{ConnectInfo, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post, put};
+use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -476,6 +477,39 @@ async fn recovery_replace(State(accounts): State<Arc<Accounts>>, headers: Header
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DeleteAccountBody {
+    /// The login half of the password, as sign-in sends it. Asked for so a phone left unlocked can't lose its owner's
+    /// account; an account with no password (a device key only) has nothing to ask for.
+    #[serde(default)]
+    login_secret: String,
+}
+
+/// `DELETE v1/account`. The account and everything it keeps here: its notes, settings, recordings and pictures,
+/// shared links, devices and recovery codes (store.rs `delete_account`). What is on a device stays on the device. The
+/// password check is counted against sign-in's limits, as it is one more way to try a password.
+async fn delete_account(State(accounts): State<Arc<Accounts>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Json(body): Json<DeleteAccountBody>) -> Response {
+    let who = match accounts.caller(&headers) {
+        Ok(who) => who,
+        Err(refused) => return refused,
+    };
+    let Some(account) = accounts.store.account_by_id(who.sub) else {
+        return error(StatusCode::UNAUTHORIZED, "That account is gone.");
+    };
+    if let Err(refused) = accounts.admit(peer.ip(), &headers, &account.handle) {
+        return refused;
+    }
+    // 403 rather than 401: the session is fine, only the password is wrong, and a 401 reads as signed out.
+    if !account.login_hash.is_empty() && !verify_login(&body.login_secret, &account.login_hash) {
+        return error(StatusCode::FORBIDDEN, "That is not the password.");
+    }
+    match accounts.store.delete_account(account.id) {
+        Ok(_) => Json(json!({ "deleted": true })).into_response(),
+        Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "The account could not be deleted. Nothing was lost; try again."),
+    }
+}
+
 /// `GET v1/pubkey`. The key tokens are checked against, published as AttackFM publishes its own.
 async fn pubkey(State(accounts): State<Arc<Accounts>>) -> Response {
     Json(json!({ "alg": "ed25519", "publicKey": accounts.issuer.public_b64() })).into_response()
@@ -494,5 +528,6 @@ pub fn router(accounts: Arc<Accounts>) -> Router {
         .route("/glyph/api/v1/keys", get(keys))
         .route("/glyph/api/v1/password", put(password))
         .route("/glyph/api/v1/recovery", get(recovery_left).post(recovery_replace))
+        .route("/glyph/api/v1/account", delete(delete_account))
         .with_state(accounts)
 }

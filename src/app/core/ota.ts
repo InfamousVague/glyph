@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isIOS } from './platform.ts';
 import { preferences } from './preferences.ts';
 import { invoke, isTauri } from './tauri.ts';
 
@@ -43,6 +44,18 @@ export interface OtaStatus {
   sources?: string[];
   /** Endpoints a signed manifest has moved; each consumer falls back to its own default. */
   services?: { format: string | null; modelMirrors: string[] };
+  /** The store this build came from (ota.rs `STORE`, GLYPH_STORE at compile time), or none for a download from attack.fm. */
+  store?: 'play' | 'appstore' | null;
+}
+
+/**
+ * The store that updates this copy of Ghost.md, or null when it updates itself (the APK and the Mac app from attack.fm).
+ * A Play build says so in its status; an iPhone is always the App Store's, and has no over-the-air updates at all.
+ * Where it isn't null, nothing offers to install an app: the store does that (docs/store/).
+ */
+export function storeOf(status: OtaStatus | null | undefined): 'play' | 'appstore' | null {
+  if (isIOS && isTauri()) return 'appstore';
+  return status?.store ?? null;
 }
 
 /** "attack.fm" for "https://attack.fm/glyph": where updates come from, as a person reads it. */
@@ -170,7 +183,8 @@ export function useUpdates(): Updates {
     // Nor does Glyph Dev (`tauri android dev`): its page comes live from the Mac's Vite server, so a downloaded bundle
     // is never what it runs, and offering one left "A new version of Glyph is ready" that Reload could never take
     // (Matt: "the OTA update isn't taking").
-    if (!isTauri() || running.current || preferences().localOnly || STAGING || import.meta.env.DEV) return;
+    // And an iPhone: the App Store is its only way to update (ota.rs refuses the check there), so asking only ever failed.
+    if (!isTauri() || isIOS || running.current || preferences().localOnly || STAGING || import.meta.env.DEV) return;
     running.current = true;
     setChecking(true);
     try {

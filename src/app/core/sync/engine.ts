@@ -1,6 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useSyncExternalStore } from 'react';
-import { accountKey, accountState, resume, signOut } from '../account/account.ts';
+import { accountKey, accountState, deleteAccount, resume, signOut } from '../account/account.ts';
 import { ApiError } from '../account/api.ts';
 import { imageBytes, keepImage } from '../images.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
@@ -118,6 +118,18 @@ export async function signOutHere(): Promise<void> {
   const session = accountState().session;
   await signOut();
   if (session) forgetSync(session.accountId);
+  setStatus({ phase: 'off', message: null, lastAt: null, conflicts: 0 });
+}
+
+/**
+ * Deletes the account (account.ts `deleteAccount`), then forgets it here as signing out does, and the links shared
+ * from it too, which read nothing now. The notes stay.
+ */
+export async function deleteAccountHere(password: string): Promise<void> {
+  const session = accountState().session;
+  await deleteAccount(password);
+  if (session) forgetSync(session.accountId);
+  setPreferences({ shares: {} });
   setStatus({ phase: 'off', message: null, lastAt: null, conflicts: 0 });
 }
 

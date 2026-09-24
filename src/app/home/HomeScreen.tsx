@@ -5,6 +5,7 @@ import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.t
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
 import type { Updates } from '../core/ota.ts';
 import { useGlideToTop } from '../core/glideToTop.ts';
+import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { Cog, Pin, Plus } from '../art/Icons.tsx';
@@ -177,7 +178,7 @@ export function HomeScreen({
             <div className={styles.empty}>
               <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
               <p className={styles.emptyLead}>{spaces.current ? `Nothing in ${spaces.current.name} yet.` : 'A blank page.'}</p>
-              <p className={styles.emptyHint}>Write it, or hold the side key and say it.</p>
+              <p className={styles.emptyHint}>{isAndroid ? 'Write it, or hold the side key and say it.' : 'Write it, or tap Speak and say it.'}</p>
             </div>
           ) : null}
 

@@ -4313,3 +4313,108 @@ The Mac now has its own icon, laid out on Apple's grid by `python3 scripts/mac-i
 
 A native change: it reaches a Mac with a new Mac app, not an OTA. Once the new app is in /Applications, the Dock can
 keep showing the old icon until the app is opened again, or `killall Dock` is run.
+
+## 113. Ready for the stores: delete account, privacy, a Play build (2026-09-24)
+
+Matt: "I'd like to list this app on the iOS and android app store, in order to do this we need a delete account button
+and a few other things. Discover what those other things are and fix them before coming up with two short plan files."
+
+Three read-only audits found what was missing: the Android build against Play's rules, the iOS build against the App
+Store's, and every place user data leaves a device. The two plans are docs/store/PLAY_STORE.md and APP_STORE.md. What
+was fixed:
+
+**Delete account.** Both stores require it for any app that makes accounts.
+- **The server:** `DELETE /glyph/api/v1/account` (accounts.rs, store.rs `delete_account`).
+  - It asks for the password's login half. A phone left unlocked shouldn't be able to lose its owner's account.
+  - A wrong password is a 403, not a 401, since a 401 reads as signed out. It counts against sign-in's rate limits.
+  - It deletes the account row, and the tables cascade from it: devices, recovery codes, notes, settings, shares (every
+    link stops opening) and recordings' rows. Then it removes the recordings folder.
+  - Other devices sign themselves out, because refresh already refuses a token for a missing account.
+- **The page side:**
+  - `deleteAccount` (account.ts), then `deleteAccountHere` (engine.ts). The latter forgets the sync bookkeeping and the
+    share links, as signing out does.
+  - Settings › Account › Delete account: a form that says what goes and what stays, then asks for the password. It ends
+    on the signed-out page with "Your account is deleted. The notes on this device are still here."
+  - The button is in the ink like everything else. The theme maps "danger" to ink, and a red would be the app's only
+    tint.
+- **Tests:** a server test through the routes (wrong password, no token, then everything checked gone and the handle
+  free again), a sync end-to-end run against a real server, a component test, and the flow walked in the browser.
+- **Recordings and pictures had no delete route at all.** Until now they outlived their notes on the server; the account
+  deletion removes them.
+
+**Privacy.**
+- `landing/privacy.html` and `landing/delete-account.html`. Google Play wants a web page that says how to delete an
+  account, as well as the button.
+- Settings › About › Privacy policy, and a footnote that is the policy's short version. The web version's footnote says
+  instead that the browser does the speech recognition (Chrome sends it to Google).
+- The policy is written from the data audit.
+  - **Where data goes:** the handle, device kind and public keys, timestamps and sizes are readable on the server;
+    everything else is sealed.
+  - **Access logs:** IPs are held only in memory for rate limits. Caddy's access logs are the one thing not in the repo.
+  - **The one exception to end-to-end encryption:** the hosted Claude connection holds the account key in memory while
+    it's connected, and the policy says so.
+- **Both pages say `CONTACT_EMAIL` until Matt gives an address.** Deploying them waits on that.
+
+**A Play build: `GLYPH_STORE=play`.** Play forbids an app updating itself outside Play.
+- **The switch is compile-time,** in ota.rs `STORE`, like `GLYPH_STAGING`. A store build never fetches `apk.json` in
+  the check or in the background peek, and `ota_fetch_apk` refuses. The web bundle still updates over the air, which
+  is JavaScript in the WebView, so Play allows it.
+- **Gradle** merges `src/store/AndroidManifest.xml` over the release manifest, which removes `REQUEST_INSTALL_PACKAGES`,
+  and sets `BuildConfig.STORE` so `GlyphHost.installApk` declines.
+- **The page reads the store** from the status (`storeOf` in ota.ts), because the web bundle is shared by every build.
+  Where a store updates the app:
+  - the release list drops "Installed as Ghost.md 1.7.2";
+  - Settings adds that new versions come through the Play Store.
+
+**16 KB pages.** Play takes only native libraries that load on phones with 16 KB memory pages. Both of ours were
+4 KB-aligned: `libglyph_lib.so`, and NDK r26's `libc++_shared.so`, which can't be relinked.
+- The C++ runtime is now linked statically:
+  - llama-cpp-2's `android-static-stdcxx`;
+  - the vendored whisper-rs-sys's build.rs, which links `c++_static` and `c++abi`;
+  - the CMake toolchain file, with `ANDROID_STL c++_static`.
+
+  So nothing ships `libc++_shared.so`, and build.rs deletes any copy an older build left in `jniLibs/`.
+- build.rs links `-z max-page-size=16384`. It's there rather than in `.cargo/config.toml` because Tauri's Android build
+  sets its own rustflags, which replace the config's.
+- **Checked:**
+  - On the built AAB: one `.so`, NEEDED only liblog, libandroid, libdl, libm and libc, and every LOAD segment at 0x4000.
+  - On the arm64 Android 16 emulator: the app launches and records. The test binary, pushed to the emulator, passes
+    whisper's fixture tests (every key word heard) and llama's generate, prefix-cache and cancel tests with Qwen3.5-0.8B.
+  - The LLM tests now take `GLYPH_REPO_DIR` for the page files their prompts come from, as whisper's take
+    `GLYPH_MODELS_DIR`.
+- The static runtime is in the sideloaded APK too, since it's the same library.
+- The manifest also loses Tauri's Android TV entries (leanback, and the TV launcher category). A store reviews an app
+  that claims TV as a TV app.
+
+**iOS.** The iOS app isn't ready to submit: it has no voice capture yet (DESIGN §6.3), and APP_STORE.md says what's
+left. What was fixed now:
+- **The iOS library compiles again:**
+  - `libc` is a dependency on every target, since llm/device.rs and hardware.rs are built on iOS too;
+  - `ai_generate`'s output type exists there.
+- **The icon set has no alpha channel.** Every pixel was already opaque, so nothing looks different, but App Store
+  Connect rejects any alpha.
+- **The privacy manifest,** `PrivacyInfo.xcprivacy`:
+  - No tracking.
+  - The data collected with an account is declared rather than argued away: User ID, User Content, Photos, Audio.
+  - Required-reason APIs, each from evidence:
+    - FileTimestamp C617.1: `stat` of the app's own files, in vault.rs, images.rs and SQLite.
+    - DiskSpace E174.1: `statvfs` before a model download.
+    - SystemBootTime 35F9.1: `Instant`.
+    - UserDefaults CA92.1: defensive, as WebKit and Tauri may use them.
+- **Info.ios.plist:**
+  - the display name is Ghost.md, where project.yml's product name is still Glyph;
+  - the microphone string no longer mentions a cloud option that doesn't exist;
+  - `ghostmd` joins `glyph` as a URL scheme, because the deep-link plugin replaces the key;
+  - export compliance stays `false`, with the real reason: on iOS all the encryption is Apple's own WebCrypto.
+- **Guideline 2.3.10 forbids naming another platform.** Two strings that an iPhone showed are rewritten:
+  - the guide's side-key page no longer says "The side key is an Android thing";
+  - the home screen's empty state says "tap Speak" everywhere but Android.
+- **Updates on an iPhone:**
+  - there are no update checks, which only ever failed with "Over-the-air updates are Android-only";
+  - Settings says "Ghost.md updates through the App Store";
+  - attack.fm's release list is hidden, since an iPhone never runs those builds.
+
+**Not deployed yet.** The Delete account button calls an endpoint only the new glyph-api has, so the order is:
+1. glyph-api, which is Matt's call;
+2. the landing pages, once there's a contact address;
+3. then the OTA.

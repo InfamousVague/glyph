@@ -332,3 +332,51 @@ async fn a_browser_may_put_and_delete_and_read_the_recording_revision() {
     let allowed = response.headers().get(header::ACCESS_CONTROL_ALLOW_METHODS).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     assert!(allowed.contains("PUT") && allowed.contains("DELETE"), "{allowed}");
 }
+
+#[tokio::test]
+async fn deleting_the_account_takes_everything_it_kept_and_needs_the_password() {
+    let h = harness();
+    let token = h.signup("matt", &device()).await;
+    let other = h.signup("sam", &device()).await;
+    h.call(Method::PUT, "/glyph/api/v1/notes/n-1", Some(&token), Some(json!({ "base": 0, "blob": "c2VjcmV0" }))).await;
+    h.call(Method::PUT, "/glyph/api/v1/prefs", Some(&token), Some(json!({ "base": 0, "blob": "cHJlZnM" }))).await;
+    h.raw(Method::PUT, "/glyph/api/v1/recordings/n-1?base=0", &token, vec![9; 64]).await;
+    let share = "/glyph/api/v1/shares/AAAAAAAAAAAAAAAAAAAAAA";
+    let (status, _) = h.call(Method::PUT, share, Some(&token), Some(json!({ "blob": "c2VhbGVk" }))).await;
+    assert_eq!(status, StatusCode::OK);
+    h.call(Method::PUT, "/glyph/api/v1/notes/n-1", Some(&other), Some(json!({ "base": 0, "blob": "b3RoZXI" }))).await;
+    let recordings = h._dir.0.join("recordings").join("1");
+    assert!(recordings.exists(), "the recording is a file under the account's folder");
+
+    // Without the password, or with the wrong one: refused, as the session is fine, and nothing goes.
+    let (status, _) = h.call(Method::DELETE, "/glyph/api/v1/account", Some(&token), Some(json!({}))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = h.call(Method::DELETE, "/glyph/api/v1/account", Some(&token), Some(json!({ "loginSecret": login(9) }))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = h.call(Method::DELETE, "/glyph/api/v1/account", None, Some(json!({ "loginSecret": login(1) }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (_, feed) = h.call(Method::GET, "/glyph/api/v1/notes", Some(&token), None).await;
+    assert_eq!(feed["items"].as_array().map(Vec::len), Some(1));
+
+    let (status, body) = h.call(Method::DELETE, "/glyph/api/v1/account", Some(&token), Some(json!({ "loginSecret": login(1) }))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["deleted"], true);
+
+    // Gone: no signing in, no renewing the old session, the shared link reads nothing, the recording's file is gone.
+    let (status, _) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "matt", "loginSecret": login(1) }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _) = h.call(Method::POST, "/glyph/api/v1/refresh", Some(&token), None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _) = h.call(Method::GET, share, None, None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(!recordings.exists(), "the recordings folder goes with the account");
+    // The handle is free again, and a new account under it starts empty.
+    let again = h.signup("matt", &device()).await;
+    let (_, feed) = h.call(Method::GET, "/glyph/api/v1/notes", Some(&again), None).await;
+    assert_eq!(feed["items"].as_array().map(Vec::len), Some(0));
+    let (_, prefs) = h.call(Method::GET, "/glyph/api/v1/prefs", Some(&again), None).await;
+    assert_eq!(prefs["blob"], Value::Null, "no settings carried over");
+    // The other account is untouched.
+    let (_, feed) = h.call(Method::GET, "/glyph/api/v1/notes", Some(&other), None).await;
+    assert_eq!(feed["items"].as_array().map(Vec::len), Some(1));
+}
