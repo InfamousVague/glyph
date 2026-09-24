@@ -252,8 +252,7 @@ export function HomeScreen({
         </div>
       </div>
 
-      {/* The dock the notes list had: write on the left, Speak in the middle as the one ink pill, Settings on the right.
-          On a wide screen, the Fold opened out, a floating column at the bottom right instead (HomeScreen.module.css). */}
+      {/* The dock: a floating column in the bottom right, Settings, write, then Speak nearest the thumb (HomeScreen.module.css). */}
       <nav className={styles.dock} aria-label="New note">
         <button type="button" className={`${styles.round} ${styles.add}`} onClick={onNew} aria-label="Write a note">
           <Plus />

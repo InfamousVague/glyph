@@ -33,7 +33,14 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block-end: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-24));
+  /*
+   * Room at the foot for the dock's column to stand clear of the last lines: its three buttons, their gaps and its
+   * padding, where it floats above the foot, and a little more.
+   */
+  padding-block-end: calc(
+    var(--app-safe-bottom, 0px) + var(--glacier-space-4) + var(--glacier-space-10) * 0.88 * 3 + var(--glacier-space-2) * 4 +
+      var(--glacier-space-6)
+  );
 }
 
 /*
@@ -174,23 +181,30 @@
 }
 
 /*
- * Write and Speak, fixed to the bottom where the thumb is. The dock has no
- * ground of its own - not a bar, not a shadow, not glass (Matt: "Make the
- * bottom bar transparent and move the dark gradient down"): the notes run on
- * under the buttons, and go to smoke only at the page's very foot
- * (art/wispEdge.ts).
+ * Write, Speak and Settings as a floating column locked to the bottom right, on every screen (Matt, first for the
+ * opened Fold: "Move the controls that are at the bottom of the screen to be locked in a floating dock on the bottom
+ * right stacked vertically on a wider display like my fold8"; then for the folded one: "I expected the bottom controls
+ * to be docked in a right hand side dock going up the right vertically like on unfolded view, this is how all ...
+ * devices should display it"). A row across the foot was a reach from either hand on an opened Fold, and on a phone
+ * the column is where the right thumb already rests. Settings on top, write in the middle, Speak last, nearest the
+ * thumb, still the one ink-filled thing, as a circle the size of the other two so the column is one width.
  */
 .dock {
   position: absolute;
-  inset-inline: 0;
-  bottom: 0;
+  inset-inline: auto calc(var(--app-safe-right, 0px) + var(--glacier-space-4));
+  bottom: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-4));
   z-index: 30;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block: var(--glacier-space-8) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-3));
-  pointer-events: none;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-2);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in srgb, var(--glacier-bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 28px color-mix(in srgb, #000 22%, transparent);
 }
 
 
@@ -252,72 +266,40 @@
  * glyphs drew 21px, 18px and 16px, so the row read as three sizes. The + now takes the size `.round` sets, which is
  * the cog's.
  */
-.add {
-  justify-self: start;
-}
 
 .add:active svg {
   transform: rotate(90deg);
-}
-
-.cog {
-  justify-self: end;
 }
 
 .cog:active svg {
   transform: rotate(45deg);
 }
 
-/*
- * On a wide screen the dock is a floating column locked to the bottom right (Matt: "Move the controls that are at the
- * bottom of the screen to be locked in a floating dock on the bottom right stacked vertically on a wider display like
- * my fold8"). A row across the foot of an opened Fold is a reach from either hand; a column in the corner is where the
- * right thumb rests. Settings on top, write in the middle, Speak last, nearest the thumb, still the one ink-filled
- * thing, as a circle the size of the other two so the column is one width. Wide is the app's own line
- * (core/useWideScreen.ts, 600px): the viewport's, since with the sidebar docked the home pane itself is narrower.
- */
-@media (min-width: 600px) {
-  .dock {
-    inset-inline: auto calc(var(--app-safe-right, 0px) + var(--glacier-space-4));
-    bottom: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-4));
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--glacier-space-2);
-    padding: var(--glacier-space-2);
-    border: var(--glacier-hairline) solid var(--glacier-border-subtle);
-    border-radius: var(--glacier-radius-full);
-    background: color-mix(in srgb, var(--glacier-bg) 82%, transparent);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
-    box-shadow: 0 8px 28px color-mix(in srgb, #000 22%, transparent);
-    pointer-events: auto;
-  }
-
-  .cog {
-    order: 1;
-  }
-
-  .add {
-    order: 2;
-  }
-
-  .speak {
-    order: 3;
-    inline-size: calc(var(--glacier-space-10) * 0.88);
-    padding-inline: 0;
-    justify-content: center;
-  }
-
-  .speakWord {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
+/* The column's order, top to bottom, and Speak as a circle whose word is kept for a screen reader. */
+.cog {
+  order: 1;
 }
+
+.add {
+  order: 2;
+}
+
+.speak {
+  order: 3;
+  inline-size: calc(var(--glacier-space-10) * 0.88);
+  padding-inline: 0;
+  justify-content: center;
+}
+
+.speakWord {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 
 /*
  * One column a reader's width, in the middle of a wide window: on a desktop the page ran the whole window across, and

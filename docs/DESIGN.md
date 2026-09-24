@@ -4254,3 +4254,17 @@ with markdown symbols like a # Quick & Foxy or something to preview what each fo
 - **Weight.** Maple Mono's four weights the app sets (400 to 700) and two italics, and Fira Code's one variable file,
   bundled and fetched by the browser only when a face is drawn. A face a device doesn't know, synced from a newer one,
   is the default there.
+
+## 110. The dock is a column on every screen (2026-09-23)
+
+Matt: "on my fold 8 I expected the bottom controls to be docked in a right hand side dock going up the right
+vertically like on unfolded view, this is how all ... devices should display it." §92 made the home page's dock a
+floating column in the bottom-right corner at 600px wide and over, so the opened Fold (880 wide) had it and the
+folded Fold's cover screen (about 400 wide) kept the row across the foot. Now the column is the dock everywhere:
+Settings, write, then Speak nearest the right thumb, Speak a circle in the page's ink the size of the other two, its
+word kept for a screen reader, on a rounded card of blurred paper. The row's own rules - its grid, and the + and cog
+pushed to either end - are gone.
+
+The scroller's room at its foot was the row's (96px). The column stands about 156px tall with its offset, so the room
+is now the column's own height, from the same measures it is drawn with, and a little more: scrolled to the end at
+400 by 880, the last line sits well above it. Seen at 400 by 880, the cover screen, and 880 by 900, the Fold opened.
