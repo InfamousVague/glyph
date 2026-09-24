@@ -108,4 +108,36 @@ describe('final transcript instruction scan', () => {
       await expect(classifyFinalTranscript('make a new list called comic books', notes, never)).resolves.toEqual({ kind: 'offer', plan: { kind: 'create-list', title: 'comic books' } });
     });
   });
+
+  describe('lists the model or the rules left as plain words', () => {
+    const movies = [{ id: 'movies', title: 'Movies', note: { body: 'Movies\n\n- Jaws\n- Alien\n' } }];
+    const films = ['The Matrix', 'Heat', 'Back to the Future'];
+
+    it('keeps a list when the model returns no placement', async () => {
+      const run = vi.fn(() => inferred({ status: 'intent', model: 'local', intent: { action: 'append', target: 'Movies', content: 'The Matrix, Heat and Back to the Future', placement: null } }));
+      const decision = await classifyFinalTranscript('add to that one I call movies the Matrix, Heat and Back to the Future', movies, run);
+      expect(decision).toMatchObject({ kind: 'offer', plan: { how: 'item', many: true, items: films } });
+      if (decision.kind !== 'offer' || decision.plan.kind !== 'place') throw new Error('no offer');
+      expect(placeWords(movies[0]!.note.body, decision.plan.text, decision.plan).body).toBe('Movies\n\n- Jaws\n- Alien\n- The Matrix\n- Heat\n- Back to the Future\n');
+    });
+
+    it('keeps a list when the command says “list” even if the model says paragraph-less null and the note is empty', async () => {
+      const empty = [{ id: 'movies', title: 'Movies', note: { body: 'Movies' } }];
+      const run = vi.fn(() => inferred({ status: 'intent', model: 'local', intent: { action: 'append', target: 'Movies', content: 'The Matrix; Heat; Back to the Future', placement: null } }));
+      await expect(classifyFinalTranscript('add these to that movie list thing: the Matrix, Heat, Back to the Future', empty, run)).resolves.toMatchObject({ kind: 'offer', plan: { how: 'item', items: films } });
+    });
+
+    it('splits several short things added to a list note by the rules', async () => {
+      await expect(classifyFinalTranscript('add to Movies the Matrix, Heat and Back to the Future', movies, never())).resolves.toMatchObject({ kind: 'offer', plan: { how: 'item', items: ['the Matrix', 'Heat', 'Back to the Future'] } });
+    });
+
+    it('leaves a sentence a sentence', async () => {
+      const decision = await classifyFinalTranscript('add to Movies we should watch these on Friday, after dinner, with Sam and the kids if everyone is free', movies, never());
+      expect(decision).toMatchObject({ kind: 'offer', plan: { how: 'leave' } });
+    });
+  });
 });
+
+function never() {
+  return vi.fn(() => inferred({ status: 'unavailable', reason: 'not called' }));
+}

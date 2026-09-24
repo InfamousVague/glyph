@@ -9,6 +9,31 @@ export type FinalInstruction<N extends Candidate> =
   | { kind: 'offer'; plan: Plan<N> }
   | { kind: 'rejected'; reason: string };
 
+/** A spoken command that says it is about a list. */
+const LIST_WORDS = /\b(?:list|lists|items?|bullets?|bullet\s+points?|tasks?|to-?\s?dos?|check\s?list)\b/i;
+/** A Markdown list line: the note already keeps a list. */
+const LIST_LINE = /^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)\S/m;
+/** The most words an item has when nobody said "list": longer pieces are a sentence with commas in it. */
+const SHORT_ITEM_WORDS = 4;
+/** "We should…", "it was…": a piece that starts like a sentence is not an item. */
+const SENTENCE_START = /^(?:i|i'm|we|we're|you|he|she|it|it's|they|this|that|there|so|if|when|because|after|before|with)\b/i;
+
+/**
+ * Items, when what is added is a list: the command asked for one, or the note
+ * already is one and the words are several short things. The app decides this
+ * from the person's words and the note, not from the model's answer, so a
+ * small model that leaves its placement empty cannot turn a list into a block
+ * of text.
+ */
+function listItems(words: string, content: string, body: string | undefined, asked: boolean): string[] | null {
+  const wanted = asked || LIST_WORDS.test(words);
+  if (!wanted && !LIST_LINE.test(body ?? '')) return null;
+  const items = spokenListItems(content);
+  if (items.length < 2) return null;
+  if (!wanted && items.some((item) => item.split(/\s+/).length > SHORT_ITEM_WORDS || SENTENCE_START.test(item))) return null;
+  return items;
+}
+
 /** What a finished recording may do once confirmed: add to a note, or make a new list (with its items). */
 const permitted = <N extends Candidate>(plan: Plan<N>): boolean => plan.kind === 'place' || plan.kind === 'create-list';
 
@@ -32,6 +57,11 @@ export async function classifyFinalTranscript<N extends Candidate & { note?: { b
   // note labeled Go" means Go when the rules' phrasing list does not.
   const unmatched = deterministic?.kind === 'no-note' ? `No unambiguous note matches “${deterministic.name}”. Nothing changed.` : null;
   if (deterministic && !unmatched) {
+    if (deterministic.kind === 'place' && deterministic.how === 'leave') {
+      // "Add to Movies Jaws, Alien and Heat": a list note takes several things as several items.
+      const items = listItems(words, deterministic.text, deterministic.note.note?.body, false);
+      if (items) return { kind: 'offer', plan: { ...deterministic, how: 'item', many: true, items } };
+    }
     return permitted(deterministic) ? { kind: 'offer', plan: deterministic } : { kind: 'rejected', reason: 'That command is not supported from a voice capture. Nothing changed.' };
   }
 
@@ -48,10 +78,11 @@ export async function classifyFinalTranscript<N extends Candidate & { note?: { b
     return { kind: 'rejected', reason: unmatched ?? (target.status === 'ambiguous' ? `“${result.intent.target}” matches more than one note. Nothing changed.` : `No note called “${result.intent.target}”. Nothing changed.`) };
   }
   const area = result.intent.placement;
-  const listed = area === 'list' || area === 'tasks' || area === 'bugs';
-  // A list the model heard is told apart by the app, not the model: its
-  // items are literal text, one bullet each.
-  const items = listed ? spokenListItems(result.intent.content).map(literalMarkdown) : [];
+  // A list is told apart by the app, not the model: its items are literal
+  // text, one bullet each, whether or not the model said "list".
+  const said = area !== 'notes' ? listItems(words, result.intent.content, target.note.note?.body, area === 'list' || area === 'tasks' || area === 'bugs') : null;
+  const listed = area === 'list' || area === 'tasks' || area === 'bugs' || said !== null;
+  const items = (said ?? []).map(literalMarkdown);
   const placement: Placement = {
     how: area === 'notes' ? 'paragraph' : listed ? 'item' : 'leave',
     task: area === 'tasks',

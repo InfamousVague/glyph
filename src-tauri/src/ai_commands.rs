@@ -98,6 +98,7 @@ pub enum CommandInferenceResult {
 /// with…"), which a 2B model follows far better than a rule alone.
 const COMMAND_SYSTEM: &str = r#"Translate one spoken note command to JSON. Allowed actions: append to an existing note, create a new note, or none.
 - append: "target" is only the note's title as spoken, without words like "my", "the", "note", "list", "labeled", "called" or "named". "content" is only what to add, in the speaker's words, without the command or the title. "placement" is "list" when they ask for a list, items, bullets or points; "tasks" for tasks, to-dos or check boxes; "bugs" for bugs or issues; "notes" for a paragraph or a note; otherwise null.
+- When they name several things to add (movies, places, groceries), placement is "list" even if they did not say "list".
 - For "list" and "tasks", separate the items in "content" with "; " and keep each item whole: "Paris, Texas; Austin, Texas".
 - create: "target" is the new note's title and "content" is its body, or null.
 - none: destructive (delete, remove, clear), compound (several different actions), unsupported, or unclear requests.
