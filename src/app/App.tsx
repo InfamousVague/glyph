@@ -621,8 +621,18 @@ function Shell() {
     const note = notes.find((n) => n.id === id);
     setOpen((was) => closeOpen(was, id));
     setScreen({ name: 'list' });
-    if (note) actions.remove(note);
-    else void refresh();
+    if (note) {
+      actions.remove(note);
+      return;
+    }
+    // A note the list has not read yet (one a voice command just made or changed): read it now rather than closing
+    // it and deleting nothing.
+    void getNote(id)
+      .catch(() => null)
+      .then((fresh) => {
+        if (fresh) actions.remove(fresh);
+        return refresh();
+      });
   };
 
   const backToList = async () => {
