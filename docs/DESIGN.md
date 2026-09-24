@@ -4293,3 +4293,23 @@ it ship in the app as long as its licence and copyright go with it (docs/THIRD_P
 - **Two pickers of cards.** Settings > Type has Note font, whose cards set `# Quick & Foxy` and
   `**bold** -> != <=` in each face, and Interface font, whose cards set a title and a row of tabs. The page's summary
   names both: "Large · Maple Mono · Inter". Each has its own entry in Settings search.
+
+## 112. The Mac's icon has its own shape (2026-09-24)
+
+Matt: "The icon on Mac is a square with no bleed so I see the corners of the image on the app icon container." iOS
+and Android cut an app's icon to their own shape, but macOS draws it exactly as it is. The icon was the full-square
+mascot on lined paper (design/app-icon.png, since 1.7.1), so in the Dock it was a square among rounded squares, its corners
+standing out past everyone else's.
+
+The Mac now has its own icon, laid out on Apple's grid by `python3 scripts/mac-icon.py`:
+
+- **An 824 squircle in the middle of a 1024 canvas.** The picture is scaled to 824 and cut to a superellipse
+  (exponent 5, close to Apple's continuous-corner shape), with clear corners round it.
+- **A soft shadow under it:** 10px down, 12px blur, 30% black, as the Dock's own icons have.
+- **The script writes design/app-icon-macos.png and src-tauri/icons/icon.icns.** tauri.conf.json now lists the icns,
+  so the bundler uses it rather than making a square one from the PNGs. `npx tauri icon design/icon.json` writes a
+  square icon.icns over it, so run the script again after it. Every other platform keeps the square picture, since it
+  shapes the icon itself.
+
+A native change: it reaches a Mac with a new Mac app, not an OTA. Once the new app is in /Applications, the Dock can
+keep showing the old icon until the app is opened again, or `killall Dock` is run.
