@@ -23,7 +23,7 @@ import { openMicrophone, type Microphone, type MicrophoneHandlers } from './audi
 import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { enqueueFormat, setFormattingPaused } from '../format/queue.ts';
 import { reviewAvailable, type ReviewHandoff } from '../review/useReview.ts';
-import { discardRecording, reassignRecording, startCapture, type CaptureSession, type EngineKind } from './engine.ts';
+import { discardRecording, reassignRecording, startCapture, type CaptureSession, type EngineKind, type Stopped } from './engine.ts';
 import { renderNote, setLinkTitles, setSpokenFormats, type Segment } from './markdown.ts';
 import { Opening } from './Opening.tsx';
 import { QuietWatch } from './quiet.ts';
@@ -102,6 +102,38 @@ const ENGINE_LABEL: Record<EngineKind, string> = {
   browser: 'Browser speech recognition',
   simulated: 'Simulated voice',
 };
+
+/** Words used only to tell whether native's final decode extends phrase events. */
+const transcriptWords = (text: string): string[] =>
+  Array.from(text.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu), (match) => match[0]!.normalize('NFKD').replace(/\p{M}/gu, '').toLocaleLowerCase());
+
+/** The original text after `wordCount` words, retaining Whisper's punctuation/casing. */
+function afterWords(text: string, wordCount: number): string {
+  if (!wordCount) return text.trim();
+  const words = Array.from(text.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu));
+  const end = words[wordCount - 1]?.index;
+  const last = words[wordCount - 1]?.[0];
+  if (end === undefined || !last) return '';
+  return text.slice(end + last.length).replace(/^[\s,;:!?….-]+/, '').trim();
+}
+
+/**
+ * `capture_stop` drains Whisper after the last event listener can be removed.
+ * When that final decode extends the committed phrases, retain their timing and
+ * append only the missing terminal words for ordinary-note rendering/tapes.
+ * Classification always uses the complete native text.
+ */
+function appendFinalTranscriptSuffix(segments: readonly Segment[], transcript: string | null, endMs: number): Segment[] {
+  const finalText = transcript?.trim();
+  if (!finalText) return [...segments];
+  const committed = transcriptWords(segments.map((segment) => segment.text).join(' '));
+  const finalWords = transcriptWords(finalText);
+  if (!finalWords.length || committed.length >= finalWords.length || !committed.every((word, index) => word === finalWords[index])) return [...segments];
+  const suffix = afterWords(finalText, committed.length);
+  if (!suffix) return [...segments];
+  const startMs = segments.at(-1)?.endMs ?? 0;
+  return [...segments, { text: suffix, startMs, endMs: Math.max(endMs, startMs + 1) }];
+}
 
 export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, onFinish }: CaptureScreenProps) {
   /** The note being written: a new id, or the note this capture continues. */
@@ -891,7 +923,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // The tape is kept under the note's id, added to the end of the continued
     // note's tape when there is one, so its words and its sound stay one timeline.
     const continued = targetRef.current;
-    let stopped: { recordedMs: number | null } = { recordedMs: null };
+    let stopped: Stopped = { recordedMs: null, transcript: null };
     try {
       // Appended only onto a tape the note still has: a recording removed from the note leaves its file behind, and a
       // take added after it starts the file afresh rather than playing after the removed sound.
@@ -900,8 +932,20 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       setError(failure instanceof Error ? failure.message : String(failure));
     }
 
-    const spoken = take.segments;
-    const transcript = spoken.map((segment) => segment.text).join(' ').trim();
+    const committed = take.segments;
+    // Native's stop-time result includes words whose phrase event was still in
+    // flight when `stop()` detached event listeners. It is the one transcript
+    // command classification may inspect; browser/simulated engines fall back
+    // to their committed phrases because they explicitly return null.
+    const transcript = stopped.transcript ?? committed.map((segment) => segment.text).join(' ').trim();
+    const spoken = appendFinalTranscriptSuffix(committed, stopped.transcript, sessionRef.current?.positionMs() ?? committed.at(-1)?.endMs ?? 0);
+    const appended = spoken.slice(committed.length);
+    for (const segment of appended) {
+      // `listen` remains display-only, so completing the ordinary-note stream
+      // here cannot revive phrase-level routing or execution.
+      take.listen(segment);
+      heardRef.current.push(segment.text);
+    }
     const { plain } = renderNote(spoken);
     const locked = isLocked();
 

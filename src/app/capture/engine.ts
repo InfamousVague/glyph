@@ -39,6 +39,13 @@ export interface StopOptions {
 export interface Stopped {
   /** The kept tape's whole length, or null when nothing was kept. */
   recordedMs: number | null;
+  /**
+   * The final decoder result, when the engine has one. Whisper produces this
+   * from `capture_stop` after it has drained the last audio; phrase events can
+   * still be in flight when the page removes its listeners. Browser, simulated,
+   * and older native hosts do not have an authoritative final result.
+   */
+  transcript: string | null;
 }
 
 export interface CaptureSession {
@@ -50,7 +57,7 @@ export interface CaptureSession {
   push: (samples: Float32Array) => void;
   /** How much has been recorded, in ms, on the timeline segment times use. */
   positionMs: () => number;
-  /** Commit what remains; resolves once the final segments have been delivered. */
+  /** Commit what remains and return the authoritative final transcript where the engine has one. */
   stop: (options?: StopOptions) => Promise<Stopped>;
   /** Drop it; resolves once the engine has let go (the Whisper session is gone), where that takes a trip to Rust. */
   cancel: () => void | Promise<void>;
@@ -192,13 +199,13 @@ async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
       try {
         if (!keepsAudio) {
           await invoke<unknown>('capture_stop');
-          return { recordedMs: null };
+          return { recordedMs: null, transcript: null };
         }
         const finished = await invoke<{ transcript: string; recordedMs: number | null }>('capture_stop', {
           recordAs: options.recordAs ?? null,
           append: options.append ?? false,
         });
-        return { recordedMs: finished.recordedMs };
+        return { recordedMs: finished.recordedMs, transcript: finished.transcript?.trim() || null };
       } finally {
         unlistenAll();
       }
@@ -296,7 +303,7 @@ function browser(handlers: CaptureHandlers): CaptureSession {
     stop: () =>
       new Promise<Stopped>((resolve) => {
         running = false;
-        settle = () => resolve({ recordedMs: null });
+        settle = () => resolve({ recordedMs: null, transcript: null });
         recognition.stop();
       }),
     cancel: () => {
@@ -394,7 +401,7 @@ function simulated(handlers: CaptureHandlers): CaptureSession {
     stop: async () => {
       await Promise.race([done, new Promise((resolve) => window.setTimeout(resolve, 50))]);
       window.clearInterval(timer);
-      return { recordedMs: Math.round(clock) };
+      return { recordedMs: Math.round(clock), transcript: null };
     },
     cancel: () => window.clearInterval(timer),
   };
