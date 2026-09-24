@@ -1,6 +1,7 @@
 import { addToLane, lanesOf, matchLane, moveToLane, type Lane } from '../core/boards.ts';
 import { matchNote, parseRoute, type Candidate } from './route.ts';
 import { cellsOf } from './table.ts';
+import { spokenListItems } from './spokenList.ts';
 
 /**
  * "Glyph, add buy milk to HelloTrade": commands while recording, which only
@@ -114,6 +115,8 @@ export interface Placement {
   target: string | null;
   /** Semantic list area named explicitly by the command. */
   near?: 'bugs';
+  /** The items already told apart ("a list with…"), so a comma inside one ("Parkersburg, West Virginia") stays in it. */
+  items?: readonly string[];
 }
 
 export type Plan<N extends Candidate = Candidate> =
@@ -147,7 +150,23 @@ const OBJECT_NOUN = /^(?:(?:a|an|another|one more|some|new)\s+)?(?:quick\s+)?(?:
 const TABLE = /^(?:add|make|create|start|put|insert|draw|build|new)\s+(?:(?:a|an|another|one)\s+)?(?:new\s+)?table\b(.*)$/i;
 const CREATE_LIST = /^(?:(?:please\s+)?(?:make|create|start)\s+(?:(?:me\s+)?(?:a|another)\s+)?(?:new\s+)?list|(?:i\s+(?:need|want|would\s+like))\s+(?:a\s+)?new\s+list)\s+(?:called|named|titled)\s+(.+)$/i;
 const ADD_TO_LIST = /^(?:please\s+)?(?:add|put|append)\s+(?:these\s+)?(?:items?\s+)?(?:to|in|into|on)\s+(?:the\s+)?(.+?)\s+list(?:\s+(?:that\s+)?(?:i\s+(?:need|want)|with|containing|:))?\s+(.+)$/i;
-const DIRECT_APPEND = /^(?:please\s+)?(?:add|put|append)\s+to\s+(?:the\s+)?(?:(?:note|list)\s+(?:label(?:ed|led)|called)\s+)?(.+)$/i;
+const DIRECT_APPEND = /^(?:please\s+)?(?:add|put|append)\s+(?:(?:this|these|the\s+following)\s+)?to\s+(?:(?:the|my|our)\s+)?(?:(?:note|list|page)\s+(?:that(?:'s|\s+is)\s+)?(?:label(?:ed|led)|called|named|titled)\s+|note\s+)?(.+)$/i;
+
+/**
+ * What is added, when it says it is a list: "a list with…", "a to-do list of…", "the following items:", "these
+ * tasks…". The words after it are the items, told apart by `spokenListItems`.
+ */
+const LIST_INTRO = /^(?:(?:a|an|the|this|my)\s+)?(?:(?:new|short|quick)\s+)?(?:(?:bullet(?:ed)?|bulleted|numbered|check(?:ed)?|(to-?\s?do|task|check)|shopping|grocery)\s+)?(?:list|items?|(tasks?|to-?\s?dos?|check\s?list))\s*(?:(?:of|with|containing|including|that\s+(?:has|says|includes)|saying|for)\b|:|,|-)\s*|^(?:the\s+following(?:\s+(?:items?|things|places|(tasks?|to-?\s?dos?)))?|(?:these|those)\s+(?:items?|things|places|(tasks?|to-?\s?dos?)))\s*(?::|,|-)?\s*/i;
+
+/** A named note's words, as a list when they say they are one. */
+function directPayload(text: string): Pick<Placement, 'how' | 'task' | 'many' | 'items'> & { text: string } {
+  const intro = LIST_INTRO.exec(text);
+  const rest = intro ? text.slice(intro[0].length).trim() : '';
+  if (!intro || !rest) return { text, how: 'leave', task: false, many: false };
+  const items = spokenListItems(rest);
+  const task = Boolean(intro[1] || intro[2] || intro[3] || intro[4]);
+  return { text: items.join(', '), how: 'item', task, many: items.length > 1, items };
+}
 
 /** A terminal voice stop cue is control, never command content. */
 export function isStopCue(text: string): boolean {
@@ -156,6 +175,23 @@ export function isStopCue(text: string): boolean {
 
 export function stripStopCue(text: string): string {
   return text.replace(/(?:[.!?]\s*)?\b(?:end|stop)\s*[.!?]*\s*$/i, '').trim();
+}
+
+/**
+ * The command in a finished recording, or null when it is not one: what is left once a leading "hey Ghost", "okay",
+ * "um" or "can you" is gone, if that starts like a command. Only the very start counts, so a command said inside a
+ * sentence ("I told Sam, add to…") stays words.
+ */
+export function finalCommandWords(text: string): string | null {
+  let words = stripStopCue(text.trim()).replace(/^[\s.,;:!?…"“]+/, '');
+  for (let pass = 0; pass < 3; pass += 1) {
+    const before = words;
+    const keyword = findKeyword(words);
+    if (keyword && !keyword.before.trim()) words = keyword.after;
+    words = words.replace(/^\s*(?:(?:hey|hi|please|can you|could you|would you|will you|and|so|ok(?:ay)?|alright|all right|um+|uh+|er+|hmm+)[,.\s]+)+/i, '').trim();
+    if (words === before) break;
+  }
+  return isStandaloneCommandLike(words) ? words : null;
 }
 
 /** Narrow gate for no-wake commands in a fresh main Speak capture. */
@@ -266,17 +302,24 @@ function readCommand<N extends Candidate & { note?: { body: string } }>(words: s
   const addList = ADD_TO_LIST.exec(text);
   if (addList?.[1] && addList[2]) {
     const found = noteNamed(addList[1], notes);
-    if (!found) return { kind: 'no-note', name: addList[1].trim() };
-    const items = splitSpokenItems(addList[2], true);
-    return { kind: 'place', note: found.note, text: items.join(', '), how: 'item', task: false, many: items.length > 1, target: null };
+    if (found) {
+      const items = splitSpokenItems(addList[2], true);
+      return { kind: 'place', note: found.note, text: items.join(', '), how: 'item', task: false, many: items.length > 1, target: null };
+    }
   }
+  // "Add to my note labeled Go a list with…" also reads as "add to <my note labeled Go a> list with…": when that name
+  // is no note, the labeled note is the reading, and the no-note answer waits until it has failed too.
+  const missing: Plan<N> | null = addList?.[1] && addList[2] ? { kind: 'no-note', name: addList[1].trim() } : null;
   const directAppend = DIRECT_APPEND.exec(text);
   if (directAppend?.[1]) {
-    const found = titledPrefix(directAppend[1], notes);
-    if (found) return { kind: 'place', note: found.note, text: found.text, how: 'leave', task: false, many: false, target: null };
+    // 'labeled "Go" a list…': the quotes are the title's, not the words'.
+    const named = /^["“]([^"”]+)["”]\s*(.*)$/.exec(directAppend[1]);
+    const found = titledPrefix(named ? `${named[1]} ${named[2]}` : directAppend[1], notes);
+    if (found) return { kind: 'place', note: found.note, target: null, ...directPayload(found.text.replace(/^[\s,:;-]+/, '')) };
     // This unmistakable shape must fail closed when no unique title is found.
-    return { kind: 'no-note', name: directAppend[1].trim() };
+    return missing ?? { kind: 'no-note', name: directAppend[1].trim() };
   }
+  if (missing) return missing;
 
   // "Move the pricing page to Done": a card, when the note being recorded has a board with that lane and no note by
   // that name is the better match.

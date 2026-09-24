@@ -572,12 +572,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    * list grows by them, in its own style, while this take carries on where it
    * was. The chip and the landing preview show the lines arriving.
    */
-  const addItems = async (note: Note, spoken: string, { how, task, many, target = null, near }: Placement) => {
+  const addItems = async (note: Note, spoken: string, { how, task, many, target = null, near, items }: Placement) => {
     try {
       // The offer was made from this exact note snapshot. Confirmation is a
       // compare-and-swap, so a later edit or delete wins instead of being
       // overwritten by the voice command.
-      const placed = placeWords(note.body, spoken, { how, task, many, near });
+      const placed = placeWords(note.body, spoken, { how, task, many, near, items });
       if (!placed.added.length) return;
       const mutationId = newNoteId();
       const result = await applyCommandMutation({

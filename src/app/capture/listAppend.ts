@@ -218,6 +218,8 @@ export interface Placing {
   task: boolean;
   many: boolean;
   near?: string;
+  /** Items already told apart by the command: each is one item, commas and all. */
+  items?: readonly string[];
 }
 
 /**
@@ -226,8 +228,9 @@ export interface Placing {
  * several. What the recorder shows before asking, and what it does after a yes,
  * are both this, so the preview is the result.
  */
-export function placeWords(body: string, spoken: string, { how, task, many, near }: Placing): { body: string; added: string[]; into: 'list' | 'paragraph' } {
+export function placeWords(body: string, spoken: string, { how, task, many, near, items: told }: Placing): { body: string; added: string[]; into: 'list' | 'paragraph' } {
   const semantic = semanticListKind(body);
+  if (how === 'item' && told?.length) return { ...appendToList(body, told, { asTasks: task || semantic === 'task', near }), into: 'list' };
   if (how === 'paragraph') return leaveNote(body, spoken, { asParagraph: true });
   if (how === 'leave' && !semantic) return leaveNote(body, spoken);
   // Several said one after another arrive joined with commas: each is an item, two as much as five.

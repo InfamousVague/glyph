@@ -92,7 +92,30 @@ pub enum CommandInferenceResult {
     Unavailable { reason: String },
 }
 
-const COMMAND_SYSTEM: &str = "Translate one spoken note command to JSON. Allowed actions: append existing note, create new note, or none. Append target is the spoken note title, content is only what to add, and placement is bugs, tasks, list, notes, or null. Create target is the new note title and optional content is its body. Destructive, compound, unsupported, or unclear requests are none. Never invent content. Output exactly one object in the required schema.";
+/// The command model's standing instructions. Fixed text, so the llama KV
+/// prefix snapshot after it stays valid across commands; the worked examples
+/// are the phrasings people actually say ("my note labeled Go", "a list
+/// with…"), which a 2B model follows far better than a rule alone.
+const COMMAND_SYSTEM: &str = r#"Translate one spoken note command to JSON. Allowed actions: append to an existing note, create a new note, or none.
+- append: "target" is only the note's title as spoken, without words like "my", "the", "note", "list", "labeled", "called" or "named". "content" is only what to add, in the speaker's words, without the command or the title. "placement" is "list" when they ask for a list, items, bullets or points; "tasks" for tasks, to-dos or check boxes; "bugs" for bugs or issues; "notes" for a paragraph or a note; otherwise null.
+- For "list" and "tasks", separate the items in "content" with "; " and keep each item whole: "Paris, Texas; Austin, Texas".
+- create: "target" is the new note's title and "content" is its body, or null.
+- none: destructive (delete, remove, clear), compound (several different actions), unsupported, or unclear requests.
+Never invent content or a title. Output exactly one object in the required schema.
+
+Examples:
+Command: add to my note labeled Go a list with Parkersburg West Virginia Marietta Ohio and Detroit Michigan
+{"action":"append","target":"Go","content":"Parkersburg, West Virginia; Marietta, Ohio; Detroit, Michigan","placement":"list"}
+Command: put call Sam and book the flights on my work to-do list
+{"action":"append","target":"Work","content":"call Sam; book the flights","placement":"tasks"}
+Command: add to the note called Weekend trip that we should book the ferry early
+{"action":"append","target":"Weekend trip","content":"we should book the ferry early","placement":null}
+Command: add eggs milk and bread to groceries
+{"action":"append","target":"groceries","content":"eggs; milk; bread","placement":"list"}
+Command: make a new note called Packing
+{"action":"create","target":"Packing","content":null}
+Command: delete everything in my Go note
+{"action":"none","reason":"destructive"}"#;
 
 /// One model of the catalogue, with whether this phone has it.
 #[derive(Debug, Clone, Serialize)]
@@ -371,8 +394,9 @@ pub async fn ai_infer_command(
             id: request.id.clone(),
             system: COMMAND_SYSTEM.into(),
             context: None,
-            prompt: utterance.to_string(),
-            max_tokens: 192,
+            prompt: format!("Command: {utterance}"),
+            // Room for a spoken list of a dozen places; a truncated answer fails closed.
+            max_tokens: 384,
             temperature: 0.0,
             think: false,
             think_budget: 0,
