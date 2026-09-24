@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { applyPreferences, DEFAULT_PREFERENCES, isAccent, isRounding, preferences, setPreferences } from './preferences.ts';
+import { applyPreferences, DEFAULT_PREFERENCES, facesOf, isAccent, isRounding, preferences, setPreferences, type Preferences } from './preferences.ts';
 
 /**
  * What the page is stamped with, and what survives a store written by another build. The look itself is CSS
@@ -52,5 +52,32 @@ describe('how the app is drawn', () => {
     applyPreferences();
     expect(root().hasAttribute('data-accent')).toBe(false);
     expect(root().hasAttribute('data-rounding')).toBe(false);
+  });
+
+  it('draws notes in Maple Mono and the interface in Inter by default, and stamps both', () => {
+    expect(facesOf(DEFAULT_PREFERENCES)).toEqual({ ui: 'inter', note: 'maple' });
+    applyPreferences({ ...DEFAULT_PREFERENCES });
+    // The interface's own default stamps nothing, as the kit expects; the note's face is always stamped.
+    expect(root().hasAttribute('data-font')).toBe(false);
+    expect(root().getAttribute('data-note-font')).toBe('maple');
+    setPreferences({ noteFace: 'inter', typeface: 'plex' });
+    expect(root().getAttribute('data-note-font')).toBe('inter');
+    expect(root().getAttribute('data-font')).toBe('plex');
+  });
+
+  it('reads one face for everything, from a store or another device, as a pair', () => {
+    // A coding face chosen for the whole app, before there were two: the note's now, and the interface its default.
+    const legacy = (typeface: string, noteFace?: string) => facesOf({ typeface, noteFace } as unknown as Pick<Preferences, 'typeface' | 'noteFace'>);
+    expect(legacy('maple')).toEqual({ ui: 'inter', note: 'maple' });
+    expect(legacy('fira')).toEqual({ ui: 'inter', note: 'fira' });
+    // A sans chosen then keeps the interface in it, and the note takes the default.
+    expect(legacy('plex')).toEqual({ ui: 'plex', note: 'maple' });
+    // Names from a newer build are the defaults here.
+    expect(legacy('comic', 'wingdings')).toEqual({ ui: 'inter', note: 'maple' });
+    // A note face said outright wins over an old coding face in the interface's place.
+    expect(legacy('maple', 'noto')).toEqual({ ui: 'inter', note: 'noto' });
+    setPreferences({ typeface: 'fira' as unknown as Preferences['typeface'], noteFace: undefined as unknown as Preferences['noteFace'] });
+    expect(root().hasAttribute('data-font')).toBe(false);
+    expect(root().getAttribute('data-note-font')).toBe('fira');
   });
 });

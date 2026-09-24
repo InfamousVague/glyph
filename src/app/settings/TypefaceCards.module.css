@@ -1,6 +1,6 @@
 /*
  * The typeface cards (TypefaceCards.tsx): the interface-size cards' language (ScaleCards.module.css) - a hairline, the
- * accent ring when chosen, the piece of a note on paper-2 over the name - small, as many to a row as fit.
+ * accent ring when chosen, a scrap of a note or of the app on paper-2 over the name - small, as many to a row as fit.
  */
 
 .grid {
@@ -82,6 +82,33 @@
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* An interface face's scrap: a title and a row of tabs, the app's own words as it sets them. */
+.title {
+  font-size: 0.95rem;
+  font-weight: var(--glacier-font-weight-semibold);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--glacier-text-muted);
+}
+
+.tab {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+}
+
+.tab[data-on] {
+  background: color-mix(in srgb, var(--glacier-text) 10%, transparent);
+  color: var(--app-ink);
 }
 
 .line b {

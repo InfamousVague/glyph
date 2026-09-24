@@ -7,7 +7,7 @@ import { gb, modelName, MODELS, useModels } from '../core/ai.ts';
 import { hapticsAvailable, useHapticsPref } from '../core/haptics.ts';
 import { isAndroid } from '../core/platform.ts';
 import type { Updates } from '../core/ota.ts';
-import { usePreferences } from '../core/preferences.ts';
+import { facesOf, usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { useDeveloperMode } from './developerMode.ts';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
@@ -71,6 +71,7 @@ const ROUNDING_WORDS: Record<string, string> = { square: 'Square', soft: 'Soft',
 
 export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
   const prefs = usePreferences();
+  const faces = facesOf(prefs);
   const account = useAccount();
   const syncStatus = useSyncStatus();
   const haptics = useHapticsPref();
@@ -129,13 +130,15 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
       words: 'text font',
       settings: [
         { name: 'Text size', words: 'font bigger smaller larger' },
-        { name: 'Family', words: 'font typeface inter noto plex maple fira mono monospace code coding ligatures' },
+        { name: 'Note font', words: 'font typeface body note editor maple fira mono monospace code coding ligatures inter noto plex' },
+        { name: 'Interface font', words: 'font typeface ui app tabs menus inter noto plex' },
         { name: 'Link previews', words: 'links url cards' },
       ],
       icon: <Type size={16} />,
       content: <TypePane />,
       // Spacing moved to Appearance, where the rest of how the app is drawn lives.
-      summary: `${SIZE_WORDS[prefs.textSize] ?? prefs.textSize} · ${FACE_WORDS[prefs.typeface] ?? prefs.typeface}`,
+      // The size, then the two faces: the note's, then the interface's.
+      summary: `${SIZE_WORDS[prefs.textSize] ?? prefs.textSize} · ${FACE_WORDS[faces.note]} · ${FACE_WORDS[faces.ui]}`,
       group: 0,
     },
     {

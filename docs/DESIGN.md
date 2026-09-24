@@ -4268,3 +4268,28 @@ pushed to either end - are gone.
 The scroller's room at its foot was the row's (96px). The column stands about 156px tall with its offset, so the room
 is now the column's own height, from the same measures it is drawn with, and a little more: scrolled to the end at
 400 by 880, the last line sits well above it. Seen at 400 by 880, the cover screen, and 880 by 900, the Fold opened.
+
+## 111. A font for the note and one for the interface (2026-09-24)
+
+Matt: "I'd like font pairs. For the note body I want to use the maple mono font and for the interface I want to use
+inter by default, make both kinds of fonts pickable in settings not just one global font." §109's one face for
+everything is two: the **note font**, any of the five (Maple Mono, Fira Code, Inter, Noto, Plex), Maple Mono by
+default; and the **interface font** - tabs, lists, Settings, buttons - one of the three sans, Inter by default. A
+monospace face is not offered for the interface: its even grid is for text to be read, and a row of tabs in it runs
+wide. Asked first whether Maple Mono is free to make the default: it is, under the SIL Open Font License, which lets
+it ship in the app as long as its licence and copyright go with it (docs/THIRD_PARTY.md, which now lists every face).
+
+- **Stamped apart.** The interface's face is the kit's `data-font`, as before; the note's is `data-note-font`,
+  always stamped, which typefaces.css turns into `--app-note-font` for the editor's prose (editor/glyphTheme.ts)
+  and, for a coding face, the code face too. The editor is every note the app draws, so a note, a home card's
+  preview, a canvas card and a book read through all follow the note font, and the chrome round them the interface's.
+- **The ligature rules follow the note.** No letter-spacing and the fonts' own features now apply inside a note in a
+  coding face (`.cm-editor`), not the whole page, since the interface is in a sans again.
+- **The reader.** A shared note's page (read.html) has no settings; with nothing stamped, the note font is the
+  default, so a shared note reads in Maple Mono as it does in the app.
+- **One face becomes two.** A store, or another device by sync, that says one face for everything is read as a pair
+  (core/preferences.ts `facesOf`): a coding face chosen then is the note's, and the interface goes back to Inter; a
+  sans chosen then stays the interface's, and the note takes the default. `noteFace` syncs with the rest.
+- **Two pickers of cards.** Settings > Type has Note font, whose cards set `# Quick & Foxy` and
+  `**bold** -> != <=` in each face, and Interface font, whose cards set a title and a row of tabs. The page's summary
+  names both: "Large · Maple Mono · Inter". Each has its own entry in Settings search.

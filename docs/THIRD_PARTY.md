@@ -1,6 +1,6 @@
-# Third-party artwork
+# Third-party artwork and fonts
 
-Artwork Glyph ships that was made by others, and its licence. Code dependencies are listed in
+Artwork and fonts Ghost.md ships that were made by others, and their licences. Code dependencies are listed in
 package.json and Cargo.toml with their own licences.
 
 - **A wisp of smoke** (`src/app/assets/sample-smoke.jpg`), the picture in the sample note
@@ -10,3 +10,26 @@ package.json and Cargo.toml with their own licences.
 
 (Noto Emoji's ghost and pointing hand were on the guide's "Light or dark?" page for an afternoon on
 2026-09-14; the page now has no drawing.)
+
+## Fonts
+
+Every face the app sets is under the SIL Open Font License 1.1 (https://openfontlicense.org): free to use, bundle
+and ship in any app, paid or free, as long as the copyright and the licence go with the font files, and no font is
+sold on its own. The full text is in each package's `LICENSE`, under `node_modules/`, and the copyright is in each
+font file's own metadata. Bundled through Fontsource (https://fontsource.org), which splits each face into subsets by
+script; the app loads a face only when something is set in it.
+
+- **Maple Mono** - Copyright (c) 2022, subframe7536 (https://github.com/subframe7536/maple-font), with Reserved Font
+  Name Maple Mono. The note font by default.
+- **Fira Code** - Copyright 2014-2020 The Fira Code Project Authors (https://github.com/tonsky/FiraCode).
+- **Inter** - Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter). The interface font by default.
+- **Noto Sans** - Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic).
+- **IBM Plex Sans** and **IBM Plex Mono** - Copyright 2017-2019 IBM Corp.
+- **JetBrains Mono** - Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono).
+  Code in a note set in a sans.
+
+A Reserved Font Name may not be used by a modified version of the font. Fontsource's subsets are the font cut into
+pieces by script, which the OFL counts as modifying it; the app shows the name "Maple Mono" for the face in Settings.
+If that is ever a concern, the author's own unmodified WOFF2 files from the maple-font releases can take the
+package's place under the same name.
+

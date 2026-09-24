@@ -21,44 +21,69 @@
 /*
  * The ligatures: `->` drawn as one arrow, `!=` as one sign, `<=` as one. They are the fonts' contextual alternates and
  * standard ligatures, which a browser turns on by default - but app.css sets Inter's own features on the whole page
- * (`cv11`, `ss01`), and in another font those names mean other glyphs. So code, and a coding face, get the fonts' own
- * features instead.
+ * (`cv11`, `ss01`), and in another font those names mean other glyphs. So code, and a note in a coding face, get the
+ * fonts' own features instead.
  */
 :root {
   --app-mono-features: 'calt', 'liga';
 }
 
-:root[data-font='maple'] {
-  --glacier-font-sans: 'Maple Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+/*
+ * Two faces (Settings > Type; Matt: "font pairs, for the note body I want to use the maple mono font and for the
+ * interface I want to use inter by default"). The interface's is the kit's `data-font` (tokens.css), one of the sans.
+ * The note's is `data-note-font`, which core/preferences.ts always stamps, and which sets the words of a note and, for
+ * a coding face, its code. With nothing stamped - the reader's page, which has no settings - the note is in the
+ * default, Maple Mono.
+ */
+:root {
+  --app-note-font: 'Maple Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+:root[data-note-font='fira'] {
+  --app-note-font: 'Fira Code Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+:root[data-note-font='inter'] {
+  --app-note-font: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+:root[data-note-font='noto'] {
+  --app-note-font: 'Noto Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+:root[data-note-font='plex'] {
+  --app-note-font: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* A coding face is the note's code face too, so a code block reads as part of the words round it. */
+:root:not([data-note-font]),
+:root[data-note-font='maple'] {
   --glacier-font-mono: 'Maple Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
-:root[data-font='fira'] {
-  --glacier-font-sans: 'Fira Code Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+:root[data-note-font='fira'] {
   --glacier-font-mono: 'Fira Code Variable', ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
-
-
-/* A coding face sets the whole page: its features in place of Inter's, and no optical-size axis it doesn't have. */
-:root:is([data-font='maple'], [data-font='fira']) {
+/*
+ * A note in a coding face: the font's own features, and no letter-spacing. A ligature forms only where the letters
+ * are not spaced apart: any letter-spacing but none, and Chrome and Safari set `->` as two characters (measured: Maple
+ * Mono and Fira Code both break at -0.005em). The editor tightens its headings for Inter; a monospace face is never
+ * spaced, since its grid is the point. `.cm-editor` is every note the app draws: the note, a card's preview, a
+ * canvas card, a book read through, the reader's page.
+ */
+:root:is(:not([data-note-font]), [data-note-font='maple'], [data-note-font='fira']) .cm-editor {
   font-feature-settings: var(--app-mono-features);
   font-optical-sizing: none;
 }
 
-/*
- * A ligature forms only where the letters are not spaced apart: any letter-spacing but none, and Chrome and Safari set
- * `->` as two characters (measured: Maple Mono and Fira Code both break at -0.005em). The app tightens
- * Inter's titles and headings, which a monospace face should never be - its grid is the point - so in a coding face
- * nothing is spaced.
- */
-:root:is([data-font='maple'], [data-font='fira']) * {
+:root:is(:not([data-note-font]), [data-note-font='maple'], [data-note-font='fira']) .cm-editor * {
   letter-spacing: 0 !important;
 }
 
 /*
- * Code in any face gets the mono font's own features and no spacing, so the code face's ligatures show with Inter too
- * (JetBrains Mono has them). The editor's own code - inline code and a code block's lines - says so in
+ * Code in any face gets the mono font's own features and no spacing, so the code face's ligatures show with a sans
+ * note too (JetBrains Mono has them). The editor's own code - inline code and a code block's lines - says so in
  * Editor.module.css; this is for code set anywhere else as HTML.
  */
 code,

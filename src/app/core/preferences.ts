@@ -123,19 +123,39 @@ export function isRounding(value: unknown): value is Rounding {
 /** The reader's dial on the type scale in app.css; 'large' is already large. */
 export type TextSize = 'large' | 'larger' | 'largest';
 /**
- * The faces a note and the app can be set in: the kit's three sans ('inter' is the token default), and two monospace
- * coding faces with ligatures and decorative symbols (typefaces.css): Maple Mono and Fira Code.
+ * Every face the app can set: two monospace coding faces with ligatures and decorative symbols (typefaces.css), Maple
+ * Mono and Fira Code, and the kit's three sans. Two are chosen (Matt: "font pairs, for the note body I want to use the
+ * maple mono font and for the interface I want to use inter by default, make both kinds of fonts pickable"): the
+ * note's face, any of the five, and the interface's - tabs, lists, Settings, buttons - one of the sans.
  */
-export const TYPEFACES = ['inter', 'noto', 'plex', 'maple', 'fira'] as const;
+export const TYPEFACES = ['maple', 'fira', 'inter', 'noto', 'plex'] as const;
 export type Typeface = (typeof TYPEFACES)[number];
+/** The faces the interface can be set in: a monospace face's grid is for text to read, not for a row of tabs. */
+export const INTERFACE_FACES = ['inter', 'noto', 'plex'] as const;
+export type InterfaceFace = (typeof INTERFACE_FACES)[number];
 
 export function isTypeface(value: unknown): value is Typeface {
   return typeof value === 'string' && (TYPEFACES as readonly string[]).includes(value);
 }
 
-/** Whether a face is one of the monospace coding faces, set for code and prose alike. */
+export function isInterfaceFace(value: unknown): value is InterfaceFace {
+  return typeof value === 'string' && (INTERFACE_FACES as readonly string[]).includes(value);
+}
+
+/** Whether a face is one of the monospace coding faces, which set the note's code as well as its words. */
 export function isCodingFace(face: Typeface): boolean {
   return face === 'maple' || face === 'fira';
+}
+
+/**
+ * The two faces a set of preferences draws with, whatever the store says: the interface's is one of the sans, and the
+ * note's any face. One face for everything was the setting until 2026-09-24, and a coding face chosen then - here, or
+ * from another device by sync - is the note's; the interface goes back to its own default.
+ */
+export function facesOf(prefs: Pick<Preferences, 'typeface' | 'noteFace'>): { ui: InterfaceFace; note: Typeface } {
+  const ui = isInterfaceFace(prefs.typeface) ? prefs.typeface : DEFAULT_PREFERENCES.typeface;
+  const note = isTypeface(prefs.noteFace) ? prefs.noteFace : isTypeface(prefs.typeface) && isCodingFace(prefs.typeface) ? prefs.typeface : DEFAULT_PREFERENCES.noteFace;
+  return { ui, note };
 }
 
 /** How quickly things move (Settings > Animations; Matt: "add controls to animation speeds"). */
@@ -163,7 +183,10 @@ export interface Preferences {
   /** Prose input aids in the editor: autocorrect, autocapitalisation, spellcheck. */
   assist: boolean;
   textSize: TextSize;
-  typeface: Typeface;
+  /** The interface's face: tabs, lists, Settings, buttons (`facesOf`). */
+  typeface: InterfaceFace;
+  /** The note's face: its words and its code (`facesOf`). */
+  noteFace: Typeface;
   /**
    * Better words after recording: a larger, slower model goes over the kept
    * recording in the background and replaces the live words (capture/refine.ts).
@@ -264,6 +287,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   assist: true,
   textSize: 'large',
   typeface: 'inter',
+  noteFace: 'maple',
   refine: true,
   quietStop: false,
   commandWord: true,
@@ -340,6 +364,10 @@ function load(): Preferences {
     // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.
     if (!isAccent(loaded.accent)) loaded.accent = DEFAULT_PREFERENCES.accent;
     if (!isRounding(loaded.rounding)) loaded.rounding = DEFAULT_PREFERENCES.rounding;
+    // The two faces, settled: one face for everything, as a store from before the pair has it, is read as a pair.
+    const faces = facesOf(loaded);
+    loaded.typeface = faces.ui;
+    loaded.noteFace = faces.note;
     return loaded;
   } catch {
     return DEFAULT_PREFERENCES;
@@ -474,9 +502,13 @@ export function applyPreferences(prefs: Preferences = current): void {
 
   // `data-font` is the token layer's own attribute (tokens.css), so the kit's
   // components change face along with the editor.
-  // A face this app doesn't know (set by a newer one on another device, by sync) is the default here.
-  if (!isTypeface(prefs.typeface) || prefs.typeface === DEFAULT_PREFERENCES.typeface) root.removeAttribute('data-font');
-  else root.setAttribute('data-font', prefs.typeface);
+  // The two faces (`facesOf`, which also reads a face from another build as the default here). The interface's is the
+  // token layer's own attribute, so the kit's components change with it; the note's is always stamped, and
+  // typefaces.css sets the note's words and code from it.
+  const faces = facesOf(prefs);
+  if (faces.ui === DEFAULT_PREFERENCES.typeface) root.removeAttribute('data-font');
+  else root.setAttribute('data-font', faces.ui);
+  root.setAttribute('data-note-font', faces.note);
 
   // Both code themes are stamped; editor/codeThemes.css applies whichever side of the page is showing.
   root.setAttribute('data-code-light', prefs.codeLight);

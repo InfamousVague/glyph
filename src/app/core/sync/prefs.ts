@@ -18,6 +18,7 @@ export const SYNCED_PREFS = [
   'assist',
   'textSize',
   'typeface',
+  'noteFace',
   'refine',
   'quietStop',
   'commandWord',

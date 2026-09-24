@@ -1,66 +1,69 @@
-import { isTypeface, TYPEFACES, type Typeface } from '../core/preferences.ts';
+import { isCodingFace, type Typeface } from '../core/preferences.ts';
 import styles from './TypefaceCards.module.css';
 
 /**
- * The typefaces as small cards (Matt: "show the fonts as small cards on the app with markdown symbols like a # Quick &
- * Foxy or something to preview what each font looks like"). Each card sets the same scrap of a note in its own face -
- * a heading with its hash, an ampersand, bold between its stars, and the pairs a coding face joins into one sign - so
- * the ampersand's shape and the ligatures are seen before the face is chosen. The marks are dimmed as the editor dims
- * them. A card's face is loaded the moment the card is drawn (typefaces.css registers every one), so the preview is
- * the face itself.
+ * Typefaces as small cards (Matt: "show the fonts as small cards on the app with markdown symbols like a # Quick &
+ * Foxy or something to preview what each font looks like"), for either of the two faces the app is set in (Matt:
+ * "font pairs ... make both kinds of fonts pickable"). A note face's card sets the same scrap of a note in it - a
+ * heading with its hash, an ampersand, bold between its stars, and the pairs a coding face joins into one sign - with
+ * the marks dimmed as the editor dims them. An interface face's card sets a scrap of the app's own words instead: a
+ * title and a row of tabs. A card's face is loaded the moment it is drawn (typefaces.css registers every one), so the
+ * preview is the face itself.
  */
 
-interface Face {
-  label: string;
-  /** The family as its @font-face names it. */
-  family: string;
-  /** A monospace coding face: its ligatures on and its letters unspaced, as the app sets it (typefaces.css). */
-  coding?: boolean;
-}
-
-const FACES: Record<Typeface, Face> = {
+const FACES: Record<Typeface, { label: string; family: string }> = {
+  maple: { label: 'Maple Mono', family: "'Maple Mono'" },
+  fira: { label: 'Fira Code', family: "'Fira Code Variable'" },
   inter: { label: 'Inter', family: "'Inter Variable'" },
   noto: { label: 'Noto', family: "'Noto Sans Variable'" },
   plex: { label: 'Plex', family: "'IBM Plex Sans'" },
-  maple: { label: 'Maple Mono', family: "'Maple Mono'", coding: true },
-  fira: { label: 'Fira Code', family: "'Fira Code Variable'", coding: true },
 };
 
-interface TypefaceCardsProps {
-  value: Typeface;
-  onValueChange: (value: Typeface) => void;
+interface TypefaceCardsProps<F extends Typeface> {
+  faces: readonly F[];
+  value: F;
+  onValueChange: (value: F) => void;
+  /** What the choice is, for a screen reader, and the radios' shared name. */
+  label: string;
+  /** A note's face previews Markdown; the interface's previews the app's own words. */
+  kind: 'note' | 'interface';
 }
 
-export function TypefaceCards({ value, onValueChange }: TypefaceCardsProps) {
+export function TypefaceCards<F extends Typeface>({ faces, value, onValueChange, label, kind }: TypefaceCardsProps<F>) {
   return (
-    <div className={styles.grid} role="radiogroup" aria-label="Typeface">
-      {TYPEFACES.map((face) => {
-        const { label, family, coding } = FACES[face];
+    <div className={styles.grid} role="radiogroup" aria-label={label}>
+      {faces.map((face) => {
+        const { label: name, family } = FACES[face];
         const selected = face === value;
         return (
-          <label key={face} className={styles.card} data-selected={selected || undefined} data-coding={coding || undefined}>
-            <input
-              className={styles.input}
-              type="radio"
-              name="typeface"
-              value={face}
-              aria-label={label}
-              checked={selected}
-              onChange={() => {
-                if (isTypeface(face)) onValueChange(face);
-              }}
-            />
+          <label key={face} className={styles.card} data-selected={selected || undefined} data-coding={isCodingFace(face) || undefined}>
+            <input className={styles.input} type="radio" name={label} value={face} aria-label={name} checked={selected} onChange={() => onValueChange(face)} />
             <div className={styles.sample} style={{ fontFamily: `${family}, ui-sans-serif, system-ui, sans-serif` }} aria-hidden="true">
-              <div className={styles.heading}>
-                <b className={styles.mark}>#</b> Quick &amp; Foxy
-              </div>
-              <div className={styles.line}>
-                <b className={styles.mark}>**</b>
-                <b>bold</b>
-                <b className={styles.mark}>**</b> -&gt; != &lt;=
-              </div>
+              {kind === 'note' ? (
+                <>
+                  <div className={styles.heading}>
+                    <b className={styles.mark}>#</b> Quick &amp; Foxy
+                  </div>
+                  <div className={styles.line}>
+                    <b className={styles.mark}>**</b>
+                    <b>bold</b>
+                    <b className={styles.mark}>**</b> -&gt; != &lt;=
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={styles.title}>Notes &amp; Books</div>
+                  <div className={styles.tabs}>
+                    <span className={styles.tab} data-on="">
+                      Today
+                    </span>
+                    <span className={styles.tab}>Recent</span>
+                    <span className={styles.tab}>Settings</span>
+                  </div>
+                </>
+              )}
             </div>
-            <strong className={styles.name}>{label}</strong>
+            <strong className={styles.name}>{name}</strong>
           </label>
         );
       })}

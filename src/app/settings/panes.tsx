@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, Compass, FileText, Gauge, GraduationCap, LayoutGrid, ListChecks, Terminal, Workflow } from '@glacier/icons';
 import { DensitySelector, SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
-import { isSidebarStyle, setPreferences, themeChoice, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize } from '../core/preferences.ts';
+import { facesOf, INTERFACE_FACES, isSidebarStyle, setPreferences, themeChoice, TYPEFACES, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize } from '../core/preferences.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
 import { ScaleCards } from './ScaleCards.tsx';
 import { TypefaceCards } from './TypefaceCards.tsx';
@@ -69,6 +69,7 @@ const SPEEDS: { value: MotionSpeed; label: string }[] = [
 
 export function TypePane() {
   const prefs = usePreferences();
+  const faces = facesOf(prefs);
   return (
     <>
       <p className="settingsScreen__sample" aria-hidden="true">
@@ -92,13 +93,18 @@ export function TypePane() {
         />
       </PaneSection>
       <PaneSection title="Typeface">
+        {/* Two faces (Matt: "font pairs ... make both kinds of fonts pickable"): the note's, and the interface's. */}
         <SettingRow
-          label="Family"
+          label="Note font"
+          hint="The words of a note and its code. Maple Mono and Fira Code join pairs like -> and != into one sign."
           layout="stacked"
-          control={
-            // A card per face, each a scrap of a note set in it (TypefaceCards.tsx).
-            <TypefaceCards value={prefs.typeface} onValueChange={(typeface) => setPreferences({ typeface })} />
-          }
+          control={<TypefaceCards label="Note font" kind="note" faces={TYPEFACES} value={faces.note} onValueChange={(noteFace) => setPreferences({ noteFace })} />}
+        />
+        <SettingRow
+          label="Interface font"
+          hint="Tabs, lists, Settings and buttons."
+          layout="stacked"
+          control={<TypefaceCards label="Interface font" kind="interface" faces={INTERFACE_FACES} value={faces.ui} onValueChange={(typeface) => setPreferences({ typeface })} />}
         />
       </PaneSection>
       <PaneSection title="Links">
