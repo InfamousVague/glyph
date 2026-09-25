@@ -4536,7 +4536,7 @@ and the tab row's house, the arrow in its bar and the phone's back gesture come 
 - **The palette** says "Home" for the command that goes home (it said "All notes", which now means the grid) and gains
   "All notes" for the page.
 
-## 114. Effects on words, written as an emoji twice (2026-09-25)
+## 116. Effects on words, written as an emoji twice (2026-09-25)
 
 Matt: "I want to add in effects to text in our markdown one of which should be the "heated" effect that gives the
 wavey blur like we used on the "AI" text on with the fire on the original onboarding flow. Effects should be shown by
@@ -4566,7 +4566,7 @@ each of these effects."
 - **Said** as adjectives - heated, frosted, wavy, shimmering, haunted - because the nouns are everyday words and the
   spoken form closes on "and" as well as "end": "heat the oven and heat the pan" would have heated "the oven".
 
-## 115. The AI bar is off until asked for (2026-09-25)
+## 117. The AI bar is off until asked for (2026-09-25)
 
 Matt: "Hide the AI bar on the note by default, put it behind a toggle button."
 
@@ -4582,7 +4582,7 @@ Matt: "Hide the AI bar on the note by default, put it behind a toggle button."
   would otherwise bring the keyboard up again on words that may have moved.
 - The page keeps room under the last line for whichever is there: the bar's height as it tells it, or the ring's.
 
-## 116. A Search in the home dock (2026-09-25)
+## 118. A Search in the home dock (2026-09-25)
 
 Matt: "Add a search button to the right hand dock of buttons that opens the command pallette." A ring under Settings
 in the home dock (home/HomeScreen.tsx), a magnifier drawn in the app's own line icons (art/Icons.tsx `Magnifier`),
