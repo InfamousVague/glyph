@@ -10,7 +10,6 @@ import {
   matchLane,
   moveToLane,
   nearAnchor,
-  wordsEnd,
   withoutCard,
   BOARD_HEIGHT,
   boardsIn,
@@ -41,6 +40,7 @@ import {
   withBoardHeight,
   writeBoard,
 } from './boards.ts';
+import { wordsEnd } from './itemSyntax.ts';
 
 const note = `# Launch week
 

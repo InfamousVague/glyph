@@ -1,7 +1,9 @@
 import { similarity } from '../capture/route.ts';
+import { ANCHOR_NAME, COUNTER, anchorSpan, isDoneName, listLead, taskBox, withoutAnchor, withoutBookmark } from './itemSyntax.ts';
 
 /**
- * Boards in markdown: the whole syntax, read and written here and nowhere else (docs/BOARDS.md).
+ * Boards in markdown: the whole syntax, read and written here and nowhere else (docs/BOARDS.md) - the fence here, and
+ * the item line it points at spelled once in core/itemSyntax.ts, which this reads it with.
  *
  * Matt: "define and create a markdown standard we use to create kanban boards and task management boards entirely
  * within markdown, linking the tasks in the board to a task on the page", and later "come up with a generic way to
@@ -39,54 +41,33 @@ export interface Item {
   line: number;
 }
 
-/** What opens a list item: its marker, and the tick box a to-do has. */
-const LEAD = /^(\s*(?:[-*+]|\d+[.)])\s+)(\[([ xX])\]\s?)?/;
-/**
- * The anchor at the end of an item: a caret with whitespace before it (or nothing before it at all, on an item whose
- * words have not been written yet) and the end of the line after it. That is what leaves `E = mc^2^` and `foo ^2^`
- * the superscripts they are: a closing caret means the line does not end there.
- *
- * The things allowed after it are an item's mark (core/itemLinks.ts, `[notion](…)`) and counters (`[3/8]`,
- * editor/counters.ts), which a person typing at the end of the line puts there. The anchor goes last, but a
- * mark used to be added after it when an item was sent to Notion, and those lines must still be found: the card
- * showed its anchor and nothing else (Matt: "the last two items show up weird on the board as only their label no
- * title"). The marks stay with the item's words.
- */
-const TAIL = /(?:^|\s)\^([a-z0-9][a-z0-9_-]*)((?:\s+(?:\[[a-z][a-z0-9-]*\]\(https?:\/\/[^\s)]+\)|\[\d{1,4}\/\d{1,4}\]))*)\s*$/;
-/** A choice's box after a bullet (editor/choices.ts): `- ( ) Pick A`. A choice is picked, not done: it has no tick. */
-const CHOICE = /^\(([ xX])\) /;
-/**
- * The bookmark (editor/bookmarkLine.ts): `§§` where the reader left off, after an item's words and before its mark,
- * counters and anchor. It is a place in the note, not something the item says, so no card, title or anchor has it.
- */
-const BOOKMARK = /\s*§§(?=\s|$)/g;
-
-/** A list item pulled apart: what opens it, whether it has a box, its words, and the anchor naming it. */
+/** A list item pulled apart: whether it has a box, its words, and the anchor naming it. */
 interface Parsed {
-  lead: string;
   done: boolean | null;
   text: string;
   id: string | null;
 }
 
+/**
+ * A list item read the way core/itemSyntax.ts spells it. The words are what is left between the lead and the anchor:
+ * a choice's box is not part of what the item says, and not a tick either; the bookmark is a place in the note, not
+ * something the item says, so no card, title or anchor has it; and a mark or counter written after the anchor stays
+ * with the words it belongs to.
+ */
 function parse(line: string): Parsed | null {
-  const lead = LEAD.exec(line);
+  const lead = listLead(line);
   if (!lead) return null;
-  const box = lead[3];
-  let rest = line.slice(lead[0].length);
-  // A choice's box is not part of what the item says, and not a tick either: a bullet's words start after it.
-  if (box === undefined && /[-*+]\s+$/.test(lead[1] ?? '')) rest = rest.replace(CHOICE, '');
-  const tail = TAIL.exec(rest);
+  const rest = line.slice(lead.wordsAt);
+  const span = anchorSpan(rest);
   return {
-    lead: lead[0],
-    done: box === undefined ? null : box !== ' ',
-    text: (tail ? `${rest.slice(0, tail.index)}${tail[2] ?? ''}` : rest).replace(BOOKMARK, '').trim(),
-    id: tail?.[1] ?? null,
+    done: lead.done,
+    text: withoutBookmark(withoutAnchor(rest, span)).trim(),
+    id: span?.id ?? null,
   };
 }
 
-/** An anchor name: lower case, the shape a person can type and read. */
-export const ANCHOR = /^[a-z0-9][a-z0-9_-]*$/;
+/** An anchor name alone: what a lane's id must be to be read as it is written. */
+const NAMED = new RegExp(`^${ANCHOR_NAME}$`);
 /**
  * The fence that opens a board, and what follows the word: `board`, or `board height=18`. What follows is the
  * board's settings as `name=value` words, which any other renderer takes as part of the block's info string.
@@ -97,7 +78,7 @@ const HEIGHT = /(?:^|\s)height=(\d+(?:\.\d+)?)(?:em)?(?=\s|$)/i;
 /** The shortest and tallest a board's lanes can be set, in ems: a card and a half, and a long screen. */
 export const BOARD_HEIGHT = { min: 5, max: 60 };
 /** `[[#^ask-sam]]`: an item in this note, pointed at from anywhere in it. */
-const REF = /\[\[#\^([a-z0-9][a-z0-9_-]*)\]\]/g;
+const REF = new RegExp(String.raw`\[\[#\^(${ANCHOR_NAME})\]\]`, 'g');
 
 /** The columns a board fence's body lays out. A line with no colon is a column with no cards. */
 export function readBoard(body: string, known: ReadonlySet<string> = new Set()): BoardColumn[] {
@@ -138,12 +119,12 @@ export function readBoard(body: string, known: ReadonlySet<string> = new Set()):
  */
 function anchorRead(said: string, known: ReadonlySet<string>): string {
   const plain = said.trim().replace(/^\^/, '');
-  if (ANCHOR.test(plain)) return plain;
+  if (NAMED.test(plain)) return plain;
   const id = plain
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/^[-_]+|[-_]+$/g, '');
-  return ANCHOR.test(id) && known.has(id) ? id : '';
+  return NAMED.test(id) && known.has(id) ? id : '';
 }
 
 /** The columns written back as a fence's body, exactly as a person would type them. */
@@ -186,10 +167,9 @@ export function itemWords(line: string): string | null {
  * touched. An item with no box is left alone, since there is nothing to tick and writing a box is the person's to do.
  */
 export function setItemDone(line: string, done: boolean): string {
-  const found = LEAD.exec(line);
-  if (!found?.[2]) return line;
-  const at = found[0].indexOf('[');
-  return `${line.slice(0, at + 1)}${done ? 'x' : ' '}${line.slice(at + 2)}`;
+  const box = taskBox(line);
+  if (!box) return line;
+  return `${line.slice(0, box.at + 1)}${done ? 'x' : ' '}${line.slice(box.at + 2)}`;
 }
 
 /** That line given an anchor, or left as it is when it has one already. */
@@ -204,7 +184,7 @@ export function columnOf(columns: readonly BoardColumn[], id: string): number {
 
 /** The column a board calls Done, or -1: the one a ticked item belongs in. */
 export function doneColumn(columns: readonly BoardColumn[]): number {
-  return columns.findIndex((column) => /^done\b|\bdone$/i.test(column.name.trim()));
+  return columns.findIndex((column) => isDoneName(column.name));
 }
 
 /** A copy nothing shares with the columns given: every write here answers new columns, never the ones passed in. */
@@ -477,28 +457,15 @@ export function nearAnchor(one: string, two: string): boolean {
   return more === 0 ? short.slice(at + 1) === long.slice(at + 1) : short.slice(at) === long.slice(at + 1);
 }
 
-/** What may end an item's line after its words: its anchor, an item's mark, a counter, the bookmark. */
-const LINE_TAIL = /\s+(?:\^[a-z0-9][a-z0-9_-]*|\[[a-z][a-z0-9-]*\]\(https?:\/\/[^\s)]+\)|\[\d{1,4}\/\d{1,4}\]|§§)$/;
-
-/**
- * Where a list item's words end in its line: before its bookmark, mark, counters and anchor. The caret goes here when a card
- * or a pointer takes the note to the item, so what is typed next goes on the words and not into the anchor that
- * names them. A line that is not an item ends where its text does.
- */
-export function wordsEnd(line: string): number {
-  let rest = line.replace(/\s+$/, '');
-  const lead = LEAD.exec(line);
-  if (!lead) return rest.length;
-  for (let found = LINE_TAIL.exec(rest); found; found = LINE_TAIL.exec(rest)) rest = rest.slice(0, found.index);
-  return Math.max(lead[0].length, rest.length);
-}
-
 /** An item's own column: the Done one when it is ticked, else where the board has it. */
 export function columnFor(columns: readonly BoardColumn[], item: Item): number {
   const done = doneColumn(columns);
   if (item.done === true && done >= 0) return done;
   return columnOf(columns, item.id);
 }
+
+/** Every counter in an item's words (editor/counters.ts): a count kept on the item, never part of its name. */
+const COUNTERS = new RegExp(COUNTER, 'g');
 
 /**
  * Words that say nothing about which item this is: an anchor made of "add-ability-to" names two different items
@@ -516,12 +483,13 @@ const FILLER = new Set(
  * filler ("To do") keep them rather than come out empty.
  */
 export function anchorFor(text: string, taken: readonly string[]): string {
-  const words = text
-    // A link is named by its words, not by where it points: [notion](https://…) anchors as "notion", never as a URL.
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    // A counter is a count kept on the item, and the bookmark a place in the note: neither is part of its name.
-    .replace(/\[\d{1,4}\/\d{1,4}\]/g, ' ')
-    .replace(BOOKMARK, ' ')
+  const words = withoutBookmark(
+    text
+      // A link is named by its words, not by where it points: [notion](https://…) anchors as "notion", never as a URL.
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      // A counter is a count kept on the item, and the bookmark a place in the note: neither is part of its name.
+      .replace(COUNTERS, ' '),
+  )
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .split('-')
@@ -598,8 +566,7 @@ export function boardCopy(doc: string, line: number): string | null {
  * is only what the card shows.
  */
 export function cardText(text: string): string {
-  return text
-    .replace(BOOKMARK, '')
+  return withoutBookmark(text)
     .replace(REF, '^$1')
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/<((?:https?|mailto):[^>]+)>/g, '$1')
@@ -668,7 +635,7 @@ function anchorItems(lines: string[], doc: string, from: number, to: number): { 
 /** A board fence laying `cards` out in `columns`: the ticked ones in the column called Done, the rest in the first. */
 function fenceFor(cards: readonly { id: string; done: boolean }[], columns: readonly string[]): string[] {
   const named = columns.length ? [...columns] : [...NEW_COLUMNS];
-  const called = named.findIndex((name) => /^done\b|\bdone$/i.test(name.trim()));
+  const called = named.findIndex(isDoneName);
   const last = called >= 0 ? called : named.length - 1;
   const board: BoardColumn[] = named.map((name, index) => ({
     name,
@@ -929,7 +896,7 @@ export function matchLane(spoken: string, lanes: readonly Lane[]): { lane: Lane;
   let second = 0;
   for (const lane of lanes) {
     let score = similarity(said, lane.name);
-    if (FINISHED.test(said) && /^done\b|\bdone$/i.test(lane.name.trim())) score = Math.max(score, 0.95);
+    if (FINISHED.test(said) && isDoneName(lane.name)) score = Math.max(score, 0.95);
     if (!best || score > best.score) {
       second = best?.score ?? second;
       best = { lane, score };

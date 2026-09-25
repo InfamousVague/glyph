@@ -13,6 +13,7 @@ import {
   columnFor,
   doneColumn,
   itemAt,
+  itemOnLine,
   itemsIn,
   moveCard,
   newCard,
@@ -23,13 +24,13 @@ import {
   settleTicks,
   settleColumns,
   setItemDone,
-  wordsEnd,
   withoutCard,
   writeBoard,
   type BoardColumn,
   type Card,
   type Item,
 } from '../core/boards.ts';
+import { anchorSpan, isDoneName, wordsEnd } from '../core/itemSyntax.ts';
 
 /**
  * Boards, shown as boards (docs/BOARDS.md, core/boards.ts).
@@ -138,7 +139,8 @@ const ICONS = {
  */
 export function emptyLook(name: string): { icon: 'todo' | 'doing' | 'done' | 'inbox'; words: string } {
   const called = name.trim().toLowerCase();
-  if (/^done\b|\bdone$|^finished|^complete/.test(called)) return { icon: 'done', words: 'Nothing done yet' };
+  // The lane a ticked card goes to (core/itemSyntax.ts `isDoneName`), and the other words for having finished.
+  if (isDoneName(called) || /^finished|^complete/.test(called)) return { icon: 'done', words: 'Nothing done yet' };
   if (/doing|in progress|progress|working|active|started|underway/.test(called)) return { icon: 'doing', words: 'Nothing in progress' };
   if (/to ?do|backlog|up next|^next|later|this week|today|planned|waiting/.test(called)) return { icon: 'todo', words: 'Nothing to do' };
   return { icon: 'inbox', words: 'No cards' };
@@ -1441,21 +1443,13 @@ function anchors(state: EditorState): DecorationSet {
   for (let line = 1; line <= state.doc.lines; line += 1) {
     const at = state.doc.line(line);
     const marks: { from: number; to: number; mark: Decoration }[] = [];
-    const item = itemOnLineAt(at.text);
-    if (item) marks.push({ from: at.from + item.end - item.length, to: at.from + item.end, mark: anchorMark });
+    // The `^anchor` naming the item on the line - last, or with an item's mark after it (core/itemSyntax.ts).
+    const anchor = itemOnLine(at.text) ? anchorSpan(at.text) : null;
+    if (anchor) marks.push({ from: at.from + anchor.from, to: at.from + anchor.to, mark: anchorMark });
     for (const ref of refsIn(at.text, at.from)) marks.push({ from: ref.from, to: ref.to, mark: named.has(ref.id) ? refMark : goneMark });
     for (const mark of marks.sort((one, two) => one.from - two.from)) builder.add(mark.from, mark.to, mark.mark);
   }
   return builder.finish();
-}
-
-/** The `^anchor` that names the item on a line - last, or with an item's mark after it - and where it ends; or null. */
-function itemOnLineAt(text: string): { length: number; end: number } | null {
-  const found = /(?:^|\s)(\^[a-z0-9][a-z0-9_-]*)((?:\s+(?:\[[a-z][a-z0-9-]*\]\(https?:\/\/[^\s)]+\)|\[\d{1,4}\/\d{1,4}\]))*)\s*$/.exec(text);
-  if (!found || !itemsIn(text).length) return null;
-  const anchor = found[1] ?? '';
-  const start = found.index + found[0].indexOf(anchor);
-  return { length: anchor.length, end: start + anchor.length };
 }
 
 const anchorField = StateField.define<DecorationSet>({

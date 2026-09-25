@@ -18,7 +18,8 @@
  * though the prompt asks as well (prompt.ts).
  */
 
-import { ITEM_TAIL, isMarkName, itemWords, withMark } from '../core/itemLinks.ts';
+import { isMarkName, itemWords, withMark } from '../core/itemLinks.ts';
+import { AFTER_MARK } from '../core/itemSyntax.ts';
 
 export interface ProtectedLink {
   /** `link-3`: what stands in for the address while the model works. */
@@ -82,9 +83,9 @@ function markedItem(body: string, offset: number, whole: string, words: string):
   const lineStart = body.lastIndexOf('\n', offset - 1) + 1;
   const lineEndAt = body.indexOf('\n', offset + whole.length);
   const lineEnd = lineEndAt === -1 ? body.length : lineEndAt;
-  // Nothing after it on the line but, at most, a board's anchor and counters (core/itemLinks.ts `ITEM_TAIL`).
+  // Nothing after it on the line but, at most, a board's anchor and counters (core/itemSyntax.ts `AFTER_MARK`).
   const after = body.slice(offset + whole.length, lineEnd);
-  if (!new RegExp(String.raw`^(?:\s+(?:${ITEM_TAIL}))*\s*$`).test(after)) return null;
+  if (!AFTER_MARK.test(after)) return null;
   return itemWords(body.slice(lineStart, lineEnd)) || null;
 }
 

@@ -2,7 +2,8 @@ import { RangeSetBuilder, StateEffect, type Extension } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { boardsIn, itemsIn } from '../core/boards.ts';
-import { ITEM_TAIL, itemWords, markOf } from '../core/itemLinks.ts';
+import { itemWords, markOf } from '../core/itemLinks.ts';
+import { AFTER_MARK } from '../core/itemSyntax.ts';
 import { hasMarkDetails, markNameFor, onMarkDetails, peekMarkDetails, wantMarkDetails, type MarkEntry } from '../core/markDetails.ts';
 import { shortUrl } from '../core/shortUrl.ts';
 
@@ -223,9 +224,6 @@ function marksOnBoards(view: EditorView): { name: string; url: string }[] {
 function lastOnLine(after: string): boolean {
   return AFTER_MARK.test(after);
 }
-
-/** What may follow an item's mark: nothing, or a board's anchor and counters (core/itemLinks.ts `ITEM_TAIL`). */
-const AFTER_MARK = new RegExp(String.raw`^(?:\s+(?:${ITEM_TAIL}))*\s*$`);
 
 function decorate(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
