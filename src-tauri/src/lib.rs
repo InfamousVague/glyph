@@ -5,6 +5,8 @@
 // Building blocks every other module shares, each written once. See each header.
 // The poison-tolerant lock, Tauri-free so whisper/ and llm/ can use it.
 mod lock;
+// Whole-file writes, JSON with a fallback, removals where gone is done. Tauri-free too.
+mod fsx;
 
 // The notes themselves. `pub`, and free of Tauri types, so a caller with no
 // Tauri in its process could reach it over JNI - DESIGN 6.1's capture service,

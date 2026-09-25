@@ -98,10 +98,8 @@ impl Vault for FsVault {
         if let Some(parent) = full.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        // Beside the file, so the rename is on one file system and atomic.
-        let part = full.with_file_name(format!(".{}.part", full.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()));
-        std::fs::write(&part, text)?;
-        std::fs::rename(&part, &full)?;
+        // Whole or not at all, through a hidden file beside it (which `walk` skips).
+        crate::fsx::write_atomically(&full, text.as_bytes())?;
         self.entry(path, &full)
     }
 
@@ -114,10 +112,7 @@ impl Vault for FsVault {
     }
 
     fn remove(&self, path: &str) -> io::Result<()> {
-        match std::fs::remove_file(self.at(path)?) {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-            other => other,
-        }
+        crate::fsx::remove_file_if_present(&self.at(path)?)
     }
 
     fn exists(&self, path: &str) -> bool {

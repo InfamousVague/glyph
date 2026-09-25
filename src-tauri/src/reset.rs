@@ -23,11 +23,7 @@ use crate::commands::{recordings_dir, NotesStore};
 /// Removes a directory and everything in it; a missing one is already done.
 fn remove_dir(dir: Option<std::path::PathBuf>, what: &str) -> Result<(), String> {
     let Some(dir) = dir else { return Ok(()) };
-    match std::fs::remove_dir_all(&dir) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(format!("could not remove the {what} at {}: {e}", dir.display())),
-    }
+    crate::fsx::remove_dir_if_present(&dir).map_err(|e| format!("could not remove the {what} at {}: {e}", dir.display()))
 }
 
 /// Everything a person made on this phone goes; the models too if `models`.
@@ -38,11 +34,7 @@ pub fn reset_local_data(app: AppHandle, store: State<'_, NotesStore>, models: bo
     remove_dir(crate::images::images_dir(&app), "pictures")?;
     // The Notion sign-in: a reset leaves no account behind.
     if let Some(path) = crate::notion::account_path(&app) {
-        match std::fs::remove_file(path) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(format!("could not forget the Notion account: {e}")),
-        }
+        crate::fsx::remove_file_if_present(&path).map_err(|e| format!("could not forget the Notion account: {e}"))?;
     }
     if models {
         remove_dir(crate::capture_commands::models_dir(&app).ok(), "models")?;

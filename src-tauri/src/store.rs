@@ -314,10 +314,10 @@ impl Recording {
 /// Where note `id`'s recording lives inside `recordings`, or `None` for an id
 /// that is not a plain name. Ids reach this from the page, and one that is not
 /// letters, digits, `-` and `_` - a `../`, a slash - must never become a path
-/// to write or delete.
+/// to write or delete. The rule is `fsx::plain_id`, the same one a note's
+/// sidecar and a picture's name obey.
 pub fn recording_file(recordings: &Path, id: &str) -> Option<std::path::PathBuf> {
-    let plain = !id.is_empty() && id.len() <= 128 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-    plain.then(|| recordings.join(format!("{id}.wav")))
+    crate::fsx::plain_id(id).then(|| recordings.join(format!("{id}.wav")))
 }
 
 /// The wall clock in milliseconds, which is what a phone's list of notes

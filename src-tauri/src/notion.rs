@@ -78,8 +78,7 @@ pub fn account_path(app: &AppHandle) -> Option<std::path::PathBuf> {
 }
 
 fn read(app: &AppHandle) -> Option<Account> {
-    let text = std::fs::read_to_string(account_path(app)?).ok()?;
-    serde_json::from_str::<Account>(&text).ok().filter(|a| !a.access_token.is_empty())
+    crate::fsx::read_json::<Account>(&account_path(app)?).filter(|a| !a.access_token.is_empty())
 }
 
 fn write(app: &AppHandle, account: &Account) -> Result<(), String> {
@@ -88,15 +87,9 @@ fn write(app: &AppHandle, account: &Account) -> Result<(), String> {
         std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
     }
     let text = serde_json::to_string(account).map_err(|e| e.to_string())?;
-    // Written beside and renamed over, so a crash never leaves half a token.
-    let partial = path.with_extension("json.part");
-    std::fs::write(&partial, text).map_err(|e| format!("cannot write the Notion account: {e}"))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&partial, std::fs::Permissions::from_mode(0o600));
-    }
-    std::fs::rename(&partial, &path).map_err(|e| format!("cannot keep the Notion account: {e}"))
+    // Written beside and renamed over, so a crash never leaves half a token,
+    // and born readable by this app's user only.
+    crate::fsx::write_private(&path, text.as_bytes()).map_err(|e| format!("cannot write the Notion account: {e}"))
 }
 
 /// The routes below /v1/ Glyph calls. Anything else is refused, so the page
@@ -134,11 +127,7 @@ pub fn notion_account(app: AppHandle) -> AccountInfo {
 #[tauri::command]
 pub fn notion_disconnect(app: AppHandle) -> Result<(), String> {
     let Some(path) = account_path(&app) else { return Ok(()) };
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(format!("cannot forget the Notion account: {e}")),
-    }
+    crate::fsx::remove_file_if_present(&path).map_err(|e| format!("cannot forget the Notion account: {e}"))
 }
 
 #[cfg(target_os = "ios")]

@@ -29,13 +29,13 @@ const MAX_BYTES: u64 = 25 * 1024 * 1024;
 
 const EXTENSIONS: [&str; 4] = ["jpg", "jpeg", "png", "webp"];
 
-/// Whether `name` is a picture name this module will turn into a path.
+/// Whether `name` is a picture name this module will turn into a path: a
+/// plain id (`fsx::plain_id`) of at most 64 characters - a picture's stem is a
+/// uuid, so it never needed the 128 a note id may have, and a name that was
+/// refused before must stay refused - then one image extension.
 pub fn valid_name(name: &str) -> bool {
     let Some((stem, extension)) = name.rsplit_once('.') else { return false };
-    !stem.is_empty()
-        && stem.len() <= 64
-        && stem.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-        && EXTENSIONS.contains(&extension)
+    stem.len() <= 64 && crate::fsx::plain_id(stem) && EXTENSIONS.contains(&extension)
 }
 
 fn content_type(name: &str) -> &'static str {
@@ -136,29 +136,17 @@ fn decode(text: &str) -> Result<Vec<u8>, String> {
 }
 
 /// Keeps a picture's bytes in `images` under a fresh name, and answers the
-/// name. The extension comes from the bytes. Written to a hidden `.part` file
-/// and renamed, so a picture is whole or not there; a `.part` is never a valid
-/// name, so the scheme never serves one half written.
+/// name. The extension comes from the bytes. Written whole or not at all
+/// (`fsx::write_atomically`), through a hidden temporary file that is never a
+/// valid name, so the scheme never serves one half written.
 pub fn keep(images: &Path, bytes: &[u8]) -> Result<String, String> {
     if bytes.len() as u64 > MAX_BYTES {
         return Err("That picture is too big to add.".to_string());
     }
     let extension = kind(bytes).ok_or_else(|| "That is not a picture Glyph can add.".to_string())?;
     std::fs::create_dir_all(images).map_err(|e| format!("There is no room to keep pictures: {e}"))?;
-    let id = uuid::Uuid::new_v4();
-    let name = format!("{id}.{extension}");
-    let part = images.join(format!(".{id}.part"));
-    let written = (|| {
-        use std::io::Write as _;
-        let mut file = std::fs::File::create(&part)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        std::fs::rename(&part, images.join(&name))
-    })();
-    if let Err(e) = written {
-        let _ = std::fs::remove_file(&part);
-        return Err(format!("The picture could not be saved: {e}"));
-    }
+    let name = format!("{}.{extension}", uuid::Uuid::new_v4());
+    crate::fsx::write_atomically(&images.join(&name), bytes).map_err(|e| format!("The picture could not be saved: {e}"))?;
     Ok(name)
 }
 
@@ -179,11 +167,7 @@ pub fn place(images: &Path, name: &str, base64: &str) -> Result<(), String> {
         return Err("That picture is not what its name says.".to_string());
     }
     std::fs::create_dir_all(images).map_err(|e| format!("There is no room to keep pictures: {e}"))?;
-    let part = images.join(format!(".{name}.part"));
-    std::fs::write(&part, &bytes).and_then(|()| std::fs::rename(&part, images.join(name))).map_err(|e| {
-        let _ = std::fs::remove_file(&part);
-        format!("The picture could not be saved: {e}")
-    })
+    crate::fsx::write_atomically(&images.join(name), &bytes).map_err(|e| format!("The picture could not be saved: {e}"))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -300,7 +284,7 @@ mod tests {
             assert_eq!(std::fs::read(images.join(&name)).unwrap(), png);
         }
         let left: Vec<_> = std::fs::read_dir(&images).unwrap().map(|e| e.unwrap().file_name()).collect();
-        assert_eq!(left.len(), 2, "no .part left behind: {left:?}");
+        assert_eq!(left.len(), 2, "no temporary file left behind: {left:?}");
 
         // Not base64, not a picture, and too big: refused, and nothing written.
         assert!(decode("not base64 at all!").is_err());

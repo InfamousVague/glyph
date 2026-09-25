@@ -231,11 +231,7 @@ pub async fn ai_delete_model(app: AppHandle, state: State<'_, AiState>, id: Stri
         }
         let path = crate::whisper::model::path_in(&dir, &spec.spec);
         for candidate in [path.clone(), path.with_extension("gguf.part")] {
-            match std::fs::remove_file(&candidate) {
-                Ok(()) => {}
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                Err(e) => return Err(format!("cannot remove {}: {e}", candidate.display())),
-            }
+            crate::fsx::remove_file_if_present(&candidate).map_err(|e| format!("cannot remove {}: {e}", candidate.display()))?;
         }
         Ok(info(Some(&dir), spec))
     }

@@ -171,7 +171,7 @@ pub async fn fetch(
     if current.present {
         return Ok(current);
     }
-    std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    crate::fsx::make_dir(dir)?;
 
     // A connect timeout and a READ timeout, never a total one: 190 MB over a
     // slow connection is legitimately minutes, but thirty seconds with no byte
