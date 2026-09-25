@@ -52,4 +52,31 @@ describe('the back gesture', () => {
     expect(steps).toBe(0);
     off();
   });
+
+  it('answers Escape from the same stack, and leaves a key nothing took to whatever else is listening', () => {
+    stop = installBack();
+    const escape = () => {
+      const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+      window.dispatchEvent(event);
+      return event;
+    };
+    // Nothing on screen to close: the key is not claimed, unlike the activity's gesture.
+    expect(escape().defaultPrevented).toBe(false);
+    let closed = 0;
+    const off = onBack(() => {
+      closed += 1;
+      return true;
+    });
+    expect(escape().defaultPrevented).toBe(true);
+    expect(closed).toBe(1);
+    // A key something else already handled is not stepped back on again.
+    const handled = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    handled.preventDefault();
+    window.dispatchEvent(handled);
+    expect(closed).toBe(1);
+    off();
+    stop();
+    stop = null;
+    expect(window.__glyph?.back).toBeUndefined();
+  });
 });

@@ -1,4 +1,4 @@
-import { describeBuild } from './ota.ts';
+import { describeBuild, shortWhen } from './ota.ts';
 import { readStored, writeStored } from './stored.ts';
 import { isTauri } from './tauri.ts';
 
@@ -87,7 +87,7 @@ export async function fetchReleases(sources: readonly string[] | undefined, sign
 /** "Sep 15, 11:09 PM", or the build id's own reading when there is no date. */
 export function releaseWhen(release: Release): string {
   const at = release.at ? new Date(release.at) : null;
-  if (at && !Number.isNaN(at.getTime())) return at.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  if (at && !Number.isNaN(at.getTime())) return shortWhen(at);
   return describeBuild(release.build);
 }
 

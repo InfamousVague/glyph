@@ -63,10 +63,6 @@ export class LiveSession {
     deps.transport.join(noteId);
   }
 
-  get peers(): number {
-    return this.others;
-  }
-
   /**
    * Settles once every message posted so far has been sealed and handed to the transport. Sealing is WebCrypto, off
    * the caller's clock, so this is the one part of the session nobody can see finish from outside: what a test of a

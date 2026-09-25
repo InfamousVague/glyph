@@ -10,7 +10,7 @@
  * A name that is not here stays as the words that were typed, which is the honest fallback.
  */
 
-export const EMOJI: Record<string, string> = {
+const EMOJI: Record<string, string> = {
   // Faces and hands
   smile: '😄',
   grin: '😁',

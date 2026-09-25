@@ -98,6 +98,26 @@ describe('workspaces', () => {
     off();
   });
 
+  it('reads workspaces another device sent again, and tells listeners once', () => {
+    let told = 0;
+    const off = onWorkspaces(() => {
+      told += 1;
+    });
+    // Our own write is heard once, not again as it comes back through the preferences.
+    const work = addWorkspace('Work')!;
+    expect(told).toBe(1);
+    // Settings from another device land as a preference change (core/sync/prefs.ts).
+    const home = { id: 'w-home', name: 'Home' };
+    setPreferences({ workspaces: { list: [work, home], notes: { n1: home.id } } });
+    expect(told).toBe(2);
+    expect(workspaces().list).toEqual([work, home]);
+    expect(workspaceOf('n1')).toEqual(home);
+    // Any other setting changing leaves the workspaces, and whoever watches them, alone.
+    setPreferences({ ripples: false });
+    expect(told).toBe(2);
+    off();
+  });
+
   it('takes workspaces kept under the old key into the preferences, where they travel', () => {
     // Made before workspaces synced: read once from where they were, and from the preferences ever after.
     localStorage.setItem(KEY, JSON.stringify({ list: [{ id: 'w-a', name: 'Work' }], notes: { n1: 'w-a', n2: 'w-gone' }, current: 'w-gone' }));
@@ -162,5 +182,19 @@ describe('a workspace’s colour', () => {
     setPreferences({ workspaces: { list: [{ id: 'w-1', name: 'Saved', hue: 'octarine' }], notes: {} } });
     reloadWorkspaces();
     expect(workspaces().list[0]).toEqual({ id: 'w-1', name: 'Saved' });
+  });
+
+  it('reads a kept ink as no colour at all, from the preferences and from the old key', () => {
+    setPreferences({ workspaces: { list: [{ id: 'w-1', name: 'Saved', hue: 'ink' }], notes: {} } });
+    reloadWorkspaces();
+    expect(workspaces().list[0]).toEqual({ id: 'w-1', name: 'Saved' });
+
+    localStorage.clear();
+    reloadPreferences();
+    localStorage.setItem(KEY, JSON.stringify({ list: [{ id: 'w-2', name: 'Old', hue: 'ink' }], notes: {} }));
+    reloadWorkspaces();
+    expect(workspaces().list[0]).toEqual({ id: 'w-2', name: 'Old' });
+    // And it is carried into the preferences without one.
+    expect(preferences().workspaces.list).toEqual([{ id: 'w-2', name: 'Old' }]);
   });
 });

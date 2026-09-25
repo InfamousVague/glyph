@@ -1,6 +1,7 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { accountKey, accountState, deleteAccount, resume, signOut } from '../account/account.ts';
 import { ApiError } from '../account/api.ts';
+import { toBase64 } from '../bytes.ts';
 import { externalStore } from '../externalStore.ts';
 import { failureText } from '../failure.ts';
 import { imageBytes, keepImage } from '../images.ts';
@@ -9,7 +10,7 @@ import { onPreferences, preferences, setPreferences } from '../preferences.ts';
 import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED, type Note } from '../store.ts';
 import { readStored, writeStored } from '../stored.ts';
 import { invoke, isTauri } from '../tauri.ts';
-import { toBase64Url, type Bytes } from './crypto.ts';
+import type { Bytes } from './crypto.ts';
 import { emptyState, mark, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncState } from './notes.ts';
 import { syncPrefs, type PrefsState } from './prefs.ts';
 
@@ -22,7 +23,7 @@ import { syncPrefs, type PrefsState } from './prefs.ts';
  */
 
 /** Native generation that has `store_apply` and `sync_put_file`. */
-export const SYNC_GENERATION = 16;
+const SYNC_GENERATION = 16;
 const QUIET_MS = 4_000;
 const EVERY_MS = 5 * 60_000;
 
@@ -90,7 +91,7 @@ export function hasUnsyncedChanges(note: Note): boolean {
 }
 
 /** Forgets what this device knew of an account's sync: for signing out. */
-export function forgetSync(accountId: number): void {
+function forgetSync(accountId: number): void {
   for (const part of ['notes', 'prefs']) writeStored(stateKey(accountId, part), null);
 }
 
@@ -143,8 +144,7 @@ const deviceFiles: LocalFiles = {
     if (kind === 'image') return keepImage(name, bytes);
     if (!isTauri()) return;
     // Standard base64, which is what Rust reads.
-    const base64 = toBase64Url(bytes).replace(/-/g, '+').replace(/_/g, '/');
-    await invoke('sync_put_file', { kind, name, base64: base64 + '='.repeat((4 - (base64.length % 4)) % 4) });
+    await invoke('sync_put_file', { kind, name, base64: toBase64(bytes) });
   },
 };
 
@@ -241,7 +241,7 @@ let quiet: ReturnType<typeof setTimeout> | null = null;
 let applyingRemote = false;
 
 /** A sync a moment from now, pushed back by every change in between. */
-export function syncSoon(): void {
+function syncSoon(): void {
   if (quiet) clearTimeout(quiet);
   quiet = setTimeout(() => {
     quiet = null;

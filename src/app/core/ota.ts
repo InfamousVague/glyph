@@ -15,10 +15,11 @@ import { invoke, isTauri } from './tauri.ts';
  *    first effect, which is after a real commit, and BEFORE anything checks
  *    for updates: AttackFM installed and reloaded before its wager was
  *    settled, and so quarantined the very bundle it had just run.
- * 2. `useUpdates` - look for a newer build soon after launch and whenever the
- *    app comes back to the screen (at most every ten minutes), install it in
- *    the background, and say so. A downloaded build runs on the next page
- *    load; the list offers a reload, and a cold start picks it up regardless.
+ * 2. `useUpdates` - look for a newer build soon after launch, whenever the app
+ *    comes back to the screen a minute or more after it last looked, and on a
+ *    two-minute beat while it stays in front; install it in the background,
+ *    and say so. A downloaded build runs on the next page load; the list
+ *    offers a reload, and a cold start picks it up regardless.
  * 3. The APK - when the published APK is newer than this binary, download it
  *    (in Rust, verified) and hand it to Android's installer through the
  *    activity. The installer's own confirmation screen is the one step no app
@@ -152,6 +153,11 @@ export function describeBuild(build: string | null | undefined): string {
   const at = new Date(
     Date.UTC(+build.slice(0, 4), +build.slice(4, 6) - 1, +build.slice(6, 8), +build.slice(8, 10), +build.slice(10, 12), +build.slice(12, 14)),
   );
+  return shortWhen(at);
+}
+
+/** "Sep 15, 11:09 PM": the moment an update is named by, a build or a release, in the person's own time zone. */
+export function shortWhen(at: Date): string {
   return at.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 

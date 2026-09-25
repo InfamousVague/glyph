@@ -21,9 +21,9 @@ import { isTauri } from './tauri.ts';
  */
 
 /** Where notes with no workspace live: the library's own landing folder (library/mod.rs `INBOX`). */
-export const INBOX = 'Inbox';
+const INBOX = 'Inbox';
 /** The folder the workspaces' folders sit in, as Matt asked for it. */
-export const WORKSPACES = 'workspaces';
+const WORKSPACES = 'workspaces';
 
 /** A workspace's name as a folder name: what a file name may not hold is dropped, and the ends are trimmed. */
 export function folderName(name: string): string {
@@ -61,7 +61,7 @@ export async function fileNoteInFolder(noteId: string, workspace: string | null)
 }
 
 /** Moves one note's file into `folder`, whatever names it. */
-export async function fileNoteAt(noteId: string, folder: string): Promise<void> {
+async function fileNoteAt(noteId: string, folder: string): Promise<void> {
   if (!isTauri()) return;
   try {
     const note = await getNote(noteId);

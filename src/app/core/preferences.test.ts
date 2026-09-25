@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { applyPreferences, DEFAULT_PREFERENCES, facesOf, isAccent, isRounding, preferences, setPreferences, type Preferences } from './preferences.ts';
+import { applyPreferences, DEFAULT_PREFERENCES, facesOf, isAccent, isRounding, preferences, reloadPreferences, setPreferences, type Preferences } from './preferences.ts';
 
 /**
  * What the page is stamped with, and what survives a store written by another build. The look itself is CSS
@@ -44,8 +44,8 @@ describe('how the app is drawn', () => {
 
   it('takes an accent or a rounding it does not know as the app’s own', () => {
     localStorage.setItem('glyph-preferences', JSON.stringify({ ...DEFAULT_PREFERENCES, accent: 'blue', rounding: 'squircle' }));
-    // A fresh read of the store is what a launch does.
-    setPreferences({});
+    // A fresh read of the store is what a launch does. (setPreferences({}) is not one: it writes what is in memory.)
+    reloadPreferences();
     // Cast, because these are names the types no longer admit - which is the point: they can only arrive from a store.
     expect((preferences().accent as string) === 'blue').toBe(false);
     expect((preferences().rounding as string) === 'squircle').toBe(false);
@@ -79,5 +79,83 @@ describe('how the app is drawn', () => {
     setPreferences({ typeface: 'fira' as unknown as Preferences['typeface'], noteFace: undefined as unknown as Preferences['noteFace'] });
     expect(root().hasAttribute('data-font')).toBe(false);
     expect(root().getAttribute('data-note-font')).toBe('fira');
+  });
+});
+
+describe('a store written by another build, or half written', () => {
+  const KEY = 'glyph-preferences';
+
+  /** The preferences as a launch reads `stored`. */
+  function launchWith(stored: Record<string, unknown>): Preferences {
+    localStorage.setItem(KEY, JSON.stringify({ ...DEFAULT_PREFERENCES, ...stored }));
+    reloadPreferences();
+    return preferences();
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    reloadPreferences();
+  });
+
+  it('reads as the defaults when there is nothing, or nothing that is JSON', () => {
+    expect(preferences()).toEqual(DEFAULT_PREFERENCES);
+    localStorage.setItem(KEY, '{half');
+    reloadPreferences();
+    expect(preferences()).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it('keeps only the tabs that are ids, the last eight of them', () => {
+    const ids = Array.from({ length: 10 }, (_, i) => `n${i}`);
+    expect(launchWith({ openNotes: [...ids.slice(0, 2), 7, null, ...ids.slice(2)] }).openNotes).toEqual(ids.slice(2));
+    expect(launchWith({ openNotes: 'n1' }).openNotes).toEqual([]);
+  });
+
+  it('keeps tab groups that are whole, and only tabs that point at one of them', () => {
+    const tabGroups = {
+      list: [{ id: 'g1', name: 'Work', hue: 'teal' }, { id: 'g2', name: 'No colour' }, 'rubbish', { id: 3, name: 'Bad id', hue: 'red' }],
+      of: { a: 'g1', b: 'g2', c: 'gone', d: 4 },
+    };
+    expect(launchWith({ tabGroups }).tabGroups).toEqual({ list: [{ id: 'g1', name: 'Work', hue: 'teal' }], of: { a: 'g1' } });
+    expect(launchWith({ tabGroups: { list: 'no' } }).tabGroups).toEqual({ list: [], of: {} });
+  });
+
+  it('keeps workspaces with an id and a name, and filings that point at one of them', () => {
+    const workspaces = { list: [{ id: 'w1', name: 'Home' }, { id: 'w2' }, null], notes: { a: 'w1', b: 'w2', c: 5 } };
+    expect(launchWith({ workspaces }).workspaces).toEqual({ list: [{ id: 'w1', name: 'Home' }], notes: { a: 'w1' } });
+    expect(launchWith({ workspaces: 'none' }).workspaces).toEqual({ list: [], notes: {} });
+  });
+
+  it('keeps the trash only as ids with a time', () => {
+    expect(launchWith({ trash: { a: 10, b: 'yesterday', c: null } }).trash).toEqual({ a: 10 });
+    expect(launchWith({ trash: 'none' }).trash).toEqual({});
+  });
+
+  it('keeps a share only when its id and key are ones a link could carry', () => {
+    const id = 'A'.repeat(22);
+    const key = 'b_'.repeat(20);
+    const shares = {
+      good: { id, key, sent: 'p2:9', lacked: ['x.jpg', 4] },
+      unsent: { id, key },
+      short: { id: 'abc', key },
+      spaced: { id, key: 'not a key at all, not at all' },
+      none: null,
+    };
+    expect(launchWith({ shares }).shares).toEqual({ good: { id, key, sent: 'p2:9', lacked: ['x.jpg'] }, unsent: { id, key, sent: '' } });
+  });
+
+  it('reads a pace, a theme, a size or a sidebar this build does not have as its own', () => {
+    const read = launchWith({ motionSpeed: 'ludicrous', theme: 'neon', uiScale: 3, sidebarStyle: 'floating', noteView: 'hologram' });
+    expect(read).toMatchObject({
+      motionSpeed: DEFAULT_PREFERENCES.motionSpeed,
+      theme: DEFAULT_PREFERENCES.theme,
+      uiScale: DEFAULT_PREFERENCES.uiScale,
+      sidebarStyle: DEFAULT_PREFERENCES.sidebarStyle,
+      noteView: DEFAULT_PREFERENCES.noteView,
+    });
+  });
+
+  it('keeps code colours only once they have been chosen', () => {
+    expect(launchWith({ codeLight: 'ink', codeDark: 'ink', codeChosen: false })).toMatchObject({ codeLight: DEFAULT_PREFERENCES.codeLight, codeDark: DEFAULT_PREFERENCES.codeDark });
+    expect(launchWith({ codeLight: 'ink', codeDark: 'ink', codeChosen: true })).toMatchObject({ codeLight: 'ink', codeDark: 'ink' });
   });
 });

@@ -8,8 +8,9 @@
  * webview, so no page has to know which one it is in.
  *
  * The Tauri modules are pulled in through literal dynamic imports so the
- * bundler can resolve and code-split them; each import is guarded by
- * `isTauri()` and a try/catch.
+ * bundler can resolve and code-split them, and each import is guarded by
+ * `isTauri()`: outside the webview a call rejects before anything is loaded,
+ * rather than failing somewhere inside the Tauri package.
  *
  * Two partners sit beside this in their own modules, because tests replace
  * this one with a factory that lists only `isTauri` and `invoke`: events.ts

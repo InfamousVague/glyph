@@ -145,4 +145,11 @@ describe('base64url', () => {
     expect(text).not.toMatch(/[+/=]/);
     expect(fromBase64Url(text)).toEqual(bytes);
   });
+
+  it('is the same text Node writes, across the 32 KB slices standard base64 is built in', () => {
+    for (const length of [0, 1, 2, 3, 1000, 0x8000, 0x8000 * 2 + 5]) {
+      const bytes = Uint8Array.from({ length }, (_, i) => (i * 37 + (i >> 8)) & 0xff);
+      expect(toBase64Url(bytes)).toBe(Buffer.from(bytes).toString('base64url'));
+    }
+  });
 });

@@ -247,26 +247,13 @@ export async function setNoteArchived(id: string, archived: boolean): Promise<No
   return touched(webFlag(id, { archivedAt: archived ? Date.now() : null }));
 }
 
-function webFlag(
-  id: string,
-  change: Partial<Pick<Note, 'starred' | 'archivedAt' | 'recordingMs' | 'segments' | 'formatted' | 'formattedFor' | 'formattedModel'>>,
-): Note | null {
+function webFlag(id: string, change: Partial<Pick<Note, 'starred' | 'archivedAt' | 'recordingMs' | 'segments'>>): Note | null {
   const notes = webAll();
   const note = notes.find((n) => n.id === id);
   if (!note) return null;
   const next = { ...note, ...change };
   webWrite(notes.map((n) => (n.id === id ? next : n)));
   return next;
-}
-
-/**
- * Keep the formatted version of a note (or forget it with null): the text, the
- * hash of the body it came from, and the model that wrote it. Not an edit: the
- * body and its time stand.
- */
-export async function setNoteFormatted(id: string, formatted: string | null, formattedFor: number | null, model: string | null): Promise<Note | null> {
-  if (isTauri()) return touched(await invoke<Note | null>('set_note_formatted', { id, formatted, formattedFor, model }));
-  return touched(webFlag(id, { formatted, formattedFor, formattedModel: model }));
 }
 
 /** Keep a spoken note's recording length and phrases (or forget both with null). Not an edit. */

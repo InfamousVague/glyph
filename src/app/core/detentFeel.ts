@@ -12,7 +12,7 @@
  */
 
 /** How far along the way a drag must be before the ticks begin. */
-export const APPROACH_FROM = 0.35;
+const APPROACH_FROM = 0.35;
 const SLOWEST_MS = 240;
 const FASTEST_MS = 40;
 

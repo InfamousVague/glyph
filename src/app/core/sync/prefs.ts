@@ -12,7 +12,7 @@ import { open, seal } from './crypto.ts';
  * talks to the network at all, stay with the device.
  */
 
-export const SYNCED_PREFS = [
+const SYNCED_PREFS = [
   'theme',
   'density',
   'assist',

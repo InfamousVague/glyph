@@ -1,8 +1,11 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { toBase64 } from './bytes.ts';
 import { answerHost } from './host.ts';
 import { randomId } from './ids.ts';
+import { shrink } from './imageShrink.ts';
 import { hasNativeGeneration } from './nativeGeneration.ts';
 import { invoke, isTauri } from './tauri.ts';
+import { webGet, webPut } from './webImages.ts';
 
 /**
  * Pictures in notes.
@@ -15,6 +18,10 @@ import { invoke, isTauri } from './tauri.ts';
  * and the `img` scheme serves it to the editor. In a browser the picture is
  * kept in IndexedDB and handed to the editor as a blob URL, so the screen can
  * be built and judged without a phone.
+ *
+ * This is the door every caller uses, and it decides which of the two a
+ * picture goes to. The browser's database itself is core/webImages.ts, and
+ * the canvas work that makes a pasted picture smaller is core/imageShrink.ts.
  */
 
 // How a body refers to a picture is core/imageRefs.ts, which the MCP server imports too; here for this module's callers.
@@ -75,37 +82,6 @@ export async function adoptImagePath(path: string): Promise<string> {
 /** The binary generation that has `save_image_data`. */
 const PASTE_GENERATION = 9;
 
-/** A picture shrunk so its long side is at most `longSide` px (1600 as it is kept), as a JPEG, turned the right way up. */
-async function shrink(file: Blob, longSide = 1600, quality = 0.85): Promise<Blob> {
-  // An empty file is a clipboard pointing at a picture that has since been
-  // cleaned up: Chrome on Android copies a picture as a link to a file it
-  // deletes after a while, and the paste still says "image" with no bytes.
-  if (!file.size) throw new Error('That picture isn’t on the clipboard anymore. Copy it again and paste.');
-  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => {
-    throw new Error('That picture couldn’t be opened.');
-  });
-  const scale = Math.min(1, longSide / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('The picture could not be read.');
-  // Paper under a transparent PNG, so a screenshot with no background does not turn black as a JPEG.
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
-  if (!blob) throw new Error('The picture could not be read.');
-  return blob;
-}
-
-function toBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(binary);
-}
-
 /**
  * Keeps a picture that arrived as a file rather than from the picker - pasted
  * from the clipboard - and answers its name. On the phone the shrunk bytes go
@@ -127,45 +103,11 @@ export async function saveImageFile(file: Blob): Promise<string> {
 
 // ---- the browser ---------------------------------------------------------------------
 
-const DB = 'glyph-images';
-const STORE = 'images';
+/** Where the editor draws each browser picture from this run, by name: a blob URL, or '' while it is fetched. */
 const urls = new Map<string, string>();
 
-function db(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (typeof indexedDB === 'undefined') {
-      reject(new Error('No picture storage in this browser.'));
-      return;
-    }
-    const request = indexedDB.open(DB, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('No picture storage in this browser.'));
-  });
-}
-
-async function webPut(name: string, blob: Blob): Promise<void> {
-  const d = await db();
-  await new Promise<void>((resolve, reject) => {
-    const tx = d.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(blob, name);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error('The picture was not saved.'));
-  });
-}
-
-async function webGet(name: string): Promise<Blob | null> {
-  const d = await db().catch(() => null);
-  if (!d) return null;
-  return new Promise((resolve) => {
-    const request = d.transaction(STORE).objectStore(STORE).get(name);
-    request.onsuccess = () => resolve((request.result as Blob | undefined) ?? null);
-    request.onerror = () => resolve(null);
-  });
-}
-
 /** A browser picture's bytes, for sync; null when this browser has none by that name. */
-export async function webImageBytes(name: string): Promise<Uint8Array<ArrayBuffer> | null> {
+async function webImageBytes(name: string): Promise<Uint8Array<ArrayBuffer> | null> {
   const blob = await webGet(name);
   return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
 }
@@ -176,7 +118,7 @@ function typeOf(name: string): string {
 }
 
 /** Keeps a picture that arrived by sync, under its own name. */
-export async function keepWebImage(name: string, bytes: Uint8Array<ArrayBuffer>): Promise<void> {
+async function keepWebImage(name: string, bytes: Uint8Array<ArrayBuffer>): Promise<void> {
   const blob = new Blob([bytes], { type: typeOf(name) });
   await webPut(name, blob);
   urls.set(name, URL.createObjectURL(blob));
@@ -256,7 +198,7 @@ export function lendImages(pictures: Readonly<Record<string, Uint8Array<ArrayBuf
 }
 
 /** A picture was written to this device's store by sync (core/sync/engine.ts): every page drawing it draws it again. */
-export function imageArrived(name: string): void {
+function imageArrived(name: string): void {
   arrived.set(name, (arrived.get(name) ?? 0) + 1);
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(IMAGE_READY));
 }

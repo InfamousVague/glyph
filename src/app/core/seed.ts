@@ -25,17 +25,23 @@ export const sampleNoteSeeded = seeded.is;
 
 const markSeeded = seeded.mark;
 
-/** Makes the sample note now, picture and all where a picture can be drawn, and answers it. */
-export async function addSampleNote(): Promise<Note> {
-  let image: string | null = null;
+/**
+ * The bundled smoke photograph kept as a picture of this device's, answering its name; null where a picture cannot be
+ * kept or drawn, and the sample is then made without one rather than not at all.
+ */
+async function samplePicture(): Promise<string | null> {
   try {
     const blob = await sampleImageBlob();
-    if (blob) image = await saveImageFile(blob);
+    return blob ? await saveImageFile(blob) : null;
   } catch {
-    // No picture, then: the note says nothing of one.
-    image = null;
+    return null;
   }
-  const note = await createNote(newNoteId(), sampleNoteBody(image), 'editor');
+}
+
+/** Makes the sample note now, picture and all where a picture can be drawn, and answers it. */
+export async function addSampleNote(): Promise<Note> {
+  // Without a picture the note says nothing of one.
+  const note = await createNote(newNoteId(), sampleNoteBody(await samplePicture()), 'editor');
   markSeeded();
   return note;
 }
@@ -47,15 +53,8 @@ export async function addBoardNote(): Promise<Note> {
 
 /** Makes the example canvas (canvas/sampleCanvas.ts) now, its picture kept where one can be drawn, and answers it. */
 export async function addCanvasNote(): Promise<Note> {
-  let picture: string | null = null;
-  try {
-    const blob = await sampleImageBlob();
-    if (blob) picture = await saveImageFile(blob);
-  } catch {
-    // No picture, then: the canvas is made without its picture card.
-    picture = null;
-  }
-  return createNote(newNoteId(), sampleCanvasBody(picture), 'editor');
+  // Without a picture the canvas is made with no picture card.
+  return createNote(newNoteId(), sampleCanvasBody(await samplePicture()), 'editor');
 }
 
 /** Makes the canvas that says how Glyph works (canvas/howCanvas.ts) now, and answers it. */

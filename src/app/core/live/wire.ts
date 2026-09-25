@@ -28,7 +28,7 @@ export interface Envelope {
 const KINDS = new Set<number>(Object.values(Kind));
 
 /** The associated data a note's live messages are sealed under: one sealed for another note will not open. */
-export function liveContext(noteId: string): string {
+function liveContext(noteId: string): string {
   return `live:${noteId}`;
 }
 

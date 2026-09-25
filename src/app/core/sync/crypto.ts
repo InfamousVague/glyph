@@ -1,3 +1,5 @@
+import { toBase64, toHex } from '../bytes.ts';
+
 /**
  * The keys and the ciphertext of end-to-end encrypted sync (docs/SYNC.md, "Keys").
  *
@@ -27,10 +29,9 @@ const decoder = new TextDecoder();
 
 // --- bytes and text ---------------------------------------------------------------
 
+/** URL-safe base64 with no padding: standard base64 (core/bytes.ts) with its two symbols swapped and the `=` cut. */
 export function toBase64Url(bytes: Uint8Array): string {
-  let text = '';
-  for (const byte of bytes) text += String.fromCharCode(byte);
-  return btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return toBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 export function fromBase64Url(text: string): Bytes {
@@ -39,10 +40,6 @@ export function fromBase64Url(text: string): Bytes {
   const bytes = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
   return bytes;
-}
-
-function toHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function randomBytes(count: number): Bytes {

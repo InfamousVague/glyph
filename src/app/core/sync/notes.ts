@@ -1,6 +1,7 @@
 import { ApiError, call, callBytes } from '../account/api.ts';
+import { toHex } from '../bytes.ts';
 import { randomId } from '../ids.ts';
-import { imageNames } from '../images.ts';
+import { imageNames } from '../imageRefs.ts';
 import type { Note } from '../store.ts';
 import { isSharedLive } from '../live/shared.ts';
 import { open, openBytes, seal, sealBytes, type Bytes } from './crypto.ts';
@@ -123,9 +124,9 @@ export function fileId(kind: FileKind, name: string): string | null {
   return id.length <= 64 ? id : null;
 }
 
-export async function sha(bytes: Bytes): Promise<string> {
+async function sha(bytes: Bytes): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-  return Array.from(digest.slice(0, 16), (b) => b.toString(16).padStart(2, '0')).join('');
+  return toHex(digest.slice(0, 16));
 }
 
 function blank(note: Note): boolean {
