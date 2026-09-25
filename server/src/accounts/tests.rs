@@ -1,14 +1,15 @@
-//! The accounts routes a device calls once it is in, and the parts of the ways in that sync_tests.rs does not reach:
-//! the published key, a device added after sign-up, renewing a token, the wrapped key, a token that has lapsed, a
-//! challenge for a handle with no account, a device-only account deleted, and tokens outliving a restart.
+//! The accounts routes, as a device calls them: signing up and the three ways in, the sign-in limit, the published
+//! key, a device added after sign-up, renewing a token, the wrapped key, a token that has lapsed, a challenge for a
+//! handle with no account, a device-only account deleted, and tokens outliving a restart.
 //!
 //! Inside the accounts module so a test can reach the service it signs up with, and mint a token with the service's
-//! own key - one already expired - without a clock to wind on.
+//! own key - one already expired - without a clock to wind on. What deleting an account takes with it, and the
+//! refusal every signed-in route shares, are tried in sync_tests.rs, beside the notes they are about.
 
-use super::Accounts;
+use super::{Accounts, RECOVERY_CODES};
 use crate::identity::TokenVerifier;
 use crate::store::Store;
-use crate::test_support::{accounts_in, device, login, service, signup_body, wrapped, Harness, TempDir};
+use crate::test_support::{accounts_in, device, login, service, sheet, signup_body, wrapped, Harness, TempDir};
 use crate::wire::now_secs;
 use axum::http::{Method, StatusCode};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -33,6 +34,108 @@ async fn sign_in_by_device(h: &Harness, handle: &str, key: &ed25519_dalek::Signi
     let nonce = challenge["nonce"].as_str().unwrap().to_string();
     let signature = URL_SAFE_NO_PAD.encode(key.sign(nonce.as_bytes()).to_bytes());
     h.call(Method::POST, "/glyph/api/v1/login/device", None, Some(json!({ "handle": handle, "nonce": nonce, "signature": signature }))).await
+}
+
+#[tokio::test]
+async fn signs_up_and_in_by_password_and_is_given_the_wrapped_key() {
+    let h = harness();
+    h.signup("matt", &device()).await;
+    let (status, body) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "Matt", "loginSecret": login(1) }))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["token"].as_str().unwrap().starts_with("glyph1."));
+    assert_eq!(body["wrapped"], json!(wrapped("password")));
+    assert_eq!(body["account"]["handle"], json!("matt"));
+
+    let (status, body) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "matt", "loginSecret": login(2) }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (_, unknown) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "nobody", "loginSecret": login(1) }))).await;
+    assert_eq!(body, unknown, "a wrong password and an unknown handle read the same");
+}
+
+#[tokio::test]
+async fn refuses_a_signup_it_cannot_keep() {
+    let h = harness();
+    h.signup("matt", &device()).await;
+    let (status, _) = h
+        .call(Method::POST, "/glyph/api/v1/signup", None, Some(json!({ "handle": "MATT", "loginSecret": login(1), "wrapped": wrapped("p"), "recovery": sheet() })))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT, "handles are the same whatever their case");
+    let (status, _) = h.call(Method::POST, "/glyph/api/v1/signup", None, Some(json!({ "handle": "sam", "loginSecret": login(1), "wrapped": wrapped("p") }))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "no recovery sheet, no account: it is the only way back into the notes");
+    let (status, _) = h
+        .call(Method::POST, "/glyph/api/v1/signup", None, Some(json!({ "handle": "sam", "loginSecret": "hunter2", "wrapped": wrapped("p"), "recovery": sheet() })))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "a password itself is never what arrives");
+    let (status, _) = h.call(Method::POST, "/glyph/api/v1/signup", None, Some(json!({ "handle": "x", "recovery": sheet() }))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn signs_in_by_device_key_with_a_nonce_used_once() {
+    let h = harness();
+    let key = device();
+    h.signup("matt", &key).await;
+    let (_, challenge) = h.call(Method::POST, "/glyph/api/v1/login/challenge", None, Some(json!({ "handle": "matt" }))).await;
+    let nonce = challenge["nonce"].as_str().unwrap().to_string();
+    let signature = URL_SAFE_NO_PAD.encode(key.sign(nonce.as_bytes()).to_bytes());
+    let body = json!({ "handle": "matt", "nonce": nonce, "signature": signature });
+    let (status, signed) = h.call(Method::POST, "/glyph/api/v1/login/device", None, Some(body.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(signed["wrapped"].is_null(), "a device keeps its own key; nothing wrapped is handed out here");
+    let (again, _) = h.call(Method::POST, "/glyph/api/v1/login/device", None, Some(body)).await;
+    assert_eq!(again, StatusCode::UNAUTHORIZED, "a nonce is spent by its first use");
+
+    // Another device's signature over a fresh nonce does not get in.
+    let (_, challenge) = h.call(Method::POST, "/glyph/api/v1/login/challenge", None, Some(json!({ "handle": "matt" }))).await;
+    let nonce = challenge["nonce"].as_str().unwrap().to_string();
+    let stranger = URL_SAFE_NO_PAD.encode(device().sign(nonce.as_bytes()).to_bytes());
+    let (status, _) = h.call(Method::POST, "/glyph/api/v1/login/device", None, Some(json!({ "handle": "matt", "nonce": nonce, "signature": stranger }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn a_recovery_code_gets_in_once_with_its_own_wrapped_key_and_a_new_password_follows() {
+    let h = harness();
+    h.signup("matt", &device()).await;
+    let (status, body) = h.call(Method::POST, "/glyph/api/v1/login/recovery", None, Some(json!({ "handle": "matt", "login": login(103) }))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["wrapped"], json!(wrapped("code3")), "the key wrapped under that code, and no other");
+    let token = body["token"].as_str().unwrap().to_string();
+    let (status, _) = h.call(Method::POST, "/glyph/api/v1/login/recovery", None, Some(json!({ "handle": "matt", "login": login(103) }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "spent");
+    let (_, left) = h.call(Method::GET, "/glyph/api/v1/recovery", Some(&token), None).await;
+    assert_eq!(left["left"], json!(RECOVERY_CODES - 1));
+
+    let (status, _) = h.call(Method::PUT, "/glyph/api/v1/password", Some(&token), Some(json!({ "loginSecret": login(9), "wrapped": wrapped("new") }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "matt", "loginSecret": login(9) }))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["wrapped"], json!(wrapped("new")));
+    let (status, _) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "matt", "loginSecret": login(1) }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "the old password is gone");
+
+    let (status, body) = h.call(Method::POST, "/glyph/api/v1/recovery", Some(&token), Some(json!({ "codes": sheet() }))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["left"], json!(RECOVERY_CODES), "a new sheet is whole again");
+}
+
+/// The limit is spent before the handle is looked up, so guessing at one with no account runs out exactly as guessing
+/// at one with an account does - and costs no Argon2 verify a try. An unoptimised one takes seconds on a loaded
+/// machine, long enough for the bucket to refill between the tries this counts.
+#[tokio::test]
+async fn sign_in_is_rate_limited_per_handle() {
+    let h = harness();
+    let mut refused = None;
+    for _ in 0..15 {
+        let (status, body) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "nobody", "loginSecret": login(7) }))).await;
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            refused = Some(body);
+            break;
+        }
+    }
+    assert_eq!(refused, Some(json!({ "error": "Too many tries. Wait a minute and try again." })), "guessing at one handle runs out of tries");
+    let (status, _) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "somebody", "loginSecret": login(7) }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "another handle, from the same address, still has tries of its own");
 }
 
 #[tokio::test]
