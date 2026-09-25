@@ -41,8 +41,15 @@ kit's own ramps (blue, red, amber, green, teal, purple, gray). A name the build 
 highlight and its brackets are the note they always were.
 
 Glyph's own marks are on top of that, each from the Marks plugin and switched off with it: `||spoiler||`,
-`==highlight==`, `%%aside%%`, `??unsure??`, `^^shout^^`, `++added++`, and a note on any of them in brackets —
-`??four hundred??(Sam said 400)`. They were checked against the extended syntax above: `^^shout^^` and `^x^`,
+`==highlight==`, `%%aside%%`, `??unsure??`, `^^shout^^`, `++added++`, `🔥🔥heat🔥🔥`, and a note on any of them in
+brackets — `??four hundred??(Sam said 400)`.
+
+**Effects** are moving looks on words, and each is written as an emoji twice either side: `🔥🔥too hot to touch🔥🔥` is
+heat, the letters wavering and softened as if seen through the air over a fire. The emoji is the effect's name, so a
+note read anywhere else still says what was meant. One emoji is a word; three are three. The effect lifts while the
+caret is in the words, so they edit as plain text, and holds still under reduced motion. Said while recording:
+"heated … end heated" (not "heat", which a note about cooking says without meaning it). New effects are an entry in
+`editor/textEffects.ts` and a mark that names it in `plugins/marks/index.tsx`. They were checked against the extended syntax above: `^^shout^^` and `^x^`,
 `~~struck~~` and `~x~`, `++added++` and a list's `+` marker all parse as themselves.
 
 ## What was added, and why
