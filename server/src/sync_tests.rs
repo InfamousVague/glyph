@@ -373,3 +373,57 @@ async fn deleting_the_account_takes_everything_it_kept_and_needs_the_password() 
     let (_, feed) = h.call(Method::GET, "/glyph/api/v1/notes", Some(&other), None).await;
     assert_eq!(feed["items"].as_array().map(Vec::len), Some(1));
 }
+
+/// The app's limits as docs/SYNC.md gives them, a blob at each and one past it: 1.4 MB for a note and 350 KB for the
+/// settings, counted in base64url characters. Written out rather than read from sync.rs, because they are a contract
+/// with every device already out there, and a change to one should have to change this too.
+#[tokio::test]
+async fn a_note_and_the_settings_are_taken_up_to_their_limits_and_not_a_character_past() {
+    let h = harness();
+    let token = h.signup("matt", &device()).await;
+    let (status, _) = h.call(Method::PUT, "/glyph/api/v1/notes/n-1", Some(&token), Some(json!({ "base": 0, "blob": "A".repeat(1_400_000) }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = h.call(Method::PUT, "/glyph/api/v1/notes/n-2", Some(&token), Some(json!({ "base": 0, "blob": "A".repeat(1_400_001) }))).await;
+    assert_eq!((status, body), (StatusCode::BAD_REQUEST, json!({ "error": "That note is empty or too large to sync." })));
+    let (status, _) = h.call(Method::PUT, "/glyph/api/v1/notes/n-3", Some(&token), Some(json!({ "base": 0, "blob": "" }))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "an empty note is a deletion, which is DELETE's");
+
+    let (status, first) = h.call(Method::PUT, "/glyph/api/v1/prefs", Some(&token), Some(json!({ "base": 0, "blob": "A".repeat(350_000) }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = h.call(Method::PUT, "/glyph/api/v1/prefs", Some(&token), Some(json!({ "base": first["rev"], "blob": "A".repeat(350_001) }))).await;
+    assert_eq!((status, body), (StatusCode::BAD_REQUEST, json!({ "error": "Those settings are empty or too large to sync." })));
+}
+
+#[tokio::test]
+async fn a_page_of_the_feed_is_at_least_one_note_and_a_cursor_below_zero_is_the_start() {
+    let h = harness();
+    let token = h.signup("matt", &device()).await;
+    for i in 0..3 {
+        h.call(Method::PUT, &format!("/glyph/api/v1/notes/n-{i}"), Some(&token), Some(json!({ "base": 0, "blob": "YQ" }))).await;
+    }
+    for limit in ["0", "-5"] {
+        let (status, page) = h.call(Method::GET, &format!("/glyph/api/v1/notes?since=0&limit={limit}"), Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!((page["items"].as_array().unwrap().len(), page["more"].clone()), (1, json!(true)), "limit={limit}");
+    }
+    let (_, from_zero) = h.call(Method::GET, "/glyph/api/v1/notes?since=0", Some(&token), None).await;
+    let (_, from_below) = h.call(Method::GET, "/glyph/api/v1/notes?since=-10", Some(&token), None).await;
+    assert_eq!(from_below, from_zero);
+    assert_eq!(from_zero["items"].as_array().unwrap().len(), 3);
+}
+
+/// What a device asks before it uploads a picture (docs/SYNC.md, settlePictures): a HEAD, answered through the GET
+/// route with the revision in its header and no body.
+#[tokio::test]
+async fn a_head_on_a_file_answers_its_revision_without_its_bytes() {
+    let h = harness();
+    let token = h.signup("matt", &device()).await;
+    let (_, body, _) = raw(&h, Method::PUT, "/glyph/api/v1/recordings/i-png-cat?base=0", &token, vec![7; 4096]).await;
+    let rev: Value = serde_json::from_slice(&body).unwrap();
+    let (status, bytes, header_rev) = raw(&h, Method::HEAD, "/glyph/api/v1/recordings/i-png-cat", &token, Vec::new()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(bytes.is_empty(), "a HEAD carries no body");
+    assert_eq!(header_rev, Some(rev["rev"].to_string()));
+    let (status, _, header_rev) = raw(&h, Method::HEAD, "/glyph/api/v1/recordings/i-png-dog", &token, Vec::new()).await;
+    assert_eq!((status, header_rev), (StatusCode::NOT_FOUND, None), "one the account lacks is sent");
+}
