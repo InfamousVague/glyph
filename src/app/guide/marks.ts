@@ -119,6 +119,11 @@ export interface MarkRow {
   say?: string;
   /** What the popover says, for the row that shows a note on a mark (editor/markNotes.ts). */
   note?: string;
+  /**
+   * The plugin mark this row belongs to, by name, for one of the app's own rows that only works while that mark is
+   * switched on: a hidden line is the Spoiler's (editor/wispFormat.ts), and with it off the line is a quote.
+   */
+  needs?: string;
 }
 
 export interface MarkGroup {
@@ -165,7 +170,16 @@ const OWN: MarkGroup[] = [
         icon: MessageSquareQuote,
         say: '“quote”',
       },
-      { symbol: '>|', name: 'A hidden line', typed: '>| The answer is forty-two.', words: 'The answer is forty-two.', looks: 'spoilerLine', icon: EyeOff, say: '“hidden line: …”' },
+      {
+        symbol: '>|',
+        name: 'A hidden line',
+        typed: '>| The answer is forty-two.',
+        words: 'The answer is forty-two.',
+        looks: 'spoilerLine',
+        icon: EyeOff,
+        say: '“hidden line: …”',
+        needs: 'Spoiler',
+      },
       {
         symbol: '#',
         name: 'Progress',
@@ -264,7 +278,10 @@ const OWN: MarkGroup[] = [
 /** Every group the page shows: the app's own marks, then the ones the switched-on plugins add. */
 export function markGroups(): MarkGroup[] {
   const formats = plugins.formats();
-  if (!formats.length) return OWN;
+  // A row that is part of a plugin's mark goes when the mark does.
+  const on = new Set(formats.map((format) => format.name));
+  const own = OWN.map((group) => ({ ...group, rows: group.rows.filter((row) => !row.needs || on.has(row.needs)) }));
+  if (!formats.length) return own;
   const rows = formats.map((format): MarkRow => {
     const words = format.name === 'Spoiler' ? 'the cabin key' : `${format.name.toLowerCase()} this`;
     // Heat bends the text above its words, not the words themselves (editor/textEffects.ts), so its example has a
@@ -301,5 +318,5 @@ export function markGroups(): MarkGroup[] {
     note: 'Sam said 400',
     say: '“… end unsure, note Sam said 400, end note”',
   };
-  return [...OWN, { title: 'Ghost.md’s own', lead: 'Marks the app adds, each from a plugin you can switch off.', rows: [...rows, tinted, noted] }];
+  return [...own, { title: 'Ghost.md’s own', lead: 'Marks the app adds, all from the Marks plugin, which Settings › Plugins can switch off.', rows: [...rows, tinted, noted] }];
 }

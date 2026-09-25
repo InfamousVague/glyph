@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { markGroups } from './marks.ts';
 import { GUIDE_PAGES } from './pages.ts';
-import { BUILT_IN } from '../plugins/registry.ts';
+import { BUILT_IN, plugins } from '../plugins/registry.ts';
 
 const rows = () => markGroups().flatMap((group) => group.rows);
 
@@ -72,5 +72,22 @@ describe('a note on a mark', () => {
     expect(row?.looks).toBe('note');
     expect(row?.typed).toBe('??four hundred??(Sam said 400)');
     expect(row?.note).toBe('Sam said 400');
+  });
+});
+
+describe('with the Marks plugin switched off', () => {
+  it('promises none of its marks, a hidden line included, which is the Spoiler’s', () => {
+    plugins.setEnabled('marks', false);
+    try {
+      const groups = markGroups();
+      expect(groups.find((group) => group.title === 'Ghost.md’s own')).toBeUndefined();
+      const names = groups.flatMap((group) => group.rows).map((row) => row.name);
+      expect(names).not.toContain('A hidden line');
+      // The app's own marks are all still there.
+      expect(names).toContain('A board');
+    } finally {
+      plugins.setEnabled('marks', true);
+    }
+    expect(rows().map((row) => row.name)).toContain('A hidden line');
   });
 });
