@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { listenTo } from '../core/events.ts';
 import { failureText } from '../core/failure.ts';
 import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { preferences } from '../core/preferences.ts';
@@ -225,10 +226,9 @@ async function ensureRefineModel(): Promise<boolean> {
   if (status.present) return true;
   // Local only: the better words wait until the model is on the phone.
   if (preferences().localOnly) return false;
-  const { listen } = await import('@tauri-apps/api/event');
   publish({ download: { received: 0, total: status.bytes } });
-  const unlisten = await listen<{ receivedBytes: number; totalBytes: number }>('capture://refine-model-progress', (event) =>
-    publish({ download: { received: event.payload.receivedBytes, total: event.payload.totalBytes } }),
+  const unlisten = await listenTo<{ receivedBytes: number; totalBytes: number }>('capture://refine-model-progress', (progress) =>
+    publish({ download: { received: progress.receivedBytes, total: progress.totalBytes } }),
   );
   try {
     const fetched = await invoke<ModelStatus>('capture_fetch_refine_model');
@@ -303,9 +303,8 @@ function finish(job: RefineJob): void {
 export async function listenAgain(job: Omit<RefineJob, 'tries'>, onPercent: (percent: number) => void): Promise<Segment[] | null> {
   if (!(await canRefine())) return null;
   if (!(await ensureRefineModel())) return null;
-  const { listen } = await import('@tauri-apps/api/event');
-  const unlisten = await listen<{ id: string; percent: number }>('capture://refine-progress', (event) => {
-    if (event.payload.id === job.id) onPercent(event.payload.percent);
+  const unlisten = await listenTo<{ id: string; percent: number }>('capture://refine-progress', (progress) => {
+    if (progress.id === job.id) onPercent(progress.percent);
   });
   try {
     return await invoke<Segment[]>('capture_refine', { id: job.id, fromMs: job.fromMs, promptTail: job.promptTail });

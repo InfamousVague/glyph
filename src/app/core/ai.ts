@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { listenTo } from './events.ts';
 import { failureText } from './failure.ts';
 import { preferences } from './preferences.ts';
 import { invoke, isTauri } from './tauri.ts';
@@ -113,9 +114,8 @@ export function useModels(): {
       }
       busy.current = true;
       setProblem(null);
-      const { listen } = await import('@tauri-apps/api/event');
-      const unlisten = await listen<{ id: string; receivedBytes: number; totalBytes: number }>('ai://model-progress', (event) => {
-        if (event.payload.id === id) setDownload({ id, received: event.payload.receivedBytes, total: event.payload.totalBytes });
+      const unlisten = await listenTo<{ id: string; receivedBytes: number; totalBytes: number }>('ai://model-progress', (progress) => {
+        if (progress.id === id) setDownload({ id, received: progress.receivedBytes, total: progress.totalBytes });
       });
       setDownload({ id, received: 0, total: MODELS.find((m) => m.id === id)?.bytes ?? 0 });
       try {
@@ -238,9 +238,8 @@ export function generate(options: RunOptions): Run {
   let unlisten: (() => void) | null = null;
   const done = (async () => {
     if (!isTauri()) throw new Error('Formatting runs on the phone. Install Ghost.md to use it.');
-    const { listen } = await import('@tauri-apps/api/event');
-    unlisten = await listen<Progress>('ai://progress', (event) => {
-      if (event.payload.id === id) options.onProgress(event.payload);
+    unlisten = await listenTo<Progress>('ai://progress', (progress) => {
+      if (progress.id === id) options.onProgress(progress);
     });
     try {
       return await invoke<Output>('ai_generate', {

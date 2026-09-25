@@ -10,6 +10,11 @@
  * The Tauri modules are pulled in through literal dynamic imports so the
  * bundler can resolve and code-split them; each import is guarded by
  * `isTauri()` and a try/catch.
+ *
+ * Two partners sit beside this in their own modules, because tests replace
+ * this one with a factory that lists only `isTauri` and `invoke`: events.ts
+ * (`listenTo`, for what Rust sends unasked) and nativeGeneration.ts (which
+ * binary the page landed on, asked once).
  */
 
 import type { InvokeArgs } from '@tauri-apps/api/core';
