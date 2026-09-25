@@ -117,7 +117,8 @@ export interface MarkRow {
   css?: string;
   /**
    * Said while recording, where there is a way to say it: a cue (capture/markdown.ts), never a "Hey Ghost" command,
-   * since the recorder acts on only two of those at Done and neither makes a mark (guide/marks.test.ts).
+   * since the recorder acts on only two of those at Done and neither makes a mark. guide/marks.test.ts says each
+   * phrase to the recorder and holds it to the mark it writes.
    */
   say?: string;
   /** What the popover says, for the row that shows a note on a mark (editor/markNotes.ts). */
@@ -163,7 +164,7 @@ const OWN: MarkGroup[] = [
       { symbol: '- [x]', name: 'Done', typed: '- [x] Call Sam', words: 'Call Sam', looks: 'done', icon: SquareCheckBig, say: '“done task: …”' },
       { symbol: '- ( )', name: 'A choice', typed: 'Where do we stay?\n- ( ) Tent\n- (x) Cabin', words: 'Cabin', looks: 'choice', icon: CircleDot, say: '“option: tent”, “picked option: cabin”' },
       { symbol: '[ / ]', name: 'A counter', typed: '- Water [3/8]', words: '3/8', looks: 'counter', icon: Gauge, say: '“counter three of eight”' },
-      { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator, say: '“calculate: four fifty plus one twenty”' },
+      { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator, say: '“calculate: four hundred plus one hundred twenty”' },
       {
         symbol: '>',
         name: 'A quote',
