@@ -45,7 +45,7 @@ export function wispDraw(): WispDraw {
  */
 export type WispHead = 'smoke' | 'blur';
 
-export const WISP_HEAD_KEY = 'glyph-wisp-head';
+const WISP_HEAD_KEY = 'glyph-wisp-head';
 
 export function wispHead(): WispHead {
   // Nothing asked, or nowhere to ask: the screen decides.
