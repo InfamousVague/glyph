@@ -1,10 +1,10 @@
 import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
 import { createElement } from 'react';
-import { createRoot } from 'react-dom/client';
 import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, type Canvas } from '../canvas/jsonCanvas.ts';
 import { caretIn, focusMoved, openOnPress, trackFocus } from './drawnBlock.ts';
+import { mountReact } from './reactMount.ts';
 
 /**
  * A canvas in a frame inside a note (Matt: "embed a frame of a canvas within another note so we can browse the
@@ -134,16 +134,17 @@ class FrameWidget extends WidgetType {
     wrap.append(bar, box);
 
     // The canvas note's own view, with no `onChange`: browsable, not changeable.
-    const root = createRoot(box);
-    root.render(
-      createElement(CanvasView, {
-        canvas: this.canvas,
-        dark: this.dark,
-        wiki: { known: this.options.known, open: this.options.open, body: this.options.body },
-      }),
+    unmounts.set(
+      wrap,
+      mountReact(
+        box,
+        createElement(CanvasView, {
+          canvas: this.canvas,
+          dark: this.dark,
+          wiki: { known: this.options.known, open: this.options.open, body: this.options.body },
+        }),
+      ),
     );
-    // Taken down after CodeMirror's own update has finished, never in the middle of a React render.
-    unmounts.set(wrap, () => queueMicrotask(() => root.unmount()));
     return wrap;
   }
 
