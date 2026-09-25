@@ -188,14 +188,20 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
    * Live sync (docs/LIVE.md): this note open on another device too, typed into on either and arriving a character at
    * a time. Nothing at all unless the switch is on (core/live/enabled.ts), and even then the live code - Yjs and its
    * CodeMirror binding - is only loaded here, on demand, so the app is the same size for everyone with it off.
+   *
+   * It says nothing on screen: a "Live" word and dot in the top bar did, while another device had the note open, and
+   * went (Matt: "There is a strange live indicator in the top nav remove it"). The typing arriving is the sign.
    */
-  const [livePeers, setLivePeers] = useState(0);
   useEffect(() => {
     if (!view || !liveEnabled()) return undefined;
     let stop: (() => void) | null = null;
     let gone = false;
     void import('../core/live/open.ts')
-      .then(({ goLive }) => goLive(view, note.id, setLivePeers))
+      .then(({ goLive }) =>
+        goLive(view, note.id, () => {
+          // How many other devices are joined: nothing here shows it any more.
+        }),
+      )
       .then((stopping) => {
         if (gone) stopping();
         else stop = stopping;
@@ -820,12 +826,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
 
   const tools = (
   <div className={styles.tools}>
-    {/* Another device has this note open, and what is typed on either arrives on the other as it is typed. */}
-    {livePeers > 0 ? (
-      <span className={styles.live} role="status" aria-label={livePeers === 1 ? 'Live with another device' : `Live with ${livePeers} other devices`}>
-        Live
-      </span>
-    ) : null}
     {/*
       Markdown, the marks with the formatting (the default), or just the formatted text (editor/viewMode.ts).
       One ring like the others rather than a pair in a capsule (Matt: "change the pencil and book icon to the

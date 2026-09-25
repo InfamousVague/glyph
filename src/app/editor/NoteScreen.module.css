@@ -410,29 +410,6 @@
 }
 
 /*
- * "Live": this note is open on another device, and typing on either arrives on the other as it happens (docs/LIVE.md).
- * A word and a dot in the page's own quiet ink, the size of the tools it sits among, and only there while it is true -
- * so a person trying live sync can see it is joined up, and nobody else ever sees it at all.
- */
-.live {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  padding-inline: var(--glacier-space-2);
-  font-size: var(--glacier-font-size-sm);
-  font-weight: var(--glacier-font-weight-medium);
-  color: var(--glacier-text-muted);
-}
-
-.live::before {
-  content: '';
-  inline-size: 0.5em;
-  block-size: 0.5em;
-  border-radius: var(--glacier-radius-full);
-  background: var(--glacier-green-9, currentColor);
-}
-
-/*
  * A note with no words yet: the ghost with its pen, a little under the first line and in the middle of the column,
  * gone at the first word. Placed over the editor rather than after it: the editor grows to fill the page, so after it
  * the ghost sat at the foot of the screen. Nothing to tap, so the editor under it still takes the finger.

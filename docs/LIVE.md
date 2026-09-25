@@ -95,8 +95,9 @@ another). It applies to the next note opened. Off, none of it is even loaded: th
 demand (`core/live/open.ts`), so Yjs and its binding are not in the app everyone downloads - measured in the browser,
 with the switch off no live module is fetched at all, and undo works exactly as it did.
 
-While a note is live with another device, the top bar shows a small **Live** with a green dot (editor/NoteScreen.tsx),
-so a person trying it can see the two are joined up.
+Nothing on screen says a note is live: the typing arriving from the other device is the sign. A small **Live** with a
+green dot stood in the top bar while it was, and went on 2026-09-25 (Matt: "There is a strange live indicator in the
+top nav remove it").
 
 The wisp arrivals livelock (editor/wispArrivals.ts), which a paragraph pasted on another device could have set off,
 was fixed before this shipped.
