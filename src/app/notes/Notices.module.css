@@ -79,15 +79,15 @@
   font-weight: var(--glacier-font-weight-medium);
 }
 
-.updateAction {
+/* A card's one button, a filled pill: Update on the update card, Start on the Academy's (`.learnAction`, below). */
+.updateAction,
+.learnAction {
   appearance: none;
   flex: none;
   min-block-size: var(--glacier-space-10);
   padding: 0 var(--glacier-space-4);
   border: none;
   border-radius: var(--glacier-radius-full);
-  background: var(--update-ink);
-  color: #fff;
   font: inherit;
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-bold);
@@ -95,8 +95,14 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.updateAction:active {
+.updateAction:active,
+.learnAction:active {
   transform: scale(0.96);
+}
+
+.updateAction {
+  background: var(--update-ink);
+  color: #fff;
 }
 
 .updateAction:focus-visible {
@@ -186,24 +192,10 @@
   margin-inline-start: auto;
 }
 
+/* The update card's pill (`.updateAction`, above), in the page's own ink. */
 .learnAction {
-  appearance: none;
-  flex: none;
-  min-block-size: var(--glacier-space-10);
-  padding: 0 var(--glacier-space-4);
-  border: none;
-  border-radius: var(--glacier-radius-full);
   background: var(--glacier-text);
   color: var(--glacier-bg);
-  font: inherit;
-  font-size: var(--glacier-font-size-sm);
-  font-weight: var(--glacier-font-weight-bold);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.learnAction:active {
-  transform: scale(0.96);
 }
 
 .learnHide {
