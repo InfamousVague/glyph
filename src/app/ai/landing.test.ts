@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { frontMatterEnd, matchLine, similar, tokens, wordDiff } from './landing.ts';
+import { matchLine, similar, tokens, wordDiff } from './landing.ts';
 
 describe('a line as words', () => {
   it('keeps the space before each word and leaves trailing space to nobody', () => {
@@ -65,14 +65,5 @@ describe('where a finished line belongs', () => {
     const far = Array.from({ length: 12 }, (_, i) => `line ${i}`);
     expect(matchLine(far, 'line 11')).toEqual({ kind: 'insert' });
     expect(matchLine(far, 'line 7')).toEqual({ kind: 'keep', at: 7 });
-  });
-});
-
-describe('where the front matter ends', () => {
-  it('is after the closing fence, or the start where there is none', () => {
-    expect(frontMatterEnd('---\ntitle: "A"\n---\n# A\n')).toBe(19);
-    expect(frontMatterEnd('# A\n')).toBe(0);
-    expect(frontMatterEnd('---\ntitle: "A"\n')).toBe(0);
-    expect(frontMatterEnd('---\n---')).toBe(7);
   });
 });

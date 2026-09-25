@@ -1,8 +1,11 @@
+import type { SignedIn } from '../src/app/core/account/account.ts';
 import { failureText } from '../src/app/core/failure.ts';
 import { randomId } from '../src/app/core/ids.ts';
-import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
+import { imageNames } from '../src/app/core/imageRefs.ts';
+import { noteTitle } from '../src/app/core/noteTitle.ts';
 import type { Note } from '../src/app/core/store.ts';
-import type { NotePayload } from '../src/app/core/sync/notes.ts';
+import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
+import type { FeedItem, NotePayload } from '../src/app/core/sync/notes.ts';
 
 /**
  * A Glyph account from outside the app: the sync service (docs/SYNC.md) as a client that signs in, reads the
@@ -63,24 +66,9 @@ export interface NoteRecord {
   images?: string[];
 }
 
-interface FeedItem {
-  id: string;
-  rev: number;
-  deleted: boolean;
-  blob: string | null;
-}
-
-interface SignedIn {
-  token: string;
-  account: { id: number; handle: string };
-  wrapped?: string;
-}
-
 export const DEFAULT_API = 'https://attack.fm/glyph/api';
 const TIMEOUT_MS = 30_000;
 const encoder = new TextEncoder();
-/** The picture references a body carries (core/images.ts `IMAGE_REF`). */
-const IMAGE_REF = /!\[([^\]]*)\]\(image\/([A-Za-z0-9_.-]+)\)/g;
 
 export interface Hooks {
   fetcher?: typeof fetch;
@@ -115,30 +103,6 @@ async function callApi<T>(api: string, method: string, path: string, { token, bo
     throw new GlyphApiError(response.status, words ?? `The sync service answered ${response.status}.`, answer);
   }
   return answer as T;
-}
-
-/** Every picture a body refers to (core/images.ts `imageNames`). */
-export function imageNames(body: string): string[] {
-  return [...body.matchAll(IMAGE_REF)].map((m) => m[2] ?? '').filter(Boolean);
-}
-
-/** The note's title as the app's list shows it (core/store.ts `noteTitle`): its first line of words, without a heading's marks. */
-export function noteTitle(body: string): string {
-  const lines = withoutFrontMatter(body.split('\n'));
-  const line = lines.find((l) => l.trim() && !/^!\[[^\]]*\]\([^)]*\)\s*$/.test(l)) ?? '';
-  return line.replace(/^#{1,6}\s+/, '').replace(/\s*§§\s*/g, ' ').trim();
-}
-
-function withoutFrontMatter(lines: readonly string[]): string[] {
-  if (!/^(---|\+\+\+)\s*$/.test(lines[0] ?? '')) return [...lines];
-  for (let n = 1; n < Math.min(lines.length, 40); n += 1) {
-    if (/^(---|\+\+\+)\s*$/.test(lines[n] ?? '')) {
-      const named = lines.slice(1, n).find((key) => /^\s*title\s*:/i.test(key));
-      const title = named ? named.replace(/^\s*title\s*:\s*/i, '').replace(/^['"]|['"]$/g, '').trim() : '';
-      return title ? [title, ...lines.slice(n + 1)] : lines.slice(n + 1);
-    }
-  }
-  return [...lines];
 }
 
 async function importAccountKey(raw: string): Promise<CryptoKey> {

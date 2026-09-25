@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { placeWords } from '../src/app/capture/listAppend.ts';
 import { aiName, authorsOf, withAuthor } from '../src/app/core/authors.ts';
 import { failureText } from '../src/app/core/failure.ts';
-import { Conflict, GlyphApiError, noteTitle, type GlyphAccount, type NoteRecord } from './glyph.ts';
+import { noteTitle } from '../src/app/core/noteTitle.ts';
+import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
 
 /**
  * The MCP server: Glyph's notes as tools for Claude (docs/MCP.md). Matt: "make an MCP plugin for Claude so I can use

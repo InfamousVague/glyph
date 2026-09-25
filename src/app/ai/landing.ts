@@ -127,16 +127,3 @@ export function matchLine(oldLines: readonly string[], line: string): Match {
   }
   return { kind: 'insert' };
 }
-
-/** Where a note's front matter ends - the offset after its closing fence's newline - or 0 for a note without one. */
-export function frontMatterEnd(body: string): number {
-  if (!/^(---|\+\+\+)\s*(\n|$)/.test(body)) return 0;
-  const lines = body.split('\n');
-  for (let n = 1; n < Math.min(lines.length, 40); n += 1) {
-    if (/^(---|\+\+\+)\s*$/.test(lines[n]!)) {
-      const end = lines.slice(0, n + 1).join('\n').length;
-      return Math.min(body.length, end + 1);
-    }
-  }
-  return 0;
-}

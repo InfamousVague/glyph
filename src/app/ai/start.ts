@@ -1,10 +1,10 @@
 import type { EditorView } from '@codemirror/view';
+import { frontMatterOffset } from '../core/frontMatter.ts';
 import { setLanding } from '../editor/aiChanges.ts';
 import { noteContext, noteHash, prepareNote } from '../format/pipeline.ts';
 import { TEMPERATURE } from '../format/prompt.ts';
 import type { Availability } from './available.ts';
 import type { RunKind } from './kinds.ts';
-import { frontMatterEnd } from './landing.ts';
 import { askMessage, budgetForKind, PART_NOTE, promptForKind, restOfNote } from './prompts.ts';
 import { startRun, type RunHandle, type RunScope } from './runs.ts';
 
@@ -51,7 +51,7 @@ export function wholeLines(view: EditorView, scope: RunScope): RunScope {
 export function startNoteRun(view: EditorView, noteId: string, kind: RunKind, availability: Availability, options: StartOptions = {}): Started {
   if (!availability.ok) return { ok: false, reason: availability.reason };
   const body = view.state.doc.toString();
-  const front = frontMatterEnd(body);
+  const front = frontMatterOffset(body);
   const placement = placementOf(kind);
   // A part is only ever of a rewrite; a summary or a continuation is of the whole note.
   const part = placement === 'replace' && options.scope && options.scope.to > options.scope.from ? wholeLines(view, options.scope) : null;

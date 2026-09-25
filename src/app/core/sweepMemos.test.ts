@@ -16,6 +16,13 @@ describe('sweeping the memos out', () => {
     expect(wasMemo('---\ntitle: Plans\n---\n# Plans')).toBe(false);
   });
 
+  // Until 2026-09-25 a `kind: memo` line was enough before any close came; the block now has to be front matter as
+  // the list reads it (core/frontMatter.ts), closed.
+  it('knows no memo by a block that never closes', () => {
+    expect(wasMemo('---\nkind: memo\nMilk')).toBe(false);
+    expect(wasMemo('---\nkind: memo\n')).toBe(false);
+  });
+
   it('puts every memo in the trash, once, and leaves the notes alone', () => {
     const notes = [note('m1', '---\nkind: memo\n---\nMilk'), note('n1', '# A note'), note('m2', '---\nkind: memo\n---\nEggs')];
     expect(sweepMemos(notes)).toBe(2);

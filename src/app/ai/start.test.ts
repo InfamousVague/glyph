@@ -47,6 +47,13 @@ describe('starting a run on the note', () => {
     expect(v.state.field(landingField)).toMatchObject({ start: 19, cursor: 19, oldEnd: 29 });
   });
 
+  it('gives the model a rule with words under it, which the editor shows as words (core/frontMatter.ts)', () => {
+    const v = open('---\nSome words here\n---\n# A\n');
+    startNoteRun(v, 'n', 'format', ready);
+    expect(requests[0]).toMatchObject({ prompt: '---\nSome words here\n---\n# A\n', scope: { from: 0, to: 28 } });
+    expect(v.state.field(landingField)).toMatchObject({ start: 0, cursor: 0, oldEnd: 28 });
+  });
+
   it('lands a summary above the note and a continuation under it', () => {
     const v = open('# A\nwords\n');
     startNoteRun(v, 'n', 'summarize', ready);

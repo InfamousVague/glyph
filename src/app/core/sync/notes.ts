@@ -87,7 +87,8 @@ export interface NotePayload {
   images?: string[];
 }
 
-interface FeedItem {
+/** One note in the service's change feed, and what a refused write answers with; the MCP server reads it too (mcp/glyph.ts). */
+export interface FeedItem {
   id: string;
   rev: number;
   deleted: boolean;

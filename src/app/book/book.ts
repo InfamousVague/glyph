@@ -1,4 +1,4 @@
-import { frontMatterValue } from '../core/frontMatter.ts';
+import { frontMatterEnd, frontMatterValue, quotedTitle } from '../core/frontMatter.ts';
 import { noteTitle, withoutFrontMatter, type Note } from '../core/store.ts';
 import { titleKey } from '../core/titleKey.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
@@ -41,9 +41,10 @@ export function isBookBody(body: string): boolean {
 
 /** The body of a new book note, named, with any chapters given in order. */
 export function bookNoteBody(title: string, chapters: readonly string[] = []): string {
-  const safe = title.replace(/["\n]/g, "'").trim() || 'Book';
+  const named = quotedTitle(title, 'Book');
   const index = chapters.map((chapter) => `- [[${chapter.trim()}]]`).join('\n');
-  return `---\ntitle: "${safe}"\nbook: true\n---\n# ${safe}\n\n${index}${index ? '\n' : ''}`;
+  // The heading is the same name, out of its quotes.
+  return `---\ntitle: ${named}\nbook: true\n---\n# ${named.slice(1, -1)}\n\n${index}${index ? '\n' : ''}`;
 }
 
 /**
@@ -65,14 +66,8 @@ export function chaptersOf(body: string): Chapter[] {
 /** Every list item after the front matter, with its line. */
 function* listItems(body: string): Generator<{ item: RegExpExecArray; n: number }> {
   const lines = body.split('\n');
-  let inFrontMatter = /^(---|\+\+\+)\s*$/.test(lines[0] ?? '');
-  for (let n = inFrontMatter ? 1 : 0; n < lines.length; n += 1) {
-    const line = lines[n]!;
-    if (inFrontMatter) {
-      if (/^(---|\+\+\+)\s*$/.test(line)) inFrontMatter = false;
-      continue;
-    }
-    const item = ITEM.exec(line);
+  for (let n = frontMatterEnd(lines); n < lines.length; n += 1) {
+    const item = ITEM.exec(lines[n]!);
     if (item) yield { item, n };
   }
 }
@@ -238,11 +233,7 @@ export function bodyWithoutTitle(body: string, title: string): string {
 export function bookWords(body: string): { before: string; after: string } {
   const lines = body.split('\n');
   const chapters = chaptersOf(body);
-  let start = 0;
-  if (/^(---|\+\+\+)\s*$/.test(lines[0] ?? '')) {
-    const close = lines.findIndex((line, n) => n > 0 && /^(---|\+\+\+)\s*$/.test(line));
-    start = close >= 0 ? close + 1 : lines.length;
-  }
+  const start = frontMatterEnd(lines);
   const first = chapters.length ? chapters[0]!.line : lines.length;
   const last = chapters.length ? chapters[chapters.length - 1]!.line : lines.length - 1;
   const head = lines.slice(start, first);
