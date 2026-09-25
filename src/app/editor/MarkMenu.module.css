@@ -1,6 +1,6 @@
 /*
- * The drawer (MarkMenu.tsx): the note settings' sheet (NoteSettings.module.css), holding the task in the note's own
- * type and the things to do.
+ * The drawer (MarkMenu.tsx): the sheet every bottom sheet shares (editor/Sheet.tsx, drawn by NoteSettings.module.css),
+ * holding the task in the note's own type and the things to do.
  */
 
 .drawer {

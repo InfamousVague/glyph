@@ -1,7 +1,7 @@
 /*
  * The press-and-hold menu: a band of paper-2 above the selection, Glyph's
  * words along it with hairlines between, the way the phone's own bar sits but
- * in ink. A second band underneath for the edits, when there are any.
+ * in ink (editor/ContextMenu.tsx, drawn from editor/MenuBand.tsx).
  */
 
 .menu {
@@ -95,24 +95,6 @@
 
 .item:active {
   background: var(--app-paper-3, var(--glacier-surface-sunken));
-}
-
-.item:disabled {
-  color: var(--app-ink-4, var(--glacier-text-disabled));
-  cursor: default;
-}
-
-/* The edits band: quieter words, a step smaller. */
-.row[data-edits] .item {
-  font-size: var(--glacier-font-size-sm);
-}
-
-.why {
-  flex: none;
-  padding-inline: var(--glacier-space-3);
-  font-size: var(--glacier-font-size-xs, 0.75rem);
-  color: var(--app-ink-3, var(--glacier-text-muted));
-  white-space: nowrap;
 }
 
 /* A style lit while it applies: printed in reverse, like a chosen row. */

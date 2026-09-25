@@ -1,13 +1,12 @@
 import { CircleCheck, ExternalLink, PencilLine, RefreshCw, RotateCcw, Unlink } from '@glacier/icons';
-import { useEffect, useRef, useState, type ComponentType } from 'react';
-import { useBack } from '../core/back.ts';
+import { useEffect, useState } from 'react';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { agoText, markActions, onMarkDetails, openMarked, peekMarkDetails, wantMarkDetails, type MarkAction } from '../core/markDetails.ts';
 import { capitalise } from '../core/text.ts';
 import { useRedraw } from '../core/useRedraw.ts';
-import sheet from './NoteSettings.module.css';
-import { useSheetDrag } from './sheetDrag.ts';
+import type { MenuIcon } from './MenuBand.tsx';
+import { Sheet } from './Sheet.tsx';
 import styles from './MarkMenu.module.css';
 
 /**
@@ -42,7 +41,7 @@ export interface MarkMenuProps {
   unlink(): void;
 }
 
-const ICONS: Record<MarkAction['icon'], ComponentType<{ size?: number; strokeWidth?: number }>> = {
+const ICONS: Record<MarkAction['icon'], MenuIcon> = {
   done: CircleCheck,
   reopen: RotateCcw,
   rename: PencilLine,
@@ -51,14 +50,10 @@ const ICONS: Record<MarkAction['icon'], ComponentType<{ size?: number; strokeWid
 export function MarkMenu({ name, url, words, say, close, unlink }: MarkMenuProps) {
   const redraw = useRedraw();
   const [busy, setBusy] = useState<string | null>(null);
-  // The drawer takes a pull on its handle: down far enough and it closes (editor/sheetDrag.ts).
-  const panel = useRef<HTMLElement>(null);
-  const drag = useSheetDrag(panel, close);
   const title = capitalise(name);
 
   useEffect(() => onMarkDetails(redraw), [redraw]);
   useEffect(() => wantMarkDetails(name, url, true), [name, url]);
-  useBack(true, close);
 
   const entry = peekMarkDetails(name, url);
   const details = entry?.state === 'ready' ? entry.details : null;
@@ -83,125 +78,130 @@ export function MarkMenu({ name, url, words, say, close, unlink }: MarkMenuProps
     }
   };
 
-  const Row = ({
-    id,
-    icon: Icon,
-    label,
-    busyLabel,
-    onPress,
-    quiet = false,
-  }: {
-    id: string;
-    icon: ComponentType<{ size?: number; strokeWidth?: number }>;
-    label: string;
-    busyLabel?: string;
-    onPress: () => void;
-    quiet?: boolean;
-  }) => (
+  // The drawer's shell - the scrim, the grip's pull, the back gesture - is the sheet every bottom sheet shares (editor/Sheet.tsx).
+  return (
+    <Sheet label={`${title} ${details?.title ?? 'link'}`} onClose={close} className={styles.drawer}>
+      <div className={styles.head}>
+        <p className={styles.eyebrow}>
+          <span>{title}</span>
+          {details?.gone ? <span className={styles.status}>In trash</span> : null}
+          {details?.status && !details.gone ? (
+            <span className={styles.status} data-stage={details.status.stage}>
+              <span className={styles.stage} aria-hidden="true" />
+              {details.status.label}
+            </span>
+          ) : null}
+          {details?.brief.map((fact) => (
+            <span key={fact} className={styles.fact}>
+              {fact}
+            </span>
+          ))}
+        </p>
+        <p className={styles.title}>{details?.title || words || 'Linked'}</p>
+        {fields.length ? (
+          <dl className={styles.fields}>
+            {fields.map((field) => (
+              <div key={field.label} className={styles.field}>
+                <dt>{field.label}</dt>
+                <dd>{field.value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        <p className={styles.quiet}>
+          {entry?.state === 'failed'
+            ? entry.message
+            : details
+              ? `${details.editedAt ? `Changed ${agoText(details.editedAt)} · ` : ''}${reading ? 'Reading…' : `Read ${agoText(details.readAt)}`}`
+              : reading
+                ? `Reading from ${title}…`
+                : `Ghost.md can’t read ${title} right now.`}
+        </p>
+      </div>
+
+      <div className={styles.options}>
+        <Row
+          id="open"
+          busy={busy}
+          icon={ExternalLink}
+          label={`Open in ${title}`}
+          onPress={() =>
+            void act('open', async () => {
+              close();
+              await openMarked(name, details?.url || url);
+            })
+          }
+        />
+        {actions.map((action) => (
+          <Row
+            key={action.id}
+            id={action.id}
+            busy={busy}
+            icon={ICONS[action.icon]}
+            label={action.label}
+            busyLabel={action.busyLabel}
+            onPress={() => void act(action.id, action.run, action.busyLabel)}
+          />
+        ))}
+        <Row
+          id="refresh"
+          busy={busy}
+          icon={RefreshCw}
+          label={reading ? 'Reading…' : 'Refresh'}
+          onPress={() =>
+            void act('refresh', () => {
+              wantMarkDetails(name, url, true);
+              redraw();
+            })
+          }
+        />
+        <Row
+          id="unlink"
+          busy={busy}
+          icon={Unlink}
+          label="Unlink"
+          quiet
+          onPress={() =>
+            void act('unlink', async () => {
+              unlink();
+              return 'Unlinked. The words stay.';
+            })
+          }
+        />
+      </div>
+    </Sheet>
+  );
+}
+
+/**
+ * One of the drawer's rows: a drawn icon and a word in display weight, the busy words while its action runs, and every
+ * row still while any runs. At the top level rather than inside the drawer, so a redraw keeps the row a person is
+ * pressing rather than drawing a new one under the finger.
+ */
+function Row({
+  id,
+  busy,
+  icon: Icon,
+  label,
+  busyLabel,
+  onPress,
+  quiet = false,
+}: {
+  id: string;
+  /** The row whose action is running, or null. */
+  busy: string | null;
+  icon: MenuIcon;
+  label: string;
+  busyLabel?: string;
+  onPress: () => void;
+  quiet?: boolean;
+}) {
+  return (
     <button type="button" className={styles.option} data-quiet={quiet || undefined} disabled={busy !== null} onClick={onPress}>
       <span className={styles.icon} aria-hidden="true">
         <Icon size={18} strokeWidth={2.2} />
       </span>
       <span className={styles.label}>{busy === id && busyLabel ? busyLabel : label}</span>
     </button>
-  );
-
-  return (
-    <div className={sheet.scrim} onClick={close}>
-      <section
-        ref={panel}
-        className={`${sheet.sheet} ${styles.drawer}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${title} ${details?.title ?? 'link'}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span className={sheet.grip} aria-hidden="true" {...drag} />
-        <div className={styles.head}>
-          <p className={styles.eyebrow}>
-            <span>{title}</span>
-            {details?.gone ? <span className={styles.status}>In trash</span> : null}
-            {details?.status && !details.gone ? (
-              <span className={styles.status} data-stage={details.status.stage}>
-                <span className={styles.stage} aria-hidden="true" />
-                {details.status.label}
-              </span>
-            ) : null}
-            {details?.brief.map((fact) => (
-              <span key={fact} className={styles.fact}>
-                {fact}
-              </span>
-            ))}
-          </p>
-          <p className={styles.title}>{details?.title || words || 'Linked'}</p>
-          {fields.length ? (
-            <dl className={styles.fields}>
-              {fields.map((field) => (
-                <div key={field.label} className={styles.field}>
-                  <dt>{field.label}</dt>
-                  <dd>{field.value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
-          <p className={styles.quiet}>
-            {entry?.state === 'failed'
-              ? entry.message
-              : details
-                ? `${details.editedAt ? `Changed ${agoText(details.editedAt)} · ` : ''}${reading ? 'Reading…' : `Read ${agoText(details.readAt)}`}`
-                : reading
-                  ? `Reading from ${title}…`
-                  : `Ghost.md can’t read ${title} right now.`}
-          </p>
-        </div>
-
-        <div className={styles.options}>
-          <Row
-            id="open"
-            icon={ExternalLink}
-            label={`Open in ${title}`}
-            onPress={() =>
-              void act('open', async () => {
-                close();
-                await openMarked(name, details?.url || url);
-              })
-            }
-          />
-          {actions.map((action) => (
-            <Row
-              key={action.id}
-              id={action.id}
-              icon={ICONS[action.icon]}
-              label={action.label}
-              busyLabel={action.busyLabel}
-              onPress={() => void act(action.id, action.run, action.busyLabel)}
-            />
-          ))}
-          <Row
-            id="refresh"
-            icon={RefreshCw}
-            label={reading ? 'Reading…' : 'Refresh'}
-            onPress={() =>
-              void act('refresh', () => {
-                wantMarkDetails(name, url, true);
-                redraw();
-              })
-            }
-          />
-          <Row
-            id="unlink"
-            icon={Unlink}
-            label="Unlink"
-            quiet
-            onPress={() =>
-              void act('unlink', async () => {
-                unlink();
-                return 'Unlinked. The words stay.';
-              })
-            }
-          />
-        </div>
-      </section>
-    </div>
   );
 }

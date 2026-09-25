@@ -1,8 +1,8 @@
 import { useCallback, useRef } from 'react';
 
 /**
- * A sheet you can take hold of: drag its handle down and it follows your finger, and let go past halfway and it
- * closes (Matt: "Can't grab and scroll up and down on drawer handles").
+ * A sheet you can take hold of: drag its handle down and it follows your finger, and let go past CLOSE_PX (96 px),
+ * or on a flick, and it closes (Matt: "Can't grab and scroll up and down on drawer handles").
  *
  * The handle is the grab, not the whole sheet, so the rows inside still scroll and a press on one is a press. Pulled
  * up, the sheet gives a little and comes back: there is nothing above it to open into, and a handle that does
@@ -17,8 +17,8 @@ const GIVE_PX = 28;
 const SPRING = 'transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1)';
 
 /**
- * Handlers for a sheet's handle. `sheet` is the panel that moves, `onClose` what a full pull does. Nothing moves
- * under reduced motion until it closes, and it closes just the same.
+ * Handlers for a sheet's handle. `sheet` is the panel that moves, `onClose` what a full pull does. Reduced motion is
+ * not asked: the panel follows the finger, and springs back, whatever the setting.
  */
 export function useSheetDrag(sheet: { current: HTMLElement | null }, onClose: () => void) {
   const from = useRef<{ y: number; at: number } | null>(null);

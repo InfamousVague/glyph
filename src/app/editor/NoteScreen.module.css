@@ -59,11 +59,10 @@
  * The header is a pane of frosted glass over the page rather than a strip
  * above it (app.css .app-headerPane): the page runs under it, blurred through
  * it, with the gentle wisp just below its edge. The page pads itself by the
- * header's height (`--wisp-under`, art/wispEdge.ts). The robot's list hangs
- * from it, over the note.
+ * header's height (`--wisp-under`, art/wispEdge.ts).
  */
 .header {
-  /* A column: the open notes' row (notes/NoteTabs.tsx) above the note's own controls. */
+  /* A column, holding the note's own controls when the app's bar is not there to take them (NoteTools.tsx). */
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -89,7 +88,7 @@
   padding-block-start: calc(var(--wisp-under, 3.6rem) + var(--glacier-space-1) + var(--glacier-space-2) + var(--ai-strip-room, 0px));
 }
 
-/* The controls themselves: the way back at one end, the tools at the other. */
+/* The controls themselves, at the row's far end, past the empty span that holds its start. */
 .headerRow {
   display: flex;
   align-items: center;
@@ -132,12 +131,8 @@
   gap: var(--glacier-space-2);
 }
 
-/* A narrow screen keeps Back's arrow and lets its word go, so the header's controls fit. */
+/* A narrow screen: the tools sit closer, so they fit. */
 @media (max-width: 440px) {
-  .backWord {
-    display: none;
-  }
-
   /* In the app's bar these sit beside the sidebar's button and the two arrows, and the row is only so wide. */
   .tools {
     gap: var(--glacier-space-1);
@@ -173,7 +168,7 @@
   background: none;
   color: var(--glacier-text);
   /*
-   * The icons came down with the rings, from 22px to 20. They carry their own size in NoteScreen.tsx (`size={20}`),
+   * The icons came down with the rings, from 22px to 20. They carry their own size in NoteTools.tsx (`size={20}`),
    * so this is here for anything drawn in ems rather than for them. They were tried at 28 to look the size of the
    * Notion drawer's and were too big (Matt: "go back to the previous size and make the icons on the notion drawer
    * smaller to match"), so the drawer came down instead.
@@ -224,39 +219,11 @@
   }
 }
 
-/* Photo and Delete, the two quiet words top right. */
-.actions {
-  display: flex;
-  gap: var(--glacier-space-5);
-}
-
-.photo {
-  color: var(--glacier-text);
-}
-
 .problem {
   margin: 0;
   padding: var(--glacier-space-1) var(--app-gutter) 0;
   font-size: var(--glacier-font-size-sm);
   color: var(--app-ink-3, var(--glacier-text-muted));
-}
-
-/* The one word after "Applied to the note.": the way back, in the line's own size. */
-.undo {
-  min-block-size: 0;
-  padding: 0;
-  margin-inline-start: var(--glacier-space-3);
-  font-size: inherit;
-  font-weight: var(--glacier-font-weight-semibold);
-  color: var(--app-ink, var(--glacier-text));
-}
-
-.delete {
-  color: var(--glacier-text-subtle);
-}
-
-.delete:active {
-  color: var(--glacier-danger-text);
 }
 
 /*
@@ -310,7 +277,7 @@
 }
 
 /*
- * The AI's strip floats under the header, over the page (NoteScreen.tsx sets `--ai-strip-top` from the header's
+ * The AI's strip floats under the header, over the page (editor/useStripRoom.ts sets `--ai-strip-top` from the header's
  * height and `--ai-strip-room` from the strip's). Over the page's smoke, which is drawn on the page itself, and under
  * a sheet or a menu. The holder takes no taps of its own, so the page under an empty holder still scrolls.
  */
