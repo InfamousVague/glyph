@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { prefersStill } from '../core/motion.ts';
 import { deviceMaker } from './assistant.ts';
 import { onScreen, sideKeySpot, type Edge, type SideKeySpot } from './sideKeys.ts';
-import { grown, paceWaves, shining, wobbleAmount, wobbleAt, type Pacer, type Ring } from './waves.ts';
+import { grown, paceWaves, shining, WOBBLE, wobbleAt, type Pacer, type Ring } from './waves.ts';
 import styles from './SideKeyWaves.module.css';
 
 /**
@@ -31,8 +31,7 @@ function useSideKeySpot(): SideKeySpot {
 
 class Waves {
   private rings: Ring[] = [];
-  private readonly pacer: Pacer = { smooth: 0, lastAt: -Infinity };
-  private level = 0;
+  private readonly pacer: Pacer = { lastAt: -Infinity };
   private raf = 0;
   /** The ink, as the canvas's computed colour: any form the browser gives (rgb, oklch), used as it is. */
   private ink = 'currentColor';
@@ -46,10 +45,6 @@ class Waves {
     /** How far down the screen the key is, 0..1. */
     private readonly at: number,
   ) {}
-
-  hear(level: number): void {
-    this.level = level;
-  }
 
   start(): void {
     this.fit();
@@ -104,7 +99,7 @@ class Waves {
     // Hidden: frames stop, and start again when the page is seen (onVisible).
     if (document.visibilityState === 'hidden') return;
     this.readInk(now);
-    const ring = paceWaves(this.pacer, this.level, now);
+    const ring = paceWaves(this.pacer, now);
     if (ring) {
       this.rings.push(ring);
       if (this.rings.length > MAX_RINGS) this.rings.shift();
@@ -124,7 +119,6 @@ class Waves {
     const originX = this.edge === 'right' ? width : 0;
     const originY = this.at * height;
     const base = 0.36 * Math.min(width, height);
-    const amount = wobbleAmount(this.pacer.smooth);
     const seconds = now / 1000;
     for (const ring of this.rings) {
       const t = fixedT ?? (now - ring.born) / ring.life;
@@ -133,7 +127,7 @@ class Waves {
       ctx.beginPath();
       for (let i = 0; i <= POINTS; i += 1) {
         const theta = (i / POINTS) * Math.PI * 2;
-        const r = radius * (1 + amount * wobbleAt(theta, seconds, ring.seed));
+        const r = radius * (1 + WOBBLE * wobbleAt(theta, seconds, ring.seed));
         const x = originX + r * Math.cos(theta);
         const y = originY + r * Math.sin(theta);
         if (i === 0) ctx.moveTo(x, y);
