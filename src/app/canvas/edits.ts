@@ -1,3 +1,4 @@
+import { toHex } from '../core/bytes.ts';
 import type { Canvas, CanvasEdge, CanvasNode } from './jsonCanvas.ts';
 
 /**
@@ -16,7 +17,7 @@ export function newCanvasId(): string {
   const bytes = new Uint8Array(8);
   if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') crypto.getRandomValues(bytes);
   else for (let n = 0; n < bytes.length; n += 1) bytes[n] = Math.floor(Math.random() * 256);
-  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return toHex(bytes);
 }
 
 /** The size a new card of words starts at, in the canvas's pixels: Obsidian's, so a canvas made here looks like one. */

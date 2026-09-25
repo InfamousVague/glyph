@@ -30,6 +30,7 @@ vi.mock('../core/tauri.ts', () => ({ isTauri: () => native, invoke }));
 vi.mock('../core/events.ts', () => ({ listenTo }));
 vi.mock('../core/nativeGeneration.ts', () => ({ hasNativeGeneration: async (wanted: number) => native && generation >= wanted }));
 
+const { toBase64 } = await import('../core/bytes.ts');
 const { setPreferences } = await import('../core/preferences.ts');
 const engineModule = await import('./engine.ts');
 
@@ -70,7 +71,7 @@ describe('Whisper on the phone', () => {
   });
 
   it('sends every chunk as base64, in order, and counts the recording by what it sent', async () => {
-    const { startCapture, toBase64 } = await engine();
+    const { startCapture } = await engine();
     const session = await startCapture(handlers());
     const first = new Float32Array(16_000).fill(0.25);
     const second = new Float32Array(8_000).fill(-0.5);
@@ -211,8 +212,7 @@ describe('a recording a command did not keep', () => {
  * samples, so a byte out of place here is noise in every transcription.
  */
 describe('toBase64', () => {
-  it('matches the platform encoder on float PCM bytes', async () => {
-    const { toBase64 } = await engine();
+  it('matches the platform encoder on float PCM bytes', () => {
     const samples = new Float32Array([0, 0.5, -0.5, 1, -1, 0.123456]);
     const bytes = new Uint8Array(samples.buffer);
     expect(toBase64(bytes)).toBe(Buffer.from(bytes).toString('base64'));
@@ -222,8 +222,7 @@ describe('toBase64', () => {
    * A 200 ms chunk is 12,800 bytes, and spreading that many arguments into
    * String.fromCharCode in one call is what the slicing exists to avoid.
    */
-  it('round-trips a chunk far larger than one slice', async () => {
-    const { toBase64 } = await engine();
+  it('round-trips a chunk far larger than one slice', () => {
     const samples = new Float32Array(16_000 * 3).map((_, i) => Math.sin(i / 40));
     const bytes = new Uint8Array(samples.buffer);
     const decoded = new Float32Array(new Uint8Array(Buffer.from(toBase64(bytes), 'base64')).buffer);

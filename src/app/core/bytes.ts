@@ -1,7 +1,7 @@
 /**
  * Bytes written out as text, the two ways the app needs them outside the sealed wire: standard base64, which is what
- * Rust reads when bytes cross the bridge as a string (`save_image_data`, `sync_put_file`), and hex, which is how a
- * digest is written down.
+ * Rust reads when bytes cross the bridge as a string (`save_image_data`, `sync_put_file`, and every chunk of a
+ * recording's `capture_push`), and hex, which is how a digest, or a canvas's new id, is written down.
  *
  * The URL-safe base64 of the sync wire is built on this one: core/sync/crypto.ts `toBase64Url`, which stays with the
  * rest of the wire's crypto, where the MCP server imports it.

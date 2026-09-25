@@ -1,3 +1,4 @@
+import { toBase64 } from '../core/bytes.ts';
 import { listenTo } from '../core/events.ts';
 import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
@@ -162,6 +163,14 @@ async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
   const send = (samples: Float32Array) => {
     if (owner !== me) return;
     recorded += samples.length;
+    /*
+     * Bytes as base64 (core/bytes.ts), for the trip across the IPC bridge. NOT a raw `Uint8Array` handed straight to
+     * `invoke`, although that is the natural shape and works on the desktop. Android's WebView cannot give native code
+     * a request's body, so Tauri carries every payload there as JSON, and raw bytes arrive in Rust as a JSON value that
+     * `capture_push` rejected - on the Fold, every chunk of every capture, which is a capture screen that never
+     * transcribes a word. Base64 is the same bytes in a string both bridges carry, at a cost of about 17 KB per 200 ms
+     * chunk.
+     */
     const pcm = toBase64(new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength));
     chain = chain.then(() => invoke('capture_push', { pcm })).catch((error: unknown) => handlers.onError(String(error)));
   };
@@ -213,28 +222,6 @@ async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
       );
     },
   };
-}
-
-/**
- * Bytes as base64, for the trip across the IPC bridge.
- *
- * NOT a raw `Uint8Array` handed straight to `invoke`, although that is the
- * natural shape and works on the desktop. Android's WebView cannot give native
- * code a request's body, so Tauri carries every payload there as JSON, and raw
- * bytes arrive in Rust as a JSON value that `capture_push` rejected - on the
- * Fold, every chunk of every capture, which is a capture screen that never
- * transcribes a word. Base64 is the same bytes in a string both bridges carry,
- * at a cost of about 17 KB per 200 ms chunk.
- *
- * Built in slices because `String.fromCharCode(...bytes)` on a large array
- * overruns the engine's argument limit; 0x8000 is comfortably under it.
- */
-export function toBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(binary);
 }
 
 /** The browser's own recogniser, for developing on a laptop. Chrome only. */

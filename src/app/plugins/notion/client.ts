@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { failureText } from '../../core/failure.ts';
+import { toBase64Url } from '../../core/sync/crypto.ts';
 import { isTauri } from '../../core/tauri.ts';
 import { host } from './manifest.ts';
 
@@ -57,21 +58,15 @@ async function notionAccount(): Promise<NotionAccount> {
   return host.invoke<NotionAccount>('notion_account').catch(() => ({ connected: false }));
 }
 
-function base64url(bytes: Uint8Array): string {
-  let binary = '';
-  bytes.forEach((b) => (binary += String.fromCharCode(b)));
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
 function randomToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
-  return base64url(bytes);
+  return toBase64Url(bytes);
 }
 
 async function challengeOf(verifier: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-  return base64url(new Uint8Array(digest));
+  return toBase64Url(new Uint8Array(digest));
 }
 
 /**
