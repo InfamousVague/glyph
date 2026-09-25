@@ -155,7 +155,7 @@ export function TestResultsPane({ report = REPORT, buildSource = BUILD_SOURCE }:
       {match === 'unknown' ? <SettingsCallout icon={<CircleAlert size={16} />}>This build has no source fingerprint to check the report against (a development build).</SettingsCallout> : null}
       {missing.length ? (
         <SettingsCallout icon={<CircleAlert size={16} />}>
-          {missing.map((s) => s.title).join(', ')} {missing.length === 1 ? 'did' : 'did'} not run for this report.
+          {missing.map((s) => s.title).join(', ')} did not run for this report.
         </SettingsCallout>
       ) : null}
 

@@ -1,6 +1,7 @@
 import { prefersStill } from '../core/motion.ts';
 import { preferences } from '../core/preferences.ts';
-import { WISP_EDGE_BUDGET } from './wispEdge.ts';
+import { boxOf, filterShelf, mergeOf, noiseOnBlack, smokeFrom, svgPart } from './wispBox.ts';
+import { withinWispBudget } from './wispEdge.ts';
 
 /**
  * The wisp edge's foot (art/wispEdge.ts) for a small box that scrolls inside a page: a board's lane with more cards
@@ -52,8 +53,9 @@ import { WISP_EDGE_BUDGET } from './wispEdge.ts';
  *
  * The one thing the box units cost is legibility: a length here has to be divided by the side of the lane it runs
  * along, a blur needs both of its numbers (one fraction shared between a wide box and a tall one is two different
- * blurs), and `feDisplacementMap` measures its throw against the box's diagonal over root two. `box` and `across`
- * below do that arithmetic in one place.
+ * blurs), and `feDisplacementMap` measures its throw against the box's diagonal over root two. `boxOf`
+ * (art/wispBox.ts) does that arithmetic in one place, and the chain of primitives after the band is the tab row's too
+ * (`smokeFrom`).
  */
 
 /** The full-strength lip, how far above the lane's foot it sits, the soft ramp above it, and how far the bend reaches. */
@@ -118,12 +120,8 @@ export function wispFootFade(height: number): number {
   const shape = band(height);
   return shape.band + shape.lift - 4 * fit(height);
 }
-/** How many sizes are kept before the oldest is taken out. */
-const KEEP = 24;
-
-const SVG = 'http://www.w3.org/2000/svg';
-const made = new Map<string, string>();
-let holder: SVGSVGElement | null = null;
+/** The lanes' filters, a size at a time: 24 sizes are kept before the oldest is taken out. */
+const kept = filterShelf(24);
 
 export function wispFoot(height: number, width: number): string | null {
   if (typeof document === 'undefined' || !preferences().wispEdge) return null;
@@ -131,43 +129,10 @@ export function wispFoot(height: number, width: number): string | null {
   const tall = Math.round(height);
   const wide = Math.round(width) + SIDE * 2;
   if (tall < SHORTEST || wide <= SIDE * 2) return null;
-  // The budget is counted in the screen's own pixels; a lane past it keeps the plain fade.
-  const dots = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
-  if (Math.ceil(wide * dots) * Math.ceil((tall + SIDE * 2 + BELOW) * dots) > WISP_EDGE_BUDGET) return null;
-  const key = `${wide}x${tall}`;
-  const known = made.get(key);
-  if (known && document.getElementById(known)) return `url(#${known})`;
+  // A lane past the budget keeps the plain fade.
+  if (!withinWispBudget(wide, tall + SIDE * 2 + BELOW)) return null;
   const id = `wispFoot${wide}x${tall}`;
-  holder ??= makeHolder();
-  if (!holder.isConnected) document.body.append(holder);
-  holder.append(footFilter(id, tall, wide));
-  made.set(key, id);
-  if (made.size > KEEP) {
-    const [oldest] = made;
-    if (oldest) {
-      made.delete(oldest[0]);
-      document.getElementById(oldest[1])?.remove();
-    }
-  }
-  return `url(#${id})`;
-}
-
-function makeHolder(): SVGSVGElement {
-  const svg = document.createElementNS(SVG, 'svg');
-  svg.setAttribute('width', '0');
-  svg.setAttribute('height', '0');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('focusable', 'false');
-  svg.style.position = 'absolute';
-  document.body.append(svg);
-  return svg;
-}
-
-function part(name: string, attributes: Record<string, string | number>, ...children: Element[]): Element {
-  const node = document.createElementNS(SVG, name);
-  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
-  node.append(...children);
-  return node;
+  return kept(`${wide}x${tall}`, id, () => footFilter(id, tall, wide));
 }
 
 /**
@@ -183,16 +148,10 @@ function footFilter(id: string, height: number, wide: number): Element {
   // narrower than the filter by both of those.
   const across = wide - SIDE * 2;
   // The lip, the room above it and the ramp, at this lane's own size (`fit`): the same band, smaller on a short lane.
-  // Not `part`: that is the element builder above, and a local of the same name would shadow it.
   const shape = band(height);
-  /** A box along the lane's width, its height, or across it - what a length has to be divided by to be a fraction. */
-  const box = (x: number, y: number, w: number, h: number) => ({ x: x / across, y: y / height, width: w / across, height: h / height });
-  /** feDisplacementMap measures its throw against this, the box's diagonal over root two. */
-  const corner = Math.sqrt((across * across + height * height) / 2);
+  const { box, corner } = boxOf(across, height);
   const reach = box(-SIDE, height - shape.reach, wide, shape.reach + 40);
-  const merge = (result: string, ...inputs: string[]) =>
-    part('feMerge', result ? { result } : {}, ...inputs.map((input) => part('feMergeNode', { in: input })));
-  return part(
+  return svgPart(
     'filter',
     {
       id,
@@ -211,22 +170,10 @@ function footFilter(id: string, height: number, wide: number): Element {
      * objectBoundingBox times the box 33.6 / 34.7, which is the static. WebKit gives 1.8 / 5.7, 1.8 / 5.6 and
      * 33.6 / 34.6, so the two engines agree and one per-pixel constant serves both.
      */
-    part('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.02 0.07', numOctaves: 2, seed: 3, ...reach, result: 'rawNoise' }),
-    part('feColorMatrix', { in: 'rawNoise', type: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1', result: 'noise' }),
-    part('feFlood', { 'flood-color': '#000', result: 'black' }),
-    part('feFlood', { 'flood-color': '#fff', ...box(-SIDE, height - shape.band - shape.lift, wide, shape.band + shape.lift + BELOW), result: 'strip' }),
-    merge('stripOnBlack', 'black', 'strip'),
-    part('feGaussianBlur', { in: 'stripOnBlack', stdDeviation: `0 ${shape.soft / height}`, result: 'band' }),
-    part('feComposite', { in: 'noise', in2: 'band', operator: 'arithmetic', k1: 1, k2: 0, k3: -0.5, k4: 0.5, result: 'field' }),
-    part('feDisplacementMap', { in: 'SourceGraphic', in2: 'field', scale: BEND / corner, xChannelSelector: 'R', yChannelSelector: 'G', ...reach, result: 'bent' }),
-    // Both numbers, always: one fraction shared between a wide lane and a short one is two different blurs.
-    part('feGaussianBlur', { in: 'bent', stdDeviation: `${BLUR / across} ${BLUR / height}`, ...reach, result: 'soft' }),
-    part('feMorphology', { in: 'bent', operator: 'dilate', radius: `${NEAR / across} ${NEAR / height}`, ...reach, result: 'near' }),
-    part('feComposite', { in: 'soft', in2: 'near', operator: 'in', result: 'softNear' }),
-    part('feColorMatrix', { in: 'band', type: 'luminanceToAlpha', result: 'bandAlpha' }),
-    part('feComposite', { in: 'softNear', in2: 'bandAlpha', operator: 'in', result: 'smoke' }),
-    part('feComposite', { in: 'SourceGraphic', in2: 'bandAlpha', operator: 'out', result: 'rest' }),
-    part('feComposite', { in: 'bent', in2: 'bandAlpha', operator: 'in', result: 'bentIn' }),
-    merge('', 'rest', 'bentIn', 'smoke'),
+    ...noiseOnBlack({ baseFrequency: '0.02 0.07', numOctaves: 2, seed: 3, ...reach }),
+    svgPart('feFlood', { 'flood-color': '#fff', ...box(-SIDE, height - shape.band - shape.lift, wide, shape.band + shape.lift + BELOW), result: 'strip' }),
+    mergeOf('stripOnBlack', 'black', 'strip'),
+    svgPart('feGaussianBlur', { in: 'stripOnBlack', stdDeviation: `0 ${shape.soft / height}`, result: 'band' }),
+    ...smokeFrom({ bend: BEND / corner, blur: `${BLUR / across} ${BLUR / height}`, near: `${NEAR / across} ${NEAR / height}`, within: reach }),
   );
 }

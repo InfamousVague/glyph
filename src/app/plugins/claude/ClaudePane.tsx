@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BookOpen, Bot, KeyRound, Laptop, Link2 } from '@glacier/icons';
 import { useAccount } from '../../core/account/account.ts';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from '../../settings/kit/settingsKit.tsx';
+import { useCopied } from '../../settings/kit/useCopied.ts';
 import { ClaudeGuide } from './ClaudeGuide.tsx';
 import { CAN_DO, MCP_URL, type Way } from './steps.ts';
 
@@ -15,7 +16,7 @@ export function ClaudePane() {
   const account = useAccount();
   const handle = account.session?.handle ?? null;
   const [guide, setGuide] = useState<Way | null>(null);
-  const [copied, setCopied] = useState(false);
+  const address = useCopied(MCP_URL);
 
   return (
     <>
@@ -30,15 +31,7 @@ export function ClaudePane() {
           label="Server address"
           hint={MCP_URL}
           control={
-            <RowAction
-              onPress={() => {
-                void navigator.clipboard?.writeText(MCP_URL);
-                setCopied(true);
-                window.setTimeout(() => setCopied(false), 1500);
-              }}
-            >
-              {copied ? 'Copied' : 'Copy'}
-            </RowAction>
+            <RowAction onPress={address.copy}>{address.copied ? 'Copied' : 'Copy'}</RowAction>
           }
         />
         <SettingRow icon={<Laptop size={16} />} label="On your own computer" hint="One file, run with Node. Your key never leaves the machine." onPress={() => setGuide('local')} />

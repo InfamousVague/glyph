@@ -70,7 +70,7 @@ export const WISP_EDGE_FOOT_SOFT_ID = 'wispEdgeFootSoft';
 export const WISP_EDGE_SOFT = 15;
 export const WISP_EDGE_BAND = 7;
 /** How far below a header's edge the band's lip sits: the smoke happens under a solid header, not hidden behind it. */
-export const WISP_EDGE_DROP = 12;
+const WISP_EDGE_DROP = 12;
 /** The strip starts this far above the view, so its blur never opens the top. */
 export const WISP_EDGE_ABOVE = 200;
 /**
@@ -87,7 +87,18 @@ export const WISP_EDGE_ABOVE = 200;
 const WISP_EDGE_SIDE = 40;
 const WISP_EDGE_CROWN = WISP_EDGE_ABOVE + 40;
 const WISP_EDGE_BELOW = 40;
-export const WISP_EDGE_BUDGET = 2 ** 24;
+const WISP_EDGE_BUDGET = 2 ** 24;
+
+/**
+ * Whether a filter region `across` × `down` CSS pixels fits the budget above, counted in the screen's own pixels: a
+ * sharp screen spends two or three for each one here. Every wisp filter asks before it is worn - the page's
+ * (`placeRegion`), a lane's foot (art/wispFoot.ts) and the tab row's (art/wispSides.ts) - and one that does not fit
+ * keeps its plain fade.
+ */
+export function withinWispBudget(across: number, down: number): boolean {
+  const dots = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  return Math.ceil(across * dots) * Math.ceil(down * dots) <= WISP_EDGE_BUDGET;
+}
 /** The foot's full-strength lip at the view's bottom edge, and how far the band is computed above it. */
 export const WISP_EDGE_FOOT_BAND = 11;
 /**
@@ -206,7 +217,7 @@ function drift(on: boolean, reset = true): void {
 }
 
 /** How far above the view's bottom edge the foot's bend and blur are computed: its lip, its ramp, and room for the drift. */
-export const WISP_EDGE_FOOT_REACH = WISP_EDGE_FOOT_BAND + WISP_EDGE_FOOT_SOFT * 4 + 48;
+const WISP_EDGE_FOOT_REACH = WISP_EDGE_FOOT_BAND + WISP_EDGE_FOOT_SOFT * 4 + 48;
 
 /**
  * Puts the foot band at the view's bottom edge, or takes it away: the same smoke as the top, so words scrolling off
@@ -243,9 +254,7 @@ function placeFoot(height: number, on: boolean): void {
 function placeRegion(el: HTMLElement): boolean {
   const across = Math.max(el.offsetWidth, typeof innerWidth === 'number' ? innerWidth : 0) + WISP_EDGE_SIDE * 2;
   const down = Math.max(el.offsetHeight, typeof innerHeight === 'number' ? innerHeight : 0) + WISP_EDGE_CROWN + WISP_EDGE_BELOW;
-  // The budget is counted in the screen's own pixels, so a sharp screen spends two or three for each one here.
-  const dots = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
-  if (Math.ceil(across * dots) * Math.ceil(down * dots) > WISP_EDGE_BUDGET) return false;
+  if (!withinWispBudget(across, down)) return false;
   // Both bands' filters, each held to the budget on its own: an engine gives every filter its own buffer, so wearing
   // the two together does not pool them into one region twice the size.
   for (const id of [WISP_EDGE_FILTER_ID, WISP_EDGE_FOOT_FILTER_ID]) {

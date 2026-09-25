@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GitBranch } from '@glacier/icons';
 import { PaneSection, RowAction, SettingRow, SettingsEmpty, SettingsFootnote } from '../../settings/kit/settingsKit.tsx';
+import styles from './GitHubPane.module.css';
 import { githubToken, projects, removeProject, setGithubToken, type Project } from './repos.ts';
 
 /**
@@ -65,10 +66,10 @@ export function GitHubPane() {
             hint="Public repos are read without one, but sending list items as issues needs it."
             layout="stacked"
             control={
-              <div className="ghp-token">
+              <div className={styles.token}>
                 {/* A plain field, not the kit's: this pane is reached through the plugin registry, which every test loads. */}
                 <input
-                  className="ghp-tokenField"
+                  className={styles.field}
                   type="password"
                   inputMode="text"
                   autoCapitalize="off"

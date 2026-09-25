@@ -11,17 +11,18 @@ import './settings.css';
 /**
  * The settings surface: a full-screen page that opens on the list of
  * sections and pushes into one. The shape is AttackFM's MobileSettings; the
- * words are Glyph's: `← Notes` in the top bar to leave, "Settings" as the
- * page's title over the clustered list, a section's own word over its pane,
- * and `← Settings` to come back out of one. Both titles are title-sized rather
- * than display-sized, so the rows start near the top (Matt: "add back button
- * at the top of settings and make settings header smaller … make settings in
- * top bar like the ← notes").
+ * words are Glyph's. The top bar reads `← Settings` over both: on the list it
+ * leaves for the notes, and says so to a screen reader, and over a section's
+ * pane it steps back out to the list. The section's own word is the title
+ * over its pane. Both are title-sized rather than display-sized, so the rows
+ * start near the top (Matt: "add back button at the top of settings and make
+ * settings header smaller … make settings in top bar like the ← notes").
  *
  * The page can also be left the way a person came: the phone's back gesture,
  * or a swipe to the right across it, steps out of a pane and then closes the
- * page; a swipe to the left goes forward again, back into the pane just left. One handler, registered while the page is open, answers by depth.
- * Every fresh open lands on the list, and the rows arrive one after another.
+ * page; a swipe to the left goes forward again, back into the pane just left.
+ * One handler, registered while the page is open, answers by depth. Every
+ * fresh open lands on the list, and the rows arrive one after another.
  */
 
 export interface SettingsSection {
@@ -33,6 +34,8 @@ export interface SettingsSection {
   summary?: string;
   /** Rows with the same group share one card. */
   group: number;
+  /** Its colour, when it brings its own (a plugin's page says it); otherwise the one kept for its id below, or grey. */
+  hue?: string;
   /** Other words the search finds the section by (settings/settingsSearch.ts). */
   words?: string;
   /** The settings on its page, by the names the page gives them, for the search to find and open onto. */
@@ -50,7 +53,9 @@ interface SettingsScreenProps {
 /**
  * Each section's colour (Matt: "Add colors to the icons throughout the settings page make the icon background
  * semitransparent in the color and the icon full opacity on the same color"): its row's chip in the list, and the icons
- * on its own page. Names, not values: settings.css draws each, a shade deeper on the light page than on the dark.
+ * on its own page. Names, not values: settings.css draws each, a shade deeper on the light page than on the dark, so a
+ * new hue is a line here and three there. A plugin's page brings its own (`hue` on its settings, plugins/types.ts),
+ * so the shell names no plugin.
  */
 const HUES: Record<string, string> = {
   account: 'blue',
@@ -59,9 +64,6 @@ const HUES: Record<string, string> = {
   recording: 'red',
   formatting: 'orange',
   feel: 'teal',
-  'plugin:notion': 'graphite',
-  'plugin:github': 'graphite',
-  'plugin:claude': 'coral',
   plugins: 'green',
   animations: 'pink',
   cheatsheet: 'yellow',
@@ -70,9 +72,49 @@ const HUES: Record<string, string> = {
   'test-results': 'mint',
 };
 
-/** A section's colour by its id; a section added later without one is grey. */
-function hueOf(id: string): string {
-  return HUES[id] ?? 'grey';
+/** A section's colour: its own, or its id's, or grey for a section added later without one. */
+function hueOf(section: Pick<SettingsSection, 'id' | 'hue'>): string {
+  return section.hue ?? HUES[section.id] ?? 'grey';
+}
+
+/** A row that opens a section: its chip in the section's colour, a label and a line under it, and a chevron on a phone. */
+function SectionRow({
+  section,
+  label,
+  summary,
+  current,
+  index,
+  split,
+  onPress,
+}: {
+  section: SettingsSection;
+  label: string;
+  summary?: string;
+  current: boolean;
+  /** Its place in the rows' arrival, one after another (settings.css). */
+  index: number;
+  split: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="settingsScreen__row"
+      style={{ '--i': index } as React.CSSProperties}
+      aria-current={current ? 'page' : undefined}
+      data-current={current || undefined}
+      onClick={onPress}
+    >
+      <span className="settingsScreen__rowIcon" data-hue={hueOf(section)}>
+        {section.icon}
+      </span>
+      <span className="settingsScreen__rowText">
+        <span className="settingsScreen__rowLabel">{label}</span>
+        {summary ? <span className="settingsScreen__rowSummary">{summary}</span> : null}
+      </span>
+      {split ? null : <ChevronRight size={18} className="settingsScreen__rowChevron" />}
+    </button>
+  );
 }
 
 export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreenProps) {
@@ -234,24 +276,16 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
         <div key={cluster[0]!.id} className="settingsScreen__cluster">
           <div className="settingsScreen__group">
             {cluster.map((section) => (
-              <button
+              <SectionRow
                 key={section.id}
-                type="button"
-                className="settingsScreen__row"
-                style={{ '--i': row++ } as React.CSSProperties}
-                aria-current={section.id === current ? 'page' : undefined}
-                data-current={section.id === current || undefined}
-                onClick={() => enter(section.id)}
-              >
-                <span className="settingsScreen__rowIcon" data-hue={hueOf(section.id)}>
-                  {section.icon}
-                </span>
-                <span className="settingsScreen__rowText">
-                  <span className="settingsScreen__rowLabel">{section.label}</span>
-                  {section.summary ? <span className="settingsScreen__rowSummary">{section.summary}</span> : null}
-                </span>
-                {split ? null : <ChevronRight size={18} className="settingsScreen__rowChevron" />}
-              </button>
+                section={section}
+                label={section.label}
+                summary={section.summary}
+                current={section.id === current}
+                index={row++}
+                split={split}
+                onPress={() => enter(section.id)}
+              />
             ))}
           </div>
         </div>
@@ -341,28 +375,17 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
         }}
       >
         {hits.map((hit, i) => (
-          <button
+          // A setting says its section's name under it, so "smoke" says which of two pages each smoke is on.
+          <SectionRow
             key={`${hit.section.id}/${hit.setting ?? ''}`}
-            type="button"
-            className="settingsScreen__row"
-            style={{ '--i': Math.min(i, 6) } as React.CSSProperties}
-            aria-current={!hit.setting && hit.section.id === current ? 'page' : undefined}
-            data-current={(!hit.setting && hit.section.id === current) || undefined}
-            onClick={() => openHit(hit)}
-          >
-            <span className="settingsScreen__rowIcon" data-hue={hueOf(hit.section.id)}>
-              {hit.section.icon}
-            </span>
-            <span className="settingsScreen__rowText">
-              <span className="settingsScreen__rowLabel">{hit.setting ?? hit.section.label}</span>
-              {hit.setting ? (
-                <span className="settingsScreen__rowSummary">{hit.section.label}</span>
-              ) : hit.section.summary ? (
-                <span className="settingsScreen__rowSummary">{hit.section.summary}</span>
-              ) : null}
-            </span>
-            {split ? null : <ChevronRight size={18} className="settingsScreen__rowChevron" />}
-          </button>
+            section={hit.section}
+            label={hit.setting ?? hit.section.label}
+            summary={hit.setting ? hit.section.label : hit.section.summary}
+            current={!hit.setting && hit.section.id === current}
+            index={Math.min(i, 6)}
+            split={split}
+            onPress={() => openHit(hit)}
+          />
         ))}
       </div>
     ) : (
@@ -388,7 +411,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
             </nav>
           </div>
           {shown ? (
-            <div ref={scroller} className="settingsScreen__pane" key={shown.id} data-hue={hueOf(shown.id)}>
+            <div ref={scroller} className="settingsScreen__pane" key={shown.id} data-hue={hueOf(shown)}>
               <h1 className="settingsScreen__display">{shown.label}</h1>
               {shown.content}
             </div>
@@ -407,7 +430,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
               <ArrowLeft /> Settings
             </button>
           </header>
-          <div ref={scroller} className="settingsScreen__pane" key={active.id} data-hue={hueOf(active.id)}>
+          <div ref={scroller} className="settingsScreen__pane" key={active.id} data-hue={hueOf(active)}>
             <h1 className="settingsScreen__display">{active.label}</h1>
             {active.content}
           </div>

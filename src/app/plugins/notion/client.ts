@@ -52,7 +52,7 @@ export interface NotionAccount {
   workspaceIcon?: string | null;
 }
 
-export async function notionAccount(): Promise<NotionAccount> {
+async function notionAccount(): Promise<NotionAccount> {
   if (!(await notionAvailable())) return { connected: false };
   return host.invoke<NotionAccount>('notion_account').catch(() => ({ connected: false }));
 }

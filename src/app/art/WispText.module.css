@@ -28,19 +28,6 @@
   will-change: transform, filter, opacity;
 }
 
-/*
- * Moving by words (WispText's `unit`): no layer held for every letter, only for a word while it moves. A layer a
- * letter across a list of titles was most of the lag.
- */
-.text[data-unit='word'] .ch {
-  will-change: auto;
-}
-
-.text[data-unit='word'] .word.new,
-.text[data-unit='word'] .word.out {
-  will-change: filter, opacity;
-}
-
 .hidden {
   visibility: hidden;
 }

@@ -1,8 +1,8 @@
 import { SquareKanban } from '@glacier/icons';
-import { failureText } from '../../core/failure.ts';
 import { fireNativeHaptic } from '../../core/haptics.ts';
-import { itemAt, linkedLine, unsentItems } from '../../core/itemLinks.ts';
+import { unsentItems } from '../../core/itemLinks.ts';
 import { isTauri } from '../../core/tauri.ts';
+import { itemSender } from '../sendItems.ts';
 import type { GlyphPlugin, NoteEditing } from '../types.ts';
 import { BoardPicker } from './BoardPicker.tsx';
 import { notionDetails } from './details.ts';
@@ -23,62 +23,20 @@ import { notionItems, sendCommand, taskNoteCommand } from './voice.ts';
  * - In Settings: signing in, and the boards Notion shared (NotionPane).
  */
 
-/**
- * What has just been sent from a note, so the same words are never sent twice (Matt: "i click it once and it says
- * sending then nothing happens then i click it again and it fully processes creating the ticket": the task was made
- * both times). Keyed by the note and the words; kept for a few minutes, which is as long as a second press is a
- * second press rather than a person meaning it.
- */
-const justSent = new Map<string, { url: string; at: number }>();
-const SENT_FOR_MS = 5 * 60 * 1000;
+/** What has just been sent from a note, so the same words are never made into two tasks (plugins/sendItems.ts). */
+const sender = itemSender('notion');
 
-function sentKey(noteId: string, text: string): string {
-  return `${noteId}\u0000${text.trim().toLowerCase()}`;
-}
-
-function alreadySent(noteId: string, text: string, now = Date.now()): string | null {
-  const known = justSent.get(sentKey(noteId, text));
-  if (!known) return null;
-  if (now - known.at > SENT_FOR_MS) {
-    justSent.delete(sentKey(noteId, text));
-    return null;
-  }
-  return known.url;
-}
-
-/** For the tests, and for a note that is closed: nothing here outlives the app. */
-export function forgetSent(): void {
-  justSent.clear();
-}
+/** For the tests: what was sent is otherwise kept in memory for the app's life, five minutes a send. */
+export const forgetSent = sender.forget;
 
 /**
- * Sends list items to Notion from the note on screen: each becomes a task on
- * `board`, and its words a link to it, edited into the note so it is one undo
- * per item and saves like typing. Items are found again by their words after
- * each send, since the note can change while Notion answers; failing that, by
- * the line they were on, so a task that was made always gets its link and the
- * item is never left looking unsent.
+ * Sends list items to Notion from the note on screen: each becomes a task on `board`, and its words a link to it
+ * (plugins/sendItems.ts has the rules), then says how many went, or that one was made and its line has gone.
  */
 async function sendItems(board: Board, items: readonly { text: string; line?: number }[], editing: NoteEditing): Promise<void> {
-  let sent = 0;
-  let marked = 0;
-  for (const item of items) {
-    // Sent a moment ago: mark the line with the task that already exists rather than making a second one.
-    const had = alreadySent(editing.noteId, item.text);
-    if (had) {
-      if (markItem(editing, item, had)) marked += 1;
-      continue;
-    }
-    try {
-      const task = await createTask(board, item.text);
-      justSent.set(sentKey(editing.noteId, item.text), { url: task.url, at: Date.now() });
-      sent += 1;
-      if (markItem(editing, item, task.url)) marked += 1;
-    } catch (failure) {
-      editing.say(failureText(failure));
-      return;
-    }
-  }
+  const done = await sender.send(items, board.id, editing, async (text) => (await createTask(board, text)).url);
+  if (!done) return;
+  const { sent, marked } = done;
   if (sent || marked) {
     fireNativeHaptic('success');
     const made = sent || marked;
@@ -89,18 +47,10 @@ async function sendItems(board: Board, items: readonly { text: string; line?: nu
   if (sent > marked) editing.say(`Made the task in ${board.title}, but the line has changed, so it isn’t marked.`);
 }
 
-/** The item's line, marked with its task: by its words, or failing that the line it was on if that is still an item. */
-function markItem(editing: NoteEditing, item: { text: string; line?: number }, url: string): boolean {
-  const link = (text: string) => linkedLine(text, url, 'notion');
-  if (editing.replaceLine((text, line) => itemAt(text, line)?.text === item.text, link)) return true;
-  const was = item.line;
-  return was !== undefined && editing.replaceLine((text, line) => line === was && itemAt(text, line) !== null, link);
-}
-
 export const notionPlugin: GlyphPlugin = {
   manifest,
   icon: SquareKanban,
-  settings: { Pane: NotionPane, summary: () => 'Boards for your lists' },
+  settings: { Pane: NotionPane, summary: () => 'Boards for your lists', hue: 'graphite' },
   noteLinks: [
     {
       id: 'notion-board',

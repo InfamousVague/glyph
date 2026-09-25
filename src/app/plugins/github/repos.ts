@@ -191,7 +191,8 @@ async function github<T>(path: string, token: string, raw = false): Promise<T> {
   return (raw ? response.text() : response.json()) as Promise<T>;
 }
 
-export type Step =
+/** How far reading a repo has got, for the picker to say as it goes. */
+export type ReadStep =
   | { kind: 'reading' }
   | { kind: 'files'; done: number; total: number }
   | { kind: 'distilling'; model: string; tokensPerSecond: number; text: string };
@@ -206,7 +207,7 @@ const DISTILL_PROMPT = `You read a software project's own documents and write a 
 Only what the documents say. No guesses, no advice, no introduction and no closing remark.`;
 
 /** Reads a repo, distils it on the phone, keeps it, and answers the project. */
-export async function addProject(input: string, onStep: (step: Step) => void): Promise<Project> {
+export async function addProject(input: string, onStep: (step: ReadStep) => void): Promise<Project> {
   const parsed = parseRepo(input);
   if (!parsed) throw new Error('That doesn’t look like a GitHub repo. Paste a link like github.com/owner/repo.');
   const token = githubToken();

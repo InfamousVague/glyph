@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Copy, X } from '@glacier/icons';
 import { useBack } from '../../core/back.ts';
+import { useCopied } from '../../settings/kit/useCopied.ts';
 import { guides, type Way } from './steps.ts';
 import styles from './claude.module.css';
 
@@ -29,12 +30,7 @@ interface ClaudeGuideProps {
 
 /** One thing to copy: the words, and a Copy that says Copied for a moment. */
 function Snippet({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return undefined;
-    const timer = window.setTimeout(() => setCopied(false), 1500);
-    return () => window.clearTimeout(timer);
-  }, [copied]);
+  const { copied, copy } = useCopied(text);
   return (
     <div className={styles.snippet}>
       <code className={styles.code}>{text}</code>
@@ -43,10 +39,7 @@ function Snippet({ text }: { text: string }) {
         className={styles.copy}
         aria-label={copied ? 'Copied' : 'Copy'}
         data-copied={copied || undefined}
-        onClick={() => {
-          void navigator.clipboard?.writeText(text);
-          setCopied(true);
-        }}
+        onClick={copy}
       >
         {copied ? <Check size={16} /> : <Copy size={16} />}
         <span>{copied ? 'Copied' : 'Copy'}</span>

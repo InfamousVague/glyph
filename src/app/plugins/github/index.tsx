@@ -1,7 +1,7 @@
 import { GitBranch } from '@glacier/icons';
-import { failureText } from '../../core/failure.ts';
 import { fireNativeHaptic } from '../../core/haptics.ts';
-import { itemAt, linkedLine, unsentItems } from '../../core/itemLinks.ts';
+import { unsentItems } from '../../core/itemLinks.ts';
+import { itemSender } from '../sendItems.ts';
 import type { GlyphPlugin, NoteEditing } from '../types.ts';
 import { githubDetails, rememberIssue } from './details.ts';
 import { canWriteIssues, createIssue, NEEDS_TOKEN } from './issues.ts';
@@ -33,28 +33,25 @@ import { projectContextFor, projectContextVersion, projectFor, projects, type Pr
  * not sent yet, and in Settings the repos and the token.
  */
 
+/** What has just been sent from a note, so the same words are never made into two issues (plugins/sendItems.ts). */
+const sender = itemSender('github');
+
+/** For the tests: what was sent is otherwise kept in memory for the app's life, five minutes a send. */
+export const forgetSent = sender.forget;
+
 /**
- * Sends list items to the linked repo: each becomes an issue, and its words a
- * link to it, edited into the note so it is one undo per item and saves like
- * typing. Items are found again by their words after each send, since the note
- * can change while GitHub answers.
+ * Sends list items to the linked repo: each becomes an issue, kept for its pill at once, and its words a link to it
+ * (plugins/sendItems.ts has the rules), then says how many lines now link to one.
  */
-async function sendItems(project: Project, items: readonly { text: string }[], editing: NoteEditing): Promise<void> {
-  let sent = 0;
-  for (const item of items) {
-    try {
-      const issue = await createIssue(project, item.text);
-      rememberIssue(issue);
-      if (editing.replaceLine((text, line) => itemAt(text, line)?.text === item.text, (text) => linkedLine(text, issue.url, 'github'))) sent += 1;
-    } catch (failure) {
-      editing.say(failureText(failure));
-      return;
-    }
-  }
-  if (sent) {
-    fireNativeHaptic('success');
-    editing.say(`${sent === 1 ? 'Made 1 issue' : `Made ${sent} issues`} in ${project.owner}/${project.repo}.`);
-  }
+async function sendItems(project: Project, items: readonly { text: string; line?: number }[], editing: NoteEditing): Promise<void> {
+  const done = await sender.send(items, project.id, editing, async (text) => {
+    const issue = await createIssue(project, text);
+    rememberIssue(issue);
+    return issue.url;
+  });
+  if (!done?.marked) return;
+  fireNativeHaptic('success');
+  editing.say(`${done.marked === 1 ? 'Made 1 issue' : `Made ${done.marked} issues`} in ${project.owner}/${project.repo}.`);
 }
 
 export const githubPlugin: GlyphPlugin = {
@@ -62,6 +59,7 @@ export const githubPlugin: GlyphPlugin = {
   icon: GitBranch,
   settings: {
     Pane: GitHubPane,
+    hue: 'graphite',
     summary: () => {
       const count = projects().length;
       return count ? `${count} ${count === 1 ? 'repo' : 'repos'}${canWriteIssues() ? ', issues on' : ''}` : 'Repos, issues and context';
@@ -124,7 +122,7 @@ export const githubPlugin: GlyphPlugin = {
       line: item.line,
       label: 'GitHub',
       busyLabel: 'Sending',
-      run: (editing: NoteEditing) => sendItems(project, [{ text: item.text }], editing),
+      run: (editing: NoteEditing) => sendItems(project, [{ text: item.text, line: item.line }], editing),
     }));
   },
   marks: githubDetails,

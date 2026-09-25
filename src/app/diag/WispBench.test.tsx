@@ -100,6 +100,15 @@ describe('the smoke bench', () => {
     expect(surfaces()).toHaveLength(1);
     // The run's mark is gone with it.
     expect(document.querySelectorAll('[class*="mark"]')).toHaveLength(0);
+    // The table goes on the clipboard as text, and the button says so for a moment.
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (text: string) => (written.push(text), Promise.resolve()) } });
+    act(() => button('Copy as text').click());
+    expect(written).toHaveLength(1);
+    expect(written[0]).toContain('draw\tcondition\twearing\tn\tmedian\tp90\tworst');
+    expect(written[0]?.split('\n').filter((line) => /^(none|filter|mask)\t/.test(line))).toHaveLength(9);
+    expect(button('Copied')).toBeTruthy();
+    act(() => vi.advanceTimersByTime(1500));
     expect(button('Copy as text')).toBeTruthy();
   });
 

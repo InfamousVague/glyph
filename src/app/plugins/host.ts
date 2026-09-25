@@ -82,8 +82,9 @@ export function createHost(manifest: PluginManifest, invoke: typeof tauriInvoke 
       },
       remove(key: string) {
         owns(key);
-        storageChanged();
+        // Gone before anything is told, as a write is: a listener reads what the change left.
         writeStoredText(key, null);
+        storageChanged();
       },
     },
     async openUrl(url: string) {

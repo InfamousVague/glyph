@@ -8,8 +8,9 @@ import { useBack } from '../core/back.ts';
 import { usePreferences } from '../core/preferences.ts';
 import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { isTauri } from '../core/tauri.ts';
-import { FrameRing, ms, runCell, type CellLimits } from '../diag/frameClock.ts';
-import { RowAction, SettingsCallout } from './kit/settingsKit.tsx';
+import { RowAction, SettingsCallout } from '../settings/kit/settingsKit.tsx';
+import { useCopied } from '../settings/kit/useCopied.ts';
+import { FrameRing, ms, runCell, type CellLimits } from './frameClock.ts';
 import { CONDITIONS, DRAWS, floorVerdict, LONG_LIMITS, QUICK_LIMITS, reportText, SCROLLED_TO, wearingOf, whereItRuns, type Condition, type Draw, type Row } from './wispBenchRun.ts';
 import styles from './WispBench.module.css';
 
@@ -27,6 +28,9 @@ import styles from './WispBench.module.css';
  * One surface at a time while measuring: a frame's length is the page's, so three surfaces at once would add up.
  * Side by side is for looking, and says so. The choice of drawing is the hook's own switch (`draw`), so each
  * surface wears exactly what the app's pages would wear with that switch, and nothing here draws smoke of its own.
+ *
+ * Kept in diag/ with the frame clock it reads (frameClock.ts), as the test report is beside its page's reading of it:
+ * the Developer page only opens it (settings/DeveloperPane.tsx).
  */
 
 /** Waits for the page to settle: the hook flips on a scroll event, and its drift stops a moment after scrolling. */
@@ -154,7 +158,9 @@ export function WispBench({ open, onClose, limits = { quick: QUICK_LIMITS, long:
   const [running, setRunning] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [where, setWhere] = useState('');
-  const [copied, setCopied] = useState(false);
+  // The table as text, for its Copy (settings/kit/useCopied.ts); asked for before the early return, as hooks are.
+  const report = reportText(where, rows);
+  const { copied, copy } = useCopied(report);
   const smokeOn = usePreferences().wispEdge;
   const card = useRef<HTMLDivElement>(null);
   const scrollers: Record<Draw, RefObject<HTMLDivElement | null>> = {
@@ -183,12 +189,6 @@ export function WispBench({ open, onClose, limits = { quick: QUICK_LIMITS, long:
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [open, onClose]);
-
-  useEffect(() => {
-    if (!copied) return undefined;
-    const timer = window.setTimeout(() => setCopied(false), 1500);
-    return () => window.clearTimeout(timer);
-  }, [copied]);
 
   /**
    * Every drawing, every condition, one surface at a time, and the numbers as they come. The page without smoke
@@ -229,7 +229,6 @@ export function WispBench({ open, onClose, limits = { quick: QUICK_LIMITS, long:
 
   if (!open) return null;
 
-  const report = reportText(where, rows);
   const verdict = floorVerdict(rows);
   const shown: Draw[] = beside && !running ? DRAWS.map((option) => option.value) : [draw];
 
@@ -332,12 +331,7 @@ export function WispBench({ open, onClose, limits = { quick: QUICK_LIMITS, long:
             </table>
             {!running && (
               <div className={styles.buttons}>
-                <RowAction
-                  onPress={() => {
-                    void navigator.clipboard?.writeText(report);
-                    setCopied(true);
-                  }}
-                >
+                <RowAction onPress={copy}>
                   {copied ? (
                     <>
                       <Check size={14} /> Copied

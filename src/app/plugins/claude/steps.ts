@@ -16,7 +16,7 @@ export const LOCAL_FILE_URL = API_BASE.replace(/\/api$/, '/mcp/glyph-mcp.mjs');
 
 export type Way = 'hosted' | 'local';
 
-export interface Step {
+export interface GuideStep {
   title: string;
   body: string;
   /** Things to copy, each shown as a block with a Copy: an address, a command, a piece of a config file. */
@@ -28,7 +28,7 @@ export interface Guide {
   label: string;
   /** One line on what this way is, above the steps. */
   lead: string;
-  steps: Step[];
+  steps: GuideStep[];
 }
 
 /**

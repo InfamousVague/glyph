@@ -1,6 +1,7 @@
 import { Check } from '@glacier/icons';
 import { ACCENTS, type Accent } from '../core/preferences.ts';
 import styles from './AccentSwatch.module.css';
+import { ACCENT_WORDS } from './words.ts';
 
 /**
  * The app's one colour, chosen from a swatch (Matt: "add ... the accent color picker").
@@ -21,8 +22,8 @@ export function AccentSwatch({ accent, onAccent }: { accent: Accent; onAccent: (
           type="button"
           role="radio"
           aria-checked={one === accent}
-          aria-label={NAMES[one]}
-          title={NAMES[one]}
+          aria-label={ACCENT_WORDS[one]}
+          title={ACCENT_WORDS[one]}
           className={styles.dot}
           {...(one === 'ink' ? {} : { 'data-accent': one })}
           data-ink={one === 'ink' ? '' : undefined}
@@ -43,14 +44,3 @@ export function AccentSwatch({ accent, onAccent }: { accent: Accent; onAccent: (
     </div>
   );
 }
-
-/** What each one is called, for the finger that cannot see the colour. */
-const NAMES: Record<Accent, string> = {
-  ink: 'Ink',
-  graphite: 'Graphite',
-  red: 'Red',
-  amber: 'Amber',
-  green: 'Green',
-  teal: 'Teal',
-  purple: 'Purple',
-};

@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { setPreferences } from '../core/preferences.ts';
 import { button, press, show } from '../../test/render.tsx';
 import { PluginsPane } from './PluginsPane.tsx';
 import { reachLine } from './reach.ts';
@@ -7,6 +8,10 @@ import { manifest as notion } from './notion/manifest.ts';
 
 // The Glacier kit reads matchMedia as it loads; jsdom has none. Hoisted, so it is there before the imports run.
 await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
+
+afterEach(() => {
+  setPreferences({ localOnly: false });
+});
 
 const cardOf = (pane: ParentNode, name: string) => Array.from(pane.querySelectorAll('section')).find((s) => s.querySelector('.setk-hero__title')?.textContent === name);
 
@@ -37,5 +42,22 @@ describe('Settings › Plugins', () => {
     const card = cardOf(pane, 'Claude')!;
     press(Array.from(card.querySelectorAll('button.setk-row--press')).find((b) => b.textContent?.includes('Read and write your notes from Claude')));
     expect(opened).toEqual(['plugin:claude']);
+  });
+
+  it('holds every plugin that uses the internet off under Local only, and says where the switch is', () => {
+    setPreferences({ localOnly: true });
+    const pane = show(<PluginsPane />);
+    // The switch is Local only, under Formatting: the page used to send people to a Developer page that has none.
+    expect(pane.querySelector('.setk-callout')?.textContent).toBe('“Local only” is on in Formatting: plugins that use the internet are held off until it is off.');
+    const notionCard = cardOf(pane, 'Notion')!;
+    expect(notionCard.querySelector<HTMLButtonElement>('[aria-label="Notion plugin"]')?.disabled).toBe(true);
+    expect(notionCard.textContent).toContain('Off while Local only is on');
+    expect(notionCard.textContent).toContain('Switch “Local only” off in Formatting to use it.');
+    // Marks reaches nothing past the phone, so it is not held.
+    expect(cardOf(pane, 'Marks')!.textContent).not.toContain('Off while Local only is on');
+  });
+
+  it('says the internet plainly for a plugin that names no hosts', () => {
+    expect(reachLine({ ...notion, hosts: [] })).toBe('Your notes · The internet · Voice commands · Built-in app commands');
   });
 });

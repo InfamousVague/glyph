@@ -4,6 +4,10 @@ import generated from './testReport.generated.json';
  * The test report this build carries (scripts/test-report.mjs writes it; the
  * build compiles it in), and what the test results page needs from it.
  *
+ * testReport.generated.json is generated output that is committed, because the
+ * page compiles it in: every release rewrites it, so it shows as changed after
+ * a run, and that is not a stray edit.
+ *
  * Nothing here runs a test. The report is a record of the last full run on the
  * machine that built the app, stamped with the fingerprint of the code it ran
  * against, and `buildMatch` compares that with the fingerprint this build was

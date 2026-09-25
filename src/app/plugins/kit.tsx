@@ -6,6 +6,11 @@ import styles from '../editor/NoteSettings.module.css';
  * sheet's own look: a title, a sentence, a heading, a card of rows, a text
  * field. A plugin page uses these rather than the sheet's class names, so
  * the sheet can change its look without every plugin changing with it.
+ *
+ * Not only the plugins': the book, canvas, workspace and new-note sheets are
+ * drawn from them too, and they draw with editor/NoteSettings.module.css, so a
+ * change to a class there restyles every one of those sheets as well as the
+ * cog. They live here because a plugin's picker was their first use.
  */
 
 export function SheetTitle({ children }: { children: ReactNode }) {

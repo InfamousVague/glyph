@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createHost, PluginPermissionError } from './host.ts';
+import { createHost, onPluginStorage, PluginPermissionError } from './host.ts';
 import { BUILT_IN, createRegistry } from './registry.ts';
 import type { GlyphPlugin, PluginManifest } from './types.ts';
 
@@ -129,6 +129,17 @@ describe('a plugin’s host', () => {
     expect(host.storage.get('glyph-mine', 'gone')).toBe('gone');
   });
 
+  it('tells what draws from a plugin’s storage once a change is made, a removal as much as a write', () => {
+    const host = createHost(manifest('t', { storage: ['glyph-told'] }));
+    const heard: unknown[] = [];
+    const stop = onPluginStorage(() => heard.push(host.storage.get('glyph-told', 'gone')));
+    host.storage.set('glyph-told', { a: 1 });
+    host.storage.remove('glyph-told');
+    stop();
+    host.storage.set('glyph-told', 2);
+    expect(heard, 'each listener reads what the change left, not what was there before it').toEqual([{ a: 1 }, 'gone']);
+  });
+
   it('parses a key once for as long as its stored text is the same, and again as soon as anything changes it', () => {
     const host = createHost(manifest('c', { storage: ['glyph-cached'] }));
     host.storage.set('glyph-cached', { links: { n1: 'b1' } });
@@ -236,5 +247,41 @@ describe('what a note is linked to', () => {
     });
     for (const delimiter of ['🔥🔥', '❄️❄️', '✨✨']) expect(() => createRegistry([effect(delimiter)], memoryStore()), delimiter).not.toThrow();
     for (const delimiter of ['🔥', '🔥🔥🔥', '🔥❄️', 'a🔥a🔥']) expect(() => createRegistry([effect(delimiter)], memoryStore()), delimiter).toThrow(/delimiter/);
+  });
+});
+
+describe('what the registry gathers from the plugins that are on', () => {
+  const noted = (id: string, over: Partial<GlyphPlugin> = {}): GlyphPlugin => ({ manifest: manifest(id, { permissions: [{ kind: 'notes', why: '' }] }), icon: Icon, ...over });
+  const action = (id: string, available: (noteId: string) => boolean) => ({ id, label: id, busyLabel: '…', available, run: () => Promise.resolve() });
+
+  it('offers a note the first switched-on plugin’s item action that is available for it', () => {
+    const registry = createRegistry(
+      [noted('a', { itemAction: action('a-send', (n) => n === 'n1') }), noted('b', { itemAction: action('b-send', () => true) })],
+      memoryStore(),
+    );
+    expect(registry.itemAction('n1')?.id).toBe('a-send');
+    expect(registry.itemAction('n2')?.id).toBe('b-send');
+    registry.setEnabled('b', false);
+    expect(registry.itemAction('n2')).toBeNull();
+  });
+
+  it('lists note actions and tips in the plugins’ order, and joins their context for the formatter', () => {
+    const cog = (id: string) => ({ id, label: id, icon: Icon, visible: () => true, hint: () => '', enabled: () => true, run: () => Promise.resolve() });
+    const registry = createRegistry(
+      [
+        noted('a', { noteActions: [cog('a1')], tips: () => [{ say: 'Send that to A', does: 'to send it' }], formatContext: { for: () => 'About A.', version: () => 1 } }),
+        noted('b', { noteActions: [cog('b1'), cog('b2')], formatContext: { for: () => '  ', version: () => 0 } }),
+        noted('c', { formatContext: { for: () => 'About C.', version: () => 2 } }),
+      ],
+      memoryStore(),
+    );
+    expect(registry.noteActions().map((a) => a.id)).toEqual(['a1', 'b1', 'b2']);
+    expect(registry.tips(null)).toEqual([{ say: 'Send that to A', does: 'to send it' }]);
+    // A context that is only space says nothing, and is not joined in.
+    expect(registry.contextFor('n1')).toBe('About A.\n\nAbout C.');
+    registry.setEnabled('a', false);
+    registry.setEnabled('c', false);
+    expect(registry.contextFor('n1')).toBeNull();
+    expect(registry.noteActions().map((a) => a.id)).toEqual(['b1', 'b2']);
   });
 });

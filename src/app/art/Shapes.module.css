@@ -11,27 +11,6 @@
   transform-box: fill-box;
 }
 
-/* Light or dark: the square turns over, ink and paper change places, and back. */
-.theme .turn {
-  transform-origin: center;
-  animation: turn 6s cubic-bezier(0.65, 0, 0.25, 1) infinite;
-}
-
-@keyframes turn {
-  0%,
-  30% {
-    transform: none;
-  }
-  45%,
-  80% {
-    transform: rotate(180deg);
-  }
-  95%,
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
 /* Side key: the key goes in and sound leaves it. */
 .sidekey .key {
   animation: key 3.2s ease-in-out infinite;
@@ -71,46 +50,6 @@
   100% {
     opacity: 0;
     transform: translateX(6px);
-  }
-}
-
-/* Markdown: the lines write in one after another, then the box ticks. */
-.markdown .line {
-  transform-origin: left center;
-  animation: line 6s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
-}
-
-.markdown .tick {
-  stroke-dasharray: 1;
-  animation: tick 6s ease-out infinite;
-}
-
-@keyframes line {
-  0% {
-    transform: scaleX(0);
-  }
-  10%,
-  88% {
-    transform: none;
-  }
-  98%,
-  100% {
-    transform: scaleX(0);
-  }
-}
-
-@keyframes tick {
-  0%,
-  26% {
-    stroke-dashoffset: 1;
-  }
-  34%,
-  88% {
-    stroke-dashoffset: 0;
-  }
-  96%,
-  100% {
-    stroke-dashoffset: 1;
   }
 }
 

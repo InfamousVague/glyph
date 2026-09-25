@@ -1,5 +1,5 @@
 /**
- * Frame times read off the page itself, for the smoke bench (settings/WispBench.tsx).
+ * Frame times read off the page itself, for the smoke bench (diag/WispBench.tsx).
  *
  * The Mac app's lag (Matt: "the desktop app is incredibly laggy") was measured by hand, in a rig that posted
  * requestAnimationFrame marks from the WKWebView to a collector, and relayed. This is the same clock made a thing

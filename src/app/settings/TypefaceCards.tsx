@@ -1,5 +1,6 @@
 import { isCodingFace, type Typeface } from '../core/preferences.ts';
 import styles from './TypefaceCards.module.css';
+import { FACE_WORDS } from './words.ts';
 
 /**
  * Typefaces as small cards (Matt: "show the fonts as small cards on the app with markdown symbols like a # Quick &
@@ -11,12 +12,13 @@ import styles from './TypefaceCards.module.css';
  * preview is the face itself.
  */
 
-const FACES: Record<Typeface, { label: string; family: string }> = {
-  maple: { label: 'Maple Mono', family: "'Maple Mono'" },
-  fira: { label: 'Fira Code', family: "'Fira Code Variable'" },
-  inter: { label: 'Inter', family: "'Inter Variable'" },
-  noto: { label: 'Noto', family: "'Noto Sans Variable'" },
-  plex: { label: 'Plex', family: "'IBM Plex Sans'" },
+/** The family each face is set in (typefaces.css registers them); what it is called is words.ts. */
+const FAMILIES: Record<Typeface, string> = {
+  maple: "'Maple Mono'",
+  fira: "'Fira Code Variable'",
+  inter: "'Inter Variable'",
+  noto: "'Noto Sans Variable'",
+  plex: "'IBM Plex Sans'",
 };
 
 interface TypefaceCardsProps<F extends Typeface> {
@@ -33,7 +35,8 @@ export function TypefaceCards<F extends Typeface>({ faces, value, onValueChange,
   return (
     <div className={styles.grid} role="radiogroup" aria-label={label}>
       {faces.map((face) => {
-        const { label: name, family } = FACES[face];
+        const name = FACE_WORDS[face];
+        const family = FAMILIES[face];
         const selected = face === value;
         return (
           <label key={face} className={styles.card} data-selected={selected || undefined} data-coding={isCodingFace(face) || undefined}>
