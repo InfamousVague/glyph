@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { EditorState } from '@codemirror/state';
 import { Decoration, EditorView } from '@codemirror/view';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PREFERENCES, setPreferences } from '../core/preferences.ts';
 import { commonEnds, moving, revealWisp, wisp, wispArrivals } from './wispArrivals.ts';
 
@@ -115,6 +115,54 @@ describe('text arriving from smoke in the editor', () => {
     expect(moving(shifted)[0]?.from).toBe(4);
     const deleted = shifted.update({ changes: { from: 4, to: 8, insert: '' } }).state;
     expect(moving(deleted)).toEqual([]);
+  });
+});
+
+describe('words drawn arriving', () => {
+  let view: EditorView | null = null;
+
+  afterEach(() => {
+    view?.destroy();
+    view = null;
+    vi.useRealTimers();
+  });
+
+  /** A paragraph of `count` words, heard at once: more than the pool of filters can draw together. */
+  function hearAtOnce(count: number): EditorView {
+    vi.useFakeTimers();
+    view = new EditorView({ doc: '', extensions: [wispArrivals()], parent: document.body });
+    const words = Array.from({ length: count }, (_, n) => `w${n}`).join(' ');
+    view.dispatch({ changes: { from: 0, insert: words }, annotations: wisp.of({ kind: 'heard' }) });
+    return view;
+  }
+
+  it('draws each moving word through a filter of its own, and no more at once than the pool holds', () => {
+    const on = hearAtOnce(90);
+    vi.advanceTimersByTime(1400);
+    const drawing = on.dom.querySelectorAll('.cm-wispCh');
+    expect(drawing.length).toBeGreaterThan(0);
+    expect(drawing.length).toBeLessThanOrEqual(32);
+    expect(on.dom.querySelectorAll('svg defs filter').length).toBeLessThanOrEqual(32);
+    // A word whose filter is still another's waits its turn, there but unseen.
+    expect(on.dom.querySelectorAll('.cm-wispWait').length).toBeGreaterThan(0);
+  });
+
+  it('settles every word of a paragraph heard at once, past as many as the pool holds', () => {
+    // A word waiting on a filter once asked to be looked at again next frame; the frame loop then redrew and
+    // returned every frame before it settled anything, and past 32 letters in motion none ever finished.
+    const on = hearAtOnce(90);
+    vi.advanceTimersByTime(10_000);
+    expect(moving(on.state)).toEqual([]);
+    expect(on.dom.querySelector('.cm-wispCh, .cm-wispWait')).toBeNull();
+  });
+
+  it('takes its filters away with the editor', () => {
+    const on = hearAtOnce(3);
+    const svg = on.dom.querySelector('svg[aria-hidden="true"]');
+    expect(svg?.querySelector('defs filter feDisplacementMap')).not.toBeNull();
+    on.destroy();
+    view = null;
+    expect(svg?.isConnected).toBe(false);
   });
 });
 
