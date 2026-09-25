@@ -1,5 +1,6 @@
 import { isBookBody } from '../book/book.ts';
 import { itemOnLine, itemWords } from '../core/boards.ts';
+import { taskBox } from '../core/itemSyntax.ts';
 import type { Note } from '../core/store.ts';
 
 /**
@@ -36,10 +37,15 @@ export interface OpenTask {
   touched: number;
 }
 
-/** A to-do with its box still empty: `- [ ] words`, `* [ ]`, `1. [ ]`. */
-const OPEN = /^\s*(?:[-*+]|\d+[.)])\s+\[ \]/;
-/** A to-do with its box ticked: `- [x] words`. */
-const TICKED = /^\s*(?:[-*+]|\d+[.)])\s+\[[xX]\]\s*\S/;
+/** A to-do with its box still empty: `- [ ] words`, `* [ ]`, `1. [ ]` (core/itemSyntax.ts `taskBox`). */
+function isOpen(line: string): boolean {
+  return taskBox(line)?.done === false;
+}
+/** A to-do with its box ticked and words after it: `- [x] words`. */
+function isTicked(line: string): boolean {
+  const box = taskBox(line);
+  return box?.done === true && /\S/.test(line.slice(box.at + 3));
+}
 /** A code fence opening or closing: a to-do inside one is an example of a to-do, not one. */
 const FENCE = /^\s*(`{3,}|~{3,})/;
 
@@ -53,7 +59,7 @@ export function openTasks(notes: readonly Note[]): OpenTask[] {
         fenced = !fenced;
         return;
       }
-      if (fenced || !OPEN.test(line)) return;
+      if (fenced || !isOpen(line)) return;
       const text = itemWords(line)?.trim();
       if (!text) return;
       tasks.push({ noteId: note.id, line: index, text, at: itemOnLine(line)?.id, touched: note.updatedAt });
@@ -73,7 +79,7 @@ export function tickedTasks(notes: readonly Note[]): number {
     let fenced = false;
     for (const line of note.body.split('\n')) {
       if (FENCE.test(line)) fenced = !fenced;
-      else if (!fenced && TICKED.test(line)) count += 1;
+      else if (!fenced && isTicked(line)) count += 1;
     }
   }
   return count;

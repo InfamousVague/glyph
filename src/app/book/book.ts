@@ -1,4 +1,5 @@
 import { frontMatterValue } from '../core/frontMatter.ts';
+import { BOX, MARKER } from '../core/itemSyntax.ts';
 import { noteTitle, withoutFrontMatter, type Note } from '../core/store.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 
@@ -23,8 +24,8 @@ export interface Chapter {
   line: number;
 }
 
-/** A list item: its indent, its marker, and what follows the marker (and a to-do's box). */
-const ITEM = /^(\s*)([-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.*)$/;
+/** A list item: its indent, its marker, and what follows the marker (and a to-do's box), as core/itemSyntax.ts spells them. */
+const ITEM = new RegExp(String.raw`^(\s*)(${MARKER})\s+(?:${BOX}\s+)?(.*)$`);
 /**
  * A chapter's link, opening its item: `[[Title]]`, then whatever the index says about it. A `#heading` or `|alias`
  * after the title is not part of the title. An item that starts with words and links a chapter in passing ("A market

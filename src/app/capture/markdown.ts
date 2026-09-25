@@ -1,4 +1,5 @@
 import { emojiFor } from '../core/emoji.ts';
+import { BOOKMARK_SIGNS, listLead } from '../core/itemSyntax.ts';
 import { matchNote } from './route.ts';
 
 /**
@@ -534,8 +535,8 @@ export function finishLines(body: string): string {
         .replace(/ {2,}/g, ' ')
         .trimEnd();
       // A list item's words end without a stop, before its bookmark and name.
-      if (/^\s*(?:[-*+]|\d+[.)])\s/.test(text)) text = text.replace(/[.,;]+$/, '');
-      if (index === marked) text += ' §§';
+      if (listLead(text)) text = text.replace(/[.,;]+$/, '');
+      if (index === marked) text += ` ${BOOKMARK_SIGNS}`;
       const name = names[names.length - 1];
       if (name) {
         let unique = name;

@@ -1,5 +1,6 @@
 import type { VoiceCommand } from '../plugins/types.ts';
 import { chaptersOf, withChapter } from '../book/book.ts';
+import { withoutLead } from '../core/itemSyntax.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 import { actionable, findKeyword, findSoundAlike, forBook, placedOn, planCommand, reply, type Placement, type Plan } from './command.ts';
 import { placeWords } from './listAppend.ts';
@@ -738,10 +739,9 @@ export class Take<N extends TakeNote> {
 
 /** What a command offered, in words, and what came of it: for the review's check of commands. */
 export function describeOffer<N extends TakeNote>(offer: Offer<N>, outcome: 'done' | 'declined' | 'dropped'): string {
-  const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
   const what =
     offer.kind === 'place'
-      ? `add “${offer.added.map(show).join('”, “')}” to ${offer.title}${offer.into === 'list' ? '’s list' : ' as a paragraph'}`
+      ? `add “${offer.added.map(withoutLead).join('”, “')}” to ${offer.title}${offer.into === 'list' ? '’s list' : ' as a paragraph'}`
       : offer.kind === 'change'
         ? `${offer.heading.charAt(0).toLowerCase()}${offer.heading.slice(1)}: “${offer.lines.join('”, “')}” in ${offer.title}`
         : offer.kind === 'move'

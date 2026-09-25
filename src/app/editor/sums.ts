@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { MARKER } from '../core/itemSyntax.ts';
 
 /**
  * Sums (Matt picked them from the list of new formats): a line that starts with `=` works itself out.
@@ -15,7 +16,7 @@ import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, typ
  */
 
 /** The start of a line, past an indent, a bullet and a quote mark, then `=` and a space. */
-const LEAD = /^(\s*(?:[-*+]\s+|\d+[.)]\s+)?(?:>\s*)?)=\s+(.+)$/;
+const LEAD = new RegExp(String.raw`^(\s*(?:${MARKER}\s+)?(?:>\s*)?)=\s+(.+)$`);
 const CURRENCY = /[$€£¥₹]/;
 
 type Token = { kind: 'num'; value: number } | { kind: 'op'; value: string };

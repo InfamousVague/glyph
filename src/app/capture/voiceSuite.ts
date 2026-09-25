@@ -1,6 +1,7 @@
 import { bookNoteBody } from '../book/book.ts';
 import { boardFrom } from '../core/boards.ts';
 import { clipMarkdown } from '../core/clips.ts';
+import { BOX, BULLET, CHOICE, NUMBER } from '../core/itemSyntax.ts';
 import { noteTitle } from '../core/store.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
 import { appendBody } from './appendBody.ts';
@@ -259,9 +260,15 @@ export function heardForm(text: string): string {
     .replace(/(\d),(?=\d{3}\b)/g, '$1');
 }
 
+/**
+ * A line's block mark, as the recorder writes it: a heading, a list item with its box or choice (core/itemSyntax.ts),
+ * a numbered step, a hidden line, a quote or callout, a table row, a sum, a rule.
+ */
+const BLOCK_LEAD = new RegExp(String.raw`^\s*(?:#{1,6} |${BULLET} (?:${BOX} |${CHOICE} )?|${NUMBER} |>\| ?|> (?:\[![A-Z]+\])?|\||= |---$)?`);
+
 /** A line's shape: its block mark, and the inline marks in it, in order. */
 function shapeOf(line: string): string {
-  const lead = /^\s*(?:#{1,6} |[-*+] (?:\[[ xX]\] |\([ xX]\) )?|\d+[.)] |>\| ?|> (?:\[![A-Z]+\])?|\||= |---$)?/.exec(line)?.[0] ?? '';
+  const lead = BLOCK_LEAD.exec(line)?.[0] ?? '';
   const marks = line.match(/\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||`|\[\[|\]\]|\[\d+\/\d+\]|#[a-z][\w/-]*|!\[voice|\| --- /g) ?? [];
   return `${lead.replace(/[xX]/, 'x')}${marks.join(' ')}`;
 }

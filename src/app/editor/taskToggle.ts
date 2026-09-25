@@ -1,6 +1,7 @@
 import type { EditorState, Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { fireNativeHaptic } from '../core/haptics.ts';
+import { taskBox } from '../core/itemSyntax.ts';
 import { settleFences } from './boards.ts';
 
 /**
@@ -11,19 +12,16 @@ import { settleFences } from './boards.ts';
  * follows a box typed by hand (editor/doneSync.ts).
  */
 
-/** A to-do line up to its box: the indent and bullet (or number), then `[ ]`, `[x]` or `[X]`. */
-const BOX = /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\]/;
-
 /** How far outside the drawn box a tap still counts, in px: a box is small under a thumb. */
 const SLOP_PX = 8;
 
-/** The box on the line at `pos`: where its brackets are and whether it's ticked, or null. */
+/** The box on the line at `pos` (core/itemSyntax.ts `taskBox`): where its brackets are and whether it's ticked, or null. */
 export function boxAt(state: EditorState, pos: number): { from: number; to: number; done: boolean } | null {
   const line = state.doc.lineAt(pos);
-  const found = BOX.exec(line.text);
-  if (!found) return null;
-  const from = line.from + (found[1] ?? '').length;
-  return { from, to: from + 3, done: found[2] !== ' ' };
+  const box = taskBox(line.text);
+  if (!box) return null;
+  const from = line.from + box.at;
+  return { from, to: from + 3, done: box.done };
 }
 
 /**

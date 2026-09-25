@@ -1,3 +1,4 @@
+import { listLead, type ListLead } from '../core/itemSyntax.ts';
 import { enumeration } from './markdown.ts';
 
 /**
@@ -6,21 +7,23 @@ import { enumeration } from './markdown.ts';
  *
  * A note's list is the last run of list lines in it (a to-do, a bullet or a
  * numbered line, with any indented lines that continue them). New items go on
- * the end of that run in the run's own style: a to-do list gets "- [ ] ", a
- * numbered list the next number, a bullet list its own bullet, at the run's
- * indent. A note with no list gets one at its end, as to-dos when the command
+ * the end of that run in the run's own style: a numbered list the next number,
+ * a bullet list its own bullet, and a to-do list a box after either, at the
+ * run's indent. A note with no list gets one at its end, as to-dos when the command
  * said "task" or "to-do". Pure, so every shape of note is a test.
  */
-
-const ITEM = /^(\s*)(- \[[ xX]\] |[-*+] |(\d{1,3})([.)]) )/;
 
 interface Run {
   /** Index of the run's first and last line. */
   first: number;
   last: number;
   indent: string;
-  /** How the run's last top-level item is marked. */
-  style: { kind: 'task' } | { kind: 'bullet'; mark: string } | { kind: 'number'; next: number; delimiter: string };
+  /**
+   * How the run's last top-level item is marked: its bullet or its next number, and whether it is a to-do. A `* [ ]`
+   * list grows by `* [ ]` lines and a `1. [ ]` list by numbered to-dos, as every reader of the grammar
+   * (core/itemSyntax.ts) takes them for to-dos too.
+   */
+  style: { kind: 'bullet'; mark: string; task: boolean } | { kind: 'number'; next: number; delimiter: string; task: boolean };
 }
 
 /** Every list in `lines`, in order. */
@@ -28,21 +31,21 @@ function runsOf(lines: readonly string[]): Run[] {
   const runs: Run[] = [];
   let i = 0;
   while (i < lines.length) {
-    const head = ITEM.exec(lines[i] ?? '');
+    const head = listLead(lines[i] ?? '');
     if (!head) {
       i += 1;
       continue;
     }
-    const indent = head[1] ?? '';
+    const indent = head.indent;
     const first = i;
     let last = i;
     let style: Run['style'] = styleOf(head);
     i += 1;
     while (i < lines.length) {
       const line = lines[i] ?? '';
-      const item = ITEM.exec(line);
-      if (item && (item[1] ?? '').length >= indent.length) {
-        if ((item[1] ?? '').length === indent.length) style = styleOf(item);
+      const item = listLead(line);
+      if (item && item.indent.length >= indent.length) {
+        if (item.indent.length === indent.length) style = styleOf(item);
         last = i;
         i += 1;
       } else if (line.trim() && /^\s+/.test(line) && (/^\s*/.exec(line)?.[0].length ?? 0) > indent.length) {
@@ -106,11 +109,11 @@ function runFor(lines: readonly string[], runs: readonly Run[], text: string | u
   return best;
 }
 
-function styleOf(match: RegExpExecArray): Run['style'] {
-  const mark = match[2] ?? '- ';
-  if (mark.startsWith('- [')) return { kind: 'task' };
-  if (match[3]) return { kind: 'number', next: Number(match[3]) + 1, delimiter: match[4] ?? '.' };
-  return { kind: 'bullet', mark: mark.trim() };
+function styleOf(lead: ListLead): Run['style'] {
+  const task = lead.done !== null;
+  // A number's marker is its digits and then its `.` or `)`; a bullet's is the one character.
+  if (/\d/.test(lead.marker)) return { kind: 'number', next: Number.parseInt(lead.marker, 10) + 1, delimiter: lead.marker.slice(-1), task };
+  return { kind: 'bullet', mark: lead.marker, task };
 }
 
 /** One item's text as a list line: first letter up, no closing full stop. */
@@ -142,16 +145,10 @@ export function appendToList(
   }
 
   let number = run.style.kind === 'number' ? run.style.next : 0;
-  const added = texts.map((text) => {
-    switch (run.style.kind) {
-      case 'task':
-        return `${run.indent}- [ ] ${text}`;
-      case 'number':
-        return `${run.indent}${number++}${run.style.delimiter} ${text}`;
-      default:
-        return `${run.indent}${run.style.mark} ${text}`;
-    }
-  });
+  const box = run.style.task ? '[ ] ' : '';
+  const added = texts.map((text) =>
+    run.style.kind === 'number' ? `${run.indent}${number++}${run.style.delimiter} ${box}${text}` : `${run.indent}${run.style.mark} ${box}${text}`,
+  );
   const next = [...lines.slice(0, run.last + 1), ...added, ...lines.slice(run.last + 1)];
   return { body: next.join('\n'), added };
 }

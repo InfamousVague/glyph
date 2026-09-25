@@ -26,6 +26,7 @@ import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from
 import { bookNoteBody, isBookBody } from '../book/book.ts';
 import { boardFrom, lanesOf } from '../core/boards.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
+import { withoutLead } from '../core/itemSyntax.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { CaptureContext } from '../plugins/types.ts';
 import { tips, TIP_AFTER_MS, type Tip } from './tips.ts';
@@ -476,9 +477,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         `“${spoken}”`,
       );
       if (body === null) return;
-      const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
       // Into the note on screen, the page itself shows the line land; into another, its list is shown arriving.
-      if (targetRef.current?.id === note.id) setRoute({ phase: 'done', text: `Added “${show(added[0] ?? '')}”${added.length > 1 ? ` and ${added.length - 1} more` : ''}` });
+      if (targetRef.current?.id === note.id) setRoute({ phase: 'done', text: `Added “${withoutLead(added[0] ?? '')}”${added.length > 1 ? ` and ${added.length - 1} more` : ''}` });
       else setRoute({ phase: 'added', title: noteTitle(body) || 'that note', body, added });
       fireNativeHaptic('success');
       lastSaid.current = { kind: 'items', noteId: note.id, lines: added };
@@ -1099,7 +1099,6 @@ function partialCommand(text: string): string {
  * as a tap does, and saying nothing for a while is a no.
  */
 function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer<Note>; onConfirm: () => void; onCancel: () => void }) {
-  const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
   let heading: string;
   let action: string;
   let lines: string[] = [];
@@ -1108,7 +1107,7 @@ function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer<Note>; onCon
     case 'place':
       heading = `Add to ${offer.title}`;
       action = 'Add';
-      lines = offer.added.map(show);
+      lines = offer.added.map(withoutLead);
       detail = offer.into === 'list' ? 'In its list' : 'As a new paragraph';
       if (offer.placement.target) detail += `, then to ${offer.placement.target.charAt(0).toUpperCase()}${offer.placement.target.slice(1)}`;
       break;
@@ -1234,19 +1233,18 @@ function ListLanding({ title, body, added }: { title: string; body: string; adde
   const end = lines.lastIndexOf(added[added.length - 1] ?? '');
   const start = end - added.length + 1;
   const before = lines.slice(Math.max(0, start - 2), Math.max(0, start)).filter((line) => line.trim());
-  const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
   return (
     <div className={styles.landing} aria-label={`Added to ${title}`}>
       <p className={styles.contextTitle}>{title}</p>
       {before.map((line, i) => (
         <p key={`b${i}`} className={styles.contextLine}>
-          {show(line)}
+          {withoutLead(line)}
         </p>
       ))}
       {added.map((line, i) => (
         <p key={`a${i}`} className={styles.landed} style={{ animationDelay: `${120 + i * 140}ms` }}>
           <span className={styles.landedTick} aria-hidden="true" />
-          {show(line)}
+          {withoutLead(line)}
         </p>
       ))}
     </div>

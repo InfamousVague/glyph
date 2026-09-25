@@ -2,6 +2,7 @@ import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { fireNativeHaptic } from '../core/haptics.ts';
+import { COUNTER_IN_WORDS } from '../core/itemSyntax.ts';
 
 /**
  * Counters (Matt picked them from the list of new formats): a count and a goal in brackets, anywhere in a line.
@@ -14,8 +15,8 @@ import { fireNativeHaptic } from '../core/haptics.ts';
  * note is still the whole truth and reads the same anywhere: `[3/8]`.
  */
 
-/** `[3/8]`: not a link's words (`[3/8](…)`), a picture's, or a footnote. */
-const COUNTER = /(?<![!\]\w])\[(\d{1,4})\/(\d{1,4})\](?!\()/g;
+/** `[3/8]`: not a link's words (`[3/8](…)`), a picture's, or a footnote (core/itemSyntax.ts spells it). */
+const COUNTER = new RegExp(COUNTER_IN_WORDS, 'g');
 
 export interface Counter {
   from: number;
@@ -28,9 +29,10 @@ export function countersIn(text: string, offset = 0): Counter[] {
   const found: Counter[] = [];
   COUNTER.lastIndex = 0;
   for (let match = COUNTER.exec(text); match; match = COUNTER.exec(text)) {
-    const goal = Number(match[2]);
+    // `[3/8]`: the count and the goal either side of the slash, inside the brackets.
+    const [count = 0, goal = 0] = match[0].slice(1, -1).split('/').map(Number);
     if (goal < 1) continue;
-    found.push({ from: offset + match.index, to: offset + match.index + match[0].length, count: Number(match[1]), goal });
+    found.push({ from: offset + match.index, to: offset + match.index + match[0].length, count, goal });
   }
   return found;
 }

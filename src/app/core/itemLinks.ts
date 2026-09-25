@@ -162,7 +162,9 @@ export function linkedLine(lineText: string, url: string, name = 'notion'): stri
   if (!found) return lineText;
   const { body, anchor } = anchorOff(found.rest);
   const words = unmarked(body).trim();
-  return `${found.lead}${withAnchorBack(`${words} [${name}](${url})`, anchor)}`;
+  // The lead ends in its own space, so an item with no words takes the mark straight after it.
+  const mark = `[${name}](${url})`;
+  return `${found.lead}${withAnchorBack(words ? `${words} ${mark}` : mark, anchor)}`;
 }
 
 export interface SentLink {

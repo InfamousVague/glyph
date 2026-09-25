@@ -1,6 +1,7 @@
 import { RangeSetBuilder, type EditorState, type Extension, type Text } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { fireNativeHaptic } from '../core/haptics.ts';
+import { listLead } from '../core/itemSyntax.ts';
 
 /**
  * Choices (Matt picked them from the list of new formats): list items with a round box, of which one is picked.
@@ -15,9 +16,6 @@ import { fireNativeHaptic } from '../core/haptics.ts';
  * words beside the box are for writing, as with a to-do's box (editor/taskToggle.ts).
  */
 
-/** A choice line up to its box: the indent and bullet, then `( )`, `(x)` or `(X)`, then a space. */
-const CHOICE = /^(\s*)[-*+] \(([ xX])\) /;
-
 export interface Choice {
   line: number;
   /** Where the `(` is. */
@@ -26,12 +24,12 @@ export interface Choice {
   indent: number;
 }
 
+/** The choice on a line: its bullet, then `( )`, `(x)` or `(X)` (core/itemSyntax.ts `listLead`); or null. */
 export function choiceOn(doc: Text, lineNumber: number): Choice | null {
   const line = doc.line(lineNumber);
-  const found = CHOICE.exec(line.text);
-  if (!found) return null;
-  const indent = found[1]!.length;
-  return { line: lineNumber, from: line.from + indent + 2, picked: found[2] !== ' ', indent };
+  const lead = listLead(line.text);
+  if (lead?.picked == null) return null;
+  return { line: lineNumber, from: line.from + lead.boxAt, picked: lead.picked, indent: lead.indent.length };
 }
 
 /** The choices grouped with the one on `lineNumber`: next to it, at its indent, with deeper lines between allowed. */

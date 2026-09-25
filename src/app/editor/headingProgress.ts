@@ -1,5 +1,6 @@
 import { RangeSetBuilder, type Text, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { taskBox } from '../core/itemSyntax.ts';
 
 /**
  * Progress under a heading (Matt picked it from the list of new formats): a heading with to-dos under it says how
@@ -15,7 +16,6 @@ import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, typ
  */
 
 const HEADING = /^ {0,3}(#{1,6})\s+\S/;
-const BOX = /^\s*(?:[-*+]|\d+[.)])\s+\[([ xX])\]/;
 const FENCE = /^\s*(```|~~~)/;
 
 export interface HeadingCount {
@@ -51,11 +51,11 @@ export function headingCounts(doc: Text): HeadingCount[] {
       open.push({ line: n, level, done: 0, total: 0 });
       continue;
     }
-    const box = BOX.exec(text);
+    const box = taskBox(text);
     if (box) {
       for (const h of open) {
         h.total += 1;
-        if (box[1] !== ' ') h.done += 1;
+        if (box.done) h.done += 1;
       }
     }
   }

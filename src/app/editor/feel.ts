@@ -2,6 +2,7 @@ import { syntaxTree, syntaxTreeAvailable } from '@codemirror/language';
 import type { EditorState, Transaction } from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
 import { fireFelt, fireMicroTick } from '../core/haptics.ts';
+import { BOX, MARKER } from '../core/itemSyntax.ts';
 
 /**
  * The hand under the text: which keystrokes are worth a taptic, and which are
@@ -54,6 +55,9 @@ function insertedText(tr: Transaction): string {
 
 export type FeelKind = 'mark' | 'heading' | 'block' | 'continue';
 
+/** A newline and the marker the markdown keymap writes after it, in a quote or not, with a to-do's box if it had one. */
+const CONTINUED = new RegExp(String.raw`^\n[\s>]*${MARKER}\s*(?:${BOX}\s*)?$`);
+
 /**
  * What this transaction is worth, or null. Pure and exported so the decision
  * can be tested without a Taptic Engine to feel it - the motor is native-only
@@ -69,7 +73,7 @@ export function feelOf(tr: Transaction): FeelKind | null {
 
   // A list continuing itself onto the next line: the markdown keymap inserted
   // the marker, so the newline arrives with more than just "\n" in it.
-  if (typed.startsWith('\n') && typed.length > 1 && /^\n[\s>]*([-*+]|\d+[.)])\s*(\[[ xX]\]\s*)?$/.test(typed)) {
+  if (typed.startsWith('\n') && typed.length > 1 && CONTINUED.test(typed)) {
     return 'continue';
   }
 

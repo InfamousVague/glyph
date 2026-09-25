@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { generate, listModels } from '../core/ai.ts';
+import { MARKER } from '../core/itemSyntax.ts';
 import { preferences } from '../core/preferences.ts';
 import type { Note } from '../core/store.ts';
 import { isTauri } from '../core/tauri.ts';
@@ -26,6 +27,8 @@ import { keepGist, readGist } from './results.ts';
 
 /** The model's answer as a card's line: the first line, bare, at most this long. */
 const LONGEST = 90;
+/** The marks a model may open its line with: a heading's, a list item's (core/itemSyntax.ts), a quote's. */
+const BLOCK_MARKS = new RegExp(String.raw`^(?:#{1,6}\s*|${MARKER}\s+|>\s*)+`);
 
 export function tidyGist(text: string): string {
   const line = text
@@ -33,7 +36,7 @@ export function tidyGist(text: string): string {
     .map((l) => l.trim())
     .find((l) => l && !/^```/.test(l)) ?? '';
   let out = line
-    .replace(/^(?:#{1,6}\s*|[-*+]\s+|\d+[.)]\s+|>\s*)+/, '')
+    .replace(BLOCK_MARKS, '')
     .replace(/^["“'‘]+|["”'’]+$/g, '')
     .replace(/\*\*|__|`/g, '')
     .replace(/\s+/g, ' ')
