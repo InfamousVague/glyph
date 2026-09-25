@@ -1,10 +1,10 @@
 import { isBookBody } from '../../book/book.ts';
 import { BOARD_TITLE } from '../../core/boardNote.ts';
-import { SAMPLE_TITLE } from '../../core/sampleNote.ts';
+import { renewedSample, SAMPLE_TITLE } from '../../core/sampleNote.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote } from '../../core/seed.ts';
-import { createNote, listNotes, newNoteId, noteTitle, type Note } from '../../core/store.ts';
+import { createNote, listNotes, newNoteId, noteTitle, updateNote, type Note } from '../../core/store.ts';
 import { outOfTrash, trash } from '../../core/trash.ts';
-import { HOW_TITLE } from '../../canvas/howCanvas.ts';
+import { HOW_TITLE, renewedHowCanvas } from '../../canvas/howCanvas.ts';
 import { CANVAS_TITLE } from '../../canvas/sampleCanvas.ts';
 import { sameTitle } from '../../editor/wikiLinks.ts';
 import {
@@ -38,6 +38,14 @@ import {
  * them (book/book.ts), and answers the book. A chapter the library already has - the sample note a fresh library is
  * given, a chapter someone has written in - is used as it is rather than made twice; a note in the Trash does not
  * count, since the book could not open it. A second call with nothing missing makes nothing.
+ *
+ * The one exception is an example an earlier Ghost.md made, which nobody has written in since: the sample note and
+ * the canvas that says how Ghost.md works both taught things that stopped being true, and the guide would teach them
+ * again from a library's old copy. Such a copy is brought up to date first (`renew`); one with anyone's words in it is
+ * theirs, and stays as it is.
+ *
+ * Its notes are ordinary notes, so the home page shows them as it shows any: the chapters among Recent, and the
+ * examples' to-dos under To do until they are ticked or deleted. That is on purpose, and the About row says so.
  */
 
 export const THE_GUIDE_TITLE = 'Ghost.md: The Guide';
@@ -48,6 +56,8 @@ export interface GuidePage {
   /** 1 for a chapter set under the one before it: an example under the chapter that explains it. */
   depth: 0 | 1;
   make: () => Promise<Note>;
+  /** The body the chapter has now, for a copy of it an earlier Ghost.md made that nobody has changed; null for any other. */
+  renew?: (body: string) => string | null;
 }
 
 /** A chapter of the guide's own words, made as a note. */
@@ -59,11 +69,11 @@ function own(title: string): () => Promise<Note> {
 
 /** Every chapter, in the order the index lists them. */
 export const GUIDE_PAGES: readonly GuidePage[] = [
-  { title: HOW_TITLE, depth: 0, make: addHowCanvas },
+  { title: HOW_TITLE, depth: 0, make: addHowCanvas, renew: renewedHowCanvas },
   { title: NOTES_TITLE, depth: 0, make: own(NOTES_TITLE) },
   { title: RECORD_TITLE, depth: 0, make: own(RECORD_TITLE) },
   { title: COMMAND_TITLE, depth: 0, make: own(COMMAND_TITLE) },
-  { title: SAMPLE_TITLE, depth: 0, make: addSampleNote },
+  { title: SAMPLE_TITLE, depth: 0, make: addSampleNote, renew: renewedSample },
   { title: AI_TITLE, depth: 0, make: own(AI_TITLE) },
   { title: BOARDS_TITLE, depth: 0, make: own(BOARDS_TITLE) },
   { title: BOARD_TITLE, depth: 1, make: addBoardNote },
@@ -106,11 +116,21 @@ async function openable(): Promise<Note[]> {
   return outOfTrash(await listNotes(), trash());
 }
 
-/** Makes the guide, and whichever of its chapters the library lacks, and answers the book. */
+/** Makes the guide, and whichever of its chapters the library lacks, brings an untouched old example up to date, and answers the book. */
 export async function addTheGuide(): Promise<Note> {
   const library = await openable();
-  const has = (title: string) => library.some((note) => sameTitle(noteTitle(note.body), title));
-  for (const page of GUIDE_PAGES) if (!has(page.title)) await page.make();
+  // The first by that title, newest first as the store lists them, which is the one a link to the title opens.
+  const named = (title: string) => library.find((note) => sameTitle(noteTitle(note.body), title));
+  for (const page of GUIDE_PAGES) {
+    const found = named(page.title);
+    if (!found) {
+      await page.make();
+      continue;
+    }
+    const renewed = page.renew?.(found.body) ?? null;
+    // Changed since it was read, it is someone's now, and stays as it is.
+    if (renewed !== null) await updateNote(found.id, renewed, found.revision ?? 1).catch(() => null);
+  }
   const book = library.find((note) => isBookBody(note.body) && sameTitle(noteTitle(note.body), THE_GUIDE_TITLE));
   return book ?? createNote(newNoteId(), theGuideBody(), 'editor');
 }

@@ -8,13 +8,15 @@ import { finalCommandWords } from '../../capture/command.ts';
 import { tips } from '../../capture/tips.ts';
 import { itemsIn, boardsIn } from '../../core/boards.ts';
 import { SAMPLE_TITLE, sampleNoteBody } from '../../core/sampleNote.ts';
-import { createNote, listNotes, newNoteId, noteTitle } from '../../core/store.ts';
+import { createNote, getNote, listNotes, newNoteId, noteTitle } from '../../core/store.ts';
 import { trashNote } from '../../core/trash.ts';
 import { bookmarkLineIn } from '../../editor/bookmarkLine.ts';
 import { glyphMarkdown } from '../../editor/language.ts';
 import { wikiLinksIn } from '../../editor/wikiLinks.ts';
+import { HOW_TITLE, howCanvasBody } from '../../canvas/howCanvas.ts';
 import { MODES } from '../../format/modes.ts';
 import { BUILT_IN } from '../../plugins/registry.ts';
+import { pastHowCanvasBody, pastSampleBody } from '../../../test/pastExamples.ts';
 import { GUIDE_PAGES, THE_GUIDE_TITLE, addTheGuide, theGuideBody } from './book.ts';
 import { ASKS, COMMANDS, CUES, FREE_ASK, OWN_CHAPTERS } from './chapters.ts';
 
@@ -177,6 +179,25 @@ describe('adding the guide', () => {
     await addTheGuide();
     const samples = (await listNotes()).filter((note) => noteTitle(note.body) === SAMPLE_TITLE);
     expect(samples.map((note) => note.id)).toEqual([sample.id]);
+  });
+
+  it('brings an old sample and an old canvas nobody has changed up to date, the sample’s picture kept, rather than teach from them', async () => {
+    const sample = await createNote(newNoteId(), pastSampleBody('f00d.jpg', 'Hey Ghost'), 'editor');
+    const how = await createNote(newNoteId(), pastHowCanvasBody(), 'editor');
+    await addTheGuide();
+    expect((await getNote(sample.id))?.body).toBe(sampleNoteBody('f00d.jpg'));
+    expect((await getNote(how.id))?.body).toBe(howCanvasBody());
+    // Brought up to date, not made twice.
+    const notes = await listNotes();
+    expect(notes.filter((note) => noteTitle(note.body) === SAMPLE_TITLE)).toHaveLength(1);
+    expect(notes.filter((note) => noteTitle(note.body) === HOW_TITLE)).toHaveLength(1);
+  });
+
+  it('leaves an old sample somebody has written in as it is: the words in it are theirs', async () => {
+    const written = pastSampleBody(null, 'Hey Ghost').replace('- [ ] Book the cabin', '- [x] Book the cabin');
+    const sample = await createNote(newNoteId(), written, 'editor');
+    await addTheGuide();
+    expect((await getNote(sample.id))?.body).toBe(written);
   });
 
   it('makes a chapter again that is in the Trash, since the book could not open that one', async () => {

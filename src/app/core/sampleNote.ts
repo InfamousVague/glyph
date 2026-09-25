@@ -1,4 +1,5 @@
-import { imageMarkdown } from './images.ts';
+import { bodyHash } from '../format/bodyHash.ts';
+import { IMAGE_REF, imageMarkdown, imageNames } from './images.ts';
 import smokeUrl from '../assets/sample-smoke.jpg';
 
 /**
@@ -202,6 +203,27 @@ ${picture}## Without typing
 
 Press and hold on any words and choose Style to put one of these marks on them. Every mark is in the cheat sheet as well: tap the three dots at the top of any note, then Formatting cheat sheet.
 `;
+}
+
+/**
+ * The sample as the two Ghost.md versions before this one made it, by the hash of its body (format/bodyHash.ts) with
+ * the picture's own name taken out: said "Ghost, add a table to this note" (2026-09-21), then "Hey Ghost, add a table
+ * to this note" (2026-09-22), each with its picture and without one. Both teach a table command the recorder no
+ * longer takes, and neither has the effects or most of the marks. guide/theGuide's test holds these to those bodies.
+ */
+const PAST = new Set([4387718320846778, 2447457312518500, 716343068097208, 1657851165677702]);
+
+/** A body with each picture's own file name taken out, since every copy of the sample keeps a picture of its own. */
+const unnamed = (body: string) => body.replace(IMAGE_REF, (_all, caption: string) => imageMarkdown('', caption));
+
+/**
+ * This sample note, for `body` when it is a sample an earlier Ghost.md made that nobody has written in since, its
+ * picture kept; null for any other note, and for a sample someone has written in above all, which is theirs. What
+ * Ghost.md: The Guide brings up to date before it teaches from it (guide/theGuide/book.ts).
+ */
+export function renewedSample(body: string): string | null {
+  if (!PAST.has(bodyHash(unnamed(body)))) return null;
+  return sampleNoteBody(imageNames(body)[0] ?? null);
 }
 
 /** The bundled photograph as a JPEG blob; null where it can't be fetched. */
