@@ -12,7 +12,7 @@ const capture = vi.hoisted(() => ({
     keepsAudio: false;
     push: () => void;
     positionMs: () => number;
-    stop: () => Promise<{ recordedMs: null; transcript: string }>;
+    stop: () => Promise<{ recordedMs: null; transcript: string | null }>;
     cancel: () => void;
   } | null,
 }));
@@ -147,5 +147,109 @@ describe('things to say', () => {
     await waitFor(() => expect(card.textContent).toContain('fix the spelling'));
     expect(card.textContent).not.toContain('to Groceries');
     expect(card.textContent).toContain('make a list called');
+  });
+});
+
+/** A phrase committed, as Whisper's capture://segment would hand it over. */
+const say = (text: string, startMs: number) => act(() => capture.handlers!.onSegment({ text, startMs, endMs: startMs + 900 }));
+
+describe('a note’s own Speak', () => {
+  it('says where the words are going, and writes them under the note’s own text at Done', async () => {
+    await createNote('groceries', '# Groceries\n\n- Eggs');
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Oat milk too.' });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={onFinish} />);
+    await screen.findByRole('button', { name: 'Adding to “Groceries”' });
+    await say('Oat milk too.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(onFinish.mock.calls[0]?.[0]).toMatchObject({ id: 'groceries', body: '# Groceries\n\n- Eggs\n\nOat milk too.' });
+    expect((await listNotes()).map((note) => note.body)).toEqual(['# Groceries\n\n- Eggs\n\nOat milk too.']);
+  });
+
+  it('opens the note with the run on it when what was said is an ask about the note', async () => {
+    await createNote('groceries', '# Groceries\n\n- Eggs');
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Hey Ghost, fix the spelling.' });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={onFinish} />);
+    await screen.findByRole('button', { name: 'Adding to “Groceries”' });
+    await say('Hey Ghost, fix the spelling.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(onFinish.mock.calls[0]?.slice(1)).toEqual([false, undefined, { kind: 'fix' }]);
+    expect(onFinish.mock.calls[0]?.[0]).toMatchObject({ id: 'groceries' });
+    expect((await listNotes()).map((note) => note.body)).toEqual(['# Groceries\n\n- Eggs']);
+  });
+
+  it('carries on in a new note from New note, leaving what was said so far where it was said', async () => {
+    await createNote('groceries', '# Groceries\n\n- Eggs');
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: 'For the soup. Call Sam.' });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={onFinish} />);
+    await screen.findByRole('button', { name: 'Adding to “Groceries”' });
+    await say('For the soup.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'New note' }));
+    await screen.findByRole('button', { name: 'New note' });
+    await waitFor(async () => expect((await listNotes()).find((note) => note.id === 'groceries')?.body).toBe('# Groceries\n\n- Eggs\n\nFor the soup.'));
+    await say('Call Sam.', 3000);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    const bodies = (await listNotes()).map((note) => note.body).sort();
+    expect(bodies).toEqual(['# Call Sam', '# Groceries\n\n- Eggs\n\nFor the soup.']);
+  });
+});
+
+describe('ending a recording', () => {
+  it('leaves nothing behind on Discard', async () => {
+    const cancel = vi.fn();
+    capture.session!.cancel = cancel;
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    await say('Pick up the parcel.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(await listNotes()).toEqual([]);
+  });
+
+  it('leaves nothing behind on Done when nothing was said', async () => {
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: null });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
+    expect(await listNotes()).toEqual([]);
+  });
+
+  it('refuses a command that names a note there is none of, and saves none of its words', async () => {
+    await createNote('work', 'Work');
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Add to shopping, oat milk.' });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    await say('Add to shopping, oat milk.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
+    expect((await listNotes()).map((note) => note.body)).toEqual(['Work']);
+  });
+});
+
+describe('the recorder’s own lines', () => {
+  it('says nothing was recorded, and why, when it could not start', async () => {
+    capture.session = null;
+    render(<CaptureScreen fromAssistant={false} onFinish={vi.fn()} />);
+    await screen.findByText('Nothing was recorded.');
+    expect(screen.getByRole('status', { name: '' }).textContent).toContain('test capture session was not configured');
+    expect(screen.getByRole('button', { name: 'Stop and save' })).toBeDisabled();
+  });
+
+  it('shows what the pipeline has done when the top line is tapped', async () => {
+    render(<CaptureScreen fromAssistant={false} onFinish={vi.fn()} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    await say('Hello.', 0);
+    fireEvent.click(await screen.findByRole('button', { name: 'New note' }));
+    await waitFor(() => expect(screen.getByText(/^On-device Whisper · heard 0\.0 s · 0 guesses · 1 phrase$/)).toBeInTheDocument());
   });
 });
