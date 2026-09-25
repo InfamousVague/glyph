@@ -211,8 +211,9 @@ export interface RunOptions {
   temperature: number;
   /**
    * Let a reasoning model think before it answers, the thinking streamed ahead
-   * of the answer (`splitThought`). Needs native generation 13; an older binary
-   * ignores it and answers straight away. Off for every formatting pass.
+   * of the answer, up to `</think>` (ai/runs.ts `splitThinking` parts the two).
+   * Needs native generation 13; an older binary ignores it and answers
+   * straight away. Off for every formatting pass.
    */
   think?: boolean;
   /** With `think`: tokens of thinking before it is closed for the model and the answer starts (native 13). */
