@@ -99,16 +99,7 @@ fn byte_range(header: &str, total: usize) -> Option<(usize, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn temp() -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("glyph-recordings-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    fn header_of(response: &Response<Vec<u8>>, name: header::HeaderName) -> Option<&str> {
-        response.headers().get(name).and_then(|value| value.to_str().ok())
-    }
+    use crate::test_support::{header_of, TempDir};
 
     #[test]
     fn a_recording_path_is_only_ever_inside_the_recordings_directory() {
@@ -122,20 +113,19 @@ mod tests {
     #[test]
     fn a_synced_recording_is_kept_whole_under_the_notes_id() {
         use base64::Engine as _;
-        let root = temp();
+        let root = TempDir::new("recordings");
         let dir = root.join("recordings");
         let wav = b"RIFF\x24\0\0\0WAVEfmt ".to_vec();
         place(&dir, "n1", &base64::engine::general_purpose::STANDARD.encode(&wav)).unwrap();
         assert_eq!(std::fs::read(dir.join("n1.wav")).unwrap(), wav, "the folder is made, and the bytes kept exactly");
         let names: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name()).collect();
         assert_eq!(names, ["n1.wav"], "nothing left beside it");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn a_synced_recording_that_is_not_one_is_refused_before_anything_is_written() {
         use base64::Engine as _;
-        let root = temp();
+        let root = TempDir::new("recordings");
         let dir = root.join("recordings");
         let wav = base64::engine::general_purpose::STANDARD.encode(b"RIFF\x24\0\0\0WAVEfmt ");
         assert_eq!(place(&dir, "../n1", &wav), Err("That is not a note id.".to_string()));
@@ -143,7 +133,6 @@ mod tests {
         let png = base64::engine::general_purpose::STANDARD.encode(b"\x89PNG\r\n\x1a\n");
         assert_eq!(place(&dir, "n1", &png), Err("That is not a recording Glyph can keep.".to_string()));
         assert!(!dir.exists(), "a refusal writes nothing, not even the folder");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

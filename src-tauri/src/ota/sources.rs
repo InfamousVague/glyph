@@ -114,6 +114,5 @@ mod tests {
         older.sources = vec!["https://old.example/glyph".into()];
         remember(&dir, &older);
         assert_eq!(read_known(&dir).sources, vec!["https://new.example/glyph".to_string()]);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -225,6 +225,7 @@ async fn refresh_account(client: &reqwest::Client, refresh_token: &str) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
 
     #[test]
     fn only_the_routes_glyph_uses() {
@@ -251,7 +252,9 @@ mod tests {
 
     #[test]
     fn an_account_is_kept_whole_and_private_or_not_at_all() {
-        let dir = std::env::temp_dir().join(format!("glyph-notion-{}", uuid::Uuid::new_v4()));
+        let root = TempDir::new("notion");
+        // A data folder not made yet: the first sign-in makes it.
+        let dir = root.join("data");
         let path = dir.join(FILE);
         let account = Account { access_token: "secret_x".into(), ..Account::default() };
         write_account(&path, &account).unwrap();
@@ -269,13 +272,11 @@ mod tests {
         let mut left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         left.sort();
         assert_eq!(left, ["blocked.json", FILE]);
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
     fn signed_in_means_a_token_to_call_with() {
-        let dir = std::env::temp_dir().join(format!("glyph-notion-read-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = TempDir::new("notion-read");
         let path = dir.join(FILE);
         assert!(read_account(&path).is_none(), "no file is signed out");
         std::fs::write(&path, br#"{"accessToken":"","workspaceName":"AttackFM"}"#).unwrap();
@@ -284,6 +285,5 @@ mod tests {
         assert!(read_account(&path).is_none());
         std::fs::write(&path, br#"{"accessToken":"secret_x"}"#).unwrap();
         assert_eq!(read_account(&path).map(|a| a.access_token).as_deref(), Some("secret_x"), "the rest may be missing");
-        let _ = std::fs::remove_dir_all(dir);
     }
 }

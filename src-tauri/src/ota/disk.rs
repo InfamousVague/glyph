@@ -109,7 +109,6 @@ mod tests {
         assert_eq!(read_installed(&dir).as_deref(), Some("20260912230000"));
         record_installed(&dir, "20260913000000");
         assert_eq!(read_installed(&dir).as_deref(), Some("20260913000000"));
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -123,7 +122,6 @@ mod tests {
         std::fs::remove_file(dir.join("assets/index.css")).unwrap();
         assert!(bundle_manifest(&dir).is_none(), "nor is one missing a file");
         assert!(bundle_manifest(&root.join("20260101000000")).is_none(), "nor a directory with no manifest");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -135,7 +133,6 @@ mod tests {
         remove_bundle(&root, "..");
         remove_bundle(&root, "20260912221530");
         assert!(root.join("keep").is_dir() && !root.join("20260912221530").exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -148,6 +145,5 @@ mod tests {
         assert_eq!((back.active.as_deref(), back.strikes), (Some("20260912221530"), 1));
         std::fs::write(root.join("state.json"), b"{ half").unwrap();
         assert_eq!(read_stored(&root).active, None, "no bundle, nothing quarantined");
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

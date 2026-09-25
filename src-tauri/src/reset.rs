@@ -71,11 +71,12 @@ fn reset(notes: &NotesStore, kept: &Kept, models: bool) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::library::Library;
+    use crate::test_support::TempDir;
     use std::sync::Mutex;
 
     /// A phone's worth of what a person made, under one temporary directory.
-    fn phone() -> (PathBuf, NotesStore, Kept) {
-        let root = std::env::temp_dir().join(format!("glyph-reset-{}", uuid::Uuid::new_v4()));
+    fn phone() -> (TempDir, NotesStore, Kept) {
+        let root = TempDir::new("reset");
         let mut library = Library::open_fs(&root.join("Library")).unwrap();
         library.save_note("n1", "# Kept until now\n\n![](image/a.jpg)\n", "capture").unwrap();
         for file in ["recordings/n1.wav", "images/a.jpg", "models/ggml-base.en-q5_1.bin"] {
@@ -102,7 +103,6 @@ mod tests {
         assert!(!root.join("notion.json").exists(), "no account is left signed in");
         assert!(root.join("models/ggml-base.en-q5_1.bin").exists(), "a 60 MB download is not thrown away unasked");
         reset(&notes, &kept, false).unwrap();
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -112,6 +112,5 @@ mod tests {
         assert!(!root.join("models").exists());
         notes.lock().save_note("n2", "after the reset", "editor").unwrap();
         assert_eq!(notes.lock().list_notes().unwrap().len(), 1, "the library carries on");
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

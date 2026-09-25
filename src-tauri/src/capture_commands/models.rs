@@ -92,18 +92,13 @@ pub async fn capture_fetch_refine_model(
 #[cfg(all(test, not(target_os = "ios")))]
 mod tests {
     use crate::model_files::{self, ModelSpec};
+    use crate::test_support::TempDir;
     use crate::whisper::model;
-
-    fn temp_dir() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("glyph-fetch-test-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
 
     #[test]
     #[ignore]
     fn the_active_model_downloads_through_the_mirrors_and_verifies() {
-        let dir = temp_dir();
+        let dir = TempDir::new("fetch-test");
         let mut reports = Vec::new();
         let status = tauri::async_runtime::block_on(model_files::fetch(
             &dir,
@@ -128,7 +123,6 @@ mod tests {
             Some(&(model::ACTIVE.bytes, model::ACTIVE.bytes))
         );
         assert!(!dir.join(format!("{}.part", model::ACTIVE.file)).exists());
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -140,7 +134,7 @@ mod tests {
             bytes: 3_196,
             sha256: "0000000000000000000000000000000000000000000000000000000000000000",
         };
-        let dir = temp_dir();
+        let dir = TempDir::new("fetch-test");
         let error = tauri::async_runtime::block_on(model_files::fetch(
             &dir,
             &spec,
@@ -155,6 +149,5 @@ mod tests {
             0,
             "a refused download left a file behind"
         );
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

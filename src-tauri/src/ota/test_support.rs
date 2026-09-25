@@ -5,13 +5,11 @@
 use std::path::{Path, PathBuf};
 
 use super::manifest::{Manifest, ManifestFile, Services};
+use crate::test_support::TempDir;
 
-/// A fresh directory under the temp dir, named by a uuid so two runs (or a
-/// pid a crashed run left behind) never share one.
-pub fn temp(label: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("glyph-ota-{label}-{}", uuid::Uuid::new_v4()));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+/// A fresh directory for one OTA test, removed when it is dropped.
+pub fn temp(label: &str) -> TempDir {
+    TempDir::new(&format!("ota-{label}"))
 }
 
 /// A valid manifest for `build`: an entry script and a stylesheet of one byte each.

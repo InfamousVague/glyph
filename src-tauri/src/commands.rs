@@ -352,28 +352,24 @@ pub fn set_note_archived(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
     use std::path::PathBuf;
 
-    fn temp() -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("glyph-commands-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    /// A library, a pictures folder and a recordings folder, as a phone has them.
+    /// A library, a pictures folder and a recordings folder, as a phone has
+    /// them. The library is closed before its folder goes: fields drop in order.
     struct Phone {
-        root: PathBuf,
         notes: NotesStore,
+        root: TempDir,
     }
 
     impl Phone {
         fn new() -> Phone {
-            let root = temp();
+            let root = TempDir::new("commands");
             let notes = NotesStore(Mutex::new(Library::open_fs(&root.join("Library")).unwrap()));
             for dir in ["images", "recordings"] {
                 std::fs::create_dir_all(root.join(dir)).unwrap();
             }
-            Phone { root, notes }
+            Phone { notes, root }
         }
 
         fn file(&self, path: &str) -> PathBuf {
@@ -382,12 +378,6 @@ mod tests {
 
         fn delete(&self, id: &str) -> Result<bool, String> {
             delete_with_files(&self.notes, Some(&self.file("images")), Some(&self.file("recordings")), id)
-        }
-    }
-
-    impl Drop for Phone {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.root);
         }
     }
 

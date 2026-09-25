@@ -259,7 +259,6 @@ mod tests {
         let mut left: Vec<String> = std::fs::read_dir(&root).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         left.sort();
         assert_eq!(left, ["20260911000000", "20260912000000", "not-a-build", "state.json"]);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -274,6 +273,5 @@ mod tests {
         placed.disarm();
         drop(placed);
         assert!(dir.exists(), "a disarmed guard leaves the directory it no longer owns");
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

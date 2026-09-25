@@ -13,6 +13,9 @@ mod paths;
 // What iOS does not have, and the one sentence each such command answers with there.
 #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
 mod unsupported;
+// What the tests share: a directory of a test's own, and a scheme answer's headers.
+#[cfg(test)]
+mod test_support;
 
 // A note as the crate and the page share it. `pub`, and free of Tauri types,
 // so a caller with no Tauri in its process could reach it over JNI - DESIGN

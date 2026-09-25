@@ -164,6 +164,7 @@ pub fn plain_id(id: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
 
     #[test]
     fn only_plain_ids_become_file_names() {
@@ -176,12 +177,6 @@ mod tests {
         }
     }
 
-    fn temp(label: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("glyph-fsx-{label}-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
     fn names(dir: &Path) -> Vec<String> {
         let mut names: Vec<String> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         names.sort();
@@ -190,13 +185,12 @@ mod tests {
 
     #[test]
     fn a_whole_write_replaces_the_file_and_leaves_nothing_beside_it() {
-        let dir = temp("whole");
+        let dir = TempDir::new("fsx-whole");
         let path = dir.join("state.json");
         write_atomically(&path, b"first").unwrap();
         write_atomically(&path, b"second, and longer").unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), b"second, and longer");
         assert_eq!(names(&dir), ["state.json"]);
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
@@ -206,7 +200,7 @@ mod tests {
         // the note itself fits and a temporary name built from it would not.
         let long = format!("{}.md", "\u{6f22}".repeat(80));
         assert_eq!(long.len(), 243);
-        let dir = temp("long");
+        let dir = TempDir::new("fsx-long");
         for target in [dir.join(&long), dir.join(format!("{}.md", "\u{6f22}".repeat(84))), dir.join("a")] {
             let temporary = temporary_beside(&target).unwrap();
             assert_eq!(temporary.parent(), target.parent(), "beside the target, so the rename is on one file system");
@@ -219,12 +213,11 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "# \u{6f22}");
         assert_eq!(names(&dir), [long]);
         assert!(temporary_beside(Path::new("/")).is_err(), "a path with no file name has nowhere beside it");
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
     fn a_failed_write_leaves_the_old_file_and_no_temporary_one() {
-        let dir = temp("failed");
+        let dir = TempDir::new("fsx-failed");
         // A directory with something in it cannot be renamed over by a file,
         // so the write gets as far as its temporary file and then fails.
         let path = dir.join("taken");
@@ -232,12 +225,11 @@ mod tests {
         assert!(write_atomically(&path, b"bytes").is_err());
         assert_eq!(names(&dir), ["taken"], "the temporary file is removed on failure");
         assert!(path.join("inside").is_dir(), "what was there is untouched");
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
     fn writers_at_once_never_garble_the_file() {
-        let dir = temp("racing");
+        let dir = TempDir::new("fsx-racing");
         let path = dir.join("sources.json");
         let writers: Vec<_> = (0u8..8)
             .map(|n| {
@@ -256,37 +248,34 @@ mod tests {
         assert_eq!(bytes.len(), 64 * 1024);
         assert!(bytes.iter().all(|b| *b == bytes[0]), "one writer's bytes, whole");
         assert_eq!(names(&dir), ["sources.json"]);
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[cfg(unix)]
     #[test]
     fn a_private_file_is_readable_by_this_user_only() {
         use std::os::unix::fs::PermissionsExt as _;
-        let dir = temp("private");
+        let dir = TempDir::new("fsx-private");
         let path = dir.join("notion.json");
         write_private(&path, br#"{"accessToken":"secret"}"#).unwrap();
         assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
         write_atomically(&dir.join("plain.json"), b"{}").unwrap();
         assert_ne!(std::fs::metadata(dir.join("plain.json")).unwrap().permissions().mode() & 0o077, 0, "only the private write narrows it");
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
     fn json_that_is_missing_or_not_the_shape_is_the_fallback() {
-        let dir = temp("json");
+        let dir = TempDir::new("fsx-json");
         let path = dir.join("known.json");
         assert_eq!(read_json_or(&path, vec![7u32]), [7]);
         std::fs::write(&path, b"{ half a file").unwrap();
         assert_eq!(read_json::<Vec<u32>>(&path), None);
         std::fs::write(&path, b"[1, 2, 3]").unwrap();
         assert_eq!(read_json_or(&path, Vec::<u32>::new()), [1, 2, 3]);
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
     fn a_removal_of_something_already_gone_succeeds_and_a_real_failure_does_not() {
-        let dir = temp("remove");
+        let dir = TempDir::new("fsx-remove");
         let file = dir.join("notion.json");
         std::fs::write(&file, b"{}").unwrap();
         remove_file_if_present(&file).unwrap();
@@ -298,18 +287,16 @@ mod tests {
         remove_dir_if_present(&folder).unwrap();
         assert!(!folder.exists());
         remove_dir_if_present(&folder).unwrap();
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
     fn a_directory_that_cannot_be_made_says_which() {
-        let dir = temp("make");
+        let dir = TempDir::new("fsx-make");
         let file = dir.join("a-file");
         std::fs::write(&file, b"").unwrap();
         make_dir(&dir.join("new/and/nested")).unwrap();
         assert!(dir.join("new/and/nested").is_dir());
         let error = make_dir(&file.join("under")).unwrap_err();
         assert!(error.starts_with("cannot create ") && error.contains("a-file"), "{error}");
-        let _ = std::fs::remove_dir_all(dir);
     }
 }

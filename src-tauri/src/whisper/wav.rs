@@ -264,8 +264,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_written_recording_reads_back_and_appends_onto_itself() {
-        let dir = std::env::temp_dir().join(format!("glyph-wav-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = crate::test_support::TempDir::new("wav");
         let path = dir.join("take.wav");
         let first: Vec<i16> = (0..1600).map(|i| (i % 200) as i16 * 100).collect();
         assert_eq!(write_pcm16(&path, &first, false).unwrap(), 1600);
@@ -293,7 +292,6 @@ pub(crate) mod tests {
         std::fs::write(&path, b"not a wav").unwrap();
         assert_eq!(write_pcm16(&path, &second, true).unwrap(), 800);
         assert_eq!(read(&path).unwrap().len(), 800);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -355,6 +355,7 @@ async fn download(
 #[cfg(all(test, not(target_os = "ios")))]
 mod resume_tests {
     use super::*;
+    use crate::test_support::TempDir;
     use sha2::{Digest, Sha256};
     use std::io::{BufRead, BufReader, Write};
     use std::net::TcpListener;
@@ -402,13 +403,11 @@ mod resume_tests {
         let body: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
         let sha: String = Sha256::digest(&body).iter().map(|b| format!("{b:02x}")).collect();
         let spec = ModelSpec { file: "model.bin", bytes: body.len() as u64, sha256: Box::leak(sha.into_boxed_str()) };
-        let dir = std::env::temp_dir().join(format!("glyph-resume-test-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = TempDir::new("resume-test");
         let (url, requests) = serve(body.clone(), ranges);
         let client = reqwest::Client::builder().read_timeout(std::time::Duration::from_secs(5)).build().unwrap();
         let result = tauri::async_runtime::block_on(async { download(&client, &url, &dir, &spec, &mut |_, _| {}).await });
         let written = std::fs::read(dir.join("model.bin")).unwrap_or_default();
-        let _ = std::fs::remove_dir_all(&dir);
         (result, written, body, requests.load(Ordering::SeqCst))
     }
 
@@ -435,8 +434,7 @@ mod tests {
 
     #[test]
     fn a_file_of_the_wrong_size_is_not_present() {
-        let dir = std::env::temp_dir().join(format!("glyph-model-test-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = crate::test_support::TempDir::new("model-test");
         assert!(!status(&dir, &ACTIVE).present);
         std::fs::write(path_in(&dir, &ACTIVE), b"not a model").unwrap();
         let answer = status(&dir, &ACTIVE);
@@ -445,7 +443,6 @@ mod tests {
         assert_eq!(answer.bytes, 59_721_011);
         let absent = ModelStatus::absent(&ACTIVE);
         assert_eq!(absent, ModelStatus { path: String::new(), ..answer }, "absent is the same answer with nowhere to be");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

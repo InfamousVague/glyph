@@ -146,12 +146,13 @@ mod tests {
     use super::*;
     use crate::ota::disk::read_installed;
     use crate::ota::test_support::{bundle, manifest, temp};
+    use crate::test_support::TempDir;
 
     const OLDER: &str = "20260911000000";
     const NEWER: &str = "20260912221530";
 
     /// A root holding two complete bundles, `NEWER` active over `OLDER`.
-    fn two_bundles() -> (PathBuf, Stored) {
+    fn two_bundles() -> (TempDir, Stored) {
         let root = temp("boot");
         bundle(&root, &manifest(OLDER));
         bundle(&root, &manifest(NEWER));
@@ -178,7 +179,6 @@ mod tests {
         assert_eq!(stored.pending, None);
         assert_eq!(stored.strikes, 0);
         assert_eq!(stored.quarantined, vec!["20260912221530".to_string()]);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -188,7 +188,6 @@ mod tests {
         assert_eq!((found.build.as_str(), dir), (NEWER, root.join(NEWER)));
         assert_eq!(stored.pending.as_deref(), Some(NEWER), "staked until the page says it mounted");
         assert_eq!(stored.strikes, 0);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -204,7 +203,6 @@ mod tests {
         assert_eq!((stored.active.as_deref(), stored.previous.as_deref()), (Some(OLDER), None));
         assert_eq!(stored.pending.as_deref(), Some(OLDER), "the bundle fallen back to is staked in its turn");
         assert!(!root.join(NEWER).exists(), "a quarantined bundle is removed");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -219,7 +217,6 @@ mod tests {
         claim(&root, &mut stored, None);
         assert_eq!(chosen(claim(&root, &mut stored, None)).as_deref(), Some(NEWER));
         assert!(stored.quarantined.is_empty());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -229,7 +226,6 @@ mod tests {
         claim(&root, &mut stored, None);
         assert!(settle(&mut stored, None), "the stake goes");
         assert_eq!((stored.pending, stored.strikes), (None, 1), "and the strike it had stays: no pass either");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -250,7 +246,6 @@ mod tests {
         assert_eq!((stored.active.as_deref(), stored.pending.as_deref()), (None, None));
         assert!(!root.join(NEWER).exists() && !root.join(OLDER).exists());
         assert_eq!(read_installed(&root).as_deref(), Some("20260913000000"), "the alert check learns what is already here");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -264,7 +259,6 @@ mod tests {
         assert_eq!(chosen(claim(&root, &mut stored, None)).as_deref(), Some(OLDER));
         assert_eq!(stored.active.as_deref(), Some(OLDER));
         assert!(stored.quarantined.is_empty(), "dropped, not quarantined: a newer APK may run it");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -273,7 +267,6 @@ mod tests {
         std::fs::remove_file(root.join(NEWER).join("assets/index.js")).unwrap();
         assert_eq!(chosen(claim(&root, &mut stored, None)).as_deref(), Some(OLDER));
         assert!(!root.join(NEWER).exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -286,6 +279,5 @@ mod tests {
         assert_eq!((stored.active, stored.previous, stored.pending, stored.strikes), (None, None, None, 0));
         assert_eq!(stored.quarantined, ["20260901000000"]);
         assert!(!root.join(NEWER).exists() && !root.join(OLDER).exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

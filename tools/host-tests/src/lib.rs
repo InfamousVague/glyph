@@ -41,6 +41,10 @@ pub mod note;
 #[path = "../../../src-tauri/src/fsx.rs"]
 pub mod fsx;
 
+#[cfg(test)]
+#[path = "../../../src-tauri/src/test_support/temp.rs"]
+pub mod test_support;
+
 #[path = "../../../src-tauri/src/store.rs"]
 pub mod store;
 

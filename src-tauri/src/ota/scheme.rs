@@ -81,10 +81,7 @@ fn answer(path: &str, state: Option<&OtaState>) -> Response<Vec<u8>> {
 mod tests {
     use super::*;
     use crate::ota::test_support::{bundle, manifest, temp};
-
-    fn header_of(response: &Response<Vec<u8>>, name: header::HeaderName) -> Option<&str> {
-        response.headers().get(name).and_then(|value| value.to_str().ok())
-    }
+    use crate::test_support::header_of;
 
     #[test]
     fn a_claimed_bundle_is_served_by_its_real_paths_to_a_page_of_another_origin() {
@@ -101,7 +98,6 @@ mod tests {
         assert_eq!(header_of(&answer("/assets/index.css", Some(&state)), header::CONTENT_TYPE), Some("text/css"));
         let missing = answer("/assets/other.js", Some(&state));
         assert_eq!((missing.status(), missing.body().as_slice()), (StatusCode::NOT_FOUND, &b"not in this bundle"[..]));
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

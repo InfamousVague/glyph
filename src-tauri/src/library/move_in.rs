@@ -133,12 +133,7 @@ impl Library {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn temp() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("glyph-move-in-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
+    use crate::test_support::TempDir;
 
     fn names(dir: &Path) -> Vec<String> {
         let mut names: Vec<String> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
@@ -148,7 +143,7 @@ mod tests {
 
     #[test]
     fn the_first_launch_moves_the_old_notes_in_and_puts_the_database_aside() {
-        let data = temp();
+        let data = TempDir::new("move-in");
         {
             let old = Store::open(&data.join(DB_FILE)).unwrap();
             old.save_note("m1", "# Kept\n\nfrom the old app", "editor").unwrap();
@@ -164,12 +159,11 @@ mod tests {
         assert!(here.contains(&"glyph.sqlite.moved-wal".to_string()) && here.contains(&"glyph.sqlite.moved-shm".to_string()), "{here:?}");
         let manifest: Manifest = crate::fsx::read_json(&data.join("Library/.glyph/library.json")).unwrap();
         assert_eq!((manifest.moved_from.as_deref(), manifest.moved_notes), (Some(DB_FILE), Some(1)));
-        let _ = std::fs::remove_dir_all(&data);
     }
 
     #[test]
     fn a_library_already_moved_into_never_reads_a_database_that_reappears() {
-        let data = temp();
+        let data = TempDir::new("move-in");
         let library = Library::open_fs(&data.join("Library")).unwrap();
         library.mark_moved_in(DB_FILE, 0).unwrap();
         let old = Store::open(&data.join(DB_FILE)).unwrap();
@@ -178,12 +172,11 @@ mod tests {
         let mut library = open_and_move_in(&data.join("Library"), &data).unwrap();
         assert_eq!(library.get_note("late").unwrap(), None, "a move happens once");
         assert!(data.join(DB_FILE).exists(), "and a file it did not move is left where it is");
-        let _ = std::fs::remove_dir_all(&data);
     }
 
     #[test]
     fn a_new_library_records_its_birth_once() {
-        let data = temp();
+        let data = TempDir::new("move-in");
         let glyph = data.join(".glyph");
         std::fs::create_dir_all(&glyph).unwrap();
         ensure_manifest(&glyph).unwrap();
@@ -191,6 +184,5 @@ mod tests {
         assert!(first.contains("\"version\": 1") && first.contains("\"created\": \"20"), "{first}");
         ensure_manifest(&glyph).unwrap();
         assert_eq!(std::fs::read_to_string(glyph.join("library.json")).unwrap(), first);
-        let _ = std::fs::remove_dir_all(&data);
     }
 }

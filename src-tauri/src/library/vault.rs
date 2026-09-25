@@ -141,16 +141,11 @@ impl Vault for FsVault {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn temp() -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("glyph-vault-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
+    use crate::test_support::TempDir;
 
     #[test]
     fn the_notes_are_every_markdown_file_but_those_in_dot_folders() {
-        let root = temp();
+        let root = TempDir::new("vault");
         let vault = FsVault::new(&root).unwrap();
         for file in ["Inbox/a.md", "Work/Deep/b.MD", ".obsidian/c.md", "Work/.trash/d.md", ".hidden.md", "notes.txt"] {
             std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
@@ -158,12 +153,11 @@ mod tests {
         }
         let paths: Vec<String> = vault.markdown().unwrap().into_iter().map(|entry| entry.path).collect();
         assert_eq!(paths, ["Inbox/a.md", "Work/Deep/b.MD"], "sorted, forward slashes, any case of .md");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn a_write_or_a_rename_makes_the_folders_it_needs() {
-        let root = temp();
+        let root = TempDir::new("vault");
         let vault = FsVault::new(&root).unwrap();
         let written = vault.write("Work/Trips/Hello.md", "# Hello\n").unwrap();
         assert_eq!((written.path.as_str(), written.size), ("Work/Trips/Hello.md", 8));
@@ -173,17 +167,15 @@ mod tests {
         vault.remove("Archive/2026/Hello.md").unwrap();
         vault.remove("Archive/2026/Hello.md").unwrap();
         assert!(!vault.exists("../outside.md") && !vault.exists("/etc/hosts"), "a path outside is never there");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn a_kept_modified_time_is_the_one_asked_for() {
-        let root = temp();
+        let root = TempDir::new("vault");
         let vault = FsVault::new(&root).unwrap();
         vault.write("a.md", "words").unwrap();
         let kept = vault.keep_modified("a.md", 1_789_381_930_123).unwrap();
         assert_eq!(kept.modified_ms, 1_789_381_930_123);
         assert_eq!(vault.stat("a.md").unwrap(), kept);
-        let _ = std::fs::remove_dir_all(&root);
     }
 }
