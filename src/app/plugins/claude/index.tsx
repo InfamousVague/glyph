@@ -27,5 +27,5 @@ export const manifest: PluginManifest = {
 export const claudePlugin: GlyphPlugin = {
   manifest,
   icon: Bot,
-  settings: { Pane: ClaudePane, summary: () => 'Read and write your notes from Claude' },
+  settings: { Pane: ClaudePane, summary: () => 'Read and write your notes from Claude', hue: 'coral' },
 };

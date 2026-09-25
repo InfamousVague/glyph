@@ -257,8 +257,11 @@ export type FormatLook =
 export interface GlyphPlugin {
   manifest: PluginManifest;
   icon: ComponentType<{ size?: number }>;
-  /** Its page in Settings, and the page's one-line reading. */
-  settings?: { Pane: ComponentType; summary(): string };
+  /**
+   * Its page in Settings, the page's one-line reading, and its colour there: one of the hues settings.css draws
+   * (`[data-hue]`), or grey without one.
+   */
+  settings?: { Pane: ComponentType; summary(): string; hue?: string };
   noteLinks?: readonly NoteLink[];
   noteActions?: readonly NoteAction[];
   itemAction?: ItemAction;

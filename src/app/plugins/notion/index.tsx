@@ -50,7 +50,7 @@ async function sendItems(board: Board, items: readonly { text: string; line?: nu
 export const notionPlugin: GlyphPlugin = {
   manifest,
   icon: SquareKanban,
-  settings: { Pane: NotionPane, summary: () => 'Boards for your lists' },
+  settings: { Pane: NotionPane, summary: () => 'Boards for your lists', hue: 'graphite' },
   noteLinks: [
     {
       id: 'notion-board',

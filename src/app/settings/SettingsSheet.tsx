@@ -217,6 +217,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
           id: `plugin:${plugin.manifest.id}`,
           label: plugin.manifest.name,
           words: plugin.manifest.description,
+          hue: settings.hue,
           icon: <Icon size={16} />,
           content: <settings.Pane />,
           summary: settings.summary(),

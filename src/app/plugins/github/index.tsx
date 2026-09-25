@@ -59,6 +59,7 @@ export const githubPlugin: GlyphPlugin = {
   icon: GitBranch,
   settings: {
     Pane: GitHubPane,
+    hue: 'graphite',
     summary: () => {
       const count = projects().length;
       return count ? `${count} ${count === 1 ? 'repo' : 'repos'}${canWriteIssues() ? ', issues on' : ''}` : 'Repos, issues and context';
