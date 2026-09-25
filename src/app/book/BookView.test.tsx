@@ -4,7 +4,8 @@ import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, show, typeInto, unmount } from '../../test/render.tsx';
 import { bookNoteBody, bookOf, chaptersOf } from './book.ts';
-import { BookBar, BookFoot, BookView } from './BookView.tsx';
+import { BookBar, BookFoot } from './BookNav.tsx';
+import { BookView } from './BookView.tsx';
 
 /**
  * The index view: the chapters as rows that open their notes, a chapter not written yet said so, the three edits

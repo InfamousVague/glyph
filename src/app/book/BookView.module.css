@@ -88,14 +88,6 @@
   max-inline-size: 100%;
 }
 
-/* A chapter that is a canvas: the canvas's own mark after its title, quiet, in the words' line. */
-.canvasMark {
-  display: inline-flex;
-  vertical-align: -0.1em;
-  margin-inline-start: 0.4em;
-  color: var(--app-ink-3, var(--glacier-text-muted));
-}
-
 /* A chapter with no note yet: named, and said so, in the link's own waiting grey. */
 .row[data-waiting] .chapterTitle {
   color: var(--glacier-text-muted);
@@ -227,68 +219,6 @@
   font-size: 0.9em;
 }
 
-/* The bar a chapter wears (BookBar): the book and the neighbours, one row under the header. */
-.bar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--glacier-space-2);
-  padding: var(--glacier-space-1) var(--glacier-space-4);
-  border-block-end: 1px solid var(--glacier-border-subtle);
-  font-size: var(--glacier-font-size-sm, 0.875rem);
-}
-
-.end,
-.middle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35em;
-  min-inline-size: 0;
-  padding: 0.35em 0.5em;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--glacier-text-muted);
-  font: inherit;
-  cursor: pointer;
-}
-
-.end[data-next] {
-  justify-self: end;
-}
-
-/* A side sized to its title would spill out of its column on a phone and run into the count; it shrinks instead. */
-.end {
-  max-inline-size: 100%;
-}
-
-.end:disabled {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.end:hover:not(:disabled),
-.middle:hover {
-  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
-  color: var(--glacier-text);
-}
-
-.endTitle,
-.bookTitle {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.bookTitle {
-  color: var(--glacier-text);
-  font-weight: 500;
-}
-
-.count {
-  font-variant-numeric: tabular-nums;
-}
-
 /* The tick beside a note in the picker: an empty ring, filled when the note is picked. */
 .pickMark {
   display: inline-grid;
@@ -416,59 +346,4 @@
 .readBody {
   /* The editor draws at the note's size; the book's own type stays for the rest. */
   font-size: 1rem;
-}
-
-/*
- * The foot a chapter wears (BookFoot): the chapters either side as two wide buttons under the last line, in the note's
- * own gutter. Previous keeps the left and Next the right, whichever is there.
- */
-.foot {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--glacier-space-3);
-  margin: var(--glacier-space-4) var(--app-gutter, var(--glacier-space-4)) 0;
-  padding-block: var(--glacier-space-4) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-6));
-  border-block-start: 1px solid var(--glacier-border-subtle);
-}
-
-.step {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.2em;
-  min-inline-size: 0;
-  padding: 0.7em 0.9em;
-  border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-md, 10px);
-  background: transparent;
-  color: var(--glacier-text);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-
-.step[data-next] {
-  grid-column: 2;
-  align-items: flex-end;
-  text-align: end;
-}
-
-.step:hover {
-  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
-}
-
-.stepLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25em;
-  color: var(--glacier-text-muted);
-  font-size: var(--glacier-font-size-sm, 0.875rem);
-}
-
-.stepTitle {
-  max-inline-size: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
 }

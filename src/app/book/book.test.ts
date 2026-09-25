@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
-import { bodyWithoutTitle, bookIndex, bookWords, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
+import { bodyWithoutTitle, bookIndex, bookWords, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, toggledTitle, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 
 /**
  * A book is its index: a list of links in a note that says `book: true`. Read from the body, written back to it a
@@ -61,8 +61,9 @@ describe('a book note', () => {
   });
 
   it('keeps its own words apart from the index', () => {
-    expect(prefaceOf(BOOK)).toEqual(['What to know before the walk.']);
-    expect(prefaceOf(bookNoteBody('Trip'))).toEqual([]);
+    // Less the front matter and the heading that names the book, which the header says.
+    expect(bookWords(BOOK)).toEqual({ before: 'What to know before the walk.', after: '' });
+    expect(bookWords(bookNoteBody('Trip'))).toEqual({ before: '', after: '' });
   });
 });
 
@@ -112,6 +113,16 @@ describe('changing the index', () => {
     expect(chaptersOf(withChapterMoved(BOOK, 'Introduction', 1)).map((c) => c.title)).toEqual(['Trees', 'Introduction', 'Oaks', 'Pines', 'Birds']);
     expect(withChapterMoved(BOOK, 'Introduction', -1)).toBe(BOOK);
     expect(withChapterMoved(BOOK, 'Birds', 1)).toBe(BOOK);
+  });
+});
+
+describe('a picker’s ticks', () => {
+  it('ticks a title by putting it last, and unticks it however it is typed', () => {
+    expect(toggledTitle(['Trees'], 'Birds')).toEqual(['Trees', 'Birds']);
+    expect(toggledTitle(['Trees', 'Birds'], 'trees!')).toEqual(['Birds']);
+    const was = ['Trees'];
+    toggledTitle(was, 'Birds');
+    expect(was).toEqual(['Trees']);
   });
 });
 
