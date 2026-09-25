@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { externalStore } from './externalStore.ts';
 import { onPreferences, preferences, setPreferences } from './preferences.ts';
 import { fileNoteInFolder, fileNotesInFolder } from './noteFolders.ts';
 import { readStored, readStoredText, writeStoredText } from './stored.ts';
@@ -16,9 +17,11 @@ import { readStored, readStoredText, writeStoredText } from './stored.ts';
  * list the person is looking at. Removing a workspace unfiles its notes and
  * deletes nothing.
  *
- * Kept on the page under one key, so it ships over the air: the note store is
- * Rust's (core/store.ts), and a column there is a native change. The archive
- * is not filtered: it is the place to find anything.
+ * Kept in the preferences rather than beside the notes, so it ships over the
+ * air and travels with a person's settings: the note store is Rust's
+ * (core/store.ts), and a column there is a native change ("Where a workspace
+ * lives", below). The archive is not filtered: it is the place to find
+ * anything.
  */
 
 /**
@@ -68,18 +71,29 @@ interface Sheet {
  */
 const KEY = 'glyph-workspaces';
 const HERE = 'glyph-workspace-current';
-const listeners = new Set<() => void>();
+/** How many times the sheet has changed: counted only so that every change is one its listeners hear. */
+const changes = externalStore(0);
 let sheet: Sheet | null = null;
 let snapshot: Workspaces | null = null;
 
-/** The workspaces as the preferences hold them, with a hue this build does not know read as ink. */
+/** A workspace as it is kept, with a hue this build does not know - and ink, which is no hue - read as none. */
+function asWorkspace(w: { id: string; name: string; hue?: unknown }): Workspace {
+  return isHue(w.hue) && w.hue !== 'ink' ? { id: w.id, name: w.name, hue: w.hue } : { id: w.id, name: w.name };
+}
+
+/** The filings in `notes` that point at one of `list`'s workspaces. */
+function filingsIn(notes: Readonly<Record<string, unknown>>, list: readonly Workspace[]): Record<string, string> {
+  const ids = new Set(list.map((w) => w.id));
+  const kept: Record<string, string> = {};
+  for (const [note, id] of Object.entries(notes)) if (typeof id === 'string' && ids.has(id)) kept[note] = id;
+  return kept;
+}
+
+/** The workspaces as the preferences hold them. */
 function fromPrefs(): { list: Workspace[]; notes: Record<string, string> } {
   const held = preferences().workspaces;
-  const list = held.list.map((w) => (isHue(w.hue) && w.hue !== 'ink' ? { id: w.id, name: w.name, hue: w.hue } : { id: w.id, name: w.name }));
-  const ids = new Set(list.map((w) => w.id));
-  const notes: Record<string, string> = {};
-  for (const [note, id] of Object.entries(held.notes)) if (ids.has(id)) notes[note] = id;
-  return { list, notes };
+  const list = held.list.map(asWorkspace);
+  return { list, notes: filingsIn(held.notes, list) };
 }
 
 /** The set kept under the old key, for a device that has not moved its workspaces into the preferences yet. */
@@ -87,15 +101,10 @@ function fromOldKey(): { list: Workspace[]; notes: Record<string, string>; curre
   return readStored<ReturnType<typeof fromOldKey>>(KEY, null, (raw) => {
     const value = raw as Partial<Sheet> | null;
     if (!value || !Array.isArray(value.list) || !value.list.length) return null;
-    const list = value.list
-      .filter((w): w is Workspace => Boolean(w) && typeof w.id === 'string' && typeof w.name === 'string')
-      .map((w) => (isHue(w.hue) && w.hue !== 'ink' ? { id: w.id, name: w.name, hue: w.hue } : { id: w.id, name: w.name }));
-    const ids = new Set(list.map((w) => w.id));
-    const notes: Record<string, string> = {};
-    if (value.notes && typeof value.notes === 'object') {
-      for (const [note, id] of Object.entries(value.notes)) if (typeof id === 'string' && ids.has(id)) notes[note] = id;
-    }
-    return { list, notes, current: typeof value.current === 'string' && ids.has(value.current) ? value.current : null };
+    const list = value.list.filter((w): w is Workspace => Boolean(w) && typeof w.id === 'string' && typeof w.name === 'string').map(asWorkspace);
+    const notes = value.notes && typeof value.notes === 'object' ? filingsIn(value.notes, list) : {};
+    const current = typeof value.current === 'string' && list.some((w) => w.id === value.current) ? value.current : null;
+    return { list, notes, current };
   });
 }
 
@@ -128,7 +137,7 @@ function write(next: Sheet): void {
   ours = false;
   // No storage: the change holds for this run.
   writeStoredText(HERE, next.current || null);
-  listeners.forEach((listener) => listener());
+  changes.update((n) => n + 1);
 }
 
 /**
@@ -143,14 +152,14 @@ onPreferences(() => {
   if (now && JSON.stringify(held.list) === JSON.stringify(now.list) && JSON.stringify(held.notes) === JSON.stringify(now.notes)) return;
   sheet = null;
   snapshot = null;
-  listeners.forEach((listener) => listener());
+  changes.update((n) => n + 1);
 });
 
 /** Reads the sheet again: after a reset, and in tests. */
 export function reloadWorkspaces(): void {
   sheet = null;
   snapshot = null;
-  listeners.forEach((listener) => listener());
+  changes.update((n) => n + 1);
 }
 
 export function workspaces(): Workspaces {
@@ -161,12 +170,8 @@ export function workspaces(): Workspaces {
   return snapshot;
 }
 
-export function onWorkspaces(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
+/** Called after every change to the sheet, here or from another device; answers the way to stop. */
+export const onWorkspaces = changes.subscribe;
 
 export function useWorkspaces(): Workspaces {
   return useSyncExternalStore(onWorkspaces, workspaces, workspaces);
