@@ -318,15 +318,15 @@ pub fn router(notion: Arc<Notion>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::behind_caddy;
     use axum::body::{to_bytes, Body};
-    use axum::extract::connect_info::MockConnectInfo;
     use axum::http::{header, Request};
     use tower::ServiceExt;
     const STATE: &str = "state-0123456789abcdefghijklmnopqrstuv";
     const VERIFIER: &str = "verifier-0123456789abcdefghijklmnopqrstuvwxyz";
 
     fn service(notion: Arc<Notion>) -> Router {
-        router(notion).layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40001))))
+        behind_caddy(router(notion))
     }
 
     fn configured() -> Arc<Notion> {

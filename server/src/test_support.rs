@@ -2,8 +2,8 @@
 //! up, and the service itself, wired as main.rs wires it but with nothing real behind the model.
 //!
 //! These were written out again in each test file that needed them - a `TempDir` in store.rs, sync_tests.rs and
-//! live_tests.rs, the login and recovery-sheet fixtures in all three `*_tests.rs` files, the same `app_with(...)` and
-//! `MockConnectInfo` in main.rs and two more. A fixture that drifts between copies is a test that passes for a reason
+//! live_tests.rs, the login and recovery-sheet fixtures in all three `*_tests.rs` files, the same `app_with(...)` in
+//! four places and `MockConnectInfo` in five. A fixture that drifts between copies is a test that passes for a reason
 //! the next one does not share, so they live here, once, and a test file says only what is particular to it.
 //!
 //! Test-only: main.rs declares it under `#[cfg(test)]`, and nothing here is compiled into the service.
@@ -98,10 +98,15 @@ pub fn routes(accounts: Option<Arc<Accounts>>) -> Router {
     router(app_with(TOKEN.into(), model::Ollama::new("http://127.0.0.1:9", "test-model")), accounts)
 }
 
-/// `routes` for the in-memory tests, which never open a socket: every request arrives from Caddy's address, as it does
-/// on the box.
+/// Any router, for the in-memory tests, which never open a socket: every request arrives from Caddy's loopback address,
+/// as it does on the box, so a route that limits by address reads `X-Forwarded-For` or, without one, loopback.
+pub fn behind_caddy(router: Router) -> Router {
+    router.layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))))
+}
+
+/// `routes`, behind Caddy.
 pub fn service(accounts: Option<Arc<Accounts>>) -> Router {
-    routes(accounts).layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))))
+    behind_caddy(routes(accounts))
 }
 
 /// A request as a device makes one: a bearer token when it has one, and a JSON body when there is one.

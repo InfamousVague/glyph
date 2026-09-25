@@ -398,7 +398,6 @@ async fn main() {
 mod tests {
     use super::*;
     use crate::test_support::{self, TOKEN};
-    use axum::extract::connect_info::MockConnectInfo;
     use axum::http::Request;
     use tower::ServiceExt;
 
@@ -528,7 +527,7 @@ mod tests {
         use std::sync::atomic::Ordering;
         let (base, chats) = admits_then_stalls().await;
         let app = app_bounded(TOKEN.into(), model::Ollama::new(&base, "test-model"), Duration::from_millis(800), Duration::from_millis(400));
-        let service = router(app, None).layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
+        let service = test_support::behind_caddy(router(app, None));
 
         let response = service.clone().oneshot(post(r#"{"text":"call the plumber"}"#, Some(TOKEN))).await.unwrap();
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
