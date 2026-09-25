@@ -124,21 +124,30 @@ mod tests {
     use super::*;
     use crate::format::shape::{self, Raw};
 
+    /// The worked example's transcript, as the prompt carries it.
+    fn example_transcript() -> &'static str {
+        SYSTEM_PROMPT
+            .split("Example transcript:\n")
+            .nth(1)
+            .and_then(|rest| rest.split("\n\nExample reply:").next())
+            .expect("the prompt carries an example transcript")
+    }
+
+    /// The worked example's reply, as the prompt carries it: the text after its last "Example reply:".
+    fn example_reply_text() -> &'static str {
+        SYSTEM_PROMPT.rsplit("Example reply:\n").next().unwrap()
+    }
+
     fn example_reply() -> Value {
-        serde_json::from_str(SYSTEM_PROMPT.rsplit("Example reply:\n").next().unwrap()).expect("the example reply is valid JSON")
+        serde_json::from_str(example_reply_text()).expect("the example reply is valid JSON")
     }
 
     #[test]
     fn the_worked_example_obeys_its_own_rules() {
         // If the example in the prompt were not itself verbatim, the model
         // would be taught by demonstration to do the thing the words forbid.
-        let transcript = SYSTEM_PROMPT
-            .split("Example transcript:\n")
-            .nth(1)
-            .and_then(|rest| rest.split("\n\nExample reply:").next())
-            .expect("the prompt carries an example transcript");
-        let reply = SYSTEM_PROMPT.rsplit("Example reply:\n").next().unwrap();
-        let raw: Raw = serde_json::from_str(reply).expect("the example reply is valid JSON");
+        let transcript = example_transcript();
+        let raw: Raw = serde_json::from_str(example_reply_text()).expect("the example reply is valid JSON");
         let (shaped, tally) = shape::shape(transcript, raw);
         assert_eq!(tally.dropped, 0, "every pointer in the example is verbatim");
         assert_eq!(tally.lists_dropped, 0);

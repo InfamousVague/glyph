@@ -18,36 +18,37 @@ pub enum ShareWrite {
     Failed,
 }
 
+/// A query that failed is the write failing, as it is for `WriteError`: which query, the device cannot act on.
+impl From<rusqlite::Error> for ShareWrite {
+    fn from(_: rusqlite::Error) -> Self {
+        ShareWrite::Failed
+    }
+}
+
 impl Store {
     /// Writes an account's share: made if new, written again if it is theirs; refused if it is another's, or if a new
     /// one would take the account past `most`. Answers when it was written.
     pub fn put_share(&self, account: i64, id: &str, blob: &str, now: i64, most: i64) -> Result<i64, ShareWrite> {
         let mut conn = self.lock();
-        let tx = conn.transaction().map_err(|_| ShareWrite::Failed)?;
-        let owner: Option<i64> = tx
-            .query_row("SELECT account_id FROM shares WHERE id = ?1", params![id], |r| r.get(0))
-            .optional()
-            .map_err(|_| ShareWrite::Failed)?;
+        let tx = conn.transaction()?;
+        let owner: Option<i64> = tx.query_row("SELECT account_id FROM shares WHERE id = ?1", params![id], |r| r.get(0)).optional()?;
         match owner {
             Some(owner) if owner != account => return Err(ShareWrite::Taken),
             Some(_) => {
-                tx.execute("UPDATE shares SET blob = ?1, updated_at = ?2 WHERE id = ?3", params![blob, now, id]).map_err(|_| ShareWrite::Failed)?;
+                tx.execute("UPDATE shares SET blob = ?1, updated_at = ?2 WHERE id = ?3", params![blob, now, id])?;
             }
             None => {
-                let kept: i64 = tx
-                    .query_row("SELECT COUNT(*) FROM shares WHERE account_id = ?1", params![account], |r| r.get(0))
-                    .map_err(|_| ShareWrite::Failed)?;
+                let kept: i64 = tx.query_row("SELECT COUNT(*) FROM shares WHERE account_id = ?1", params![account], |r| r.get(0))?;
                 if kept >= most {
                     return Err(ShareWrite::Full);
                 }
                 tx.execute(
                     "INSERT INTO shares (id, account_id, blob, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
                     params![id, account, blob, now],
-                )
-                .map_err(|_| ShareWrite::Failed)?;
+                )?;
             }
         }
-        tx.commit().map_err(|_| ShareWrite::Failed)?;
+        tx.commit()?;
         Ok(now)
     }
 
