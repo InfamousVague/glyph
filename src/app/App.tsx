@@ -829,6 +829,7 @@ function Shell() {
       onNew={() => setNewSheet(true)}
       onCapture={() => void launchCapture(false)}
       onSettings={() => setSettings(true)}
+      onSearch={openCommands ?? undefined}
       onAllNotes={showAllNotes}
       onTick={(task) => void tickTask(task)}
       voiceModel={voiceModel.state}

@@ -227,4 +227,14 @@ describe('what a note is linked to', () => {
     const lower: GlyphPlugin = { manifest: manifest('lower'), icon: Icon, formats: [{ name: 'shout', delimiter: '==', look: { kind: 'wisp' } }] };
     expect(() => createRegistry([lower], memoryStore())).toThrow(/capitalised/);
   });
+
+  it('takes an emoji twice as an effect\'s delimiter, and not once, three times, or an emoji with words', () => {
+    const effect = (delimiter: string): GlyphPlugin => ({
+      manifest: manifest('effects'),
+      icon: Icon,
+      formats: [{ name: 'Glow', delimiter, look: { kind: 'effect', effect: 'heat' } }],
+    });
+    for (const delimiter of ['🔥🔥', '❄️❄️', '✨✨']) expect(() => createRegistry([effect(delimiter)], memoryStore()), delimiter).not.toThrow();
+    for (const delimiter of ['🔥', '🔥🔥🔥', '🔥❄️', 'a🔥a🔥']) expect(() => createRegistry([effect(delimiter)], memoryStore()), delimiter).toThrow(/delimiter/);
+  });
 });

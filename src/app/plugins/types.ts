@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { MarkDetailsProvider } from '../core/markDetails.ts';
+import type { TextEffectName } from '../editor/textEffects.ts';
 
 /**
  * What a plugin is, and every place it can reach into Glyph.
@@ -209,7 +210,11 @@ export interface Suggestion {
 export interface InlineFormat {
   /** The node's name, capitalised, unique across plugins: "Spoiler". */
   name: string;
-  /** One to three of the same character, none Markdown already uses (`*`, `_`, `~`, `` ` ``, brackets, `#`, `!`): "||". */
+  /**
+   * One to three of the same character, none Markdown already uses (`*`, `_`, `~`, `` ` ``, brackets, `#`, `!`): "||".
+   * Or an emoji twice, which is how an effect is written (Matt: "Effects should be shown by double emoji wrapping them"):
+   * "🔥🔥" for heat. Either way a longer run of it is not this formatting (editor/language.ts `inlineFormat`).
+   */
   delimiter: string;
   /** How the text between the delimiters looks. */
   look: FormatLook;
@@ -237,6 +242,12 @@ export interface InlineFormat {
 export type FormatLook =
   /** Smoke: every letter bent and blurred without rest (editor/wispFormat.ts), plain only while the caret is in the text. */
   | { kind: 'wisp' }
+  /**
+   * A moving effect on the words, by name, from the effects the editor draws (editor/textEffects.ts `TEXT_EFFECTS`):
+   * `{ kind: 'effect', effect: 'heat' }` is the heat haze. Still readable, unlike smoke; lifted while the caret is in
+   * the words, so they can be edited as plain text.
+   */
+  | { kind: 'effect'; effect: TextEffectName }
   /**
    * A style on the text, as CSS: `{ kind: 'style', css: 'text-decoration: underline' }`. With `clearAtCaret` the
    * style lifts while the caret is in the words (a redaction's bar), so they can still be edited.

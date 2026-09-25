@@ -48,8 +48,10 @@ describe('the guide’s table of marks', () => {
       const row = own?.rows.find((r) => r.name === format.name);
       expect(row, format.name).toBeTruthy();
       expect(row?.symbol).toBe(format.delimiter);
-      // The example is the mark around its words, so a person can copy it as it stands.
-      expect(row?.typed.startsWith(format.delimiter) && row?.typed.endsWith(format.delimiter)).toBe(true);
+      // The example ends in the mark around its words, so a person can copy it as it stands. Heat's has a line above
+      // them first, for its haze to rise into (editor/textEffects.ts).
+      const last = row?.typed.split('\n').pop() ?? '';
+      expect(last.startsWith(format.delimiter) && last.endsWith(format.delimiter), format.name).toBe(true);
       if (format.cue) expect(row?.say).toContain(format.cue);
     }
   });

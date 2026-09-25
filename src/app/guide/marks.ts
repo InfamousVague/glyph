@@ -78,6 +78,7 @@ export type Looks =
   | 'picture'
   | 'fence'
   | 'wisp'
+  | 'effect'
   | 'style'
   | 'note'
   | 'tint'
@@ -266,12 +267,15 @@ export function markGroups(): MarkGroup[] {
   if (!formats.length) return OWN;
   const rows = formats.map((format): MarkRow => {
     const words = format.name === 'Spoiler' ? 'the cabin key' : `${format.name.toLowerCase()} this`;
+    // Heat bends the text above its words, not the words themselves (editor/textEffects.ts), so its example has a
+    // line above for the haze to rise into; alone on a line, the example would show only bold words.
+    const above = format.look.kind === 'effect' && format.look.effect === 'heat' ? 'The air above wavers\n' : '';
     return {
       symbol: format.delimiter,
       name: format.name,
-      typed: `${format.delimiter}${words}${format.delimiter}`,
+      typed: `${above}${format.delimiter}${words}${format.delimiter}`,
       words,
-      looks: format.look.kind === 'wisp' ? 'wisp' : 'style',
+      looks: format.look.kind === 'wisp' ? 'wisp' : format.look.kind === 'effect' ? 'effect' : 'style',
       icon: format.icon ?? Underline,
       css: format.look.kind === 'style' ? format.look.css : undefined,
       say: format.cue ? `“${format.cue}” … “end ${format.cue}”` : undefined,

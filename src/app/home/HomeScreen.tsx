@@ -8,7 +8,7 @@ import { useGlideToTop } from '../core/glideToTop.ts';
 import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
-import { Cog, Pin, Plus } from '../art/Icons.tsx';
+import { Cog, Magnifier, Pin, Plus } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
 import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
@@ -39,6 +39,11 @@ interface HomeScreenProps {
   onNew: () => void;
   onCapture: () => void;
   onSettings: () => void;
+  /**
+   * The command palette (commands/CommandBar.tsx): search the notes and everything Glyph can do. Absent until the
+   * palette has handed back its opener, and then the dock has no Search button rather than one that does nothing.
+   */
+  onSearch?: () => void;
   /** Every note, as a grid of cards (notes/AllNotesScreen.tsx). */
   onAllNotes: () => void;
   /** A to-do ticked from here: its note's line rewritten with the box ticked. */
@@ -62,6 +67,7 @@ export function HomeScreen({
   onNew,
   onCapture,
   onSettings,
+  onSearch,
   onAllNotes,
   onTick,
   voiceModel,
@@ -218,6 +224,12 @@ export function HomeScreen({
         <button type="button" className={`${styles.round} ${styles.cog}`} onClick={onSettings} aria-label="Settings">
           <Cog />
         </button>
+        {/* Search and the commands, the palette ⌘K opens on a desktop (Matt: "Add a search button to the right hand dock of buttons that opens the command pallette"). */}
+        {onSearch ? (
+          <button type="button" className={`${styles.round} ${styles.search}`} onClick={onSearch} aria-label="Search and commands">
+            <Magnifier />
+          </button>
+        ) : null}
       </nav>
       <WorkspaceSheet which={manage} onClose={() => setManage(null)} />
     </div>

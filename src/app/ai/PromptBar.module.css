@@ -112,6 +112,34 @@
   color: var(--app-ink-4, var(--glacier-text-subtle));
 }
 
+/* The spark as the button that puts the bar away: the icon's own place and colour, with room for a thumb round it. */
+.sparkButton {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  margin: calc(-1 * var(--glacier-space-1));
+  padding: var(--glacier-space-1);
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sparkButton:active svg {
+  transform: scale(0.9);
+}
+
+.sparkButton:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 1px;
+}
+
+/* The bar can still be put away where the AI cannot run, so its spark is not greyed with the rest. */
+.bar:not([data-ready]) .sparkButton {
+  color: var(--app-ink, var(--glacier-text));
+}
+
 .field {
   flex: 1;
   min-inline-size: 0;

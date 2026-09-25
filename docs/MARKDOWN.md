@@ -41,8 +41,24 @@ kit's own ramps (blue, red, amber, green, teal, purple, gray). A name the build 
 highlight and its brackets are the note they always were.
 
 Glyph's own marks are on top of that, each from the Marks plugin and switched off with it: `||spoiler||`,
-`==highlight==`, `%%aside%%`, `??unsure??`, `^^shout^^`, `++added++`, and a note on any of them in brackets —
-`??four hundred??(Sam said 400)`. They were checked against the extended syntax above: `^^shout^^` and `^x^`,
+`==highlight==`, `%%aside%%`, `??unsure??`, `^^shout^^`, `++added++`, five effects, and a note on any of them in
+brackets — `??four hundred??(Sam said 400)`.
+
+**Effects** are moving looks on words, and each is written as its emoji twice either side. The emoji is the effect's
+name, so a note read anywhere else still says what was meant.
+
+| Written | Effect | Said while recording |
+|---|---|---|
+| `🔥🔥too hot to touch🔥🔥` | Heat: the words go bold, and the text on the line above them wavers in the heat coming off them, thinner on the line above that | "heated … end heated" |
+| `❄️❄️frozen solid❄️❄️` | Frost: the words go cold, a grainy rime creeping over their edges and settling | "frosted … end frosted" |
+| `🌊🌊out to sea🌊🌊` | Wave: the words bob along the line, a ripple passing through them | "wavy … end wavy" |
+| `✨✨silver thread✨✨` | Shimmer: a glint slides across the words every few seconds | "shimmering … end shimmering" |
+| `👻👻nobody there👻👻` | Haunt: the words fade almost away and back, the fading drifting along them | "haunted … end haunted" |
+
+One emoji is a word, and three are three. Effects nest (`🔥🔥a hot ✨✨glinting✨✨ one🔥🔥`). An effect lifts while the
+caret is in its words, so they edit as plain text, and holds still under reduced motion. The spoken cues are adjectives
+because the nouns are everyday words: "heat the oven and heat the pan" would otherwise heat "the oven". New effects are
+an entry in `editor/textEffects.ts` and a mark that names it in `plugins/marks/index.tsx`. They were checked against the extended syntax above: `^^shout^^` and `^x^`,
 `~~struck~~` and `~x~`, `++added++` and a list's `+` marker all parse as themselves.
 
 ## What was added, and why

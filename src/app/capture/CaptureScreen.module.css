@@ -631,8 +631,20 @@
   color: var(--app-ink-3, var(--glacier-text-muted));
 }
 
-/* Listening, before the first word: the ghost leaning toward the sound, under the page and over the hint. */
-.listenGhost {
-  margin-block: var(--glacier-space-6) var(--glacier-space-3);
+/*
+ * Listening, before the first word: the ghost leaning toward the sound, under the page and over the hint. Held to a
+ * fifth of the height rather than the ghost's own two fifths: the card of things to say stands under it now
+ * (SayCard.tsx), and at full size the two left "Start talking." no room on an upright phone. A short window (a folded
+ * phone on its side) has no room for the ghost at all.
+ */
+.body > .listenGhost {
+  inline-size: min(100%, 28rem, calc(20dvh * var(--ghost-ratio, 1)));
+  margin-block: var(--glacier-space-3) var(--glacier-space-2);
   pointer-events: none;
+}
+
+@media (max-height: 560px) {
+  .body > .listenGhost {
+    display: none;
+  }
 }

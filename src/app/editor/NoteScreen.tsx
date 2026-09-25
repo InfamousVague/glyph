@@ -4,7 +4,7 @@ import { failureText } from '../core/failure.ts';
 import { liveEnabled } from '../core/live/enabled.ts';
 import { useTopBarTools } from '../core/topBarTools.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, Bookmark, Code, EllipsisVertical, Mic } from '@glacier/icons';
+import { BookOpen, Bookmark, Code, EllipsisVertical, Mic, Sparkles } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import type { EditorView } from '@codemirror/view';
 import { adoptImagePath, pickImage } from '../core/images.ts';
@@ -188,14 +188,20 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
    * Live sync (docs/LIVE.md): this note open on another device too, typed into on either and arriving a character at
    * a time. Nothing at all unless the switch is on (core/live/enabled.ts), and even then the live code - Yjs and its
    * CodeMirror binding - is only loaded here, on demand, so the app is the same size for everyone with it off.
+   *
+   * It says nothing on screen: a "Live" word and dot in the top bar did, while another device had the note open, and
+   * went (Matt: "There is a strange live indicator in the top nav remove it"). The typing arriving is the sign.
    */
-  const [livePeers, setLivePeers] = useState(0);
   useEffect(() => {
     if (!view || !liveEnabled()) return undefined;
     let stop: (() => void) | null = null;
     let gone = false;
     void import('../core/live/open.ts')
-      .then(({ goLive }) => goLive(view, note.id, setLivePeers))
+      .then(({ goLive }) =>
+        goLive(view, note.id, () => {
+          // How many other devices are joined: nothing here shows it any more.
+        }),
+      )
       .then((stopping) => {
         if (gone) stopping();
         else stop = stopping;
@@ -430,7 +436,28 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
    */
   const [askScope, setAskScope] = useState<RunScope | null>(null);
   const [focusAsk, setFocusAsk] = useState(0);
+  /*
+   * The bar is off until asked for (core/preferences.ts `aiBar`; Matt: "Hide the AI bar on the note by default, put
+   * it behind a toggle button"). The toggle is a ✨ where the bar lives: a small ring at the foot of the note while it
+   * is hidden, and the spark at the start of the bar's own field while it shows. At the foot rather than with the
+   * note's tools in the top bar, where a fifth ring pushed the three dots off a phone's bar (measured at 412 px: the
+   * More button 14 px past the slot's edge, reachable only by a sideways scroll with no scrollbar).
+   *
+   * Ask over a selection is asking for the bar, so that opens it for this note whatever the setting. Putting the bar
+   * away puts that ask away with it - its words and the focus it was owed - so showing the bar again later is a
+   * plain bar, not the keyboard coming up on words that may since have moved.
+   */
+  const [askedFor, setAskedFor] = useState(false);
+  const barShown = prefs.aiBar || askedFor;
+  const showBar = () => setPreferences({ aiBar: true });
+  const hideBar = () => {
+    setPreferences({ aiBar: false });
+    setAskedFor(false);
+    setAskScope(null);
+    setFocusAsk(0);
+  };
   const askAbout = (from: number, to: number) => {
+    setAskedFor(true);
     setAskScope({ from, to });
     setFocusAsk((n) => n + 1);
   };
@@ -609,6 +636,12 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
 
   // Playing takes the screen for the transcript; the note waits under it.
   const shown: 'transcript' | 'raw' = tape.length && tape.playing ? 'transcript' : 'raw';
+  // The ✨ ring's room while the bar is away: the bar tells its own height as it mounts, and 0 as it goes, so this
+  // runs after that and has the last word.
+  const ringShown = !barShown && !typed && shown === 'raw';
+  useEffect(() => {
+    if (!barShown) screen.current?.style.setProperty('--ai-bar-room', ringShown ? '52px' : '0px');
+  }, [barShown, ringShown]);
   // The tape and note go to smoke as they slip behind the header; read again on a view change, since another view may not scroll (art/wispEdge.ts).
   // The page smokes at both ends: under the header, and off the bottom where the dock is (art/wispEdge.ts).
   // Not on a canvas: it is not a page that scrolls off its foot, and the band was smoking the canvas's own tools at
@@ -793,12 +826,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
 
   const tools = (
   <div className={styles.tools}>
-    {/* Another device has this note open, and what is typed on either arrives on the other as it is typed. */}
-    {livePeers > 0 ? (
-      <span className={styles.live} role="status" aria-label={livePeers === 1 ? 'Live with another device' : `Live with ${livePeers} other devices`}>
-        Live
-      </span>
-    ) : null}
     {/*
       Markdown, the marks with the formatting (the default), or just the formatted text (editor/viewMode.ts).
       One ring like the others rather than a pair in a capsule (Matt: "change the pencil and book icon to the
@@ -1006,23 +1033,35 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {/* And under its last line, the chapters either side again, to go on from the end of the page (docs/BOOKS.md). */}
         {book && onOpenTitle && shown === 'raw' ? <BookFoot place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}
       </div>
-      {/* The bar at the foot: the six chips and a field for anything else (ai/PromptBar.tsx). Not on a canvas or a book's index, and not while the transcript plays. */}
+      {/*
+        The bar at the foot: the six chips and a field for anything else (ai/PromptBar.tsx), while it is shown, and the
+        ✨ ring that shows it while it is not. Neither on a canvas or a book's index, nor while the transcript plays.
+        The page keeps room under its last line for whichever is there (the bar's height, told as it changes, or the
+        ring's), so the end of the note is never under either.
+      */}
       <div className={styles.barHolder}>
         {offer ? (
           <div className={styles.cardHolder}>
             <ConfirmCard offer={offer.offer} onConfirm={() => void confirmOffer()} onCancel={() => setOffer(null)} />
           </div>
         ) : null}
-        <PromptBar
-          availability={availability.availability}
-          onRun={(kind, instruction, scope) => (kind === 'ask' && instruction ? void askBar(instruction, scope) : runAi(kind, instruction, scope))}
-          onGet={(model) => void availability.fetch(model)}
-          scope={askScope}
-          onScopeUsed={() => setAskScope(null)}
-          focusAsk={focusAsk}
-          onHeight={onBarHeight}
-          disabled={typed || shown !== 'raw'}
-        />
+        {barShown ? (
+          <PromptBar
+            onHide={hideBar}
+            availability={availability.availability}
+            onRun={(kind, instruction, scope) => (kind === 'ask' && instruction ? void askBar(instruction, scope) : runAi(kind, instruction, scope))}
+            onGet={(model) => void availability.fetch(model)}
+            scope={askScope}
+            onScopeUsed={() => setAskScope(null)}
+            focusAsk={focusAsk}
+            onHeight={onBarHeight}
+            disabled={typed || shown !== 'raw'}
+          />
+        ) : typed || shown !== 'raw' ? null : (
+          <button type="button" className={styles.aiSpark} onClick={showBar} aria-label="Show the AI bar" aria-expanded="false">
+            <Sparkles size={20} strokeWidth={2.1} aria-hidden="true" />
+          </button>
+        )}
       </div>
       {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image; and on a selection, Ask the AI. */}
       <ContextMenu

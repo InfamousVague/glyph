@@ -3,10 +3,12 @@ import { EditorState } from '@codemirror/state';
 import { LanguageDescription, ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
 import { javascript } from '@codemirror/lang-javascript';
-import { glyphMarkdown } from './language.ts';
+import { delimiterUnit, glyphMarkdown } from './language.ts';
 import type { InlineFormat } from '../plugins/types.ts';
 
 const spoiler: InlineFormat = { name: 'Spoiler', delimiter: '||', look: { kind: 'wisp' } };
+const heat: InlineFormat = { name: 'Heat', delimiter: '🔥🔥', look: { kind: 'effect', effect: 'heat' } };
+const frost: InlineFormat = { name: 'Frost', delimiter: '❄️❄️', look: { kind: 'effect', effect: 'heat' } };
 
 /** JavaScript, already loaded, the way the language pack answers once it has fetched a language. */
 const js = LanguageDescription.of({ name: 'JavaScript', alias: ['js'], extensions: ['js'], support: javascript() });
@@ -65,5 +67,32 @@ describe("the editor's markdown", () => {
     const table = nodes('| a | b |\n| - | - |\n| c || d |', [spoiler]);
     expect(table).toContain('Table');
     expect(table).not.toContain('Spoiler');
+  });
+
+  it('knows a delimiter by the piece it repeats, a character or an emoji of several code units', () => {
+    expect(delimiterUnit('||')).toBe('|');
+    expect(delimiterUnit('===')).toBe('=');
+    expect(delimiterUnit('🔥🔥')).toBe('🔥');
+    // A character and its variation selector are one piece.
+    expect(delimiterUnit('❄️❄️')).toBe('❄️');
+    expect(delimiterUnit('ab')).toBe('ab');
+  });
+
+  it('parses an effect between two emoji either side, marks and all, as it does a character run', () => {
+    const names = nodes('It was 🔥🔥too hot to touch🔥🔥 all day.', [heat]);
+    expect(names).toContain('Heat');
+    expect(names.filter((name) => name === 'HeatMark')).toHaveLength(2);
+    expect(nodes('🔥🔥one🔥🔥 and 🔥🔥two🔥🔥', [heat]).filter((name) => name === 'Heat')).toHaveLength(2);
+    expect(nodes('❄️❄️cold❄️❄️', [frost])).toContain('Frost');
+  });
+
+  it('leaves a single flame, three flames, an unclosed pair and spaced flames alone', () => {
+    expect(nodes('a 🔥 fire 🔥 here', [heat])).not.toContain('Heat');
+    expect(nodes('🔥🔥🔥lit🔥🔥🔥', [heat])).not.toContain('Heat');
+    expect(nodes('🔥🔥 never closed', [heat])).not.toContain('Heat');
+    expect(nodes('🔥🔥 spaced out 🔥🔥', [heat])).not.toContain('Heat');
+    // An effect inside other marks, and marks inside an effect.
+    expect(nodes('**🔥🔥bold heat🔥🔥**', [heat])).toEqual(expect.arrayContaining(['StrongEmphasis', 'Heat']));
+    expect(nodes('🔥🔥so **very** hot🔥🔥', [heat])).toEqual(expect.arrayContaining(['StrongEmphasis', 'Heat']));
   });
 });

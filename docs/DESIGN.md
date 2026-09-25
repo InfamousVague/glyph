@@ -4535,3 +4535,109 @@ and the tab row's house, the arrow in its bar and the phone's back gesture come 
   On a wide window it sits in the note pane beside a docked sidebar, as the home page does.
 - **The palette** says "Home" for the command that goes home (it said "All notes", which now means the grid) and gains
   "All notes" for the page.
+
+## 116. Effects on words, written as an emoji twice (2026-09-25)
+
+Matt: "I want to add in effects to text in our markdown one of which should be the "heated" effect that gives the
+wavey blur like we used on the "AI" text on with the fire on the original onboarding flow. Effects should be shown by
+double emoji wrapping them so heat should be two fire emoji's wrapping either side." Then, of the four offered: "Add
+each of these effects."
+
+- **The syntax.** An effect is a mark like `==highlight==` whose delimiter is an emoji twice: 🔥🔥heat🔥🔥, ❄️❄️frost❄️❄️,
+  🌊🌊wave🌊🌊, ✨✨shimmer✨✨, 👻👻haunt👻👻 (plugins/marks/index.tsx). The emoji is the effect's name, so the note still
+  says what it meant in any other Markdown app. The parser took only a run of one character before; it now takes a
+  run of one piece, a character or an emoji of several code units (editor/language.ts `delimiterUnit`: 🔥 is two
+  UTF-16 units, ❄️ a character and its variation selector). Three flames are three flames, as `|||` is not a spoiler.
+  The plugin registry accepts an emoji twice beside its old rule.
+- **The look** is a new `FormatLook`, `{ kind: 'effect', effect }`, drawn by editor/textEffects.ts. Two kinds:
+  - **A filter over the stretch** for heat and frost, which are one field the words sit in. Heat is the onboarding's
+    haze: stretched fractal noise, breathing between two frequencies every 2.4 seconds and re-rolled six times in
+    0.9 seconds, bending the letters, then a breath of blur. The onboarding's numbers were for 40-pixel type; five
+    variants were compared by eye at 16 px, and the one that read as heat rather than grit (waves about four times a
+    letter's height, a bend of a third of it) is scaled with the type it is on. Frost cools the letters towards ice
+    with a colour matrix and grows a grainy rime from their edges that creeps and settles; the rime's colour is set per
+    page by the editor's theme, pale ice on the dark page and deeper ice on paper, where pale ice was invisible.
+  - **A movement passed along the letters** for wave, shimmer and haunt: each letter an inline mark with a CSS
+    animation a step behind the one before, moved by relative position rather than a transform, which an inline box
+    does not take, so nothing reflows. The delays are negative, so a line drawn fresh is already moving. The shimmer
+    is a glow on the dark page and a sheen on paper, where a glow of dark ink read as a smudge.
+- **Behaviour.** An effect lifts while the caret is in its words, so they edit as plain text; effects nest; reduced
+  motion draws them still. The cheat sheet and the Style page list them like any mark.
+- **Said** as adjectives - heated, frosted, wavy, shimmering, haunted - because the nouns are everyday words and the
+  spoken form closes on "and" as well as "end": "heat the oven and heat the pan" would have heated "the oven".
+
+## 117. The AI bar is off until asked for (2026-09-25)
+
+Matt: "Hide the AI bar on the note by default, put it behind a toggle button."
+
+- **Off by default,** as the synced preference `aiBar` (core/preferences.ts, core/sync/prefs.ts): the choice is the
+  person's, so it travels like the note view does.
+- **The toggle is a ✨ where the bar lives.** Hidden, a small ring at the foot of the note on the right; shown, the
+  spark at the start of the bar's own field puts it away (ai/PromptBar.tsx `onHide`). It was first a fifth ring with
+  the note's tools in the top bar; a review measured that at 412 px, the Fold's cover screen, and the three dots ended
+  14 px past the slot's edge, reachable only by a sideways scroll with no scrollbar. At the foot the top bar keeps its
+  four.
+- **Ask over a selection is asking for the bar,** so it opens it for that note whatever the setting. Putting the bar
+  away puts that ask away too (its scope and the focus it was owed), since the bar now unmounts and its focus effect
+  would otherwise bring the keyboard up again on words that may have moved.
+- The page keeps room under the last line for whichever is there: the bar's height as it tells it, or the ring's.
+
+## 118. A Search in the home dock (2026-09-25)
+
+Matt: "Add a search button to the right hand dock of buttons that opens the command pallette." A ring under Settings
+in the home dock (home/HomeScreen.tsx), a magnifier drawn in the app's own line icons (art/Icons.tsx `Magnifier`),
+opening the palette that ⌘K opens on a desktop, with the caret in its field. Under Settings rather than above it: it is
+reached for more often than Settings and less often than writing. Absent until the palette has handed back its opener,
+rather than a button that does nothing.
+
+## 119. Things to say: the recorder's card before the first word (2026-09-25)
+
+Matt: "When I open the AI page, I should see a list of suggested prompts / commands / etc but don't see that card
+anymore" - the page that opens from the microphone.
+
+The recorder taught what could be said one line at a time, in a pause (§"Tips in a pause", `capture/tips.ts`):
+after 2.5 s of quiet, "Say **Check box** to make a to-do", a different one each pause. Before the first word there
+was the listening ghost and the line about how to stop, and nothing about what to say - which is the moment a person
+is deciding what to say. So:
+
+- **The card** (`capture/SayCard.tsx`, `capture/tips.ts` `starters`). Above the buttons while the microphone waits,
+  "Things to say" in short groups with a mark each: to shape it (the first cues: "Bullet point", "The next item
+  is …"); to send it somewhere ("Hey Ghost, add … to Groceries", naming one of their own notes once the notes are
+  read, then "move this to Groceries", or "add a chapter to Field guide" when the library has a book; with nothing to
+  name, "make a list called …" and "make a book called …"); and, on a note's own Speak, to ask the AI ("Hey Ghost,
+  fix the spelling", "summarize this"). It takes no taps; the way to use it is to say a line. It goes the moment
+  words arrive, and the one-line tips take over in the pauses as before - a tip is picked only once there are words,
+  so none is spent under the card. The ghost above it is a fifth of the height rather than two, so "Start talking."
+  keeps its room on an upright phone; a short window (a folded phone on its side) drops the ghost and the card's
+  title and keeps one line a group.
+- **Only what runs.** A spoken ask is read from the whole take (`ai/instruction.ts` `bareWords` wants the keyword to
+  open it) and run only when the recording is a note's own Speak, not over the lock screen (`CaptureScreen.tsx`
+  `finish`): the take is let go and the note opens with the run on it, every change marked. So the asks are on the
+  card alone, only in that case, and never in the pause rotation, where "say it after the note's words" would end as
+  the words in the note. A new recording gets the shaping and sending pairs and no ask, rather than a line that would
+  end as a note of the command's words. `ASKS` is held to the reader's own rules by a test, so the card can never
+  suggest one it would not run. Over the lock screen the card names no note, as the rest of the page keeps the
+  note's words off it.
+- **Which note it names** is worked out at render, never once: not the note being written to (the note's own Speak,
+  or the one the take just moved to with "move this to …"), which the pause tips already avoided. And a routing line
+  the cues' slots leave no room for (a note with a board names its lanes too) comes round after the cues rather than
+  never.
+- **What it is not.** The card is not the confirm card (§114, `ai/ConfirmCard.tsx`), which still takes its place when
+  a command is understood, and it does not show once there are words, on the failed page, or while a command's chip
+  is up.
+
+## 119. Heat bends the text above it, and its words go bold (2026-09-25)
+
+Matt, of §116's heat: "The fire effect should be messing with the text above it with the heat waves the text itself
+should just have solid in the existing color but bold." Which is what the onboarding's flame did: it bent the words it
+stood behind, not itself.
+
+- **The words** are bold, in their own colour, with no filter (`.cm-effect-heat`, weight 700, which both note faces
+  ship).
+- **The haze** is the same filter as before, over the text on the line above the words, under their width and a
+  third of a line either side; and on the line above that at 55%, the heat thinning as it rises. It carries over one
+  blank line between paragraphs, since most notes have one, but the weaker line stops at a blank.
+- **Where "above" is** depends on the layout (a wrapped line, a heading, a proportional face), so it is measured after
+  each draw (editor/textEffects.ts `textAbove`, with the view's character boxes as its probe) and drawn on the next
+  frame. The haze changes no layout, so the second measure finds what the first did and the loop ends there.
+- The cheat sheet's example has a line above its words, which would otherwise show only bold words.

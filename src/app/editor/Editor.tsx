@@ -28,6 +28,7 @@ import { lineSuggestions, type LineSuggestion } from './suggestions.ts';
 import { glyphMarkdown } from './language.ts';
 import { formatLooks } from './formatLooks.ts';
 import { wispFormat } from './wispFormat.ts';
+import { textEffects } from './textEffects.ts';
 import { wispArrivals } from './wispArrivals.ts';
 import { noteView, type NoteView } from './viewMode.ts';
 import { findExtension } from './find.ts';
@@ -227,6 +228,7 @@ export function Editor({
         glyphMarkdown(formatList),
         formatLooks(formatList),
         wispFormat(formatList),
+        textEffects(formatList),
         // A note in brackets after a mark, shown when its words are tapped (editor/markNotes.ts).
         markNotes(formatList),
         syntaxHighlighting(glyphHighlight),
