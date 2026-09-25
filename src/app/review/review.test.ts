@@ -79,6 +79,19 @@ describe('the reviewing model’s findings', () => {
     );
     expect(applyFindings([self], findings).get('n')).toBe('# Bug bash\n\n- [ ] Fix the seat bar\n- [ ] Downloads stuck\n- [ ] Update the readme\n- [ ] Write the docs\n');
   });
+
+  it('keeps a choice’s round box on the line it adds, where a to-do’s box is left to the list', () => {
+    const bullets = { ...self, body: '# Bug bash\n\n- Fix\n' };
+    const findings = readFindings(
+      JSON.stringify([
+        { check: 'commands', what: 'Pick', why: '', add: '- ( ) Pick me' },
+        { check: 'commands', what: 'Picked', why: '', add: '* (x) Picked' },
+      ]),
+      bullets,
+      [],
+    );
+    expect(applyFindings([bullets], findings).get('n')).toBe('# Bug bash\n\n- Fix\n- ( ) Pick me\n- (x) Picked\n');
+  });
 });
 
 describe('what the reviewing model is shown', () => {

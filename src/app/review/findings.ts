@@ -113,10 +113,16 @@ export function readFindings(answer: string, self: NoteText, others: readonly No
   return out;
 }
 
-/** A line added to a note: a list item joins its list, anything else goes where it fits. */
+/**
+ * A line added to a note: a list item joins its list, anything else goes where it fits. A to-do's box is the list's to
+ * write, so it goes; a choice's `( )` is part of what is added, so it stays with the words.
+ */
 function addLine(body: string, line: string): string {
   const item = listLead(line);
-  if (item) return appendToList(body, [line.slice(item.wordsAt)], { asTasks: item.done !== null }).body;
+  if (item) {
+    const words = line.slice(item.picked !== null ? item.boxAt : item.wordsAt);
+    return appendToList(body, [words], { asTasks: item.done !== null }).body;
+  }
   return leaveNote(body, line).body;
 }
 

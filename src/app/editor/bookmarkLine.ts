@@ -213,7 +213,10 @@ function wordsOn(state: EditorState, number: number): string {
 
 /**
  * Which line a place stands for: the one it is on, or the next with words on it. A place is often the blank line
- * between two paragraphs, and a bookmark on a blank line marks nothing a person can see.
+ * between two paragraphs, and a bookmark on a blank line marks nothing a person can see. A list item with no words yet
+ * is passed over the same way, whatever its box: an empty to-do, step or choice, or an item named only by its anchor.
+ * The empty to-do the format bar and Enter write, `- [ ] ` with its space, always was; the same line without the space
+ * was kept, and said back as "[ ]", only because the pattern before core/itemSyntax.ts wanted a space after the box.
  */
 export function markedLine(state: EditorState, pos: number): number {
   const first = state.doc.lineAt(Math.max(0, Math.min(pos, state.doc.length))).number;
