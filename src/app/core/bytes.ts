@@ -3,9 +3,8 @@
  * Rust reads when bytes cross the bridge as a string (`save_image_data`, `sync_put_file`), and hex, which is how a
  * digest is written down.
  *
- * The URL-safe base64 of the sync wire is core/sync/crypto.ts's (`toBase64Url`), since the MCP server shares it from
- * there. This one is standard base64 with its padding: the sync engine used to make it by turning `toBase64Url`'s
- * answer back, and the pictures kept a private copy of the loop below.
+ * The URL-safe base64 of the sync wire is built on this one: core/sync/crypto.ts `toBase64Url`, which stays with the
+ * rest of the wire's crypto, where the MCP server imports it.
  *
  * A leaf with no imports, pure, so a test compares it with Node's own Buffer.
  */

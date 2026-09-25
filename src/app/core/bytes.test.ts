@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { toBase64, toHex } from './bytes.ts';
-import { toBase64Url } from './sync/crypto.ts';
 
 /** Bytes as text: standard base64 as Rust reads it, and hex as a digest is written. */
 
@@ -15,13 +14,6 @@ describe('bytes as base64', () => {
       const bytes = sample(length);
       expect(toBase64(bytes)).toBe(Buffer.from(bytes).toString('base64'));
     }
-  });
-
-  it('is what the sync wire’s URL-safe text turns back into', () => {
-    // What the sync engine used to do by hand before sending a recording to Rust: the same text, character for character.
-    const bytes = sample(1000);
-    const url = toBase64Url(bytes).replace(/-/g, '+').replace(/_/g, '/');
-    expect(toBase64(bytes)).toBe(url + '='.repeat((4 - (url.length % 4)) % 4));
   });
 });
 
