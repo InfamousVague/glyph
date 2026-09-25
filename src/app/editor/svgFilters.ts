@@ -4,10 +4,9 @@
  * the effects on words (editor/textEffects.ts).
  *
  * A note's DOM is CodeMirror's, so none of these moves an element: each marks its letters with
- * `filter: url(#id)`, and the filter, kept in a hidden SVG beside the editor, is what changes. Four modules built
- * that SVG the same way and wrote the same element out attribute by attribute; the two smoke looks also built the
- * same five-step filter. They are here once. What each filter does over time - the arc, the sway, the breathing -
- * stays with its module.
+ * `filter: url(#id)`, and the filter, kept in a hidden SVG beside the editor, is what changes. Here are that SVG, the
+ * elements written into it, and the five-step filter both smoke looks are drawn through. What each filter does over
+ * time - the arc, the sway, the breathing - stays with its module.
  */
 
 const SVG_NS = 'http://www.w3.org/2000/svg';

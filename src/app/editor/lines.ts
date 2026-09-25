@@ -4,8 +4,8 @@ import type { EditorView } from '@codemirror/view';
 /**
  * The lines an extension looks at: the ones on screen, which is all a view plugin's decorations may cover, and the
  * ones the selection touches, where marks are shown as written so they can be edited; and, for what reads the whole
- * note, the ones outside fenced code. Five decorators walked the visible lines with the same loop, two gathered the
- * selection's lines with the same one, and two skipped fences the same way.
+ * note, the ones outside fenced code. Each is walked here the one way, so the decorators that draw from them agree
+ * on which lines they are.
  */
 
 /** Calls `visit` with every line inside the view's visible ranges, in order. */

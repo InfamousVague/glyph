@@ -22,8 +22,8 @@ import { linkedOn } from './linkedRows.ts';
  *   leaves the box as the person set it, and the next change of the task is the one that moves it.
  *
  * An item linked the old way, its words the link, is the same (linkedOn, editor/linkedRows.ts). Nothing is read here
- * but what a push needs; the pills' own reads (editor/links.ts) are what arrive, for the marks in view while the note
- * is open.
+ * but what a push needs; the pills' own reads (editor/markReads.ts) are what arrive, for the marks in view while the
+ * note is open.
  */
 
 export interface BoxChange {

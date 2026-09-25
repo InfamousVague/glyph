@@ -8,9 +8,9 @@ import { EditorView } from '@codemirror/view';
  * Each is drawn while the caret is elsewhere and steps aside for its lines while the caret is in them, and a tap on
  * the drawing puts the caret there. So each needs to know, from inside a state field, whether the view has focus:
  * block decorations have to come from a state field, not a view plugin, and a field cannot ask the view. Focus is
- * therefore kept in a field of its own from `EditorView.focusChangeEffect`. The four blocks each kept a copy of that
- * field and of the effect that feeds it; this is the one, and a view that draws several kinds of block holds it once,
- * since CodeMirror installs the same extension a single time however many times it is listed.
+ * therefore kept in a field of its own from `EditorView.focusChangeEffect`, shared by every kind of block: a view
+ * that draws several holds it once, since CodeMirror installs the same extension a single time however many times it
+ * is listed.
  */
 
 const setFocus = StateEffect.define<boolean>();

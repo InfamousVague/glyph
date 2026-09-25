@@ -5,9 +5,9 @@ import { EditorView } from '@codemirror/view';
  * A few words shown under what was tapped, over the note: a footnote's text (editor/footnotes.ts) and the note on a
  * mark (editor/markNotes.ts). One at a time for each, closed by a tap elsewhere, a change to the note, or a scroll.
  *
- * Both built the same panel the same way - under the tapped words, then measured once it is on the page and held
- * inside the editor's width, since a panel as wide as its words would otherwise run off the edge it opened near - and
- * each keeps its own class, so closing one never closes the other.
+ * The panel opens under the tapped words, then is measured once it is on the page and held inside the editor's
+ * width, since a panel as wide as its words would otherwise run off the edge it opened near. Each kind keeps its own
+ * class, so closing one never closes the other.
  */
 
 /** Shows `text` in a panel of class `className` under the position `at`, in place of any it already shows. */

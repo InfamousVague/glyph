@@ -29,11 +29,12 @@ import { caretIn, focused, trackFocus } from './drawnBlock.ts';
  * snap as they scroll, a heading that stays while the cards go by, an empty column that says it will take a card, a
  * + that writes a new item into the note, and targets big enough for a thumb.
  *
- * This is the extension and what decides where a board is drawn. Its parts are in editor/boards/: the widget
- * (widget.ts) and what a card does to the note (cardEdits.ts), the card's menu (cardMenu.ts), the drag (drag.ts), the
- * + field (composer.ts), the board's height held and remembered (height.ts) and set by the line under it
- * (divider.ts), getting around from a card (navigate.ts), the anchors in the note's lines (anchors.ts), the touch-safe
- * button every control is (press.ts), the icons (icons.ts) and the look (theme.ts).
+ * This is the extension and what decides where a board is drawn. Its parts are in editor/boards/: the board as drawn
+ * from the markdown (drawn.ts), the widget (widget.ts) and what a card does to the note (cardEdits.ts), the card's
+ * menu (cardMenu.ts), the drag (drag.ts), the + field (composer.ts), the board's height held and remembered
+ * (height.ts) and set by the line under it (divider.ts), getting around from a card (navigate.ts), the note's own
+ * scroller that both roll (scrolling.ts), the anchors in the note's lines (anchors.ts), the touch-safe button every
+ * control is (press.ts), the icons (icons.ts) and the look (theme.ts).
  */
 
 function decorate(state: EditorState): DecorationSet {
