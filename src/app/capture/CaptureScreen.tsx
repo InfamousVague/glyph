@@ -726,16 +726,27 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     await writer.settled();
 
     // Nothing that lays out as anything - no words, no table, no voice memo - leaves nothing behind. Asked of the
-    // laid-out words, not the transcript: a cue said alone ("Bullet point.", or Whisper echoing its prompt on
-    // silence) is held for a sentence that never comes, and saved from the transcript it made an empty note.
-    const markdown = take.markdown({ titled: !writer.target, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
-    if (!markdown.trim()) {
+    // laid-out words (take.hasContent), not the transcript: a cue said alone ("Bullet point.", or Whisper echoing its
+    // prompt on silence) is held for a sentence that never comes, and saved from the transcript it made an empty note.
+    if (!take.hasContent) {
+      // The stop has already kept the take's sound. On the end of a continued note's tape it stays, and the tape's new
+      // length is kept with the note's phrases as they were, so the next take's words still line up with their sound;
+      // a new note's goes with the note that is not made. A continued note's own file is never removed here: it is the
+      // whole of that note's tape.
+      if (stopped.recordedMs !== null) {
+        if (continued && append) {
+          await setNoteRecording(continued.id, stopped.recordedMs, continued.segments ?? []).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
+        } else if (!continued) {
+          await discardRecording(writer.noteId).catch(() => undefined);
+        }
+      }
       await writer.undoDraft();
       endCapture(locked);
       onFinish(null, locked);
       return;
     }
 
+    const markdown = take.markdown({ titled: !writer.target, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
     const saved = await writer.queue(async () => writer.persist(writer.noteId, await writer.compose(markdown), 'capture'));
     let refineJob: ReviewHandoff['job'] = null;
     if (stopped.recordedMs !== null && session.current?.keepsAudio) {
