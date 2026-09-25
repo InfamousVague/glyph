@@ -1,6 +1,6 @@
 # Boards in markdown
 
-A kanban board in a Glyph note is plain markdown. Nothing is stored beside the note, nothing is lost opening it
+A kanban board in a Ghost.md note is plain markdown. Nothing is stored beside the note, nothing is lost opening it
 somewhere else, and a person reading the raw file sees the same board in words.
 
 Matt: "define and create a markdown standard we use to create kanban boards and task management boards entirely
@@ -24,21 +24,23 @@ The anchor names that item so something else can point at it. It is the block id
 way, and it reads as plain text anywhere. A bullet, a numbered step and a to-do all take one: **the anchor is the
 generic link**, and a board is only the first thing that uses it.
 
-Glyph names the anchors it makes from the item's first three words that carry meaning, leaving out filler: "Add
+Ghost.md names the anchors it makes from the item's first three words that carry meaning, leaving out filler: "Add
 ability to auto-tag notes" is `add-ability-auto`, not `add-ability-to`. An anchor already in a note is never renamed,
 since something may already point at it.
 
 The anchor must have a space before it and nothing after it but the end of the line, which is what keeps it apart
 from a superscript: `E = mc^2^` and `- the 2 ^nd^ of June` are superscripts, `- Ship it ^ship-page` is an anchor.
 
-An item linked to Notion or GitHub carries a mark as well (`core/itemLinks.ts`), and the order is always words, then
-mark, then anchor:
+An item linked to Notion or GitHub carries a mark as well (`src/app/core/itemLinks.ts`), and the order is always
+words, then mark, then anchor. The whole of what may end an item's line after its words is, in order: the bookmark
+`§§`, the mark, a counter such as `[3/8]`, and the anchor (`src/app/core/itemSyntax.ts`):
 
 ```markdown
 - [ ] Ship the pricing page [notion](https://…) ^ship-page
+- [ ] Pack the car §§ [notion](https://…) [3/8] ^pack-car
 ```
 
-Glyph writes it that way and reads it that way. A line written the other way round, `^ship-page [notion](https://…)`,
+Ghost.md writes it that way and reads it that way. A line written the other way round, `^ship-page [notion](https://…)`,
 is still read as the same item: a mark is the one thing allowed after an anchor. An item's anchor is never part of
 what it says, so it is never sent to Notion or GitHub as part of a title.
 
@@ -53,8 +55,8 @@ Done: pick-date
 ```
 ````
 
-That is all. A renderer that knows nothing about boards shows a code block and a list of items, both readable. Glyph
-draws the columns as a board and the items as cards.
+That is all. A renderer that knows nothing about boards shows a code block and a list of items, both readable.
+Ghost.md draws the columns as a board and the items as cards.
 
 **The board's own settings go after the word.** One so far: `height`, how tall the lanes are, in the lanes' own ems,
 so a board keeps its number of cards when the text size changes. It is kept between 5 and 60, to the half em:
@@ -77,8 +79,8 @@ The same anchor works in the middle of a sentence:
 The pricing page is waiting on [[#^ask-sam]].
 ```
 
-`[[#^anchor]]` is an item in this note; `[[Note title#^anchor]]` is one in another note (`editor/wikiLinks.ts` owns
-the title half, `core/boards.ts` the anchor half). It is drawn as a quiet link and tapping it goes to the line. An
+`[[#^anchor]]` is an item in this note; `[[Note title#^anchor]]` is one in another note (`src/app/editor/wikiLinks.ts` owns
+the title half, `src/app/core/boards.ts` the anchor half). It is drawn as a quiet link and tapping it goes to the line. An
 anchor nothing answers is drawn dotted rather than hidden, so a name that has gone can be seen.
 
 This is why the anchor is worth having on every kind of item, not only on the ones a board names: one name, pointed
@@ -121,8 +123,8 @@ at from a column, from a sentence, or from another note.
   ticked settles into Done at the same time, so a note that has drifted comes right with the next change (Matt, of a
   lane holding seventeen ids and drawing two: "items are in the Doing swimlane in the board code"). A card someone has
   just moved by hand stays where they put it.
-- **A board on screen reads its open tasks.** A task can only go Done once Glyph has read it again, and an open note
-  re-reads the linked items on screen (`editor/links.ts`). A board is drawn as one block in place of its fence, so it
+- **A board on screen reads its open tasks.** A task can only go Done once Ghost.md has read it again, and an open
+  note re-reads the linked items on screen (`src/app/editor/markReads.ts`). A board is drawn as one block in place of its fence, so it
   is not among CodeMirror's `visibleRanges`, and its cards' items usually sit far below it. Read only by their own
   lines, a board being looked at never learned its tasks were done (Matt: "a lot of the notion tickets aren't moved to
   done": four cards in To do, all Done in Notion, their items sixty lines down). So the unticked to-dos on any board in
@@ -134,14 +136,18 @@ at from a column, from a sentence, or from another note.
 - **A note may hold several boards.** Each fence is its own board; anchors are shared across the note, so the same
   item can sit on two boards.
 
-## What Glyph does with it
+## What Ghost.md does with it
 
-- `src/app/core/boards.ts` reads and writes both pieces, and is the only place that knows the fence's syntax. The
-  item line's - its marker, box, bookmark, mark, counters and anchor - is spelled once, in
+- `src/app/core/boards.ts` is the door every caller imports from, and the modules behind it in `src/app/core/boards/`
+  read and write both pieces: `items.ts` (anchors, words, boxes and pointers in prose), `fence.ts` (the fence and its
+  height), `columns.ts` (cards moved, dropped and drawn in Done), `settle.ts` (a tick carried to every fence),
+  `make.ts` (boards made from a note's lists) and `lanes.ts` (lanes by voice). Only they know the fence's syntax.
+  The item line's - its marker, box, bookmark, mark, counters and anchor - is spelled once, in
   `src/app/core/itemSyntax.ts`, and boards read it from there, as does everything else in `src/app` that reads a list
   line: ticking a box, Done following a Notion task, the Notion and GitHub links, the recorder adding to a list.
 - `src/app/editor/boards.ts` draws the board in a note, and puts the caret in the fence when it is tapped for editing,
-  the way a table steps aside (`editor/tables.ts`).
+  the way a table steps aside (`src/app/editor/tables.ts`). Its parts are in `src/app/editor/boards/`: the widget, the
+  card menu, the drag, the **+** field, the heights and the divider.
 - Moving a card, ticking it, or adding one rewrites the fence and the item line as a person would have typed them.
 - `src/app/core/boardNote.ts` is the example note, added from Settings.
 - A note that is already a list becomes a board from More → **Make a board**: every item is given a name at the end,
@@ -150,7 +156,7 @@ at from a column, from a sentence, or from another note.
 - **One list at a time** (Matt: "add ability to auto list a section of list items into a board"): press and hold an
   item and choose **Board from list**. The list it is in - its items, the lines indented under them, a single blank
   line between two of them, up to a heading, a paragraph, a block of code or two blank lines - becomes a board set in
-  just above it (`core/boards.ts` `listAround`, `boardFromList`). Select several lines first and those lines are the
+  just above it (`src/app/core/boards/make.ts` `listAround`, `boardFromList`). Select several lines first and those lines are the
   list instead. The rest of the note is left as it is, so a note can hold a board for each of its lists; a list that
   already has a board right above it is not offered again. **Add to board** is still there beside it, for putting one
   item on a board (Matt: "add an 'add to board' option when other items in the list are in a board already"): the
@@ -162,18 +168,25 @@ at from a column, from a sentence, or from another note.
 
 ## By voice
 
-Matt: "add voice commands and cues for adding to swimlanes on the board". While a note with a board is being
-recorded into, a lane is named the way a note is, and the recorder asks before it acts:
+Matt: "add voice commands and cues for adding to swimlanes on the board". These are built, but a recording made in
+the app no longer runs them. Since the instruction-aware commands of DESIGN §114, the recorder reads a command once,
+from the whole recording, when Done is pressed, and a finished recording may only add to a note or make a new list;
+"Hey Ghost, add call Sam to Doing" said into the recorder is refused as a command the recorder does not take. The rules
+below are still read a phrase at a time by `src/app/capture/take.ts`, which the voice test suite drives
+(docs/VOICE_TESTS.md), and are what a board by voice would do once the recorder takes them again.
+
+While a note with a board is being recorded into, a lane is named the way a note is, and the recorder asks before it
+acts:
 
 | Say | What happens |
 | --- | --- |
-| "Glyph, add *words* to *lane*" | A new to-do with those words, its card at the top of that lane. "Glyph, add call Sam to Doing." |
-| "Glyph, move *item* to *lane*" | The item the words name moves to that lane; into Done it is ticked, out of Done unticked. "Glyph, move the pricing page to the Done column." |
-| "Glyph, make this a board" | The note's list becomes a board, as More → **Make a board** does. |
+| "Hey Ghost, add *words* to *lane*" | A new to-do with those words, its card at the top of that lane. "Hey Ghost, add call Sam to Doing." |
+| "Hey Ghost, move *item* to *lane*" | The item the words name moves to that lane; into Done it is ticked, out of Done unticked. "Hey Ghost, move the pricing page to the Done column." |
+| "Hey Ghost, make this a board" | The note's list becomes a board, as More → **Make a board** does. |
 
 A lane can be said with or without "the", "lane", "column" or "swimlane" around it. A lane wins over a note of the
-same name only when it is the better match. The recorder reads the command (`capture/command.ts`, plan kinds `lane`,
-`card` and `board`); `core/boards.ts` finds the lane and makes the change:
+same name only when it is the better match. The recorder reads the command (`src/app/capture/command.ts`, plan
+kinds `lane`, `card` and `board`); `src/app/core/boards/lanes.ts` finds the lane and makes the change:
 
 - `lanesOf(body)` lists every board's lanes, and `matchLane(spoken, lanes)` finds the one a name says - case,
   spacing, hyphens, a leading "the" and a trailing "lane", "column" or "swimlane" aside, "finished" or "complete" for
@@ -235,6 +248,7 @@ mobile". What that means on the page:
   held or has the focus, and on a computer it says "Drag to resize the board".
 - **A lane with more below goes to smoke at its foot** (Matt: "the blur at the bottom of the swimlanes should be the
   wisp effect we use on text"). Only while there are cards under the lane's foot: the app's wisp edge, the words and
-  cards bending and softening into the lane's ground as they go, over a short fade (`art/wispFoot.ts`, one filter
-  made for the lanes' height). With Settings' smoke switched off, with reduced motion, or in WebKit, which paints
-  such a filter black, the lane keeps the plain fade.
+  cards bending and softening into the lane's ground as they go, over a short fade (`src/app/art/wispFoot.ts`, one
+  filter made for the lanes' height). With Settings › Animations › Smoke at the edges switched off, with reduced
+  motion, or on a lane so large that the filter would not fit the engine's budget of 2^24 device pixels (over it
+  WebKit paints the filter solid black), the lane keeps the plain fade.
