@@ -19,6 +19,8 @@ const capture = vi.hoisted(() => ({
   } | null,
   /** The sound of a take nobody kept, by the note id it was recorded under (engine.ts `discardRecording`). */
   discarded: [] as string[],
+  /** A take's sound moved to the note a command went to: from, to, and whether it went on the end (engine.ts `reassignRecording`). */
+  reassigned: [] as [string, string, boolean][],
   /** The better words' jobs asked for at Done (refine.ts `enqueueRefine`). */
   refines: [] as Omit<RefineJob, 'tries'>[],
 }));
@@ -33,6 +35,10 @@ vi.mock('./engine.ts', async (importOriginal) => {
       return capture.session;
     }),
     discardRecording: vi.fn(async (id: string) => void capture.discarded.push(id)),
+    reassignRecording: vi.fn(async (from: string, to: string, append: boolean) => {
+      capture.reassigned.push([from, to, append]);
+      return 3000;
+    }),
   };
 });
 
@@ -44,6 +50,7 @@ vi.mock('./refine.ts', async (importOriginal) => {
 beforeEach(() => {
   localStorage.clear();
   capture.discarded = [];
+  capture.reassigned = [];
   capture.refines = [];
   HTMLElement.prototype.scrollTo = () => undefined;
   capture.handlers = null;
@@ -400,4 +407,70 @@ describe('the sound of a recording', () => {
       expect(await listNotes()).toEqual([]);
     });
   }
+  /** Speaks `transcript` into Groceries, which has thirty seconds of tape, and presses Done. */
+  const intoGroceries = async (transcript: string) => {
+    await taped();
+    const stop = keeping(33_000, transcript);
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={onFinish} />);
+    await screen.findByRole('button', { name: 'Adding to “Groceries”' });
+    await say(transcript, 1000);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    return { stop, onFinish };
+  };
+
+  it('stays on a continued note’s tape when what was said into it is an instruction for the AI', async () => {
+    const { stop, onFinish } = await intoGroceries('Hey Ghost, fix the spelling.');
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(stop).toHaveBeenCalledWith({ recordAs: 'groceries', append: true });
+    // The file is the whole of Groceries' recording, not the take's: it stays, three seconds longer, words as they were.
+    expect(capture.discarded).toEqual([]);
+    expect(await getNote('groceries')).toMatchObject({ body: '# Groceries\n\n- Eggs', recordingMs: 33_000, segments: [eggs] });
+  });
+
+  it('stays on a continued note’s tape when what was said into it is a command that is refused', async () => {
+    const { onFinish } = await intoGroceries('add to the camping list eggs and milk');
+    await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
+    expect(capture.discarded).toEqual([]);
+    expect(await getNote('groceries')).toMatchObject({ recordingMs: 33_000, segments: [eggs] });
+  });
+
+  it('stays on a continued note’s tape when a command said into it is confirmed onto another note', async () => {
+    await createNote('go', 'Go');
+    const { onFinish } = await intoGroceries('add to the note labeled Go pack sunscreen');
+    const card = await screen.findByRole('region', { name: 'Add to Go' });
+    fireEvent.click(card.querySelector('button.app-pill')!);
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    // Moving the file would have moved the whole of Groceries' tape onto Go.
+    expect(capture.reassigned).toEqual([]);
+    expect(capture.discarded).toEqual([]);
+    expect(await getNote('groceries')).toMatchObject({ recordingMs: 33_000, segments: [eggs] });
+    expect((await getNote('go'))?.recordingMs ?? 0).toBe(0);
+  });
+
+  it('stays on a continued note’s tape when the command card after Done is cancelled', async () => {
+    await createNote('go', 'Go');
+    const { onFinish } = await intoGroceries('add to the note labeled Go pack sunscreen');
+    await screen.findByRole('region', { name: 'Add to Go' });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
+    expect(capture.discarded).toEqual([]);
+    expect(await getNote('groceries')).toMatchObject({ recordingMs: 33_000, segments: [eggs] });
+  });
+
+  it('moves a new recording’s sound to the note a confirmed command went to, as before', async () => {
+    await createNote('go', 'Go');
+    const stop = keeping(3000, 'add to the note labeled Go pack sunscreen');
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    await say('add to the note labeled Go pack sunscreen', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    const card = await screen.findByRole('region', { name: 'Add to Go' });
+    fireEvent.click(card.querySelector('button.app-pill')!);
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    const recordedAs = stop.mock.calls[0]?.[0]?.recordAs;
+    expect(capture.reassigned).toEqual([[recordedAs, 'go', false]]);
+    expect((await getNote('go'))?.recordingMs).toBe(3000);
+  });
 });

@@ -108,6 +108,23 @@ export interface SpokenAsk {
 /** How long a quiet after words has to last before "Stop when I go quiet" saves the take. */
 const QUIET_STOP_MS = 4000;
 
+/**
+ * The sound of a take that is not being kept: an instruction, a refused command, a command sent elsewhere or
+ * cancelled. Its file goes, unless the take was put on the end of a continued note's own tape (`ownTape`): the stop has
+ * already added it there, and that file is the whole of the note's tape, not the take's. There the sound stays, and the
+ * note is told the tape's new length with its phrases as they were, so the next take's words still line up with their
+ * sound - the same as a take that said nothing. (Deleting it lost the note's whole recording: a take said into a note
+ * that had one, "Hey Ghost, fix the spelling", then Done, and the file was gone.)
+ */
+async function letGo(recordedAs: string, recordedMs: number | null, ownTape: Note | null): Promise<void> {
+  if (!ownTape) {
+    await discardRecording(recordedAs).catch(() => undefined);
+    return;
+  }
+  if (recordedMs === null) return;
+  await setNoteRecording(ownTape.id, recordedMs, ownTape.segments ?? []).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
+}
+
 export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, onFinish }: CaptureScreenProps) {
   /** The note this capture is being added to, if it continues one, as the page shows it (`writer.target` is the truth). */
   const [target, setTarget] = useState<Note | null>(null);
@@ -193,6 +210,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     locked: boolean;
     temporaryId: string;
     recordedMs: number | null;
+    /** The continued note whose own tape the take was added to the end of, or null: its sound is never moved or removed (`letGo`). */
+    ownTape: Note | null;
   } | null>(null);
 
   const titled = target === null;
@@ -580,7 +599,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     finalCommand.current = null;
     void writer.settled().then(async () => {
       let saved = final.create ? await createFinalList(final.create.title, final.create.items) : final.note ? await getNote(final.note.id).catch(() => final.note) : null;
-      if (saved && final.recordedMs !== null) {
+      if (final.ownTape) {
+        // The take is on the end of the continued note's own tape, and stays there: moving the file would move the
+        // whole of that note's recording onto the command's note.
+        await letGo(final.temporaryId, final.recordedMs, final.ownTape);
+        if (saved?.id === final.ownTape.id) saved = (await getNote(saved.id).catch(() => saved)) ?? saved;
+      } else if (saved && final.recordedMs !== null) {
         const recordingMs = await reassignRecording(final.temporaryId, saved.id, (saved.recordingMs ?? 0) > 0).catch(() => null);
         if (recordingMs !== null) saved = (await setNoteRecording(saved.id, recordingMs, saved.segments ?? []).catch(() => saved)) ?? saved;
       } else if (final.recordedMs !== null) {
@@ -614,7 +638,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const final = finalCommand.current;
     if (!final) return;
     finalCommand.current = null;
-    void discardRecording(final.temporaryId).catch(() => undefined);
+    void letGo(final.temporaryId, final.recordedMs, final.ownTape);
     endCapture(final.locked);
     onFinish(null, final.locked);
   };
@@ -668,6 +692,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // note's tape when there is one, so its words and its sound stay one timeline (timeline.ts).
     const continued = writer.target;
     const append = appendsTo(continued);
+    const ownTape = continued && append ? continued : null;
     let stopped: Stopped = { recordedMs: null, transcript: null };
     try {
       stopped = (await session.current?.stop({ recordAs: writer.noteId, append })) ?? stopped;
@@ -698,7 +723,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       take.offerFinal(read.plan, performance.now());
       const aimed = read.plan.kind === 'place' ? read.plan.note.note : null;
       const create = read.plan.kind === 'create-list' ? { title: read.plan.title, items: read.plan.items ?? [] } : undefined;
-      finalCommand.current = { note: aimed, ...(create ? { create } : {}), locked, temporaryId: writer.noteId, recordedMs: stopped.recordedMs };
+      finalCommand.current = { note: aimed, ...(create ? { create } : {}), locked, temporaryId: writer.noteId, recordedMs: stopped.recordedMs, ownTape };
       setPhase('listening');
       return;
     }
@@ -706,7 +731,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // Unsupported, destructive, ambiguous, and missing-target command
       // shapes fail closed: do not create a note containing command prose.
       setRoute({ phase: 'said', text: read.reason });
-      await discardRecording(writer.noteId).catch(() => undefined);
+      await letGo(writer.noteId, stopped.recordedMs, ownTape);
       await writer.undoDraft();
       endCapture(locked);
       onFinish(null, locked);
@@ -714,8 +739,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
     if ((read.kind === 'run' || read.kind === 'ask') && continued && !locked) {
       // "Hey Ghost, fix the spelling", said into a note: the words are an instruction, not the note's, and the note
-      // opens with the run on it (shell/useCaptureRoute.ts, editor/NoteScreen.tsx). The recording of the instruction goes.
-      await discardRecording(writer.noteId).catch(() => undefined);
+      // opens with the run on it (shell/useCaptureRoute.ts, editor/NoteScreen.tsx). The recording of the instruction goes,
+      // unless it went on the end of the note's own tape (`letGo`).
+      await letGo(writer.noteId, stopped.recordedMs, ownTape);
       await writer.undoDraft();
       endCapture(locked);
       onFinish(continued, locked, undefined, read.kind === 'run' ? { kind: read.run } : { kind: 'ask', instruction: read.instruction });

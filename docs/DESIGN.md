@@ -4709,3 +4709,23 @@ Matt: "Remove the AI button and AI dock code from notes idk why we added that bu
 Everything else from §114 stays: the More sheet's AI group and its runs, the strip under the header with its log and
 Undo, the tracked changes they land as, an instruction spoken into a note, and the review after a recording.
 
+## 123. A take said into a note never takes the note's tape with it (2026-09-25)
+
+A take said into a note that already has a recording is put on the end of that note's own file (capture_stop
+`recordAs` the note's id, `append`), so its words and its sound stay one timeline (capture/timeline.ts). The file is
+then the whole of the note's recording, not the take's. Four endings treated it as the take's alone:
+- an instruction for the AI ("Hey Ghost, fix the spelling");
+- a refused command;
+- a command card cancelled;
+- a command card confirmed onto another note.
+The first three deleted the note's whole recording; the last moved all of it onto the other note (found in the
+cleanup's triage, Matt: "Yes fix that bug").
+
+Now those endings let the sound go through one rule (CaptureScreen.tsx `letGo`), the same one a take that said
+nothing already followed. A take that went on the end of a continued note's own tape stays there, and the note is told
+the tape's new length with its phrases as they were, so the next take's words still line up with their sound. Only a
+take recorded under its own id - a new recording - is removed, or moved to the note a confirmed command went to, as
+before. The cost is a few seconds of the spoken command left at the end of the note's tape, heard only by playing past
+its last words. Recording each take under its own id and joining it on only when the words are saved would avoid that,
+but it changes capture_stop's contract and needs a native release.
+
