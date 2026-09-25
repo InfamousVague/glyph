@@ -9,8 +9,9 @@ import { memoryKeys } from './keystore.ts';
 /**
  * The account on this device, against the service in memory (src/test/fakeService.ts): making one, the three ways
  * in, the two changes that need the password, what launch does with a session it finds, and the two ways out. Until
- * this file these ran only in sync.e2e.test.ts, against a real glyph-api and behind an environment variable, so a
- * change to any of them was tried by nobody who did not start a server first.
+ * this file half of these ran only in sync.e2e.test.ts, against a real glyph-api and behind an environment variable,
+ * so a change to one was tried only by someone who started a server first; resume, newRecoveryCodes and signOut
+ * were not tried at all.
  */
 
 const HANDLE = 'matt';
