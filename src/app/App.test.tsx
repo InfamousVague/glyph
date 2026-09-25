@@ -167,6 +167,17 @@ describe('the tab row', () => {
     expect(tabs()).toEqual(['a', made, 'b']);
   });
 
+  it('closes a whole group, the note being read in it, onto the first tab left outside it', async () => {
+    await seed(['a', '# Apples'], ['b', '# Bread'], ['c', '# Cheese']);
+    setPreferences({ openNotes: ['a', 'b', 'c'], tabGroups: { list: [{ id: 'g', name: 'Lunch', hue: 'sea' }], of: { a: 'g', b: 'g' } } });
+    await openApp();
+    act(() => button('Apples').click());
+    act(() => void button('Lunch, 2 tabs').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+    act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === 'Close group')!.click());
+    expect(tabs()).toEqual(['c']);
+    expect(noteShown()).toBe('c');
+  });
+
   it('keeps tab groups through the first render, before any note has loaded', async () => {
     await seed(['a', '# Apples'], ['b', '# Bread']);
     const groups = { list: [{ id: 'g', name: 'Food', hue: 'sea' as const, collapsed: false }], of: { a: 'g' } };

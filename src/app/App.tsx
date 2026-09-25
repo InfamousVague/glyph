@@ -185,12 +185,14 @@ function Shell() {
   const prefs = usePreferences();
   const spaces = useWorkspaces();
 
-  const closeTab = (id: string) => {
-    const next = tabs.close(id);
+  /** One tab closed, or a whole group's; the note being read among them hands over to the tab left beside it. */
+  const closeTabs = (ids: readonly string[]) => {
+    const next = tabs.close(ids);
     if (next === undefined) return;
     if (next) openNote(next);
     else void backToList();
   };
+  const closeTab = (id: string) => closeTabs([id]);
 
   /** The note by that title in the library, as a `[[link]]` names it (editor/wikiLinks.ts), or undefined. */
   const titled = (title: string) => shownNotes.find((n) => sameTitle(noteTitle(n.body), title));
@@ -573,7 +575,7 @@ function Shell() {
             onMove={tabs.move}
             groups={tabs.groups}
             onGroups={setGroups}
-            onCloseTabs={(ids) => ids.forEach((id) => closeTab(id))}
+            onCloseTabs={closeTabs}
             onGoBack={goBack}
             onGoOn={goOn}
             canGoBack={walk.canBack}

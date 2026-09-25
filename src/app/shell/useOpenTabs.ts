@@ -32,10 +32,13 @@ export interface OpenTabs {
   groups: TabGroups;
   setGroups: Dispatch<SetStateAction<TabGroups>>;
   /**
-   * Closes `id`'s tab. Answers where to go when it was the tab being read - the tab after it, else the one before,
-   * or null for the home page - and undefined when it was not, and nothing needs to move.
+   * Closes the tabs of `ids`: one, or a whole group's. Answers where to go when the tab being read was among them - the
+   * first tab after it that stays open, else the one before, or null for the home page - and undefined when it was
+   * not, and nothing needs to move. A group used to be closed a tab at a time, each asking where to go as though it
+   * were the only one closing, so closing the group the note was read in landed on the next tab of the same group,
+   * and opened it again.
    */
-  close: (id: string) => string | null | undefined;
+  close: (ids: readonly string[]) => string | null | undefined;
   /** Takes `id` out of the row without asking where to go: its note is being deleted or archived, and the Shell goes home. */
   drop: (id: string) => void;
   /**
@@ -114,9 +117,10 @@ export function useOpenTabs(shown: string | null, notes: readonly Note[], live: 
     drawnIds,
     groups,
     setGroups,
-    close: (id) => {
-      const next = id === shown ? afterClose(openIds, id) : undefined;
-      setOpen((was) => closeOpen(was, id));
+    close: (ids) => {
+      const closing = new Set(ids);
+      const next = shown && closing.has(shown) ? afterClose(openIds.filter((id) => id === shown || !closing.has(id)), shown) : undefined;
+      setOpen((was) => was.filter((id) => !closing.has(id)));
       return next;
     },
     drop: (id) => setOpen((was) => closeOpen(was, id)),

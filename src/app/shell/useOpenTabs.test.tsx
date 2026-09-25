@@ -69,20 +69,31 @@ describe('the open tabs', () => {
     show(<Probe shown="b" />);
     let landing: string | null | undefined;
     act(() => {
-      landing = tabs.close('a');
+      landing = tabs.close(['a']);
     });
     expect(landing).toBeUndefined();
     expect(ids()).toEqual(['b', 'c']);
     act(() => {
-      landing = tabs.close('b');
+      landing = tabs.close(['b']);
     });
     expect(landing).toBe('c');
     rerender(<Probe shown="c" />);
     act(() => {
-      landing = tabs.close('c');
+      landing = tabs.close(['c']);
     });
     expect(landing).toBeNull();
     expect(tabs.open).toEqual([]);
+  });
+
+  it('closes a whole group at once, landing past it when the tab being read was in it', () => {
+    setPreferences({ openNotes: ['a', 'b', 'c', 'd'] });
+    show(<Probe shown="b" />);
+    let landing: string | null | undefined;
+    act(() => {
+      landing = tabs.close(['b', 'c']);
+    });
+    expect(landing).toBe('d');
+    expect(tabs.open).toEqual(['a', 'd']);
   });
 
   it('drops a tab without asking where to go', () => {
@@ -119,7 +130,7 @@ describe('the tab groups', () => {
   it('lose a tab that closes, and a group left with nothing in it goes', () => {
     setPreferences({ openNotes: ['a', 'b'], tabGroups: groups });
     show(<Probe shown={null} />);
-    act(() => void tabs.close('a'));
+    act(() => void tabs.close(['a']));
     expect(tabs.groups).toEqual({ list: [], of: {} });
     expect(preferences().tabGroups).toEqual({ list: [], of: {} });
   });
