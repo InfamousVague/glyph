@@ -1,34 +1,19 @@
-import { listLead, withoutAnchor, withoutBookmark } from '../core/itemSyntax.ts';
-import { shortenUrls } from '../core/shortUrl.ts';
+import { withoutAnchor } from '../core/itemSyntax.ts';
 import { withoutFrontMatter } from '../core/store.ts';
 
 /**
- * The first few lines of a note, read as shapes rather than as characters, for the small preview drawn on each card in
- * the desktop sidebar (notes/NotePeek.tsx).
+ * The first few lines of a note, for the small preview drawn on each card in the desktop sidebar (notes/NotePeek.tsx).
  *
  * Matt: "the title is huge and it's not got a long description of what we're doing, I think it could use a list of
  * live previewed versions of the cards". The line that was meant to say what a note is about is the gist, and the gist
  * is written by a model on the phone (format/gist.ts) - on a desktop there is no model, so the card was a title and a
  * date and nothing else. This needs nothing but the note: it is the note, smaller.
  *
- * A miniature, not a summary: one entry per line of the note, each carrying what kind of line it was, so a to-do list
- * still looks like a to-do list and a heading still looks like a heading at a tenth of the size. That is the part
- * worth seeing at a glance - shape is recognisable long before words are readable.
+ * The card draws these lines with its own small editor, through the same formatter the note uses (`peekMarkdown`),
+ * rather than as a hand-drawn miniature of each line's shape, which is what it began as.
  *
  * Pure, and the title is never repeated: the card already says it.
  */
-
-export type PeekLine =
-  | { kind: 'heading'; level: number; text: string }
-  | { kind: 'quote'; text: string }
-  | { kind: 'bullet'; text: string }
-  | { kind: 'number'; text: string }
-  | { kind: 'task'; done: boolean; text: string }
-  | { kind: 'code'; text: string }
-  | { kind: 'table'; cells: string[] }
-  | { kind: 'image'; text: string }
-  | { kind: 'rule' }
-  | { kind: 'text'; text: string };
 
 /** How many lines are worth drawing. Past this the card is a note rather than a card. */
 export const PEEK_LINES = 6;
@@ -85,110 +70,5 @@ export function peekMarkdown(body: string, most: number = PEEK_SOURCE_LINES): st
   return out.join('\n').replace(/\s+$/, '');
 }
 
-/** At most this many cells of a table row: three is what a sidebar can show without them all becoming slivers. */
-const MOST_CELLS = 3;
-
+/** A line that is a picture and nothing else: not the title, which noteTitle finds under it, and so does the card. */
 const IMAGE_ONLY = /^!\[([^\]]*)\]\([^)]*\)\s*$/;
-/** Every paired mark Glyph knows (plugins/marks/), so a line reads as its words. */
-const PAIRED = /(\*\*|__|~~|`|\|\||==|%%|\?\?|@@|\^\^|\+\+)/g;
-
-/** A line as its words: links as their text, marks gone, addresses shortened the way the list shortens them. */
-export function bareWords(text: string): string {
-  return shortenUrls(
-    // The bookmark's mark (editor/bookmarkLine.ts): it says where the note opens, not anything the line says. And an
-    // item's anchor at the end of its line (core/boards.ts): the name a board calls it by, not its words.
-    withoutAnchor(
-      withoutBookmark(
-        text
-          .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-          .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-          .replace(PAIRED, ''),
-      ),
-    )
-      // A lone `*` or `_` around a word, which the paired rule above leaves behind.
-      .replace(/(^|\s)[*_](\S)/g, '$1$2')
-      .replace(/(\S)[*_](?=\s|$|[.,;:!?])/g, '$1'),
-  )
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/** Where the words of a table row are, minus the rule under the header, which is drawn rather than read. */
-function tableCells(line: string): string[] | null {
-  // A pipe that is not doubled: `| Name | Size |` is a row, `||the answer||` is a hidden line (plugins/marks/).
-  if (!/^\|[^|].*\|\s*$/.test(line)) return null;
-  if (/^\|[\s:|-]+$/.test(line)) return [];
-  const cells = line
-    .replace(/^\||\|\s*$/g, '')
-    .split('|')
-    .map((cell) => bareWords(cell))
-    .filter((cell) => cell);
-  return cells.length ? cells.slice(0, MOST_CELLS) : [];
-}
-
-export function notePeek(body: string, most: number = PEEK_LINES): PeekLine[] {
-  const lines = withoutFrontMatter(body.split('\n'));
-  // Everything up to and including the title, which the card says above this.
-  const title = lines.findIndex((l) => l.trim() && !IMAGE_ONLY.test(l));
-  const out: PeekLine[] = [];
-  let fence: string | null = null;
-
-  for (let n = title + 1; n < lines.length && out.length < most; n += 1) {
-    const line = (lines[n] ?? '').trim();
-    const fenced = /^(```|~~~)/.exec(line);
-
-    // Inside a block of code: its first line stood for it, and the rest is passed over.
-    if (fence) {
-      if (fenced && line.startsWith(fence)) fence = null;
-      continue;
-    }
-    if (fenced) {
-      fence = fenced[1]!;
-      // What the block runs, rather than the fence and the language, which say nothing at this size.
-      const first = lines.slice(n + 1).find((l) => l.trim() && !/^(```|~~~)/.test(l.trim()));
-      if (first) out.push({ kind: 'code', text: first.trim().replace(/\s+/g, ' ') });
-      continue;
-    }
-    if (!line) continue;
-
-    if (/^(?:[-*_]\s*){3,}$/.test(line)) {
-      out.push({ kind: 'rule' });
-      continue;
-    }
-    const cells = tableCells(line);
-    if (cells) {
-      if (cells.length) out.push({ kind: 'table', cells });
-      continue;
-    }
-    // A mark with no words after it - a lone "-", an empty "##" - is nothing to draw.
-    if (!/[\p{L}\p{N}]/u.test(line)) continue;
-
-    const picture = IMAGE_ONLY.exec(line);
-    if (picture) {
-      out.push({ kind: 'image', text: bareWords(picture[1] ?? '') });
-      continue;
-    }
-    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
-    if (heading) {
-      const text = bareWords(heading[2] ?? '');
-      if (text) out.push({ kind: 'heading', level: heading[1]!.length, text });
-      continue;
-    }
-    const quote = /^(?:>\s?)+(.*)$/.exec(line);
-    if (quote) {
-      const text = bareWords(quote[1] ?? '');
-      if (text) out.push({ kind: 'quote', text });
-      continue;
-    }
-    // A to-do, a bullet or a numbered step, as core/itemSyntax.ts reads them.
-    const lead = listLead(line);
-    if (lead) {
-      const text = bareWords(line.slice(lead.wordsAt));
-      if (text) out.push(lead.done !== null ? { kind: 'task', done: lead.done, text } : { kind: /\d/.test(lead.marker) ? 'number' : 'bullet', text });
-      continue;
-    }
-    const text = bareWords(line);
-    if (text) out.push({ kind: 'text', text });
-  }
-  return out;
-}

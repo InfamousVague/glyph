@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { glyphMarkdown } from '../editor/language.ts';
 import { BUILT_IN } from '../plugins/registry.ts';
 import { imageNames } from './images.ts';
-import { notePeek } from '../notes/peek.ts';
+import { peekMarkdown } from '../notes/peek.ts';
 import { SAMPLE_TITLE, sampleNoteBody } from './sampleNote.ts';
 import { noteTitle } from './store.ts';
 
@@ -59,7 +59,7 @@ describe('the sample note', () => {
   it('is titled, previews plainly, and names its picture', () => {
     const body = sampleNoteBody('a1b2c3.jpg');
     expect(noteTitle(body)).toBe(SAMPLE_TITLE);
-    expect(notePeek(body)).toContainEqual({ kind: 'text', text: expect.stringMatching(/^A note is plain Markdown/) as unknown as string });
+    expect(peekMarkdown(body)).toContain('A note is plain Markdown');
     expect(imageNames(body)).toEqual(['a1b2c3.jpg']);
   });
 
