@@ -305,6 +305,17 @@ describe('changing a card’s status keeps you on the board', () => {
     expect(caretLine(on), 'the note must not have gone to the line').toBe(1);
   });
 
+  it('shows the card where it landed with a short flash, so the eye finds it', () => {
+    const on = open(note);
+    tap(card(on, 'ship-page').querySelector('.cm-boardTick')!);
+    // Over two frames: the board is redrawn by the change, and the card is in its new lane after that.
+    vi.advanceTimersToNextFrame();
+    vi.advanceTimersToNextFrame();
+    expect(card(on, 'ship-page').hasAttribute('data-arrived')).toBe(true);
+    vi.advanceTimersByTime(900);
+    expect(card(on, 'ship-page').hasAttribute('data-arrived')).toBe(false);
+  });
+
   it('still goes to the line when the words are pressed on their own, a moment later', () => {
     const on = open(note);
     tap(card(on, 'ship-page').querySelector('.cm-boardTick')!);
@@ -512,6 +523,89 @@ describe('the + field and password managers', () => {
     }
     // A field with a name is a field they can tell apart from a username.
     expect(field.name).toBe('card');
+  });
+});
+
+describe('a tap on a board’s control by a finger', () => {
+  // A phone places a caret from the touch itself, before any mouse event, and the caret at the board's edge turns the
+  // board back into its lines: so a finger's press is answered on the lift instead (editor/boards/press.ts).
+  function touch(target: HTMLElement, type: 'touchstart' | 'touchend', x = 5, y = 5): Event {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
+    target.dispatchEvent(event);
+    return event;
+  }
+  const tick = (on: EditorView) => {
+    const button = on.dom.querySelector<HTMLElement>('.cm-boardCard[data-card="ship-page"] .cm-boardTick')!;
+    place(button, 0, 0, 40, 40);
+    return button;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 240_000);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('keeps the caret out, answering when the finger lifts on the control', () => {
+    const on = open(note);
+    const start = touch(tick(on), 'touchstart');
+    expect(start.defaultPrevented).toBe(true);
+    expect(on.state.doc.toString()).toBe(note);
+    touch(tick(on), 'touchend', 20, 20);
+    expect(on.state.doc.toString()).toContain('- [x] Ship the pricing page ^ship-page');
+  });
+
+  it('does nothing for a finger that slid off the control before it lifted', () => {
+    const on = open(note);
+    touch(tick(on), 'touchstart');
+    touch(tick(on), 'touchend', 120, 20);
+    expect(on.state.doc.toString()).toBe(note);
+  });
+
+  it('runs once, not again for the click a browser sends after the lift anyway', () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    try {
+      const on = open(note);
+      // The card's menu button, which a second run would close again.
+      const more = on.dom.querySelector<HTMLElement>('.cm-boardCard[data-card="ship-page"] .cm-boardMore')!;
+      place(more, 0, 0, 40, 40);
+      touch(more, 'touchstart');
+      touch(more, 'touchend', 20, 20);
+      more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      expect(on.dom.querySelector('.cm-boardMenu')).not.toBeNull();
+      // Long after, a click is a click again.
+      vi.advanceTimersByTime(1000);
+      more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      expect(on.dom.querySelector('.cm-boardMenu')).toBeNull();
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    }
+  });
+});
+
+describe('an item’s anchor, and a pointer at it', () => {
+  const doc = ['See [[#^ship-page]] and [[#^gone]].', '', '- [ ] Ship the pricing page ^ship-page', '- [ ] Pick a date'].join('\n');
+
+  it('draws the anchor quiet, a pointer at an item as a link, and a pointer at nothing as one that is gone', () => {
+    const on = open(doc);
+    expect([...on.contentDOM.querySelectorAll('.cm-itemAnchor')].map((mark) => mark.textContent)).toEqual(['^ship-page']);
+    const refs = [...on.contentDOM.querySelectorAll('.cm-itemRef')];
+    expect(refs.map((ref) => [ref.textContent, ref.classList.contains('cm-itemRefGone')])).toEqual([
+      ['[[#^ship-page]]', false],
+      ['[[#^gone]]', true],
+    ]);
+  });
+
+  it('takes the caret to the item a tapped pointer names, at the end of its words', () => {
+    const on = open(doc);
+    const [ref] = [...on.contentDOM.querySelectorAll<HTMLElement>('.cm-itemRef')];
+    const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    ref!.dispatchEvent(press);
+    expect(press.defaultPrevented).toBe(true);
+    const head = on.state.selection.main.head;
+    const line = on.state.doc.lineAt(head);
+    expect(line.text.slice(0, head - line.from)).toBe('- [ ] Ship the pricing page');
   });
 });
 
