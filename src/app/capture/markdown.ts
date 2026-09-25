@@ -1,5 +1,6 @@
 import { emojiFor } from '../core/emoji.ts';
 import { capitalise } from '../core/text.ts';
+import { titleKey } from '../core/titleKey.ts';
 import { matchNote } from './route.ts';
 
 /**
@@ -472,9 +473,8 @@ export function spokenExtras(paragraph: string): string {
     })
     .replace(NOTE_LINK_SAID, (_all, name: string) => {
       const said = name.trim().replace(/^(?:the|my|our)\s+/i, '').replace(/\s+note$/i, '');
-      const plain = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
       // The note's own spelling, and the closest title when the name was misheard ("week and trip").
-      const known = linkTitles.find((title) => plain(title) === plain(said)) ?? matchNote(said, linkTitles.map((title) => ({ id: title, title })))?.note.title;
+      const known = linkTitles.find((title) => titleKey(title) === titleKey(said)) ?? matchNote(said, linkTitles.map((title) => ({ id: title, title })))?.note.title;
       return `[[${known ?? capitalise(said)}]]`;
     })
     .replace(LINK_SAID, (all, inner: string) => {

@@ -1,6 +1,7 @@
 import { bookIndex, chaptersOf, isBookBody, type BookPlace } from '../book/book.ts';
 import { chapterOf } from '../book/chapterNumber.ts';
 import { noteTitle, type Note } from '../core/store.ts';
+import { titleKey } from '../core/titleKey.ts';
 import { wikiLinksIn } from '../editor/wikiLinks.ts';
 
 /**
@@ -34,7 +35,7 @@ export function asideContent(notes: readonly Note[], open: Note | null): AsideCo
   if (isBookBody(open.body)) {
     return { kind: 'book', place: { book: open, title: noteTitle(open.body), chapters: chaptersOf(open.body), at: -1 }, open: null };
   }
-  const place = bookIndex(notes).get(keyOf(noteTitle(open.body)));
+  const place = bookIndex(notes).get(titleKey(noteTitle(open.body)));
   if (place) return { kind: 'book', place, open: open.id };
   return chapterRun(notes, open);
 }
@@ -57,28 +58,20 @@ function chapterRun(notes: readonly Note[], open: Note): AsideContent | null {
   }
   if (chapters.length < 2) return null;
   chapters.sort((a, b) => a.number - b.number || a.name.localeCompare(b.name));
-  const titleId = group.link ? (notes.find((n) => keyOf(noteTitle(n.body)) === keyOf(group.link!))?.id ?? null) : null;
+  const titleId = group.link ? (notes.find((n) => titleKey(noteTitle(n.body)) === titleKey(group.link!))?.id ?? null) : null;
   return { kind: 'chapters', title: group.link ?? group.folder ?? 'Chapters', titleId, chapters, open: open.id };
 }
 
 /** What a chapter belongs to: the first note its page points at that isn't another chapter, else its folder. */
 function groupOf(note: Note): { key: string; link: string | null; folder: string | null } {
-  const own = keyOf(noteTitle(note.body));
+  const own = titleKey(noteTitle(note.body));
   for (const link of wikiLinksIn(note.body)) {
     const title = link.title.trim();
-    if (!title || keyOf(title) === own || chapterOf(title)) continue;
-    return { key: `link:${keyOf(title)}`, link: title, folder: null };
+    if (!title || titleKey(title) === own || chapterOf(title)) continue;
+    return { key: `link:${titleKey(title)}`, link: title, folder: null };
   }
   const folder = note.path?.includes('/') ? note.path.slice(0, note.path.lastIndexOf('/')) : null;
   return { key: `folder:${folder ?? ''}`, link: null, folder: folder ? folder.split('/').pop()! : null };
-}
-
-/** The key `bookIndex` files a page under (book/book.ts `titleKey`), without the import cycle a re-export would make. */
-function keyOf(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
 }
 
 /** Whether the aside is shown, kept to this device between launches; hidden until it has been opened once. */
