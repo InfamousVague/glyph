@@ -79,8 +79,9 @@ import styles from './CaptureScreen.module.css';
  * lock screen without showing the note to whoever is holding it.
  *
  * The pieces are their own modules: the cards (CaptureCards.tsx), the chip (RouteChip.tsx), the lines of words that
- * are not the note (screenText.ts), the diagnostics line (diagnostics.ts) and the last words of a stopped decode
- * (finalWords.ts). This screen ties them to the take (take.ts), which decides.
+ * are not the note (screenText.ts), the diagnostics line (diagnostics.ts), the last words of a stopped decode
+ * (finalWords.ts) and where the take sits on its note's tape (timeline.ts). This screen ties them to the take
+ * (take.ts), which decides.
  */
 
 interface CaptureScreenProps {
