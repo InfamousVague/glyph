@@ -149,13 +149,12 @@
   place-items: center;
   /*
    * A notch smaller than the kit's step, the four of them together (Matt: "Make the bookmark, more button, speak and
-   * book a little bit smaller"). A step multiplied rather than a new number, as every size in app.css is. The same
-   * expression as the sidebar button and the two arrows (notes/NoteTabs.module.css .sidebar, .step), which is what
-   * these now sit beside: the note's tools were moved into the app's bar, so the row is one set of controls and has
-   * to read as one.
+   * book a little bit smaller"): the app's ring (app.css `--app-ring`), the same as the sidebar button and the two
+   * arrows (notes/NoteTabs.module.css .sidebar, .step), which is what these now sit beside. The note's tools were moved
+   * into the app's bar, so the row is one set of controls and has to read as one.
    */
-  inline-size: calc(var(--glacier-space-10) * 0.88);
-  block-size: calc(var(--glacier-space-10) * 0.88);
+  inline-size: var(--app-ring);
+  block-size: var(--app-ring);
   padding: 0;
   /*
    * No ring (Matt: "Remove the borders around the buttons in the top bar make sure they match the size of the back

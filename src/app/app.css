@@ -34,15 +34,22 @@
    */
   --app-tab-h: calc(var(--glacier-font-size-sm) * 2.04 + 2px + var(--glacier-space-1) * 2.6);
   /*
-   * And how tall the row above it draws: the round controls it holds (notes/NoteTabs.module.css `.sidebar` and
-   * `.step`, editor/NoteScreen.module.css `.cog`), which are all one expression off the kit's space scale.
+   * The app's one round control: every ring a thumb aims at is this across - the bar's sidebar button and arrows
+   * (notes/NoteTabs.module.css `.sidebar`, `.step`), the note's tools (editor/NoteScreen.module.css `.cog`) and the
+   * home page's dock (home/HomeScreen.module.css `.round`, `.speak`). A kit step multiplied, a notch under the step
+   * itself (Matt: "Make the bookmark, more button, speak and book a little bit smaller"), so Appearance > Spacing
+   * moves every ring together.
+   */
+  --app-ring: calc(var(--glacier-space-10) * 0.88);
+  /*
+   * And how tall the row above it draws: the round controls it holds, which are all `--app-ring`.
    *
    * Derived for the same reason as the tab's: `3.5rem` stood for this row from when it held a 40px button, and the
    * scale it is built on moves. Appearance > Spacing scales the space tokens, so these rings draw 27.4px at the
    * tightest setting and 56.9px at the roomiest - 0.9px past the 56px the bar had set aside - and everything under
    * them was pushed into the hairline. Both halves of the bar are their contents now, so neither can outgrow it.
    */
-  --app-tab-top: calc(var(--glacier-space-10) * 0.88);
+  --app-tab-top: var(--app-ring);
   /*
    * And the air under the bar's last row. Nothing on a phone, where the bar is glass with no edge to sit against; on
    * a desktop it is the same as the air over the first row, set below with the hairline it clears.

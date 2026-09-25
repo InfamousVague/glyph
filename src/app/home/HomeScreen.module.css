@@ -39,7 +39,7 @@
    * more. Counted by hand, so a button added to the dock is a number changed here.
    */
   padding-block-end: calc(
-    var(--app-safe-bottom) + var(--glacier-space-4) + var(--glacier-space-10) * 0.88 * 4 + var(--glacier-space-2) * 5 +
+    var(--app-safe-bottom) + var(--glacier-space-4) + var(--app-ring) * 4 + var(--glacier-space-2) * 5 +
       var(--glacier-space-6)
   );
 }
@@ -223,8 +223,8 @@
   /* The shared pill sets a minimum height (app/ink.css .app-pill); this one is shorter, so the minimum is lowered too. */
   /* A notch smaller again, with the two rings (Matt: "Make the bookmark, more button, speak and book a little bit
      smaller"): a kit step multiplied, so the three still sit on one line. */
-  min-block-size: calc(var(--glacier-space-10) * 0.88);
-  block-size: calc(var(--glacier-space-10) * 0.88);
+  min-block-size: var(--app-ring);
+  block-size: var(--app-ring);
   padding-block: 0;
   padding-inline: var(--glacier-space-4);
   font-size: var(--glacier-font-size-md);
@@ -240,9 +240,9 @@
   appearance: none;
   display: grid;
   place-items: center;
-  /* The same notch as Speak beside it, so the three keep one height. */
-  inline-size: calc(var(--glacier-space-10) * 0.88);
-  block-size: calc(var(--glacier-space-10) * 0.88);
+  /* The same notch as Speak beside it, so the three keep one height: the app's ring (app.css `--app-ring`). */
+  inline-size: var(--app-ring);
+  block-size: var(--app-ring);
   padding: 0;
   border: 1.5px solid var(--glacier-border-strong);
   border-radius: var(--glacier-radius-full);
@@ -298,7 +298,7 @@
 
 .speak {
   order: 4;
-  inline-size: calc(var(--glacier-space-10) * 0.88);
+  inline-size: var(--app-ring);
   padding-inline: 0;
   justify-content: center;
 }
