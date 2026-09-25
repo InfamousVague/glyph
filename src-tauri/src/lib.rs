@@ -29,6 +29,10 @@ mod commands;
 // though today only the capture commands drive it. See whisper/mod.rs's header.
 pub mod whisper;
 
+// The Tauri half of a model download, which both doors below share: where
+// models live on this device, the progress event, one download at a time.
+mod model_downloads;
+
 // The webview's door to live dictation: the model download, a capture's
 // start/push/stop, and the events that carry text back. See its header for the
 // two ordering rules the page has to keep.

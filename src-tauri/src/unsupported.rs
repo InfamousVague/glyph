@@ -23,8 +23,8 @@
 //! link_preview.rs were two copies each until this module.)
 //!
 //! A status that is an ANSWER rather than a refusal - "the model is not
-//! present", "no models here" - is not this module's: the status commands
-//! answer those with `cfg!`, because both branches compile everywhere.
+//! present", "no models here" - is not this module's: `model_downloads`
+//! answers those with `cfg!`, because both branches compile everywhere.
 //!
 //! The sentences are word for word what the page has always been sent. Nothing
 //! on the page matches on them (rg, 2026-09-25), but a person reads them, and

@@ -96,14 +96,7 @@ pub fn find(id: &str) -> Option<&'static LlmSpec> {
 /// reliability, never about trust. Hugging Face is always last and always
 /// present: a model too big for our box to carry is still fetchable.
 pub fn mirrors_with(model: &LlmSpec, preferred: &[String]) -> Vec<String> {
-    let mut all: Vec<String> = Vec::new();
-    for mirror in preferred.iter().map(String::as_str).chain([OURS, model.hugging_face]) {
-        let mirror = mirror.trim_end_matches('/');
-        if !mirror.is_empty() && !all.iter().any(|seen| seen == mirror) {
-            all.push(mirror.to_string());
-        }
-    }
-    all
+    crate::whisper::model::mirrors(preferred, [OURS, model.hugging_face])
 }
 
 #[cfg(test)]
@@ -130,5 +123,18 @@ mod tests {
         assert!(mirrors[2].contains("/resolve/e87f1764"), "{mirrors:?}");
         assert_eq!(mirrors.len(), 3);
         assert_eq!(mirrors_with(&QWEN3_5_4B, &[OURS.to_string()]).len(), 2, "no repeats");
+    }
+
+    /// `ai_delete_model` used to name the partial file `path.with_extension("gguf.part")`,
+    /// which is `part_path` only because every file here ends in `.gguf`. Now it asks
+    /// `part_path`, the download's own rule; this proves the two agree for the catalogue.
+    #[test]
+    fn a_models_partial_download_is_where_deleting_it_looks() {
+        let dir = std::path::Path::new("/models");
+        for model in CATALOGUE {
+            let part = crate::whisper::model::part_path(dir, &model.spec);
+            assert_eq!(part, crate::whisper::model::path_in(dir, &model.spec).with_extension("gguf.part"), "{}", model.id);
+            assert!(part.to_string_lossy().ends_with(".gguf.part"), "{part:?}");
+        }
     }
 }

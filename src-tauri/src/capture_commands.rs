@@ -57,6 +57,7 @@
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
+use crate::model_downloads;
 use crate::paths;
 use crate::whisper::model::{self, ModelStatus};
 
@@ -95,14 +96,6 @@ pub struct Transcript {
     /// `audioMs` by for a real-time factor.
     pub elapsed_ms: u64,
     pub model: String,
-}
-
-#[cfg(not(target_os = "ios"))]
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ModelProgress {
-    received_bytes: u64,
-    total_bytes: u64,
 }
 
 /// The loaded model and the capture in progress, for the life of the process.
@@ -210,19 +203,7 @@ fn emit(app: &AppHandle, event: Event) {
 /// Whether the refine model (`model::REFINE`) is on this device.
 #[tauri::command]
 pub fn capture_refine_model_status(app: AppHandle) -> ModelStatus {
-    let absent = ModelStatus {
-        present: false,
-        name: model::REFINE.file.to_string(),
-        path: String::new(),
-        bytes: model::REFINE.bytes,
-    };
-    if cfg!(target_os = "ios") {
-        return absent;
-    }
-    match paths::models_dir(&app) {
-        Ok(dir) => model::status(&dir, &model::REFINE),
-        Err(_) => absent,
-    }
+    model_downloads::status_here(&app, &model::REFINE)
 }
 
 /// Downloads the refine model, from the same mirrors as the live one, and
@@ -235,18 +216,15 @@ pub async fn capture_fetch_refine_model(app: AppHandle, state: State<'_, Capture
     #[cfg(not(target_os = "ios"))]
     {
         let dir = paths::models_dir(&app)?;
-        let _one_download = state.fetching_refine.lock().await;
-        let emitter = app.clone();
-        let mirrors = model::mirrors_with(&crate::ota::services(&app).model_mirrors);
-        model::fetch(&dir, &model::REFINE, &mirrors, move |received, total| {
-            let _ = emitter.emit(
-                "capture://refine-model-progress",
-                ModelProgress {
-                    received_bytes: received,
-                    total_bytes: total,
-                },
-            );
-        })
+        model_downloads::fetch_reporting(
+            &app,
+            &dir,
+            &state.fetching_refine,
+            &model::REFINE,
+            model::mirrors_with,
+            "capture://refine-model-progress",
+            None,
+        )
         .await
     }
 }
@@ -373,22 +351,9 @@ fn offset_segments(timed: Vec<crate::whisper::engine::TimedText>, from_ms: u64) 
 /// Whether the active model is on this device, where, and how big it is.
 #[tauri::command]
 pub fn capture_model_status(app: AppHandle) -> ModelStatus {
-    let absent = ModelStatus {
-        present: false,
-        name: model::ACTIVE.file.to_string(),
-        path: String::new(),
-        bytes: model::ACTIVE.bytes,
-    };
-    if cfg!(target_os = "ios") {
-        return absent;
-    }
-    // No data directory is a model that cannot be present - and NOT a
-    // relative path, which would answer for whatever file happens to sit in
-    // the process's working directory.
-    match paths::models_dir(&app) {
-        Ok(dir) => model::status(&dir, &model::ACTIVE),
-        Err(_) => absent,
-    }
+    // No data directory (or iOS) is a model that cannot be present: see
+    // `model_downloads::models_here`.
+    model_downloads::status_here(&app, &model::ACTIVE)
 }
 
 /// Downloads the active model into `<app_data_dir>/models/` if it is not there,
@@ -404,20 +369,17 @@ pub async fn capture_fetch_model(
     #[cfg(not(target_os = "ios"))]
     {
         let dir = paths::models_dir(&app)?;
-        let _one_download = state.fetching.lock().await;
-        let emitter = app.clone();
         // Mirrors a signed update manifest has moved come first; the compiled
         // ones follow. See model::mirrors_with.
-        let mirrors = model::mirrors_with(&crate::ota::services(&app).model_mirrors);
-        model::fetch(&dir, &model::ACTIVE, &mirrors, move |received, total| {
-            let _ = emitter.emit(
-                "capture://model-progress",
-                ModelProgress {
-                    received_bytes: received,
-                    total_bytes: total,
-                },
-            );
-        })
+        model_downloads::fetch_reporting(
+            &app,
+            &dir,
+            &state.fetching,
+            &model::ACTIVE,
+            model::mirrors_with,
+            "capture://model-progress",
+            None,
+        )
         .await
     }
 }

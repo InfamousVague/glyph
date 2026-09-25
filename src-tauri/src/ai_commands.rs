@@ -42,6 +42,7 @@ use crate::llm::model::{self, LlmSpec};
 // A lock some earlier command panicked while holding is recovered, not
 // obeyed; see `crate::lock`.
 use crate::lock::lock;
+use crate::model_downloads;
 
 #[cfg(not(target_os = "ios"))]
 use crate::llm::engine::{Llm, Request};
@@ -88,14 +89,6 @@ pub struct ModelInfo {
     pub bytes: u64,
     pub present: bool,
     pub path: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ModelProgress {
-    id: String,
-    received_bytes: u64,
-    total_bytes: u64,
 }
 
 #[derive(Default)]
@@ -163,16 +156,15 @@ fn known(id: &str) -> Result<&'static LlmSpec, String> {
 /// The page decides what fits.
 #[tauri::command]
 pub fn ai_device(app: AppHandle) -> crate::llm::device::Device {
-    let dir = if cfg!(target_os = "ios") { None } else { crate::paths::models_dir(&app).ok() };
-    crate::llm::device::read(dir.as_deref())
+    crate::llm::device::read(model_downloads::models_here(&app).as_deref())
 }
 
 /// The catalogue, with what is on this phone.
 #[tauri::command]
 pub fn ai_models(app: AppHandle) -> Vec<ModelInfo> {
-    // No data directory (or iOS) is every model absent - and NOT a relative
-    // path, which would answer for whatever sits in the working directory.
-    let dir = if cfg!(target_os = "ios") { None } else { crate::paths::models_dir(&app).ok() };
+    // No data directory (or iOS) is every model absent: see
+    // `model_downloads::models_here`.
+    let dir = model_downloads::models_here(&app);
     model::CATALOGUE.iter().map(|spec| info(dir.as_deref(), spec)).collect()
 }
 
@@ -185,22 +177,16 @@ pub async fn ai_fetch_model(app: AppHandle, state: State<'_, AiState>, id: Strin
     return on_ios(FORMATTING, (app, state, spec));
     #[cfg(not(target_os = "ios"))]
     {
-        use tauri::Emitter;
         let dir = crate::paths::models_dir(&app)?;
-        let _one_download = state.fetching.lock().await;
-        let emitter = app.clone();
-        let mirrors = model::mirrors_with(spec, &crate::ota::services(&app).model_mirrors);
-        let name = spec.id.to_string();
-        crate::whisper::model::fetch(&dir, &spec.spec, &mirrors, move |received, total| {
-            let _ = emitter.emit(
-                "ai://model-progress",
-                ModelProgress {
-                    id: name.clone(),
-                    received_bytes: received,
-                    total_bytes: total,
-                },
-            );
-        })
+        model_downloads::fetch_reporting(
+            &app,
+            &dir,
+            &state.fetching,
+            &spec.spec,
+            |preferred| model::mirrors_with(spec, preferred),
+            "ai://model-progress",
+            Some(spec.id),
+        )
         .await?;
         Ok(info(Some(&dir), spec))
     }
@@ -223,8 +209,7 @@ pub async fn ai_delete_model(app: AppHandle, state: State<'_, AiState>, id: Stri
         if let Some(llm) = state.llm.get() {
             llm.unload();
         }
-        let path = crate::whisper::model::path_in(&dir, &spec.spec);
-        for candidate in [path.clone(), path.with_extension("gguf.part")] {
+        for candidate in [crate::whisper::model::path_in(&dir, &spec.spec), crate::whisper::model::part_path(&dir, &spec.spec)] {
             crate::fsx::remove_file_if_present(&candidate).map_err(|e| format!("cannot remove {}: {e}", candidate.display()))?;
         }
         Ok(info(Some(&dir), spec))
