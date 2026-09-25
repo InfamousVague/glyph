@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { externalStore } from '../core/externalStore.ts';
 import { readStoredShared, writeStored } from '../core/stored.ts';
 import type { RunKind } from './kinds.ts';
-import { noteSheet, sheetOf, type Sheet } from './noteSheet.ts';
+import { noteSheet, sheetOf, type Sheet } from '../core/noteSheet.ts';
 
 /**
  * What the AI did to each note: the run log.

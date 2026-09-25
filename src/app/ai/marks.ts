@@ -1,7 +1,7 @@
 import type { AiChange } from '../editor/aiChanges.ts';
 import { bodyHash } from '../format/bodyHash.ts';
 import { readStored, writeStored } from '../core/stored.ts';
-import { noteSheet, sheetOf, type Sheet } from './noteSheet.ts';
+import { noteSheet, sheetOf, type Sheet } from '../core/noteSheet.ts';
 
 /**
  * The AI's marks on a note, kept with it: Matt chose marks that stay until

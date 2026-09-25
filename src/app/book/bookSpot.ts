@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from 'react';
+import { sheetOf } from '../core/noteSheet.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
@@ -46,7 +47,7 @@ function spotFrom(value: unknown): BookSpot | null {
 }
 
 function readAll(): Spots {
-  return readStored<Spots>(KEY, {}, (value) => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Spots) : {}));
+  return readStored<Spots>(KEY, {}, sheetOf);
 }
 
 export function readBookSpot(bookId: string): BookSpot | null {

@@ -1,3 +1,4 @@
+import { sheetOf } from './noteSheet.ts';
 import { readStored, writeStored } from './stored.ts';
 
 /**
@@ -84,9 +85,7 @@ export function playsOn(clip: Clip, tape: string | null): boolean {
 const TAPES_KEY = 'glyph-tape-ids';
 
 function tapes(): Record<string, string> {
-  return readStored<Record<string, string>>(TAPES_KEY, {}, (value) =>
-    value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, string>) : {},
-  );
+  return readStored<Record<string, string>>(TAPES_KEY, {}, sheetOf);
 }
 
 /** The id of the tape `noteId` holds now, or null: the note has none, or its recording is from before ids. */

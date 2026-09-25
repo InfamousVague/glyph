@@ -1,10 +1,12 @@
 /**
- * A record per note, kept on the page under one key: what the AI remembers about each note between visits.
+ * A record per note, kept on the page under one key: what the app remembers about each note between visits.
  *
- * Three things are kept this way - the home page's gist (format/results.ts), the run log with its Undo
+ * The AI keeps three things this way - the home page's gist (format/results.ts), the run log with its Undo
  * (ai/log.ts), and the AI's marks still on a note (ai/marks.ts) - and each wrote out the same reading of its sheet
  * (an object of notes, anything else read as empty), the same copy-then-write, and the same forgetting of a note
- * that is gone. They live here once. What each record holds, and when it is written, stays with its module.
+ * that is gone. They live here once. What each record holds, and when it is written, stays with its module. The
+ * reading alone, `sheetOf`, is also how a book's spot (book/bookSpot.ts), a note's place and bookmark
+ * (editor/notePlace.ts) and a note's tape id (core/clips.ts) are read back; each of those keeps its own cap and order.
  *
  * So does the reading and writing itself: each module hands over its own read and write through core/stored.ts,
  * naming its `glyph-` key at the call. That is where core/reset.test.ts looks to prove a reset can find every key,

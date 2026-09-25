@@ -1,5 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { useEffect, type RefObject } from 'react';
+import { sheetOf } from '../core/noteSheet.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 import { bookmarkLineIn } from './bookmarkLine.ts';
 
@@ -36,9 +37,7 @@ type Places = Record<string, Place & { at: number }>;
 /** Anything but an object of places is no places; an entry that is not an object is no place, and is let go. */
 function readAll(): Places {
   return readStored<Places>(KEY, {}, (value) =>
-    value && typeof value === 'object' && !Array.isArray(value)
-      ? (Object.fromEntries(Object.entries(value).filter(([, place]) => place && typeof place === 'object')) as Places)
-      : {},
+    Object.fromEntries(Object.entries(sheetOf<Place & { at: number }>(value)).filter(([, place]) => place && typeof place === 'object')),
   );
 }
 
@@ -63,9 +62,7 @@ export function writePlace(noteId: string, place: Place | null, now = Date.now()
  * note opens at it, rather than where it was last left, until it is taken off again.
  */
 function marks(): Record<string, Place> {
-  return readStored<Record<string, Place>>(MARKS_KEY, {}, (value) =>
-    value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, Place>) : {},
-  );
+  return readStored<Record<string, Place>>(MARKS_KEY, {}, sheetOf);
 }
 
 export function readBookmark(noteId: string): Place | null {

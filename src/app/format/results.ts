@@ -1,4 +1,4 @@
-import { noteSheet, sheetOf, type Sheet } from '../ai/noteSheet.ts';
+import { noteSheet, sheetOf, type Sheet } from '../core/noteSheet.ts';
 import { readStoredShared, writeStored } from '../core/stored.ts';
 
 /**
