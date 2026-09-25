@@ -1,0 +1,55 @@
+/*
+ * What a book's rows share, wherever they are listed: the index's chapters (BookView.module.css) and the New book
+ * sheet's pages (NewBookSheet.module.css) each compose these, so a row's number, its grip, its arrows and cross, and
+ * how it looks lifted are one look in both. What differs between the two - the row's own grid and room - stays in
+ * each.
+ */
+
+.number {
+  font-variant-numeric: tabular-nums;
+  color: var(--glacier-text-muted);
+  text-align: end;
+}
+
+.tools {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.tool {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2em;
+  block-size: 2em;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+}
+
+.tool:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--glacier-text) 8%, transparent);
+  color: var(--glacier-text);
+}
+
+.tool:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* The grip a row is dragged by (rowDrag.ts): a finger's hold or a mouse's press lifts the row. */
+.grip {
+  display: inline-grid;
+  place-items: center;
+  block-size: 2em;
+  color: var(--glacier-text-subtle, var(--glacier-text-muted));
+  cursor: grab;
+  touch-action: none;
+}
+
+/* A row lifted by its grip: off the page, over the rows making room for it. */
+.lifts[data-lifted] {
+  background: color-mix(in srgb, var(--glacier-bg) 88%, var(--glacier-text) 6%);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+}
