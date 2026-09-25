@@ -59,8 +59,11 @@
   --app-safe-left: env(safe-area-inset-left, 0px);
   --app-safe-right: env(safe-area-inset-right, 0px);
   /*
-   * The page's gutter at each edge, notch included: what the bar pads by, and what anything reaching past the bar's
-   * padding has to give back (notes/NoteTabs.module.css `.tabs`). Named once so the two cannot drift apart.
+   * The page's gutter at each edge, notch included: what every screen and the bar pad by, and what anything reaching
+   * past the bar's padding has to give back (notes/NoteTabs.module.css `.tabs`). Named once so none of them can drift.
+   *
+   * Worked out here, at the root, from the root's `--app-gutter`. A surface that sets its own `--app-gutter` (a note
+   * drawn small, a book's preface, the reader's column, a mark's example) pads by `--app-gutter` itself, never by these.
    */
   --app-gutter-start: calc(var(--app-safe-left) + var(--app-gutter));
   /*

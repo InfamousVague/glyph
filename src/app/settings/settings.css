@@ -69,7 +69,7 @@
 .settingsScreen[data-layout='split'] .settingsScreen__pane {
   flex: 1;
   min-inline-size: 0;
-  padding-inline: var(--app-gutter) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter) var(--app-gutter-end);
 }
 
 /* The section on show, in the left column: the row's own ground, a shade deeper. */
@@ -152,7 +152,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--glacier-space-4);
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   /*
    * Settings is drawn over everything, the app's tab bar included, so it clears the notch alone (--app-safe-top
    * carries the bar's height too, and padding by it left an empty bar's worth above the first word). Less air above
@@ -179,7 +179,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--glacier-space-4);
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   padding-block-end: calc(var(--app-safe-bottom) + var(--glacier-space-16));
 }
 
@@ -747,7 +747,7 @@
  */
 .settingsScreen__find {
   flex: none;
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   padding-block: var(--glacier-space-1) var(--glacier-space-3);
 }
 

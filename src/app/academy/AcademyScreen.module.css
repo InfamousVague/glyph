@@ -8,7 +8,7 @@
   flex-direction: column;
   min-block-size: 100dvh;
   background: var(--glacier-bg);
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
 }
 
 .top {

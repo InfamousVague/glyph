@@ -24,7 +24,7 @@
   inline-size: 100%;
   max-block-size: 85dvh;
   overflow-y: auto;
-  padding: var(--glacier-space-2) calc(var(--app-safe-right) + var(--app-gutter)) calc(var(--app-safe-bottom) + var(--glacier-space-5)) calc(var(--app-safe-left) + var(--app-gutter));
+  padding: var(--glacier-space-2) var(--app-gutter-end) calc(var(--app-safe-bottom) + var(--glacier-space-5)) var(--app-gutter-start);
   border-radius: var(--glacier-radius-xl) var(--glacier-radius-xl) 0 0;
   /* What is shown in the sheet, the cheat sheet among it, draws against this (guide/CheatSheet.module.css). */
   --sheet-ground: var(--app-paper-2);

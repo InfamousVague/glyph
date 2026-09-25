@@ -10,7 +10,7 @@
   align-items: center;
   column-gap: var(--glacier-space-4);
   row-gap: var(--glacier-space-2);
-  padding: var(--glacier-space-3) calc(var(--app-safe-right) + var(--app-gutter)) var(--glacier-space-1) calc(var(--app-safe-left) + var(--app-gutter));
+  padding: var(--glacier-space-3) var(--app-gutter-end) var(--glacier-space-1) var(--app-gutter-start);
 }
 
 .cassette {
@@ -133,7 +133,7 @@
   block-size: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--glacier-space-5) calc(var(--app-safe-right) + var(--app-gutter)) var(--glacier-space-24) calc(var(--app-safe-left) + var(--app-gutter));
+  padding: var(--glacier-space-5) var(--app-gutter-end) var(--glacier-space-24) var(--app-gutter-start);
 }
 
 .words {

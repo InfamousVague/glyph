@@ -67,7 +67,7 @@
   flex-direction: column;
   align-items: stretch;
   gap: var(--glacier-space-2);
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   padding-block: calc(var(--app-safe-top) + var(--glacier-space-1)) var(--glacier-space-2);
   font-size: var(--glacier-font-size-md);
 }

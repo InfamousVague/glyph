@@ -23,7 +23,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   /* The guide covers the whole screen, the app's tab bar included, so it clears the notch alone: --app-safe-top
      carries the bar's height as well, and padding by it would leave a bar's worth of nothing at the top. */
   padding-block: calc(var(--app-inset-top) + var(--glacier-space-1)) var(--glacier-space-2);
@@ -71,7 +71,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   /* Starts under the bar, so content only meets its blur once scrolled. */
   padding-block: calc(var(--wisp-under, 3.5rem) + var(--glacier-space-4)) var(--glacier-space-24);
   animation: enter var(--glacier-duration-normal) var(--glacier-ease-out);
@@ -281,7 +281,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   padding-block: var(--glacier-space-8) calc(var(--app-safe-bottom) + var(--glacier-space-3));
   pointer-events: none;
 }

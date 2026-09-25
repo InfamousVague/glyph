@@ -32,7 +32,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   /*
    * Room at the foot for the dock's column to stand clear of the last lines: its four buttons (Settings, Search, write,
    * Speak), the three gaps between them and its padding at each end, where it floats above the foot, and a little
@@ -60,7 +60,7 @@
   flex-direction: column;
   align-items: stretch;
   gap: var(--glacier-space-2);
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   padding-block: calc(var(--app-safe-top) + var(--glacier-space-1)) var(--glacier-space-2);
 }
 

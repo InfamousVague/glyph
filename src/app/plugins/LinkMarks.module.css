@@ -22,7 +22,7 @@
 
 button.row {
   cursor: pointer;
-  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   padding-block: 0 var(--glacier-space-2);
 }
 
