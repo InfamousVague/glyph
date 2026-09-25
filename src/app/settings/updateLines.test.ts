@@ -4,8 +4,8 @@ import { buildLine, installable, updatesStatus, updatesSummary, type BuildPlace 
 
 /**
  * What About says about where this build stands: the page's ladder, the list's shorter one, and the line under the
- * version. Each rung is one fact about the updates set on a build that has nothing else going on, so a rung that
- * moves above or below another fails here rather than on somebody's phone.
+ * version. Each rung is tried with every fact of the rungs below it true as well, so a rung that moves above or below
+ * another fails here rather than on somebody's phone.
  */
 
 const info: ApkInfo = { version: '1.9.0', versionCode: 190, native: 20, sha256: '', bytes: 1, url: '' };
@@ -42,10 +42,12 @@ const status = (over: Partial<OtaStatus> = {}): OtaStatus => ({
 describe('the Updates card', () => {
   it('says the first thing that is true, from checking down to never checked', () => {
     const ready = { build: '20260925000000', version: '1.8.1' };
-    expect(updatesStatus(updates({ checking: true, ready, lastChecked: 1 }))).toBe('Checking for updates.');
-    expect(updatesStatus(updates({ apk: { kind: 'downloading', info, received: 1, total: 2 }, ready }))).toBe('Downloading Ghost.md 1.9.0.');
-    expect(updatesStatus(updates({ apk: { kind: 'available', info }, ready }))).toBe('Ghost.md 1.9.0 is ready to install.');
-    expect(updatesStatus(updates({ ready, lastError: 'offline' }))).toBe('A new version is downloaded.');
+    const below = { ready, lastError: 'offline', lastChecked: 1 };
+    const downloading: ApkPhase = { kind: 'downloading', info, received: 1, total: 2 };
+    expect(updatesStatus(updates({ checking: true, apk: downloading, ...below }))).toBe('Checking for updates.');
+    expect(updatesStatus(updates({ apk: downloading, ...below }))).toBe('Downloading Ghost.md 1.9.0.');
+    expect(updatesStatus(updates({ apk: { kind: 'available', info }, ...below }))).toBe('Ghost.md 1.9.0 is ready to install.');
+    expect(updatesStatus(updates(below))).toBe('A new version is downloaded.');
     expect(updatesStatus(updates({ lastError: 'offline', lastChecked: 1 }))).toBe("Couldn't check for updates: offline");
     expect(updatesStatus(updates({ lastChecked: 1 }))).toBe('Up to date.');
     expect(updatesStatus(updates())).toBe('Not checked yet.');
@@ -70,10 +72,12 @@ describe('About in the list of sections', () => {
   });
 
   it('climbs a shorter ladder in the app, with no rung for an app downloading', () => {
-    expect(updatesSummary(updates({ checking: true }), true)).toBe('Checking');
-    expect(updatesSummary(updates({ apk: { kind: 'available', info } }), true)).toBe('1.9.0 ready to install');
-    expect(updatesSummary(updates({ ready: { build: '1', version: '1.8.1' } }), true)).toBe('New version downloaded');
-    expect(updatesSummary(updates({ lastError: 'offline' }), true)).toBe("Couldn't check");
+    const below = { ready: { build: '1', version: '1.8.1' }, lastError: 'offline', lastChecked: 1 };
+    const available: ApkPhase = { kind: 'available', info };
+    expect(updatesSummary(updates({ checking: true, apk: available, ...below }), true)).toBe('Checking');
+    expect(updatesSummary(updates({ apk: available, ...below }), true)).toBe('1.9.0 ready to install');
+    expect(updatesSummary(updates(below), true)).toBe('New version downloaded');
+    expect(updatesSummary(updates({ lastError: 'offline', lastChecked: 1 }), true)).toBe("Couldn't check");
     expect(updatesSummary(updates({ lastChecked: 1 }), true)).toBe('Up to date');
     expect(updatesSummary(updates(), true)).toBe('Not checked yet');
     // Downloading reads as whatever the rest of the ladder says: here, checked and current.
