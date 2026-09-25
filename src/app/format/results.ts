@@ -1,3 +1,4 @@
+import { noteSheet, sheetOf, type Sheet } from '../ai/noteSheet.ts';
 import { readStoredShared, writeStored } from '../core/stored.ts';
 
 /**
@@ -12,23 +13,18 @@ import { readStoredShared, writeStored } from '../core/stored.ts';
 
 const KEY = 'glyph-ai-results';
 
-/** What is kept here per note: the home page's one-line gist. Older sheets may still hold a mode's text; it is read past. */
-type Sheet = Record<string, Partial<Record<string, unknown>>>;
+/** Per note, the gist, beside whatever an older sheet still holds for a mode's text, which is read past and kept. */
+type Kept = Partial<Record<string, unknown>>;
 
 /**
- * The sheet, read shared (core/stored.ts `readStoredShared`): the home page reads a gist for every card it draws, and
- * each read was the whole sheet parsed again (measured: 24 parses to show the home page once). A read asks for the
- * text, which cannot be stale, and parses only when it has changed. What it answers is shared: a writer copies it
- * first.
+ * Read shared (core/stored.ts `readStoredShared`): the home page reads a gist for every card it draws, and each read
+ * was the whole sheet parsed again (measured: 24 parses to show the home page once). A read asks for the text, which
+ * cannot be stale, and parses only when it has changed.
  */
-function readSheet(): Sheet {
-  return readStoredShared<Sheet>(KEY, {}, (value) => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {}));
-}
-
-/** No storage: the text stays on screen for now and is written again next time. */
-function writeSheet(sheet: Sheet): void {
-  writeStored(KEY, sheet);
-}
+const sheet = noteSheet<Kept>(
+  () => readStoredShared<Sheet<Kept>>(KEY, {}, sheetOf),
+  (value) => writeStored(KEY, value),
+);
 
 /** The home page's gist: its line, the body it came from as a hash, its length and its first line, and the model. */
 export interface Gist {
@@ -41,19 +37,14 @@ export interface Gist {
 }
 
 export function readGist(id: string): Gist | null {
-  return (readSheet()[id]?.gist as Gist | undefined) ?? null;
+  return (sheet.read()[id]?.gist as Gist | undefined) ?? null;
 }
 
 export function keepGist(id: string, gist: Gist): void {
-  const sheet = { ...readSheet() };
-  sheet[id] = { ...(sheet[id] ?? {}), gist };
-  writeSheet(sheet);
+  sheet.update(id, (was) => ({ ...(was ?? {}), gist }));
 }
 
 /** A note is gone: so is its gist. */
 export function forgetResults(id: string): void {
-  const sheet = { ...readSheet() };
-  if (!(id in sheet)) return;
-  delete sheet[id];
-  writeSheet(sheet);
+  sheet.forget(id);
 }
