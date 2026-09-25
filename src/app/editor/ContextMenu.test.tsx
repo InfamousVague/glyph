@@ -96,6 +96,26 @@ describe('what opens the menu', () => {
     expect(view.state.selection.main.head).toBe(6);
   });
 
+  it('leaves a held press on a drawn board or diagram to it, and a mouse to its right click', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    editor('words\n\nmore');
+    show(<ContextMenu view={view} />);
+    vi.spyOn(view, 'posAtCoords').mockReturnValue(6);
+    const board = document.createElement('div');
+    board.className = 'cm-board';
+    view.dom.appendChild(board);
+    act(() => {
+      board.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', isPrimary: true, clientX: 5, clientY: 30 }));
+    });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(menu()).toBeNull();
+    act(() => {
+      view.contentDOM.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse', isPrimary: true, clientX: 5, clientY: 30 }));
+    });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(menu()).toBeNull();
+  });
+
   it('leaves a held press on a word to the phone, and one that moves to the scroll', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     editor('words\n\nmore');
@@ -249,6 +269,22 @@ describe('the actions', () => {
     await choose('Add to board');
     expect(say).toHaveBeenLastCalledWith('Added to To do.');
     expect(view.state.doc.line(bread).text).toMatch(/^- \[ \] bread \^\S+$/);
+  });
+
+  it('takes the whole of a board for a row that works on lines, not the one line pressed in it', async () => {
+    editor('- [ ] milk\n- [ ] eggs', { anchor: 2 });
+    show(<ContextMenu view={view} />);
+    await hold();
+    await choose('Board from list');
+    const fenced = view.state.doc.toString();
+    expect(fenced).toContain('```board');
+    // Pressed on a column line inside the fence, as a press on a drawn board lands.
+    act(() => view.dispatch({ selection: { anchor: view.state.doc.line(2).from } }));
+    await hold();
+    await choose('Delete');
+    expect(view.state.doc.toString()).not.toContain('```');
+    expect(view.state.doc.toString()).toContain('milk');
+    expect(view.state.doc.toString()).toContain('eggs');
   });
 
   it('sends the line’s words, without the item’s marks, where a plugin takes them', async () => {
