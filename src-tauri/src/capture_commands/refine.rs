@@ -72,7 +72,7 @@ pub async fn capture_refine(
             return Err("busy".into());
         }
         let dir = paths::models_dir(&app)?;
-        let status = model::status(&dir, &model::REFINE);
+        let status = crate::model_files::status(&dir, &model::REFINE);
         if !status.present {
             return Err("model missing".into());
         }

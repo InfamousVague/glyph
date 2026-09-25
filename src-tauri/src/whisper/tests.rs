@@ -22,7 +22,8 @@ use std::time::Instant;
 
 use super::engine::{Engine, Session};
 use super::fixtures::{models_dir, to_16k_mono_wav};
-use super::model::{self, ModelSpec};
+use super::model;
+use crate::model_files::{self, ModelSpec};
 use super::stream::{Event, Streamer};
 use super::vad::rms;
 use super::{ms_to_samples, samples_to_ms, wav, SAMPLE_RATE};
@@ -48,7 +49,7 @@ fn engine() -> Option<Arc<Engine>> {
 }
 
 fn load(spec: &ModelSpec) -> Option<Engine> {
-    let status = model::status(&models_dir(), spec);
+    let status = model_files::status(&models_dir(), spec);
     if !status.present {
         eprintln!(
             "SKIPPED: {} is not in models/ - run `npm run fetch:model` to test against the real model",

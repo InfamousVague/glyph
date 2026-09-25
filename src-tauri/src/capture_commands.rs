@@ -185,7 +185,7 @@ async fn engine(app: &AppHandle, state: &CaptureState) -> Result<Arc<Engine>, St
     if let Some(engine) = lock(&state.engine).clone() {
         return Ok(engine);
     }
-    let status = model::status(&paths::models_dir(app)?, &model::ACTIVE);
+    let status = crate::model_files::status(&paths::models_dir(app)?, &model::ACTIVE);
     if !status.present {
         return Err(format!(
             "The transcription model ({}) has not been downloaded yet - call capture_fetch_model first.",

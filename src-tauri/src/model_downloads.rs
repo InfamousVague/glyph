@@ -2,7 +2,7 @@
 //! models: `capture_commands` (whisper's live and refine models) and
 //! `ai_commands` (the formatting models).
 //!
-//! `whisper::model` owns the download itself - the mirrors, the resume, the
+//! `model_files` owns the download itself - the mirrors, the resume, the
 //! SHA-256 that decides what is accepted - and takes no Tauri types, so that
 //! a process with no Tauri in it could drive it. What it cannot know is the
 //! app around it: where models live on this device, which mirrors the newest
@@ -19,7 +19,7 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Runtime};
 
-use crate::whisper::model::{self, ModelSpec, ModelStatus};
+use crate::model_files::{self, ModelSpec, ModelStatus};
 
 #[cfg(not(target_os = "ios"))]
 use std::path::Path;
@@ -41,7 +41,7 @@ pub fn models_here<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
 /// absent where there is none ([`models_here`]).
 pub fn status_here<R: Runtime>(app: &AppHandle<R>, spec: &ModelSpec) -> ModelStatus {
     match models_here(app) {
-        Some(dir) => model::status(&dir, spec),
+        Some(dir) => model_files::status(&dir, spec),
         None => ModelStatus::absent(spec),
     }
 }
@@ -57,7 +57,7 @@ struct Progress {
     total_bytes: u64,
 }
 
-/// Downloads `spec` into `dir` unless it is already there (`model::fetch`),
+/// Downloads `spec` into `dir` unless it is already there (`model_files::fetch`),
 /// emitting `event` with [`Progress`] as the bytes arrive, and answers with
 /// its status.
 ///
@@ -65,7 +65,7 @@ struct Progress {
 /// for the first rather than writing the same `.part` beside it. `mirrors`
 /// turns the mirrors a signed update manifest has moved the app to into the
 /// list to try - the moved ones first, the compiled ones after
-/// (`model::mirrors`) - and is asked only once the gate is held, so a download
+/// (`model_files::mirrors`) - and is asked only once the gate is held, so a download
 /// that waited uses the newest list. `id` rides on every event when the page
 /// needs to know which model it is hearing about.
 #[cfg(not(target_os = "ios"))]
@@ -83,7 +83,7 @@ pub async fn fetch_reporting(
     let emitter = app.clone();
     let mirrors = mirrors(&crate::ota::services(app).model_mirrors);
     let id = id.map(str::to_string);
-    model::fetch(dir, spec, &mirrors, move |received, total| {
+    model_files::fetch(dir, spec, &mirrors, move |received, total| {
         // A page not there to hear it (reloading, or closed) is not a failed download.
         let _ = emitter.emit(event, Progress { id: id.clone(), received_bytes: received, total_bytes: total });
     })

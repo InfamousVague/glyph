@@ -184,7 +184,7 @@ pub fn shutdown(app: &AppHandle) {
 }
 
 fn info(dir: Option<&std::path::Path>, spec: &LlmSpec) -> ModelInfo {
-    let status = dir.map(|d| crate::whisper::model::status(d, &spec.spec));
+    let status = dir.map(|d| crate::model_files::status(d, &spec.spec));
     ModelInfo {
         id: spec.id.to_string(),
         file: spec.spec.file.to_string(),
@@ -255,7 +255,7 @@ pub async fn ai_delete_model(app: AppHandle, state: State<'_, AiState>, id: Stri
         if let Some(llm) = state.llm.get() {
             llm.unload();
         }
-        for candidate in [crate::whisper::model::path_in(&dir, &spec.spec), crate::whisper::model::part_path(&dir, &spec.spec)] {
+        for candidate in [crate::model_files::path_in(&dir, &spec.spec), crate::model_files::part_path(&dir, &spec.spec)] {
             crate::fsx::remove_file_if_present(&candidate).map_err(|e| format!("cannot remove {}: {e}", candidate.display()))?;
         }
         Ok(info(Some(&dir), spec))
@@ -284,7 +284,7 @@ pub async fn ai_generate(
     {
         use tauri::Emitter;
         let dir = crate::paths::models_dir(&app)?;
-        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let status = crate::model_files::status(&dir, &spec.spec);
         if !status.present {
             return Err(format!("The model {} is not on this phone yet.", spec.id));
         }
@@ -354,15 +354,15 @@ pub async fn ai_infer_command(
     {
         let dir = crate::paths::models_dir(&app)?;
         let preferred = model::find(&request.preferred_model)
-            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+            .filter(|spec| crate::model_files::status(&dir, &spec.spec).present);
         let fallback = model::find("qwen3.5-2b")
-            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+            .filter(|spec| crate::model_files::status(&dir, &spec.spec).present);
         let Some(spec) = preferred.or(fallback) else {
             return Ok(CommandInferenceResult::Unavailable {
                 reason: "No compatible installed model is available for instruction commands.".into(),
             });
         };
-        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let status = crate::model_files::status(&dir, &spec.spec);
         let cancel = Arc::new(AtomicBool::new(false));
         {
             let mut runs = lock(&state.runs);

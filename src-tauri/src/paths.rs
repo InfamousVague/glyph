@@ -11,7 +11,7 @@
 //!
 //! Resolving needs an `AppHandle` (or the `App` in setup), which is why this
 //! is on the Tauri side of the seam and the Tauri-free modules take a path
-//! instead - `Store::open`, `Library::open_fs`, `whisper::model::fetch`,
+//! instead - `Store::open`, `Library::open_fs`, `model_files::fetch`,
 //! `ota::peek` all do, so a caller with no Tauri in its process (the
 //! update-alert worker today) resolves its own.
 //!

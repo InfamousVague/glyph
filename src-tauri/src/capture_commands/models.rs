@@ -8,7 +8,8 @@ use tauri::{AppHandle, State};
 
 use super::CaptureState;
 use crate::model_downloads;
-use crate::whisper::model::{self, ModelStatus};
+use crate::model_files::ModelStatus;
+use crate::whisper::model;
 
 #[cfg(not(target_os = "ios"))]
 use crate::paths;
@@ -86,11 +87,12 @@ pub async fn capture_fetch_refine_model(
 /// The model download against the real mirrors. Ignored by default because
 /// they need the network and one of them downloads 60 MB; run them with
 /// `cargo test capture_commands -- --ignored`. They live here rather than in
-/// `whisper/model.rs` only because reqwest needs an async runtime, and the one
+/// `model_files.rs` only because reqwest needs an async runtime, and the one
 /// already in this crate is Tauri's.
 #[cfg(all(test, not(target_os = "ios")))]
 mod tests {
-    use crate::whisper::model::{self, ModelSpec};
+    use crate::model_files::{self, ModelSpec};
+    use crate::whisper::model;
 
     fn temp_dir() -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("glyph-fetch-test-{}", uuid::Uuid::new_v4()));
@@ -103,7 +105,7 @@ mod tests {
     fn the_active_model_downloads_through_the_mirrors_and_verifies() {
         let dir = temp_dir();
         let mut reports = Vec::new();
-        let status = tauri::async_runtime::block_on(model::fetch(
+        let status = tauri::async_runtime::block_on(model_files::fetch(
             &dir,
             &model::ACTIVE,
             &model::mirrors_with(&[]),
@@ -139,7 +141,7 @@ mod tests {
             sha256: "0000000000000000000000000000000000000000000000000000000000000000",
         };
         let dir = temp_dir();
-        let error = tauri::async_runtime::block_on(model::fetch(
+        let error = tauri::async_runtime::block_on(model_files::fetch(
             &dir,
             &spec,
             &model::mirrors_with(&[]),

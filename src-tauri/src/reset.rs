@@ -8,7 +8,7 @@
 //!
 //! Directories are removed whole and not recreated: every writer in the crate
 //! creates its directory before it writes (`images::adopt`,
-//! `whisper::model::fetch`, the recorder), so an absent directory is the same
+//! `model_files::fetch`, the recorder), so an absent directory is the same
 //! as a fresh install. A model that is loaded stays mapped in memory until the
 //! engine idles out, which is harmless: the page reads presence off the file.
 //!

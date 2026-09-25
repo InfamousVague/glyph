@@ -35,6 +35,10 @@ mod recordings;
 // though today only the capture commands drive it. See whisper/mod.rs's header.
 pub mod whisper;
 
+// A model file, whichever engine reads it: its spec, whether it is here, and
+// the verified, resumable download. Tauri-free, like the engines it serves.
+pub mod model_files;
+
 // The Tauri half of a model download, which both doors below share: where
 // models live on this device, the progress event, one download at a time.
 mod model_downloads;

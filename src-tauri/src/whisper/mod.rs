@@ -25,8 +25,9 @@
 //!   `Session` that implements `stream::Transcribe`.
 //! - `worker` is the thin thread that drives a `Streamer` on a timer, so that
 //!   pushing audio never waits for inference.
-//! - `model` is the catalogue of model files, their pinned hashes, and the
-//!   download.
+//! - `model` is the catalogue of model files, their pinned hashes and their
+//!   mirrors. The download is `model_files`'s, which the formatter shares, so
+//!   this module holds no Tauri at all - not even the runtime a retry sleeps on.
 //! - `wav` reads a WAV file, for whole-file benchmarking and the tests.
 //!
 //! Errors cross this module as `String`, not as an enum like `StoreError`, and

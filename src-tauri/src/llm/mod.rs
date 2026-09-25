@@ -23,8 +23,8 @@
 //! The rooms:
 //!
 //! - `model` is the catalogue: which GGUFs, their pinned SHA-256s, where they
-//!   come from. The download itself is whisper's (`whisper::model::fetch`),
-//!   which takes any `ModelSpec`.
+//!   come from. The download itself is `model_files::fetch`, which takes any
+//!   `ModelSpec`, whisper's as well.
 //! - `prompt` frames a request in the model's chat template with no model
 //!   loaded, so its rules are unit tests.
 //! - `device` reads what the phone has (memory, cores, chip, disk) so the

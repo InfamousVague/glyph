@@ -72,7 +72,7 @@ fn hear(engine: &Arc<Engine>, audio: &[f32]) -> Result<Vec<Segment>, String> {
 #[ignore]
 fn hear_every_recording() {
     let dir = voice_dir();
-    let status = model::status(&models_dir(), &model::BASE_EN_Q5_1);
+    let status = crate::model_files::status(&models_dir(), &model::BASE_EN_Q5_1);
     assert!(status.present, "{} is not in {} - run `npm run fetch:model`", model::BASE_EN_Q5_1.file, models_dir().display());
     let engine = Arc::new(Engine::load(Path::new(&status.path)).expect("the model loads"));
     let out = dir.join(".heard");
