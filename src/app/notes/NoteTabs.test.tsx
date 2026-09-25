@@ -48,6 +48,10 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  // The outline's tests stand in an `animate` and ask for less motion; a failed assertion must not leave either behind.
+  delete (HTMLElement.prototype as Partial<HTMLElement>).animate;
+  stubMatchMedia(false);
 });
 
 describe('the top bar', () => {
@@ -183,6 +187,103 @@ describe('dragging a tab', () => {
   });
 });
 
+describe('dragging a tab, the finer rules', () => {
+  /** A pointer event with the time it happened at, which a flick's speed is measured by. */
+  const at = (type: string, target: EventTarget, x: number, time: number) =>
+    act(() => {
+      const event = new PointerEvent(type, { bubbles: true, clientX: x, pointerType: 'touch', button: 0 });
+      Object.defineProperty(event, 'timeStamp', { value: time });
+      target.dispatchEvent(event);
+    });
+
+  it('brings a group of one back when its tab is carried out and over its chip again before the row has redrawn', () => {
+    vi.useFakeTimers();
+    layOut();
+    let held: TabGroups = { list: [{ id: 'g', name: 'Solo', hue: 'sea' }], of: { a: 'g' } };
+    function Grouping() {
+      const [groups, setGroups] = useState<TabGroups>(held);
+      held = groups;
+      return bar({ groups, onGroups: setGroups, onMove: () => undefined, onNew: () => undefined });
+    }
+    // Drawn: the chip at 0, a at 100, b at 200, c at 300, the + at 400.
+    show(<Grouping />);
+    pointer('pointerdown', tab('a').querySelector('[role="tab"]')!, 150, 'touch');
+    act(() => void vi.advanceTimersByTime(220));
+    // Over b, a tab of no group, and straight back over the chip: two moves inside one frame, as a quick finger makes.
+    act(() => {
+      window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 250, pointerType: 'touch' }));
+      window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 50, pointerType: 'touch' }));
+    });
+    pointer('pointerup', window, 50, 'touch');
+    expect(held).toEqual({ list: [{ id: 'g', name: 'Solo', hue: 'sea' }], of: { a: 'g' } });
+  });
+
+  it('counts a folded group as every tab it holds, and takes the tab into it only when let go', () => {
+    vi.useFakeTimers();
+    layOut();
+    const onMove = vi.fn();
+    const onGroups = vi.fn();
+    const four = [...notes, makeNote('d', '# Dates')];
+    const groups: TabGroups = { list: [{ id: 'g', name: 'Lunch', hue: 'sea', collapsed: true }], of: { b: 'g', c: 'g', d: 'g' } };
+    // Drawn: a at 0, the folded chip at 100, the + at 200.
+    show(bar({ tabs: four, onMove, onGroups, groups, onNew: () => undefined }));
+    pointer('pointerdown', tab('a').querySelector('[role="tab"]')!, 50, 'touch');
+    act(() => void vi.advanceTimersByTime(220));
+    pointer('pointermove', window, 160, 'touch');
+    expect(onMove).toHaveBeenLastCalledWith('a', 3, true);
+    // Joining a folded group hides the tab, so not while it is under the finger.
+    expect(onGroups).not.toHaveBeenCalled();
+    pointer('pointerup', window, 160, 'touch');
+    expect(onGroups).toHaveBeenCalledWith({ list: groups.list, of: { b: 'g', c: 'g', d: 'g', a: 'g' } });
+  });
+
+  it('carries a flick on after the finger lifts, slowing to a stop', () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (step: FrameRequestCallback) => frames.push(step));
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+    show(bar({ onMove: () => undefined }));
+    const row = document.querySelector<HTMLElement>('[role="tablist"]')!;
+    let left = 100;
+    Object.defineProperty(row, 'scrollWidth', { configurable: true, get: () => 2000 });
+    Object.defineProperty(row, 'clientWidth', { configurable: true, get: () => 300 });
+    Object.defineProperty(row, 'scrollLeft', { configurable: true, get: () => left, set: (to: number) => void (left = to) });
+    at('pointerdown', tab('b').querySelector('[role="tab"]')!, 250, 1000);
+    at('pointermove', window, 230, 1010);
+    at('pointermove', window, 200, 1020);
+    expect(left).toBe(150);
+    at('pointerup', window, 200, 1030);
+    expect(frames).toHaveLength(1);
+    const now = performance.now();
+    act(() => frames.shift()!(now + 17));
+    expect(left).toBeGreaterThan(150);
+    const after = left;
+    act(() => frames.shift()!(now + 34));
+    expect(left).toBeGreaterThan(after);
+  });
+
+  it('opens no menu for a mouse held and let go in place: a mouse has its right-click', () => {
+    vi.useFakeTimers();
+    show(bar({ onMove: () => undefined, onGroups: () => undefined }));
+    pointer('pointerdown', tab('b').querySelector('[role="tab"]')!, 150, 'mouse');
+    act(() => void vi.advanceTimersByTime(220));
+    pointer('pointerup', window, 150, 'mouse');
+    expect(menuItems()).toEqual([]);
+  });
+
+  it('never picks a tab up by its cross', () => {
+    vi.useFakeTimers();
+    layOut();
+    const onMove = vi.fn();
+    show(bar({ onMove }));
+    pointer('pointerdown', button('Close Apples'), 90, 'touch');
+    act(() => void vi.advanceTimersByTime(220));
+    pointer('pointermove', window, 250, 'touch');
+    pointer('pointerup', window, 250, 'touch');
+    expect(tab('a').dataset.moving).toBeUndefined();
+    expect(onMove).not.toHaveBeenCalled();
+  });
+});
+
 describe('a group’s chip', () => {
   const groups: TabGroups = { list: [{ id: 'g', name: 'Lunch', hue: 'sea' }], of: { b: 'g', c: 'g' } };
 
@@ -202,6 +303,8 @@ describe('a group’s chip', () => {
     show(bar({ groups, onGroups: () => undefined, onCloseTabs }));
     act(() => void button('Lunch, 2 tabs').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
     expect(menuItems()).toEqual(expect.arrayContaining(['Rename', 'Ungroup', 'Close group']));
+    act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.trim() === 'Colour')!.click());
+    expect(menuItems()).toEqual(expect.arrayContaining(['Ink', 'Sea']));
     act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === 'Close group')!.click());
     expect(onCloseTabs).toHaveBeenCalledWith(['b', 'c']);
   });
@@ -262,7 +365,45 @@ describe('the outline of the tab being read', () => {
     stubMatchMedia(true);
     rerender(bar({ activeId: 'c' }));
     expect(animate).toHaveBeenCalledTimes(2);
-    stubMatchMedia(false);
-    delete (HTMLElement.prototype as Partial<HTMLElement>).animate;
+  });
+
+  it('does not slide from under a tab being carried', () => {
+    vi.useFakeTimers();
+    layOut();
+    const animate = vi.fn(() => ({ cancel: () => undefined, onfinish: null }) as unknown as Animation);
+    HTMLElement.prototype.animate = animate;
+    show(bar({ onMove: () => undefined }));
+    pointer('pointerdown', tab('b').querySelector('[role="tab"]')!, 150, 'touch');
+    act(() => void vi.advanceTimersByTime(220));
+    rerender(bar({ onMove: () => undefined, activeId: 'b' }));
+    expect(animate).not.toHaveBeenCalled();
+    pointer('pointerup', window, 150, 'touch');
+  });
+
+  it('is drawn under the tab being read, and not with none of them being read', () => {
+    layOut();
+    show(bar());
+    const glide = () => document.querySelector<HTMLElement>('[role="tablist"] > span[aria-hidden="true"]')!;
+    expect(glide().dataset.on).toBe('');
+    expect(glide().style.width).toBe('100px');
+    rerender(bar({ activeId: '' }));
+    expect(glide().dataset.on).toBeUndefined();
+  });
+
+  it('fades whichever end of the row has tabs past it, and never the start at the start', () => {
+    show(bar());
+    const row = document.querySelector<HTMLElement>('[role="tablist"]')!;
+    let left = 0;
+    Object.defineProperty(row, 'scrollWidth', { configurable: true, get: () => 900 });
+    Object.defineProperty(row, 'clientWidth', { configurable: true, get: () => 300 });
+    Object.defineProperty(row, 'scrollLeft', { configurable: true, get: () => left, set: (to: number) => void (left = to) });
+    const scrolled = (to: number) => {
+      left = to;
+      act(() => void row.dispatchEvent(new Event('scroll')));
+      return [row.dataset.fadeStart !== undefined, row.dataset.fadeEnd !== undefined];
+    };
+    expect(scrolled(0)).toEqual([false, true]);
+    expect(scrolled(200)).toEqual([true, true]);
+    expect(scrolled(600)).toEqual([true, false]);
   });
 });
