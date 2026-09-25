@@ -1,6 +1,6 @@
 /*
- * The right-hand aside (Aside.tsx): a book's index, or the workspace's notes, in a quiet column. Its shell is a
- * docked column (app.css `.app-aside`) or the notes drawer's floating card at the right (notes/NotesDrawer.module.css,
+ * The right-hand aside (Aside.tsx): a book's index, or a run of numbered chapters, in a quiet column. Its shell is a
+ * docked column (app.css `.app-aside`) or the notes drawer's floating card at the right (notes/FloatingCard.module.css,
  * `AsideCard`); this is what is inside it.
  */
 

@@ -2,11 +2,12 @@
  * The notes a person has open, as tabs across the top of a note (Matt: "add
  * tabs at the top of the app for the different notes that are open").
  *
- * "Open" is real state, not chrome: the ids are kept in App.tsx while the app
- * runs, so switching tabs goes straight back to a note instead of reloading
- * it, and closing one falls through to the next rather than to the list. A
- * note opened any way at all joins the row: from the list, from a `[[link]]`,
- * from a finished recording. Deleting or archiving takes it out again.
+ * "Open" is real state, not chrome: the ids are kept by the Shell
+ * (shell/useOpenTabs.ts) while the app runs, so switching tabs goes straight
+ * back to a note instead of reloading it, and closing one falls through to
+ * the next rather than to the list. A note opened any way at all joins the
+ * row: from the list, from a `[[link]]`, from a finished recording. Deleting
+ * or archiving takes it out again.
  *
  * Pure, so every rule here is a test rather than something to click through.
  */

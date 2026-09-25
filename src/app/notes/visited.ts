@@ -1,6 +1,6 @@
 /**
- * Where a person has been, so the arrows in the app's tab bar can go back and forward through it (App.tsx,
- * notes/NoteTabs.tsx).
+ * Where a person has been, so the arrows in the app's tab bar can go back and forward through it
+ * (shell/useTrail.ts, notes/NoteTabs.tsx).
  *
  * Matt: "Add the back and forward arrows in the top bar to the right of the button used to toggle the sidebar and
  * make sure we have full forward and backwards support".

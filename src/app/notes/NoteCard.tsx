@@ -1,11 +1,12 @@
 import type { CSSProperties } from 'react';
-import { Book, LoaderCircle } from '@glacier/icons';
+import { LoaderCircle } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { chaptersOf, isBookBody, type BookPlace } from '../book/book.ts';
 import { activeGist } from '../format/gist.ts';
 import { hasMarks } from '../ai/marks.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
 import { ArchiveBox, Pin } from '../art/Icons.tsx';
+import { BookPlaceMark } from './BookPlaceMark.tsx';
 import { NotePeek } from './NotePeek.tsx';
 import { when } from './when.ts';
 import styles from './NoteCard.module.css';
@@ -82,12 +83,7 @@ export function NoteCard({ note, index, onOpen, gist, place, dense = false }: No
         ) : (
           <>
             {/* A page of a book says which (docs/BOOKS.md). */}
-            {place ? (
-              <span className={styles.book} title={`Page ${place.at + 1} of ${place.title}`}>
-                <Book size={12} aria-hidden="true" />
-                <span className={styles.bookName}>{place.title}</span>
-              </span>
-            ) : null}
+            {place ? <BookPlaceMark place={place} /> : null}
             {/* What the note is about, when the phone has written it; the preview under it is the note itself. */}
             {gist ? <span className={styles.gist}>{gist}</span> : null}
             <NotePeek body={note.body} className={styles.peek} />

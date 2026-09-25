@@ -3,7 +3,7 @@
  * that fold, notes under them on a faint indent guide, and the foot with Speak and Settings.
  *
  * Docked beside a note on a desktop it fills its column, under the app's bar (`--app-safe-top`); in the pop-up it
- * fills the floating card (notes/NotesDrawer.module.css), which has no bar over it.
+ * fills the floating card (notes/FloatingCard.module.css), which has no bar over it.
  */
 
 .tree {
@@ -324,8 +324,7 @@
   color: var(--glacier-text-muted);
 }
 
-/* The foot: Speak, and Settings at the far end. */
-/* An update or a memo waiting, over the foot, padded clear of the notes, the edges and the rule under it. */
+/* An update waiting, over the foot, padded clear of the notes, the edges and the rule under it. */
 .notices {
   flex: none;
   display: flex;
@@ -344,6 +343,7 @@
   margin: 0;
 }
 
+/* The foot: Speak, and Settings at the far end. */
 .foot {
   flex: none;
   display: flex;
@@ -381,22 +381,6 @@
 
 .emptyWords {
   margin: 0;
-}
-
-/* A page of a book (book/book.ts): the mark and the book's name, one quiet line under the title. */
-.rowBook {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3em;
-  min-inline-size: 0;
-  font-size: var(--glacier-font-size-xs, 0.75rem);
-  color: var(--glacier-text-muted);
-}
-
-.rowBookName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /*

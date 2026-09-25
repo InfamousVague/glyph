@@ -23,10 +23,11 @@ import styles from './HomeScreen.module.css';
  * The home page (Matt: "Add a 'home' button to take us to a dashboard like page"; he chose a new page on every screen,
  * the phone's start page included). The top bar's Glyph mark brings you here from anywhere.
  *
- * What a person comes back to Glyph for, in the order they want it: anything waiting on them (an update, a memo to
- * sort, the voice model), the notes they pinned, the ones they were in last, and every to-do not yet ticked, gathered
- * from all of their notes - ticked here without opening the note. The page does not list every note; "All notes" at
- * its foot opens the page that does, as a grid of the same cards (notes/AllNotesScreen.tsx).
+ * What a person comes back to Glyph for, in the order they want it: anything waiting on them (an update, the
+ * Academy's invitation, the voice model), the notes they pinned, their books, the ones they were in last, and every
+ * to-do not yet ticked, gathered from all of their notes - ticked here without opening the note. The page does not
+ * list every note; "All notes" at its foot opens the page that does, as a grid of the same cards
+ * (notes/AllNotesScreen.tsx).
  *
  * It took the place of the notes list, and kept what the list had that was not the list: the glass bar and scroller,
  * the workspace pills choosing what it shows, and the dock, so starting a note is where it always was.
@@ -95,12 +96,12 @@ export function HomeScreen({
   const books = useMemo(() => bookNotes(shown), [shown]);
   /** Every page's book, for the cards' marks (book/book.ts). */
   const inBooks = useMemo(() => bookIndex(shown), [shown]);
-  const tasks = openTasks(shown);
+  const tasks = useMemo(() => openTasks(shown), [shown]);
   // One quiet line under each card's title, what the note is about, written by a model on the phone (format/gist.ts).
   // Only the notes with a card on the page: the runner asks about what is on screen, not about every note there is.
   const carded = useMemo(() => [...pinned, ...recent], [pinned, recent]);
   const gists = useGists(carded);
-  const titleOf = new Map(notes.map((n) => [n.id, noteTitle(n.body) || 'Untitled']));
+  const titleOf = useMemo(() => new Map(notes.map((n) => [n.id, noteTitle(n.body) || 'Untitled'])), [notes]);
   // A tick lands on the page at once; the note catches up when it has been written.
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
   // Once the notes have been read again they say it themselves, and a line number may now be another to-do's.

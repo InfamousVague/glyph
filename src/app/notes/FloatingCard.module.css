@@ -1,7 +1,7 @@
 /*
- * The floating notes card (NotesDrawer.tsx): a card at the left, over the note,
- * with the page still visible beside it rather than behind a scrim. It arrives
- * from the left edge, the way a drawer would.
+ * The floating card (FloatingCard.tsx): the notes drawer's at the left, the
+ * aside's at the right, over the note, with the page still visible beside it
+ * rather than behind a scrim. It grows out of the icon that opened it.
  */
 
 .over {
@@ -26,7 +26,7 @@
   inline-size: min(20rem, calc(100vw - var(--glacier-space-10)));
   display: flex;
   flex-direction: column;
-  /* The tree inside pads itself and scrolls its own middle (notes/NoteTree.tsx); the card only holds it and rounds it. */
+  /* What is inside pads itself and scrolls its own middle (notes/NoteTree.tsx, aside/Aside.tsx); the card only holds it and rounds it. */
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--glacier-border-subtle);
@@ -60,7 +60,7 @@
   }
 }
 
-/* The tree fills the card, so its tools stay at the top and its foot at the bottom while the notes scroll between. */
+/* What is inside fills the card, so the tree's tools stay at the top and its foot at the bottom while the notes scroll between. */
 .card > * {
   flex: 1;
   min-block-size: 0;

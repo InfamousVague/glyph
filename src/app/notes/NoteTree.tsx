@@ -1,11 +1,12 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Archive, Book, BookOpen, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FileText, FolderOpen, FolderPlus, LayoutList, List, Mic, RotateCcw, Search, Settings, SquarePen, Trash2, Workflow, X } from '@glacier/icons';
+import { Archive, BookOpen, ChevronRight, ChevronsDownUp, ChevronsUpDown, Ellipsis, FileText, FolderOpen, FolderPlus, LayoutList, List, Mic, RotateCcw, Search, Settings, SquarePen, Trash2, Workflow, X } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { bookIndex, isBookBody, placeOf } from '../book/book.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { browseFiles, canBrowseFiles } from '../core/libraryFiles.ts';
+import { BookPlaceMark } from './BookPlaceMark.tsx';
 import { NotePeek } from './NotePeek.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
 import { ARCHIVE_FOLDER, noteTree, readClosed, readCompact, readTrashOpen, writeClosed, writeCompact, writeTrashOpen } from './tree.ts';
@@ -23,8 +24,8 @@ import styles from './NoteTree.module.css';
  * than a fill, so what is drawn inside it sits on the same paper as everywhere else.
  *
  * `onClose` makes it the pop-up: a close button joins the tools. `notices` is what the desktop sidebar must still
- * carry now that it is no longer the home list - an update waiting, a memo waiting - since there is no other screen
- * on a desktop to show them. They sit at the bottom, over the foot.
+ * carry now that it is no longer the home list - an update waiting - since there is no other screen on a desktop to
+ * show it. It sits at the bottom, over the foot.
  */
 
 export interface NoteTreeProps {
@@ -145,12 +146,7 @@ export function NoteTree({
             {title || 'Untitled'}
           </span>
           {/* A page of a book says which (docs/BOOKS.md): the mark, and the book's name. */}
-          {place && !compact ? (
-            <span className={styles.rowBook} title={`Page ${place.at + 1} of ${place.title}`}>
-              <Book size={12} aria-hidden="true" />
-              <span className={styles.rowBookName}>{place.title}</span>
-            </span>
-          ) : null}
+          {place && !compact ? <BookPlaceMark place={place} /> : null}
           {compact ? null : <NotePeek body={note.body} className={styles.rowPeek} />}
         </button>
       </li>

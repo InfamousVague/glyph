@@ -1,46 +1,34 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, PanelLeft, Plus, X } from '@glacier/icons';
-import { Menu, MenuItem, MenuSeparator, MenuSub } from '@glacier/react';
-import { prefersStill } from '../core/motion.ts';
-import { capitalise } from '../core/text.ts';
-import {
-  joinGroup,
-  leaveGroup,
-  membersOf,
-  newGroup,
-  NO_GROUPS,
-  recolourGroup,
-  renameGroup,
-  toggleGroup,
-  ungroup,
-  type TabGroup,
-  type TabGroups,
-} from './tabGroups.ts';
+import { newGroup, NO_GROUPS, renameGroup, toggleGroup, type TabGroups } from './tabGroups.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { isBookBody } from '../book/book.ts';
 import { noteTitle, type Note } from '../core/store.ts';
-import { motionScale } from '../core/preferences.ts';
-import { useWorkspaces, WORKSPACE_HUES } from '../core/workspaces.ts';
+import { useWorkspaces } from '../core/workspaces.ts';
 import { setTopBarTools } from '../core/topBarTools.ts';
 import { House } from '../art/Icons.tsx';
-import { wispSides } from '../art/wispSides.ts';
 import { scrollSideways } from '../core/scrollSideways.ts';
+import { GroupChip } from './GroupChip.tsx';
+import { GroupMenu, TabMenu } from './TabMenus.tsx';
+import { useTabDrag } from './useTabDrag.ts';
+import { useTabOutline } from './useTabOutline.ts';
 import styles from './NoteTabs.module.css';
 
 /**
- * The row across the top of a note: the notes that are open, and the way to
- * the rest of them (Matt: "add tabs at the top of the app for the different
- * notes that are open", and "add a sidebar that opens as a floating card, add
- * a sidebar icon on the top left of the page").
+ * The app's top bar: the notes that are open, and the way to the rest of them (Matt: "add tabs at the top of the app
+ * for the different notes that are open", and "add a sidebar that opens as a floating card, add a sidebar icon on the
+ * top left of the page").
  *
- * Both asks are one bar. The sidebar's icon is the row's first thing, which
- * puts it at the top left of the page without a second back word fighting the
- * note's own; the tabs run beside it and scroll sideways when there are more
- * than fit. A tap changes note without leaving the screen; the cross closes a
- * tab, and the note behind it carries on existing, it is only no longer open.
+ * Two rows. The first is the controls - home, the sidebar's icon, back and forward, the slot the screen's own buttons
+ * are drawn into, and the aside's icon at the far end. The second is the tabs, which scroll sideways when there are
+ * more than fit, and is not drawn at all with nothing open. A tap changes note without leaving the screen; the cross
+ * closes a tab, and the note behind it carries on existing, it is only no longer open.
  *
- * The row lives inside the note's header pane (editor/NoteScreen.tsx), so the
- * note scrolls under it and the header's own height already accounts for it.
+ * The bar is the app's, not any screen's: App.tsx draws it once, in the fixed `.app-tabBar`, on the home page, the
+ * All notes grid and a note, and says how tall it is on the root (`data-tabs`, app.css `--app-tabs`), so every
+ * screen's header clears it by `--app-safe-top` without knowing it is there. This file is its markup; the gesture on
+ * the row is notes/useTabDrag.ts, the outline and the smoke at its ends notes/useTabOutline.ts, and the menus and a
+ * group's chip notes/TabMenus.tsx and notes/GroupChip.tsx.
  */
 
 interface NoteTabsProps {
@@ -83,11 +71,6 @@ interface NoteTabsProps {
    */
   onRename?: (id: string, title: string) => void;
 }
-
-/** How far a pointer must travel before a press on a tab is a drag rather than a click. */
-const TRAVEL = 6;
-/** How long a press has to stay put before it picks the tab up rather than pulling the row along. */
-const HOLD_MS = 220;
 
 export function NoteTabs({
   tabs,
@@ -143,296 +126,11 @@ export function NoteTabs({
     setRenaming(made.id);
   };
   const spaces = useWorkspaces();
-  /*
-   * Dragging a tab along the row (Matt: "Add dragging around tabs into different positions"). The row reorders under
-   * the finger rather than a ghost following it: the tab being dragged is the tab in the row, and it swaps with a
-   * neighbour the moment the pointer passes that neighbour's middle.
-   *
-   * The drag is followed on the window rather than on the tab, and deliberately: reordering moves the tab's own
-   * element in the DOM, which drops a pointer capture held on it. Held that way, a drag lost its end - no pointerup
-   * ever arrived at the tab - and every later tap was swallowed as "the click that ends a drag". The window sees the
-   * whole gesture whatever React does to the row underneath.
-   *
-   * A mouse drags once it has actually travelled, since a plain click emits a move of no distance. A finger waits a
-   * moment first, because the row scrolls sideways and a flick along it must stay a flick - the same reason a phone's
-   * home screen waits before it lets you move an icon.
-   */
   const row = useRef<HTMLDivElement>(null);
+  /** The tab being carried by a drag, while it is. */
   const [moving, setMoving] = useState<string | null>(null);
-  /** A drag ends in a click somewhere in the row, which must not also open a note. */
-  const dragged = useRef(false);
-
-  /**
-   * Which place in the row the pointer is over: how many of the OTHER tabs' middles it has passed.
-   *
-   * The tab being dragged is skipped on purpose. It carries an offset so it can follow the finger, which moves the
-   * box it would be measured by, and measuring it made the row swap and swap back as the offset chased the answer
-   * that had caused it.
-   */
-  const placeAt = (x: number, dragging: string): number => {
-    // A folded group is its chip on screen and all its tabs in the order, so passing it passes every one of them.
-    const items = row.current ? [...row.current.querySelectorAll<HTMLElement>('[data-tab], [data-group-chip][data-collapsed]')] : [];
-    let place = 0;
-    for (const item of items) {
-      if (item.dataset.tabId === dragging) continue;
-      const box = item.getBoundingClientRect();
-      if (x > box.left + box.width / 2) place += item.dataset.tab === undefined ? Number(item.dataset.count) || 0 : 1;
-    }
-    return place;
-  };
-
-  /**
-   * Which group a dragged tab belongs in, by what it is dragged over (Matt: "Allow dragging into tab groups"), the way
-   * Chrome decides it: over a tab of a group, or the group's chip, it is in that group; over a tab of none, over the
-   * + or past either end of the row, it is in none. Between two things - the few pixels of gap - it stays as it was.
-   * `undefined` is that last answer.
-   *
-   * It used to be read off where the tab landed: in a group only when dropped between two of its tabs. So a group of
-   * one could never be dragged into, nor a group at either end, nor a folded one, which draws no tabs to land between.
-   */
-  const groupAt = (x: number, dragging: string): string | null | undefined => {
-    const box = row.current;
-    if (!box) return undefined;
-    const things = [...box.querySelectorAll<HTMLElement>('[data-tab], [data-group-chip], [data-new-tab]')].filter((el) => el.dataset.tabId !== dragging);
-    if (!things.length) return undefined;
-    const first = things[0]!.getBoundingClientRect();
-    const last = things[things.length - 1]!.getBoundingClientRect();
-    if (x < first.left || x > last.right) return null;
-    for (const el of things) {
-      const r = el.getBoundingClientRect();
-      if (x < r.left || x > r.right) continue;
-      if (el.dataset.groupChip) return el.dataset.groupChip;
-      if (el.dataset.newTab !== undefined) return null;
-      return el.dataset.groupId ?? null;
-    }
-    return undefined;
-  };
-
-  /*
-   * The outline of the tab being read (`.glide`), and the gap in the row's line under it (NoteTabs.module.css `.tabs`).
-   * The tab draws no outline of its own: its sides would run straight down to the line, and with the tab see-through
-   * there is nothing to cover their foot where the curves take over (Matt: "Add the glass effect to the tabs"). This
-   * one stops a curve's height above the line, and its curves hang from its two lower corners down onto it. It is the
-   * same outline that slides from tab to tab, so a slide needs no hand-over at either end.
-   *
-   * Measured in the row's scrolled coordinates, where both are drawn. The gap starts a pixel inside each curve's outer
-   * end - the outline's 1px border, which the curves are placed inside - so the line runs on into the curve with no
-   * break; placed from the tab's outer edge, it stopped a pixel short of both.
-   */
-  const glide = useRef<HTMLSpanElement>(null);
-  const outlineOf = (tab: HTMLElement | null | undefined) => {
-    const box = row.current;
-    if (!box || !tab) return null;
-    const flare = parseFloat(getComputedStyle(box).getPropertyValue('--tab-flare')) || 0;
-    const within = box.getBoundingClientRect();
-    const at = tab.getBoundingClientRect();
-    const left = at.left - within.left + box.scrollLeft;
-    return {
-      box: { left: `${left}px`, width: `${at.width}px`, top: `${at.top - within.top}px`, height: `${Math.max(0, at.height - flare)}px` },
-      hole: { '--tab-hole-start': `${left + 1 - flare}px`, '--tab-hole-end': `${left + at.width - 1 + flare}px` },
-    };
-  };
-  const placeOutline = () => {
-    const box = row.current;
-    const outline = glide.current;
-    if (!box || !outline) return;
-    const at = outlineOf(box.querySelector<HTMLElement>('[data-tab][data-active]'));
-    if (at) {
-      outline.dataset.on = '';
-      Object.assign(outline.style, at.box);
-    } else delete outline.dataset.on;
-    for (const [name, value] of Object.entries(at?.hole ?? { '--tab-hole-start': '0px', '--tab-hole-end': '0px' })) box.style.setProperty(name, value);
-  };
-  // After every drawing of the row: a tab opened, closed, renamed, moved into a group or out of one each moves it.
-  useLayoutEffect(placeOutline);
-
-  /*
-   * A flick along the row keeps going and slows to a stop (Matt: "Scrolling through the tabs doesn't have momentum").
-   * The row is panned by hand rather than by the engine - a finger on it may be about to pick a tab up instead
-   * (`takeHold`), so the pan is spent on `scrollLeft` as the finger moves - and a hand-panned scroller stops dead when
-   * the finger lifts, where the engine would have carried it on. So the speed the finger left at is carried on here,
-   * losing a fifteenth of itself each frame, until it is slower than a pixel every few frames or the row reaches its
-   * end. A new touch on the row stops it where it is, as a finger stops a scrolling page.
-   */
-  const coasting = useRef(0);
-  const coast = (box: HTMLElement, speed: number) => {
-    let last = performance.now();
-    let left = box.scrollLeft;
-    let pace = speed;
-    const step = (now: number) => {
-      const frames = Math.min(4, (now - last) / 16.67);
-      last = now;
-      left += pace * 16.67 * frames;
-      pace *= (1 - 1 / 15) ** frames;
-      const end = box.scrollWidth - box.clientWidth;
-      box.scrollLeft = left;
-      if (Math.abs(pace) < 0.02 || left <= 0 || left >= end) return;
-      coasting.current = requestAnimationFrame(step);
-    };
-    coasting.current = requestAnimationFrame(step);
-  };
-
-  const takeHold = (event: React.PointerEvent<HTMLDivElement>) => {
-    cancelAnimationFrame(coasting.current);
-    if (!onMove || (event.pointerType === 'mouse' && event.button !== 0)) return;
-    const tab = (event.target as HTMLElement).closest<HTMLElement>('[data-tab]');
-    const id = tab?.dataset.tabId;
-    if (!id) return;
-    // The cross is not a handle: pressing it means close, whatever the finger does next.
-    if ((event.target as HTMLElement).closest('[data-close]')) return;
-
-    const from = event.clientX;
-    /*
-     * One rule for a finger and a mouse alike: press and hold to pick a tab up (Matt: "the clicking and dragging is
-     * eating me moving the tabs - the tabs should only move when I press and hold"). A mouse used to reorder the
-     * moment it had travelled a few pixels, so a click that slid under the hand carried the tab with it.
-     */
-    let on = false;
-    /** Whether the finger went anywhere once the tab was picked up: a hold that did not is a menu, not a move. */
-    let travelled = false;
-    /*
-     * The groups as they were when the tab was picked up, and the group it is in now. Each move says where it belongs
-     * from these, not from the last move's answer: a tab dragged out of a group of one empties it, and an empty group
-     * goes, so worked out move by move, passing over the next tab would lose the group for good. From the start, it
-     * comes back the moment the tab is back over it. A folded group takes the tab only when it is let go, since
-     * joining a folded group hides the tab, and a tab hidden under the finger cannot be carried on.
-     */
-    const base = groups;
-    let joined: string | null = base.of[id] ?? null;
-    let dropInto: string | null = null;
-    const hold = window.setTimeout(() => {
-      on = true;
-      setMoving(id);
-    }, HOLD_MS);
-
-    // Where along the tab it was taken hold of, so it hangs off the finger at the point it was picked up rather than
-    // jumping its middle to the pointer.
-    const grabbed = from - tab.getBoundingClientRect().left;
-
-    const follow = (x: number) => {
-      const el = row.current?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(id)}"]`);
-      if (!el) return;
-      // Measured with the offset off, since a transform moves the box it would otherwise be measured from.
-      el.style.transform = '';
-      const home = el.getBoundingClientRect().left;
-      el.style.transform = `translateX(${Math.round(x - grabbed - home)}px)`;
-      // The tab being read carries its gap in the line along with it.
-      placeOutline();
-    };
-
-    /*
-     * Before the hold fires, a finger going sideways pans the row instead of picking a tab up (Matt: "I should be
-     * able to scroll left or right on the tabs to see overflowing ones"). The row keeps `touch-action: pan-y`, so a
-     * vertical swipe still scrolls the page natively and the sideways movement arrives here to be spent on
-     * scrollLeft. It is the phone's own convention: swipe to move along, press and hold to pick something up.
-     */
-    let panned = from;
-    /** How fast the finger is going along the row, in pixels a millisecond, smoothed so one odd frame cannot throw it. */
-    let pace = 0;
-    let paced = event.timeStamp;
-    const along = (moved: PointerEvent) => {
-      // Not held yet: this is a drag across the row, so it moves the row rather than anything in it.
-      if (!on) {
-        const step = panned - moved.clientX;
-        if (Math.abs(moved.clientX - from) >= TRAVEL && row.current) {
-          window.clearTimeout(hold);
-          row.current.scrollLeft += step;
-          const since = moved.timeStamp - paced;
-          if (since > 0) {
-            pace = pace * 0.7 + (step / since) * 0.3;
-            paced = moved.timeStamp;
-          }
-          panned = moved.clientX;
-          // A pan is not a tap: letting go must not open the tab it started on.
-          dragged.current = true;
-        }
-        return;
-      }
-      dragged.current = true;
-      travelled = true;
-      const into = groupAt(moved.clientX, id);
-      dropInto = null;
-      if (into !== undefined && into !== joined) {
-        const folded = !!into && base.list.find((g) => g.id === into)?.collapsed;
-        if (folded) dropInto = into;
-        else {
-          joined = into;
-          onGroups?.(into ? joinGroup(base, id, into) : leaveGroup(base, id));
-        }
-      }
-      onMove(id, placeAt(moved.clientX, id), true);
-      // After the row has been told where the tab belongs, not before: the tab has to follow the finger even between
-      // two places (Matt: "moving tabs doesn't look like you're actually moving it, doesn't follow my finger").
-      follow(moved.clientX);
-    };
-    const done = () => {
-      window.clearTimeout(hold);
-      window.removeEventListener('pointermove', along);
-      window.removeEventListener('pointerup', done);
-      window.removeEventListener('pointercancel', done);
-      // Let go and it settles into its place, rather than snapping there.
-      const el = row.current?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(id)}"]`);
-      if (el) el.style.transform = '';
-      // Let go mid-flick: the row carries on at the speed it was going. A tab picked up was not a flick.
-      if (!on && row.current && Math.abs(pace) > 0.05) coast(row.current, pace);
-      placeOutline();
-      if (dropInto) onGroups?.(joinGroup(base, id, dropInto));
-      // Held in one place and let go: the menu a mouse gets from a right-click. The tap that ends it must not also
-      // open the note, so it is swallowed the way the end of a drag is.
-      if (on && !travelled && event.pointerType !== 'mouse' && onGroups) {
-        dragged.current = true;
-        setMenu({ kind: 'tab', id });
-      }
-      setMoving(null);
-      // The click that ends the drag is swallowed below; this clears the flag even when the gesture ends
-      // somewhere that sends no click at all.
-      if (dragged.current) window.setTimeout(() => {
-        dragged.current = false;
-      }, 0);
-    };
-    window.addEventListener('pointermove', along);
-    window.addEventListener('pointerup', done);
-    window.addEventListener('pointercancel', done);
-  };
-
-  /*
-   * Which ends of the row go to smoke: the right while there are tabs past it, the left once the row has been scrolled
-   * away from its start and never at the start itself (Matt: "Blur the right side of the tabs and the left when
-   * scrolled with the wisp animation but don't apply it to the left when it's scrolled all the way"). Watched rather
-   * than worked out once: tabs are added, closed, dragged and renamed, workspaces put a pill in front of a name, the
-   * window changes width and the row is scrolled, and each of those can open an end or close one.
-   *
-   * Each open end fades (NoteTabs.module.css `[data-fade-start]`, `[data-fade-end]`) and wears the wisp
-   * (art/wispSides.ts), the smoke a page makes under its header turned on its side. The filter is set here rather than
-   * in the stylesheet because it is made for the row's size; where it can't be had - the wisp switched off, reduced
-   * motion, a row too big for the filter's budget - the fade is left on its own.
-   */
-  const [ends, setEnds] = useState({ start: false, end: false });
-  useEffect(() => {
-    const el = row.current;
-    if (!el) return undefined;
-    const look = () => {
-      const past = el.scrollWidth - el.clientWidth;
-      const start = past > 1 && el.scrollLeft > 1;
-      const end = past > 1 && el.scrollLeft < past - 1;
-      setEnds((was) => (was.start === start && was.end === end ? was : { start, end }));
-      el.style.filter = wispSides(el.clientWidth, el.clientHeight, start, end) ?? '';
-      // A tab that changed width without the row being drawn again - its font arriving, the window resized.
-      placeOutline();
-    };
-    look();
-    const watch = new ResizeObserver(look);
-    watch.observe(el);
-    // Not the outline: it is sized by `look` itself, so watching it would answer every look with another.
-    for (const tab of el.children) if (tab !== glide.current) watch.observe(tab);
-    el.addEventListener('scroll', look, { passive: true });
-    return () => {
-      watch.disconnect();
-      el.removeEventListener('scroll', look);
-    };
-    // `placeOutline` reads only the row itself, so a fresh one each render changes nothing worth watching again for.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabs]);
+  const outline = useTabOutline(row, { tabs, activeId, moving });
+  const drag = useTabDrag(row, { groups, onMove, onGroups, setMoving, onHeld: (id) => setMenu({ kind: 'tab', id }), placeOutline: outline.place });
 
   /** Moving a tab without a pointer: the arrow keys with the platform's own modifier, as a browser's tab strip does. */
   const nudge = (id: string, at: number) => (event: React.KeyboardEvent) => {
@@ -447,47 +145,6 @@ export function NoteTabs({
    * that owns those buttons fills it, because they hold the editor's state and cannot be lifted up here without it.
    */
   const slot = useCallback((element: HTMLDivElement | null) => setTopBarTools(element), []);
-
-  /*
-   * The tab being read slides to the one opened (Matt: "add an animation so the tab slides between items"). Measured
-   * after the row has drawn the new tab as the active one, and before it is painted: the outline (`.glide`,
-   * `placeOutline`) is sent back to the last tab and slides to the new one, taking on its width as it goes, with the
-   * gap in the line beneath it. Nothing slides from a tab that has closed, to or from the list, while a tab is being
-   * dragged, or for someone who has asked their phone for less motion.
-   */
-  const wasActive = useRef(activeId);
-  useLayoutEffect(() => {
-    const from = wasActive.current;
-    wasActive.current = activeId;
-    const box = row.current;
-    const outline = glide.current;
-    if (!box || !outline || !from || !activeId || from === activeId || moving) return undefined;
-    if (prefersStill()) return undefined;
-    const tab = (id: string) => box.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(id)}"]`);
-    const start = tab(from);
-    const end = tab(activeId);
-    if (!start || !end || typeof outline.animate !== 'function') return undefined;
-    const leaving = outlineOf(start);
-    const to = outlineOf(end);
-    if (!leaving || !to) return undefined;
-    const timing: KeyframeAnimationOptions = { duration: 220 * motionScale(), easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'both' };
-    const along = ({ left, width }: { left: string; width: string }) => ({ left, width });
-    const slide = outline.animate([along(leaving.box), along(to.box)], timing);
-    // The gap in the line under it travels with it (NoteTabs.module.css `@property --tab-hole-start`).
-    const gap = box.animate([leaving.hole, to.hole], timing);
-    const land = () => {
-      slide.cancel();
-      gap.cancel();
-    };
-    slide.onfinish = land;
-    // Another tab chosen mid-slide: this one lands at once, and the next sets off from where the last tab was.
-    return () => {
-      slide.onfinish = null;
-      land();
-    };
-    // Only a change of tab starts a slide; a drag in progress is read, not followed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId]);
 
   if (!onSidebar && !onGoBack && tabs.length === 0) return null;
   return (
@@ -558,20 +215,15 @@ export function NoteTabs({
         <div
           ref={row}
           className={styles.tabs}
-          data-fade-start={ends.start || undefined}
-          data-fade-end={ends.end || undefined}
+          data-fade-start={outline.ends.start || undefined}
+          data-fade-end={outline.ends.end || undefined}
           role="tablist"
           aria-label="Notes you have open"
-          onPointerDown={takeHold}
+          onPointerDown={drag.takeHold}
           onWheel={scrollSideways}
-          onClickCapture={(event) => {
-            if (!dragged.current) return;
-            dragged.current = false;
-            event.preventDefault();
-            event.stopPropagation();
-          }}
+          onClickCapture={drag.swallowClick}
         >
-          <span ref={glide} className={styles.glide} aria-hidden="true" />
+          <span ref={outline.glide} className={styles.glide} aria-hidden="true" />
           {tabs.map((note, at) => {
             const title = noteTitle(note.body) || 'Untitled';
             const active = note.id === activeId;
@@ -592,21 +244,15 @@ export function NoteTabs({
                 }}
                 menu={
                   menu?.kind === 'group' && menu.id === group.id ? (
-                    <Menu open onOpenChange={(open) => !open && setMenu(null)} trigger={<span className={styles.menuAnchor} />} placement="bottom-start" aria-label={`${group.name} group`}>
-                      <MenuItem onSelect={() => setRenaming(group.id)}>Rename</MenuItem>
-                      <MenuSub label="Colour">
-                        {WORKSPACE_HUES.map((hue) => (
-                          <MenuItem key={hue} onSelect={() => change(recolourGroup(groups, group.id, hue))} icon={<span className={styles.hueDot} data-hue={hue} aria-hidden="true" />}>
-                            {hue === 'ink' ? 'Ink' : capitalise(hue)}
-                          </MenuItem>
-                        ))}
-                      </MenuSub>
-                      <MenuSeparator />
-                      <MenuItem onSelect={() => change(ungroup(groups, group.id))}>Ungroup</MenuItem>
-                      <MenuItem danger onSelect={() => onCloseTabs?.(membersOf(groups, group.id, tabs.map((t) => t.id)))}>
-                        Close group
-                      </MenuItem>
-                    </Menu>
+                    <GroupMenu
+                      group={group}
+                      groups={groups}
+                      tabIds={tabs.map((t) => t.id)}
+                      onDismiss={() => setMenu(null)}
+                      onRename={() => setRenaming(group.id)}
+                      onGroups={change}
+                      onCloseTabs={onCloseTabs}
+                    />
                   ) : null
                 }
               />
@@ -632,7 +278,7 @@ export function NoteTabs({
                 }}
                 onContextMenu={(event) => {
                   // Always refused: on a phone this is the press-and-hold callout, which would land on top of the
-                  // drag and the menu the hold itself opens (`takeHold`). A mouse's right-click opens the menu here.
+                  // drag and the menu the hold itself opens (useTabDrag.ts). A mouse's right-click opens the menu here.
                   event.preventDefault();
                   if (pointer.current !== 'mouse' || !onGroups) return;
                   setMenu({ kind: 'tab', id: note.id });
@@ -689,25 +335,17 @@ export function NoteTabs({
                     taken away, under the one being read, which stays open onto the note (NoteTabs.module.css). */}
                 {group ? <span className={styles.groupLine} data-hue={group.hue} aria-hidden="true" /> : null}
                 {menu?.kind === 'tab' && menu.id === note.id ? (
-                  <Menu open onOpenChange={(open) => !open && setMenu(null)} trigger={<span className={styles.menuAnchor} />} placement="bottom-start" aria-label={`${title} tab`}>
-                    {/* A canvas is named by its front matter and has no first line to write, so the row offers it. */}
-                    {onRename && (isCanvasBody(note.body) || isBookBody(note.body)) ? <MenuItem onSelect={() => setNaming({ id: note.id, draft: title })}>Rename</MenuItem> : null}
-                    <MenuItem onSelect={() => startGroup(note.id)}>Add to a new group</MenuItem>
-                    {groups.list.filter((g) => g.id !== groupId).length ? (
-                      <MenuSub label="Add to group">
-                        {groups.list
-                          .filter((g) => g.id !== groupId)
-                          .map((g) => (
-                            <MenuItem key={g.id} onSelect={() => change(joinGroup(groups, note.id, g.id))} icon={<span className={styles.hueDot} data-hue={g.hue} aria-hidden="true" />}>
-                              {g.name}
-                            </MenuItem>
-                          ))}
-                      </MenuSub>
-                    ) : null}
-                    {groupId ? <MenuItem onSelect={() => change(leaveGroup(groups, note.id))}>Remove from group</MenuItem> : null}
-                    <MenuSeparator />
-                    <MenuItem onSelect={() => onClose(note.id)}>Close tab</MenuItem>
-                  </Menu>
+                  <TabMenu
+                    noteId={note.id}
+                    title={title}
+                    groups={groups}
+                    onDismiss={() => setMenu(null)}
+                    // A canvas or a book is named by its front matter and has no first line to write, so the row offers it.
+                    onRename={onRename && (isCanvasBody(note.body) || isBookBody(note.body)) ? () => setNaming({ id: note.id, draft: title }) : undefined}
+                    onNewGroup={() => startGroup(note.id)}
+                    onGroups={change}
+                    onCloseTab={() => onClose(note.id)}
+                  />
                 ) : null}
               </span>,
             ];
@@ -722,71 +360,5 @@ export function NoteTabs({
         </div>
       ) : null}
     </div>
-  );
-}
-
-/**
- * A group's chip, before its first tab: its name in its colour, as Chrome draws one. A tap folds the group to the chip
- * and opens it again; a right-click or a long press opens its menu (rename, colour, ungroup, close). Folded, it says
- * how many tabs it holds. It is not a tab - no `data-tab` - so the drag and the hold pass it by.
- */
-function GroupChip({
-  group,
-  count,
-  renaming,
-  onToggle,
-  onMenu,
-  onRename,
-  menu,
-}: {
-  group: TabGroup;
-  count: number;
-  renaming: boolean;
-  onToggle: () => void;
-  onMenu: () => void;
-  onRename: (name: string) => void;
-  menu: React.ReactNode;
-}) {
-  const [draft, setDraft] = useState(group.name);
-  useEffect(() => {
-    if (renaming) setDraft(group.name);
-  }, [renaming, group.name]);
-  return (
-    <span className={styles.group} data-hue={group.hue} data-group-chip={group.id} data-collapsed={group.collapsed || undefined} data-count={count}>
-      {renaming ? (
-        <input
-          className={styles.groupName}
-          value={draft}
-          aria-label="Group name"
-          autoFocus
-          onFocus={(event) => event.currentTarget.select()}
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          onBlur={() => onRename(draft)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') onRename(draft);
-            else if (event.key === 'Escape') onRename(group.name);
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          className={styles.groupChip}
-          aria-expanded={!group.collapsed}
-          aria-label={`${group.name}, ${count} ${count === 1 ? 'tab' : 'tabs'}${group.collapsed ? ', folded' : ''}`}
-          onClick={onToggle}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            onMenu();
-          }}
-        >
-          {group.name}
-          {/* Open or folded alike, so folding a group leaves its chip the size it was (Matt: "changing tab groups to
-              closed slightly changes the size of the tab group labels") - the count only arriving on folding made
-              the chip grow by it and pushed every tab after it along. */}
-          <span className={styles.groupCount}>{count}</span>
-        </button>
-      )}
-      {menu}
-    </span>
   );
 }

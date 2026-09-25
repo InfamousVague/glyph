@@ -26,7 +26,7 @@ const dark = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-col
 /**
  * The page is served in two places: beside the app on attack.fm/glyph (and a dev server), and on ghostmarkdown.com,
  * where the root is the download page rather than the app. So the app's own copy, which saves the share into the
- * reader's library (App.tsx, `#fork=`), and the place to get the app, depend on which.
+ * reader's library (`#fork=`, shell/useForkLinks.ts), and the place to get the app, depend on which.
  */
 const LANDING = typeof location !== 'undefined' && /(^|\.)ghostmarkdown\.com$/.test(location.hostname);
 const APP_URL = LANDING ? 'https://attack.fm/glyph/' : new URL('./', typeof location !== 'undefined' ? location.href : 'https://attack.fm/glyph/').href;

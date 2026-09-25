@@ -1,9 +1,7 @@
-import { useEffect, useRef } from 'react';
 import { BookOpen, X } from '@glacier/icons';
-import { useBack } from '../core/back.ts';
 import { numbered } from '../book/book.ts';
+import { FloatingCard } from '../notes/FloatingCard.tsx';
 import type { AsideContent } from './aside.ts';
-import drawer from '../notes/NotesDrawer.module.css';
 import styles from './Aside.module.css';
 
 /**
@@ -102,42 +100,26 @@ export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsidePro
 }
 
 /**
- * The aside as the notes drawer's card (notes/NotesDrawer.tsx), at the right: the same rounded, blurred card hung
+ * The aside as the notes drawer's card (notes/FloatingCard.tsx), at the right: the same rounded, blurred card hung
  * from the icon that opened it, the page live beside it, closed by a tap outside, Escape, the phone's back gesture,
  * the X, or opening a page. The icon itself is left to close it, as the drawer leaves its own.
  */
 export function AsideCard({ onClose, onOpen, onOpenTitle, ...rest }: AsideProps & { onClose: () => void }) {
-  const card = useRef<HTMLDivElement>(null);
-  useBack(true, onClose);
-  useEffect(() => {
-    const outside = (event: PointerEvent) => {
-      if ((event.target as Element).closest?.('[data-aside-toggle]')) return;
-      if (!card.current?.contains(event.target as Node)) onClose();
-    };
-    // On the next frame: the press that opened it would otherwise close it again.
-    const timer = window.setTimeout(() => document.addEventListener('pointerdown', outside), 0);
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener('pointerdown', outside);
-    };
-  }, [onClose]);
   return (
-    <div className={drawer.over}>
-      <div ref={card} className={drawer.card} data-side="end" role="dialog" aria-modal="false" aria-label="Book index">
-        <Aside
-          {...rest}
-          popup
-          onClose={onClose}
-          onOpen={(id) => {
-            onClose();
-            onOpen(id);
-          }}
-          onOpenTitle={(title) => {
-            onClose();
-            onOpenTitle(title);
-          }}
-        />
-      </div>
-    </div>
+    <FloatingCard side="end" label="Book index" toggle="[data-aside-toggle]" onClose={onClose}>
+      <Aside
+        {...rest}
+        popup
+        onClose={onClose}
+        onOpen={(id) => {
+          onClose();
+          onOpen(id);
+        }}
+        onOpenTitle={(title) => {
+          onClose();
+          onOpenTitle(title);
+        }}
+      />
+    </FloatingCard>
   );
 }

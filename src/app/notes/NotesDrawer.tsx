@@ -1,8 +1,7 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { Note } from '../core/store.ts';
-import { useBack } from '../core/back.ts';
+import { FloatingCard } from './FloatingCard.tsx';
 import { NoteTree } from './NoteTree.tsx';
-import styles from './NotesDrawer.module.css';
 
 /**
  * Every note, in a card that floats over the one being read (Matt: "add a
@@ -17,7 +16,8 @@ import styles from './NotesDrawer.module.css';
  * before, which said what the second line of the note was and nothing about
  * its shape. A tap opens one, which also gives it a tab, so the card is a way
  * between notes rather than a way out of the one open. It closes on a tap
- * outside, on Escape or the phone's back gesture, and on opening a note.
+ * outside, on Escape or the phone's back gesture, and on opening a note; the
+ * card itself, and those rules, are the aside's too (notes/FloatingCard.tsx).
  */
 
 interface NotesDrawerProps {
@@ -45,54 +45,32 @@ interface NotesDrawerProps {
 }
 
 export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onClose, onCommands, onSettings, onSpeak, notices, trashed, onRestore, onDestroy, onEmptyTrash }: NotesDrawerProps) {
-  const card = useRef<HTMLDivElement>(null);
-  // The phone's back gesture and Escape close the card before they leave the note.
-  useBack(open, onClose);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const outside = (event: PointerEvent) => {
-      // The button that opened it is left to close it (Matt: "I should be able to click the sidebar button again to
-      // close the sidebar"). Closed here on the press, the click that followed opened it straight back up.
-      if ((event.target as Element).closest?.('[data-sidebar-toggle]')) return;
-      if (!card.current?.contains(event.target as Node)) onClose();
-    };
-    // On the next frame: the press that opened it would otherwise close it again.
-    const timer = window.setTimeout(() => document.addEventListener('pointerdown', outside), 0);
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener('pointerdown', outside);
-    };
-  }, [open, onClose]);
-
   if (!open) return null;
   // The same tree the desktop sidebar is (notes/NoteTree.tsx), in a card over the note: a close joins its tools.
   return (
-    <div className={styles.over}>
-      <div ref={card} className={styles.card} role="dialog" aria-modal="false" aria-label="Your notes">
-        <NoteTree
-          notes={notes}
-          activeId={activeId}
-          onOpen={onOpen}
-          onNew={onNew}
-          onClose={onClose}
-          onCommands={
-            onCommands
-              ? () => {
-                  onClose();
-                  onCommands();
-                }
-              : undefined
-          }
-          onSettings={onSettings}
-          onSpeak={onSpeak}
-          notices={notices}
-          trashed={trashed}
-          onRestore={onRestore}
-          onDestroy={onDestroy}
-          onEmptyTrash={onEmptyTrash}
-        />
-      </div>
-    </div>
+    <FloatingCard label="Your notes" toggle="[data-sidebar-toggle]" onClose={onClose}>
+      <NoteTree
+        notes={notes}
+        activeId={activeId}
+        onOpen={onOpen}
+        onNew={onNew}
+        onClose={onClose}
+        onCommands={
+          onCommands
+            ? () => {
+                onClose();
+                onCommands();
+              }
+            : undefined
+        }
+        onSettings={onSettings}
+        onSpeak={onSpeak}
+        notices={notices}
+        trashed={trashed}
+        onRestore={onRestore}
+        onDestroy={onDestroy}
+        onEmptyTrash={onEmptyTrash}
+      />
+    </FloatingCard>
   );
 }

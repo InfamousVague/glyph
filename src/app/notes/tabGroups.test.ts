@@ -10,6 +10,7 @@ import {
   pruneGroups,
   recolourGroup,
   renameGroup,
+  sameGroups,
   toggleGroup,
   ungroup,
   type TabGroups,
@@ -96,5 +97,12 @@ describe('tab groups', () => {
       // At the end of g1, beside ungrouped e: an ungrouped tab stays ungrouped.
       expect(afterMove(two(), ['b', 'd', 'a', 'e'], 'a').of.a).toBeUndefined();
     });
+  });
+
+  it('tells groups that say the same thing from a change', () => {
+    expect(sameGroups(two(), two())).toBe(true);
+    expect(sameGroups(two(), renameGroup(two(), 'g1', 'Away'))).toBe(false);
+    expect(sameGroups(two(), leaveGroup(two(), 'b'))).toBe(false);
+    expect(sameGroups(NO_GROUPS, { list: [], of: {} })).toBe(true);
   });
 });

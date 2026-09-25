@@ -1,13 +1,15 @@
 /*
- * The tab row (NoteTabs.tsx), inside the note's header pane: the sidebar's
- * icon, then a tab for each open note. The tabs scroll sideways rather than
- * shrinking to nothing, so the tenth open note is reachable and the first is
- * still readable.
+ * The app's top bar (NoteTabs.tsx), drawn once by App.tsx in the fixed
+ * .app-tabBar: a row of controls, and under it a tab for each open note. The
+ * tabs scroll sideways rather than shrinking to nothing, so the tenth open
+ * note is reachable and the first is still readable. The bar's other pieces -
+ * a group's chip (GroupChip.tsx) and the menus (TabMenus.tsx) - are drawn from
+ * this sheet too, so the bar's look lives in one place.
  */
 
 /*
  * Where the baseline's gap under the tab being read starts and ends, in the row's scrolled coordinates. Registered as
- * lengths so the gap can slide with the tab's outline (NoteTabs.tsx `glide`) rather than jumping to where it lands.
+ * lengths so the gap can slide with the tab's outline (useTabOutline.ts `glide`) rather than jumping to where it lands.
  */
 @property --tab-hole-start {
   syntax: '<length>';
@@ -192,7 +194,7 @@
   overflow-x: auto;
   /*
    * The baseline the tabs stand on, the whole width of the row, with a gap cut in it under the tab being read and its
-   * two curves, where that tab opens into the note (`--tab-hole-start` to `--tab-hole-end`, set by NoteTabs.tsx).
+   * two curves, where that tab opens into the note (`--tab-hole-start` to `--tab-hole-end`, set by useTabOutline.ts).
    *
    * It used to run unbroken, and the tab being read covered it with a ground of solid paper - which on a phone sat on
    * the header's glass as a flat block (Matt: "Add the glass effect to the tabs right now they have a solid background
@@ -245,7 +247,7 @@
  * The row's ends soften, so each reads as going on past the edge - and only when it does (Matt: "only show the wisp
  * blur effect on the end of the scrolling tab list when it overflows the screen"). On a row that fits, the fade was
  * dimming the last tab for no reason: there was nothing past the edge to promise. The left end fades once the row
- * has been scrolled from its start, and not at the start itself, where nothing is out of sight (NoteTabs.tsx `ends`,
+ * has been scrolled from its start, and not at the start itself, where nothing is out of sight (useTabOutline.ts `ends`,
  * which also puts the wisp on each end that fades).
  */
 .tabs[data-fade-start],
@@ -270,7 +272,7 @@
 /* One tab: the note's name, and a cross that closes it. */
 .tab {
   pointer-events: auto;
-  /* Dragged rather than dragged over: the row reorders under the finger (NoteTabs.tsx), so a tab only needs to say
+  /* Dragged rather than dragged over: the row reorders under the finger (useTabDrag.ts), so a tab only needs to say
      that it is the one moving. */
   transition: transform 140ms var(--glacier-ease-out, ease-out);
   flex: none;
@@ -301,7 +303,7 @@
   border-radius: var(--glacier-radius-md, 0.625rem) var(--glacier-radius-md, 0.625rem) 0 0;
   background: none;
   color: var(--glacier-text-muted);
-  /* A tab is held to move it and held to open its menu (NoteTabs.tsx), and a phone answers a hold on words by
+  /* A tab is held to move it and held to open its menu (useTabDrag.ts), and a phone answers a hold on words by
      selecting them - which is all that happened before. There is nothing here to read but the note's name. */
   user-select: none;
   -webkit-user-select: none;
@@ -374,7 +376,7 @@
 }
 
 /*
- * The outline of the tab being read (NoteTabs.tsx `placeOutline`), laid under it rather than drawn by it: its sides
+ * The outline of the tab being read (useTabOutline.ts `place`), laid under it rather than drawn by it: its sides
  * stop a curve's height above the line, and the curves above hang from its lower corners down onto the line. A tab's
  * own border runs to its foot, and with the tab see-through that straight foot showed beside each curve. The same
  * outline slides from tab to tab when another is opened (Matt: "add an animation so the tab slides between items").

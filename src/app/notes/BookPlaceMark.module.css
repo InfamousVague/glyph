@@ -1,0 +1,18 @@
+/*
+ * A page of a book, said on its card or its row (BookPlaceMark.tsx): the mark and the book's name, one quiet line,
+ * the name cut short rather than wrapped.
+ */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  min-inline-size: 0;
+  font-size: var(--glacier-font-size-xs, 0.75rem);
+  color: var(--glacier-text-muted);
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
