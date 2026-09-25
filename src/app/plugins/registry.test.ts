@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createHost, PluginPermissionError } from './host.ts';
+import { createHost, onPluginStorage, PluginPermissionError } from './host.ts';
 import { BUILT_IN, createRegistry } from './registry.ts';
 import type { GlyphPlugin, PluginManifest } from './types.ts';
 
@@ -127,6 +127,17 @@ describe('a plugin’s host', () => {
     expect(() => host.storage.set('glyph-preferences', {})).toThrow(PluginPermissionError);
     host.storage.remove('glyph-mine');
     expect(host.storage.get('glyph-mine', 'gone')).toBe('gone');
+  });
+
+  it('tells what draws from a plugin’s storage once a change is made, a removal as much as a write', () => {
+    const host = createHost(manifest('t', { storage: ['glyph-told'] }));
+    const heard: unknown[] = [];
+    const stop = onPluginStorage(() => heard.push(host.storage.get('glyph-told', 'gone')));
+    host.storage.set('glyph-told', { a: 1 });
+    host.storage.remove('glyph-told');
+    stop();
+    host.storage.set('glyph-told', 2);
+    expect(heard, 'each listener reads what the change left, not what was there before it').toEqual([{ a: 1 }, 'gone']);
   });
 
   it('parses a key once for as long as its stored text is the same, and again as soon as anything changes it', () => {
