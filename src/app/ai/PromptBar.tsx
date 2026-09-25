@@ -35,6 +35,7 @@ export function PromptBar({
   focusAsk = 0,
   onHeight,
   disabled = false,
+  onHide,
 }: {
   availability: Availability;
   /** Runs a kind on the note, or on `scope` when given, with the instruction for a kind that takes one. */
@@ -54,6 +55,11 @@ export function PromptBar({
   onHeight?: (height: number) => void;
   /** Nothing to ask on: a canvas, a book's index, the transcript playing. The bar steps out. */
   disabled?: boolean;
+  /**
+   * Puts the bar away (editor/NoteScreen.tsx, core/preferences.ts `aiBar`): given, the spark at the start of the
+   * field is the button that hides it, the same ✨ that showed it from the foot of the note.
+   */
+  onHide?: () => void;
 }) {
   const [words, setWords] = useState('');
   /** A kind chosen with words selected, waiting to hear which part it is for. */
@@ -154,7 +160,13 @@ export function PromptBar({
           send();
         }}
       >
-        <Sparkles size={18} strokeWidth={2.1} className={styles.spark} aria-hidden="true" />
+        {onHide ? (
+          <button type="button" className={`${styles.spark} ${styles.sparkButton}`} onClick={onHide} aria-label="Hide the AI bar" aria-expanded="true">
+            <Sparkles size={18} strokeWidth={2.1} aria-hidden="true" />
+          </button>
+        ) : (
+          <Sparkles size={18} strokeWidth={2.1} className={styles.spark} aria-hidden="true" />
+        )}
         <input
           ref={field}
           className={styles.field}

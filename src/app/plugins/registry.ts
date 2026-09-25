@@ -87,16 +87,21 @@ const localSwitches: SwitchStore = {
  * `notes`. Checked when the registry is made, so a plugin that overreaches
  * never loads.
  */
-/** A node name the parser can carry, and a run of one character Markdown itself doesn't use. */
+/**
+ * A node name the parser can carry, and a delimiter: a run of one character Markdown itself doesn't use, or an emoji
+ * twice, which is how an effect is written (plugins/marks `Heat`, editor/textEffects.ts). The emoji is a pictograph,
+ * optionally with its variation selector (❄️), and nothing Markdown reads as punctuation.
+ */
 const FORMAT_NAME = /^[A-Z][A-Za-z0-9]*$/;
 const FORMAT_DELIMITER = /^([^\w\s*_~`[\]<>#!()\\])\1{0,2}$/;
+const EFFECT_DELIMITER = /^(\p{Extended_Pictographic}\uFE0F?)\1$/u;
 
 function checkExtensions(plugin: GlyphPlugin): void {
   const has = (kind: Permission) => plugin.manifest.permissions.some((p) => p.kind === kind);
   for (const format of plugin.formats ?? []) {
     if (!FORMAT_NAME.test(format.name)) throw new Error(`The “${plugin.manifest.id}” plugin's formatting “${format.name}” needs a capitalised name of letters and digits.`);
-    if (!FORMAT_DELIMITER.test(format.delimiter)) {
-      throw new Error(`The “${plugin.manifest.id}” plugin's “${format.name}” formatting needs a delimiter of one to three of the same character that Markdown doesn't already use, not “${format.delimiter}”.`);
+    if (!FORMAT_DELIMITER.test(format.delimiter) && !EFFECT_DELIMITER.test(format.delimiter)) {
+      throw new Error(`The “${plugin.manifest.id}” plugin's “${format.name}” formatting needs a delimiter of one to three of the same character that Markdown doesn't already use, or an emoji twice, not “${format.delimiter}”.`);
     }
   }
   if ((plugin.voice?.length || plugin.itemTargets?.length) && !has('voice')) throw new PluginPermissionError(plugin.manifest, 'the “voice” permission its commands need');

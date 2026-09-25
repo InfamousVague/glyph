@@ -479,6 +479,12 @@ describe('spoken marks heard loosely', () => {
     expect(spokenInlineMarkup('The stove is ensure gas end ensure.', formats)).toBe('The stove is ??gas??.');
     expect(spokenInlineMarkup('bold one end italic', formats)).toBe('bold one end italic');
   });
+
+  it('says heat as "heated … end heated", so a cooking note about heat is left as words', () => {
+    const formats = [{ word: 'heated', delimiter: '🔥🔥' }];
+    expect(spokenInlineMarkup('The pan was heated far too hot end heated by noon.', formats)).toBe('The pan was 🔥🔥far too hot🔥🔥 by noon.');
+    expect(spokenInlineMarkup('Heat the oven and heat the pan.', formats)).toBe('Heat the oven and heat the pan.');
+  });
 });
 
 describe('every mark has words', () => {

@@ -78,6 +78,7 @@ export type Looks =
   | 'picture'
   | 'fence'
   | 'wisp'
+  | 'effect'
   | 'style'
   | 'note'
   | 'tint'
@@ -271,7 +272,7 @@ export function markGroups(): MarkGroup[] {
       name: format.name,
       typed: `${format.delimiter}${words}${format.delimiter}`,
       words,
-      looks: format.look.kind === 'wisp' ? 'wisp' : 'style',
+      looks: format.look.kind === 'wisp' ? 'wisp' : format.look.kind === 'effect' ? 'effect' : 'style',
       icon: format.icon ?? Underline,
       css: format.look.kind === 'style' ? format.look.css : undefined,
       say: format.cue ? `“${format.cue}” … “end ${format.cue}”` : undefined,

@@ -4536,7 +4536,61 @@ and the tab row's house, the arrow in its bar and the phone's back gesture come 
 - **The palette** says "Home" for the command that goes home (it said "All notes", which now means the grid) and gains
   "All notes" for the page.
 
-## 116. Things to say: the recorder's card before the first word (2026-09-25)
+## 116. Effects on words, written as an emoji twice (2026-09-25)
+
+Matt: "I want to add in effects to text in our markdown one of which should be the "heated" effect that gives the
+wavey blur like we used on the "AI" text on with the fire on the original onboarding flow. Effects should be shown by
+double emoji wrapping them so heat should be two fire emoji's wrapping either side." Then, of the four offered: "Add
+each of these effects."
+
+- **The syntax.** An effect is a mark like `==highlight==` whose delimiter is an emoji twice: 🔥🔥heat🔥🔥, ❄️❄️frost❄️❄️,
+  🌊🌊wave🌊🌊, ✨✨shimmer✨✨, 👻👻haunt👻👻 (plugins/marks/index.tsx). The emoji is the effect's name, so the note still
+  says what it meant in any other Markdown app. The parser took only a run of one character before; it now takes a
+  run of one piece, a character or an emoji of several code units (editor/language.ts `delimiterUnit`: 🔥 is two
+  UTF-16 units, ❄️ a character and its variation selector). Three flames are three flames, as `|||` is not a spoiler.
+  The plugin registry accepts an emoji twice beside its old rule.
+- **The look** is a new `FormatLook`, `{ kind: 'effect', effect }`, drawn by editor/textEffects.ts. Two kinds:
+  - **A filter over the stretch** for heat and frost, which are one field the words sit in. Heat is the onboarding's
+    haze: stretched fractal noise, breathing between two frequencies every 2.4 seconds and re-rolled six times in
+    0.9 seconds, bending the letters, then a breath of blur. The onboarding's numbers were for 40-pixel type; five
+    variants were compared by eye at 16 px, and the one that read as heat rather than grit (waves about four times a
+    letter's height, a bend of a third of it) is scaled with the type it is on. Frost cools the letters towards ice
+    with a colour matrix and grows a grainy rime from their edges that creeps and settles; the rime's colour is set per
+    page by the editor's theme, pale ice on the dark page and deeper ice on paper, where pale ice was invisible.
+  - **A movement passed along the letters** for wave, shimmer and haunt: each letter an inline mark with a CSS
+    animation a step behind the one before, moved by relative position rather than a transform, which an inline box
+    does not take, so nothing reflows. The delays are negative, so a line drawn fresh is already moving. The shimmer
+    is a glow on the dark page and a sheen on paper, where a glow of dark ink read as a smudge.
+- **Behaviour.** An effect lifts while the caret is in its words, so they edit as plain text; effects nest; reduced
+  motion draws them still. The cheat sheet and the Style page list them like any mark.
+- **Said** as adjectives - heated, frosted, wavy, shimmering, haunted - because the nouns are everyday words and the
+  spoken form closes on "and" as well as "end": "heat the oven and heat the pan" would have heated "the oven".
+
+## 117. The AI bar is off until asked for (2026-09-25)
+
+Matt: "Hide the AI bar on the note by default, put it behind a toggle button."
+
+- **Off by default,** as the synced preference `aiBar` (core/preferences.ts, core/sync/prefs.ts): the choice is the
+  person's, so it travels like the note view does.
+- **The toggle is a ✨ where the bar lives.** Hidden, a small ring at the foot of the note on the right; shown, the
+  spark at the start of the bar's own field puts it away (ai/PromptBar.tsx `onHide`). It was first a fifth ring with
+  the note's tools in the top bar; a review measured that at 412 px, the Fold's cover screen, and the three dots ended
+  14 px past the slot's edge, reachable only by a sideways scroll with no scrollbar. At the foot the top bar keeps its
+  four.
+- **Ask over a selection is asking for the bar,** so it opens it for that note whatever the setting. Putting the bar
+  away puts that ask away too (its scope and the focus it was owed), since the bar now unmounts and its focus effect
+  would otherwise bring the keyboard up again on words that may have moved.
+- The page keeps room under the last line for whichever is there: the bar's height as it tells it, or the ring's.
+
+## 118. A Search in the home dock (2026-09-25)
+
+Matt: "Add a search button to the right hand dock of buttons that opens the command pallette." A ring under Settings
+in the home dock (home/HomeScreen.tsx), a magnifier drawn in the app's own line icons (art/Icons.tsx `Magnifier`),
+opening the palette that ⌘K opens on a desktop, with the caret in its field. Under Settings rather than above it: it is
+reached for more often than Settings and less often than writing. Absent until the palette has handed back its opener,
+rather than a button that does nothing.
+
+## 119. Things to say: the recorder's card before the first word (2026-09-25)
 
 Matt: "When I open the AI page, I should see a list of suggested prompts / commands / etc but don't see that card
 anymore" - the page that opens from the microphone.

@@ -187,7 +187,8 @@
  * to be docked in a right hand side dock going up the right vertically like on unfolded view, this is how all ...
  * devices should display it"). A row across the foot was a reach from either hand on an opened Fold, and on a phone
  * the column is where the right thumb already rests. Settings on top, write in the middle, Speak last, nearest the
- * thumb, still the one ink-filled thing, as a circle the size of the other two so the column is one width.
+ * thumb, still the one ink-filled thing, as a circle the size of the other two so the column is one width. Search
+ * (the command palette) sits under Settings, since it is reached for more often and less than writing is.
  */
 .dock {
   position: absolute;
@@ -275,17 +276,26 @@
   transform: rotate(45deg);
 }
 
+/* The magnifier leans in when pressed, rather than turning. */
+.search:active svg {
+  transform: scale(0.9);
+}
+
 /* The column's order, top to bottom, and Speak as a circle whose word is kept for a screen reader. */
 .cog {
   order: 1;
 }
 
-.add {
+.search {
   order: 2;
 }
 
-.speak {
+.add {
   order: 3;
+}
+
+.speak {
+  order: 4;
   inline-size: calc(var(--glacier-space-10) * 0.88);
   padding-inline: 0;
   justify-content: center;

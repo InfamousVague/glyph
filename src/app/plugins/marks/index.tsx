@@ -1,16 +1,18 @@
-import { CircleQuestionMark, EyeOff, Highlighter, Megaphone, MessageSquareDashed, Plus } from '@glacier/icons';
+import { CircleQuestionMark, EyeOff, Flame, Ghost, Highlighter, Megaphone, MessageSquareDashed, Plus, Snowflake, Sparkles, Waves } from '@glacier/icons';
 import type { GlyphPlugin, InlineFormat, PluginManifest } from '../types.ts';
 
 /**
  * Marks: the formatting Glyph adds to Markdown, all of it in one plugin
  * (Matt: "move all the additional formatting to one single plugin instead of
- * one of each like shout redact unsure etc"). Six marks, one switch in
+ * one of each like shout redact unsure etc"). Eleven marks, one switch in
  * Settings > Plugins, and each carries its own icon for the Style page
  * (editor/ContextMenu.tsx) and its own words for the guide's table
  * (guide/marks.ts).
  *
  * A mark is its delimiter and its look (plugins/types.ts `InlineFormat`): the
- * spoiler goes to smoke (editor/wispFormat.ts), the rest are CSS on the words
+ * spoiler goes to smoke (editor/wispFormat.ts), the five effects - heat,
+ * frost, wave, shimmer, haunt - are drawn by editor/textEffects.ts, each
+ * written as its emoji twice either side, and the rest are CSS on the words
  * (editor/formatLooks.ts), in ink and paper only. Each is said as well as
  * typed: "highlight … end highlight" while recording (capture/markdown.ts).
  * Switched off, every one of them is plain text again.
@@ -19,7 +21,7 @@ import type { GlyphPlugin, InlineFormat, PluginManifest } from '../types.ts';
 export const manifest: PluginManifest = {
   id: 'marks',
   name: 'Marks',
-  description: 'Ghost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a shout and an addition. Typed or said.',
+  description: 'Ghost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a shout, an addition, and five effects: heat, frost, a wave, a shimmer and a haunting. Typed or said.',
   version: '1.0.0',
   author: 'Ghost.md',
   standard: true,
@@ -110,6 +112,47 @@ export const MARKS: readonly InlineFormat[] = [
     cue: 'added',
     about: 'A line under what was added, the pair of struck-through for what went.',
     icon: Plus,
+  },
+  {
+    // The first of the effects (editor/textEffects.ts): an emoji twice either side, as every effect is written.
+    name: 'Heat',
+    delimiter: '🔥🔥',
+    look: { kind: 'effect', effect: 'heat' },
+    cue: 'heated',
+    about: 'The words waver as if seen through the air over a fire. Two flames either side: 🔥🔥too hot🔥🔥.',
+    icon: Flame,
+  },
+  {
+    name: 'Frost',
+    delimiter: '❄️❄️',
+    look: { kind: 'effect', effect: 'frost' },
+    cue: 'frosted',
+    about: 'The words go cold, a rime creeping over their edges and settling. Two snowflakes either side: ❄️❄️frozen❄️❄️.',
+    icon: Snowflake,
+  },
+  {
+    name: 'Wave',
+    delimiter: '🌊🌊',
+    look: { kind: 'effect', effect: 'wave' },
+    cue: 'wavy',
+    about: 'The words bob along the line, a ripple passing through them. Two waves either side: 🌊🌊out to sea🌊🌊.',
+    icon: Waves,
+  },
+  {
+    name: 'Shimmer',
+    delimiter: '✨✨',
+    look: { kind: 'effect', effect: 'shimmer' },
+    cue: 'shimmering',
+    about: 'A glint slides across the words every few seconds. Two sparkles either side: ✨✨silver✨✨.',
+    icon: Sparkles,
+  },
+  {
+    name: 'Haunt',
+    delimiter: '👻👻',
+    look: { kind: 'effect', effect: 'haunt' },
+    cue: 'haunted',
+    about: 'The words fade almost away and back, slowly, like something passing. Two ghosts either side: 👻👻nobody there👻👻.',
+    icon: Ghost,
   },
 ];
 

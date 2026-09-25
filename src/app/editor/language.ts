@@ -52,14 +52,33 @@ export function glyphMarkdown(formats: readonly InlineFormat[] = [], codeLanguag
 const PUNCTUATION = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~\xA1\u2010-\u2027]/;
 
 /**
+ * What a delimiter is a run of: the shortest piece it repeats. `||` is a run of `|`, and `🔥🔥` a run of `🔥`, which is
+ * two UTF-16 code units (and `❄️❄️` a run of `❄️`, a character and its variation selector). The parser counts in code
+ * units, as CodeMirror's positions do, so the piece is kept as a string and compared whole rather than as one code.
+ */
+export function delimiterUnit(delimiter: string): string {
+  for (let size = 1; size <= delimiter.length / 2; size += 1) {
+    if (delimiter.length % size !== 0) continue;
+    const unit = delimiter.slice(0, size);
+    if (unit.repeat(delimiter.length / size) === delimiter) return unit;
+  }
+  return delimiter;
+}
+
+/**
  * The parser's piece for one plugin formatting: `delimiter` opens and closes
  * a `name` node, with the flanking rules GFM's strikethrough uses, so a run
  * next to a space can only open on its far side and only close on its near
  * one. A longer run of the same character is not this formatting.
+ *
+ * The delimiter is a run of one piece (`delimiterUnit`): a character, as `||` is, or an emoji, as the effects' `🔥🔥`
+ * is (plugins/marks, editor/textEffects.ts). A longer run of the piece is not this formatting either way, so three
+ * flames are three flames.
  */
 export function inlineFormat({ name, delimiter }: Pick<InlineFormat, 'name' | 'delimiter'>): MarkdownConfig {
   const mark = `${name}Mark`;
   const type = { resolve: name, mark };
+  const unit = delimiterUnit(delimiter);
   const code = delimiter.charCodeAt(0);
   const length = delimiter.length;
   return {
@@ -69,9 +88,9 @@ export function inlineFormat({ name, delimiter }: Pick<InlineFormat, 'name' | 'd
         name,
         parse(cx, next, pos) {
           if (next !== code) return -1;
-          for (let i = 1; i < length; i += 1) if (cx.char(pos + i) !== code) return -1;
-          // A longer run of the character, either side, is not this formatting.
-          if (cx.char(pos + length) === code || (pos > cx.offset && cx.char(pos - 1) === code)) return -1;
+          if (cx.slice(pos, pos + length) !== delimiter) return -1;
+          // A longer run of the piece, either side, is not this formatting.
+          if (cx.slice(pos + length, pos + length + unit.length) === unit || (pos - unit.length >= cx.offset && cx.slice(pos - unit.length, pos) === unit)) return -1;
           const before = cx.slice(pos - 1, pos);
           const after = cx.slice(pos + length, pos + length + 1);
           const spaceBefore = /\s|^$/.test(before);

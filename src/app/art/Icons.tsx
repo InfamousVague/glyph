@@ -88,6 +88,11 @@ export function Plus({ className }: IconProps) {
   return icon(className, 'M12 5v14M5 12h14');
 }
 
+/** A magnifier: a ring, and its handle down to the right. */
+export function Magnifier({ className }: IconProps) {
+  return icon(className, 'M10.5 18a7.5 7.5 0 1 1 0-15a7.5 7.5 0 1 1 0 15ZM21 21l-5.2-5.2');
+}
+
 /** A pushpin: a cap, a flared body, and the needle below it. */
 export function Pin({ className }: IconProps) {
   return icon(className, 'M8.5 3h7M10 3l-.9 5.6L6 12.4h12l-3.1-3.8L14 3M12 12.4V21');

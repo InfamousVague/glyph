@@ -75,6 +75,17 @@ describe('the prompt bar', () => {
     expect((el.querySelectorAll('button')[0] as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('puts itself away with its spark, where it is given a way to, and keeps a plain spark where it is not', () => {
+    const hid = vi.fn();
+    const el = show(<PromptBar availability={ready} onRun={() => {}} scope={null} onHide={hid} />);
+    const spark = el.querySelector<HTMLButtonElement>('button[aria-label="Hide the AI bar"]');
+    expect(spark?.getAttribute('aria-expanded')).toBe('true');
+    act(() => spark!.click());
+    expect(hid).toHaveBeenCalledTimes(1);
+    act(() => root!.render(<PromptBar availability={ready} onRun={() => {}} scope={null} />));
+    expect(el.querySelector('button[aria-label="Hide the AI bar"]')).toBeNull();
+  });
+
   it('steps out where there is nothing to ask on', () => {
     const el = show(<PromptBar availability={ready} onRun={() => undefined} scope={null} disabled />);
     expect(el.textContent).toBe('');
