@@ -22,8 +22,12 @@ describe('the sidebar, names only', () => {
     expect(host.querySelectorAll('[class*=kind]').length).toBe(3);
     expect(host.querySelector('[class*=rowPeek]')).toBeNull();
     expect(localStorage.getItem('glyph-tree-compact')).toBe('1');
+    // Names only has no room for the book a page is in.
+    expect(host.querySelector('[title="Page 1 of Trip"]')).toBeNull();
     act(() => host.querySelector<HTMLButtonElement>('button[aria-label="Show each note drawn small"]')!.click());
     expect(tree.hasAttribute('data-compact')).toBe(false);
+    // Drawn small, a page of a book says which book, and which page in full to whoever points at it.
+    expect(host.querySelector('[title="Page 1 of Trip"]')?.textContent).toBe('Trip');
   });
 
   it('offers Browse files only where the device can show the folder', () => {

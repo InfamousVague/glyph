@@ -169,22 +169,6 @@
   font-style: italic;
 }
 
-/* A page of a book, on its card: the mark and the book's name. */
-.book {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3em;
-  min-inline-size: 0;
-  font-size: var(--glacier-font-size-xs, 0.75rem);
-  color: var(--glacier-text-muted);
-}
-
-.bookName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /*
  * Pinned and archived, said on the card itself where there is no heading to say it (the All notes grid): small marks
  * in the quiet ink, at the foot beside the date.

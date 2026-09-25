@@ -383,22 +383,6 @@
   margin: 0;
 }
 
-/* A page of a book (book/book.ts): the mark and the book's name, one quiet line under the title. */
-.rowBook {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3em;
-  min-inline-size: 0;
-  font-size: var(--glacier-font-size-xs, 0.75rem);
-  color: var(--glacier-text-muted);
-}
-
-.rowBookName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /*
  * Names only (NoteTree.tsx `compact`): each note one line, its kind's mark, then its name, as a file browser lists
  * files. Tighter than a row with a drawing, and the name on one line, cut with an ellipsis rather than wrapped.

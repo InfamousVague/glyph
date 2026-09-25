@@ -58,6 +58,8 @@ describe('the home page', () => {
       ]),
     );
     expect(headings()).toEqual(['Pinned', 'Library', 'Recent', 'To do']);
+    // A page of a book says which on its card.
+    expect(document.querySelector('[title="Page 1 of Trip"]')?.textContent).toBe('Trip');
   });
 
   it('is a blank page with nothing written, and says which workspace is empty when one is chosen', () => {
