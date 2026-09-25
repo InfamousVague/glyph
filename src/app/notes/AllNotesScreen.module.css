@@ -72,7 +72,8 @@
   align-items: center;
   gap: var(--glacier-space-2);
   min-inline-size: 0;
-  min-block-size: var(--glacier-space-9);
+  /* As tall as the field in it. It asked for `--glacier-space-9`, which the kit's scale lacks, so this is what drew. */
+  min-block-size: auto;
   padding-inline: var(--glacier-space-3) var(--glacier-space-1);
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
   border-radius: var(--glacier-radius-full);
@@ -121,8 +122,9 @@
   flex: none;
   display: grid;
   place-items: center;
-  inline-size: var(--glacier-space-7);
-  block-size: var(--glacier-space-7);
+  /* The glyph's own size: `--glacier-space-7`, asked for here, is not a step of the kit's scale, so none ever applied. */
+  inline-size: auto;
+  block-size: auto;
   margin: 0;
   padding: 0;
   border: none;
@@ -170,7 +172,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
-  min-block-size: var(--glacier-space-7);
+  /* The word's own height: `--glacier-space-7`, asked for here, is not a step of the kit's scale. */
+  min-block-size: auto;
   margin: 0;
   padding-inline: var(--glacier-space-3);
   border: var(--glacier-hairline) solid transparent;

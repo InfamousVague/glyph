@@ -70,7 +70,8 @@
   /* Snug enough that Cut, Copy, Paste, Select all and Add image share one phone width. */
   padding: var(--glacier-space-2) calc(var(--glacier-space-3) - 2px);
   min-inline-size: 3.5rem;
-  min-block-size: var(--glacier-space-11, 2.75rem);
+  /* A thumb's height. Not a kit step: the scale has no 11, so this read `--glacier-space-11` and drew its fallback. */
+  min-block-size: 2.75rem;
   border: none;
   background: none;
   font: inherit;

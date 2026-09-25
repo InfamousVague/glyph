@@ -223,9 +223,12 @@
   font-family: var(--glacier-font-mono);
 }
 
-/* A frame past 100ms is the one to look at. */
+/*
+ * A frame past 100ms is the one to look at. A raw red: this read `--glacier-danger`, which the kit has never had (its
+ * danger family is all suffixed names, and ink.css maps those to ink), so its fallback is what always drew.
+ */
 .table td.slow {
-  color: var(--glacier-danger, #c0392b);
+  color: #c0392b;
   font-weight: var(--glacier-font-weight-semibold);
 }
 

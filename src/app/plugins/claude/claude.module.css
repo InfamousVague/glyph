@@ -104,8 +104,10 @@
 .close {
   display: grid;
   place-items: center;
-  inline-size: var(--glacier-space-9);
-  block-size: var(--glacier-space-9);
+  /* Its glyph's own size, which is what it has always drawn at: it asked for `--glacier-space-9`, a step the kit's
+     scale does not have, and a var() of nothing is no size at all. */
+  inline-size: auto;
+  block-size: auto;
   padding: 0;
   border: 0;
   border-radius: var(--glacier-radius-full);

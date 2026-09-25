@@ -243,7 +243,8 @@
   align-items: center;
   gap: var(--glacier-space-3);
   inline-size: 100%;
-  min-block-size: var(--glacier-space-14, 3.5rem);
+  /* A row a thumb's height. Not a kit step: the scale has no 14, and this read `--glacier-space-14` and drew its fallback. */
+  min-block-size: 3.5rem;
   padding: var(--glacier-space-3);
   border: none;
   background: transparent;
