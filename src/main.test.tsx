@@ -12,6 +12,22 @@ import { act } from 'react';
 vi.mock('./app/App.tsx', () => ({ App: () => <p data-app>mounted</p> }));
 const shares = vi.hoisted(() => ({ followed: 0 }));
 vi.mock('./app/share/share.ts', () => ({ followShares: () => void (shares.followed += 1) }));
+/*
+ * Every React root made, as what its container held when it was made. A second root on the same element replaces the
+ * first one's DOM and React empties a container itself, so the page alone cannot tell a mount from two, or an emptied
+ * root from a stale one.
+ */
+const roots = vi.hoisted(() => ({ made: [] as string[] }));
+vi.mock('react-dom/client', async (importOriginal) => {
+  const real = await importOriginal<typeof import('react-dom/client')>();
+  return {
+    ...real,
+    createRoot: (container: Element, options?: Parameters<typeof real.createRoot>[1]) => {
+      roots.made.push(container.innerHTML);
+      return real.createRoot(container, options);
+    },
+  };
+});
 
 // React checks this before it will let `act` flush without warning.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -20,6 +36,7 @@ let root: HTMLDivElement;
 beforeEach(() => {
   vi.resetModules();
   shares.followed = 0;
+  roots.made = [];
   root = document.createElement('div');
   root.id = 'root';
   // Left behind by a frontend the loader started and abandoned.
@@ -43,6 +60,7 @@ describe('the page’s mount', () => {
     await load();
     expect(root.querySelector('[data-app]')).not.toBeNull();
     expect(root.textContent).toBe('mounted');
+    expect(roots.made).toEqual(['']);
     expect(shares.followed).toBe(1);
   });
 
@@ -63,6 +81,7 @@ describe('the page’s mount', () => {
     act(() => boot.waiting.forEach((consider) => consider()));
     act(() => boot.mounters[self!]!());
     expect(root.querySelectorAll('[data-app]')).toHaveLength(1);
+    expect(roots.made).toEqual(['']);
     expect(boot.mounted).toBeUndefined();
   });
 
@@ -76,6 +95,7 @@ describe('the page’s mount', () => {
     window.__glyphBoot = { waiting: [], mounters: {}, build: null, chosen: self };
     await load();
     expect(root.textContent).toBe('mounted');
+    expect(roots.made).toEqual(['']);
     expect(window.__glyphBoot.waiting).toHaveLength(0);
   });
 });
