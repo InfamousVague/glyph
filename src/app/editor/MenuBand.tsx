@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { StrokeIcon } from '../art/Icons.tsx';
 import styles from './ContextMenu.module.css';
 
 /**
@@ -9,8 +10,8 @@ import styles from './ContextMenu.module.css';
  * Matt: "make the options typography and iconography heavy so they fit the theme on all context menus".
  */
 
-/** A drawn icon a menu can size and weigh: the Glacier kit's, and the app's own (art/Icons.tsx). */
-export type MenuIcon = ComponentType<{ size?: number; strokeWidth?: number }>;
+/** A drawn icon a menu can size and weigh: the Glacier kit's, and the app's own (art/Icons.tsx `StrokeIcon`). */
+export type MenuIcon = StrokeIcon;
 
 /** An icon over its word. */
 export function MenuWord({ icon: Icon, label }: { icon: MenuIcon; label: string }) {

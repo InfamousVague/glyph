@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { StrokeIcon } from '../art/Icons.tsx';
 import type { MarkDetailsProvider } from '../core/markDetails.ts';
 import type { TextEffectName } from '../editor/textEffects.ts';
 
@@ -231,7 +232,7 @@ export interface InlineFormat {
   /** One line on what it is for, for the guide's marks page: "A dotted line under a fact to check later." */
   about?: string;
   /** Its own mark on the Style page, where a plugin brings several: the plugin's icon otherwise. */
-  icon?: ComponentType<{ size?: number }>;
+  icon?: StrokeIcon;
   /**
    * A name in brackets after the mark, turned into extra CSS for those words alone: `==the key==(green)` is a green
    * highlight (Matt: "Add a colour option on the highlight supporting the colour names from the glacierUI kit").
@@ -260,7 +261,7 @@ export type FormatLook =
 
 export interface GlyphPlugin {
   manifest: PluginManifest;
-  icon: ComponentType<{ size?: number }>;
+  icon: StrokeIcon;
   /**
    * Its page in Settings, the page's one-line reading, and its colour there: one of the hues settings.css draws
    * (`[data-hue]`), or grey without one.

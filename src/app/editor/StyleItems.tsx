@@ -63,7 +63,7 @@ export function StyleItems({ view, onBack, onClose }: { view: EditorView; onBack
   // A mark's own icon where it has one (plugins/types.ts `InlineFormat`), else the plugin's, else the letter.
   const formats = plugins
     .enabled()
-    .flatMap((plugin) => (plugin.formats ?? []).map((format) => ({ format, icon: ((format.icon ?? plugin.icon) as MenuIcon | undefined) ?? Type })));
+    .flatMap((plugin) => (plugin.formats ?? []).map((format) => ({ format, icon: format.icon ?? plugin.icon ?? Type })));
   return (
     <>
       <MenuItem icon={ChevronLeft} label="Back" onPress={onBack} name="Back to the note's actions" />

@@ -1,3 +1,5 @@
+import type { ComponentType } from 'react';
+
 /**
  * The app's few icons, drawn rather than typed.
  *
@@ -10,6 +12,12 @@
 interface IconProps {
   className?: string;
 }
+
+/**
+ * A drawn icon that can be sized and weighed: the Glacier kit's, and the ones here that take a stroke. What a menu
+ * draws (editor/MenuBand.tsx `MenuIcon`) and what a plugin brings for itself and its marks (plugins/types.ts).
+ */
+export type StrokeIcon = ComponentType<{ size?: number; strokeWidth?: number }>;
 
 const icon = (className: string | undefined, d: string) => (
   <svg viewBox="0 0 24 24" className={className} aria-hidden="true" style={{ inlineSize: '1em', blockSize: '1em', verticalAlign: '-0.12em' }}>
