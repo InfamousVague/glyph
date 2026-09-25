@@ -31,6 +31,10 @@
 //! "not present": the model there will be Apple's, and a page written against
 //! one surface needs no platform switch to load.
 
+// iOS answers every command here with its refusal (unsupported.rs), so the
+// rest of the module is unused there by design, not by accident.
+#![cfg_attr(target_os = "ios", allow(dead_code))]
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -79,6 +83,26 @@ pub struct GenerateRequest {
 
 fn default_temperature() -> f32 {
     0.3
+}
+
+/// The engine's request for what the page asked. Never a grammar: a
+/// constrained run is native-owned (`ai_infer_command`), so a formatting run
+/// has none whatever the page's JSON carries.
+#[cfg(not(target_os = "ios"))]
+impl From<GenerateRequest> for Request {
+    fn from(request: GenerateRequest) -> Request {
+        Request {
+            id: request.id,
+            system: request.system,
+            context: request.context,
+            prompt: request.prompt,
+            max_tokens: request.max_tokens,
+            temperature: request.temperature,
+            think: request.think,
+            think_budget: request.think_budget,
+            grammar: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -180,7 +204,7 @@ pub fn shutdown(app: &AppHandle) {
 }
 
 fn info(dir: Option<&std::path::Path>, spec: &LlmSpec) -> ModelInfo {
-    let status = dir.map(|d| crate::whisper::model::status(d, &spec.spec));
+    let status = dir.map(|d| crate::model_files::status(d, &spec.spec));
     ModelInfo {
         id: spec.id.to_string(),
         file: spec.spec.file.to_string(),
@@ -251,7 +275,7 @@ pub async fn ai_delete_model(app: AppHandle, state: State<'_, AiState>, id: Stri
         if let Some(llm) = state.llm.get() {
             llm.unload();
         }
-        for candidate in [crate::whisper::model::path_in(&dir, &spec.spec), crate::whisper::model::part_path(&dir, &spec.spec)] {
+        for candidate in [crate::model_files::path_in(&dir, &spec.spec), crate::model_files::part_path(&dir, &spec.spec)] {
             crate::fsx::remove_file_if_present(&candidate).map_err(|e| format!("cannot remove {}: {e}", candidate.display()))?;
         }
         Ok(info(Some(&dir), spec))
@@ -280,25 +304,15 @@ pub async fn ai_generate(
     {
         use tauri::Emitter;
         let dir = crate::paths::models_dir(&app)?;
-        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let status = crate::model_files::status(&dir, &spec.spec);
         if !status.present {
             return Err(format!("The model {} is not on this phone yet.", spec.id));
         }
         let cancel = Arc::new(AtomicBool::new(false));
-        lock(&state.runs).insert(request.id.clone(), Arc::clone(&cancel));
+        let run = request.id.clone();
+        lock(&state.runs).insert(run.clone(), Arc::clone(&cancel));
         let emitter = app.clone();
-        let engine_request = Request {
-            id: request.id.clone(),
-            system: request.system,
-            context: request.context,
-            prompt: request.prompt,
-            max_tokens: request.max_tokens,
-            temperature: request.temperature,
-            think: request.think,
-            think_budget: request.think_budget,
-            grammar: None,
-        };
-        let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, move |progress| {
+        let answer = state.llm().generate(std::path::Path::new(&status.path), Request::from(request), cancel, move |progress| {
             let _ = emitter.emit("ai://progress", progress);
         });
         // The reply comes on a std channel from the worker thread; waiting on
@@ -307,7 +321,7 @@ pub async fn ai_generate(
             .await
             .map_err(|e| format!("the formatting run did not finish: {e}"))?
             .map_err(|_| "the formatting engine went away".to_string())?;
-        lock(&state.runs).remove(&request.id);
+        lock(&state.runs).remove(&run);
         result.map_err(|failure| failure.to_string())
     }
 }
@@ -350,15 +364,15 @@ pub async fn ai_infer_command(
     {
         let dir = crate::paths::models_dir(&app)?;
         let preferred = model::find(&request.preferred_model)
-            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+            .filter(|spec| crate::model_files::status(&dir, &spec.spec).present);
         let fallback = model::find("qwen3.5-2b")
-            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+            .filter(|spec| crate::model_files::status(&dir, &spec.spec).present);
         let Some(spec) = preferred.or(fallback) else {
             return Ok(CommandInferenceResult::Unavailable {
                 reason: "No compatible installed model is available for instruction commands.".into(),
             });
         };
-        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let status = crate::model_files::status(&dir, &spec.spec);
         let cancel = Arc::new(AtomicBool::new(false));
         {
             let mut runs = lock(&state.runs);
@@ -416,6 +430,19 @@ mod tests {
         assert!(!request.think, "a formatting pass that says nothing about thinking gets none");
         let thinking: GenerateRequest = serde_json::from_str(r#"{"id":"r2","model":"qwen3.5-4b","system":"Review.","prompt":"hi","maxTokens":900,"think":true}"#).unwrap();
         assert!(thinking.think);
+    }
+
+    #[cfg(not(target_os = "ios"))]
+    #[test]
+    fn a_pages_grammar_is_dropped_on_reading_and_the_mapping_never_adds_one() {
+        // `GenerateRequest` has no `grammar` field and does not deny unknown
+        // ones, so a page that sends one is still read - without it - and the
+        // mapping to the engine's request sets none of its own.
+        let json = r#"{"id":"r1","model":"qwen3.5-4b","system":"Format.","context":"c","prompt":"hi","maxTokens":200,"think":true,"thinkBudget":64,"grammar":"root ::= \"x\""}"#;
+        let request = Request::from(serde_json::from_str::<GenerateRequest>(json).expect("an extra key is not an error"));
+        assert_eq!(request.grammar, None);
+        assert_eq!((request.id.as_str(), request.context.as_deref(), request.max_tokens, request.think_budget), ("r1", Some("c"), 200, 64));
+        assert!(request.think && (request.temperature - 0.3).abs() < f32::EPSILON);
     }
 
     #[test]

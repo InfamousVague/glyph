@@ -1,11 +1,12 @@
-use super::*;
-use crate::store::{CommandMutation, CommandMutationResult, CommandUndoResult, RecordedSegment, Recording, Store};
+//! The library against real folders in the temp directory: what a save, a pin,
+//! a sync, a move-in and another app's edit each leave on disk, and what the
+//! page is answered with.
 
-fn temp(label: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("glyph-library-{label}-{}", uuid::Uuid::new_v4()));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
+use super::dates::parse_iso;
+use super::*;
+use crate::note::{CommandMutation, CommandMutationResult, CommandUndoResult, RecordedSegment, Recording};
+use crate::store::Store;
+use crate::test_support::TempDir;
 
 fn read(root: &Path, path: &str) -> String {
     std::fs::read_to_string(root.join(path)).unwrap()
@@ -13,7 +14,7 @@ fn read(root: &Path, path: &str) -> String {
 
 #[test]
 fn a_new_note_is_a_markdown_file_in_the_inbox_with_its_id() {
-    let root = temp("new");
+    let root = TempDir::new("library-new");
     let mut library = Library::open_fs(&root).unwrap();
     let note = library.save_note("n1", "# Weekend trip\n\nBook the cabin.\n", "capture").unwrap();
     assert_eq!(note.path.as_deref(), Some("Inbox/Weekend trip.md"));
@@ -26,7 +27,7 @@ fn a_new_note_is_a_markdown_file_in_the_inbox_with_its_id() {
 
 #[test]
 fn a_changed_title_renames_the_file_and_a_clash_gets_a_number() {
-    let root = temp("rename");
+    let root = TempDir::new("library-rename");
     let mut library = Library::open_fs(&root).unwrap();
     library.save_note("a", "# Plans\n", "editor").unwrap();
     library.save_note("b", "# Ideas\n", "editor").unwrap();
@@ -40,7 +41,7 @@ fn a_changed_title_renames_the_file_and_a_clash_gets_a_number() {
 
 #[test]
 fn pinning_and_archiving_write_front_matter_and_keep_the_modified_time() {
-    let root = temp("pin");
+    let root = TempDir::new("library-pin");
     let mut library = Library::open_fs(&root).unwrap();
     let saved = library.save_note("p", "# Pin me\n", "editor").unwrap();
     std::thread::sleep(std::time::Duration::from_millis(20));
@@ -57,7 +58,7 @@ fn pinning_and_archiving_write_front_matter_and_keep_the_modified_time() {
 
 #[test]
 fn files_written_by_other_apps_are_indexed_and_edits_are_picked_up() {
-    let root = temp("external");
+    let root = TempDir::new("library-external");
     let mut library = Library::open_fs(&root).unwrap();
     std::fs::create_dir_all(root.join("Work")).unwrap();
     std::fs::write(root.join("Work/HelloTrade.md"), "---\ntags: [trade]\npinned: true\n---\n# HelloTrade\n\n- [ ] Ship it\n").unwrap();
@@ -86,7 +87,7 @@ fn files_written_by_other_apps_are_indexed_and_edits_are_picked_up() {
 
 #[test]
 fn a_copied_file_with_the_same_id_becomes_its_own_note() {
-    let root = temp("copy");
+    let root = TempDir::new("library-copy");
     let mut library = Library::open_fs(&root).unwrap();
     library.save_note("same", "# Original\n", "editor").unwrap();
     std::fs::copy(root.join("Inbox/Original.md"), root.join("Inbox/Copy.md")).unwrap();
@@ -99,7 +100,7 @@ fn a_copied_file_with_the_same_id_becomes_its_own_note() {
 
 #[test]
 fn recordings_and_formatted_versions_live_beside_not_in_the_markdown() {
-    let root = temp("sidecar");
+    let root = TempDir::new("library-sidecar");
     let mut library = Library::open_fs(&root).unwrap();
     library.save_note("r", "# Said\n", "capture").unwrap();
     let recording = Recording::new(1900, vec![RecordedSegment { text: "Said.".into(), start_ms: 0, end_ms: 1900 }]).unwrap();
@@ -119,7 +120,7 @@ fn recordings_and_formatted_versions_live_beside_not_in_the_markdown() {
 
 #[test]
 fn a_sidecar_is_kept_only_under_an_id_that_may_become_a_file_name() {
-    let root = temp("sidecar-ids");
+    let root = TempDir::new("library-sidecar-ids");
     let mut library = Library::open_fs(&root).unwrap();
     let longest = "x".repeat(crate::fsx::PLAIN_ID_MAX);
     assert!(library.sidecar_path(&longest).is_some());
@@ -130,12 +131,11 @@ fn a_sidecar_is_kept_only_under_an_id_that_may_become_a_file_name() {
     library.set_formatted("s", Some("# Said\n\nTidy."), Some(1), Some("qwen3.5-4b")).unwrap();
     let kept: Vec<_> = std::fs::read_dir(root.join(".glyph/notes")).unwrap().map(|e| e.unwrap().file_name()).collect();
     assert_eq!(kept, ["s.json"], "written whole, with nothing left beside it");
-    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
 fn the_index_is_only_a_cache() {
-    let root = temp("rebuild");
+    let root = TempDir::new("library-rebuild");
     {
         let mut library = Library::open_fs(&root).unwrap();
         library.save_note("k", "# Kept\n![](image/abc.jpg)\n", "editor").unwrap();
@@ -151,7 +151,7 @@ fn the_index_is_only_a_cache() {
 
 #[test]
 fn moving_in_writes_every_old_note_out_and_is_safe_to_repeat() {
-    let root = temp("move");
+    let root = TempDir::new("library-move");
     let db = root.join("glyph.sqlite");
     let old = Store::open(&db).unwrap();
     old.save_note("m1", "# Old pinned\n\nwords", "editor").unwrap();
@@ -187,19 +187,8 @@ fn moving_in_writes_every_old_note_out_and_is_safe_to_repeat() {
 }
 
 #[test]
-fn dates_go_to_front_matter_and_come_back() {
-    let at = 1_789_381_930_123;
-    let text = iso(at);
-    assert_eq!(text, "2026-09-14T10:32:10.123Z");
-    assert_eq!(parse_iso(&text), Some(at));
-    assert_eq!(parse_iso("2026-09-14"), Some(1_789_344_000_000));
-    assert_eq!(parse_iso("2026-09-14T12:32:10.123+02:00"), Some(at));
-    assert_eq!(parse_iso("not a date"), None);
-}
-
-#[test]
 fn a_path_never_leaves_the_library() {
-    let root = temp("escape");
+    let root = TempDir::new("library-escape");
     let vault = FsVault::new(&root).unwrap();
     assert!(vault.read("../secret.md").is_err());
     assert!(vault.write("/etc/x.md", "x").is_err());
@@ -207,7 +196,7 @@ fn a_path_never_leaves_the_library() {
 
 #[test]
 fn a_new_note_left_empty_never_becomes_a_file() {
-    let root = temp("draft");
+    let root = TempDir::new("library-draft");
     let mut library = Library::open_fs(&root).unwrap();
     let draft = library.save_note("d", "", "editor").unwrap();
     assert_eq!(draft.path, None);
@@ -264,7 +253,7 @@ fn remote(id: &str, body: &str) -> Note {
 
 #[test]
 fn a_synced_note_keeps_its_own_times_folder_and_what_isnt_text() {
-    let root = temp("apply-new");
+    let root = TempDir::new("library-apply-new");
     let mut library = Library::open_fs(&root).unwrap();
     let applied = library.apply_note(&remote("s1", "# Hello\n\nfrom the phone\n")).unwrap();
     let wanted = remote("s1", "# Hello\n\nfrom the phone\n");
@@ -279,7 +268,7 @@ fn a_synced_note_keeps_its_own_times_folder_and_what_isnt_text() {
 
 #[test]
 fn a_synced_edit_updates_the_file_in_place_and_keeps_local_front_matter() {
-    let root = temp("apply-edit");
+    let root = TempDir::new("library-apply-edit");
     let mut library = Library::open_fs(&root).unwrap();
     library.apply_note(&remote("s2", "# Hello\n")).unwrap();
     let path = root.join("Work/Trips/Hello.md");
@@ -307,7 +296,7 @@ fn a_synced_edit_updates_the_file_in_place_and_keeps_local_front_matter() {
 
 #[test]
 fn a_synced_note_whose_folder_is_taken_or_unsafe_lands_in_the_inbox_or_beside_it() {
-    let root = temp("apply-safe");
+    let root = TempDir::new("library-apply-safe");
     let mut library = Library::open_fs(&root).unwrap();
     let mut escape = remote("s3", "# Sneaky\n");
     escape.path = Some("../outside.md".into());
@@ -324,7 +313,7 @@ fn a_synced_note_whose_folder_is_taken_or_unsafe_lands_in_the_inbox_or_beside_it
 
 #[test]
 fn a_synced_note_replaces_a_draft_of_the_same_id() {
-    let root = temp("apply-draft");
+    let root = TempDir::new("library-apply-draft");
     let mut library = Library::open_fs(&root).unwrap();
     library.save_note("d", "", "editor").unwrap();
     library.apply_note(&remote("d", "# Hello\n")).unwrap();
@@ -335,7 +324,7 @@ fn a_synced_note_replaces_a_draft_of_the_same_id() {
 
 #[test]
 fn a_stale_writer_cannot_resurrect_a_deleted_library_note() {
-    let root = temp("deleted-cas");
+    let root = TempDir::new("library-deleted-cas");
     let mut library = Library::open_fs(&root).unwrap();
     let original = library.create_note("gone", "# Gone\n", "capture").unwrap().unwrap();
     assert!(library.delete_note(&original.id).unwrap());
@@ -345,7 +334,7 @@ fn a_stale_writer_cannot_resurrect_a_deleted_library_note() {
 
 #[test]
 fn command_mutation_is_cas_guarded_and_undo_survives_reopen() {
-    let root = temp("command-cas");
+    let root = TempDir::new("library-command-cas");
     let mut library = Library::open_fs(&root).unwrap();
     let before = library.create_note("todo", "To-Do\n", "editor").unwrap().unwrap();
     let mutation = CommandMutation {
@@ -370,7 +359,7 @@ fn command_mutation_is_cas_guarded_and_undo_survives_reopen() {
 
 #[test]
 fn stale_command_preview_never_overwrites_a_later_library_edit() {
-    let root = temp("command-conflict");
+    let root = TempDir::new("library-command-conflict");
     let mut library = Library::open_fs(&root).unwrap();
     let shown = library.create_note("todo", "To-Do\n", "editor").unwrap().unwrap();
     let edited = library.update_note("todo", "To-Do\n\nTyped later.\n", shown.revision).unwrap().unwrap();
@@ -384,4 +373,87 @@ fn stale_command_preview_never_overwrites_a_later_library_edit() {
         source: "capture".into(),
     }).unwrap();
     assert_eq!(result, CommandMutationResult::Conflict { current: Some(edited) });
+}
+
+fn command(id: &str, note: &Note, after: &str) -> CommandMutation {
+    CommandMutation {
+        id: id.into(),
+        note_id: note.id.clone(),
+        kind: "append".into(),
+        before_revision: Some(note.revision),
+        before_body: Some(note.body.clone()),
+        after_body: after.into(),
+        source: note.source.clone(),
+    }
+}
+
+#[test]
+fn a_recent_command_still_standing_is_offered_again_after_an_interruption() {
+    let root = TempDir::new("library-command-recover");
+    let mut library = Library::open_fs(&root).unwrap();
+    let before = library.create_note("todo", "To-Do\n", "editor").unwrap().unwrap();
+    library.apply_command(&command("recover", &before, "To-Do\n\n- [ ] Voice\n")).unwrap();
+    drop(library);
+    let mut reopened = Library::open_fs(&root).unwrap();
+    assert_eq!(reopened.latest_command_undo(60_000).unwrap().map(|pending| pending.mutation_id).as_deref(), Some("recover"));
+    // Typed over since: the command's result no longer stands, so there is nothing to undo.
+    let now = reopened.get_note("todo").unwrap().unwrap();
+    reopened.update_note("todo", "To-Do\n\n- [ ] Voice\n- [ ] Typed\n", now.revision).unwrap();
+    assert_eq!(reopened.latest_command_undo(60_000).unwrap(), None);
+}
+
+#[test]
+fn undoing_a_created_note_removes_it_but_never_a_note_edited_since() {
+    let root = TempDir::new("library-command-create");
+    let mut library = Library::open_fs(&root).unwrap();
+    let create = CommandMutation {
+        id: "c1".into(),
+        note_id: "new".into(),
+        kind: "create".into(),
+        before_revision: None,
+        before_body: None,
+        after_body: "Apartment stuff\n".into(),
+        source: "capture".into(),
+    };
+    assert!(matches!(library.apply_command(&create).unwrap(), CommandMutationResult::Applied { .. }));
+    assert!(matches!(library.undo_command("c1").unwrap(), CommandUndoResult::Undone { note: None, .. }));
+    assert_eq!(library.get_note("new").unwrap(), None, "the note the command made is gone again");
+    assert_eq!(library.undo_command("never").unwrap(), CommandUndoResult::NotFound);
+
+    let again = CommandMutation { id: "c2".into(), ..create };
+    library.apply_command(&again).unwrap();
+    let made = library.get_note("new").unwrap().unwrap();
+    let later = library.update_note("new", "Apartment stuff\n\nand more\n", made.revision).unwrap().unwrap();
+    assert_eq!(library.undo_command("c2").unwrap(), CommandUndoResult::Conflict { current: Some(later) });
+    assert!(library.get_note("new").unwrap().is_some(), "an undo never throws away a later edit");
+}
+
+#[test]
+fn a_note_moved_by_another_app_is_found_where_it_went() {
+    let root = TempDir::new("library-moved");
+    let mut library = Library::open_fs(&root).unwrap();
+    library.save_note("n", "# Moved\n", "editor").unwrap();
+    std::fs::create_dir_all(root.join("Work")).unwrap();
+    std::fs::rename(root.join("Inbox/Moved.md"), root.join("Work/Moved.md")).unwrap();
+    let found = library.get_note("n").unwrap().unwrap();
+    assert_eq!(found.path.as_deref(), Some("Work/Moved.md"), "the id in its front matter follows it");
+    std::fs::remove_file(root.join("Work/Moved.md")).unwrap();
+    assert_eq!(library.get_note("n").unwrap(), None, "and a file removed elsewhere is a note gone");
+}
+
+#[test]
+fn clearing_empties_the_library_and_it_carries_on() {
+    let root = TempDir::new("library-clear");
+    let mut library = Library::open_fs(&root).unwrap();
+    library.save_note("a", "# One\n", "editor").unwrap();
+    library.save_note("b", "# Two\n", "capture").unwrap();
+    library.set_formatted("b", Some("# Two\n\nTidy."), Some(1), Some("m")).unwrap();
+    library.save_note("draft", "", "editor").unwrap();
+    library.clear().unwrap();
+    assert!(library.list_notes().unwrap().is_empty());
+    assert_eq!(library.get_note("draft").unwrap(), None, "drafts go too");
+    assert!(!root.join("Inbox/One.md").exists() && !root.join(".glyph/notes/b.json").exists());
+    assert!(root.join(".glyph/notes").is_dir(), "the folder a sidecar is written into is still there");
+    let again = library.save_note("c", "# Three\n", "editor").unwrap();
+    assert_eq!(library.list_notes().unwrap(), vec![again]);
 }

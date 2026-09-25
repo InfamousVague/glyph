@@ -2,13 +2,13 @@
 //!
 //! The page owns the microphone: it captures in the webview and pushes raw PCM
 //! across. `capture_commands.rs` owns the seam that PCM arrives through and the
-//! events that go back out. `store.rs` owns what a transcript becomes once it
+//! events that go back out. `library/` owns what a transcript becomes once it
 //! is a note. This module owns the part in between - turning a stream of
-//! samples into text a phrase at a time - and, like `store.rs`, it knows
-//! nothing about the process it is running in, for the same reason: the
-//! Android side-key capture (DESIGN section 6.1) runs in a process with no
-//! Tauri in it and will drive this over JNI. Everything here takes plain
-//! slices, paths and callbacks.
+//! samples into text a phrase at a time - and, like `note.rs` and `library/`,
+//! it knows nothing about the process it is running in, for the reason note.rs
+//! gives: a side-key capture with no Tauri in its process (DESIGN section 6.1)
+//! could drive this over JNI. Everything here takes plain slices, paths and
+//! callbacks.
 //!
 //! The rooms, in the order audio passes through them:
 //!
@@ -25,8 +25,9 @@
 //!   `Session` that implements `stream::Transcribe`.
 //! - `worker` is the thin thread that drives a `Streamer` on a timer, so that
 //!   pushing audio never waits for inference.
-//! - `model` is the catalogue of model files, their pinned hashes, and the
-//!   download.
+//! - `model` is the catalogue of model files, their pinned hashes and their
+//!   mirrors. The download is `model_files`'s, which the formatter shares, so
+//!   this module holds no Tauri at all - not even the runtime a retry sleeps on.
 //! - `wav` reads a WAV file, for whole-file benchmarking and the tests.
 //!
 //! Errors cross this module as `String`, not as an enum like `StoreError`, and
@@ -54,6 +55,8 @@ pub mod engine;
 pub mod worker;
 
 #[cfg(all(test, not(target_os = "ios")))]
+mod fixtures;
+#[cfg(all(test, not(target_os = "ios")))]
 mod tests;
 #[cfg(all(test, target_os = "macos"))]
 mod suite;
@@ -75,4 +78,11 @@ pub fn samples_to_ms(samples: usize) -> u64 {
 /// Milliseconds to samples, for the constants that are easier to read in time.
 pub const fn ms_to_samples(ms: u64) -> usize {
     (ms as usize * SAMPLE_RATE) / 1_000
+}
+
+/// Little-endian 32-bit float samples, as the page pushes them and a float WAV
+/// holds them. A partial sample at the end is not a sample, and is left out;
+/// a caller that must refuse one checks the length first.
+pub fn f32_samples(bytes: &[u8]) -> Vec<f32> {
+    bytes.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect()
 }

@@ -5,13 +5,13 @@
 //! (`<id>.wav`, the capture seam), `images/` (images.rs), `models/` (whisper's
 //! and the formatter's alike), `ota/` (ota.rs), and two files that are not
 //! directories and so are named where they are used: `notion.json`
-//! (notion.rs) and the old `glyph.sqlite` (commands.rs). Under
+//! (notion.rs) and the old `glyph.sqlite` (library/move_in.rs). Under
 //! `<app_cache_dir>`: `picked/` (a picture the Android shell shrank, adopted
 //! by images.rs) and `updates/` (the verified APK).
 //!
 //! Resolving needs an `AppHandle` (or the `App` in setup), which is why this
 //! is on the Tauri side of the seam and the Tauri-free modules take a path
-//! instead - `store::open`, `Library::open_fs`, `whisper::model::fetch`,
+//! instead - `Store::open`, `Library::open_fs`, `model_files::fetch`,
 //! `ota::peek` all do, so a caller with no Tauri in its process (the
 //! update-alert worker today) resolves its own.
 //!

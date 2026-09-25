@@ -23,6 +23,10 @@
 //!   below `https://api.notion.com/v1/` and must be one of the routes Glyph
 //!   uses (search, databases, data_sources, pages, blocks, users/me).
 
+// iOS answers every command here with its refusal (unsupported.rs), so the
+// rest of the module is unused there by design, not by accident.
+#![cfg_attr(target_os = "ios", allow(dead_code))]
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::AppHandle;
@@ -81,7 +85,13 @@ pub fn account_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 }
 
 fn read(app: &AppHandle) -> Option<Account> {
-    crate::fsx::read_json::<Account>(&account_path(app).ok()?).filter(|a| !a.access_token.is_empty())
+    read_account(&account_path(app).ok()?)
+}
+
+/// The account in the file at `path`, or `None` - signed out - for a file
+/// that is missing, unreadable, or holds no token to call Notion with.
+fn read_account(path: &std::path::Path) -> Option<Account> {
+    crate::fsx::read_json::<Account>(path).filter(|a| !a.access_token.is_empty())
 }
 
 fn write(app: &AppHandle, account: &Account) -> Result<(), String> {
@@ -215,6 +225,7 @@ async fn refresh_account(client: &reqwest::Client, refresh_token: &str) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
 
     #[test]
     fn only_the_routes_glyph_uses() {
@@ -241,7 +252,9 @@ mod tests {
 
     #[test]
     fn an_account_is_kept_whole_and_private_or_not_at_all() {
-        let dir = std::env::temp_dir().join(format!("glyph-notion-{}", uuid::Uuid::new_v4()));
+        let root = TempDir::new("notion");
+        // A data folder not made yet: the first sign-in makes it.
+        let dir = root.join("data");
         let path = dir.join(FILE);
         let account = Account { access_token: "secret_x".into(), ..Account::default() };
         write_account(&path, &account).unwrap();
@@ -259,6 +272,18 @@ mod tests {
         let mut left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         left.sort();
         assert_eq!(left, ["blocked.json", FILE]);
-        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn signed_in_means_a_token_to_call_with() {
+        let dir = TempDir::new("notion-read");
+        let path = dir.join(FILE);
+        assert!(read_account(&path).is_none(), "no file is signed out");
+        std::fs::write(&path, br#"{"accessToken":"","workspaceName":"AttackFM"}"#).unwrap();
+        assert!(read_account(&path).is_none(), "an empty token is signed out, whatever else the file says");
+        std::fs::write(&path, b"{ half a file").unwrap();
+        assert!(read_account(&path).is_none());
+        std::fs::write(&path, br#"{"accessToken":"secret_x"}"#).unwrap();
+        assert_eq!(read_account(&path).map(|a| a.access_token).as_deref(), Some("secret_x"), "the rest may be missing");
     }
 }

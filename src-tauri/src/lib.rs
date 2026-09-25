@@ -1,6 +1,7 @@
-// The native half of Glyph. The webview owns everything a person sees; this
-// crate owns what has to outlive it or reach past it: the notes store, the
-// Taptic Engine, and (later) the voice capture that runs without the webview.
+// The native half of Ghost.md (Glyph in its ids). The webview owns everything
+// a person sees; this crate owns what has to outlive it or reach past it: the
+// notes on disk, transcription and formatting on the device, over-the-air
+// updates, and the few calls a page cannot make for itself.
 
 // Building blocks every other module shares, each written once. See each header.
 // The poison-tolerant lock, Tauri-free so whisper/ and llm/ can use it.
@@ -12,22 +13,34 @@ mod paths;
 // What iOS does not have, and the one sentence each such command answers with there.
 #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
 mod unsupported;
+// What the tests share: a directory of a test's own, and a scheme answer's headers.
+#[cfg(test)]
+mod test_support;
 
-// The notes themselves. `pub`, and free of Tauri types, so a caller with no
-// Tauri in its process could reach it over JNI - DESIGN 6.1's capture service,
-// which did not ship in that form (capture runs in the page; DESIGN 13). The
-// first such caller that DID ship is the update-alert worker, for `ota`, below.
-// See store.rs's header.
-pub mod store;
+// A note as the crate and the page share it. `pub`, and free of Tauri types,
+// so a caller with no Tauri in its process could reach it over JNI - DESIGN
+// 6.1's capture service, which did not ship in that form (capture runs in the
+// page; DESIGN 13). The first such caller that DID ship is the update-alert
+// worker, for `ota`, below. See note.rs's header.
+pub mod note;
 /// The notes as a folder of Markdown files, and the index over them (docs/LIBRARY.md).
 pub mod library;
+// The database the notes lived in before 1.3.0, read once to move them into the library.
+pub mod store;
 
-// The webview's door to the store - four commands and no logic of its own.
+// The webview's door to the notes: one library call per command, and the
+// delete that takes a note's pictures and recording with it.
 mod commands;
+// A spoken note's kept recording, and the `rec` scheme its tape plays through.
+mod recordings;
 
-// On-device transcription. `pub` and Tauri-free for the same reason as `store`,
+// On-device transcription. `pub` and Tauri-free for the same reason as `note`,
 // though today only the capture commands drive it. See whisper/mod.rs's header.
 pub mod whisper;
+
+// A model file, whichever engine reads it: its spec, whether it is here, and
+// the verified, resumable download. Tauri-free, like the engines it serves.
+pub mod model_files;
 
 // The Tauri half of a model download, which both doors below share: where
 // models live on this device, the progress event, one download at a time.
@@ -45,7 +58,11 @@ pub mod llm;
 // The webview's door to the formatting model: the catalogue, a download, a
 // run, a cancel, and the progress events. See its header.
 mod ai_commands;
+// Notion from the phone: the signed-in account, and the API calls a page
+// cannot make cross-origin. See its header.
 mod notion;
+// A web page's title and summary for the card under a link, which the page
+// cannot read cross-origin either.
 mod link_preview;
 // Links that open the app, ghostmd://, kept until the page takes them.
 mod links;
@@ -69,50 +86,8 @@ mod ota;
 #[cfg(target_os = "android")]
 mod update_alerts;
 
-/// Makes the app's window the key window once the scene has attached it.
-///
-/// Under the scene lifecycle (UIApplicationSupportsMultipleScenes, which iOS
-/// 26+ forces on this app), tao attaches its window to the scene but nothing
-/// ever calls `makeKeyAndVisible` - and a window that is not KEY cannot host a
-/// first responder. The visible symptom is exactly Apple's QA1813: taps land
-/// (buttons work, focus rings draw) but the keyboard never rises, because the
-/// text field's becomeFirstResponder is silently refused. For a notes app that
-/// is the whole app not working. Asserted twice on a delay because the scene
-/// connect that creates the window races setup, and re-asserting on an
-/// already-key window is a no-op.
-#[cfg(target_os = "ios")]
-fn ensure_key_window(handle: &tauri::AppHandle) {
-    let handle = handle.clone();
-    std::thread::spawn(move || {
-        for delay_ms in [600u64, 2200] {
-            std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-            let _ = handle.run_on_main_thread(|| unsafe {
-                use objc2::msg_send;
-                use objc2::runtime::{AnyClass, AnyObject};
-                let Some(app_class) = AnyClass::get(c"UIApplication") else {
-                    return;
-                };
-                let shared: *mut AnyObject = msg_send![app_class, sharedApplication];
-                if shared.is_null() {
-                    return;
-                }
-                let key: *mut AnyObject = msg_send![shared, keyWindow];
-                if !key.is_null() {
-                    return;
-                }
-                let windows: *mut AnyObject = msg_send![shared, windows];
-                if windows.is_null() {
-                    return;
-                }
-                let first: *mut AnyObject = msg_send![windows, firstObject];
-                if first.is_null() {
-                    return;
-                }
-                let () = msg_send![first, makeKeyAndVisible];
-            });
-        }
-    });
-}
+// The window fixes one platform needs: iOS's key window, macOS's traffic lights.
+mod platform;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -127,9 +102,7 @@ pub fn run() {
         // the webview is created, and the webview is created before setup runs.
         .register_uri_scheme_protocol(ota::SCHEME, |ctx, request| ota::serve(ctx.app_handle(), &request))
         // A spoken note's kept recording, for its tape to play.
-        .register_uri_scheme_protocol(capture_commands::RECORDINGS_SCHEME, |ctx, request| {
-            capture_commands::serve_recording(ctx.app_handle(), &request)
-        })
+        .register_uri_scheme_protocol(recordings::SCHEME, |ctx, request| recordings::serve(ctx.app_handle(), &request))
         // A picture in a note, `![](image/<name>)`, for the editor to draw.
         .register_uri_scheme_protocol(images::SCHEME, |ctx, request| images::serve(ctx.app_handle(), &request));
 
@@ -155,26 +128,9 @@ pub fn run() {
             links::install(app);
 
             #[cfg(target_os = "ios")]
-            ensure_key_window(&app.handle());
-
+            platform::ensure_key_window(app.handle());
             #[cfg(target_os = "macos")]
-            {
-                use tauri::Manager;
-                use tauri_plugin_decorum::WebviewWindowExt;
-                // Center the native traffic lights in the taller custom title
-                // bar; macOS re-lays them out on resize, so re-apply then.
-                if let Some(main) = app.get_webview_window("main") {
-                    const INSET: (f32, f32) = (16.0, 30.0);
-                    let _ = main.set_traffic_lights_inset(INSET.0, INSET.1);
-                    let win = main.clone();
-                    main.on_window_event(move |event| {
-                        if matches!(event, tauri::WindowEvent::Resized(_)) {
-                            let _ = win.set_traffic_lights_inset(INSET.0, INSET.1);
-                        }
-                    });
-                }
-            }
-            let _ = app;
+            platform::place_traffic_lights(app);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -197,11 +153,11 @@ pub fn run() {
             links::links_take,
             images::save_image,
             images::save_image_data,
-            capture_commands::capture_model_status,
-            capture_commands::capture_fetch_model,
-            capture_commands::capture_refine_model_status,
-            capture_commands::capture_fetch_refine_model,
-            capture_commands::capture_refine,
+            capture_commands::models::capture_model_status,
+            capture_commands::models::capture_fetch_model,
+            capture_commands::models::capture_refine_model_status,
+            capture_commands::models::capture_fetch_refine_model,
+            capture_commands::refine::capture_refine,
             capture_commands::capture_start,
             capture_commands::capture_push,
             capture_commands::capture_stop,

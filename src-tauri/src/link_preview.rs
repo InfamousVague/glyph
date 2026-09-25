@@ -9,6 +9,10 @@
 //! video link is not downloaded to find them. Nothing is kept here; the page
 //! caches what it is told. Native generation 17.
 
+// iOS answers every command here with its refusal (unsupported.rs), so the
+// rest of the module is unused there by design, not by accident.
+#![cfg_attr(target_os = "ios", allow(dead_code))]
+
 use serde::Serialize;
 
 #[cfg(target_os = "ios")]
@@ -27,7 +31,6 @@ pub struct Preview {
 }
 
 /// How much of a page is read looking for its head.
-#[cfg_attr(target_os = "ios", allow(dead_code))]
 const MAX_BYTES: usize = 512 * 1024;
 /// The longest title or summary kept, in characters.
 const MAX_CHARS: usize = 300;
@@ -89,7 +92,6 @@ pub async fn link_preview(url: String) -> Result<Preview, String> {
     }
 }
 
-#[cfg_attr(target_os = "ios", allow(dead_code))]
 fn contains_ci(haystack: &[u8], needle: &[u8]) -> bool {
     haystack.windows(needle.len()).any(|w| w.eq_ignore_ascii_case(needle))
 }
@@ -296,6 +298,16 @@ mod tests {
         assert!(head(&long).title.unwrap().chars().count() <= MAX_CHARS);
         assert_eq!(head("<p>no head at all").title, None);
         assert_eq!(decode_entities("a & b &unknown; &#x1F389;"), "a & b &unknown; 🎉");
+    }
+
+    #[test]
+    fn a_tag_ends_at_its_own_close_not_at_one_inside_its_quotes() {
+        let p = head(r#"<meta property="og:title" content="1 > 0, and it's 'quoted'"/><meta name=description content=bare>"#);
+        assert_eq!(p.title.as_deref(), Some("1 > 0, and it's 'quoted'"));
+        assert_eq!(p.description.as_deref(), Some("bare"), "an unquoted value runs to the next space or the close");
+        assert_eq!(tag_end(r#" a="x>y" b='>'>rest"#), 14);
+        assert_eq!(tag_end(" never closed"), 13, "a tag that never closes runs to the end");
+        assert_eq!(attributes(r#" A="1" b c = '2' /"#), [("a".into(), "1".into()), ("b".into(), String::new()), ("c".into(), "2".into())]);
     }
 }
 

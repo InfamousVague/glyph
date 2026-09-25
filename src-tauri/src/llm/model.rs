@@ -1,7 +1,7 @@
 //! Which language models can format notes, and where their bytes come from.
 //!
-//! The same promise as `whisper::model`: a file at a model's real name has
-//! been verified, because the only writer is `whisper::model::fetch`, which
+//! The same promise as whisper's models: a file at a model's real name has
+//! been verified, because the only writer is `model_files::fetch`, which
 //! hashes as it downloads and renames on a match.
 //!
 //! Several models rather than one, chosen in Settings, because the right
@@ -15,7 +15,7 @@
 //! that repository cannot turn a verified download into a failed one. All four
 //! are Apache-2.0.
 
-use crate::whisper::model::ModelSpec;
+use crate::model_files::ModelSpec;
 
 /// One model the phone can format with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,7 +96,7 @@ pub fn find(id: &str) -> Option<&'static LlmSpec> {
 /// reliability, never about trust. Hugging Face is always last and always
 /// present: a model too big for our box to carry is still fetchable.
 pub fn mirrors_with(model: &LlmSpec, preferred: &[String]) -> Vec<String> {
-    crate::whisper::model::mirrors(preferred, [OURS, model.hugging_face])
+    crate::model_files::mirrors(preferred, [OURS, model.hugging_face])
 }
 
 #[cfg(test)]
@@ -132,8 +132,8 @@ mod tests {
     fn a_models_partial_download_is_where_deleting_it_looks() {
         let dir = std::path::Path::new("/models");
         for model in CATALOGUE {
-            let part = crate::whisper::model::part_path(dir, &model.spec);
-            assert_eq!(part, crate::whisper::model::path_in(dir, &model.spec).with_extension("gguf.part"), "{}", model.id);
+            let part = crate::model_files::part_path(dir, &model.spec);
+            assert_eq!(part, crate::model_files::path_in(dir, &model.spec).with_extension("gguf.part"), "{}", model.id);
             assert!(part.to_string_lossy().ends_with(".gguf.part"), "{part:?}");
         }
     }

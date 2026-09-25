@@ -12,6 +12,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use crate::note::ms_since_epoch;
+
 /// A markdown file in the library.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
@@ -58,7 +60,7 @@ impl FsVault {
 
     fn entry(&self, path: &str, full: &Path) -> io::Result<Entry> {
         let meta = std::fs::metadata(full)?;
-        let modified_ms = meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_millis() as i64);
+        let modified_ms = meta.modified().ok().map_or(0, ms_since_epoch);
         Ok(Entry { path: path.to_string(), modified_ms, size: meta.len() })
     }
 
@@ -133,5 +135,47 @@ impl Vault for FsVault {
 
     fn glyph_dir(&self) -> PathBuf {
         self.root.join(".glyph")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::TempDir;
+
+    #[test]
+    fn the_notes_are_every_markdown_file_but_those_in_dot_folders() {
+        let root = TempDir::new("vault");
+        let vault = FsVault::new(&root).unwrap();
+        for file in ["Inbox/a.md", "Work/Deep/b.MD", ".obsidian/c.md", "Work/.trash/d.md", ".hidden.md", "notes.txt"] {
+            std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            std::fs::write(root.join(file), "x").unwrap();
+        }
+        let paths: Vec<String> = vault.markdown().unwrap().into_iter().map(|entry| entry.path).collect();
+        assert_eq!(paths, ["Inbox/a.md", "Work/Deep/b.MD"], "sorted, forward slashes, any case of .md");
+    }
+
+    #[test]
+    fn a_write_or_a_rename_makes_the_folders_it_needs() {
+        let root = TempDir::new("vault");
+        let vault = FsVault::new(&root).unwrap();
+        let written = vault.write("Work/Trips/Hello.md", "# Hello\n").unwrap();
+        assert_eq!((written.path.as_str(), written.size), ("Work/Trips/Hello.md", 8));
+        vault.rename("Work/Trips/Hello.md", "Archive/2026/Hello.md").unwrap();
+        assert!(!vault.exists("Work/Trips/Hello.md"));
+        assert_eq!(vault.read("Archive/2026/Hello.md").unwrap(), "# Hello\n");
+        vault.remove("Archive/2026/Hello.md").unwrap();
+        vault.remove("Archive/2026/Hello.md").unwrap();
+        assert!(!vault.exists("../outside.md") && !vault.exists("/etc/hosts"), "a path outside is never there");
+    }
+
+    #[test]
+    fn a_kept_modified_time_is_the_one_asked_for() {
+        let root = TempDir::new("vault");
+        let vault = FsVault::new(&root).unwrap();
+        vault.write("a.md", "words").unwrap();
+        let kept = vault.keep_modified("a.md", 1_789_381_930_123).unwrap();
+        assert_eq!(kept.modified_ms, 1_789_381_930_123);
+        assert_eq!(vault.stat("a.md").unwrap(), kept);
     }
 }

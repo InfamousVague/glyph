@@ -23,14 +23,19 @@
 //! The rooms:
 //!
 //! - `model` is the catalogue: which GGUFs, their pinned SHA-256s, where they
-//!   come from. The download itself is whisper's (`whisper::model::fetch`),
-//!   which takes any `ModelSpec`.
+//!   come from. The download itself is `model_files::fetch`, which takes any
+//!   `ModelSpec`, whisper's as well.
 //! - `prompt` frames a request in the model's chat template with no model
 //!   loaded, so its rules are unit tests.
 //! - `device` reads what the phone has (memory, cores, chip, disk) so the
 //!   page can judge which models fit.
 //! - `engine` owns llama.cpp: one worker thread holding the model and its
-//!   context, a queue of generations, progress callbacks, cancellation.
+//!   context, a queue of generations, cancellation. One run's prefill and
+//!   sampling are `generate`, what it reports as it goes is `report` (with
+//!   the phone's readings from `hardware`), and the request, output and
+//!   progress all three pass about are `job`.
+//! - `command` is the fixed contract a voice command is read under: the
+//!   grammar compiled into this binary, and the checks on what comes back.
 //!
 //! ONE GGML. llama.cpp and whisper.cpp both vendor ggml, at different versions,
 //! under the same library names, and two copies in one .so link without error
@@ -46,6 +51,12 @@ pub mod prompt;
 
 #[cfg(not(target_os = "ios"))]
 pub mod engine;
+#[cfg(not(target_os = "ios"))]
+mod generate;
+#[cfg(not(target_os = "ios"))]
+mod job;
+#[cfg(not(target_os = "ios"))]
+mod report;
 
 #[cfg(all(test, not(target_os = "ios")))]
 mod tests;

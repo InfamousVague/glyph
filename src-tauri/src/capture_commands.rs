@@ -1,19 +1,25 @@
-//! The Tauri seam for live dictation: eight commands, five events, and nothing
-//! the engine does not already do.
+//! The Tauri seam for dictation: its commands and events, and nothing the
+//! engine does not already do.
 //!
 //! `whisper/` owns transcription and has to stay free of `tauri::` types for
-//! the reason `store.rs` does - the Android capture process will drive it with
+//! the reason note.rs gives - an Android capture process could drive it with
 //! no Tauri running. This module is the adapter the webview reaches it
 //! through: it resolves the app's data directory, holds the loaded model and
 //! the one capture in progress in managed state, and turns engine events into
 //! `app.emit` calls. Every decision about what to transcribe, when, and what
-//! counts as silence is on the other side.
+//! counts as silence is on the other side. The live capture is here; the
+//! model downloads are `capture_commands/models.rs` and the pass that improves
+//! a saved recording is `capture_commands/refine.rs`.
 //!
 //! THE CONTRACT WITH THE PAGE, which the page is written against:
 //!
 //! - `capture_model_status() -> ModelStatus`
 //! - `capture_fetch_model() -> ModelStatus`, emitting `capture://model-progress`
 //!   `{ receivedBytes, totalBytes }`
+//! - `capture_refine_model_status()` and `capture_fetch_refine_model()`, the
+//!   same for the refine model, emitting `capture://refine-model-progress`
+//! - `capture_refine({ id, fromMs, promptTail }) -> [{ text, startMs, endMs }]`,
+//!   emitting `capture://refine-progress { id, percent }`
 //! - `capture_start()`, then `capture_push(<raw bytes>)` repeatedly, then
 //!   `capture_stop({ recordAs?, append? }) -> { transcript, recordedMs }` or
 //!   `capture_cancel()`. With `recordAs` (a note id) the audio is kept: it is
@@ -22,8 +28,13 @@
 //!   Decided at stop, not start, because which note a side-key capture belongs
 //!   to is only known a moment after it has begun. Without `recordAs` nothing
 //!   is kept and `recordedMs` is null.
-//! - `http://rec.localhost/<id>.wav` (the `rec` scheme) serves a kept recording
-//!   to an `<audio>` element, byte ranges included, so it can seek.
+//! - `capture_reassign_recording({ fromId, toId, append? }) -> recordedMs`
+//!   moves a kept take to the note it turned out to belong to (null when there
+//!   was no audio), and `capture_discard_recording({ id })` removes one no note
+//!   took.
+//! - `http://rec.localhost/<id>.wav` (the `rec` scheme, recordings.rs) serves a
+//!   kept recording to an `<audio>` element, byte ranges included, so it can
+//!   seek.
 //! - `transcribe_wav(path) -> Transcript`
 //! - `capture://partial { text }` REPLACES the partial line; an empty `text`
 //!   clears it, and one follows every commit whose audio the partial described.
@@ -57,9 +68,7 @@
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
-use crate::model_downloads;
 use crate::paths;
-use crate::whisper::model::{self, ModelStatus};
 
 #[cfg(target_os = "ios")]
 use crate::unsupported::{on_ios, TRANSCRIPTION};
@@ -80,9 +89,13 @@ use tauri::Emitter;
 #[cfg(not(target_os = "ios"))]
 use crate::whisper::{
     engine::{Engine, Session},
+    model,
     stream::Event,
     worker::Capture,
 };
+
+pub mod models;
+pub mod refine;
 
 /// What `transcribe_wav` measured.
 #[derive(Debug, Clone, Serialize)]
@@ -134,8 +147,7 @@ pub struct CaptureState {
 ///
 /// Opens nothing and touches no file on the way: a first launch with no model
 /// must still start, and resolving directories here would make a platform with
-/// no data directory fail the whole app over a feature it may never use. The
-/// one file job it starts runs afterwards, on its own, and cannot fail setup.
+/// no data directory fail the whole app over a feature it may never use.
 pub fn install(app: &tauri::App) {
     app.manage(CaptureState::default());
 }
@@ -163,16 +175,17 @@ pub fn shutdown(app: &AppHandle) {
 ///
 /// The load runs on the blocking pool: it is a 60 MB file read and tensor
 /// setup (31 ms warm on an M5, unmeasured cold on the phone), and on the async
-/// runtime it would stall every command queued behind it for that long. Two callers racing here can both load; the second
-/// to finish wins the cache and the first's copy is dropped when its capture
-/// ends, which is a wasted load in a case that takes two presses inside one
-/// load time, and not worth a lock held across an await.
+/// runtime it would stall every command queued behind it for that long. Two
+/// callers racing here can both load; the second to finish wins the cache and
+/// the first's copy is dropped when its capture ends, which is a wasted load
+/// in a case that takes two presses inside one load time, and not worth a lock
+/// held across an await.
 #[cfg(not(target_os = "ios"))]
 async fn engine(app: &AppHandle, state: &CaptureState) -> Result<Arc<Engine>, String> {
     if let Some(engine) = lock(&state.engine).clone() {
         return Ok(engine);
     }
-    let status = model::status(&paths::models_dir(app)?, &model::ACTIVE);
+    let status = crate::model_files::status(&paths::models_dir(app)?, &model::ACTIVE);
     if !status.present {
         return Err(format!(
             "The transcription model ({}) has not been downloaded yet - call capture_fetch_model first.",
@@ -188,6 +201,7 @@ async fn engine(app: &AppHandle, state: &CaptureState) -> Result<Arc<Engine>, St
     Ok(engine)
 }
 
+/// One engine event, as the page hears it.
 #[cfg(not(target_os = "ios"))]
 fn emit(app: &AppHandle, event: Event) {
     // An event the webview is not there to hear (reloading, or closed) is not
@@ -200,211 +214,6 @@ fn emit(app: &AppHandle, event: Event) {
     };
 }
 
-/// Whether the refine model (`model::REFINE`) is on this device.
-#[tauri::command]
-pub fn capture_refine_model_status(app: AppHandle) -> ModelStatus {
-    model_downloads::status_here(&app, &model::REFINE)
-}
-
-/// Downloads the refine model, from the same mirrors as the live one, and
-/// answers with its status. Progress arrives as
-/// `capture://refine-model-progress { receivedBytes, totalBytes }`.
-#[tauri::command]
-pub async fn capture_fetch_refine_model(
-    app: AppHandle,
-    state: State<'_, CaptureState>,
-) -> Result<ModelStatus, String> {
-    #[cfg(target_os = "ios")]
-    return on_ios(TRANSCRIPTION, (app, state));
-    #[cfg(not(target_os = "ios"))]
-    {
-        let dir = paths::models_dir(&app)?;
-        model_downloads::fetch_reporting(
-            &app,
-            &dir,
-            &state.fetching_refine,
-            &model::REFINE,
-            model::mirrors_with,
-            "capture://refine-model-progress",
-            None,
-        )
-        .await
-    }
-}
-
-#[cfg(not(target_os = "ios"))]
-#[derive(Debug, Clone, Serialize)]
-struct RefineProgress {
-    id: String,
-    percent: i32,
-}
-
-/// Transcribes a saved recording again with the refine model, from `fromMs` to
-/// its end, and answers with its phrases: `[{ text, startMs, endMs }]`, times on
-/// the recording's own timeline. The page decides what to do with them.
-///
-/// `promptTail` is the note's committed text before this take (empty for a
-/// first take); it rides after the cue vocabulary so a take that continues a
-/// sentence continues its casing. Progress arrives as
-/// `capture://refine-progress { id, percent }`.
-///
-/// Refused with "busy" while a capture runs or another refine does, with "model
-/// missing" before the refine model is downloaded, and ends with "cancelled"
-/// when `capture_start` runs mid-pass. The refine engine is loaded for the pass
-/// and dropped after it: 190 MB is not kept resident for something that runs
-/// once a recording.
-#[tauri::command]
-pub async fn capture_refine(
-    app: AppHandle,
-    state: State<'_, CaptureState>,
-    id: String,
-    from_ms: u64,
-    prompt_tail: String,
-) -> Result<Vec<crate::store::RecordedSegment>, String> {
-    #[cfg(target_os = "ios")]
-    return on_ios(TRANSCRIPTION, (app, state, id, from_ms, prompt_tail));
-    #[cfg(not(target_os = "ios"))]
-    {
-        use std::sync::atomic::{AtomicI32, Ordering};
-
-        if lock(&state.capture).is_some() {
-            return Err("busy".into());
-        }
-        let dir = paths::models_dir(&app)?;
-        let status = model::status(&dir, &model::REFINE);
-        if !status.present {
-            return Err("model missing".into());
-        }
-        let recording = paths::recordings_dir(&app)
-            .ok()
-            .and_then(|recordings| crate::store::recording_file(&recordings, &id))
-            .ok_or_else(|| "no such recording".to_string())?;
-        if state.refining.swap(true, Ordering::SeqCst) {
-            return Err("busy".into());
-        }
-        struct Done<'a>(&'a AtomicBool);
-        impl Drop for Done<'_> {
-            fn drop(&mut self) {
-                self.0.store(false, Ordering::SeqCst);
-            }
-        }
-        let _done = Done(&state.refining);
-
-        let abort = Arc::clone(&state.refine_abort);
-        abort.store(false, Ordering::Relaxed);
-        let worker_abort = Arc::clone(&abort);
-        let model_path = std::path::PathBuf::from(&status.path);
-        let prompt = crate::whisper::text::prompt(&prompt_tail, 200);
-        let emitter = app.clone();
-        let job = id.clone();
-        let result = tauri::async_runtime::spawn_blocking(
-            move || -> Result<Vec<crate::store::RecordedSegment>, String> {
-                let audio = crate::whisper::wav::read(&recording)?;
-                let from = crate::whisper::ms_to_samples(from_ms).min(audio.len());
-                if audio.len() - from < crate::whisper::ms_to_samples(100) {
-                    return Ok(Vec::new());
-                }
-                let engine = Arc::new(Engine::load(&model_path)?);
-                let mut session = Session::new(engine, worker_abort)?;
-                let progress = AtomicI32::new(0);
-                let finished = AtomicBool::new(false);
-                // A watcher beside the pass turns whisper.cpp's percentage into
-                // events a few times a second; the pass itself never waits on IPC.
-                std::thread::scope(|scope| {
-                    scope.spawn(|| {
-                        let mut last = -1;
-                        while !finished.load(Ordering::Relaxed) {
-                            let percent = progress.load(Ordering::Relaxed);
-                            if percent != last {
-                                last = percent;
-                                let _ = emitter.emit(
-                                    "capture://refine-progress",
-                                    RefineProgress {
-                                        id: job.clone(),
-                                        percent,
-                                    },
-                                );
-                            }
-                            std::thread::sleep(std::time::Duration::from_millis(250));
-                        }
-                    });
-                    let timed = session.transcribe_timed(&audio[from..], &prompt, &progress);
-                    finished.store(true, Ordering::Relaxed);
-                    timed
-                })
-                .map(|timed| offset_segments(timed, from_ms))
-            },
-        )
-        .await
-        .map_err(|e| format!("the refine pass stopped: {e}"))?;
-
-        match result {
-            Err(_) if abort.load(Ordering::Relaxed) => Err("cancelled".into()),
-            Ok(segments) => {
-                let _ = app.emit(
-                    "capture://refine-progress",
-                    RefineProgress { id, percent: 100 },
-                );
-                Ok(segments)
-            }
-            Err(e) => Err(e),
-        }
-    }
-}
-
-/// Timed phrases from a pass over `[from_ms, end)`, moved onto the whole
-/// recording's timeline.
-#[cfg(not(target_os = "ios"))]
-fn offset_segments(
-    timed: Vec<crate::whisper::engine::TimedText>,
-    from_ms: u64,
-) -> Vec<crate::store::RecordedSegment> {
-    timed
-        .into_iter()
-        .map(|t| crate::store::RecordedSegment {
-            text: t.text,
-            start_ms: t.start_ms + from_ms,
-            end_ms: t.end_ms + from_ms,
-        })
-        .collect()
-}
-
-/// Whether the active model is on this device, where, and how big it is.
-#[tauri::command]
-pub fn capture_model_status(app: AppHandle) -> ModelStatus {
-    // No data directory (or iOS) is a model that cannot be present: see
-    // `model_downloads::models_here`.
-    model_downloads::status_here(&app, &model::ACTIVE)
-}
-
-/// Downloads the active model into `<app_data_dir>/models/` if it is not there,
-/// verifying its SHA-256, and answers with its status. Progress arrives as
-/// `capture://model-progress`.
-#[tauri::command]
-pub async fn capture_fetch_model(
-    app: AppHandle,
-    state: State<'_, CaptureState>,
-) -> Result<ModelStatus, String> {
-    #[cfg(target_os = "ios")]
-    return on_ios(TRANSCRIPTION, (app, state));
-    #[cfg(not(target_os = "ios"))]
-    {
-        let dir = paths::models_dir(&app)?;
-        // Mirrors a signed update manifest has moved come first; the compiled
-        // ones follow. See model::mirrors_with.
-        model_downloads::fetch_reporting(
-            &app,
-            &dir,
-            &state.fetching,
-            &model::ACTIVE,
-            model::mirrors_with,
-            "capture://model-progress",
-            None,
-        )
-        .await
-    }
-}
-
 /// What `capture_stop` answers with.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -412,79 +221,6 @@ pub struct Finished {
     pub transcript: String,
     /// The kept recording's whole length, or null when nothing was kept.
     pub recorded_ms: Option<u64>,
-}
-
-/// The scheme a kept recording is played through: `http://rec.localhost/<id>.wav`
-/// on Android, `rec://localhost/<id>.wav` elsewhere - the same shape as `ota`.
-pub const RECORDINGS_SCHEME: &str = "rec";
-
-/// Serves `<app_data_dir>/recordings/<id>.wav` to the page's `<audio>`, with
-/// byte ranges, because a WebView's media element seeks by asking for them and
-/// treats a server without `Accept-Ranges` as unseekable. The id is confined
-/// the same way the store confines it (`store::recording_file`).
-pub fn serve_recording<R: tauri::Runtime>(
-    app: &AppHandle<R>,
-    request: &tauri::http::Request<Vec<u8>>,
-) -> tauri::http::Response<Vec<u8>> {
-    use tauri::http::{header, Response, StatusCode};
-    let respond = |status: StatusCode, body: Vec<u8>, extra: Vec<(header::HeaderName, String)>| {
-        let mut builder = Response::builder()
-            .status(status)
-            .header(header::CONTENT_TYPE, "audio/wav")
-            .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-            .header(header::ACCEPT_RANGES, "bytes")
-            .header(header::CACHE_CONTROL, "no-store");
-        for (name, value) in extra {
-            builder = builder.header(name, value);
-        }
-        builder
-            .body(body)
-            .unwrap_or_else(|_| Response::new(Vec::new()))
-    };
-    let path = request.uri().path().trim_start_matches('/');
-    let Some(id) = path.strip_suffix(".wav") else {
-        return respond(StatusCode::NOT_FOUND, Vec::new(), Vec::new());
-    };
-    let file = paths::recordings_dir(app)
-        .ok()
-        .and_then(|dir| crate::store::recording_file(&dir, id));
-    let Some(bytes) = file.and_then(|f| std::fs::read(f).ok()) else {
-        return respond(StatusCode::NOT_FOUND, Vec::new(), Vec::new());
-    };
-    let total = bytes.len();
-    let range = request
-        .headers()
-        .get(header::RANGE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("bytes="))
-        .and_then(|v| {
-            let (a, b) = v.split_once('-')?;
-            let start: usize = a.parse().ok()?;
-            let end: usize = if b.is_empty() {
-                total.saturating_sub(1)
-            } else {
-                b.parse().ok()?
-            };
-            (start <= end && end < total).then_some((start, end))
-        });
-    match range {
-        Some((start, end)) => respond(
-            StatusCode::PARTIAL_CONTENT,
-            bytes[start..=end].to_vec(),
-            vec![
-                (
-                    header::CONTENT_RANGE,
-                    format!("bytes {start}-{end}/{total}"),
-                ),
-                (header::CONTENT_LENGTH, (end - start + 1).to_string()),
-            ],
-        ),
-        None => respond(
-            StatusCode::OK,
-            bytes,
-            vec![(header::CONTENT_LENGTH, total.to_string())],
-        ),
-    }
 }
 
 /// Loads the model if it is not already loaded and starts a capture.
@@ -566,10 +302,7 @@ pub fn capture_push(
                 bytes.len()
             ));
         }
-        let samples: Vec<f32> = bytes
-            .chunks_exact(4)
-            .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-            .collect();
+        let samples = crate::whisper::f32_samples(bytes);
         match lock(&state.capture).as_ref() {
             Some(capture) => {
                 capture.push(&samples);
@@ -609,7 +342,7 @@ pub async fn capture_stop(
         if let Some(id) = record_as {
             if !stopped.recording.is_empty() {
                 let dir = paths::recordings_dir(&app)?;
-                let path = crate::store::recording_file(&dir, &id).ok_or("not a note id")?;
+                let path = crate::recordings::recording_file(&dir, &id).ok_or("not a note id")?;
                 let recording = stopped.recording;
                 let samples = tauri::async_runtime::spawn_blocking(move || {
                     std::fs::create_dir_all(&dir)
@@ -641,8 +374,8 @@ pub async fn capture_reassign_recording(
     #[cfg(not(target_os = "ios"))]
     {
         let dir = paths::recordings_dir(&app)?;
-        let from = crate::store::recording_file(&dir, &from_id).ok_or("not a note id")?;
-        let to = crate::store::recording_file(&dir, &to_id).ok_or("not a note id")?;
+        let from = crate::recordings::recording_file(&dir, &from_id).ok_or("not a note id")?;
+        let to = crate::recordings::recording_file(&dir, &to_id).ok_or("not a note id")?;
         let count = tauri::async_runtime::spawn_blocking(move || {
             crate::whisper::wav::move_or_append(&from, &to, append.unwrap_or(false))
         })
@@ -656,7 +389,7 @@ pub async fn capture_reassign_recording(
 #[tauri::command]
 pub async fn capture_discard_recording(app: AppHandle, id: String) -> Result<(), String> {
     let dir = paths::recordings_dir(&app)?;
-    let path = crate::store::recording_file(&dir, &id).ok_or("not a note id")?;
+    let path = crate::recordings::recording_file(&dir, &id).ok_or("not a note id")?;
     tauri::async_runtime::spawn_blocking(move || {
         crate::fsx::remove_file_if_present(&path)
             .map_err(|e| format!("could not remove the temporary recording: {e}"))
@@ -733,101 +466,5 @@ pub async fn transcribe_wav(
         })
         .await
         .map_err(|e| format!("the transcription did not finish: {e}"))?
-    }
-}
-
-/// The model download against the real mirrors. Ignored by default because
-/// they need the network and one of them downloads 60 MB; run them with
-/// `cargo test capture_commands -- --ignored`. They live here rather than in
-/// `whisper/model.rs` only because reqwest needs an async runtime, and the one
-/// already in this crate is Tauri's.
-#[cfg(all(test, not(target_os = "ios")))]
-mod tests {
-    use super::offset_segments;
-    use crate::whisper::engine::TimedText;
-    use crate::whisper::model::{self, ModelSpec};
-
-    #[test]
-    fn a_refined_take_lands_on_the_whole_recordings_timeline() {
-        let timed = vec![
-            TimedText {
-                text: "Fresh bread.".into(),
-                start_ms: 0,
-                end_ms: 1200,
-            },
-            TimedText {
-                text: "On the way home.".into(),
-                start_ms: 1200,
-                end_ms: 2600,
-            },
-        ];
-        let segments = offset_segments(timed, 45_000);
-        assert_eq!((segments[0].start_ms, segments[0].end_ms), (45_000, 46_200));
-        assert_eq!((segments[1].start_ms, segments[1].end_ms), (46_200, 47_600));
-        assert_eq!(segments[1].text, "On the way home.");
-    }
-
-    fn temp_dir() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("glyph-fetch-test-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    #[test]
-    #[ignore]
-    fn the_active_model_downloads_through_the_mirrors_and_verifies() {
-        let dir = temp_dir();
-        let mut reports = Vec::new();
-        let status = tauri::async_runtime::block_on(model::fetch(
-            &dir,
-            &model::ACTIVE,
-            &model::mirrors_with(&[]),
-            |got, of| reports.push((got, of)),
-        ))
-        .unwrap();
-        assert!(status.present);
-        // At most one report per 1% (plus the final one), rising, and ending
-        // on the whole file - the page draws receivedBytes / totalBytes.
-        assert!(
-            (10..=102).contains(&reports.len()),
-            "{} progress reports",
-            reports.len()
-        );
-        assert!(reports
-            .windows(2)
-            .all(|pair| pair[0].0 < pair[1].0 || pair[1].0 == model::ACTIVE.bytes));
-        assert_eq!(
-            reports.last(),
-            Some(&(model::ACTIVE.bytes, model::ACTIVE.bytes))
-        );
-        assert!(!dir.join(format!("{}.part", model::ACTIVE.file)).exists());
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    #[ignore]
-    fn bytes_with_the_wrong_hash_are_refused_by_every_mirror_and_leave_nothing_behind() {
-        // A real 3,196-byte file that is certainly not the hash below.
-        let spec = ModelSpec {
-            file: "README.md",
-            bytes: 3_196,
-            sha256: "0000000000000000000000000000000000000000000000000000000000000000",
-        };
-        let dir = temp_dir();
-        let error = tauri::async_runtime::block_on(model::fetch(
-            &dir,
-            &spec,
-            &model::mirrors_with(&[]),
-            |_, _| {},
-        ))
-        .unwrap_err();
-        eprintln!("{error}");
-        assert!(error.contains("does not match"), "{error}");
-        assert_eq!(
-            std::fs::read_dir(&dir).unwrap().count(),
-            0,
-            "a refused download left a file behind"
-        );
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

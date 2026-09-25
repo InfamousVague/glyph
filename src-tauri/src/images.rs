@@ -188,28 +188,31 @@ pub fn save_image_data(app: tauri::AppHandle, base64: String) -> Result<SavedIma
     keep(&images, &bytes).map(|name| SavedImage { name })
 }
 
-/// Removes the pictures a deleted note referred to, unless another note still
-/// does. Best effort: a picture that cannot be removed is left, and the delete
-/// it follows has already happened.
-pub fn remove_unreferenced<R: tauri::Runtime>(app: &tauri::AppHandle<R>, store: &crate::library::Library, body: &str) {
-    let Ok(dir) = crate::paths::images_dir(app) else { return };
+/// Removes from `images` the pictures a deleted note referred to, unless
+/// another note in `library` still does. Best effort: a picture that cannot be
+/// removed, or whose use cannot be checked, is left, and the delete it follows
+/// has already happened.
+pub fn remove_unreferenced(images: &Path, library: &crate::library::Library, body: &str) {
     for name in referenced(body) {
-        if store.image_in_use(&name).unwrap_or(true) {
+        if library.image_in_use(&name).unwrap_or(true) {
             continue;
         }
-        let _ = std::fs::remove_file(dir.join(&name));
+        let _ = std::fs::remove_file(images.join(&name));
     }
 }
 
 /// Serves `<app_data_dir>/images/<name>` to the page. Names are uuids that
 /// never change, so the answer can be cached for good.
 pub fn serve<R: tauri::Runtime>(app: &tauri::AppHandle<R>, request: &tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<u8>> {
-    use tauri::http::{header, Response, StatusCode};
     let name = request.uri().path().trim_start_matches('/');
-    let bytes = valid_name(name)
-        .then(|| crate::paths::images_dir(app).ok())
-        .flatten()
-        .and_then(|dir| std::fs::read(dir.join(name)).ok());
+    answer(crate::paths::images_dir(app).ok().as_deref(), name)
+}
+
+/// The answer to a request for the picture `name`, kept in `images` (or
+/// nowhere, when the platform gave no directory).
+fn answer(images: Option<&Path>, name: &str) -> tauri::http::Response<Vec<u8>> {
+    use tauri::http::{header, Response, StatusCode};
+    let bytes = images.filter(|_| valid_name(name)).and_then(|dir| std::fs::read(dir.join(name)).ok());
     let builder = Response::builder().header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
     let response = match bytes {
         Some(bytes) => builder
@@ -226,12 +229,24 @@ pub fn serve<R: tauri::Runtime>(app: &tauri::AppHandle<R>, request: &tauri::http
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use crate::test_support::{header_of, TempDir};
 
-    fn temp(label: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("glyph-images-{label}-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+    #[test]
+    fn a_picture_is_served_to_be_cached_for_good_and_only_by_its_own_name() {
+        use tauri::http::{header, StatusCode};
+        let images = TempDir::new("images-serve");
+        std::fs::write(images.join("0f8e-uuid.png"), b"\x89PNG\r\n\x1a\n").unwrap();
+        std::fs::write(images.join("secret.txt"), b"not a picture").unwrap();
+        let served = answer(Some(&images), "0f8e-uuid.png");
+        assert_eq!(served.status(), StatusCode::OK);
+        assert_eq!(header_of(&served, header::CONTENT_TYPE), Some("image/png"));
+        assert_eq!(header_of(&served, header::CACHE_CONTROL), Some("public, max-age=31536000, immutable"), "a name never changes, so neither do its bytes");
+        assert_eq!(header_of(&served, header::ACCESS_CONTROL_ALLOW_ORIGIN), Some("*"));
+        assert_eq!(header_of(&served, header::CONTENT_LENGTH), Some("8"));
+        for name in ["secret.txt", "../0f8e-uuid.png", "gone.jpg"] {
+            assert_eq!(answer(Some(&images), name).status(), StatusCode::NOT_FOUND, "{name}");
+        }
+        assert_eq!(answer(None, "0f8e-uuid.png").status(), StatusCode::NOT_FOUND, "nowhere to keep pictures, none to serve");
     }
 
     #[test]
@@ -264,7 +279,7 @@ mod tests {
     #[test]
     fn pasted_bytes_are_kept_whole_under_a_name_from_their_kind() {
         use base64::Engine as _;
-        let images = temp("pasted");
+        let images = TempDir::new("images-pasted");
         let png = b"\x89PNG\r\n\x1a\n and the rest of a picture".to_vec();
         let text = base64::engine::general_purpose::STANDARD.encode(&png);
 
@@ -285,13 +300,12 @@ mod tests {
         assert!(keep(&images, &huge).is_err());
         assert!(decode(&"A".repeat((MAX_BYTES / 3 * 4 + 8) as usize)).is_err());
         assert_eq!(std::fs::read_dir(&images).unwrap().count(), 2);
-        let _ = std::fs::remove_dir_all(images);
     }
 
     #[test]
     fn a_synced_picture_keeps_its_name_only_if_it_is_what_the_name_says() {
         use base64::Engine as _;
-        let dir = temp("place");
+        let dir = TempDir::new("images-place");
         let jpeg = base64::engine::general_purpose::STANDARD.encode([0xFF, 0xD8, 0xFF, 0xE0, 1, 2]);
         place(&dir, "abc.jpg", &jpeg).unwrap();
         assert_eq!(std::fs::read(dir.join("abc.jpg")).unwrap(), vec![0xFF, 0xD8, 0xFF, 0xE0, 1, 2]);
@@ -303,19 +317,18 @@ mod tests {
 
     #[test]
     fn a_picked_picture_is_adopted_under_a_new_name() {
-        let (picked, images) = (temp("picked"), temp("images"));
+        let (picked, images) = (TempDir::new("images-picked"), TempDir::new("images-images"));
         let file = picked.join("pick-1.jpeg");
         std::fs::write(&file, b"jpeg bytes").unwrap();
         let name = adopt(&picked, &images, &file).unwrap();
         assert!(valid_name(&name) && name.ends_with(".jpg"), "{name}");
         assert_eq!(std::fs::read(images.join(&name)).unwrap(), b"jpeg bytes");
         assert!(!file.exists(), "moved, not copied");
-        let _ = (std::fs::remove_dir_all(picked), std::fs::remove_dir_all(images));
     }
 
     #[test]
     fn nothing_outside_the_picked_folder_is_adopted() {
-        let (picked, images, elsewhere) = (temp("picked"), temp("images"), temp("elsewhere"));
+        let (picked, images, elsewhere) = (TempDir::new("images-picked"), TempDir::new("images-images"), TempDir::new("images-elsewhere"));
         let outside = elsewhere.join("secret.jpg");
         std::fs::write(&outside, b"x").unwrap();
         // Directly, through `..`, and through a symlink inside the folder.
@@ -333,6 +346,5 @@ mod tests {
         std::fs::write(picked.join("empty.jpg"), b"").unwrap();
         assert!(adopt(&picked, &images, &picked.join("empty.jpg")).is_err());
         assert!(outside.exists());
-        let _ = (std::fs::remove_dir_all(picked), std::fs::remove_dir_all(images), std::fs::remove_dir_all(elsewhere));
     }
 }

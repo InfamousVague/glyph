@@ -69,12 +69,26 @@
 //! manifest that names a new domain is therefore how installed apps follow
 //! Glyph to one - no new APK - and an older signed manifest can never roll the
 //! list back. README "Moving to another domain" is the procedure.
+//!
+//! WHERE EACH PART LIVES. This file is the seam: the two generation numbers
+//! (which two scripts read out of it by path, so they stay here as literals),
+//! the compile-time switches and trust roots, the managed state, and the seven
+//! commands the page calls, which hold the locks and hand the work to these:
+//!
+//! - `ota/manifest.rs`: what `ota.json` and `apk.json` say, and the rules every
+//!   build id, path and URL in them keeps.
+//! - `ota/sources.rs`: where updates come from, and how that moves.
+//! - `ota/disk.rs`: `state.json`, `installed.json` and the bundle directories.
+//! - `ota/boot.rs`: the boot wager, as decisions over `state.json`.
+//! - `ota/scheme.rs`: the `ota` scheme that serves the claimed bundle.
+//! - `ota/fetch.rs`, `ota/install.rs`, `ota/apk.rs`: the signed fetch, the
+//!   bundle install and the APK download - none of them on iOS, which builds
+//!   no reqwest (see `unsupported`).
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Mutex;
 
-use serde::{Deserialize, Serialize};
-use tauri::http::{header, Response, StatusCode};
+use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 
 // A poisoned lock is recovered (`crate::lock`): every write below is a whole
@@ -85,6 +99,33 @@ use crate::lock::lock;
 
 #[cfg(target_os = "ios")]
 use crate::unsupported::{on_ios, APK, UPDATES};
+
+use manifest::{build_number, ApkInfo, Manifest, Services};
+
+mod boot;
+mod disk;
+mod manifest;
+mod scheme;
+mod sources;
+
+#[cfg(not(target_os = "ios"))]
+mod apk;
+#[cfg(not(target_os = "ios"))]
+mod fetch;
+#[cfg(not(target_os = "ios"))]
+mod install;
+
+#[cfg(test)]
+mod test_support;
+
+pub use scheme::{serve, SCHEME};
+#[cfg(not(target_os = "ios"))]
+pub use sources::services;
+
+/// For the background update check (update_alerts.rs), the one caller with no
+/// Tauri in its process.
+#[cfg(target_os = "android")]
+pub use install::peek;
 
 /// What this binary provides to a bundle. See the module header.
 ///
@@ -170,6 +211,7 @@ pub const BUNDLE_REQUIRES: u32 = 19;
 /// The public keys a manifest must be signed by (any one of them). Compiled in:
 /// trust belongs to whoever holds a private key, never to whichever domain
 /// happens to answer. See scripts/ota-sign.mjs for the scheme and the keys.
+#[cfg(not(target_os = "ios"))]
 const TRUSTED_KEYS: &str = include_str!("../ota-trusted-keys.txt");
 
 /// Where this APK looks for updates when it knows no better, most preferred
@@ -189,6 +231,7 @@ const TEST_SOURCE: Option<&str> = option_env!("GLYPH_OTA_BASE");
 /// `GLYPH_STAGING` at COMPILE time (the same switch build.gradle.kts reads):
 /// a staging build runs beside the real app under its own id and never checks
 /// for updates, so the page it was built with is the page that runs.
+#[cfg_attr(target_os = "ios", allow(dead_code))]
 pub const STAGING: bool = option_env!("GLYPH_STAGING").is_some();
 
 /// `GLYPH_STORE` at COMPILE time: "play" or "appstore" for a build that goes
@@ -201,114 +244,7 @@ pub const STAGING: bool = option_env!("GLYPH_STAGING").is_some();
 /// should be able to turn installing apps back on.
 pub const STORE: Option<&str> = option_env!("GLYPH_STORE");
 
-/// A store as a person reads it.
-#[cfg(not(target_os = "ios"))]
-fn store_name(store: &str) -> &'static str {
-    match store {
-        "appstore" => "App Store",
-        _ => "Play Store",
-    }
-}
-
-/// The APK description, unless this is a store build.
-#[cfg(not(target_os = "ios"))]
-async fn offered_apk(client: &reqwest::Client, source: &str) -> Option<ApkInfo> {
-    if STORE.is_some() {
-        return None;
-    }
-    fetch_signed::<ApkInfo>(client, &format!("{source}/apk.json"), CONTEXT_APK).await.ok()
-}
-
-/// Signature contexts, so a signature over one kind of file cannot be replayed
-/// as another. They must match scripts/ota-sign.mjs byte for byte.
-#[cfg(not(target_os = "ios"))]
-const CONTEXT_MANIFEST: &[u8] = b"glyph-ota\0";
-#[cfg(not(target_os = "ios"))]
-const CONTEXT_APK: &[u8] = b"glyph-apk\0";
-
-/// No manifest may name more than this many sources or mirrors.
-const MAX_URLS: usize = 8;
-
-/// The URI scheme the claimed bundle is served under.
-pub const SCHEME: &str = "ota";
-
-/// Consecutive launches that ran a bundle and never mounted it before it is quarantined.
-const STRIKES_TO_QUARANTINE: u32 = 2;
-
-/// The manifest's own name, in `dist/`, on the server, and inside every bundle directory.
-const MANIFEST_FILE: &str = "ota.json";
-
-// ---- shapes -------------------------------------------------------------------
-
-/// `ota.json`, as the build writes it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Manifest {
-    pub schema: u32,
-    /// UTC `YYYYMMDDHHMMSS`. Digits only, so it is also a safe directory name
-    /// and compares as a number.
-    pub build: String,
-    pub version: String,
-    /// The native generation this bundle needs.
-    pub native: u32,
-    /// The module script, relative to the bundle root.
-    pub entry: String,
-    pub styles: Vec<String>,
-    pub files: Vec<ManifestFile>,
-    /// Where to look for updates from now on, most preferred first. Optional,
-    /// so manifests from before signing still parse; remembered only from a
-    /// manifest whose signature verified.
-    #[serde(default)]
-    pub sources: Vec<String>,
-    /// Other services the app reaches, so they can move with the domain too.
-    #[serde(default)]
-    pub services: Services,
-    /// What changed, in a sentence or two - the text of an update alert.
-    #[serde(default)]
-    pub notes: Option<String>,
-}
-
-/// Service endpoints a signed manifest can move. Every field is optional; a
-/// consumer uses what is here and falls back to its own compiled-in default.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct Services {
-    /// The formatting endpoint (src/app/capture/annotate.ts).
-    pub format: Option<String>,
-    /// Base URLs the Whisper model files are served under, most preferred first
-    /// (src-tauri/src/whisper/model.rs). Hashes stay pinned in the binary.
-    pub model_mirrors: Vec<String>,
-}
-
-/// `sources.json`: the newest signed word on where updates and services live.
-#[derive(Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-struct Known {
-    sources: Vec<String>,
-    services: Services,
-    /// The build whose manifest set these, so an older signed manifest - a
-    /// stale mirror, or one replayed on purpose - can never roll them back.
-    build: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManifestFile {
-    pub path: String,
-    pub sha256: String,
-    pub bytes: u64,
-}
-
-/// `state.json`: which bundle runs, which one it replaced, and what has failed.
-#[derive(Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-struct Stored {
-    active: Option<String>,
-    previous: Option<String>,
-    pending: Option<String>,
-    strikes: u32,
-    quarantined: Vec<String>,
-}
+// ---- what the page is answered with (src/app/core/ota.ts mirrors these) ----------
 
 /// What the loader needs to run a bundle, or `bundle: None` for the embedded frontend.
 #[derive(Debug, Serialize)]
@@ -348,19 +284,6 @@ pub struct Status {
     pub store: Option<&'static str>,
 }
 
-/// The APK the server offers, as `deploy:ota --apk` describes it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ApkInfo {
-    pub version: String,
-    pub version_code: u64,
-    pub native: u32,
-    pub sha256: String,
-    pub bytes: u64,
-    /// Relative to the APK description's own URL.
-    pub url: String,
-}
-
 /// The answer to "is there anything new?"
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -378,6 +301,7 @@ pub struct CheckResult {
 
 // ---- managed state ----------------------------------------------------------------
 
+/// What the OTA system holds for the life of the process.
 pub struct OtaState {
     /// Around every read-modify-write of `state.json`.
     lock: Mutex<()>,
@@ -393,267 +317,52 @@ pub struct OtaState {
     embedded: Mutex<Option<Option<Manifest>>>,
 }
 
-pub fn install<R: Runtime>(app: &tauri::App<R>) {
-    app.manage(OtaState {
-        lock: Mutex::new(()),
-        serving: Mutex::new(None),
-        #[cfg(not(target_os = "ios"))]
-        installing: tauri::async_runtime::Mutex::new(()),
-        embedded: Mutex::new(None),
-    });
+impl OtaState {
+    fn new() -> OtaState {
+        OtaState {
+            lock: Mutex::new(()),
+            serving: Mutex::new(None),
+            #[cfg(not(target_os = "ios"))]
+            installing: tauri::async_runtime::Mutex::new(()),
+            embedded: Mutex::new(None),
+        }
+    }
 }
 
-// ---- disk -----------------------------------------------------------------------
+/// Hands the OTA state to Tauri. Called from `setup`, before the page loads:
+/// the loader's first IPC call is the claim.
+pub fn install<R: Runtime>(app: &tauri::App<R>) {
+    app.manage(OtaState::new());
+}
 
+/// `<app_data_dir>/ota`, made if it is not there yet.
 fn root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let dir = crate::paths::ota_dir(app)?;
     fsx::make_dir(&dir)?;
     Ok(dir)
 }
 
-fn read_stored(root: &Path) -> Stored {
-    fsx::read_json_or(&root.join("state.json"), Stored::default())
-}
-
-/// Around every read-modify-write of `installed.json` and `sources.json`. Those
-/// two are written from outside the command lock too: by the background update
-/// check (update_alerts.rs), which WorkManager runs on its own thread in the
-/// SAME process as an open app - so without this, the worker and the app's own
-/// check can both read the old file and the older write can land last.
-static FILES: Mutex<()> = Mutex::new(());
-
-/// A truncated state reads back as "no bundle, nothing quarantined", which is
-/// why this goes through `fsx::write_atomically`: a process killed mid-write
-/// leaves the previous file rather than a truncated one, and two writers at
-/// once never share - and garble - one temporary file.
-fn write_stored(root: &Path, stored: &Stored) -> Result<(), String> {
-    let bytes = serde_json::to_vec_pretty(stored).map_err(|e| e.to_string())?;
-    fsx::write_atomically(&root.join("state.json"), &bytes).map_err(|e| format!("cannot write OTA state: {e}"))
-}
-
-/// A build id is 14 digits and nothing else: it becomes a directory name.
-fn build_number(build: &str) -> Option<u64> {
-    (build.len() == 14 && build.bytes().all(|b| b.is_ascii_digit()))
-        .then(|| build.parse().ok())
-        .flatten()
-}
-
-/// A path inside a bundle: relative, no `..`, and only the characters Vite
-/// names files with. Anything else is refused rather than escaped - there is
-/// no legitimate file a bundle could need that fails this.
-fn safe_relative(path: &str) -> Option<&str> {
-    let ok = !path.is_empty()
-        && !path.starts_with('/')
-        && path
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-' | b'/'))
-        && path.split('/').all(|part| !part.is_empty() && part != "." && part != "..");
-    ok.then_some(path)
-}
-
-/// A base URL a manifest may point the app at: https (http only in a test
-/// build), no whitespace or fragments, no trailing slash, and short.
-fn valid_url(url: &str) -> bool {
-    let secure = url.starts_with("https://") || (TEST_SOURCE.is_some() && url.starts_with("http://"));
-    secure
-        && url.len() <= 512
-        && !url.ends_with('/')
-        && !url.bytes().any(|b| b.is_ascii_whitespace() || b.is_ascii_control() || matches!(b, b'#' | b'"' | b'\\'))
-        && url.split("://").nth(1).is_some_and(|rest| !rest.is_empty())
-}
-
-/// The non-comment lines of a compiled-in list file (the same parse as ota-sign.mjs).
-fn list(text: &str) -> impl Iterator<Item = &str> {
-    text.lines().map(|line| line.split('#').next().unwrap_or("").trim()).filter(|line| !line.is_empty())
-}
-
-fn compiled_sources() -> Vec<String> {
-    match TEST_SOURCE {
-        Some(test) => vec![test.trim_end_matches('/').to_string()],
-        None => list(COMPILED_SOURCES).map(str::to_string).collect(),
-    }
-}
-
-fn read_known(root: &Path) -> Known {
-    fsx::read_json_or(&root.join("sources.json"), Known::default())
-}
-
-/// The remembered sources first, then the compiled ones, without repeats. The
-/// compiled list is never dropped: if every new domain dies, the one the APK
-/// was built with is still tried.
-fn effective_sources(known: &Known) -> Vec<String> {
-    let mut all: Vec<String> = Vec::new();
-    for source in known.sources.iter().cloned().chain(compiled_sources()) {
-        if valid_url(&source) && !all.contains(&source) {
-            all.push(source);
-        }
-    }
-    all
-}
-
-/// The service endpoints the newest verified manifest announced. For other
-/// modules: each falls back to its own default for anything absent.
-pub fn services<R: Runtime>(app: &AppHandle<R>) -> Services {
-    root(app).map(|r| read_known(&r).services).unwrap_or_default()
-}
-
-fn validate(manifest: &Manifest) -> Result<(), String> {
-    if manifest.notes.as_ref().is_some_and(|n| n.len() > 2000) {
-        return Err("notes longer than 2000 bytes".to_string());
-    }
-    if manifest.sources.len() > MAX_URLS || manifest.services.model_mirrors.len() > MAX_URLS {
-        return Err("too many sources or mirrors".to_string());
-    }
-    let urls = manifest.sources.iter().chain(&manifest.services.model_mirrors).chain(&manifest.services.format);
-    if let Some(bad) = urls.into_iter().find(|u| !valid_url(u)) {
-        return Err(format!("unacceptable URL {bad:?}"));
-    }
-    if manifest.schema != 1 {
-        return Err(format!("unknown manifest schema {}", manifest.schema));
-    }
-    build_number(&manifest.build).ok_or_else(|| format!("bad build id {:?}", manifest.build))?;
-    let listed: std::collections::HashSet<&str> = manifest.files.iter().map(|f| f.path.as_str()).collect();
-    for file in &manifest.files {
-        safe_relative(&file.path).ok_or_else(|| format!("unsafe path {:?}", file.path))?;
-        if file.sha256.len() != 64 || !file.sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err(format!("{}: bad sha256", file.path));
-        }
-    }
-    // The loader asks for these by name; a bundle without them boots blank.
-    for needed in std::iter::once(&manifest.entry).chain(&manifest.styles) {
-        if !listed.contains(needed.as_str()) {
-            return Err(format!("the manifest names {needed} but does not ship it"));
-        }
-    }
-    Ok(())
-}
-
-/// A bundle directory's manifest, if the directory is complete.
-fn bundle_manifest(dir: &Path) -> Option<Manifest> {
-    let manifest: Manifest = fsx::read_json(&dir.join(MANIFEST_FILE))?;
-    validate(&manifest).ok()?;
-    let complete = manifest.files.iter().all(|f| {
-        std::fs::metadata(dir.join(&f.path))
-            .map(|m| m.len() == f.bytes)
-            .unwrap_or(false)
-    });
-    complete.then_some(manifest)
-}
-
-fn embedded_manifest<R: Runtime>(app: &AppHandle<R>, state: &OtaState) -> Option<Manifest> {
-    let mut cached = lock(&state.embedded);
-    if let Some(known) = cached.as_ref() {
-        return known.clone();
-    }
-    // The resolver answers a missing path with index.html, so a parse failure
-    // here is how "this build has no ota.json" reads - e.g. a dev build.
-    let found = app
-        .asset_resolver()
-        .get(MANIFEST_FILE.to_string())
-        .and_then(|asset| serde_json::from_slice::<Manifest>(&asset.bytes).ok())
-        .filter(|m| validate(m).is_ok());
-    *cached = Some(found.clone());
-    found
-}
-
-fn remove_bundle(root: &Path, build: &str) {
-    if build_number(build).is_some() {
-        let _ = std::fs::remove_dir_all(root.join(build));
-    }
-}
-
-/// `installed.json`: the newest frontend build this install can already run,
-/// embedded or downloaded. The background update check (update_alerts.rs) runs
-/// with no Tauri in the process and so cannot read the embedded manifest; it
-/// compares against this instead, so it never announces what is already here.
-#[derive(Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-struct Installed {
-    build: Option<String>,
-}
-
-fn record_installed(root: &Path, build: &str) {
-    let _files = lock(&FILES);
-    let had = read_installed(root).as_deref().and_then(build_number).unwrap_or(0);
-    if build_number(build).unwrap_or(0) <= had {
-        return;
-    }
-    if let Ok(bytes) = serde_json::to_vec(&Installed { build: Some(build.to_string()) }) {
-        let _ = fsx::write_atomically(&root.join("installed.json"), &bytes);
-    }
-}
-
-fn read_installed(root: &Path) -> Option<String> {
-    fsx::read_json_or(&root.join("installed.json"), Installed::default()).build
-}
-
-/// The scheme's URL prefix on this platform. Android and Windows route custom
-/// schemes through `http://<scheme>.localhost`; everything else uses the scheme.
-fn scheme_base() -> String {
-    if cfg!(any(target_os = "android", target_os = "windows")) {
-        format!("http://{SCHEME}.localhost/")
-    } else {
-        format!("{SCHEME}://localhost/")
-    }
-}
-
 // ---- commands -----------------------------------------------------------------
 
-/// Decide what this launch runs, and stake it. Called once per page load, by
-/// the loader in index.html and by nothing else.
+/// Decide what this launch runs, and stake it (`boot::claim`). Called once per
+/// page load, by the loader in index.html and by nothing else.
 #[tauri::command]
 pub fn ota_claim_boot<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>) -> BootState {
-    let embedded = embedded_manifest(&app, &state);
+    let embedded = boot::embedded_manifest(&app, &state);
     let Ok(root) = root(&app) else {
         *lock(&state.serving) = None;
         return BootState { bundle: None };
     };
     let _guard = lock(&state.lock);
-    let mut stored = read_stored(&root);
+    let mut stored = disk::read_stored(&root);
     let before = serde_json::to_string(&stored).unwrap_or_default();
 
-    // 1. The last launch staked a bundle and nothing ever said it mounted.
-    if let Some(failed) = stored.pending.take() {
-        stored.strikes += 1;
-        if stored.strikes >= STRIKES_TO_QUARANTINE && stored.active.as_deref() == Some(failed.as_str()) {
-            quarantine(&root, &mut stored, &failed);
-        }
-    }
-
-    // 2. Drop an active bundle this binary should not run: incomplete on disk,
-    //    needing a newer native layer, or no newer than the frontend compiled
-    //    in. The last case is a new APK installed over an old OTA bundle - the
-    //    APK's own frontend is the fresher one, and a stale download must not
-    //    hide it (AttackFM's `reclaimEmbeddedIfNewer`).
-    let embedded_build = embedded.as_ref().and_then(|m| build_number(&m.build)).unwrap_or(0);
-    let mut chosen = None;
-    while let Some(active) = stored.active.clone() {
-        let dir = root.join(&active);
-        match bundle_manifest(&dir) {
-            Some(m) if m.native <= NATIVE_GENERATION && build_number(&m.build).unwrap_or(0) > embedded_build => {
-                chosen = Some((m, dir));
-                break;
-            }
-            _ => {
-                remove_bundle(&root, &active);
-                stored.active = stored.previous.take();
-                stored.strikes = 0;
-            }
-        }
-    }
-
-    if let Some(embedded) = embedded.as_ref() {
-        record_installed(&root, &embedded.build);
-    }
-
-    // 3. Stake it.
-    let boot = match chosen {
+    let boot = match boot::claim(&root, &mut stored, embedded.as_ref()) {
         Some((manifest, dir)) => {
-            stored.pending = Some(manifest.build.clone());
             *lock(&state.serving) = Some((manifest.build.clone(), dir));
             BootState {
                 bundle: Some(BootBundle {
-                    base: scheme_base(),
+                    base: scheme::scheme_base(),
                     build: manifest.build,
                     version: manifest.version,
                     entry: manifest.entry,
@@ -670,45 +379,21 @@ pub fn ota_claim_boot<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>)
     if serde_json::to_string(&stored).unwrap_or_default() != before {
         // A state that cannot be written is a stake that will not be there
         // next launch: the bundle runs unwagered, which is the lesser failure.
-        let _ = write_stored(&root, &stored);
+        let _ = disk::write_stored(&root, &stored);
     }
     boot
 }
 
-fn quarantine(root: &Path, stored: &mut Stored, build: &str) {
-    if !stored.quarantined.iter().any(|q| q == build) {
-        stored.quarantined.push(build.to_string());
-    }
-    if stored.active.as_deref() == Some(build) {
-        stored.active = stored.previous.take().filter(|p| p != build);
-    }
-    if stored.previous.as_deref() == Some(build) {
-        stored.previous = None;
-    }
-    if stored.pending.as_deref() == Some(build) {
-        stored.pending = None;
-    }
-    stored.strikes = 0;
-    remove_bundle(root, build);
-}
-
-/// The frontend that mounted reports in. `None` is the embedded frontend.
+/// The frontend that mounted reports in (`boot::settle`). `None` is the embedded frontend.
 #[tauri::command]
 pub fn ota_boot_ok<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>, build: Option<String>) -> Result<(), String> {
     let root = root(&app)?;
     let _guard = lock(&state.lock);
-    let mut stored = read_stored(&root);
-    match (&build, &stored.pending) {
-        (Some(ran), Some(pending)) if ran == pending => {
-            stored.pending = None;
-            stored.strikes = 0;
-        }
-        // The embedded frontend mounted: the staked bundle was never tried,
-        // which is neither a pass nor a strike.
-        (None, Some(_)) => stored.pending = None,
-        _ => return Ok(()),
+    let mut stored = disk::read_stored(&root);
+    if !boot::settle(&mut stored, build.as_deref()) {
+        return Ok(());
     }
-    write_stored(&root, &stored)
+    disk::write_stored(&root, &stored)
 }
 
 /// The loader's same-launch verdict: this bundle would not load or mount.
@@ -719,21 +404,22 @@ pub fn ota_boot_failed<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>
     let _ = reason;
     let root = root(&app)?;
     let _guard = lock(&state.lock);
-    let mut stored = read_stored(&root);
-    quarantine(&root, &mut stored, &build);
+    let mut stored = disk::read_stored(&root);
+    boot::quarantine(&root, &mut stored, &build);
     *lock(&state.serving) = None;
-    write_stored(&root, &stored)
+    disk::write_stored(&root, &stored)
 }
 
+/// Everything Settings shows about versions (`Status`).
 #[tauri::command]
 pub fn ota_status<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>) -> Status {
-    let embedded = embedded_manifest(&app, &state);
-    let stored = root(&app).map(|r| read_stored(&r)).unwrap_or_default();
-    let known = root(&app).map(|r| read_known(&r)).unwrap_or_default();
+    let embedded = boot::embedded_manifest(&app, &state);
+    let stored = root(&app).map(|r| disk::read_stored(&r)).unwrap_or_default();
+    let known = root(&app).map(|r| sources::read_known(&r)).unwrap_or_default();
     let active_version = root(&app)
         .ok()
         .zip(stored.active.as_ref())
-        .and_then(|(r, a)| bundle_manifest(&r.join(a)))
+        .and_then(|(r, a)| disk::bundle_manifest(&r.join(a)))
         .map(|m| m.version);
     Status {
         native_version: app.package_info().version.to_string(),
@@ -744,176 +430,10 @@ pub fn ota_status<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>) -> 
         active_version,
         running_build: lock(&state.serving).as_ref().map(|(build, _)| build.clone()),
         quarantined: stored.quarantined,
-        sources: effective_sources(&known),
+        sources: sources::effective_sources(&known),
         services: known.services,
         store: STORE,
     }
-}
-
-/// Forget every downloaded bundle; the next load runs the embedded frontend.
-#[tauri::command]
-pub fn ota_revert<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>) -> Result<(), String> {
-    let root = root(&app)?;
-    let _guard = lock(&state.lock);
-    let mut stored = read_stored(&root);
-    for build in [stored.active.take(), stored.previous.take(), stored.pending.take()].into_iter().flatten() {
-        remove_bundle(&root, &build);
-    }
-    stored.strikes = 0;
-    write_stored(&root, &stored)
-}
-
-// ---- the scheme ------------------------------------------------------------------
-
-fn mime_for(path: &str) -> &'static str {
-    match path.rsplit('.').next().unwrap_or("") {
-        "js" | "mjs" => "text/javascript",
-        "css" => "text/css",
-        "woff2" => "font/woff2",
-        "woff" => "font/woff",
-        "ttf" => "font/ttf",
-        "json" => "application/json",
-        "svg" => "image/svg+xml",
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "webp" => "image/webp",
-        "wasm" => "application/wasm",
-        "html" => "text/html",
-        _ => "application/octet-stream",
-    }
-}
-
-/// Serves the claimed bundle. Every response carries `Access-Control-Allow-Origin`
-/// because the page's origin is the app's, not this scheme's, and module
-/// scripts and fonts are fetched in CORS mode: without the header the entry
-/// script is refused and the page stays blank. `no-store` because a WebView
-/// cache keyed on a path that now holds a different build is a stale frontend.
-pub fn serve<R: Runtime>(app: &AppHandle<R>, request: &tauri::http::Request<Vec<u8>>) -> Response<Vec<u8>> {
-    let respond = |status: StatusCode, mime: &str, body: Vec<u8>| {
-        Response::builder()
-            .status(status)
-            .header(header::CONTENT_TYPE, mime)
-            .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-            .header(header::CACHE_CONTROL, "no-store")
-            .body(body)
-            .unwrap_or_else(|_| Response::new(Vec::new()))
-    };
-    let path = request.uri().path().trim_start_matches('/');
-    let Some(path) = safe_relative(path) else {
-        return respond(StatusCode::BAD_REQUEST, "text/plain", b"bad path".to_vec());
-    };
-    let Some(state) = app.try_state::<OtaState>() else {
-        return respond(StatusCode::SERVICE_UNAVAILABLE, "text/plain", Vec::new());
-    };
-    let Some((_, dir)) = lock(&state.serving).clone() else {
-        return respond(StatusCode::NOT_FOUND, "text/plain", b"no bundle claimed".to_vec());
-    };
-    match std::fs::read(dir.join(path)) {
-        Ok(bytes) => respond(StatusCode::OK, mime_for(path), bytes),
-        Err(_) => respond(StatusCode::NOT_FOUND, "text/plain", b"not in this bundle".to_vec()),
-    }
-}
-
-// ---- checking and installing (not on iOS: no reqwest there) --------------------------
-
-#[cfg(not(target_os = "ios"))]
-fn client() -> Result<reqwest::Client, String> {
-    // Connect and read timeouts, never a total one: a 43 MB APK over a slow
-    // connection is legitimately minutes (the same reasoning as model.rs).
-    reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(15))
-        .read_timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| format!("cannot start an HTTP client: {e}"))
-}
-
-#[cfg(not(target_os = "ios"))]
-async fn fetch_bytes(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, String> {
-    let response = client
-        .get(url)
-        .header(header::CACHE_CONTROL.as_str(), "no-cache")
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status)
-        .map_err(|e| format!("{url}: {e}"))?;
-    response.bytes().await.map(|b| b.to_vec()).map_err(|e| format!("{url}: {e}"))
-}
-
-/// Whether any of `keys` (raw 32-byte Ed25519 keys, base64) signed context + bytes.
-#[cfg(not(target_os = "ios"))]
-fn verify_with<'a>(keys: impl IntoIterator<Item = &'a str>, context: &[u8], bytes: &[u8], signature: &str) -> bool {
-    use base64::Engine;
-    use ring::signature::{UnparsedPublicKey, ED25519};
-    let engine = base64::engine::general_purpose::STANDARD;
-    let Ok(signature) = engine.decode(signature.trim()) else {
-        return false;
-    };
-    let mut message = Vec::with_capacity(context.len() + bytes.len());
-    message.extend_from_slice(context);
-    message.extend_from_slice(bytes);
-    keys.into_iter().any(|key| {
-        engine
-            .decode(key)
-            .is_ok_and(|raw| raw.len() == 32 && UnparsedPublicKey::new(&ED25519, raw).verify(&message, &signature).is_ok())
-    })
-}
-
-/// Fetch `url` and `url.sig`, and parse the file only if a trusted key signed
-/// exactly those bytes. Parsing comes AFTER verifying on purpose: a JSON parser
-/// never sees a byte an attacker chose.
-#[cfg(not(target_os = "ios"))]
-async fn fetch_signed<T: serde::de::DeserializeOwned>(client: &reqwest::Client, url: &str, context: &[u8]) -> Result<T, String> {
-    let body = fetch_bytes(client, url).await?;
-    let signature = fetch_bytes(client, &format!("{url}.sig")).await?;
-    let signature = String::from_utf8_lossy(&signature);
-    if !verify_with(list(TRUSTED_KEYS), context, &body, &signature) {
-        return Err(format!("{url}: the signature did not verify against any trusted key"));
-    }
-    serde_json::from_slice::<T>(&body).map_err(|e| format!("{url}: {e}"))
-}
-
-/// The first source, in order, that serves a verified, valid manifest.
-#[cfg(not(target_os = "ios"))]
-async fn find_manifest(client: &reqwest::Client, sources: &[String]) -> Result<(String, Manifest), String> {
-    let mut failures = Vec::new();
-    for source in sources {
-        match fetch_signed::<Manifest>(client, &format!("{source}/{MANIFEST_FILE}"), CONTEXT_MANIFEST)
-            .await
-            .and_then(|m| validate(&m).map(|()| m))
-        {
-            Ok(manifest) => return Ok((source.clone(), manifest)),
-            Err(error) => failures.push(error),
-        }
-    }
-    Err(if failures.is_empty() { "no update sources".to_string() } else { failures.join("; ") })
-}
-
-/// Remember a verified manifest's sources and services, unless a newer build already set them.
-#[cfg(not(target_os = "ios"))]
-fn remember(root: &Path, manifest: &Manifest) {
-    if manifest.sources.is_empty() {
-        return;
-    }
-    let _files = lock(&FILES);
-    let known = read_known(root);
-    let newer = known
-        .build
-        .as_deref()
-        .and_then(build_number)
-        .is_none_or(|had| build_number(&manifest.build).unwrap_or(0) >= had);
-    if !newer || (known.sources == manifest.sources && known.services == manifest.services) {
-        return;
-    }
-    let next = Known { sources: manifest.sources.clone(), services: manifest.services.clone(), build: Some(manifest.build.clone()) };
-    if let Ok(bytes) = serde_json::to_vec_pretty(&next) {
-        let _ = fsx::write_atomically(&root.join("sources.json"), &bytes);
-    }
-}
-
-#[cfg(not(target_os = "ios"))]
-fn sha256_hex(bytes: &[u8]) -> String {
-    use sha2::{Digest, Sha256};
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// Look for a newer web bundle and install it; report the published APK alongside.
@@ -927,242 +447,19 @@ pub async fn ota_check<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>
     return on_ios(UPDATES, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
-        if STAGING {
-            return Ok(CheckResult { web: "current", web_build: None, web_version: None, apk: None, error: None, source: None });
-        }
-        let client = client()?;
-        let root = root(&app)?;
-        let sources = effective_sources(&read_known(&root));
-        let (source, manifest) = match find_manifest(&client, &sources).await {
-            Ok(found) => found,
-            Err(error) => {
-                return Ok(CheckResult { web: "offline", web_build: None, web_version: None, apk: None, error: Some(error), source: None });
-            }
-        };
-        remember(&root, &manifest);
-        // The APK description is advisory, and comes from the same source as
-        // the manifest; its absence or a bad signature is not a failed check.
-        let apk = offered_apk(&client, &source).await;
-        let result = |web: &'static str| CheckResult {
-            web,
-            web_build: Some(manifest.build.clone()),
-            web_version: Some(manifest.version.clone()),
-            apk: apk.clone(),
-            error: None,
-            source: Some(source.clone()),
-        };
-
-        let _one_install = state.installing.lock().await;
-        let embedded = embedded_manifest(&app, &state);
-        let stored = {
-            let _guard = lock(&state.lock);
-            read_stored(&root)
-        };
-        let offered = build_number(&manifest.build).unwrap_or(0);
-        let have = stored
-            .active
-            .as_deref()
-            .and_then(build_number)
-            .into_iter()
-            .chain(embedded.as_ref().and_then(|m| build_number(&m.build)))
-            .max()
-            .unwrap_or(0);
-        if offered <= have {
-            return Ok(result("current"));
-        }
-        if stored.quarantined.contains(&manifest.build) {
-            return Ok(result("quarantined"));
-        }
-        if manifest.native > NATIVE_GENERATION {
-            return Ok(result("needs-native"));
-        }
-
-        install_bundle(&app, &client, &root, &manifest, stored.active.as_deref(), &source).await?;
-
-        let _guard = lock(&state.lock);
-        let mut stored = read_stored(&root);
-        if stored.quarantined.contains(&manifest.build) {
-            // Quarantined while it downloaded (a same-launch failure report).
-            remove_bundle(&root, &manifest.build);
-            return Ok(result("quarantined"));
-        }
-        if stored.active.as_deref() != Some(manifest.build.as_str()) {
-            stored.previous = stored.active.take();
-        }
-        stored.active = Some(manifest.build.clone());
-        stored.strikes = 0;
-        // Everything but the new bundle, its predecessor, and whatever this
-        // process is serving right now goes.
-        let serving = lock(&state.serving).as_ref().map(|(b, _)| b.clone());
-        let keep: Vec<&str> = [stored.active.as_deref(), stored.previous.as_deref(), serving.as_deref()]
-            .into_iter()
-            .flatten()
-            .collect();
-        prune(&root, &keep);
-        write_stored(&root, &stored)?;
-        record_installed(&root, &manifest.build);
-        Ok(result("installed"))
+        install::check(&app, &state).await
     }
 }
 
-/// What the published update looks like, for the background alert check.
-#[cfg(not(target_os = "ios"))]
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Peek {
-    pub web_build: String,
-    pub web_version: String,
-    pub notes: Option<String>,
-    pub installed_build: Option<String>,
-    pub apk_version: Option<String>,
-    pub apk_version_code: Option<u64>,
-    pub apk_native: Option<u32>,
-}
-
-/// Look at what is published, verified exactly as `ota_check` does - same
-/// signatures, same remembered sources - without installing anything. Blocking,
-/// and free of `AppHandle`, because its caller is a WorkManager job in a
-/// process where Tauri may never have started. `root` is `<app_data_dir>/ota`.
-#[cfg(not(target_os = "ios"))]
-#[cfg_attr(not(target_os = "android"), allow(dead_code))]
-pub fn peek(root: &Path) -> Result<Peek, String> {
-    fsx::make_dir(root)?;
-    tauri::async_runtime::block_on(async {
-        let client = client()?;
-        let (source, manifest) = find_manifest(&client, &effective_sources(&read_known(root))).await?;
-        remember(root, &manifest);
-        let apk = offered_apk(&client, &source).await;
-        Ok(Peek {
-            web_build: manifest.build,
-            web_version: manifest.version,
-            notes: manifest.notes,
-            installed_build: read_installed(root),
-            apk_version: apk.as_ref().map(|a| a.version.clone()),
-            apk_version_code: apk.as_ref().map(|a| a.version_code),
-            apk_native: apk.as_ref().map(|a| a.native),
-        })
-    })
-}
-
-/// Download (or reuse) every file into a staging directory, verify, then rename into place.
-///
-/// A file is REUSED when the running bundle or the embedded frontend already
-/// has those exact bytes. Vite names files by content hash, so a release that
-/// only touched the page's code downloads its JS and CSS and nothing else -
-/// the fonts are most of `dist/` by size and almost never change.
-#[cfg(not(target_os = "ios"))]
-async fn install_bundle<R: Runtime>(
-    app: &AppHandle<R>,
-    client: &reqwest::Client,
-    root: &Path,
-    manifest: &Manifest,
-    active: Option<&str>,
-    base: &str,
-) -> Result<(), String> {
-    let staging = root.join(format!(".staging-{}", manifest.build));
-    let _ = std::fs::remove_dir_all(&staging);
-    let cleanup = scopeguard(&staging);
-    let active_dir = active.map(|a| root.join(a));
-    let mut reused = 0usize;
-    let mut fetched = 0usize;
-
-    for file in &manifest.files {
-        let target = staging.join(&file.path);
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("cannot stage {}: {e}", file.path))?;
-        }
-        let local = active_dir
-            .as_ref()
-            .and_then(|dir| std::fs::read(dir.join(&file.path)).ok())
-            .filter(|bytes| sha256_hex(bytes) == file.sha256.to_ascii_lowercase())
-            .or_else(|| {
-                app.asset_resolver()
-                    .get(file.path.clone())
-                    .map(|asset| asset.bytes)
-                    .filter(|bytes| sha256_hex(bytes) == file.sha256.to_ascii_lowercase())
-            });
-        let bytes = match local {
-            Some(bytes) => {
-                reused += 1;
-                bytes
-            }
-            None => {
-                let url = format!("{base}/{}", file.path);
-                let body = client
-                    .get(&url)
-                    .send()
-                    .await
-                    .and_then(reqwest::Response::error_for_status)
-                    .map_err(|e| format!("{}: {e}", file.path))?
-                    .bytes()
-                    .await
-                    .map_err(|e| format!("{}: {e}", file.path))?;
-                if body.len() as u64 != file.bytes || sha256_hex(&body) != file.sha256.to_ascii_lowercase() {
-                    return Err(format!("{}: the download did not match the manifest", file.path));
-                }
-                fetched += 1;
-                body.to_vec()
-            }
-        };
-        std::fs::write(&target, bytes).map_err(|e| format!("cannot write {}: {e}", file.path))?;
-    }
-    let json = serde_json::to_vec_pretty(manifest).map_err(|e| e.to_string())?;
-    std::fs::write(staging.join(MANIFEST_FILE), json).map_err(|e| format!("cannot write the manifest: {e}"))?;
-    bundle_manifest(&staging).ok_or("the staged bundle is incomplete")?;
-
-    let target = root.join(&manifest.build);
-    let _ = std::fs::remove_dir_all(&target);
-    std::fs::rename(&staging, &target).map_err(|e| format!("cannot place the bundle: {e}"))?;
-    cleanup.disarm();
-    let _ = (fetched, reused);
-    Ok(())
-}
-
-/// Removes a staging directory on every exit that is not the final rename.
-#[cfg(not(target_os = "ios"))]
-struct StagingGuard<'a> {
-    dir: &'a Path,
-    armed: std::cell::Cell<bool>,
-}
-
-#[cfg(not(target_os = "ios"))]
-fn scopeguard(dir: &Path) -> StagingGuard<'_> {
-    StagingGuard { dir, armed: std::cell::Cell::new(true) }
-}
-
-#[cfg(not(target_os = "ios"))]
-impl StagingGuard<'_> {
-    fn disarm(&self) {
-        self.armed.set(false);
-    }
-}
-
-#[cfg(not(target_os = "ios"))]
-impl Drop for StagingGuard<'_> {
-    fn drop(&mut self) {
-        if self.armed.get() {
-            let _ = std::fs::remove_dir_all(self.dir);
-        }
-    }
-}
-
-#[cfg(not(target_os = "ios"))]
-fn prune(root: &Path, keep: &[&str]) {
-    let Ok(entries) = std::fs::read_dir(root) else { return };
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let stale_build = build_number(&name).is_some() && !keep.contains(&name.as_str());
-        if stale_build || name.starts_with(".staging-") {
-            let _ = std::fs::remove_dir_all(entry.path());
-        }
-    }
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ApkProgress {
-    received: u64,
-    total: u64,
+/// Forget every downloaded bundle; the next load runs the embedded frontend.
+/// No page calls it: it is the hand-run way back from a devtools console.
+#[tauri::command]
+pub fn ota_revert<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>) -> Result<(), String> {
+    let root = root(&app)?;
+    let _guard = lock(&state.lock);
+    let mut stored = disk::read_stored(&root);
+    boot::revert(&root, &mut stored);
+    disk::write_stored(&root, &stored)
 }
 
 /// Download the published APK into the cache directory the FileProvider
@@ -1178,87 +475,7 @@ pub async fn ota_fetch_apk<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaSt
     return on_ios(APK, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
-        use std::io::Write;
-        use tauri::Emitter;
-
-        if let Some(store) = STORE {
-            let _ = (app, state);
-            return Err(format!("This copy of Ghost.md came from the {}, and updates through it.", store_name(store)));
-        }
-        let _one_install = state.installing.lock().await;
-        let client = client()?;
-        let root = root(&app)?;
-        let mut failures = Vec::new();
-        let mut found = None;
-        for source in effective_sources(&read_known(&root)) {
-            match fetch_signed::<ApkInfo>(&client, &format!("{source}/apk.json"), CONTEXT_APK).await {
-                Ok(info) => {
-                    found = Some((source, info));
-                    break;
-                }
-                Err(error) => failures.push(error),
-            }
-        }
-        let (base, info) = found.ok_or_else(|| failures.join("; "))?;
-        // A relative name is served beside apk.json; an absolute https URL (a
-        // release asset on another host) is allowed too. Either way the signed
-        // SHA-256 decides, and Android refuses an APK signed by another key.
-        let download = if valid_url(&info.url) {
-            info.url.clone()
-        } else {
-            let file = safe_relative(&info.url).filter(|f| !f.contains('/')).ok_or("bad APK name")?;
-            format!("{base}/{file}")
-        };
-        let dir = crate::paths::updates_dir(&app)?;
-        fsx::make_dir(&dir)?;
-        let target = dir.join(format!("glyph-{}.apk", info.version_code));
-
-        if std::fs::read(&target).map(|b| sha256_hex(&b) == info.sha256.to_ascii_lowercase()).unwrap_or(false) {
-            // Already here from an earlier tap (the one that stopped for the
-            // install permission, usually). Say so, or the page sits on "0 of 44 MB".
-            let _ = app.emit("ota://apk-progress", ApkProgress { received: info.bytes, total: info.bytes });
-            return Ok(target.to_string_lossy().into_owned());
-        }
-        // Old downloads are 40 MB each; only the one being fetched stays.
-        if let Ok(entries) = std::fs::read_dir(&dir) {
-            for entry in entries.flatten() {
-                let _ = std::fs::remove_file(entry.path());
-            }
-        }
-
-        let mut response = client
-            .get(&download)
-            .send()
-            .await
-            .and_then(reqwest::Response::error_for_status)
-            .map_err(|e| format!("APK download: {e}"))?;
-        let part = dir.join("download.part");
-        let mut out = std::fs::File::create(&part).map_err(|e| format!("cannot write the APK: {e}"))?;
-        let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
-        let mut received = 0u64;
-        let mut next_report = 0u64;
-        while let Some(chunk) = response.chunk().await.map_err(|e| format!("APK download: {e}"))? {
-            received += chunk.len() as u64;
-            if received > info.bytes {
-                let _ = std::fs::remove_file(&part);
-                return Err("the server sent more than the published APK size".to_string());
-            }
-            sha2::Digest::update(&mut hasher, &chunk);
-            out.write_all(&chunk).map_err(|e| format!("cannot write the APK: {e}"))?;
-            if received >= next_report {
-                let _ = app.emit("ota://apk-progress", ApkProgress { received, total: info.bytes });
-                next_report = received + 512 * 1024;
-            }
-        }
-        drop(out);
-        let digest: String = sha2::Digest::finalize(hasher).iter().map(|b| format!("{b:02x}")).collect();
-        if received != info.bytes || digest != info.sha256.to_ascii_lowercase() {
-            let _ = std::fs::remove_file(&part);
-            return Err("the APK did not match its published checksum".to_string());
-        }
-        std::fs::rename(&part, &target).map_err(|e| format!("cannot place the APK: {e}"))?;
-        let _ = app.emit("ota://apk-progress", ApkProgress { received, total: info.bytes });
-        Ok(target.to_string_lossy().into_owned())
+        apk::fetch(&app, &state).await
     }
 }
 
@@ -1274,137 +491,43 @@ mod tests {
         const { assert!(BUNDLE_REQUIRES <= NATIVE_GENERATION) };
     }
 
-    /// A vector signed by Node's crypto with a throwaway key, exactly as
-    /// scripts/ota-sign.mjs signs: the two halves must agree on every byte.
-    #[test]
-    fn signatures_from_the_deploy_script_verify_and_nothing_else_does() {
-        let key = "EnYQkB2cQwgpjgjkuGdCa0yccOhrQMURHVwZUI2t1yU=";
-        let body = br#"{"schema":1}"#;
-        let sig = "0X3peDVYhcHRgB0Pzj4tWKv8ZjaZrAFNLQC2VdcO9qHz0xVbfNZEJ1vom+dUzSFdatqpsR3sHnNBSb7Ewt03Aw==";
-        assert!(verify_with([key], CONTEXT_MANIFEST, body, sig));
-        assert!(!verify_with([key], CONTEXT_APK, body, sig), "a manifest signature must not pass as an APK one");
-        assert!(!verify_with([key], CONTEXT_MANIFEST, br#"{"schema":2}"#, sig), "tampered bytes");
-        assert!(!verify_with(["+lGP9TU8jcvUCrDjPwD5W33HsJn/Bhxm3gH4TK5CvkM="], CONTEXT_MANIFEST, body, sig), "another key");
-        assert!(!verify_with([key], CONTEXT_MANIFEST, body, "not base64!"));
+    fn keys(value: serde_json::Value) -> Vec<String> {
+        let mut keys: Vec<String> = value.as_object().expect("an object").keys().cloned().collect();
+        keys.sort();
+        keys
     }
 
+    /// The names the page reads these answers by: `OtaStatus` and `ApkInfo`
+    /// in src/app/core/ota.ts, and the bundle in index.html's loader. A field
+    /// renamed here is a silent `undefined` there, so the names are pinned.
     #[test]
-    fn the_app_trusts_at_least_one_key_and_one_source() {
-        assert!(list(TRUSTED_KEYS).count() >= 1);
-        assert!(list(COMPILED_SOURCES).all(valid_url));
-        assert!(list(COMPILED_SOURCES).count() >= 1);
-    }
-
-    #[test]
-    fn a_manifest_can_only_point_at_https() {
-        if TEST_SOURCE.is_some() {
-            return;
-        }
-        assert!(valid_url("https://attack.fm/glyph"));
-        assert!(!valid_url("http://attack.fm/glyph"));
-        assert!(!valid_url("https://attack.fm/glyph/"));
-        assert!(!valid_url("https://"));
-        assert!(!valid_url("file:///etc"));
-        assert!(!valid_url("https://a.b/c d"));
-    }
-
-    #[test]
-    fn remembered_sources_come_first_and_the_compiled_ones_stay() {
-        let known = Known { sources: vec!["https://new.example/glyph".into()], ..Known::default() };
-        let all = effective_sources(&known);
-        assert_eq!(all.first().map(String::as_str), Some("https://new.example/glyph"));
-        assert!(all.iter().any(|s| compiled_sources().contains(s)));
-    }
-
-    #[test]
-    fn an_older_manifest_cannot_roll_the_sources_back() {
-        let dir = std::env::temp_dir().join(format!("glyph-ota-sources-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        let mut newer = manifest("20260920000000");
-        newer.sources = vec!["https://new.example/glyph".into()];
-        remember(&dir, &newer);
-        let mut older = manifest("20260912000000");
-        older.sources = vec!["https://old.example/glyph".into()];
-        remember(&dir, &older);
-        assert_eq!(read_known(&dir).sources, vec!["https://new.example/glyph".to_string()]);
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn the_installed_record_only_moves_forward() {
-        let dir = std::env::temp_dir().join(format!("glyph-ota-installed-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        record_installed(&dir, "20260912230000");
-        record_installed(&dir, "20260901000000");
-        assert_eq!(read_installed(&dir).as_deref(), Some("20260912230000"));
-        record_installed(&dir, "20260913000000");
-        assert_eq!(read_installed(&dir).as_deref(), Some("20260913000000"));
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn build_ids_are_fourteen_digits() {
-        assert_eq!(build_number("20260912221530"), Some(20_260_912_221_530));
-        assert_eq!(build_number("2026091222153"), None);
-        assert_eq!(build_number("20260912../530"), None);
-    }
-
-    #[test]
-    fn bundle_paths_cannot_escape() {
-        assert!(safe_relative("assets/index-abc.js").is_some());
-        assert!(safe_relative("../state.json").is_none());
-        assert!(safe_relative("assets/../../x").is_none());
-        assert!(safe_relative("/etc/passwd").is_none());
-        assert!(safe_relative("assets//x.js").is_none());
-        assert!(safe_relative("assets/x%2e.js").is_none());
-    }
-
-    fn manifest(build: &str) -> Manifest {
-        Manifest {
-            schema: 1,
-            build: build.into(),
-            version: "0.2.0".into(),
-            native: 1,
-            entry: "assets/index.js".into(),
-            styles: vec!["assets/index.css".into()],
-            files: vec![
-                ManifestFile { path: "assets/index.js".into(), sha256: "a".repeat(64), bytes: 1 },
-                ManifestFile { path: "assets/index.css".into(), sha256: "b".repeat(64), bytes: 1 },
-            ],
+    fn what_the_page_is_answered_with_keeps_its_names() {
+        let status = Status {
+            native_version: "1.8.0".into(),
+            native_generation: NATIVE_GENERATION,
+            embedded_build: None,
+            embedded_version: None,
+            active_build: None,
+            active_version: None,
+            running_build: None,
+            quarantined: vec![],
             sources: vec![],
             services: Services::default(),
-            notes: None,
-        }
-    }
-
-    #[test]
-    fn a_manifest_must_ship_what_the_loader_asks_for() {
-        assert!(validate(&manifest("20260912221530")).is_ok());
-        let mut missing = manifest("20260912221530");
-        missing.files.pop();
-        assert!(validate(&missing).is_err());
-        let mut escaping = manifest("20260912221530");
-        escaping.files[0].path = "../../evil.js".into();
-        assert!(validate(&escaping).is_err());
-    }
-
-    #[test]
-    fn quarantine_steps_back_to_the_previous_bundle() {
-        let dir = std::env::temp_dir().join(format!("glyph-ota-test-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        let mut stored = Stored {
-            active: Some("20260912221530".into()),
-            previous: Some("20260911000000".into()),
-            pending: Some("20260912221530".into()),
-            strikes: 1,
-            quarantined: vec![],
+            store: None,
         };
-        quarantine(&dir, &mut stored, "20260912221530");
-        assert_eq!(stored.active.as_deref(), Some("20260911000000"));
-        assert_eq!(stored.previous, None);
-        assert_eq!(stored.pending, None);
-        assert_eq!(stored.strikes, 0);
-        assert_eq!(stored.quarantined, vec!["20260912221530".to_string()]);
-        let _ = std::fs::remove_dir_all(&dir);
+        let status = serde_json::to_value(&status).unwrap();
+        assert_eq!(keys(status["services"].clone()), ["format", "modelMirrors"]);
+        assert_eq!(
+            keys(status),
+            ["activeBuild", "activeVersion", "embeddedBuild", "embeddedVersion", "nativeGeneration", "nativeVersion", "quarantined", "runningBuild", "services", "sources", "store"]
+        );
+        let bundle = BootBundle { build: "b".into(), version: "v".into(), base: "ota://localhost/".into(), entry: "e".into(), styles: vec![] };
+        let boot = serde_json::to_value(BootState { bundle: Some(bundle) }).unwrap();
+        assert_eq!(keys(boot["bundle"].clone()), ["base", "build", "entry", "styles", "version"]);
+        let apk = ApkInfo { version: "1.8.0".into(), version_code: 1, native: 1, sha256: "a".repeat(64), bytes: 1, url: "glyph.apk".into() };
+        let check = CheckResult { web: "current", web_build: None, web_version: None, apk: Some(apk), error: None, source: None };
+        let check = serde_json::to_value(&check).unwrap();
+        assert_eq!(keys(check["apk"].clone()), ["bytes", "native", "sha256", "url", "version", "versionCode"]);
+        assert_eq!(keys(check), ["apk", "error", "source", "web", "webBuild", "webVersion"]);
     }
 }

@@ -1,36 +1,33 @@
-//! The Tauri seam: four commands, and deliberately nothing else.
+//! The Tauri seam for the notes: the commands the page reaches them through,
+//! and deliberately little else.
 //!
-//! `store.rs` owns the notes and has to stay free of `tauri::` types - its
-//! header says why, and it is not a stylistic preference. This module is the
-//! adapter that lets a webview reach them, and it is thin enough to read in
-//! one screen on purpose: every command here takes the lock, calls one store
-//! function, and turns a `StoreError` into a `String`. Anything more
-//! interesting than that belongs on the other side of the seam, where the
-//! Android capture process can reach it too.
+//! `library/` owns the notes and has to stay free of `tauri::` types - note.rs
+//! says why, and it is not a stylistic preference. This module is the adapter
+//! that lets a webview reach them: nearly every command here takes the lock,
+//! calls one library function, and turns a `LibraryError` into a `String`.
+//! The three that do more say what: `apply_command_mutation` checks what the
+//! page sent before any of it is written, `delete_note` takes a note's
+//! pictures and recording with it, and `sync_put_file` keeps a file that
+//! arrived by sync.
 //!
-//! `Result<T, String>` rather than `Result<T, StoreError>` because Tauri needs
-//! the error half to be `Serialize`, and a string is what arrives in
+//! `Result<T, String>` rather than `Result<T, LibraryError>` because Tauri
+//! needs the error half to be `Serialize`, and a string is what arrives in
 //! JavaScript regardless: `invoke()` rejects with whatever the error
 //! serialised to. A page that has to destructure an error enum to decide which
-//! toast to raise is a page carrying the store's shape around for no benefit -
-//! and `StoreError`'s `Display` already writes the sentence a person should
-//! read.
-//!
-//! `pending_captures` (DESIGN section 5) is not here yet. It has nothing to
-//! report until the capture service exists, and a command that always answers
-//! with an empty array is a command the page will be written against and then
-//! have to be rewritten around.
+//! toast to raise is a page carrying the library's shape around for no
+//! benefit - and `LibraryError`'s `Display` already writes the sentence a
+//! person should read.
 
+use std::path::Path;
 use std::sync::Mutex;
 
 use tauri::Manager;
 
 use crate::library::Library;
-use crate::store::{
-    recording_file, CommandMutation, CommandMutationResult, CommandUndoResult, Note,
-    PendingCommandUndo, RecordedSegment, Recording, Store,
-};
+use crate::note::{CommandMutation, CommandMutationResult, CommandUndoResult, Note, PendingCommandUndo, RecordedSegment, Recording};
+use crate::recordings::recording_file;
 
+/// A command the person confirmed from its preview, as the page sends it.
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ApplyCommandRequest {
@@ -43,6 +40,41 @@ pub struct ApplyCommandRequest {
     source: String,
 }
 
+impl ApplyCommandRequest {
+    /// The mutation this asks for, or why none may be written: checked whole
+    /// before the library is touched.
+    fn into_mutation(self) -> std::result::Result<CommandMutation, String> {
+        // The crate's one rule for an id from the page: the note id may become a
+        // recording's or a sidecar's file name, and the mutation id is held to the
+        // same bound.
+        use crate::fsx::plain_id;
+        if !plain_id(&self.mutation_id) || !plain_id(&self.note_id) {
+            return Err("a command mutation needs plain bounded ids".into());
+        }
+        if !matches!(self.source.as_str(), "editor" | "capture") {
+            return Err("a command mutation has an unsupported source".into());
+        }
+        if !matches!(self.kind.as_str(), "append" | "create") {
+            return Err("only append and create command mutations are supported".into());
+        }
+        if self.kind == "create" && (self.before_revision.is_some() || self.before_body.is_some()) {
+            return Err("a create command cannot replace an existing note".into());
+        }
+        if self.kind == "append" && (self.before_revision.is_none() || self.before_body.is_none()) {
+            return Err("an append command needs the previewed note revision".into());
+        }
+        Ok(CommandMutation {
+            id: self.mutation_id,
+            note_id: self.note_id,
+            kind: self.kind,
+            before_revision: self.before_revision,
+            before_body: self.before_body,
+            after_body: self.after_body,
+            source: self.source,
+        })
+    }
+}
+
 /// Applies only the already-previewed deterministic Markdown. Inference never
 /// reaches this command and cannot provide ids, revisions, or note bodies.
 #[tauri::command]
@@ -50,39 +82,11 @@ pub fn apply_command_mutation(
     store: tauri::State<'_, NotesStore>,
     request: ApplyCommandRequest,
 ) -> std::result::Result<CommandMutationResult, String> {
-    // The crate's one rule for an id from the page: the note id may become a
-    // recording's or a sidecar's file name, and the mutation id is held to the
-    // same bound.
-    use crate::fsx::plain_id;
-    if !plain_id(&request.mutation_id) || !plain_id(&request.note_id) {
-        return Err("a command mutation needs plain bounded ids".into());
-    }
-    if !matches!(request.source.as_str(), "editor" | "capture") {
-        return Err("a command mutation has an unsupported source".into());
-    }
-    if !matches!(request.kind.as_str(), "append" | "create") {
-        return Err("only append and create command mutations are supported".into());
-    }
-    if request.kind == "create" && (request.before_revision.is_some() || request.before_body.is_some()) {
-        return Err("a create command cannot replace an existing note".into());
-    }
-    if request.kind == "append" && (request.before_revision.is_none() || request.before_body.is_none()) {
-        return Err("an append command needs the previewed note revision".into());
-    }
-    store
-        .lock()
-        .apply_command(&CommandMutation {
-            id: request.mutation_id,
-            note_id: request.note_id,
-            kind: request.kind,
-            before_revision: request.before_revision,
-            before_body: request.before_body,
-            after_body: request.after_body,
-            source: request.source,
-        })
-        .map_err(|e| e.to_string())
+    let change = request.into_mutation()?;
+    store.lock().apply_command(&change).map_err(|e| e.to_string())
 }
 
+/// Undoes a command, only while the note is still exactly what it left.
 #[tauri::command]
 pub fn undo_command_mutation(
     store: tauri::State<'_, NotesStore>,
@@ -91,6 +95,8 @@ pub fn undo_command_mutation(
     store.lock().undo_command(&mutation_id).map_err(|e| e.to_string())
 }
 
+/// The command from the last ten minutes that can still be undone, if any:
+/// what the page offers again after the app was stopped mid-undo.
 #[tauri::command]
 pub fn latest_command_mutation(
     store: tauri::State<'_, NotesStore>,
@@ -115,59 +121,46 @@ pub fn set_note_formatted(
         .map_err(|e| e.to_string())
 }
 
-/// The database file, under whatever `app_data_dir()` resolves to on the
-/// platform. Named in DESIGN section 5; the Android capture service derives
-/// the same filename from its own `filesDir`, so this string and the Kotlin
-/// one have to agree.
-const DB_FILE: &str = "glyph.sqlite";
-
-/// The one connection, opened in `setup` and held for the life of the process.
+/// The notes' library, opened in `setup` and held for the life of the process.
 ///
-/// Rather than opening a connection per command, which is the shape that looks
-/// pleasingly stateless. Every open pays for the file open, the WAL handshake
-/// and the three `CREATE ... IF NOT EXISTS` statements, and - the part that
-/// actually matters - throws away SQLite's page cache between one debounced
-/// save and the next, on a device where the editor saves 400 ms after the last
-/// keystroke and the list re-reads on every resume. One connection behind a
-/// `Mutex` costs one uncontended lock per command, on statements that are
-/// single rows.
-///
-/// A `Mutex` rather than a connection pool because `rusqlite::Connection` is
+/// One `Library` rather than one per command: opening one walks the folder
+/// against its index, and keeping it keeps the index's SQLite page cache warm
+/// between one debounced save and the next, on a device where the editor saves
+/// 400 ms after the last keystroke and the list re-reads on every resume. A
+/// `Mutex` rather than anything cleverer because the index's connection is
 /// `Send` and not `Sync`, and because the webview invokes from one place
-/// anyway. The CROSS-PROCESS contention - the capture service writing while
-/// this connection reads - is not what this lock is for; that one is SQLite's,
-/// through WAL and the busy timeout.
+/// anyway: it costs one uncontended lock per command.
 pub struct NotesStore(pub Mutex<Library>);
 
 impl NotesStore {
     /// The guard, recovered if some earlier command panicked while holding it.
     ///
-    /// A poisoned `Mutex` means a previous call died mid-statement. The
-    /// connection is not the casualty: every statement in `store.rs` stands
-    /// alone, there is no transaction left half-applied, and SQLite has either
-    /// committed the row or not. So the real choice is between recovering the
-    /// guard and refusing every note operation for the rest of the process's
-    /// life because one of them once panicked - which is how an app goes from
-    /// having a bug to being a brick. The recovery itself is `crate::lock`'s.
+    /// A poisoned `Mutex` means a previous call died partway. The library is
+    /// not the casualty: a note's file is written whole or not at all, every
+    /// index statement stands alone, and the index is only a cache that the
+    /// next read checks against the files. So the real choice is between
+    /// recovering the guard and refusing every note operation for the rest of
+    /// the process's life because one of them once panicked - which is how an
+    /// app goes from having a bug to being a brick. The recovery itself is
+    /// `crate::lock`'s.
     pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, Library> {
         crate::lock::lock(&self.0)
     }
 }
 
-/// Opens the store and hands it to Tauri's managed state. Called once, from
-/// `setup`.
+/// Opens the library - moving the old database's notes into it the first
+/// time (`library::open_and_move_in`) - and hands it to Tauri's managed state.
+/// Called once, from `setup`.
 ///
-/// `app_data_dir()` is resolved here through `paths`, which is the only module
-/// in the crate that resolves it: `store::open` takes a path precisely so that
-/// this resolution - which needs an `AppHandle`, and therefore a running Tauri -
-/// stays on this side of the seam.
+/// `app_data_dir()` is resolved here through `paths`: `Library::open_fs` takes
+/// a path precisely so that this resolution - which needs an `AppHandle`, and
+/// therefore a running Tauri - stays on this side of the seam.
 ///
 /// The directory is created rather than assumed. On a first launch nothing has
-/// written there yet, and `Connection::open` creates a missing file but not a
-/// missing directory.
+/// written there yet.
 ///
 /// An error here fails `setup`, which fails the launch. That is the honest
-/// outcome and the alternative was considered: starting with no store, letting
+/// outcome and the alternative was considered: starting with no library, letting
 /// every command answer with an error, and showing an empty list. A notes app
 /// that opens on an empty list invites the person to type into it, and
 /// silently dropping what they then write is worse than not starting - a crash
@@ -175,39 +168,9 @@ impl NotesStore {
 pub fn install(app: &tauri::App) -> std::result::Result<(), String> {
     let dir = crate::paths::data_dir(app)?;
     crate::fsx::make_dir(&dir)?;
-    let library = open_library(&dir)?;
+    let library = crate::library::open_and_move_in(&dir.join(crate::paths::LIBRARY), &dir)?;
     app.manage(NotesStore(Mutex::new(library)));
     Ok(())
-}
-
-/// Opens the library, and the first time, moves every note of the old
-/// database into it as a file. The old database is kept, renamed
-/// `glyph.sqlite.moved`, and only once every note is written out: a move that
-/// stops halfway (the app killed, the storage full) leaves the database where
-/// it was, and the next launch finishes it, because a note already in the
-/// library is never written twice.
-fn open_library(dir: &std::path::Path) -> std::result::Result<Library, String> {
-    // The library folder in the app's own storage (docs/LIBRARY.md, phase 1).
-    let mut library = Library::open_fs(&dir.join(crate::paths::LIBRARY)).map_err(|e| e.to_string())?;
-    let old = dir.join(DB_FILE);
-    if old.exists() && !library.moved_in() {
-        let store = Store::open(&old).map_err(|e| e.to_string())?;
-        match library.move_in(&store) {
-            Ok(moved) => {
-                drop(store);
-                library.mark_moved_in(DB_FILE, moved).map_err(|e| e.to_string())?;
-                for suffix in ["", "-wal", "-shm"] {
-                    let from = dir.join(format!("{DB_FILE}{suffix}"));
-                    if from.exists() {
-                        let _ = std::fs::rename(&from, dir.join(format!("{DB_FILE}.moved{suffix}")));
-                    }
-                }
-                eprintln!("[glyph] moved {moved} notes from {DB_FILE} into the library");
-            }
-            Err(e) => eprintln!("[glyph] the move into the library stopped, and will finish next launch: {e}"),
-        }
-    }
-    Ok(library)
 }
 
 /// Opens the notes' folder where the computer shows folders: Finder on a Mac (Matt: "add a browse local files button
@@ -291,18 +254,27 @@ pub fn delete_note(
     store: tauri::State<'_, NotesStore>,
     id: String,
 ) -> std::result::Result<bool, String> {
-    let mut store = store.lock();
+    let images = crate::paths::images_dir(&app).ok();
+    let recordings = crate::paths::recordings_dir(&app).ok();
+    delete_with_files(&store, images.as_deref(), recordings.as_deref(), &id)
+}
+
+/// `delete_note`'s work, given where pictures and recordings are kept (or
+/// `None` where the platform gave no directory, which leaves the files alone).
+fn delete_with_files(notes: &NotesStore, images: Option<&Path>, recordings: Option<&Path>, id: &str) -> std::result::Result<bool, String> {
+    let mut library = notes.lock();
     // The body is read before the row goes: it is the only list of the
     // pictures the note had. They go after it, so a failed delete never
     // leaves a note pointing at pictures that are gone, and one another note
-    // also shows (a copied line) is kept.
-    let body = store.get_note(&id).ok().flatten().map(|note| note.body);
-    let removed = store.delete_note(&id).map_err(|e| e.to_string())?;
-    if let Some(body) = body {
-        crate::images::remove_unreferenced(&app, &store, &body);
+    // also shows (a copied line) is kept. The lock is held for that check,
+    // which reads the index the delete has just changed.
+    let body = library.get_note(id).ok().flatten().map(|note| note.body);
+    let removed = library.delete_note(id).map_err(|e| e.to_string())?;
+    if let (Some(body), Some(images)) = (body, images) {
+        crate::images::remove_unreferenced(images, &library, &body);
     }
-    drop(store);
-    if let Some(file) = crate::paths::recordings_dir(&app).ok().and_then(|dir| recording_file(&dir, &id)) {
+    drop(library);
+    if let Some(file) = recordings.and_then(|dir| recording_file(dir, id)) {
         let _ = std::fs::remove_file(file);
     }
     Ok(removed)
@@ -348,15 +320,8 @@ pub fn sync_put_file(app: tauri::AppHandle, kind: String, name: String, base64: 
             crate::images::place(&images, &name, &base64)
         }
         "recording" => {
-            use base64::Engine as _;
-            let dir = crate::paths::recordings_dir(&app).map_err(|_| "There is no room to keep recordings.".to_string())?;
-            let file = recording_file(&dir, &name).ok_or_else(|| "That is not a note id.".to_string())?;
-            let bytes = base64::engine::general_purpose::STANDARD.decode(base64.trim()).map_err(|_| "That recording could not be read.".to_string())?;
-            if !bytes.starts_with(b"RIFF") {
-                return Err("That is not a recording Glyph can keep.".to_string());
-            }
-            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            crate::fsx::write_atomically(&file, &bytes).map_err(|e| format!("The recording could not be saved: {e}"))
+            let recordings = crate::paths::recordings_dir(&app).map_err(|_| "There is no room to keep recordings.".to_string())?;
+            crate::recordings::place(&recordings, &name, &base64)
         }
         _ => Err(format!("Nothing is kept as {kind}.")),
     }
@@ -384,3 +349,125 @@ pub fn set_note_archived(
     store.lock().set_archived(&id, archived).map_err(|e| e.to_string())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::TempDir;
+    use std::path::PathBuf;
+
+    /// A library, a pictures folder and a recordings folder, as a phone has
+    /// them. The library is closed before its folder goes: fields drop in order.
+    struct Phone {
+        notes: NotesStore,
+        root: TempDir,
+    }
+
+    impl Phone {
+        fn new() -> Phone {
+            let root = TempDir::new("commands");
+            let notes = NotesStore(Mutex::new(Library::open_fs(&root.join("Library")).unwrap()));
+            for dir in ["images", "recordings"] {
+                std::fs::create_dir_all(root.join(dir)).unwrap();
+            }
+            Phone { notes, root }
+        }
+
+        fn file(&self, path: &str) -> PathBuf {
+            self.root.join(path)
+        }
+
+        fn delete(&self, id: &str) -> Result<bool, String> {
+            delete_with_files(&self.notes, Some(&self.file("images")), Some(&self.file("recordings")), id)
+        }
+    }
+
+    #[test]
+    fn a_deleted_note_takes_its_pictures_and_recording_but_not_another_notes_picture() {
+        let phone = Phone::new();
+        for name in ["images/mine.jpg", "images/shared.png", "images/theirs.jpg", "recordings/n1.wav", "recordings/n2.wav"] {
+            std::fs::write(phone.file(name), b"bytes").unwrap();
+        }
+        {
+            let mut library = phone.notes.lock();
+            library.save_note("n1", "# Trip\n\n![](image/mine.jpg)\n![](image/shared.png)\n", "capture").unwrap();
+            library.save_note("n2", "# Other\n\n![](image/shared.png)\n![](image/theirs.jpg)\n", "capture").unwrap();
+        }
+        assert_eq!(phone.delete("n1"), Ok(true));
+        assert!(!phone.file("images/mine.jpg").exists(), "a picture only it showed goes with it");
+        assert!(phone.file("images/shared.png").exists(), "one another note still shows is kept");
+        assert!(!phone.file("recordings/n1.wav").exists(), "its recording goes too");
+        assert!(phone.file("recordings/n2.wav").exists() && phone.file("images/theirs.jpg").exists());
+        assert_eq!(phone.notes.lock().get_note("n1").unwrap(), None);
+        assert!(phone.notes.lock().get_note("n2").unwrap().is_some());
+    }
+
+    #[test]
+    fn deleting_a_note_already_gone_answers_false_and_still_clears_its_recording() {
+        let phone = Phone::new();
+        std::fs::write(phone.file("recordings/gone.wav"), b"bytes").unwrap();
+        assert_eq!(phone.delete("gone"), Ok(false), "a stale list's second tap is not an error");
+        assert!(!phone.file("recordings/gone.wav").exists(), "a recording no note can play is not left behind");
+    }
+
+    #[test]
+    fn an_id_that_cannot_name_a_file_removes_none() {
+        let phone = Phone::new();
+        // Where `recordings/../escape.wav` would land if the id were joined as it came.
+        std::fs::write(phone.file("escape.wav"), b"bytes").unwrap();
+        assert_eq!(phone.delete("../escape"), Ok(false));
+        assert!(phone.file("escape.wav").exists(), "nothing outside the recordings folder is touched");
+    }
+
+    #[test]
+    fn with_nowhere_to_keep_files_a_delete_still_deletes_the_note() {
+        let phone = Phone::new();
+        std::fs::write(phone.file("images/mine.jpg"), b"bytes").unwrap();
+        phone.notes.lock().save_note("n1", "![](image/mine.jpg)\n", "editor").unwrap();
+        assert_eq!(delete_with_files(&phone.notes, None, None, "n1"), Ok(true));
+        assert!(phone.file("images/mine.jpg").exists(), "no directory given, nothing removed from one");
+    }
+
+    fn request(kind: &str, before: Option<(i64, &str)>) -> ApplyCommandRequest {
+        ApplyCommandRequest {
+            mutation_id: "m1".into(),
+            note_id: "n1".into(),
+            kind: kind.into(),
+            before_revision: before.map(|(revision, _)| revision),
+            before_body: before.map(|(_, body)| body.to_string()),
+            after_body: "# To-Do\n\n- [ ] Wash dishes\n".into(),
+            source: "capture".into(),
+        }
+    }
+
+    #[test]
+    fn a_command_is_checked_whole_before_anything_is_written() {
+        let append = request("append", Some((3, "# To-Do\n"))).into_mutation().unwrap();
+        assert_eq!((append.id.as_str(), append.note_id.as_str(), append.before_revision), ("m1", "n1", Some(3)));
+        assert!(request("create", None).into_mutation().is_ok());
+        let refused = |request: ApplyCommandRequest| request.into_mutation().unwrap_err();
+        assert_eq!(refused(ApplyCommandRequest { note_id: "../n1".into(), ..request("create", None) }), "a command mutation needs plain bounded ids");
+        assert_eq!(refused(ApplyCommandRequest { mutation_id: String::new(), ..request("create", None) }), "a command mutation needs plain bounded ids");
+        assert_eq!(refused(ApplyCommandRequest { source: "model".into(), ..request("create", None) }), "a command mutation has an unsupported source");
+        assert_eq!(refused(request("replace", Some((1, "x")))), "only append and create command mutations are supported");
+        assert_eq!(refused(request("create", Some((1, "x")))), "a create command cannot replace an existing note");
+        assert_eq!(refused(request("append", None)), "an append command needs the previewed note revision");
+        // Half a preview is no preview, either way round.
+        let half = |revision: Option<i64>, body: Option<&str>, kind: &str| ApplyCommandRequest {
+            before_revision: revision,
+            before_body: body.map(str::to_string),
+            ..request(kind, None)
+        };
+        assert_eq!(refused(half(Some(1), None, "append")), "an append command needs the previewed note revision");
+        assert_eq!(refused(half(None, Some("# To-Do\n"), "append")), "an append command needs the previewed note revision");
+        assert_eq!(refused(half(Some(1), None, "create")), "a create command cannot replace an existing note");
+        assert_eq!(refused(half(None, Some("# To-Do\n"), "create")), "a create command cannot replace an existing note");
+    }
+
+    #[test]
+    fn the_page_cannot_send_a_command_with_more_than_the_request_names() {
+        let sent = r##"{"mutationId":"m1","noteId":"n1","kind":"create","beforeRevision":null,"beforeBody":null,"afterBody":"# Hi","source":"capture"}"##;
+        assert!(serde_json::from_str::<ApplyCommandRequest>(sent).is_ok());
+        let smuggled = sent.replace("\"source\"", "\"grammar\":\"root\",\"source\"");
+        assert!(serde_json::from_str::<ApplyCommandRequest>(&smuggled).is_err(), "deny_unknown_fields");
+    }
+}
