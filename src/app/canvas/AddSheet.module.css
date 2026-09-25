@@ -1,0 +1,57 @@
+/*
+ * The + sheet (canvas/AddSheet.tsx), in the note settings sheet's own shell (editor/NoteSettings.module.css): its
+ * second step, a field, and the notes it finds or the Add.
+ */
+.addField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-4);
+}
+
+.addInput {
+  inline-size: 100%;
+  box-sizing: border-box;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md);
+  background: transparent;
+  color: var(--app-ink, var(--glacier-text));
+  font: inherit;
+}
+
+.addGo {
+  align-self: flex-end;
+}
+
+.addList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-block-size: 40vh;
+  overflow-y: auto;
+}
+
+.addRow {
+  appearance: none;
+  display: block;
+  inline-size: 100%;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: none;
+  border-radius: var(--glacier-radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.addRow:hover {
+  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
+}
+
+.addNone {
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  color: var(--glacier-text-subtle);
+  font-size: var(--glacier-font-size-sm);
+}
