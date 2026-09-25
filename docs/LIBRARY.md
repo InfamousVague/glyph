@@ -83,7 +83,8 @@ Friday, all hands.
 
 ### Front matter: YAML, as Obsidian's Properties write it
 
-The library writes these keys, and only these (`src-tauri/src/library/frontmatter.rs`):
+The library writes these keys, and only these (`src-tauri/src/library/mod.rs`: a note's first save, `stamp`,
+`set_starred` and `set_archived`; `src-tauri/src/library/frontmatter.rs` reads and writes the block):
 
 | Key | Meaning | Written when |
 | --- | --- | --- |
@@ -107,8 +108,9 @@ note a book (docs/BOOKS.md); and `authors:`, the names a note was written by, th
 with two blocks, the library's and then the page's, and an app that reads only the first shows the second as text.
 
 Keys for a note's tags, its Notion board and its GitHub repo (`tags`, `notion-board`, `project`) are phase 4. The
-reader and writer handle them, and a test round-trips them, but nothing writes them yet: a note's links are kept by
-their plugins (docs/PLUGINS.md). When they are written, plugin keys are to be flat (`notion-board`, not nested), so
+reader and writer take any top-level key, and a test in `src-tauri/src/library/frontmatter.rs` reads and writes
+`tags` and writes `notion-board`; nothing tests `project`. Nothing in the app writes any of the three yet: a note's
+links are kept by their plugins (docs/PLUGINS.md). When they are written, plugin keys are to be flat (`notion-board`, not nested), so
 Obsidian's Properties panel can show and edit them.
 
 ### The body: GitHub-flavoured Markdown
