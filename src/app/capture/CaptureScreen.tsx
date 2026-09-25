@@ -605,8 +605,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
     return result.note;
   };
+  /** Cancel tapped on the card: a no, as a spoken one is. */
   const cancelPending = (why: string | null) => {
-    take.cancel(why, performance.now());
+    take.cancel(why, performance.now(), 'declined');
     const final = finalCommand.current;
     if (!final) return;
     finalCommand.current = null;

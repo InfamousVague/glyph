@@ -220,10 +220,15 @@ export class Take<N extends TakeNote> {
     }
   }
 
-  /** No, or no answer: nothing happens, and the chip says so. */
-  cancel(why: string | null, now: number): void {
+  /**
+   * No, or no answer: nothing happens, and the chip says `why` when there is one. `outcome` is what the review's
+   * check of commands is told: that the person said no, or that nobody answered. It is its own argument because the
+   * two do not follow from whether there is a reason to show - a question that timed out has one, and a tapped Cancel
+   * has none - and taking one from the other logged each as the other.
+   */
+  cancel(why: string | null, now: number, outcome: 'declined' | 'dropped' = why ? 'declined' : 'dropped'): void {
     if (!this.pending) return;
-    this.host.log(describeOffer(this.pending.offer, why ? 'declined' : 'dropped'));
+    this.host.log(describeOffer(this.pending.offer, outcome));
     this.setPending(null, now);
     if (why) this.host.route({ phase: 'said', text: why });
   }
@@ -624,7 +629,7 @@ export class Take<N extends TakeNote> {
       this.host.route({ phase: 'said', text: `Nothing said for ${wait.plan.note.title}, so nothing was added.` });
     }
     const held = this.pending;
-    if (held && now - held.at > TAKE_TIMING.confirmMs) this.cancel('Not done. Say “yes” or tap to confirm a command.', now);
+    if (held && now - held.at > TAKE_TIMING.confirmMs) this.cancel('Not done. Say “yes” or tap to confirm a command.', now, 'dropped');
   }
 
   /** The take is ending: a memo still open is closed, and a command that never came gives its words back. */
