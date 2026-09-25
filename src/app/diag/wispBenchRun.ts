@@ -1,6 +1,6 @@
 import type { WispDraw } from '../art/wispMask.ts';
 import { isTauri } from '../core/tauri.ts';
-import { engineName, ms, type CellLimits, type Reading } from '../diag/frameClock.ts';
+import { engineName, ms, type CellLimits, type Reading } from './frameClock.ts';
 
 /**
  * The smoke bench's plain parts (WispBench.tsx): what it can draw, how it drives a surface, and how it says what it

@@ -4,11 +4,11 @@ import { Switch } from '@glacier/react';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { resetLocalData } from '../core/reset.ts';
+import { WispBench } from '../diag/WispBench.tsx';
+import { windowFacts } from '../diag/windowFacts.ts';
 import { GUIDE_MODEL_PAGE } from '../guide/pages.ts';
 import { setDeveloperMode, useDeveloperMode } from './developerMode.ts';
 import { PaneSection, RowAction, SettingRow } from './kit/settingsKit.tsx';
-import { WispBench } from './WispBench.tsx';
-import { windowFacts } from './windowFacts.ts';
 
 /**
  * The developer page, present only while developer mode is on (seven presses on the version in About): the welcome
@@ -53,7 +53,7 @@ export function DeveloperPane({ onGuide }: { onGuide: (page?: number) => void })
   );
 }
 
-/** What the window is (windowFacts.ts), read again whenever it changes size. */
+/** What the window is (diag/windowFacts.ts), read again whenever it changes size. */
 function WindowFacts() {
   const [facts, setFacts] = useState(windowFacts);
   useEffect(() => {

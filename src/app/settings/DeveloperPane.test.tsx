@@ -14,7 +14,7 @@ const { setDeveloperMode } = await import('./developerMode.ts');
 
 /**
  * The developer page: the resets that take two taps, and the switch that hides the page again. What the window facts
- * read is windowFacts.test.ts, and the smoke bench is WispBench.test.tsx.
+ * read is diag/windowFacts.test.ts, and the smoke bench is diag/WispBench.test.tsx.
  */
 
 /** The reset row that says `label`, and the word on its button. */
