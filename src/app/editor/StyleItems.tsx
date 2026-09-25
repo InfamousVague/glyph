@@ -5,7 +5,7 @@ import { fireNativeHaptic } from '../core/haptics.ts';
 import { useRedraw } from '../core/useRedraw.ts';
 import { plugins } from '../plugins/registry.ts';
 import { activeBlock, activeMarks, activeWraps, insertLink, insertRule, insertTable, toggleBlock, toggleMark, toggleWrap, type Block, type Mark } from './format.ts';
-import { MenuWord, type MenuIcon } from './MenuBand.tsx';
+import { MenuItem, MenuWord, type MenuIcon } from './MenuBand.tsx';
 import styles from './ContextMenu.module.css';
 
 /**
@@ -66,9 +66,7 @@ export function StyleItems({ view, onBack, onClose }: { view: EditorView; onBack
     .flatMap((plugin) => (plugin.formats ?? []).map((format) => ({ format, icon: ((format.icon ?? plugin.icon) as MenuIcon | undefined) ?? Type })));
   return (
     <>
-      <button type="button" role="menuitem" className={styles.item} onClick={onBack} aria-label="Back to the note's actions">
-        <MenuWord icon={ChevronLeft} label="Back" />
-      </button>
+      <MenuItem icon={ChevronLeft} label="Back" onPress={onBack} name="Back to the note's actions" />
       {MARKS.map(({ mark, icon, label }, i) => (
         <StyleItem key={mark} icon={icon} label={label} i={i} lit={activeMarks(state).includes(mark)} onClick={style((target) => toggleMark(target, mark))} />
       ))}

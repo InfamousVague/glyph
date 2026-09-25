@@ -3,7 +3,7 @@ import styles from './ContextMenu.module.css';
 
 /**
  * The pieces the press-and-hold menu is drawn from, its actions and its Style page alike (editor/ContextMenu.tsx,
- * editor/StyleMenu.tsx): a band that scrolls sideways, and a word under its drawn icon.
+ * editor/StyleItems.tsx): a band that scrolls sideways, a word under its drawn icon, and the row that presses it.
  *
  * Each word stands under its icon, in display weight, the same hand as a linked line's drawer (editor/MarkMenu.tsx).
  * Matt: "make the options typography and iconography heavy so they fit the theme on all context menus".
@@ -19,6 +19,18 @@ export function MenuWord({ icon: Icon, label }: { icon: MenuIcon; label: string 
       <Icon size={20} strokeWidth={2.1} />
       <span className={styles.word}>{label}</span>
     </>
+  );
+}
+
+/**
+ * One of the menu's rows: a word under its icon, pressed. `name` is its accessible name where the word alone would not
+ * say what it does.
+ */
+export function MenuItem({ icon, label, onPress, name }: { icon: MenuIcon; label: string; onPress: () => void; name?: string }) {
+  return (
+    <button type="button" role="menuitem" className={styles.item} onClick={onPress} aria-label={name}>
+      <MenuWord icon={icon} label={label} />
+    </button>
   );
 }
 

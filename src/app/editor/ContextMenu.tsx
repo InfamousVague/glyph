@@ -7,9 +7,9 @@ import { itemWords } from '../core/itemLinks.ts';
 import { deleteSelection, duplicateSelection, moveLines } from './format.ts';
 import { boardMadeWords, boardOffers, joinBoard, makeListBoard, selectBoard } from './boardActions.ts';
 import { clipboardReadable, readClipboard, writeClipboard, type Clipboard } from './clipboard.ts';
-import { MenuBand, MenuWord } from './MenuBand.tsx';
+import { MenuBand, MenuItem } from './MenuBand.tsx';
 import { usePressAndHold, type Held } from './pressAndHold.ts';
-import { StyleItems } from './StyleMenu.tsx';
+import { StyleItems } from './StyleItems.tsx';
 import styles from './ContextMenu.module.css';
 
 /**
@@ -24,7 +24,7 @@ import styles from './ContextMenu.module.css';
  * Reading the clipboard is the one thing the page cannot do here (editor/clipboard.ts), so Paste appears only where
  * the activity answers `GlyphHost.readClipboard` or the browser can read; the keyboard's own paste works either way.
  *
- * Style turns the menu over to the formatting, in the same band (editor/StyleMenu.tsx).
+ * Style turns the menu over to the formatting, in the same band (editor/StyleItems.tsx).
  *
  * The menu's own pointerdown is prevented, so a press on it never takes the editor's focus or the selection the action
  * is about. Every action closes the menu before it runs and gives the editor its focus back after. It goes on a touch
@@ -109,11 +109,14 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
   const selected = from !== to;
   const text = () => view.state.sliceDoc(from, to);
 
-  const act = (what: () => void | Promise<void>) => async () => {
-    fireNativeHaptic('selection');
-    close();
-    await what();
-    view.focus();
+  /** A row's press: the menu closed first, then the action, then the editor's focus back. */
+  const act = (what: () => void | Promise<void>) => () => {
+    void (async () => {
+      fireNativeHaptic('selection');
+      close();
+      await what();
+      view.focus();
+    })();
   };
 
   const copy = () => writeClipboard(text());
@@ -203,85 +206,41 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
           <>
             {selected ? (
               <>
-                <button type="button" role="menuitem" className={styles.item} onClick={() => void act(cut)()}>
-                  <MenuWord icon={Scissors} label="Cut" />
-                </button>
-                <button type="button" role="menuitem" className={styles.item} onClick={() => void act(copy)()}>
-                  <MenuWord icon={Copy} label="Copy" />
-                </button>
+                <MenuItem icon={Scissors} label="Cut" onPress={act(cut)} />
+                <MenuItem icon={Copy} label="Copy" onPress={act(copy)} />
               </>
             ) : null}
-            {pasteable ? (
-              <button type="button" role="menuitem" className={styles.item} onClick={() => void act(paste)()}>
-                <MenuWord icon={ClipboardPaste} label="Paste" />
-              </button>
-            ) : null}
+            {pasteable ? <MenuItem icon={ClipboardPaste} label="Paste" onPress={act(paste)} /> : null}
             {/* A board is drawn as columns, so it cannot be dragged over: this takes the whole of it at once. */}
-            {board ? (
-              <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => writeClipboard(board))()}>
-                <MenuWord icon={Copy} label="Copy board" />
-              </button>
-            ) : null}
+            {board ? <MenuItem icon={Copy} label="Copy board" onPress={act(() => writeClipboard(board))} /> : null}
             {selected && onFind && to - from <= 120 ? (
-              <button
-                type="button"
-                role="menuitem"
-                className={styles.item}
-                onClick={() => {
+              <MenuItem
+                icon={TextSearch}
+                label="Find"
+                onPress={() => {
                   fireNativeHaptic('selection');
                   close();
                   onFind(text());
                 }}
-              >
-                <MenuWord icon={TextSearch} label="Find" />
-              </button>
+              />
             ) : null}
-            <button type="button" role="menuitem" className={styles.item} onClick={() => void act(selectAll)()}>
-              <MenuWord icon={TextSelect} label="Select all" />
-            </button>
-            <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole(duplicateSelection))()}>
-              <MenuWord icon={CopyPlus} label="Duplicate" />
-            </button>
-            <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole(deleteSelection))()}>
-              <MenuWord icon={Trash2} label="Delete" />
-            </button>
-            <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole((target) => moveLines(target, -1)))()}>
-              <MenuWord icon={ArrowUpToLine} label="Move up" />
-            </button>
-            <button type="button" role="menuitem" className={styles.item} onClick={() => void act(whole((target) => moveLines(target, 1)))()}>
-              <MenuWord icon={ArrowDownToLine} label="Move down" />
-            </button>
-            {boards.joinable ? (
-              <button type="button" role="menuitem" className={styles.item} onClick={() => void act(putOnBoard)()}>
-                <MenuWord icon={LayoutGrid} label="Add to board" />
-              </button>
-            ) : null}
-            {boards.list ? (
-              <button type="button" role="menuitem" className={styles.item} onClick={() => void act(listToBoard)()}>
-                <MenuWord icon={SquareKanban} label="Board from list" />
-              </button>
-            ) : null}
-            {send && lineWords ? (
-              <button type="button" role="menuitem" className={styles.item} onClick={() => void act(() => send.run(lineWords))()}>
-                <MenuWord icon={Link} label={send.label} />
-              </button>
-            ) : null}
-            <button
-              type="button"
-              role="menuitem"
-              className={styles.item}
-              onClick={() => {
+            <MenuItem icon={TextSelect} label="Select all" onPress={act(selectAll)} />
+            <MenuItem icon={CopyPlus} label="Duplicate" onPress={act(whole(duplicateSelection))} />
+            <MenuItem icon={Trash2} label="Delete" onPress={act(whole(deleteSelection))} />
+            <MenuItem icon={ArrowUpToLine} label="Move up" onPress={act(whole((target) => moveLines(target, -1)))} />
+            <MenuItem icon={ArrowDownToLine} label="Move down" onPress={act(whole((target) => moveLines(target, 1)))} />
+            {boards.joinable ? <MenuItem icon={LayoutGrid} label="Add to board" onPress={act(putOnBoard)} /> : null}
+            {boards.list ? <MenuItem icon={SquareKanban} label="Board from list" onPress={act(listToBoard)} /> : null}
+            {send && lineWords ? <MenuItem icon={Link} label={send.label} onPress={act(() => send.run(lineWords))} /> : null}
+            <MenuItem
+              icon={Type}
+              label="Style"
+              onPress={() => {
                 fireNativeHaptic('selection');
                 setStyling(true);
               }}
-            >
-              <MenuWord icon={Type} label="Style" />
-            </button>
-            {onAddImage ? (
-              <button type="button" role="menuitem" className={styles.item} onClick={() => void act(onAddImage)()}>
-                <MenuWord icon={ImagePlus} label="Add image" />
-              </button>
-            ) : null}
+            />
+            {onAddImage ? <MenuItem icon={ImagePlus} label="Add image" onPress={act(onAddImage)} /> : null}
           </>
         )}
       </MenuBand>
