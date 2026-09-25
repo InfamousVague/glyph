@@ -5,7 +5,10 @@ import styles from './Byline.module.css';
  * Who wrote a note, a book, or a shared page (core/authors.ts): each author's mark, then their names, "By matt and
  * Claude". A person is their initial in a ring. An AI the app knows draws its sign - a spark, the same for every AI,
  * so the byline reads "a person and an AI" at a glance - and one it doesn't know, its initial. Nothing is drawn for a
- * note with no authors, which is the person's own.
+ * note with no authors, which is the person's own. Everyone is named, but no more than four marks are drawn: a fifth
+ * author has a name and no ring, so the row of marks stays the size of a word.
+ *
+ * Drawn by the note (editor/NoteScreen.tsx), a book's index (book/BookView.tsx) and a shared page (src/read/Reader.tsx).
  */
 export function Byline({ authors, className }: { authors: readonly string[]; className?: string }) {
   if (!authors.length) return null;
@@ -22,7 +25,7 @@ export function Byline({ authors, className }: { authors: readonly string[]; cla
 }
 
 /** One author's mark: an AI's spark, or a person's initial, in a ring. */
-export function AuthorMark({ name }: { name: string }) {
+function AuthorMark({ name }: { name: string }) {
   const ai = isKnownAi(name);
   return (
     <span className={styles.mark} data-ai={ai || undefined} title={name}>
