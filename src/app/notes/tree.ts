@@ -1,3 +1,4 @@
+import { readStored, readStoredText, writeStored, writeStoredText } from '../core/stored.ts';
 import { archiveOrder, listOrder, type Note } from '../core/store.ts';
 import type { Workspace } from '../core/workspaces.ts';
 
@@ -48,22 +49,12 @@ export const ARCHIVE_FOLDER = 'archive';
 const KEY = 'glyph-tree-closed';
 
 export function readClosed(): Set<string> {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw === null) return new Set([ARCHIVE_FOLDER]);
-    const parsed: unknown = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [ARCHIVE_FOLDER]);
-  } catch {
-    return new Set([ARCHIVE_FOLDER]);
-  }
+  return new Set(readStored<string[]>(KEY, [ARCHIVE_FOLDER], (parsed) => (Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : null)));
 }
 
+/** In private mode, the sidebar just opens as it was for this run. */
 export function writeClosed(closed: ReadonlySet<string>): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify([...closed]));
-  } catch {
-    // Private mode: the sidebar just opens as it was for this run.
-  }
+  writeStored(KEY, [...closed]);
 }
 
 /**
@@ -73,36 +64,22 @@ export function writeClosed(closed: ReadonlySet<string>): void {
 const TRASH_KEY = 'glyph-tree-trash-open';
 
 export function readTrashOpen(): boolean {
-  try {
-    return localStorage.getItem(TRASH_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return readStoredText(TRASH_KEY) === '1';
 }
 
+/** In private mode, it opens shut next time. */
 export function writeTrashOpen(open: boolean): void {
-  try {
-    localStorage.setItem(TRASH_KEY, open ? '1' : '0');
-  } catch {
-    // Private mode: it opens shut next time.
-  }
+  writeStoredText(TRASH_KEY, open ? '1' : '0');
 }
 
 /** Whether the sidebar lists names only (notes/NoteTree.tsx), per device, and not until asked. */
 const COMPACT_KEY = 'glyph-tree-compact';
 
 export function readCompact(): boolean {
-  try {
-    return localStorage.getItem(COMPACT_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return readStoredText(COMPACT_KEY) === '1';
 }
 
+/** In private mode, names only for this run. */
 export function writeCompact(on: boolean): void {
-  try {
-    localStorage.setItem(COMPACT_KEY, on ? '1' : '0');
-  } catch {
-    // Private mode: names only for this run.
-  }
+  writeStoredText(COMPACT_KEY, on ? '1' : '0');
 }

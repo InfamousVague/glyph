@@ -3,6 +3,7 @@ import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, typ
 import { wispFoot, wispFootFade } from '../art/wispFoot.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { markOf, unmarked } from '../core/itemLinks.ts';
+import { readStored, writeStored } from '../core/stored.ts';
 import {
   BOARD_HEIGHT,
   boardsIn,
@@ -708,15 +709,9 @@ function remember(wrap: HTMLElement, board: HTMLElement): void {
 function allHeights(): Map<string, number> {
   if (heights) return heights;
   heights = new Map();
-  try {
-    const value = JSON.parse(localStorage.getItem(HEIGHTS_KEY) ?? '[]') as unknown;
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'number') heights.set(entry[0], entry[1]);
-      }
-    }
-  } catch {
-    // No storage: boards are guessed at until they are drawn.
+  // No storage: boards are guessed at until they are drawn.
+  for (const entry of readStored<unknown[]>(HEIGHTS_KEY, [], (value) => (Array.isArray(value) ? value : null))) {
+    if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'number') heights.set(entry[0], entry[1]);
   }
   return heights;
 }
@@ -740,11 +735,8 @@ export function keepHeight(face: string, height: number): void {
   if (heightsSaving || typeof window === 'undefined') return;
   heightsSaving = window.setTimeout(() => {
     heightsSaving = 0;
-    try {
-      localStorage.setItem(HEIGHTS_KEY, JSON.stringify([...all]));
-    } catch {
-      // No storage: remembered for as long as the app is open.
-    }
+    // No storage: remembered for as long as the app is open.
+    writeStored(HEIGHTS_KEY, [...all]);
   }, 500);
 }
 

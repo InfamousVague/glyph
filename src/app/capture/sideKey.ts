@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 
 /**
@@ -39,22 +40,14 @@ export function knownHeight(phone: string | null | undefined, maker: string | nu
 
 /** The Developer setting's height, if one was set. */
 export function savedHeight(): number | null {
-  try {
-    const raw = localStorage.getItem(KEY);
-    const value = raw === null ? NaN : Number(raw);
-    return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null;
-  } catch {
-    return null;
-  }
+  const raw = readStoredText(KEY);
+  const value = raw === null ? NaN : Number(raw);
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null;
 }
 
+/** In a private window or with storage blocked, the setting just does not stick. */
 export function saveHeight(value: number | null): void {
-  try {
-    if (value === null) localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, String(Math.min(1, Math.max(0, value))));
-  } catch {
-    // A private window or blocked storage: the setting just does not stick.
-  }
+  writeStoredText(KEY, value === null ? null : String(Math.min(1, Math.max(0, value))));
 }
 
 /**

@@ -85,9 +85,10 @@ export function readStoredShared<T>(key: string, fallback: T, parse?: (raw: unkn
   try {
     const raw: unknown = JSON.parse(text);
     const value = parse ? parse(raw) : (raw as T);
-    if (value === null) return fallback;
+    // A shape `parse` will not have is not kept, so the next read looks again; without `parse` a JSON null is a value.
+    if (parse && value == null) return fallback;
     parsed.set(key, { text, value });
-    return value;
+    return value as T;
   } catch {
     // Not JSON, or not a shape `parse` would have: the same as nothing kept.
     return fallback;

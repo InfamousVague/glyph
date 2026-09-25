@@ -1,5 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { useEffect, type RefObject } from 'react';
+import { readStoredText, writeStoredText } from '../core/stored.ts';
 
 /**
  * Pinch a note's text larger or smaller (Matt: "add pinch to zoom text larger and smaller on notes").
@@ -19,21 +20,13 @@ export function clampZoom(zoom: number): number {
 }
 
 export function readZoom(): number {
-  try {
-    const stored = Number(localStorage.getItem(KEY));
-    return stored ? clampZoom(stored) : 1;
-  } catch {
-    return 1;
-  }
+  const stored = Number(readStoredText(KEY));
+  return stored ? clampZoom(stored) : 1;
 }
 
+/** Not kept, the size holds for this note until it closes. */
 function writeZoom(zoom: number): void {
-  try {
-    if (Math.abs(zoom - 1) < 0.02) localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, zoom.toFixed(3));
-  } catch {
-    // The size holds for this note until it closes.
-  }
+  writeStoredText(KEY, Math.abs(zoom - 1) < 0.02 ? null : zoom.toFixed(3));
 }
 
 /** The zoom for fingers now `distance` apart, pinched from `startDistance` at `startZoom`. */

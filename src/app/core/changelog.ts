@@ -1,4 +1,5 @@
 import { describeBuild } from './ota.ts';
+import { readStored, writeStored } from './stored.ts';
 import { isTauri } from './tauri.ts';
 
 /**
@@ -62,19 +63,12 @@ export function changelogUrl(sources: readonly string[] | undefined, onPhone = i
 
 /** What was read last time, for a page opened with no signal. */
 export function keptReleases(): Release[] {
-  try {
-    return readReleases(JSON.parse(localStorage.getItem(KEY) ?? '[]'));
-  } catch {
-    return [];
-  }
+  return readStored(KEY, [], readReleases);
 }
 
+/** Not kept, the page shows what it fetched, and next time it reads it again. */
 function keep(releases: readonly Release[]): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(releases.slice(0, 60)));
-  } catch {
-    // The page shows what it fetched; next time it reads it again.
-  }
+  writeStored(KEY, releases.slice(0, 60));
 }
 
 /** Reads the changelog from the update source. Answers what was kept when it cannot be reached. */

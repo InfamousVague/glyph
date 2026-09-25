@@ -1,3 +1,5 @@
+import { readStored, writeStored } from './stored.ts';
+
 /**
  * A voice memo left in a note: a stretch of the note's own tape, written where it was spoken.
  *
@@ -82,12 +84,9 @@ export function playsOn(clip: Clip, tape: string | null): boolean {
 const TAPES_KEY = 'glyph-tape-ids';
 
 function tapes(): Record<string, string> {
-  try {
-    const value = JSON.parse(localStorage.getItem(TAPES_KEY) ?? '{}') as unknown;
-    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
+  return readStored<Record<string, string>>(TAPES_KEY, {}, (value) =>
+    value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, string>) : {},
+  );
 }
 
 /** The id of the tape `noteId` holds now, or null: the note has none, or its recording is from before ids. */
@@ -97,14 +96,11 @@ export function tapeId(noteId: string): string | null {
 
 /** Names the tape `noteId` holds now. A fresh recording takes a new id; a take appended to one keeps it. */
 export function setTapeId(noteId: string, id: string | null): void {
-  try {
-    const all = tapes();
-    if (id) all[noteId] = id;
-    else delete all[noteId];
-    localStorage.setItem(TAPES_KEY, JSON.stringify(all));
-  } catch {
-    // Without storage a clip plays while the note has a recording, as one from before ids does.
-  }
+  const all = tapes();
+  if (id) all[noteId] = id;
+  else delete all[noteId];
+  // Without storage a clip plays while the note has a recording, as one from before ids does.
+  writeStored(TAPES_KEY, all);
 }
 
 /** An id for a tape starting now: short, and only ever compared with itself. */

@@ -1,3 +1,4 @@
+import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { GUIDE_PAGES } from './pages.ts';
 
 /**
@@ -17,50 +18,34 @@ import { GUIDE_PAGES } from './pages.ts';
  * the page it was last on. Both go when the guide is finished.
  */
 
+// With no storage, a relaunch cannot be told from a first launch, and the guide simply shows.
 const STARTED = 'glyph-guide-started';
 const PAGE = 'glyph-guide-page';
 
 /** The first page that expects the side key. Pages before it are reading. */
 const SIDE_KEY_PAGE = GUIDE_PAGES.indexOf('sidekey');
 
-function get(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function set(key: string, value: string | null): void {
-  try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
-  } catch {
-    // No storage: a relaunch cannot be told from a first launch, and the guide simply shows.
-  }
-}
-
 /** The guide is on screen for the first time. */
 export function markGuideStarted(): void {
-  set(STARTED, '1');
-  if (get(PAGE) === null) set(PAGE, '0');
+  writeStoredText(STARTED, '1');
+  if (readStoredText(PAGE) === null) writeStoredText(PAGE, '0');
 }
 
 /** The page the guide is showing, kept so a relaunch knows how far the reader got. */
 export function rememberGuidePage(index: number): void {
-  set(PAGE, String(Math.max(0, index)));
+  writeStoredText(PAGE, String(Math.max(0, index)));
 }
 
 /** The guide was finished (or skipped): nothing left to come back to. */
 export function clearGuideProgress(): void {
-  set(STARTED, null);
-  set(PAGE, null);
+  writeStoredText(STARTED, null);
+  writeStoredText(PAGE, null);
 }
 
 /** The page the guide was last on, or -1 when it was never started. */
 export function guidePageLeftAt(): number {
-  if (get(STARTED) !== '1') return -1;
-  const page = Number(get(PAGE) ?? '0');
+  if (readStoredText(STARTED) !== '1') return -1;
+  const page = Number(readStoredText(PAGE) ?? '0');
   return Number.isFinite(page) && page >= 0 ? Math.floor(page) : 0;
 }
 

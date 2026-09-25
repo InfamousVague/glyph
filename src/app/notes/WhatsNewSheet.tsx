@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
 import { fetchReleases, releasesSince, releaseWhen, type Release } from '../core/changelog.ts';
+import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { SheetGroup, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import sheet from '../editor/NoteSettings.module.css';
 import { useSheetDrag } from '../editor/sheetDrag.ts';
@@ -22,19 +23,12 @@ const DELAY_MS = 1_500;
 const BUILD = /^\d{14}$/;
 
 function readSeen(): string | null {
-  try {
-    return localStorage.getItem(SEEN_KEY);
-  } catch {
-    return null;
-  }
+  return readStoredText(SEEN_KEY);
 }
 
+/** Not kept, it is shown again next launch at worst. */
 function writeSeen(build: string): void {
-  try {
-    localStorage.setItem(SEEN_KEY, build);
-  } catch {
-    // Shown again next launch at worst.
-  }
+  writeStoredText(SEEN_KEY, build);
 }
 
 export function WhatsNewSheet({ sources, hold }: { sources: readonly string[] | undefined; hold: boolean }) {

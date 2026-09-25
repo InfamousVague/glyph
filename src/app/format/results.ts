@@ -1,3 +1,4 @@
+import { readStoredShared, writeStored } from '../core/stored.ts';
 import { getNote, setNoteFormatted } from '../core/store.ts';
 import type { Kept } from './formatter.ts';
 import type { Mode } from './modes.ts';
@@ -24,31 +25,18 @@ type Kind = Exclude<Mode, 'format'> | 'gist';
 type Sheet = Record<string, Partial<Record<Kind, Stored>>>;
 
 /**
- * The sheet as last parsed, with the text it came from: the home page reads a gist for every card it draws, and each
- * read was the whole sheet parsed again (measured: 24 parses to show the home page once). A read asks for the text,
- * which cannot be stale, and parses only when it has changed. What it answers is shared: a writer copies it first.
+ * The sheet, read shared (core/stored.ts `readStoredShared`): the home page reads a gist for every card it draws, and
+ * each read was the whole sheet parsed again (measured: 24 parses to show the home page once). A read asks for the
+ * text, which cannot be stale, and parses only when it has changed. What it answers is shared: a writer copies it
+ * first.
  */
-let parsedSheet: { raw: string; sheet: Sheet } | null = null;
-
 function readSheet(): Sheet {
-  try {
-    const raw = localStorage.getItem(KEY) ?? '{}';
-    if (parsedSheet && parsedSheet.raw === raw) return parsedSheet.sheet;
-    const value = JSON.parse(raw) as unknown;
-    const sheet = value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {};
-    parsedSheet = { raw, sheet };
-    return sheet;
-  } catch {
-    return {};
-  }
+  return readStoredShared<Sheet>(KEY, {}, (value) => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {}));
 }
 
+/** No storage: the text stays on screen for now and is written again next time. */
 function writeSheet(sheet: Sheet): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(sheet));
-  } catch {
-    // No storage: the text stays on screen for now and is written again next time.
-  }
+  writeStored(KEY, sheet);
 }
 
 /** The kept text for a note in a mode, or null when nothing is kept. */

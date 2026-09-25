@@ -1,5 +1,6 @@
 import { bookIndex, chaptersOf, isBookBody, type BookPlace } from '../book/book.ts';
 import { chapterOf } from '../book/chapterNumber.ts';
+import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 import { wikiLinksIn } from '../editor/wikiLinks.ts';
 
@@ -85,17 +86,10 @@ function keyOf(title: string): string {
 const SHOWN_KEY = 'glyph-aside-shown';
 
 export function readAsideShown(): boolean {
-  try {
-    return localStorage.getItem(SHOWN_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return readStoredText(SHOWN_KEY) === '1';
 }
 
+/** Not kept, it opens hidden next time. */
 export function writeAsideShown(shown: boolean): void {
-  try {
-    localStorage.setItem(SHOWN_KEY, shown ? '1' : '0');
-  } catch {
-    // Not kept: it opens hidden next time.
-  }
+  writeStoredText(SHOWN_KEY, shown ? '1' : '0');
 }
