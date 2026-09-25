@@ -24,7 +24,7 @@ mod prefs;
 mod recordings;
 mod shares;
 
-pub use notes::{NoteRow, WriteError};
+pub use notes::NoteRow;
 pub use shares::ShareWrite;
 
 use rusqlite::{params, Connection, OptionalExtension, Params, Row};
@@ -100,6 +100,30 @@ CREATE TABLE IF NOT EXISTS recordings (
     PRIMARY KEY (account_id, id)
 );
 "#;
+
+/// Why a write made from a revision did not happen: the one stored had moved on, and `W` is what won - a note, the
+/// settings (none when the base names settings never stored) or a recording's revision - or something below the
+/// rules failed. Notes, settings and recordings all answer with it, and sync.rs turns `Stale` into a 409 carrying the
+/// winner, so a device can merge and try again rather than guess what it collided with.
+#[derive(Debug, PartialEq, Eq)]
+pub enum WriteError<W> {
+    Stale(W),
+    Failed,
+}
+
+/// A query that failed is the write failing; which query, the device cannot act on.
+impl<W> From<rusqlite::Error> for WriteError<W> {
+    fn from(_: rusqlite::Error) -> Self {
+        WriteError::Failed
+    }
+}
+
+/// So is a recording's file that could not be written or put in place.
+impl<W> From<std::io::Error> for WriteError<W> {
+    fn from(_: std::io::Error) -> Self {
+        WriteError::Failed
+    }
+}
 
 /// The accounts database: one connection, and the folder recordings are kept in beside it.
 pub struct Store {

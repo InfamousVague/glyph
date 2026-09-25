@@ -6,7 +6,7 @@
 //! the same route and are kept the same way (docs/SYNC.md, an `i-<ext>-<stem>` id). Renaming either would need a
 //! migration the schema has no path for (store.rs says why), so the name stays and this says what it holds.
 
-use super::Store;
+use super::{Store, WriteError};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::PathBuf;
 
@@ -20,32 +20,32 @@ impl Store {
         conn.query_row("SELECT rev FROM recordings WHERE account_id = ?1 AND id = ?2", params![account, id], |r| r.get(0)).optional()
     }
 
-    /// Stores a recording written from `base`. The bytes go to a side file and are renamed into place only once the
-    /// row is ready, so a reader never gets half a recording.
-    pub fn put_recording(&self, account: i64, id: &str, base: i64, bytes: &[u8], now: i64) -> Result<i64, Option<i64>> {
+    /// Stores a recording written from `base`, or refuses it with the stored revision when that has moved on; one the
+    /// service has never seen is taken whatever its base. The bytes go to a side file and are renamed into place only
+    /// once the row is ready, so a reader never gets half a recording.
+    pub fn put_recording(&self, account: i64, id: &str, base: i64, bytes: &[u8], now: i64) -> Result<i64, WriteError<i64>> {
         let dir = self.recordings.join(account.to_string());
-        std::fs::create_dir_all(&dir).map_err(|_| None)?;
+        std::fs::create_dir_all(&dir)?;
         let dest = self.recording_path(account, id);
         let part = dest.with_extension("part");
-        std::fs::write(&part, bytes).map_err(|_| None)?;
+        std::fs::write(&part, bytes)?;
         let mut conn = self.lock();
-        let tx = conn.transaction().map_err(|_| None)?;
-        let current = Self::recording_rev_in(&tx, account, id).map_err(|_| None)?;
+        let tx = conn.transaction()?;
+        let current = Self::recording_rev_in(&tx, account, id)?;
         if let Some(stored) = current {
             if stored != base {
                 let _ = std::fs::remove_file(&part);
-                return Err(Some(stored));
+                return Err(WriteError::Stale(stored));
             }
         }
-        let rev = Self::next_rev(&tx, account).map_err(|_| None)?;
+        let rev = Self::next_rev(&tx, account)?;
         tx.execute(
             "INSERT INTO recordings (account_id, id, rev, size, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(account_id, id) DO UPDATE SET rev = excluded.rev, size = excluded.size, updated_at = excluded.updated_at",
             params![account, id, rev, bytes.len() as i64, now],
-        )
-        .map_err(|_| None)?;
-        std::fs::rename(&part, &dest).map_err(|_| None)?;
-        tx.commit().map_err(|_| None)?;
+        )?;
+        std::fs::rename(&part, &dest)?;
+        tx.commit()?;
         Ok(rev)
     }
 
@@ -59,14 +59,14 @@ impl Store {
 
 #[cfg(test)]
 mod tests {
-    use super::super::fixture;
+    use super::super::{fixture, WriteError};
 
     #[test]
     fn recordings_are_whole_files_with_their_own_revision() {
         let (s, a, _dir) = fixture();
         let rev = s.put_recording(a.id, "n1", 0, b"audio-1", 1).unwrap();
         assert_eq!(s.recording(a.id, "n1"), Some((rev, b"audio-1".to_vec())));
-        assert_eq!(s.put_recording(a.id, "n1", 0, b"stale", 2), Err(Some(rev)));
+        assert_eq!(s.put_recording(a.id, "n1", 0, b"stale", 2), Err(WriteError::Stale(rev)));
         assert_eq!(s.recording(a.id, "n1").unwrap().1, b"audio-1".to_vec(), "a refused write leaves the file alone");
         let next = s.put_recording(a.id, "n1", rev, b"audio-2", 3).unwrap();
         assert_eq!(s.recording(a.id, "n1"), Some((next, b"audio-2".to_vec())));

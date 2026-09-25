@@ -5,7 +5,7 @@
 //! (sync.rs answers the refusal with a 409 and the winner). The revision is the account's one write counter, which
 //! settings and recordings take from too, so a note's revisions are ordered but not contiguous.
 
-use super::Store;
+use super::{Store, WriteError};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
 /// A note as the service holds it: an id, where it is in the account's history, and its ciphertext.
@@ -15,21 +15,6 @@ pub struct NoteRow {
     pub rev: i64,
     pub deleted: bool,
     pub blob: Option<String>,
-}
-
-/// Why a write did not happen.
-#[derive(Debug, PartialEq, Eq)]
-pub enum WriteError {
-    /// The write was made from an older revision than the one stored; the stored one is the winner.
-    Stale(NoteRow),
-    /// Something below the rules failed.
-    Db(String),
-}
-
-impl From<rusqlite::Error> for WriteError {
-    fn from(e: rusqlite::Error) -> Self {
-        WriteError::Db(e.to_string())
-    }
 }
 
 impl Store {
@@ -57,7 +42,7 @@ impl Store {
     /// the blob is a deletion.
     ///
     /// A note the service has never seen is taken whatever its base: there is nothing it could overwrite.
-    pub fn put_note(&self, account: i64, note: &str, base: i64, blob: Option<&str>, now: i64) -> Result<i64, WriteError> {
+    pub fn put_note(&self, account: i64, note: &str, base: i64, blob: Option<&str>, now: i64) -> Result<i64, WriteError<NoteRow>> {
         let mut conn = self.lock();
         let tx = conn.transaction()?;
         if let Some(current) = Self::note_in(&tx, account, note)? {

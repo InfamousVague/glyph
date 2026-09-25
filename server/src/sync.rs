@@ -1,4 +1,5 @@
-//! Sync: an account's notes, settings and recordings, as ciphertext, kept the same on every device (docs/SYNC.md).
+//! Sync: an account's notes, settings, recordings and pictures, as ciphertext, kept the same on every device
+//! (docs/SYNC.md).
 //!
 //! AttackFM's two shapes, copied: its library's change feed (a revision counter, deletions kept as markers, paged),
 //! and its settings blob (written from a revision, refused with the winner when stale). The one difference is that
@@ -10,8 +11,12 @@
 //!   DELETE /glyph/api/v1/notes/{id}            { base } a deletion, the same way
 //!   GET    /glyph/api/v1/prefs                 the settings
 //!   PUT    /glyph/api/v1/prefs                 { base, blob }
-//!   GET    /glyph/api/v1/recordings/{id}       a recording's bytes, its revision in `x-glyph-rev`
-//!   PUT    /glyph/api/v1/recordings/{id}?base= a recording's bytes
+//!   GET    /glyph/api/v1/recordings/{id}       a recording's or a picture's bytes, its revision in `x-glyph-rev`
+//!   PUT    /glyph/api/v1/recordings/{id}?base= a recording's or a picture's bytes
+//!
+//! The recordings routes carry pictures too (an `i-<ext>-<stem>` id, docs/SYNC.md): they were named for the audio
+//! that came first. A device asks whether it has a picture's latest with a HEAD, which axum answers through the GET
+//! handler with the body dropped, so the file is read to send its header.
 //!
 //! Every body here is something a device encrypted. The service checks sizes and shapes, never content.
 
@@ -33,14 +38,16 @@ use std::sync::Arc;
 const NOTE_LIMIT: usize = 1_400_000;
 /// Settings, as base64.
 const PREFS_LIMIT: usize = 350_000;
-/// A recording's ciphertext. A long voice note at 16 kHz mono is a few megabytes; this is well past any of them.
+/// A recording's or a picture's ciphertext. A long voice note at 16 kHz mono is a few megabytes; this is well past
+/// any of them.
 const RECORDING_LIMIT: usize = 64 * 1024 * 1024;
 /// The most notes one page of the feed carries.
 const PAGE_LIMIT: i64 = 500;
-/// How long a note's or a recording's id may be.
+/// How long a note's, a recording's or a picture's id may be.
 const ID_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
 
-/// Ids are the app's own: UUIDs, or its older `n-…` form. Anything else is refused before it reaches a path.
+/// Ids are the app's own: a note's UUID or its older `n-…` form, a recording's `r-<note id>`, a picture's
+/// `i-<ext>-<stem>`. Anything else is refused before it reaches a path.
 fn valid_id(id: &str) -> bool {
     base64url(id, ID_LENGTH)
 }
@@ -82,13 +89,24 @@ struct NoteBody {
     blob: Option<String>,
 }
 
-fn written(result: Result<i64, WriteError>) -> Response {
+/// A write's answer, for notes, settings and recordings alike: its new revision; or 409 with what won, as `winner`
+/// renders it, so the device can merge and try again rather than guess what it collided with; or a 500 in the words
+/// `could_not`. A stale write with nothing to show - settings written from a base when none were ever stored - is
+/// answered as the failure, as it always has been: the app always writes settings from the revision it just read.
+fn written<W>(result: Result<i64, WriteError<W>>, winner: impl FnOnce(W) -> Option<serde_json::Value>, could_not: &str) -> Response {
     match result {
         Ok(rev) => Json(json!({ "rev": rev })).into_response(),
-        // 409 with the winner, so the device can merge and try again rather than guess what it collided with.
-        Err(WriteError::Stale(winner)) => (StatusCode::CONFLICT, Json(note_json(&winner))).into_response(),
-        Err(WriteError::Db(_)) => error(StatusCode::INTERNAL_SERVER_ERROR, "That note could not be stored."),
+        Err(WriteError::Stale(won)) => match winner(won) {
+            Some(body) => (StatusCode::CONFLICT, Json(body)).into_response(),
+            None => error(StatusCode::INTERNAL_SERVER_ERROR, could_not),
+        },
+        Err(WriteError::Failed) => error(StatusCode::INTERNAL_SERVER_ERROR, could_not),
     }
+}
+
+/// A note's write, answered: the winner is the stored note.
+fn note_written(result: Result<i64, WriteError<NoteRow>>) -> Response {
+    written(result, |winner| Some(note_json(&winner)), "That note could not be stored.")
 }
 
 async fn put_note(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>, who: Claims, Json(body): Json<NoteBody>) -> Response {
@@ -98,14 +116,14 @@ async fn put_note(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>,
     let Some(blob) = body.blob.as_deref().filter(|b| valid_blob(b, NOTE_LIMIT)) else {
         return error(StatusCode::BAD_REQUEST, "That note is empty or too large to sync.");
     };
-    written(accounts.store.put_note(who.sub, &id, body.base, Some(blob), now_secs()))
+    note_written(accounts.store.put_note(who.sub, &id, body.base, Some(blob), now_secs()))
 }
 
 async fn delete_note(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>, who: Claims, Json(body): Json<NoteBody>) -> Response {
     if !valid_id(&id) {
         return error(StatusCode::BAD_REQUEST, "That note id could not be read.");
     }
-    written(accounts.store.put_note(who.sub, &id, body.base, None, now_secs()))
+    note_written(accounts.store.put_note(who.sub, &id, body.base, None, now_secs()))
 }
 
 async fn get_prefs(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
@@ -125,11 +143,11 @@ async fn put_prefs(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body
     if !valid_blob(&body.blob, PREFS_LIMIT) {
         return error(StatusCode::BAD_REQUEST, "Those settings are empty or too large to sync.");
     }
-    match accounts.store.put_prefs(who.sub, body.base, &body.blob, now_secs()) {
-        Ok(rev) => Json(json!({ "rev": rev })).into_response(),
-        Err(Some((rev, blob))) => (StatusCode::CONFLICT, Json(json!({ "rev": rev, "blob": blob }))).into_response(),
-        Err(None) => error(StatusCode::INTERNAL_SERVER_ERROR, "Those settings could not be stored."),
-    }
+    written(
+        accounts.store.put_prefs(who.sub, body.base, &body.blob, now_secs()),
+        |stored| stored.map(|(rev, blob)| json!({ "rev": rev, "blob": blob })),
+        "Those settings could not be stored.",
+    )
 }
 
 async fn get_recording(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>, who: Claims) -> Response {
@@ -170,11 +188,11 @@ async fn put_recording(
     if body.is_empty() {
         return error(StatusCode::BAD_REQUEST, "That recording is empty.");
     }
-    match accounts.store.put_recording(who.sub, &id, query.base, &body, now_secs()) {
-        Ok(rev) => Json(json!({ "rev": rev })).into_response(),
-        Err(Some(rev)) => (StatusCode::CONFLICT, Json(json!({ "rev": rev }))).into_response(),
-        Err(None) => error(StatusCode::INTERNAL_SERVER_ERROR, "That recording could not be stored."),
-    }
+    written(
+        accounts.store.put_recording(who.sub, &id, query.base, &body, now_secs()),
+        |rev| Some(json!({ "rev": rev })),
+        "That recording could not be stored.",
+    )
 }
 
 pub fn router(accounts: Arc<Accounts>) -> Router {
