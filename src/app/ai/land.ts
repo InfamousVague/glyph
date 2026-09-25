@@ -67,15 +67,22 @@ export class Lander {
     if (kept && !view.state.field(landingField)) {
       this.landed = kept.landed;
       this.before = kept.before;
-      view.dispatch({ effects: setLanding.of({ start: kept.start, cursor: kept.cursor, oldEnd: kept.oldEnd }) });
+      view.dispatch({ effects: setLanding.of({ runId, start: kept.start, cursor: kept.cursor, oldEnd: kept.oldEnd }) });
     } else {
       progress.delete(runId);
       this.before = before;
     }
   }
 
+  /** This run's bookmark: null once another run has put its own in its place. */
   private landing(): Landing | null {
-    return this.view.state.field(landingField);
+    const landing = this.view.state.field(landingField);
+    return landing && (landing.runId === null || landing.runId === this.runId) ? landing : null;
+  }
+
+  /** The bookmark put away, if it is still this run's. */
+  private clear(): void {
+    if (this.landing()) this.view.dispatch({ effects: setLanding.of(null), annotations: aiEdit.of('land') });
   }
 
   /** Lands the lines the run has finished so far, past the ones already landed. */
@@ -114,7 +121,7 @@ export class Lander {
     const start = spec.start ?? (landing ? (moved ? moved.mapPos(landing.start, -1) : landing.start) : spec.cursor);
     this.view.dispatch({
       changes: spec.changes ?? [],
-      effects: [...(spec.records?.length ? [addAiChanges.of(spec.records)] : []), setLanding.of({ start, cursor: spec.cursor, oldEnd: Math.max(spec.cursor, spec.oldEnd) })],
+      effects: [...(spec.records?.length ? [addAiChanges.of(spec.records)] : []), setLanding.of({ runId: this.runId, start, cursor: spec.cursor, oldEnd: Math.max(spec.cursor, spec.oldEnd) })],
       annotations: [aiEdit.of('land'), ...(this.options.wisp && spec.changes?.length ? [wisp.of({ kind: removed ? 'rewrite' : 'heard' })] : [])],
       userEvent: 'ai.land',
     });
@@ -260,13 +267,13 @@ export class Lander {
       const last = this.landing();
       if (last) this.strike(last, this.oldLines(last), this.oldLines(last).length);
     }
-    this.view.dispatch({ effects: setLanding.of(null), annotations: aiEdit.of('land') });
+    this.clear();
     progress.delete(this.runId);
   }
 
   /** The run stopped or failed: what landed stays, nothing more is struck. */
   abandon(): void {
-    this.view.dispatch({ effects: setLanding.of(null), annotations: aiEdit.of('land') });
+    this.clear();
     progress.delete(this.runId);
   }
 }

@@ -40,6 +40,8 @@ export interface AiChange {
 }
 
 export interface Landing {
+  /** Whose bookmark it is, so a run that ended after another took its place never puts the newer one away. */
+  runId: string | null;
   /** Where the run's first line landed. */
   start: number;
   /** Where the next line goes. */
@@ -62,8 +64,8 @@ export const keepAiChanges = StateEffect.define<readonly string[]>();
 export const keepAllAiChanges = StateEffect.define<null>();
 /** The marks a note was closed with, back on it (ai/marks.ts). */
 export const restoreAiChanges = StateEffect.define<readonly AiChange[]>({ map: (changes, mapping) => changes.map((c) => mapChange(c, mapping)) });
-export const setLanding = StateEffect.define<Pick<Landing, 'start' | 'cursor' | 'oldEnd'> | null>({
-  map: (landing, mapping) => landing && { start: mapping.mapPos(landing.start, -1), cursor: mapping.mapPos(landing.cursor, -1), oldEnd: mapping.mapPos(landing.oldEnd, -1) },
+export const setLanding = StateEffect.define<Pick<Landing, 'runId' | 'start' | 'cursor' | 'oldEnd'> | null>({
+  map: (landing, mapping) => landing && { ...landing, start: mapping.mapPos(landing.start, -1), cursor: mapping.mapPos(landing.cursor, -1), oldEnd: mapping.mapPos(landing.oldEnd, -1) },
 });
 
 export const aiChangesField = StateField.define<readonly AiChange[]>({
@@ -117,7 +119,7 @@ export const landingField = StateField.define<Landing | null>({
       if (!tr.annotation(aiEdit)) {
         tr.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => touched.push({ from: fromB, to: toB }));
       }
-      next = { start: tr.changes.mapPos(next.start, -1), cursor: tr.changes.mapPos(next.cursor, -1), oldEnd: tr.changes.mapPos(next.oldEnd, -1), touched };
+      next = { runId: next.runId, start: tr.changes.mapPos(next.start, -1), cursor: tr.changes.mapPos(next.cursor, -1), oldEnd: tr.changes.mapPos(next.oldEnd, -1), touched };
     }
     for (const effect of tr.effects) {
       if (effect.is(setLanding)) next = effect.value ? { ...effect.value, touched: next?.touched ?? [] } : null;

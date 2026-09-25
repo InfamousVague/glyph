@@ -37,7 +37,13 @@ export function useLanding(
       current.current = null;
     }
     if (!current.current) {
-      if (ended(run) || run.phase === 'queued' || run.phase === 'loading' || run.phase === 'prefill') return;
+      if (ended(run)) {
+        // Ended before a line landed (stopped while waiting, or failed to load): its bookmark, if it is still the note's, goes.
+        const landing = view.state.field(landingField);
+        if (landing && landing.runId === run.id) view.dispatch({ effects: setLanding.of(null), annotations: aiEdit.of('land') });
+        return;
+      }
+      if (run.phase === 'queued' || run.phase === 'loading' || run.phase === 'prefill') return;
       if (!view.state.field(landingField) && !run.scope) return;
       // A reopened note mid-run, before a line had landed: the landing is decided again as it was at the start
       // (ai/start.ts), against the note as it reads now, which is as it read then, since it was closed in between.
@@ -45,7 +51,7 @@ export function useLanding(
         const placement = placementOf(run.kind);
         const end = view.state.doc.length;
         const at = placement === 'append' ? end : Math.min(run.scope.from, end);
-        view.dispatch({ effects: setLanding.of({ start: at, cursor: at, oldEnd: placement === 'replace' ? Math.min(run.scope.to, end) : at }) });
+        view.dispatch({ effects: setLanding.of({ runId: run.id, start: at, cursor: at, oldEnd: placement === 'replace' ? Math.min(run.scope.to, end) : at }) });
       }
       const lander = new Lander(view, run.id, { wisp: optionsRef.current.wisp, haptic: optionsRef.current.haptic }, view.state.doc.toString());
       current.current = { runId: run.id, lander, before: lander.before };

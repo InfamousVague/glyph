@@ -71,7 +71,6 @@ export function startNoteRun(view: EditorView, noteId: string, kind: RunKind, av
       : placement === 'prepend'
         ? { start: front, cursor: front, oldEnd: front }
         : { start: body.length, cursor: body.length, oldEnd: body.length };
-  view.dispatch({ effects: setLanding.of(landing) });
   const handle = startRun({
     noteId,
     kind,
@@ -86,5 +85,8 @@ export function startNoteRun(view: EditorView, noteId: string, kind: RunKind, av
     hash: noteHash(noteId, body),
     scope,
   });
+  // After the run is asked for: an earlier run on this note ended by it may still put its own bookmark away, and this
+  // one is the newer, so it wears the run's id (editor/aiChanges.ts `Landing.runId`).
+  view.dispatch({ effects: setLanding.of({ runId: handle.id, ...landing }) });
   return { ok: true, handle };
 }

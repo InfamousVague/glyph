@@ -93,7 +93,7 @@ describe('the AI’s changes, tracked', () => {
 
   it('keeps the landing bookmark, moving it with the person’s typing and remembering what they touched', () => {
     const v = open('a\nb\nc\n');
-    v.dispatch({ effects: setLanding.of({ start: 2, cursor: 2, oldEnd: 6 }) });
+    v.dispatch({ effects: setLanding.of({ runId: null, start: 2, cursor: 2, oldEnd: 6 }) });
     v.dispatch({ changes: { from: 0, insert: 'X' }, userEvent: 'input.type' });
     expect(v.state.field(landingField)).toMatchObject({ start: 3, cursor: 3, oldEnd: 7, touched: [{ from: 0, to: 1 }] });
     v.dispatch({ changes: { from: 5, insert: 'yy' }, annotations: aiEdit.of('land') });

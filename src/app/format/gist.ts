@@ -88,6 +88,11 @@ export function gistFor(id: string, body: string): string | null {
   return kept?.text && gistStands(kept, id, body) ? kept.text : null;
 }
 
+/** The note whose gist is being written right now, for its card to wear a working icon; null while none is. */
+export function activeGist(): string | null {
+  return active;
+}
+
 function owed(): [string, string] | null {
   for (const [id, body] of bodies) {
     if (!body.trim() || failed.has(id) || gistFor(id, body) || isRunning(id)) continue;
@@ -113,6 +118,8 @@ async function pump(): Promise<void> {
   if (!next) return;
   const [id, body] = next;
   active = id;
+  // The card being worked on shows it (home/HomeScreen.tsx).
+  listeners.forEach((listener) => listener());
   try {
     const present = (await listModels()).filter((m) => m.present).map((m) => m.id);
     const model = smallestOf(present);
@@ -129,6 +136,7 @@ async function pump(): Promise<void> {
     failed.add(id);
   } finally {
     active = null;
+    listeners.forEach((listener) => listener());
     window.clearTimeout(timer);
     timer = window.setTimeout(() => void pump(), 800);
   }

@@ -348,6 +348,7 @@
 
 .card {
   appearance: none;
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -412,6 +413,36 @@
   from {
     opacity: 0;
   }
+}
+
+/*
+ * The AI's word in the card's corner: a turning ring while it writes the note's line, or a dot of ink while changes
+ * it made are still marked in the note - one or the other, never both, and nothing at all otherwise.
+ */
+.cardWorking,
+.cardDot {
+  position: absolute;
+  inset-block-start: var(--glacier-space-3);
+  inset-inline-end: var(--glacier-space-3);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.cardWorking {
+  animation: card-working 1.1s linear infinite;
+}
+
+@keyframes card-working {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cardDot {
+  inline-size: 7px;
+  block-size: 7px;
+  margin: 3px;
+  border-radius: 999px;
+  background: var(--app-ink, var(--glacier-text));
 }
 
 /* The preview takes the room there is, so the dates of a row of cards line up along their feet. */
@@ -519,6 +550,10 @@
 @media (prefers-reduced-motion: reduce) {
   .cardItem,
   .cardGist {
+    animation: none;
+  }
+
+  .cardWorking {
     animation: none;
   }
 }

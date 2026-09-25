@@ -10,7 +10,7 @@ function open(doc: string, landing: { start: number; cursor: number; oldEnd: num
   const host = document.createElement('div');
   document.body.appendChild(host);
   view = new EditorView({ state: EditorState.create({ doc, extensions: [aiChanges()] }), parent: host });
-  view.dispatch({ effects: setLanding.of(landing) });
+  view.dispatch({ effects: setLanding.of({ runId: null, ...landing }) });
   return view;
 }
 

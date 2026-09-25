@@ -70,10 +70,11 @@ import styles from './CaptureScreen.module.css';
  * voice note are usually its subject, and a capture screen that needs a second
  * to warm up loses exactly them.
  *
- * The note is saved WHILE it is spoken, not when it ends. The phone can kill
- * the app mid-sentence, and a note that only reached the store at Done would be
- * a note that never existed. So each committed phrase is written under an id
- * chosen at mount; a cancel deletes it; Done writes the final version.
+ * The note is written at Done, from the final transcript read once (PR #1):
+ * a committed phrase only shows on the page, so a partial phrase can never
+ * route a command or write a note. The sound is kept as it is recorded under
+ * an id chosen at mount, so the phone killing the app mid-sentence loses no
+ * audio; a cancel deletes it; Done, or a confirmed command, writes the note.
  *
  * A recording from the Speak button or the side key is a new note; a note's own Speak adds to that note.
  *

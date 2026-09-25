@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Book, Mic } from '@glacier/icons';
+import { Book, LoaderCircle, Mic } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
@@ -14,7 +14,8 @@ import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { AcademyCard, RefiningNotice, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
 import { when } from '../notes/when.ts';
-import { useGists } from '../format/gist.ts';
+import { activeGist, useGists } from '../format/gist.ts';
+import { hasMarks } from '../ai/marks.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
 import { bookNotes, openTasks, pinnedNotes, recentNotes, tickedTasks, type OpenTask } from './dashboard.ts';
 import { bookIndex, chaptersOf, placeOf } from '../book/book.ts';
@@ -115,6 +116,12 @@ export function HomeScreen({
           <span className={styles.cardTitle} data-untitled={title ? undefined : ''}>
             {title ? shortenUrls(title) : 'Untitled'}
           </span>
+          {/* The AI at work on this note's line (format/gist.ts), or changes of its own still marked in the note (ai/marks.ts): said in the card's corner. */}
+          {activeGist() === note.id ? (
+            <LoaderCircle size={14} strokeWidth={2.2} className={styles.cardWorking} aria-label="The AI is writing this note's line" />
+          ) : hasMarks(note.id) ? (
+            <span className={styles.cardDot} role="img" aria-label="Changes from the AI are marked in this note" />
+          ) : null}
           {/* A page of a book says which (docs/BOOKS.md). */}
           {place ? (
             <span className={styles.cardBook} title={`Page ${place.at + 1} of ${place.title}`}>
