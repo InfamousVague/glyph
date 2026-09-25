@@ -1,12 +1,13 @@
-# The markdown Glyph speaks
+# The markdown Ghost.md speaks
 
-What the editor parses and draws today, measured rather than assumed, and what is worth adding next. The rule behind
-all of it: **a note is a markdown file**. Anything Glyph draws must read the same in GitHub, Obsidian or a plain text
+What the editor parses and draws today, measured rather than assumed, and what was added to it. The rule behind all of
+it: **a note is a markdown file**. Anything Ghost.md draws must read the same in GitHub, Obsidian or a plain text
 editor, and anything it cannot draw must still be readable as words.
 
 ## What is supported
 
-Measured by parsing each sample with the app's own language (`editor/language.ts`) and reading the syntax tree.
+Measured by parsing each sample with the app's own language (`src/app/editor/language.ts`) and reading the syntax
+tree.
 
 | Syntax                    | Parsed | Drawn | Notes                                                       |
 | ------------------------- | ------ | ----- | ----------------------------------------------------------- |
@@ -28,19 +29,19 @@ Measured by parsing each sample with the app's own language (`editor/language.ts
 | Superscript `^x^`          | yes    | yes   | Added 2026-09-16; was parsed and drawn as plain words        |
 | Subscript `~x~`            | yes    | yes   | Added 2026-09-16                                            |
 | Callouts `> [!NOTE]`       | as a quote | yes | Added 2026-09-16. NOTE, TIP, IMPORTANT, WARNING, CAUTION    |
-| Emoji `:tada:`             | yes    | yes   | Drawn as the emoji; the words come back while the caret is on the line. A name Glyph doesn't know stays as words |
+| Emoji `:tada:`             | yes    | yes   | Drawn as the emoji; the words come back while the caret is on the line. A name the app doesn't know stays as words |
 | Footnotes `[^1]`           | yes    | yes   | The marker raised and quiet, what it says on a tap; the definition set as small print. A marker with no definition stays plain, because it is a typo |
 | Definition lists           | yes    | yes   | `Term` then `: the meaning`; the term set apart, the meaning hanging under it |
 | Front matter               | yes    | yes   | Drawn as quiet keys rather than a rule, and the note is named by its `title:` |
 | Math `$x$`, `$$x$$`        | yes    | yes   | Set as code, delimiters and all. No renderer: KaTeX is ~280 KB the phone doesn't need |
 | Mermaid ```` ```mermaid ```` | as a code block | yes | Added 2026-09-17: drawn as the diagram it describes (`editor/mermaid.ts`), the fence tapped to edit. Mermaid itself, every diagram type, loaded the first time a note has one; a diagram that cannot be drawn stays as its text |
-| Wiki links `[[Note]]`      | yes    | yes   | Opens that note; a title with no note is drawn dashed, and tapping it makes the note and opens it. `[[Note#^anchor]]` splits on the first `#`; `[[#^anchor]]` is a place in this note and belongs to `editor/boards.ts` |
+| Wiki links `[[Note]]`      | yes    | yes   | Opens that note; a title with no note is drawn dashed, and tapping it makes the note and opens it. `[[Note#^anchor]]` splits on the first `#`; `[[#^anchor]]` is a place in this note, drawn with the anchors (`src/app/editor/boards/anchors.ts`) |
 
 A highlight can be given a colour by name, in the same brackets a note uses: `==the cabin key==(green)`, from the
 kit's own ramps (blue, red, amber, green, teal, purple, gray). A name the build does not know stays the plain
 highlight and its brackets are the note they always were.
 
-Glyph's own marks are on top of that, each from the Marks plugin and switched off with it: `||spoiler||`,
+Ghost.md's own marks are on top of that, each from the Marks plugin and switched off with it: `||spoiler||`,
 `==highlight==`, `%%aside%%`, `??unsure??`, `^^shout^^`, `++added++`, five effects, and a note on any of them in
 brackets — `??four hundred??(Sam said 400)`.
 
@@ -58,13 +59,15 @@ name, so a note read anywhere else still says what was meant.
 One emoji is a word, and three are three. Effects nest (`🔥🔥a hot ✨✨glinting✨✨ one🔥🔥`). An effect lifts while the
 caret is in its words, so they edit as plain text, and holds still under reduced motion. The spoken cues are adjectives
 because the nouns are everyday words: "heat the oven and heat the pan" would otherwise heat "the oven". New effects are
-an entry in `editor/textEffects.ts` and a mark that names it in `plugins/marks/index.tsx`. They were checked against the extended syntax above: `^^shout^^` and `^x^`,
-`~~struck~~` and `~x~`, `++added++` and a list's `+` marker all parse as themselves.
+an entry in `src/app/editor/textEffects.ts` and a mark that names it in `src/app/plugins/marks/index.tsx`. They were
+checked against the extended syntax above: `^^shout^^` and `^x^`, `~~struck~~` and `~x~`, `++added++` and a list's
+`+` marker all parse as themselves.
 
 ## What was added, and why
 
-All six of the gaps above were built on 2026-09-16. What each one had to answer: does it read as words without Glyph,
-can it be said out loud, and does it earn its place on a phone screen.
+The six gaps the table used to list - wiki links, footnotes, definition lists, emoji, front matter and maths - were
+built on 2026-09-16, with superscript, subscript and callouts; embeds came later. What each one had to answer: does it
+read as words without the app, can it be said out loud, and does it earn its place on a phone screen.
 
 ### Wiki links — `[[Another note]]`
 
@@ -78,7 +81,7 @@ Nothing is stored: the link IS the title. Renaming a note is a matter of the wor
 
 A `#` in the brackets points inside a note rather than at one, the way Obsidian writes a block reference.
 `[[The cabin trip#^friday]]` resolves the title here and hands the anchor to whoever opens it; `[[#^friday]]`, which
-has no title at all, is not a wiki link and is left to the board's own drawing (`editor/boards.ts`).
+has no title at all, is not a wiki link and is left to the anchors' own drawing (`src/app/editor/boards/anchors.ts`).
 
 ### Embeds — `![[A canvas]]`
 
@@ -104,14 +107,14 @@ readable lines anywhere else.
 
 ### Emoji — `:tada:` → 🎉
 
-Parsed already; now drawn. This is the one place besides tables, pictures and clips where Glyph replaces what is
-written, and it earns it because the drawn thing is unmistakably the written thing. The words come back the moment the
+Parsed already; now drawn. This is the one place besides tables, pictures and clips where the editor replaces what
+is written, and it earns it because the drawn thing is unmistakably the written thing. The words come back the moment the
 caret is on that line. The list is the hundred-odd names people actually type (`core/emoji.ts`), GitHub's spellings;
 anything else stays as the words that were typed.
 
 ### Front matter
 
-A note from Obsidian or a static site opens with `---`, which Glyph drew as a horizontal rule — it looked like a
+A note from Obsidian or a static site opens with `---`, which the editor drew as a horizontal rule — it looked like a
 mistake, and worse, the note was called "---" in the list. The block is now drawn as quiet keys in the note's mono
 face, and the note takes its name from `title:` where it has one, or from the first words under the fence.
 
@@ -120,9 +123,9 @@ face, and the note takes its name from `title:` where it has one, or from the fi
 Set as code, delimiters and all, so it reads as what it is. No renderer: KaTeX is around 280 KB for something a notes
 app meets a few times a year. If someone wants it drawn, that is a plugin.
 
-### Glyph's own: tags, counters, sums, choices, hidden lines, progress
+### Ghost.md's own: tags, counters, sums, choices, hidden lines, progress
 
-Written in plain characters that read sensibly anywhere; Glyph just does more with them. Matt picked the last five
+Written in plain characters that read sensibly anywhere; Ghost.md just does more with them. Matt picked the last five
 from a list of ideas.
 
 - **Tags — `#web`.** A `#` against a letter, on a list item or anywhere in a line; `#work/clients` nests. Drawn as a
@@ -136,14 +139,15 @@ from a list of ideas.
 - **Choices — `- ( )` / `- (x)`.** Round boxes on bullets, one picked per group (the choice lines side by side at
   one indent). A tap picks, and clears the rest; tapping the picked one clears it. (`editor/choices.ts`)
 - **Hidden lines — `>| the answer`.** A quote whose first character is a bar goes to smoke, like `||this||`, until
-  the caret is in it; a run of them clears together. Part of the Spoiler mark: with it off, it's a quote.
+  the caret is in it; a run of them clears together. Part of the spoiler, so part of the Marks plugin: with it off,
+  it's a quote.
   (`editor/wispFormat.ts`)
 - **Progress under a heading.** Nothing to type: a heading with to-dos under it says "3 of 7", or "All 7 done",
   counting its subsections too. (`editor/headingProgress.ts`)
 - **Link cards.** A line that is only a link (bare, `<bare>`, or `[words](address)`, in a list or not) gets a card
   under it with the page's title, site and summary; a tap opens it. The title is read by the app
   (`link_preview`, native generation 17) for a card on screen, cached for a week, and never with Link previews off
-  (Settings > Type) or "Nothing leaves the phone" on. Links a plugin reads keep their own rows. (`editor/linkCards.ts`)
+  (Settings › Type) or Local only on (Settings › Formatting). Links a plugin reads keep their own rows. (`editor/linkCards.ts`)
 - **The bookmark — `§§`.** Two section signs at the end of the bookmarked line's words (before a list item's mark,
   counters and anchor), one per note. The note opens there; the header's bookmark button moves it to the line being
   read, or takes it off that line. Drawn as a small ribbon. (`editor/bookmarkLine.ts`)
@@ -158,8 +162,9 @@ from a list of ideas.
 
 ## Saying every mark
 
-Every mark above has words for it while recording (`capture/markdown.ts`), and the cheat sheet shows them beside
-each row (`guide/marks.ts` `say`). Words that are also everyday words need both halves ("… end link") or a pause
+Every mark above has words for it while recording (`src/app/capture/markdown.ts`, with its rule families in
+`src/app/capture/spoken/`), and the guide's marks page shows them beside each row (`src/app/guide/MarksTable.tsx`,
+from each row's `say` in `src/app/guide/marks.ts`). The cheat sheet in Settings draws the marks without them. Words that are also everyday words need both halves ("… end link") or a pause
 either side ("…, new line, …"), so a sentence that only mentions them stays a sentence; the voice suite
 (`voice-tests/suite.json`) holds one of those.
 
@@ -179,15 +184,18 @@ either side ("…, new line, …"), so a sentence that only mentions them stays 
 | `:tada:` | emoji party popper (the shortcode, or a spoken name for it) |
 | ```` ``` ```` block | code block in bash … end code block, a line for each sentence, kept whole across pauses |
 | two spaces and a break | …, new line, … |
-| `>\|`, `= sum`, `[3/8]`, `- ( )`, `#tag`, callouts, headings, lists, quotes, `---` | as the cheat sheet says |
+| `>\|`, `= sum`, `[3/8]`, `- ( )`, `#tag`, callouts, headings, lists, quotes, `---` | as the guide's marks page says |
 
 Progress under a heading needs nothing said. A picture has no words: it needs a file, not a sentence.
 
 ## Where the code is
 
-- `editor/language.ts` — the parser: GFM, minus setext, plus the plugins' own delimiters.
-- `editor/glyphHighlight.ts` — inline looks by tag; `editor/glyphLines.ts` — everything that belongs to a line.
-- `editor/extended.ts` — superscript, subscript and callouts.
-- `editor/canvasFrames.ts` — `![[A canvas]]` on its own line, drawn as that canvas in a browsable frame.
-- `editor/markNotes.ts` — a note in brackets after a mark, and the panel a tap opens.
-- `guide/marks.ts` — the cheat sheet's rows, read from the same place the editor reads its marks.
+- `src/app/editor/language.ts` — the parser: GFM, minus setext, plus the plugins' own delimiters.
+- `src/app/editor/glyphHighlight.ts` — inline looks by tag; `src/app/editor/glyphLines.ts` — everything that belongs
+  to a line.
+- `src/app/editor/extended.ts` — superscript and subscript, callouts, definition lists, front matter, maths set as
+  code, and emoji shortcodes.
+- `src/app/editor/canvasFrames.ts` — `![[A canvas]]` on its own line, drawn as that canvas in a browsable frame.
+- `src/app/editor/markNotes.ts` — a note in brackets after a mark, and the panel a tap opens.
+- `src/app/guide/marks.ts` — the rows of the guide's marks page and the cheat sheet, read from the same place the
+  editor reads its marks.
