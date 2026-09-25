@@ -88,7 +88,12 @@ What to know before the walk.
 
 ## By voice
 
-Two commands, read by the rules in capture/command.ts and asked about before they act, as every command is:
+Two commands, read by the rules in `src/app/capture/command.ts` and asked about before they act, as every command is.
+They are built, but a recording made in the app no longer runs them: since DESIGN §114 the recorder reads a command
+once, from the whole recording, when Done is pressed, and a finished recording may only add to a note or make a new
+list, so "make a book called …" and "add a chapter to …" are refused there. The phrase-by-phrase reader that runs
+them, `src/app/capture/take.ts`, is what the voice test suite drives (docs/VOICE_TESTS.md). What follows is what that
+reader does.
 
 - **"Hey Ghost, make a book called Field guide"** makes the book note, empty with its index ready, beside the
   recording, which carries on where it was. Pages can follow the name: "…with Trees, Birds and the work note", each a
@@ -101,21 +106,23 @@ Two commands, read by the rules in capture/command.ts and asked about before the
   model's prompt need not know what a book is. "Add this to the field guide" and "move this to the field guide" make
   the note being recorded a chapter. A chapter the book has, the book itself, or a note with no name yet is said and
   not offered.
-- The card is the one a board's lane uses (*New chapter in Field guide*, *Add*); a book's card lists its pages. In a
-  pause the recorder suggests "add a chapter to …" naming a book you have, or how to make one.
+- The card is the one a board's lane uses (*New chapter in Field guide*, *Add*); a book's card lists its pages. The
+  recorder still suggests "add a chapter to …" naming a book you have, or how to make one, in a pause and on its
+  Things to say card, although a finished recording refuses both.
 
 ## Chapter numbers
 
 A chapter can carry its number in its title. Without a book, the numbers put the chapters in order.
 
-The standard is at the end of the title: "Ch." or "Chapter", then an Arabic or Roman number, after a middle dot, a
-dash, a comma or a colon, or in brackets.
+The standard is at the end of the title: "Ch.", "Chapter" or "§", then an Arabic or Roman number, after a middle dot,
+a bullet, a bar, a dash, a comma or a colon, in brackets, or after a space.
 
     The risks, and a glossary · Ch. 8
     The risks, and a glossary (Chapter 8)
     The risks, and a glossary · Chapter VIII
 
-A number in front is read too, since many chapters are already titled that way:
+A number in front is read too, since many chapters are already titled that way, before a middle dot, a bullet, a
+bar or a dash:
 
     08 · The risks, and a glossary
     Chapter 8: The risks, and a glossary
@@ -137,8 +144,12 @@ aren't drawn. It no longer lists the workspace's other notes.
 
 | file | what |
 | --- | --- |
-| `src/app/book/book.ts` | the shape: `isBookBody`, `bookNoteBody`, `chaptersOf`, `numbered`, `prefaceOf`, `withChapter`, `withoutChapter`, `withChapterMoved`, `bookOf` |
-| `src/app/book/BookView.tsx` | the index view, reading straight through, and `BookBar` for a chapter |
+| `src/app/book/book.ts` | the shape: `isBookBody`, `bookNoteBody`, `chaptersOf`, `numbered`, `bookWords` (the book's own words either side of the index), `withChapter`, `withChapterAt`, `withoutChapter`, `withChapterMoved`, `toggledTitle`; and a note's place: `bookOf`, `bookIndex`, `placeOf`, `bodyWithoutTitle` (a chapter's words as the read-through draws them) |
+| `src/app/book/BookView.tsx` | the index view and reading straight through |
+| `src/app/book/BookNav.tsx` | `BookBar` under a chapter's header and `BookFoot` under its last line |
+| `src/app/book/CanvasMark.tsx` | the canvas's mark after a chapter that is one |
+| `src/app/book/bookSpot.ts` | where a book was left: its index, a chapter, or the read-through |
+| `src/app/book/rows.module.css` | the rows the index and the New book sheet share |
 | `src/app/book/NewBookSheet.tsx` | the + sheet: a name and the pages, picked and ordered |
 | `src/app/book/rowDrag.ts` | `useRowDrag`: rows lifted by a grip, in the index and the sheet |
 | `src/app/aside/aside.ts` | the right-hand aside's content: a book's index on its pages, a numbered chapter's run with no book, else nothing |
@@ -146,7 +157,7 @@ aren't drawn. It no longer lists the workspace's other notes.
 | `src/app/capture/command.ts` | "make a book called …" and a chapter for a book named (`forBook`, `placedOn`) |
 | `src/app/capture/take.ts` | the chapter offer (the book's index with one more line) and the book offer |
 | `src/app/capture/CaptureScreen.tsx` | `makeBook`: the book note written beside the take |
-| `src/app/core/frontMatter.ts` | `frontMatterValue`, the one front-matter read the app makes |
+| `src/app/core/frontMatter.ts` | where a note's front matter ends, and `book:` and `title:` read and written (`frontMatterValue`, `withFrontMatterTitle`) |
 | `src/app/editor/NoteScreen.tsx` | a book note drawn as its index, with the Markdown a toggle away; a chapter's bar |
 | `src/app/notes/NewSheet.tsx`, `src/app/App.tsx` | the + makes one; a chapter's place is found for the screen |
 
@@ -156,8 +167,8 @@ Matt: "Add the ability for canvases to be in books as well." A canvas is a note 
 it was already a page a book could hold: offered by the New book sheet and the index's picker, opened as a canvas, and
 wearing the chapter's bar ("Cabin trip · 2 of 3", the pages either side). What the index lacked was saying so. A
 chapter that is a canvas, and a canvas offered in the index's picker, now wear the canvas's own mark after the title -
-the one the + sheet gives a canvas - and a reader hears "Route map, a canvas" (book/BookView.tsx, `bodyOf` from the
-note screen). A chapter with no note yet says nothing of what it will be.
+the one the + sheet gives a canvas - and a reader hears "Route map, a canvas" (`src/app/book/CanvasMark.tsx`, with
+`bodyOf` from the note screen). A chapter with no note yet says nothing of what it will be.
 
 A new chapter can start as a canvas: the index's "Add a chapter" form has "Add as a canvas" beside "Add and open",
 which puts the chapter in the index and makes an empty canvas by that name (App.tsx `openCanvasWithin`). The New book
