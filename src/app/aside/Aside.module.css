@@ -61,7 +61,7 @@ span.headButton:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
 }
 
 .close {
@@ -71,7 +71,7 @@ span.headButton:hover {
   block-size: 2rem;
   margin-inline-start: auto;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: transparent;
   color: var(--glacier-text-muted);
   cursor: pointer;

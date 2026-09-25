@@ -31,7 +31,7 @@
   flex: 1;
   margin: 0;
   font-size: var(--glacier-font-size-md);
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: -0.01em;
 }
 
@@ -41,7 +41,7 @@
   inline-size: 2.25rem;
   block-size: 2.25rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: transparent;
   color: var(--glacier-text-muted);
   cursor: pointer;
@@ -126,14 +126,14 @@
   -webkit-backdrop-filter: blur(18px) saturate(1.1);
   backdrop-filter: blur(18px) saturate(1.1);
   font-size: var(--glacier-font-size-sm);
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
 }
 
 /* The counter lives in the header, where it is over the surface and not in it: writing it must not repaint the page. */
 .counter {
   font-family: var(--glacier-font-mono);
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: var(--glacier-font-weight-medium);
   font-variant-numeric: tabular-nums;
   color: var(--glacier-text-muted);
 }
@@ -156,7 +156,7 @@
 .prose h3 {
   margin: 1.6em 0 0.5em;
   font-size: 1.05rem;
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: -0.01em;
 }
 
@@ -174,7 +174,7 @@
   inset-inline-start: var(--glacier-space-3);
   inline-size: 0.5rem;
   block-size: 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: currentColor;
 }
 
@@ -207,7 +207,7 @@
 }
 
 .table th {
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
   color: var(--glacier-text-muted);
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -223,7 +223,7 @@
 /* A frame past 100ms is the one to look at. */
 .table td.slow {
   color: var(--glacier-danger, #c0392b);
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
 }
 
 .wearing {

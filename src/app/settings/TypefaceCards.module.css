@@ -103,7 +103,7 @@
 
 .tab {
   padding: 0.05rem 0.4rem;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
 }
 
 .tab[data-on] {

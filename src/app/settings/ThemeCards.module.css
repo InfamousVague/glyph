@@ -96,7 +96,7 @@
   inline-size: 0.9rem;
   block-size: 0.26rem;
   margin-inline-end: 0.2rem;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--theme-muted);
   opacity: 0.7;
 }
@@ -105,7 +105,7 @@
   inline-size: 1.4rem;
   block-size: 0.5rem;
   border: 1px solid var(--theme-border);
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--theme-surface);
 }
 
@@ -124,14 +124,14 @@
 .heading {
   inline-size: 46%;
   block-size: 0.36rem;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--theme-text);
 }
 
 .line {
   inline-size: 86%;
   block-size: 0.24rem;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--theme-muted);
   opacity: 0.6;
 }
@@ -162,14 +162,14 @@
   margin-block-start: auto;
   padding: 1px;
   border: 1px solid var(--theme-border);
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--theme-surface);
 }
 
 .segment {
   flex: 1;
   block-size: 0.42rem;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
 }
 
 .segment[data-chosen] {
@@ -181,7 +181,7 @@
   justify-self: center;
   inline-size: 2.2rem;
   block-size: 0.7rem;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--theme-text);
 }
 

@@ -120,7 +120,7 @@
   gap: 0.4em;
   padding: 0.45em 0.9em;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: transparent;
   color: var(--glacier-text);
   font: inherit;
@@ -207,7 +207,7 @@
   inline-size: 1.2em;
   block-size: 1.2em;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
 }
 
 .pick[aria-pressed='true'] .pickMark {
@@ -255,7 +255,7 @@
   flex: none;
   padding: 0.3em 0.7em;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: transparent;
   color: var(--glacier-text-muted);
   font: inherit;
@@ -289,7 +289,7 @@
 .readTitle {
   margin: 0 0 var(--glacier-space-3);
   font-size: 1.3em;
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: -0.01em;
 }
 

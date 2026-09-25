@@ -21,7 +21,7 @@
   gap: var(--glacier-space-2);
   margin: 0;
   font-size: var(--glacier-font-size-xs);
-  font-weight: 700;
+  font-weight: var(--glacier-font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--app-ink-3);
@@ -32,7 +32,7 @@
   align-items: center;
   gap: 0.45em;
   padding: 0.15em 0.7em;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--app-ink);
   color: var(--app-paper);
 }

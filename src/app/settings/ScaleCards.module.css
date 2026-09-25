@@ -91,7 +91,7 @@
 
 .line {
   block-size: 0.22em;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--app-ink);
 }
 
@@ -107,7 +107,7 @@
   inline-size: 0.95em;
   block-size: 0.55em;
   padding: 0.07em;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--glacier-accent-solid);
 }
 
@@ -115,7 +115,7 @@
   inline-size: 0.41em;
   block-size: 0.41em;
   margin-inline-start: auto;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--app-paper);
 }
 

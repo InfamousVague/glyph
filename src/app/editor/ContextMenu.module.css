@@ -85,7 +85,7 @@
 /* The word under its icon: small, but in display weight. */
 .word {
   font-size: var(--glacier-font-size-xs);
-  font-weight: 700;
+  font-weight: var(--glacier-font-weight-bold);
   letter-spacing: 0.01em;
 }
 

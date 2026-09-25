@@ -108,7 +108,7 @@
   block-size: var(--glacier-space-9);
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: transparent;
   color: var(--glacier-text-muted);
   cursor: pointer;
@@ -129,7 +129,7 @@
   margin: 0 var(--glacier-space-5) var(--glacier-space-3);
   padding: 2px;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--app-paper-2);
 }
 
@@ -137,7 +137,7 @@
 .way {
   padding: 0.45rem 0.75rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: transparent;
   color: var(--glacier-text-muted);
   font: inherit;
@@ -194,7 +194,7 @@
   inline-size: 1.5rem;
   block-size: 1.5rem;
   margin-block-start: 0.05rem;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--app-ink);
   color: var(--app-paper);
   font-size: var(--glacier-font-size-sm);
@@ -255,7 +255,7 @@
   flex: none;
   padding: 0.35rem 0.6rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: transparent;
   color: var(--glacier-text);
   font: inherit;

@@ -119,7 +119,7 @@
   inline-size: 12em;
   padding: 0.2em 0.6em;
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--glacier-bg);
   color: var(--app-ink);
   font: inherit;
@@ -170,7 +170,7 @@
   block-size: 1.6em;
   padding: 0;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: color-mix(in oklch, var(--app-ink) 10%, transparent);
   color: var(--app-ink-2);
   font: inherit;
@@ -318,7 +318,7 @@
   transform: translate(-50%, -50%);
   padding: var(--glacier-space-1);
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--glacier-bg);
   box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
 }
@@ -331,7 +331,7 @@
   inline-size: 11em;
   padding: 0.25em 0.7em;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: transparent;
   color: var(--app-ink);
   font: inherit;
@@ -376,7 +376,7 @@
   gap: var(--glacier-space-1);
   padding: var(--glacier-space-1);
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: color-mix(in oklch, var(--glacier-bg) 80%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -390,7 +390,7 @@
   block-size: 2.25rem;
   padding: 0;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: none;
   color: var(--app-ink-2);
   cursor: pointer;

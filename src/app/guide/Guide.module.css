@@ -42,7 +42,7 @@
 .progressDot {
   inline-size: 7px;
   block-size: 7px;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   border: 1.5px solid var(--glacier-text-subtle);
   transition: inline-size 240ms var(--glacier-ease-out), background-color 240ms;
 }
@@ -116,7 +116,7 @@
   align-items: center;
   gap: var(--glacier-space-2);
   padding: 0.3rem 0.9rem 0.3rem 0.3rem;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: color-mix(in srgb, var(--app-ink) 9%, transparent);
   color: var(--glacier-text);
   font-size: var(--glacier-font-size-md);

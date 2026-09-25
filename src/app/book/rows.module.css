@@ -22,7 +22,7 @@
   inline-size: 2em;
   block-size: 2em;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: transparent;
   color: var(--glacier-text-muted);
   cursor: pointer;

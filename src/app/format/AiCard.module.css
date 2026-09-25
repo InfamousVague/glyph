@@ -73,7 +73,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 0.1em 0.6em;
-  border-radius: 999px;
+  border-radius: var(--glacier-radius-full);
   background: var(--app-ink);
   color: var(--app-paper);
 }
