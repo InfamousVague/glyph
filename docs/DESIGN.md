@@ -4535,3 +4535,27 @@ and the tab row's house, the arrow in its bar and the phone's back gesture come 
   On a wide window it sits in the note pane beside a docked sidebar, as the home page does.
 - **The palette** says "Home" for the command that goes home (it said "All notes", which now means the grid) and gains
   "All notes" for the page.
+
+## 116. Things to say: the recorder's card before the first word (2026-09-25)
+
+Matt: "When I open the AI page, I should see a list of suggested prompts / commands / etc but don't see that card
+anymore" - the page that opens from the microphone.
+
+The recorder taught what could be said one line at a time, in a pause (§"Tips in a pause", `capture/tips.ts`):
+after 2.5 s of quiet, "Say **Check box** to make a to-do", a different one each pause. Before the first word there
+was the listening ghost and the line about how to stop, and nothing about what to say - which is the moment a person
+is deciding what to say. So:
+
+- **The card** (`capture/SayCard.tsx`, `capture/tips.ts` `starters`). Above the buttons while the microphone waits,
+  "Things to say" in three short groups with a mark each: to shape it (the first cues: "Bullet point", "The next
+  item is …"), to send it somewhere ("Hey Ghost, add … to Groceries", "move this to Groceries", with one of their own
+  notes named once the notes are read, and "make a list called …", "make a book called …" or "add a chapter to
+  Field guide" when there is nothing to name or a book to add to), and to ask the AI ("Hey Ghost, fix the spelling",
+  "summarize this"). It takes no taps; the way to use it is to say a line. It goes the moment words arrive, and the
+  one-line tips take over in the pauses as before. A short window keeps one line a group.
+- **The asks join the tips** (`ASKS` in `tips.ts`). Since §114 a recording can carry an instruction - "hey Ghost, fix
+  the spelling", "summarize this", "make this a list", "tidy this up", "carry on" - read by `ai/instruction.ts` and run
+  in the note once it opens. The pause's rotation now teaches them beside the routing commands, with the keyword,
+  which is what marks them as an instruction rather than the note's words.
+- **What it is not.** The card is not the confirm card (§"Shall I?"), which still takes its place when a command is
+  understood, and it does not show once there are words, on the failed page, or while a command's chip is up.

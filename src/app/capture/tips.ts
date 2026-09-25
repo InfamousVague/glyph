@@ -1,11 +1,16 @@
 /**
- * What the recorder suggests saying when you pause: the spoken cues that shape
- * a note, and the routing command, one at a time.
+ * What the recorder suggests saying: the spoken cues that shape a note, the
+ * routing commands, and the asks the AI takes.
  *
- * Shown only in a pause, never while you talk, and never the same one twice
- * in a row. The list follows the cues `markdown.ts` actually understands, so
- * a tip is always something that works. The routing tip names one of your
- * own notes, which teaches the command better than a made-up title.
+ * Two shapes. Before the first word, a card of them (`starters`, drawn by
+ * SayCard.tsx; Matt: "when I open the AI page, I should see a list of
+ * suggested prompts / commands"): one of each kind, so the whole of what can
+ * be said is on the page while the microphone waits. Then, in a pause
+ * (`tips`), one line at a time, never the same one twice in a row, gone when
+ * talking resumes. The list follows the cues `markdown.ts` actually
+ * understands and the asks `ai/instruction.ts` reads, so a tip is always
+ * something that works. The routing tip names one of your own notes, which
+ * teaches the command better than a made-up title.
  */
 
 export interface Tip {
@@ -52,6 +57,18 @@ const CUES: readonly Tip[] = [
 ];
 
 /**
+ * The asks the AI takes, said into a recording (ai/instruction.ts `runOf`): the words are read as an instruction
+ * rather than written into the note, and the run lands in the note once it is open, marked until kept or reverted.
+ */
+const ASKS: readonly { say: string; does: string }[] = [
+  { say: 'Fix the spelling', does: 'and the note is checked once it opens, every change marked' },
+  { say: 'Summarize this', does: 'for the point of the note in far fewer words' },
+  { say: 'Make this a list', does: 'to shape what was said into a list, or “a table”, or “tasks”' },
+  { say: 'Tidy this up', does: 'to format the note, keeping every word that matters' },
+  { say: 'Carry on', does: 'and the AI writes on from the last line in the note’s own voice' },
+];
+
+/**
  * The tips, in the order they come round. `noteTitle` is a recent note's
  * title for the routing tip; `continuing` says a note is already being added
  * to, which is when "new note" is worth knowing; `book` is one of the library's
@@ -83,6 +100,8 @@ export function tips({
   if (noteTitle) route.push({ say: say(`Add a table to ${noteTitle}`), does: 'and it asks for the columns and rows' });
   if (book) route.push({ say: say(`Add a chapter to ${book}`), does: 'and then its name, to put a page in that book' });
   else route.push({ say: say('Make a book called …'), does: 'to start a book; name notes after “with” to be its pages' });
+  // The asks join the commands: the keyword marks them as an instruction rather than the note's words.
+  ASKS.forEach((ask) => route.push({ say: say(ask.say), does: ask.does }));
   // Routing first and then every few cues, since it is the least discoverable.
   const out: Tip[] = [];
   CUES.forEach((cue, i) => {
@@ -90,6 +109,38 @@ export function tips({
     out.push(cue);
   });
   return out;
+}
+
+/** What the card before the first word shows, and in what order. */
+export interface Starters {
+  /** How to shape the note: the first few cues. */
+  shape: Tip[];
+  /** Where to send it: adding to a note by name, and moving the recording. */
+  send: Tip[];
+  /** What to ask the AI to do with it once it is a note. */
+  ask: Tip[];
+}
+
+/** How many of each the card holds: enough to show the shape of each kind, few enough to fit above the buttons on a phone. */
+const EACH = 2;
+
+/**
+ * The card's suggestions, one kind at a time (SayCard.tsx). Without a note to name, the sending lines are the ones
+ * that make something new, so a first recording still sees that a recording can go somewhere.
+ */
+export function starters({ noteTitle, keyword = true, book = null }: { noteTitle?: string | null; keyword?: boolean; book?: string | null }): Starters {
+  const say = (command: string) => (keyword ? `Hey Ghost, ${command.charAt(0).toLowerCase()}${command.slice(1)}` : command);
+  const send: Tip[] = [];
+  if (noteTitle) send.push({ say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' });
+  if (noteTitle) send.push({ say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' });
+  send.push({ say: say('Make a list called …'), does: 'and then its items, for a new note that is a list' });
+  if (book) send.push({ say: say(`Add a chapter to ${book}`), does: 'and then its name, to put a page in that book' });
+  else send.push({ say: say('Make a book called …'), does: 'to start a book' });
+  return {
+    shape: CUES.slice(0, EACH),
+    send: send.slice(0, EACH),
+    ask: ASKS.slice(0, EACH).map((ask) => ({ say: say(ask.say), does: ask.does })),
+  };
 }
 
 /** How long a pause has to be before a tip shows. Longer than a breath, shorter than giving up. */

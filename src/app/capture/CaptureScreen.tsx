@@ -43,7 +43,8 @@ import { boardFrom, lanesOf } from '../core/boards.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { CaptureContext } from '../plugins/types.ts';
-import { tips, TIP_AFTER_MS, type Tip } from './tips.ts';
+import { starters, tips, TIP_AFTER_MS, type Starters, type Tip } from './tips.ts';
+import { SayCard } from './SayCard.tsx';
 import { SideKeyWaves } from './SideKeyWaves.tsx';
 import { publishVoiceLevel } from './voiceLevel.ts';
 import { useSideKeySpot } from './sideKey.ts';
@@ -244,6 +245,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** When words were last heard, for the tips in a pause. */
   const lastHeard = useRef(performance.now());
   const [tip, setTip] = useState<Tip | null>(null);
+  /** The card of things to say while the microphone waits for a first word (SayCard.tsx), with the person's own notes named once they are read. */
+  const [say, setSay] = useState<Starters>(() => starters({ keyword: preferences().commandWord }));
   const tipTurn = useRef(0);
   const savedDraft = useRef(false);
   const finished = useRef(false);
@@ -328,6 +331,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           .filter((c) => c.title);
         // "Note link weekend trip end link" takes the note's own spelling.
         setLinkTitles(candidates.current.map((c) => c.title));
+        // The card names one of their notes, and a book if the library has one: the command reads better with a real title.
+        const recent = candidates.current.find((c) => c.id !== noteId.current)?.title ?? null;
+        const book = candidates.current.find((c) => c.id !== noteId.current && isBookBody(c.note.body))?.title ?? null;
+        setSay(starters({ noteTitle: recent, keyword: commandWordOn(), book }));
       })
       .catch(() => undefined);
     return () => {
@@ -1265,6 +1272,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             <>No note called “{route.title}”, so it stays here</>
           )}
         </p>
+      ) : !hasWords && phase === 'listening' ? (
+        // Before the first word: the whole of what can be said, as a card (SayCard.tsx); once talking has begun, one tip at a time in a pause.
+        <SayCard starters={say} />
       ) : tip && phase === 'listening' ? (
         <p key={tip.say} className={styles.tip}>
           Say <strong>“{tip.say}”</strong> {tip.does}.
