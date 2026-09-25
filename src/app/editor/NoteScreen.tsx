@@ -147,6 +147,12 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     // Each asking is its own, as it is for the saving.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rename?.asked]);
+  /** The name typed in the More sheet, into the front matter; the index takes it too, as it takes one from the tab. */
+  const renameHere = (next: string) => {
+    const named = withFrontMatterTitle(body.current, next);
+    onChange(named);
+    if (isBook) setBookBody(named);
+  };
   const paging = isBook && !source;
   const typed = !!canvas || isBook;
   const showSource = (next: boolean) => {
@@ -403,7 +409,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         pinned={pinned}
         editing={editing}
         onClose={() => setSettingsOpen(false)}
-        name={typed ? { value: title, onChange: (next) => onChange(withFrontMatterTitle(body.current, next)) } : undefined}
+        name={typed ? { value: title, onChange: renameHere } : undefined}
         view={!wide && shown === 'raw' ? (typed ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
         onView={typed ? (next) => showSource(next === 'mixed') : chooseView}
         running={ai.runningKind}

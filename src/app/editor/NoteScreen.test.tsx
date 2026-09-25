@@ -283,6 +283,23 @@ describe('a rename asked from the tab', () => {
     expect(saved().at(-1)!.indexOf('[[Day two]]')).toBeLessThan(saved().at(-1)!.indexOf('[[Day one]]'));
   });
 
+  it('keeps a book’s name typed in the More sheet through the next change made in its index', async () => {
+    const book = '---\nbook: true\n---\n# Trip\n\n1. [[Day one]]\n2. [[Day two]]\n';
+    show(screen(await createNote('b1', book), { hasTitle: () => true, onOpenTitle: () => {} }));
+    act(() => button('More for this note').click());
+    const name = [...document.querySelectorAll('input')].find((field) => field.closest('label')?.textContent?.includes('Name'));
+    typeInto(name!, 'Road trip');
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    expect(saved().at(-1)).toContain('title: "Road trip"');
+    act(() => goBack());
+    act(() => button('Move Day two up').click());
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    expect(saved().at(-1)).toContain('title: "Road trip"');
+    expect(saved().at(-1)!.indexOf('[[Day two]]')).toBeLessThan(saved().at(-1)!.indexOf('[[Day one]]'));
+  });
+
   it('leaves the note alone when the rename is for another', async () => {
     const note = await createNote('c1', CANVAS);
     show(screen(note, { rename: { id: 'c2', title: 'Trip', asked: 1 } }));
