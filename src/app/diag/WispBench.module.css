@@ -111,7 +111,10 @@
   background: var(--glacier-bg);
 }
 
-/* The header the surface's page runs under: the app's own glass (app.css `.app-headerPane`). */
+/*
+ * The header the surface's page runs under: the app's own glass (app.css `.app-headerPane`), by its recipe rather than
+ * its class, since the class is also what hides the status scrim and what the split layout re-tints.
+ */
 .head {
   position: absolute;
   inset-inline: 0;
@@ -122,9 +125,9 @@
   justify-content: space-between;
   block-size: 3rem;
   padding-inline: var(--glacier-space-4);
-  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  backdrop-filter: blur(18px) saturate(1.1);
+  background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
+  -webkit-backdrop-filter: var(--app-glass-blur);
+  backdrop-filter: var(--app-glass-blur);
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-semibold);
 }

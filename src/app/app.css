@@ -293,9 +293,9 @@ body {
    * but the tabs and such are fully opaque"): the same mix and blur as the screen's own header pane, so the cards
    * scrolled under the bar show through it as they do under the title strip above it, which is the pane alone.
    */
-  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  backdrop-filter: blur(18px) saturate(1.1);
+  background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
+  -webkit-backdrop-filter: var(--app-glass-blur);
+  backdrop-filter: var(--app-glass-blur);
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
   /*
    * From the window's top edge, not from under the status bar (Matt, of the Fold: "the very top bar where the time
@@ -433,15 +433,24 @@ body:has(.app-headerPane) .app-statusScrim {
  * grey, so at the top of the page, with nothing under it, it is the page and
  * nothing shows; once the page runs under it the blur reads as glass. The
  * wisp sits a little way below its edge.
+ *
+ * The recipe is named once, `--app-glass-mix` and `--app-glass-blur`, for the three things that are this glass: the
+ * pane, the tab bar across a split window, and the smoke bench's header (diag/WispBench.module.css). The mix is only
+ * the percentage, so each surface still mixes its own `--glacier-bg` where it is drawn.
  */
+:root {
+  --app-glass-mix: 66%;
+  --app-glass-blur: blur(18px) saturate(1.1);
+}
+
 .app-headerPane {
   position: absolute;
   inset-inline: 0;
   inset-block-start: 0;
   z-index: 3;
-  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  backdrop-filter: blur(18px) saturate(1.1);
+  background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
+  -webkit-backdrop-filter: var(--app-glass-blur);
+  backdrop-filter: var(--app-glass-blur);
 }
 
 /*
@@ -479,7 +488,7 @@ body:has(.app-headerPane) .app-statusScrim {
   background: linear-gradient(
     to bottom,
     transparent var(--app-safe-top),
-    color-mix(in srgb, var(--glacier-bg) 66%, transparent) var(--app-safe-top)
+    color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent) var(--app-safe-top)
   );
 }
 
