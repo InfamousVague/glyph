@@ -4625,3 +4625,19 @@ is deciding what to say. So:
 - **What it is not.** The card is not the confirm card (§114, `ai/ConfirmCard.tsx`), which still takes its place when
   a command is understood, and it does not show once there are words, on the failed page, or while a command's chip
   is up.
+
+## 119. Heat bends the text above it, and its words go bold (2026-09-25)
+
+Matt, of §116's heat: "The fire effect should be messing with the text above it with the heat waves the text itself
+should just have solid in the existing color but bold." Which is what the onboarding's flame did: it bent the words it
+stood behind, not itself.
+
+- **The words** are bold, in their own colour, with no filter (`.cm-effect-heat`, weight 700, which both note faces
+  ship).
+- **The haze** is the same filter as before, over the text on the line above the words, under their width and a
+  third of a line either side; and on the line above that at 55%, the heat thinning as it rises. It carries over one
+  blank line between paragraphs, since most notes have one, but the weaker line stops at a blank.
+- **Where "above" is** depends on the layout (a wrapped line, a heading, a proportional face), so it is measured after
+  each draw (editor/textEffects.ts `textAbove`, with the view's character boxes as its probe) and drawn on the next
+  frame. The haze changes no layout, so the second measure finds what the first did and the loop ends there.
+- The cheat sheet's example has a line above its words, which would otherwise show only bold words.

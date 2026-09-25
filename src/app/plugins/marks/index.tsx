@@ -119,7 +119,7 @@ export const MARKS: readonly InlineFormat[] = [
     delimiter: '🔥🔥',
     look: { kind: 'effect', effect: 'heat' },
     cue: 'heated',
-    about: 'The words waver as if seen through the air over a fire. Two flames either side: 🔥🔥too hot🔥🔥.',
+    about: 'The words go bold, and the line above them wavers in the heat coming off them. Two flames either side: 🔥🔥too hot🔥🔥.',
     icon: Flame,
   },
   {

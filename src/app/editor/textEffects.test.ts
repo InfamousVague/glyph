@@ -2,7 +2,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it } from 'vitest';
 import { glyphMarkdown } from './language.ts';
-import { effectLetters, effectRanges, TEXT_EFFECTS, textEffects } from './textEffects.ts';
+import { effectLetters, effectRanges, TEXT_EFFECTS, textAbove, textEffects, type ProbeLine } from './textEffects.ts';
 import type { InlineFormat } from '../plugins/types.ts';
 
 const heat: InlineFormat = { name: 'Heat', delimiter: '🔥🔥', look: { kind: 'effect', effect: 'heat' } };
@@ -101,6 +101,43 @@ describe('effects on words', () => {
   });
 });
 
+describe('the text above heated words', () => {
+  /** A page of lines 20 px apart, each with its text as a range and blank or not: a stand-in for the layout. */
+  const page = (lines: { from: number; to: number; empty?: boolean }[]): ProbeLine => (x, y) => {
+    const index = Math.floor(y / 20);
+    const line = lines[index];
+    if (!line || y < 0) return null;
+    // Across the line's width in characters of 10 px, from its start; past its end is its end.
+    const pos = Math.min(line.to, line.from + Math.max(0, Math.floor(x / 10)));
+    return { from: pos, to: pos, top: index * 20, empty: line.empty ?? false };
+  };
+  const strengths = [1, 0.5];
+
+  it('is the line just above, under the words and a little either side, then the one above that, weaker', () => {
+    const probe = page([{ from: 0, to: 40 }, { from: 41, to: 81 }, { from: 82, to: 122 }]);
+    // Words on the third line, from 100 px to 160 px.
+    const above = textAbove({ left: 100, right: 160, top: 40 }, 20, strengths, probe);
+    expect(above).toEqual([
+      { from: 41 + 9, to: 41 + 16, strength: 1 },
+      { from: 0 + 9, to: 0 + 16, strength: 0.5 },
+    ]);
+  });
+
+  it('carries over one blank line between paragraphs to the text above it, and no further', () => {
+    const probe = page([{ from: 0, to: 30 }, { from: 31, to: 31, empty: true }, { from: 32, to: 60 }]);
+    expect(textAbove({ left: 0, right: 50, top: 40 }, 20, strengths, probe).map((a) => a.strength)).toEqual([1]);
+    // The weaker line stops at a blank line rather than jumping it.
+    const gap = page([{ from: 0, to: 30 }, { from: 31, to: 31, empty: true }, { from: 32, to: 60 }, { from: 61, to: 90 }]);
+    expect(textAbove({ left: 0, right: 50, top: 60 }, 20, strengths, gap)).toEqual([{ from: 32, to: 37, strength: 1 }]);
+  });
+
+  it('is nothing on the first line, or above a line too short to reach the words', () => {
+    expect(textAbove({ left: 0, right: 50, top: 0 }, 20, strengths, page([{ from: 0, to: 30 }]))).toEqual([]);
+    const short = page([{ from: 0, to: 3 }, { from: 4, to: 60 }]);
+    expect(textAbove({ left: 200, right: 300, top: 20 }, 20, strengths, short)).toEqual([]);
+  });
+});
+
 describe('the effects in an editor', () => {
   let view: EditorView | null = null;
   afterEach(() => {
@@ -108,15 +145,19 @@ describe('the effects in an editor', () => {
     view = null;
   });
 
-  it('marks the words with the effect and hangs its filter off the view', () => {
+  it('marks heated words bold and unfiltered, and hangs the haze for the lines above off the view', () => {
     const parent = document.createElement('div');
     document.body.append(parent);
     view = new EditorView({ parent, state: EditorState.create({ doc: 'so 🔥🔥hot🔥🔥 today', extensions: [glyphMarkdown([heat]), textEffects([heat])] }) });
     const marked = view.contentDOM.querySelector<HTMLElement>('.cm-textEffect');
     expect(marked?.textContent).toBe('hot');
     expect(marked?.dataset.effect).toBe('heat');
-    // jsdom drops a filter it cannot draw from the style, so the filter is found by its id, which the style names.
-    expect(view.dom.querySelector('filter[id^="glyph-effect-"][id$="-heat"] feDisplacementMap')).toBeTruthy();
+    expect(marked?.classList.contains('cm-effect-heat')).toBe(true);
+    // The words carry no filter of their own: it is the text above them that is drawn through the haze.
+    expect(marked?.getAttribute('style') ?? '').not.toContain('filter');
+    // One haze per line above, nearest the strongest; jsdom drops a filter from a style, so they are found by id.
+    expect(view.dom.querySelector('filter[id$="-heat-above-100"] feDisplacementMap')?.getAttribute('scale')).toBe('5.50');
+    expect(view.dom.querySelector('filter[id$="-heat-above-55"] feDisplacementMap')?.getAttribute('scale')).toBe('3.03');
     view.destroy();
     view = null;
     expect(parent.querySelector('svg')).toBeNull();

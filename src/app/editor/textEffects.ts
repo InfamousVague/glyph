@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language';
-import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
+import { RangeSetBuilder, StateEffect, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { InlineFormat } from '../plugins/types.ts';
 
@@ -14,10 +14,16 @@ import type { InlineFormat } from '../plugins/types.ts';
  * §3.2), which is also what the note reads as anywhere else - two flames either side of some words.
  *
  * Unlike the spoiler's smoke (wispFormat.ts), an effect is meant to be read: it moves the letters, it does not hide
- * them. There are two kinds, by what the effect is:
+ * them. There are three kinds, by what the effect is:
  *
- * - **A filter over the whole stretch** (`FilterEffect`: heat, frost), where the effect is one field the words sit in -
- *   hot air, a rime - and a letter-by-letter filter would be twelve small fires.
+ * - **Heat rising off the words** (`RisingEffect`: heat). The words themselves are solid and bold, in their own
+ *   colour, and it is the text above them that wavers, seen through the hot air they give off (Matt: "The fire effect
+ *   should be messing with the text above it with the heat waves the text itself should just have solid in the
+ *   existing color but bold"), as the onboarding's flame bent the words it stood behind rather than itself. Where the
+ *   text above is is a question about the layout, not the document - a wrapped line, a wide heading, a proportional
+ *   face - so it is measured after each draw (`textAbove`), and the haze follows on the next frame.
+ * - **A filter over the whole stretch** (`FilterEffect`: frost), where the effect is one field the words sit in - a
+ *   rime - and a letter-by-letter filter would be a dozen small frosts.
  * - **A movement passed along the letters** (`LetterEffect`: wave, shimmer, haunt), where each letter moves on its own
  *   clock a step behind the one before, so the movement travels along the words: a ripple, a glint, a fading. Each
  *   letter is an inline mark with a CSS animation, delayed by its place; inline, and moved by relative position rather
@@ -33,6 +39,20 @@ import type { InlineFormat } from '../plugins/types.ts';
  * effect is in em, so it sizes itself. Adding an effect is an entry in `TEXT_EFFECTS` and a mark that names it
  * (plugins/marks/index.tsx).
  */
+
+export interface RisingEffect {
+  kind: 'rising';
+  /**
+   * Fills `filter` for the text above the words, for type `fontPx` high, at `strength` (1 for the line just above, less
+   * for the one above that, where the heat has thinned). `still` is reduced motion.
+   */
+  build(filter: SVGFilterElement, fontPx: number, still: boolean, strength: number): void;
+  region: { x: number; y: number; width: number; height: number };
+  /** The words' own look, as a CodeMirror theme spec for `.cm-effect-<name>`: heat's are bold. */
+  theme: Parameters<typeof EditorView.baseTheme>[0];
+  /** How strongly each line above is drawn through the haze, nearest first. */
+  strengths: readonly number[];
+}
 
 export interface FilterEffect {
   kind: 'filter';
@@ -55,7 +75,7 @@ export interface LetterEffect {
   theme: Parameters<typeof EditorView.baseTheme>[0];
 }
 
-export type TextEffect = FilterEffect | LetterEffect;
+export type TextEffect = RisingEffect | FilterEffect | LetterEffect;
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -73,11 +93,12 @@ const TUNED_PX = 16;
 const scaleFor = (fontPx: number) => Math.max(0.5, fontPx / TUNED_PX);
 
 /**
- * Heat: the letters wobble and soften as if seen through the air over a fire, the haze the onboarding's "AI" burned
- * behind (Matt: "the heated effect that gives the wavey blur like we used on the "AI" text on with the fire on the
- * original onboarding flow"). The same filter: fractal noise stretched tall (a lower frequency across than down, so
- * the bend runs in rising bands), breathing between two frequencies every 2.4 seconds and re-rolled six times in 0.9
- * seconds, driving a displacement of the words; then a breath of blur, which is the "blur" in the wavy blur.
+ * Heat's haze, over the text above the heated words: it wobbles and softens as if seen through the air over a fire,
+ * the haze the onboarding's "AI" burned behind (Matt: "the heated effect that gives the wavey blur like we used on the
+ * "AI" text on with the fire on the original onboarding flow"). The same filter: fractal noise stretched tall (a lower
+ * frequency across than down, so the bend runs in rising bands), breathing between two frequencies every 2.4 seconds
+ * and re-rolled six times in 0.9 seconds, driving a displacement; then a breath of blur, the "blur" in the wavy blur.
+ * `strength` scales the bend and the blur, so the line two above is a gentler haze than the line just above.
  *
  * The onboarding's numbers (a 0.035 by 0.11 noise, a bend of 7) were for 40-pixel display type; carried to body text
  * as they were, or scaled straight down with it, the bend is a few pixels of grit on fine noise and reads as ragged
@@ -85,7 +106,7 @@ const scaleFor = (fontPx: number) => Math.max(0.5, fontPx / TUNED_PX);
  * that read as heat at 16 px - waves about four times a letter's height, a bend of a third of it - and everything
  * scales with the type it is on, so a heading's haze and a list item's look the same.
  */
-function heat(filter: SVGFilterElement, fontPx: number, still: boolean): void {
+function heat(filter: SVGFilterElement, fontPx: number, still: boolean, strength = 1): void {
   const k = scaleFor(fontPx);
   const low = `${(0.02 / k).toFixed(4)} ${(0.085 / k).toFixed(4)}`;
   const high = `${(0.028 / k).toFixed(4)} ${(0.12 / k).toFixed(4)}`;
@@ -97,8 +118,8 @@ function heat(filter: SVGFilterElement, fontPx: number, still: boolean): void {
       ];
   filter.append(
     element('feTurbulence', { type: 'fractalNoise', baseFrequency: low, numOctaves: 2, seed: 7, result: 'noise' }, ...moving),
-    element('feDisplacementMap', { in: 'SourceGraphic', in2: 'noise', scale: (5.5 * k).toFixed(2), xChannelSelector: 'R', yChannelSelector: 'G', result: 'bent' }),
-    element('feGaussianBlur', { in: 'bent', stdDeviation: (0.6 * k).toFixed(2) }),
+    element('feDisplacementMap', { in: 'SourceGraphic', in2: 'noise', scale: (5.5 * k * strength).toFixed(2), xChannelSelector: 'R', yChannelSelector: 'G', result: 'bent' }),
+    element('feGaussianBlur', { in: 'bent', stdDeviation: (0.6 * k * strength).toFixed(2) }),
   );
 }
 
@@ -135,7 +156,13 @@ const STILL = '@media (prefers-reduced-motion: reduce)';
 
 /** The effects the editor can draw, by the name a mark's look gives. */
 export const TEXT_EFFECTS = {
-  heat: { kind: 'filter', build: heat, region: { x: -0.08, y: -0.45, width: 1.16, height: 1.9 } },
+  heat: {
+    kind: 'rising',
+    build: heat,
+    region: { x: -0.08, y: -0.45, width: 1.16, height: 1.9 },
+    theme: { '.cm-effect-heat': { fontWeight: '700' } },
+    strengths: [1, 0.55],
+  },
   frost: { kind: 'filter', build: frost, region: { x: -0.1, y: -0.5, width: 1.2, height: 2 } },
   /** Wave: the words bob along the line, a ripple passing through them from the first letter to the last. */
   wave: {
@@ -243,6 +270,97 @@ export function effectLetters(state: EditorState, stretch: { from: number; to: n
   return letters;
 }
 
+/** A stretch of words as laid out: one per visual line it runs over, in the view's own coordinates. */
+export interface Segment {
+  left: number;
+  right: number;
+  top: number;
+}
+
+/** What the view says about a point on the page, for `textAbove`: the text line there, or nothing. */
+export type ProbeLine = (x: number, y: number) => { from: number; to: number; top: number; empty: boolean } | null;
+
+/** How many visual lines up the text above may be found: the line just above, past one blank line between paragraphs. */
+const SEARCH = 3;
+/** How far either side of the words the heat reaches, in line heights. */
+const SPREAD = 0.35;
+
+/**
+ * The text above one laid-out stretch of heated words: for each strength, nearest first, the document range under the
+ * words' width (and a little either side) on a line of text above them. The first is the nearest line with any text,
+ * looked for up to `SEARCH` lines up, so a blank line between paragraphs does not end the heat; each further one is the
+ * line straight above the last, where the heat has thinned, and stops at a blank line. `probe` reads the layout: given
+ * a point, the text under it as a range, the top of its visual line, and whether the line is blank there.
+ */
+export function textAbove(segment: Segment, lineHeight: number, strengths: readonly number[], probe: ProbeLine): { from: number; to: number; strength: number }[] {
+  const found: { from: number; to: number; strength: number }[] = [];
+  const spread = lineHeight * SPREAD;
+  let top = segment.top;
+  let searched = 0;
+  for (const strength of strengths) {
+    let hit: { from: number; to: number; top: number } | null = null;
+    while (searched < SEARCH) {
+      searched += 1;
+      const y = top - lineHeight / 2;
+      const start = probe(segment.left - spread, y);
+      const end = probe(segment.right + spread, y);
+      if (!start || !end) return found;
+      top = Math.min(start.top, end.top);
+      if (start.empty && end.empty) {
+        // A blank line: the heat carries over it to the first text above, but no further past the first it reached.
+        if (found.length) return found;
+        continue;
+      }
+      hit = { from: Math.min(start.from, end.from), to: Math.max(start.to, end.to), top };
+      break;
+    }
+    if (!hit || hit.to <= hit.from) return found;
+    found.push({ from: hit.from, to: hit.to, strength });
+    // The next line up is only ever the one straight above this one.
+    searched = SEARCH - 1;
+  }
+  return found;
+}
+
+/** The stretch from `from` to `to` as laid out: one segment per visual line, read from the view's character boxes. */
+function segmentsOf(view: EditorView, from: number, to: number): Segment[] {
+  const segments: Segment[] = [];
+  let current: Segment | null = null;
+  // A long heated paragraph is measured by its first stretch only; heat off a whole page of words would be noise.
+  const end = Math.min(to, from + 400);
+  for (let pos = from; pos < end; ) {
+    const code = view.state.doc.sliceString(pos, Math.min(pos + 2, end)).codePointAt(0) ?? 0;
+    const next = pos + (code > 0xffff ? 2 : 1);
+    const a = view.coordsAtPos(pos, 1);
+    const b = view.coordsAtPos(next, -1);
+    if (a && b) {
+      if (current && Math.abs(a.top - current.top) < 2) current.right = Math.max(current.right, b.right);
+      else {
+        current = { left: a.left, right: b.right, top: a.top };
+        segments.push(current);
+      }
+    }
+    pos = next;
+  }
+  return segments;
+}
+
+/** The layout, as `textAbove` asks for it: the line under a point, as a range across the words' width. */
+function probeOf(view: EditorView): ProbeLine {
+  const box = view.contentDOM.getBoundingClientRect();
+  return (x, y) => {
+    if (y < box.top) return null;
+    const pos = view.posAtCoords({ x: Math.min(Math.max(x, box.left + 1), box.right - 1), y }, false);
+    const at = view.coordsAtPos(pos, 1) ?? view.coordsAtPos(pos, -1);
+    if (!at) return null;
+    const line = view.state.doc.lineAt(pos);
+    return { from: pos, to: pos, top: at.top, empty: line.length === 0 || /^\s*$/.test(line.text) };
+  };
+}
+
+/** Said to the plugin when the text above its heated words has been measured afresh and differs from what it drew. */
+const heatMeasured = StateEffect.define<null>();
+
 const prefersStill = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let instances = 0;
@@ -263,6 +381,13 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
       /** The size the filters were last built for, so they are rebuilt only when the type changes size. */
       private builtFor = 0;
       private readonly filters = new Map<TextEffectName, Decoration>();
+      /** A rising effect's haze over the text above, one mark per strength (`${name}:${strength}`). */
+      private readonly hazes = new Map<string, Decoration>();
+      /** A rising effect's words: their own look, with no filter. */
+      private readonly wordMarks = new Map<TextEffectName, Decoration>();
+      /** The text above heated words, as last measured: drawn through the haze on the next draw. */
+      private above: { from: number; to: number; effect: TextEffectName; strength: number }[] = [];
+      private destroyed = false;
       /** A letter effect's marks, one per delay, made once. */
       private readonly letters = new Map<string, Decoration>();
 
@@ -279,12 +404,15 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
       }
 
       update(update: ViewUpdate) {
-        if (update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged || update.geometryChanged || syntaxTree(update.state) !== syntaxTree(update.startState)) {
+        const measured = update.transactions.some((tr) => tr.effects.some((effect) => effect.is(heatMeasured)));
+        if (update.docChanged) this.above = [];
+        if (measured || update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged || update.geometryChanged || syntaxTree(update.state) !== syntaxTree(update.startState)) {
           this.redraw();
         }
       }
 
       destroy() {
+        this.destroyed = true;
         this.svg.remove();
       }
 
@@ -296,6 +424,24 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
         const still = prefersStill();
         for (const name of used) {
           const effect: TextEffect = TEXT_EFFECTS[name];
+          if (effect.kind === 'rising') {
+            this.wordMarks.set(name, Decoration.mark({ class: `cm-textEffect cm-effect-${name}`, attributes: { 'data-effect': name } }));
+            for (const strength of effect.strengths) {
+              const id = `${this.prefix}-${name}-above-${Math.round(strength * 100)}`;
+              const filter = element('filter', {
+                id,
+                x: effect.region.x,
+                y: effect.region.y,
+                width: effect.region.width,
+                height: effect.region.height,
+                'color-interpolation-filters': 'sRGB',
+              }) as SVGFilterElement;
+              effect.build(filter, fontPx, still, strength);
+              this.defs.appendChild(filter);
+              this.hazes.set(`${name}:${strength}`, Decoration.mark({ class: 'cm-textEffectAbove', attributes: { 'data-effect': `${name}-above`, style: `filter:url(#${id})` } }));
+            }
+            continue;
+          }
           if (effect.kind !== 'filter') continue;
           const id = `${this.prefix}-${name}`;
           const filter = element('filter', {
@@ -331,20 +477,64 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
         const atCaret = view.state.facet(EditorView.editable) && view.hasFocus;
         const found = first && last ? effectRanges(view.state, looks, { from: first.from, to: last.to }, atCaret) : [];
         const marks: { from: number; to: number; mark: Decoration }[] = [];
+        const rising: EffectRange[] = [];
         for (const stretch of found) {
           const effect: TextEffect = TEXT_EFFECTS[stretch.effect];
-          if (effect.kind === 'filter') {
+          if (effect.kind === 'rising') {
+            const mark = this.wordMarks.get(stretch.effect);
+            if (mark) marks.push({ from: stretch.from, to: stretch.to, mark });
+            rising.push(stretch);
+          } else if (effect.kind === 'filter') {
             const mark = this.filters.get(stretch.effect);
             if (mark) marks.push({ from: stretch.from, to: stretch.to, mark });
           } else {
             for (const letter of effectLetters(view.state, stretch, effect)) marks.push({ from: letter.from, to: letter.to, mark: this.letterMark(stretch.effect, letter.delayMs) });
           }
         }
+        // The haze over the text above heated words, as last measured, where it is still text outside the heat itself.
+        const heated = rising.map((r) => [r.from, r.to] as const);
+        for (const above of this.above) {
+          if (above.to > view.state.doc.length || heated.some(([from, to]) => above.from < to && above.to > from)) continue;
+          const mark = this.hazes.get(`${above.effect}:${above.strength}`);
+          if (mark) marks.push({ from: above.from, to: above.to, mark });
+        }
         // Nested effects give marks out of order (the outer stretch, then the inner one's letters); the builder wants them sorted.
         marks.sort((a, b) => a.from - b.from || b.to - a.to);
         const builder = new RangeSetBuilder<Decoration>();
         for (const { from, to, mark } of marks) builder.add(from, to, mark);
         this.decorations = builder.finish();
+        this.measureAbove(rising);
+      }
+
+      /**
+       * Where the text above the heated words is, read once the view is laid out, and drawn on the next update when it
+       * has moved. A haze changes no layout, so this settles after one round: the second measure finds what the first
+       * did and dispatches nothing.
+       */
+      private measureAbove(rising: readonly EffectRange[]) {
+        this.view.requestMeasure({
+          key: this,
+          read: (view) => {
+            const lineHeight = view.defaultLineHeight;
+            const probe = probeOf(view);
+            return rising.flatMap((stretch) => {
+              const effect: TextEffect = TEXT_EFFECTS[stretch.effect];
+              if (effect.kind !== 'rising') return [];
+              return segmentsOf(view, stretch.from, stretch.to).flatMap((segment) =>
+                textAbove(segment, lineHeight, effect.strengths, probe).map((above) => ({ ...above, effect: stretch.effect })),
+              );
+            });
+          },
+          write: (next, view) => {
+            const same = next.length === this.above.length && next.every((a, i) => a.from === this.above[i]!.from && a.to === this.above[i]!.to && a.strength === this.above[i]!.strength);
+            if (same) return;
+            this.above = next;
+            // Not from inside the measure: a transaction then is refused, so it goes on the next turn.
+            window.setTimeout(() => {
+              if (!this.destroyed) view.dispatch({ effects: heatMeasured.of(null) });
+            }, 0);
+          },
+        });
       }
     },
     { decorations: (plugin) => plugin.decorations },
@@ -353,10 +543,11 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
   // effects' own CSS; and the frost's ice, a colour for each page.
   const letterThemes = [...used].flatMap((name) => {
     const effect: TextEffect = TEXT_EFFECTS[name];
-    return effect.kind === 'letters' ? [EditorView.baseTheme(effect.theme)] : [];
+    return effect.kind === 'letters' || effect.kind === 'rising' ? [EditorView.baseTheme(effect.theme)] : [];
   });
   const theme = EditorView.baseTheme({
     '.cm-textEffect': {},
+    '.cm-textEffectAbove': {},
     '&dark .cm-effectFrostIce': { floodColor: '#cdeaff' },
     '&light .cm-effectFrostIce': { floodColor: '#5aa6da' },
   });
