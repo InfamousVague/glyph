@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelInfo } from '../core/ai.ts';
-import { availability, modelFor } from './available.ts';
+import { availability, modelFor, presentIds, smallestOf } from './available.ts';
 
 const model = (id: string, present: boolean): ModelInfo => ({ id, file: `${id}.gguf`, bytes: 1, present, path: '' });
 const phone = { tauri: true, ios: false, localOnly: false, generation: 19 };
@@ -14,6 +14,13 @@ describe('which model runs', () => {
     expect(modelFor(['qwen3.5-2b', 'qwen3.5-9b'], 'qwen3.5-4b')).toBe('qwen3.5-2b');
     expect(modelFor(['qwen3.5-9b', 'gemma-4-e4b'], 'qwen3.5-2b')).toBe('gemma-4-e4b');
     expect(modelFor([], 'qwen3.5-4b')).toBeNull();
+  });
+
+  it('is chosen from the models the catalogue says are on the phone, and the gist takes the smallest', () => {
+    const catalogue = [model('qwen3.5-9b', true), model('qwen3.5-4b', false), model('qwen3.5-2b', true)];
+    expect(presentIds(catalogue)).toEqual(['qwen3.5-9b', 'qwen3.5-2b']);
+    expect(smallestOf(presentIds(catalogue))).toBe('qwen3.5-2b');
+    expect(smallestOf([])).toBeNull();
   });
 });
 

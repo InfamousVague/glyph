@@ -14,8 +14,10 @@ vi.mock('../core/ai.ts', async () => {
   };
 });
 
+import { act } from 'react';
 import { generate, listModels } from '../core/ai.ts';
-import { show } from '../../test/render.tsx';
+import { makeNote } from '../../test/notes.ts';
+import { rerender, show } from '../../test/render.tsx';
 import { bodyHash } from './bodyHash.ts';
 import { gistFor, runGists, useGists } from './gist.ts';
 import { readGist } from './results.ts';
@@ -24,6 +26,24 @@ describe('the gist runner', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.mocked(generate).mockClear();
+  });
+
+  it('hands the home page a gist the moment it lands, with the notes as they were', async () => {
+    const notes = [makeNote('n3', 'plans for the weekend\n- cabin\n', { updatedAt: 3 })];
+    const seen: { current: Record<string, string> } = { current: {} };
+    function Home() {
+      seen.current = useGists(notes);
+      return null;
+    }
+    show(<Home />);
+    // The page draws again for its own reasons, as a home page does, before any gist is written.
+    rerender(<Home />);
+    expect(seen.current).toEqual({});
+    // The whole turn before React draws again: the runner starting and its landing reach the page as a single render,
+    // which is how an answer that comes back quickly arrives; the page must read the gists again for it all the same.
+    await runGists();
+    await act(async () => {});
+    expect(seen.current).toEqual({ n3: 'Gist of plans for the weekend' });
   });
 
   it('writes a gist for a note the home page showed, with the smallest model, and keeps it against the body', async () => {

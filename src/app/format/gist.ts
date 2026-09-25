@@ -1,12 +1,12 @@
 import { useEffect, useMemo } from 'react';
 import { generate, listModels } from '../core/ai.ts';
+import { externalStore } from '../core/externalStore.ts';
 import { MARKER } from '../core/itemSyntax.ts';
 import type { Note } from '../core/store.ts';
 import { isTauri } from '../core/tauri.ts';
-import { useRedraw } from '../core/useRedraw.ts';
 import { bodyHash } from './bodyHash.ts';
 import { protectLinks } from './links.ts';
-import { smallestOf } from '../ai/available.ts';
+import { presentIds, smallestOf } from '../ai/available.ts';
 import { anyRunning, isRunning } from '../ai/runs.ts';
 import { GIST_PROMPT, TEMPERATURE } from './prompt.ts';
 import { keepGist, readGist } from './results.ts';
@@ -55,7 +55,13 @@ export function tidyGist(text: string): string {
 /** The bodies the home page has cards for, by note id: what the runner works from. */
 const bodies = new Map<string, string>();
 const hashes = new Map<string, { body: string; hash: number }>();
-const listeners = new Set<() => void>();
+/**
+ * How many times the runner has spoken - started a note, kept a gist, finished a turn - so the page reads the gists
+ * again after each. A count rather than the runner's state, because what the page must notice is that something
+ * happened: a turn that starts and lands between two of its renders leaves `active` as it found it.
+ */
+const spoken = externalStore(0);
+const speak = () => spoken.update((n) => n + 1);
 const failed = new Set<string>();
 let active: string | null = null;
 let timer = 0;
@@ -123,10 +129,9 @@ async function pump(): Promise<void> {
   const [id, body] = next;
   active = id;
   // The card being worked on shows it (home/HomeScreen.tsx).
-  listeners.forEach((listener) => listener());
+  speak();
   try {
-    const present = (await listModels()).filter((m) => m.present).map((m) => m.id);
-    const model = smallestOf(present);
+    const model = smallestOf(presentIds(await listModels()));
     if (!model) return;
     // Links go in as tokens, as for every pass, and the line never has them.
     const { text } = protectLinks(body);
@@ -134,13 +139,13 @@ async function pump(): Promise<void> {
     const line = tidyGist(output.text);
     if (line) keepGist(id, { text: line, for: hashOf(id, body), model, len: body.length, head: headOf(body) });
     else failed.add(id);
-    listeners.forEach((listener) => listener());
+    speak();
   } catch (failure) {
     console.warn('[glyph] the gist did not come:', failure);
     failed.add(id);
   } finally {
     active = null;
-    listeners.forEach((listener) => listener());
+    speak();
     window.clearTimeout(timer);
     timer = window.setTimeout(() => void pump(), 800);
   }
@@ -156,20 +161,15 @@ function kick(): void {
  * them: the runner starts when a note has none and the app is on screen.
  */
 export function useGists(notes: readonly Note[]): Record<string, string> {
-  const bump = useRedraw();
+  const heard = spoken.use();
 
   useEffect(() => {
-    const listener = () => bump();
-    listeners.add(listener);
     const onVisible = () => {
       if (document.visibilityState === 'visible') kick();
     };
     document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      listeners.delete(listener);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [bump]);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   useEffect(() => {
     // Newest first: the note just made is the one a person is looking at.
@@ -185,7 +185,7 @@ export function useGists(notes: readonly Note[]): Record<string, string> {
       if (gist) out[note.id] = gist;
     }
     return out;
-    // Re-read after the runner speaks (bump) as well as when the notes change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notes, listeners.size, active]);
+    // Read again after the runner speaks as well as when the notes change: the gists live in results.ts, not here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `heard` is the change channel, not a value the memo reads
+  }, [notes, heard]);
 }
