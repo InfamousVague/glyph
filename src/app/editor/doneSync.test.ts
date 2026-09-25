@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorState, Text } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { history, undo } from '@codemirror/commands';
@@ -152,14 +152,14 @@ describe('a box ticked in the note', () => {
     const view = open(`- [ ] milk [notion](${A})\n- [ ] bread\n`);
     await settled();
     view.dispatch({ changes: { from: 3, to: 4, insert: 'x' }, userEvent: 'input' });
+    // The send is a turn of its own and then the run's; however many hops that takes, it lands.
+    await vi.waitFor(() => expect(sent).toEqual([`done ${A}`]));
+    // A turn after the send, the box is still as it was set.
     await settled();
-    await settled();
-    expect(sent).toEqual([`done ${A}`]);
     expect(view.state.doc.toString()).toBe(`- [x] milk [notion](${A})\n- [ ] bread\n`);
     view.dispatch({ changes: { from: 3, to: 4, insert: ' ' }, userEvent: 'input' });
+    await vi.waitFor(() => expect(sent).toEqual([`done ${A}`, `reopen ${A}`]));
     await settled();
-    await settled();
-    expect(sent).toEqual([`done ${A}`, `reopen ${A}`]);
     expect(view.state.doc.toString()).toBe(`- [ ] milk [notion](${A})\n- [ ] bread\n`);
     view.destroy();
   });
@@ -167,9 +167,7 @@ describe('a box ticked in the note', () => {
   it('sends nothing for a plain to-do, or for a box the sync itself set', async () => {
     answers.set(A, ready(A, 'done'));
     const view = open(`- [ ] milk [notion](${A})\n- [ ] bread\n`);
-    await settled();
-    await settled();
-    expect(view.state.doc.toString()).toBe(`- [x] milk [notion](${A})\n- [ ] bread\n`);
+    await vi.waitFor(() => expect(view.state.doc.toString()).toBe(`- [x] milk [notion](${A})\n- [ ] bread\n`));
     view.dispatch({ changes: { from: view.state.doc.line(2).from + 3, to: view.state.doc.line(2).from + 4, insert: 'x' }, userEvent: 'input' });
     await settled();
     expect(sent).toEqual([]);

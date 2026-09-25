@@ -75,7 +75,8 @@ describe('reading the tasks on a board', () => {
     wanted.length = 0;
     const view = new EditorView({ state: EditorState.create({ doc: note(400), extensions: [glyphMarkdown(), drawnBoards(), shortLinks()] }), parent: document.body });
     const itemLine = view.state.doc.lineAt(view.state.doc.toString().indexOf('- [ ] Task a')).from;
-    // The items are out of view: only the board can have asked for them.
+    // The items are out of view (by CodeMirror's estimate, since jsdom lays nothing out): only the board can have
+    // asked for them.
     expect(itemLine).toBeGreaterThan(view.viewport.to);
     expect(wanted).toEqual([`https://app.notion.com/p/Task-a-${'a'.repeat(32)}`, `https://app.notion.com/p/Task-b-${'b'.repeat(32)}`]);
     view.destroy();
@@ -86,6 +87,9 @@ describe('reading the tasks on a board', () => {
     wanted.length = 0;
     const doc = `${Array.from({ length: 400 }, () => 'Words.').join('\n\n')}\n\n${note(0)}`;
     const view = new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(), drawnBoards(), shortLinks()] }), parent: document.body });
+    // jsdom lays nothing out, so what is in view is CodeMirror's estimate: this says the board is below it, so a change
+    // to the estimate fails here rather than as a read that should not have happened.
+    expect(doc.indexOf('```board')).toBeGreaterThan(view.viewport.to);
     expect(wanted).toEqual([]);
     view.destroy();
   });
