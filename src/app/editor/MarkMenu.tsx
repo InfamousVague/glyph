@@ -78,7 +78,7 @@ export function MarkMenu({ name, url, words, say, close, unlink }: MarkMenuProps
     }
   };
 
-  // The drawer takes a pull on its handle: down far enough and it closes (editor/sheetDrag.ts).
+  // The drawer's shell - the scrim, the grip's pull, the back gesture - is the sheet every bottom sheet shares (editor/Sheet.tsx).
   return (
     <Sheet label={`${title} ${details?.title ?? 'link'}`} onClose={close} className={styles.drawer}>
       <div className={styles.head}>

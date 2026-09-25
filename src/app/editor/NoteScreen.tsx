@@ -248,10 +248,10 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const toolsSlot = useTopBarTools();
 
   /*
-   * The links for the editor, one object for as long as App's lookups are the same ones: the editor looks again at the
-   * canvases framed in the note whenever it is handed a new one (editor/Editor.tsx), which rescans the whole note, and
-   * this screen draws several times a second while a tape plays. App makes new lookups when the notes change, which is
-   * when a framed canvas may have been drawn on.
+   * The links for the editor, one object across this screen's own draws - a tape's playhead moving, a sheet opening -
+   * since the editor takes a new one as the notes having changed and rescans the whole note for the canvases framed in
+   * it (editor/Editor.tsx), and this screen draws several times a second while a tape plays. The object is new whenever
+   * App draws, since App makes its lookups afresh each time it does; that covers every change to the notes, and more.
    */
   const wiki = useMemo(() => (onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined), [onOpenTitle, hasTitle, bodyOfTitle]);
 

@@ -418,7 +418,7 @@ describe('the canvases framed in the note', () => {
     bodyOfTitle: vi.fn((title: string) => (title === 'Map' ? '{"nodes":[],"edges":[]}' : null)),
   });
 
-  it('are read again when the notes change, not each time the screen draws', async () => {
+  it('are read again when App draws, not each time the screen does', async () => {
     const note = await createNote('n1', '# Trip\n![[Map]]\nwords');
     const first = lookups();
     show(screen(note, first));
@@ -427,7 +427,8 @@ describe('the canvases framed in the note', () => {
     // The screen draws again on its own - the More sheet opening, a tape's playhead moving - with App's lookups the same.
     act(() => button('More for this note').click());
     expect(first.bodyOfTitle).toHaveBeenCalledTimes(read);
-    // App hands down new lookups when the notes change: a framed canvas may have been drawn on, so it is read again.
+    // App hands down new lookups each time it draws, as it does when the notes change: a framed canvas may have been
+    // drawn on, so it is read again.
     const next = lookups();
     rerender(screen(note, next));
     expect(next.bodyOfTitle).toHaveBeenCalledWith('Map');

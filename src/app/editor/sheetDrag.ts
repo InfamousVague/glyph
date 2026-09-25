@@ -1,8 +1,8 @@
 import { useCallback, useRef } from 'react';
 
 /**
- * A sheet you can take hold of: drag its handle down and it follows your finger, and let go past halfway and it
- * closes (Matt: "Can't grab and scroll up and down on drawer handles").
+ * A sheet you can take hold of: drag its handle down and it follows your finger, and let go past CLOSE_PX (96 px),
+ * or on a flick, and it closes (Matt: "Can't grab and scroll up and down on drawer handles").
  *
  * The handle is the grab, not the whole sheet, so the rows inside still scroll and a press on one is a press. Pulled
  * up, the sheet gives a little and comes back: there is nothing above it to open into, and a handle that does
