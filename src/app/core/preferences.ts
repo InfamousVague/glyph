@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react';
 import { isCodeThemeDark, isCodeThemeLight, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { MOST_TABS } from '../notes/openTabs.ts';
 import { isNoteView, type NoteView } from '../editor/viewMode.ts';
+import { prefersStill } from './motion.ts';
 
 /**
  * The look-and-feel knobs, and how they reach the tokens.
@@ -516,7 +517,7 @@ export function applyPreferences(prefs: Preferences = current): void {
   // The pace: the kit's durations stretched or shortened. Inline, so the kit's own reduced-motion rule, which sets
   // them in a media query, would lose to it: that case is left alone and the page reads the phone's setting instead.
   const scale = motionScale(prefs);
-  const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const still = prefersStill();
   for (const [name, ms] of DURATIONS) {
     if (scale === 1 || still) root.style.removeProperty(name);
     else root.style.setProperty(name, `${Math.round(ms * scale)}ms`);

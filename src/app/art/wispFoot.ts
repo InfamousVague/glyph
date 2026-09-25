@@ -1,3 +1,4 @@
+import { prefersStill } from '../core/motion.ts';
 import { preferences } from '../core/preferences.ts';
 import { WISP_EDGE_BUDGET } from './wispEdge.ts';
 
@@ -126,7 +127,7 @@ let holder: SVGSVGElement | null = null;
 
 export function wispFoot(height: number, width: number): string | null {
   if (typeof document === 'undefined' || !preferences().wispEdge) return null;
-  if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
+  if (prefersStill()) return null;
   const tall = Math.round(height);
   const wide = Math.round(width) + SIDE * 2;
   if (tall < SHORTEST || wide <= SIDE * 2) return null;

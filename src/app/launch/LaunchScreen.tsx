@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, CircleAlert, LoaderCircle } from '@glacier/icons';
+import { prefersStill } from '../core/motion.ts';
 import type { Updates } from '../core/ota.ts';
 import type { SyncStatus } from '../core/sync/engine.ts';
 import { isTauri } from '../core/tauri.ts';
@@ -88,7 +89,7 @@ function IconChase({ finishing, onFinished }: { finishing: boolean; onFinished: 
     const path = bar.current;
     // A page with no geometry (a test's DOM) keeps the bar where it starts and the eyes ahead.
     if (!path || typeof path.getTotalLength !== 'function' || typeof path.getPointAtLength !== 'function') return undefined;
-    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (prefersStill()) return undefined;
     const length = path.getTotalLength();
     const looking = EYES.map(() => ({ x: 0, y: 0 }));
     const start = performance.now();

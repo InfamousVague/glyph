@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react';
+import { prefersStill } from './motion.ts';
 
 /**
  * Glides `scroller` back to its top whenever `key` changes: a workspace chosen on the home page (Matt: "when I click
@@ -42,7 +43,7 @@ export function useGlideToTop(scroller: RefObject<HTMLElement | null>, key: stri
 /** Holds `el` at `from` over a list too short to reach it, then scrolls it to the top; the room at the foot goes when the glide ends. */
 function glide(el: HTMLElement, from: number, release: { current: (() => void) | null }): void {
   release.current?.();
-  const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const still = prefersStill();
   const base = parseFloat(getComputedStyle(el).paddingBlockEnd) || 0;
   const short = from + el.clientHeight - el.scrollHeight;
   if (short > 0) el.style.paddingBlockEnd = `${base + short}px`;

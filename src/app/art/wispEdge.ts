@@ -1,3 +1,4 @@
+import { prefersStill } from '../core/motion.ts';
 import { usePreferences } from '../core/preferences.ts';
 import { useEffect, useState, type RefObject } from 'react';
 import { installWispMasks, type WispDraw, wispDraw, wispHead } from './wispMask.ts';
@@ -316,7 +317,7 @@ export function useWispEdge(
     if (!el || !wanted) return undefined;
     // Both refs are set by the time the effect runs; the header is read once so the cleanup sees the same node.
     const header = under?.current ?? null;
-    const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const still = prefersStill();
     // Which drawing this view wears, said on the element for the stylesheet (app.css) and for anyone measuring.
     // On a desktop neither end smokes: the top is a blur strip under the header, the foot a short fade at the very edge,
     // so the page runs down to the window's bottom (Matt: "the desktop UI on the home page isn't reaching to the bottom

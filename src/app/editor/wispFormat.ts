@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { prefersStill } from '../core/motion.ts';
 import type { InlineFormat } from '../plugins/types.ts';
 
 /**
@@ -48,8 +49,6 @@ const SOFT_SWAY = 1.3;
 const LIFT = 3;
 
 let instances = 0;
-
-const prefersStill = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /**
  * The letters to smoke in `range`: every letter, spaces aside, of each node

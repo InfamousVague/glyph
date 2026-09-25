@@ -1,5 +1,6 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { prefersStill } from '../core/motion.ts';
 import { moving } from './wispArrivals.ts';
 
 /**
@@ -79,8 +80,6 @@ const FILTERS = 4;
 const STEP_MS = 33;
 
 let instances = 0;
-
-const prefersStill = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function slot(defs: SVGDefsElement, id: string, seed: number): Slot {
   const filter = document.createElementNS(SVG_NS, 'filter');

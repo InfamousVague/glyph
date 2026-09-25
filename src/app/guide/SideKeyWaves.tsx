@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { prefersStill } from '../core/motion.ts';
 import { onScreen, sideKeySpot, type Edge, type SideKeySpot } from './sideKeys.ts';
 import { grown, paceWaves, shining, wobbleAmount, wobbleAt, type Pacer, type Ring } from './waves.ts';
 import styles from './SideKeyWaves.module.css';
@@ -164,7 +165,7 @@ export function SideKeyWaves({ spot }: { spot?: SideKeySpot }) {
     const ctx = canvas?.getContext('2d') ?? null;
     // No drawing surface (a test's document): the layer is simply empty.
     if (!canvas || !ctx) return undefined;
-    const reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduced = prefersStill();
     const waves = new Waves(canvas, ctx, key.edge, onScreen(key.at));
     if (reduced) {
       waves.still();

@@ -1,5 +1,6 @@
 import { Annotation, Facet, StateEffect, StateField, type EditorState, type Extension, type Range, type Transaction } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { prefersStill } from '../core/motion.ts';
 import { motionScale } from '../core/preferences.ts';
 
 /**
@@ -167,10 +168,6 @@ export function commonEnds(a: string, b: string): { prefix: number; suffix: numb
   let suffix = 0;
   while (suffix < shortest - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix += 1;
   return { prefix, suffix };
-}
-
-function prefersStill(): boolean {
-  return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 /** What a wisp transaction sets in motion: the letters it really added, and the text it really took away. */

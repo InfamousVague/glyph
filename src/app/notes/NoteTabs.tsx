@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, PanelLeft, Plus, X } from '@glacier/icons';
 import { Menu, MenuItem, MenuSeparator, MenuSub } from '@glacier/react';
+import { prefersStill } from '../core/motion.ts';
 import {
   joinGroup,
   leaveGroup,
@@ -460,7 +461,7 @@ export function NoteTabs({
     const box = row.current;
     const outline = glide.current;
     if (!box || !outline || !from || !activeId || from === activeId || moving) return undefined;
-    if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (prefersStill()) return undefined;
     const tab = (id: string) => box.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(id)}"]`);
     const start = tab(from);
     const end = tab(activeId);
