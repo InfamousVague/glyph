@@ -8,9 +8,7 @@ import styles from './ConfirmCard.module.css';
 
 /**
  * The confirm card: exactly what a command is about to do, before it does
- * it. One card for a command however it arrived - spoken to the recorder
- * (capture/CaptureScreen.tsx) or typed into the bar (editor/NoteScreen.tsx)
- * - so the preview reads the same wherever the command came from. Matt
+ * it, for a command spoken to the recorder (capture/CaptureScreen.tsx). Matt
  * (PR #1): "Shows the exact proposed change before applying it."
  */
 export function ConfirmCard({

@@ -20,10 +20,10 @@ import styles from './AllNotesScreen.module.css';
  * Every note, as a page of cards (Matt: "Browsing all notes is super hard there is no good UI it just opens in the
  * sidebar, I'd like a grid view of all the notes in the 'all notes' section").
  *
- * The home page's "All notes" used to open the sidebar, which is a tree for jumping to a note you already know by
- * name; for looking through what there is, it was a column of small rows over the page. This is a page of its own:
- * the cards the home page draws (notes/NoteCard.tsx), a step smaller so that a phone holds two across and a desktop
- * window five, with a search over the notes' words in the bar, the workspace pills choosing which notes, the order
+ * The home page's "All notes" used to open the sidebar, which is a tree for jumping to a note you already know by name;
+ * for looking through what there is, it was a column of small rows over the page. This is a page of its own: the cards
+ * the home page draws (notes/NoteCard.tsx), in its grid - one to a row on a phone, three or four on the Fold opened out,
+ * four in a desktop window - with a search over the notes' words in the bar, the workspace pills choosing which notes, the order
  * (last touched, or by name), and the archive shown when asked for. A tap on a card opens the note; the arrow, the
  * phone's back gesture and the tab row's house all go home.
  *

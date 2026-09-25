@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, show, typeInto, unmount } from '../../test/render.tsx';
 import { bookNoteBody, bookOf, chaptersOf } from './book.ts';
 import { BookBar, BookFoot, BookView } from './BookView.tsx';
+import { readBookSpot, writeBookSpot } from './bookSpot.ts';
 
 /**
  * The index view: the chapters as rows that open their notes, a chapter not written yet said so, the three edits
@@ -144,6 +145,63 @@ describe('reading straight through', () => {
     expect([...document.querySelectorAll('nav[aria-label="Chapters"] button')].map((b) => b.textContent?.trim())).toEqual(['1 Introduction', '2 Trees', '3 Birds']);
     act(() => button('Index').click());
     expect(rows()).toEqual(['Introduction', 'Trees', 'Birds']);
+  });
+});
+
+describe('where the book was left', () => {
+  afterEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  /** A page that scrolls, its top at 0, for the view to keep its place in. */
+  function scrollingPage() {
+    const page = document.createElement('div');
+    Object.defineProperty(page, 'scrollHeight', { value: 5000 });
+    Object.defineProperty(page, 'clientHeight', { value: 500 });
+    page.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
+    document.body.append(page);
+    return page;
+  }
+
+  it('keeps the index as the spot while the index is shown, and the read-through while that is', () => {
+    const page = scrollingPage();
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} spot={{ id: 'book', page: { current: page } }} />);
+    expect(readBookSpot('book')).toEqual({ kind: 'index' });
+    act(() => button('Read straight through').click());
+    expect(readBookSpot('book')?.kind).toBe('reading');
+    act(() => button('Index').click());
+    expect(readBookSpot('book')).toEqual({ kind: 'index' });
+    page.remove();
+  });
+
+  it('opens reading straight through where it was left, scrolled back to the chapter and the line', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => frames.push(callback));
+    writeBookSpot('book', { kind: 'reading', title: 'Trees', offset: 120 });
+    const page = scrollingPage();
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} bodyOf={(t) => `# ${t}\n\nWords.`} spot={{ id: 'book', page: { current: page } }} />);
+    expect(document.querySelector('[data-reading]')).not.toBeNull();
+    // Each chapter a thousand pixels below the one before, moving up as the page scrolls.
+    document.querySelectorAll<HTMLElement>('section[id^="book-chapter-"]').forEach((section, i) => {
+      section.getBoundingClientRect = () => ({ top: 200 + i * 1000 - page.scrollTop }) as DOMRect;
+    });
+    // The editors ask for frames too, to measure; every frame asked for so far is run.
+    const runFrames = () => act(() => frames.splice(0).forEach((frame) => frame(0)));
+    runFrames();
+    expect(page.scrollTop).toBe(1320);
+    act(() => vi.advanceTimersByTime(150));
+    expect(page.scrollTop).toBe(1320);
+    // Back at the index and reading again, it starts where the page is, not at the old place.
+    act(() => button('Index').click());
+    page.scrollTop = 0;
+    act(() => button('Read straight through').click());
+    runFrames();
+    act(() => vi.advanceTimersByTime(150));
+    expect(page.scrollTop).toBe(0);
+    page.remove();
   });
 });
 

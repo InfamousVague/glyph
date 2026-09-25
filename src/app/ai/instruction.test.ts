@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
-import { bareWords, listBody, offerOf, readInstruction, runOf } from './instruction.ts';
+import { bareWords, readInstruction, runOf } from './instruction.ts';
 
 const notes = [
   { id: 'g', title: 'Groceries', note: makeNote('g', '# Groceries\n- milk\n') },
@@ -63,18 +63,5 @@ describe('reading an instruction', () => {
     expect(await readInstruction('shorten the second paragraph', notes)).toEqual({ kind: 'ask', instruction: 'shorten the second paragraph' });
     expect(await readInstruction('hey ghost, shorten the second paragraph', notes, true)).toEqual({ kind: 'ask', instruction: 'shorten the second paragraph' });
     expect(await readInstruction('we should shorten the second paragraph', notes, true)).toEqual({ kind: 'words' });
-  });
-});
-
-describe('what the card shows', () => {
-  it('offers the words placed as the note would take them', () => {
-    const shown = offerOf({ kind: 'place', note: notes[0]!, text: 'eggs', how: 'leave', task: false, many: false, target: null });
-    expect(shown).toMatchObject({ kind: 'place', title: 'Groceries', added: ['- Eggs'], into: 'list' });
-    expect(offerOf({ kind: 'create-list', title: 'comic books', items: ['Batman'] })).toMatchObject({ kind: 'new', title: 'comic books', lines: ['Batman'] });
-  });
-
-  it('writes a new list as its title and items', () => {
-    expect(listBody('comic books', ['Batman', 'Superman'])).toBe('Comic Books\n\n- Batman\n- Superman\n');
-    expect(listBody('comic books', [])).toBe('Comic Books');
   });
 });

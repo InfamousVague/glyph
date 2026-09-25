@@ -37,6 +37,7 @@ import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote } from './core
 import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, isBookBody } from './book/book.ts';
+import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
@@ -152,6 +153,15 @@ function Shell() {
     if (note) setScreen({ name: 'note', note });
     setDrawer(false);
   };
+  /**
+   * `id` opened from outside it - the home page, the sidebar, the notes list, search: a book goes back to where it was
+   * left, the chapter it was being read at (book/bookSpot.ts `whereLeft`). A tab, Back and Forward use `openNote`,
+   * and show the note itself.
+   */
+  const openNoteWhereLeft = (id: string) => {
+    const note = notes.find((n) => n.id === id);
+    openNote(note ? whereLeft(note, shownNotes, shown).id : id);
+  };
   /** `id` opened in the current note's tab. */
   const openNoteWithin = (id: string) => {
     tabs.replaceNext(shown && shown !== id ? shown : null);
@@ -231,6 +241,13 @@ function Shell() {
    */
   const openTitle = async (title: string, at?: string) => {
     tabs.replaceNext(null);
+    // A [[link]] to a book, from outside it, goes back to where the book was left, as the home page's Library does.
+    const found = at ? undefined : titled(title);
+    const there = found ? whereLeft(found, shownNotes, shown) : null;
+    if (there && there !== found) {
+      setScreen({ name: 'note', note: there });
+      return;
+    }
     await openTitleFrom(title, at);
   };
   /** A title opened from inside a book: in the current tab's place. */
@@ -445,7 +462,7 @@ function Shell() {
     setDrawer(false);
     setScreen({ name: 'notes' });
   };
-  const allNotes = <AllNotesScreen notes={shownNotes} loading={loading} onOpen={openNote} onBack={() => void backToList()} />;
+  const allNotes = <AllNotesScreen notes={shownNotes} loading={loading} onOpen={openNoteWhereLeft} onBack={() => void backToList()} />;
   /*
    * The home page (home/HomeScreen.tsx): the start page on every screen (Matt: "Add a 'home' button to take us to a
    * dashboard like page"). It took the notes list's place on a phone and the empty "No note open" pane beside the
@@ -456,6 +473,7 @@ function Shell() {
       notes={shownNotes}
       loading={loading}
       onOpen={(id, at) => {
+        if (!at) return openNoteWhereLeft(id);
         const note = notes.find((n) => n.id === id);
         if (note) setScreen({ name: 'note', note, at });
       }}
@@ -503,6 +521,7 @@ function Shell() {
   const paletteDoing = useMemo(
     () => ({
       openNote,
+      openNoteWhereLeft,
       newNote: () => void newNote(),
       speak,
       speakInto,
@@ -535,8 +554,8 @@ function Shell() {
       },
       remove: removeNote,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuilt when the notes, their actions or the trail change, which is when a command's answer can; each doing reads the rest of the render it was built in, and every command's own change renders again before another can run
-    [notes, actions, walk.trail],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [notes, actions, walk.trail, screen],
   );
 
   /*
@@ -615,7 +634,7 @@ function Shell() {
               <NoteTree
                 notes={shownNotes}
                 activeId={shown}
-                onOpen={openNote}
+                onOpen={openNoteWhereLeft}
                 onNew={() => setNewSheet(true)}
                 onCommands={openCommands ?? undefined}
                 onSettings={() => setSettings(true)}
@@ -660,7 +679,7 @@ function Shell() {
         onDestroy={actions.destroy}
         onEmptyTrash={() => void actions.emptyTrash(trashedNotes)}
         activeId={shown}
-        onOpen={openNote}
+        onOpen={openNoteWhereLeft}
         onNew={() => {
           setDrawer(false);
           setNewSheet(true);

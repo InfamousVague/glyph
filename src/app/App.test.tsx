@@ -7,6 +7,8 @@ import { createNote, getNote, type Note } from './core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from './core/preferences.ts';
 import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
 import { stubResizeObserver } from '../test/stubs.ts';
+import { bookNoteBody } from './book/book.ts';
+import { writeBookSpot } from './book/bookSpot.ts';
 
 /**
  * The Shell (App.tsx) as a person moves through it: which screen is up, the tab row it keeps, the trail the arrows
@@ -186,6 +188,32 @@ describe('the tab row', () => {
     expect(tabs()).toEqual(['a', 'b']);
     expect(preferences().tabGroups).toEqual(groups);
     expect(document.querySelector('[data-group-chip="g"]')).not.toBeNull();
+  });
+});
+
+describe('a book opened from outside it', () => {
+  it('goes back to the chapter it was left at, from the home page or a [[link]], while its tab shows the index', async () => {
+    await seed(['book', bookNoteBody('Field guide', ['Introduction', 'Trees'])], ['intro', '# Introduction\n\nWelcome.'], ['trees', '# Trees\n\nOaks.'], ['walk', '# Walk\n\nSee [[Field guide]].']);
+    writeBookSpot('book', { kind: 'chapter', title: 'Trees' });
+    await openApp();
+    act(() => card('Field guide').click());
+    expect(noteShown()).toBe('trees');
+    act(() => button('Home').click());
+    act(() => card('Walk').click());
+    await act(async () => seen.note!.onOpenTitle!('Field guide'));
+    expect(noteShown()).toBe('trees');
+    // Opened as itself, from its own tab, the book is its index: the way back to it from a chapter.
+    await act(async () => seen.note!.onOpenWithin!('Field guide'));
+    expect(noteShown()).toBe('book');
+    act(() => button('Home').click());
+    act(() => button('Field guide').click());
+    expect(noteShown()).toBe('book');
+    // The notes drawer is outside the book too.
+    act(() => button('Home').click());
+    act(() => button('All your notes').click());
+    const row = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] li button')].find((b) => b.textContent?.includes('Field guide'));
+    act(() => row!.click());
+    expect(noteShown()).toBe('trees');
   });
 });
 
