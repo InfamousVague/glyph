@@ -95,6 +95,37 @@ describe('a new recording', () => {
   });
 });
 
+describe('a recording that moves to another note', () => {
+  it('composes under the second note’s text, never the first’s, once it is aimed there', async () => {
+    const trip = await createNote('trip', '# Trip\n\nBook the cabin.');
+    const work = await createNote('work', '# Work\n\n- Email Jo');
+    const { writer } = writerFor(() => 'Call Sam.');
+    writer.aim(trip);
+    expect(await writer.compose('Call Sam.')).toBe('# Trip\n\nBook the cabin.\n\nCall Sam.');
+    writer.aim(work);
+    expect(await writer.compose('Call Sam.')).toBe('# Work\n\n- Email Jo\n\nCall Sam.');
+    await writer.flushDraft();
+    expect((await getNote('work'))?.body).toBe('# Work\n\n- Email Jo\n\nCall Sam.');
+    expect((await getNote('trip'))?.body).toBe('# Trip\n\nBook the cabin.');
+  });
+
+  it('leaves what was said so far where it was said, beyond the reach of a later Discard', async () => {
+    const trip = await createNote('trip', '# Trip\n\nBook the cabin.');
+    let words = 'For the dog.';
+    const { writer } = writerFor(() => words);
+    writer.aim(trip);
+    await writer.flushDraft();
+    expect(writer.savedDraft).toBe(true);
+    writer.keepDraft();
+    expect(writer.savedDraft).toBe(false);
+    expect(writer.baseBody).toBeNull();
+    words = 'Call Sam.';
+    writer.aim(null);
+    await writer.undoDraft();
+    expect((await getNote('trip'))?.body).toBe('# Trip\n\nBook the cabin.\n\nFor the dog.');
+  });
+});
+
 describe('commands on other notes', () => {
   it('rewrite that note alone, and keep the command list’s copy of it current', async () => {
     const trip = await createNote('trip', '# Trip');

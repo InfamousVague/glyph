@@ -236,6 +236,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     () =>
       new TakeWriter({
         markdown: (asTitled) => take.markdown({ titled: asTitled, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown }),
+        // Any phrase at all, where Done asks `take.hasContent`: a draft writes the take as it stands, and one that lays
+        // out as nothing writes the note's own text back as it was (appendBody.ts), so the looser rule costs nothing.
         hasWords: () => take.segments.length > 0 || take.tables.length > 0 || take.clips.length > 0,
         candidates: () => candidates.current,
         targetChanged: setTarget,
@@ -288,8 +290,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     async (chosen: Note | null) => {
       await writer.flushDraft();
       take.fork();
-      writer.savedDraft = false;
-      writer.baseBody = null;
+      writer.keepDraft();
       // The take's tape is the note it ends on: a note with a recording takes it on the end of its own.
       takeTape.current = null;
       if (chosen) {
@@ -348,7 +349,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       await writer.undoDraft();
       // The full note, for its recording and phrases: this take's tape goes on the end of them.
       const full = (await getNote(chosen.id).catch(() => null)) ?? chosen;
-      writer.baseBody = null;
       writer.aim(full);
       setMoves((n) => n + 1);
       // The next draft save writes the words so far to the note.
