@@ -102,7 +102,7 @@ How it works, and the failure modes it is built around, is the header of `src-ta
 
 | Command | What it ships |
 | --- | --- |
-| `npm run deploy:server` | glyph-api, the Rust service under `server/` behind `/glyph/api/`: accounts, sync, shares, the live relay, Notion's sign-in and the door to Claude's hosted MCP server. `--mcp-only` ships only the hosted MCP server. |
+| `npm run deploy:server` | glyph-api, the Rust service under `server/` behind `/glyph/api/`: accounts, sync, shares, the live relay, Notion's sign-in and the door to Claude's hosted MCP server. The old formatting route, `POST /glyph/api/format`, still runs behind its token: nothing in the app calls it, but the deploy fails when `health` reports Ollama unreachable and checks that the route refuses a request without the token (`server/src/format.rs`). `--mcp-only` ships only the hosted MCP server. |
 | `node scripts/deploy-landing.mjs` | ghostmarkdown.com, the download page and its privacy and delete-account pages (docs/LANDING.md). It has no npm alias. `--caddy` also writes the site's block into the box's shared Caddyfile. |
 
 The box counts logins, not deploys, and locks an account out after a handful in a short window: the lockout answers
