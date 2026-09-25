@@ -184,7 +184,7 @@ export function hostedApp(options: HostedOptions) {
     let key: CryptoKey;
     try {
       // Not extractable: this process can use the key and never read it out.
-      key = await importAccountKey(body.accountKey);
+      key = await importAccountKey(body.accountKey, { length: 32 });
     } catch (failure) {
       // The message the person reads says what they can act on; the reason goes to the journal, because the last
       // time this fired it was not the key at all - it was a Node without WebCrypto (mcp/webcrypto.ts).

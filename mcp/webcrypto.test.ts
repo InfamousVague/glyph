@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 /** What the hosted server does with what the sign-in page hands it (mcp/hosted.ts, `/authorize/complete`). */
-const takeTheKey = importAccountKey;
+const takeTheKey = (raw: string) => importAccountKey(raw, { length: 32 });
 
 describe('a Node without WebCrypto', () => {
   it('refuses a perfectly good account key, which is what made this so hard to see', async () => {

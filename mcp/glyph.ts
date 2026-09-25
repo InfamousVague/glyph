@@ -105,12 +105,14 @@ async function callApi<T>(api: string, method: string, path: string, { token, bo
 /**
  * The account key from its raw bytes as base64url, as a key this process can use and never read out: the kept
  * session's (`StoredSession.accountKey`), or what the hosted sign-in page unwrapped in the person's browser
- * (mcp/hosted.ts). Anything but 32 bytes is not an account key. The bytes are zeroed once the key is made, or refused.
+ * (mcp/hosted.ts). Given `length`, a key of any other length is refused before it is imported: the hosted route asks
+ * for 32 bytes, since what it is handed comes from a browser, while a kept session's key is imported as it was kept.
+ * The bytes are zeroed once the key is made, or refused.
  */
-export async function importAccountKey(raw: string): Promise<CryptoKey> {
+export async function importAccountKey(raw: string, { length }: { length?: number } = {}): Promise<CryptoKey> {
   const bytes = fromBase64Url(raw);
   try {
-    if (bytes.length !== 32) throw new Error('not 32 bytes');
+    if (length !== undefined && bytes.length !== length) throw new Error(`not ${length} bytes`);
     return await crypto.subtle.importKey('raw', bytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   } finally {
     bytes.fill(0);

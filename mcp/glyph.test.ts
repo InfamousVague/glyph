@@ -1,10 +1,10 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { imageNames } from '../src/app/core/imageRefs.ts';
 import { noteTitle } from '../src/app/core/noteTitle.ts';
 import { toBase64Url } from '../src/app/core/sync/crypto.ts';
 import { fakeService, FAST } from '../src/test/fakeService.ts';
-import { Conflict, GlyphAccount, GlyphApiError, type StoredSession } from './glyph.ts';
+import { Conflict, GlyphAccount, GlyphApiError, importAccountKey, type StoredSession } from './glyph.ts';
 import { aNote, API, asText, connected } from './testKit.ts';
 
 /**
@@ -33,6 +33,35 @@ describe('signing in from outside the app', () => {
   it('says so on the wrong password, without leaking which half was wrong', async () => {
     const service = await fakeService({ handle: 'matt', password: 'correct horse' });
     await expect(GlyphAccount.signIn(API, 'matt', 'wrong horse', { rounds: FAST, fetcher: service.fetcher })).rejects.toThrow(GlyphApiError);
+  });
+});
+
+describe('the account key', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /** The byte arrays WebCrypto has been handed to import, still the arrays it was handed, to look at afterwards. */
+  function watchImports(): () => Uint8Array[] {
+    const importing = vi.spyOn(crypto.subtle, 'importKey');
+    return () => importing.mock.calls.map((call) => call[1] as Uint8Array);
+  }
+
+  const bytes = (length: number) => toBase64Url(new Uint8Array(length).fill(7));
+
+  it('is imported from a kept session at the length it was kept, and its bytes are zeroed once it is made', async () => {
+    const handed = watchImports();
+    await expect(importAccountKey(bytes(32))).resolves.toBeTruthy();
+    await expect(importAccountKey(bytes(16))).resolves.toBeTruthy();
+    expect(handed().map((given) => given.length)).toEqual([32, 16]);
+    expect(handed().every((given) => given.every((byte) => byte === 0))).toBe(true);
+  });
+
+  it('is refused at another length where one is asked for, and a key WebCrypto refuses is zeroed too', async () => {
+    const handed = watchImports();
+    await expect(importAccountKey(bytes(16), { length: 32 })).rejects.toThrow('not 32 bytes');
+    expect(handed()).toEqual([]);
+    await expect(importAccountKey(bytes(20))).rejects.toBeTruthy();
+    expect(handed()).toHaveLength(1);
+    expect(handed()[0]!.every((byte) => byte === 0)).toBe(true);
   });
 });
 
