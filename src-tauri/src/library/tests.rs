@@ -1,3 +1,8 @@
+//! The library against real folders in the temp directory: what a save, a pin,
+//! a sync, a move-in and another app's edit each leave on disk, and what the
+//! page is answered with.
+
+use super::dates::parse_iso;
 use super::*;
 use crate::note::{CommandMutation, CommandMutationResult, CommandUndoResult, RecordedSegment, Recording};
 use crate::store::Store;
@@ -188,17 +193,6 @@ fn moving_in_writes_every_old_note_out_and_is_safe_to_repeat() {
 }
 
 #[test]
-fn dates_go_to_front_matter_and_come_back() {
-    let at = 1_789_381_930_123;
-    let text = iso(at);
-    assert_eq!(text, "2026-09-14T10:32:10.123Z");
-    assert_eq!(parse_iso(&text), Some(at));
-    assert_eq!(parse_iso("2026-09-14"), Some(1_789_344_000_000));
-    assert_eq!(parse_iso("2026-09-14T12:32:10.123+02:00"), Some(at));
-    assert_eq!(parse_iso("not a date"), None);
-}
-
-#[test]
 fn a_path_never_leaves_the_library() {
     let root = temp("escape");
     let vault = FsVault::new(&root).unwrap();
@@ -385,4 +379,87 @@ fn stale_command_preview_never_overwrites_a_later_library_edit() {
         source: "capture".into(),
     }).unwrap();
     assert_eq!(result, CommandMutationResult::Conflict { current: Some(edited) });
+}
+
+fn command(id: &str, note: &Note, after: &str) -> CommandMutation {
+    CommandMutation {
+        id: id.into(),
+        note_id: note.id.clone(),
+        kind: "append".into(),
+        before_revision: Some(note.revision),
+        before_body: Some(note.body.clone()),
+        after_body: after.into(),
+        source: note.source.clone(),
+    }
+}
+
+#[test]
+fn a_recent_command_still_standing_is_offered_again_after_an_interruption() {
+    let root = temp("command-recover");
+    let mut library = Library::open_fs(&root).unwrap();
+    let before = library.create_note("todo", "To-Do\n", "editor").unwrap().unwrap();
+    library.apply_command(&command("recover", &before, "To-Do\n\n- [ ] Voice\n")).unwrap();
+    drop(library);
+    let mut reopened = Library::open_fs(&root).unwrap();
+    assert_eq!(reopened.latest_command_undo(60_000).unwrap().map(|pending| pending.mutation_id).as_deref(), Some("recover"));
+    // Typed over since: the command's result no longer stands, so there is nothing to undo.
+    let now = reopened.get_note("todo").unwrap().unwrap();
+    reopened.update_note("todo", "To-Do\n\n- [ ] Voice\n- [ ] Typed\n", now.revision).unwrap();
+    assert_eq!(reopened.latest_command_undo(60_000).unwrap(), None);
+}
+
+#[test]
+fn undoing_a_created_note_removes_it_but_never_a_note_edited_since() {
+    let root = temp("command-create");
+    let mut library = Library::open_fs(&root).unwrap();
+    let create = CommandMutation {
+        id: "c1".into(),
+        note_id: "new".into(),
+        kind: "create".into(),
+        before_revision: None,
+        before_body: None,
+        after_body: "Apartment stuff\n".into(),
+        source: "capture".into(),
+    };
+    assert!(matches!(library.apply_command(&create).unwrap(), CommandMutationResult::Applied { .. }));
+    assert!(matches!(library.undo_command("c1").unwrap(), CommandUndoResult::Undone { note: None, .. }));
+    assert_eq!(library.get_note("new").unwrap(), None, "the note the command made is gone again");
+    assert_eq!(library.undo_command("never").unwrap(), CommandUndoResult::NotFound);
+
+    let again = CommandMutation { id: "c2".into(), ..create };
+    library.apply_command(&again).unwrap();
+    let made = library.get_note("new").unwrap().unwrap();
+    let later = library.update_note("new", "Apartment stuff\n\nand more\n", made.revision).unwrap().unwrap();
+    assert_eq!(library.undo_command("c2").unwrap(), CommandUndoResult::Conflict { current: Some(later) });
+    assert!(library.get_note("new").unwrap().is_some(), "an undo never throws away a later edit");
+}
+
+#[test]
+fn a_note_moved_by_another_app_is_found_where_it_went() {
+    let root = temp("moved");
+    let mut library = Library::open_fs(&root).unwrap();
+    library.save_note("n", "# Moved\n", "editor").unwrap();
+    std::fs::create_dir_all(root.join("Work")).unwrap();
+    std::fs::rename(root.join("Inbox/Moved.md"), root.join("Work/Moved.md")).unwrap();
+    let found = library.get_note("n").unwrap().unwrap();
+    assert_eq!(found.path.as_deref(), Some("Work/Moved.md"), "the id in its front matter follows it");
+    std::fs::remove_file(root.join("Work/Moved.md")).unwrap();
+    assert_eq!(library.get_note("n").unwrap(), None, "and a file removed elsewhere is a note gone");
+}
+
+#[test]
+fn clearing_empties_the_library_and_it_carries_on() {
+    let root = temp("clear");
+    let mut library = Library::open_fs(&root).unwrap();
+    library.save_note("a", "# One\n", "editor").unwrap();
+    library.save_note("b", "# Two\n", "capture").unwrap();
+    library.set_formatted("b", Some("# Two\n\nTidy."), Some(1), Some("m")).unwrap();
+    library.save_note("draft", "", "editor").unwrap();
+    library.clear().unwrap();
+    assert!(library.list_notes().unwrap().is_empty());
+    assert_eq!(library.get_note("draft").unwrap(), None, "drafts go too");
+    assert!(!root.join("Inbox/One.md").exists() && !root.join(".glyph/notes/b.json").exists());
+    assert!(root.join(".glyph/notes").is_dir(), "the folder a sidecar is written into is still there");
+    let again = library.save_note("c", "# Three\n", "editor").unwrap();
+    assert_eq!(library.list_notes().unwrap(), vec![again]);
 }

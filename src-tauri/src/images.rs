@@ -188,16 +188,16 @@ pub fn save_image_data(app: tauri::AppHandle, base64: String) -> Result<SavedIma
     keep(&images, &bytes).map(|name| SavedImage { name })
 }
 
-/// Removes the pictures a deleted note referred to, unless another note still
-/// does. Best effort: a picture that cannot be removed is left, and the delete
-/// it follows has already happened.
-pub fn remove_unreferenced<R: tauri::Runtime>(app: &tauri::AppHandle<R>, store: &crate::library::Library, body: &str) {
-    let Ok(dir) = crate::paths::images_dir(app) else { return };
+/// Removes from `images` the pictures a deleted note referred to, unless
+/// another note in `library` still does. Best effort: a picture that cannot be
+/// removed, or whose use cannot be checked, is left, and the delete it follows
+/// has already happened.
+pub fn remove_unreferenced(images: &Path, library: &crate::library::Library, body: &str) {
     for name in referenced(body) {
-        if store.image_in_use(&name).unwrap_or(true) {
+        if library.image_in_use(&name).unwrap_or(true) {
             continue;
         }
-        let _ = std::fs::remove_file(dir.join(&name));
+        let _ = std::fs::remove_file(images.join(&name));
     }
 }
 

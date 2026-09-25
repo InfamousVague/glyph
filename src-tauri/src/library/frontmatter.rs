@@ -18,15 +18,6 @@ pub enum Value {
     List(Vec<String>),
 }
 
-impl Value {
-    pub fn as_text(&self) -> Option<&str> {
-        match self {
-            Value::Text(text) => Some(text),
-            _ => None,
-        }
-    }
-}
-
 /// The block's lines, without the `---` fences.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FrontMatter {
@@ -65,7 +56,7 @@ pub fn split(text: &str) -> (Option<FrontMatter>, &str) {
 /// The front matter and body joined back into a file. No front matter, or an empty one, is no block.
 pub fn join(front: Option<&FrontMatter>, body: &str) -> String {
     match front {
-        Some(front) if !front.lines.iter().all(|l| l.trim().is_empty()) => format!("---\n{}\n---\n{}", front.lines.join("\n"), body),
+        Some(front) if !front.is_empty() => format!("---\n{}\n---\n{}", front.lines.join("\n"), body),
         _ => body.to_string(),
     }
 }
@@ -193,6 +184,7 @@ impl FrontMatter {
         }
     }
 
+    /// Whether the block holds nothing but blank lines, which `join` leaves out.
     pub fn is_empty(&self) -> bool {
         self.lines.iter().all(|l| l.trim().is_empty())
     }
