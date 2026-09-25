@@ -110,6 +110,35 @@ describe('the strip', () => {
     expect(bar.style.inlineSize).toBe('40%');
   });
 
+  it('says how many of the AI’s changes are still marked, with Keep all, when no run is left to speak of', () => {
+    const keepAll = vi.fn();
+    const el = show(<AiStrip noteId="quiet" marks={{ count: 3, keepAll }} />);
+    expect(el.textContent).toContain('3 changes from the AI are marked in the note.');
+    press(button('Keep every change', el));
+    expect(keepAll).toHaveBeenCalledTimes(1);
+    const one = show(<AiStrip noteId="also-quiet" marks={{ count: 1, keepAll }} />);
+    expect(one.textContent).toContain('One change from the AI is marked in the note.');
+    // With none left, the strip is gone.
+    expect(show(<AiStrip noteId="quiet" marks={{ count: 0, keepAll }} />).textContent).toBe('');
+  });
+
+  it('offers Keep all beside an ended run that left marks, and not while it runs', async () => {
+    const keepAll = vi.fn();
+    const el = show(<AiStrip noteId="n" marks={{ count: 2, keepAll }} />);
+    let handle!: ReturnType<typeof startRun>;
+    await act(async () => {
+      handle = startRun({ noteId: 'n', kind: 'fix', model: 'qwen3.5-4b', system: 's', prompt: 'p', maxTokens: 100 });
+    });
+    await tick();
+    expect(el.querySelector('[aria-label="Keep every change"]')).toBeNull();
+    await act(async () => {
+      fakes[0]!.finish('fixed\n');
+      await handle.done;
+    });
+    press(button('Keep every change', el));
+    expect(keepAll).toHaveBeenCalledTimes(1);
+  });
+
   it('shows a thinking model’s thought in the card', async () => {
     const el = show(<AiStrip noteId="n" />);
     await act(async () => {
