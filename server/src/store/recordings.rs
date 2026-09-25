@@ -8,7 +8,7 @@
 
 use super::{Store, WriteError};
 use rusqlite::{params, Connection, OptionalExtension};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 impl Store {
     fn recording_path(&self, account: i64, id: &str) -> PathBuf {
@@ -23,18 +23,31 @@ impl Store {
     /// Stores a recording written from `base`, or refuses it with the stored revision when that has moved on; one the
     /// service has never seen is taken whatever its base. The bytes go to a side file and are renamed into place only
     /// once the row is ready, so a reader never gets half a recording.
+    ///
+    /// The side file is this call's own (`<id>.<random>.part`): it is written before the lock is taken, and two
+    /// uploads of one recording sharing a name could interleave, one's revision and size recorded against the other's
+    /// bytes. Whichever takes the lock second is refused as stale, and its side file goes, as does one whose write
+    /// failed on the way.
     pub fn put_recording(&self, account: i64, id: &str, base: i64, bytes: &[u8], now: i64) -> Result<i64, WriteError<i64>> {
         let dir = self.recordings.join(account.to_string());
         std::fs::create_dir_all(&dir)?;
-        let dest = self.recording_path(account, id);
-        let part = dest.with_extension("part");
+        let part = dir.join(format!("{id}.{:016x}.part", rand::random::<u64>()));
         std::fs::write(&part, bytes)?;
+        let placed = self.place_recording(account, id, base, bytes.len(), now, &part);
+        if placed.is_err() {
+            let _ = std::fs::remove_file(&part);
+        }
+        placed
+    }
+
+    /// `put_recording` once the bytes are in `part`: the revision checked and the row written under the lock, and
+    /// the bytes renamed into place before the row is committed.
+    fn place_recording(&self, account: i64, id: &str, base: i64, size: usize, now: i64, part: &Path) -> Result<i64, WriteError<i64>> {
         let mut conn = self.lock();
         let tx = conn.transaction()?;
         let current = Self::recording_rev_in(&tx, account, id)?;
         if let Some(stored) = current {
             if stored != base {
-                let _ = std::fs::remove_file(&part);
                 return Err(WriteError::Stale(stored));
             }
         }
@@ -42,9 +55,9 @@ impl Store {
         tx.execute(
             "INSERT INTO recordings (account_id, id, rev, size, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(account_id, id) DO UPDATE SET rev = excluded.rev, size = excluded.size, updated_at = excluded.updated_at",
-            params![account, id, rev, bytes.len() as i64, now],
+            params![account, id, rev, size as i64, now],
         )?;
-        std::fs::rename(&part, &dest)?;
+        std::fs::rename(part, self.recording_path(account, id))?;
         tx.commit()?;
         Ok(rev)
     }
