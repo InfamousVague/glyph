@@ -89,8 +89,8 @@ export interface TakeHost<N extends TakeNote> {
  * The recorder makes its take once, but its host is new with every render, because each render's functions see that
  * render's state. So the take is given this instead, which looks each member up on the ref at the moment the take
  * uses it: a method is always the newest render's, and `understand` - there only once the phone's command model has
- * been found - is read afresh each time rather than fixed at the first render's answer. The recorder used to forward
- * every member by hand, one line each, and every member the host gained was a line to remember there as well.
+ * been found - is read afresh each time rather than fixed at the first render's answer. A member the host gains is
+ * reached through it with nothing more to write.
  */
 export function hostThrough<N extends TakeNote>(ref: { readonly current: TakeHost<N> }): TakeHost<N> {
   return new Proxy({} as TakeHost<N>, {

@@ -6,9 +6,9 @@ import type { TakeHost } from '../app/capture/takeHost.ts';
  * test says otherwise by passing its own.
  *
  * The host has two dozen members, and each test of the take cares about three or four of them - the offer it made,
- * the chip it showed, the note it changed. Three test files each wrote out the whole object, and every member the
- * interface lost or gained was an edit to all three. Here the quiet defaults are written once; `notes` and `target`
- * are the only ones a test usually has to fill, and they default to none.
+ * the chip it showed, the note it changed. So the quiet defaults are written once, here, and a member the interface
+ * gains or loses is one edit; `notes` and `target` are the only ones a test usually has to fill, and they default to
+ * none.
  */
 export function quietHost<N extends TakeNote>(overrides: Partial<TakeHost<N>> = {}): TakeHost<N> {
   return {

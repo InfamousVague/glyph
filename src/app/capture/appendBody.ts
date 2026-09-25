@@ -2,9 +2,8 @@
  * Words on the end of a note's body, with the one blank line between that every writer of a note agrees on.
  *
  * Two joins. `appendBody` is a capture's words below a note it continues: what a draft, the live page, the better
- * words and the voice suite all write with (it lived in continuation.ts, which went with memo mode). `appendBlock` is a
- * block of its own - a table, a list started for spoken items, a left note - put at the end, ending in a line break as
- * a written note does. The list writer spelled the second one out twice; it is this now.
+ * words and the voice suite all write with. `appendBlock` is a block of its own - a table, a list started for spoken
+ * items, a left note - put at the end, ending in a line break as a written note does.
  */
 
 /** `addition` below `base`, a blank line between, for a note that grew by another recording. */

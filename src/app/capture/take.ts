@@ -224,11 +224,11 @@ export class Take<N extends TakeNote> {
 
   /**
    * No, or no answer: nothing happens, and the chip says `why` when there is one. `outcome` is what the review's
-   * check of commands is told: that the person said no, or that nobody answered. It is its own argument because the
-   * two do not follow from whether there is a reason to show - a question that timed out has one, and a tapped Cancel
-   * has none - and taking one from the other logged each as the other.
+   * check of commands is told: that the person said no, or that nobody answered. Every caller says which, because
+   * neither follows from whether there is a reason to show - a question that timed out has one, and a tapped Cancel
+   * has none.
    */
-  cancel(why: string | null, now: number, outcome: 'declined' | 'dropped' = why ? 'declined' : 'dropped'): void {
+  cancel(why: string | null, now: number, outcome: 'declined' | 'dropped'): void {
     if (!this.pending) return;
     this.host.log(describeOffer(this.pending.offer, outcome));
     this.setPending(null, now);
@@ -497,7 +497,7 @@ export class Take<N extends TakeNote> {
       if (answer) {
         skip();
         if (answer === 'yes') this.confirm(now);
-        else this.cancel('Not done.', now);
+        else this.cancel('Not done.', now, 'declined');
         return null;
       }
       // Talking on: the words go in the note and the question stays, unless a new command starts.
@@ -505,7 +505,8 @@ export class Take<N extends TakeNote> {
         this.host.said(text);
         return segment;
       }
-      this.cancel(null, now);
+      // A new command started over the question: it was never answered.
+      this.cancel(null, now, 'dropped');
     }
 
     // A note was named: this phrase is what goes in it.

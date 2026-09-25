@@ -186,9 +186,9 @@ async function ensureRefineModel(): Promise<boolean> {
 /**
  * The first job in the queue, if the phone can take it now. What comes next is decided by how this one went: the next
  * job half a second after one that finished or was given up on, and this one again after a wait when the model was
- * not there or the pass failed. The wait used to be set and then, in the same breath, replaced by the half-second
- * kick meant for the next job, so a phone without the larger model - Local only on, say - asked for it twice a second
- * for as long as the app stayed open.
+ * not there or the pass failed. Each outcome picks its one wait, and the runner is kicked once, after it: a phone
+ * without the larger model - Local only on, say - that was kicked again at the half-second would ask for the model
+ * twice a second for as long as the app stayed open.
  */
 async function runNext(): Promise<void> {
   if (running || held) return;
