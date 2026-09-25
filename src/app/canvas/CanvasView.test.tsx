@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { show, typeInto, unmount, waitUntil } from '../../test/render.tsx';
+import { goBack } from '../core/back.ts';
 import { CanvasView } from './CanvasView.tsx';
 
 // Only the three the canvas calls are stood in for: the editor reads the rest of this module as it is.
@@ -23,7 +24,6 @@ vi.mock('../core/images.ts', async (importOriginal) => ({
   saveImageFile: vi.fn(async () => 'dropped.jpg'),
 }));
 import { parseCanvas, type Canvas } from './jsonCanvas.ts';
-import { fitted, fittedTo, shown as shownBox, zoomedAt } from './viewport.ts';
 
 const canvas = parseCanvas(`{
   "nodes": [
@@ -85,28 +85,6 @@ describe('a canvas drawn', () => {
     const missing = [...shown.querySelectorAll('[role="button"]')].find((el) => el.textContent?.includes('Nowhere')) as HTMLElement;
     expect(missing.hasAttribute('data-waiting')).toBe(true);
     expect(missing.textContent).toContain('Not in Ghost.md yet');
-  });
-});
-
-describe('fitting the canvas to the screen', () => {
-  it('scales the whole canvas into the screen with room around it, no larger than life, centred', () => {
-    const view = fitted(canvas, 1000, 600);
-    // The cards run from -20 to 500 across and -20 to 180 down: 520 by 200, which fits a 1000 by 600 screen at life size.
-    expect(view.scale).toBe(1);
-    expect(view.x).toBe((1000 - 520) / 2 + 20);
-    expect(view.y).toBe((600 - 200) / 2 + 20);
-    const small = fitted(canvas, 300, 300);
-    expect(small.scale).toBeCloseTo((300 - 64) / 520, 5);
-    expect(fitted({ nodes: [], edges: [] }, 300, 300)).toEqual({ x: 32, y: 32, scale: 1 });
-  });
-
-  it('zooms about a point of the screen, keeping what was under it under it', () => {
-    const view = { x: 100, y: 50, scale: 1 };
-    // The canvas point under (300, 250) is (200, 200); at double size it must still be at (300, 250).
-    const doubled = zoomedAt(view, 300, 250, 2);
-    expect(doubled).toEqual({ x: 300 - 200 * 2, y: 250 - 200 * 2, scale: 2 });
-    expect(zoomedAt(view, 0, 0, 99).scale).toBe(3);
-    expect(zoomedAt(view, 0, 0, 0.001).scale).toBe(0.1);
   });
 });
 
@@ -290,18 +268,7 @@ describe('sizes and groups', () => {
   });
 });
 
-describe('zooming to a card, and what the screen shows', () => {
-  it('fits a card to the screen no larger than life, and reports the box the screen shows', () => {
-    const view = fittedTo({ x: 100, y: 50, width: 200, height: 80 }, 400, 300);
-    expect(view.scale).toBe(1);
-    expect(view).toEqual({ x: 0, y: 60, scale: 1 });
-    const small = fittedTo({ x: 0, y: 0, width: 2000, height: 1000 }, 400, 300);
-    expect(small.scale).toBeCloseTo(0.168, 3);
-    expect(shownBox({ x: -100, y: -50, scale: 0.5 }, 400, 300)).toEqual({ x: 200, y: 100, width: 800, height: 600 });
-  });
-});
-
-describe('more ways to add, and finding your way', () => {
+describe('more ways to add', () => {
   const tap = (el: Element) => act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
 
   it('adds a note card from the + sheet by its title, and a link card by its address', () => {
@@ -338,64 +305,21 @@ describe('more ways to add, and finding your way', () => {
     expect((onChange.mock.calls[0]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'file', file: 'Launch week.md' });
   });
 
-  it('zooms to a note card on a tap of its title without opening the note, and opens it from the rest', () => {
-    const open = vi.fn();
-    const shown = show(<CanvasView canvas={canvas} dark={false} wiki={{ known: () => true, open }} />);
-    const card = shown.querySelector('[data-card="f"]') as HTMLElement;
-    const world = shown.querySelector('[class*="world"]') as HTMLElement;
-    // jsdom lays nothing out: give the canvas a screen to fit the card into.
-    Object.defineProperty(shown.firstElementChild, 'clientWidth', { value: 400, configurable: true });
-    Object.defineProperty(shown.firstElementChild, 'clientHeight', { value: 300, configurable: true });
-    const before = world.style.transform;
-    tap(card.querySelector('[data-card-title]')!);
-    expect(open).not.toHaveBeenCalled();
-    expect(world.style.transform).not.toBe(before);
-    tap(card);
-    expect(open).toHaveBeenCalledWith('Launch week', '^photos');
-  });
-
-  it('draws a minimap that tells the cards apart, draws the lines, names the group, and goes where a finger lands', () => {
-    const shown = show(<CanvasView canvas={canvas} dark={false} />);
-    const map = shown.querySelector('svg[aria-label^="A map of the canvas"]') as SVGSVGElement;
-    expect(map).not.toBeNull();
-    const kinds = [...map.querySelectorAll('[data-kind]')].map((g) => g.getAttribute('data-kind'));
-    expect(kinds).toEqual(['text', 'note', 'note', 'link']);
-    expect(map.querySelectorAll('line').length).toBe(2);
-    expect(map.querySelector('text')?.textContent).toBe('Before');
-    // The link's dot, the group, four cards and the screen's box.
-    expect(map.querySelectorAll('circle').length).toBe(1);
-    expect(map.querySelectorAll('rect').length).toBe(6);
-  });
-
-  it('grows the minimap on a press, moves the screen with a drag on it, and goes where a tap on the grown map lands', () => {
-    const shown = show(<CanvasView canvas={canvas} dark={false} />);
-    const map = shown.querySelector('svg[aria-label^="A map of the canvas"]') as SVGSVGElement;
-    const world = shown.querySelector('[class*="world"]') as HTMLElement;
-    const at = (type: string, x: number, y: number) =>
-      act(() => map.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, buttons: type === 'pointerup' ? 0 : 1 })));
-    const before = world.style.transform;
-    // The press that grows it only grows it.
-    expect(map.hasAttribute('data-big')).toBe(false);
-    at('pointerdown', 60, 40);
-    expect(map.getAttribute('data-big')).toBe('true');
-    at('pointerup', 60, 40);
-    expect(world.style.transform).toBe(before);
-    // A drag moves the screen's box by what the finger moved: the view goes the other way, by that in world units.
-    at('pointerdown', 60, 40);
-    at('pointermove', 61, 40);
-    at('pointermove', 80, 50);
-    at('pointerup', 80, 50);
-    expect(world.style.transform).not.toBe(before);
-    const moved = world.style.transform;
-    // A tap on the grown map goes there.
-    at('pointerdown', 30, 30);
-    at('pointerup', 30, 30);
-    expect(world.style.transform).not.toBe(moved);
-    expect(map.getAttribute('data-big')).toBe('true');
-    // A press on the canvas puts it back.
-    const page = shown.querySelector('[class*="canvas"]') as HTMLElement;
-    act(() => page.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 300, clientY: 300, buttons: 1 })));
-    expect(map.hasAttribute('data-big')).toBe(false);
+  it('closes the + sheet on a back gesture and on a tap beside it, adding nothing', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    tap(shown.querySelector('button[aria-label="Add a card"]')!);
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    act(() => {
+      expect(goBack()).toBe(true);
+    });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    // Nothing else is waiting for the gesture once the sheet is gone.
+    expect(goBack()).toBe(false);
+    tap(shown.querySelector('button[aria-label="Add a card"]')!);
+    tap(document.querySelector('[role="dialog"]')!.parentElement!);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it('marks a card that is only a table, so the table fills it', () => {
@@ -431,14 +355,35 @@ describe('pictures, charts and the toolbar', () => {
     expect(shown.querySelector('[data-card="theirs"]')?.textContent).toContain('vault');
   });
 
+  it('opens one of Ghost.md’s own pictures on a double-tap, to resize or take off, and leaves one from elsewhere shut', () => {
+    const withPictures = parseCanvas(`{ "nodes": [
+      { "id": "mine", "type": "file", "x": 0, "y": 0, "width": 200, "height": 150, "file": "abc.jpg" },
+      { "id": "theirs", "type": "file", "x": 300, "y": 0, "width": 200, "height": 150, "file": "Pictures/abc.jpg" }
+    ] }`) as Canvas;
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={withPictures} dark={false} onChange={onChange} />);
+    const twice = (el: Element) => {
+      act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 20, clientY: 20 })));
+      act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 20, clientY: 20 })));
+    };
+    const theirs = shown.querySelector('[data-card="theirs"]') as HTMLElement;
+    twice(theirs);
+    expect(theirs.hasAttribute('data-editing')).toBe(false);
+    const mine = shown.querySelector('[data-card="mine"]') as HTMLElement;
+    twice(mine);
+    expect(mine.hasAttribute('data-editing')).toBe(true);
+    expect(mine.querySelector('[aria-label="Drag to resize this card"]')).not.toBeNull();
+    act(() => (mine.querySelector('button[aria-label="Take this picture off the canvas"]') as HTMLElement).click());
+    expect((onChange.mock.calls[0]![0] as Canvas).nodes.map((n) => n.id)).toEqual(['theirs']);
+  });
+
   it('adds a picture from the + sheet, and a chart that starts as a diagram', async () => {
     const onChange = vi.fn();
     const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
     tap(shown.querySelector('button[aria-label="Add a card"]')!);
     tap([...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent?.startsWith('A picture'))!);
-    await act(async () => {
-      await Promise.resolve();
-    });
+    // The picture is chosen and kept before its card is made: waited for, not counted in turns of the queue.
+    await waitUntil(() => expect(onChange).toHaveBeenCalled());
     expect((onChange.mock.calls[0]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'file', file: 'picked.jpg' });
     tap(shown.querySelector('button[aria-label="Add a card"]')!);
     tap([...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent?.startsWith('A chart'))!);

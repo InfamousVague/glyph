@@ -370,3 +370,85 @@ describe('lines kept apart', () => {
     expect(brokenInto('  ', 2)).toEqual([]);
   });
 });
+
+describe('what a node keeps', () => {
+  it('keeps a group’s picture and how it is laid, a 3-digit hex colour, and an anchor that is one; drops what is not', () => {
+    const canvas = parseCanvas(`{ "nodes": [
+      { "id": "g", "type": "group", "x": 0, "y": 0, "width": 10, "height": 10, "background": "sky.png", "backgroundStyle": "ratio", "color": "#f80" },
+      { "id": "h", "type": "group", "x": 0, "y": 0, "width": 10, "height": 10, "background": "", "backgroundStyle": "stretch", "label": "" },
+      { "id": "f", "type": "file", "x": 0, "y": 0, "width": 10, "height": 10, "file": "Trip.md", "subpath": "^friday" },
+      { "id": "e", "type": "file", "x": 0, "y": 0, "width": 10, "height": 10, "file": "" },
+      { "id": "u", "type": "link", "x": 0, "y": 0, "width": 10, "height": 10, "url": "" },
+      { "id": "c", "type": "text", "x": 0, "y": 0, "width": 10, "height": 10, "text": "hi", "color": "#ff88" }
+    ] }`) as Canvas;
+    expect(canvas.nodes.map((n) => n.id)).toEqual(['g', 'h', 'f', 'c']);
+    expect(canvas.nodes[0]).toEqual({ id: 'g', type: 'group', x: 0, y: 0, width: 10, height: 10, color: '#f80', background: 'sky.png', backgroundStyle: 'ratio' });
+    expect(canvas.nodes[1]).toEqual({ id: 'h', type: 'group', x: 0, y: 0, width: 10, height: 10 });
+    expect(canvas.nodes[2]).not.toHaveProperty('subpath');
+    expect(canvas.nodes[3]).not.toHaveProperty('color');
+  });
+
+  it('keeps only the sides and ends the spec names on a line, and a line with no words has no label', () => {
+    const canvas = parseCanvas(`{
+      "nodes": [
+        { "id": "a", "type": "text", "x": 0, "y": 0, "width": 10, "height": 10, "text": "a" },
+        { "id": "b", "type": "text", "x": 50, "y": 0, "width": 10, "height": 10, "text": "b" }
+      ],
+      "edges": [{ "id": "e", "fromNode": "a", "toNode": "b", "fromSide": "top", "toSide": "under", "fromEnd": "arrow", "toEnd": "dot", "label": "", "color": "7" }]
+    }`) as Canvas;
+    expect(canvas.edges).toEqual([{ id: 'e', fromNode: 'a', toNode: 'b', fromSide: 'top', fromEnd: 'arrow' }]);
+  });
+});
+
+describe('front matter a canvas note may have', () => {
+  const canvas: Canvas = { nodes: [{ id: 'a', type: 'text', x: 0, y: 0, width: 100, height: 50, text: 'hi' }], edges: [] };
+  const json = serializeCanvas(canvas);
+
+  it('reads a canvas under +++ fences, and keeps them when it writes', () => {
+    const body = `+++\ntitle: "Plan"\n+++\n${json}`;
+    expect(canvasOf(body)).toEqual(canvas);
+    expect(withCanvas(body, { nodes: [], edges: [] }).startsWith('+++\ntitle: "Plan"\n+++\n{')).toBe(true);
+  });
+
+  it('is not a canvas under a fence that never closes, or closes past the fortieth line', () => {
+    expect(isCanvasBody(`---\ntitle: "Plan"\n${json}`)).toBe(false);
+    const long = ['---', ...Array.from({ length: 40 }, (_, i) => `key${i}: ${i}`), '---', json].join('\n');
+    expect(isCanvasBody(long)).toBe(false);
+    const fits = ['---', ...Array.from({ length: 37 }, (_, i) => `key${i}: ${i}`), '---', json].join('\n');
+    expect(canvasOf(fits)).toEqual(canvas);
+  });
+});
+
+describe('sides and ends when the cards are level', () => {
+  it('faces across rather than down when two cards are as far apart each way', () => {
+    const a = { x: 0, y: 0, width: 100, height: 100 };
+    const b = { x: 200, y: 200, width: 100, height: 100 };
+    expect(sidesOf(a, b, {})).toEqual({ from: 'right', to: 'left' });
+    expect(sidesOf(b, a, {})).toEqual({ from: 'left', to: 'right' });
+  });
+
+  it('packs the ends on a side too short for the spread, and keeps them off its corners', () => {
+    const tall = (id: string, y: number): CanvasNode => ({ id, type: 'text', text: id, x: 0, y, width: 300, height: 200 });
+    // c's left side is 60px long: three ends cannot be END_SPREAD apart on it, and none may come within 16px of a corner.
+    const canvas: Canvas = {
+      nodes: [tall('a', 0), tall('b', 300), tall('d', 600), { id: 'c', type: 'text', text: 'c', x: 500, y: 270, width: 300, height: 60 }],
+      edges: ['a', 'b', 'd'].map((from) => ({ id: from, fromNode: from, toNode: 'c' })),
+    };
+    const paths = edgePaths(canvas);
+    const ys = ['a', 'b', 'd'].map((id) => Number(/^M[\d.-]+ ([\d.-]+)/.exec(paths.get(id)!.toHead!)![1]));
+    // In the order their far ends come, top to bottom, evenly about the middle and no nearer a corner than 16px.
+    expect(ys).toEqual([286, 300, 314]);
+    for (const y of ys) {
+      expect(y).toBeGreaterThanOrEqual(270 + 16);
+      expect(y).toBeLessThanOrEqual(330 - 16);
+    }
+  });
+
+  it('breaks a label onto three lines where two will not fit down the gap', () => {
+    const card = (id: string, x: number): CanvasNode => ({ id, type: 'text', text: id, x, y: 0, width: 300, height: 200 });
+    const label = 'the long way round the lake';
+    const placed = edgePaths({ nodes: [card('a', 0), card('c', 390)], edges: [{ id: 'e', fromNode: 'a', toNode: 'c', label, toEnd: 'none' }] }).get('e')!;
+    expect(placed.lines).toHaveLength(3);
+    expect(placed.lines.join(' ')).toBe(label);
+  });
+});
