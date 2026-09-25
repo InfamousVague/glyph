@@ -19,8 +19,7 @@ import styles from './ContextMenu.module.css';
  * the press is heard, and why the phone's own bar stays away). What appears is a band of Glyph's words above the
  * selection: Cut and Copy on a selection, Paste, Copy board on a board, Find, Select all, Duplicate, Delete, Move up
  * and down, the board rows where they apply (editor/boardActions.ts), a plugin's send for the line, Style, and Add
- * image. Under it, on a selection, a quieter band of the edits the screen offers for it - the AI's Ask - greyed with
- * the reason when they cannot run.
+ * image.
  *
  * Reading the clipboard is the one thing the page cannot do here (editor/clipboard.ts), so Paste appears only where
  * the activity answers `GlyphHost.readClipboard` or the browser can read; the keyboard's own paste works either way.
@@ -32,12 +31,6 @@ import styles from './ContextMenu.module.css';
  * anywhere else, a scroll of the note, or the back gesture.
  */
 
-/** An edit the screen offers on a selection, under the menu's words. */
-interface MenuEdit {
-  id: string;
-  label: string;
-}
-
 interface ContextMenuProps {
   view: EditorView | null;
   /** Opens the picture picker; absent where a picture makes no sense, and the word is not shown. */
@@ -46,18 +39,13 @@ interface ContextMenuProps {
   onPasteImage?: (path: string) => Promise<void>;
   /** A sentence for the person, when something they asked for could not be done. */
   say?: (message: string) => void;
-  /** The edits offered on a selection, and what choosing one does with it. */
-  edits?: MenuEdit[];
-  onEdit?: (id: string, from: number, to: number) => void;
-  /** Why the edits cannot run right now, shown under them greyed. */
-  editsUnavailable?: string | null;
   /** Opens find and replace with the selected words (FindBar.tsx); absent, the word is not shown. */
   onFind?: (text: string) => void;
   /** Sends the line's words where a plugin takes them (a Notion board, a GitHub issue); absent, nothing is shown. */
   send?: { label: string; run: (text: string) => Promise<void> | void } | null;
 }
 
-export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], onEdit, editsUnavailable = null, onFind, send = null }: ContextMenuProps) {
+export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send = null }: ContextMenuProps) {
   const [open, setOpen] = useState<Held | null>(null);
   /** The menu's words, or its styles. */
   const [styling, setStyling] = useState(false);
@@ -297,23 +285,6 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
           </>
         )}
       </MenuBand>
-      {!styling && selected && edits.length ? (
-        <MenuBand data-edits="" aria-disabled={editsUnavailable ? true : undefined}>
-          {edits.map((edit) => (
-            <button
-              key={edit.id}
-              type="button"
-              role="menuitem"
-              className={styles.item}
-              disabled={Boolean(editsUnavailable)}
-              onClick={() => void act(() => onEdit?.(edit.id, from, to))()}
-            >
-              {edit.label}
-            </button>
-          ))}
-          {editsUnavailable ? <span className={styles.why}>{editsUnavailable}</span> : null}
-        </MenuBand>
-      ) : null}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { button, rerender, show } from '../../test/render.tsx';
+import { button, show } from '../../test/render.tsx';
 import { goBack } from '../core/back.ts';
 import { ContextMenu } from './ContextMenu.tsx';
 
@@ -205,20 +205,6 @@ describe('the actions', () => {
     await hold();
     await choose('Find');
     expect(onFind).toHaveBeenCalledWith('oat');
-  });
-
-  it('offers the screen’s edits on a selection, greyed with the reason when they cannot run', async () => {
-    const onEdit = vi.fn();
-    editor('buy oat milk', { anchor: 4, head: 7 });
-    show(<ContextMenu view={view} edits={[{ id: 'ask', label: 'Ask the AI' }]} onEdit={onEdit} />);
-    await hold();
-    await choose('Ask the AI');
-    expect(onEdit).toHaveBeenCalledWith('ask', 4, 7);
-
-    rerender(<ContextMenu view={view} edits={[{ id: 'ask', label: 'Ask the AI' }]} onEdit={onEdit} editsUnavailable="The AI needs a model on the phone." />);
-    await hold();
-    expect(button('Ask the AI').disabled).toBe(true);
-    expect(document.body.textContent).toContain('The AI needs a model on the phone.');
   });
 
   it('makes a board of the list the press is in, and says so', async () => {

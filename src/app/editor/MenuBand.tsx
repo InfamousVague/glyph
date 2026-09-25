@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentType, type HTMLAttributes } from 'react';
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import styles from './ContextMenu.module.css';
 
 /**
@@ -27,7 +27,7 @@ export function MenuWord({ icon: Icon, label }: { icon: MenuIcon; label: string 
  * so the band scrolls sideways, and fades at whichever end has more: a word
  * cut off at the edge reads as broken, a word fading out reads as "and more".
  */
-export function MenuBand({ children, ...rest }: HTMLAttributes<HTMLDivElement>) {
+export function MenuBand({ children }: { children: ReactNode }) {
   const row = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState('');
 
@@ -45,7 +45,7 @@ export function MenuBand({ children, ...rest }: HTMLAttributes<HTMLDivElement>) 
   }, []);
 
   return (
-    <div ref={row} className={styles.row} data-more={more || undefined} {...rest}>
+    <div ref={row} className={styles.row} data-more={more || undefined}>
       {children}
     </div>
   );
