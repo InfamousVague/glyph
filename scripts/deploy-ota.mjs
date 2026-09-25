@@ -131,14 +131,14 @@ const { withApk, withDesktop, withMcp, sameVersion, isPublic, keepConnection, sk
 const MCP_FILE = join(ROOT, 'mcp/dist/glyph-mcp.mjs');
 const SERVICES_FILE = join(ROOT, 'src-tauri/ota-services.json');
 
+const curl = (args) => String(spawnSync('curl', args, { encoding: 'utf8' }).stdout ?? '').trim();
+
+const env = loadEnv(BOX_ENV_KEYS);
 /*
  * ONE LOGIN PER DEPLOY: every ssh and rsync below rides one multiplexed
  * connection, opened once by box.logIn(). lib/box.mjs has the day the box's
  * lockout taught this, and why the master is opened on its own.
  */
-const curl = (args) => String(spawnSync('curl', args, { encoding: 'utf8' }).stdout ?? '').trim();
-
-const env = loadEnv(BOX_ENV_KEYS);
 const box = openBox(env, boxSshOptions());
 if (spawnSync('sshpass', ['-V'], { stdio: 'ignore' }).status !== 0) {
   fail('sshpass is not installed (brew install sshpass).');
