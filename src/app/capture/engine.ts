@@ -1,3 +1,4 @@
+import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import { preferences } from '../core/preferences.ts';
 import type { Segment } from './markdown.ts';
@@ -149,11 +150,7 @@ async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
 
   // Asked rather than assumed: a bundle carrying this page can run on a binary
   // from before recordings were kept, whose capture_stop takes no arguments.
-  const generation = await invoke<{ nativeGeneration?: number }>('ota_status').then(
-    (status) => status.nativeGeneration ?? 0,
-    () => 0,
-  );
-  const keepsAudio = generation >= RECORDING_GENERATION;
+  const keepsAudio = await hasNativeGeneration(RECORDING_GENERATION);
 
   try {
     await invoke('capture_start');

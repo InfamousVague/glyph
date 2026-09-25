@@ -4,6 +4,7 @@ import { accountKey, accountState, deleteAccount, resume, signOut } from '../acc
 import { ApiError } from '../account/api.ts';
 import { failureText } from '../failure.ts';
 import { imageBytes, keepImage } from '../images.ts';
+import { hasNativeGeneration } from '../nativeGeneration.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
 import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED, type Note } from '../store.ts';
 import { invoke, isTauri } from '../tauri.ts';
@@ -168,15 +169,10 @@ const deviceFiles: LocalFiles = {
   },
 };
 
-let generation: number | null = null;
-
+/** Whether this device's store can take a sync: always in a browser, where the store is the page's own. */
 async function nativeReady(): Promise<boolean> {
   if (!isTauri()) return true;
-  generation ??= await invoke<{ nativeGeneration?: number }>('ota_status').then(
-    (s) => s.nativeGeneration ?? 0,
-    () => 0,
-  );
-  return generation >= SYNC_GENERATION;
+  return hasNativeGeneration(SYNC_GENERATION);
 }
 
 // --- running ----------------------------------------------------------------------------------

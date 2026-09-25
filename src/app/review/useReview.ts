@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { generate, listModels, modelName, splitThought, type Run } from '../core/ai.ts';
 import { failureText } from '../core/failure.ts';
+import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { preferences } from '../core/preferences.ts';
-import { invoke, isTauri } from '../core/tauri.ts';
+import { isTauri } from '../core/tauri.ts';
 import { getNote, listNotes, noteTitle, saveNote, type Note } from '../core/store.ts';
 import { enqueueRefine, holdRefining, keepBetterPhrases, listenAgain, type RefineJob } from '../capture/refine.ts';
 import { renderNote, type Segment } from '../capture/markdown.ts';
@@ -33,8 +34,6 @@ import { REVIEW_PROMPT, reviewBudget, reviewMessage } from './prompt.ts';
 /** The binary generation whose model can think out loud (`ai_generate` `think`). */
 export const REVIEW_GENERATION = 13;
 
-let generation: Promise<number> | null = null;
-
 /**
  * `?review` in a browser: the review runs with its models played by a script
  * (listening again turns "seat" into "seek", the thinking streams a canned
@@ -48,11 +47,7 @@ function simulating(): boolean {
 export async function reviewAvailable(): Promise<boolean> {
   if (simulating()) return true;
   if (!isTauri() || !preferences().review) return false;
-  generation ??= invoke<{ nativeGeneration?: number }>('ota_status').then(
-    (status) => status.nativeGeneration ?? 0,
-    () => 0,
-  );
-  return (await generation) >= REVIEW_GENERATION;
+  return hasNativeGeneration(REVIEW_GENERATION);
 }
 
 /** What the recorder hands over when Stop saves a take (CaptureScreen). */

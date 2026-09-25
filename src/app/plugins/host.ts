@@ -1,3 +1,4 @@
+import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { invoke as tauriInvoke, isTauri } from '../core/tauri.ts';
 import type { Permission, PluginHost, PluginManifest } from './types.ts';
 
@@ -37,8 +38,6 @@ export class PluginPermissionError extends Error {
   }
 }
 
-let generation: Promise<number> | null = null;
-
 /**
  * Each key's value as last parsed, with the text it was parsed from. A plugin reads its storage in hot places - the
  * Notion and GitHub links once per keystroke through their suggestions, the token on every render of a note - and
@@ -47,16 +46,6 @@ let generation: Promise<number> | null = null;
  * the text is not the one parsed last. The value is shared, so a plugin that changes one copies it first.
  */
 const parsed = new Map<string, { raw: string; value: unknown }>();
-
-/** The binary's native generation (src-tauri/src/ota.rs), read once. */
-function nativeGeneration(): Promise<number> {
-  if (!isTauri()) return Promise.resolve(0);
-  generation ??= tauriInvoke<{ nativeGeneration?: number }>('ota_status').then(
-    (status) => status.nativeGeneration ?? 0,
-    () => 0,
-  );
-  return generation;
-}
 
 export function createHost(manifest: PluginManifest, invoke: typeof tauriInvoke = tauriInvoke): PluginHost {
   const declared = (permission: Permission) => manifest.permissions.some((p) => p.kind === permission);
@@ -72,7 +61,7 @@ export function createHost(manifest: PluginManifest, invoke: typeof tauriInvoke 
     require,
     async nativeReady() {
       if (!manifest.native) return false;
-      return (await nativeGeneration()) >= manifest.native.generation;
+      return hasNativeGeneration(manifest.native.generation);
     },
     invoke<T>(command: string, args?: Record<string, unknown>) {
       if (!declared('native')) return Promise.reject(new PluginPermissionError(manifest, 'the “native” permission'));

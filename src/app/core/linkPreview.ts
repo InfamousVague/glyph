@@ -1,3 +1,4 @@
+import { hasNativeGeneration } from './nativeGeneration.ts';
 import { preferences } from './preferences.ts';
 import { invoke, isTauri } from './tauri.ts';
 
@@ -82,17 +83,12 @@ export function previewFor(url: string): LinkPreview | null {
   return { url, title: entry.title, site: entry.site, description: entry.description };
 }
 
-let generation: number | null = null;
 const asking = new Set<string>();
 
 async function canAsk(): Promise<boolean> {
   const prefs = preferences();
   if (!isTauri() || !prefs.linkPreviews || prefs.localOnly) return false;
-  generation ??= await invoke<{ nativeGeneration?: number }>('ota_status').then(
-    (s) => s.nativeGeneration ?? 0,
-    () => 0,
-  );
-  return generation >= PREVIEW_GENERATION;
+  return hasNativeGeneration(PREVIEW_GENERATION);
 }
 
 /** Asks for `url`'s preview if it isn't known and fresh, and says so on `window` when it arrives. */

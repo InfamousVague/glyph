@@ -1,7 +1,8 @@
 import { listModels } from '../core/ai.ts';
+import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { preferences } from '../core/preferences.ts';
 import { getNote } from '../core/store.ts';
-import { invoke, isTauri } from '../core/tauri.ts';
+import { isTauri } from '../core/tauri.ts';
 import { isRunning, noteHash, passesFor, revisionPasses, runPipeline } from './pipeline.ts';
 
 /**
@@ -63,7 +64,6 @@ let paused = false;
 let running = false;
 let timer = 0;
 let onChanged: (() => void) | null = null;
-let generation: number | null = null;
 
 /** Ask for the note to be formatted when the phone is free. */
 export function enqueueFormat(id: string): void {
@@ -100,13 +100,8 @@ function kick(delay = 0): void {
   timer = window.setTimeout(() => void runNext(), delay);
 }
 
-async function canFormat(): Promise<boolean> {
-  if (!isTauri()) return false;
-  generation ??= await invoke<{ nativeGeneration?: number }>('ota_status').then(
-    (status) => status.nativeGeneration ?? 0,
-    () => 0,
-  );
-  return generation >= FORMAT_GENERATION;
+function canFormat(): Promise<boolean> {
+  return hasNativeGeneration(FORMAT_GENERATION);
 }
 
 async function runNext(): Promise<void> {

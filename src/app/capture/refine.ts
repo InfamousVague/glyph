@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { failureText } from '../core/failure.ts';
+import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { preferences } from '../core/preferences.ts';
 import { getNote, saveNote, setNoteRecording } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
@@ -169,7 +170,6 @@ let recorderLive = false;
 let running = false;
 let timer = 0;
 let onChanged: (() => void) | null = null;
-let generation: number | null = null;
 
 /** Ask for a pass over a finished take. Runs when the recorder has gone and the phone is free. */
 export function enqueueRefine(job: Omit<RefineJob, 'tries'>): void {
@@ -210,11 +210,7 @@ function kick(delay = 0): void {
 
 async function canRefine(): Promise<boolean> {
   if (!isTauri() || !preferences().refine) return false;
-  generation ??= await invoke<{ nativeGeneration?: number }>('ota_status').then(
-    (status) => status.nativeGeneration ?? 0,
-    () => 0,
-  );
-  return generation >= REFINE_GENERATION;
+  return hasNativeGeneration(REFINE_GENERATION);
 }
 
 interface ModelStatus {
