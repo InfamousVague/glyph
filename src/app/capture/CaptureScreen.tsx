@@ -35,6 +35,7 @@ import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandInstructionCommand } from './understand.ts';
 import { classifyFinalTranscript, type VoiceAction } from './finalInstruction.ts';
 import { settleRecording } from './voiceLog.ts';
+import { segmentsWithoutTrailingEcho, withoutTrailingEcho } from './trailingEcho.ts';
 import { appendBlock } from './table.ts';
 import { appendBody } from './appendBody.ts';
 import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
@@ -1008,8 +1009,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // flight when `stop()` detached event listeners. It is the one transcript
     // command classification may inspect; browser/simulated engines fall back
     // to their committed phrases because they explicitly return null.
-    const transcript = stopped.transcript ?? committed.map((segment) => segment.text).join(' ').trim();
-    const spoken = appendFinalTranscriptSuffix(committed, stopped.transcript, sessionRef.current?.positionMs() ?? committed.at(-1)?.endMs ?? 0);
+    // Whisper's echo of the last words on the quiet after them ("…to Go. Go. Go.") is not speech (trailingEcho.ts).
+    const transcript = withoutTrailingEcho(stopped.transcript ?? committed.map((segment) => segment.text).join(' ').trim());
+    const spoken = segmentsWithoutTrailingEcho(appendFinalTranscriptSuffix(committed, stopped.transcript, sessionRef.current?.positionMs() ?? committed.at(-1)?.endMs ?? 0));
     const appended = spoken.slice(committed.length);
     for (const segment of appended) {
       // `listen` remains display-only, so completing the ordinary-note stream

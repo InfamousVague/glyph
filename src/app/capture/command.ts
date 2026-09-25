@@ -348,7 +348,9 @@ function readCommand<N extends Candidate & { note?: { body: string } }>(words: s
     // 'labeled "Go" a list…': the quotes are the title's, not the words'.
     const named = /^["“]([^"”]+)["”]\s*(.*)$/.exec(directAppend[1]);
     const found = titledPrefix(named ? `${named[1]} ${named[2]}` : directAppend[1], notes);
-    if (found) return { kind: 'place', note: found.note, target: null, ...directPayload(found.text.replace(/^[\s,:;-]+/, '')) };
+    // "…my groceries list? Cauliflower…": the "list" or "note" after the title, and whatever mark Whisper put after
+    // it, name the note; they are not the first thing added.
+    if (found) return { kind: 'place', note: found.note, target: null, ...directPayload(found.text.replace(/^(?:[\s\p{P}]*\b(?:note|notes|list|page)\b(?=[\s\p{P}]|$))?[\s\p{P}]+/u, '').replace(/^[\s,:;.?!-]+/, '')) };
     // This unmistakable shape must fail closed when no unique title is found.
     return missing ?? { kind: 'no-note', name: directAppend[1].trim() };
   }

@@ -4,6 +4,7 @@ import type { Candidate } from './route.ts';
 import { spokenListItems } from './spokenList.ts';
 import { readPlan, readSort, runVoiceStep, type VoiceAction, type VoiceStep } from './voicePlan.ts';
 import { traceRecording, type VoiceTrace } from './voiceLog.ts';
+import { withoutTrailingEcho } from './trailingEcho.ts';
 
 export type { VoiceAction } from './voicePlan.ts';
 
@@ -83,11 +84,13 @@ function describe<N extends Candidate>(actions: readonly VoiceAction<N>[], note:
  * Every step is written to the voice log (voiceLog.ts).
  */
 export async function classifyFinalTranscript<N extends Candidate & { note?: { body: string } }>(
-  transcript: string,
+  heard: string,
   notes: readonly N[],
   step: VoiceStep = runVoiceStep,
-  trace: VoiceTrace = traceRecording(transcript),
+  trace: VoiceTrace = traceRecording(heard),
 ): Promise<FinalInstruction<N>> {
+  const transcript = withoutTrailingEcho(heard);
+  if (transcript !== heard.trim()) trace.step(`dropped Whisper's echo at the end: “${heard.slice(transcript.length).trim()}”`);
   const titles = notes.map((note) => note.title).filter((title) => title.trim());
   const scan = scanForCommand(transcript, titles);
   const conversational = !scan?.anchored;

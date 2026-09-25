@@ -42,6 +42,17 @@ describe('the rules: instant for the phrasings they know', () => {
     ).resolves.toMatchObject({ kind: 'offer', actions: [{ do: 'create', title: 'comic books', items: ['Spider-Man', 'Batman', 'Superman', 'the Fantastic Four', 'the Green Lantern'] }] });
   });
 
+  it('does not take “list?” after the note’s name, or an echo at the end, for items', async () => {
+    await expect(classifyFinalTranscript('Can you add to my groceries list? Cauliflower, carrots and bread.', notes, none())).resolves.toMatchObject({
+      kind: 'offer',
+      actions: [{ do: 'append', note: { id: 'groceries' }, placement: { items: ['Cauliflower', 'carrots', 'bread'] } }],
+    });
+    await expect(classifyFinalTranscript('Add to Go list? Detroit, Michigan and Marietta, Ohio. Go. Go.', notes, none())).resolves.toMatchObject({
+      kind: 'offer',
+      actions: [{ do: 'append', note: { id: 'go' }, placement: { items: ['Detroit, Michigan', 'Marietta, Ohio'] } }],
+    });
+  });
+
   it('finds a request inside talk', async () => {
     await expect(
       classifyFinalTranscript('So I was at the store earlier and it was packed. Anyway, can you put oat milk and bread on the groceries list?', notes, none()),
