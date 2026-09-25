@@ -638,7 +638,11 @@ export class Take<N extends TakeNote> {
     if (this.listening) this.giveBack('No command there, so the words stay in the note.');
   }
 
-  /** Whether there is anything to save: words that come to something once laid out, a table, or a voice memo. */
+  /**
+   * Whether there is anything to save: a phrase with words in it, a table, or a voice memo. Read from the transcript,
+   * not the laid-out note, as the recorder's Done reads it, so a cue said alone - which is held for a sentence that
+   * never comes, and lays out as nothing - still counts.
+   */
   get hasContent(): boolean {
     return renderNote(this.segments).plain.trim() !== '' || this.tables.length > 0 || this.clips.length > 0;
   }

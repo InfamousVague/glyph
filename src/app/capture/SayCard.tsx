@@ -33,7 +33,7 @@ export function SayCard({ starters }: { starters: Starters }) {
             <ul className={styles.lines}>
               {group.tips.map((tip) => (
                 <li key={tip.say} className={styles.line}>
-                  <strong className={styles.say}>“{tip.say}”</strong> <span className={styles.does}>{tip.does}</span>
+                  <strong className={styles.say}>“{tip.say}”</strong> <span>{tip.does}</span>
                 </li>
               ))}
             </ul>
