@@ -67,10 +67,15 @@ describe('the editor', () => {
     expect(view().contentDOM.getAttribute('spellcheck')).toBe('false');
   });
 
-  it('says which view it draws, for the page’s styles', () => {
-    const { element } = mount({ display: 'formatted' });
+  it('draws the view it is given, swapped in place, and says which for the page’s styles', () => {
+    const { view, element } = mount({ value: '**milk** and eggs', display: 'formatted' });
+    const dom = view().dom;
+    // Formatted hides the marks that only say how the words look (editor/viewMode.ts); the mixed page keeps them.
+    expect(view().contentDOM.textContent).toBe('milk and eggs');
     expect(document.querySelector('[data-view]')?.getAttribute('data-view')).toBe('formatted');
-    rerender(element({ display: 'mixed' }));
+    rerender(element({ value: '**milk** and eggs', display: 'mixed' }));
+    expect(view().dom).toBe(dom);
+    expect(view().contentDOM.textContent).toBe('**milk** and eggs');
     expect(document.querySelector('[data-view]')?.getAttribute('data-view')).toBe('mixed');
   });
 });

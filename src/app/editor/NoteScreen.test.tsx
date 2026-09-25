@@ -5,7 +5,10 @@ import { ToastProvider } from '@glacier/react';
 import { button, buttonSaying, rerender, show, typeInto, unmount } from '../../test/render.tsx';
 import { createNote, getNote, setNoteRecording, updateNote, type Note } from '../core/store.ts';
 import { goBack } from '../core/back.ts';
+import { setTapeId, tapeId } from '../core/clips.ts';
 import { setTopBarTools } from '../core/topBarTools.ts';
+import { bookOf } from '../book/book.ts';
+import { readBookSpot } from '../book/bookSpot.ts';
 
 // The Glacier kit reads matchMedia as it loads, and the page's smoke watches its header's size.
 await vi.hoisted(async () => {
@@ -362,6 +365,21 @@ describe("the note's tools", () => {
     expect(document.body.textContent).toContain('Bookmark taken off.');
   });
 
+  it('bookmarks the caret’s line, not the line at the top of the page', async () => {
+    show(screen(await createNote('n1', '# Groceries\nmilk\neggs\nbread')));
+    const view = editor();
+    // Scrolled down, with the caret's line on screen: the page's top is one place, the caret another (jsdom lays
+    // nothing out, so the page says its own scroll and height).
+    const page = document.querySelector<HTMLElement>('[data-scrolls]')!;
+    Object.defineProperty(page, 'scrollTop', { configurable: true, value: 100 });
+    Object.defineProperty(page, 'clientHeight', { configurable: true, value: 800 });
+    act(() => view.dispatch({ selection: { anchor: view.state.doc.line(3).from } }));
+    act(() => button('Bookmark this line').click());
+    expect(view.state.doc.line(3).text).toContain('§§');
+    expect(view.state.doc.line(1).text).not.toContain('§§');
+    expect(document.body.textContent).toContain('Bookmarked at “eggs”.');
+  });
+
   it('asks for words before a bookmark on an empty note', async () => {
     show(screen(await createNote('n1', '')));
     act(() => button('Bookmark this line').click());
@@ -383,6 +401,15 @@ describe('the More sheet from the note', () => {
   });
 });
 
+describe('a chapter of a book', () => {
+  it('is where its book was left, so the book opens at it again from outside', async () => {
+    const book = await createNote('bk', '---\nbook: true\n---\n# Trip\n\n1. [[Day one]]\n2. [[Day two]]\n');
+    const chapter = await createNote('d1', '# Day one\nwords');
+    show(screen(chapter, { book: bookOf([book, chapter], 'Day one'), hasTitle: () => true, onOpenTitle: () => {} }));
+    expect(readBookSpot('bk')).toEqual({ kind: 'chapter', title: 'Day one' });
+  });
+});
+
 describe('a spoken note’s recording', () => {
   async function spoken(): Promise<Note> {
     await createNote('n1', '# Walk\nwords');
@@ -396,17 +423,40 @@ describe('a spoken note’s recording', () => {
     expect(button('Record more into this note')).toBeTruthy();
   });
 
+  it('gives the page to the transcript while it plays, and the view switch waits till it stops', async () => {
+    // The transcript keeps the phrase being played in view (tapes/NoteTape.tsx), and jsdom does no scrolling.
+    Element.prototype.scrollIntoView = () => undefined;
+    try {
+      show(screen(await spoken()));
+      const viewSwitch = () => document.querySelector<HTMLButtonElement>('header button')!;
+      expect(viewSwitch().disabled).toBe(false);
+      act(() => button('Play the recording').click());
+      expect(editor().dom.closest('[hidden]')).not.toBeNull();
+      expect(viewSwitch().disabled).toBe(true);
+      act(() => button('Pause the recording').click());
+      expect(editor().dom.closest('[hidden]')).toBeNull();
+      expect(viewSwitch().disabled).toBe(false);
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+    }
+  });
+
   it('comes off at once on Remove, and its Undo puts it back', async () => {
-    show(screen(await spoken()));
+    const note = await spoken();
+    // The tape's id goes with it, so the note's voice memos fall quiet, and comes back with the Undo (core/clips.ts).
+    setTapeId('n1', 't1');
+    show(screen(note));
     await act(async () => button("Remove this note's recording").click());
     await settle();
     expect(document.querySelector('section[aria-label="Recording"]')).toBeNull();
     expect((await getNote('n1'))?.recordingMs ?? null).toBeNull();
     expect(document.body.textContent).toContain('Recording removed.');
+    expect(tapeId('n1')).toBeNull();
     await act(async () => button('Undo').click());
     await settle();
     expect(document.querySelector('section[aria-label="Recording"]')).not.toBeNull();
     expect((await getNote('n1'))?.recordingMs).toBe(4000);
+    expect(tapeId('n1')).toBe('t1');
   });
 });
 
