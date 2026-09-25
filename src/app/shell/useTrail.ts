@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { backFrom, canGoBack, canGoOn, FIRST, noteIdOf, onFrom, placeAt, went, type Place, type Trail } from '../notes/visited.ts';
 
 /**
@@ -10,8 +10,11 @@ import { backFrom, canGoBack, canGoOn, FIRST, noteIdOf, onFrom, placeAt, went, t
  * many paths into a note was taken - a tab, a link in the words, the floating list, a swipe back. The arrows only say
  * where to go (`back`, `on`); the Shell does the going, as it does for every other way of moving.
  *
- * `jumped` is how the arrows say "this move was me": without it, going back would itself be recorded as somewhere new
- * and forward would never mean anything.
+ * A step is not itself recorded as somewhere new, and needs nothing to say so: it moves the trail to where it lands
+ * before the screen gets there, and arriving where the trail already stands changes nothing (notes/visited.ts
+ * `went`). A flag said "this move was me" once, and was cleared by the arrival it waited for - so a step that landed
+ * where the page already was, the home page reached over a deleted note, left it set, and the next note opened was
+ * never recorded: its Back was dead, and its Forward went home.
  */
 
 export interface TrailWalk {
@@ -30,14 +33,8 @@ export interface TrailWalk {
 /** `place` is where the screen is now (shell/screen.ts `placeOf`); `live` the ids of the notes that can still be seen. */
 export function useTrail(place: Place | null, live: ReadonlySet<string>): TrailWalk {
   const [trail, setTrail] = useState(FIRST);
-  const jumped = useRef(false);
   useEffect(() => {
-    if (!place) return;
-    if (jumped.current) {
-      jumped.current = false;
-      return;
-    }
-    setTrail((was) => went(was, place));
+    if (place) setTrail((was) => went(was, place));
   }, [place]);
   const stillThere = useCallback(
     (spot: Place) => {
@@ -50,7 +47,6 @@ export function useTrail(place: Place | null, live: ReadonlySet<string>): TrailW
     const spot = next && placeAt(next);
     if (!next || !spot) return null;
     setTrail(next);
-    jumped.current = true;
     return spot;
   };
   return {

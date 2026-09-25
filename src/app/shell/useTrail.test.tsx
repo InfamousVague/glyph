@@ -55,6 +55,25 @@ describe('the trail, as the Shell walks it', () => {
     expect(spot).toBeNull();
   });
 
+  it('records the next arrival after a step that landed where the page already was', () => {
+    show(<Probe place="list" />);
+    rerender(<Probe place={notePlace('a')} />);
+    rerender(<Probe place="list" />);
+    // The note between the two visits home is gone: back steps over it, to home, where the page already is.
+    rerender(<Probe place="list" live={new Set(['b'])} />);
+    let spot: Place | null = null;
+    act(() => {
+      spot = walk.back();
+    });
+    expect(spot).toBe('list');
+    rerender(<Probe place={notePlace('b')} live={new Set(['b'])} />);
+    expect(walk.canBack).toBe(true);
+    act(() => {
+      spot = walk.back();
+    });
+    expect(spot).toBe('list');
+  });
+
   it('does not count a capture or the Academy as a place', () => {
     show(<Probe place="list" />);
     rerender(<Probe place={null} />);

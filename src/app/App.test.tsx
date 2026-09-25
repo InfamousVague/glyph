@@ -200,6 +200,22 @@ describe('the arrows', () => {
   });
 });
 
+describe('the arrows, after a step that lands where they already are', () => {
+  it('still record the next note opened', async () => {
+    await seed(['a', '# Apples'], ['b', '# Bread']);
+    await openApp();
+    act(() => card('Apples').click());
+    // Deleted from the editor: home again, with a place on the trail that is no longer there.
+    act(() => seen.note!.onDelete!('a'));
+    // Back steps over the deleted note to home, which is where the page already is.
+    act(() => button('Back to where you were').click());
+    act(() => card('Bread').click());
+    expect(button('Back to where you were').disabled).toBe(false);
+    act(() => button('Back to where you were').click());
+    expect(noteShown()).toBeNull();
+  });
+});
+
 describe('a note deleted from the editor', () => {
   it('leaves its tab and the home page at once, and comes back with Undo', async () => {
     await seed(['a', '# Apples'], ['b', '# Bread']);
