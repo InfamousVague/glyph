@@ -34,8 +34,8 @@
   border-block-end: 0;
   border-radius: var(--glacier-radius-lg) var(--glacier-radius-lg) 0 0;
   background: color-mix(in srgb, var(--glacier-bg) 92%, var(--glacier-text) 3%);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: var(--app-float-blur);
+  backdrop-filter: var(--app-float-blur);
   box-shadow: 0 -12px 40px rgb(0 0 0 / 28%);
   outline: none;
   animation: riseIn 220ms var(--glacier-ease-out);
@@ -53,7 +53,7 @@
     padding-block-end: 0;
     border-block-end: 1px solid var(--glacier-border-subtle);
     border-radius: var(--glacier-radius-lg);
-    box-shadow: 0 16px 40px rgb(0 0 0 / 34%);
+    box-shadow: var(--app-float-shadow);
     animation: floatIn 180ms var(--glacier-ease-out);
   }
 }

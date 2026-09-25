@@ -32,9 +32,9 @@
   border: 1px solid var(--glacier-border-subtle);
   border-radius: var(--glacier-radius-lg);
   background: color-mix(in srgb, var(--glacier-bg) 88%, var(--glacier-text) 4%);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 16px 40px rgb(0 0 0 / 34%);
+  -webkit-backdrop-filter: var(--app-float-blur);
+  backdrop-filter: var(--app-float-blur);
+  box-shadow: var(--app-float-shadow);
   /* Grows out of the icon above it, as a popover does, rather than sliding in from the edge like a drawer. */
   transform-origin: top left;
   animation: drawerIn 180ms var(--glacier-ease-out);

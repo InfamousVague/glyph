@@ -497,6 +497,10 @@ body:has(.app-headerPane) .app-statusScrim {
 :root {
   --app-glass-mix: 66%;
   --app-glass-blur: blur(18px) saturate(1.1);
+  /* And a card that floats over the page - the notes and aside card (notes/FloatingCard.module.css), the Claude
+     drawer on a wide window (plugins/claude/claude.module.css) - blurs what is under it more, and casts a shadow. */
+  --app-float-blur: blur(20px);
+  --app-float-shadow: 0 16px 40px rgb(0 0 0 / 34%);
 }
 
 .app-headerPane {
