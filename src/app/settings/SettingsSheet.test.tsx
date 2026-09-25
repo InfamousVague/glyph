@@ -44,6 +44,9 @@ vi.mock('./SettingsScreen.tsx', async (importOriginal) => {
     },
   };
 });
+// The cheat sheet draws every mark with its own preview, thirty seconds of rendering on a loaded machine; all this file
+// asks of it is that Settings can land on it, and the sheet itself is the guide's (guide/CheatSheet.tsx).
+vi.mock('../guide/CheatSheet.tsx', () => ({ CheatSheet: () => <p>Every mark</p> }));
 // The releases would be read from the site.
 vi.mock('../core/changelog.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../core/changelog.ts')>()),
