@@ -1,6 +1,7 @@
 import { prefersStill } from '../core/motion.ts';
 import { preferences } from '../core/preferences.ts';
-import { boxOf, filterShelf, mergeOf, noiseOnBlack, smokeFrom, svgPart } from './wispBox.ts';
+import { svgElement } from './svg.ts';
+import { boxOf, filterShelf, mergeOf, noiseOnBlack, smokeFrom } from './wispBox.ts';
 import { withinWispBudget } from './wispEdge.ts';
 
 /**
@@ -88,10 +89,10 @@ function sidesFilter(id: string, wide: number, tall: number, start: boolean, end
   const region = box(-SIDE, -SIDE, wide + SIDE * 2, tall + SIDE * 2);
   const bar = (x: number) => box(x, -SIDE, PAST + IN + BAND, tall + SIDE * 2);
   const strips = [
-    ...(start ? [svgPart('feFlood', { 'flood-color': '#fff', ...bar(-PAST), result: 'startStrip' })] : []),
-    ...(end ? [svgPart('feFlood', { 'flood-color': '#fff', ...bar(wide - IN - BAND), result: 'endStrip' })] : []),
+    ...(start ? [svgElement('feFlood', { 'flood-color': '#fff', ...bar(-PAST), result: 'startStrip' })] : []),
+    ...(end ? [svgElement('feFlood', { 'flood-color': '#fff', ...bar(wide - IN - BAND), result: 'endStrip' })] : []),
   ];
-  return svgPart(
+  return svgElement(
     'filter',
     { id, filterUnits: 'objectBoundingBox', primitiveUnits: 'objectBoundingBox', ...region, 'color-interpolation-filters': 'sRGB' },
     /*
@@ -106,7 +107,7 @@ function sidesFilter(id: string, wide: number, tall: number, start: boolean, end
     ...noiseOnBlack({ baseFrequency: '0.07 0.035', numOctaves: 2, seed: 5, ...region }),
     ...strips,
     mergeOf('stripsOnBlack', 'black', ...(start ? ['startStrip'] : []), ...(end ? ['endStrip'] : [])),
-    svgPart('feGaussianBlur', { in: 'stripsOnBlack', stdDeviation: `${SOFT / wide} 0`, result: 'band' }),
+    svgElement('feGaussianBlur', { in: 'stripsOnBlack', stdDeviation: `${SOFT / wide} 0`, result: 'band' }),
     ...smokeFrom({ bend: BEND / corner, blur: `${BLUR / wide} ${BLUR / tall}`, near: `${NEAR / wide} ${NEAR / tall}` }),
   );
 }

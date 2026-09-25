@@ -1,5 +1,6 @@
 import { createElement, useEffect, useId, useLayoutEffect, useRef } from 'react';
 import { prefersStill } from '../core/motion.ts';
+import { svgElement } from './svg.ts';
 import { cadence, planSwap, runLength, tokenize, type Step, type Token } from './wisp.ts';
 import styles from './WispText.module.css';
 
@@ -44,7 +45,6 @@ interface WispTextProps {
   onSettled?: (text: string) => void;
 }
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
 /** A class from the module, never the empty string (which classList refuses). */
 const cls = (name: string): string => styles[name] ?? name;
 /**
@@ -112,11 +112,8 @@ class WispEngine {
     private onSettled: (text: string) => void,
   ) {
     this.wait = cadence(pace * SPEED);
-    this.svg = document.createElementNS(SVG_NS, 'svg');
-    this.svg.setAttribute('class', cls('defs'));
-    this.svg.setAttribute('aria-hidden', 'true');
-    this.defs = document.createElementNS(SVG_NS, 'defs');
-    this.svg.appendChild(this.defs);
+    this.defs = svgElement<SVGDefsElement>('defs', {});
+    this.svg = svgElement<SVGSVGElement>('svg', { class: cls('defs'), 'aria-hidden': 'true' }, this.defs);
     host.appendChild(this.svg);
   }
 
@@ -318,35 +315,28 @@ class WispEngine {
     }
     const i = this.pool.length;
     const id = `${this.idPrefix}-${i}`;
-    const filter = document.createElementNS(SVG_NS, 'filter');
-    filter.setAttribute('id', id);
-    // Room for the bend and the blur: a letter is a dozen pixels wide and the
-    // displacement reaches seventeen; a region cut to the letter's box clipped
-    // the smeared strokes, and the clipped edge crawled as the noise moved.
-    filter.setAttribute('x', '-300%');
-    filter.setAttribute('y', '-150%');
-    filter.setAttribute('width', '700%');
-    filter.setAttribute('height', '400%');
-    // In sRGB: the default linearRGB lightens the anti-aliased edges of thin
-    // type, so a letter brightened while filtered and dimmed as the filter came off.
-    filter.setAttribute('color-interpolation-filters', 'sRGB');
-    const noise = document.createElementNS(SVG_NS, 'feTurbulence');
-    noise.setAttribute('type', 'fractalNoise');
-    noise.setAttribute('baseFrequency', '0.018 0.06');
-    noise.setAttribute('numOctaves', '2');
-    noise.setAttribute('seed', String(i * 7 + 1));
-    noise.setAttribute('result', 'n');
-    const disp = document.createElementNS(SVG_NS, 'feDisplacementMap');
-    disp.setAttribute('in', 'SourceGraphic');
-    disp.setAttribute('in2', 'n');
-    disp.setAttribute('scale', '0');
-    disp.setAttribute('xChannelSelector', 'R');
-    disp.setAttribute('yChannelSelector', 'G');
-    disp.setAttribute('result', 'd');
-    const blur = document.createElementNS(SVG_NS, 'feGaussianBlur');
-    blur.setAttribute('in', 'd');
-    blur.setAttribute('stdDeviation', '0');
-    filter.append(noise, disp, blur);
+    const noise = svgElement('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.018 0.06', numOctaves: '2', seed: i * 7 + 1, result: 'n' });
+    const disp = svgElement('feDisplacementMap', { in: 'SourceGraphic', in2: 'n', scale: '0', xChannelSelector: 'R', yChannelSelector: 'G', result: 'd' });
+    const blur = svgElement('feGaussianBlur', { in: 'd', stdDeviation: '0' });
+    const filter = svgElement(
+      'filter',
+      {
+        id,
+        // Room for the bend and the blur: a letter is a dozen pixels wide and the
+        // displacement reaches seventeen; a region cut to the letter's box clipped
+        // the smeared strokes, and the clipped edge crawled as the noise moved.
+        x: '-300%',
+        y: '-150%',
+        width: '700%',
+        height: '400%',
+        // In sRGB: the default linearRGB lightens the anti-aliased edges of thin
+        // type, so a letter brightened while filtered and dimmed as the filter came off.
+        'color-interpolation-filters': 'sRGB',
+      },
+      noise,
+      disp,
+      blur,
+    );
     this.defs.appendChild(filter);
     const slot = { id, disp, blur, busy: false };
     this.pool.push(slot);

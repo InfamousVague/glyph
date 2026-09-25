@@ -1,6 +1,7 @@
 import { prefersStill } from '../core/motion.ts';
 import { preferences } from '../core/preferences.ts';
-import { boxOf, filterShelf, mergeOf, noiseOnBlack, smokeFrom, svgPart } from './wispBox.ts';
+import { svgElement } from './svg.ts';
+import { boxOf, filterShelf, mergeOf, noiseOnBlack, smokeFrom } from './wispBox.ts';
 import { withinWispBudget } from './wispEdge.ts';
 
 /**
@@ -151,7 +152,7 @@ function footFilter(id: string, height: number, wide: number): Element {
   const shape = band(height);
   const { box, corner } = boxOf(across, height);
   const reach = box(-SIDE, height - shape.reach, wide, shape.reach + 40);
-  return svgPart(
+  return svgElement(
     'filter',
     {
       id,
@@ -171,9 +172,9 @@ function footFilter(id: string, height: number, wide: number): Element {
      * 33.6 / 34.6, so the two engines agree and one per-pixel constant serves both.
      */
     ...noiseOnBlack({ baseFrequency: '0.02 0.07', numOctaves: 2, seed: 3, ...reach }),
-    svgPart('feFlood', { 'flood-color': '#fff', ...box(-SIDE, height - shape.band - shape.lift, wide, shape.band + shape.lift + BELOW), result: 'strip' }),
+    svgElement('feFlood', { 'flood-color': '#fff', ...box(-SIDE, height - shape.band - shape.lift, wide, shape.band + shape.lift + BELOW), result: 'strip' }),
     mergeOf('stripOnBlack', 'black', 'strip'),
-    svgPart('feGaussianBlur', { in: 'stripOnBlack', stdDeviation: `0 ${shape.soft / height}`, result: 'band' }),
+    svgElement('feGaussianBlur', { in: 'stripOnBlack', stdDeviation: `0 ${shape.soft / height}`, result: 'band' }),
     ...smokeFrom({ bend: BEND / corner, blur: `${BLUR / across} ${BLUR / height}`, near: `${NEAR / across} ${NEAR / height}`, within: reach }),
   );
 }

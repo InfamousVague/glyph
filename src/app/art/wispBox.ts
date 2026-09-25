@@ -1,29 +1,22 @@
+import { svgElement } from './svg.ts';
+
 /**
  * What the two boxed wisps are built from: a board lane's foot (art/wispFoot.ts) and the tab row's ends
  * (art/wispSides.ts). Each is the page's smoke (art/WispEdgeFilter.tsx) said again as an SVG filter of its own, in
  * its element's own box, made once per size and kept; and the two had grown every part of that twice - the element
- * builder, the merge, the hidden holder, the cache with its oldest-out, the fractions of the box, and the whole chain
- * of primitives from the noise to the last merge. The parts that differ stay in each file: where the bands are, how
- * far the region reaches, and the noise's frequency, whose comment is the reason it is written per pixel there.
+ * builder (now art/svg.ts, shared with the editor's filters), the merge, the hidden holder, the cache with its
+ * oldest-out, the fractions of the box, and the whole chain of primitives from the noise to the last merge. The parts
+ * that differ stay in each file: where the bands are, how far the region reaches, and the noise's frequency, whose
+ * comment is the reason it is written per pixel there.
  *
  * DOM only, and nothing read at the top level, so importing it costs nothing where there is no document.
  */
 
-const SVG = 'http://www.w3.org/2000/svg';
-
 type Attributes = Record<string, string | number>;
-
-/** One SVG element with its attributes, in the order given, and its children. */
-export function svgPart(name: string, attributes: Attributes, ...children: Element[]): Element {
-  const node = document.createElementNS(SVG, name);
-  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
-  node.append(...children);
-  return node;
-}
 
 /** An feMerge of `inputs`, one over the next; no `result` for the filter's last primitive, which is its output. */
 export function mergeOf(result: string, ...inputs: string[]): Element {
-  return svgPart('feMerge', result ? { result } : {}, ...inputs.map((input) => svgPart('feMergeNode', { in: input })));
+  return svgElement('feMerge', result ? { result } : {}, ...inputs.map((input) => svgElement('feMergeNode', { in: input })));
 }
 
 /**
@@ -64,11 +57,7 @@ export function filterShelf(keep: number): (key: string, id: string, make: () =>
 }
 
 function makeHolder(): SVGSVGElement {
-  const svg = document.createElementNS(SVG, 'svg');
-  svg.setAttribute('width', '0');
-  svg.setAttribute('height', '0');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('focusable', 'false');
+  const svg = svgElement<SVGSVGElement>('svg', { width: '0', height: '0', 'aria-hidden': 'true', focusable: 'false' });
   svg.style.position = 'absolute';
   document.body.append(svg);
   return svg;
@@ -81,9 +70,9 @@ function makeHolder(): SVGSVGElement {
  */
 export function noiseOnBlack(noise: Attributes): Element[] {
   return [
-    svgPart('feTurbulence', { type: 'fractalNoise', ...noise, result: 'rawNoise' }),
-    svgPart('feColorMatrix', { in: 'rawNoise', type: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1', result: 'noise' }),
-    svgPart('feFlood', { 'flood-color': '#000', result: 'black' }),
+    svgElement('feTurbulence', { type: 'fractalNoise', ...noise, result: 'rawNoise' }),
+    svgElement('feColorMatrix', { in: 'rawNoise', type: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1', result: 'noise' }),
+    svgElement('feFlood', { 'flood-color': '#000', result: 'black' }),
   ];
 }
 
@@ -96,15 +85,15 @@ export function noiseOnBlack(noise: Attributes): Element[] {
  */
 export function smokeFrom({ bend, blur, near, within = {} }: { bend: number; blur: string; near: string; within?: Attributes }): Element[] {
   return [
-    svgPart('feComposite', { in: 'noise', in2: 'band', operator: 'arithmetic', k1: 1, k2: 0, k3: -0.5, k4: 0.5, result: 'field' }),
-    svgPart('feDisplacementMap', { in: 'SourceGraphic', in2: 'field', scale: bend, xChannelSelector: 'R', yChannelSelector: 'G', ...within, result: 'bent' }),
-    svgPart('feGaussianBlur', { in: 'bent', stdDeviation: blur, ...within, result: 'soft' }),
-    svgPart('feMorphology', { in: 'bent', operator: 'dilate', radius: near, ...within, result: 'near' }),
-    svgPart('feComposite', { in: 'soft', in2: 'near', operator: 'in', result: 'softNear' }),
-    svgPart('feColorMatrix', { in: 'band', type: 'luminanceToAlpha', result: 'bandAlpha' }),
-    svgPart('feComposite', { in: 'softNear', in2: 'bandAlpha', operator: 'in', result: 'smoke' }),
-    svgPart('feComposite', { in: 'SourceGraphic', in2: 'bandAlpha', operator: 'out', result: 'rest' }),
-    svgPart('feComposite', { in: 'bent', in2: 'bandAlpha', operator: 'in', result: 'bentIn' }),
+    svgElement('feComposite', { in: 'noise', in2: 'band', operator: 'arithmetic', k1: 1, k2: 0, k3: -0.5, k4: 0.5, result: 'field' }),
+    svgElement('feDisplacementMap', { in: 'SourceGraphic', in2: 'field', scale: bend, xChannelSelector: 'R', yChannelSelector: 'G', ...within, result: 'bent' }),
+    svgElement('feGaussianBlur', { in: 'bent', stdDeviation: blur, ...within, result: 'soft' }),
+    svgElement('feMorphology', { in: 'bent', operator: 'dilate', radius: near, ...within, result: 'near' }),
+    svgElement('feComposite', { in: 'soft', in2: 'near', operator: 'in', result: 'softNear' }),
+    svgElement('feColorMatrix', { in: 'band', type: 'luminanceToAlpha', result: 'bandAlpha' }),
+    svgElement('feComposite', { in: 'softNear', in2: 'bandAlpha', operator: 'in', result: 'smoke' }),
+    svgElement('feComposite', { in: 'SourceGraphic', in2: 'bandAlpha', operator: 'out', result: 'rest' }),
+    svgElement('feComposite', { in: 'bent', in2: 'bandAlpha', operator: 'in', result: 'bentIn' }),
     mergeOf('', 'rest', 'bentIn', 'smoke'),
   ];
 }

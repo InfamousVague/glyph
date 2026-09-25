@@ -1,3 +1,5 @@
+import { SVG_NS, svgElement } from '../art/svg.ts';
+
 /**
  * The SVG filters the editor's moving text is drawn through: the recorder's words arriving from smoke
  * (editor/wispArrivals.ts), a spoiler's smoke (editor/wispFormat.ts), the voice's ripples (editor/wispRipples.ts) and
@@ -9,15 +11,8 @@
  * time - the arc, the sway, the breathing - stays with its module.
  */
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
-/** An SVG element with `attributes` set in the order given, holding `children`. */
-export function svgElement<T extends SVGElement = SVGElement>(name: string, attributes: Record<string, string | number>, ...children: Element[]): T {
-  const node = document.createElementNS(SVG_NS, name) as T;
-  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
-  node.append(...children);
-  return node;
-}
+// The element builder is art/svg.ts's, shared with the boxed wisps; the editor's filters reach it through here.
+export { svgElement };
 
 /**
  * A hidden SVG at the end of `parent` (the editor's own element), and the `<defs>` the filters go in. It takes no room
