@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { drawnBoards, emptyLook } from './boards.ts';
+import { drawnBoards } from './boards.ts';
+import { emptyLook } from './boards/icons.ts';
 import { glyphMarkdown } from './language.ts';
 
 const note = [
@@ -511,5 +512,113 @@ describe('the + field and password managers', () => {
     }
     // A field with a name is a field they can tell apart from a username.
     expect(field.name).toBe('card');
+  });
+});
+
+describe('a card’s own menu', () => {
+  // Matt: "Add context menu to board items for moving lanes and adding to notion etc."
+  const tap = (element: Element) => element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  const more = (on: EditorView, id: string) => on.dom.querySelector<HTMLButtonElement>(`.cm-boardCard[data-card="${id}"] .cm-boardMore`)!;
+  const menu = (on: EditorView) => on.dom.querySelector<HTMLElement>('.cm-boardMenu');
+  const rows = (on: EditorView) => [...(menu(on)?.querySelectorAll('.cm-boardMenuRow') ?? [])].map((row) => row.textContent);
+  const row = (on: EditorView, words: string) => [...menu(on)!.querySelectorAll<HTMLElement>('.cm-boardMenuRow')].find((one) => one.textContent === words)!;
+
+  beforeEach(() => {
+    // Clear of the quiet after a card moved in an earlier test, when a press on a card's words is taken for a near miss.
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 120_000);
+    // jsdom lays nothing out, and has no scrollIntoView to bring the menu into view with.
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+  });
+
+  it('opens under its card with every other lane, the tick, the line and taking it off, and a second press closes it', () => {
+    const on = open(note);
+    tap(more(on, 'ship-page'));
+    expect(menu(on)?.previousElementSibling?.getAttribute('data-card')).toBe('ship-page');
+    expect(rows(on)).toEqual(['Move to Done', 'Tick', 'Go to the line', 'Take off the board']);
+    // Opening it wrote nothing.
+    expect(on.state.doc.toString()).toBe(note);
+    tap(more(on, 'ship-page'));
+    expect(menu(on)).toBeNull();
+  });
+
+  it('is only ever one: another card’s menu takes its place', () => {
+    const on = open(note);
+    tap(more(on, 'ship-page'));
+    tap(more(on, 'pick-date'));
+    expect(on.dom.querySelectorAll('.cm-boardMenu')).toHaveLength(1);
+    expect(menu(on)?.previousElementSibling?.getAttribute('data-card')).toBe('pick-date');
+    expect(rows(on)).toEqual(['Move to To do', 'Untick', 'Go to the line', 'Take off the board']);
+  });
+
+  it('closes on Escape, and on a press anywhere else, without writing anything', () => {
+    const on = open(note);
+    tap(more(on, 'ship-page'));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(menu(on)).toBeNull();
+
+    tap(more(on, 'ship-page'));
+    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+    expect(menu(on)).toBeNull();
+    expect(on.state.doc.toString()).toBe(note);
+  });
+
+  it('moves the card to another lane, ticking it on the way into Done', () => {
+    const on = open(note);
+    tap(more(on, 'ship-page'));
+    tap(row(on, 'Move to Done'));
+    expect(menu(on)).toBeNull();
+    const doc = on.state.doc.toString();
+    expect(doc).toContain('To do:\nDone: pick-date, ship-page');
+    expect(doc).toContain('- [x] Ship the pricing page ^ship-page');
+  });
+
+  it('takes the card off the board and leaves its item where it is in the note', () => {
+    const on = open(note);
+    tap(more(on, 'pick-date'));
+    tap(row(on, 'Take off the board'));
+    const doc = on.state.doc.toString();
+    expect(doc).toContain('To do: ship-page\nDone:\n```');
+    expect(doc).toContain('- [x] Pick a launch date ^pick-date');
+    expect(on.dom.querySelector('.cm-boardCard[data-card="pick-date"]')).toBeNull();
+  });
+
+  it('goes to the line, the caret at the end of the item’s words', () => {
+    const on = open(note);
+    tap(more(on, 'ship-page'));
+    tap(row(on, 'Go to the line'));
+    const head = on.state.selection.main.head;
+    const line = on.state.doc.lineAt(head);
+    expect(line.text.slice(0, head - line.from)).toBe('- [ ] Ship the pricing page');
+  });
+
+  it('offers only to take a card off whose item has gone from the note', () => {
+    const on = open('```board\nTo do: lost\n```\n');
+    tap(more(on, 'lost'));
+    expect(rows(on)).toEqual(['Take off the board']);
+  });
+
+  it('offers what a plugin offers the item’s own line, before what a swipe would run by its words', () => {
+    const offered = vi.fn(async () => undefined);
+    const swiped = vi.fn(async (_text: string) => undefined);
+    const actions = {
+      suggest: () => [{ line: 8, label: 'Send to Notion', run: offered }],
+      action: () => ({ label: 'Make a task', run: swiped }),
+    };
+    view = new EditorView({ state: EditorState.create({ doc: note, extensions: [drawnBoards(actions)] }), parent: document.body });
+    const on = view;
+    tap(more(on, 'ship-page'));
+    expect(rows(on)).toContain('Send to Notion');
+    tap(row(on, 'Send to Notion'));
+    expect(offered).toHaveBeenCalledOnce();
+
+    // A line with no offer of its own is offered the swipe's action, run on the item's words.
+    tap(more(on, 'pick-date'));
+    tap(row(on, 'Make a task'));
+    expect(swiped).toHaveBeenCalledWith('Pick a launch date');
   });
 });
