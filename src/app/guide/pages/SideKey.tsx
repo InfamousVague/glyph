@@ -14,8 +14,9 @@ import styles from '../Guide.module.css';
  *
  * Off Android there is no side key to give away, so the page says how to start a voice note instead.
  *
- * The last step still tells the person to turn off Memo mode in Settings, but Memo mode was removed on 2026-09-22 and
- * there is no such switch now. The line is on screen, so its new words, or its removal, are Matt's to choose.
+ * It used to end on a step about saying where things go, which told the person to turn off Memo mode in Settings; Memo
+ * mode went on 2026-09-22, and a command is now the whole of a take, said first after "Hey Ghost". That step is the
+ * habits page's now (guide/pages/Tips.tsx), where every platform reads it, and this page is the key alone.
  */
 export function SideKey() {
   const [held, setHeld] = useState<boolean | null>(() => isAssistantNow());
@@ -72,10 +73,6 @@ export function SideKey() {
           note="Ghost.md opens already listening, even on the lock screen. Let go and talk. If the phone is locked, the note is there once you unlock it."
         />
         <Step title="Hold the side key again to stop." note="That saves the note. Tapping Done does the same." />
-        <Step
-          title="Say where things go, and Ghost.md sorts it after."
-          note="“Add oat milk to groceries” goes to your Groceries note, and the rest becomes a new note. You see where everything is going before anything is filed. Turn off Memo mode in Settings to get a plain new note every time."
-        />
       </ol>
 
       <p className={styles.fine}>

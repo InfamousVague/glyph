@@ -52,6 +52,18 @@ describe('the side-key page on an Android phone', () => {
     expect(buttonSaying(el, 'Open assistant settings')).toBeUndefined();
   });
 
+  it('is the key alone: nothing of a Memo mode there is no longer a switch for', () => {
+    phone('samsung', { now: false });
+    const el = show(<SideKey />);
+    expect(el.textContent).not.toMatch(/memo mode/i);
+    expect([...el.querySelectorAll('ol > li h2')].map((h) => h.textContent)).toEqual([
+      'Make Ghost.md your digital assistant.',
+      'Point the side key at it.',
+      'Hold the key and talk.',
+      'Hold the side key again to stop.',
+    ]);
+  });
+
   it('prints the steps without the button on a build that cannot open the settings', () => {
     Object.assign(window, { GlyphHost: { deviceMaker: () => 'OnePlus' } });
     const el = show(<SideKey />);

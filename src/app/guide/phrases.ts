@@ -192,3 +192,12 @@ function toSegments(say: readonly string[]): Segment[] {
 export function renderExample(example: Example): string {
   return renderNote(toSegments(example.say)).markdown;
 }
+
+/**
+ * What the habits page (guide/pages/Tips.tsx) teaches to say first, after "Hey Ghost": a command, which puts words in
+ * a note by its name, and an ask, which runs the AI on the note whose mic it is said into. guide.test.ts runs both
+ * through the recorder's own readers (capture/command.ts `finalCommandWords` and `planCommand`, ai/instruction.ts
+ * `readInstruction`), so a change to them that stops either working fails a test rather than the page.
+ */
+export const COMMAND = { say: 'Hey Ghost, add oat milk to Groceries', note: 'Groceries', words: 'oat milk' } as const;
+export const ASK = { say: 'Hey Ghost, fix the spelling', run: 'fix' } as const;
