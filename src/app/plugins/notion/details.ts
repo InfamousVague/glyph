@@ -1,6 +1,6 @@
-import { failureText } from '../../core/failure.ts';
-import { markDetailsChanged, type MarkAction, type MarkDetails, type MarkDetailsProvider, type MarkEntry, type Stage } from '../../core/markDetails.ts';
+import { markDetailsChanged, type MarkAction, type MarkDetails, type MarkDetailsProvider, type Stage } from '../../core/markDetails.ts';
 import { shortUrl } from '../../core/shortUrl.ts';
+import { detailsCache } from '../detailsCache.ts';
 import { notionAvailable, notionRequest } from './client.ts';
 import { host } from './manifest.ts';
 
@@ -23,12 +23,11 @@ import { host } from './manifest.ts';
  * - **The last answers are kept** (`glyph-notion-tasks`, at most 300), so a note
  *   opened offline or before the read finishes shows the status it last had,
  *   with when it was read on the card.
+ *
+ * The pacing, the freshness and the keeping are the plugins' shared cache
+ * (plugins/detailsCache.ts), keyed by the page's id; what is Notion's is how a
+ * page is read and what can be written back to it.
  */
-
-const TASKS_KEY = 'glyph-notion-tasks';
-const FRESH_MS = 45_000;
-const KEEP = 300;
-const AT_ONCE = 2;
 
 // ---- reading a page (pure) ---------------------------------------------------------------------
 
@@ -256,39 +255,9 @@ export function detailsOf(page: NotionPage, stages: StageMap | null, now = Date.
 
 // ---- the provider -----------------------------------------------------------------------------
 
-interface Known {
-  details?: MarkDetails;
-  failed?: string;
-  /** When the last read failed: a task never read is tried again once this is as old as a stale answer. */
-  failedAt?: number;
-  loading: boolean;
-}
-
-const known = new Map<string, Known>();
 const boards = new Map<string, { stages: StageMap; options: StageOptions } | null>();
 /** Per page: its property names for writing back, and its board. Kept in memory; a read fills it. */
 const writables = new Map<string, ReturnType<typeof writablesOf> & { board: string | null }>();
-const queue: { id: string; url: string }[] = [];
-let running = 0;
-let restored = false;
-
-function restore(): void {
-  if (restored) return;
-  restored = true;
-  const saved = host.storage.get<Record<string, MarkDetails>>(TASKS_KEY, {});
-  if (!saved || typeof saved !== 'object') return;
-  for (const [id, details] of Object.entries(saved)) {
-    if (details && typeof details.title === 'string' && Array.isArray(details.fields)) known.set(id, { details, loading: false });
-  }
-}
-
-function persist(): void {
-  const kept = [...known.entries()]
-    .filter(([, entry]) => entry.details)
-    .sort(([, a], [, b]) => (b.details?.readAt ?? 0) - (a.details?.readAt ?? 0))
-    .slice(0, KEEP);
-  host.storage.set(TASKS_KEY, Object.fromEntries(kept.map(([id, entry]) => [id, entry.details])));
-}
 
 async function boardFor(databaseId: string | undefined | null): Promise<{ stages: StageMap; options: StageOptions } | null> {
   if (!databaseId) return null;
@@ -299,71 +268,38 @@ async function boardFor(databaseId: string | undefined | null): Promise<{ stages
   return board;
 }
 
-async function read(id: string, url: string): Promise<void> {
-  const entry = known.get(id) ?? { loading: true };
-  try {
-    const page = await notionRequest<NotionPage>('GET', `pages/${id}`);
-    const databaseId = page.parent?.type === 'database_id' ? (page.parent.database_id ?? null) : null;
-    const board = await boardFor(databaseId);
-    writables.set(id, { ...writablesOf(page), board: databaseId });
-    known.set(id, { details: { ...detailsOf(page, board?.stages ?? null), url: page.url ?? url }, loading: false });
-    persist();
-  } catch (failure) {
-    const message = failureText(failure);
-    known.set(id, { details: entry.details, failed: entry.details ? undefined : message, failedAt: Date.now(), loading: false });
-  }
-  markDetailsChanged();
+/** Reads a task's page, and its board's statuses the first time the board is met; keeps what can be written back. */
+async function read(id: string, url: string): Promise<MarkDetails> {
+  const page = await notionRequest<NotionPage>('GET', `pages/${id}`);
+  const databaseId = page.parent?.type === 'database_id' ? (page.parent.database_id ?? null) : null;
+  const board = await boardFor(databaseId);
+  writables.set(id, { ...writablesOf(page), board: databaseId });
+  return { ...detailsOf(page, board?.stages ?? null), url: page.url ?? url };
 }
 
-function pump(): void {
-  while (running < AT_ONCE && queue.length) {
-    const next = queue.shift()!;
-    running += 1;
-    void read(next.id, next.url).finally(() => {
-      running -= 1;
-      pump();
-    });
-  }
-}
-
+// Nothing is asked of Notion until the binary is known to reach it: the answer lands a moment after the page loads.
 let usable = false;
 void notionAvailable().then((yes) => {
   usable = yes;
   if (yes) markDetailsChanged();
 });
 
+const tasks = detailsCache({ host, storageKey: 'glyph-notion-tasks', read, ready: () => usable });
+
 export const notionDetails: MarkDetailsProvider = {
   peek(url) {
     const id = pageIdOf(url);
-    if (!id) return null;
-    restore();
-    const entry = known.get(id);
-    if (entry?.details) return { state: 'ready', details: entry.details, loading: entry.loading } satisfies MarkEntry;
-    if (entry?.failed) return { state: 'failed', message: entry.failed };
-    return entry?.loading ? { state: 'loading' } : null;
+    return id ? tasks.peek(id) : null;
   },
   want(url, fresh = false) {
     const id = pageIdOf(url);
-    if (!id || !usable) return;
-    restore();
-    const entry = known.get(id);
-    if (entry?.loading) return;
-    if (!fresh && entry?.details && Date.now() - entry.details.readAt < FRESH_MS) return;
-    /*
-     * A failed read is tried again after a while, as a stale answer is. It used to wait for a Refresh by hand, so one
-     * failure - the network not back yet as the phone woke, Notion asking Glyph to slow down - left a new task
-     * unread for as long as the app stayed open, and its item never ticked or moved to Done.
-     */
-    if (!fresh && entry?.failed && Date.now() - (entry.failedAt ?? 0) < FRESH_MS) return;
-    known.set(id, { details: entry?.details, loading: true });
-    queue.push({ id, url });
-    pump();
+    if (id) tasks.want(id, url, fresh);
   },
   open: (url) => host.openUrl(url),
   reads: isNotionPageUrl,
   actions(url, words) {
     const id = pageIdOf(url);
-    const details = id ? known.get(id)?.details : undefined;
+    const details = id ? tasks.details(id) : undefined;
     const write = id ? writables.get(id) : undefined;
     if (!id || !details || !write || details.gone) return [];
     const actions: MarkAction[] = [];
@@ -386,7 +322,7 @@ export const notionDetails: MarkDetailsProvider = {
         icon: 'rename',
         run: async () => {
           await notionRequest('PATCH', `pages/${id}`, { properties: { [write.title!]: { title: [{ type: 'text', text: { content: said.slice(0, 2000) } }] } } });
-          await read(id, url);
+          await tasks.reread(id, url);
           return 'Renamed in Notion.';
         },
       });
@@ -409,15 +345,13 @@ async function setDone(id: string, url: string, done: boolean): Promise<string> 
     value = { status: { name } };
   }
   await notionRequest('PATCH', `pages/${id}`, { properties: { [write.done.name]: value } });
-  await read(id, url);
+  await tasks.reread(id, url);
   return done ? 'Marked done in Notion.' : 'Reopened in Notion.';
 }
 
 /** Forgets what was read, for signing out: another workspace's tasks aren't this one's. */
 export function forgetTaskDetails(): void {
-  known.clear();
   boards.clear();
   writables.clear();
-  host.storage.remove(TASKS_KEY);
-  markDetailsChanged();
+  tasks.forget();
 }
