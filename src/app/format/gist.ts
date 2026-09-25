@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { generate, listModels } from '../core/ai.ts';
 import { preferences } from '../core/preferences.ts';
 import type { Note } from '../core/store.ts';
 import { isTauri } from '../core/tauri.ts';
+import { useRedraw } from '../core/useRedraw.ts';
 import { bodyHash } from './formatter.ts';
 import { protectLinks } from './links.ts';
 import { isRunning, passesFor } from './pipeline.ts';
@@ -138,10 +139,10 @@ function kick(): void {
  * them: the runner starts when a note has none and the app is on screen.
  */
 export function useGists(notes: readonly Note[]): Record<string, string> {
-  const [, bump] = useState(0);
+  const bump = useRedraw();
 
   useEffect(() => {
-    const listener = () => bump((n) => n + 1);
+    const listener = () => bump();
     listeners.add(listener);
     const onVisible = () => {
       if (document.visibilityState === 'visible') kick();
@@ -151,7 +152,7 @@ export function useGists(notes: readonly Note[]): Record<string, string> {
       listeners.delete(listener);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, []);
+  }, [bump]);
 
   useEffect(() => {
     // Newest first: the note just made is the one a person is looking at.

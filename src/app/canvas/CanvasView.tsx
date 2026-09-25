@@ -2,6 +2,7 @@ import { Ghost } from '../art/Ghost.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChartNoAxesCombined, FileText, Image, Link2, LocateFixed, Maximize, Plus, Spline, SquarePen, Table } from '@glacier/icons';
 import { imageUrl, IMAGE_READY, pickImage, saveImageFile } from '../core/images.ts';
+import { useRedraw } from '../core/useRedraw.ts';
 import { Editor } from '../editor/Editor.tsx';
 import { useBack } from '../core/back.ts';
 import { SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
@@ -155,12 +156,12 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
   /** The + sheet, and the step it is at: choosing what to add, a note's title, or a web address. */
   const [adding, setAdding] = useState<'what' | 'note' | 'link' | null>(null);
   /** A browser's pictures arrive from storage after the card is drawn: drawn again when one does (core/images.ts). */
-  const [, pictureArrived] = useState(0);
+  const pictureArrived = useRedraw();
   useEffect(() => {
-    const again = () => pictureArrived((n) => n + 1);
+    const again = () => pictureArrived();
     window.addEventListener(IMAGE_READY, again);
     return () => window.removeEventListener(IMAGE_READY, again);
-  }, []);
+  }, [pictureArrived]);
   /** The card last tapped or opened: what Shift+2 and the zoom button go to. */
   const [chosen, setChosen] = useState<string | null>(null);
   const change = useCallback(
