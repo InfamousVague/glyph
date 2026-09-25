@@ -9,8 +9,8 @@ import { afterEach, vi } from 'vitest';
  *
  * Twenty-odd test files each carried their own copy of this, and the copies had drifted: some set
  * IS_REACT_ACT_ENVIRONMENT and some did not (React then warns on every `act`), some kept only the last root and so
- * never took down a second `show`, and three different `button` finders matched three different ways. This is the
- * one copy. It stays the plain createRoot-and-act style the tests were written in rather than moving them to
+ * never took down a second `show`, and the button finders matched in four different ways. This is the one
+ * copy. It stays the plain createRoot-and-act style the tests were written in rather than moving them to
  * @testing-library/react: the assertions read the DOM directly, and that is the part worth keeping.
  *
  * Importing this module is what registers the hook, at the file's top level. Vitest runs a file's `afterEach` hooks

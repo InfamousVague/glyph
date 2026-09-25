@@ -6,6 +6,7 @@ import { memoryKeys } from '../account/keystore.ts';
 import { DEFAULT_PREFERENCES, type Preferences } from '../preferences.ts';
 import type { Note } from '../store.ts';
 import { FAST } from '../../../test/fakeService.ts';
+import { makeNote } from '../../../test/notes.ts';
 import type { Bytes } from './crypto.ts';
 import { emptyState, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncContext } from './notes.ts';
 import { syncPrefs, type PrefsContext } from './prefs.ts';
@@ -88,7 +89,7 @@ function device(): Device {
 let clock = Date.parse('2026-09-16T10:00:00Z');
 function note(id: string, body: string, extra: Partial<Note> = {}): Note {
   clock += 1000;
-  return { id, body, createdAt: clock, updatedAt: clock, source: 'editor', starred: false, archivedAt: null, ...extra };
+  return makeNote(id, body, { createdAt: clock, updatedAt: clock, starred: false, archivedAt: null, ...extra });
 }
 
 function edit(d: Device, id: string, body: string): void {

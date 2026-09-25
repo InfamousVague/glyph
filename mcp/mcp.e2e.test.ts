@@ -11,6 +11,7 @@ import { accountState, signUp, type Deps } from '../src/app/core/account/account
 import { API_BASE } from '../src/app/core/account/api.ts';
 import { memoryKeys } from '../src/app/core/account/keystore.ts';
 import type { Note } from '../src/app/core/store.ts';
+import { makeNote } from '../src/test/notes.ts';
 import { emptyState, syncNotes, type LocalFiles, type LocalNotes, type SyncContext } from '../src/app/core/sync/notes.ts';
 import { derive, passwordSalt, ROUNDS, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
 import { ClaudeMemory } from './fake.ts';
@@ -88,7 +89,7 @@ describe.skipIf(!ON || !existsSync(BUNDLE))('Claude and a phone on one Glyph acc
     await signUp(handle, password, deps);
     token = accountState().session!.token;
     const now = Date.now();
-    device.notes.set('phone-1', { id: 'phone-1', body: '# Groceries\n\nWe need:\n- eggs\n- milk', createdAt: now, updatedAt: now, source: 'capture', starred: false, archivedAt: null });
+    device.notes.set('phone-1', makeNote('phone-1', '# Groceries\n\nWe need:\n- eggs\n- milk', { createdAt: now, updatedAt: now, source: 'capture', starred: false, archivedAt: null }));
     await device.sync();
   });
 
@@ -196,7 +197,7 @@ describe.skipIf(!ON || !existsSync(HOSTED))('Claude on the hosted server, with a
     await signUp(handle, password, deps);
     token = accountState().session!.token;
     const now = Date.now();
-    device.notes.set('phone-1', { id: 'phone-1', body: '# Groceries\n\nWe need:\n- eggs', createdAt: now, updatedAt: now, source: 'capture', starred: false, archivedAt: null });
+    device.notes.set('phone-1', makeNote('phone-1', '# Groceries\n\nWe need:\n- eggs', { createdAt: now, updatedAt: now, source: 'capture', starred: false, archivedAt: null }));
     await device.sync();
     // A port asked of the system, not a fixed one a leftover child or a second run could be holding.
     const port = await freePort();

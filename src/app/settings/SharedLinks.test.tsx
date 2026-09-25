@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { makeNote } from '../../test/notes.ts';
 import { button, press, show, waitUntil } from '../../test/render.tsx';
 
 const now = Math.floor(Date.now() / 1000);
@@ -12,7 +13,7 @@ const deleted: string[] = [];
 
 vi.mock('../core/store.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../core/store.ts')>()),
-  listNotes: vi.fn(async () => [{ id: 'mine', body: '# Cabin trip\n', createdAt: 0, updatedAt: 0, source: 'editor' }]),
+  listNotes: vi.fn(async () => [makeNote('mine', '# Cabin trip\n')]),
 }));
 vi.mock('../core/account/account.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../core/account/account.ts')>()),
