@@ -1,3 +1,5 @@
+import { externalStore } from './externalStore.ts';
+
 /**
  * What an item's mark links to, read back: a Notion task's status and a few
  * facts about it, for the pill at the end of the item and the card a tap on
@@ -68,7 +70,8 @@ export interface MarkDetailsProvider {
 }
 
 const providers = new Map<string, () => MarkDetailsProvider | null>();
-const listeners = new Set<() => void>();
+/** How many times a provider has had something new: counted only so that every change is one its listeners hear. */
+const changes = externalStore(0);
 
 /** `get` answers the provider for marks called `name`, or null while it can't answer (its plugin off). */
 export function provideMarkDetails(name: string, get: () => MarkDetailsProvider | null): void {
@@ -107,15 +110,11 @@ export function markActions(name: string, url: string, words: string): MarkActio
 
 /** A provider has something new: every pill and card reads again. */
 export function markDetailsChanged(): void {
-  listeners.forEach((listener) => listener());
+  changes.update((n) => n + 1);
 }
 
-export function onMarkDetails(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
+/** Called after every `markDetailsChanged`; answers the way to stop. */
+export const onMarkDetails = changes.subscribe;
 
 /** "3 min ago", for when a task changed or was read. */
 export function agoText(ms: number, now = Date.now()): string {
