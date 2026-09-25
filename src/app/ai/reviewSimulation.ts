@@ -1,4 +1,6 @@
 import type { Output, Progress, Run, RunOptions } from '../core/ai.ts';
+import { escapeRegExp } from '../core/text.ts';
+import { heardAs, unpunctuated } from './review.ts';
 
 /**
  * The review's model, played by a script in a browser (`?review`): a thought
@@ -20,10 +22,11 @@ export function simulatedReview(options: RunOptions): Run {
   const note = /AS SAVED:\n([\s\S]*)$/.exec(options.prompt)?.[1] ?? '';
   const findings = changes.flatMap((pair) => {
     const [, heard = '', careful = ''] = /\[([^\]]*?) → ([^\]]*?)\]/.exec(pair) ?? [];
-    const find = heard.replace(/[.,;:!?]+$/, '');
+    const find = unpunctuated(heard);
+    const replace = unpunctuated(careful);
     const line = note.split('\n').find((l) => l.toLowerCase().includes(find.toLowerCase()));
     if (!find || !line) return [];
-    return [{ check: 'words', what: `“${careful.replace(/[.,;:!?]+$/, '')}”, not “${find}”`, why: 'The slower speech model heard it this way, and it fits the note.', find: line, replace: line.replace(new RegExp(find, 'i'), careful.replace(/[.,;:!?]+$/, '')) }];
+    return [{ check: 'words', what: heardAs(replace, find), why: 'The slower speech model heard it this way, and it fits the note.', find: line, replace: line.replace(new RegExp(escapeRegExp(find), 'i'), replace) }];
   });
   const text = `<think>\n${thought}\n</think>\n\n${JSON.stringify(findings)}`;
   const done = (async (): Promise<Output> => {
