@@ -1,3 +1,5 @@
+import { lowerFirst } from '../core/text.ts';
+
 /**
  * What the recorder suggests saying when you pause: the spoken cues that shape
  * a note, and the routing command, one at a time.
@@ -71,7 +73,7 @@ export function tips({
   /** A book in the library, for the chapter tip; with none, the tip is how to make one (docs/BOOKS.md). */
   book?: string | null;
 }): Tip[] {
-  const say = (command: string) => (keyword ? `Hey Ghost, ${command.charAt(0).toLowerCase()}${command.slice(1)}` : command);
+  const say = (command: string) => (keyword ? `Hey Ghost, ${lowerFirst(command)}` : command);
   const route: Tip[] = [];
   if (noteTitle) route.push({ say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' });
   if (noteTitle) route.push({ say: say(`New item for ${noteTitle}`), does: 'and then the item, to add to its list' });

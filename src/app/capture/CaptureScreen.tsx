@@ -8,6 +8,7 @@ import { answerHost, endCapture, isLocked, setCapturing } from '../core/host.ts'
 import { deleteNote, getNote, listNotes, newNoteId, noteTitle, saveNote, setNoteRecording, type Note } from '../core/store.ts';
 import { preferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
+import { capitalise, lowerFirst } from '../core/text.ts';
 import { openMicrophone, type Microphone, type MicrophoneHandlers } from './audio.ts';
 import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { enqueueFormat, setFormattingPaused } from '../format/queue.ts';
@@ -352,7 +353,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         fireNativeHaptic('selection');
         return;
       }
-      const named = `${title.charAt(0).toUpperCase()}${title.slice(1)}`;
+      const named = capitalise(title);
       const made = await saveNote(newNoteId(), `# ${named}`, 'capture');
       candidates.current = [{ id: made.id, title: named, note: made }, ...candidates.current];
       await carryOn(made);
@@ -774,7 +775,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           if (showing) return showing;
           const recent = candidates.current.find((c) => c.id !== noteId.current)?.title ?? null;
           const keyword = commandWordOn();
-          const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Hey Ghost, ${t.say.charAt(0).toLowerCase()}${t.say.slice(1)}` } : t));
+          const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Hey Ghost, ${lowerFirst(t.say)}` } : t));
           const lane = targetRef.current ? (lanesOf(targetRef.current.body)[1] ?? lanesOf(targetRef.current.body)[0])?.name ?? null : null;
           const book = candidates.current.find((c) => c.id !== noteId.current && isBookBody(c.note.body))?.title ?? null;
           const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane, book }), ...pluginTips];
@@ -1111,7 +1112,7 @@ function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer<Note>; onCon
       action = 'Add';
       lines = offer.added.map(show);
       detail = offer.into === 'list' ? 'In its list' : 'As a new paragraph';
-      if (offer.placement.target) detail += `, then to ${offer.placement.target.charAt(0).toUpperCase()}${offer.placement.target.slice(1)}`;
+      if (offer.placement.target) detail += `, then to ${capitalise(offer.placement.target)}`;
       break;
     case 'change':
       heading = `${offer.heading} in ${offer.title}`;

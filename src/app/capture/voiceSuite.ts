@@ -2,6 +2,7 @@ import { bookNoteBody } from '../book/book.ts';
 import { boardFrom } from '../core/boards.ts';
 import { clipMarkdown } from '../core/clips.ts';
 import { noteTitle } from '../core/store.ts';
+import { capitalise } from '../core/text.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
 import { appendBody } from './appendBody.ts';
 import { placeWords } from './listAppend.ts';
@@ -181,7 +182,7 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
     newNote: (title) => {
       flush();
       if (title) {
-        const named = `${title.charAt(0).toUpperCase()}${title.slice(1)}`;
+        const named = capitalise(title);
         const id = `made-${made++}`;
         store.set(id, { id, title: named, body: `# ${named}` });
         target = store.get(id)!;

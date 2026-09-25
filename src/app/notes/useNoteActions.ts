@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@glacier/react';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { deleteNote, noteTitle, setNoteArchived, setNoteStarred, type Note } from '../core/store.ts';
+import { capitalise } from '../core/text.ts';
 import { forgetNote } from '../core/workspaces.ts';
 import { forgetResults } from '../format/results.ts';
 import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.ts';
@@ -26,8 +27,6 @@ import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.t
  */
 
 const UNDO_MS = 5000;
-
-const capitalise = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
 function label(note: Note): string {
   const title = noteTitle(note.body);

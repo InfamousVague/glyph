@@ -4,6 +4,7 @@ import { useBack } from '../core/back.ts';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { agoText, markActions, onMarkDetails, openMarked, peekMarkDetails, wantMarkDetails, type MarkAction } from '../core/markDetails.ts';
+import { capitalise } from '../core/text.ts';
 import sheet from './NoteSettings.module.css';
 import { useSheetDrag } from './sheetDrag.ts';
 import styles from './MarkMenu.module.css';
@@ -52,7 +53,7 @@ export function MarkMenu({ name, url, words, say, close, unlink }: MarkMenuProps
   // The drawer takes a pull on its handle: down far enough and it closes (editor/sheetDrag.ts).
   const panel = useRef<HTMLElement>(null);
   const drag = useSheetDrag(panel, close);
-  const title = name.charAt(0).toUpperCase() + name.slice(1);
+  const title = capitalise(name);
 
   useEffect(() => onMarkDetails(redraw), []);
   useEffect(() => wantMarkDetails(name, url, true), [name, url]);

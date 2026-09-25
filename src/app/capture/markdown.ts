@@ -1,4 +1,5 @@
 import { emojiFor } from '../core/emoji.ts';
+import { capitalise } from '../core/text.ts';
 import { matchNote } from './route.ts';
 
 /**
@@ -52,8 +53,6 @@ export const PARAGRAPH_GAP_MS = 1500;
 const PARAGRAPH_CUE = /\b(?:new|next) paragraph\b[.,!?]?/gi;
 
 // ---- paragraphs and sentences ----------------------------------------------
-
-const capitalise = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
 const stripEnd = (text: string): string => text.replace(/[\s.,;:!?]+$/, '');
 

@@ -5,6 +5,7 @@ import { boardsIn, itemsIn } from '../core/boards.ts';
 import { ITEM_TAIL, itemWords, markOf } from '../core/itemLinks.ts';
 import { hasMarkDetails, markNameFor, onMarkDetails, peekMarkDetails, wantMarkDetails, type MarkEntry } from '../core/markDetails.ts';
 import { shortUrl } from '../core/shortUrl.ts';
+import { capitalise } from '../core/text.ts';
 
 /**
  * Links, shortened: `notion.so/att…b3c` in place of the whole address.
@@ -78,7 +79,7 @@ class ItemMark extends WidgetType {
       span.append(piece);
       return piece;
     };
-    part('cm-itemMark-name', this.name.charAt(0).toUpperCase() + this.name.slice(1));
+    part('cm-itemMark-name', capitalise(this.name));
     const entry = this.entry;
     span.title = this.url;
     if (entry?.state === 'ready') {

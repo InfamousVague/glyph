@@ -1,5 +1,6 @@
 import { isBookBody } from '../book/book.ts';
 import { addToLane, lanesOf, matchLane, moveToLane, type Lane } from '../core/boards.ts';
+import { capitalise } from '../core/text.ts';
 import { matchNote, parseRoute, type Candidate } from './route.ts';
 import { cellsOf } from './table.ts';
 
@@ -216,7 +217,7 @@ function chapterFor<N extends Candidate & { note?: { body: string } }>(note: N, 
   const said = words.replace(/[\s.,;:!?]+$/, '').trim();
   if (SELF.test(said)) return { kind: 'chapter', note, title: null };
   const title = said.replace(CHAPTER_NOUN, '').replace(/^["“]|["”]$/g, '').trim();
-  return title ? { kind: 'chapter', note, title: title.charAt(0).toUpperCase() + title.slice(1) } : { kind: 'await', note, how: 'leave', task: false, many: false, target: null };
+  return title ? { kind: 'chapter', note, title: capitalise(title) } : { kind: 'await', note, how: 'leave', task: false, many: false, target: null };
 }
 
 /**
@@ -275,7 +276,7 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
       .replace(/[\s.,;:!?]+$/, '')
       .replace(/^["“]|["”]$/g, '')
       .trim();
-    return name ? { kind: 'book', title: name.charAt(0).toUpperCase() + name.slice(1), pages } : null;
+    return name ? { kind: 'book', title: capitalise(name), pages } : null;
   }
 
   // "Move the pricing page to Done": a card, when the note being recorded has a board with that lane and no note by
@@ -355,7 +356,7 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
     if (board && bestLane && (!best || bestLane.score > best.score) && !MOVERS.test(text)) {
       const noun = OBJECT_NOUN.exec(bestLane.thing);
       const said = (noun ? bestLane.thing.slice(noun[0].length) : bestLane.thing).trim();
-      const item = said.charAt(0).toUpperCase() + said.slice(1);
+      const item = capitalise(said);
       if (item && !/^(?:this|that|it|everything|these|those|them)$/i.test(item)) {
         return {
           kind: 'lane',

@@ -1,5 +1,6 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { escapeRegExp } from '../core/text.ts';
 import type { InlineFormat } from '../plugins/types.ts';
 
 /**
@@ -33,13 +34,11 @@ export interface MarkNote {
   delimiter: string;
 }
 
-const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 /** The pattern for `<delimiter>words<delimiter>(a note)`, for the marks that are switched on. */
 export function notePattern(formats: readonly InlineFormat[]): RegExp | null {
   const delimiters = [...new Set(formats.map((format) => format.delimiter))];
   if (!delimiters.length) return null;
-  const any = delimiters.map(escape).join('|');
+  const any = delimiters.map(escapeRegExp).join('|');
   return new RegExp(`(${any})(?=(\\S))((?:(?!\\1).)*?\\S)\\1\\(([^)\\n]+)\\)`, 'g');
 }
 

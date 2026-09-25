@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { ArrowLeft, ArrowRight, PanelLeft, Plus, X } from '@glacier/icons';
 import { Menu, MenuItem, MenuSeparator, MenuSub } from '@glacier/react';
 import { prefersStill } from '../core/motion.ts';
+import { capitalise } from '../core/text.ts';
 import {
   joinGroup,
   leaveGroup,
@@ -596,7 +597,7 @@ export function NoteTabs({
                       <MenuSub label="Colour">
                         {WORKSPACE_HUES.map((hue) => (
                           <MenuItem key={hue} onSelect={() => change(recolourGroup(groups, group.id, hue))} icon={<span className={styles.hueDot} data-hue={hue} aria-hidden="true" />}>
-                            {hue === 'ink' ? 'Ink' : hue[0]!.toUpperCase() + hue.slice(1)}
+                            {hue === 'ink' ? 'Ink' : capitalise(hue)}
                           </MenuItem>
                         ))}
                       </MenuSub>
