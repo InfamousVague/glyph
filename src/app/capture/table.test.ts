@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appendBlock, cellsOf, fitRow, saysDone, tableMarkdown } from './table.ts';
+import { cellsOf, fitRow, saysDone, tableMarkdown } from './table.ts';
 
 describe('a table said out loud', () => {
   it('hears column labels and rows the way lists are said', () => {
@@ -26,6 +26,5 @@ describe('a table said out loud', () => {
     expect(tableMarkdown(['Bug', 'Owner'], [['Seek bar | drift', 'Matt'], ['Login']])).toBe(
       '| Bug | Owner |\n| --- | --- |\n| Seek bar \\| drift | Matt |\n| Login |  |',
     );
-    expect(appendBlock('# Bugbash\n\nFriday.\n', '| A |\n| --- |')).toBe('# Bugbash\n\nFriday.\n\n| A |\n| --- |\n');
   });
 });

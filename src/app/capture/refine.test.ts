@@ -1,76 +1,239 @@
-import { describe, expect, it } from 'vitest';
-import { refinedBody, refinedSegments, type RefineJob, withClips, withoutCommands } from './refine.ts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Segment } from './markdown.ts';
+import type { RefineJob } from './refine.ts';
 
-const job = (over: Partial<RefineJob> = {}): RefineJob => ({
+/**
+ * The pass after a recording (capture/refine.ts): the queue it keeps on the phone, when it runs and when it waits, and
+ * what it writes. The bridge is a stand-in that answers as Rust would, the note store's Tauri half included, and the
+ * clock is a fake one, so "twenty seconds later" is a thing a test can say.
+ */
+
+let native = true;
+let generation = 7;
+const notes = new Map<string, { id: string; body: string; revision: number }>();
+const answers = new Map<string, (args: Record<string, unknown>) => unknown>();
+const invoked: { command: string; args: Record<string, unknown> }[] = [];
+const invoke = vi.fn(async (command: string, args: Record<string, unknown> = {}) => {
+  invoked.push({ command, args });
+  const answer = answers.get(command);
+  if (!answer) throw new Error(`no answer for ${command}`);
+  return answer(args);
+});
+const progress = new Map<string, (payload: unknown) => void>();
+
+vi.mock('../core/tauri.ts', () => ({ isTauri: () => native, invoke }));
+vi.mock('../core/nativeGeneration.ts', () => ({ hasNativeGeneration: async (wanted: number) => native && generation >= wanted }));
+vi.mock('../core/events.ts', () => ({
+  listenTo: async (event: string, handler: (payload: unknown) => void) => {
+    progress.set(event, handler);
+    return () => progress.delete(event);
+  },
+}));
+
+const { setPreferences } = await import('../core/preferences.ts');
+const { enqueueRefine, keepBetterPhrases, listenAgain, setRecorderLive, startRefining } = await import('./refine.ts');
+
+const QUEUE_KEY = 'glyph-refine-queue';
+const queued = (): RefineJob[] => JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]') as RefineJob[];
+const calls = (command: string) => invoked.filter((call) => call.command === command);
+
+const job = (over: Partial<Omit<RefineJob, 'tries'>> = {}): Omit<RefineJob, 'tries'> => ({
   id: 'n1',
   fromMs: 0,
-  recordingMs: 4000,
+  recordingMs: 2400,
   baseBody: '',
-  savedBody: '# Grocery run\n\nIt has to happen before Saturday.',
+  savedBody: '# Grocery run\n\nOat milk and legs.',
   titled: true,
   priorSegments: [],
   promptTail: '',
-  tries: 0,
   ...over,
 });
+const better: Segment[] = [
+  { text: 'Grocery run.', startMs: 0, endMs: 900 },
+  { text: 'Oat milk and eggs.', startMs: 1200, endMs: 2400 },
+];
 
-describe('the better words after a recording', () => {
-  it('renders a first take with a title, from the better phrases', () => {
-    const body = refinedBody(job(), [
-      { text: 'Grocery run.', startMs: 0, endMs: 1000 },
-      { text: 'It has to happen before Saturday morning.', startMs: 1300, endMs: 3000 },
-    ]);
-    expect(body).toBe('# Grocery run\n\nIt has to happen before Saturday morning.');
+let stop: (() => void) | null = null;
+let changed = vi.fn();
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  localStorage.clear();
+  native = true;
+  generation = 7;
+  notes.clear();
+  answers.clear();
+  invoked.length = 0;
+  progress.clear();
+  setPreferences({ refine: true, localOnly: false });
+  notes.set('n1', { id: 'n1', body: '# Grocery run\n\nOat milk and legs.', revision: 1 });
+  answers.set('get_note', ({ id }) => notes.get(id as string) ?? null);
+  answers.set('update_note', ({ id, body, expectedRevision }) => {
+    const note = { id: id as string, body: body as string, revision: (expectedRevision as number) + 1 };
+    notes.set(note.id, note);
+    return note;
+  });
+  answers.set('set_note_recording', ({ id }) => notes.get(id as string) ?? null);
+  answers.set('capture_refine_model_status', () => ({ present: true, bytes: 190_000_000 }));
+  answers.set('capture_refine', () => better);
+  changed = vi.fn();
+  stop = startRefining(changed);
+});
+
+afterEach(() => {
+  stop?.();
+  setRecorderLive(false);
+  vi.clearAllTimers();
+  vi.useRealTimers();
+  setPreferences({ refine: true, localOnly: false });
+});
+
+describe('the better words', () => {
+  it('replace the words of a note that still reads as Done left it, and the phrases on its tape', async () => {
+    enqueueRefine(job());
+    expect(queued()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls('capture_refine')[0]?.args).toEqual({ id: 'n1', fromMs: 0, promptTail: '' });
+    expect(notes.get('n1')?.body).toBe('# Grocery run\n\nOat milk and eggs.');
+    expect(calls('set_note_recording')[0]?.args).toEqual({ id: 'n1', recordingMs: 2400, segments: better });
+    expect(queued()).toEqual([]);
+    expect(changed).toHaveBeenCalledOnce();
   });
 
-  it('puts a later take under the note it continued, without a new title', () => {
-    const body = refinedBody(
-      job({ baseBody: '# Grocery run\n\nBook the cabin.', fromMs: 10_000, titled: false }),
-      [{ text: 'Ask Sam about the dog.', startMs: 10_000, endMs: 12_000 }],
-    );
-    expect(body).toBe('# Grocery run\n\nBook the cabin.\n\nAsk Sam about the dog.');
+  it('leave a note someone changed since Done as they left it, and still put the better phrases on its tape', async () => {
+    notes.set('n1', { id: 'n1', body: '# Grocery run\n\nOat milk and legs. And bread.', revision: 2 });
+    enqueueRefine(job());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls('update_note')).toEqual([]);
+    expect(notes.get('n1')?.body).toBe('# Grocery run\n\nOat milk and legs. And bread.');
+    expect(calls('set_note_recording')).toHaveLength(1);
+    expect(queued()).toEqual([]);
   });
 
-  it("replaces only the take's phrases in the recording's list", () => {
-    const prior = [
-      { text: 'Book the cabin.', startMs: 0, endMs: 2000 },
-      { text: 'live guess of the take', startMs: 10_000, endMs: 12_000 },
-    ];
-    const merged = refinedSegments(job({ fromMs: 10_000, priorSegments: prior }), [
-      { text: 'Ask Sam about the dog.', startMs: 10_000, endMs: 12_000 },
+  it('are asked for once per take: a take queued again replaces its own job, another take joins the queue', () => {
+    enqueueRefine(job({ promptTail: 'first' }));
+    enqueueRefine(job({ promptTail: 'second' }));
+    enqueueRefine(job({ fromMs: 5000 }));
+    expect(queued().map((j) => [j.fromMs, j.promptTail, j.tries])).toEqual([
+      [0, 'second', 0],
+      [5000, '', 0],
     ]);
-    expect(merged.map((s) => s.text)).toEqual(['Book the cabin.', 'Ask Sam about the dog.']);
+  });
+
+  it('are not asked for with better words switched off, or in a browser', () => {
+    setPreferences({ refine: false });
+    enqueueRefine(job());
+    setPreferences({ refine: true });
+    native = false;
+    enqueueRefine(job());
+    expect(queued()).toEqual([]);
+  });
+
+  it('wait on a binary without the larger model’s pass', async () => {
+    generation = 6;
+    enqueueRefine(job());
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(invoked).toEqual([]);
+    expect(queued()).toHaveLength(1);
   });
 });
 
-describe('the better words leave commands out', () => {
-  const seg = (text: string, startMs: number, endMs: number) => ({ text, startMs, endMs });
-  it('drops phrases inside a command’s stretch and cuts a phrase at “hey Ghost”', () => {
-    const refined = [seg('Pick up the parcel.', 0, 1800), seg('Pick up milk, hey Ghost, add eggs to', 2000, 4000), seg('work.', 4000, 4800), seg('Yes.', 5200, 5600), seg('Call Sam.', 6000, 7000)];
-    const kept = withoutCommands({ skip: [{ startMs: 3950, endMs: 4900 }, { startMs: 5100, endMs: 5700 }], keywordAt: [{ startMs: 2100, endMs: 3900 }] }, refined);
-    expect(kept.map((s) => s.text)).toEqual(['Pick up the parcel.', 'Pick up milk', 'Call Sam.']);
+describe('when the pass runs', () => {
+  it('never while the recorder is on screen, and soon after it goes', async () => {
+    setRecorderLive(true);
+    enqueueRefine(job());
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(calls('capture_refine')).toEqual([]);
+    setRecorderLive(false);
+    await vi.advanceTimersByTimeAsync(1499);
+    expect(calls('capture_refine')).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls('capture_refine')).toHaveLength(1);
   });
 
-  it('keeps everything for a job from before commands were kept out', () => {
-    const refined = [seg('Ghost is the app.', 0, 1000)];
-    expect(withoutCommands({}, refined)).toEqual(refined);
+  it('tries again twenty seconds after the phone was busy, not sooner, and the job keeps its tries', async () => {
+    let busy = true;
+    answers.set('capture_refine', () => {
+      if (busy) {
+        busy = false;
+        throw 'the voice model is busy';
+      }
+      return better;
+    });
+    enqueueRefine(job());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls('capture_refine')).toHaveLength(1);
+    expect(queued()[0]?.tries).toBe(0);
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(calls('capture_refine')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls('capture_refine')).toHaveLength(2);
+    expect(queued()).toEqual([]);
+  });
+
+  it('gives a pass up after three failures, twenty seconds apart', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    answers.set('capture_refine', () => {
+      throw new Error('the recording could not be read');
+    });
+    enqueueRefine(job());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(queued()[0]?.tries).toBe(1);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(queued()[0]?.tries).toBe(2);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(queued()).toEqual([]);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(calls('capture_refine')).toHaveLength(3);
+    warn.mockRestore();
+  });
+
+  it('waits a minute for a larger model it cannot get, rather than asking for it again at once', async () => {
+    setPreferences({ localOnly: true });
+    answers.set('capture_refine_model_status', () => ({ present: false, bytes: 190_000_000 }));
+    enqueueRefine(job());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls('capture_refine_model_status')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(calls('capture_refine_model_status')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls('capture_refine_model_status')).toHaveLength(2);
+    expect(calls('capture_fetch_refine_model')).toEqual([]);
+    expect(calls('capture_refine')).toEqual([]);
+  });
+
+  it('runs the next take’s pass half a second after one finishes', async () => {
+    enqueueRefine(job());
+    enqueueRefine(job({ fromMs: 5000, savedBody: 'something else' }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls('capture_refine')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(calls('capture_refine')).toHaveLength(2);
+    expect(queued()).toEqual([]);
   });
 });
 
-describe('voice memos in the better words', () => {
-  const clip = { text: '![voice 0:05](tape:12000-17000)', startMs: 12_000, endMs: 17_000 };
-  const refined = [
-    { text: 'Before the memo.', startMs: 8_000, endMs: 11_000 },
-    { text: 'After it.', startMs: 18_000, endMs: 20_000 },
-  ];
-
-  it('puts each memo back where it was spoken', () => {
-    const job = { clips: [clip] };
-    expect(withClips(job, refined).map((s) => s.text)).toEqual(['Before the memo.', '![voice 0:05](tape:12000-17000)', 'After it.']);
+describe('the review’s own pass', () => {
+  it('listens again now, telling its progress for this note only', async () => {
+    const percent = vi.fn();
+    answers.set('capture_refine', () => {
+      progress.get('capture://refine-progress')?.({ id: 'other', percent: 10 });
+      progress.get('capture://refine-progress')?.({ id: 'n1', percent: 50 });
+      return better;
+    });
+    await expect(listenAgain(job(), percent)).resolves.toEqual(better);
+    expect(percent.mock.calls).toEqual([[50]]);
+    expect(progress.has('capture://refine-progress')).toBe(false);
   });
 
-  it('leaves a take with no memo exactly as it was', () => {
-    expect(withClips({}, refined)).toEqual(refined);
-    expect(withClips({ clips: [] }, refined)).toEqual(refined);
+  it('cannot listen again on a binary without the pass', async () => {
+    generation = 6;
+    await expect(listenAgain(job(), vi.fn())).resolves.toBeNull();
+  });
+
+  it('keeps the better phrases on the tape with the commands left out', async () => {
+    const phrases = [...better, { text: 'Hey Ghost, add bread to work.', startMs: 2500, endMs: 3800 }];
+    await keepBetterPhrases(job({ recordingMs: 4000, skip: [{ startMs: 2500, endMs: 3800 }] }), phrases);
+    expect(calls('set_note_recording')[0]?.args).toEqual({ id: 'n1', recordingMs: 4000, segments: better });
   });
 });

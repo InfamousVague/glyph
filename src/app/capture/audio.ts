@@ -18,7 +18,7 @@
  * buffer every 600-800 ms; larger ones delay the first partial.
  */
 
-export const SAMPLE_RATE = 16_000;
+const SAMPLE_RATE = 16_000;
 const CHUNK = 3_200; // 200 ms
 
 /*

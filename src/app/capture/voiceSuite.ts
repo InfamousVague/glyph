@@ -1,16 +1,17 @@
 import { bookNoteBody } from '../book/book.ts';
-import { boardFrom } from '../core/boards.ts';
 import { clipMarkdown } from '../core/clips.ts';
 import { BOX, BULLET, CHOICE, NUMBER } from '../core/itemSyntax.ts';
-import { noteTitle } from '../core/store.ts';
+import { noteTitle } from '../core/noteTitle.ts';
 import { capitalise } from '../core/text.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
-import { appendBody } from './appendBody.ts';
+import { appendBlock, appendBody } from './appendBody.ts';
 import { placeWords } from './listAppend.ts';
-import { renderNote, setLinkTitles, spokenNumber, type Segment } from './markdown.ts';
+import type { Segment } from './markdown.ts';
+import type { TakeCandidate, TakeNote } from './takeTypes.ts';
 import { QuietWatch } from './quiet.ts';
-import { appendBlock } from './table.ts';
-import { Take, type TakeCandidate, type TakeNote } from './take.ts';
+import { setLinkTitles } from './spoken/extras.ts';
+import { NUMBER_WORD, spokenNumber } from './spoken/numbers.ts';
+import { asBoardMarkdown, Take } from './take.ts';
 
 /**
  * The voice test suite (voice-tests/suite.json): a recording per feature, replayed through the recorder's own logic
@@ -19,6 +20,12 @@ import { Take, type TakeCandidate, type TakeNote } from './take.ts';
  * Two ways in. From the script, each line is one committed phrase with the silence written after it, which checks
  * the rules. From the audio (`npm run voice:suite`), Whisper on this machine hears the recording exactly as the phone
  * would (src-tauri/src/whisper/suite.rs writes what it heard), which checks the rules against real speech.
+ *
+ * Test infrastructure beside the code it tests: only voiceSuite.test.ts imports it, so it is in no bundle the app
+ * ships. It drives the take a phrase at a time (`phrase`, `tick`), the live reading of commands the recorder itself has
+ * left dormant since PR #1, which is how the command rules and their timing are still held to their scripts. Its host
+ * is the recorder's in miniature, over an in-memory store; where the two differ - the suite's new note by name is
+ * `# Named`, the recorder's a title line (listTitle) - it is the suite's expectations that were written against it.
  */
 
 export interface SuiteTest {
@@ -126,24 +133,19 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
   const offers: string[] = [];
   const log: string[] = [];
   const candidates = (): TakeCandidate<StoredNote>[] => [...store.values()].map((note) => ({ id: note.id, title: noteTitle(note.body) || note.title, note }));
-  /** The last change to a note, for "undo": its body before. */
-  let lastChange: { id: string; before: string; what: string } | null = null;
-  const change = (id: string, next: (body: string) => string | null, what?: string) => {
+  const change = (id: string, next: (body: string) => string | null) => {
     const note = store.get(id);
     if (!note) return;
     const body = next(note.body);
-    if (body !== null) {
-      if (what) lastChange = { id, before: note.body, what };
-      store.set(id, { ...note, body });
-    }
+    if (body !== null) store.set(id, { ...note, body });
     if (target?.id === id && body !== null) target = { ...target, body };
   };
   /** The words so far onto the note being recorded, as the recorder's draft saves them, before the take carries on elsewhere. */
   const flush = () => {
     const current = target;
     if (!current) return;
-    const markdown = take.markdown({ titled: false, board: (text) => boardFrom(text)?.doc ?? text });
-    if (renderNote(take.segments).plain.trim() || take.tables.length || take.clips.length) change(current.id, (body) => appendBody(body, markdown));
+    const markdown = take.markdown({ titled: false, board: asBoardMarkdown });
+    if (take.hasContent) change(current.id, (body) => appendBody(body, markdown));
     take.fork();
   };
   let made = 0;
@@ -164,21 +166,13 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
     haptic: () => undefined,
     changed: () => undefined,
     addItems: (note, spoken, placement) =>
-      change(
-        note.id,
-        (body) => {
-          const placed = placeWords(body, spoken, placement);
-          return placed.added.length ? placed.body : null;
-        },
-        `“${spoken}”`,
-      ),
-    changeNote: (note, next, title) => change(note.id, next, title),
-    addTable: (note, _title, markdown) => change(note.id, (body) => appendBlock(body, markdown), 'the table'),
+      change(note.id, (body) => {
+        const placed = placeWords(body, spoken, placement);
+        return placed.added.length ? placed.body : null;
+      }),
+    changeNote: (note, next) => change(note.id, next),
+    addTable: (note, _title, markdown) => change(note.id, (body) => appendBlock(body, markdown)),
     moveTo: (note) => {
-      target = store.get(note.id) ?? note;
-    },
-    carryOn: (note) => {
-      flush();
       target = store.get(note.id) ?? note;
     },
     newNote: (title) => {
@@ -196,13 +190,6 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
     newBook: (title, pages) => {
       const id = `made-${made++}`;
       store.set(id, { id, title, body: bookNoteBody(title, pages) });
-    },
-    undo: () => {
-      const last = lastChange;
-      if (!last) return null;
-      lastChange = null;
-      change(last.id, () => last.before);
-      return last.what;
     },
     runPlugin: () => null,
     describePlugin: (voice) => ({ title: voice.id, action: 'Go' }),
@@ -232,10 +219,9 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
 
   take.end(stoppedAtMs ?? heard.audioMs);
   const titled = target === null;
-  const markdown = take.markdown({ titled, board: (text) => boardFrom(text)?.doc ?? text });
-  const said = renderNote(take.segments).plain.trim() || take.tables.length || take.clips.length;
+  const markdown = take.markdown({ titled, board: asBoardMarkdown });
   let note: string | null = null;
-  if (said) {
+  if (take.hasContent) {
     if (target) change(target.id, (body) => appendBody(body, markdown));
     else note = markdown;
   }
@@ -246,7 +232,8 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
   return { note, notes, offers, newNote, stoppedAtMs, lastWordsMs, log };
 }
 
-const NUMBER_RUN = /\b(?:(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)(?:[\s-]+(?:and[\s-]+)?(?=\w)|\b))+/gi;
+/** A run of number words, "and" allowed between them, as Whisper may spell a number out. */
+const NUMBER_RUN = new RegExp(String.raw`\b(?:(?:${NUMBER_WORD})(?:[\s-]+(?:and[\s-]+)?(?=\w)|\b))+`, 'gi');
 
 /**
  * Text as it is compared for recorded audio: a number said is a number however Whisper wrote it ("four thousand",

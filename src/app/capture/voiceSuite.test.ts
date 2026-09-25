@@ -5,7 +5,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import suiteJson from '../../../voice-tests/suite.json';
 import { MARKS } from '../plugins/marks/index.tsx';
 import { sendCommand, taskNoteCommand } from '../plugins/notion/voice.ts';
-import { setSpokenFormats } from './markdown.ts';
+import { toParagraphs } from './markdown.ts';
+import { setSpokenFormats } from './spoken/inline.ts';
 import { problems, runTest, scriptHeard, type Heard, type Suite } from './voiceSuite.ts';
 
 /**
@@ -42,6 +43,42 @@ describe.runIf(heardDir)('the voice suite, from the audio', () => {
       expect(wrong, `heard: ${heard.segments.map((s) => `[${s.startMs}-${s.endMs}] ${s.text}`).join(' | ')}`).toEqual([]);
     });
   }
+});
+
+/*
+ * The scripts are timed as src-tauri/src/whisper/stream.rs commits speech - 300 ms of the quiet after a phrase kept,
+ * two seconds of quiet dropped for all but 300 ms - and capture/markdown.ts's paragraph gap is set against the same
+ * arithmetic. Change either side and every script is re-timed; these say what the timing is, so it cannot move unseen.
+ */
+describe('a script, timed as the phone commits it', () => {
+  const gapAfter = (pause: number) => {
+    const [first, second] = scriptHeard([
+      ['Grocery run.', pause],
+      ['Oat milk and eggs.', 0],
+    ]).segments;
+    return second!.startMs - first!.endMs;
+  };
+
+  it('shows a pause as no gap, or 1.7 s for each two seconds of quiet past the 300 ms kept', () => {
+    expect(gapAfter(0)).toBe(0);
+    expect(gapAfter(1)).toBe(0);
+    expect(gapAfter(2.3)).toBe(1700);
+    expect(gapAfter(4)).toBe(1700);
+    expect(gapAfter(4.5)).toBe(3400);
+  });
+
+  it('keeps each phrase until 300 ms into the quiet after it, and times it by its words', () => {
+    const { segments, audioMs } = scriptHeard([['Grocery run.', 2]]);
+    // Two words at a third of a second each, never under half a second, after the 300 ms of quiet the take opens with.
+    expect(segments).toEqual([{ text: 'Grocery run.', startMs: 0, endMs: 300 + 660 + 300 }]);
+    expect(audioMs).toBe(300 + 660 + 2000);
+  });
+
+  it('breaks a paragraph at a pause of two and a half seconds, and not at one of a second', () => {
+    const paragraphs = (pause: number) => toParagraphs(scriptHeard([['Grocery run.', pause], ['Oat milk and eggs.', 0]]).segments);
+    expect(paragraphs(2.5)).toEqual(['Grocery run.', 'Oat milk and eggs.']);
+    expect(paragraphs(1)).toEqual(['Grocery run. Oat milk and eggs.']);
+  });
 });
 
 describe('comparing what was heard', () => {

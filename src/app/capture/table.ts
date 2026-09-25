@@ -1,4 +1,5 @@
 import { capitalise } from '../core/text.ts';
+import { ONE_TO_TEN } from './spoken/numbers.ts';
 
 /**
  * Tables, said out loud: "Glyph, add a table to the AttackFM bugbash note",
@@ -23,7 +24,9 @@ export function saysDone(text: string): boolean {
 }
 
 /** Words that name a column or row position, said before a cell: "column one, bug". */
-const POSITION = /^(?:(?:column|row|cell)\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)|first|second|third|fourth|fifth|next|then|last)[,:\s]+/i;
+const POSITION = new RegExp(String.raw`^(?:(?:column|row|cell)\s+(?:\d+|${ONE_TO_TEN})|first|second|third|fourth|fifth|next|then|last)[,:\s]+`, 'i');
+/** A position said with nothing after it ("column two"): no cell at all. */
+const POSITION_ALONE = new RegExp(String.raw`^(?:column|row)\s+(?:\d+|${ONE_TO_TEN})$`, 'i');
 
 /**
  * What was said, as cells. People say a row the way they say a list, so
@@ -46,7 +49,7 @@ export function cellsOf(text: string): string[] {
     : said.split(/\s+and\s+/i);
   return parts
     .map((part) => part.replace(/^(?:and|then)\s+/i, '').replace(POSITION, '').trim())
-    .filter((part) => part && !/^(?:column|row)\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)$/i.test(part))
+    .filter((part) => part && !POSITION_ALONE.test(part))
     .map((part) => capitalise(part));
 }
 
@@ -68,8 +71,8 @@ export function tableMarkdown(columns: readonly string[], rows: readonly (readon
   return [line(columns), line(columns.map(() => '---')), ...rows.map((row) => line(fitRow(row, columns.length)))].join('\n');
 }
 
-/** `body` with `block` as its own block at the end. */
-export function appendBlock(body: string, block: string): string {
-  const base = body.replace(/\s+$/, '');
-  return `${base}${base ? '\n\n' : ''}${block}\n`;
+/** What the recorder asks next while a table is said: the labels first, then the first row, then the next or "done". */
+export function tableQuestion({ columns, rows }: { columns: readonly string[]; rows: readonly (readonly string[])[] }): { question: string; hint: string } {
+  if (!columns.length) return { question: 'What will the column labels be?', hint: 'Say them with commas, like “bug, owner, status”.' };
+  return { question: rows.length ? 'Next row? Or say “done”.' : 'What goes in the first row?', hint: `In order: ${columns.join(', ')}.` };
 }

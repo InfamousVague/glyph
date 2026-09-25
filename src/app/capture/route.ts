@@ -10,9 +10,9 @@ import { escapeRegExp } from '../core/text.ts';
  *   "switch to", "go to … note", "leave a note for … that says") at the start
  *   or the end of a phrase, and
  *   hands back the words around it so they can be kept. "New note" said on
- *   its own is the other command. A phrase still being guessed is read
- *   leniently (`partial`), so the recorder can show the note it thinks you
- *   mean before you finish saying its name.
+ *   its own is the other command. A name that could still be growing - a
+ *   phrase that stops without a full stop right after it - does not count
+ *   yet, and a name of a letter or two never does.
  *
  * - `matchNote` finds the note a spoken name means. Speech recognition hears
  *   "week end trip", "weekend trips" and "the weekend trip note", so titles
@@ -107,23 +107,19 @@ function tidyRest(text: string): string {
 }
 
 /**
- * The route command in `text`, if there is one. `partial` reads a phrase that
- * may still be growing, so a command whose name has only just begun still
- * counts (for showing a guess, never for moving words).
+ * The route command in `text`, if there is one. `targets` are the words plugins let an item command end a note's name
+ * with ("…in Notion").
  */
-export function parseRoute(
-  text: string,
-  { partial = false, targets = [] }: { partial?: boolean; targets?: readonly string[] } = {},
-): RouteCommand | null {
+export function parseRoute(text: string, { targets = [] }: { targets?: readonly string[] } = {}): RouteCommand | null {
   if (NEW_NOTE.test(text)) return { kind: 'new', rest: '' };
   const leave = LEAVE.exec(text);
   if (leave?.[1]) {
     const name = cleanName(leave[1]);
     const said = leave[2]?.trim() ?? '';
-    // "Leave a note for attack" may still be growing into its name: a guess
+    // "Leave a note for attack" may still be growing into its name: not yet,
     // until the phrase ends or the note itself follows.
     const ended = said !== '' || /[.!?]\s*$/.test(text);
-    if (name.length >= (partial ? 2 : 3) && (partial || ended)) return { kind: 'leave', name, rest: said };
+    if (name.length >= 3 && ended) return { kind: 'leave', name, rest: said };
   }
   const item = ITEM_COMMAND.exec(text);
   if (item?.[1] && item[2]) {
@@ -131,10 +127,10 @@ export function parseRoute(
     const target = suffix?.exec(item[2])?.[1]?.toLowerCase() ?? null;
     const name = cleanName(suffix ? item[2].replace(suffix, '') : item[2]);
     const noun = item[1].toLowerCase().replace(/\s+/g, '');
-    // A finished phrase with no stop after the name ("new item for attack")
-    // may still be growing; only a guess until it ends or the item follows.
+    // A phrase with no stop after the name ("new item for attack") may still
+    // be growing: not yet, until it ends or the item follows.
     const ended = item[3] !== undefined || /[.!?]\s*$/.test(text);
-    if (name.length >= (partial ? 2 : 3) && (partial || ended)) {
+    if (name.length >= 3 && ended) {
       return {
         kind: 'item',
         name,
@@ -153,9 +149,8 @@ export function parseRoute(
   const end = AT_END.exec(text);
   if (end?.[1]) {
     const name = cleanName(end[1]);
-    // A finished phrase needs a name of real length; a growing one can show a
-    // guess from its first letters.
-    if (name.length >= (partial ? 2 : 3)) {
+    // A name of real length: "add to we" is a sentence being said, not a note.
+    if (name.length >= 3) {
       return { kind: 'note', name, rest: tidyRest(text.slice(0, end.index)) };
     }
   }

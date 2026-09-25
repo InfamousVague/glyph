@@ -3,8 +3,11 @@ import { layout, tailStart } from './tail.ts';
 import styles from './CaptureScreen.module.css';
 
 /**
- * The note as it is being spoken, laid out and set large: the recorder's
- * whole view.
+ * The note as it is being spoken, laid out and set large.
+ *
+ * It was the recorder's whole view until the note's own page took its place (LivePage.tsx). Its one use now is the
+ * ghost of the words sliding away for the half second after a take moves to another note (CaptureScreen.tsx
+ * `routeTo`), which only the live reading of commands reaches, and that has been dormant since PR #1.
  *
  * Held to the side of the head and glanced at, a phone needs to show one thing:
  * that it is hearing you, in words big enough to read at arm's length, shaped

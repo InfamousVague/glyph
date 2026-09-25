@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { placeWords } from './listAppend.ts';
-import { Take, type Offer, type TakeHost } from './take.ts';
+import { quietHost } from '../../test/takeHost.ts';
+import { Take, type Offer } from './take.ts';
 import { classifyFinalTranscript } from './finalInstruction.ts';
 
 type TestNote = { id: string; body: string };
@@ -12,33 +13,13 @@ function harness() {
   const addItems = vi.fn((note: TestNote, spoken: string, placement: Parameters<typeof placeWords>[2]) => {
     note.body = placeWords(note.body, spoken, placement).body;
   });
-  const host: TakeHost<TestNote> = {
+  const host = quietHost<TestNote>({
     notes: () => notes,
-    target: () => null,
-    commandWord: () => true,
-    instructionCommands: () => true,
-    voiceCommands: () => [],
-    itemTargets: () => [],
-    route: () => undefined,
-    offer: (next) => { offered = next; },
-    table: () => undefined,
-    itemWords: () => undefined,
-    haptic: () => undefined,
-    changed: () => undefined,
+    offer: (next) => {
+      offered = next;
+    },
     addItems,
-    changeNote: () => undefined,
-    addTable: () => undefined,
-    moveTo: () => undefined,
-    carryOn: () => undefined,
-    newNote: () => undefined,
-    newBook: () => undefined,
-    undo: () => null,
-    runPlugin: () => null,
-    describePlugin: () => ({ title: '', action: '' }),
-    clip: () => '',
-    log: () => undefined,
-    said: () => undefined,
-  };
+  });
   const take = new Take(host);
   return { take, todo, addItems, offered: () => offered };
 }

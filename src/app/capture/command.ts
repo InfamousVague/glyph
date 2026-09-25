@@ -207,12 +207,8 @@ function directPayload(text: string): Pick<Placement, 'how' | 'task' | 'many' | 
   return { text: items.join(', '), how: 'item', task, many: items.length > 1, items };
 }
 
-/** A terminal voice stop cue is control, never command content. */
-export function isStopCue(text: string): boolean {
-  return /^\s*(?:end|stop)\s*[.!?]*\s*$/i.test(text);
-}
-
-export function stripStopCue(text: string): string {
+/** `text` without an "end" or "stop" said last: a stop cue is the recording's control, never the command's words. */
+function stripStopCue(text: string): string {
   return text.replace(/(?:[.!?]\s*)?\b(?:end|stop)\s*[.!?]*\s*$/i, '').trim();
 }
 
@@ -239,13 +235,14 @@ export function isStandaloneCommandLike(text: string): boolean {
 }
 
 /** Split only unmistakable short enumerations; preserve ordinary phrases. */
-export function splitSpokenItems(text: string, allowBareWords = false): string[] {
+function splitSpokenItems(text: string, allowBareWords = false): string[] {
   const cleaned = text.trim().replace(/^(?:that\s+)?i\s+(?:need|want)\s+/i, '').replace(/[.!?]+$/, '').trim();
   const punctuated = cleaned.split(/\s*(?:,|;|\band\b)\s*/i).filter(Boolean);
   if (punctuated.length > 1) return punctuated;
   const words = cleaned.split(/\s+/).filter(Boolean);
   return allowBareWords && words.length >= 2 && words.length <= 8 && words.every((word) => /^[\p{L}\p{N}'-]+$/u.test(word)) ? words : [cleaned];
 }
+
 /** "…with columns bug, owner and status": the labels said up front, so the first question is skipped. */
 const TABLE_COLUMNS = /\s*,?\s*(?:with|using|that has|having)\s+(?:the\s+)?(?:columns?|column labels?|headings?|headers?|labels?)\s*(?:of|:|,)?\s*(.+)$/i;
 
