@@ -9,10 +9,9 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { ROOT } from './lib/paths.mjs';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const suite = JSON.parse(readFileSync(join(ROOT, 'voice-tests/suite.json'), 'utf8'));
 const out = process.argv[2] ?? join(homedir(), 'Desktop', 'Glyph voice tests.txt');
 

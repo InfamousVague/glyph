@@ -22,10 +22,9 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { ROOT } from './lib/paths.mjs';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ADB = join(process.env.ANDROID_HOME ?? join(homedir(), 'Library/Android/sdk'), 'platform-tools/adb');
 const APP_ID = 'com.mattssoftware.glyph';
 const LOCAL_PORT = 9234;

@@ -28,10 +28,8 @@
 import { createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+import { join } from 'node:path';
+import { ROOT } from './lib/paths.mjs';
 
 export const TRUSTED_KEYS_FILE = join(ROOT, 'src-tauri/ota-trusted-keys.txt');
 export const SOURCES_FILE = join(ROOT, 'src-tauri/ota-sources.txt');

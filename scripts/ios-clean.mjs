@@ -17,10 +17,9 @@
  * re-copies rather than recompiling the Rust and the Swift from scratch.
  */
 import { rmSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { ROOT } from './lib/paths.mjs';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const BUILD_DIR = join(ROOT, 'src-tauri/gen/apple/build');
 
 // The archive is where the rename reads FROM, and the per-target directories

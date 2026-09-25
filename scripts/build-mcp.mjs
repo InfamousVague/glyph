@@ -1,7 +1,7 @@
 import { build } from 'esbuild';
 import { chmodSync, mkdirSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { ROOT } from './lib/paths.mjs';
 
 /**
  * The MCP server as one file (docs/MCP.md): mcp/main.ts and everything it reaches - the app's own crypto and
@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url';
  * nothing else. Written to mcp/dist/glyph-mcp.mjs; `deploy-ota.mjs --mcp` publishes it beside the app.
  */
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 mkdirSync(join(ROOT, 'mcp/dist'), { recursive: true });
 
 /** One file from one entry. `require` is defined for the CommonJS packages inside (express, the SDK's handlers). */

@@ -15,33 +15,12 @@
       the three ways in. The versions and sizes are read from the same manifests the apps update from (/apk.json and
       /desktop.json, served here from the release on attack.fm), so the page never says an old number.
     -->
+    <link rel="stylesheet" href="site.css" />
     <style>
-      :root {
-        --paper: #fbfaf7;
-        --ink: #141414;
-        --ink-2: #5d5b57;
-        --line: #e4e1da;
-        color-scheme: light dark;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --paper: #0d0d0d;
-          --ink: #f2f0ea;
-          --ink-2: #a19e97;
-          --line: #2a2926;
-        }
-      }
-      * {
-        box-sizing: border-box;
-      }
+      /* The colours and the page's base are site.css's; this is the download page's own layout. */
       html,
       body {
-        margin: 0;
         min-height: 100%;
-        background: var(--paper);
-        color: var(--ink);
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;
-        -webkit-font-smoothing: antialiased;
       }
       main {
         min-height: 100dvh;

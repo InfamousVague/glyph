@@ -1,0 +1,111 @@
+/*
+ * ghostmarkdown.com's styles, shared by its three pages (docs/LANDING.md).
+ *
+ * The first half is what every page carries: the colours, light and dark, and
+ * the page's base. The second is the reading column that privacy.html and
+ * delete-account.html are set in, a copy each until this file. Its rules are
+ * scoped under `.reading`, the class those two pages put on <html>, so the
+ * download page (index.html), which keeps its own centred layout inline,
+ * takes the colours and nothing of the column.
+ *
+ * It lives beside the pages because the site IS this directory:
+ * deploy-landing.mjs tars landing/ whole into /opt/ghostmarkdown-site, where
+ * the Caddy block serves this file as /site.css like any other.
+ */
+
+:root {
+  --paper: #fbfaf7;
+  --ink: #141414;
+  --ink-2: #5d5b57;
+  --line: #e4e1da;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0d0d0d;
+    --ink: #f2f0ea;
+    --ink-2: #a19e97;
+    --line: #2a2926;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- the reading column: privacy.html and delete-account.html ------------ */
+
+/* On <html>, and so inherited by the body, as `html, body` set it before. */
+.reading {
+  line-height: 1.6;
+}
+.reading main {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 40px 16px 72px;
+}
+.reading header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.reading header img {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+.reading header a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+.reading h1 {
+  margin: 0 0 4px;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.reading h2 {
+  margin: 36px 0 8px;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+.reading p,
+.reading li {
+  color: var(--ink);
+}
+.reading .muted {
+  color: var(--ink-2);
+}
+.reading ul {
+  padding-left: 1.2em;
+}
+.reading li + li {
+  margin-top: 6px;
+}
+.reading a {
+  color: inherit;
+}
+.reading .short {
+  margin: 20px 0 0;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.reading .short ul {
+  margin: 8px 0 0;
+}
+.reading footer {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 0.9rem;
+}
