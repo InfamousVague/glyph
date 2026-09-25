@@ -11,29 +11,43 @@ without a key).
 Two runs check it:
 
 - **From the scripts**, always, in `npm test` (`src/app/capture/voiceSuite.test.ts`): each line is one phrase with
-  its silence, replayed through the recorder's own logic (`capture/take.ts`, which CaptureScreen drives), against the
-  standard notes. This is the rules.
-- **From the audio**, `npm run voice:suite`: Whisper on this Mac hears each recording through the phone's streaming
-  path (`src-tauri/src/whisper/suite.rs`, into `.heard/` beside the files), and the same checks run on what it heard.
-  This is the rules against real speech. `GLYPH_VOICE_ONLY=051 npm run voice:hear` hears one.
+  its silence, replayed through the take (`src/app/capture/take.ts`) against the standard notes, with the Notion
+  plugin's two voice commands in the room. This is the rules.
+- **From the audio**, `npm run voice:suite`, which is `voice:hear` and then `voice:check`. `voice:hear` has Whisper on
+  this Mac hear each recording through the phone's streaming path (`src-tauri/src/whisper/suite.rs`, a `cargo test`
+  marked ignored), writing what it heard into a `.heard` folder beside the files. `voice:check` is the same Vitest
+  file again with `GLYPH_VOICE=1`, checking what was heard. This is the rules against real speech.
+  `GLYPH_VOICE_ONLY=051 npm run voice:hear` hears one, and `GLYPH_VOICE_DIR` points both at another folder of
+  recordings.
 
-A test with `"prefs": {"memo": true}` runs as a memo (capture/memoFlow.ts): the take opens by asking which note, so
-its first line names one ("Use note work.") and the rest are trigger words and talk. The "Memo flow" group covers it.
+A test's `prefs` can switch on "Stop when I go quiet" (`quietStop`) or switch off the keyword (`commandWord`). Those
+are the only two.
+
+**What the suite drives, and what the app does.** The suite reads a recording a phrase at a time (`Take.phrase` and
+`tick`), which is how the recorder read commands until the instruction-aware commands of DESIGN §114. The recorder
+now only shows each phrase as it arrives (`Take.listen`) and reads a command once, from the whole recording, when
+Done is pressed (`src/app/ai/instruction.ts`, `src/app/capture/finalInstruction.ts`). So the suite's cue and mark
+tests are what the app writes, but its "Commands" group checks the phrase-by-phrase reader, which the app no longer
+runs. Tables, boards, books, moves, voice memos, the Notion commands and "yes" or "no" by voice are held to their
+scripts there, and are not reached from a recording in the app. docs/instruction-voice-commands.md is what a
+finished recording can do.
 
 The older six-take walkthrough below is for playing into the phone by hand.
 
 ## By hand: six recordings, one note
 
-Six scripts to record as audio (ElevenLabs), played into the phone's microphone while Glyph listens, to
+Six scripts to record as audio (ElevenLabs), played into the phone's microphone while Ghost.md listens, to
 check that every spoken cue writes the mark it promises and that plain speech stays plain. Together the
 first five build one note, **Cabin weekend**, that holds one of everything the capture rules can write; the
 sixth is prose that must not format, ending in silence. Each script lists what to say, what the note should
 read afterwards, and what to look at on the screen.
 
-The rules under test are `src/app/capture/markdown.ts` (cues), `command.ts` and `route.ts` (commands
-while recording), `table.ts` (tables said a piece at a time), `quiet.ts` (stopping on silence) and
-`wakeWord.ts`. The guide's marks page and `guide/phrases.ts` promise the same things; a script here that
-fails is either a rule to fix or a promise to correct.
+The rules under test are `src/app/capture/markdown.ts` and the rule families it drives in
+`src/app/capture/spoken/` (cues), `src/app/capture/finalInstruction.ts` with `command.ts` and `route.ts` (a
+command read from the finished recording), and `quiet.ts` (stopping on silence). The guide makes the same promises:
+the "say" line beside each mark on its marks page (`src/app/guide/marks.ts`), and the habits on its Tips page, whose
+examples `src/app/guide/phrases.ts` keeps. A script here that fails is either a rule to fix or a promise to
+correct.
 
 ## Recording the audio
 
@@ -42,11 +56,13 @@ fails is either a rule to fix or a promise to correct.
   Whisper writes that pause back as a colon or a full stop, which is what the cue rules read. Keep the
   colons and full stops exactly as written.
 - The pause tags are ElevenLabs break tags: `<break time="1.2s" />`. A pause under two seconds is a
-  breath; the note stays in one paragraph. A pause of 2.5 seconds is a paragraph break
-  (`PARAGRAPH_GAP_MS`), and so is saying "New paragraph".
+  breath; the note stays in one paragraph. A pause of 2.5 seconds is a paragraph break, and so is saying "New
+  paragraph". The rule is a gap of more than 1.5 s between two committed phrases (`PARAGRAPH_GAP_MS`), and the
+  streamer turns a spoken pause of about 2.3 to 4 seconds into a gap of 1.7 s, so a pause of a little over two
+  seconds is the shortest that breaks.
 - Between two cued sentences leave at least 0.8 s, so the engine commits them as separate phrases.
 - Play the file from a laptop about 30 cm from the phone, at the loudness of someone talking across a
-  table. Start Glyph listening (hold the side key, or tap Speak) a beat before the audio starts.
+  table. Start Ghost.md listening (hold the side key, or tap Speak) a beat before the audio starts.
 - Numbers may come back as digits ("4417") or words; both are fine unless a script says otherwise.
 
 ## Before you start
@@ -129,7 +145,7 @@ For the drive we need:
 
 ## The house rules
 
-The deadline for the balance is **Wednesday at noon**, not Friday. The owner said the hot tub is _strictly off limits_ after ten. The gate code is ||four four one seven||, don't say it out loud. ==The wifi password is on the fridge==. %%I still think we should have booked the other place%%. The stove is ??gas??, it might be electric. Sam's number ends in @@zero seven seven one@@. ^^No shoes on the rug^^. Sunday breakfast is ++pancakes++.
+The deadline for the balance is **Wednesday at noon**, not Friday. The owner said the hot tub is _strictly off limits_ after ten. The gate code is ||four four one seven||, don't say it out loud. ==The wifi password is on the fridge==. %%I still think we should have booked the other place%%. The stove is ??gas??, it might be electric. ^^No shoes on the rug^^. Sunday breakfast is ++pancakes++.
 
 - [ ] Buy ice
 
@@ -243,57 +259,61 @@ colon; the rule on its own line; the lone "Bullet point." held and then applied 
 
 ## Script 4: marks inside a sentence
 
-**Tests:** bold and italic said mid-sentence, and the seven marks of Glyph's own said the same way:
-spoiler, highlight, aside, unsure, redact, shout, added. Each cue word opens, "end" plus the word closes.
+**Tests:** bold and italic said mid-sentence, and six of the Marks plugin's own said the same way: spoiler,
+highlight, aside, unsure, shout, added. Each cue word opens, "end" plus the word closes. (The five effects, "heated …
+end heated" and the rest, are said the same way; neither this script nor the suite covers them yet.)
 
 **Say:**
 
-> Heading: the house rules. `<break time="1.2s" />` The deadline for the balance is bold Wednesday at noon end bold, not Friday. `<break time="1.2s" />` The owner said the hot tub is italic strictly off limits end italic after ten. `<break time="1.2s" />` The gate code is spoiler four four one seven end spoiler, don't say it out loud. `<break time="1.2s" />` Highlight the wifi password is on the fridge end highlight. `<break time="1.2s" />` Aside I still think we should have booked the other place end aside. `<break time="1.2s" />` The stove is unsure gas end unsure, it might be electric. `<break time="1.2s" />` Sam's number ends in redact zero seven seven one end redact. `<break time="1.2s" />` Shout no shoes on the rug end shout. `<break time="1.2s" />` Sunday breakfast is added pancakes end added.
+> Heading: the house rules. `<break time="1.2s" />` The deadline for the balance is bold Wednesday at noon end bold, not Friday. `<break time="1.2s" />` The owner said the hot tub is italic strictly off limits end italic after ten. `<break time="1.2s" />` The gate code is spoiler four four one seven end spoiler, don't say it out loud. `<break time="1.2s" />` Highlight the wifi password is on the fridge end highlight. `<break time="1.2s" />` Aside I still think we should have booked the other place end aside. `<break time="1.2s" />` The stove is unsure gas end unsure, it might be electric. `<break time="1.2s" />` Shout no shoes on the rug end shout. `<break time="1.2s" />` Sunday breakfast is added pancakes end added.
 
 **Expected:**
 
 ```markdown
 ## The house rules
 
-The deadline for the balance is **Wednesday at noon**, not Friday. The owner said the hot tub is _strictly off limits_ after ten. The gate code is ||four four one seven||, don't say it out loud. ==The wifi password is on the fridge==. %%I still think we should have booked the other place%%. The stove is ??gas??, it might be electric. Sam's number ends in @@zero seven seven one@@. ^^No shoes on the rug^^. Sunday breakfast is ++pancakes++.
+The deadline for the balance is **Wednesday at noon**, not Friday. The owner said the hot tub is _strictly off limits_ after ten. The gate code is ||four four one seven||, don't say it out loud. ==The wifi password is on the fridge==. %%I still think we should have booked the other place%%. The stove is ??gas??, it might be electric. ^^No shoes on the rug^^. Sunday breakfast is ++pancakes++.
 ```
 
 **Watch for:** every pair of marks visible and dimmed around its words; the gate code in smoke until the
 caret is put in it; the wash behind the wifi line; the aside smaller and leaning; the dotted line under
-"gas"; a solid bar over the number that lifts when tapped; the small caps; the underline. Whisper may
-write "end bold" as "and bold": the rule accepts that only when it heard a pause after the opening word,
-so keep the 1.2 s breaks. Digits for the code and the number are fine.
+"gas"; the small caps; the underline. Whisper may write "end bold" as "and bold": the rule accepts that only
+when it heard a pause after the opening word, so keep the 1.2 s breaks. Digits for the code are fine.
 
-## Script 5: commands while recording
+## Script 5: commands, one recording each
 
-**Tests:** the "Glyph" keyword, adding to another note's list, adding a task to this note, leaving a line
-on a third note, a table said a piece at a time, and the yes that each command waits for. Needs the
-Groceries and AttackFM bug bash notes from "Before you start".
+**Tests:** a command read from a finished recording: "Hey Ghost" (or "Glyph"), adding to another note's list,
+adding a task to a note, adding a paragraph to a note, and making a new list with its items. Each is its own short
+recording: the command is read once, from the whole recording, when Done is pressed, and a card says what it will do
+before anything is written. Needs the Groceries and AttackFM bug bash notes from "Before you start".
 
-**Say** (recording into Cabin weekend):
+**Say**, pressing Done after each and tapping the card to confirm:
 
-> Glyph, add oat milk to the groceries note. `<break time="2.5s" />` Yes. `<break time="2.5s" />` Glyph, add a task to cabin weekend: buy ice. `<break time="2.5s" />` Yes. `<break time="2.5s" />` Glyph, leave a note on AttackFM bug bash that says the login is still broken on Android. `<break time="2.5s" />` Yes. `<break time="2.5s" />` Glyph, add a table to this note with the columns what, where and packed. `<break time="2.5s" />` Tent, garage, yes. `<break time="1.5s" />` Stove, loft, no. `<break time="1.5s" />` Done. `<break time="2.5s" />` Yes.
+> Hey Ghost, add oat milk to the groceries note.
+
+> Hey Ghost, add a task to cabin weekend: buy ice.
+
+> Hey Ghost, add to AttackFM bug bash the login is still broken on Android.
+
+> Hey Ghost, make a new list called firewood and add kindling, logs and matches.
 
 **Expected:**
 
-- Nothing after a "Glyph" lands in Cabin weekend as words: the commands never appear in the note.
+- None of the commands lands anywhere as words: a recording that is a command is not a note.
 - Groceries gains `- oat milk` at the end of its list.
 - Cabin weekend gains `- [ ] Buy ice` at the end of its last list.
 - AttackFM bug bash gains a line "The login is still broken on Android." (as an item if the note ends in
   a list, else as a paragraph).
-- Cabin weekend ends with the table:
+- A new note, Firewood, holds the three as a list.
 
-```markdown
-| What | Where | Packed |
-| --- | --- | --- |
-| Tent | Garage | Yes |
-| Stove | Loft | No |
-```
+**Watch for:** the card naming the note and the words before anything changes, and nothing changing until it is
+tapped. The microphone has stopped by the time the card shows, so a spoken "yes" is not heard, whatever the card's
+hint says. A command naming a note that does not exist says so and changes nothing. Known to fail today: the rules
+split "oat milk" into two items, `- oat` and `- milk`, because a list note takes short bare words said one after
+another as several items (`src/app/capture/spokenList.ts`). That is a rule to fix, not a promise to correct.
 
-**Watch for:** the recorder saying what it is about to do before each "yes", and doing nothing until it
-hears it; the table conversation asking for rows after the columns and drawing the table (not pipes)
-before the last yes; the drawn table in the note, which opens to its pipes when tapped. The 2.5 s pauses
-before each "Yes" give the prompt time to appear.
+Tables, boards, books and moves by voice are not in this script: a finished recording refuses them ("That command is
+not supported from a voice capture"). The voice suite still checks the phrase-by-phrase rules for them.
 
 ## Script 6: prose that must stay prose, then silence
 
@@ -319,18 +339,15 @@ That's all for now.
 "First" opened a run; the recorder ending the recording by itself during the nine seconds of silence at
 the end, and the note saved with everything said.
 
-## A seventh, if the app is open but not recording
+## Not a script: the app open and not recording
 
-The wake word. With Glyph open on the notes list and no recording running, play:
-
-> Glyph, add a note to cabin weekend saying the neighbours have a dog.
-
-**Expected:** the command prompt appears without a side key press, and after a "Yes" Cabin weekend gains
-the line "The neighbours have a dog." Needs the voice model already on the phone.
+Nothing listens while no recording runs. The microphone is opened by the recorder alone, so "Hey Ghost" said to the
+app on its home page does nothing. The in-app wake-word listener this section once tested was removed.
 
 ## Keeping score
 
 For each script note what came out against what was expected, in three columns: the cue, what the note
 shows, and whether the fault is the rule (fix `markdown.ts` and add the phrase to its test) or the
 transcription (a word Whisper mishears: change the cue or its vocabulary). A miss in the guide's own
-examples is already covered by `guide.test.ts`, which renders every promise through the real rules.
+examples is already covered by `src/app/guide/guide.test.ts`, which renders each spoken example in
+`src/app/guide/phrases.ts` through the real rules.
