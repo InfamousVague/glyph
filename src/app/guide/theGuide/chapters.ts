@@ -86,13 +86,13 @@ Ghost.md opens on the home page. Anything waiting on you comes first, then:
 
 ## Starting a note
 
-The dock at the foot of the home page holds the **+**, **Speak**, Settings and Search. The + makes a Note, a Canvas or a Book, or keeps a copy of a note someone shared with you. Speak records one: see [[${RECORD_TITLE}]].
+At the bottom right of the home page are the **+**, the **microphone**, Settings and Search. The + makes a Note, a Canvas or a Book, or keeps a copy of a note someone shared with you. The microphone records one: see [[${RECORD_TITLE}]].
 
 A new note has no file until it has words, so a note opened and left empty leaves nothing behind.
 
 ## Finding one
 
-Search, in the dock, opens the palette: your notes by name, and everything Ghost.md can do. On a computer, ⌘K opens it too.
+Search, at the bottom right of the home page, opens the palette: your notes by name, and everything Ghost.md can do. On a computer, ⌘K opens it too.
 
 The sidebar lists your notes by workspace, with the Trash at its foot. Its toggle lists them by name alone, a line each, and its folder button shows them where the device keeps files: the Files app on a phone, Finder on a Mac.
 
@@ -112,7 +112,7 @@ Say it, and Ghost.md writes it down as Markdown. In the app, the words are heard
 
 ## Starting
 
-- **Speak**, in the dock on the home page, starts a new note.
+- The **microphone** at the bottom right of the home page starts a new note.
 - The **microphone** at the top of a note talks into that note. A note that already has a recording has **Add** on its cassette instead.
 - On Android, the **side key** starts one from anywhere, the lock screen too, once Ghost.md is your digital assistant. Settings, About, How to talk to Ghost.md shows the way on your phone.
 
