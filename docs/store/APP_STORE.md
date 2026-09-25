@@ -41,7 +41,7 @@ Everything else Apple asks for is fixed or listed below (DESIGN §113).
    - `project.yml` hardcodes version 0.1.0. Make the archive carry 1.7.x.
    - Check that the built plist keeps both URL schemes: the deep-link plugin replaces `CFBundleURLTypes`.
 4. **App Store Connect: create the app** (`com.mattssoftware.glyph`, category Productivity). Then fill in:
-   - the privacy policy URL;
+   - the privacy policy URL, and infamousvaguerat@gmail.com as the contact;
    - App Privacy answers, which must match the manifest;
    - age rating 4+;
    - export compliance: exempt;
@@ -51,7 +51,6 @@ Everything else Apple asks for is fixed or listed below (DESIGN §113).
 
 ## Decisions for Matt
 
-- **The contact address.** The same one as Play's.
 - **Voice before launch, or notes-only first.**
 - **iPad:** keep it, which means iPad screenshots and iPad review, or ship iPhone-only first.
 

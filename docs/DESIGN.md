@@ -4353,7 +4353,7 @@ was fixed:
   - **Access logs:** IPs are held only in memory for rate limits. Caddy's access logs are the one thing not in the repo.
   - **The one exception to end-to-end encryption:** the hosted Claude connection holds the account key in memory while
     it's connected, and the policy says so.
-- **Both pages say `CONTACT_EMAIL` until Matt gives an address.** Deploying them waits on that.
+- **The contact address is infamousvaguerat@gmail.com** (Matt, 2026-09-25), on both pages and in both store plans.
 
 **A Play build: `GLYPH_STORE=play`.** Play forbids an app updating itself outside Play.
 - **The switch is compile-time,** in ota.rs `STORE`, like `GLYPH_STAGING`. A store build never fetches `apk.json` in
@@ -4416,5 +4416,5 @@ left. What was fixed now:
 
 **Not deployed yet.** The Delete account button calls an endpoint only the new glyph-api has, so the order is:
 1. glyph-api, which is Matt's call;
-2. the landing pages, once there's a contact address;
+2. the landing pages;
 3. then the OTA.
