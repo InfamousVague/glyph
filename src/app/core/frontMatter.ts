@@ -83,11 +83,13 @@ export function quotedTitle(title: string, fallback: string): string {
  */
 export function withFrontMatterTitle(body: string, title: string): string {
   const clean = title.trim();
+  // A name with words in it never quotes down to nothing, so the fallback is never used.
+  const named = clean ? `title: ${quotedTitle(clean, clean)}` : null;
   const lines = body.split('\n');
   const end = frontMatterEnd(lines);
-  if (!end) return clean ? `---\ntitle: ${quotedTitle(clean, clean)}\n---\n${body}` : body;
+  if (!end) return named ? `---\n${named}\n---\n${body}` : body;
   const keys = lines.slice(1, end - 1).filter((key) => !/^\s*title\s*:/i.test(key));
-  if (clean) keys.unshift(`title: ${quotedTitle(clean, clean)}`);
+  if (named) keys.unshift(named);
   const rest = lines.slice(end);
   if (!keys.length) return rest.join('\n');
   return [lines[0], ...keys, lines[end - 1], ...rest].join('\n');
