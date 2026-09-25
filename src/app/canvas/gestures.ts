@@ -20,7 +20,10 @@ import { clampScale, type View } from './viewport.ts';
 
 /** How far a finger moves before a press is a drag rather than a tap, in screen pixels. */
 const SLOP_PX = 4;
-/** How long a press stays put before it lifts the card under it rather than panning the page: the boards' own wait. */
+/**
+ * How long a press stays put before it lifts the card under it rather than panning the page: the boards' own wait.
+ * Exported for the canvas's tests, which wait it out.
+ */
 export const HOLD_MS = 220;
 
 type Pointers = Map<number, { x: number; y: number }>;

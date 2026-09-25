@@ -3,6 +3,7 @@ import { act } from 'react';
 import { show, typeInto, unmount, waitUntil } from '../../test/render.tsx';
 import { goBack } from '../core/back.ts';
 import { CanvasView } from './CanvasView.tsx';
+import { HOLD_MS } from './gestures.ts';
 
 // Only the three the canvas calls are stood in for: the editor reads the rest of this module as it is.
 /*
@@ -125,7 +126,7 @@ describe('a canvas edited', () => {
     const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
     const card = shown.querySelector('[data-card="t"]') as HTMLElement;
     pointer(card, 'pointerdown', 50, 40);
-    act(() => vi.advanceTimersByTime(250));
+    act(() => vi.advanceTimersByTime(HOLD_MS + 30));
     expect(card.hasAttribute('data-lifted')).toBe(true);
     pointer(card, 'pointermove', 80.4, 25.6);
     pointer(card, 'pointerup', 80.4, 25.6);
@@ -141,7 +142,7 @@ describe('a canvas edited', () => {
     const card = shown.querySelector('[data-card="t"]') as HTMLElement;
     pointer(card, 'pointerdown', 50, 40);
     pointer(card, 'pointermove', 90, 40);
-    act(() => vi.advanceTimersByTime(300));
+    act(() => vi.advanceTimersByTime(HOLD_MS + 80));
     pointer(card, 'pointerup', 90, 40);
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -226,7 +227,7 @@ describe('sizes and groups', () => {
     // (300 across, 200 wide) reach 500 and are not, so they stay.
     const group = shown.querySelector('[data-card="g"]') as HTMLElement;
     pointer(group, 'pointerdown', 10, 10);
-    act(() => vi.advanceTimersByTime(250));
+    act(() => vi.advanceTimersByTime(HOLD_MS + 30));
     pointer(group, 'pointermove', 60, 40);
     pointer(group, 'pointerup', 60, 40);
     const next = onChange.mock.calls[0]![0] as Canvas;
