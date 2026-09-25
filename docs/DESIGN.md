@@ -4690,3 +4690,22 @@ Both grids are now the same rule (`HomeScreen.module.css` and `AllNotesScreen.mo
 Text size does not change this. The Larger and Largest settings scale the type (`--app-text-scale`), not the root
 `rem`, so a card is the same width at every setting; its preview just holds fewer words.
 
+## 122. No AI bar on the note (2026-09-25)
+
+Matt: "Remove the AI button and AI dock code from notes idk why we added that but I don't like it".
+
+§114's bar is gone, and with it §117's ✨ ring that showed and hid it. That removes:
+
+- **The bar** (`ai/PromptBar.tsx`, its styles and tests) with its six chips (`CHIP_KINDS` in `ai/kinds.ts`) and its
+  field, the page's room for it at the foot (`--ai-bar-room`), and the **ring** (`.aiSpark`).
+- **The `aiBar` preference**, which kept the bar shown or hidden, and its place among the synced settings. A device
+  that stored it keeps the unused key; nothing reads it.
+- **Ask the AI** in the press-and-hold menu. It opened the bar with a selection as its scope, so it had nowhere to go.
+  The menu's slot for such edits is still there, empty.
+- **Commands typed into the bar**: the note screen's reading of them, the confirm card over the bar, and the two
+  helpers only the bar used (`offerOf` and `listBody` in `ai/instruction.ts`). The confirm card itself stays, since
+  the recorder uses it for spoken commands. The reader keeps its typed path, which only its tests now use.
+
+Everything else from §114 stays: the More sheet's AI group and its runs, the strip under the header with its log and
+Undo, the tracked changes they land as, an instruction spoken into a note, and the review after a recording.
+

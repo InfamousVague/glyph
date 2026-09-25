@@ -40,6 +40,3 @@ export const KINDS: readonly KindWords[] = [
 export function kindWords(kind: RunKind): KindWords {
   return KINDS.find((k) => k.id === kind) ?? KINDS[0]!;
 }
-
-/** The kinds a person reaches for from the bar, in the order the chips show. */
-export const CHIP_KINDS: readonly RunKind[] = ['format', 'summarize', 'enhance', 'fix', 'shape', 'continue'];
