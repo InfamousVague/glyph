@@ -23,34 +23,19 @@
  * SSHPASS, read from .env, never an argument.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { boxSshOptions, openBox, tarball } from './lib/box.mjs';
+import { loadEnv } from './lib/env.mjs';
+import { ROOT } from './lib/paths.mjs';
+import { fail } from './lib/say.mjs';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const LANDING = join(ROOT, 'landing');
 const SITE = '/opt/ghostmarkdown-site';
 const RELEASE = '/opt/attackfm-site/glyph';
 const DOMAIN = 'ghostmarkdown.com';
 const withCaddy = process.argv.includes('--caddy');
-
-const fail = (message) => {
-  console.error(`\x1b[31mx\x1b[0m ${message}`);
-  process.exit(1);
-};
-
-function loadEnv() {
-  const path = join(ROOT, '.env');
-  if (!existsSync(path)) fail(`No .env at ${path} (needs AFM_DEPLOY_HOST / AFM_DEPLOY_USER / AFM_DEPLOY_PASS).`);
-  const env = {};
-  for (const line of readFileSync(path, 'utf8').split('\n')) {
-    const match = /^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-    if (match) env[match[1]] = match[2].trim().replace(/^['"]|['"]$/g, '');
-  }
-  for (const key of ['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS']) if (!env[key]) fail(`.env is missing ${key}.`);
-  return env;
-}
 
 if (!existsSync(join(LANDING, 'index.html'))) fail('No landing/index.html to ship.');
 
@@ -116,20 +101,19 @@ echo "after:"; echo "$AFTER" | sed 's/^/  /'
 echo "ok ${DOMAIN}'s block written and live"
 `;
 
-const tar = spawnSync('tar', ['-czf', '-', '--no-xattrs', '--no-mac-metadata', '-C', LANDING, '.'], { maxBuffer: 64 * 1024 * 1024 });
-if (tar.status !== 0) fail(`tar failed: ${String(tar.stderr)}`);
-const SSH_OPTS = ['-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=20', '-o', 'NumberOfPasswordPrompts=1', '-o', `UserKnownHostsFile=${join(homedir(), '.ssh', 'known_hosts')}`];
+const site = tarball(LANDING, 64 * 1024 * 1024);
+// Its own connection, not deploy-ota's shared one: one login of its own every run.
+const SSH_OPTS = boxSshOptions({ connectTimeout: 20, shareConnection: false, knownHosts: join(homedir(), '.ssh', 'known_hosts') });
 console.log(`> Shipping ${DOMAIN}${withCaddy ? ' and its Caddy block' : ''} (one ssh session)`);
 // --print: the script the box would run, for reading before it does.
 if (process.argv.includes('--print')) {
   process.stdout.write(REMOTE);
   process.exit(0);
 }
-const env = loadEnv();
-const result = spawnSync('sshpass', ['-e', 'ssh', ...SSH_OPTS, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}`, REMOTE], {
-  input: tar.stdout,
+const env = loadEnv(['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS']);
+const result = openBox(env, SSH_OPTS).exec(REMOTE, {
+  input: site,
   stdio: ['pipe', 'inherit', 'inherit'],
-  env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS },
 });
 if (result.status !== 0) fail(result.status === 5 ? 'ssh refused the password: if .env is right, this is the box\'s lockout; wait it out.' : 'The remote step failed (output above).');
 
