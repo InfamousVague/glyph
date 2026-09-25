@@ -49,13 +49,14 @@ export function useHousekeeping({ notes, loading, refresh, sidebar }: Housekeepi
   // A confirmed command and its undo record are persisted together. If the
   // process stopped before its success chip could be used, re-offer the same
   // guarded undo once; a later edit turns it into a conflict rather than data loss.
+  // The one ask is never called off: StrictMode runs this effect, cleans it up and runs it again, and a cleanup that
+  // cancelled the first ask left the second, stopped by the guard, nothing to offer.
   useEffect(() => {
-    if (undoRecoveryChecked.current) return undefined;
+    if (undoRecoveryChecked.current) return;
     undoRecoveryChecked.current = true;
-    let live = true;
     void latestCommandMutation()
       .then((pending) => {
-        if (!live || !pending) return;
+        if (!pending) return;
         toast({
           message: pending.kind === 'create' ? 'Voice command created a note.' : 'Voice command changed a note.',
           duration: 10_000,
@@ -66,9 +67,6 @@ export function useHousekeeping({ notes, loading, refresh, sidebar }: Housekeepi
         });
       })
       .catch(() => undefined);
-    return () => {
-      live = false;
-    };
   }, [refresh, toast]);
 
   // The better words after a recording, worked out in the background; the list

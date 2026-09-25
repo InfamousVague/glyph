@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { ToastProvider } from '@glacier/react';
 import { NOTE_SAVED, type Note } from '../core/store.ts';
 import { isTrashed } from '../core/trash.ts';
@@ -112,11 +112,12 @@ describe('a voice command left undoable', () => {
   it('is offered its Undo again once, which undoes it and reads the notes again', async () => {
     commands.latest.mockResolvedValue({ mutationId: 'm1', noteId: 'n', kind: 'update', createdAt: 0 });
     const refresh = vi.fn(async () => undefined);
-    keep({ refresh });
+    // Under StrictMode, as main.tsx mounts the app: its effects are run, cleaned up and run again.
+    show(<StrictMode>{tree({ refresh })}</StrictMode>);
     await act(async () => {
       // The pending record is asked for once, as the app starts.
     });
-    expect(document.body.textContent).toContain('Voice command changed a note.');
+    expect(document.body.textContent!.split('Voice command changed a note.')).toHaveLength(2);
     await act(async () => button('Undo').click());
     expect(commands.undo).toHaveBeenCalledWith('m1');
     expect(refresh).toHaveBeenCalled();
