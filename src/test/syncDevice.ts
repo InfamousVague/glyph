@@ -8,7 +8,7 @@ import type { FakeService } from './fakeService.ts';
  * (core/sync/notes.ts): its notes, its pictures and its recordings in maps behind the LocalNotes and LocalFiles the
  * pass is given, what it remembers of the account, and a `sync` that runs one pass.
  *
- * Two test files built this by hand - the pictures' and the notes' own - and a device is the same thing in both.
+ * The pictures test built this by hand; the notes test shares it, since a device is the same thing in both.
  * `clock` is the device's time, for the waits the pass keeps (a picture not asked for again for a while); a test
  * moves it by hand. `fetcher` stands between this device and the service, for a test that has another device write
  * at a moment of its choosing - between this one's pull and its push, say.
