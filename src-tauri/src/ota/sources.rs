@@ -9,6 +9,7 @@
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_os = "ios"))]
 use tauri::{AppHandle, Runtime};
 
 use super::manifest::{list, valid_url, Services};
@@ -61,7 +62,9 @@ pub(super) fn effective_sources(known: &Known) -> Vec<String> {
 }
 
 /// The service endpoints the newest verified manifest announced. For other
-/// modules: each falls back to its own default for anything absent.
+/// modules: each falls back to its own default for anything absent. Only the
+/// model downloads ask today, and iOS downloads no models.
+#[cfg(not(target_os = "ios"))]
 pub fn services<R: Runtime>(app: &AppHandle<R>) -> Services {
     super::root(app).map(|r| read_known(&r).services).unwrap_or_default()
 }

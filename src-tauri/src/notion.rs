@@ -23,6 +23,10 @@
 //!   below `https://api.notion.com/v1/` and must be one of the routes Glyph
 //!   uses (search, databases, data_sources, pages, blocks, users/me).
 
+// iOS answers every command here with its refusal (unsupported.rs), so the
+// rest of the module is unused there by design, not by accident.
+#![cfg_attr(target_os = "ios", allow(dead_code))]
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::AppHandle;

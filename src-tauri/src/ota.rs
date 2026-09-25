@@ -119,6 +119,7 @@ mod install;
 mod test_support;
 
 pub use scheme::{serve, SCHEME};
+#[cfg(not(target_os = "ios"))]
 pub use sources::services;
 
 /// For the background update check (update_alerts.rs), the one caller with no
@@ -230,6 +231,7 @@ const TEST_SOURCE: Option<&str> = option_env!("GLYPH_OTA_BASE");
 /// `GLYPH_STAGING` at COMPILE time (the same switch build.gradle.kts reads):
 /// a staging build runs beside the real app under its own id and never checks
 /// for updates, so the page it was built with is the page that runs.
+#[cfg_attr(target_os = "ios", allow(dead_code))]
 pub const STAGING: bool = option_env!("GLYPH_STAGING").is_some();
 
 /// `GLYPH_STORE` at COMPILE time: "play" or "appstore" for a build that goes

@@ -31,6 +31,10 @@
 //! "not present": the model there will be Apple's, and a page written against
 //! one surface needs no platform switch to load.
 
+// iOS answers every command here with its refusal (unsupported.rs), so the
+// rest of the module is unused there by design, not by accident.
+#![cfg_attr(target_os = "ios", allow(dead_code))]
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};

@@ -9,6 +9,10 @@
 //! video link is not downloaded to find them. Nothing is kept here; the page
 //! caches what it is told. Native generation 17.
 
+// iOS answers every command here with its refusal (unsupported.rs), so the
+// rest of the module is unused there by design, not by accident.
+#![cfg_attr(target_os = "ios", allow(dead_code))]
+
 use serde::Serialize;
 
 #[cfg(target_os = "ios")]
