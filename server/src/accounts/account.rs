@@ -106,7 +106,7 @@ pub struct DeleteAccountBody {
 }
 
 /// `DELETE v1/account`. The account and everything it keeps here: its notes, settings, recordings and pictures,
-/// shared links, devices and recovery codes (store.rs `delete_account`). What is on a device stays on the device. The
+/// shared links, devices and recovery codes (store/accounts.rs `delete_account`). What is on a device stays on the device. The
 /// password check is counted against sign-in's limits, as it is one more way to try a password.
 pub async fn delete_account(
     State(accounts): State<Arc<Accounts>>,

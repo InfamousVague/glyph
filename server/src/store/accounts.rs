@@ -2,7 +2,7 @@
 //! and the recovery codes - and deleting an account, which takes everything else it keeps here with it.
 //!
 //! What arrives as a password is already a login secret a device derived, and what is kept of it is its Argon2 hash
-//! (src/accounts.rs); the account key is kept only wrapped. So a row here says who an account is, never what is in it.
+//! (src/accounts/credentials.rs); the account key is kept only wrapped. So a row here says who an account is, never what is in it.
 
 use super::Store;
 use rusqlite::{params, Connection, OptionalExtension, Row};

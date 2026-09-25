@@ -29,7 +29,11 @@
 //! `Claims` extractor every signed-in route in the crate opens with - and the route table. The routes are beside it:
 //! `accounts/ways_in.rs` the open ones that hand out a token, `accounts/account.rs` what a signed-in device may do to
 //! its account, with `accounts/credentials.rs` for the rules and hashes of what a device sends and
-//! `accounts/challenges.rs` for the nonces a device signs.
+//! `accounts/challenges.rs` for the nonces a device signs. `accounts/tests.rs` tries them all through the router.
+//!
+//! A handler with a step that can refuse - the sign-in limit, a hash, a recovery sheet - answers
+//! `Result<Response, Response>` and passes that refusal on with `?`, and then every refusal it makes is an `Err`, so
+//! the refusals read alike; one with nothing to pass on answers a plain `Response`. Both arms are answers either way.
 
 // A refusal here is the response itself, handed straight back from a handler; boxing it would only move it.
 #![allow(clippy::result_large_err)]
