@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
-import { ARCHIVE_FOLDER, noteTree, readClosed, writeClosed } from './tree.ts';
+import { ARCHIVE_FOLDER, noteTree, readClosed, readCompact, readTrashOpen, writeClosed, writeCompact, writeTrashOpen } from './tree.ts';
 
 describe('the notes as the sidebar shows them', () => {
   it('puts each note in its workspace, and the rest below', () => {
@@ -61,5 +61,21 @@ describe('which folders are closed', () => {
   it('reads rubbish as the starting state', () => {
     localStorage.setItem('glyph-tree-closed', 'not json');
     expect([...readClosed()]).toEqual([ARCHIVE_FOLDER]);
+  });
+});
+
+describe('the sidebar’s other switches, per device', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('keep the trash shut and the notes drawn small until they are changed, and remember each change', () => {
+    expect(readTrashOpen()).toBe(false);
+    expect(readCompact()).toBe(false);
+    writeTrashOpen(true);
+    writeCompact(true);
+    expect([readTrashOpen(), readCompact()]).toEqual([true, true]);
+    expect([localStorage.getItem('glyph-tree-trash-open'), localStorage.getItem('glyph-tree-compact')]).toEqual(['1', '1']);
+    writeTrashOpen(false);
+    expect(readTrashOpen()).toBe(false);
+    expect(localStorage.getItem('glyph-tree-trash-open')).toBe('0');
   });
 });

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
-import { asideContent } from './aside.ts';
+import { asideContent, readAsideShown, writeAsideShown } from './aside.ts';
 
 const BOOK = '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n- [[Trees]]\n- [[Birds]]\n';
 const notes = [makeNote('b', BOOK, { updatedAt: 5 }), makeNote('t', '# Trees\n', { updatedAt: 4 }), makeNote('x', '# Loose\n', { updatedAt: 3 }), makeNote('a', '# Archived\n', { updatedAt: 9, archivedAt: 1 })];
@@ -62,5 +62,18 @@ describe('what the aside shows', () => {
     const shown = asideContent(folder, folder[0]!);
     expect(shown?.kind === 'chapters' && shown.title).toBe('Trip');
     expect(shown?.kind === 'chapters' && shown.chapters.map((c) => c.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('whether the aside is shown', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('is hidden until it has been opened, and kept on this device', () => {
+    expect(readAsideShown()).toBe(false);
+    writeAsideShown(true);
+    expect(readAsideShown()).toBe(true);
+    writeAsideShown(false);
+    expect(readAsideShown()).toBe(false);
+    expect(localStorage.getItem('glyph-aside-shown')).toBe('0');
   });
 });
