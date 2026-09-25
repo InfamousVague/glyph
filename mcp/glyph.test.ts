@@ -209,6 +209,20 @@ describe('titles and pictures, read as the app reads them', () => {
     await client.close();
   });
 
+  it('previews a note by the words under its title, with its front matter off (Matt: it previewed as "title: … authors: …")', async () => {
+    const { service, client } = await connected();
+    const fronted = '---\ntitle: Everything a note can hold\nauthors: matt, Claude\n---\n# Everything a note can hold\n\nWords first,\nthen more words.\nNot these.';
+    await service.deviceWrites({ ...aNote('f', fronted), updatedAt: 2 });
+    await service.deviceWrites({ ...aNote('p', '# Trip\n\nWe went\nto the sea\nand back'), updatedAt: 1 });
+
+    const listed = JSON.parse(asText(await client.callTool({ name: 'list_notes', arguments: {} }))) as { notes: { id: string; title: string; preview: string }[] };
+    expect(listed.notes.map((n) => [n.id, n.title, n.preview])).toEqual([
+      ['f', 'Everything a note can hold', 'Words first, then more words.'],
+      ['p', 'Trip', 'We went to the sea'],
+    ]);
+    await client.close();
+  });
+
   it('names the pictures a note it writes carries as the app names them', async () => {
     const { service, account, client } = await connected();
     const body = '# Trip\n\n![a](image/one.jpg) and ![](image/two.png) and ![](http://elsewhere/x.png)';

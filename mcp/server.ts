@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { placeWords } from '../src/app/capture/listAppend.ts';
 import { aiName, authorsOf, withAuthor } from '../src/app/core/authors.ts';
 import { failureText } from '../src/app/core/failure.ts';
-import { noteTitle } from '../src/app/core/noteTitle.ts';
+import { noteTitle, withoutFrontMatter } from '../src/app/core/noteTitle.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
 
 /**
@@ -25,12 +25,18 @@ function iso(ms: number): string {
 /** A note as the tools describe it: what a list needs, and never the whole body unless asked. */
 function summary(record: NoteRecord) {
   const { note } = record;
-  const lines = note.body.split('\n').map((l) => l.trim()).filter(Boolean);
+  const title = noteTitle(note.body);
+  // The front matter goes first, as the list's title and the app's peek take it off: a note that opened with it
+  // previewed as its keys ("title: … authors: …"). Its `title:` comes back as the first line, and a heading of the
+  // same name under it is the title again, so it goes too.
+  const lines = withoutFrontMatter(note.body.split('\n')).map((l) => l.trim()).filter(Boolean);
   const first = lines.findIndex((l) => !/^!\[[^\]]*\]\([^)]*\)$/.test(l));
-  const after = lines.slice(first + 1, first + 3).join(' ');
+  const rest = lines.slice(first + 1);
+  if (title && rest[0] && noteTitle(rest[0]).toLowerCase() === title.toLowerCase()) rest.shift();
+  const after = rest.slice(0, 2).join(' ');
   return {
     id: note.id,
-    title: noteTitle(note.body) || 'Untitled',
+    title: title || 'Untitled',
     updated: iso(note.updatedAt),
     created: iso(note.createdAt),
     pinned: Boolean(note.starred),
