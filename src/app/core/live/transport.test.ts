@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocketTransport, liveUrl, type LiveEvents } from './transport.ts';
 
 /** A socket that records what a device sends and lets the test play the relay. */
@@ -45,6 +45,15 @@ function recorder() {
   return { heard, events };
 }
 
+/**
+ * Every transport a test made, closed after it: a transport left open still hears the window's online and
+ * visibilitychange, and would reconnect in the middle of the next test.
+ */
+const transports: WebSocketTransport[] = [];
+afterEach(() => {
+  for (const made of transports.splice(0)) made.close();
+});
+
 function transport(events: LiveEvents, token: () => string | null = () => 'tok') {
   FakeSocket.made = [];
   const retries: (() => void)[] = [];
@@ -55,6 +64,7 @@ function transport(events: LiveEvents, token: () => string | null = () => 'tok')
     socket: FakeSocket as never,
     schedule: (run) => retries.push(run),
   });
+  transports.push(t);
   return { t, retries, socket: () => FakeSocket.made[FakeSocket.made.length - 1]! };
 }
 
@@ -126,5 +136,83 @@ describe('the relay transport', () => {
       { t: 'msg', room: 'n', data: 'y', to: 4 },
       { t: 'leave', room: 'n' },
     ]);
+  });
+});
+
+describe('coming back after a drop', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+  });
+
+  /** A transport whose retries are kept with the wait each was scheduled for. */
+  function timed(events: LiveEvents) {
+    FakeSocket.made = [];
+    const waits: { run: () => void; ms: number }[] = [];
+    const t = new WebSocketTransport({ url: 'wss://example/live', token: () => 'tok', events, socket: FakeSocket as never, schedule: (run, ms) => waits.push({ run, ms }) });
+    transports.push(t);
+    return { t, waits, socket: () => FakeSocket.made[FakeSocket.made.length - 1]! };
+  }
+
+  it('waits twice as long each time from half a second, never past thirty, and from the start again once signed in', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    const { events } = recorder();
+    const { waits, socket } = timed(events);
+    for (let i = 0; i < 8; i += 1) {
+      socket().drops();
+      waits.at(-1)!.run();
+    }
+    expect(waits.map((wait) => wait.ms)).toEqual([500, 1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000]);
+    socket().opens();
+    socket().says({ t: 'ready', id: 3 });
+    socket().drops();
+    expect(waits.at(-1)?.ms).toBe(500);
+  });
+
+  it('spreads each wait over its second half, so a relay restart is not met by every device at once', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const { events } = recorder();
+    const { waits, socket } = timed(events);
+    socket().drops();
+    waits.at(-1)!.run();
+    socket().drops();
+    expect(waits.map((wait) => wait.ms)).toEqual([250, 500]);
+  });
+
+  it('tries at once when the network or the page comes back, and not while the page is hidden', () => {
+    const { events } = recorder();
+    const { waits, socket } = timed(events);
+    socket().drops();
+    expect(FakeSocket.made).toHaveLength(1);
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    window.dispatchEvent(new Event('online'));
+    expect(FakeSocket.made).toHaveLength(1);
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(FakeSocket.made).toHaveLength(2);
+    // Connected again: the waiting retry was dropped, and another wake while connected does nothing.
+    window.dispatchEvent(new Event('online'));
+    expect(FakeSocket.made).toHaveLength(2);
+    expect(waits).toHaveLength(1);
+  });
+
+  it('stays down once closed, whatever wakes it', () => {
+    const { events } = recorder();
+    const { t, socket } = timed(events);
+    socket().opens();
+    t.close();
+    socket().drops();
+    window.dispatchEvent(new Event('online'));
+    expect(FakeSocket.made).toHaveLength(1);
+  });
+
+  it('ignores a frame it cannot read and a refusal, and keeps the socket', () => {
+    const { heard, events } = recorder();
+    const { socket } = timed(events);
+    socket().opens();
+    socket().onmessage?.({ data: '{not json' } as MessageEvent);
+    socket().says({ t: 'error', message: 'too fast' });
+    socket().says({ t: 'ready', id: 4 });
+    expect(heard).toEqual(['ready 4']);
   });
 });
