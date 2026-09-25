@@ -2,7 +2,7 @@ import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/s
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { escapeRegExp } from '../core/text.ts';
 import type { InlineFormat } from '../plugins/types.ts';
-import { closeTextPanel, closeTextPanelOnScroll, showTextPanel, textPanelTheme } from './textPanel.ts';
+import { closeTextPanel, showTextPanel, textPanel } from './textPanel.ts';
 
 /**
  * A note on a mark, shown when the words are tapped (Matt: "add the ability to include tooltip text for the
@@ -94,6 +94,7 @@ function decorate(state: EditorState, pattern: RegExp): { marks: DecorationSet; 
 
 /** The panel a tap opens (editor/textPanel.ts): one at a time, over the words it belongs to. */
 const PANEL = 'cm-markNotePanel';
+const panel = textPanel(PANEL);
 
 function showNote(view: EditorView, note: MarkNote): void {
   showTextPanel(view, note.words.from, note.text, { className: PANEL, label: 'Note' });
@@ -150,5 +151,5 @@ export function markNotes(formats: readonly InlineFormat[]): Extension {
       },
     },
   );
-  return [plugin, textPanelTheme(PANEL), closeTextPanelOnScroll(PANEL)];
+  return [plugin, panel];
 }

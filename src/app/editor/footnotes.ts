@@ -1,6 +1,6 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { closeTextPanel, closeTextPanelOnScroll, showTextPanel, textPanelTheme } from './textPanel.ts';
+import { closeTextPanel, showTextPanel, textPanel } from './textPanel.ts';
 
 /**
  * Footnotes, as extended markdown writes them (docs/MARKDOWN.md):
@@ -84,6 +84,7 @@ function decorate(state: EditorState): DecorationSet {
 
 /** The panel a tap on a marker opens, saying what the footnote says (editor/textPanel.ts). */
 const PANEL = 'cm-footPanel';
+const panel = textPanel(PANEL);
 
 function showFoot(view: EditorView, note: Footnote, at: number): void {
   showTextPanel(view, at, note.text || `Nothing written under [^${note.name}] yet.`, { className: PANEL, label: `Footnote ${note.name}` });
@@ -144,7 +145,6 @@ export function footnotes(): Extension {
       },
     ),
     theme,
-    textPanelTheme(PANEL),
-    closeTextPanelOnScroll(PANEL),
+    panel,
   ];
 }

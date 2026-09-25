@@ -1,3 +1,4 @@
+import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 
 /**
@@ -32,9 +33,13 @@ export function closeTextPanel(view: EditorView, className: string): void {
   view.dom.querySelector(`.${className}`)?.remove();
 }
 
-/** The panel's look, for the class `className`: a small card in the paper's second tone. */
-export function textPanelTheme(className: string) {
-  return EditorView.baseTheme({
+/**
+ * What a kind of panel needs in the editor: its look, a small card in the paper's second tone, and closing when the
+ * note scrolls, since it is placed against the words and would drift. Made once, at the top of the module that shows
+ * the panel: a theme made again for every editor is mounted again for every editor.
+ */
+export function textPanel(className: string): Extension {
+  const look = EditorView.baseTheme({
     [`.${className}`]: {
       position: 'absolute',
       zIndex: '30',
@@ -49,9 +54,5 @@ export function textPanelTheme(className: string) {
       lineHeight: '1.4',
     },
   });
-}
-
-/** Closes the panel of class `className` when the note scrolls: it is placed against the words, and would drift. */
-export function closeTextPanelOnScroll(className: string) {
-  return EditorView.domEventHandlers({ scroll: (_event, view) => void closeTextPanel(view, className) });
+  return [look, EditorView.domEventHandlers({ scroll: (_event, view) => void closeTextPanel(view, className) })];
 }
