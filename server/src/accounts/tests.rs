@@ -3,10 +3,10 @@
 //! handle with no account, a device-only account deleted, and tokens outliving a restart.
 //!
 //! Inside the accounts module so a test can reach the service it signs up with, and mint a token with the service's
-//! own key - one already expired - without a clock to wind on. What deleting an account takes with it, and the
-//! refusal every signed-in route shares, are tried in sync_tests.rs, beside the notes they are about.
+//! own key - one already expired, or one about to - without a clock to wind on. What deleting an account takes with it,
+//! and the refusal every signed-in route shares, are tried in sync_tests.rs, beside the notes they are about.
 
-use super::{Accounts, RECOVERY_CODES};
+use super::{Accounts, RECOVERY_CODES, TOKEN_TTL_SECS};
 use crate::identity::TokenVerifier;
 use crate::store::Store;
 use crate::test_support::{accounts_in, device, login, service, sheet, signup_body, wrapped, Harness, TempDir};
@@ -20,6 +20,13 @@ use std::sync::Arc;
 
 fn harness() -> Harness {
     Harness::new("accounts")
+}
+
+/// The harness and the accounts service behind it, for a test that mints its own token.
+fn harness_and_accounts(label: &str) -> (Harness, Arc<Accounts>) {
+    let dir = TempDir::new(label);
+    let accounts = accounts_in(dir.path());
+    (Harness { service: service(Some(accounts.clone())), dir }, accounts)
 }
 
 /// A device key as a device sends it: its public half, base64url.
@@ -181,22 +188,26 @@ async fn a_device_key_that_cannot_be_one_is_refused() {
 
 #[tokio::test]
 async fn a_live_token_is_renewed_for_the_same_account_and_the_new_one_unlocks_the_wrapped_key() {
-    let h = harness();
-    let token = h.signup("matt", &device()).await;
-    let (status, renewed) = h.call(Method::POST, "/glyph/api/v1/refresh", Some(&token), None).await;
+    let (h, accounts) = harness_and_accounts("accounts-refresh");
+    h.signup("matt", &device()).await;
+    // A token with a minute left, so the renewed one can be told from it: two tokens made in the same second for the
+    // same account would otherwise be the same string, and an answer that handed the old one back would pass.
+    let presented = accounts.issue_until(1, "matt", now_secs() + 60);
+    let (status, renewed) = h.call(Method::POST, "/glyph/api/v1/refresh", Some(&presented), None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(renewed["account"], json!({ "id": 1, "handle": "matt" }));
     assert!(renewed.get("wrapped").is_none(), "renewing hands out a token, not the key");
     let fresh = renewed["token"].as_str().unwrap();
+    let claims = accounts.claims(fresh).expect("a token of the service's own");
+    assert_eq!((claims.sub, claims.handle.as_str()), (1, "matt"));
+    assert!(claims.exp > now_secs() + TOKEN_TTL_SECS - 3600, "a week on, not the minute the presented one had: {}", claims.exp);
     let (status, keys) = h.call(Method::GET, "/glyph/api/v1/keys", Some(fresh), None).await;
     assert_eq!((status, keys), (StatusCode::OK, json!({ "wrapped": wrapped("password") })));
 }
 
 #[tokio::test]
 async fn a_token_that_has_lapsed_is_told_its_session_has_ended() {
-    let dir = TempDir::new("accounts-lapsed");
-    let accounts = accounts_in(dir.path());
-    let h = Harness { service: service(Some(accounts.clone())), dir };
+    let (h, accounts) = harness_and_accounts("accounts-lapsed");
     h.signup("matt", &device()).await;
     // Signed with the service's own key, so only its age is wrong.
     let lapsed = accounts.issue_until(1, "matt", now_secs() - 1);

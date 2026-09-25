@@ -296,8 +296,10 @@ async fn a_note_and_the_settings_are_taken_up_to_their_limits_and_not_a_characte
     assert_eq!((status, body), (StatusCode::BAD_REQUEST, json!({ "error": "Those settings are empty or too large to sync." })));
 }
 
+/// The feed also reads a `since` below zero as zero (sync.rs `feed`). That is not tried here: revisions start at 1, so
+/// nothing a device can see tells the two apart.
 #[tokio::test]
-async fn a_page_of_the_feed_is_at_least_one_note_and_a_cursor_below_zero_is_the_start() {
+async fn a_page_of_the_feed_is_at_least_one_note_whatever_the_limit() {
     let h = harness();
     let token = h.signup("matt", &device()).await;
     for i in 0..3 {
@@ -308,10 +310,21 @@ async fn a_page_of_the_feed_is_at_least_one_note_and_a_cursor_below_zero_is_the_
         assert_eq!(status, StatusCode::OK);
         assert_eq!((page["items"].as_array().unwrap().len(), page["more"].clone()), (1, json!(true)), "limit={limit}");
     }
-    let (_, from_zero) = h.call(Method::GET, "/glyph/api/v1/notes?since=0", Some(&token), None).await;
-    let (_, from_below) = h.call(Method::GET, "/glyph/api/v1/notes?since=-10", Some(&token), None).await;
-    assert_eq!(from_below, from_zero);
-    assert_eq!(from_zero["items"].as_array().unwrap().len(), 3);
+}
+
+/// A recording or a picture is taken up to 64 MiB and refused at a byte more. Written out, as the note's and the
+/// settings' limits are above. A route that lost its own limit would fall back to axum's two megabytes, and only a file
+/// past those shows it.
+#[tokio::test]
+async fn a_recording_is_taken_up_to_sixty_four_megabytes_and_not_a_byte_past() {
+    let h = harness();
+    let token = h.signup("matt", &device()).await;
+    let (status, _, _) = raw(&h, Method::PUT, "/glyph/api/v1/recordings/r-long?base=0", &token, vec![7; 64 * 1024 * 1024]).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _, _) = raw(&h, Method::PUT, "/glyph/api/v1/recordings/r-longer?base=0", &token, vec![7; 64 * 1024 * 1024 + 1]).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    let (status, _, _) = raw(&h, Method::GET, "/glyph/api/v1/recordings/r-longer", &token, Vec::new()).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "nothing of it was kept");
 }
 
 /// What a device asks before it uploads a picture (docs/SYNC.md, settlePictures): a HEAD, answered through the GET

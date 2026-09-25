@@ -64,6 +64,7 @@ mod tests {
         let challenges = Challenges::default();
         let nonce = challenges.issue(7, 1_000);
         assert_eq!(challenges.take(&nonce, 1_000 + CHALLENGE_TTL_SECS), None, "two minutes on, it has lapsed");
+        assert!(challenges.held.lock().unwrap().is_empty(), "and the late attempt spent it, rather than leaving it to a prune");
         let again = challenges.issue(7, 2_000);
         assert_eq!(challenges.take(&again, 2_000 + CHALLENGE_TTL_SECS - 1), Some(7), "a second inside is still good");
     }

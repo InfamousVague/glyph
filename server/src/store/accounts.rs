@@ -182,13 +182,19 @@ mod tests {
     }
 
     #[test]
-    fn a_device_added_twice_is_one_device() {
+    fn a_device_added_twice_is_one_device_with_its_first_date_and_its_new_label() {
         let (s, a, _dir) = fixture();
         s.add_device_key(a.id, "laptop-key", "laptop", 200).unwrap();
         s.add_device_key(a.id, "laptop-key", "the laptop, renamed", 201).unwrap();
         let mut keys = s.device_keys(a.id);
         keys.sort();
         assert_eq!(keys, vec!["device-key".to_string(), "laptop-key".to_string()]);
+        // Nothing the service answers reads a label back yet, so the row itself is what shows it.
+        let kept: (String, i64) = s
+            .lock()
+            .query_row("SELECT label, created_at FROM device_keys WHERE public_key = 'laptop-key'", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap();
+        assert_eq!(kept, ("the laptop, renamed".to_string(), 200));
     }
 
     #[test]

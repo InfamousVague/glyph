@@ -74,6 +74,23 @@ async fn a_share_needs_an_account_to_write_and_a_proper_id_and_blob() {
 }
 
 /// docs/SHARING.md's limit, and src/app/share/share.ts's copy of it: 6 MB of base64url, and not a character more.
+/// The store's own test of the per-account limit runs at a limit of two; this is the number a device meets, and the
+/// words it is told.
+#[tokio::test]
+async fn an_account_keeps_five_hundred_shares_up_and_is_told_to_take_one_down_for_another() {
+    let service = service();
+    let owner = service.signup("sam", &device()).await;
+    let blob = Some(json!({ "blob": "c2VhbGVk" }));
+    for i in 0..500 {
+        let (status, _) = service.call(Method::PUT, &format!("/glyph/api/v1/shares/share-{i:016}"), Some(&owner), blob.clone()).await;
+        assert_eq!(status, StatusCode::OK, "share {i}");
+    }
+    let (status, body) = service.call(Method::PUT, "/glyph/api/v1/shares/share-one-too-many-000", Some(&owner), blob.clone()).await;
+    assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "This account shares as much as it can: take a share down first." })));
+    let (status, _) = service.call(Method::PUT, &format!("/glyph/api/v1/shares/share-{:016}", 0), Some(&owner), Some(json!({ "blob": "ZWRpdGVk" }))).await;
+    assert_eq!(status, StatusCode::OK, "an edit of one it has is not one more");
+}
+
 #[tokio::test]
 async fn a_share_is_taken_up_to_six_million_characters_and_not_one_past() {
     let service = service();

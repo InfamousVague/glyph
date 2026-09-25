@@ -176,6 +176,14 @@ async fn a_message_can_go_to_one_device() {
     send(&mut a, json!({ "t": "msg", "room": "n", "data": sealed("state"), "to": b_id })).await;
     assert_eq!(next(&mut b).await["data"], sealed("state"));
     hears_nothing(&mut c).await;
+    // Addressed to a device of the account's that is not in the room, it goes to nobody: not to that device, and not
+    // to the room instead.
+    let (mut d, d_id) = s.device(&token).await;
+    send(&mut a, json!({ "t": "msg", "room": "n", "data": sealed("stray"), "to": d_id })).await;
+    hears_nothing(&mut a).await;
+    for other in [&mut b, &mut c, &mut d] {
+        hears_nothing(other).await;
+    }
 }
 
 #[tokio::test]
@@ -304,9 +312,13 @@ async fn a_device_may_have_sixty_four_notes_live_and_joining_one_again_is_not_an
 async fn a_socket_ends_when_its_token_does_and_says_sign_in_again() {
     let s = server().await;
     s.account("matt").await;
-    // A token of the service's own that lapses in three seconds: long enough to sign in with on a loaded machine.
+    // The socket is open before the token is made, so the token's three seconds need cover only the one frame that
+    // signs in with it, not the connection and the upgrade as well.
+    let (mut phone, _) = connect_async(s.url()).await.unwrap();
     let token = s.accounts.issue_until(1, "matt", now_secs() + 3);
-    let (mut phone, _) = s.device(&token).await;
+    send(&mut phone, json!({ "t": "auth", "token": token })).await;
+    let ready = next(&mut phone).await;
+    assert_eq!(ready["t"], "ready", "{ready}");
     // The ceiling only bounds a failure; the close ends the wait the moment it comes.
     let ended = tokio::time::timeout(Duration::from_secs(15), async {
         loop {
