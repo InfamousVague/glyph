@@ -4,7 +4,7 @@ import { AI_AUTHOR, withAuthor } from '../core/authors.ts';
 import { aiEdit, landingField, setLanding } from '../editor/aiChanges.ts';
 import { commonEnds } from '../editor/wispArrivals.ts';
 import { Lander } from './land.ts';
-import { placementOf } from './start.ts';
+import { landingAt } from './start.ts';
 import { recordChange } from './log.ts';
 import { allLines, ended, useRun } from './runs.ts';
 
@@ -48,10 +48,7 @@ export function useLanding(
       // A reopened note mid-run, before a line had landed: the landing is decided again as it was at the start
       // (ai/start.ts), against the note as it reads now, which is as it read then, since it was closed in between.
       if (!view.state.field(landingField) && run.scope) {
-        const placement = placementOf(run.kind);
-        const end = view.state.doc.length;
-        const at = placement === 'append' ? end : Math.min(run.scope.from, end);
-        view.dispatch({ effects: setLanding.of({ runId: run.id, start: at, cursor: at, oldEnd: placement === 'replace' ? Math.min(run.scope.to, end) : at }) });
+        view.dispatch({ effects: setLanding.of({ runId: run.id, ...landingAt(run.kind, run.scope, view.state.doc.length) }) });
       }
       const lander = new Lander(view, run.id, { wisp: optionsRef.current.wisp, haptic: optionsRef.current.haptic }, view.state.doc.toString());
       current.current = { runId: run.id, lander, before: lander.before };
