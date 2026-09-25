@@ -108,7 +108,7 @@
 .chapter {
   margin: 0;
   font-size: var(--glacier-font-size-xs);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--app-tracking-caps);
   text-transform: uppercase;
   color: var(--app-ink-3);
 }

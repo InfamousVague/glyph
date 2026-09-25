@@ -217,7 +217,7 @@
 .setk__title {
   font-size: 0.72rem;
   font-weight: var(--glacier-font-weight-semibold);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--app-tracking-caps);
   text-transform: uppercase;
   color: var(--app-ink-3);
   padding-inline: var(--glacier-space-2);

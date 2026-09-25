@@ -219,7 +219,7 @@
 .fieldLabel {
   font-size: var(--glacier-font-size-xs);
   font-weight: var(--glacier-font-weight-bold);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--app-tracking-caps-close);
   text-transform: uppercase;
   color: var(--glacier-text-subtle);
 }

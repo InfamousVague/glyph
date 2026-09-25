@@ -16,7 +16,7 @@
 .groupTitle {
   margin: 0;
   font-size: var(--glacier-font-size-sm);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--app-tracking-caps);
   text-transform: uppercase;
   font-weight: var(--glacier-font-weight-semibold);
   color: var(--glacier-text-subtle);
@@ -40,7 +40,7 @@
   padding-block-end: var(--glacier-space-2);
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
   font-size: var(--glacier-font-size-xs);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--app-tracking-caps-close);
   text-transform: uppercase;
   color: var(--glacier-text-subtle);
 }

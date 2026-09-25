@@ -21,7 +21,7 @@
 /* Which half is which, quietly: the field is the thing to look at, not its name. */
 .label {
   font-size: var(--glacier-font-size-xs);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--app-tracking-caps);
   text-transform: uppercase;
   color: var(--app-ink-3);
 }
