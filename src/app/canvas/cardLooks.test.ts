@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TABLE_CARD } from './edits.ts';
-import { fileTitle, isOnlyTable, ownPicture, paintOf, paintProps } from './cards.ts';
+import { fileTitle, isOnlyTable, ownPicture, paintOf, paintProps } from './cardLooks.ts';
 import type { CanvasNode } from './jsonCanvas.ts';
 
 /** What the screen makes of a card: its colour, the note it names, its picture, and a card that is only a table. */

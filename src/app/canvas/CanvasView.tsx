@@ -6,7 +6,7 @@ import { useRedraw } from '../core/useRedraw.ts';
 import { AddSheet, type AddStep } from './AddSheet.tsx';
 import { useCamera } from './camera.ts';
 import { Card } from './Card.tsx';
-import { ownPicture } from './cards.ts';
+import { ownPicture } from './cardLooks.ts';
 import {
   CHART_CARD,
   joined,

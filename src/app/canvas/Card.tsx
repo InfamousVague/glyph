@@ -4,7 +4,7 @@ import { openLink } from '../core/linkPreview.ts';
 import { shortUrl } from '../core/shortUrl.ts';
 import { Editor } from '../editor/Editor.tsx';
 import { NotePeek } from '../notes/NotePeek.tsx';
-import { fileTitle, isImageFile, isOnlyTable, ownPicture, paintProps, type CanvasHue } from './cards.ts';
+import { fileTitle, isImageFile, isOnlyTable, ownPicture, paintProps, type CanvasHue } from './cardLooks.ts';
 import type { CanvasWiki } from './CanvasView.tsx';
 import type { CanvasNode } from './jsonCanvas.ts';
 import { Near } from './Near.tsx';

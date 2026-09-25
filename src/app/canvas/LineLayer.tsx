@@ -1,4 +1,4 @@
-import { paintProps } from './cards.ts';
+import { paintProps } from './cardLooks.ts';
 import type { CanvasEdge } from './jsonCanvas.ts';
 import { LABEL_LINE, type EdgePath } from './lines.ts';
 import styles from './CanvasView.module.css';

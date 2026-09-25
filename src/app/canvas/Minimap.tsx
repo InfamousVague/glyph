@@ -1,5 +1,5 @@
 import { useRef, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { isImageFile, paintProps } from './cards.ts';
+import { isImageFile, paintProps } from './cardLooks.ts';
 import { anchorOf, bounds, sidesOf } from './geometry.ts';
 import type { Canvas, CanvasNode } from './jsonCanvas.ts';
 import { shown as shownBox, type View } from './viewport.ts';
