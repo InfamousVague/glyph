@@ -27,6 +27,7 @@ describe('the list labels', () => {
     expect(noteTitle('# Weekend trip §§\nmilk')).toBe('Weekend trip');
     expect(noteTitle('Half §§ way')).toBe('Half way');
   });
+
 });
 
 describe('the list order', () => {
