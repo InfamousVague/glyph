@@ -24,5 +24,18 @@ export default defineConfig({
      * slowed by load still passes at this; a test that has really hung still fails at it.
      */
     testTimeout: 20000,
+    /*
+     * `npm run coverage`. What is measured is the source people write: the app, the reader page and the MCP
+     * server's own modules. Not mcp/dist, which is the MCP server bundled into two files (scripts/build-mcp.mjs) and
+     * gitignored: swept in by `mcp/**`, its 54,000 lines made three-quarters of the denominator and read the tree as
+     * 14% covered when the real figure was 57% (measured 2026-09-25).
+     */
+    coverage: {
+      provider: 'v8',
+      include: ['src/app/**/*.{ts,tsx}', 'src/read/**/*.{ts,tsx}', 'mcp/*.ts'],
+      exclude: ['**/*.test.{ts,tsx}', '**/*.d.ts', 'mcp/dist/**'],
+      reporter: ['text-summary', 'json-summary', 'json'],
+      reportsDirectory: 'coverage',
+    },
   },
 });
