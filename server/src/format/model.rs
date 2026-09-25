@@ -1,4 +1,5 @@
-//! The conversation with Ollama: one prompt, one schema, one call per chunk.
+//! The conversation with Ollama: one call per chunk, admitted or withdrawn at the first token, and the whole note
+//! assembled from the chunks. What each call asks is `prompt.rs`'s.
 //!
 //! The model is asked to POINT, never to write. It returns a title and a set of
 //! pointers into the transcript - phrases to bold, action items, enumerations,
@@ -20,20 +21,12 @@
 //! (read off `ps` on the box, 2026-09-12). Every call this service makes to it
 //! queues behind AttackFM's calls, and every call that RUNS holds AttackFM's
 //! only slot. Hence the admission gate in `call` and the output ceilings in
-//! `schema` - the two things that bound what a phone can take from it.
-//!
-//! What this module deliberately never sends: `num_ctx`, `num_thread`,
-//! `num_batch` or any other option that changes how a runner is LOADED. The
-//! model here is a runner AttackFM already has in memory, and Ollama answers a
-//! request whose load options differ from the loaded runner's by unloading it
-//! and loading a new one - an eviction of the production server's model,
-//! caused by a note-taking app. Sampling options (temperature, `num_predict`)
-//! are per request and safe. `keep_alive` is left unset for the same reason:
-//! the server's 15-minute default is AttackFM's too, and a different value
-//! here would shorten or stretch the life of a runner this service does not
-//! own.
+//! `prompt.rs`'s schema - the two things that bound what a phone can take from
+//! it. `prompt.rs` also says what a chat must never carry, and why.
 
-use crate::shape::{self, Annotations, Raw, Tally};
+use super::chunks::chunks;
+use super::prompt::{self, NUM_PREDICT};
+use super::shape::{self, Annotations, Raw, Tally};
 use serde_json::{json, Value};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -76,26 +69,13 @@ use std::time::{Duration, Instant};
 /// So this is not the model that answers fastest; it is the only one that
 /// costs AttackFM nothing to TRY. It is already loaded, so asking never
 /// evicts; the admission gate withdraws a call that is still queued; and
-/// `guard::Breaker` stops asking for ten minutes after an admitted call
+/// `breaker.rs` stops asking for ten minutes after an admitted call
 /// overruns. On the box as measured the phone gets a 503 and keeps its own
 /// formatting, which is the failure it was designed to absorb. Making it
 /// ANSWER is a decision about the box, not this line - room for a third
 /// runner with a small model beside AttackFM's, or AttackFM's queue drained -
 /// and `GLYPH_API_MODEL` in the unit tries another model without a rebuild.
 pub const MODEL: &str = "qwen3.5:9b";
-
-/// Close to deterministic. There is no creative latitude in "which of these
-/// words are a date", and every point of temperature is a chance to paraphrase.
-const TEMPERATURE: f64 = 0.1;
-
-/// The most tokens one chunk may generate before Ollama stops it.
-///
-/// The schema's item ceilings already bound an honest answer well below this;
-/// it is here for the dishonest one. A model looping inside a string does not
-/// stop on its own, and MEASURED on the box, qwen3.5:9b generated at 4.1
-/// tokens a second - so every runaway token is a quarter of a second of the
-/// slot AttackFM is waiting for.
-const NUM_PREDICT: u32 = 400;
 
 /// How long a call may wait for its FIRST token before it is abandoned.
 ///
@@ -112,83 +92,11 @@ const NUM_PREDICT: u32 = 400;
 /// spend AttackFM's time on an answer that is thrown away at second 45.
 pub const ADMISSION_WAIT: Duration = Duration::from_secs(15);
 
-/// Bytes of transcript per model call. See `shape::chunks` for why there are
+/// Bytes of transcript per model call. See `chunks.rs` for why there are
 /// chunks at all: about 1,500 tokens of text, plus the prompt, plus
 /// `NUM_PREDICT`, sits inside the shared runner's 4,096-token context with
 /// room to spare.
-pub const CHUNK_BYTES: usize = 6_000;
-
-/// The instruction. Fixed and first, on purpose: Ollama reuses the KV cache
-/// for a prompt prefix it has already evaluated, so after the first call the
-/// only tokens paid for on the way in are the transcript's own.
-pub const SYSTEM_PROMPT: &str = r#"You annotate a voice note. You never rewrite it.
-
-The user message is a transcript of someone talking. Reply with JSON that POINTS AT parts of it. Every string in emphasis, tasks, lists and sections.before must be copied from the transcript exactly: the same words, spelling, capitals and punctuation. Never fix, reword, shorten or summarise. If you cannot copy a phrase exactly, leave it out.
-
-- title: up to 8 words on what the note is about, in its own words, no punctuation at the end. "" if nothing fits.
-- emphasis: only names, dates, times, numbers and decisions. Few: most sentences have none. Never words already in a task or a list.
-- tasks: things the speaker must do, as the shortest exact phrase, like "call the plumber".
-- lists: things listed in one sentence. intro: the exact words that introduce the list, or "". items: each thing, exact, in order. Two or more.
-- sections: only where the topic clearly changes. before: the first exact words of the new topic. heading: up to 5 words. None for a note on one topic.
-
-Example transcript:
-Right, notes on the garden. We need compost, twine and seed potatoes. I have to call Tom about the fence on Monday at 10.
-
-Anyway, the car is due its service in March.
-
-Example reply:
-{"title":"Notes on the garden","emphasis":["Monday at 10","March"],"tasks":["call Tom about the fence"],"lists":[{"intro":"We need","items":["compost","twine","seed potatoes"]}],"sections":[{"before":"Anyway, the car is due","heading":"The car"}]}"#;
-
-/// The shape Ollama constrains generation to, so the model cannot answer in
-/// prose, markdown fences, or a friendly preamble.
-///
-/// `title` and `intro` are plain strings with "" for none rather than
-/// `["string", "null"]`: a union compiles to a larger grammar and buys nothing,
-/// because `shape.rs` maps "" to null on the way out either way.
-///
-/// THE CEILINGS ARE THE LATENCY. Generation is the slow half of a call, and the
-/// first measured run on the box bolded 24 phrases in a 198-word note - eggs,
-/// milk, "floor" - for 350 output tokens and 85 seconds of generation. A prompt
-/// that says "few" is advice; `maxItems` is compiled into the grammar, so the
-/// model is made to close the array. They are per chunk, and deliberately
-/// tight for a model generating four tokens a second: a faster model later
-/// can be given more room here and nowhere else.
-pub const MAX_EMPHASIS: u64 = 8;
-pub const MAX_TASKS: u64 = 8;
-pub const MAX_LISTS: u64 = 4;
-pub const MAX_LIST_ITEMS: u64 = 12;
-pub const MAX_SECTIONS: u64 = 4;
-
-pub fn schema() -> Value {
-    let strings = |max: u64| json!({ "type": "array", "items": { "type": "string" }, "maxItems": max });
-    json!({
-        "type": "object",
-        "properties": {
-            "title": { "type": "string" },
-            "emphasis": strings(MAX_EMPHASIS),
-            "tasks": strings(MAX_TASKS),
-            "lists": {
-                "type": "array",
-                "maxItems": MAX_LISTS,
-                "items": {
-                    "type": "object",
-                    "properties": { "intro": { "type": "string" }, "items": strings(MAX_LIST_ITEMS) },
-                    "required": ["intro", "items"]
-                }
-            },
-            "sections": {
-                "type": "array",
-                "maxItems": MAX_SECTIONS,
-                "items": {
-                    "type": "object",
-                    "properties": { "before": { "type": "string" }, "heading": { "type": "string" } },
-                    "required": ["before", "heading"]
-                }
-            }
-        },
-        "required": ["title", "emphasis", "tasks", "lists", "sections"]
-    })
-}
+const CHUNK_BYTES: usize = 6_000;
 
 /// Why a call produced nothing. Every one of these is a 503 on the wire.
 #[derive(Debug)]
@@ -351,16 +259,7 @@ impl Ollama {
     /// is worth the slot. Ollama writes the response headers with the first
     /// chunk, so `admission` covers the send AND the first line.
     async fn call(&self, chunk: &str, deadline: Instant, admission: Duration) -> Result<(Raw, Timing), Failure> {
-        let mut body = json!({
-            "model": self.model,
-            "stream": true,
-            "format": schema(),
-            "messages": [
-                { "role": "system", "content": SYSTEM_PROMPT },
-                { "role": "user", "content": chunk }
-            ],
-            "options": { "temperature": TEMPERATURE, "num_predict": NUM_PREDICT }
-        });
+        let mut body = prompt::chat(&self.model, chunk);
         if self.thinks(deadline).await? {
             body["think"] = json!(false);
         }
@@ -475,7 +374,7 @@ fn transport(e: reqwest::Error) -> Failure {
 /// phone's", which is strictly better than a 503 that discards finished work.
 /// The log line records it as partial.
 pub async fn annotate(ollama: &Ollama, text: &str, deadline: Instant, admission: Duration) -> Result<Outcome, Failure> {
-    let pieces = shape::chunks(text, CHUNK_BYTES);
+    let pieces = chunks(text, CHUNK_BYTES);
     let mut outcome = Outcome {
         annotations: Annotations::default(),
         tally: Tally::default(),
@@ -506,96 +405,7 @@ pub async fn annotate(ollama: &Ollama, text: &str, deadline: Instant, admission:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
-
-    #[test]
-    fn the_worked_example_obeys_its_own_rules() {
-        // If the example in the prompt were not itself verbatim, the model
-        // would be taught by demonstration to do the thing the words forbid.
-        let transcript = SYSTEM_PROMPT
-            .split("Example transcript:\n")
-            .nth(1)
-            .and_then(|rest| rest.split("\n\nExample reply:").next())
-            .expect("the prompt carries an example transcript");
-        let reply = SYSTEM_PROMPT.rsplit("Example reply:\n").next().unwrap();
-        let raw: Raw = serde_json::from_str(reply).expect("the example reply is valid JSON");
-        let (shaped, tally) = shape::shape(transcript, raw);
-        assert_eq!(tally.dropped, 0, "every pointer in the example is verbatim");
-        assert_eq!(tally.lists_dropped, 0);
-        assert_eq!(shaped.sections.len(), 1);
-        assert_eq!(shaped.lists[0].items.len(), 3);
-    }
-
-    #[test]
-    fn the_example_reply_matches_the_schema_it_is_constrained_to() {
-        let reply: Value = serde_json::from_str(SYSTEM_PROMPT.rsplit("Example reply:\n").next().unwrap()).unwrap();
-        let schema = schema();
-        for key in schema["required"].as_array().unwrap() {
-            assert!(reply.get(key.as_str().unwrap()).is_some(), "example is missing {key}");
-        }
-        assert_eq!(reply.as_object().unwrap().len(), schema["properties"].as_object().unwrap().len());
-    }
-
-    #[test]
-    fn the_example_reply_fits_inside_the_ceilings() {
-        // A worked example the grammar could not have produced would teach the
-        // model an answer it is then forbidden to finish.
-        let reply: Value = serde_json::from_str(SYSTEM_PROMPT.rsplit("Example reply:\n").next().unwrap()).unwrap();
-        let schema = schema();
-        for key in ["emphasis", "tasks", "lists", "sections"] {
-            let max = schema["properties"][key]["maxItems"].as_u64().unwrap();
-            assert!(reply[key].as_array().unwrap().len() as u64 <= max, "{key}");
-        }
-        assert_eq!(schema["properties"]["lists"]["items"]["properties"]["items"]["maxItems"], MAX_LIST_ITEMS);
-    }
-
-    /// A stand-in Ollama on an ephemeral port: `/api/show` reports whether the
-    /// model thinks, and `/api/chat` answers after `delay` with `reply` lines.
-    /// Every chat body it receives is kept, so a test can read what was sent.
-    async fn fake_ollama(thinking: bool, delay: Duration, reply: String) -> (String, Arc<Mutex<Vec<Value>>>) {
-        use axum::routing::post;
-        let seen = Arc::new(Mutex::new(Vec::new()));
-        let log = seen.clone();
-        let app = axum::Router::new()
-            .route(
-                "/api/show",
-                post(move || async move {
-                    axum::Json(json!({ "capabilities": if thinking { json!(["completion", "thinking"]) } else { json!(["completion"]) } }))
-                }),
-            )
-            .route(
-                "/api/chat",
-                post(move |axum::Json(body): axum::Json<Value>| {
-                    let reply = reply.clone();
-                    let log = log.clone();
-                    async move {
-                        log.lock().unwrap().push(body);
-                        tokio::time::sleep(delay).await;
-                        reply
-                    }
-                }),
-            );
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        (format!("http://{address}"), seen)
-    }
-
-    /// An NDJSON stream the way Ollama writes one: content in pieces, then a
-    /// final line carrying the counts.
-    fn stream_of(content: &str, done_reason: &str) -> String {
-        let (head, tail) = content.split_at(content.len() / 2);
-        [
-            json!({ "message": { "content": head }, "done": false }),
-            json!({ "message": { "content": tail }, "done": false }),
-            json!({ "message": { "content": "" }, "done": true, "done_reason": done_reason,
-                    "prompt_eval_count": 640, "prompt_eval_duration": 2_000_000_000u64,
-                    "eval_count": 90, "eval_duration": 22_000_000_000u64, "load_duration": 1_000_000u64 }),
-        ]
-        .iter()
-        .map(|line| format!("{line}\n"))
-        .collect()
-    }
+    use crate::format::fake_ollama::{fake_ollama, stream_of};
 
     const NOTE: &str = "I need to call the plumber on Friday. Buy eggs, milk and bread.";
 

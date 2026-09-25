@@ -1,13 +1,13 @@
-//! Accounts and sync, through the routes a device calls (docs/SYNC.md): a signup, the three ways in, a note written on
-//! one device and read on another, a race lost and told what won, settings, recordings, and the limits.
+//! Sync, through the routes a device calls (docs/SYNC.md): a note written on one device and read on another, a race
+//! lost and told what won, the feed, settings, recordings and pictures, the limits, and what deleting an account takes
+//! with it. And the one check every signed-in route shares, accounts' included.
+//!
+//! How a device gets its token - signing up and the three ways in, and the sign-in limit - is tried in
+//! accounts/tests.rs, beside the module that answers it; here a test signs up in one line and gets on with syncing.
 
-use crate::accounts::RECOVERY_CODES;
 use crate::test_support::{device, login, sheet, wrapped, Harness};
 use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use base64::Engine;
-use ed25519_dalek::Signer;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
@@ -27,89 +27,6 @@ async fn raw(h: &Harness, method: Method, path: &str, token: &str, body: Vec<u8>
     let (status, headers, bytes) = h.send(request).await;
     let rev = headers.get("x-glyph-rev").and_then(|v| v.to_str().ok()).map(str::to_string);
     (status, bytes, rev)
-}
-
-#[tokio::test]
-async fn signs_up_and_in_by_password_and_is_given_the_wrapped_key() {
-    let h = harness();
-    h.signup("matt", &device()).await;
-    let (status, body) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "Matt", "loginSecret": login(1) }))).await;
-    assert_eq!(status, StatusCode::OK);
-    assert!(body["token"].as_str().unwrap().starts_with("glyph1."));
-    assert_eq!(body["wrapped"], json!(wrapped("password")));
-    assert_eq!(body["account"]["handle"], json!("matt"));
-
-    let (status, body) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "matt", "loginSecret": login(2) }))).await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED);
-    let (_, unknown) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "nobody", "loginSecret": login(1) }))).await;
-    assert_eq!(body, unknown, "a wrong password and an unknown handle read the same");
-}
-
-#[tokio::test]
-async fn refuses_a_signup_it_cannot_keep() {
-    let h = harness();
-    h.signup("matt", &device()).await;
-    let (status, _) = h
-        .call(Method::POST, "/glyph/api/v1/signup", None, Some(json!({ "handle": "MATT", "loginSecret": login(1), "wrapped": wrapped("p"), "recovery": sheet() })))
-        .await;
-    assert_eq!(status, StatusCode::CONFLICT, "handles are the same whatever their case");
-    let (status, _) = h.call(Method::POST, "/glyph/api/v1/signup", None, Some(json!({ "handle": "sam", "loginSecret": login(1), "wrapped": wrapped("p") }))).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "no recovery sheet, no account: it is the only way back into the notes");
-    let (status, _) = h
-        .call(Method::POST, "/glyph/api/v1/signup", None, Some(json!({ "handle": "sam", "loginSecret": "hunter2", "wrapped": wrapped("p"), "recovery": sheet() })))
-        .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "a password itself is never what arrives");
-    let (status, _) = h.call(Method::POST, "/glyph/api/v1/signup", None, Some(json!({ "handle": "x", "recovery": sheet() }))).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-}
-
-#[tokio::test]
-async fn signs_in_by_device_key_with_a_nonce_used_once() {
-    let h = harness();
-    let key = device();
-    h.signup("matt", &key).await;
-    let (_, challenge) = h.call(Method::POST, "/glyph/api/v1/login/challenge", None, Some(json!({ "handle": "matt" }))).await;
-    let nonce = challenge["nonce"].as_str().unwrap().to_string();
-    let signature = URL_SAFE_NO_PAD.encode(key.sign(nonce.as_bytes()).to_bytes());
-    let body = json!({ "handle": "matt", "nonce": nonce, "signature": signature });
-    let (status, signed) = h.call(Method::POST, "/glyph/api/v1/login/device", None, Some(body.clone())).await;
-    assert_eq!(status, StatusCode::OK);
-    assert!(signed["wrapped"].is_null(), "a device keeps its own key; nothing wrapped is handed out here");
-    let (again, _) = h.call(Method::POST, "/glyph/api/v1/login/device", None, Some(body)).await;
-    assert_eq!(again, StatusCode::UNAUTHORIZED, "a nonce is spent by its first use");
-
-    // Another device's signature over a fresh nonce does not get in.
-    let (_, challenge) = h.call(Method::POST, "/glyph/api/v1/login/challenge", None, Some(json!({ "handle": "matt" }))).await;
-    let nonce = challenge["nonce"].as_str().unwrap().to_string();
-    let stranger = URL_SAFE_NO_PAD.encode(device().sign(nonce.as_bytes()).to_bytes());
-    let (status, _) = h.call(Method::POST, "/glyph/api/v1/login/device", None, Some(json!({ "handle": "matt", "nonce": nonce, "signature": stranger }))).await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED);
-}
-
-#[tokio::test]
-async fn a_recovery_code_gets_in_once_with_its_own_wrapped_key_and_a_new_password_follows() {
-    let h = harness();
-    h.signup("matt", &device()).await;
-    let (status, body) = h.call(Method::POST, "/glyph/api/v1/login/recovery", None, Some(json!({ "handle": "matt", "login": login(103) }))).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["wrapped"], json!(wrapped("code3")), "the key wrapped under that code, and no other");
-    let token = body["token"].as_str().unwrap().to_string();
-    let (status, _) = h.call(Method::POST, "/glyph/api/v1/login/recovery", None, Some(json!({ "handle": "matt", "login": login(103) }))).await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED, "spent");
-    let (_, left) = h.call(Method::GET, "/glyph/api/v1/recovery", Some(&token), None).await;
-    assert_eq!(left["left"], json!(RECOVERY_CODES - 1));
-
-    let (status, _) = h.call(Method::PUT, "/glyph/api/v1/password", Some(&token), Some(json!({ "loginSecret": login(9), "wrapped": wrapped("new") }))).await;
-    assert_eq!(status, StatusCode::OK);
-    let (status, body) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "matt", "loginSecret": login(9) }))).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["wrapped"], json!(wrapped("new")));
-    let (status, _) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "matt", "loginSecret": login(1) }))).await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED, "the old password is gone");
-
-    let (status, body) = h.call(Method::POST, "/glyph/api/v1/recovery", Some(&token), Some(json!({ "codes": sheet() }))).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["left"], json!(RECOVERY_CODES), "a new sheet is whole again");
 }
 
 #[tokio::test]
@@ -297,21 +214,6 @@ async fn recordings_go_up_and_come_back_byte_for_byte() {
 }
 
 #[tokio::test]
-async fn sign_in_is_rate_limited_per_handle() {
-    let h = harness();
-    h.signup("matt", &device()).await;
-    let mut refused = false;
-    for _ in 0..15 {
-        let (status, _) = h.call(Method::POST, "/glyph/api/v1/login", None, Some(json!({ "handle": "matt", "loginSecret": login(7) }))).await;
-        if status == StatusCode::TOO_MANY_REQUESTS {
-            refused = true;
-            break;
-        }
-    }
-    assert!(refused, "guessing at one account runs out of tries");
-}
-
-#[tokio::test]
 async fn a_browser_may_put_and_delete_and_read_the_recording_revision() {
     let h = harness();
     let request = Request::builder()
@@ -372,4 +274,71 @@ async fn deleting_the_account_takes_everything_it_kept_and_needs_the_password() 
     // The other account is untouched.
     let (_, feed) = h.call(Method::GET, "/glyph/api/v1/notes", Some(&other), None).await;
     assert_eq!(feed["items"].as_array().map(Vec::len), Some(1));
+}
+
+/// The app's limits as docs/SYNC.md gives them, a blob at each and one past it: 1.4 MB for a note and 350 KB for the
+/// settings, counted in base64url characters. Written out rather than read from sync.rs, because they are a contract
+/// with every device already out there, and a change to one should have to change this too.
+#[tokio::test]
+async fn a_note_and_the_settings_are_taken_up_to_their_limits_and_not_a_character_past() {
+    let h = harness();
+    let token = h.signup("matt", &device()).await;
+    let (status, _) = h.call(Method::PUT, "/glyph/api/v1/notes/n-1", Some(&token), Some(json!({ "base": 0, "blob": "A".repeat(1_400_000) }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = h.call(Method::PUT, "/glyph/api/v1/notes/n-2", Some(&token), Some(json!({ "base": 0, "blob": "A".repeat(1_400_001) }))).await;
+    assert_eq!((status, body), (StatusCode::BAD_REQUEST, json!({ "error": "That note is empty or too large to sync." })));
+    let (status, _) = h.call(Method::PUT, "/glyph/api/v1/notes/n-3", Some(&token), Some(json!({ "base": 0, "blob": "" }))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "an empty note is a deletion, which is DELETE's");
+
+    let (status, first) = h.call(Method::PUT, "/glyph/api/v1/prefs", Some(&token), Some(json!({ "base": 0, "blob": "A".repeat(350_000) }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = h.call(Method::PUT, "/glyph/api/v1/prefs", Some(&token), Some(json!({ "base": first["rev"], "blob": "A".repeat(350_001) }))).await;
+    assert_eq!((status, body), (StatusCode::BAD_REQUEST, json!({ "error": "Those settings are empty or too large to sync." })));
+}
+
+/// The feed also reads a `since` below zero as zero (sync.rs `feed`). That is not tried here: revisions start at 1, so
+/// nothing a device can see tells the two apart.
+#[tokio::test]
+async fn a_page_of_the_feed_is_at_least_one_note_whatever_the_limit() {
+    let h = harness();
+    let token = h.signup("matt", &device()).await;
+    for i in 0..3 {
+        h.call(Method::PUT, &format!("/glyph/api/v1/notes/n-{i}"), Some(&token), Some(json!({ "base": 0, "blob": "YQ" }))).await;
+    }
+    for limit in ["0", "-5"] {
+        let (status, page) = h.call(Method::GET, &format!("/glyph/api/v1/notes?since=0&limit={limit}"), Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!((page["items"].as_array().unwrap().len(), page["more"].clone()), (1, json!(true)), "limit={limit}");
+    }
+}
+
+/// A recording or a picture is taken up to 64 MiB and refused at a byte more. Written out, as the note's and the
+/// settings' limits are above. A route that lost its own limit would fall back to axum's two megabytes, and only a file
+/// past those shows it.
+#[tokio::test]
+async fn a_recording_is_taken_up_to_sixty_four_megabytes_and_not_a_byte_past() {
+    let h = harness();
+    let token = h.signup("matt", &device()).await;
+    let (status, _, _) = raw(&h, Method::PUT, "/glyph/api/v1/recordings/r-long?base=0", &token, vec![7; 64 * 1024 * 1024]).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _, _) = raw(&h, Method::PUT, "/glyph/api/v1/recordings/r-longer?base=0", &token, vec![7; 64 * 1024 * 1024 + 1]).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    let (status, _, _) = raw(&h, Method::GET, "/glyph/api/v1/recordings/r-longer", &token, Vec::new()).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "nothing of it was kept");
+}
+
+/// What a device asks before it uploads a picture (docs/SYNC.md, settlePictures): a HEAD, answered through the GET
+/// route with the revision in its header and no body.
+#[tokio::test]
+async fn a_head_on_a_file_answers_its_revision_without_its_bytes() {
+    let h = harness();
+    let token = h.signup("matt", &device()).await;
+    let (_, body, _) = raw(&h, Method::PUT, "/glyph/api/v1/recordings/i-png-cat?base=0", &token, vec![7; 4096]).await;
+    let rev: Value = serde_json::from_slice(&body).unwrap();
+    let (status, bytes, header_rev) = raw(&h, Method::HEAD, "/glyph/api/v1/recordings/i-png-cat", &token, Vec::new()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(bytes.is_empty(), "a HEAD carries no body");
+    assert_eq!(header_rev, Some(rev["rev"].to_string()));
+    let (status, _, header_rev) = raw(&h, Method::HEAD, "/glyph/api/v1/recordings/i-png-dog", &token, Vec::new()).await;
+    assert_eq!((status, header_rev), (StatusCode::NOT_FOUND, None), "one the account lacks is sent");
 }

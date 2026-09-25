@@ -19,7 +19,7 @@ use axum::{
 use std::sync::Arc;
 
 /// Where the hosted MCP server listens: `GLYPH_MCP_UPSTREAM`, `http://127.0.0.1:18820` unless set.
-pub const DEFAULT_UPSTREAM: &str = "http://127.0.0.1:18820";
+const DEFAULT_UPSTREAM: &str = "http://127.0.0.1:18820";
 
 /// A request body larger than this is refused before it is read: a note is under 1.4 MB sealed, and a tool call
 /// carries at most one.
@@ -28,9 +28,10 @@ const MOST_BYTES: usize = 4 * 1024 * 1024;
 /// Headers that belong to one hop and are never carried across: RFC 9110 §7.6.1, plus the two the next hop sets itself.
 const HOP_BY_HOP: &[&str] = &["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "host", "content-length"];
 
+/// The hosted MCP server this route hands requests on to: its address, and the one client every request goes by.
 pub struct Upstream {
-    pub base: String,
-    pub client: reqwest::Client,
+    base: String,
+    client: reqwest::Client,
 }
 
 impl Upstream {
@@ -123,6 +124,49 @@ mod tests {
         assert_eq!(answer.text().await.unwrap(), "{\"got\":\"{\\\"hello\\\":1}\"}");
         let under = client.get(format!("{front}/glyph/api/mcp/.well-known/openid-configuration?x=1")).send().await.unwrap();
         assert_eq!(under.text().await.unwrap(), "path /glyph/api/mcp/.well-known/openid-configuration?x=1");
+    }
+
+    #[tokio::test]
+    async fn headers_that_belong_to_one_hop_are_not_carried_across_either_way() {
+        async fn shows(headers: axum::http::HeaderMap) -> Response {
+            let saw = |name: &str| headers.get(name).and_then(|v| v.to_str().ok()).unwrap_or("none").to_string();
+            let seen = format!("x-custom={} proxy-authorization={}", saw("x-custom"), saw("proxy-authorization"));
+            ([("proxy-authenticate", "Basic realm=\"hop\""), ("x-kept", "yes")], seen).into_response()
+        }
+        let app = Router::new().route("/glyph/api/mcp", any(shows));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let upstream = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let front = proxied(&upstream).await;
+
+        let answer = reqwest::Client::new()
+            .get(format!("{front}/glyph/api/mcp"))
+            .header("x-custom", "1")
+            .header("proxy-authorization", "Basic c2VjcmV0")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(answer.headers().get("x-kept").unwrap(), "yes");
+        assert!(answer.headers().get("proxy-authenticate").is_none(), "the upstream's hop-by-hop header stops at the proxy");
+        assert_eq!(answer.text().await.unwrap(), "x-custom=1 proxy-authorization=none", "and the client's stops on the way in");
+    }
+
+    #[tokio::test]
+    async fn a_request_past_four_megabytes_is_refused_before_it_is_passed_on() {
+        // A stand-in that takes any size and says how much arrived, so the only limit in the way is the proxy's.
+        let app = Router::new()
+            .route("/glyph/api/mcp", post(|body: axum::body::Bytes| async move { format!("{} bytes", body.len()) }))
+            .layer(axum::extract::DefaultBodyLimit::disable());
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let upstream = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let front = proxied(&upstream).await;
+
+        let answer = reqwest::Client::new().post(format!("{front}/glyph/api/mcp")).body(vec![b'a'; MOST_BYTES + 1]).send().await.unwrap();
+        assert_eq!(answer.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(answer.text().await.unwrap(), r#"{"error":"that request is too large"}"#);
+        let answer = reqwest::Client::new().post(format!("{front}/glyph/api/mcp")).body(vec![b'a'; MOST_BYTES]).send().await.unwrap();
+        assert_eq!(answer.text().await.unwrap(), format!("{MOST_BYTES} bytes"), "four megabytes exactly is carried whole");
     }
 
     #[tokio::test]

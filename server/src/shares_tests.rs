@@ -72,3 +72,60 @@ async fn a_share_needs_an_account_to_write_and_a_proper_id_and_blob() {
     let (status, _) = service.call(Method::GET, "/glyph/api/v1/shares/nothing-here-at-all-000", None, None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+/// docs/SHARING.md's limit, and src/app/share/share.ts's copy of it: 6 MB of base64url, and not a character more.
+/// The store's own test of the per-account limit runs at a limit of two; this is the number a device meets, and the
+/// words it is told.
+#[tokio::test]
+async fn an_account_keeps_five_hundred_shares_up_and_is_told_to_take_one_down_for_another() {
+    let service = service();
+    let owner = service.signup("sam", &device()).await;
+    let blob = Some(json!({ "blob": "c2VhbGVk" }));
+    for i in 0..500 {
+        let (status, _) = service.call(Method::PUT, &format!("/glyph/api/v1/shares/share-{i:016}"), Some(&owner), blob.clone()).await;
+        assert_eq!(status, StatusCode::OK, "share {i}");
+    }
+    let (status, body) = service.call(Method::PUT, "/glyph/api/v1/shares/share-one-too-many-000", Some(&owner), blob.clone()).await;
+    assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "This account shares as much as it can: take a share down first." })));
+    let (status, _) = service.call(Method::PUT, &format!("/glyph/api/v1/shares/share-{:016}", 0), Some(&owner), Some(json!({ "blob": "ZWRpdGVk" }))).await;
+    assert_eq!(status, StatusCode::OK, "an edit of one it has is not one more");
+}
+
+#[tokio::test]
+async fn a_share_is_taken_up_to_six_million_characters_and_not_one_past() {
+    let service = service();
+    let owner = service.signup("sam", &device()).await;
+    let path = format!("/glyph/api/v1/shares/{ID}");
+    let (status, _) = service.call(Method::PUT, &path, Some(&owner), Some(json!({ "blob": "A".repeat(6_000_000) }))).await;
+    assert_eq!(status, StatusCode::OK, "a whole book fits under the route's own body limit");
+    let (status, body) = service.call(Method::PUT, &path, Some(&owner), Some(json!({ "blob": "A".repeat(6_000_001) }))).await;
+    assert_eq!((status, body), (StatusCode::BAD_REQUEST, json!({ "error": "That share is empty or too large." })));
+}
+
+/// Reading is open, so it is limited by address: 240 a minute, the bucket full at the start, and another reader's
+/// address counted apart.
+#[tokio::test]
+async fn reading_shares_is_limited_by_the_reader_s_address() {
+    let service = service();
+    let from = |address: &str| {
+        let mut read = request(Method::GET, &format!("/glyph/api/v1/shares/{ID}"), None, None);
+        read.headers_mut().insert("x-forwarded-for", address.parse().unwrap());
+        read
+    };
+    for i in 0..240 {
+        let (status, _, _) = service.send(from("203.0.113.9")).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "read {i} of the minute's 240 is answered");
+    }
+    // The bucket refills at four a second, so a slow machine may earn a few more; the refusal still comes.
+    let mut refused = None;
+    for _ in 0..60 {
+        let (status, _, bytes) = service.send(from("203.0.113.9")).await;
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            refused = Some(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap());
+            break;
+        }
+    }
+    assert_eq!(refused, Some(json!({ "error": "Too many reads in a minute. Try again shortly." })));
+    let (status, _, _) = service.send(from("198.51.100.1")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "another reader is not held to the first one's minute");
+}

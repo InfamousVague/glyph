@@ -33,7 +33,7 @@ use std::time::Instant;
 /// A share's ciphertext, as base64url: a book of its index and every chapter, generously.
 const SHARE_LIMIT: usize = 6_000_000;
 /// The most shares one account keeps up at once.
-pub const SHARES_PER_ACCOUNT: i64 = 500;
+const SHARES_PER_ACCOUNT: i64 = 500;
 /// Reads of shares, per address, per minute: a reader opening a book and its chapters, several times over.
 const READS_PER_MINUTE: u32 = 240;
 /// How long a share's id may be. The app's are 128 random bits, which is 22 base64url characters.
