@@ -71,11 +71,16 @@
 //! list back. README "Moving to another domain" is the procedure.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tauri::http::{header, Response, StatusCode};
 use tauri::{AppHandle, Manager, Runtime, State};
+
+// A poisoned lock is recovered (`crate::lock`): every write below is a whole
+// file, so a panic mid-command leaves either the old state or the new one,
+// never half.
+use crate::lock::lock;
 
 /// What this binary provides to a bundle. See the module header.
 ///
@@ -388,12 +393,6 @@ pub fn install<R: Runtime>(app: &tauri::App<R>) {
         installing: tauri::async_runtime::Mutex::new(()),
         embedded: Mutex::new(None),
     });
-}
-
-/// A poisoned lock is recovered: every write below is a whole file, so a panic
-/// mid-command leaves either the old state or the new one, never half.
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 // ---- disk -----------------------------------------------------------------------

@@ -62,6 +62,13 @@ use crate::whisper::model::{self, ModelStatus};
 #[cfg(not(target_os = "ios"))]
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 
+// Every value behind these locks is either whole or `None`, so a lock some
+// earlier command panicked while holding is recovered, not obeyed: refusing
+// every capture for the rest of the process over one panic is how a bug
+// becomes a brick. See `crate::lock`.
+#[cfg(not(target_os = "ios"))]
+use crate::lock::lock;
+
 #[cfg(not(target_os = "ios"))]
 use tauri::Emitter;
 
@@ -130,15 +137,6 @@ pub struct CaptureState {
     /// Whether a refine pass is running; a second is refused, not queued.
     #[cfg(not(target_os = "ios"))]
     refining: AtomicBool,
-}
-
-/// Recovers a guard from a lock some earlier command panicked while holding -
-/// the same reasoning as `NotesStore::lock`: every value behind these locks is
-/// either whole or `None`, and refusing every capture for the rest of the
-/// process over one panic is how a bug becomes a brick.
-#[cfg(not(target_os = "ios"))]
-fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// Hands the capture state to Tauri. Called once, from `setup`.

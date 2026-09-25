@@ -2,6 +2,10 @@
 // crate owns what has to outlive it or reach past it: the notes store, the
 // Taptic Engine, and (later) the voice capture that runs without the webview.
 
+// Building blocks every other module shares, each written once. See each header.
+// The poison-tolerant lock, Tauri-free so whisper/ and llm/ can use it.
+mod lock;
+
 // The notes themselves. `pub`, and free of Tauri types, so a caller with no
 // Tauri in its process could reach it over JNI - DESIGN 6.1's capture service,
 // which did not ship in that form (capture runs in the page; DESIGN 13). The

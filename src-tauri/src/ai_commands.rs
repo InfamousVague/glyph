@@ -39,6 +39,9 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
 use crate::llm::model::{self, LlmSpec};
+// A lock some earlier command panicked while holding is recovered, not
+// obeyed; see `crate::lock`.
+use crate::lock::lock;
 
 #[cfg(not(target_os = "ios"))]
 use crate::llm::engine::{Llm, Request};
@@ -120,12 +123,6 @@ impl AiState {
             flag.store(true, Ordering::Relaxed);
         }
     }
-}
-
-/// Recovers a guard from a lock some earlier command panicked while holding;
-/// the same reasoning as `NotesStore::lock`.
-fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// Hands the state to Tauri. Called once, from `setup`. Touches nothing.

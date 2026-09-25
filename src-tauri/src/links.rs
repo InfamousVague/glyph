@@ -12,16 +12,28 @@ use tauri_plugin_deep_link::DeepLinkExt;
 /// The event that says a link is waiting.
 const ARRIVED: &str = "glyph://link";
 
+/// The links not yet taken. A lock poisoned by a panic elsewhere is recovered
+/// (`crate::lock`), so a link that arrives afterwards is still kept and still
+/// handed over; this used to skip the lock on poison, which dropped every later
+/// link without a word.
 #[derive(Default)]
 pub struct Waiting(Mutex<Vec<String>>);
+
+impl Waiting {
+    fn add(&self, urls: Vec<String>) {
+        crate::lock::lock(&self.0).extend(urls);
+    }
+
+    fn take(&self) -> Vec<String> {
+        std::mem::take(&mut *crate::lock::lock(&self.0))
+    }
+}
 
 fn keep<R: Runtime>(app: &tauri::AppHandle<R>, urls: Vec<String>) {
     if urls.is_empty() {
         return;
     }
-    if let Ok(mut waiting) = app.state::<Waiting>().0.lock() {
-        waiting.extend(urls);
-    }
+    app.state::<Waiting>().add(urls);
     let _ = app.emit(ARRIVED, ());
 }
 
@@ -39,5 +51,26 @@ pub fn install<R: Runtime>(app: &tauri::App<R>) {
 /// The links waiting, handed over once: a link opens the app's copy of it once, however often the page asks.
 #[tauri::command]
 pub fn links_take(waiting: State<'_, Waiting>) -> Vec<String> {
-    waiting.0.lock().map(|mut kept| std::mem::take(&mut *kept)).unwrap_or_default()
+    waiting.take()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn links_are_handed_over_once_even_after_a_panic_poisoned_the_lock() {
+        let waiting = std::sync::Arc::new(Waiting::default());
+        waiting.add(vec!["ghostmd://open#before".to_string()]);
+        let holder = std::sync::Arc::clone(&waiting);
+        let _ = std::thread::spawn(move || {
+            let _guard = holder.0.lock().unwrap();
+            panic!("a holder dies with the guard");
+        })
+        .join();
+        assert!(waiting.0.is_poisoned(), "the setup has to poison it, or this proves nothing");
+        waiting.add(vec!["ghostmd://open#after".to_string()]);
+        assert_eq!(waiting.take(), ["ghostmd://open#before", "ghostmd://open#after"]);
+        assert!(waiting.take().is_empty(), "taken once");
+    }
 }

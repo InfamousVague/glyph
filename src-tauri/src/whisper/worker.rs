@@ -76,7 +76,7 @@ impl Shared {
     /// lock can only mean a panic somewhere that held it for a moment, and
     /// refusing all further audio over that would be worse than the panic.
     fn lock(&self) -> std::sync::MutexGuard<'_, Mailbox> {
-        self.mailbox.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        crate::lock::lock(&self.mailbox)
     }
 }
 

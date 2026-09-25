@@ -71,7 +71,7 @@ fn load(spec: &ModelSpec) -> Option<Engine> {
 /// two tests starting together do not both run `say` into the same file.
 fn fixture() -> Option<Vec<f32>> {
     static MAKING: Mutex<()> = Mutex::new(());
-    let _one_at_a_time = MAKING.lock().unwrap_or_else(|p| p.into_inner());
+    let _one_at_a_time = crate::lock::lock(&MAKING);
     let wav_path = models_dir().join("fixture.wav");
     if !wav_path.exists() {
         std::fs::create_dir_all(models_dir()).ok()?;

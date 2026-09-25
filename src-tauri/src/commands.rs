@@ -78,9 +78,9 @@ impl NotesStore {
     /// committed the row or not. So the real choice is between recovering the
     /// guard and refusing every note operation for the rest of the process's
     /// life because one of them once panicked - which is how an app goes from
-    /// having a bug to being a brick.
+    /// having a bug to being a brick. The recovery itself is `crate::lock`'s.
     pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, Library> {
-        self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        crate::lock::lock(&self.0)
     }
 }
 
