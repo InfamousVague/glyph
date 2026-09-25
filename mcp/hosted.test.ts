@@ -4,18 +4,17 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { derive, passwordSalt, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
+import { toBase64Url } from '../src/app/core/sync/crypto.ts';
 import { fakeService, FAST } from '../src/test/fakeService.ts';
-import { ClaudeMemory } from './fake.ts';
 import { freePort } from './freePort.ts';
 import { hostedApp } from './hosted.ts';
-import { aNote, asText } from './testKit.ts';
+import { aNote, asText, ClaudeMemory, completeSignIn, playSignInPage, readSignInPage } from './testKit.ts';
 
 /**
  * The hosted server, connected to as Claude connects: the client library's own OAuth flow (discovery from the 401,
  * registration, the sign-in page, the code, the tokens), then the tools, against the sync service stood in for in
- * memory (src/test/fakeService.ts). The browser's part - the sign-in page's script - is played by the test with the
- * same crypto; loginPage.test.ts runs the page's own.
+ * memory (src/test/fakeService.ts). The browser's part - the sign-in page's script - is played with the same crypto
+ * by testKit.ts's playSignInPage; loginPage.test.ts runs the page's own.
  */
 
 const CALLBACK = 'http://localhost:9999/callback';
@@ -36,32 +35,18 @@ async function hostedOnAPort(clock: { now: number }) {
     const listening = hosted.app.listen(port, '127.0.0.1', () => resolve(listening));
   });
 
-  /** The page's `data-` fields: the sign-in request, where it posts, and where Cancel goes. */
-  const pageFields = async (authorizeUrl: URL) => {
-    const page = await fetch(authorizeUrl);
+  /** The sign-in page Claude sent the person to, as the server wrote it: found, and saying where the key is kept. */
+  const signInPage = async (authorizeUrl: URL) => {
+    const page = await readSignInPage(authorizeUrl);
     expect(page.status).toBe(200);
-    const html = await page.text();
-    expect(html).toContain('keeps it in memory only');
-    // Written into the page escaped, as HTML attributes are: an address's `&` is `&amp;` there.
-    const field = (name: string) => new RegExp(`data-${name}="([^"]+)"`).exec(html)?.[1]?.replace(/&amp;/g, '&') ?? '';
-    return { request: field('request'), base: field('base'), deny: field('deny') };
+    expect(page.html).toContain('keeps it in memory only');
+    expect(page.request && page.base).toBeTruthy();
+    return page;
   };
 
-  /** The page's own answer to the server, with this key and token: what `/authorize/complete` says to it. */
-  const complete = async (request: string, fields: { handle: string; token: string; accountKey: string }) => {
-    const done = await fetch(`${url.href}/authorize/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request, ...fields }) });
-    return { status: done.status, body: (await done.json()) as { redirect?: string; error?: string } };
-  };
-
-  /** The sign-in page's script, played here: the same halves derived, the key unwrapped, and handed over. */
+  /** The person signing in on the page, its script played by the kit, and where the page sends them back to. */
   const signInOnThePage = async (authorizeUrl: URL, handle = 'matt', password = 'correct horse'): Promise<URL> => {
-    const { request, base } = await pageFields(authorizeUrl);
-    expect(request && base).toBeTruthy();
-    const { login, wrapKey } = await derive(password, passwordSalt(handle), FAST);
-    const answer = await service.fetcher('https://fake.test/glyph/api/v1/login', { method: 'POST', body: JSON.stringify({ handle, loginSecret: login }) }).then((r) => r.json() as Promise<{ token: string; wrapped: string; account: { handle: string } }>);
-    const key = await unwrap(answer.wrapped, wrapKey, true);
-    const raw = toBase64Url(new Uint8Array(await crypto.subtle.exportKey('raw', key)));
-    const done = await complete(request, { handle: answer.account.handle, token: answer.token, accountKey: raw });
+    const done = await playSignInPage(await signInPage(authorizeUrl), { handle, password, rounds: FAST, fetcher: service.fetcher });
     expect(done.status, done.body.error).toBe(200);
     return new URL(done.body.redirect!);
   };
@@ -86,7 +71,7 @@ async function hostedOnAPort(clock: { now: number }) {
   };
 
   const close = () => new Promise<void>((resolve) => server.close(() => resolve()));
-  return { service, origin, url, hosted, pageFields, complete, signInOnThePage, firstContact, connectAsClaude, close };
+  return { service, origin, url, hosted, signInPage, signInOnThePage, firstContact, connectAsClaude, close };
 }
 
 describe('Claude connecting to the hosted server', () => {
@@ -209,7 +194,7 @@ describe('what ends a sign-in, and what the server refuses', () => {
 
   it('sends a person who cancels back to Claude, saying they did not sign in, with Claude’s own state', async () => {
     const { memory } = await at.firstContact();
-    const deny = new URL((await at.pageFields(memory.sentTo!)).deny);
+    const deny = new URL((await at.signInPage(memory.sentTo!)).deny);
     expect(deny.origin + deny.pathname).toBe(CALLBACK);
     expect(deny.searchParams.get('error')).toBe('access_denied');
     expect(deny.searchParams.get('error_description')).toBe('The person did not sign in.');
@@ -253,12 +238,12 @@ describe('what ends a sign-in, and what the server refuses', () => {
     try {
       const sessions = at.hosted.sessions.size;
       const { memory } = await at.firstContact();
-      const { request } = await at.pageFields(memory.sentTo!);
-      const short = await at.complete(request, { handle: 'matt', token: at.service.signedIn(), accountKey: toBase64Url(new Uint8Array(16).fill(7)) });
+      const page = await at.signInPage(memory.sentTo!);
+      const short = await completeSignIn(page, { handle: 'matt', token: at.service.signedIn(), accountKey: toBase64Url(new Uint8Array(16).fill(7)) });
       expect(short).toEqual({ status: 400, body: { error: 'That is not an account key.' } });
       // The reason goes to the journal, for whoever runs the server; the page says what the person can act on.
       expect(said.mock.calls.map((c) => String(c[0]))).toContain('glyph-mcp: the account key was refused: not 32 bytes\n');
-      const unknown = await at.complete(request, { handle: 'matt', token: 'tok-never', accountKey: toBase64Url(new Uint8Array(32).fill(7)) });
+      const unknown = await completeSignIn(page, { handle: 'matt', token: 'tok-never', accountKey: toBase64Url(new Uint8Array(32).fill(7)) });
       expect(unknown.status).toBe(401);
       expect(unknown.body.error).toContain('Sign in again');
       expect(at.hosted.sessions.size).toBe(sessions);
