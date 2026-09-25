@@ -1,10 +1,10 @@
 //! Starting over: the one command that empties the phone of what Glyph made.
 //!
-//! `reset_local_data({ models })` removes every note from the store (and the
-//! captures table with it), the recordings and pictures beside the database,
-//! and - only when asked - the models directory, whisper's and the
-//! formatter's alike. The page clears what it keeps itself (preferences, the
-//! guide's seen flag, the refine queue) and reloads.
+//! `reset_local_data({ models })` removes every note from the library (the
+//! files, what is kept beside them, and the index), the recordings and
+//! pictures, the Notion sign-in, and - only when asked - the models directory,
+//! whisper's and the formatter's alike. The page clears what it keeps itself
+//! (preferences, the guide's seen flag, the refine queue) and reloads.
 //!
 //! Directories are removed whole and not recreated: every writer in the crate
 //! creates its directory before it writes (`images::adopt`,
