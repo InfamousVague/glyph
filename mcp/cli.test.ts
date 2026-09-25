@@ -158,12 +158,10 @@ describe('the commands', () => {
     expect(readStored(file())!.token).not.toBe(lapsed);
   });
 
-  it('says the session came from the file when only GLYPH_PASSWORD is set, since that is where it came from', async () => {
-    await runCli(['login', 'matt'], io({ GLYPH_PASSWORD: 'correct horse' }));
-    await runCli(['status'], io({ GLYPH_PASSWORD: 'correct horse' }));
-    expect(said.at(-1)).toContain(`Session: ${file()}\n`);
+  it('signs in from GLYPH_HANDLE and GLYPH_PASSWORD with no session kept, and says so', async () => {
     await runCli(['status'], io({ GLYPH_HANDLE: 'matt', GLYPH_PASSWORD: 'correct horse' }));
-    expect(said.at(-1)).toContain('Session: from GLYPH_HANDLE and GLYPH_PASSWORD\n');
+    expect(said.at(-1)).toBe('Signed in as matt at https://fake.test/glyph/api: 0 notes.\nSession: from GLYPH_HANDLE and GLYPH_PASSWORD\n');
+    expect(existsSync(file())).toBe(false);
   });
 
   it('forgets the session on logout, and then is not signed in', async () => {

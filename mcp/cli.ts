@@ -115,19 +115,19 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<void> 
   const api = (io.env.GLYPH_API || DEFAULT_API).replace(/\/+$/, '');
   const signIn = (handle: string, password: string) => GlyphAccount.signIn(api, handle, password, { ...io.signIn, label: 'Claude' });
 
-  /** The account to serve: a sign-in from the environment, or the kept session - and which of the two it was. */
-  const openAccount = async (): Promise<{ account: GlyphAccount; from: string }> => {
+  /** The account to serve: a sign-in from the environment, or the kept session. */
+  const openAccount = async (): Promise<GlyphAccount> => {
     const handle = io.env.GLYPH_HANDLE;
     const password = io.env.GLYPH_PASSWORD;
     if (handle && password) {
       const session = await signIn(handle, password);
-      return { account: new GlyphAccount(session, { fetcher: io.signIn?.fetcher }), from: 'from GLYPH_HANDLE and GLYPH_PASSWORD' };
+      return new GlyphAccount(session, { fetcher: io.signIn?.fetcher });
     }
     const stored = readStored(sessionFile);
     if (!stored) throw new Error(`Not signed in. Run: glyph-mcp login <handle>   (or set GLYPH_HANDLE and GLYPH_PASSWORD)`);
     const account = new GlyphAccount(stored, { save: (session) => writeStored(sessionFile, session), fetcher: io.signIn?.fetcher });
     await account.resume();
-    return { account, from: sessionFile };
+    return account;
   };
 
   const [command, ...rest] = argv;
@@ -143,10 +143,10 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<void> 
       return;
     }
     case 'status': {
-      const { account, from } = await openAccount();
+      const account = await openAccount();
       await account.pull();
       const notes = await account.list({ archived: true });
-      io.err(`Signed in as ${account.handle} at ${account.api}: ${notes.length} notes.\nSession: ${from}\n`);
+      io.err(`Signed in as ${account.handle} at ${account.api}: ${notes.length} notes.\nSession: ${io.env.GLYPH_PASSWORD ? 'from GLYPH_HANDLE and GLYPH_PASSWORD' : sessionFile}\n`);
       return;
     }
     case 'logout':
@@ -158,7 +158,7 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<void> 
       return;
     case undefined:
     case 'serve': {
-      const { account } = await openAccount();
+      const account = await openAccount();
       const server = buildServer(account);
       await server.connect(io.transport ? io.transport() : new StdioServerTransport());
       io.err(`glyph-mcp ${VERSION}: serving ${account.handle}'s notes over stdio.\n`);
