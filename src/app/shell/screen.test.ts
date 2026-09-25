@@ -10,9 +10,9 @@ describe('the screens', () => {
   it('makes each capture a fresh one, keyed by when it began, into a note only when it was that note’s', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(1000);
-    expect(captureScreen(true)).toEqual({ name: 'capture', key: 1000, fromAssistant: true, stop: 0 });
+    expect(captureScreen(true)).toStrictEqual({ name: 'capture', key: 1000, fromAssistant: true, stop: 0 });
     vi.setSystemTime(2000);
-    expect(captureScreen(false, 'a')).toEqual({ name: 'capture', key: 2000, fromAssistant: false, stop: 0, noteId: 'a' });
+    expect(captureScreen(false, 'a')).toStrictEqual({ name: 'capture', key: 2000, fromAssistant: false, stop: 0, noteId: 'a' });
   });
 
   it('says which screens are places, and where on the trail each is', () => {

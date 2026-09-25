@@ -44,6 +44,22 @@ describe('a shared link arriving', () => {
     expect(fork).toHaveBeenCalledTimes(1);
   });
 
+  it('in the address is saved once even where the address cannot be rewritten', () => {
+    history.replaceState(null, '', '/#fork=https://attack.fm/glyph/read.html#abc.def');
+    // The link stays in the address, so only the hook's own memory stops a second copy.
+    const rewrite = vi.spyOn(history, 'replaceState').mockImplementation(() => undefined);
+    const fork = vi.fn(async () => undefined);
+    try {
+      show(<Probe loading={false} fork={fork} />);
+      rerender(<Probe loading fork={fork} />);
+      rerender(<Probe loading={false} fork={fork} />);
+      expect(location.hash).toBe('#fork=https://attack.fm/glyph/read.html#abc.def');
+      expect(fork).toHaveBeenCalledTimes(1);
+    } finally {
+      rewrite.mockRestore();
+    }
+  });
+
   it('from the native side is followed once the notes are read, by the saver of the moment it arrives', () => {
     const first = vi.fn(async () => undefined);
     const second = vi.fn(async () => undefined);
