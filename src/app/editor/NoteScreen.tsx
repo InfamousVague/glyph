@@ -1,7 +1,7 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { createPortal } from 'react-dom';
 import { useTopBarTools } from '../core/topBarTools.ts';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sparkles } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import type { EditorView } from '@codemirror/view';
@@ -142,6 +142,13 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
    */
   const [bookBody, setBookBody] = useState(note.body);
   const isBook = useMemo(() => isBookBody(bookBody), [bookBody]);
+  // A rename from the tab lands in the live body (editor/useNoteSaving.ts), and the index is drawn from its own copy:
+  // it takes the new name too, or its next change would write the old one back.
+  useEffect(() => {
+    if (rename?.id === note.id) setBookBody(body.current);
+    // Each asking is its own, as it is for the saving.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rename?.asked]);
   const paging = isBook && !source;
   const typed = !!canvas || isBook;
   const showSource = (next: boolean) => {
