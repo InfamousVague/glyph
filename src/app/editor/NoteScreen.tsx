@@ -22,6 +22,7 @@ import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
 import { BookBar, BookFoot, BookView } from '../book/BookView.tsx';
 import { isBookBody, type BookPlace } from '../book/book.ts';
+import { writeBookSpot } from '../book/bookSpot.ts';
 import { withFrontMatterTitle } from '../core/frontMatter.ts';
 import { authorsOf } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
@@ -650,6 +651,11 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // The note opens where it was left, and remembers where it is left (editor/notePlace.ts).
   // Opened at an item, the note goes to that line rather than back to where it was left last time.
   useNotePlace(note.id, page, view, shown === 'raw' && !at);
+  // A chapter open is where its book was left, so the book opens here again from outside it (book/bookSpot.ts).
+  const inBook = book?.book.id ?? null;
+  useEffect(() => {
+    if (inBook) writeBookSpot(inBook, { kind: 'chapter', title });
+  }, [inBook, title]);
   /** Whether this note has a bookmark, for the header's button. */
   const [marked, setMarked] = useState(() => bookmarkLineIn(note.body) !== null || readBookmark(note.id) !== null);
   useEffect(() => setMarked(bookmarkLineIn(note.body) !== null || readBookmark(note.id) !== null), [note.id, note.body]);
@@ -984,6 +990,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               openCanvas={onNewCanvas}
               titles={allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
+              spot={{ id: note.id, page }}
               onChange={(next) => {
                 setBookBody(next);
                 onChange(next);

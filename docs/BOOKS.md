@@ -70,6 +70,13 @@ What to know before the walk.
 - **Reading straight through** (*Read straight through* in the index): the chapters one after another as pages, each
   drawn as its note reads, with a rail down the side to jump between them; a canvas chapter says to open it, and one
   not written yet says so. *Index* goes back.
+- **It opens where it was left** (book/bookSpot.ts; Matt: "When opening a book re open to the same spot it was last
+  opened"). A book remembers whether it was last at its index, in a chapter, or reading straight through. Opening it
+  from outside - the home page's Library, the sidebar, the notes list, search, a `[[link]]` - goes back there. A
+  chapter opens in the book's place, at the line its note was left at (editor/notePlace.ts), and the read-through
+  opens at the chapter and line it was scrolled to. From inside the book it does not: the chapter bar's book button,
+  its tab, Back and Forward show the index as before, since otherwise there would be no way back to it from a chapter.
+  A chapter taken out of the book, or whose note is gone, is not a spot to go back to, and the book opens at its index.
 - **Reordering by drag.** The rows of the index and the pages in the New book sheet lift by their grip
   (book/rowDrag.ts): at once with a mouse, after a short hold on touch, so a scroll is still a scroll. The arrows stay
   for a place at a time.

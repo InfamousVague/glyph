@@ -4644,3 +4644,29 @@ stood behind, not itself.
   each draw (editor/textEffects.ts `textAbove`, with the view's character boxes as its probe) and drawn on the next
   frame. The haze changes no layout, so the second measure finds what the first did and the loop ends there.
 - The cheat sheet's example has a line above its words, which would otherwise show only bold words.
+
+## 120. A book opens where it was left (2026-09-25)
+
+Matt: "When opening a book re open to the same spot it was last opened." A book is read in three places, and each
+book keeps (book/bookSpot.ts, one localStorage key for the hundred most recent books) whichever of them it was last
+at:
+
+- **The index.** Written whenever the index is shown.
+- **A chapter**, by title, since that is how the book finds its chapters (a chapter moved in the index is still the
+  spot). Written when a chapter note is on screen with its book bar. The chapter's own note already keeps its place
+  on the page (editor/notePlace.ts), so going back to the chapter goes back to the line too.
+- **Reading straight through**: the chapter at the top of the page and how many pixels into it. That is a chapter
+  rather than a page offset, so a chapter that grew above the place does not move it. It is written as scrolling
+  settles, and when the app is hidden or the book closes. On the way back, the page is scrolled once the chapter is
+  drawn, and again 150 ms later once the editors have measured their lines, unless the person scrolls first: the same
+  wait as a note's place.
+
+**Only from outside the book.** Opening the book from the home page's Library, the sidebar, the notes list, the
+palette's notes by name, or a `[[link]]` goes to the spot (App.tsx `openNoteWhereLeft`, `whereLeft`). A tab, Back and
+Forward, and the chapter bar's book button show the book itself, which is its index. Without that exception the book
+button would send a chapter back to itself, and there would be no way to the index. For the same reason a book opened
+while its spot's chapter is already on screen opens at its index.
+
+Leaving the read-through for the index spends its place: *Read straight through* again starts where the page is, as it
+always did. The reader page (src/read/Reader.tsx) keeps nothing.
+
