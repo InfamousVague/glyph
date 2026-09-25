@@ -101,11 +101,15 @@ const openMenu = StateField.define<number | null>({
 
 const STAGE_WORDS = { todo: 'To do', doing: 'In progress', done: 'Done' } as const;
 
+/**
+ * What the row shows for an entry, as one string, so the row is redrawn only when that changes. The title is in it:
+ * it is the row's tooltip and what a screen reader says, and a task renamed in its service kept its old name there.
+ */
 function faceOf(entry: MarkEntry | null): string {
   if (!entry) return '';
   if (entry.state !== 'ready') return entry.state;
-  const { status, brief, gone } = entry.details;
-  return [status?.stage, status?.label, brief.join('·'), gone ? 'gone' : ''].join('|');
+  const { status, brief, gone, title } = entry.details;
+  return [status?.stage, status?.label, brief.join('·'), gone ? 'gone' : '', title].join('|');
 }
 
 class RowWidget extends WidgetType {

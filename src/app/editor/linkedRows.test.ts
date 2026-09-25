@@ -4,6 +4,7 @@ import { EditorView } from '@codemirror/view';
 import { provideMarkDetails, type MarkDetails, type MarkEntry } from '../core/markDetails.ts';
 import type { MarkMenuProps } from './MarkMenu.tsx';
 import { linkedOn, linkedRows, unlinked } from './linkedRows.ts';
+import { detailsArrived } from './markReads.ts';
 
 /** The drawer is a React sheet of its own (editor/MarkMenu.tsx); here only what it was opened with, and its closing. */
 const drawer = vi.hoisted(() => ({ opened: [] as MarkMenuProps[], closed: 0 }));
@@ -111,6 +112,17 @@ describe('the row of pills under a linked line', () => {
     const failed = open(`- [ ] Buy milk [notion](${TASK})\n`);
     expect(words(failed)).toEqual(['Notion', 'Can’t read it']);
     expect(pills(failed)[1]?.title).toBe('Notion said no');
+  });
+
+  it('is drawn again when the task is renamed, so its tooltip and what a screen reader says follow', () => {
+    known.set(TASK, details({ status: { label: 'Doing', stage: 'doing' } }));
+    const on = open(`- [ ] Buy milk [notion](${TASK})\n`);
+    expect(on.dom.querySelector('.cm-linkRow')?.getAttribute('title')).toBe('Buy milk');
+    known.set(TASK, details({ title: 'Buy oat milk', status: { label: 'Doing', stage: 'doing' } }));
+    on.dispatch({ effects: detailsArrived.of(null) });
+    const row = on.dom.querySelector('.cm-linkRow');
+    expect(row?.getAttribute('title')).toBe('Buy oat milk');
+    expect(row?.getAttribute('aria-label')).toBe('notion: Buy oat milk. Open its menu.');
   });
 
   it('always draws a mark’s row, and an ordinary link’s only once it has been read', () => {
