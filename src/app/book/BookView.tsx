@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type RefObject } from 'react';
 import { BookOpen, Check, ChevronDown, ChevronUp, GripVertical, List, Plus, Workflow, X } from '@glacier/icons';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
@@ -8,6 +8,7 @@ import { bodyWithoutTitle, bookWords, chaptersOf, numbered, toggledTitle, withCh
 import { CanvasMark } from './CanvasMark.tsx';
 import { Editor } from '../editor/Editor.tsx';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
+import { readBookSpot, useBookSpot } from './bookSpot.ts';
 import { useRowDrag } from './rowDrag.ts';
 import styles from './BookView.module.css';
 
@@ -26,6 +27,9 @@ import styles from './BookView.module.css';
  * by its title like any other, so it was always a page a book could hold and open - what the index lacked was saying
  * so. A chapter that is a canvas, and a canvas offered in the picker, wear the canvas's own mark (the one the + sheet
  * gives it), so a book reads as the pages and the boards of cards it is made of.
+ *
+ * Given `spot`, the view keeps where the book was left (book/bookSpot.ts): a book left reading straight through opens
+ * reading straight through, scrolled back to the chapter and the line it was at.
  */
 
 interface BookViewProps {
@@ -50,6 +54,8 @@ interface BookViewProps {
   readOnly?: boolean;
   /** Dark or light, where the page decides rather than the preference (the reader page follows the reader's system). */
   dark?: boolean;
+  /** The book note's id and the page it scrolls in, to keep where it was left (book/bookSpot.ts); absent, nothing is kept. */
+  spot?: { id: string; page: RefObject<HTMLElement | null> };
 }
 
 /** The book's own words around its index, drawn as a note is - read-only, formatted - so a link in them opens. */
@@ -61,7 +67,7 @@ function BookWords({ words, known, open, dark }: { words: string; known: (title:
   );
 }
 
-export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, readOnly = false, dark: darkGiven }: BookViewProps) {
+export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, readOnly = false, dark: darkGiven, spot }: BookViewProps) {
   const isCanvas = (name: string) => {
     const found = bodyOf?.(name);
     return !!found && isCanvasBody(found);
@@ -72,8 +78,15 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   // Everyone who wrote the book: its own authors, then each chapter's, first met first (core/authors.ts).
   const authors = authorsAcross([body, ...chapters.map((c) => bodyOf?.(c.title) ?? '')]);
   const [adding, setAdding] = useState<'new' | 'existing' | null>(null);
+  /** Where the book was left, read once as it opens: reading straight through is picked up where it was. */
+  const [left, setLeft] = useState(() => {
+    const was = spot ? readBookSpot(spot.id) : null;
+    return was?.kind === 'reading' ? was : null;
+  });
   /** Reading straight through: the chapters one after another, each in the note's own read-only editor. */
-  const [reading, setReading] = useState(false);
+  const [reading, setReading] = useState(left !== null);
+  const book = useRef<HTMLDivElement>(null);
+  useBookSpot(spot?.id ?? null, reading, book, spot?.page, chapters.map((c) => c.title), left);
   const themeDark = isDarkNow(usePreferences().theme);
   const dark = darkGiven ?? themeDark;
   const [draft, setDraft] = useState('');
@@ -113,10 +126,18 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
 
   if (reading) {
     return (
-      <div className={styles.book} data-chapters={chapters.length} data-reading="">
+      <div ref={book} className={styles.book} data-chapters={chapters.length} data-reading="">
         {/* The way back, and the chapters as a rail: a tap scrolls to that one. */}
         <div className={styles.readBar}>
-          <button type="button" className={styles.action} onClick={() => setReading(false)}>
+          <button
+            type="button"
+            className={styles.action}
+            onClick={() => {
+              // Back at the index, the place the book was left at is spent: reading through again starts afresh.
+              setLeft(null);
+              setReading(false);
+            }}
+          >
             <List size={16} aria-hidden="true" /> Index
           </button>
           <nav className={styles.rail} aria-label="Chapters">
