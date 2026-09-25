@@ -1,10 +1,8 @@
 //! Live sync's relay (src/live.rs, docs/LIVE.md), over a real socket: the in-memory router the other tests drive cannot
 //! upgrade a connection, so these start the service on a loopback port and talk to it as a device does.
 
-use crate::accounts::{Accounts, RECOVERY_CODES};
 use crate::live::{CLOSE_AUTH, MAX_FRAME};
-use crate::store::Store;
-use crate::{app_with, model, router};
+use crate::test_support::{accounts_in, routes, signup_body, TempDir};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
@@ -24,36 +22,23 @@ struct Server {
     _dir: TempDir,
 }
 
-struct TempDir(std::path::PathBuf);
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 async fn server() -> Server {
-    let dir = std::env::temp_dir().join(format!("glyph-live-{}-{}", std::process::id(), rand::random::<u64>()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let accounts = Accounts::new(std::sync::Arc::new(Store::in_memory(dir.join("recordings"))));
-    let app = app_with("0".repeat(64), model::Ollama::new("http://127.0.0.1:9", "test-model"));
+    let dir = TempDir::new("live");
+    let service = routes(Some(accounts_in(dir.path())));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
-        axum::serve(listener, router(app, Some(accounts)).into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
+        axum::serve(listener, service.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
     });
-    Server { addr, _dir: TempDir(dir) }
+    Server { addr, _dir: dir }
 }
 
 impl Server {
     /// A new account, signed up the way a device does it; answers its token.
     async fn account(&self, handle: &str) -> String {
-        let hex = |seed: u8| format!("{seed:02x}").repeat(32);
-        let sheet: Vec<Value> = (0..RECOVERY_CODES)
-            .map(|i| json!({ "login": hex(100 + i as u8), "wrapped": URL_SAFE_NO_PAD.encode(format!("code{i}")) }))
-            .collect();
         let body: Value = reqwest::Client::new()
             .post(format!("http://{}/glyph/api/v1/signup", self.addr))
-            .json(&json!({ "handle": handle, "loginSecret": hex(1), "wrapped": URL_SAFE_NO_PAD.encode("password"), "recovery": sheet }))
+            .json(&signup_body(handle, None))
             .send()
             .await
             .unwrap()

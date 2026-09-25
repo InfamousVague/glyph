@@ -1,113 +1,32 @@
 //! Accounts and sync, through the routes a device calls (docs/SYNC.md): a signup, the three ways in, a note written on
 //! one device and read on another, a race lost and told what won, settings, recordings, and the limits.
 
-use crate::accounts::{Accounts, RECOVERY_CODES};
-use crate::store::Store;
-use crate::{app_with, model, router};
-use axum::body::{to_bytes, Body};
-use axum::extract::connect_info::MockConnectInfo;
+use crate::accounts::RECOVERY_CODES;
+use crate::test_support::{device, login, sheet, wrapped, Harness};
+use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
-use axum::Router;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use ed25519_dalek::{Signer, SigningKey};
+use ed25519_dalek::Signer;
 use serde_json::{json, Value};
-use std::net::SocketAddr;
-use std::sync::Arc;
 use tower::ServiceExt;
 
-const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-struct Harness {
-    service: Router,
-    _dir: TempDir,
-}
-
-struct TempDir(std::path::PathBuf);
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 fn harness() -> Harness {
-    let dir = std::env::temp_dir().join(format!("glyph-sync-{}-{}", std::process::id(), rand::random::<u64>()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let accounts = Accounts::new(Arc::new(Store::in_memory(dir.join("recordings"))));
-    let app = app_with(TOKEN.into(), model::Ollama::new("http://127.0.0.1:9", "test-model"));
-    let service = router(app, Some(accounts)).layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
-    Harness { service, _dir: TempDir(dir) }
+    Harness::new("sync")
 }
 
-/// A login half, as a device derives one: 64 hex characters.
-fn login(seed: u8) -> String {
-    format!("{seed:02x}").repeat(32)
-}
-
-/// A wrapped key, as a device writes one: base64url.
-fn wrapped(label: &str) -> String {
-    URL_SAFE_NO_PAD.encode(format!("wrapped:{label}"))
-}
-
-fn sheet() -> Vec<Value> {
-    (0..RECOVERY_CODES).map(|i| json!({ "login": login(100 + i as u8), "wrapped": wrapped(&format!("code{i}")) })).collect()
-}
-
-impl Harness {
-    async fn call(&self, method: Method, path: &str, token: Option<&str>, body: Option<Value>) -> (StatusCode, Value) {
-        let mut request = Request::builder().method(method).uri(path);
-        if let Some(token) = token {
-            request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
-        }
-        let request = match body {
-            Some(body) => request.header(header::CONTENT_TYPE, "application/json").body(Body::from(body.to_string())),
-            None => request.body(Body::empty()),
-        }
+/// A recording's bytes up or down: the status, the body, and the revision in `x-glyph-rev`.
+async fn raw(h: &Harness, method: Method, path: &str, token: &str, body: Vec<u8>) -> (StatusCode, Vec<u8>, Option<String>) {
+    let request = Request::builder()
+        .method(method)
+        .uri(path)
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .header(header::CONTENT_TYPE, "application/octet-stream")
+        .body(Body::from(body))
         .unwrap();
-        let response = self.service.clone().oneshot(request).await.unwrap();
-        let status = response.status();
-        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
-    }
-
-    async fn raw(&self, method: Method, path: &str, token: &str, body: Vec<u8>) -> (StatusCode, Vec<u8>, Option<String>) {
-        let request = Request::builder()
-            .method(method)
-            .uri(path)
-            .header(header::AUTHORIZATION, format!("Bearer {token}"))
-            .header(header::CONTENT_TYPE, "application/octet-stream")
-            .body(Body::from(body))
-            .unwrap();
-        let response = self.service.clone().oneshot(request).await.unwrap();
-        let status = response.status();
-        let rev = response.headers().get("x-glyph-rev").and_then(|v| v.to_str().ok()).map(str::to_string);
-        (status, to_bytes(response.into_body(), usize::MAX).await.unwrap().to_vec(), rev)
-    }
-
-    /// A new account with a password, a device, and a recovery sheet; its token.
-    async fn signup(&self, handle: &str, device: &SigningKey) -> String {
-        let (status, body) = self
-            .call(
-                Method::POST,
-                "/glyph/api/v1/signup",
-                None,
-                Some(json!({
-                    "handle": handle,
-                    "loginSecret": login(1),
-                    "wrapped": wrapped("password"),
-                    "devicePublicKey": URL_SAFE_NO_PAD.encode(device.verifying_key().to_bytes()),
-                    "deviceLabel": "phone",
-                    "recovery": sheet(),
-                })),
-            )
-            .await;
-        assert_eq!(status, StatusCode::OK, "{body}");
-        body["token"].as_str().unwrap().to_string()
-    }
-}
-
-fn device() -> SigningKey {
-    SigningKey::generate(&mut rand::rngs::OsRng)
+    let (status, headers, bytes) = h.send(request).await;
+    let rev = headers.get("x-glyph-rev").and_then(|v| v.to_str().ok()).map(str::to_string);
+    (status, bytes, rev)
 }
 
 #[tokio::test]
@@ -261,6 +180,80 @@ async fn nothing_is_read_or_written_without_a_token_or_across_accounts() {
     assert!(feed["items"].as_array().unwrap().is_empty(), "another account's notes are not in this feed");
 }
 
+/// Every signed-in route, accounts', sync's and shares' alike, and the one extractor they share (accounts.rs `Claims`):
+/// the same two refusals, word for word, whichever router answers.
+#[tokio::test]
+async fn every_signed_in_route_refuses_in_the_same_words() {
+    let h = harness();
+    let token = h.signup("matt", &device()).await;
+    let id = "AbCdEfGhIjKlMnOpQrStUv";
+    let routes = [
+        (Method::POST, "/glyph/api/v1/refresh".to_string(), None),
+        (Method::POST, "/glyph/api/v1/device".to_string(), Some(json!({ "devicePublicKey": "k" }))),
+        (Method::GET, "/glyph/api/v1/keys".to_string(), None),
+        (Method::PUT, "/glyph/api/v1/password".to_string(), Some(json!({ "loginSecret": login(9), "wrapped": wrapped("new") }))),
+        (Method::GET, "/glyph/api/v1/recovery".to_string(), None),
+        (Method::POST, "/glyph/api/v1/recovery".to_string(), Some(json!({ "codes": sheet() }))),
+        (Method::DELETE, "/glyph/api/v1/account".to_string(), Some(json!({ "loginSecret": login(1) }))),
+        (Method::GET, "/glyph/api/v1/notes?since=0".to_string(), None),
+        (Method::PUT, "/glyph/api/v1/notes/n-1".to_string(), Some(json!({ "base": 0, "blob": "YQ" }))),
+        (Method::DELETE, "/glyph/api/v1/notes/n-1".to_string(), Some(json!({ "base": 0 }))),
+        (Method::GET, "/glyph/api/v1/prefs".to_string(), None),
+        (Method::PUT, "/glyph/api/v1/prefs".to_string(), Some(json!({ "base": 0, "blob": "YQ" }))),
+        (Method::GET, "/glyph/api/v1/recordings/n-1".to_string(), None),
+        (Method::PUT, "/glyph/api/v1/recordings/n-1?base=0".to_string(), None),
+        (Method::GET, "/glyph/api/v1/shares".to_string(), None),
+        (Method::PUT, format!("/glyph/api/v1/shares/{id}"), Some(json!({ "blob": "YQ" }))),
+        (Method::DELETE, format!("/glyph/api/v1/shares/{id}"), None),
+    ];
+    for (method, path, body) in routes {
+        let (status, answer) = h.call(method.clone(), &path, None, body.clone()).await;
+        assert_eq!((status, answer), (StatusCode::UNAUTHORIZED, json!({ "error": "Sign in first." })), "{method} {path} with no token");
+        let (status, answer) = h.call(method.clone(), &path, Some("glyph1.forged.token"), body).await;
+        assert_eq!(
+            (status, answer),
+            (StatusCode::UNAUTHORIZED, json!({ "error": "Your session has ended. Sign in again." })),
+            "{method} {path} with a token that is not ours"
+        );
+    }
+    // And the account it was all tried against is still there, still signed in.
+    let (status, _) = h.call(Method::GET, "/glyph/api/v1/keys", Some(&token), None).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+/// A request with no token is refused before its body is read, however bad the body: the extractor reads the
+/// request's head, and axum reads every head extractor before the body one. When the check was each handler's first
+/// line, the body was parsed first, and a malformed one got axum's own 400, 415 or 422 instead.
+#[tokio::test]
+async fn a_request_with_no_token_is_refused_before_its_body_is_read() {
+    let h = harness();
+    let bad = [
+        Request::put("/glyph/api/v1/notes/n-1").header(header::CONTENT_TYPE, "application/json").body(Body::from("not json")).unwrap(),
+        Request::put("/glyph/api/v1/prefs").body(Body::from(r#"{"base":0,"blob":"YQ"}"#)).unwrap(),
+        Request::put("/glyph/api/v1/shares/AbCdEfGhIjKlMnOpQrStUv").header(header::CONTENT_TYPE, "application/json").body(Body::from("{}")).unwrap(),
+        Request::delete("/glyph/api/v1/account").body(Body::empty()).unwrap(),
+    ];
+    for request in bad {
+        let path = request.uri().to_string();
+        let (status, _, bytes) = h.send(request).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{path}");
+        assert_eq!(serde_json::from_slice::<Value>(&bytes).unwrap(), json!({ "error": "Sign in first." }), "{path}");
+    }
+    // A query that will not read is still refused before the token is looked at, as it always was: `who: Claims`
+    // comes after `Query` in the handler.
+    let (status, _) = h.call(Method::GET, "/glyph/api/v1/notes?since=soon", None, None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    // Signed in, the same bad body is the body's refusal, as it always was.
+    let token = h.signup("matt", &device()).await;
+    let request = Request::put("/glyph/api/v1/notes/n-1")
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from("not json"))
+        .unwrap();
+    let (status, _, _) = h.send(request).await;
+    assert!(status.is_client_error() && status != StatusCode::UNAUTHORIZED, "{status}");
+}
+
 #[tokio::test]
 async fn refuses_what_it_cannot_store() {
     let h = harness();
@@ -290,16 +283,16 @@ async fn recordings_go_up_and_come_back_byte_for_byte() {
     let h = harness();
     let token = h.signup("matt", &device()).await;
     let audio: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
-    let (status, body, _) = h.raw(Method::PUT, "/glyph/api/v1/recordings/n-1?base=0", &token, audio.clone()).await;
+    let (status, body, _) = raw(&h, Method::PUT, "/glyph/api/v1/recordings/n-1?base=0", &token, audio.clone()).await;
     assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
     let rev: Value = serde_json::from_slice(&body).unwrap();
-    let (status, back, header_rev) = h.raw(Method::GET, "/glyph/api/v1/recordings/n-1", &token, Vec::new()).await;
+    let (status, back, header_rev) = raw(&h, Method::GET, "/glyph/api/v1/recordings/n-1", &token, Vec::new()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(back, audio);
     assert_eq!(header_rev, Some(rev["rev"].to_string()));
-    let (status, _, _) = h.raw(Method::PUT, "/glyph/api/v1/recordings/n-1?base=0", &token, vec![1, 2, 3]).await;
+    let (status, _, _) = raw(&h, Method::PUT, "/glyph/api/v1/recordings/n-1?base=0", &token, vec![1, 2, 3]).await;
     assert_eq!(status, StatusCode::CONFLICT);
-    let (status, _, _) = h.raw(Method::GET, "/glyph/api/v1/recordings/none", &token, Vec::new()).await;
+    let (status, _, _) = raw(&h, Method::GET, "/glyph/api/v1/recordings/none", &token, Vec::new()).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
@@ -340,12 +333,12 @@ async fn deleting_the_account_takes_everything_it_kept_and_needs_the_password() 
     let other = h.signup("sam", &device()).await;
     h.call(Method::PUT, "/glyph/api/v1/notes/n-1", Some(&token), Some(json!({ "base": 0, "blob": "c2VjcmV0" }))).await;
     h.call(Method::PUT, "/glyph/api/v1/prefs", Some(&token), Some(json!({ "base": 0, "blob": "cHJlZnM" }))).await;
-    h.raw(Method::PUT, "/glyph/api/v1/recordings/n-1?base=0", &token, vec![9; 64]).await;
+    raw(&h, Method::PUT, "/glyph/api/v1/recordings/n-1?base=0", &token, vec![9; 64]).await;
     let share = "/glyph/api/v1/shares/AAAAAAAAAAAAAAAAAAAAAA";
     let (status, _) = h.call(Method::PUT, share, Some(&token), Some(json!({ "blob": "c2VhbGVk" }))).await;
     assert_eq!(status, StatusCode::OK);
     h.call(Method::PUT, "/glyph/api/v1/notes/n-1", Some(&other), Some(json!({ "base": 0, "blob": "b3RoZXI" }))).await;
-    let recordings = h._dir.0.join("recordings").join("1");
+    let recordings = h.dir.path().join("recordings").join("1");
     assert!(recordings.exists(), "the recording is a file under the account's folder");
 
     // Without the password, or with the wrong one: refused, as the session is fine, and nothing goes.

@@ -7,11 +7,12 @@
 //! comes back the same way, streamed. The hosted server's own sign-in pages, discovery documents and tokens all live
 //! under this prefix, which is what lets the whole thing stand without a change to Caddy.
 
+use crate::wire::error;
 use axum::{
     body::{to_bytes, Body},
     extract::{Request, State},
-    http::{header, HeaderName, HeaderValue, StatusCode},
-    response::{IntoResponse, Response},
+    http::{HeaderName, HeaderValue, StatusCode},
+    response::Response,
     routing::any,
     Router,
 };
@@ -52,17 +53,13 @@ pub fn router(upstream: Arc<Upstream>) -> Router {
     Router::new().route("/glyph/api/mcp", any(forward)).route("/glyph/api/mcp/{*rest}", any(forward)).with_state(upstream)
 }
 
-fn refused(status: StatusCode, words: &str) -> Response {
-    (status, [(header::CONTENT_TYPE, "application/json")], format!("{{\"error\":{}}}", serde_json::to_string(words).unwrap_or_default())).into_response()
-}
-
 async fn forward(State(up): State<Arc<Upstream>>, request: Request) -> Response {
     let (parts, body) = request.into_parts();
     let path_and_query = parts.uri.path_and_query().map(|p| p.as_str()).unwrap_or("/");
     let url = format!("{}{}", up.base, path_and_query);
     let bytes = match to_bytes(body, MOST_BYTES).await {
         Ok(bytes) => bytes,
-        Err(_) => return refused(StatusCode::PAYLOAD_TOO_LARGE, "that request is too large"),
+        Err(_) => return error(StatusCode::PAYLOAD_TOO_LARGE, "that request is too large"),
     };
     let mut outgoing = up.client.request(parts.method.clone(), &url);
     for (name, value) in parts.headers.iter() {
@@ -73,7 +70,7 @@ async fn forward(State(up): State<Arc<Upstream>>, request: Request) -> Response 
     }
     let answer = match outgoing.body(bytes).send().await {
         Ok(answer) => answer,
-        Err(_) => return refused(StatusCode::BAD_GATEWAY, "Claude's server is not running here right now"),
+        Err(_) => return error(StatusCode::BAD_GATEWAY, "Claude's server is not running here right now"),
     };
     let mut response = Response::builder().status(answer.status());
     for (name, value) in answer.headers().iter() {
@@ -84,12 +81,13 @@ async fn forward(State(up): State<Arc<Upstream>>, request: Request) -> Response 
             response = response.header(name, value);
         }
     }
-    response.body(Body::from_stream(answer.bytes_stream())).unwrap_or_else(|_| refused(StatusCode::BAD_GATEWAY, "Claude's server answered in a way that could not be passed on"))
+    response.body(Body::from_stream(answer.bytes_stream())).unwrap_or_else(|_| error(StatusCode::BAD_GATEWAY, "Claude's server answered in a way that could not be passed on"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::response::IntoResponse;
     use axum::{routing::post, Json};
     use tokio::net::TcpListener;
 
@@ -132,6 +130,7 @@ mod tests {
         let front = proxied("http://127.0.0.1:1").await;
         let answer = reqwest::Client::new().post(format!("{front}/glyph/api/mcp")).send().await.unwrap();
         assert_eq!(answer.status(), StatusCode::BAD_GATEWAY);
-        assert!(answer.text().await.unwrap().contains("not running"));
+        assert_eq!(answer.headers()["content-type"], "application/json");
+        assert_eq!(answer.text().await.unwrap(), r#"{"error":"Claude's server is not running here right now"}"#, "every route's error shape");
     }
 }

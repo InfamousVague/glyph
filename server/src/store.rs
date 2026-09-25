@@ -8,7 +8,7 @@
 //! Nothing in here can be read by this service. A note, a settings blob, a recording and the account key are all
 //! ciphertext made on a device; the service stores them, counts them, and hands them back.
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Params, Row};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -82,6 +82,9 @@ CREATE TABLE IF NOT EXISTS recordings (
 );
 "#;
 
+/// What an account's reads select, in the order `Store::account_row` takes the columns.
+const ACCOUNT_SELECT: &str = "SELECT id, handle, login_hash, wrapped FROM accounts";
+
 pub struct Account {
     pub id: i64,
     pub handle: String,
@@ -129,14 +132,19 @@ pub struct Store {
     recordings: PathBuf,
 }
 
+/// What every connection is opened with, the file and the tests' in-memory one alike: the cascades on, and the tables.
+fn schema(conn: &Connection) -> rusqlite::Result<()> {
+    conn.pragma_update(None, "foreign_keys", "ON")?;
+    conn.execute_batch(SCHEMA)
+}
+
 impl Store {
     /// Opens the database in `dir`, making it on first use, with the recordings folder beside it.
     pub fn open(dir: &Path) -> rusqlite::Result<Self> {
         std::fs::create_dir_all(dir).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
         let conn = Connection::open(dir.join("glyph-accounts.sqlite3"))?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "foreign_keys", "ON")?;
-        conn.execute_batch(SCHEMA)?;
+        schema(&conn)?;
         Ok(Self { conn: Mutex::new(conn), recordings: dir.join("recordings") })
     }
 
@@ -144,8 +152,7 @@ impl Store {
     #[cfg(test)]
     pub fn in_memory(recordings: PathBuf) -> Self {
         let conn = Connection::open_in_memory().unwrap();
-        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
-        conn.execute_batch(SCHEMA).unwrap();
+        schema(&conn).unwrap();
         Self { conn: Mutex::new(conn), recordings }
     }
 
@@ -154,10 +161,25 @@ impl Store {
         self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    /// The one row `sql` finds, or `None` for no row and for a query that failed alike: the reads that answer `Option`
+    /// have never told the two apart, and this keeps it so.
+    fn one<T>(&self, sql: &str, params: impl Params, map: impl FnOnce(&Row<'_>) -> rusqlite::Result<T>) -> Option<T> {
+        self.lock().query_row(sql, params, map).optional().ok().flatten()
+    }
+
+    /// Every row `sql` finds, skipping any that will not read; empty when the query fails.
+    fn all<T>(&self, sql: &str, params: impl Params, map: impl FnMut(&Row<'_>) -> rusqlite::Result<T>) -> Vec<T> {
+        let conn = self.lock();
+        let Ok(mut statement) = conn.prepare(sql) else {
+            return Vec::new();
+        };
+        statement.query_map(params, map).map(|rows| rows.filter_map(Result::ok).collect()).unwrap_or_default()
+    }
+
     // --- meta -------------------------------------------------------------------
 
     pub fn meta(&self, key: &str) -> Option<String> {
-        self.lock().query_row("SELECT value FROM meta WHERE key = ?1", params![key], |r| r.get(0)).optional().ok().flatten()
+        self.one("SELECT value FROM meta WHERE key = ?1", params![key], |r| r.get(0))
     }
 
     pub fn set_meta(&self, key: &str, value: &str) -> rusqlite::Result<()> {
@@ -167,24 +189,17 @@ impl Store {
 
     // --- accounts ---------------------------------------------------------------
 
-    fn account_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Account> {
+    /// An account as `ACCOUNT_SELECT` reads it.
+    fn account_row(r: &Row<'_>) -> rusqlite::Result<Account> {
         Ok(Account { id: r.get(0)?, handle: r.get(1)?, login_hash: r.get(2)?, wrapped: r.get(3)? })
     }
 
     pub fn account_by_handle(&self, handle: &str) -> Option<Account> {
-        self.lock()
-            .query_row("SELECT id, handle, login_hash, wrapped FROM accounts WHERE handle = ?1", params![handle], Self::account_row)
-            .optional()
-            .ok()
-            .flatten()
+        self.one(&format!("{ACCOUNT_SELECT} WHERE handle = ?1"), params![handle], Self::account_row)
     }
 
     pub fn account_by_id(&self, id: i64) -> Option<Account> {
-        self.lock()
-            .query_row("SELECT id, handle, login_hash, wrapped FROM accounts WHERE id = ?1", params![id], Self::account_row)
-            .optional()
-            .ok()
-            .flatten()
+        self.one(&format!("{ACCOUNT_SELECT} WHERE id = ?1"), params![id], Self::account_row)
     }
 
     /// A new account with everything it starts with, in one transaction: a signup is all there or not there at all.
@@ -207,12 +222,7 @@ impl Store {
         if let Some((key, label)) = device {
             tx.execute("INSERT INTO device_keys (account_id, public_key, label, created_at) VALUES (?1, ?2, ?3, ?4)", params![id, key, label, now])?;
         }
-        for (slot, (hash, code_wrapped)) in codes.iter().enumerate() {
-            tx.execute(
-                "INSERT INTO recovery_codes (account_id, slot, login_hash, wrapped) VALUES (?1, ?2, ?3, ?4)",
-                params![id, slot as i64, hash, code_wrapped],
-            )?;
-        }
+        Self::insert_codes(&tx, id, codes)?;
         tx.commit()?;
         Ok(Account { id, handle: handle.to_string(), login_hash: login_hash.to_string(), wrapped: wrapped.to_string() })
     }
@@ -239,14 +249,18 @@ impl Store {
     }
 
     pub fn device_keys(&self, id: i64) -> Vec<String> {
-        let conn = self.lock();
-        let Ok(mut stmt) = conn.prepare("SELECT public_key FROM device_keys WHERE account_id = ?1") else {
-            return Vec::new();
-        };
-        stmt.query_map(params![id], |r| r.get(0)).map(|rows| rows.filter_map(Result::ok).collect()).unwrap_or_default()
+        self.all("SELECT public_key FROM device_keys WHERE account_id = ?1", params![id], |r| r.get(0))
     }
 
     // --- recovery codes ---------------------------------------------------------
+
+    /// A sheet's codes, each in the slot of its place on the sheet, inside a sign-up's transaction or a new sheet's.
+    fn insert_codes(conn: &Connection, id: i64, codes: &[(String, String)]) -> rusqlite::Result<()> {
+        for (slot, (hash, wrapped)) in codes.iter().enumerate() {
+            conn.execute("INSERT INTO recovery_codes (account_id, slot, login_hash, wrapped) VALUES (?1, ?2, ?3, ?4)", params![id, slot as i64, hash, wrapped])?;
+        }
+        Ok(())
+    }
 
     /// Spends the code whose login half hashes to `hash`, and answers the account key wrapped under it.
     pub fn use_recovery_code(&self, id: i64, hash: &str, now: i64) -> Option<String> {
@@ -270,9 +284,7 @@ impl Store {
         let mut conn = self.lock();
         let tx = conn.transaction()?;
         tx.execute("DELETE FROM recovery_codes WHERE account_id = ?1", params![id])?;
-        for (slot, (hash, wrapped)) in codes.iter().enumerate() {
-            tx.execute("INSERT INTO recovery_codes (account_id, slot, login_hash, wrapped) VALUES (?1, ?2, ?3, ?4)", params![id, slot as i64, hash, wrapped])?;
-        }
+        Self::insert_codes(&tx, id, codes)?;
         tx.commit()
     }
 
@@ -284,27 +296,24 @@ impl Store {
 
     // --- notes ------------------------------------------------------------------
 
+    /// A note as `SELECT id, rev, deleted, blob` reads it, the feed's and a write's alike.
+    fn note_row(r: &Row<'_>) -> rusqlite::Result<NoteRow> {
+        Ok(NoteRow { id: r.get(0)?, rev: r.get(1)?, deleted: r.get::<_, i64>(2)? != 0, blob: r.get(3)? })
+    }
+
     /// Everything written after `since`, oldest first, at most `limit`; and whether there is more.
     pub fn notes_since(&self, id: i64, since: i64, limit: i64) -> rusqlite::Result<(Vec<NoteRow>, bool, i64)> {
         let conn = self.lock();
         let mut stmt = conn.prepare("SELECT id, rev, deleted, blob FROM notes WHERE account_id = ?1 AND rev > ?2 ORDER BY rev LIMIT ?3")?;
-        let mut rows: Vec<NoteRow> = stmt
-            .query_map(params![id, since, limit + 1], |r| Ok(NoteRow { id: r.get(0)?, rev: r.get(1)?, deleted: r.get::<_, i64>(2)? != 0, blob: r.get(3)? }))?
-            .filter_map(Result::ok)
-            .collect();
+        let mut rows: Vec<NoteRow> = stmt.query_map(params![id, since, limit + 1], Self::note_row)?.filter_map(Result::ok).collect();
         let more = rows.len() as i64 > limit;
         rows.truncate(limit as usize);
         let head: i64 = conn.query_row("SELECT rev FROM accounts WHERE id = ?1", params![id], |r| r.get(0))?;
         Ok((rows, more, head))
     }
 
-    fn note_in(tx: &rusqlite::Transaction<'_>, account: i64, note: &str) -> rusqlite::Result<Option<NoteRow>> {
-        tx.query_row(
-            "SELECT id, rev, deleted, blob FROM notes WHERE account_id = ?1 AND id = ?2",
-            params![account, note],
-            |r| Ok(NoteRow { id: r.get(0)?, rev: r.get(1)?, deleted: r.get::<_, i64>(2)? != 0, blob: r.get(3)? }),
-        )
-        .optional()
+    fn note_in(conn: &Connection, account: i64, note: &str) -> rusqlite::Result<Option<NoteRow>> {
+        conn.query_row("SELECT id, rev, deleted, blob FROM notes WHERE account_id = ?1 AND id = ?2", params![account, note], Self::note_row).optional()
     }
 
     fn next_rev(tx: &rusqlite::Transaction<'_>, account: i64) -> rusqlite::Result<i64> {
@@ -335,22 +344,20 @@ impl Store {
 
     // --- settings ---------------------------------------------------------------
 
+    /// The stored settings and their revision, read by `prefs` and inside `put_prefs`'s transaction alike.
+    fn prefs_in(conn: &Connection, account: i64) -> rusqlite::Result<Option<(i64, String)>> {
+        conn.query_row("SELECT rev, blob FROM prefs WHERE account_id = ?1", params![account], |r| Ok((r.get(0)?, r.get(1)?))).optional()
+    }
+
     pub fn prefs(&self, account: i64) -> Option<(i64, String)> {
-        self.lock()
-            .query_row("SELECT rev, blob FROM prefs WHERE account_id = ?1", params![account], |r| Ok((r.get(0)?, r.get(1)?)))
-            .optional()
-            .ok()
-            .flatten()
+        Self::prefs_in(&self.lock(), account).ok().flatten()
     }
 
     /// Stores settings written from `base`: 0 for "never seen any". Refused, with the stored ones, when stale.
     pub fn put_prefs(&self, account: i64, base: i64, blob: &str, now: i64) -> Result<i64, Option<(i64, String)>> {
         let mut conn = self.lock();
         let tx = conn.transaction().map_err(|_| None)?;
-        let current: Option<(i64, String)> = tx
-            .query_row("SELECT rev, blob FROM prefs WHERE account_id = ?1", params![account], |r| Ok((r.get(0)?, r.get(1)?)))
-            .optional()
-            .map_err(|_| None)?;
+        let current = Self::prefs_in(&tx, account).map_err(|_| None)?;
         let stored_rev = current.as_ref().map(|(rev, _)| *rev).unwrap_or(0);
         if stored_rev != base {
             return Err(current);
@@ -402,11 +409,7 @@ impl Store {
 
     /// A share's ciphertext and when it was last written, for anyone who has its id.
     pub fn share(&self, id: &str) -> Option<(String, i64)> {
-        self.lock()
-            .query_row("SELECT blob, updated_at FROM shares WHERE id = ?1", params![id], |r| Ok((r.get(0)?, r.get(1)?)))
-            .optional()
-            .ok()
-            .flatten()
+        self.one("SELECT blob, updated_at FROM shares WHERE id = ?1", params![id], |r| Ok((r.get(0)?, r.get(1)?)))
     }
 
     /// Takes down an account's share; another's, or none, is left as it is. Answers whether one went.
@@ -416,14 +419,7 @@ impl Store {
 
     /// An account's shares, newest written first: their ids and when each was written.
     pub fn shares_of(&self, account: i64) -> Vec<(String, i64)> {
-        let conn = self.lock();
-        let Ok(mut statement) = conn.prepare("SELECT id, updated_at FROM shares WHERE account_id = ?1 ORDER BY updated_at DESC") else {
-            return Vec::new();
-        };
-        statement
-            .query_map(params![account], |r| Ok((r.get(0)?, r.get(1)?)))
-            .map(|rows| rows.filter_map(Result::ok).collect())
-            .unwrap_or_default()
+        self.all("SELECT id, updated_at FROM shares WHERE account_id = ?1 ORDER BY updated_at DESC", params![account], |r| Ok((r.get(0)?, r.get(1)?)))
     }
 
     /// An account and everything it keeps here, gone (Settings > Account > Delete account). The one row goes, and the
@@ -445,12 +441,9 @@ impl Store {
         self.recordings.join(account.to_string()).join(format!("{id}.bin"))
     }
 
-    pub fn recording_rev(&self, account: i64, id: &str) -> Option<i64> {
-        self.lock()
-            .query_row("SELECT rev FROM recordings WHERE account_id = ?1 AND id = ?2", params![account, id], |r| r.get(0))
-            .optional()
-            .ok()
-            .flatten()
+    /// A recording's revision, read by `recording` and inside `put_recording`'s transaction alike.
+    fn recording_rev_in(conn: &Connection, account: i64, id: &str) -> rusqlite::Result<Option<i64>> {
+        conn.query_row("SELECT rev FROM recordings WHERE account_id = ?1 AND id = ?2", params![account, id], |r| r.get(0)).optional()
     }
 
     /// Stores a recording written from `base`. The bytes go to a side file and are renamed into place only once the
@@ -463,10 +456,7 @@ impl Store {
         std::fs::write(&part, bytes).map_err(|_| None)?;
         let mut conn = self.lock();
         let tx = conn.transaction().map_err(|_| None)?;
-        let current: Option<i64> = tx
-            .query_row("SELECT rev FROM recordings WHERE account_id = ?1 AND id = ?2", params![account, id], |r| r.get(0))
-            .optional()
-            .map_err(|_| None)?;
+        let current = Self::recording_rev_in(&tx, account, id).map_err(|_| None)?;
         if let Some(stored) = current {
             if stored != base {
                 let _ = std::fs::remove_file(&part);
@@ -486,7 +476,7 @@ impl Store {
     }
 
     pub fn recording(&self, account: i64, id: &str) -> Option<(i64, Vec<u8>)> {
-        let rev = self.recording_rev(account, id)?;
+        let rev = Self::recording_rev_in(&self.lock(), account, id).ok().flatten()?;
         let bytes = std::fs::read(self.recording_path(account, id)).ok()?;
         Some((rev, bytes))
     }
@@ -495,30 +485,11 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
 
-    fn store() -> (Store, tempdir::TempDir) {
-        let dir = tempdir::TempDir::new();
+    fn store() -> (Store, TempDir) {
+        let dir = TempDir::new("store");
         (Store::in_memory(dir.path().join("recordings")), dir)
-    }
-
-    /// A folder under the system temp directory, removed when the test ends.
-    mod tempdir {
-        pub struct TempDir(std::path::PathBuf);
-        impl TempDir {
-            pub fn new() -> Self {
-                let path = std::env::temp_dir().join(format!("glyph-store-{}-{}", std::process::id(), rand::random::<u64>()));
-                std::fs::create_dir_all(&path).unwrap();
-                Self(path)
-            }
-            pub fn path(&self) -> &std::path::Path {
-                &self.0
-            }
-        }
-        impl Drop for TempDir {
-            fn drop(&mut self) {
-                let _ = std::fs::remove_dir_all(&self.0);
-            }
-        }
     }
 
     fn account(s: &Store) -> Account {
