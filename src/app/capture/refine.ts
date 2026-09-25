@@ -6,9 +6,8 @@ import { preferences } from '../core/preferences.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 import { getNote, setNoteRecording, updateNote } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
-import { findKeyword } from './command.ts';
-import { appendBody } from './appendBody.ts';
-import { renderNote, type Segment } from './markdown.ts';
+import type { Segment } from './markdown.ts';
+import { refinedBody, refinedSegments } from './refineText.ts';
 
 /**
  * Better words after the recording: the post-pass.
@@ -24,7 +23,8 @@ import { renderNote, type Segment } from './markdown.ts';
  * app was closed, the recorder was opened again) runs on the next launch. One
  * pass at a time, never while the recorder is on screen: both models want the
  * same cores. The first pass downloads the larger model (190 MB); until it is
- * there, notes simply keep their live words.
+ * there, notes simply keep their live words. What the note reads as with the
+ * better words - commands left out, voice memos put back - is refineText.ts.
  */
 
 export interface RefineJob {
@@ -100,59 +100,10 @@ function syncPending(): void {
 
 export const useRefining = refining.use;
 
-// ---- the pure part -----------------------------------------------------------------------
-
-/**
- * The note as it should read with the take's better phrases in place of the
- * live ones: the text before the take, then the take rendered again from the
- * new phrases - the first take titled, a later one not, as the recorder did.
- */
-export function refinedBody(job: RefineJob, refined: readonly Segment[]): string {
-  const take = renderNote(withClips(job, withoutCommands(job, refined)), '', { titled: job.titled }).markdown;
-  return appendBody(job.baseBody, take);
-}
-
-/** The better phrases with this take's voice memos back among them, in the order they were spoken. */
-export function withClips(job: Pick<RefineJob, 'clips'>, refined: readonly Segment[]): Segment[] {
-  const clips = job.clips ?? [];
-  if (!clips.length) return [...refined];
-  return [...refined, ...clips].sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
-}
-
-/** The recording's phrases with the take's replaced by the better ones. */
-export function refinedSegments(job: RefineJob, refined: readonly Segment[]): Segment[] {
-  return [...job.priorSegments.filter((s) => s.endMs <= job.fromMs), ...withClips(job, withoutCommands(job, refined))];
-}
-
-/** How much of `segment` the spans cover, 0 to 1. */
-function covered(segment: Segment, spans: readonly { startMs: number; endMs: number }[]): number {
-  const length = Math.max(1, segment.endMs - segment.startMs);
-  const overlap = spans.reduce((sum, span) => sum + Math.max(0, Math.min(span.endMs, segment.endMs) - Math.max(span.startMs, segment.startMs)), 0);
-  return overlap / length;
-}
-
-/**
- * The better phrases with the take's commands taken out: a phrase mostly
- * inside a command's stretch goes, and one that overlaps a phrase the live
- * words cut at "Glyph" is cut there too. The larger model hears the phrases
- * at slightly different times, so it is by overlap, not by match.
- */
-export function withoutCommands(job: Pick<RefineJob, 'skip' | 'keywordAt'>, refined: readonly Segment[]): Segment[] {
-  const skip = job.skip ?? [];
-  const keywordAt = job.keywordAt ?? [];
-  return refined.flatMap((segment) => {
-    if (skip.length && covered(segment, skip) >= 0.5) return [];
-    if (keywordAt.length && covered(segment, keywordAt) > 0) {
-      const found = findKeyword(segment.text);
-      if (found) return found.before ? [{ ...segment, text: found.before }] : [];
-    }
-    return [segment];
-  });
-}
-
 // ---- running -------------------------------------------------------------------------------
 
-let recorderLive = false;
+/** A screen that wants the cores is up - the recorder, or a review running its own pass: no queued pass starts. */
+let held = false;
 let running = false;
 let timer = 0;
 let onChanged: (() => void) | null = null;
@@ -167,10 +118,15 @@ export function enqueueRefine(job: Omit<RefineJob, 'tries'>): void {
   kick();
 }
 
+/** No queued pass starts while `on`; let go, the queue looks again a moment later. One flag for both screens that hold it. */
+function hold(on: boolean): void {
+  held = on;
+  if (!on) kick(1500);
+}
+
 /** The recorder is on screen (or not): no pass runs while it is. */
 export function setRecorderLive(live: boolean): void {
-  recorderLive = live;
-  if (!live) kick(1500);
+  hold(live);
 }
 
 /** Wire the runner to the app: called once, with what to do when a note's words changed. */
@@ -228,7 +184,7 @@ async function ensureRefineModel(): Promise<boolean> {
 }
 
 async function runNext(): Promise<void> {
-  if (running || recorderLive) return;
+  if (running || held) return;
   const queue = readQueue();
   const job = queue[0];
   if (!job) return;
@@ -278,7 +234,7 @@ function finish(job: RefineJob): void {
 // ---- listening again for a review ---------------------------------------------------------
 
 /**
- * The review after a recording (review/) runs this take's pass itself, now,
+ * The review after a recording (ai/review.ts) runs this take's pass itself, now,
  * and shows its progress instead of letting the queue do it later: the
  * careful words are what the fast ones are checked against. Answers the
  * better phrases, commands included (the review compares like with like), or
@@ -305,5 +261,5 @@ export async function keepBetterPhrases(job: Omit<RefineJob, 'tries'>, refined: 
 
 /** No queued pass runs while a review is on screen: the review's own pass and its model want the cores. */
 export function holdRefining(on: boolean): void {
-  setRecorderLive(on);
+  hold(on);
 }

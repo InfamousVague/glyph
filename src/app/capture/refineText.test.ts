@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { refinedBody, refinedSegments, type RefineJob, withClips, withoutCommands } from './refine.ts';
+import type { RefineJob } from './refine.ts';
+import { refinedBody, refinedSegments, withClips, withoutCommands } from './refineText.ts';
 
 const job = (over: Partial<RefineJob> = {}): RefineJob => ({
   id: 'n1',
