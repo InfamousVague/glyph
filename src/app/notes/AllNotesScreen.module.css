@@ -215,16 +215,25 @@
 }
 
 /*
- * The grid: as many cards to a row as fit a card a step narrower than the home page's. Two across a phone, four on
- * the Fold opened out, five in a desktop window's reading column.
+ * The grid, the home page's (HomeScreen.module.css `.cards`): one card to a row on a phone held upright, so a note's
+ * preview is big enough to read (Matt: "make the size of the cards for note previews larger on small displays like
+ * standard phone portrait view we may only see one note per row while unfolded may see 3-4"). Under the app's 600px
+ * line (core/useWideScreen.ts) it is one column; wider, as many as fit a card 12rem across - measured, two at 600px,
+ * three at 750, four from about 870 and in a desktop window's 60rem column, so three or four on the Fold opened out.
  */
 .cards {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--glacier-space-3);
+}
+
+@media (min-width: 600px) {
+  .cards {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
+  }
 }
 
 /* The empty page, and the search that found nothing: the ghost (art/Ghost.tsx) and a line, as on the home page. */

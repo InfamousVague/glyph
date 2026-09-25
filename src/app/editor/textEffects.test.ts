@@ -145,7 +145,7 @@ describe('the effects in an editor', () => {
     view = null;
   });
 
-  it('marks heated words bold and unfiltered, and hangs the haze for the lines above off the view', () => {
+  it('marks heated words bold with a slight waver of their own, and hangs the haze for the lines above off the view', () => {
     const parent = document.createElement('div');
     document.body.append(parent);
     view = new EditorView({ parent, state: EditorState.create({ doc: 'so 🔥🔥hot🔥🔥 today', extensions: [glyphMarkdown([heat]), textEffects([heat])] }) });
@@ -153,9 +153,11 @@ describe('the effects in an editor', () => {
     expect(marked?.textContent).toBe('hot');
     expect(marked?.dataset.effect).toBe('heat');
     expect(marked?.classList.contains('cm-effect-heat')).toBe(true);
-    // The words carry no filter of their own: it is the text above them that is drawn through the haze.
-    expect(marked?.getAttribute('style') ?? '').not.toContain('filter');
-    // One haze per line above, nearest the strongest; jsdom drops a filter from a style, so they are found by id.
+    // The words waver too, but at under a third of the line above's bend; jsdom drops a filter from a style, so the
+    // filters are found by id.
+    expect(view.dom.querySelector('filter[id$="-heat-own"] feDisplacementMap')?.getAttribute('scale')).toBe('1.65');
+    expect(view.dom.querySelector('filter[id$="-heat-own"] feGaussianBlur')?.getAttribute('stdDeviation')).toBe('0.18');
+    // One haze per line above, nearest the strongest.
     expect(view.dom.querySelector('filter[id$="-heat-above-100"] feDisplacementMap')?.getAttribute('scale')).toBe('5.50');
     expect(view.dom.querySelector('filter[id$="-heat-above-55"] feDisplacementMap')?.getAttribute('scale')).toBe('3.03');
     view.destroy();

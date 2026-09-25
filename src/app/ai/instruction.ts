@@ -1,16 +1,13 @@
 import { findKeyword, type Plan } from '../capture/command.ts';
 import { classifyFinalTranscript } from '../capture/finalInstruction.ts';
 import type { InferenceRun } from '../capture/instructionIntent.ts';
-import { appendToList, placeWords } from '../capture/listAppend.ts';
-import { listTitle } from '../capture/instructionMutation.ts';
 import type { Candidate } from '../capture/route.ts';
-import type { Offer } from '../capture/take.ts';
-import type { Note } from '../core/store.ts';
 import type { RunKind } from './kinds.ts';
 
 /**
- * One reader for an instruction, typed into the bar or spoken after "hey
- * Ghost": what the person wants done, and to which note.
+ * One reader for an instruction spoken after "hey Ghost", or typed (the
+ * note's AI bar typed them until it was removed, docs/DESIGN.md §122): what
+ * the person wants done, and to which note.
  *
  * Matt chose one pipeline: a spoken instruction after Done goes through the
  * same reader, the same confirm card and the same strip as a typed one. So
@@ -108,21 +105,3 @@ export async function readInstruction<N extends Candidate & { note?: { body: str
 
 /** No model for typed words: the rules alone read them. */
 const noInference = (): InferenceRun => ({ done: Promise.resolve({ status: 'unavailable', reason: 'Typed instructions are read by the rules alone.' }), cancel: () => undefined });
-
-/** A confirmed plan as the card shows it: the words that would land, where. */
-export function offerOf(plan: Extract<Plan<Candidate & { note?: Note }>, { kind: 'place' | 'create-list' }>): Offer<Note> | null {
-  const span = { startMs: 0, endMs: 0 };
-  if (plan.kind === 'create-list') return { kind: 'new', title: plan.title, lines: plan.items ?? [], span };
-  const body = plan.note.note?.body;
-  if (body === undefined) return null;
-  const { kind: _kind, note: _note, text, ...placement } = plan;
-  const placed = placeWords(body, text, placement);
-  if (!placed.added.length) return null;
-  return { kind: 'place', note: plan.note.note as Note, title: plan.note.title, text, placement, added: placed.added, into: placed.into, span };
-}
-
-/** A new list's body, as the voice commands make it: the title, then its items. */
-export function listBody(title: string, items: readonly string[]): string {
-  const named = listTitle(title);
-  return items.length ? appendToList(named, items).body : named;
-}

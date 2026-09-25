@@ -49,6 +49,8 @@ export interface PaletteWorld {
 /** What the palette can set off. Every one of these is something the app already does by hand. */
 export interface PaletteDoing {
   openNote: (id: string) => void;
+  /** A note opened by name, from outside it: a book where it was left (book/bookSpot.ts). Absent, `openNote`. */
+  openNoteWhereLeft?: (id: string) => void;
   newNote: () => void;
   speak: () => void;
   speakInto: (id: string) => void;
@@ -159,7 +161,7 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing): Palet
   const open = new Set(world.tabs.map((tab) => tab.id));
   for (const each of world.notes.slice(0, MOST_NOTES)) {
     if (open.has(each.id) || each.id === note?.id) continue;
-    add({ id: `open:${each.id}`, label: `Open ${titleOf(each)}`, group: 'Notes by name', keywords: 'note go to' }, () => doing.openNote(each.id));
+    add({ id: `open:${each.id}`, label: `Open ${titleOf(each)}`, group: 'Notes by name', keywords: 'note go to' }, () => (doing.openNoteWhereLeft ?? doing.openNote)(each.id));
   }
 
   // ---- how it looks -------------------------------------------------------------------------

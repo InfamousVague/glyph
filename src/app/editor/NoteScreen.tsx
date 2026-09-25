@@ -4,7 +4,7 @@ import { failureText } from '../core/failure.ts';
 import { liveEnabled } from '../core/live/enabled.ts';
 import { useTopBarTools } from '../core/topBarTools.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, Bookmark, Code, EllipsisVertical, Mic, Sparkles } from '@glacier/icons';
+import { BookOpen, Bookmark, Code, EllipsisVertical, Mic } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import type { EditorView } from '@codemirror/view';
 import { adoptImagePath, pickImage } from '../core/images.ts';
@@ -12,7 +12,7 @@ import { useWispEdge } from '../art/wispEdge.ts';
 import { caretPlace, placeOf, readBookmark, scrollToPlace, useNotePlace, writeBookmark } from './notePlace.ts';
 import { bookmarkLineIn, markedLine, markedWords, placeBookmark, showBookmark } from './bookmarkLine.ts';
 import { boardFrom, itemAt } from '../core/boards.ts';
-import { withoutLead, wordsEnd } from '../core/itemSyntax.ts';
+import { wordsEnd } from '../core/itemSyntax.ts';
 import { hasClips, setTapeId, tapeId } from '../core/clips.ts';
 import { useNoteZoom } from './pinchZoom.ts';
 import { ContextMenu } from './ContextMenu.tsx';
@@ -22,6 +22,7 @@ import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
 import { BookBar, BookFoot, BookView } from '../book/BookView.tsx';
 import { isBookBody, type BookPlace } from '../book/book.ts';
+import { writeBookSpot } from '../book/bookSpot.ts';
 import { withFrontMatterTitle } from '../core/frontMatter.ts';
 import { authorsOf } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
@@ -29,31 +30,22 @@ import { insertImageAt, releaseImageSpot, reserveImageSpot } from './images.ts';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { useUnfold } from '../core/unfold.ts';
-import { applyCommandMutation, getNote, listNotes, newNoteId, noteTitle, setNoteRecording, undoCommandMutation, updateNote, type Note } from '../core/store.ts';
+import { getNote, noteTitle, setNoteRecording, updateNote, type Note } from '../core/store.ts';
 import type { Segment } from '../capture/markdown.ts';
 import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.ts';
 import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useAvailability } from '../ai/available.ts';
-import { PromptBar } from '../ai/PromptBar.tsx';
-import { ConfirmCard } from '../ai/ConfirmCard.tsx';
-import { listBody, offerOf, readInstruction } from '../ai/instruction.ts';
-import { recordChange, recordRun } from '../ai/log.ts';
-import type { Plan } from '../capture/command.ts';
-import { placeWords } from '../capture/listAppend.ts';
-import type { Candidate } from '../capture/route.ts';
-import type { Offer } from '../capture/take.ts';
-import { commonEnds, wisp } from './wispArrivals.ts';
 import type { RunKind } from '../ai/kinds.ts';
 import { loadMarks, saveMarks } from '../ai/marks.ts';
-import { ended, useRun, type RunScope } from '../ai/runs.ts';
+import { ended, useRun } from '../ai/runs.ts';
 import { startNoteRun } from '../ai/start.ts';
 import { useLanding } from '../ai/useLanding.ts';
 import { useNoteReview } from '../ai/useNoteReview.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
 import { accountState } from '../core/account/account.ts';
-import { addAiChanges, aiEdit, keepAllAiChanges, keepAllChanges, restoreAiChanges, type AiChange } from './aiChanges.ts';
+import { aiEdit, keepAllAiChanges, keepAllChanges, restoreAiChanges, type AiChange } from './aiChanges.ts';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
 import { LinkMarks } from '../plugins/LinkMarks.tsx';
@@ -132,9 +124,6 @@ interface NoteScreenProps {
   review?: ReviewHandoff & { key: number };
   /** The "← Notes" in the header; off where the list is already beside the note (the desktop sidebar, App.tsx). */
 }
-
-/** A command on a note by name, read from the bar and waiting to be confirmed (ai/instruction.ts). */
-type CommandPlan = Extract<Plan<Candidate & { note: Note }>, { kind: 'place' | 'create-list' }>;
 
 const SAVE_DEBOUNCE_MS = 400;
 
@@ -422,48 +411,13 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
    * finish (useLanding below). What is typed is flushed first, so the run's Undo has the note as it was.
    */
   const availability = useAvailability();
-  const runAi = (kind: RunKind, instruction?: string, scope: RunScope | null = null) => {
+  const runAi = (kind: RunKind, instruction?: string) => {
     if (!view) return;
     flush();
-    const started = startNoteRun(view, note.id, kind, availability.availability, { instruction, scope });
+    const started = startNoteRun(view, note.id, kind, availability.availability, { instruction });
     if (!started.ok) toast({ message: started.reason });
     else fireNativeHaptic('selection');
   };
-  /*
-   * The Ask over a selection (editor/ContextMenu.tsx): the selected words become the bar's scope, and the bar asks
-   * which - this part or the whole note - when a chip is pressed or an instruction sent (ai/PromptBar.tsx). The scope
-   * is the selection as it stands, read again when the person acts, since the caret may have moved meanwhile.
-   */
-  const [askScope, setAskScope] = useState<RunScope | null>(null);
-  const [focusAsk, setFocusAsk] = useState(0);
-  /*
-   * The bar is off until asked for (core/preferences.ts `aiBar`; Matt: "Hide the AI bar on the note by default, put
-   * it behind a toggle button"). The toggle is a ✨ where the bar lives: a small ring at the foot of the note while it
-   * is hidden, and the spark at the start of the bar's own field while it shows. At the foot rather than with the
-   * note's tools in the top bar, where a fifth ring pushed the three dots off a phone's bar (measured at 412 px: the
-   * More button 14 px past the slot's edge, reachable only by a sideways scroll with no scrollbar).
-   *
-   * Ask over a selection is asking for the bar, so that opens it for this note whatever the setting. Putting the bar
-   * away puts that ask away with it - its words and the focus it was owed - so showing the bar again later is a
-   * plain bar, not the keyboard coming up on words that may since have moved.
-   */
-  const [askedFor, setAskedFor] = useState(false);
-  const barShown = prefs.aiBar || askedFor;
-  const showBar = () => setPreferences({ aiBar: true });
-  const hideBar = () => {
-    setPreferences({ aiBar: false });
-    setAskedFor(false);
-    setAskScope(null);
-    setFocusAsk(0);
-  };
-  const askAbout = (from: number, to: number) => {
-    setAskedFor(true);
-    setAskScope({ from, to });
-    setFocusAsk((n) => n + 1);
-  };
-  const onBarHeight = useCallback((height: number) => {
-    screen.current?.style.setProperty('--ai-bar-room', height ? `${height + 12}px` : '0px');
-  }, []);
   // The review after a recording: listening again and comparing as a stage in the strip, the thinking as a run, the
   // findings landing as tracked changes (ai/useNoteReview.ts).
   const reviewStage = useNoteReview(review, view, { wisp: prefs.wisp, say: (message) => toast({ message, duration: 7000 }) });
@@ -481,104 +435,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     runAi(ask.kind, ask.instruction);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runAi is made afresh each render; the key and the readiness are what this keys on
   }, [ask, view, availability.availability]);
-  /*
-   * Words typed into the bar go through the one reader (ai/instruction.ts): a chip said in words is that run; a
-   * command naming another note is offered on the confirm card first, as a spoken one is; anything else is an ask
-   * about this note. Words about a selected part are always an ask about that part.
-   */
-  const [offer, setOffer] = useState<{ plan: CommandPlan; offer: Offer<Note>; words: string } | null>(null);
-  const askBar = async (instruction: string, scope: RunScope | null) => {
-    if (scope) {
-      runAi('ask', instruction, scope);
-      return;
-    }
-    const notes = await listNotes().catch(() => [] as Note[]);
-    const candidates = notes.filter((n) => !n.archivedAt).map((n) => ({ id: n.id, title: noteTitle(n.body), note: n }));
-    const read = await readInstruction(instruction, candidates, false);
-    if (read.kind === 'run') runAi(read.run);
-    else if (read.kind === 'ask') runAi('ask', read.instruction);
-    else if (read.kind === 'reject') toast({ message: read.reason });
-    else if (read.kind === 'command') {
-      const shown = offerOf(read.plan);
-      if (!shown) {
-        toast({ message: 'Nothing to add.' });
-        return;
-      }
-      setOffer({ plan: read.plan, offer: shown, words: instruction });
-    }
-  };
-  /** A command's record in the log, so the note it changed says the AI did, with the words asked. */
-  const stamp = (noteId: string) => {
-    const id = `cmd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-    recordRun({ id, noteId, kind: 'ask', instruction: offer?.words ?? null, model: 'rules', at: Date.now(), ms: 0, outputTokens: 0, outcome: 'done', message: null, truncated: false });
-    return id;
-  };
-  /**
-   * The confirmed command, done: into this note through the editor as a tracked change; into another note through
-   * the guarded write, with Undo, as a spoken command does it (capture/CaptureScreen.tsx); a new list made.
-   */
-  const confirmOffer = async () => {
-    const chosen = offer;
-    if (!chosen || !view) return;
-    setOffer(null);
-    const { plan } = chosen;
-    if (plan.kind === 'create-list') {
-      const made = await applyCommandMutation({ mutationId: newNoteId(), noteId: newNoteId(), kind: 'create', beforeRevision: null, beforeBody: null, afterBody: listBody(plan.title, plan.items ?? []), source: 'editor' }).catch(() => null);
-      if (made?.status !== 'applied') {
-        toast({ message: 'That list could not be made.' });
-        return;
-      }
-      const { mutationId } = made;
-      fireNativeHaptic('success');
-      toast({ message: `Made ${noteTitle(made.note.body)}.`, duration: 6000, action: { label: 'Undo', onPress: () => void undoCommandMutation(mutationId) } });
-      return;
-    }
-    const { kind: _kind, note: named, text, ...placement } = plan;
-    const target = named.note;
-    const more = (added: string[]) => (added.length > 1 ? ` and ${added.length - 1} more` : '');
-    if (target.id === note.id) {
-      const before = view.state.doc.toString();
-      const placed = placeWords(before, text, placement);
-      if (!placed.added.length) return;
-      const { prefix, suffix } = commonEnds(before, placed.body);
-      const insert = placed.body.slice(prefix, placed.body.length - suffix);
-      const id = stamp(note.id);
-      const change: AiChange = { id: `c-${id}`, runId: id, from: prefix, to: prefix + insert.replace(/\n$/, '').length, removed: before.slice(prefix, before.length - suffix), block: true };
-      view.dispatch({
-        changes: { from: prefix, to: before.length - suffix, insert },
-        effects: addAiChanges.of([change]),
-        annotations: [aiEdit.of('land'), ...(prefs.wisp ? [wisp.of({ kind: 'heard' })] : [])],
-        userEvent: 'ai.land',
-      });
-      recordChange(note.id, id, before, view.state.doc.toString());
-      fireNativeHaptic('success');
-      toast({ message: `Added “${withoutLead(placed.added[0] ?? '')}”${more(placed.added)}.` });
-      return;
-    }
-    const placed = placeWords(target.body, text, placement);
-    if (!placed.added.length) return;
-    const mutationId = newNoteId();
-    const result = await applyCommandMutation({ mutationId, noteId: target.id, kind: 'append', beforeRevision: target.revision ?? 1, beforeBody: target.body, afterBody: placed.body, source: target.source }).catch(() => null);
-    if (result?.status !== 'applied') {
-      toast({ message: `${named.title} changed after the preview, so nothing was added.` });
-      fireNativeHaptic('warning');
-      return;
-    }
-    const id = stamp(target.id);
-    recordChange(target.id, id, target.body, result.note.body);
-    fireNativeHaptic('success');
-    toast({
-      message: `Added “${withoutLead(placed.added[0] ?? '')}”${more(placed.added)} to ${named.title}.`,
-      duration: 6000,
-      action: {
-        label: 'Undo',
-        onPress: () =>
-          void undoCommandMutation(mutationId).then((undone) => {
-            if (undone.status === 'undone') recordUndone(target.id, id);
-          }),
-      },
-    });
-  };
   // The AI signs beside the account's handle, where there is one (core/authors.ts).
   useLanding(note.id, view, {
     wisp: prefs.wisp,
@@ -636,12 +492,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
 
   // Playing takes the screen for the transcript; the note waits under it.
   const shown: 'transcript' | 'raw' = tape.length && tape.playing ? 'transcript' : 'raw';
-  // The ✨ ring's room while the bar is away: the bar tells its own height as it mounts, and 0 as it goes, so this
-  // runs after that and has the last word.
-  const ringShown = !barShown && !typed && shown === 'raw';
-  useEffect(() => {
-    if (!barShown) screen.current?.style.setProperty('--ai-bar-room', ringShown ? '52px' : '0px');
-  }, [barShown, ringShown]);
   // The tape and note go to smoke as they slip behind the header; read again on a view change, since another view may not scroll (art/wispEdge.ts).
   // The page smokes at both ends: under the header, and off the bottom where the dock is (art/wispEdge.ts).
   // Not on a canvas: it is not a page that scrolls off its foot, and the band was smoking the canvas's own tools at
@@ -650,6 +500,11 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // The note opens where it was left, and remembers where it is left (editor/notePlace.ts).
   // Opened at an item, the note goes to that line rather than back to where it was left last time.
   useNotePlace(note.id, page, view, shown === 'raw' && !at);
+  // A chapter open is where its book was left, so the book opens here again from outside it (book/bookSpot.ts).
+  const inBook = book?.book.id ?? null;
+  useEffect(() => {
+    if (inBook) writeBookSpot(inBook, { kind: 'chapter', title });
+  }, [inBook, title]);
   /** Whether this note has a bookmark, for the header's button. */
   const [marked, setMarked] = useState(() => bookmarkLineIn(note.body) !== null || readBookmark(note.id) !== null);
   useEffect(() => setMarked(bookmarkLineIn(note.body) !== null || readBookmark(note.id) !== null), [note.id, note.body]);
@@ -984,6 +839,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               openCanvas={onNewCanvas}
               titles={allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
+              spot={{ id: note.id, page }}
               onChange={(next) => {
                 setBookBody(next);
                 onChange(next);
@@ -1033,45 +889,12 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {/* And under its last line, the chapters either side again, to go on from the end of the page (docs/BOOKS.md). */}
         {book && onOpenTitle && shown === 'raw' ? <BookFoot place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}
       </div>
-      {/*
-        The bar at the foot: the six chips and a field for anything else (ai/PromptBar.tsx), while it is shown, and the
-        ✨ ring that shows it while it is not. Neither on a canvas or a book's index, nor while the transcript plays.
-        The page keeps room under its last line for whichever is there (the bar's height, told as it changes, or the
-        ring's), so the end of the note is never under either.
-      */}
-      <div className={styles.barHolder}>
-        {offer ? (
-          <div className={styles.cardHolder}>
-            <ConfirmCard offer={offer.offer} onConfirm={() => void confirmOffer()} onCancel={() => setOffer(null)} />
-          </div>
-        ) : null}
-        {barShown ? (
-          <PromptBar
-            onHide={hideBar}
-            availability={availability.availability}
-            onRun={(kind, instruction, scope) => (kind === 'ask' && instruction ? void askBar(instruction, scope) : runAi(kind, instruction, scope))}
-            onGet={(model) => void availability.fetch(model)}
-            scope={askScope}
-            onScopeUsed={() => setAskScope(null)}
-            focusAsk={focusAsk}
-            onHeight={onBarHeight}
-            disabled={typed || shown !== 'raw'}
-          />
-        ) : typed || shown !== 'raw' ? null : (
-          <button type="button" className={styles.aiSpark} onClick={showBar} aria-label="Show the AI bar" aria-expanded="false">
-            <Sparkles size={20} strokeWidth={2.1} aria-hidden="true" />
-          </button>
-        )}
-      </div>
-      {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image; and on a selection, Ask the AI. */}
+      {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image. */}
       <ContextMenu
         view={view}
         onAddImage={() => void addPhoto()}
         onPasteImage={pasteImage}
         say={(message) => toast({ message })}
-        edits={typed ? [] : [{ id: 'ask', label: 'Ask the AI' }]}
-        onEdit={(_id, from, to) => askAbout(from, to)}
-        editsUnavailable={availability.availability.ok ? null : availability.availability.reason}
         onFind={setFinding}
         // The same send a swipe on the item does, where a plugin takes this note's items (a Notion board, a GitHub issue).
         send={(() => {

@@ -27,7 +27,6 @@ export const SYNCED_PREFS = [
   'codeDark',
   'codeChosen',
   'noteView',
-  'aiBar',
   'wisp',
   'wispEdge',
   'ripples',

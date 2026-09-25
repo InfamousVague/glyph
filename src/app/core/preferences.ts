@@ -229,12 +229,6 @@ export interface Preferences {
   /** How notes are shown: marks and formatting together, or just the formatted text (editor/viewMode.ts). */
   noteView: NoteView;
   /**
-   * Whether the AI bar (ai/PromptBar.tsx) stands at the foot of a note. Off until asked for (Matt: "Hide the AI bar
-   * on the note by default, put it behind a toggle button"): the note's ✨ button shows and hides it, and the choice
-   * is the person's, so it travels with their settings. Asking over a selection opens it for that note either way.
-   */
-  aiBar: boolean;
-  /**
    * The notes left open as tabs, oldest first, and kept so they come back on a reload and on another device
    * (Matt: "Persist tabs across devices and reloads"). State rather than a setting, but it belongs to the person
    * and not to the phone, so it travels the way their settings do (core/sync/prefs.ts).
@@ -306,7 +300,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
   codeDark: 'pastel',
   codeChosen: false,
   noteView: 'mixed',
-  aiBar: false,
   openNotes: [],
   tabGroups: { list: [], of: {} },
   workspaces: { list: [], notes: {} },

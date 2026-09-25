@@ -18,12 +18,14 @@ import { hiddenDefs, svgElement } from './svgFilters.ts';
  * Unlike the spoiler's smoke (wispFormat.ts), an effect is meant to be read: it moves the letters, it does not hide
  * them. There are three kinds, by what the effect is:
  *
- * - **Heat rising off the words** (`RisingEffect`: heat). The words themselves are solid and bold, in their own
- *   colour, and it is the text above them that wavers, seen through the hot air they give off (Matt: "The fire effect
- *   should be messing with the text above it with the heat waves the text itself should just have solid in the
- *   existing color but bold"), as the onboarding's flame bent the words it stood behind rather than itself. Where the
- *   text above is is a question about the layout, not the document - a wrapped line, a wide heading, a proportional
- *   face - so it is measured after each draw (`textAbove`), and the haze follows on the next frame.
+ * - **Heat rising off the words** (`RisingEffect`: heat). The words themselves are bold, in their own colour, and it
+ *   is the text above them that wavers, seen through the hot air they give off (Matt: "The fire effect should be
+ *   messing with the text above it with the heat waves the text itself should just have solid in the existing color
+ *   but bold"), as the onboarding's flame bent the words it stood behind rather than itself. The words shimmer too,
+ *   but only slightly, a fraction of the haze over the line above (Matt: "give a slight but not as intense heat effect
+ *   to the text itself being heated"), so they still read as solid. Where the text above is is a question about the
+ *   layout, not the document - a wrapped line, a wide heading, a proportional face - so it is measured after each draw
+ *   (`textAbove`), and the haze follows on the next frame.
  * - **A filter over the whole stretch** (`FilterEffect`: frost), where the effect is one field the words sit in - a
  *   rime - and a letter-by-letter filter would be a dozen small frosts.
  * - **A movement passed along the letters** (`LetterEffect`: wave, shimmer, haunt), where each letter moves on its own
@@ -46,7 +48,8 @@ export interface RisingEffect {
   kind: 'rising';
   /**
    * Fills `filter` for the text above the words, for type `fontPx` high, at `strength` (1 for the line just above, less
-   * for the one above that, where the heat has thinned). `still` is reduced motion.
+   * for the one above that, where the heat has thinned), and for the words themselves at `own`. `still` is reduced
+   * motion.
    */
   build(filter: SVGFilterElement, fontPx: number, still: boolean, strength: number): void;
   region: { x: number; y: number; width: number; height: number };
@@ -54,6 +57,8 @@ export interface RisingEffect {
   theme: Parameters<typeof EditorView.baseTheme>[0];
   /** How strongly each line above is drawn through the haze, nearest first. */
   strengths: readonly number[];
+  /** How strongly the words themselves waver: well under the line above, so they stay solid and bold to read. */
+  own: number;
 }
 
 export interface FilterEffect {
@@ -91,7 +96,8 @@ const scaleFor = (fontPx: number) => Math.max(0.5, fontPx / TUNED_PX);
  * "AI" text on with the fire on the original onboarding flow"). The same filter: fractal noise stretched tall (a lower
  * frequency across than down, so the bend runs in rising bands), breathing between two frequencies every 2.4 seconds
  * and re-rolled six times in 0.9 seconds, driving a displacement; then a breath of blur, the "blur" in the wavy blur.
- * `strength` scales the bend and the blur, so the line two above is a gentler haze than the line just above.
+ * `strength` scales the bend and the blur, so the line two above is a gentler haze than the line just above, and the
+ * heated words themselves (`own`) a gentler one still.
  *
  * The onboarding's numbers (a 0.035 by 0.11 noise, a bend of 7) were for 40-pixel display type; carried to body text
  * as they were, or scaled straight down with it, the bend is a few pixels of grit on fine noise and reads as ragged
@@ -155,6 +161,7 @@ export const TEXT_EFFECTS = {
     region: { x: -0.08, y: -0.45, width: 1.16, height: 1.9 },
     theme: { '.cm-effect-heat': { fontWeight: '700' } },
     strengths: [1, 0.55],
+    own: 0.3,
   },
   frost: { kind: 'filter', build: frost, region: { x: -0.1, y: -0.5, width: 1.2, height: 2 } },
   /** Wave: the words bob along the line, a ripple passing through them from the first letter to the last. */
@@ -374,7 +381,7 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
       private readonly filters = new Map<TextEffectName, Decoration>();
       /** A rising effect's haze over the text above, one mark per strength (`${name}:${strength}`). */
       private readonly hazes = new Map<string, Decoration>();
-      /** A rising effect's words: their own look, with no filter. */
+      /** A rising effect's words: their own look, and their own slight waver. */
       private readonly wordMarks = new Map<TextEffectName, Decoration>();
       /** The text above heated words, as last measured: drawn through the haze on the next draw. */
       private above: { from: number; to: number; effect: TextEffectName; strength: number }[] = [];
@@ -408,38 +415,33 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
         this.builtFor = fontPx;
         this.defs.replaceChildren();
         const still = prefersStill();
+        /** A filter in the view's defs, over `region` and filled by `fill`: its id, for a mark's style to name. */
+        const addFilter = (id: string, region: RisingEffect['region'], fill: (filter: SVGFilterElement) => void): string => {
+          const filter = svgElement('filter', {
+            id,
+            x: region.x,
+            y: region.y,
+            width: region.width,
+            height: region.height,
+            'color-interpolation-filters': 'sRGB',
+          }) as SVGFilterElement;
+          fill(filter);
+          this.defs.appendChild(filter);
+          return id;
+        };
         for (const name of used) {
           const effect: TextEffect = TEXT_EFFECTS[name];
           if (effect.kind === 'rising') {
-            this.wordMarks.set(name, Decoration.mark({ class: `cm-textEffect cm-effect-${name}`, attributes: { 'data-effect': name } }));
+            const own = addFilter(`${this.prefix}-${name}-own`, effect.region, (filter) => effect.build(filter, fontPx, still, effect.own));
+            this.wordMarks.set(name, Decoration.mark({ class: `cm-textEffect cm-effect-${name}`, attributes: { 'data-effect': name, style: `filter:url(#${own})` } }));
             for (const strength of effect.strengths) {
-              const id = `${this.prefix}-${name}-above-${Math.round(strength * 100)}`;
-              const filter = svgElement('filter', {
-                id,
-                x: effect.region.x,
-                y: effect.region.y,
-                width: effect.region.width,
-                height: effect.region.height,
-                'color-interpolation-filters': 'sRGB',
-              }) as SVGFilterElement;
-              effect.build(filter, fontPx, still, strength);
-              this.defs.appendChild(filter);
+              const id = addFilter(`${this.prefix}-${name}-above-${Math.round(strength * 100)}`, effect.region, (filter) => effect.build(filter, fontPx, still, strength));
               this.hazes.set(`${name}:${strength}`, Decoration.mark({ class: 'cm-textEffectAbove', attributes: { 'data-effect': `${name}-above`, style: `filter:url(#${id})` } }));
             }
             continue;
           }
           if (effect.kind !== 'filter') continue;
-          const id = `${this.prefix}-${name}`;
-          const filter = svgElement('filter', {
-            id,
-            x: effect.region.x,
-            y: effect.region.y,
-            width: effect.region.width,
-            height: effect.region.height,
-            'color-interpolation-filters': 'sRGB',
-          }) as SVGFilterElement;
-          effect.build(filter, fontPx, still);
-          this.defs.appendChild(filter);
+          const id = addFilter(`${this.prefix}-${name}`, effect.region, (filter) => effect.build(filter, fontPx, still));
           this.filters.set(name, Decoration.mark({ class: 'cm-textEffect', attributes: { 'data-effect': name, style: `filter:url(#${id})` } }));
         }
       }
