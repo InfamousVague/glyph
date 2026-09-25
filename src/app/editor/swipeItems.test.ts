@@ -38,9 +38,13 @@ describe('swiping a list item left', () => {
     const { on, run, line, finish } = open();
     const item = line(1);
     pointer(item, 'pointerdown', 250, 10);
-    // Under a finger's intent, nothing moves yet.
+    // Under a finger's intent, 12 px, nothing moves yet; at it, the line follows.
     pointer(item, 'pointermove', 242, 10);
     expect(item.style.transform).toBe('');
+    pointer(item, 'pointermove', 239, 10);
+    expect(item.style.transform).toBe('');
+    pointer(item, 'pointermove', 238, 10);
+    expect(item.style.transform).toBe('translateX(-12px)');
     pointer(item, 'pointermove', 140, 14);
     expect(item.style.transform).toBe('translateX(-110px)');
     expect(tile(on)?.textContent).toBe('Send to Notion');

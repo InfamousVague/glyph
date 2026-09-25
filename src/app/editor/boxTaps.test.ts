@@ -40,6 +40,15 @@ function tap(on: EditorView, x: number, y: number, init: MouseEventInit = {}): v
   on.contentDOM.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, ...init }));
 }
 
+/** Each press that is not a plain one: a modifier held, one at a time, or another button. */
+const NOT_PLAIN: [string, MouseEventInit][] = [
+  ['shift', { shiftKey: true }],
+  ['meta', { metaKey: true }],
+  ['ctrl', { ctrlKey: true }],
+  ['alt', { altKey: true }],
+  ['the other button', { button: 2 }],
+];
+
 describe('a tap on a to-do’s box', () => {
   const doc = '- [ ] milk\n- [x] eggs';
 
@@ -64,10 +73,13 @@ describe('a tap on a to-do’s box', () => {
 
   it('is only a plain press: no modifier, the main button, and a note that can be changed', () => {
     const on = open(doc, taskToggle());
-    tap(on, 35, 10, { shiftKey: true });
-    tap(on, 35, 10, { metaKey: true });
-    tap(on, 35, 10, { button: 2 });
-    expect(on.state.doc.toString()).toBe(doc);
+    // Each checked on its own, so two that did answer could not tick and untick the box back to where it was.
+    for (const [what, init] of NOT_PLAIN) {
+      tap(on, 35, 10, init);
+      expect(on.state.doc.toString(), what).toBe(doc);
+    }
+    tap(on, 35, 10);
+    expect(on.state.doc.line(1).text).toBe('- [x] milk');
     view?.destroy();
     const locked = open(doc, taskToggle(), true);
     tap(locked, 35, 10);
@@ -86,10 +98,14 @@ describe('a tap on a choice’s round box', () => {
     expect(on.state.doc.toString()).toBe('Where do we stay?\n- ( ) Tent\n- ( ) Cabin\n- ( ) Hotel');
   });
 
-  it('leaves the words, and a note that cannot be changed, alone', () => {
+  it('leaves the words, a press that is not a plain one, and a note that cannot be changed, alone', () => {
     const on = open(doc, choices());
     tap(on, 90, 30);
     expect(on.state.doc.toString()).toBe(doc);
+    for (const [what, init] of NOT_PLAIN) {
+      tap(on, 35, 30, init);
+      expect(on.state.doc.toString(), what).toBe(doc);
+    }
     view?.destroy();
     const locked = open(doc, choices(), true);
     tap(locked, 35, 30);
