@@ -78,7 +78,7 @@ export function isSidebarStyle(style: unknown): style is SidebarStyle {
   return style === 'popover' || style === 'docked';
 }
 
-export function isThemePreset(theme: unknown): theme is ThemePreset {
+function isThemePreset(theme: unknown): theme is ThemePreset {
   return typeof theme === 'string' && theme in THEME_PRESETS;
 }
 
@@ -164,7 +164,7 @@ export function facesOf(prefs: Pick<Preferences, 'typeface' | 'noteFace'>): { ui
 export type MotionSpeed = 'relaxed' | 'normal' | 'brisk';
 
 /** How much longer (above 1) or shorter (below 1) every animation runs at a speed. */
-export const MOTION_SCALE: Record<MotionSpeed, number> = { relaxed: 1.6, normal: 1, brisk: 0.6 };
+const MOTION_SCALE: Record<MotionSpeed, number> = { relaxed: 1.6, normal: 1, brisk: 0.6 };
 
 export interface Preferences {
   theme: ThemePref;

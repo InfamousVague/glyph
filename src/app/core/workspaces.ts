@@ -30,7 +30,7 @@ import { readStored, readStoredText, writeStoredText } from './stored.ts';
 export const WORKSPACE_HUES = ['ink', 'ember', 'amber', 'moss', 'sea', 'violet', 'rose'] as const;
 export type WorkspaceHue = (typeof WORKSPACE_HUES)[number];
 
-export function isHue(value: unknown): value is WorkspaceHue {
+function isHue(value: unknown): value is WorkspaceHue {
   return typeof value === 'string' && (WORKSPACE_HUES as readonly string[]).includes(value);
 }
 

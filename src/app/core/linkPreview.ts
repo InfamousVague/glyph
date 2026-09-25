@@ -31,7 +31,7 @@ const KEY = 'glyph-link-previews';
 const KEEP = 300;
 const FRESH_MS = 7 * 24 * 60 * 60_000;
 const RETRY_MS = 24 * 60 * 60_000;
-export const PREVIEW_GENERATION = 17;
+const PREVIEW_GENERATION = 17;
 /** Sent on `window` when a preview arrives, so cards redraw. */
 export const LINK_PREVIEW_READY = 'glyph:link-preview';
 
