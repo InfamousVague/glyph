@@ -1,14 +1,17 @@
 import { renderNote, type Segment } from '../capture/markdown.ts';
 
 /**
- * What to SAY to get markdown, as the guide teaches it.
+ * What to SAY to get markdown: the spoken examples behind what the guide
+ * promises about talking.
  *
- * Every example is rendered by the real speech-to-markdown rules at runtime
- * (`renderNote`), never typed out by hand: the guide shows exactly what the
- * capture screen would write, so a rule that changes cannot leave the guide
- * promising the old behaviour. guide.test.ts pins what each example must still
- * produce, so a rule that REGRESSES fails a test instead of quietly teaching
- * something that no longer works.
+ * The guide once drew these as a page of its own, rendered by the real
+ * speech-to-markdown rules. That page went (the marks page draws every mark
+ * with the note's editor now, guide/MarksTable.tsx), but its promises stayed:
+ * the Tips page's habits (guide/pages/Tips.tsx) and the "say" line beside each
+ * mark (guide/marks.ts). So the examples stay too, as what guide.test.ts runs
+ * through the capture screen's own rules (`renderNote`) - a rule that
+ * REGRESSES fails a test instead of the guide quietly teaching something that
+ * no longer works.
  *
  * Only cues src/app/capture/markdown.ts implements belong here: the note is
  * shaped by what was said and nothing else.
@@ -31,22 +34,6 @@ export interface PhraseGroup {
   cues: string[];
   example: Example;
 }
-
-/** A mark with no spoken cue: the guide shows it, and how to make it, under the said ones. */
-export interface TypedMark {
-  symbol: string;
-  title: string;
-  /** How it is made: typed, pasted, or from the press-and-hold menu. */
-  how: string;
-}
-
-export const TYPED: TypedMark[] = [
-  { symbol: '[words](address)', title: 'A link', how: 'Or paste an address on its own; it is shortened on the page.' },
-  { symbol: '![caption](image/…)', title: 'A picture', how: 'Paste one, or press and hold and choose Add image.' },
-  { symbol: '| a | b |', title: 'A table', how: 'Pipes between cells, or say “Hey Ghost, add a table to this note” and answer.' },
-  { symbol: '```', title: 'A block of code', how: 'Three backticks above and below, the language after the first three.' },
-  { symbol: '![voice 0:12](tape:…)', title: 'A voice memo', how: 'Say “voice memo” while recording, talk, then “end memo”: the sound stays, played where you left it.' },
-];
 
 export const PHRASES: PhraseGroup[] = [
   {
@@ -192,7 +179,7 @@ export const PHRASES: PhraseGroup[] = [
 export const CUE_ALONE: Example = { say: ['Shopping.', 'Bullet point.', 'Oat milk.'], expect: '- Oat milk' };
 
 /** The same shape the capture tests use: a second per phrase with a breath between. */
-export function toSegments(say: readonly string[]): Segment[] {
+function toSegments(say: readonly string[]): Segment[] {
   let at = 0;
   return say.map((text) => {
     const segment = { text, startMs: at, endMs: at + 1000 };

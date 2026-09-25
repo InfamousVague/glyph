@@ -59,6 +59,11 @@ export function modelFor(present: readonly string[], chosen: string): string | n
   return here.sort((a, b) => sizeOf(a) - sizeOf(b))[0] ?? null;
 }
 
+/** The ids of the models the catalogue says are on the phone. */
+export function presentIds(models: readonly ModelInfo[]): string[] {
+  return models.filter((m) => m.present).map((m) => m.id);
+}
+
 /** The smallest model on the phone, for a line that wants speed over care (the gist); null with none. */
 export function smallestOf(present: readonly string[]): string | null {
   return [...new Set(present)].sort((a, b) => sizeOf(a) - sizeOf(b))[0] ?? null;
@@ -80,8 +85,7 @@ export function availability(models: readonly ModelInfo[], chosen: string, where
     return { ok: false, reason: 'The AI needs the newest Ghost.md. Install it from attack.fm/glyph.', get: null, waiting: false };
   }
   if (!models.length) return { ok: false, reason: 'Looking for the model.', get: null, waiting: true };
-  const present = models.filter((m) => m.present).map((m) => m.id);
-  const model = modelFor(present, chosen);
+  const model = modelFor(presentIds(models), chosen);
   if (model) return { ok: true, model, chosen };
   if (where.localOnly) {
     return { ok: false, reason: 'No model is on the phone, and Local only is on, so none can be downloaded. Turn it off in Settings to get one.', get: null, waiting: false };
@@ -124,8 +128,5 @@ export function useAvailability(): AvailabilityState {
 
 /** The model that would run now, from the catalogue as last read; for callers outside React. */
 export function modelNow(models: readonly ModelInfo[]): string | null {
-  return modelFor(
-    models.filter((m) => m.present).map((m) => m.id),
-    preferences().formatModel,
-  );
+  return modelFor(presentIds(models), preferences().formatModel);
 }

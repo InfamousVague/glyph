@@ -60,21 +60,35 @@ export async function thinkingModel(): Promise<string | null> {
   return qwen?.id ?? present.find((m) => m.id === chosen)?.id ?? null;
 }
 
+/**
+ * A phrase as it is looked for in the note and put in its place: a speech model ends a phrase with the stop it heard,
+ * and the note may have carried on after the word.
+ */
+export function unpunctuated(phrase: string): string {
+  return phrase.replace(/[.,;:!?]+$/, '');
+}
+
+/** What a words finding says: the careful model's words, not the ones the note has. */
+export function heardAs(careful: string, found: string): string {
+  return `“${careful}”, not “${found}”`;
+}
+
 /** Without a model to think, the careful model's words alone: each change the note still has, offered as it heard it. */
 export function wordsOnly(changes: readonly WordChange[], note: NoteText): Finding[] {
   return changes.flatMap((change, i) => {
     if (!change.heard || !change.careful) return [];
-    const find = locate(note.body, change.heard.replace(/[.,;:!?]+$/, ''));
+    const find = locate(note.body, unpunctuated(change.heard));
     if (!find) return [];
+    const replace = unpunctuated(change.careful);
     return [
       {
         id: `w${i}`,
         check: 'words' as const,
-        what: `“${change.careful.replace(/[.,;:!?]+$/, '')}”, not “${find}”`,
+        what: heardAs(replace, find),
         why: 'The slower speech model heard it this way.',
         noteId: note.id,
         noteTitle: note.title,
-        change: { kind: 'replace' as const, find, replace: change.careful.replace(/[.,;:!?]+$/, '') },
+        change: { kind: 'replace' as const, find, replace },
       },
     ];
   });

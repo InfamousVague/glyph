@@ -1,9 +1,14 @@
 /**
  * What the model is told for the newer kinds of run - fix, shape, continue,
  * ask - and how much room each gets. The three older prompts stay in
- * format/prompt.ts, where the Rust prompt tests read them by name; these are
- * `String.raw` literals for the same reason, so a test on the Mac can read
- * them too. Every word of guidance lives on the page, tuned over the air.
+ * format/prompt.ts, where the Rust prompt tests read them by name. Every word
+ * of guidance lives on the page, tuned over the air.
+ *
+ * These are `String.raw` literals like those, but built from shared pieces
+ * (`KEEP`, `PLAIN`), and the Rust reader (src-tauri/src/llm/tests.rs
+ * `page_prompt_in`) copies a literal's source up to its closing backtick: it
+ * would read `${KEEP}` as those seven characters. Nothing on the Mac reads
+ * these today; a test that wants to has to evaluate them, not read them.
  *
  * Each prompt keeps the rules the older ones learned the hard way on small
  * models: every fact kept, links and pictures and tables copied as the
@@ -84,7 +89,7 @@ Its shape:
 - [ ] Ask Sam about the dog.
 - [ ] Oil change before we go.
 
-Plain markdown only: no emoji, no horizontal rules, no "*" bullets. The answer is the text and nothing else: no introduction, no explanation, no closing remark, no code fence around it.`;
+${PLAIN}`;
 
 /**
  * Continue: what comes next, in the note's own voice and shape, and only

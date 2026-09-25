@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
+import { externalStore } from '../core/externalStore.ts';
 import { readStoredShared, writeStored } from '../core/stored.ts';
 import type { RunKind } from './kinds.ts';
+import { noteSheet, sheetOf, type Sheet } from './noteSheet.ts';
 
 /**
  * What the AI did to each note: the run log.
@@ -9,9 +11,9 @@ import type { RunKind } from './kinds.ts';
  * which model, how long, what came of it, and Undo for a run that changed
  * the note. Kept on the page under one key, per note, the newest first and
  * at most a handful each (a note is asked about a few times a day, not a few
- * hundred), beside the summaries in `glyph-ai-results`; moving it into the
- * store is a native change for a later APK. A reset clears the key with every
- * other `glyph-` one (core/reset.ts).
+ * hundred), beside the home page's gists in `glyph-ai-results`; moving it into
+ * the store is a native change for a later APK. A reset clears the key with
+ * every other `glyph-` one (core/reset.ts).
  *
  * A run that changed the note keeps the note as it was before and after, so
  * Undo can put the words back exactly - and only while the note still reads
@@ -45,52 +47,40 @@ const KEY = 'glyph-ai-log';
 /** The most runs kept per note. */
 const MOST = 8;
 
-type Sheet = Record<string, RunRecord[]>;
-
-const listeners = new Set<() => void>();
+/** Counts the writes, so a screen showing a note's log reads it again after each. */
+const written = externalStore(0);
 
 /**
- * The sheet, read shared (core/stored.ts `readStoredShared`), so a read parses only when the text has changed. What
- * it answers is shared: a writer copies it first.
+ * Per note, its runs newest first. Read shared (core/stored.ts `readStoredShared`), so a read parses only when the
+ * text has changed - which is also what keeps a note's log the same array between writes, as a store snapshot has to
+ * be.
  */
-function readSheet(): Sheet {
-  return readStoredShared<Sheet>(KEY, {}, (value) => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {}));
-}
-
-/** No storage: the log holds for this run of the app and not beyond it. */
-function writeSheet(sheet: Sheet): void {
-  writeStored(KEY, sheet);
-  listeners.forEach((l) => l());
-}
+const sheet = noteSheet<RunRecord[]>(
+  () => readStoredShared<Sheet<RunRecord[]>>(KEY, {}, sheetOf),
+  (value) => {
+    writeStored(KEY, value);
+    written.update((n) => n + 1);
+  },
+);
 
 /** A run's record kept, newest first; the same id again replaces its earlier record. */
 export function recordRun(record: RunRecord): void {
-  const sheet = { ...readSheet() };
-  const mine = (sheet[record.noteId] ?? []).filter((r) => r.id !== record.id);
-  sheet[record.noteId] = [record, ...mine].slice(0, MOST);
-  writeSheet(sheet);
+  sheet.update(record.noteId, (mine) => [record, ...(mine ?? []).filter((r) => r.id !== record.id)].slice(0, MOST));
+}
+
+/** One run's record changed, if the note's log has it; otherwise nothing is written. */
+function changeRecord(noteId: string, runId: string, fn: (record: RunRecord) => RunRecord): void {
+  sheet.update(noteId, (mine) => (mine?.some((r) => r.id === runId) ? mine.map((r) => (r.id === runId ? fn(r) : r)) : mine));
 }
 
 /** The run changed the note: the words before and after go on its record, for Undo. */
 export function recordChange(noteId: string, runId: string, before: string, after: string): void {
-  const sheet = { ...readSheet() };
-  const mine = sheet[noteId];
-  if (!mine?.some((r) => r.id === runId)) return;
-  sheet[noteId] = mine.map((r) => (r.id === runId ? { ...r, before, after } : r));
-  writeSheet(sheet);
+  changeRecord(noteId, runId, (r) => ({ ...r, before, after }));
 }
 
 /** A run's change was undone: its record no longer offers it. */
 export function recordUndone(noteId: string, runId: string): void {
-  const sheet = { ...readSheet() };
-  const mine = sheet[noteId];
-  if (!mine?.some((r) => r.id === runId)) return;
-  sheet[noteId] = mine.map((r) => {
-    if (r.id !== runId) return r;
-    const { before: _before, after: _after, ...rest } = r;
-    return rest;
-  });
-  writeSheet(sheet);
+  changeRecord(noteId, runId, ({ before: _before, after: _after, ...rest }) => rest);
 }
 
 /** No runs, the one array: a store snapshot has to be the same value while nothing has changed, or React re-reads it forever. */
@@ -98,26 +88,18 @@ const NONE: RunRecord[] = [];
 
 /** A note's runs, newest first. */
 export function runsOf(noteId: string): RunRecord[] {
-  return readSheet()[noteId] ?? NONE;
+  return sheet.read()[noteId] ?? NONE;
 }
 
 /** A note is gone: so is its log. */
 export function forgetRuns(noteId: string): void {
-  const sheet = { ...readSheet() };
-  if (!(noteId in sheet)) return;
-  delete sheet[noteId];
-  writeSheet(sheet);
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  sheet.forget(noteId);
 }
 
 /** A note's log as the screen sees it, following every record written. */
 export function useRunLog(noteId: string): RunRecord[] {
   return useSyncExternalStore(
-    subscribe,
+    written.subscribe,
     () => runsOf(noteId),
     () => NONE,
   );

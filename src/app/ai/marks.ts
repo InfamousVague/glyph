@@ -1,6 +1,7 @@
-import { readStored, writeStored } from '../core/stored.ts';
 import type { AiChange } from '../editor/aiChanges.ts';
-import { bodyHash } from '../format/formatter.ts';
+import { bodyHash } from '../format/bodyHash.ts';
+import { readStored, writeStored } from '../core/stored.ts';
+import { noteSheet, sheetOf, type Sheet } from './noteSheet.ts';
 
 /**
  * The AI's marks on a note, kept with it: Matt chose marks that stay until
@@ -19,42 +20,33 @@ interface Kept {
   changes: AiChange[];
 }
 
-type Sheet = Record<string, Kept>;
-
-function readSheet(): Sheet {
-  return readStored<Sheet>(KEY, {}, (value) => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {}));
-}
-
-/** No storage: the marks hold while the note is open and not beyond it. */
-function writeSheet(sheet: Sheet): void {
-  writeStored(KEY, sheet);
-}
+/**
+ * Per note, its marks and the hash of the body they were made on. Read afresh each time rather than shared: what
+ * `loadMarks` answers goes back into an editor, which is given an array of its own.
+ */
+const sheet = noteSheet<Kept>(
+  () => readStored<Sheet<Kept>>(KEY, {}, sheetOf),
+  (value) => writeStored(KEY, value),
+);
 
 /** The marks on a note as it now reads. None clears what was kept. */
 export function saveMarks(noteId: string, body: string, changes: readonly AiChange[]): void {
-  const sheet = { ...readSheet() };
-  if (!changes.length) {
-    if (!(noteId in sheet)) return;
-    delete sheet[noteId];
-  } else sheet[noteId] = { hash: bodyHash(body), changes: [...changes] };
-  writeSheet(sheet);
+  sheet.update(noteId, () => (changes.length ? { hash: bodyHash(body), changes: [...changes] } : undefined));
 }
 
 /** The marks kept for a note, if the body is still the one they were made on. */
 export function loadMarks(noteId: string, body: string): AiChange[] | null {
-  const kept = readSheet()[noteId];
+  const kept = sheet.read()[noteId];
   if (!kept || kept.hash !== bodyHash(body) || !Array.isArray(kept.changes)) return null;
   return kept.changes;
 }
 
 /** Whether a note has marks kept, for a card to wear a dot. */
 export function hasMarks(noteId: string): boolean {
-  return noteId in readSheet();
+  return noteId in sheet.read();
 }
 
+/** A note is gone: so are its marks. */
 export function forgetMarks(noteId: string): void {
-  const sheet = { ...readSheet() };
-  if (!(noteId in sheet)) return;
-  delete sheet[noteId];
-  writeSheet(sheet);
+  sheet.forget(noteId);
 }

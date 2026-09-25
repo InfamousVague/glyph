@@ -6,6 +6,7 @@ import { kindWords } from './kinds.ts';
 import { useRunLog, type RunRecord } from './log.ts';
 import { cancelRun, dismissRun, ended, useRun } from './runs.ts';
 import type { ReviewStage } from './useNoteReview.ts';
+import { useReportedHeight } from './useReportedHeight.ts';
 import { when } from '../notes/when.ts';
 import { cardPhase, marksSentence, progressOf, recordSentence, runSentence } from './words.ts';
 import styles from './AiStrip.module.css';
@@ -59,23 +60,7 @@ export function AiStrip({
 
   // The page makes room under the strip: its height, as it changes, and 0 once it is gone.
   const shown = run !== null || stage !== null || (marks !== undefined && marks.count > 0);
-  useEffect(() => {
-    if (!onHeight) return undefined;
-    const el = host.current;
-    if (!el) {
-      onHeight(0);
-      return undefined;
-    }
-    const tell = () => onHeight(el.offsetHeight);
-    tell();
-    if (typeof ResizeObserver === 'undefined') return () => onHeight(0);
-    const watched = new ResizeObserver(tell);
-    watched.observe(el, { box: 'border-box' });
-    return () => {
-      watched.disconnect();
-      onHeight(0);
-    };
-  }, [onHeight, shown]);
+  useReportedHeight(host, onHeight, shown);
 
   if (!shown) return null;
 
@@ -110,10 +95,7 @@ export function AiStrip({
               {marksSentence(marks?.count ?? 0)}
             </span>
           </span>
-          <button type="button" className={styles.action} onClick={marks?.keepAll} aria-label="Keep every change">
-            <Check size={15} strokeWidth={2.4} aria-hidden="true" />
-            <span>Keep all</span>
-          </button>
+          <KeepAll onKeep={marks?.keepAll} />
         </div>
       </section>
     );
@@ -136,12 +118,7 @@ export function AiStrip({
           </span>
           {open ? <ChevronUp size={16} strokeWidth={2.2} className={styles.chevron} aria-hidden="true" /> : <ChevronDown size={16} strokeWidth={2.2} className={styles.chevron} aria-hidden="true" />}
         </button>
-        {over && marks && marks.count > 0 ? (
-          <button type="button" className={styles.action} onClick={marks.keepAll} aria-label="Keep every change">
-            <Check size={15} strokeWidth={2.4} aria-hidden="true" />
-            <span>Keep all</span>
-          </button>
-        ) : null}
+        {over && marks && marks.count > 0 ? <KeepAll onKeep={marks.keepAll} /> : null}
         {!over ? (
           <button type="button" className={styles.action} onClick={() => void cancelRun(noteId)} aria-label="Stop">
             <Square size={14} strokeWidth={2.4} aria-hidden="true" />
@@ -183,6 +160,16 @@ export function AiStrip({
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** Keep all: every change the AI has marked in the note, kept at once, from the strip's line. */
+function KeepAll({ onKeep }: { onKeep: (() => void) | undefined }) {
+  return (
+    <button type="button" className={styles.action} onClick={onKeep} aria-label="Keep every change">
+      <Check size={15} strokeWidth={2.4} aria-hidden="true" />
+      <span>Keep all</span>
+    </button>
   );
 }
 

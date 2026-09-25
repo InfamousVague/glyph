@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { prefersStill } from '../core/motion.ts';
+import { deviceMaker } from './assistant.ts';
 import { onScreen, sideKeySpot, type Edge, type SideKeySpot } from './sideKeys.ts';
-import { grown, paceWaves, shining, wobbleAmount, wobbleAt, type Pacer, type Ring } from './waves.ts';
+import { grown, paceWaves, shining, WOBBLE, wobbleAt, type Pacer, type Ring } from './waves.ts';
 import styles from './SideKeyWaves.module.css';
 
 /**
  * Rings widening out of the screen's edge where this phone's side key is
- * (sideKeys.ts), behind the first page's words: the key is there, and the
+ * (sideKeys.ts), behind the side-key page's words: the key is there, and the
  * page knows it. Nothing points at it and nothing says "press" (Matt: "don't
- * do anything to prompt the user to press it yet").
+ * do anything to prompt the user to press it yet"). They wait for that page
+ * (guide/Guide.tsx draws them), where the key is the subject.
+ *
+ * The recorder draws its own rings, from the same side of the phone but by
+ * its own table and with the Developer page's height (capture/sideKey.ts,
+ * capture/SideKeyWaves.tsx), so on one phone the two can start from different
+ * heights; which table should win is a decision, not a tidy-up.
  *
  * Drawn on a canvas, since the rings are not circles: their outlines waver
  * (waves.ts) and they keep a resting beat. They answered the microphone once
@@ -23,23 +30,14 @@ import styles from './SideKeyWaves.module.css';
 const POINTS = 96;
 const MAX_RINGS = 14;
 
-function maker(): string {
-  try {
-    return window.GlyphHost?.deviceMaker?.() ?? '';
-  } catch {
-    return '';
-  }
-}
-
 /** This phone's side key, read once. */
 function useSideKeySpot(): SideKeySpot {
-  return useMemo(() => sideKeySpot(typeof navigator === 'undefined' ? '' : navigator.userAgent, maker()), []);
+  return useMemo(() => sideKeySpot(typeof navigator === 'undefined' ? '' : navigator.userAgent, deviceMaker()), []);
 }
 
 class Waves {
   private rings: Ring[] = [];
-  private readonly pacer: Pacer = { smooth: 0, lastAt: -Infinity };
-  private level = 0;
+  private readonly pacer: Pacer = { lastAt: -Infinity };
   private raf = 0;
   /** The ink, as the canvas's computed colour: any form the browser gives (rgb, oklch), used as it is. */
   private ink = 'currentColor';
@@ -53,10 +51,6 @@ class Waves {
     /** How far down the screen the key is, 0..1. */
     private readonly at: number,
   ) {}
-
-  hear(level: number): void {
-    this.level = level;
-  }
 
   start(): void {
     this.fit();
@@ -111,7 +105,7 @@ class Waves {
     // Hidden: frames stop, and start again when the page is seen (onVisible).
     if (document.visibilityState === 'hidden') return;
     this.readInk(now);
-    const ring = paceWaves(this.pacer, this.level, now);
+    const ring = paceWaves(this.pacer, now);
     if (ring) {
       this.rings.push(ring);
       if (this.rings.length > MAX_RINGS) this.rings.shift();
@@ -131,7 +125,6 @@ class Waves {
     const originX = this.edge === 'right' ? width : 0;
     const originY = this.at * height;
     const base = 0.36 * Math.min(width, height);
-    const amount = wobbleAmount(this.pacer.smooth);
     const seconds = now / 1000;
     for (const ring of this.rings) {
       const t = fixedT ?? (now - ring.born) / ring.life;
@@ -140,7 +133,7 @@ class Waves {
       ctx.beginPath();
       for (let i = 0; i <= POINTS; i += 1) {
         const theta = (i / POINTS) * Math.PI * 2;
-        const r = radius * (1 + amount * wobbleAt(theta, seconds, ring.seed));
+        const r = radius * (1 + WOBBLE * wobbleAt(theta, seconds, ring.seed));
         const x = originX + r * Math.cos(theta);
         const y = originY + r * Math.sin(theta);
         if (i === 0) ctx.moveTo(x, y);

@@ -1,36 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight } from '../art/Icons.tsx';
+import { useRef, type ComponentType } from 'react';
+import { ArrowDown } from '@glacier/icons';
 import { WispText } from '../art/WispText.tsx';
+import { useWispEdge } from '../art/wispEdge.ts';
 import { useBack } from '../core/back.ts';
 import { useSwipeNav } from '../core/swipe.ts';
-import { ArrowDown, FileText, Mic, RefreshCw } from '@glacier/icons';
-import { SideKey as SideKeyArt, Tips as TipsArt } from '../art/Shapes.tsx';
-import { isAndroid } from '../core/platform.ts';
-import { setPreferences, usePreferences, type ThemePref } from '../core/preferences.ts';
-import { gb, MODELS, modelName, useModels } from '../core/ai.ts';
-import { isTauri } from '../core/tauri.ts';
 import { GUIDE_PAGES as PAGES, type GuidePage as Page } from './pages.ts';
-import { MarksTable } from './MarksTable.tsx';
-import { useWispEdge } from '../art/wispEdge.ts';
+import { Marks } from './pages/Marks.tsx';
+import { Model } from './pages/Model.tsx';
+import { SideKey } from './pages/SideKey.tsx';
+import { Theme } from './pages/Theme.tsx';
+import { Tips } from './pages/Tips.tsx';
+import { Welcome } from './pages/Welcome.tsx';
 import { SideKeyWaves } from './SideKeyWaves.tsx';
+import { useBottomNudge } from './useBottomNudge.ts';
 import styles from './Guide.module.css';
 
 /**
- * The walkthrough: set up the side key, then learn to talk in markdown.
+ * The walkthrough: what Ghost.md is, how it looks, which model it runs, the side key, every mark, and how to talk.
  *
- * Shown once on first launch and any time from Settings. Four pages set as
- * type, like the rest of the app, with Back and Next where the thumb is.
- *
- * The side-key page is the one that matters most and the one Glyph can do the
- * least about: Android will not let an app make itself the assistant (the role
- * is marked not requestable), and the side key's own setting belongs to the
- * phone maker. So the page does the three things it can - opens the right
- * settings screen, tells the person exactly which rows to tap on THEIR phone,
- * and checks the result when they come back - and is honest that this replaces
- * Gemini or Bixby.
- *
- * The markdown page renders every example through the real speech rules (see
- * phrases.ts), so what it shows is what a capture writes.
+ * Shown once on first launch and any time from Settings. Six pages set as type, like the rest of the app, with Back
+ * and Next where the thumb is. This is the frame they share - the dots saying where the reader is, Skip, the dock,
+ * the back gesture and the swipes - and each page is its own component in guide/pages/, in the order guide/pages.ts
+ * names them. The side-key page is the one that matters most (guide/pages/SideKey.tsx); the marks page draws every
+ * example with the note's own editor (guide/MarksTable.tsx), so what it shows is what a note does.
  */
 
 interface GuideProps {
@@ -48,82 +40,16 @@ interface GuideProps {
   tooSoon?: boolean;
 }
 
-/*
- * The activity's assistant helpers (MainActivity.GlyphHost). Every one is
- * optional: they arrive in native 0.3.1, and an over-the-air page can be
- * running on an older APK that has none of them.
- */
-function bridge() {
-  return window.GlyphHost;
-}
-
-function isAssistantNow(): boolean | null {
-  try {
-    const host = bridge();
-    return host?.isAssistant ? host.isAssistant() : null;
-  } catch {
-    return null;
-  }
-}
-
-/** 'samsung', 'pixel', or 'other' - the side key lives in a different place on each. */
-function phoneKind(): 'samsung' | 'pixel' | 'other' {
-  let maker: string;
-  try {
-    maker = bridge()?.deviceMaker?.() ?? '';
-  } catch {
-    maker = '';
-  }
-  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
-  if (/samsung/i.test(maker) || /\bSM-[A-Z0-9]/.test(ua)) return 'samsung';
-  if (/google/i.test(maker) || /\bPixel\b/.test(ua)) return 'pixel';
-  return 'other';
-}
-
-
-/**
- * What the nudge says when Next is waiting at the bottom of a page, one picked
- * each time a page opens (Matt: "a 'Down Here' button … put 6 different sassy
- * phrases it could use").
- */
-const NUDGES = ['Down here.', 'Keep scrolling, hon.', 'It’s not up there.', 'Scroll. I’ll wait.', 'The good bit’s lower.', 'Thumb down. Literally.'] as const;
-
-/** How long a page is read before the nudge fades in, and how close to the end counts as the bottom. */
-const NUDGE_AFTER_MS = 2400;
-const BOTTOM_SLACK_PX = 24;
+/** Each page's words, by its name. */
+const VIEWS: Record<Page, ComponentType> = { welcome: Welcome, theme: Theme, model: Model, sidekey: SideKey, marks: Marks, tips: Tips };
 
 export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: GuideProps) {
   const page: Page = PAGES[index] ?? 'welcome';
   const last = index === PAGES.length - 1;
+  const View = VIEWS[page];
 
-  // Next waits at the bottom of the page: it only shows once the page has been scrolled to its end. Until then, after
-  // a moment, a nudge fades in where it will be, and a tap on the nudge takes the reader down. A page that fits the
-  // screen is already at its bottom. Watched as the page scrolls, resizes, or grows (the heads-up types itself in).
   const pageRef = useRef<HTMLDivElement>(null);
-  const [atBottom, setAtBottom] = useState(true);
-  const [nudgeDue, setNudgeDue] = useState(false);
-  const [nudge, setNudge] = useState<string>(NUDGES[0]);
-  useEffect(() => {
-    const el = pageRef.current;
-    if (!el) return undefined;
-    setNudgeDue(false);
-    setNudge(NUDGES[Math.floor(Math.random() * NUDGES.length)] ?? NUDGES[0]);
-    const check = () => setAtBottom(el.scrollHeight - el.clientHeight - el.scrollTop <= BOTTOM_SLACK_PX);
-    check();
-    el.addEventListener('scroll', check, { passive: true });
-    const resized = new ResizeObserver(check);
-    resized.observe(el);
-    const grown = new MutationObserver(check);
-    grown.observe(el, { childList: true, subtree: true });
-    const timer = window.setTimeout(() => setNudgeDue(true), NUDGE_AFTER_MS);
-    return () => {
-      el.removeEventListener('scroll', check);
-      resized.disconnect();
-      grown.disconnect();
-      window.clearTimeout(timer);
-    };
-  }, [page]);
-  const nudgeReady = nudgeDue;
+  const { atBottom, due: nudgeReady, words: nudge } = useBottomNudge(pageRef, page);
   // Content slipping behind the top bar goes to smoke: the app's wisp edge (art/wispEdge.ts).
   const topRef = useRef<HTMLElement>(null);
   // And into the fade over its buttons at the foot (Matt: "anywhere we use the dark gradient color overlay we should
@@ -174,12 +100,7 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
             <WispText text="Not yet, finish reading." pace={18} />
           </p>
         ) : null}
-        {page === 'welcome' ? <Welcome /> : null}
-        {page === 'theme' ? <Theme /> : null}
-        {page === 'model' ? <Model /> : null}
-        {page === 'sidekey' ? <SideKey /> : null}
-        {page === 'marks' ? <Marks /> : null}
-        {page === 'tips' ? <Tips /> : null}
+        <View />
       </div>
 
       <nav className={styles.dock} aria-label="Guide">
@@ -234,300 +155,5 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
         </span>
       </nav>
     </div>
-  );
-}
-
-/**
- * The first page: what Ghost.md is, in one line and three points (Matt: "revamp the welcome flow remove the AI warning
- * page"). It used to be a heads-up that the app uses AI, with gags played over it, before anything about notes. The
- * name comes out of smoke like the app's other headlines, and the points pop in after it. There is no picture: the
- * launch screen showed the icon a moment ago, and Matt asked for the ghost off this page before.
- */
-function Welcome() {
-  return (
-    <>
-      <h1 className={styles.title}>
-        <WispText text="Welcome to Ghost.md" pace={16} />
-      </h1>
-      <p className={styles.lead}>Notes you type or say. Plain Markdown, kept on your own devices, the same on every one.</p>
-      <ul className={styles.promises} aria-label="What Ghost.md does">
-        {POINTS.map(({ icon: Icon, label }, index) => (
-          <li key={label} className={styles.promise} style={{ animationDelay: `${420 + index * 120}ms` }}>
-            <span className={styles.promiseIcon} aria-hidden="true">
-              <Icon size={18} strokeWidth={2.4} />
-            </span>
-            {label}
-          </li>
-        ))}
-      </ul>
-    </>
-  );
-}
-
-const POINTS = [
-  { icon: Mic, label: 'Say it or type it' },
-  { icon: FileText, label: 'Plain Markdown files' },
-  { icon: RefreshCw, label: 'The same on every device' },
-] as const;
-
-const THEME_CHOICES: Array<{ value: ThemePref; label: string; hint: string }> = [
-  { value: 'dark', label: 'Dark', hint: 'Light words on black. Easier on the eyes at night.' },
-  { value: 'light', label: 'Light', hint: 'Dark words on white, like paper.' },
-  { value: 'system', label: 'Match the phone', hint: 'Follows your phone’s dark mode.' },
-];
-
-/**
- * Light or dark, asked up front, because in an app that is almost all type the
- * ground behind the words is most of the look. Each choice applies the moment
- * it is tapped - the guide itself changes colour under the thumb - so the
- * person decides by seeing, not by imagining. Changeable any time in Settings.
- *
- * The page used to flick the theme on and off by itself a few times, to show there was a choice (GloveSwitch, since
- * removed: Matt, "remove the effect that flicks it on and off and whatnot automatically it's annoying"). It stays
- * still now until a choice is tapped.
- */
-function Theme() {
-  const { theme } = usePreferences();
-  return (
-    <>
-      <h1 className={styles.title}>Light or dark?</h1>
-      <p className={styles.lead}>Pick one to see it. You can change it later in Settings.</p>
-      <div className={styles.choices} role="radiogroup" aria-label="Theme">
-        {THEME_CHOICES.map((choice) => (
-          <button
-            key={choice.value}
-            type="button"
-            role="radio"
-            aria-checked={theme === choice.value}
-            className={`${styles.choice} ${theme === choice.value ? 'app-inverse' : ''}`}
-            data-selected={theme === choice.value ? '' : undefined}
-            onClick={() => setPreferences({ theme: choice.value })}
-          >
-            <span className={styles.swatch} data-swatch={choice.value} aria-hidden="true">
-              Aa
-            </span>
-            <span className={styles.choiceText}>
-              <span className={styles.stepTitle}>{choice.label}</span>
-              <span className={styles.note}>{choice.hint}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
-/**
- * Which model formats notes, asked up front like the theme: the choice is a
- * row per model with its size, the chosen one printed in reverse. Choosing
- * only sets the preference; the bytes come when Formatted is first opened,
- * or now, from the word under the list, so a phone on wifi tonight is ready
- * tomorrow. Changeable any time in Settings > Formatting.
- */
-function Model() {
-  const { formatModel } = usePreferences();
-  const { models, download, problem, fetch } = useModels();
-  const here = models.find((m) => m.id === formatModel)?.present ?? false;
-  const chosen = MODELS.find((m) => m.id === formatModel);
-  return (
-    <>
-      <h1 className={styles.title}>Choose your model</h1>
-      <p className={styles.lead}>It rewrites your notes on the phone. Bigger is more careful, and slower. Nothing leaves the phone.</p>
-      <div className={styles.choices} role="radiogroup" aria-label="Model">
-        {MODELS.map((model) => (
-          <button
-            key={model.id}
-            type="button"
-            role="radio"
-            aria-checked={formatModel === model.id}
-            className={`${styles.choice} ${formatModel === model.id ? 'app-inverse' : ''}`}
-            data-selected={formatModel === model.id ? '' : undefined}
-            onClick={() => setPreferences({ formatModel: model.id })}
-          >
-            <span className={`${styles.swatch} ${styles.size}`} aria-hidden="true">
-              {gb(model.bytes)}
-            </span>
-            <span className={styles.choiceText}>
-              <span className={styles.stepTitle}>{model.name}</span>
-              <span className={styles.note}>{model.about}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-      {isTauri() && chosen ? (
-        <p className={styles.fine}>
-          {download?.id === formatModel
-            ? `Getting ${modelName(formatModel)}, ${gb(download.received)} of ${gb(download.total)}. Keep Ghost.md open.`
-            : here
-              ? `${chosen.name} is on the phone.`
-              : problem
-                ? problem
-                : `${chosen.name} downloads the first time you ask the robot on a note, or `}
-          {!here && download === null ? (
-            <button type="button" className={`app-word ${styles.action}`} onClick={() => void fetch(formatModel)}>
-              get it now
-            </button>
-          ) : null}
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-function SideKey() {
-  const [held, setHeld] = useState<boolean | null>(() => isAssistantNow());
-  const kind = useMemo(phoneKind, []);
-  const canOpen = Boolean(bridge()?.openAssistantSettings);
-
-  // The person leaves for Settings and comes back; look again when they do.
-  useEffect(() => {
-    const recheck = () => {
-      if (document.visibilityState === 'visible') setHeld(isAssistantNow());
-    };
-    document.addEventListener('visibilitychange', recheck);
-    return () => document.removeEventListener('visibilitychange', recheck);
-  }, []);
-
-  const open = useCallback(() => {
-    try {
-      bridge()?.openAssistantSettings?.();
-    } catch {
-      // Nothing to open on this build; the written steps still stand.
-    }
-  }, []);
-
-  if (!isAndroid) {
-    return (
-      <>
-        <SideKeyArt className={styles.art} />
-        {/* Not "an Android thing": the App Store doesn't allow naming another platform in the app (guideline 2.3.10). */}
-        <h1 className={styles.title}>Start a voice note with Speak.</h1>
-        <p className={styles.lead}>Tap Speak at the bottom of your notes, say what you want to keep, and it becomes a note.</p>
-      </>
-    );
-  }
-
-  const assistantPath =
-    kind === 'samsung'
-      ? ['Settings', 'Apps', 'Choose default apps', 'Digital assistant app', 'Device assistance app', 'Ghost.md']
-      : ['Settings', 'Apps', 'Default apps', 'Digital assistant app', 'Default digital assistant app', 'Ghost.md'];
-  const keyPath =
-    kind === 'samsung'
-      ? ['Settings', 'Advanced features', 'Side button', 'Press and hold', 'Digital assistant']
-      : kind === 'pixel'
-        ? ['Settings', 'System', 'Gestures', 'Press and hold power button', 'Digital assistant']
-        : ['Settings', 'search “press and hold”', 'Digital assistant'];
-
-  return (
-    <>
-      <SideKeyArt className={styles.art} />
-      <h1 className={styles.title}>Make the side key record.</h1>
-      {held ? (
-        <p className={styles.done} role="status">
-          <span aria-hidden="true">✓</span> Ghost.md is your assistant.
-        </p>
-      ) : null}
-
-      <ol className={styles.steps}>
-        <li>
-          <h2 className={styles.stepTitle}>Make Ghost.md your digital assistant.</h2>
-          <Path parts={assistantPath} />
-          {canOpen && !held ? (
-            <button type="button" className={`app-word ${styles.action}`} onClick={open}>
-              Open assistant settings <ArrowRight />
-            </button>
-          ) : null}
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Point the side key at it.</h2>
-          <Path parts={keyPath} />
-          {kind === 'samsung' ? (
-            <p className={styles.note}>
-              Choose Digital assistant, not Bixby. On a Fold this is the key under your thumb when the phone is open.
-            </p>
-          ) : null}
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Hold the key and talk.</h2>
-          <p className={styles.note}>
-            Ghost.md opens already listening, even on the lock screen. Let go and talk. If the phone is locked, the note is
-            there once you unlock it.
-          </p>
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Hold the side key again to stop.</h2>
-          <p className={styles.note}>That saves the note. Tapping Done does the same.</p>
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Say where things go, and Ghost.md sorts it after.</h2>
-          <p className={styles.note}>
-            “Add oat milk to groceries” goes to your Groceries note, and the rest becomes a new note. You see where
-            everything is going before anything is filed. Turn off Memo mode in Settings to get a plain new note every
-            time.
-          </p>
-        </li>
-      </ol>
-
-      <p className={styles.fine}>
-        This replaces {kind === 'samsung' ? 'Bixby or Gemini' : 'Gemini'} as your assistant. Switch back in the same place any
-        time.
-      </p>
-    </>
-  );
-}
-
-function Path({ parts }: { parts: string[] }) {
-  return (
-    <p className={styles.path}>
-      {parts.map((part, i) => (
-        <span key={part}>
-          {i > 0 ? <span className={styles.sep} aria-hidden="true"> › </span> : null}
-          <span className={i === parts.length - 1 ? styles.target : undefined}>{part}</span>
-        </span>
-      ))}
-    </p>
-  );
-}
-
-function Marks() {
-  return (
-    <>
-      <h1 className={styles.title}>Every mark, side by side.</h1>
-      <p className={styles.lead}>
-        What you type is on the left, how the note reads it on the right. The marks stay on the page as you write, so you can always see what a line is doing.
-      </p>
-      <MarksTable />
-    </>
-  );
-}
-
-function Tips() {
-  return (
-    <>
-      <TipsArt className={styles.art} />
-      <h1 className={styles.title}>A few habits.</h1>
-      <ol className={styles.steps}>
-        <li>
-          <h2 className={styles.stepTitle}>Pause before a cue word.</h2>
-          <p className={styles.note}>A short pause before “heading” or “bullet point” starts a new sentence. That’s where Ghost.md listens for cues.</p>
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Or say the cue on its own.</h2>
-          <p className={styles.note}>“Bullet point.” Pause. “Oat milk.” The cue waits for the next thing you say.</p>
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Stop for two seconds to start a paragraph.</h2>
-          <p className={styles.note}>You don’t have to say it. The pause does it.</p>
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Talk normally.</h2>
-          <p className={styles.note}>Ghost.md picks lists and to-dos out of normal speech. It never changes your words, only how they’re laid out.</p>
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Fix it after.</h2>
-          <p className={styles.note}>A voice note lands at the top of your notes. Open it to fix anything. The markdown is all there.</p>
-        </li>
-      </ol>
-    </>
   );
 }

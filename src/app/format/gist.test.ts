@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { gistFor, gistStands, tidyGist } from './gist.ts';
-import { bodyHash } from './formatter.ts';
+import { bodyHash } from './bodyHash.ts';
 import { keepGist } from './results.ts';
 
 describe('the gist as a card line', () => {

@@ -40,6 +40,17 @@ export function placementOf(kind: RunKind): 'replace' | 'prepend' | 'append' {
   return 'replace';
 }
 
+/**
+ * Where a run's lines land in a note `length` long, given the part it works on: over that part for a rewrite, at its
+ * start - after the front matter - for a summary, and at the very end for a continuation. Decided when the run is
+ * asked for, and again, the same way, for a note opened while its run is on (ai/useLanding.ts).
+ */
+export function landingAt(kind: RunKind, scope: RunScope, length: number): { start: number; cursor: number; oldEnd: number } {
+  const placement = placementOf(kind);
+  const at = placement === 'append' ? length : Math.min(scope.from, length);
+  return { start: at, cursor: at, oldEnd: placement === 'replace' ? Math.min(scope.to, length) : at };
+}
+
 /** A part chosen by its offsets, widened to whole lines: the model writes lines, and a line lands as one. */
 export function wholeLines(view: EditorView, scope: RunScope): RunScope {
   const { doc } = view.state;
@@ -65,12 +76,6 @@ export function startNoteRun(view: EditorView, noteId: string, kind: RunKind, av
   const system = part ? `${promptForKind(kind)}\n\n${PART_NOTE}` : promptForKind(kind);
   const briefing = noteContext(noteId);
   const context = [briefing, part ? restOfNote(body.slice(front)) : null].filter(Boolean).join('\n\n') || undefined;
-  const landing =
-    placement === 'replace'
-      ? { start: scope.from, cursor: scope.from, oldEnd: scope.to }
-      : placement === 'prepend'
-        ? { start: front, cursor: front, oldEnd: front }
-        : { start: body.length, cursor: body.length, oldEnd: body.length };
   const handle = startRun({
     noteId,
     kind,
@@ -87,6 +92,6 @@ export function startNoteRun(view: EditorView, noteId: string, kind: RunKind, av
   });
   // After the run is asked for: an earlier run on this note ended by it may still put its own bookmark away, and this
   // one is the newer, so it wears the run's id (editor/aiChanges.ts `Landing.runId`).
-  view.dispatch({ effects: setLanding.of({ runId: handle.id, ...landing }) });
+  view.dispatch({ effects: setLanding.of({ runId: handle.id, ...landingAt(kind, scope, body.length) }) });
   return { ok: true, handle };
 }

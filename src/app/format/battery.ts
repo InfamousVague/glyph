@@ -1,20 +1,19 @@
-import { useEffect, useState } from 'react';
-
 /**
- * Whether the phone is on charge, live, from the browser's Battery API.
+ * The phone's battery, live, from the browser's Battery API: whether it is on
+ * charge and how full it is, for the AI card's Battery reading
+ * (format/deviceFacts.ts, format/AiCard.tsx).
  *
- * For the hot phone on the heads-up page (Matt: "if you've been idle on the
- * page for a bit have the phone ask to be plugged in and then thank the user
- * if they actually do plug the phone in"): the drawn phone asks, and the real
- * phone answers. The API is there in Android's WebView and in Chrome; where it
- * isn't (Safari, a browser that hides it, jsdom), the state is null and the
- * asking is simply never answered.
- *
- * `watchCharging` is the pure part, with the battery source injectable, so a
+ * The API is there in Android's WebView and in Chrome; where it isn't
+ * (Safari, a browser that hides it, jsdom), the state is unknown and the card
+ * leaves the reading out rather than guessing. The source is injectable, so a
  * test can plug the phone in.
+ *
+ * A source that refuses to be read (a permissions policy can) is unknown the
+ * same way. This was guide/charging.ts, written for the guide's heads-up
+ * page, which has gone.
  */
 
-export interface Charging {
+export interface BatteryState {
   /** On charge, off charge, or null when the phone won't say. */
   charging: boolean | null;
   /** 0 to 1, or null. */
@@ -38,14 +37,14 @@ export function batterySource(): GetBattery | null {
   return typeof getBattery === 'function' ? getBattery.bind(navigator) : null;
 }
 
-export const UNKNOWN: Charging = { charging: null, level: null };
+export const UNKNOWN: BatteryState = { charging: null, level: null };
 
 /**
- * Tells `listener` the charging state now and whenever it changes. Answers
- * the way to stop listening. With no source, the listener hears `UNKNOWN`
- * once and nothing more.
+ * Tells `listener` the battery's state now and whenever it changes. Answers
+ * the way to stop listening. With no source, or one that fails, the listener
+ * hears `UNKNOWN` once and nothing more.
  */
-export function watchCharging(listener: (state: Charging) => void, source: GetBattery | null = batterySource()): () => void {
+export function watchBattery(listener: (state: BatteryState) => void, source: GetBattery | null = batterySource()): () => void {
   if (!source) {
     listener(UNKNOWN);
     return () => undefined;
@@ -71,11 +70,4 @@ export function watchCharging(listener: (state: Charging) => void, source: GetBa
     battery?.removeEventListener('chargingchange', tell);
     battery?.removeEventListener('levelchange', tell);
   };
-}
-
-/** The charging state, kept current for a component. */
-export function useCharging(): Charging {
-  const [state, setState] = useState<Charging>(UNKNOWN);
-  useEffect(() => watchCharging(setState), []);
-  return state;
 }

@@ -91,17 +91,9 @@
 }
 
 /*
- * The pictures (art/Shapes.tsx) are drawn on currentColor and sized here. The
- * welcome's leads the page, in full ink and large; every other page's sits
- * above its title in grey, quieter than the words it introduces.
+ * The pictures (art/Shapes.tsx) are drawn on currentColor and sized here: a
+ * page's sits above its title in grey, quieter than the words it introduces.
  */
-.hero {
-  display: block;
-  inline-size: min(58vw, 15rem);
-  margin-block: var(--glacier-space-4) 0;
-  color: var(--app-ink);
-}
-
 .art {
   display: block;
   inline-size: 7.5rem;
@@ -109,24 +101,7 @@
   color: var(--app-ink-3);
 }
 
-.display {
-  margin: var(--glacier-space-6) 0 0;
-  font-size: calc(var(--app-display) * 1.15);
-  line-height: 0.92;
-  letter-spacing: var(--app-tracking-display);
-  font-weight: var(--glacier-font-weight-bold);
-}
-
-/* The heads-up's headline (Welcome): display type, a size down so the gags above it keep their room. */
-.headsUp {
-  margin: 0 0 var(--glacier-space-4);
-  font-size: calc(var(--app-display) * 0.62);
-  line-height: 0.95;
-  letter-spacing: var(--app-tracking-display);
-  font-weight: var(--glacier-font-weight-bold);
-}
-
-/* Four promises, as ink pills that pop in one after another, their icons giving a wiggle now and then. */
+/* Three promises, as ink pills that pop in one after another, their icons giving a wiggle now and then. */
 .promises {
   display: flex;
   flex-wrap: wrap;
@@ -220,14 +195,6 @@
   max-inline-size: 32ch;
 }
 
-.body {
-  margin: var(--glacier-space-4) 0 0;
-  font-size: var(--glacier-font-size-md);
-  line-height: var(--glacier-leading-md);
-  color: var(--glacier-text-subtle);
-  max-inline-size: 34ch;
-}
-
 .done {
   margin: var(--glacier-space-4) 0 0;
   font-size: var(--glacier-font-size-lg);
@@ -235,8 +202,7 @@
   color: var(--glacier-success-text, var(--glacier-accent-text));
 }
 
-.steps,
-.phrases {
+.steps {
   list-style: none;
   margin: var(--glacier-space-6) 0 0;
   padding: 0;
@@ -306,50 +272,6 @@
   border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
   font-size: var(--glacier-font-size-sm);
   color: var(--glacier-text-subtle);
-}
-
-.phrase {
-  padding: var(--glacier-space-5) 0;
-  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
-}
-
-/* The words to say, set large: they are what a person has to remember. */
-.cues {
-  margin: var(--glacier-space-2) 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  column-gap: var(--glacier-space-4);
-  font-size: var(--glacier-font-size-lg);
-  font-weight: var(--glacier-font-weight-medium);
-  color: var(--glacier-accent-text);
-}
-
-.cue {
-  white-space: nowrap;
-}
-
-.example {
-  margin-top: var(--glacier-space-3);
-  border-inline-start: var(--glacier-shape-accent-edge, 3px) solid var(--glacier-border-strong);
-  padding-inline-start: var(--glacier-space-3);
-}
-
-.said {
-  margin: 0;
-  font-size: var(--glacier-font-size-sm);
-  line-height: var(--glacier-leading-sm);
-  font-style: italic;
-  color: var(--glacier-text-subtle);
-}
-
-.result {
-  margin: var(--glacier-space-2) 0 0;
-  font-family: var(--glacier-font-mono);
-  font-size: var(--glacier-font-size-sm);
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: var(--glacier-text);
 }
 
 .dock {
@@ -540,46 +462,6 @@
 .choice + .choice {
   margin-block-start: var(--glacier-space-1);
 }
-
-/* The marks page (Guide.tsx Markdown): three lists under small section heads. */
-.section {
-  margin: var(--glacier-space-8) 0 0;
-  font-size: var(--glacier-font-size-sm);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: var(--glacier-font-weight-semibold);
-  color: var(--glacier-text-subtle);
-}
-
-.section + .phrases {
-  margin-top: var(--glacier-space-2);
-}
-
-/* A row with the mark itself beside the words: the mark set in the note's mono face, at the title's height. */
-.marked {
-  display: grid;
-  grid-template-columns: minmax(3.2rem, auto) 1fr;
-  column-gap: var(--glacier-space-4);
-  align-items: start;
-}
-
-.symbol {
-  justify-self: start;
-  margin-top: 0.1em;
-  padding: 0.15em 0.45em;
-  border: var(--glacier-hairline) solid var(--glacier-border-strong);
-  border-radius: var(--glacier-radius-md, 8px);
-  font-family: var(--glacier-font-mono);
-  font-size: var(--glacier-font-size-md);
-  font-weight: var(--glacier-font-weight-semibold);
-  line-height: 1.4;
-  /* A long mark (a link's, a picture's) wraps inside its badge rather than being cut short. */
-  white-space: normal;
-  overflow-wrap: anywhere;
-  max-inline-size: 8.5rem;
-  color: var(--glacier-text);
-}
-
 
 /* "Not yet, finish reading.": a line at the top of the page for a reader who held the side key too early (tooSoon.ts). */
 .tooSoon {

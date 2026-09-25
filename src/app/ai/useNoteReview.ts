@@ -66,6 +66,17 @@ export function useNoteReview(
     holdRefining(true);
     let refined: Segment[] | null = null;
     let listened = false;
+    // What the queue would have done with this take still happens, once: when the review ends, or when the note is
+    // left before it does. Leaving after it ended hands nothing back again - a second pass over the take, or the
+    // queue let go while the recorder holds it.
+    let handedBack = false;
+    const handBack = () => {
+      if (handedBack) return;
+      handedBack = true;
+      if (handoff.job && refined && listened) void keepBetterPhrases(handoff.job, refined);
+      else if (handoff.job) enqueueRefine(handoff.job);
+      holdRefining(false);
+    };
 
     void (async () => {
       const note = await getNote(handoff.noteId);
@@ -175,18 +186,14 @@ export function useNoteReview(
     })().finally(() => {
       if (!alive) return;
       setStage(null);
-      if (handoff.job && refined && listened) void keepBetterPhrases(handoff.job, refined);
-      else if (handoff.job) enqueueRefine(handoff.job);
-      holdRefining(false);
+      handBack();
     });
 
     return () => {
       alive = false;
       setStage(null);
       // Left mid-review: what would have run anyway still runs.
-      if (handoff.job && refined && listened) void keepBetterPhrases(handoff.job, refined);
-      else if (handoff.job) enqueueRefine(handoff.job);
-      holdRefining(false);
+      handBack();
       if (simulatingReview()) simulateRuns(null);
     };
   }, [review, view]);

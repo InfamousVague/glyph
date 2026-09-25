@@ -16,7 +16,7 @@ vi.mock('./runs.ts', async (importOriginal) => {
   };
 });
 
-const { placementOf, startNoteRun, wholeLines } = await import('./start.ts');
+const { landingAt, placementOf, startNoteRun, wholeLines } = await import('./start.ts');
 
 let view: EditorView | null = null;
 function open(doc: string): EditorView {
@@ -85,5 +85,20 @@ describe('starting a run on the note', () => {
     expect(startNoteRun(v, 'n', 'format', ready)).toEqual({ ok: false, reason: 'Nothing in the note yet.' });
     expect(startNoteRun(v, 'n', 'format', { ok: false, reason: 'Not here.', get: null, waiting: false })).toEqual({ ok: false, reason: 'Not here.' });
     expect(requests).toEqual([]);
+  });
+});
+
+describe('where a run’s lines land', () => {
+  it('is over the part for a rewrite, at the part’s start for a summary, and at the very end for a continuation', () => {
+    const scope = { from: 12, to: 40 };
+    expect(landingAt('format', scope, 60)).toEqual({ start: 12, cursor: 12, oldEnd: 40 });
+    expect(landingAt('ask', scope, 60)).toEqual({ start: 12, cursor: 12, oldEnd: 40 });
+    expect(landingAt('summarize', scope, 60)).toEqual({ start: 12, cursor: 12, oldEnd: 12 });
+    expect(landingAt('continue', scope, 60)).toEqual({ start: 60, cursor: 60, oldEnd: 60 });
+  });
+
+  it('stays inside a note that has grown shorter since the run was asked for', () => {
+    expect(landingAt('format', { from: 12, to: 40 }, 20)).toEqual({ start: 12, cursor: 12, oldEnd: 20 });
+    expect(landingAt('summarize', { from: 30, to: 40 }, 20)).toEqual({ start: 20, cursor: 20, oldEnd: 20 });
   });
 });
