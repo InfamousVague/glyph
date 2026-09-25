@@ -35,6 +35,12 @@
 // Both are declared at the top level so each `#[path]` resolves against src/,
 // one predictable base. A nested `mod llm { .. }` would resolve its inner path
 // against src/llm/ instead, a directory that does not exist here.
+#[path = "../../../src-tauri/src/note.rs"]
+pub mod note;
+
+#[path = "../../../src-tauri/src/fsx.rs"]
+pub mod fsx;
+
 #[path = "../../../src-tauri/src/store.rs"]
 pub mod store;
 
