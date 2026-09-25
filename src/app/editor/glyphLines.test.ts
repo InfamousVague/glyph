@@ -1,7 +1,7 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import styles from './Editor.module.css';
+import styles from './markdown.module.css';
 import { glyphLines } from './glyphLines.ts';
 import { parseWhole } from '../../test/syntaxTree.ts';
 import { glyphMarkdown } from './language.ts';

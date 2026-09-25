@@ -1,6 +1,6 @@
 /*
  * The code themes (codeThemes.ts): the custom properties a fenced block's tokens are drawn with
- * (Editor.module.css). Ink first, as the base, so a missing attribute falls back to the page's own ink. Light themes
+ * (markdown.module.css). Ink first, as the base, so a missing attribute falls back to the page's own ink. Light themes
  * apply on the light page; dark themes are stamped after, under the same rules ink.css uses to decide the page is
  * dark, so they win there.
  */

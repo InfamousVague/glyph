@@ -84,7 +84,7 @@
 /*
  * Code in any face gets the mono font's own features and no spacing, so the code face's ligatures show with a sans
  * note too (JetBrains Mono has them). The editor's own code - inline code and a code block's lines - says so in
- * Editor.module.css; this is for code set anywhere else as HTML.
+ * editor/markdown.module.css; this is for code set anywhere else as HTML.
  */
 code,
 pre,

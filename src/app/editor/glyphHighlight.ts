@@ -1,6 +1,6 @@
 import { HighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
-import styles from './Editor.module.css';
+import styles from './markdown.module.css';
 
 /**
  * The inline half of the renderer: what every run of markdown looks like,
@@ -24,7 +24,7 @@ import styles from './Editor.module.css';
  * the one declared later in the CSS file wins - and the marker must win, or a
  * `**` inside a bold run renders bold and the dimming silently does nothing for
  * exactly the case the feature exists for. `processingInstruction` is last here
- * and `.mark` is last in `Editor.module.css`; keep both that way.
+ * and `.mark` is last in `markdown.module.css`; keep both that way.
  */
 export const glyphHighlight = HighlightStyle.define([
   { tag: tags.heading1, class: styles.h1 },

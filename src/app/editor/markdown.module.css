@@ -1,5 +1,7 @@
 /*
- * Every rule the markdown renderer needs, in Glacier tokens only.
+ * Every rule the markdown renderer needs, in Glacier tokens only: the classes glyphHighlight.ts, glyphLines.ts,
+ * images.ts and the editor's widgets hand to CodeMirror, and `.editor`, the host's own (Editor.tsx), which the line
+ * rules are written under. Named for what it draws rather than for its host; it was Editor.module.css.
  *
  * Two families live here and they must not be confused. The `.h1`-`.mark`
  * classes are INLINE: they are handed to `HighlightStyle` and land on spans

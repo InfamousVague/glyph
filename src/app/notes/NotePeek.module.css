@@ -1,7 +1,7 @@
 /*
  * The note drawn small on a card (notes/NotePeek.tsx): the note's own editor, in the formatted view, at a fraction of
  * its size, clipped to a few lines and taking no taps. The type sizes the editor reads (`--app-body`, `--app-h1` to
- * `--app-h6`; app.css, editor/Editor.module.css) are redefined here at the same ratios, so a heading is still a
+ * `--app-h6`; app.css, editor/markdown.module.css) are redefined here at the same ratios, so a heading is still a
  * heading against the words, only small.
  */
 
