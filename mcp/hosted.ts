@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import express, { type Request, type Response } from 'express';
 import { authorizationHandler } from '@modelcontextprotocol/sdk/server/auth/handlers/authorize.js';
 import { clientRegistrationHandler } from '@modelcontextprotocol/sdk/server/auth/handlers/register.js';
@@ -6,13 +6,13 @@ import { revocationHandler } from '@modelcontextprotocol/sdk/server/auth/handler
 import { tokenHandler } from '@modelcontextprotocol/sdk/server/auth/handlers/token.js';
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { InvalidGrantError, InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
-import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
-import type { AuthorizationParams, OAuthServerProvider } from '@modelcontextprotocol/sdk/server/auth/provider.js';
+import type { OAuthServerProvider } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import type { OAuthClientInformationFull, OAuthTokenRevocationRequest, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
+import type { OAuthTokenRevocationRequest } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { failureText } from '../src/app/core/failure.ts';
 import { GlyphAccount, GlyphApiError, importAccountKey } from './glyph.ts';
+import { CODE_MS, hostedStore, newToken, REQUEST_MS, SCOPE, type Session } from './hostedStore.ts';
 import { loginPage } from './loginPage.ts';
 import { buildServer, VERSION } from './server.ts';
 
@@ -29,8 +29,9 @@ import { buildServer, VERSION } from './server.ts';
  * account's notes; the page (mcp/loginPage.ts) says so in plain words before asking for the password.
  *
  * The rest is OAuth 2.1 as the MCP spec asks of a remote server, with the SDK's own handlers: dynamic client
- * registration, an authorization code with PKCE, refresh tokens, revocation. Every store is a map in memory, so a
- * restart signs everyone out and Claude simply asks them to sign in again. The service is reached through
+ * registration, an authorization code with PKCE, refresh tokens, revocation. Every store is a map in memory
+ * (mcp/hostedStore.ts, which says how long each thing lasts), so a restart signs everyone out and Claude simply asks
+ * them to sign in again. The service is reached through
  * glyph-api, which proxies /glyph/api/mcp to it (server/src/mcp_proxy.rs), so nothing in the shared Caddy
  * configuration changes; the discovery documents live under that path, where the client library looks for them.
  */
@@ -48,53 +49,10 @@ export interface HostedOptions {
   now?: () => number;
 }
 
-interface AuthRequest {
-  client: OAuthClientInformationFull;
-  params: AuthorizationParams;
-  expiresAt: number;
-}
-
-interface IssuedCode {
-  clientId: string;
-  codeChallenge: string;
-  redirectUri: string;
-  sessionId: string;
-  expiresAt: number;
-}
-
-interface Session {
-  id: string;
-  handle: string;
-  clientId: string;
-  account: GlyphAccount;
-  lastUsed: number;
-  /** The sync service would not renew its token: the person has to sign in again. */
-  lapsed: boolean;
-  /**
-   * What the AI's app calls itself: its registered name at sign-in, then its clientInfo from `initialize`. Kept here
-   * because each request builds a fresh server that never saw the `initialize`, and a note's authors are named from it
-   * (core/authors.ts).
-   */
-  client?: { name?: string; title?: string };
-}
-
-interface Issued {
-  sessionId: string;
-  clientId: string;
-  expiresAt: number;
-}
-
-const REQUEST_MS = 10 * 60 * 1000;
-const CODE_MS = 10 * 60 * 1000;
-const ACCESS_MS = 60 * 60 * 1000;
-const REFRESH_MS = 30 * 24 * 60 * 60 * 1000;
-/** A session nobody has used for this long is over, key and all. */
-const IDLE_MS = 7 * 24 * 60 * 60 * 1000;
-const SCOPE = 'notes';
-
-const token = () => randomBytes(32).toString('base64url');
-
-/** The hosted server as an express app, and what it holds, for the entry point and the tests. */
+/**
+ * The hosted server as an express app, for the entry point (mcp/hosted-main.ts), with its `sweep` for the entry
+ * point's timer; and its sessions, which only the tests read, to count them.
+ */
 export function hostedApp(options: HostedOptions) {
   const issuer = options.issuer.replace(/\/+$/, '');
   const base = new URL(issuer).pathname;
@@ -103,49 +61,8 @@ export function hostedApp(options: HostedOptions) {
   const now = options.now ?? (() => Date.now());
   const rateLimit = options.rateLimit === false ? false : undefined;
 
-  const clients = new Map<string, OAuthClientInformationFull>();
-  const requests = new Map<string, AuthRequest>();
-  const codes = new Map<string, IssuedCode>();
-  const sessions = new Map<string, Session>();
-  const accessTokens = new Map<string, Issued>();
-  const refreshTokens = new Map<string, Issued>();
-
-  const clientsStore: OAuthRegisteredClientsStore = {
-    getClient: (clientId) => clients.get(clientId),
-    registerClient: (client) => {
-      const full = { ...(client as OAuthClientInformationFull), client_id: (client as OAuthClientInformationFull).client_id ?? randomUUID(), client_id_issued_at: Math.floor(now() / 1000) };
-      clients.set(full.client_id, full);
-      return full;
-    },
-  };
-
-  /** A session is over: its tokens go, and with them the key. */
-  function endSession(id: string): void {
-    sessions.delete(id);
-    for (const [t, issued] of accessTokens) if (issued.sessionId === id) accessTokens.delete(t);
-    for (const [t, issued] of refreshTokens) if (issued.sessionId === id) refreshTokens.delete(t);
-  }
-
-  function issue(session: Session, clientId: string): OAuthTokens {
-    const access = token();
-    const refresh = token();
-    accessTokens.set(access, { sessionId: session.id, clientId, expiresAt: now() + ACCESS_MS });
-    refreshTokens.set(refresh, { sessionId: session.id, clientId, expiresAt: now() + REFRESH_MS });
-    return { access_token: access, token_type: 'bearer', expires_in: ACCESS_MS / 1000, refresh_token: refresh, scope: SCOPE };
-  }
-
-  /** What has run out: requests, codes, tokens, and sessions nobody has used for a week. */
-  function sweep(): void {
-    const at = now();
-    for (const [id, r] of requests) if (r.expiresAt < at) requests.delete(id);
-    for (const [c, issued] of codes) if (issued.expiresAt < at) codes.delete(c);
-    for (const [t, issued] of accessTokens) if (issued.expiresAt < at) accessTokens.delete(t);
-    for (const [t, issued] of refreshTokens) if (issued.expiresAt < at) refreshTokens.delete(t);
-    for (const session of [...sessions.values()]) {
-      const alive = [...refreshTokens.values()].some((i) => i.sessionId === session.id) || [...accessTokens.values()].some((i) => i.sessionId === session.id);
-      if (!alive || session.lastUsed + IDLE_MS < at) endSession(session.id);
-    }
-  }
+  // Everything it holds, in memory only, and when each lets go (mcp/hostedStore.ts).
+  const { clientsStore, requests, codes, sessions, accessTokens, refreshTokens, endSession, issue, sweep } = hostedStore(now);
 
   const provider: OAuthServerProvider = {
     get clientsStore() {
@@ -153,7 +70,7 @@ export function hostedApp(options: HostedOptions) {
     },
     async authorize(client, params, res) {
       sweep();
-      const id = token();
+      const id = newToken();
       requests.set(id, { client, params, expiresAt: now() + REQUEST_MS });
       const deny = new URL(params.redirectUri);
       deny.searchParams.set('error', 'access_denied');
@@ -311,7 +228,7 @@ export function hostedApp(options: HostedOptions) {
       ...(registered ? { client: { name: registered } } : {}),
     };
     sessions.set(id, session);
-    const code = token();
+    const code = newToken();
     codes.set(code, { clientId: request.client.client_id, codeChallenge: request.params.codeChallenge, redirectUri: request.params.redirectUri, sessionId: id, expiresAt: now() + CODE_MS });
     const redirect = new URL(request.params.redirectUri);
     redirect.searchParams.set('code', code);
