@@ -160,7 +160,7 @@ impl NotesStore {
 /// written there yet.
 ///
 /// An error here fails `setup`, which fails the launch. That is the honest
-/// outcome and the alternative was considered: starting with no store, letting
+/// outcome and the alternative was considered: starting with no library, letting
 /// every command answer with an error, and showing an empty list. A notes app
 /// that opens on an empty list invites the person to type into it, and
 /// silently dropping what they then write is worse than not starting - a crash
