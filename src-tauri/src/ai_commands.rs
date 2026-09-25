@@ -317,11 +317,13 @@ pub async fn ai_generate(
         });
         // The reply comes on a std channel from the worker thread; waiting on
         // it belongs on the blocking pool, not the async runtime.
-        let result = tauri::async_runtime::spawn_blocking(move || answer.recv())
-            .await
+        let joined = tauri::async_runtime::spawn_blocking(move || answer.recv()).await;
+        // The run is over however it ended, so its cancel flag goes before an
+        // error is answered: `ai_cancel` must not find a run that is gone.
+        lock(&state.runs).remove(&run);
+        let result = joined
             .map_err(|e| format!("the formatting run did not finish: {e}"))?
             .map_err(|_| "the formatting engine went away".to_string())?;
-        lock(&state.runs).remove(&run);
         result.map_err(|failure| failure.to_string())
     }
 }
