@@ -2,13 +2,13 @@
 //!
 //! The page owns the microphone: it captures in the webview and pushes raw PCM
 //! across. `capture_commands.rs` owns the seam that PCM arrives through and the
-//! events that go back out. `store.rs` owns what a transcript becomes once it
+//! events that go back out. `library/` owns what a transcript becomes once it
 //! is a note. This module owns the part in between - turning a stream of
-//! samples into text a phrase at a time - and, like `store.rs`, it knows
-//! nothing about the process it is running in, for the same reason: the
-//! Android side-key capture (DESIGN section 6.1) runs in a process with no
-//! Tauri in it and will drive this over JNI. Everything here takes plain
-//! slices, paths and callbacks.
+//! samples into text a phrase at a time - and, like `note.rs` and `library/`,
+//! it knows nothing about the process it is running in, for the reason note.rs
+//! gives: a side-key capture with no Tauri in its process (DESIGN section 6.1)
+//! could drive this over JNI. Everything here takes plain slices, paths and
+//! callbacks.
 //!
 //! The rooms, in the order audio passes through them:
 //!

@@ -17,8 +17,9 @@
 //! `let _ = remove_file(..)` that ignores every error is not a removal that
 //! tolerates NotFound, so those sites stay as they are.
 //!
-//! NOT ONE `tauri::` TYPE, so `store`, `library/`, `whisper/` and `llm/` can
-//! use it without breaking their rule (store.rs's header says why they have it).
+//! NOT ONE `tauri::` TYPE, so `note`, `store`, `library/`, `whisper/` and
+//! `llm/` can use it without breaking their rule (note.rs's header says why
+//! they have it).
 
 use std::io::{self, Write as _};
 use std::path::Path;

@@ -13,19 +13,24 @@ mod paths;
 #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
 mod unsupported;
 
-// The notes themselves. `pub`, and free of Tauri types, so a caller with no
-// Tauri in its process could reach it over JNI - DESIGN 6.1's capture service,
-// which did not ship in that form (capture runs in the page; DESIGN 13). The
-// first such caller that DID ship is the update-alert worker, for `ota`, below.
-// See store.rs's header.
-pub mod store;
+// A note as the crate and the page share it. `pub`, and free of Tauri types,
+// so a caller with no Tauri in its process could reach it over JNI - DESIGN
+// 6.1's capture service, which did not ship in that form (capture runs in the
+// page; DESIGN 13). The first such caller that DID ship is the update-alert
+// worker, for `ota`, below. See note.rs's header.
+pub mod note;
 /// The notes as a folder of Markdown files, and the index over them (docs/LIBRARY.md).
 pub mod library;
+// The database the notes lived in before 1.3.0, read once to move them into the library.
+pub mod store;
 
-// The webview's door to the store - four commands and no logic of its own.
+// The webview's door to the notes: one library call per command, and the
+// delete that takes a note's pictures and recording with it.
 mod commands;
+// A spoken note's kept recording, and the `rec` scheme its tape plays through.
+mod recordings;
 
-// On-device transcription. `pub` and Tauri-free for the same reason as `store`,
+// On-device transcription. `pub` and Tauri-free for the same reason as `note`,
 // though today only the capture commands drive it. See whisper/mod.rs's header.
 pub mod whisper;
 
@@ -127,9 +132,7 @@ pub fn run() {
         // the webview is created, and the webview is created before setup runs.
         .register_uri_scheme_protocol(ota::SCHEME, |ctx, request| ota::serve(ctx.app_handle(), &request))
         // A spoken note's kept recording, for its tape to play.
-        .register_uri_scheme_protocol(capture_commands::RECORDINGS_SCHEME, |ctx, request| {
-            capture_commands::serve_recording(ctx.app_handle(), &request)
-        })
+        .register_uri_scheme_protocol(recordings::SCHEME, |ctx, request| recordings::serve(ctx.app_handle(), &request))
         // A picture in a note, `![](image/<name>)`, for the editor to draw.
         .register_uri_scheme_protocol(images::SCHEME, |ctx, request| images::serve(ctx.app_handle(), &request));
 

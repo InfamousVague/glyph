@@ -26,10 +26,9 @@ use std::sync::Mutex;
 use tauri::Manager;
 
 use crate::library::Library;
-use crate::store::{
-    recording_file, CommandMutation, CommandMutationResult, CommandUndoResult, Note,
-    PendingCommandUndo, RecordedSegment, Recording, Store,
-};
+use crate::note::{CommandMutation, CommandMutationResult, CommandUndoResult, Note, PendingCommandUndo, RecordedSegment, Recording};
+use crate::recordings::recording_file;
+use crate::store::Store;
 
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -348,15 +347,8 @@ pub fn sync_put_file(app: tauri::AppHandle, kind: String, name: String, base64: 
             crate::images::place(&images, &name, &base64)
         }
         "recording" => {
-            use base64::Engine as _;
-            let dir = crate::paths::recordings_dir(&app).map_err(|_| "There is no room to keep recordings.".to_string())?;
-            let file = recording_file(&dir, &name).ok_or_else(|| "That is not a note id.".to_string())?;
-            let bytes = base64::engine::general_purpose::STANDARD.decode(base64.trim()).map_err(|_| "That recording could not be read.".to_string())?;
-            if !bytes.starts_with(b"RIFF") {
-                return Err("That is not a recording Glyph can keep.".to_string());
-            }
-            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            crate::fsx::write_atomically(&file, &bytes).map_err(|e| format!("The recording could not be saved: {e}"))
+            let recordings = crate::paths::recordings_dir(&app).map_err(|_| "There is no room to keep recordings.".to_string())?;
+            crate::recordings::place(&recordings, &name, &base64)
         }
         _ => Err(format!("Nothing is kept as {kind}.")),
     }

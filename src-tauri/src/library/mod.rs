@@ -25,15 +25,15 @@ pub mod vault;
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::store::{
-    CommandMutation, CommandMutationResult, CommandUndoResult, Note, PendingCommandUndo,
-    RecordedSegment, Recording, Store,
+use crate::note::{
+    new_id, now_ms, CommandMutation, CommandMutationResult, CommandUndoResult, Note, PendingCommandUndo,
+    RecordedSegment, Recording,
 };
+use crate::store::Store;
 use frontmatter::{join, split, FrontMatter, Value};
 use names::{file_stem, title_of, unique_name};
 use vault::{Entry, FsVault, Vault};
@@ -178,10 +178,6 @@ fn row_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
         formatted_model: row.get(11)?,
         revision: row.get::<_, Option<i64>>(12)?.unwrap_or(1),
     })
-}
-
-pub fn now_ms() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64)
 }
 
 // ---- dates, as front matter writes them ---------------------------------------------------
@@ -372,10 +368,10 @@ impl Library {
         let (id, id_in_file) = match named {
             Some(id) => match self.row(&id)? {
                 // The same id at another path that still exists: this file is a copy, and gets its own.
-                Some(other) if other.path != entry.path && self.vault.exists(&other.path) => (uuid::Uuid::new_v4().to_string(), false),
+                Some(other) if other.path != entry.path && self.vault.exists(&other.path) => (new_id(), false),
                 _ => (id, true),
             },
-            None => (at_path.as_ref().map(|r| r.id.clone()).unwrap_or_else(|| uuid::Uuid::new_v4().to_string()), false),
+            None => (at_path.as_ref().map(|r| r.id.clone()).unwrap_or_else(new_id), false),
         };
         let previous = self.row(&id)?;
         let prior_revision = previous
@@ -839,7 +835,7 @@ impl Library {
     }
 
     pub fn append_capture(&mut self, body: &str, source: &str) -> Result<Note> {
-        self.create_note(&uuid::Uuid::new_v4().to_string(), body, source)?
+        self.create_note(&new_id(), body, source)?
             .ok_or_else(|| LibraryError::Store("a generated note id already exists".into()))
     }
 

@@ -12,6 +12,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use crate::note::ms_since_epoch;
+
 /// A markdown file in the library.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
@@ -58,7 +60,7 @@ impl FsVault {
 
     fn entry(&self, path: &str, full: &Path) -> io::Result<Entry> {
         let meta = std::fs::metadata(full)?;
-        let modified_ms = meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_millis() as i64);
+        let modified_ms = meta.modified().ok().map_or(0, ms_since_epoch);
         Ok(Entry { path: path.to_string(), modified_ms, size: meta.len() })
     }
 

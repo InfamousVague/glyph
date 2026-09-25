@@ -2,7 +2,7 @@
 //! come from, and whether one is on this device.
 //!
 //! A model is a file in a directory the CALLER names, for the same reason
-//! `store::open` takes a path: the app resolves `<app_data_dir>/models`, a JNI
+//! `Library::open_fs` takes a path (note.rs): the app resolves `<app_data_dir>/models`, a JNI
 //! caller will resolve its own from `filesDir`, and nothing in here can tell
 //! which of them asked.
 //!

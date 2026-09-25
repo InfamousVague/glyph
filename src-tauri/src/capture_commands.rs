@@ -2,7 +2,7 @@
 //! the engine does not already do.
 //!
 //! `whisper/` owns transcription and has to stay free of `tauri::` types for
-//! the reason `store.rs` does - the Android capture process will drive it with
+//! the reason note.rs gives - an Android capture process could drive it with
 //! no Tauri running. This module is the adapter the webview reaches it
 //! through: it resolves the app's data directory, holds the loaded model and
 //! the one capture in progress in managed state, and turns engine events into
@@ -260,7 +260,7 @@ pub async fn capture_refine(
     id: String,
     from_ms: u64,
     prompt_tail: String,
-) -> Result<Vec<crate::store::RecordedSegment>, String> {
+) -> Result<Vec<crate::note::RecordedSegment>, String> {
     #[cfg(target_os = "ios")]
     return on_ios(TRANSCRIPTION, (app, state, id, from_ms, prompt_tail));
     #[cfg(not(target_os = "ios"))]
@@ -277,7 +277,7 @@ pub async fn capture_refine(
         }
         let recording = paths::recordings_dir(&app)
             .ok()
-            .and_then(|recordings| crate::store::recording_file(&recordings, &id))
+            .and_then(|recordings| crate::recordings::recording_file(&recordings, &id))
             .ok_or_else(|| "no such recording".to_string())?;
         if state.refining.swap(true, Ordering::SeqCst) {
             return Err("busy".into());
@@ -298,7 +298,7 @@ pub async fn capture_refine(
         let emitter = app.clone();
         let job = id.clone();
         let result = tauri::async_runtime::spawn_blocking(
-            move || -> Result<Vec<crate::store::RecordedSegment>, String> {
+            move || -> Result<Vec<crate::note::RecordedSegment>, String> {
                 let audio = crate::whisper::wav::read(&recording)?;
                 let from = crate::whisper::ms_to_samples(from_ms).min(audio.len());
                 if audio.len() - from < crate::whisper::ms_to_samples(100) {
@@ -358,10 +358,10 @@ pub async fn capture_refine(
 fn offset_segments(
     timed: Vec<crate::whisper::engine::TimedText>,
     from_ms: u64,
-) -> Vec<crate::store::RecordedSegment> {
+) -> Vec<crate::note::RecordedSegment> {
     timed
         .into_iter()
-        .map(|t| crate::store::RecordedSegment {
+        .map(|t| crate::note::RecordedSegment {
             text: t.text,
             start_ms: t.start_ms + from_ms,
             end_ms: t.end_ms + from_ms,
@@ -412,79 +412,6 @@ pub struct Finished {
     pub transcript: String,
     /// The kept recording's whole length, or null when nothing was kept.
     pub recorded_ms: Option<u64>,
-}
-
-/// The scheme a kept recording is played through: `http://rec.localhost/<id>.wav`
-/// on Android, `rec://localhost/<id>.wav` elsewhere - the same shape as `ota`.
-pub const RECORDINGS_SCHEME: &str = "rec";
-
-/// Serves `<app_data_dir>/recordings/<id>.wav` to the page's `<audio>`, with
-/// byte ranges, because a WebView's media element seeks by asking for them and
-/// treats a server without `Accept-Ranges` as unseekable. The id is confined
-/// the same way the store confines it (`store::recording_file`).
-pub fn serve_recording<R: tauri::Runtime>(
-    app: &AppHandle<R>,
-    request: &tauri::http::Request<Vec<u8>>,
-) -> tauri::http::Response<Vec<u8>> {
-    use tauri::http::{header, Response, StatusCode};
-    let respond = |status: StatusCode, body: Vec<u8>, extra: Vec<(header::HeaderName, String)>| {
-        let mut builder = Response::builder()
-            .status(status)
-            .header(header::CONTENT_TYPE, "audio/wav")
-            .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-            .header(header::ACCEPT_RANGES, "bytes")
-            .header(header::CACHE_CONTROL, "no-store");
-        for (name, value) in extra {
-            builder = builder.header(name, value);
-        }
-        builder
-            .body(body)
-            .unwrap_or_else(|_| Response::new(Vec::new()))
-    };
-    let path = request.uri().path().trim_start_matches('/');
-    let Some(id) = path.strip_suffix(".wav") else {
-        return respond(StatusCode::NOT_FOUND, Vec::new(), Vec::new());
-    };
-    let file = paths::recordings_dir(app)
-        .ok()
-        .and_then(|dir| crate::store::recording_file(&dir, id));
-    let Some(bytes) = file.and_then(|f| std::fs::read(f).ok()) else {
-        return respond(StatusCode::NOT_FOUND, Vec::new(), Vec::new());
-    };
-    let total = bytes.len();
-    let range = request
-        .headers()
-        .get(header::RANGE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("bytes="))
-        .and_then(|v| {
-            let (a, b) = v.split_once('-')?;
-            let start: usize = a.parse().ok()?;
-            let end: usize = if b.is_empty() {
-                total.saturating_sub(1)
-            } else {
-                b.parse().ok()?
-            };
-            (start <= end && end < total).then_some((start, end))
-        });
-    match range {
-        Some((start, end)) => respond(
-            StatusCode::PARTIAL_CONTENT,
-            bytes[start..=end].to_vec(),
-            vec![
-                (
-                    header::CONTENT_RANGE,
-                    format!("bytes {start}-{end}/{total}"),
-                ),
-                (header::CONTENT_LENGTH, (end - start + 1).to_string()),
-            ],
-        ),
-        None => respond(
-            StatusCode::OK,
-            bytes,
-            vec![(header::CONTENT_LENGTH, total.to_string())],
-        ),
-    }
 }
 
 /// Loads the model if it is not already loaded and starts a capture.
@@ -609,7 +536,7 @@ pub async fn capture_stop(
         if let Some(id) = record_as {
             if !stopped.recording.is_empty() {
                 let dir = paths::recordings_dir(&app)?;
-                let path = crate::store::recording_file(&dir, &id).ok_or("not a note id")?;
+                let path = crate::recordings::recording_file(&dir, &id).ok_or("not a note id")?;
                 let recording = stopped.recording;
                 let samples = tauri::async_runtime::spawn_blocking(move || {
                     std::fs::create_dir_all(&dir)
@@ -641,8 +568,8 @@ pub async fn capture_reassign_recording(
     #[cfg(not(target_os = "ios"))]
     {
         let dir = paths::recordings_dir(&app)?;
-        let from = crate::store::recording_file(&dir, &from_id).ok_or("not a note id")?;
-        let to = crate::store::recording_file(&dir, &to_id).ok_or("not a note id")?;
+        let from = crate::recordings::recording_file(&dir, &from_id).ok_or("not a note id")?;
+        let to = crate::recordings::recording_file(&dir, &to_id).ok_or("not a note id")?;
         let count = tauri::async_runtime::spawn_blocking(move || {
             crate::whisper::wav::move_or_append(&from, &to, append.unwrap_or(false))
         })
@@ -656,7 +583,7 @@ pub async fn capture_reassign_recording(
 #[tauri::command]
 pub async fn capture_discard_recording(app: AppHandle, id: String) -> Result<(), String> {
     let dir = paths::recordings_dir(&app)?;
-    let path = crate::store::recording_file(&dir, &id).ok_or("not a note id")?;
+    let path = crate::recordings::recording_file(&dir, &id).ok_or("not a note id")?;
     tauri::async_runtime::spawn_blocking(move || {
         crate::fsx::remove_file_if_present(&path)
             .map_err(|e| format!("could not remove the temporary recording: {e}"))

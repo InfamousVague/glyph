@@ -1,5 +1,6 @@
 use super::*;
-use crate::store::{CommandMutation, CommandMutationResult, CommandUndoResult, RecordedSegment, Recording, Store};
+use crate::note::{CommandMutation, CommandMutationResult, CommandUndoResult, RecordedSegment, Recording};
+use crate::store::Store;
 
 fn temp(label: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("glyph-library-{label}-{}", uuid::Uuid::new_v4()));
