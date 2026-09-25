@@ -1,6 +1,7 @@
 import { RangeSetBuilder, type Text, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { taskBox } from '../core/itemSyntax.ts';
+import { forEachLineOutsideFences } from './lines.ts';
 
 /**
  * Progress under a heading (Matt picked it from the list of new formats): a heading with to-dos under it says how
@@ -16,7 +17,6 @@ import { taskBox } from '../core/itemSyntax.ts';
  */
 
 const HEADING = /^ {0,3}(#{1,6})\s+\S/;
-const FENCE = /^\s*(```|~~~)/;
 
 export interface HeadingCount {
   /** The heading's line number. */
@@ -29,27 +29,20 @@ export interface HeadingCount {
 export function headingCounts(doc: Text): HeadingCount[] {
   const open: { line: number; level: number; done: number; total: number }[] = [];
   const counts: HeadingCount[] = [];
-  let fence: string | null = null;
   const close = (level: number) => {
     while (open.length && open[open.length - 1]!.level >= level) {
       const heading = open.pop()!;
       if (heading.total) counts.push({ line: heading.line, done: heading.done, total: heading.total });
     }
   };
-  for (let n = 1; n <= doc.lines; n += 1) {
-    const text = doc.line(n).text;
-    const marker = FENCE.exec(text)?.[1];
-    if (marker) {
-      fence = fence === null ? marker : fence === marker ? null : fence;
-      continue;
-    }
-    if (fence) continue;
+  // A heading or a box in fenced code is code.
+  forEachLineOutsideFences(doc, ({ number, text }) => {
     const heading = HEADING.exec(text);
     if (heading) {
       const level = heading[1]!.length;
       close(level);
-      open.push({ line: n, level, done: 0, total: 0 });
-      continue;
+      open.push({ line: number, level, done: 0, total: 0 });
+      return;
     }
     const box = taskBox(text);
     if (box) {
@@ -58,7 +51,7 @@ export function headingCounts(doc: Text): HeadingCount[] {
         if (box.done) h.done += 1;
       }
     }
-  }
+  });
   close(0);
   return counts.sort((a, b) => a.line - b.line);
 }
