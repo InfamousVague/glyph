@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, type Canvas } from '../canvas/jsonCanvas.ts';
+import { caretIn, focusMoved, openOnPress, trackFocus } from './drawnBlock.ts';
 
 /**
  * A canvas in a frame inside a note (Matt: "embed a frame of a canvas within another note so we can browse the
@@ -116,12 +117,7 @@ class FrameWidget extends WidgetType {
     name.textContent = this.title;
     name.title = 'Edit the link';
     // A press on the name puts the caret on the line: the frame steps aside and the link can be edited.
-    name.addEventListener('mousedown', (event) => {
-      if (!view.state.facet(EditorView.editable)) return;
-      event.preventDefault();
-      view.dispatch({ selection: { anchor: this.from } });
-      view.focus();
-    });
+    openOnPress(view, name, this.from);
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'cm-canvasFrameOpen';
@@ -162,7 +158,6 @@ class FrameWidget extends WidgetType {
   }
 }
 
-const setFocus = StateEffect.define<boolean>();
 /** The app painted the other way, or a note changed: every frame is looked at again, and redrawn where it differs. */
 export const refreshCanvasFrames = StateEffect.define<null>();
 
@@ -217,23 +212,14 @@ const theme = EditorView.baseTheme({
 
 /** `![[A canvas]]` on a line of its own draws that canvas in a frame. */
 export function canvasFrames(options: FrameOptions): Extension {
-  const focusField = StateField.define<boolean>({
-    create: () => false,
-    update(focused, tr) {
-      for (const effect of tr.effects) if (effect.is(setFocus)) return effect.value;
-      return focused;
-    },
-  });
-
   const build = (state: EditorState): DecorationSet => {
     const builder = new RangeSetBuilder<Decoration>();
-    const focused = state.field(focusField, false) ?? false;
     const editable = state.facet(EditorView.editable);
     const dark = options.dark();
     for (const frame of framesIn(state.doc.toString())) {
       const line = state.doc.line(frame.line);
       // The caret on the line: the link itself, to edit. Elsewhere, and in a view with no caret, the canvas.
-      const inside = editable && focused && state.selection.ranges.some((range) => range.to >= line.from && range.from <= line.to);
+      const inside = editable && caretIn(state, line.from, line.to);
       if (inside) continue;
       const body = options.body(frame.title);
       const canvas = body === null ? null : canvasIn(body);
@@ -246,12 +232,12 @@ export function canvasFrames(options: FrameOptions): Extension {
   const field = StateField.define<DecorationSet>({
     create: build,
     update(decorations, tr) {
-      const poked = tr.effects.some((effect) => effect.is(setFocus) || effect.is(refreshCanvasFrames));
+      const poked = focusMoved(tr) || tr.effects.some((effect) => effect.is(refreshCanvasFrames));
       if (tr.docChanged || tr.selection || poked || tr.reconfigured) return build(tr.state);
       return decorations;
     },
     provide: (field) => EditorView.decorations.from(field),
   });
 
-  return [focusField, field, theme, EditorView.focusChangeEffect.of((_state, focusing) => setFocus.of(focusing))];
+  return [trackFocus, field, theme];
 }

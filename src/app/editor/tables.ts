@@ -1,6 +1,7 @@
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
-import { type EditorState, type Extension, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { type EditorState, type Extension, RangeSetBuilder, StateField } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view';
+import { caretIn, focusMoved, openOnPress, trackFocus } from './drawnBlock.ts';
 
 /**
  * Tables, shown as tables.
@@ -15,18 +16,8 @@ import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemir
  *
  * Block decorations have to come from a state field, not a view plugin, and a
  * state field cannot ask the view whether it has focus, so focus is kept in a
- * field of its own from `EditorView.focusChangeEffect`.
+ * field of its own, the one every drawn block shares (editor/drawnBlock.ts).
  */
-
-const setFocus = StateEffect.define<boolean>();
-
-const focusField = StateField.define<boolean>({
-  create: () => false,
-  update(focused, tr) {
-    for (const effect of tr.effects) if (effect.is(setFocus)) return effect.value;
-    return focused;
-  },
-});
 
 interface Parsed {
   header: string[];
@@ -119,12 +110,7 @@ class TableWidget extends WidgetType {
       });
     }
     wrap.appendChild(table);
-    wrap.addEventListener('mousedown', (event) => {
-      if (!view.state.facet(EditorView.editable)) return;
-      event.preventDefault();
-      view.dispatch({ selection: { anchor: this.from } });
-      view.focus();
-    });
+    openOnPress(view, wrap, this.from);
     return wrap;
   }
 
@@ -137,14 +123,13 @@ class TableWidget extends WidgetType {
 function build(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const tree = ensureSyntaxTree(state, state.doc.length, 40) ?? syntaxTree(state);
-  const focused = state.field(focusField, false) ?? false;
   const editable = state.facet(EditorView.editable);
   tree.iterate({
     enter(node) {
       if (node.name !== 'Table') return undefined;
       const from = state.doc.lineAt(node.from).from;
       const to = state.doc.lineAt(node.to).to;
-      const inside = editable && focused && state.selection.ranges.some((range) => range.to >= from && range.from <= to);
+      const inside = editable && caretIn(state, from, to);
       if (!inside) {
         builder.add(from, to, Decoration.replace({ widget: new TableWidget(state.doc.sliceString(from, to), from), block: true }));
       }
@@ -158,8 +143,7 @@ const tableField = StateField.define<DecorationSet>({
   create: build,
   update(decorations, tr) {
     const treeMoved = syntaxTree(tr.state) !== syntaxTree(tr.startState);
-    const focusMoved = tr.effects.some((effect) => effect.is(setFocus));
-    if (tr.docChanged || tr.selection || treeMoved || focusMoved || tr.reconfigured) return build(tr.state);
+    if (tr.docChanged || tr.selection || treeMoved || focusMoved(tr) || tr.reconfigured) return build(tr.state);
     return decorations;
   },
   provide: (field) => EditorView.decorations.from(field),
@@ -167,9 +151,8 @@ const tableField = StateField.define<DecorationSet>({
 
 export function drawnTables(): Extension {
   return [
-    focusField,
+    trackFocus,
     tableField,
-    EditorView.focusChangeEffect.of((_state, focusing) => setFocus.of(focusing)),
     EditorView.baseTheme({
       '.cm-glyphTableWrap': {
         overflowX: 'auto',
