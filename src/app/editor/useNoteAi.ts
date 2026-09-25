@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
 import type { ToastOptions } from '@glacier/react';
-import { useAvailability, type AvailabilityState } from '../ai/available.ts';
+import { useAvailability } from '../ai/available.ts';
 import type { RunKind } from '../ai/kinds.ts';
 import { recordUndone, type RunRecord } from '../ai/log.ts';
 import { loadMarks, saveMarks } from '../ai/marks.ts';
@@ -50,8 +50,6 @@ interface NoteAiOptions {
 }
 
 export interface NoteAi {
-  /** Whether the AI can run here, and the model to get where it cannot (ai/available.ts). */
-  availability: AvailabilityState;
   /** Starts a run on the note; says why not when it cannot. */
   runAi: (kind: RunKind, instruction?: string) => void;
   /** The kind of run on the note now, for the More sheet to mark, or null. */
@@ -147,5 +145,5 @@ export function useNoteAi({ note, view, flush, body, wisp, ask, review, toast }:
     return true;
   };
 
-  return { availability, runAi, runningKind, reviewStage, marks, onAiMarks, undoRun };
+  return { runAi, runningKind, reviewStage, marks, onAiMarks, undoRun };
 }
