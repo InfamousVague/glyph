@@ -47,12 +47,14 @@ describe('a mark’s example', () => {
   });
 
   it('is drawn at once where the page cannot watch the screen', () => {
+    // The test's own observer goes back afterwards: without one, every row on a page builds its editor at once.
+    const watching = globalThis.IntersectionObserver;
     globalThis.IntersectionObserver = undefined as unknown as typeof IntersectionObserver;
     try {
       const el = show(<MarkExample row={bold} />);
       expect(el.querySelector('.cm-editor')).not.toBeNull();
     } finally {
-      globalThis.IntersectionObserver = had ?? (undefined as unknown as typeof IntersectionObserver);
+      globalThis.IntersectionObserver = watching;
     }
   });
 });
