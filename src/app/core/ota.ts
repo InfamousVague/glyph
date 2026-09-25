@@ -153,6 +153,11 @@ export function describeBuild(build: string | null | undefined): string {
   const at = new Date(
     Date.UTC(+build.slice(0, 4), +build.slice(4, 6) - 1, +build.slice(6, 8), +build.slice(8, 10), +build.slice(10, 12), +build.slice(12, 14)),
   );
+  return shortWhen(at);
+}
+
+/** "Sep 15, 11:09 PM": the moment an update is named by, a build or a release, in the person's own time zone. */
+export function shortWhen(at: Date): string {
   return at.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
