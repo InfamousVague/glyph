@@ -12,7 +12,7 @@ const linked: Record<string, { link: { id: string; label: string; icon: () => Re
     { link: { id: 'github-repo', label: 'GitHub repo', icon: RingMark }, name: 'InfamousVague/AttackFM' },
   ],
 };
-vi.mock('./registry.ts', () => ({ useNoteLinks: (noteId: string) => linked[noteId] ?? [] }));
+vi.mock('./hooks.ts', () => ({ useNoteLinks: (noteId: string) => linked[noteId] ?? [] }));
 
 afterEach(() => {
   // Off the page first, so the workspaces going is a change no mounted mark hears.

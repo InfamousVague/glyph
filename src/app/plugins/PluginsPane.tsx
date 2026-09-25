@@ -3,9 +3,9 @@ import { Puzzle } from '@glacier/icons';
 import { Switch } from '@glacier/react';
 import { usePreferences } from '../core/preferences.ts';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from '../settings/kit/settingsKit.tsx';
-import { PERMISSION_WORDS, reachLine } from './reach.ts';
-import { usePlugins } from './registry.ts';
-import type { GlyphPlugin, PluginManifest } from './types.ts';
+import { usePlugins } from './hooks.ts';
+import { PERMISSION_WORDS, reachLine, usesNetwork } from './reach.ts';
+import type { GlyphPlugin } from './types.ts';
 
 /**
  * Settings > Plugins: every plugin in this build, one card each (Matt: "revamp and redo the plugins page").
@@ -19,8 +19,6 @@ import type { GlyphPlugin, PluginManifest } from './types.ts';
  * Local only (Settings > Formatting) holds every plugin that uses the internet off, whatever its switch says
  * (plugins/registry.ts); the page says so at the top and on each card it holds.
  */
-
-const usesNetwork = (manifest: PluginManifest) => manifest.permissions.some((p) => p.kind === 'network');
 
 interface PluginCardProps {
   plugin: GlyphPlugin;

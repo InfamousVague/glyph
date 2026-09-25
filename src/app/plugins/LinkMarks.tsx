@@ -1,5 +1,5 @@
 import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
-import { useNoteLinks } from './registry.ts';
+import { useNoteLinks } from './hooks.ts';
 import styles from './LinkMarks.module.css';
 
 /**

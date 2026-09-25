@@ -2,12 +2,12 @@ import { notionPlugin } from './notion/index.tsx';
 import { githubPlugin } from './github/index.tsx';
 import { marksPlugin } from './marks/index.tsx';
 import { claudePlugin } from './claude/index.tsx';
-import { onPluginStorage, PluginPermissionError } from './host.ts';
+import { PluginPermissionError } from './host.ts';
 import { registerMarkName } from '../core/itemLinks.ts';
 import { markDetailsChanged, provideMarkDetails } from '../core/markDetails.ts';
 import { onPreferences, preferences } from '../core/preferences.ts';
 import { readStored, writeStored } from '../core/stored.ts';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { usesNetwork } from './reach.ts';
 import type { InlineFormat, GlyphPlugin, ItemAction, ItemTarget, NoteAction, NoteLink, Permission, Tip, VoiceCommand, Suggestion } from './types.ts';
 
 /**
@@ -15,7 +15,8 @@ import type { InlineFormat, GlyphPlugin, ItemAction, ItemTarget, NoteAction, Not
  *
  * The app asks here and never names a plugin: the note's cog asks for
  * `noteLinks()`, the recorder for `voiceCommands()`, the formatter for
- * `contextFor(noteId)`, Settings for `usePlugins()`. A switched-off plugin
+ * `contextFor(noteId)`, Settings for `usePlugins()` (hooks.ts, where React
+ * reads the registry). A switched-off plugin
  * offers nothing anywhere, at once; its data stays where it was, so switching
  * it on again brings it back as it was.
  *
@@ -24,9 +25,6 @@ import type { InlineFormat, GlyphPlugin, ItemAction, ItemTarget, NoteAction, Not
  */
 
 const SWITCHES_KEY = 'glyph-plugins';
-
-/** Whether a plugin reaches outside the phone: off while Local only is on (core/preferences.ts). */
-const usesNetwork = (plugin: GlyphPlugin) => plugin.manifest.permissions.some((p) => p.kind === 'network');
 
 export interface Registry {
   all(): readonly GlyphPlugin[];
@@ -74,13 +72,6 @@ const localSwitches: SwitchStore = {
 };
 
 /**
- * The extension points a plugin uses must match what its manifest asks for:
- * commands heard while recording need `voice`, and anything that changes a
- * note (an action, the swipe, items sent on from a voice command) needs
- * `notes`. Checked when the registry is made, so a plugin that overreaches
- * never loads.
- */
-/**
  * A node name the parser can carry, and a delimiter: a run of one character Markdown itself doesn't use, or an emoji
  * twice, which is how an effect is written (plugins/marks `Heat`, editor/textEffects.ts). The emoji is a pictograph,
  * optionally with its variation selector (❄️), and nothing Markdown reads as punctuation.
@@ -89,6 +80,13 @@ const FORMAT_NAME = /^[A-Z][A-Za-z0-9]*$/;
 const FORMAT_DELIMITER = /^([^\w\s*_~`[\]<>#!()\\])\1{0,2}$/;
 const EFFECT_DELIMITER = /^(\p{Extended_Pictographic}\uFE0F?)\1$/u;
 
+/**
+ * The extension points a plugin uses must match what its manifest asks for:
+ * commands heard while recording need `voice`, and anything that changes a
+ * note (an action, the swipe, items sent on from a voice command) needs
+ * `notes`. Its formattings must be ones the parser can carry. Checked when the
+ * registry is made, so a plugin that overreaches never loads.
+ */
 function checkExtensions(plugin: GlyphPlugin): void {
   const has = (kind: Permission) => plugin.manifest.permissions.some((p) => p.kind === kind);
   for (const format of plugin.formats ?? []) {
@@ -120,7 +118,8 @@ export function createRegistry(plugins: readonly GlyphPlugin[], store: SwitchSto
   const isEnabled = (id: string) => {
     const plugin = plugins.find((p) => p.manifest.id === id);
     if (!plugin) return false;
-    if (preferences().localOnly && usesNetwork(plugin)) return false;
+    // Local only holds off whatever reaches outside the phone (core/preferences.ts).
+    if (preferences().localOnly && usesNetwork(plugin.manifest)) return false;
     return switches[id] ?? plugin.manifest.standard;
   };
   const enabled = () => (enabledCache ??= plugins.filter((p) => isEnabled(p.manifest.id)));
@@ -190,31 +189,6 @@ export function createRegistry(plugins: readonly GlyphPlugin[], store: SwitchSto
 export const BUILT_IN: readonly GlyphPlugin[] = [notionPlugin, githubPlugin, marksPlugin, claudePlugin];
 
 export const plugins = createRegistry(BUILT_IN);
-
-/** The plugins and which are on, kept current. */
-export function usePlugins(): { all: readonly GlyphPlugin[]; enabled: readonly GlyphPlugin[]; setEnabled: (id: string, on: boolean) => void } {
-  const enabled = useSyncExternalStore(plugins.subscribe, plugins.enabled, plugins.enabled);
-  return { all: plugins.all(), enabled, setEnabled: plugins.setEnabled };
-}
-
-/**
- * What a note is linked to, kept current: read again when a plugin writes its
- * storage (a board chosen, a repo unlinked) or is switched on or off.
- */
-export function useNoteLinks(noteId: string): NoteLinked[] {
-  const [links, setLinks] = useState<NoteLinked[]>(() => plugins.linksOf(noteId));
-  useEffect(() => {
-    const read = () => setLinks(plugins.linksOf(noteId));
-    read();
-    const offStorage = onPluginStorage(read);
-    const offSwitch = plugins.subscribe(read);
-    return () => {
-      offStorage();
-      offSwitch();
-    };
-  }, [noteId]);
-  return links;
-}
 
 /** The formatter's context for a note, from every plugin that gives one (format/pipeline.ts). */
 export const pluginContextFor = (noteId: string) => plugins.contextFor(noteId);

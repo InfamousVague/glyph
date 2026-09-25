@@ -5,7 +5,8 @@ import { ArchiveBox, ArrowLeft, Bin, Board, Pin, Workspace as WorkspaceIcon } fr
 import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
 import { SheetField, SheetIcon } from '../plugins/kit.tsx';
-import { plugins, usePlugins } from '../plugins/registry.ts';
+import { plugins } from '../plugins/registry.ts';
+import { usePlugins } from '../plugins/hooks.ts';
 import type { NoteEditing, NoteLink } from '../plugins/types.ts';
 import { MODES } from '../format/modes.ts';
 import { KIND_ICONS } from '../ai/icons.ts';

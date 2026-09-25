@@ -14,7 +14,7 @@ import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { markGroups } from '../guide/marks.ts';
 import { FormattingPane } from './FormattingPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
-import { usePlugins } from '../plugins/registry.ts';
+import { usePlugins } from '../plugins/hooks.ts';
 import { AboutPane } from './AboutPane.tsx';
 import { AnimationsPane } from './AnimationsPane.tsx';
 import { AppearancePane } from './AppearancePane.tsx';
