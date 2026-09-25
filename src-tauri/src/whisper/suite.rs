@@ -11,13 +11,13 @@
 //! `cargo test --release whisper::suite -- --ignored --nocapture`
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use serde::Serialize;
 
 use super::engine::{Engine, Session};
+use super::fixtures::{models_dir, to_16k_mono_wav};
 use super::model;
 use super::stream::{Event, Segment, Streamer};
 use super::{ms_to_samples, samples_to_ms, wav};
@@ -36,24 +36,10 @@ fn voice_dir() -> PathBuf {
     })
 }
 
-fn models_dir() -> PathBuf {
-    std::env::var_os("GLYPH_MODELS_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("models"))
-}
-
 /// The recording as 16 kHz mono samples, converted beside it in a temporary file.
 fn samples(audio: &Path) -> Result<Vec<f32>, String> {
     let wav_path = std::env::temp_dir().join(format!("glyph-suite-{}.wav", uuid::Uuid::new_v4()));
-    let converted = Command::new("afconvert")
-        .args(["-f", "WAVE", "-d", "LEI16@16000", "-c", "1"])
-        .arg(audio)
-        .arg(&wav_path)
-        .status()
-        .map_err(|e| format!("afconvert: {e}"))?;
-    if !converted.success() {
-        return Err(format!("afconvert could not read {}", audio.display()));
-    }
+    to_16k_mono_wav(audio, &wav_path)?;
     let read = wav::read(&wav_path);
     let _ = std::fs::remove_file(&wav_path);
     read

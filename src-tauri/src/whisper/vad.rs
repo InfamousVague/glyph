@@ -76,6 +76,13 @@ impl Vad {
         }
     }
 
+    /// Hears `samples` for the noise floor only, whole frames, judging nothing.
+    pub fn prime(&mut self, samples: &[f32]) {
+        for frame in samples.chunks_exact(FRAME) {
+            self.frame(frame);
+        }
+    }
+
     /// Classifies one frame and folds it into the room. Returns whether the
     /// frame is loud enough to be speech, and its RMS for callers that need
     /// to find the quietest place to cut.
@@ -84,13 +91,6 @@ impl Vad {
     /// very first frame of a capture be silence rather than an unknown: a
     /// room of one frame compared with itself is never 10 dB louder than
     /// itself.
-    /// Hears `samples` for the noise floor only, whole frames, judging nothing.
-    pub fn prime(&mut self, samples: &[f32]) {
-        for frame in samples.chunks_exact(FRAME) {
-            self.frame(frame);
-        }
-    }
-
     pub fn frame(&mut self, samples: &[f32]) -> (bool, f32) {
         let rms = rms(samples);
         if self.recent.len() == FLOOR_FRAMES {

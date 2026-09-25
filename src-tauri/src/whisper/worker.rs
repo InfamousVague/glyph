@@ -81,7 +81,7 @@ impl Shared {
 }
 
 /// What a stopped capture leaves behind: its words, and the audio they came from.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Stopped {
     pub transcript: String,
     /// 16 kHz mono 16-bit, the whole recording from the first sample pushed.

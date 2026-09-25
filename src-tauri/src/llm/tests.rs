@@ -319,12 +319,7 @@ fn keeps_a_table_token_on_its_own_line() {
 
 /// The review prompt the page sends after a recording (src/app/review/prompt.ts).
 fn review_prompt() -> String {
-    let source = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/app/review/prompt.ts"))
-        .expect("review/prompt.ts is in the repository");
-    let opener = "REVIEW_PROMPT = String.raw`";
-    let start = source.find(opener).expect("REVIEW_PROMPT is a String.raw literal") + opener.len();
-    let end = start + source[start..].find('`').expect("the literal closes");
-    source[start..end].trim().to_string()
+    page_prompt_in("review/prompt.ts", "REVIEW_PROMPT")
 }
 
 /// A take as the review sees it: the fast model misheard "seek" and "HelloTrade",

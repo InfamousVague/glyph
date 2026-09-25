@@ -54,6 +54,8 @@ pub mod engine;
 pub mod worker;
 
 #[cfg(all(test, not(target_os = "ios")))]
+mod fixtures;
+#[cfg(all(test, not(target_os = "ios")))]
 mod tests;
 #[cfg(all(test, target_os = "macos"))]
 mod suite;

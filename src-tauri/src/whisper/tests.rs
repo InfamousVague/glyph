@@ -21,6 +21,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use super::engine::{Engine, Session};
+use super::fixtures::{models_dir, to_16k_mono_wav};
 use super::model::{self, ModelSpec};
 use super::stream::{Event, Streamer};
 use super::vad::rms;
@@ -35,15 +36,6 @@ const SCRIPT: &str = "Remember to buy oat milk and fresh bread on the way home. 
 /// seen is exactly what base.en misspells, and a test that fails on a
 /// defensible spelling is a test somebody deletes.
 const KEY_WORDS: [&str; 7] = ["milk", "bread", "plumber", "kitchen", "thursday", "report", "monday"];
-
-/// The repository's `models/`, or `GLYPH_MODELS_DIR` - which is how the
-/// benchmarks run from a test binary pushed to a phone, where the path this
-/// crate was compiled at does not exist.
-fn models_dir() -> PathBuf {
-    std::env::var_os("GLYPH_MODELS_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("models"))
-}
 
 /// The loaded model, shared by every test in the run - loading it once per
 /// test would be most of the suite's time - or `None` with a message saying
@@ -82,13 +74,9 @@ fn fixture() -> Option<Vec<f32>> {
             return None;
         }
         let part = wav_path.with_extension("wav.part");
-        let converted = Command::new("afconvert")
-            .args(["-f", "WAVE", "-d", "LEI16@16000", "-c", "1"])
-            .arg(&aiff)
-            .arg(&part)
-            .status();
+        let converted = to_16k_mono_wav(&aiff, &part);
         let _ = std::fs::remove_file(&aiff);
-        if !matches!(converted, Ok(s) if s.success()) {
+        if converted.is_err() {
             eprintln!("SKIPPED: `afconvert` could not make the 16 kHz fixture");
             return None;
         }
@@ -329,13 +317,7 @@ fn synthesise(text: &str, voice: &str) -> Option<Vec<f32>> {
     let stem = std::env::temp_dir().join(format!("glyph-cue-{}", uuid::Uuid::new_v4()));
     let (aiff, wav_path) = (stem.with_extension("aiff"), stem.with_extension("wav"));
     let spoke = Command::new("say").args(["-v", voice, "-o"]).arg(&aiff).arg(text).status();
-    let converted = matches!(spoke, Ok(s) if s.success())
-        && Command::new("afconvert")
-            .args(["-f", "WAVE", "-d", "LEI16@16000", "-c", "1"])
-            .arg(&aiff)
-            .arg(&wav_path)
-            .status()
-            .is_ok_and(|s| s.success());
+    let converted = matches!(spoke, Ok(s) if s.success()) && to_16k_mono_wav(&aiff, &wav_path).is_ok();
     let audio = converted.then(|| wav::read(&wav_path).ok()).flatten();
     let _ = std::fs::remove_file(&aiff);
     let _ = std::fs::remove_file(&wav_path);
