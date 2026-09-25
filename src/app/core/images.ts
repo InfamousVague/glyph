@@ -1,5 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { answerHost } from './host.ts';
+import { randomId } from './ids.ts';
 import { hasNativeGeneration } from './nativeGeneration.ts';
 import { invoke, isTauri } from './tauri.ts';
 
@@ -127,7 +128,7 @@ export async function saveImageFile(file: Blob): Promise<string> {
     const { name } = await invoke<{ name: string }>('save_image_data', { base64 });
     return name;
   }
-  const name = `${crypto.randomUUID()}.jpg`;
+  const name = `${randomId('img')}.jpg`;
   await webPut(name, shrunk);
   urls.set(name, URL.createObjectURL(shrunk));
   return name;

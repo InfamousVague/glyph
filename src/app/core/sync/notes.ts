@@ -1,4 +1,5 @@
 import { ApiError, call, callBytes } from '../account/api.ts';
+import { randomId } from '../ids.ts';
 import { imageNames } from '../images.ts';
 import type { Note } from '../store.ts';
 import { isSharedLive } from '../live/shared.ts';
@@ -274,7 +275,7 @@ export interface Outcome {
 
 /** A new id for this device's side of a conflict. */
 function copyId(): string {
-  return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `n-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return randomId('n');
 }
 
 /**
