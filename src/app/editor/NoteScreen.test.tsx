@@ -3,7 +3,7 @@ import { act, type ReactElement } from 'react';
 import { EditorView } from '@codemirror/view';
 import { ToastProvider } from '@glacier/react';
 import { button, buttonSaying, rerender, show, typeInto, unmount } from '../../test/render.tsx';
-import { createNote, getNote, updateNote, type Note } from '../core/store.ts';
+import { createNote, getNote, setNoteRecording, updateNote, type Note } from '../core/store.ts';
 import { goBack } from '../core/back.ts';
 import { setTopBarTools } from '../core/topBarTools.ts';
 
@@ -25,6 +25,19 @@ await vi.hoisted(async () => {
 vi.mock('../core/store.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../core/store.ts')>();
   return { ...real, updateNote: vi.fn(real.updateNote) };
+});
+
+/** Whether the AI can run here: the browser's answer, which is no, unless a test says the phone has a model. */
+const ai = vi.hoisted(() => ({ ready: false }));
+vi.mock('../ai/available.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../ai/available.ts')>();
+  return {
+    ...real,
+    useAvailability: () => {
+      const answer = real.useAvailability();
+      return ai.ready ? { ...answer, availability: { ok: true as const, model: 'qwen3.5-4b', chosen: 'qwen3.5-4b' } } : answer;
+    },
+  };
 });
 
 const { NoteScreen } = await import('./NoteScreen.tsx');
@@ -81,6 +94,7 @@ beforeEach(() => {
 
 afterEach(() => {
   unmount();
+  ai.ready = false;
   setTopBarTools(null);
   vi.useRealTimers();
   Reflect.deleteProperty(document, 'visibilityState');
@@ -350,6 +364,68 @@ describe('the More sheet from the note', () => {
     show(screen(await createNote('n2', '# Just words')));
     act(() => button('More for this note').click());
     expect(buttonSaying(document.body, 'Make a board')).toBeUndefined();
+  });
+});
+
+describe('the AI bar', () => {
+  const bar = () => document.querySelector('section[aria-label="Ask the AI"]');
+
+  it('is away until the ✨ shows it, and its own ✨ puts it away again', async () => {
+    show(screen(await createNote('n1', '# Groceries')));
+    expect(bar()).toBeNull();
+    act(() => button('Show the AI bar').click());
+    expect(bar()).not.toBeNull();
+    act(() => button('Hide the AI bar').click());
+    expect(bar()).toBeNull();
+    expect(button('Show the AI bar')).toBeTruthy();
+  });
+
+  it('opens on the words when a selection asks the AI, whatever the setting, and asks which part', async () => {
+    ai.ready = true;
+    show(screen(await createNote('n1', '# Groceries\nmilk and eggs')));
+    const view = editor();
+    act(() => view.dispatch({ selection: { anchor: 12, head: 16 } }));
+    act(() => {
+      view.contentDOM.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    });
+    await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    await act(async () => button('Ask the AI', document.querySelector('[role="menu"]')!).click());
+    expect(bar()).not.toBeNull();
+    // A chip pressed now asks whether it means the selected words or the note.
+    act(() => button('Format', bar()!).click());
+    expect(button('This part', bar()!)).toBeTruthy();
+  });
+
+  it('is not offered on a canvas', async () => {
+    show(screen(await createNote('c1', '{"nodes":[],"edges":[]}')));
+    expect(document.querySelector('[aria-label="Show the AI bar"]')).toBeNull();
+  });
+});
+
+describe('a spoken note’s recording', () => {
+  async function spoken(): Promise<Note> {
+    await createNote('n1', '# Walk\nwords');
+    return (await setNoteRecording('n1', 4000, [{ text: 'words', startMs: 0, endMs: 4000 }]))!;
+  }
+
+  it('has the tape, and the tape’s Add in place of the mic', async () => {
+    show(screen(await spoken()));
+    expect(document.querySelector('section[aria-label="Recording"]')).not.toBeNull();
+    expect(document.querySelector('[aria-label="Talk into this note"]')).toBeNull();
+    expect(button('Record more into this note')).toBeTruthy();
+  });
+
+  it('comes off at once on Remove, and its Undo puts it back', async () => {
+    show(screen(await spoken()));
+    await act(async () => button("Remove this note's recording").click());
+    await settle();
+    expect(document.querySelector('section[aria-label="Recording"]')).toBeNull();
+    expect((await getNote('n1'))?.recordingMs ?? null).toBeNull();
+    expect(document.body.textContent).toContain('Recording removed.');
+    await act(async () => button('Undo').click());
+    await settle();
+    expect(document.querySelector('section[aria-label="Recording"]')).not.toBeNull();
+    expect((await getNote('n1'))?.recordingMs).toBe(4000);
   });
 });
 
