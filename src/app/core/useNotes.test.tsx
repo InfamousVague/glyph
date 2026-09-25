@@ -116,7 +116,16 @@ describe('the notes list on a phone', () => {
   it('gives up after the last retry rather than asking for ever', async () => {
     answers = [new Error('gone')];
     show(<List />);
-    await wait(250 + 900 + 2400 + 10_000);
+    await wait(250 + 900);
+    expect(asked).toBe(3);
+    // The last wait is 2.4 s, and only once it has failed too is the failure told.
+    await wait(2399);
+    expect(asked).toBe(3);
+    expect(console.warn).not.toHaveBeenCalled();
+    await wait(1);
+    expect(asked).toBe(4);
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    await wait(10_000);
     expect(asked).toBe(4);
     expect(console.warn).toHaveBeenCalledTimes(1);
   });
