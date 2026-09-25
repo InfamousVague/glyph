@@ -34,7 +34,7 @@ tree.
 | Definition lists           | yes    | yes   | `Term` then `: the meaning`; the term set apart, the meaning hanging under it |
 | Front matter               | yes    | yes   | Drawn as quiet keys rather than a rule, and the note is named by its `title:` |
 | Math `$x$`, `$$x$$`        | yes    | yes   | Set as code, delimiters and all. No renderer: KaTeX is ~280 KB the phone doesn't need |
-| Mermaid ```` ```mermaid ```` | as a code block | yes | Added 2026-09-17: drawn as the diagram it describes (`editor/mermaid.ts`), the fence tapped to edit. Mermaid itself, every diagram type, loaded the first time a note has one; a diagram that cannot be drawn stays as its text |
+| Mermaid ```` ```mermaid ```` | as a code block | yes | Added 2026-09-17: drawn as the diagram it describes (`src/app/editor/mermaid.ts`), the fence tapped to edit. Mermaid itself, every diagram type, loaded the first time a note has one; a diagram that cannot be drawn stays as its text |
 | Wiki links `[[Note]]`      | yes    | yes   | Opens that note; a title with no note is drawn dashed, and tapping it makes the note and opens it. `[[Note#^anchor]]` splits on the first `#`; `[[#^anchor]]` is a place in this note, drawn with the anchors (`src/app/editor/boards/anchors.ts`) |
 
 A highlight can be given a colour by name, in the same brackets a note uses: `==the cabin key==(green)`, from the

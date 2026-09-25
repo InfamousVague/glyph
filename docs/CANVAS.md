@@ -77,9 +77,9 @@ changes nothing anyone meant.
 ## Where a canvas lives
 
 **As a note of its own.** A note whose body is the JSON is a canvas note, and is drawn as a canvas where its words
-would be (editor/NoteScreen.tsx). Obsidian names a canvas by its file; a note's file is named after its first line
-(docs/LIBRARY.md), and a canvas's first line is JSON, so the name is front matter, which is how any note from outside
-is named (docs/MARKDOWN.md):
+would be (`src/app/editor/NoteScreen.tsx`). Obsidian names a canvas by its file; a note's file is named after its
+first line (docs/LIBRARY.md), and a canvas's first line is JSON, so the name is front matter, which is how any note
+from outside is named (docs/MARKDOWN.md):
 
 ```markdown
 ---
@@ -100,10 +100,10 @@ the order on the lines - say it, say the marks, it lands as a note, where a note
 phone - two of them the example board and the sample note themselves (Matt: "a simpler canvas explaining how Glyph
 works in simpler terms").
 
-**Named from the More sheet.** A canvas has no heading to rename it in, so the sheet that opens from the note's
-three dots (More for this note) has a Name field for a canvas note (editor/NoteSettings.tsx), which writes the
-`title:` front matter and nothing else (core/frontMatter.ts). Matt chose that over renaming in the tab or editing the
-front matter by hand; a tab's menu can rename it too now, as it can a book.
+**Named from the More sheet.** A canvas has no heading to rename it in, so the sheet that opens from the note's three
+dots (More for this note) has a Name field for a canvas note (`src/app/editor/NoteSettings.tsx`), which writes the
+`title:` front matter and nothing else (`src/app/core/frontMatter.ts`). Matt chose that over renaming in the tab or
+editing the front matter by hand; a tab's menu can rename it too now, as it can a book.
 
 **Its JSON, behind the view switch.** The header's switch, which on a note of words goes between the marks and the
 formatted page, on a canvas note goes between the canvas and its JSON in the editor, where it can be read and
@@ -111,20 +111,20 @@ changed by hand (Matt: "yes, via the Markdown/Formatted switch"). It is the note
 every note shares - that one defaults to the marks, and a canvas should open as a canvas. The JSON shown is what the
 canvas has written by then; switching back draws what was typed.
 
-**In a note, in a frame.** `![[Cabin weekend, laid out]]` on a line of its own draws that canvas note inside the
-note, browsable - pan, zoom, minimap - and unchangeable, with its name and an Open over it (editor/canvasFrames.ts;
-docs/MARKDOWN.md, Embeds). It is the canvas note that is drawn, so a change to the canvas shows in every note that
-frames it. A canvas written inline in a note, as a ```canvas fence, is still not built.
+**In a note, in a frame.** `![[Cabin weekend, laid out]]` on a line of its own draws that canvas note inside the note,
+browsable - pan, zoom, minimap - and unchangeable, with its name and an Open over it
+(`src/app/editor/canvasFrames.ts`; docs/MARKDOWN.md, Embeds). It is the canvas note that is drawn, so a change to the
+canvas shows in every note that frames it. A canvas written inline in a note, as a ```canvas fence, is still not
+built.
 
 ## What is drawn, so far
 
 The first slice reads and draws (`src/app/canvas/CanvasView.tsx`): cards where the file puts them, groups behind them,
 lines with their arrows and labels, one finger or a wheel to pan, two fingers or a modifier and the wheel to zoom
 about the point under them, and Fit. A card of words is the note's own editor, read-only, so it draws exactly as a
-note does. A note card draws that note small (notes/NotePeek.tsx) and opens it on a tap - at its anchor when the
-card names one; a note not in the library is drawn as waiting ("Not in Ghost.md yet"), the way a `[[link]]` to
-nothing is. A link card opens its
-address.
+note does. A note card draws that note small (`src/app/notes/NotePeek.tsx`) and opens it on a tap - at its anchor when
+the card names one; a note not in the library is drawn as waiting ("Not in Ghost.md yet"), the way a `[[link]]` to
+nothing is. A link card opens its address.
 
 **The second slice edits.** A double-tap on the page makes a card of words there, open with the keyboard up (choice
 8), and the Add a card tool makes one mid-screen. A press held on a card lifts it and it goes where the finger goes,
