@@ -13,18 +13,19 @@ import { endsMemo, MEMO_GAP_MS, startsMemo } from './voiceMemo.ts';
 /**
  * One recording's words and commands, as a state machine with no screen and no clock of its own.
  *
- * The recorder (CaptureScreen) feeds it each committed phrase and a tick every quarter second, and does what it says:
- * shows a chip, asks "shall I?", adds items to another note. The voice test suite (voice-tests/, capture/voiceSuite)
- * feeds it the same phrases from recorded audio and checks the notes that result, so what is tested is what runs.
+ * The recorder (CaptureScreen) hands it each committed phrase with `listen`, which only shows it: since PR #1 a phrase
+ * can never route a command or write a note, and the command in a recording is read once, from the whole transcript,
+ * at Done (ai/instruction.ts), then offered here with `offerFinal` for a yes or a tap. The live reading of commands a
+ * phrase at a time - `phrase` and `tick`, with its tables and voice memos - is what the voice test suite (voice-tests/,
+ * capture/voiceSuite.ts) drives from recorded audio, checking the notes that result.
  *
- * Everything here was the recorder's own until the suite needed it; the rules it follows are the same:
+ * The rules it follows:
  *
  * - Nothing is a command until "Glyph" (or, with the keyword off, a phrase that reads as one). The words before the
  *   keyword stay in the note; the words after it, across phrases, are the command and never land in the note unless
  *   no command comes of them.
  * - A command asks before it acts. "Yes" or "no" answer it, as a tap does; silence for a while is a no.
  * - A table is asked for a piece at a time; a voice memo keeps the sound instead of the words.
- *   words, which go straight in - the trigger and the question were the asking.
  */
 
 /** When a command gives up, in ms: the recorder's timings, one place. */
@@ -121,17 +122,10 @@ export interface TakeHost<N extends TakeNote> {
   addTable(note: N, title: string, markdown: string): void;
   /** Yes to a move offer: this take's words so far go to `note` and carry on there. */
   moveTo(note: N): void;
-  /**
-   * The memo flow chose `note`: the words so far stay where they were said (the take is forked, `fork`), and the take
-   * carries on afresh on it.
-   */
-  carryOn(note: N): void;
-  /** A new note from here; with a `title`, one already named, carried on like `carryOn`. */
+  /** A new note from here, the words so far staying where they were said (the take is forked, `fork`); with a `title`, one already named. */
   newNote(title?: string): void;
   /** Yes to a book offer: a book note with that title and those pages, made beside this take, which carries on (docs/BOOKS.md). */
   newBook(title: string, pages: readonly string[]): void;
-  /** "Undo": the last thing a command put in a note comes out. What it was, for the chip, or null when there is nothing. */
-  undo(): string | null;
   /** Yes to a plugin's command: what it keeps in the note, if anything. */
   runPlugin(voice: VoiceCommand, parsed: unknown): string | null;
   describePlugin(voice: VoiceCommand, parsed: unknown): { title: string; action: string };
@@ -175,10 +169,6 @@ export class Take<N extends TakeNote> {
 
   get offering(): Offer<N> | null {
     return this.pending?.offer ?? null;
-  }
-
-  get drafting(): TableDraft<N> | null {
-    return this.tabling;
   }
 
   /** Whether a partial guess is part of a command, so it shows in the chip rather than the note. */

@@ -126,16 +126,11 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
   const offers: string[] = [];
   const log: string[] = [];
   const candidates = (): TakeCandidate<StoredNote>[] => [...store.values()].map((note) => ({ id: note.id, title: noteTitle(note.body) || note.title, note }));
-  /** The last change to a note, for "undo": its body before. */
-  let lastChange: { id: string; before: string; what: string } | null = null;
-  const change = (id: string, next: (body: string) => string | null, what?: string) => {
+  const change = (id: string, next: (body: string) => string | null) => {
     const note = store.get(id);
     if (!note) return;
     const body = next(note.body);
-    if (body !== null) {
-      if (what) lastChange = { id, before: note.body, what };
-      store.set(id, { ...note, body });
-    }
+    if (body !== null) store.set(id, { ...note, body });
     if (target?.id === id && body !== null) target = { ...target, body };
   };
   /** The words so far onto the note being recorded, as the recorder's draft saves them, before the take carries on elsewhere. */
@@ -164,21 +159,13 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
     haptic: () => undefined,
     changed: () => undefined,
     addItems: (note, spoken, placement) =>
-      change(
-        note.id,
-        (body) => {
-          const placed = placeWords(body, spoken, placement);
-          return placed.added.length ? placed.body : null;
-        },
-        `“${spoken}”`,
-      ),
-    changeNote: (note, next, title) => change(note.id, next, title),
-    addTable: (note, _title, markdown) => change(note.id, (body) => appendBlock(body, markdown), 'the table'),
+      change(note.id, (body) => {
+        const placed = placeWords(body, spoken, placement);
+        return placed.added.length ? placed.body : null;
+      }),
+    changeNote: (note, next) => change(note.id, next),
+    addTable: (note, _title, markdown) => change(note.id, (body) => appendBlock(body, markdown)),
     moveTo: (note) => {
-      target = store.get(note.id) ?? note;
-    },
-    carryOn: (note) => {
-      flush();
       target = store.get(note.id) ?? note;
     },
     newNote: (title) => {
@@ -196,13 +183,6 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
     newBook: (title, pages) => {
       const id = `made-${made++}`;
       store.set(id, { id, title, body: bookNoteBody(title, pages) });
-    },
-    undo: () => {
-      const last = lastChange;
-      if (!last) return null;
-      lastChange = null;
-      change(last.id, () => last.before);
-      return last.what;
     },
     runPlugin: () => null,
     describePlugin: (voice) => ({ title: voice.id, action: 'Go' }),

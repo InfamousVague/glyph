@@ -14,7 +14,6 @@ import {
   newNoteId,
   noteTitle,
   setNoteRecording,
-  undoCommandMutation,
   updateNote as updateStoredNote,
   type Note,
 } from '../core/store.ts';
@@ -233,8 +232,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    * replacing wrote the old base back.
    */
   const writes = useRef<Promise<unknown>>(Promise.resolve());
-  /** What the last command changed in a note, for "undo": the note and its body before. */
-  const lastChange = useRef<{ id: string; before: string; what: string; mutationId?: string } | null>(null);
   const [tables, setTables] = useState<string[]>([]);
   const [asBoard, setAsBoard] = useState(false);
   /** The tape this take writes to: the continued note's, or a new one (core/clips.ts). Read once, when it is first needed. */
@@ -451,7 +448,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         return;
       }
       const made = result.note;
-      lastChange.current = { id: made.id, before: '', what: `the new ${named} note`, mutationId };
       candidates.current = [{ id: made.id, title: named, note: made }, ...candidates.current];
       await carryOn(made);
     },
@@ -512,13 +508,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const commandWordOn = () => preferences().commandWord;
 
   /**
-   * A note's body rewritten. `what` it was, in words, makes it the thing "undo" takes back.
+   * A note's body rewritten.
    *
    * The note being recorded onto is a special case: the change goes into the note as it was before this take's
    * words, and the words are composed onto the end of that again. Applied to the stored note, which already holds
    * the words a draft saved, they were composed on a second time at the next save.
    */
-  const updateNote = (id: string, change: (body: string) => string | null, what?: string): Promise<string | null> =>
+  const updateNote = (id: string, change: (body: string) => string | null): Promise<string | null> =>
     queueWrite(async () => {
       const fresh = await getNote(id);
       if (!fresh) return null;
@@ -528,7 +524,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         const base = await (baseBody.current ??= Promise.resolve(fresh.body));
         const next = change(base);
         if (next === null || next === base) return null;
-        if (what) lastChange.current = { id, before: base, what };
         baseBody.current = Promise.resolve(next);
         const updated = { ...fresh, body: next };
         targetRef.current = updated;
@@ -543,47 +538,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       }
       const body = change(fresh.body);
       if (body === null || body === fresh.body) return null;
-      if (what) lastChange.current = { id, before: fresh.body, what };
       const saved = await updateStoredNote(id, body, fresh.revision ?? 1);
       const known = candidates.current.find((c) => c.id === id);
       if (known) known.note = saved;
       return body;
     });
-
-  /** "Undo": the last change a command made comes out. What it was, or null when there is nothing to take back. */
-  const undoLast = (): string | null => {
-    const last = lastChange.current;
-    if (!last) return null;
-    lastChange.current = null;
-    if (last.mutationId) {
-      void undoCommandMutation(last.mutationId)
-        .then((result) => {
-          if (result.status !== 'undone') return;
-          if (result.note) {
-            const known = candidates.current.find((candidate) => candidate.id === result.note?.id);
-            if (known) known.note = result.note;
-            if (targetRef.current?.id === result.note.id) {
-              targetRef.current = result.note;
-              baseBody.current = Promise.resolve(result.note.body);
-              setTarget(result.note);
-            }
-          } else {
-            candidates.current = candidates.current.filter((candidate) => candidate.id !== last.id);
-            if (targetRef.current?.id === last.id) {
-              targetRef.current = null;
-              draftNote.current = null;
-              baseBody.current = null;
-              noteId.current = newNoteId();
-              setTarget(null);
-            }
-          }
-        })
-        .catch((failure: unknown) => console.warn('[glyph] command not undone:', failure));
-    } else {
-      void updateNote(last.id, () => last.before).catch((failure: unknown) => console.warn('[glyph] not undone:', failure));
-    }
-    return last.what;
-  };
 
   /**
    * Items spoken for another note's list go straight into that note: its last
@@ -620,7 +579,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         baseBody.current = Promise.resolve(saved.body);
         setTarget(saved);
       }
-      lastChange.current = { id: saved.id, before: note.body, what: `“${spoken}”`, mutationId };
       if (targetRef.current?.id === saved.id) setRoute({ phase: 'done', text: `Added “${withoutLead(placed.added[0] ?? '')}”${placed.added.length > 1 ? ` and ${placed.added.length - 1} more` : ''}` });
       else setRoute({ phase: 'added', title: noteTitle(saved.body) || 'that note', body: saved.body, added: placed.added });
       fireNativeHaptic('success');
@@ -662,7 +620,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** A confirmed table for another note: its own block at the end of that note. */
   const addTable = async (note: Note, title: string, markdown: string) => {
     try {
-      const body = await updateNote(note.id, (current) => appendBlock(current, markdown), 'the table');
+      const body = await updateNote(note.id, (current) => appendBlock(current, markdown));
       if (body === null) return;
       setRoute({ phase: 'done', text: `Table added to ${title}` });
       fireNativeHaptic('success');
@@ -725,7 +683,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     changed: syncTake,
     addItems: (target, spoken, placement) => void addItems(target, spoken, placement),
     changeNote: (target, change, title) =>
-      void updateNote(target.id, change, `the change in ${title}`).then((body) => {
+      void updateNote(target.id, change).then((body) => {
         if (body === null) setRoute({ phase: 'said', text: `${title} didn’t change.` });
         else {
           setRoute({ phase: 'done', text: `Done in ${title}` });
@@ -734,11 +692,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       }),
     addTable: (target, title, markdown) => void addTable(target, title, markdown),
     moveTo: (target) => void routeTo(target),
-    carryOn: (target) => void carryOn(target),
     // A finished recording's "new list" is created by `confirmPending`, not by carrying the capture on into it.
     newNote: (title) => void (finished.current ? undefined : startNewNote(title)),
     newBook: (title, pages) => void makeBook(title, pages),
-    undo: undoLast,
     runPlugin: (voice, parsed) => voice.run(parsed, captureContext),
     describePlugin: (voice, parsed) => voice.describe(parsed, captureContext),
     clip: (span) => {
@@ -773,10 +729,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         changeNote: (target, change, title) => hostImpl.current.changeNote(target, change, title),
         addTable: (target, title, markdown) => hostImpl.current.addTable(target, title, markdown),
         moveTo: (target) => hostImpl.current.moveTo(target),
-        carryOn: (target) => hostImpl.current.carryOn(target),
         newNote: (title) => hostImpl.current.newNote(title),
         newBook: (title, pages) => hostImpl.current.newBook(title, pages),
-        undo: () => hostImpl.current.undo(),
         runPlugin: (voice, parsed) => hostImpl.current.runPlugin(voice, parsed),
         describePlugin: (voice, parsed) => hostImpl.current.describePlugin(voice, parsed),
         clip: (span) => hostImpl.current.clip(span),

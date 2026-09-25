@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bookNoteBody, chaptersOf } from '../book/book.ts';
-import { describeOffer, Take, type Offer, type TakeHost, type TakeNote } from './take.ts';
+import { quietHost } from '../../test/takeHost.ts';
+import { describeOffer, Take, type Offer, type TakeNote } from './take.ts';
 
 /**
  * The take with a book among the notes (docs/BOOKS.md): a chapter asked for lands in the book's index after a yes, a
@@ -13,41 +14,21 @@ interface FakeNote extends TakeNote {
 
 function fakeHost(notes: FakeNote[], target: FakeNote | null = null) {
   const calls: string[] = [];
-  const host: TakeHost<FakeNote> = {
+  const host = quietHost<FakeNote>({
     notes: () => notes.map((n) => ({ id: n.id, title: n.title, note: n })),
     target: () => target,
-    commandWord: () => true,
-    instructionCommands: () => true,
-    voiceCommands: () => [],
-    itemTargets: () => [],
     route: (view) => {
       if (view?.phase === 'said') calls.push(`said: ${view.text}`);
     },
-    offer: () => undefined,
-    table: () => undefined,
-    itemWords: () => undefined,
-    haptic: () => undefined,
-    changed: () => undefined,
-    addItems: () => undefined,
     changeNote: (note, change, title) => {
       calls.push(`changed ${title}`);
       const next = change(note.body);
       if (next !== null) note.body = next;
     },
-    addTable: () => undefined,
-    moveTo: () => undefined,
-    carryOn: () => undefined,
-    newNote: () => undefined,
     newBook: (title, pages) => {
       calls.push(`book ${title}: ${pages.join(', ') || '(no pages)'}`);
     },
-    undo: () => null,
-    runPlugin: () => null,
-    describePlugin: () => ({ title: '', action: '' }),
-    clip: () => '',
-    log: () => undefined,
-    said: () => undefined,
-  };
+  });
   return { host, calls };
 }
 
