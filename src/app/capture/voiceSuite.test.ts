@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import suiteJson from '../../../voice-tests/suite.json';
 import { MARKS } from '../plugins/marks/index.tsx';
 import { sendCommand, taskNoteCommand } from '../plugins/notion/voice.ts';
-import { setSpokenFormats } from './markdown.ts';
+import { setSpokenFormats } from './spoken/inline.ts';
 import { problems, runTest, scriptHeard, type Heard, type Suite } from './voiceSuite.ts';
 
 /**

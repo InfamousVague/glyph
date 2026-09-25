@@ -1,7 +1,7 @@
 import { listLead, type ListLead } from '../core/itemSyntax.ts';
 import { capitalise } from '../core/text.ts';
 import { appendBlock } from './appendBody.ts';
-import { enumeration } from './markdown.ts';
+import { enumeration } from './spoken/lists.ts';
 
 /**
  * "New item for AttackFM": putting spoken items into a note's list, not at the

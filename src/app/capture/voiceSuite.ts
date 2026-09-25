@@ -6,9 +6,11 @@ import { capitalise } from '../core/text.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
 import { appendBlock, appendBody } from './appendBody.ts';
 import { placeWords } from './listAppend.ts';
-import { setLinkTitles, spokenNumber, type Segment } from './markdown.ts';
+import type { Segment } from './markdown.ts';
 import type { TakeCandidate, TakeNote } from './offers.ts';
 import { QuietWatch } from './quiet.ts';
+import { setLinkTitles } from './spoken/extras.ts';
+import { spokenNumber } from './spoken/numbers.ts';
 import { asBoardMarkdown, Take } from './take.ts';
 
 /**

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { enumeration, renderNote, setSpokenFormats, spokenAddress, spokenInlineMarkup, spokenSlug, toParagraphs, type Segment } from './markdown.ts';
+import { renderNote, toParagraphs, type Segment } from './markdown.ts';
+import { spokenAddress, spokenSlug } from './spoken/extras.ts';
+import { setSpokenFormats, spokenInlineMarkup } from './spoken/inline.ts';
+import { enumeration } from './spoken/lists.ts';
 
 /**
  * What a spoken note becomes.
