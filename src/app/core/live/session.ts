@@ -35,7 +35,7 @@ export interface SessionListener {
 }
 
 /** How long a device that was not first waits for a document before asking again. */
-const QUERY_AGAIN_MS = 2500;
+const ASK_AGAIN_MS = 2500;
 const ASKS = 3;
 
 export class LiveSession {
@@ -186,7 +186,7 @@ export class LiveSession {
     this.retry = (this.deps.schedule ?? setTimeout)(() => {
       this.retry = null;
       this.ask();
-    }, QUERY_AGAIN_MS);
+    }, ASK_AGAIN_MS);
   }
 
   private post(envelope: Envelope, to?: number): void {
