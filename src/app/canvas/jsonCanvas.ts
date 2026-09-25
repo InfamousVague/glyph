@@ -7,8 +7,9 @@ import { frontMatterEnd, quotedTitle } from '../core/frontMatter.ts';
  * Obsidian canvas opens here, rather than a grammar of Glyph's own. A canvas is a note whose body is the JSON
  * (docs/CANVAS.md), named by front matter since Obsidian names one by its file and Glyph has no files; a note shows
  * one inside its words as a `![[Title]]` frame (editor/canvasFrames.ts). This file is the format and the note that
- * holds it. What is made and changed on a canvas is edits.ts, where things are geometry.ts, how lines run lines.ts,
- * and what a card looks like cards.ts; none of them knows the screen.
+ * holds it. What is made and changed on a canvas is edits.ts and where things are geometry.ts, neither of which knows
+ * the screen; how lines run is lines.ts, which knows only how wide a label's letters are drawn; and cards.ts is what
+ * the screen makes of a node: the hue or colour it wears, the title of its file, whether it is a picture or a table.
  *
  * Read leniently, written exactly: a node or edge that is not what the spec says is left out rather than the whole
  * canvas refused, since one bad card should not lose the other forty; what is kept is written back with only the

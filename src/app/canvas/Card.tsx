@@ -16,7 +16,8 @@ import styles from './CanvasView.module.css';
  * One card on the canvas (canvas/CanvasView.tsx), drawn by its kind where the file puts it, in the canvas's own
  * pixels: a group's dashed box and name; a card of words, which is the note's own editor; a link; one of Ghost.md's
  * own pictures; or a note by its file, drawn small. Every card carries its id as `data-card`, which is how the
- * canvas's gestures find the card a press landed on, and its title as `data-card-title`, which a tap zooms to.
+ * canvas's gestures find the card a press landed on; a link and a file card carry their title as `data-card-title`,
+ * which a tap zooms to.
  *
  * Opened to be written in (`editing`), a card takes every tap and key: a card of words becomes the note's editor in
  * its own mode with the words going straight into the canvas, and a group's name becomes a field. An open card has

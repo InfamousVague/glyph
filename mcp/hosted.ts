@@ -31,9 +31,9 @@ import { buildServer, VERSION } from './server.ts';
  * The rest is OAuth 2.1 as the MCP spec asks of a remote server, with the SDK's own handlers: dynamic client
  * registration, an authorization code with PKCE, refresh tokens, revocation. Every store is a map in memory
  * (mcp/hostedStore.ts, which says how long each thing lasts), so a restart signs everyone out and Claude simply asks
- * them to sign in again. The service is reached through
- * glyph-api, which proxies /glyph/api/mcp to it (server/src/mcp_proxy.rs), so nothing in the shared Caddy
- * configuration changes; the discovery documents live under that path, where the client library looks for them.
+ * them to sign in again. The service is reached through glyph-api, which proxies /glyph/api/mcp to it
+ * (server/src/mcp_proxy.rs), so nothing in the shared Caddy configuration changes; the discovery documents live
+ * under that path, where the client library looks for them.
  */
 
 export interface HostedOptions {
