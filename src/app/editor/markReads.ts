@@ -3,6 +3,7 @@ import { ViewPlugin, type EditorView, type ViewUpdate } from '@codemirror/view';
 import { boardsIn, itemsIn } from '../core/boards.ts';
 import { itemWords, markOf } from '../core/itemLinks.ts';
 import { markNameFor, onMarkDetails, wantMarkDetails } from '../core/markDetails.ts';
+import { forEachVisibleLine } from './lines.ts';
 
 /**
  * Asking the plugins what the note's linked things are doing, and telling the note when they answer.
@@ -25,20 +26,16 @@ const LINK = /\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g;
 /** Every linked thing in view, marks and links a plugin reads, for reading their details again. */
 function marksInView(view: EditorView): { name: string; url: string }[] {
   const marks: { name: string; url: string }[] = [];
-  for (const { from, to } of view.visibleRanges) {
-    for (let pos = from; pos <= to; ) {
-      const line = view.state.doc.lineAt(pos);
-      const mark = itemWords(line.text) !== null ? markOf(line.text) : null;
-      if (mark) marks.push(mark);
-      else if (line.text.includes('](')) {
-        for (const match of line.text.matchAll(LINK)) {
-          const name = markNameFor(match[1] ?? '');
-          if (name) marks.push({ name, url: match[1] ?? '' });
-        }
+  forEachVisibleLine(view, (line) => {
+    const mark = itemWords(line.text) !== null ? markOf(line.text) : null;
+    if (mark) marks.push(mark);
+    else if (line.text.includes('](')) {
+      for (const match of line.text.matchAll(LINK)) {
+        const name = markNameFor(match[1] ?? '');
+        if (name) marks.push({ name, url: match[1] ?? '' });
       }
-      pos = line.to + 1;
     }
-  }
+  });
   return [...marks, ...marksOnBoards(view)];
 }
 

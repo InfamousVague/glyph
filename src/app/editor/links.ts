@@ -6,6 +6,7 @@ import { AFTER_MARK } from '../core/itemSyntax.ts';
 import { hasMarkDetails } from '../core/markDetails.ts';
 import { shortUrl } from '../core/shortUrl.ts';
 import { capitalise } from '../core/text.ts';
+import { selectedLines } from './lines.ts';
 import { detailsArrived, markReads } from './markReads.ts';
 
 /**
@@ -115,17 +116,6 @@ class ShortLink extends WidgetType {
   }
 }
 
-/** The lines the selection touches: their links are shown whole. */
-function activeLines(view: EditorView): Set<number> {
-  const lines = new Set<number>();
-  for (const range of view.state.selection.ranges) {
-    const first = view.state.doc.lineAt(range.from).number;
-    const last = view.state.doc.lineAt(range.to).number;
-    for (let n = first; n <= last; n += 1) lines.add(n);
-  }
-  return lines;
-}
-
 /** Whether what follows a link is nothing, or only a board's anchor (core/boards.ts): the link is then the item's mark. */
 function lastOnLine(after: string): boolean {
   return AFTER_MARK.test(after);
@@ -134,7 +124,8 @@ function lastOnLine(after: string): boolean {
 function decorate(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const editable = view.state.facet(EditorView.editable);
-  const active = editable && view.hasFocus ? activeLines(view) : new Set<number>();
+  // The lines the selection touches show their links whole, while the note is being written.
+  const active = editable && view.hasFocus ? selectedLines(view.state) : new Set<number>();
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
       from,

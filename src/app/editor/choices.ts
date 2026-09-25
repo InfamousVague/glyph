@@ -2,6 +2,8 @@ import { RangeSetBuilder, type EditorState, type Extension, type Text } from '@c
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { listLead } from '../core/itemSyntax.ts';
+import { plainPress, tapsRange } from './boxTaps.ts';
+import { forEachVisibleLine } from './lines.ts';
 
 /**
  * Choices (Matt picked them from the list of new formats): list items with a round box, of which one is picked.
@@ -70,16 +72,11 @@ export function pick(state: EditorState, lineNumber: number) {
   return state.update({ changes, userEvent: 'input.choice' });
 }
 
-const SLOP_PX = 8;
-
+/** The choice whose round box a tap at `x`, `y` lands on (editor/boxTaps.ts), or null. */
 function choiceUnder(view: EditorView, x: number, y: number): Choice | null {
   const pos = view.posAtCoords({ x, y }, false);
   const choice = choiceOn(view.state.doc, view.state.doc.lineAt(pos).number);
-  if (!choice) return null;
-  const start = view.coordsAtPos(choice.from, 1);
-  const end = view.coordsAtPos(choice.from + 3, -1);
-  if (!start || !end) return null;
-  return x >= start.left - SLOP_PX && x <= end.right + SLOP_PX && y >= start.top - SLOP_PX && y <= start.bottom + SLOP_PX ? choice : null;
+  return choice && tapsRange(view, x, y, choice.from, choice.from + 3) ? choice : null;
 }
 
 const box = Decoration.mark({ class: 'cm-choiceBox' });
@@ -87,13 +84,10 @@ const boxPicked = Decoration.mark({ class: 'cm-choiceBox cm-choicePicked' });
 
 function decorate(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const { doc } = view.state;
-  for (const { from, to } of view.visibleRanges) {
-    for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n += 1) {
-      const choice = choiceOn(doc, n);
-      if (choice) builder.add(choice.from, choice.from + 3, choice.picked ? boxPicked : box);
-    }
-  }
+  forEachVisibleLine(view, (line) => {
+    const choice = choiceOn(view.state.doc, line.number);
+    if (choice) builder.add(choice.from, choice.from + 3, choice.picked ? boxPicked : box);
+  });
   return builder.finish();
 }
 
@@ -122,7 +116,7 @@ export function choices(): Extension {
     theme,
     EditorView.domEventHandlers({
       mousedown(event, view) {
-        if (event.button !== 0 || view.state.readOnly || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false;
+        if (!plainPress(event, view)) return false;
         const choice = choiceUnder(view, event.clientX, event.clientY);
         if (!choice) return false;
         const tr = pick(view.state, choice.line);

@@ -1,8 +1,10 @@
 import { syntaxTree } from '@codemirror/language';
-import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
+import { RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { COUNTER_IN_WORDS } from '../core/itemSyntax.ts';
+import { forEachVisibleLine } from './lines.ts';
+import { inQuietText } from './syntax.ts';
 
 /**
  * Counters (Matt picked them from the list of new formats): a count and a goal in brackets, anywhere in a line.
@@ -43,26 +45,12 @@ export function stepped(counter: Counter, step: number): string {
   return `[${count}/${counter.goal}]`;
 }
 
-const QUIET = /Code|URL|FrontMatter|HTML|Comment|Math/;
-
-function quiet(state: EditorState, pos: number): boolean {
-  for (let node: ReturnType<ReturnType<typeof syntaxTree>['resolveInner']> | null = syntaxTree(state).resolveInner(pos, 1); node; node = node.parent) {
-    if (QUIET.test(node.name)) return true;
-  }
-  return false;
-}
-
+/** The counters on screen, leaving any in code, an address, front matter, HTML, a comment or maths as written. */
 function visibleCounters(view: EditorView): Counter[] {
   const out: Counter[] = [];
-  const { state } = view;
-  for (const { from, to } of view.visibleRanges) {
-    let line = state.doc.lineAt(from);
-    for (;;) {
-      for (const counter of countersIn(line.text, line.from)) if (!quiet(state, counter.from)) out.push(counter);
-      if (line.to >= to || line.number >= state.doc.lines) break;
-      line = state.doc.line(line.number + 1);
-    }
-  }
+  forEachVisibleLine(view, (line) => {
+    for (const counter of countersIn(line.text, line.from)) if (!inQuietText(view.state, counter.from)) out.push(counter);
+  });
   return out;
 }
 

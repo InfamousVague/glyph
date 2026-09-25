@@ -2,6 +2,7 @@ import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { MARKER } from '../core/itemSyntax.ts';
+import { forEachVisibleLine } from './lines.ts';
 
 /**
  * Sums (Matt picked them from the list of new formats): a line that starts with `=` works itself out.
@@ -150,18 +151,12 @@ class AnswerWidget extends WidgetType {
 
 function decorate(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const { state } = view;
-  const tree = syntaxTree(state);
-  for (const { from, to } of view.visibleRanges) {
-    let line = state.doc.lineAt(from);
-    for (;;) {
-      const sum = sumOnLine(line.text);
-      const inCode = sum ? /Code|FrontMatter|Comment|Math/.test(tree.resolveInner(line.from, 1).name) : false;
-      if (sum && !inCode) builder.add(line.to, line.to, Decoration.widget({ widget: new AnswerWidget(sum.answer), side: 1 }));
-      if (line.to >= to || line.number >= state.doc.lines) break;
-      line = state.doc.line(line.number + 1);
-    }
-  }
+  const tree = syntaxTree(view.state);
+  forEachVisibleLine(view, (line) => {
+    const sum = sumOnLine(line.text);
+    const inCode = sum ? /Code|FrontMatter|Comment|Math/.test(tree.resolveInner(line.from, 1).name) : false;
+    if (sum && !inCode) builder.add(line.to, line.to, Decoration.widget({ widget: new AnswerWidget(sum.answer), side: 1 }));
+  });
   return builder.finish();
 }
 

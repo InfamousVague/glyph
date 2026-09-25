@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { taskBox } from '../core/itemSyntax.ts';
 import { settleFences } from './boards.ts';
+import { plainPress, tapsRange } from './boxTaps.ts';
 
 /**
  * A tap on a to-do's box ticks it, and another clears it (Matt: "add ability to tap on todo list item to toggle the x
@@ -11,9 +12,6 @@ import { settleFences } from './boards.ts';
  * The change is an ordinary edit - one undo, saved like typing - so a linked to-do's task follows it the way it
  * follows a box typed by hand (editor/doneSync.ts).
  */
-
-/** How far outside the drawn box a tap still counts, in px: a box is small under a thumb. */
-const SLOP_PX = 8;
 
 /** The box on the line at `pos` (core/itemSyntax.ts `taskBox`): where its brackets are and whether it's ticked, or null. */
 export function boxAt(state: EditorState, pos: number): { from: number; to: number; done: boolean } | null {
@@ -37,21 +35,17 @@ export function toggleBox(state: EditorState, box: { from: number; done: boolean
   });
 }
 
+/** The box a tap at `x`, `y` lands on (editor/boxTaps.ts), or null. */
 function boxUnder(view: EditorView, x: number, y: number) {
   const pos = view.posAtCoords({ x, y }, false);
   const box = boxAt(view.state, pos);
-  if (!box) return null;
-  const start = view.coordsAtPos(box.from, 1);
-  const end = view.coordsAtPos(box.to, -1);
-  if (!start || !end) return null;
-  const inside = x >= start.left - SLOP_PX && x <= end.right + SLOP_PX && y >= start.top - SLOP_PX && y <= start.bottom + SLOP_PX;
-  return inside ? box : null;
+  return box && tapsRange(view, x, y, box.from, box.to) ? box : null;
 }
 
 export function taskToggle(): Extension {
   return EditorView.domEventHandlers({
     mousedown(event, view) {
-      if (event.button !== 0 || view.state.readOnly || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false;
+      if (!plainPress(event, view)) return false;
       const box = boxUnder(view, event.clientX, event.clientY);
       if (!box) return false;
       // Taken here, before the caret moves: a tap on the box ticks it and leaves the caret where it was.
