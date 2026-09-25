@@ -49,12 +49,15 @@
  * deploy-ota.mjs). This spends ONE.
  */
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { boxSshOptions, openBox, tarball } from './lib/box.mjs';
+import { loadEnv } from './lib/env.mjs';
+import { ROOT } from './lib/paths.mjs';
+import { run } from './lib/run.mjs';
+import { dim, fail, ok, step } from './lib/say.mjs';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SERVER = join(ROOT, 'server');
 const TARGET = 'x86_64-unknown-linux-gnu.2.35';
 const BIN = join(SERVER, 'target/x86_64-unknown-linux-gnu/release/glyph-api');
@@ -62,6 +65,7 @@ const UNIT = join(SERVER, 'glyph-api.service');
 /** Claude's hosted MCP server (docs/MCP.md): one file, run by the box's Node as glyph-mcp.service, reached through glyph-api. */
 const MCP_BUNDLE = join(ROOT, 'mcp/dist/glyph-mcp-hosted.mjs');
 const MCP_UNIT = join(SERVER, 'glyph-mcp.service');
+const BUILD_MCP = join(ROOT, 'scripts/build-mcp.mjs');
 const MCP_SERVICE = 'glyph-mcp';
 /** Must match GLYPH_MCP_BIND in server/glyph-mcp.service. */
 const MCP_PORT = 18820;
@@ -73,30 +77,9 @@ const PORT = 8796;
 const STAGE = '.glyph-api-stage';
 const API = 'https://attack.fm/glyph/api';
 
-const c = {
-  bold: (s) => `\x1b[1m${s}\x1b[0m`,
-  dim: (s) => `\x1b[2m${s}\x1b[0m`,
-};
-const step = (s) => console.log(`\n\x1b[36m>\x1b[0m ${c.bold(s)}`);
-const ok = (s) => console.log(`\x1b[32mok\x1b[0m ${s}`);
-const fail = (message) => {
-  console.error(`\x1b[31mx\x1b[0m ${message}`);
-  process.exit(1);
-};
-
-function loadEnv() {
-  const path = join(ROOT, '.env');
-  if (!existsSync(path)) {
-    fail(`No .env at ${path} (needs AFM_DEPLOY_HOST / AFM_DEPLOY_USER / AFM_DEPLOY_PASS / VITE_GLYPH_API_TOKEN).`);
-  }
-  const env = {};
-  for (const line of readFileSync(path, 'utf8').split('\n')) {
-    const match = /^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-    if (match) env[match[1]] = match[2].trim().replace(/^['"]|['"]$/g, '');
-  }
-  for (const key of ['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS', 'VITE_GLYPH_API_TOKEN']) {
-    if (!env[key]) fail(`.env is missing ${key}.`);
-  }
+/** .env, with the token and the Notion credentials checked for shape as well as presence. */
+function loadServerEnv() {
+  const env = loadEnv(['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS', 'VITE_GLYPH_API_TOKEN']);
   // The shape is checked because the value is interpolated into a heredoc on
   // the box: hex cannot close a heredoc or start a command substitution.
   if (!/^[0-9a-f]{64}$/.test(env.VITE_GLYPH_API_TOKEN)) {
@@ -112,11 +95,6 @@ function loadEnv() {
     fail('.env has one of NOTION_CLIENT_ID and NOTION_CLIENT_SECRET but not the other.');
   }
   return env;
-}
-
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { stdio: 'inherit', ...options });
-  if (result.status !== 0) fail(`${command} ${args[0] ?? ''} failed (exit ${result.status ?? 'signal'}).`);
 }
 
 const curl = (args) => spawnSync('curl', ['-s', '-m', '25', ...args], { encoding: 'utf8' });
@@ -137,16 +115,9 @@ const MCP_ONLY = process.argv.includes('--mcp-only');
  * spends none of its own; on its own it logs in once, as before. One password
  * prompt, so a refused login is one strike against the lockout, not three.
  */
-const SSH_OPTS = [
-  '-o', 'StrictHostKeyChecking=no',
-  '-o', 'ConnectTimeout=20',
-  '-o', 'ControlMaster=auto',
-  '-o', `ControlPath=${join(homedir(), '.ssh', 'glyph-deploy-%C')}`,
-  '-o', 'ControlPersist=120',
-  '-o', 'NumberOfPasswordPrompts=1',
-];
+const SSH_OPTS = boxSshOptions({ connectTimeout: 20 });
 
-const env = loadEnv();
+const env = loadServerEnv();
 for (const tool of ['cargo', 'cargo-zigbuild', 'zig', 'sshpass', 'tar', 'curl']) {
   if (spawnSync('sh', ['-c', `command -v ${tool}`], { stdio: 'ignore' }).status !== 0) {
     fail(`${tool} is not installed (brew install zig cargo-zigbuild sshpass; rustup target add x86_64-unknown-linux-gnu).`);
@@ -157,15 +128,15 @@ for (const tool of ['cargo', 'cargo-zigbuild', 'zig', 'sshpass', 'tar', 'curl'])
 
 if (!MCP_ONLY) {
   step('Testing the server');
-  run('cargo', ['test', '--quiet'], { cwd: SERVER });
+  run('cargo', ['test', '--quiet'], { cwd: SERVER }, 'cargo test');
 
   step(`Cross-compiling for ${TARGET}`);
-  run('cargo', ['zigbuild', '--release', '--target', TARGET], { cwd: SERVER });
+  run('cargo', ['zigbuild', '--release', '--target', TARGET], { cwd: SERVER }, 'cargo zigbuild');
   if (!existsSync(BIN)) fail(`Build produced no binary at ${BIN}.`);
 }
 
 step('Building the hosted MCP server');
-run('node', [join(ROOT, 'scripts/build-mcp.mjs')]);
+run('node', [BUILD_MCP], {}, `node ${BUILD_MCP}`);
 if (!existsSync(MCP_BUNDLE)) fail(`The MCP build left nothing at ${MCP_BUNDLE}.`);
 
 // ---- ship and install -------------------------------------------------------
@@ -302,29 +273,19 @@ function ship(env) {
     copyFileSync(MCP_BUNDLE, join(local, 'glyph-mcp-hosted.mjs'));
     copyFileSync(MCP_UNIT, join(local, 'glyph-mcp.service'));
     writeFileSync(join(local, 'install.sh'), INSTALL);
-    // --no-xattrs: macOS stamps com.apple.provenance on everything, and GNU
-    // tar on the box prints a warning per file for each one it cannot place.
-    const tarball = spawnSync('tar', ['-czf', '-', '--no-xattrs', '--no-mac-metadata', '-C', local, '.'], {
-      maxBuffer: 256 * 1024 * 1024,
-    });
-    if (tarball.status !== 0) fail(`tar failed: ${String(tarball.stderr)}`);
+    const bundle = tarball(local, 256 * 1024 * 1024);
     const remote =
       `set -e; IFS= read -r GLYPH_API_TOKEN_NEW; IFS= read -r NOTION_CLIENT_ID_NEW; IFS= read -r NOTION_CLIENT_SECRET_NEW; ` +
       `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW; ` +
       `rm -rf "$HOME/${STAGE}"; mkdir -p "$HOME/${STAGE}"; tar xzf - -C "$HOME/${STAGE}"; bash "$HOME/${STAGE}/install.sh"`;
-    const result = spawnSync(
-      'sshpass',
-      ['-e', 'ssh', ...SSH_OPTS, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}`, remote],
-      {
-        input: Buffer.concat([
-          Buffer.from(`${env.VITE_GLYPH_API_TOKEN}\n${env.NOTION_CLIENT_ID ?? ''}\n${env.NOTION_CLIENT_SECRET ?? ''}\n`),
-          tarball.stdout,
-        ]),
-        stdio: ['pipe', 'pipe', 'inherit'],
-        env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS },
-        maxBuffer: 16 * 1024 * 1024,
-      },
-    );
+    const result = openBox(env, SSH_OPTS).exec(remote, {
+      input: Buffer.concat([
+        Buffer.from(`${env.VITE_GLYPH_API_TOKEN}\n${env.NOTION_CLIENT_ID ?? ''}\n${env.NOTION_CLIENT_SECRET ?? ''}\n`),
+        bundle,
+      ]),
+      stdio: ['pipe', 'pipe', 'inherit'],
+      maxBuffer: 16 * 1024 * 1024,
+    });
     const out = String(result.stdout ?? '');
     if (result.status !== 0) {
       process.stdout.write(out);
@@ -343,9 +304,9 @@ function ship(env) {
 step(MCP_ONLY ? `Shipping and installing ${MCP_SERVICE} only (one ssh session)` : 'Shipping and installing glyph-api (one ssh session)');
 const installed = ship(env);
 const field = (name) => new RegExp(`^${name} (.*)$`, 'm').exec(installed)?.[1] ?? '';
-ok(`${SERVICE} is ${field('ACTIVE')} on 127.0.0.1:${PORT} ${c.dim(field('LOOPBACK'))}`);
+ok(`${SERVICE} is ${field('ACTIVE')} on 127.0.0.1:${PORT} ${dim(field('LOOPBACK'))}`);
 if (field('MCP_ACTIVE') !== 'active') fail(`${MCP_SERVICE} is ${field('MCP_ACTIVE') || 'not reporting'} (its journal is above).`);
-ok(`${MCP_SERVICE} is active on 127.0.0.1:${MCP_PORT} ${c.dim(field('MCP_LOOPBACK'))}${field('MCP_CHANGED') === '1' ? '' : c.dim(' (unchanged, left running)')}`);
+ok(`${MCP_SERVICE} is active on 127.0.0.1:${MCP_PORT} ${dim(field('MCP_LOOPBACK'))}${field('MCP_CHANGED') === '1' ? '' : dim(' (unchanged, left running)')}`);
 
 // ---- prove it ---------------------------------------------------------------
 
@@ -368,7 +329,7 @@ try {
 // "ollama": false is a service that deployed fine and cannot do its one job,
 // and a deploy that reports success over it would be the least useful kind.
 if (!parsed.ollama) fail(`glyph-api is up, but reports Ollama unreachable or ${parsed.model} not pulled.`);
-ok(`${API}/health ${c.dim(healthBody)}`);
+ok(`${API}/health ${dim(healthBody)}`);
 
 const unauthorised = curl([
   '-o', '/dev/null', '-w', '%{http_code}',
@@ -401,15 +362,15 @@ if (challenged !== '401') fail(`a POST to ${API}/mcp without a token answered ${
 ok(`${API}/mcp answers: health, discovery, and 401 without a token`);
 
 if (field('MCP_CHANGED') === '1') {
-  console.log(c.dim(`  rollback (${MCP_SERVICE}): sudo mv -f ${REMOTE}/mcp/glyph-mcp-hosted.mjs.prev ${REMOTE}/mcp/glyph-mcp-hosted.mjs && sudo systemctl restart ${MCP_SERVICE}`));
+  console.log(dim(`  rollback (${MCP_SERVICE}): sudo mv -f ${REMOTE}/mcp/glyph-mcp-hosted.mjs.prev ${REMOTE}/mcp/glyph-mcp-hosted.mjs && sudo systemctl restart ${MCP_SERVICE}`));
 }
 const backup = field('BACKUP');
 if (MCP_ONLY) {
   // glyph-api was not touched: nothing of it to roll back.
 } else if (backup && backup !== 'none') {
   console.log(
-    c.dim(`  rollback: sudo cp -a ${backup} ${REMOTE}/bin/glyph-api && sudo systemctl restart ${SERVICE}`),
+    dim(`  rollback: sudo cp -a ${backup} ${REMOTE}/bin/glyph-api && sudo systemctl restart ${SERVICE}`),
   );
 } else {
-  console.log(c.dim(`  rollback: first install - sudo systemctl disable --now ${SERVICE} removes it`));
+  console.log(dim(`  rollback: first install - sudo systemctl disable --now ${SERVICE} removes it`));
 }
