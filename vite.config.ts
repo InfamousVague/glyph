@@ -1,8 +1,11 @@
-import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+// @ts-expect-error - a plain .mjs module shared with deploy-ota.mjs, no types.
+import { sha256Hex } from './scripts/lib/hash.mjs';
+// @ts-expect-error - a plain .mjs module shared with deploy-ota.mjs, no types.
+import { rustU32Const } from './scripts/lib/otaRs.mjs';
 // @ts-expect-error - a plain .mjs module shared with scripts/test-report.mjs, no types.
 import { sourceHash } from './scripts/testReport/source.mjs';
 
@@ -32,10 +35,8 @@ const build = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
  * header of src-tauri/src/ota.rs for the AttackFM release that learned why.
  */
 function bundleRequires(): number {
-  const source = readFileSync(join(root, 'src-tauri/src/ota.rs'), 'utf8');
-  const match = /pub const BUNDLE_REQUIRES: u32 = (\d+);/.exec(source);
-  if (!match) throw new Error('src-tauri/src/ota.rs no longer declares BUNDLE_REQUIRES as a literal');
-  return Number(match[1]);
+  // Throws when ota.rs no longer declares it as a literal, which stops the build (scripts/lib/otaRs.mjs).
+  return rustU32Const('BUNDLE_REQUIRES');
 }
 
 function* walk(dir: string): Generator<string> {
@@ -70,7 +71,7 @@ function otaManifest(): Plugin {
         const bytes = readFileSync(path);
         return {
           path: relative(outDir, path).split(sep).join('/'),
-          sha256: createHash('sha256').update(bytes).digest('hex'),
+          sha256: sha256Hex(bytes),
           bytes: bytes.length,
         };
       });
