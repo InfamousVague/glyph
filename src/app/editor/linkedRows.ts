@@ -2,6 +2,7 @@ import { Facet, StateEffect, StateField, type EditorState, type Extension, type 
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { ITEM_TAIL, itemWords, markOf } from '../core/itemLinks.ts';
 import { hasMarkDetails, markNameFor, peekMarkDetails, type MarkEntry } from '../core/markDetails.ts';
+import { capitalise, escapeRegExp } from '../core/text.ts';
 import { detailsArrived } from './links.ts';
 import { mountMarkMenu } from './markMenuMount.tsx';
 
@@ -73,7 +74,7 @@ const MARK_THEN_TAIL = new RegExp(String.raw`\s*\[[a-z][a-z0-9-]*\]\((https?:\/\
 /** The line with its link taken off and its words kept. */
 export function unlinked(text: string, linked: Pick<Linked, 'kind' | 'url'>): string {
   if (linked.kind === 'mark') return text.replace(MARK_THEN_TAIL, '$2');
-  const escaped = linked.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escaped = escapeRegExp(linked.url);
   return text.replace(new RegExp(`\\[([^\\]]*)\\]\\(${escaped}\\)`), '$1');
 }
 
@@ -145,7 +146,7 @@ class RowWidget extends WidgetType {
       return piece;
     };
     const { name } = this.linked;
-    pill('cm-linkPill-name', name.charAt(0).toUpperCase() + name.slice(1));
+    pill('cm-linkPill-name', capitalise(name));
     const entry = this.entry;
     if (entry?.state === 'ready') {
       const { status, brief, gone, title } = entry.details;

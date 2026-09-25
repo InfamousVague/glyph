@@ -1,6 +1,7 @@
 import { Mic, Pause, Play, Trash2 } from '@glacier/icons';
 import { useEffect, useRef, useState } from 'react';
 import { counter } from '../capture/tape.ts';
+import { prefersStill } from '../core/motion.ts';
 import type { Note } from '../core/store.ts';
 import { TapeArt } from './TapeArt.tsx';
 import type { Tape } from './useTape.ts';
@@ -121,7 +122,7 @@ export function TranscriptWords({ tape }: { tape: Tape }) {
   useEffect(() => {
     if (!playing || current < 0) return;
     const item = list.current?.children[current] as HTMLElement | undefined;
-    item?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    item?.scrollIntoView({ block: 'center', behavior: prefersStill() ? 'auto' : 'smooth' });
   }, [current, playing]);
 
   if (tape.segments === null) {

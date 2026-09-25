@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { prefersStill } from '../core/motion.ts';
 import { origin, type Spot } from './sideKey.ts';
 import styles from './SideKeyWaves.module.css';
 import { onVoiceLevel, paceRings, type RingPacer } from './voiceLevel.ts';
@@ -49,7 +50,7 @@ export function SideKeyWaves({ spot, contained = false }: { spot: Spot; containe
   // Far enough to cross most of the screen's width, never the whole screen.
   const reach = contained ? Math.max(width, height) * 0.9 : Math.min(Math.max(width, height) * 0.5, width * 1.1);
   const rings = useRef<SVGGElement>(null);
-  const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const still = prefersStill();
 
   useEffect(() => {
     const group = rings.current;

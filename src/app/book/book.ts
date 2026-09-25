@@ -1,5 +1,6 @@
 import { frontMatterValue } from '../core/frontMatter.ts';
 import { noteTitle, withoutFrontMatter, type Note } from '../core/store.ts';
+import { titleKey } from '../core/titleKey.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 
 /**
@@ -180,14 +181,6 @@ export function bookOf(notes: readonly Note[], title: string): BookPlace | null 
     if (at >= 0) return { book: note, title: bookTitle, chapters, at };
   }
   return null;
-}
-
-/** A title as `sameTitle` matches it (editor/wikiLinks.ts): what a person said, not what they typed. */
-export function titleKey(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
 }
 
 /**

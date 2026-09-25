@@ -1,4 +1,5 @@
 import { createElement, useEffect, useId, useLayoutEffect, useRef } from 'react';
+import { prefersStill } from '../core/motion.ts';
 import { cadence, planSwap, runLength, tokenize, type Step, type Token } from './wisp.ts';
 import styles from './WispText.module.css';
 
@@ -473,7 +474,7 @@ export function WispText({ text, pace = 14, still = false, as: Tag = 'span', cla
   useLayoutEffect(() => {
     const element = host.current;
     if (!element) return undefined;
-    const reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduced = prefersStill();
     const made = new WispEngine(element, `wisp-${id}`, pace, reduced, (shown) => {
       // Settled: the host says so, for styles that wait for the last letter (a title's clamp).
       element.removeAttribute('data-wisp-typing');

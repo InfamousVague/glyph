@@ -1,3 +1,4 @@
+import { failureText } from '../../core/failure.ts';
 import { markDetailsChanged, type MarkAction, type MarkDetails, type MarkDetailsProvider, type MarkEntry } from '../../core/markDetails.ts';
 import { asIssue, canWriteIssues, isIssueUrl, issueAt, issueBrief, issueFields, issueState, readIssue, setIssueOpen, type Issue } from './issues.ts';
 import { host } from './manifest.ts';
@@ -89,7 +90,7 @@ async function read(key: string, url: string): Promise<void> {
     keep(key, await readIssue(url));
     return;
   } catch (failure) {
-    const message = failure instanceof Error ? failure.message : String(failure);
+    const message = failureText(failure);
     known.set(key, { details: entry.details, issue: entry.issue, failed: entry.details ? undefined : message, failedAt: Date.now(), loading: false });
   }
   markDetailsChanged();

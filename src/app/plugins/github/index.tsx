@@ -1,4 +1,5 @@
 import { GitBranch } from '@glacier/icons';
+import { failureText } from '../../core/failure.ts';
 import { fireNativeHaptic } from '../../core/haptics.ts';
 import { itemAt, linkedLine, unsentItems } from '../../core/itemLinks.ts';
 import type { GlyphPlugin, NoteEditing } from '../types.ts';
@@ -46,7 +47,7 @@ async function sendItems(project: Project, items: readonly { text: string }[], e
       rememberIssue(issue);
       if (editing.replaceLine((text, line) => itemAt(text, line)?.text === item.text, (text) => linkedLine(text, issue.url, 'github'))) sent += 1;
     } catch (failure) {
-      editing.say(failure instanceof Error ? failure.message : String(failure));
+      editing.say(failureText(failure));
       return;
     }
   }

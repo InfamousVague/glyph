@@ -1,3 +1,5 @@
+import { capitalise } from '../core/text.ts';
+
 /**
  * "A list with Parkersburg West Virginia Marietta Ohio Baltimore Maryland and
  * Detroit Michigan": the items of a spoken list, one string each.
@@ -35,7 +37,7 @@ const ABBREVIATIONS: Record<string, string> = {
 const BY_WORDS = new Map(STATES.map((state) => [state.toLowerCase(), state]));
 const LONGEST = Math.max(...STATES.map((state) => state.split(' ').length));
 
-const capitalised = (words: readonly string[]) => words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+const capitalised = (words: readonly string[]) => words.map((word) => capitalise(word)).join(' ');
 
 /** The state spelled by `words` from `at`, longest first, and how many words it took. */
 function stateAt(words: readonly string[], at: number): { state: string; length: number } | null {

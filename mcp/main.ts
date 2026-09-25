@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSy
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { failureText } from '../src/app/core/failure.ts';
 import { DEFAULT_API, GlyphAccount, GlyphApiError, type StoredSession } from './glyph.ts';
 import { buildServer, VERSION } from './server.ts';
 import { ensureWebCrypto } from './webcrypto.ts';
@@ -139,7 +140,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((failure: unknown) => {
-  const words = failure instanceof GlyphApiError ? `Ghost.md's sync service refused: ${failure.message}` : failure instanceof Error ? failure.message : String(failure);
+  const words = failure instanceof GlyphApiError ? `Ghost.md's sync service refused: ${failure.message}` : failureText(failure);
   process.stderr.write(`glyph-mcp: ${words}\n`);
   process.exit(1);
 });

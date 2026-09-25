@@ -1,5 +1,7 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { answerHost } from './host.ts';
+import { randomId } from './ids.ts';
+import { hasNativeGeneration } from './nativeGeneration.ts';
 import { invoke, isTauri } from './tauri.ts';
 
 /**
@@ -81,7 +83,6 @@ export async function adoptImagePath(path: string): Promise<string> {
 
 /** The binary generation that has `save_image_data`. */
 const PASTE_GENERATION = 9;
-let generation: number | null = null;
 
 /** A picture shrunk so its long side is at most `longSide` px (1600 as it is kept), as a JPEG, turned the right way up. */
 async function shrink(file: Blob, longSide = 1600, quality = 0.85): Promise<Blob> {
@@ -122,16 +123,12 @@ function toBase64(bytes: Uint8Array): string {
 export async function saveImageFile(file: Blob): Promise<string> {
   const shrunk = await shrink(file);
   if (isTauri()) {
-    generation ??= await invoke<{ nativeGeneration?: number }>('ota_status').then(
-      (status) => status.nativeGeneration ?? 0,
-      () => 0,
-    );
-    if (generation < PASTE_GENERATION) throw new Error('Pasting pictures needs the newest Ghost.md. Install it from attack.fm/glyph.');
+    if (!(await hasNativeGeneration(PASTE_GENERATION))) throw new Error('Pasting pictures needs the newest Ghost.md. Install it from attack.fm/glyph.');
     const base64 = toBase64(new Uint8Array(await shrunk.arrayBuffer()));
     const { name } = await invoke<{ name: string }>('save_image_data', { base64 });
     return name;
   }
-  const name = `${crypto.randomUUID()}.jpg`;
+  const name = `${randomId('img')}.jpg`;
   await webPut(name, shrunk);
   urls.set(name, URL.createObjectURL(shrunk));
   return name;

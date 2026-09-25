@@ -11,6 +11,7 @@ import type { AuthorizationParams, OAuthServerProvider } from '@modelcontextprot
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { OAuthClientInformationFull, OAuthTokenRevocationRequest, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
+import { failureText } from '../src/app/core/failure.ts';
 import { fromBase64Url } from '../src/app/core/sync/crypto.ts';
 import { GHOST_MARK, GHOST_MARK_BOX } from '../src/app/art/ghostMark.ts';
 import { GlyphAccount, GlyphApiError } from './glyph.ts';
@@ -448,7 +449,7 @@ export function hostedApp(options: HostedOptions) {
     } catch (failure) {
       // The message the person reads says what they can act on; the reason goes to the journal, because the last
       // time this fired it was not the key at all - it was a Node without WebCrypto (mcp/webcrypto.ts).
-      process.stderr.write(`glyph-mcp: the account key was refused: ${failure instanceof Error ? failure.message : String(failure)}\n`);
+      process.stderr.write(`glyph-mcp: the account key was refused: ${failureText(failure)}\n`);
       res.status(400).json({ error: globalThis.crypto?.subtle ? 'That is not an account key.' : 'This server cannot open an account key. Its administrator will find the reason in its log.' });
       return;
     }

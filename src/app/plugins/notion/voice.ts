@@ -1,4 +1,5 @@
 import { similarity } from '../../capture/route.ts';
+import { failureText } from '../../core/failure.ts';
 import { fireNativeHaptic } from '../../core/haptics.ts';
 import { linkedLine } from '../../core/itemLinks.ts';
 import type { CaptureContext, ItemTarget, VoiceCommand } from '../types.ts';
@@ -50,8 +51,6 @@ const failed = (ctx: CaptureContext, message: string) => {
   fireNativeHaptic('warning');
 };
 
-const errorText = (failure: unknown) => (failure instanceof Error ? failure.message : String(failure));
-
 /** Lines just put in a note's list, each made a task on that note's board and a link there. */
 async function sendLines(noteId: string, lines: string[], ctx: CaptureContext) {
   const board = boardFor(noteId);
@@ -68,7 +67,7 @@ async function sendLines(noteId: string, lines: string[], ctx: CaptureContext) {
     ctx.status({ state: 'done', lead: 'In Notion on', title: board.title });
     fireNativeHaptic('success');
   } catch (failure) {
-    failed(ctx, errorText(failure));
+    failed(ctx, failureText(failure));
   }
 }
 
@@ -89,7 +88,7 @@ async function sendWords(words: string, ctx: CaptureContext) {
     ctx.status({ state: 'done', lead: 'In Notion on', title: board.title });
     fireNativeHaptic('success');
   } catch (failure) {
-    failed(ctx, errorText(failure));
+    failed(ctx, failureText(failure));
   }
 }
 
@@ -114,7 +113,7 @@ async function linkTask(name: string, ctx: CaptureContext) {
     ctx.status({ state: 'done', lead: 'Linked', title: best.title });
     fireNativeHaptic('success');
   } catch (failure) {
-    failed(ctx, errorText(failure));
+    failed(ctx, failureText(failure));
   }
 }
 

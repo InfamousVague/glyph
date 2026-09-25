@@ -1,3 +1,5 @@
+import { escapeRegExp } from './text.ts';
+
 /**
  * A note's front matter, written to: the `title:` a canvas note is named by (docs/CANVAS.md), since a canvas has
  * no heading to rename it in, and the `authors:` a note written with an AI carries (core/authors.ts). Reading is
@@ -16,7 +18,7 @@ export function frontMatterValue(body: string, key: string): string | null {
   if (!FENCE.test(lines[0] ?? '')) return null;
   const close = lines.findIndex((line, n) => n > 0 && FENCE.test(line));
   if (close < 0) return null;
-  const pattern = new RegExp(`^\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*(.*?)\\s*$`, 'i');
+  const pattern = new RegExp(`^\\s*${escapeRegExp(key)}\\s*:\\s*(.*?)\\s*$`, 'i');
   for (const line of lines.slice(1, close)) {
     const m = pattern.exec(line);
     if (m) return (m[1] ?? '').replace(/^(["'])(.*)\1$/, '$2');
@@ -56,7 +58,7 @@ export function withFrontMatterTitle(body: string, title: string): string {
  */
 export function withFrontMatterValue(body: string, key: string, value: string | null): string {
   const lines = body.split('\n');
-  const pattern = new RegExp(`^\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`, 'i');
+  const pattern = new RegExp(`^\\s*${escapeRegExp(key)}\\s*:`, 'i');
   const line = value === null ? null : `${key}: ${value.replace(/\n/g, ' ').trim()}`;
   const close = FENCE.test(lines[0] ?? '') ? lines.findIndex((l, n) => n > 0 && FENCE.test(l)) : -1;
   if (close < 0) return line ? `---\n${line}\n---\n${body}` : body;

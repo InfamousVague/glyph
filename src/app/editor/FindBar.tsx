@@ -1,8 +1,9 @@
 import { ChevronDown, ChevronUp, Replace } from '@glacier/icons';
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
+import { useRedraw } from '../core/useRedraw.ts';
 import { endSearch, findOf, replaceAll, replaceOne, search, step } from './find.ts';
 import styles from './FindBar.module.css';
 
@@ -20,13 +21,13 @@ export function FindBar({ view, initial, onClose }: { view: EditorView; initial:
   const [replacement, setReplacement] = useState('');
   const [said, setSaid] = useState<string | null>(null);
   // The count follows the note's own state, which the arrows and edits change outside React.
-  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  const redraw = useRedraw();
   const field = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     search(view, query);
     redraw();
-  }, [view, query]);
+  }, [view, query, redraw]);
 
   useEffect(() => {
     field.current?.focus();

@@ -1,3 +1,4 @@
+import { failureText } from '../core/failure.ts';
 import { preferences } from '../core/preferences.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import { planCommand, type Plan } from './command.ts';
@@ -94,7 +95,7 @@ export function inferInstruction(utterance: string): InferenceRun {
     })
     .catch((failure: unknown) => ({
       status: 'unavailable' as const,
-      reason: failure instanceof Error ? failure.message : String(failure),
+      reason: failureText(failure),
     }));
   return {
     done,

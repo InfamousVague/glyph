@@ -2,6 +2,7 @@ import { Ghost } from '../art/Ghost.tsx';
 import { Square } from '@glacier/icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
+import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { answerHost, endCapture, isLocked, setCapturing } from '../core/host.ts';
 import {
@@ -19,6 +20,7 @@ import {
 } from '../core/store.ts';
 import { preferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
+import { lowerFirst } from '../core/text.ts';
 import { openMicrophone, type Microphone, type MicrophoneHandlers } from './audio.ts';
 import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { reviewAvailable, type ReviewHandoff } from '../ai/review.ts';
@@ -913,7 +915,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       } catch (failure) {
         if (cancelled) return;
         micRef.current?.stop();
-        setError(failure instanceof Error ? failure.message : String(failure));
+        setError(failureText(failure));
         setPhase('failed');
         fireNativeHaptic('error');
       }
@@ -948,7 +950,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           if (showing) return showing;
           const recent = candidates.current.find((c) => c.id !== noteId.current)?.title ?? null;
           const keyword = commandWordOn();
-          const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Hey Ghost, ${t.say.charAt(0).toLowerCase()}${t.say.slice(1)}` } : t));
+          const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Hey Ghost, ${lowerFirst(t.say)}` } : t));
           const lane = targetRef.current ? (lanesOf(targetRef.current.body)[1] ?? lanesOf(targetRef.current.body)[0])?.name ?? null : null;
           const book = candidates.current.find((c) => c.id !== noteId.current && isBookBody(c.note.body))?.title ?? null;
           const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane, book }), ...pluginTips];
@@ -979,7 +981,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // take added after it starts the file afresh rather than playing after the removed sound.
       stopped = (await sessionRef.current?.stop({ recordAs: noteId.current, append: continued !== null && (continued.recordingMs ?? 0) > 0 })) ?? stopped;
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
+      setError(failureText(failure));
     }
 
     const committed = take.segments;

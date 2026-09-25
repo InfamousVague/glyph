@@ -1,5 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { listModels } from '../core/ai.ts';
+import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { preferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import type { RefineJob } from '../capture/refine.ts';
@@ -7,7 +8,6 @@ import { addAiChanges, aiEdit, type AiChange } from '../editor/aiChanges.ts';
 import { commonEnds, wisp } from '../editor/wispArrivals.ts';
 import type { WordChange } from '../review/diff.ts';
 import { addLine, locate, locateLast, type Finding, type NoteText } from '../review/findings.ts';
-import { nativeGeneration } from './available.ts';
 
 /**
  * The review after a recording, folded into the note (Matt): Stop opens the
@@ -48,7 +48,7 @@ export function simulatingReview(): boolean {
 export async function reviewAvailable(): Promise<boolean> {
   if (simulatingReview()) return true;
   if (!isTauri() || !preferences().review) return false;
-  return (await nativeGeneration()) >= REVIEW_GENERATION;
+  return hasNativeGeneration(REVIEW_GENERATION);
 }
 
 /** The model to think with: the one chosen for formatting if it reasons and is here, else the largest Qwen here. */

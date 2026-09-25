@@ -1,5 +1,5 @@
-import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { listenTo } from '../core/events.ts';
+import { invoke, isTauri } from '../core/tauri.ts';
 import { readShareLink } from './share.ts';
 
 /**
@@ -20,7 +20,7 @@ export function followAppLinks(open: (link: string) => void): () => void {
       .catch(() => undefined);
   take();
   let unlisten: (() => void) | null = null;
-  void listen('glyph://link', take)
+  void listenTo('glyph://link', take)
     .then((off) => {
       if (gone) off();
       else unlisten = off;

@@ -1,5 +1,6 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { titleKey } from '../core/titleKey.ts';
 
 /**
  * A link from one note to another, written the way every notes app writes it (docs/MARKDOWN.md):
@@ -54,12 +55,8 @@ export function wikiLinksIn(text: string, offset = 0): WikiLink[] {
 
 /** A title as it is matched: what a person said, not what they typed. */
 export function sameTitle(one: string, two: string): boolean {
-  const plain = (text: string) =>
-    text
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim();
-  return plain(one) === plain(two) && plain(one) !== '';
+  const key = titleKey(one);
+  return key !== '' && key === titleKey(two);
 }
 
 export interface WikiOptions {

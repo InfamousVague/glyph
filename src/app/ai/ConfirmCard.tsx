@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { Offer } from '../capture/take.ts';
 import { listTitle } from '../capture/instructionMutation.ts';
 import type { Note } from '../core/store.ts';
+import { capitalise } from '../core/text.ts';
 import styles from './ConfirmCard.module.css';
 
 /**
@@ -37,7 +38,7 @@ export function ConfirmCard({
       action = 'Add';
       lines = offer.added.map(show);
       detail = offer.into === 'list' ? 'In its list' : 'As a new paragraph';
-      if (offer.placement.target) detail += `, then to ${offer.placement.target.charAt(0).toUpperCase()}${offer.placement.target.slice(1)}`;
+      if (offer.placement.target) detail += `, then to ${capitalise(offer.placement.target)}`;
       break;
     case 'change':
       heading = `${offer.heading} in ${offer.title}`;

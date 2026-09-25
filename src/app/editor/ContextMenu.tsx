@@ -26,10 +26,11 @@ import {
   Trash2,
   Type,
 } from '@glacier/icons';
-import { useCallback, useEffect, useReducer, useRef, useState, type ComponentType, type CSSProperties, type HTMLAttributes } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType, type CSSProperties, type HTMLAttributes } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
+import { useRedraw } from '../core/useRedraw.ts';
 import { plugins } from '../plugins/registry.ts';
 import {
   activeBlock,
@@ -164,7 +165,7 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, edits = [], o
   /** The menu's words, or its styles. */
   const [styling, setStyling] = useState(false);
   // A style pressed changes what is lit: the menu reads the editor again.
-  const [, restyled] = useReducer((n: number) => n + 1, 0);
+  const restyled = useRedraw();
   const menu = useRef<HTMLDivElement>(null);
   const pasteable = canRead();
 

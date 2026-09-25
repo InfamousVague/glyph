@@ -1,3 +1,4 @@
+import { failureText } from '../../core/failure.ts';
 import { markDetailsChanged, type MarkAction, type MarkDetails, type MarkDetailsProvider, type MarkEntry, type Stage } from '../../core/markDetails.ts';
 import { shortUrl } from '../../core/shortUrl.ts';
 import { notionAvailable, notionRequest } from './client.ts';
@@ -308,7 +309,7 @@ async function read(id: string, url: string): Promise<void> {
     known.set(id, { details: { ...detailsOf(page, board?.stages ?? null), url: page.url ?? url }, loading: false });
     persist();
   } catch (failure) {
-    const message = failure instanceof Error ? failure.message : String(failure);
+    const message = failureText(failure);
     known.set(id, { details: entry.details, failed: entry.details ? undefined : message, failedAt: Date.now(), loading: false });
   }
   markDetailsChanged();

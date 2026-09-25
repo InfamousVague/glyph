@@ -1,4 +1,5 @@
 import { SquareKanban } from '@glacier/icons';
+import { failureText } from '../../core/failure.ts';
 import { fireNativeHaptic } from '../../core/haptics.ts';
 import { itemAt, linkedLine, unsentItems } from '../../core/itemLinks.ts';
 import { isTauri } from '../../core/tauri.ts';
@@ -74,7 +75,7 @@ async function sendItems(board: Board, items: readonly { text: string; line?: nu
       sent += 1;
       if (markItem(editing, item, task.url)) marked += 1;
     } catch (failure) {
-      editing.say(failure instanceof Error ? failure.message : String(failure));
+      editing.say(failureText(failure));
       return;
     }
   }

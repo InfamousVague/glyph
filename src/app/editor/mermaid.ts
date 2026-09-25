@@ -1,5 +1,6 @@
 import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
+import { failureText } from '../core/failure.ts';
 import { isDarkNow, onPreferences, preferences } from '../core/preferences.ts';
 
 /**
@@ -106,7 +107,7 @@ async function render(code: string, dark: boolean): Promise<Drawing> {
     const { svg } = await mermaid.render(`glyph-mermaid-${id}`, code);
     return { svg };
   } catch (failure) {
-    const said = failure instanceof Error ? failure.message : String(failure);
+    const said = failureText(failure);
     // The library itself missing is not the person's mistake, and is said differently.
     return { failed: /Failed to fetch|error loading|dynamically imported module/i.test(said) ? '' : said };
   }

@@ -1,3 +1,4 @@
+import { prefersStill } from '../core/motion.ts';
 import { preferences } from '../core/preferences.ts';
 import { WISP_EDGE_BUDGET } from './wispEdge.ts';
 
@@ -64,7 +65,7 @@ let holder: SVGSVGElement | null = null;
 
 export function wispSides(width: number, height: number, start: boolean, end: boolean): string | null {
   if (typeof document === 'undefined' || !preferences().wispEdge || (!start && !end)) return null;
-  if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
+  if (prefersStill()) return null;
   const wide = Math.round(width);
   const tall = Math.round(height);
   if (wide <= (BAND + SOFT) * 2 || tall <= 0) return null;

@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { useRedraw } from '../core/useRedraw.ts';
 import { Editor } from '../editor/Editor.tsx';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { PEEK_LINES, peekMarkdown } from './peek.ts';
@@ -117,7 +118,7 @@ export const NotePeek = memo(function NotePeek({ body, className }: NotePeekProp
   const keyRef = useRef(key);
   keyRef.current = key;
   /** A drawing was just kept for this card: render again to let its editor go. */
-  const [, setKept] = useState(0);
+  const redraw = useRedraw();
   const host = useRef<HTMLSpanElement>(null);
   const [drawn, setDrawn] = useState(() => typeof IntersectionObserver === 'undefined');
   /** How tall the editor was, so the blank that stands in for it once it is gone keeps the card's height. */
@@ -173,10 +174,10 @@ export const NotePeek = memo(function NotePeek({ body, className }: NotePeekProp
       const el = host.current;
       if (!el?.querySelector('.cm-editor')) return;
       remember(key, el.innerHTML);
-      setKept((n) => n + 1);
+      redraw();
     }, SETTLE_MS);
     return () => window.clearTimeout(timer);
-  }, [drawn, kept, key, markdown]);
+  }, [drawn, kept, key, markdown, redraw]);
 
   if (!markdown) return null;
   // Before the editor: a blank about as tall as the lines it will draw, so the cards do not jump as they fill in.

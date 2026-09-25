@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { answerHost } from './host.ts';
+import { randomId } from './ids.ts';
 import { invoke, isTauri } from './tauri.ts';
 import type { Segment } from '../capture/markdown.ts';
 
@@ -325,17 +326,9 @@ export async function deleteNote(id: string): Promise<void> {
   touched(null);
 }
 
-/**
- * A fresh id.
- *
- * `crypto.randomUUID` needs a secure context, which a Tauri custom protocol is
- * and an `http://` dev server on a phone on the LAN is not - so the fallback is
- * not hypothetical, it is what runs when the editor is opened from another
- * device on the network.
- */
+/** A fresh id for a note: a UUID, or `n-…` where the context has none (core/ids.ts says when). */
 export function newNoteId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  return `n-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return randomId('n');
 }
 
 /** A note's lines with its front matter taken off, and its `title:` first where it has one. */

@@ -1,5 +1,6 @@
 import { useEffect, type RefObject } from 'react';
 import { answerHost } from './host.ts';
+import { prefersStill } from './motion.ts';
 
 /**
  * The unfold: the note opening with the phone.
@@ -120,7 +121,7 @@ export class Unfold {
  */
 export function useUnfold(ref: RefObject<HTMLElement | null>): void {
   useEffect(() => {
-    if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (prefersStill()) return undefined;
     const machine = new Unfold();
     let frame: number | null = null;
     let guard: number | null = null;

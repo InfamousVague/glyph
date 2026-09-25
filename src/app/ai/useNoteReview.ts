@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { modelName } from '../core/ai.ts';
+import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { getNote, listNotes, noteTitle, updateNote, type Note } from '../core/store.ts';
 import { enqueueRefine, holdRefining, keepBetterPhrases, listenAgain } from '../capture/refine.ts';
@@ -95,7 +96,7 @@ export function useNoteReview(
           }
         } catch (failure) {
           if (!alive) return;
-          optionsRef.current.say(failure instanceof Error ? failure.message : String(failure));
+          optionsRef.current.say(failureText(failure));
         }
       }
 

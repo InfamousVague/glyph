@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, Compass, FileText, Gauge, GraduationCap, LayoutGrid, ListChecks, ShieldCheck, Terminal, Workflow } from '@glacier/icons';
 import { DensitySelector, SegmentedControl, Slider, Switch, useToast } from '@glacier/react';
+import { failureText } from '../core/failure.ts';
 import { facesOf, INTERFACE_FACES, isSidebarStyle, setPreferences, themeChoice, TYPEFACES, usePreferences, type Density, type MotionSpeed, type Rounding, type TextSize } from '../core/preferences.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
 import { ScaleCards } from './ScaleCards.tsx';
@@ -718,7 +719,7 @@ function ResetRow({ label, hint, models }: { label: string; hint: string; models
     try {
       await resetLocalData({ models });
     } catch (failure) {
-      setProblem(failure instanceof Error ? failure.message : String(failure));
+      setProblem(failureText(failure));
       setBusy(false);
       setArmed(false);
     }

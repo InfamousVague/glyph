@@ -1,3 +1,4 @@
+import { capitalise } from '../core/text.ts';
 import { enumeration } from './markdown.ts';
 
 /**
@@ -129,7 +130,7 @@ function styleOf(match: RegExpExecArray): Run['style'] {
 /** One item's text as a list line: first letter up, no closing full stop. */
 export function itemText(text: string): string {
   const trimmed = text.trim().replace(/[\s.,;:]+$/, '');
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return capitalise(trimmed);
 }
 
 /**
@@ -206,7 +207,7 @@ export function leaveNote(body: string, text: string, { asParagraph = false } = 
   if (!asParagraph && runsOf(lines).length && itemShaped(words)) {
     return { ...appendToList(body, [words], { near: words }), into: 'list' };
   }
-  const sentence = words.charAt(0).toUpperCase() + words.slice(1);
+  const sentence = capitalise(words);
   const line = /[.!?…]$/.test(sentence) ? sentence : `${sentence}.`;
   const base = body.replace(/\s+$/, '');
   return { body: `${base}${base ? '\n\n' : ''}${line}\n`, added: [line], into: 'paragraph' };

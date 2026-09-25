@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
-import { isTauri } from './tauri.ts';
+import { hasNativeGeneration } from './nativeGeneration.ts';
+import { invoke, isTauri } from './tauri.ts';
 
 /**
  * The notes' folder, shown where the device shows folders (Matt: "add a browse local files button somewhere to open the
@@ -11,22 +11,13 @@ import { isTauri } from './tauri.ts';
 
 /** The native generation that has `library_reveal` and the activity's `browseFiles`. */
 const FILES_GENERATION = 18;
-let generation: Promise<number> | null = null;
-
-function nativeGeneration(): Promise<number> {
-  generation ??= invoke<{ nativeGeneration?: number }>('ota_status').then(
-    (status) => status.nativeGeneration ?? 0,
-    () => 0,
-  );
-  return generation;
-}
 
 /** Whether this device can show the notes' folder. */
 export async function canBrowseFiles(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
   if (window.GlyphHost) return typeof window.GlyphHost.browseFiles === 'function';
   if (!isTauri()) return false;
-  return (await nativeGeneration()) >= FILES_GENERATION;
+  return hasNativeGeneration(FILES_GENERATION);
 }
 
 /** Shows the notes' folder: the Files app on the phone, Finder on a Mac. */

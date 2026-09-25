@@ -1,3 +1,4 @@
+import { lowerFirst } from '../core/text.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
 import { chaptersOf, withChapter } from '../book/book.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
@@ -800,7 +801,7 @@ export function describeOffer<N extends TakeNote>(offer: Offer<N>, outcome: 'don
     offer.kind === 'place'
       ? `add “${offer.added.map(show).join('”, “')}” to ${offer.title}${offer.into === 'list' ? '’s list' : ' as a paragraph'}`
       : offer.kind === 'change'
-        ? `${offer.heading.charAt(0).toLowerCase()}${offer.heading.slice(1)}: “${offer.lines.join('”, “')}” in ${offer.title}`
+        ? `${lowerFirst(offer.heading)}: “${offer.lines.join('”, “')}” in ${offer.title}`
         : offer.kind === 'move'
           ? `move this recording to ${offer.title}`
           : offer.kind === 'new'
@@ -811,7 +812,7 @@ export function describeOffer<N extends TakeNote>(offer: Offer<N>, outcome: 'don
                 ? `add a table (${offer.columns.join(', ')}; ${offer.rows.length} rows) to ${offer.title}`
                 : offer.kind === 'book'
                   ? `make a book called ${offer.title}${offer.pages.length ? ` with ${offer.pages.join(', ')}` : ''}`
-                  : offer.title.charAt(0).toLowerCase() + offer.title.slice(1);
+                  : lowerFirst(offer.title);
   if (outcome === 'done') return `Did: ${what}`;
   return outcome === 'declined' ? `Offered to ${what}; the person said no` : `Offered to ${what}; nobody answered, so it was not done`;
 }

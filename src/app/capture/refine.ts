@@ -1,4 +1,7 @@
 import { useSyncExternalStore } from 'react';
+import { listenTo } from '../core/events.ts';
+import { failureText } from '../core/failure.ts';
+import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { preferences } from '../core/preferences.ts';
 import { getNote, setNoteRecording, updateNote } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
@@ -168,7 +171,6 @@ let recorderLive = false;
 let running = false;
 let timer = 0;
 let onChanged: (() => void) | null = null;
-let generation: number | null = null;
 
 /** Ask for a pass over a finished take. Runs when the recorder has gone and the phone is free. */
 export function enqueueRefine(job: Omit<RefineJob, 'tries'>): void {
@@ -209,11 +211,7 @@ function kick(delay = 0): void {
 
 async function canRefine(): Promise<boolean> {
   if (!isTauri() || !preferences().refine) return false;
-  generation ??= await invoke<{ nativeGeneration?: number }>('ota_status').then(
-    (status) => status.nativeGeneration ?? 0,
-    () => 0,
-  );
-  return generation >= REFINE_GENERATION;
+  return hasNativeGeneration(REFINE_GENERATION);
 }
 
 interface ModelStatus {
@@ -228,10 +226,9 @@ async function ensureRefineModel(): Promise<boolean> {
   if (status.present) return true;
   // Local only: the better words wait until the model is on the phone.
   if (preferences().localOnly) return false;
-  const { listen } = await import('@tauri-apps/api/event');
   publish({ download: { received: 0, total: status.bytes } });
-  const unlisten = await listen<{ receivedBytes: number; totalBytes: number }>('capture://refine-model-progress', (event) =>
-    publish({ download: { received: event.payload.receivedBytes, total: event.payload.totalBytes } }),
+  const unlisten = await listenTo<{ receivedBytes: number; totalBytes: number }>('capture://refine-model-progress', (progress) =>
+    publish({ download: { received: progress.receivedBytes, total: progress.totalBytes } }),
   );
   try {
     const fetched = await invoke<ModelStatus>('capture_fetch_refine_model');
@@ -262,7 +259,7 @@ async function runNext(): Promise<void> {
     finish(job);
     onChanged?.();
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = failureText(error);
     if (/busy|cancelled/i.test(message)) {
       kick(RETRY_MS);
     } else {
@@ -306,9 +303,8 @@ function finish(job: RefineJob): void {
 export async function listenAgain(job: Omit<RefineJob, 'tries'>, onPercent: (percent: number) => void): Promise<Segment[] | null> {
   if (!(await canRefine())) return null;
   if (!(await ensureRefineModel())) return null;
-  const { listen } = await import('@tauri-apps/api/event');
-  const unlisten = await listen<{ id: string; percent: number }>('capture://refine-progress', (event) => {
-    if (event.payload.id === job.id) onPercent(event.payload.percent);
+  const unlisten = await listenTo<{ id: string; percent: number }>('capture://refine-progress', (progress) => {
+    if (progress.id === job.id) onPercent(progress.percent);
   });
   try {
     return await invoke<Segment[]>('capture_refine', { id: job.id, fromMs: job.fromMs, promptTail: job.promptTail });

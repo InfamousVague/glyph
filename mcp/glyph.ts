@@ -1,3 +1,5 @@
+import { failureText } from '../src/app/core/failure.ts';
+import { randomId } from '../src/app/core/ids.ts';
 import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
 import type { Note } from '../src/app/core/store.ts';
 import type { NotePayload } from '../src/app/core/sync/notes.ts';
@@ -102,7 +104,7 @@ async function callApi<T>(api: string, method: string, path: string, { token, bo
     response = await fetcher(`${api}/v1/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
   } catch (failure) {
     if (controller.signal.aborted) throw new GlyphApiError(0, 'The sync service took too long to answer.');
-    throw new GlyphApiError(0, `The sync service could not be reached (${failure instanceof Error ? failure.message : String(failure)}).`);
+    throw new GlyphApiError(0, `The sync service could not be reached (${failureText(failure)}).`);
   } finally {
     clearTimeout(timer);
   }
@@ -137,10 +139,6 @@ function withoutFrontMatter(lines: readonly string[]): string[] {
     }
   }
   return [...lines];
-}
-
-function newId(): string {
-  return crypto.randomUUID();
 }
 
 async function importAccountKey(raw: string): Promise<CryptoKey> {
@@ -332,7 +330,7 @@ export class GlyphAccount {
   /** A new note of `body`, as the app would make one typed in. */
   async create(body: string, { pinned = false }: { pinned?: boolean } = {}): Promise<NoteRecord> {
     const now = Date.now();
-    const note: Note = { id: newId(), body, createdAt: now, updatedAt: now, source: 'editor', starred: pinned, archivedAt: null };
+    const note: Note = { id: randomId(), body, createdAt: now, updatedAt: now, source: 'editor', starred: pinned, archivedAt: null };
     const images = imageNames(body);
     return this.write({ rev: 0, note, ...(images.length ? { images } : {}) }, 0);
   }

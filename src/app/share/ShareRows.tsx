@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Copy, Link2, Share2, X } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
+import { failureText } from '../core/failure.ts';
 import { listNotes } from '../core/store.ts';
 import { linkFor, onShares, shareNote, stopSharing } from './share.ts';
 import styles from '../editor/NoteSettings.module.css';
@@ -22,7 +23,7 @@ export function ShareRows({ noteId }: { noteId: string }) {
     try {
       await work();
     } catch (failure) {
-      setSaid(failure instanceof Error ? failure.message : String(failure));
+      setSaid(failureText(failure));
     } finally {
       setBusy(false);
     }

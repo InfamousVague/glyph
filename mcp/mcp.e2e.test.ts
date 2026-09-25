@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { accountState, signUp, type Deps } from '../src/app/core/account/account.ts';
 import { API_BASE } from '../src/app/core/account/api.ts';
 import { memoryKeys } from '../src/app/core/account/keystore.ts';
+import { failureText } from '../src/app/core/failure.ts';
 import type { Note } from '../src/app/core/store.ts';
 import { emptyState, syncNotes, type LocalFiles, type LocalNotes, type SyncContext } from '../src/app/core/sync/notes.ts';
 import { derive, passwordSalt, ROUNDS, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
@@ -110,7 +111,7 @@ describe.skipIf(!ON || !existsSync(BUNDLE))('Claude and a phone on one Glyph acc
       said += chunk.toString();
     });
     await client.connect(transport).catch((failure: unknown) => {
-      throw new Error(`The server did not start: ${failure instanceof Error ? failure.message : String(failure)}\nIt said: ${said}`);
+      throw new Error(`The server did not start: ${failureText(failure)}\nIt said: ${said}`);
     });
 
     const { tools } = await client.listTools();

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { MODELS, useModels, type Download, type ModelInfo } from '../core/ai.ts';
+import { hasNativeGeneration, nativeGeneration } from '../core/nativeGeneration.ts';
 import { isIOS } from '../core/platform.ts';
 import { preferences, usePreferences } from '../core/preferences.ts';
-import { invoke, isTauri } from '../core/tauri.ts';
+import { isTauri } from '../core/tauri.ts';
 
 /**
  * Whether the AI can run here, and if not, why - in one sentence a person can
@@ -88,22 +89,9 @@ export function availability(models: readonly ModelInfo[], chosen: string, where
   return { ok: false, reason: 'The AI needs a model on the phone. It runs here; nothing leaves the phone.', get: chosen, waiting: false };
 }
 
-let generation: Promise<number> | null = null;
-
-/** The binary's generation, asked once; 0 where there is no binary to ask. */
-export function nativeGeneration(): Promise<number> {
-  if (!isTauri()) return Promise.resolve(0);
-  generation ??= invoke<{ nativeGeneration?: number }>('ota_status').then(
-    (status) => status.nativeGeneration ?? 0,
-    () => 0,
-  );
-  return generation;
-}
-
 /** Whether the binary can run a model at all (native generation 10). */
-export async function canRunModels(): Promise<boolean> {
-  if (!isTauri()) return false;
-  return (await nativeGeneration()) >= AI_GENERATION;
+export function canRunModels(): Promise<boolean> {
+  return hasNativeGeneration(AI_GENERATION);
 }
 
 export interface AvailabilityState {

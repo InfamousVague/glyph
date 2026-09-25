@@ -1,5 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type Ref } from 'react';
 import { HUB_R, LEFT_X, REEL_Y, RIGHT_X, packRadii, reelTurn } from '../capture/tape.ts';
+import { prefersStill } from '../core/motion.ts';
 import styles from './TapeArt.module.css';
 
 /**
@@ -37,7 +38,7 @@ export function TapeArt({ positionMs, playing = false, title, side, counter, cla
   const packs = packRadii(positionMs);
 
   useEffect(() => {
-    if (!playing || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (!playing || prefersStill()) return undefined;
     let frame = 0;
     let last = performance.now();
     const tick = (now: number) => {

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { generate, type Hardware, type Output, type Progress, type Run, type RunOptions } from '../core/ai.ts';
+import { failureText } from '../core/failure.ts';
 import type { RunKind } from './kinds.ts';
 import { recordRun } from './log.ts';
 
@@ -282,7 +283,7 @@ async function execute(entry: Entry): Promise<void> {
     const output = await run.done;
     end(entry, 'done', null, output);
   } catch (failure) {
-    const message = failure instanceof Error ? failure.message : String(failure);
+    const message = failureText(failure);
     end(entry, message === 'cancelled' ? 'stopped' : 'failed', message === 'cancelled' ? null : message, null);
   }
 }

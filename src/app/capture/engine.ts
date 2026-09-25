@@ -1,3 +1,5 @@
+import { listenTo } from '../core/events.ts';
+import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import { preferences } from '../core/preferences.ts';
 import type { Segment } from './markdown.ts';
@@ -103,9 +105,8 @@ export async function ensureModel(onProgress?: (received: number, total: number)
   // Local only: nothing is downloaded, and the recorder says why.
   if (preferences().localOnly) throw new Error('Local only is on, so the voice model was not downloaded. Turn it off in Settings to get it.');
 
-  const { listen } = await import('@tauri-apps/api/event');
-  const unlisten = await listen<{ receivedBytes: number; totalBytes: number }>('capture://model-progress', (event) =>
-    onProgress?.(event.payload.receivedBytes, event.payload.totalBytes),
+  const unlisten = await listenTo<{ receivedBytes: number; totalBytes: number }>('capture://model-progress', (progress) =>
+    onProgress?.(progress.receivedBytes, progress.totalBytes),
   );
   try {
     return await invoke<ModelStatus>('capture_fetch_model');
@@ -134,11 +135,10 @@ const RECORDING_GENERATION = 6;
 let owner: symbol | null = null;
 
 async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
-  const { listen } = await import('@tauri-apps/api/event');
   const unlisteners = await Promise.all([
-    listen<{ text: string }>('capture://partial', (event) => handlers.onPartial(event.payload.text)),
-    listen<Segment>('capture://segment', (event) => handlers.onSegment(event.payload)),
-    listen<{ message: string }>('capture://error', (event) => handlers.onError(event.payload.message)),
+    listenTo<{ text: string }>('capture://partial', (partial) => handlers.onPartial(partial.text)),
+    listenTo<Segment>('capture://segment', (segment) => handlers.onSegment(segment)),
+    listenTo<{ message: string }>('capture://error', (error) => handlers.onError(error.message)),
   ]);
   const unlistenAll = () => unlisteners.forEach((off) => off());
 
@@ -167,11 +167,7 @@ async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
 
   // Asked rather than assumed: a bundle carrying this page can run on a binary
   // from before recordings were kept, whose capture_stop takes no arguments.
-  const generation = await invoke<{ nativeGeneration?: number }>('ota_status').then(
-    (status) => status.nativeGeneration ?? 0,
-    () => 0,
-  );
-  const keepsAudio = generation >= RECORDING_GENERATION;
+  const keepsAudio = await hasNativeGeneration(RECORDING_GENERATION);
 
   try {
     await invoke('capture_start');

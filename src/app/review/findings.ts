@@ -1,5 +1,6 @@
 import { appendToList, leaveNote } from '../capture/listAppend.ts';
 import { matchNote } from '../capture/route.ts';
+import { escapeRegExp } from '../core/text.ts';
 
 /**
  * The reviewing model's answer, made safe to act on.
@@ -66,7 +67,7 @@ export function locateLast(body: string, find: string): { index: number; text: s
   const pattern = find
     .trim()
     .split(/\s+/)
-    .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .map((word) => escapeRegExp(word))
     .join('\\s+');
   let last: { index: number; text: string } | null = null;
   for (const found of body.matchAll(new RegExp(pattern, 'gi'))) last = { index: found.index ?? 0, text: found[0] };

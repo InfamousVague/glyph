@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Note } from '../core/store.ts';
-import { bodyWithoutTitle, bookIndex, bookWords, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, titleKey, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
+import { bodyWithoutTitle, bookIndex, bookWords, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 
 /**
  * A book is its index: a list of links in a note that says `book: true`. Read from the body, written back to it a
@@ -138,11 +138,6 @@ describe('the marks a list draws', () => {
     note('x', '# Loose\n'),
     note('b2', '---\ntitle: "Other"\nbook: true\n---\n# Other\n\n- [[Trees]]\n'),
   ];
-
-  it('keys titles the way links are matched', () => {
-    expect(titleKey('  The Oaks!  ')).toBe('the oaks');
-    expect(titleKey('oaks')).toBe(titleKey('Oaks'));
-  });
 
   it('answers every page’s book in one pass, the first book for a page in two, and nothing for a book or a loose note', () => {
     const index = bookIndex(notes);

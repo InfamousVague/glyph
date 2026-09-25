@@ -1,3 +1,5 @@
+import { escapeRegExp } from '../core/text.ts';
+
 /**
  * "Add to Weekend trip": sending what is being said to a note by naming it.
  *
@@ -79,7 +81,7 @@ const ITEM_COMMAND =
 
 /** "…in <word>" at the end of a note's name in an item command, for a plugin's `ItemTarget` word. */
 function targetSuffix(words: readonly string[]): RegExp | null {
-  const safe = words.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).filter(Boolean);
+  const safe = words.map((word) => escapeRegExp(word)).filter(Boolean);
   return safe.length ? new RegExp(String.raw`\s+(?:in|on|to|into)\s+(${safe.join('|')})\s*$`, 'i') : null;
 }
 

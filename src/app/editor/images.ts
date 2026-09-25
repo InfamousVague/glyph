@@ -1,5 +1,6 @@
 import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
+import { failureText } from '../core/failure.ts';
 import { IMAGE_READY, IMAGE_REF, imageMarkdown, imageUrl, saveImageFile } from '../core/images.ts';
 import styles from './Editor.module.css';
 
@@ -170,7 +171,7 @@ function pasteImages(onError: (message: string) => void): Extension {
             // A second picture in the same paste goes after the first.
             view.dispatch({ effects: markSpot.of({ id: spot, pos: view.state.selection.main.head }) });
           } catch (failure) {
-            onError(failure instanceof Error ? failure.message : String(failure));
+            onError(failureText(failure));
           }
         }
         releaseImageSpot(view, spot);

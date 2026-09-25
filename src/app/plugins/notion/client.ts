@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { failureText } from '../../core/failure.ts';
 import { isTauri } from '../../core/tauri.ts';
 import { host } from './manifest.ts';
 
@@ -140,7 +141,7 @@ export function useNotionAccount(): { account: NotionAccount | null; problem: st
       else setAccount(await notionAccount());
       setProblem(null);
     } catch (failure) {
-      setProblem(failure instanceof Error ? failure.message : String(failure));
+      setProblem(failureText(failure));
       setAccount(await notionAccount());
     }
   }, []);

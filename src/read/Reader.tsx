@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, Plus } from '@glacier/icons';
+import { failureText } from '../app/core/failure.ts';
 import { Editor } from '../app/editor/Editor.tsx';
 import { CanvasView } from '../app/canvas/CanvasView.tsx';
 import { canvasOf, isCanvasBody } from '../app/canvas/jsonCanvas.ts';
@@ -61,7 +62,7 @@ export function Reader() {
         setState({ kind: 'ready', shared });
         document.title = `${shared.title} · Ghost.md`;
       },
-      (failure: unknown) => setState({ kind: 'failed', message: failure instanceof Error ? failure.message : String(failure) }),
+      (failure: unknown) => setState({ kind: 'failed', message: failureText(failure) }),
     );
   }, []);
 

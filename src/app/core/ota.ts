@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { listenTo } from './events.ts';
+import { failureText } from './failure.ts';
 import { isIOS } from './platform.ts';
 import { preferences } from './preferences.ts';
 import { invoke, isTauri } from './tauri.ts';
@@ -214,7 +216,7 @@ export function useUpdates(): Updates {
         return { kind: 'available', info: offered };
       });
     } catch (error) {
-      setLastError(error instanceof Error ? error.message : String(error));
+      setLastError(failureText(error));
     } finally {
       running.current = false;
       setChecking(false);
@@ -253,9 +255,8 @@ export function useUpdates(): Updates {
     setApk({ kind: 'downloading', info, received: 0, total: info.bytes });
     let unlisten: (() => void) | undefined;
     try {
-      const { listen } = await import('@tauri-apps/api/event');
-      unlisten = await listen<{ received: number; total: number }>('ota://apk-progress', (event) => {
-        setApk({ kind: 'downloading', info, received: event.payload.received, total: event.payload.total });
+      unlisten = await listenTo<{ received: number; total: number }>('ota://apk-progress', (progress) => {
+        setApk({ kind: 'downloading', info, received: progress.received, total: progress.total });
       });
       const path = await invoke<string>('ota_fetch_apk');
       const answer = host.installApk(path);
@@ -263,7 +264,7 @@ export function useUpdates(): Updates {
       else if (answer === 'started') setApk({ kind: 'installing', info });
       else setApk({ kind: 'failed', info, message: `The installer did not start (${answer}).` });
     } catch (error) {
-      setApk({ kind: 'failed', info, message: error instanceof Error ? error.message : String(error) });
+      setApk({ kind: 'failed', info, message: failureText(error) });
     } finally {
       unlisten?.();
     }

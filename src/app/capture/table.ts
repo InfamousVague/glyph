@@ -1,3 +1,5 @@
+import { capitalise } from '../core/text.ts';
+
 /**
  * Tables, said out loud: "Glyph, add a table to the AttackFM bugbash note",
  * and then the recorder asks for them a piece at a time.
@@ -45,7 +47,7 @@ export function cellsOf(text: string): string[] {
   return parts
     .map((part) => part.replace(/^(?:and|then)\s+/i, '').replace(POSITION, '').trim())
     .filter((part) => part && !/^(?:column|row)\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)$/i.test(part))
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1));
+    .map((part) => capitalise(part));
 }
 
 /**

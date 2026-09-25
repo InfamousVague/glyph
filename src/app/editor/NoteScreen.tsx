@@ -1,5 +1,6 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { createPortal } from 'react-dom';
+import { failureText } from '../core/failure.ts';
 import { liveEnabled } from '../core/live/enabled.ts';
 import { useTopBarTools } from '../core/topBarTools.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -396,7 +397,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         fireNativeHaptic('light');
       }
     } catch (failure) {
-      setPhotoProblem(failure instanceof Error ? failure.message : String(failure));
+      setPhotoProblem(failureText(failure));
     } finally {
       if (view && spot !== null) releaseImageSpot(view, spot);
     }
@@ -760,7 +761,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         setKept({ ms, segments });
         setTapeId(note.id, heldTape);
         toast({
-          message: `The recording couldn’t be removed: ${failure instanceof Error ? failure.message : String(failure)}`,
+          message: `The recording couldn’t be removed: ${failureText(failure)}`,
         });
         return;
       }
