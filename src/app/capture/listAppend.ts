@@ -9,8 +9,8 @@ import { enumeration } from './markdown.ts';
  * numbered line, with any indented lines that continue them). New items go on
  * the end of that run in the run's own style: a numbered list the next number,
  * a bullet list its own bullet, and a to-do list a box after either, at the
- * run's indent. A note with no list gets one at its end, as to-dos when the command
- * said "task" or "to-do". Pure, so every shape of note is a test.
+ * run's indent. A note with no list gets one at its end, as to-dos when the
+ * command said "task" or "to-do". Pure, so every shape of note is a test.
  */
 
 interface Run {

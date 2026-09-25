@@ -38,6 +38,7 @@ function item(line: string): { lead: string; rest: string; ticked: boolean } | n
   const lead = listLead(line);
   return lead ? { lead: line.slice(0, lead.wordsAt), rest: line.slice(lead.wordsAt), ticked: lead.done === true } : null;
 }
+
 /** The mark: the last thing on a line but a board's anchor, a link whose words are one lowercase name. */
 const MARK_AT_END = new RegExp(String.raw`\s*\[(${MARK_NAME})\]\((${MARK_URL})\)\s*$`);
 /**

@@ -2,8 +2,8 @@ import { similarity } from '../capture/route.ts';
 import { ANCHOR_NAME, COUNTER, anchorSpan, isDoneName, listLead, taskBox, withoutAnchor, withoutBookmark } from './itemSyntax.ts';
 
 /**
- * Boards in markdown: the whole syntax, read and written here and nowhere else (docs/BOARDS.md) - the fence here, and
- * the item line it points at spelled once in core/itemSyntax.ts, which this reads it with.
+ * Boards in markdown: the whole syntax, read and written here (docs/BOARDS.md). The fence is known here and nowhere
+ * else; the item line it points at is spelled once, in core/itemSyntax.ts, and read here with it.
  *
  * Matt: "define and create a markdown standard we use to create kanban boards and task management boards entirely
  * within markdown, linking the tasks in the board to a task on the page", and later "come up with a generic way to

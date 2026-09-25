@@ -39,7 +39,7 @@ export const MARKER = `(?:${BULLET}|${NUMBER})`;
  * are "x", and `- [ ]foo` stays words: neither has a box to tick, and nothing here pretends it has.
  */
 export const BOX = String.raw`\[[ xX]\](?=\s|$)`;
-/** A choice's round box, `( )` or `(x)`, standing as a word. Only a bullet takes one: a number and a box are a to-do. */
+/** A choice's round box, `( )` or `(x)`, standing as a word. Only a bullet takes one: after a number, brackets are words. */
 export const CHOICE = String.raw`\([ xX]\)(?=\s|$)`;
 /** An anchor's name: lower case, the shape a person can type and read (docs/BOARDS.md). */
 export const ANCHOR_NAME = '[a-z0-9][a-z0-9_-]*';
@@ -61,7 +61,8 @@ export const BOOKMARK_SIGNS = '§§';
 export const BOOKMARK = `${BOOKMARK_SIGNS}(?=\\s|$)`;
 /**
  * What may follow an item's mark at the end of its line: a board's anchor and counters, in any order (core/itemLinks.ts).
- * Written after the mark, or typed after it later, they leave the mark the item's mark.
+ * Written after the mark, or typed after it later, they leave the mark the item's mark. An alternation, so it goes
+ * inside a group: `(?:${ITEM_TAIL})`.
  */
 export const ITEM_TAIL = `${ANCHOR}|${COUNTER}`;
 
