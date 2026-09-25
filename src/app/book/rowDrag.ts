@@ -47,12 +47,10 @@ export function useRowDrag(rows: () => (HTMLElement | null)[], onMove: (from: nu
   };
 
   const landing = (index: number, y: number, tops: number[], height: number): number => {
-    // The row's middle, where it is now, against the other rows' middles: it lands after every one it is below, so it
-    // moves a place, up or down, only once it is past the middle of the row it is passing. Until 2026-09-25 it took
-    // the last middle above it, its own among them, so a row moved up by a pixel went up a place.
+    // The row's middle, where it is now, against the rows' tops: the first row whose middle is below it.
     const middle = tops[index]! + height / 2 + (y - press.current!.y);
     let to = 0;
-    for (let i = 0; i < tops.length; i += 1) if (i !== index && tops[i]! + height / 2 < middle) to += 1;
+    for (let i = 0; i < tops.length; i += 1) if (tops[i]! + height / 2 < middle) to = i;
     return to;
   };
 

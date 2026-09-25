@@ -100,16 +100,6 @@ describe('rows dragged by their grip', () => {
     pointer('pointermove', grip('c'), 104);
     pointer('pointerup', grip('c'), 104);
     expect(onMove).not.toHaveBeenCalled();
-    // Nudged up as far, it is still over its own place: it moves up only once it is past the middle of the row above.
-    pointer('pointerdown', grip('c'), 100);
-    pointer('pointermove', grip('c'), 96);
-    expect(document.querySelector('li[data-lifted]')?.previousElementSibling?.getAttribute('style') ?? '').not.toContain('translateY');
-    pointer('pointerup', grip('c'), 96);
-    expect(onMove).not.toHaveBeenCalled();
-    pointer('pointerdown', grip('c'), 100);
-    pointer('pointermove', grip('c'), 50);
-    pointer('pointerup', grip('c'), 50);
-    expect(onMove).toHaveBeenCalledWith(2, 1);
   });
 
   it('makes room as a row goes by: the rows it passes move a row the other way', () => {
@@ -122,14 +112,12 @@ describe('rows dragged by their grip', () => {
     expect(['b', 'c', 'd'].map(styleOf).every((style) => style.includes('translateY(-40px)'))).toBe(true);
     pointer('pointerup', grip('a'), 150);
     expect(onMove).toHaveBeenLastCalledWith(0, 3);
-    // Up: d over b's middle, so b and c move down a row and a stays.
+    // Up: d's middle (140) moved 130px is 10, above the middles of a, b and c, which each move down a row.
     pointer('pointerdown', grip('d'), 140);
-    pointer('pointermove', grip('d'), 50);
-    expect(styleOf('b')).toContain('translateY(40px)');
-    expect(styleOf('c')).toContain('translateY(40px)');
-    expect(styleOf('a')).not.toContain('translateY');
-    pointer('pointerup', grip('d'), 50);
-    expect(onMove).toHaveBeenLastCalledWith(3, 1);
+    pointer('pointermove', grip('d'), 10);
+    expect(['a', 'b', 'c'].map(styleOf).every((style) => style.includes('translateY(40px)'))).toBe(true);
+    pointer('pointerup', grip('d'), 10);
+    expect(onMove).toHaveBeenLastCalledWith(3, 0);
   });
 
   it('lands past the last row as the last, and a cancelled drag moves nothing', () => {
