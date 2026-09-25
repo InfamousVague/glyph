@@ -4589,3 +4589,39 @@ in the home dock (home/HomeScreen.tsx), a magnifier drawn in the app's own line 
 opening the palette that ⌘K opens on a desktop, with the caret in its field. Under Settings rather than above it: it is
 reached for more often than Settings and less often than writing. Absent until the palette has handed back its opener,
 rather than a button that does nothing.
+
+## 119. Things to say: the recorder's card before the first word (2026-09-25)
+
+Matt: "When I open the AI page, I should see a list of suggested prompts / commands / etc but don't see that card
+anymore" - the page that opens from the microphone.
+
+The recorder taught what could be said one line at a time, in a pause (§"Tips in a pause", `capture/tips.ts`):
+after 2.5 s of quiet, "Say **Check box** to make a to-do", a different one each pause. Before the first word there
+was the listening ghost and the line about how to stop, and nothing about what to say - which is the moment a person
+is deciding what to say. So:
+
+- **The card** (`capture/SayCard.tsx`, `capture/tips.ts` `starters`). Above the buttons while the microphone waits,
+  "Things to say" in short groups with a mark each: to shape it (the first cues: "Bullet point", "The next item
+  is …"); to send it somewhere ("Hey Ghost, add … to Groceries", naming one of their own notes once the notes are
+  read, then "move this to Groceries", or "add a chapter to Field guide" when the library has a book; with nothing to
+  name, "make a list called …" and "make a book called …"); and, on a note's own Speak, to ask the AI ("Hey Ghost,
+  fix the spelling", "summarize this"). It takes no taps; the way to use it is to say a line. It goes the moment
+  words arrive, and the one-line tips take over in the pauses as before - a tip is picked only once there are words,
+  so none is spent under the card. The ghost above it is a fifth of the height rather than two, so "Start talking."
+  keeps its room on an upright phone; a short window (a folded phone on its side) drops the ghost and the card's
+  title and keeps one line a group.
+- **Only what runs.** A spoken ask is read from the whole take (`ai/instruction.ts` `bareWords` wants the keyword to
+  open it) and run only when the recording is a note's own Speak, not over the lock screen (`CaptureScreen.tsx`
+  `finish`): the take is let go and the note opens with the run on it, every change marked. So the asks are on the
+  card alone, only in that case, and never in the pause rotation, where "say it after the note's words" would end as
+  the words in the note. A new recording gets the shaping and sending pairs and no ask, rather than a line that would
+  end as a note of the command's words. `ASKS` is held to the reader's own rules by a test, so the card can never
+  suggest one it would not run. Over the lock screen the card names no note, as the rest of the page keeps the
+  note's words off it.
+- **Which note it names** is worked out at render, never once: not the note being written to (the note's own Speak,
+  or the one the take just moved to with "move this to …"), which the pause tips already avoided. And a routing line
+  the cues' slots leave no room for (a note with a board names its lanes too) comes round after the cues rather than
+  never.
+- **What it is not.** The card is not the confirm card (§114, `ai/ConfirmCard.tsx`), which still takes its place when
+  a command is understood, and it does not show once there are words, on the failed page, or while a command's chip
+  is up.

@@ -1,0 +1,90 @@
+/*
+ * Things to say (SayCard.tsx): the card above the recorder's buttons while the microphone waits for a first word.
+ * Paper-2 in a hairline, as the confirm card is but a step quieter, since it asks nothing: a small spaced title,
+ * three small headings each with its mark, and under each the words to say in ink with what they do in the muted ink.
+ */
+
+.card {
+  flex: none;
+  display: grid;
+  gap: var(--glacier-space-3);
+  margin: 0 0 var(--glacier-space-3);
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2, var(--glacier-surface));
+  animation: say-in 420ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+@keyframes say-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+.title {
+  margin: 0;
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.group {
+  display: grid;
+  gap: var(--glacier-space-1);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin: 0;
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.line {
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.35;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  overflow-wrap: anywhere;
+}
+
+.say {
+  color: var(--app-ink, var(--glacier-text));
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+/*
+ * A phone held upright has the room for the whole card; a short window (a folded phone on its side) keeps one line a
+ * group, loses the title, and closes up, so the page above it keeps its hint and a line to start talking on.
+ */
+@media (max-height: 560px) {
+  .card {
+    gap: var(--glacier-space-1);
+    padding-block: var(--glacier-space-2);
+  }
+
+  .title,
+  .line:nth-child(n + 2) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+}

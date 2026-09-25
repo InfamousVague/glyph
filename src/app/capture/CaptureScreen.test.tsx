@@ -100,3 +100,28 @@ describe('native stop transcript handoff', () => {
     expect(notes[0]?.body).toContain('sunscreen');
   });
 });
+
+describe('things to say', () => {
+  it('shows the card until the first words, naming one of their notes and no ask on a new recording, then tips one at a time', async () => {
+    await createNote('groceries', 'Groceries');
+    render(<CaptureScreen fromAssistant={false} onFinish={vi.fn()} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    const card = await screen.findByLabelText('Things to say');
+    await waitFor(() => expect(card.textContent).toContain('add … to Groceries'));
+    expect(card.textContent).toContain('Bullet point');
+    // A new recording is not a note yet: an ask said into it would not run, so none is offered.
+    expect(card.textContent).not.toContain('fix the spelling');
+    act(() => capture.handlers!.onSegment({ text: 'Milk and eggs', startMs: 0, endMs: 900 }));
+    await waitFor(() => expect(screen.queryByLabelText('Things to say')).toBeNull());
+  });
+
+  it('offers the asks on a note’s own Speak, and never names that note as somewhere to send the take', async () => {
+    await createNote('groceries', 'Groceries');
+    render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={vi.fn()} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    const card = await screen.findByLabelText('Things to say');
+    await waitFor(() => expect(card.textContent).toContain('fix the spelling'));
+    expect(card.textContent).not.toContain('to Groceries');
+    expect(card.textContent).toContain('make a list called');
+  });
+});
