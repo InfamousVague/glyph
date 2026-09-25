@@ -1,4 +1,4 @@
-//! One generation on a loaded model: the conversation framed and tokenized, a
+//! One generation on a loaded model: the conversation framed and tokenised, a
 //! context that fits made or kept, the fixed prefix restored from its snapshot
 //! or decoded and snapshotted, the note decoded, and the answer sampled a
 //! token at a time with its thinking closed if it runs past its budget.
@@ -19,9 +19,9 @@ use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 
-use super::engine::{threads, Failure, Job, Output, MAX_CONTEXT_TOKENS, MAX_OUTPUT_TOKENS};
+use super::job::{threads, Failure, Job, Output, Phase, ProgressFn, MAX_CONTEXT_TOKENS, MAX_OUTPUT_TOKENS};
 use super::prompt;
-use super::report::{Counts, Phase, ProgressFn, Reporter};
+use super::report::{Counts, Reporter};
 
 /// Contexts are made in steps of this many tokens, so two notes of nearly the
 /// same length share one context rather than remaking it.
@@ -55,11 +55,34 @@ pub(super) struct Snapshot {
 }
 
 /// The window a job needs: its prompt, the most it may write, a little slack,
-/// rounded up to a step - capped by the model's own training window.
-fn context_for(prompt_tokens: u32, max_tokens: u32, model: &LlamaModel) -> u32 {
+/// rounded up to a step - capped by the window the model was trained on
+/// (`n_ctx_train`), and never under the smallest worth making.
+fn context_for(prompt_tokens: u32, max_tokens: u32, n_ctx_train: u32) -> u32 {
     let need = prompt_tokens + max_tokens + 16;
     let stepped = need.div_ceil(CONTEXT_STEP) * CONTEXT_STEP;
-    stepped.clamp(MIN_CONTEXT_TOKENS, MAX_CONTEXT_TOKENS.min(model.n_ctx_train().max(MIN_CONTEXT_TOKENS)))
+    stepped.clamp(MIN_CONTEXT_TOKENS, MAX_CONTEXT_TOKENS.min(n_ctx_train.max(MIN_CONTEXT_TOKENS)))
+}
+
+/// The window a job runs in and the most it may write there, or the refusal
+/// the page shows when its prompt leaves no room to answer. `max_tokens` is
+/// already held to [`MAX_OUTPUT_TOKENS`]; `closing_room` is what a thought
+/// closed for the model adds to the answer.
+fn window(prompt_tokens: u32, max_tokens: u32, closing_room: u32, n_ctx_train: u32) -> Result<(u32, u32), Failure> {
+    let n_ctx = context_for(prompt_tokens, max_tokens + closing_room, n_ctx_train);
+    if prompt_tokens + 64 > n_ctx {
+        return Err(Failure::Error(format!(
+            "This note is too long to format on the phone: {prompt_tokens} tokens of prompt, and the window is {n_ctx}. Try a shorter note, or split it."
+        )));
+    }
+    // The most the model may write inside this window.
+    Ok((n_ctx, max_tokens.min(n_ctx - prompt_tokens - 8 - closing_room)))
+}
+
+/// Whether a context kept from the last job, `have` tokens long, is made again
+/// for one that needs `need`: when it is too small, or more than twice the size
+/// and big enough that the memory is worth giving back to the phone.
+fn needs_remake(have: u32, need: u32) -> bool {
+    have < need || (have > need * 2 && have > 2 * MIN_CONTEXT_TOKENS)
 }
 
 /// One job run on `model`, in the context kept in `ctx_slot` (made, or made
@@ -109,19 +132,11 @@ pub(super) fn generate<'m>(
     counts.prompt_tokens = (prefix.len() + rest.len()) as u32;
     // A thought closed for the model adds its closing words to the window.
     let closing_room = if request.think && request.think_budget > 0 { 64 } else { 0 };
-    let n_ctx = context_for(counts.prompt_tokens, max_tokens + closing_room, model);
-    if counts.prompt_tokens + 64 > n_ctx {
-        return Err(Failure::Error(format!(
-            "This note is too long to format on the phone: {} tokens of prompt, and the window is {n_ctx}. Try a shorter note, or split it.",
-            counts.prompt_tokens
-        )));
-    }
-    // The most the model may write inside this window.
-    let max_tokens = max_tokens.min(n_ctx - counts.prompt_tokens - 8 - closing_room);
+    let (n_ctx, max_tokens) = window(counts.prompt_tokens, max_tokens, closing_room, model.n_ctx_train())?;
 
     // A context that fits, made or remade.
     let remake = match ctx_slot.as_ref() {
-        Some(ctx) => ctx.n_ctx() < n_ctx || (ctx.n_ctx() > n_ctx * 2 && ctx.n_ctx() > 2 * MIN_CONTEXT_TOKENS),
+        Some(ctx) => needs_remake(ctx.n_ctx(), n_ctx),
         None => true,
     };
     if remake {
@@ -290,4 +305,62 @@ fn decode_prompt(
         report.tick(progress, Phase::Prefill, *counts, "");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A training window wider than any context the engine makes.
+    const WIDE: u32 = 32_768;
+
+    #[test]
+    fn a_context_is_the_job_rounded_up_to_a_step() {
+        assert_eq!(context_for(1000, 100, WIDE), 1536, "1,116 tokens is three steps");
+        assert_eq!(context_for(2000, 32, WIDE), 2048, "2,048 exactly is four steps, not five");
+        assert_eq!(context_for(2000, 33, WIDE), 2560);
+    }
+
+    #[test]
+    fn a_context_is_never_under_the_smallest_nor_over_the_largest() {
+        assert_eq!(context_for(10, 10, WIDE), MIN_CONTEXT_TOKENS, "a short note still gets a whole small context");
+        assert_eq!(context_for(8000, 4096, WIDE), MAX_CONTEXT_TOKENS);
+    }
+
+    #[test]
+    fn a_context_is_capped_by_the_window_the_model_was_trained_on() {
+        assert_eq!(context_for(4000, 1000, 4096), 4096);
+        assert_eq!(context_for(10, 10, 512), MIN_CONTEXT_TOKENS, "a model trained on less than the smallest still gets the smallest");
+        assert_eq!(context_for(4000, 1000, 512), MIN_CONTEXT_TOKENS);
+    }
+
+    #[test]
+    fn a_prompt_that_leaves_under_64_tokens_of_the_window_is_refused() {
+        assert_eq!(window(8128, 1, 0, WIDE), Ok((8192, 1)), "64 tokens left is room enough");
+        let Err(Failure::Error(refusal)) = window(8129, 1, 0, WIDE) else { panic!("63 tokens left is refused") };
+        assert_eq!(
+            refusal,
+            "This note is too long to format on the phone: 8129 tokens of prompt, and the window is 8192. Try a shorter note, or split it."
+        );
+        assert!(window(4040, 100, 0, 4096).is_err(), "the model's own window is the one a prompt must fit");
+    }
+
+    #[test]
+    fn the_answer_is_held_to_the_room_the_window_has_left() {
+        assert_eq!(window(1000, 100, 0, WIDE), Ok((1536, 100)), "a window made for the job leaves room for all of it");
+        assert_eq!(window(8000, 4096, 0, WIDE), Ok((8192, 184)), "a capped window leaves what it can, less 8 of slack");
+        assert_eq!(window(8000, 4096, 64, WIDE), Ok((8192, 120)), "and a thought's close takes its share first");
+        assert_eq!(window(1000, 100, 64, WIDE).map(|(n_ctx, _)| n_ctx), Ok(1536), "which the window is made with room for");
+        assert_eq!(window(1400, 100, 64, WIDE).map(|(n_ctx, _)| n_ctx), Ok(2048));
+    }
+
+    #[test]
+    fn a_kept_context_is_made_again_only_when_too_small_or_far_too_big() {
+        assert!(needs_remake(1024, 1536), "too small for the job");
+        assert!(!needs_remake(1536, 1536), "exactly the size");
+        assert!(!needs_remake(4096, 2048), "twice the size is kept");
+        assert!(needs_remake(4608, 2048), "more than twice is given back");
+        assert!(needs_remake(8192, 3072));
+        assert!(!needs_remake(2048, 1000), "a context that is small anyway is kept, however much bigger");
+    }
 }

@@ -31,8 +31,9 @@
 //!   page can judge which models fit.
 //! - `engine` owns llama.cpp: one worker thread holding the model and its
 //!   context, a queue of generations, cancellation. One run's prefill and
-//!   sampling are `generate`, and what it reports as it goes is `report`
-//!   (with the phone's readings from `hardware`).
+//!   sampling are `generate`, what it reports as it goes is `report` (with
+//!   the phone's readings from `hardware`), and the request, output and
+//!   progress all three pass about are `job`.
 //! - `command` is the fixed contract a voice command is read under: the
 //!   grammar compiled into this binary, and the checks on what comes back.
 //!
@@ -52,6 +53,8 @@ pub mod prompt;
 pub mod engine;
 #[cfg(not(target_os = "ios"))]
 mod generate;
+#[cfg(not(target_os = "ios"))]
+mod job;
 #[cfg(not(target_os = "ios"))]
 mod report;
 

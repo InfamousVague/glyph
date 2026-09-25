@@ -23,12 +23,14 @@
 //! room for it.
 //!
 //! C++ EXCEPTIONS END THE PROCESS. Rust cannot catch one, and llama.cpp throws
-//! from a few places given bad input - so every count is checked here before
+//! from a few places given bad input - so every count is checked in
+//! `generate.rs` before it reaches C++.
 //!
-//! This file is the worker and its handle; one run's prefill and generation
-//! are `generate.rs`, and the progress it reports is `report.rs`.
+//! This file is the worker and its handle. One run's prefill and generation
+//! are `generate.rs`, when and what it reports is `report.rs`, and the words
+//! all three use - a request, its output, its progress, a job - are `job.rs`.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -40,87 +42,15 @@ use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::LogOptions;
-use serde::Serialize;
 
 use super::generate::{generate, Snapshot};
-use super::report::{Counts, ProgressFn, Reporter};
+use super::job::Job;
+use super::report::{Counts, Reporter};
 
-pub use super::report::{Phase, Progress};
-
-/// The most tokens a context is ever made for. A long note and a long
-/// rewrite together; past this the page is told the note is too long.
-pub const MAX_CONTEXT_TOKENS: u32 = 8192;
-
-/// The most a caller may ask to generate in one run.
-pub const MAX_OUTPUT_TOKENS: u32 = 4096;
+pub use super::job::{Failure, Output, Phase, Progress, Request, MAX_CONTEXT_TOKENS, MAX_OUTPUT_TOKENS};
 
 /// How long a loaded model waits for another job before it is dropped.
 pub const IDLE: Duration = Duration::from_secs(5 * 60);
-
-/// One generation, as the page asks for it.
-#[derive(Debug, Clone)]
-pub struct Request {
-    pub id: String,
-    pub system: String,
-    pub context: Option<String>,
-    pub prompt: String,
-    pub max_tokens: u32,
-    /// 0 is greedy. The page sends 0.3 for a rewrite.
-    pub temperature: f32,
-    /// Leave reasoning on for a model whose template has it: no empty thought.
-    pub think: bool,
-    /// Thinking tokens before the thought is closed for the model (0: no limit).
-    pub think_budget: u32,
-    /// Native-owned constrained output, never accepted from an IPC request.
-    pub grammar: Option<&'static str>,
-}
-
-/// What one generation wrote, and what it cost.
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Output {
-    pub text: String,
-    pub prompt_tokens: u32,
-    pub output_tokens: u32,
-    /// Wall time for the whole run, load included.
-    pub ms: u64,
-    /// Prompt tokens restored from the prefix snapshot rather than decoded.
-    pub cached_tokens: u32,
-    pub prefill_ms: u64,
-    pub load_ms: u64,
-    /// Generation speed alone, tokens a second.
-    pub tokens_per_second: f32,
-    /// Stopped by `max_tokens` rather than by the model finishing.
-    pub truncated: bool,
-    /// The text starts with the model's reasoning, up to `</think>`: thinking
-    /// was asked for and the model's template has it.
-    pub thinking: bool,
-}
-
-/// Why a generation ended without its output.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Failure {
-    Cancelled,
-    Error(String),
-}
-
-impl std::fmt::Display for Failure {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Failure::Cancelled => f.write_str("cancelled"),
-            Failure::Error(message) => f.write_str(message),
-        }
-    }
-}
-
-/// A generation waiting for, or running on, the worker.
-pub(super) struct Job {
-    pub(super) model: PathBuf,
-    pub(super) request: Request,
-    pub(super) cancel: Arc<AtomicBool>,
-    pub(super) progress: ProgressFn,
-    pub(super) reply: Sender<Result<Output, Failure>>,
-}
 
 enum Message {
     Run(Box<Job>),
@@ -203,13 +133,6 @@ fn backend() -> Result<&'static LlamaBackend, String> {
         })
         .as_ref()
         .map_err(Clone::clone)
-}
-
-/// How many cores generation uses. The emulator has four; the Fold has eight,
-/// two of them small. Six keeps off the little cores and leaves one for the
-/// page to stay responsive on.
-pub(super) fn threads() -> i32 {
-    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).clamp(2, 6) as i32
 }
 
 /// The worker's loop: a model loaded for the job in hand, then kept for every
