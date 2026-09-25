@@ -11,6 +11,11 @@ import styles from './Notices.module.css';
  * an update, the Academy's invitation, and the voice model while it is not ready yet.
  */
 
+/** A download's size as its line says it: whole megabytes, as a phone's own download lines count them. */
+function megabytes(bytes: number): number {
+  return Math.round(bytes / 1e6);
+}
+
 /**
  * A blue card when there is something newer to run: the one piece of colour on
  * the home page, because on a black page a grey line under the title was easy to
@@ -21,7 +26,6 @@ import styles from './Notices.module.css';
  */
 export function UpdateNotice({ updates }: { updates: Updates }) {
   const { ready, apk } = updates;
-  const mb = (bytes: number) => Math.round(bytes / 1e6);
   if (apk.kind === 'available' || apk.kind === 'failed' || apk.kind === 'needs-permission') {
     return (
       <UpdateCard
@@ -41,7 +45,7 @@ export function UpdateNotice({ updates }: { updates: Updates }) {
   if (apk.kind === 'downloading') {
     return (
       <UpdateCard
-        text={`Downloading Ghost.md ${apk.info.version}, ${mb(apk.received)} of ${mb(apk.total)} MB.`}
+        text={`Downloading Ghost.md ${apk.info.version}, ${megabytes(apk.received)} of ${megabytes(apk.total)} MB.`}
         progress={apk.total ? apk.received / apk.total : 0}
         working
       />
@@ -57,7 +61,8 @@ export function UpdateNotice({ updates }: { updates: Updates }) {
   return null;
 }
 
-export function UpdateCard({
+/** The update's card: its words, what to do about it, and while it downloads, how far it has got. */
+function UpdateCard({
   text,
   action,
   onAction,
@@ -140,10 +145,9 @@ export function AcademyCard({ onOpen, onHide }: { onOpen: () => void; onHide?: (
 export function VoiceModelStatus({ state, onRetry }: { state: VoiceModelState; onRetry: () => void }) {
   if (state.kind === 'ready' || state.kind === 'unsupported' || state.kind === 'checking') return null;
   if (state.kind === 'downloading') {
-    const mb = (bytes: number) => Math.round(bytes / 1e6);
     return (
       <p className={styles.notice} role="status">
-        Downloading the voice model, {mb(state.received)} of {mb(state.total)} MB. Keep Ghost.md open.
+        Downloading the voice model, {megabytes(state.received)} of {megabytes(state.total)} MB. Keep Ghost.md open.
       </p>
     );
   }
@@ -157,14 +161,13 @@ export function VoiceModelStatus({ state, onRetry }: { state: VoiceModelState; o
   );
 }
 
-
 /** The better voice model coming down in the background (capture/refine.ts), while it does. */
 export function RefiningNotice() {
   const refining = useRefining();
   if (!refining.download) return null;
   return (
     <p className={styles.notice} role="status">
-      Getting the better voice model, {Math.round(refining.download.received / 1e6)} of {Math.round(refining.download.total / 1e6)} MB.
+      Getting the better voice model, {megabytes(refining.download.received)} of {megabytes(refining.download.total)} MB.
     </p>
   );
 }
