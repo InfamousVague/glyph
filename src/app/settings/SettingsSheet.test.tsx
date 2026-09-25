@@ -138,6 +138,12 @@ describe('the list of sections', () => {
     }
   });
 
+  it('colours a plugin’s page as the plugin says, where the shell names no plugin', () => {
+    const host = settings();
+    const hue = (label: string) => rows(host).find((row) => row.querySelector('.settingsScreen__rowLabel')?.textContent === label)?.querySelector('.settingsScreen__rowIcon')?.getAttribute('data-hue');
+    expect([hue('Notion'), hue('GitHub'), hue('Claude'), hue('Plugins')]).toEqual(['graphite', 'graphite', 'coral', 'green']);
+  });
+
   it('opens on the cheat sheet when the Academy asks for it', () => {
     const host = settings(Date.now());
     expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Cheat sheet');
