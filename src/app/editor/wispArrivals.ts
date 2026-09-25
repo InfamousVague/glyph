@@ -38,8 +38,8 @@ import { settle, typing, wispState, type Moving } from './wispMotion.ts';
  * loop - and the extension that puts the two together.
  */
 
-// What the recorder, the AI and the note write with (capture/LivePage.tsx, ai/, editor/NoteScreen.tsx), kept here for them.
-export { commonEnds, moving, revealWisp, wisp, type Moving, type WispKind } from './wispMotion.ts';
+// What the recorder and the AI write with (capture/LivePage.tsx, ai/), kept here for them.
+export { commonEnds, wisp } from './wispMotion.ts';
 
 /** The filters in the pool: at most this many words in motion at once, the rest waiting their turn. */
 const POOL_MAX = 32;

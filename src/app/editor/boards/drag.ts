@@ -1,5 +1,6 @@
 import { fireNativeHaptic } from '../../core/haptics.ts';
 import type { Card } from '../../core/boards.ts';
+import { EDGE, noteScroller } from './scrolling.ts';
 
 /**
  * A card picked up and dragged to where it goes, in its own lane or another (Matt: "add a way to tap and drag to re
@@ -14,8 +15,7 @@ import type { Card } from '../../core/boards.ts';
 /** How long a finger rests on a card before it is picked up, and how far it may stray first. */
 const HOLD = 220;
 const SLOP = 10;
-/** How near the edge of the board a held card scrolls it along, and how fast. */
-export const EDGE = 44;
+/** How fast a held card near an edge (`EDGE`) rolls the board, a lane or the note along. */
 const EDGE_STEP = 14;
 
 /**
@@ -227,16 +227,6 @@ function placeGap(lift: Lift): HTMLElement | null {
   lift.column = Number(stack.dataset.column ?? 0);
   lift.index = [...stack.querySelectorAll<HTMLElement>('.cm-boardCard')].indexOf(lift.card);
   return stack;
-}
-
-/** The note's own scroller: the nearest box above the board that scrolls up and down. */
-export function noteScroller(board: HTMLElement): HTMLElement | null {
-  for (let at = board.parentElement; at; at = at.parentElement) {
-    const flow = window.getComputedStyle(at).overflowY;
-    if ((flow === 'auto' || flow === 'scroll') && at.scrollHeight > at.clientHeight + 1) return at;
-  }
-  const page = document.scrollingElement;
-  return page instanceof HTMLElement && page.scrollHeight > page.clientHeight + 1 ? page : null;
 }
 
 /**

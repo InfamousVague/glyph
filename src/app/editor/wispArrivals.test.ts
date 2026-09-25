@@ -3,7 +3,8 @@ import { EditorState } from '@codemirror/state';
 import { Decoration, EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PREFERENCES, setPreferences } from '../core/preferences.ts';
-import { commonEnds, moving, revealWisp, wisp, wispArrivals } from './wispArrivals.ts';
+import { commonEnds, wisp, wispArrivals } from './wispArrivals.ts';
+import { moving, revealWisp } from './wispMotion.ts';
 
 function state(doc = '') {
   return EditorState.create({ doc, extensions: [wispArrivals()] });

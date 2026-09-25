@@ -21,7 +21,11 @@ import { forEachVisibleLine } from './lines.ts';
 /** Details arrived from a plugin: redraw the pills and rows. */
 export const detailsArrived = StateEffect.define<null>();
 
-const LINK = /\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g;
+/**
+ * A markdown link to a web address, its words then its address: what a plugin might read, in a line that is not an
+ * item's mark. The rows under such lines (editor/linkedRows.ts) find them the same way.
+ */
+export const LINK = /\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
 
 /** Every linked thing in view, marks and links a plugin reads, for reading their details again. */
 function marksInView(view: EditorView): { name: string; url: string }[] {
@@ -31,8 +35,8 @@ function marksInView(view: EditorView): { name: string; url: string }[] {
     if (mark) marks.push(mark);
     else if (line.text.includes('](')) {
       for (const match of line.text.matchAll(LINK)) {
-        const name = markNameFor(match[1] ?? '');
-        if (name) marks.push({ name, url: match[1] ?? '' });
+        const name = markNameFor(match[2] ?? '');
+        if (name) marks.push({ name, url: match[2] ?? '' });
       }
     }
   });

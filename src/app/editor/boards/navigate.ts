@@ -1,7 +1,7 @@
 import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { wordsEnd } from '../../core/itemSyntax.ts';
-import { EDGE, noteScroller } from './drag.ts';
+import { EDGE, noteScroller } from './scrolling.ts';
 
 /**
  * Getting around from a board: a card's words take the caret to its item's line in the note, a card that has just

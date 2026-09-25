@@ -4,7 +4,7 @@ import { itemWords, markOf } from '../core/itemLinks.ts';
 import { ITEM_TAIL, MARK_NAME, MARK_URL } from '../core/itemSyntax.ts';
 import { hasMarkDetails, markNameFor, peekMarkDetails, type MarkEntry } from '../core/markDetails.ts';
 import { capitalise, escapeRegExp } from '../core/text.ts';
-import { detailsArrived } from './markReads.ts';
+import { detailsArrived, LINK } from './markReads.ts';
 import { mountMarkMenu } from './markMenuMount.tsx';
 
 /**
@@ -50,8 +50,6 @@ export interface Linked {
   kind: 'mark' | 'link';
   item: boolean;
 }
-
-const LINK = /\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
 
 /** The linked thing on a line, if there is one: an item's mark first, else the first link a plugin reads. */
 export function linkedOn(text: string, from = 0): Linked | null {

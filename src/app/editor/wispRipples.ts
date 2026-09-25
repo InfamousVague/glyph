@@ -2,7 +2,7 @@ import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/s
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { prefersStill } from '../core/motion.ts';
 import { hiddenDefs, svgElement } from './svgFilters.ts';
-import { moving } from './wispArrivals.ts';
+import { moving } from './wispMotion.ts';
 
 /**
  * Ripples through the words as the person talks: the recorder's page
