@@ -13,9 +13,11 @@ import { MODES } from '../../format/modes.ts';
  *
  * Every line here is meant to be true of the app as it is, and the parts that could drift are held to it:
  *
- * - The spoken examples are data (`COMMANDS`, `ASKS`, `CUES`, `MEMO`), and theGuide.test.ts runs each through the
- *   recorder's own readers. Only two commands act from a recording today, words added to a note by its name and a
- *   new list by name (capture/finalInstruction.ts `permitted`), so those are the only two taught.
+ * - The spoken examples are data (`COMMANDS`, `ASKS`, `FREE_ASK`, `CUES`), and theGuide.test.ts runs each through
+ *   the recorder's own readers. Only two commands act from a recording today, words added to a note by its name and
+ *   a new list by name (capture/finalInstruction.ts `permitted`), so those are the only two taught. Voice memos are
+ *   not taught either: the recorder reads a finished recording whole, and the "voice memo … end memo" cue is only
+ *   read phrase by phrase (capture/take.ts `phrase`), which the recorder no longer calls, so the words are kept.
  * - The AI's rows and runs are described in their own words (ai/kinds.ts), so a hint changed there changes here.
  * - A `[[link]]` names another chapter, and the test holds every one to a chapter the book has, so the guide never
  *   draws a dashed link that makes an empty note when tapped.
@@ -48,14 +50,15 @@ export const ASKS: readonly { say: string; run: RunKind }[] = [
   { say: 'Hey Ghost, carry on', run: 'continue' },
 ];
 
-/** A free ask: anything else after "Hey Ghost", said into a note, is an instruction for the AI. */
-export const FREE_ASK = 'Hey Ghost, add a heading for each day';
+/**
+ * A free ask: anything else after "Hey Ghost", said into a note, is an instruction for the AI. Not one that starts
+ * like a command ("add…", "make…"), which the command reader and its model would read first and could refuse as a
+ * note it cannot find (capture/command.ts `finalCommandWords`).
+ */
+export const FREE_ASK = 'Hey Ghost, give each day a heading';
 
 /** The cues the recording chapter names, each one the recorder's own (capture/tips.ts). */
 export const CUES = ['Title', 'Heading', 'Bullet point', 'Check box', 'Bold … end bold', 'New paragraph'] as const;
-
-/** A voice memo, as the recording chapter says it: the cue, the sound kept, the cue that ends it (capture/voiceMemo.ts). */
-export const MEMO = { start: 'Voice memo', end: 'End memo' } as const;
 
 const quoted = (words: string) => `“${words}”`;
 
@@ -124,11 +127,7 @@ Talk the way you would to a person. Ghost.md listens for a cue at the start of a
 
 ${CUES.map((cue) => `- ${quoted(cue)}`).join('\n')}
 
-A pause of a couple of seconds starts a new paragraph by itself, and a cue said on its own waits for the next thing you say. Every mark has its words: [[${SAMPLE_TITLE}]] gives each one.
-
-## Keeping the sound
-
-Say ${quoted(MEMO.start)}, then whatever should be kept as it sounds, a tune or a name nobody can spell, then ${quoted(MEMO.end)}. That stretch is kept as sound rather than words, with a small player where you said it.
+A pause of a couple of seconds starts a new paragraph by itself, and a cue said on its own waits for the next thing you say. Every mark has its words: the Formatting cheat sheet gives each one, and [[${SAMPLE_TITLE}]] shows them at work.
 
 ## Stopping
 
@@ -143,7 +142,7 @@ A recording can also be a command: see [[${COMMAND_TITLE}]].
 
 const command = `# ${COMMAND_TITLE}
 
-Start a recording with “Hey Ghost”, and what follows is a command rather than the note's words. “Glyph” still works too.
+A recording can be a command rather than the note's words. Start it with “Hey Ghost”, and what follows is read as one; “Glyph” still works too. A recording that starts with a command's own words, such as “Add … to …” or “Make a list called …”, is read as one even without “Hey Ghost”.
 
 ## The commands
 
@@ -151,15 +150,11 @@ ${COMMANDS.map((c) => `- **${quoted(c.say)}** ${c.does}`).join('\n')}
 
 Say the note's name the way you would say it: capitals and punctuation don't matter. A command is the whole recording, so say it and then stop.
 
-Nothing is written until you have seen it. A card shows exactly what will change, and waits for you to tap **Add**, or **Create** for a new list. **Cancel** leaves everything as it was. When no note answers to the name, or two do, nothing changes, and Ghost.md says why.
+Nothing is written until you have seen it. A card names the note and shows exactly what will change, and waits for you to tap **Add**, or **Create** for a new list. **Cancel** leaves everything as it was. When the name matches no note, or more than one, no card comes up, and nothing is added to any note.
 
 ## Asking the AI
 
 Said into a note's own microphone, “Hey Ghost” and what you want is an ask about that note: ${quoted(ASKS[0]!.say)}, or ${quoted(FREE_ASK)}. The note opens with the AI at work on it. [[${AI_TITLE}]] has the rest.
-
-## Without the words
-
-In Settings, under Recording, **Commands start with “hey Ghost”** can be turned off. Then a command can be said without the words, and it still asks first.
 `;
 
 const ai = `# ${AI_TITLE}
@@ -244,7 +239,7 @@ A book is notes in an order, with an index. You are reading one: this guide is a
 
 ## The index
 
-A book is a note whose front matter says \`book: true\`, and its index is a list of links to its chapters, each name in double square brackets, in order. A chapter indented under another is part of it, and numbered under it. Words that are not chapters stay above the index as the book's own.
+A book is a note whose front matter says \`book: true\`, and its index is a list of links to its chapters, each name in double square brackets, in order. A chapter indented under another is part of it, and numbered under it. Words that are not chapters stay above or below the index as the book's own.
 
 A chapter is any note, found by its name. A name with no note yet is a chapter still to be written: open it, and the note is made.
 
@@ -339,7 +334,7 @@ A plugin adds something to Ghost.md, and each has a switch in Settings, under Pl
 
 ## The ones that come with Ghost.md
 
-- **Marks**: Ghost.md's own marks on top of Markdown: a spoiler in smoke, a highlight, an aside, a doubt, a shout, an addition, and five effects, heat, frost, a wave, a shimmer and a haunting. [[${SAMPLE_TITLE}]] has every one.
+- **Marks**: Ghost.md's own marks on top of Markdown: a spoiler in smoke, a highlight, an aside, a doubt, a shout, an addition, and five effects, heat, frost, a wave, a shimmer and a haunting. The Formatting cheat sheet has every one, and [[${SAMPLE_TITLE}]] shows them.
 - **Notion**: a note's list items become tasks on your Notion boards. Swipe an item to send it, or send the whole list from the note's More sheet, under Linked to.
 - **GitHub**: links a note to a repository. Its list items become issues you can tick off from either side, and the repository is read on the phone into a short briefing, so its names come out right when the note is formatted.
 - **Claude**: read, add to and change your notes from Claude, through Ghost.md's MCP server. Its page in Settings says how to connect it.

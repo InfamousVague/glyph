@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { readInstruction } from '../../ai/instruction.ts';
 import { kindWords } from '../../ai/kinds.ts';
 import { bookWords, chaptersOf, isBookBody, numbered } from '../../book/book.ts';
+import { finalCommandWords } from '../../capture/command.ts';
 import { tips } from '../../capture/tips.ts';
-import { endsMemo, startsMemo } from '../../capture/voiceMemo.ts';
 import { itemsIn, boardsIn } from '../../core/boards.ts';
 import { SAMPLE_TITLE, sampleNoteBody } from '../../core/sampleNote.ts';
 import { createNote, listNotes, newNoteId, noteTitle } from '../../core/store.ts';
@@ -16,7 +16,7 @@ import { wikiLinksIn } from '../../editor/wikiLinks.ts';
 import { MODES } from '../../format/modes.ts';
 import { BUILT_IN } from '../../plugins/registry.ts';
 import { GUIDE_PAGES, THE_GUIDE_TITLE, addTheGuide, theGuideBody } from './book.ts';
-import { ASKS, COMMANDS, CUES, FREE_ASK, MEMO, OWN_CHAPTERS } from './chapters.ts';
+import { ASKS, COMMANDS, CUES, FREE_ASK, OWN_CHAPTERS } from './chapters.ts';
 
 /**
  * Ghost.md: The Guide may only teach what the app does. Its index is read the way a book's is (book/book.ts); every
@@ -123,16 +123,34 @@ describe('what the guide says to say', () => {
     }
   });
 
+  it('gives the same commands without “Hey Ghost”, as the chapter says, since a recording that starts like one is one', async () => {
+    for (const command of COMMANDS) {
+      const bare = command.say.replace(/^Hey Ghost, /, '');
+      const read = await readInstruction(bare[0]!.toUpperCase() + bare.slice(1), library);
+      expect(read.kind, bare).toBe('command');
+      if (read.kind === 'command') expect(read.plan.kind, bare).toBe(command.kind);
+    }
+  });
+
+  it('brings up no card for a name no note has, or two notes have, so nothing is added to any note', async () => {
+    const twice = [...library, { id: 'g2', title: 'Groceries', note: { body: '# Groceries\n' } }];
+    expect((await readInstruction('Hey Ghost, add bread to Shopping', library)).kind).not.toBe('command');
+    expect((await readInstruction('Hey Ghost, add bread to Groceries', twice)).kind).not.toBe('command');
+  });
+
   it('gives asks the AI runs, each the run the chapter names, and a free ask it takes as words for the AI', async () => {
     for (const ask of ASKS) expect(await readInstruction(ask.say, library), ask.say).toEqual({ kind: 'run', run: ask.run });
     expect(await readInstruction(FREE_ASK, library)).toEqual({ kind: 'ask', instruction: FREE_ASK.replace('Hey Ghost, ', '') });
+    // Not a command's words, so neither the command reader nor its model is asked, and it cannot be refused as one.
+    expect(finalCommandWords(FREE_ASK)).toBeNull();
   });
 
-  it('names cues the recorder suggests itself, and a voice memo it keeps as sound', () => {
+  it('names cues the recorder suggests itself, and no voice memo, whose cue a finished recording keeps as words', () => {
     const said = tips({ continuing: false }).map((tip) => tip.say);
     for (const cue of CUES) expect(said, cue).toContain(cue);
-    expect(startsMemo(MEMO.start)).toBe(true);
-    expect(endsMemo(MEMO.end)).toBe(true);
+    // The memo cue is read phrase by phrase (capture/take.ts `phrase`), which the recorder no longer calls: until it
+    // does, "voice memo … end memo" is written down as words, and the guide does not teach it.
+    expect(everything).not.toMatch(/voice memo|end memo/i);
   });
 });
 
