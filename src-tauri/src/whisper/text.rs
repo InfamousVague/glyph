@@ -93,15 +93,15 @@ pub fn clean(raw: &str) -> String {
 /// sentence of its own and a phrase carried across a cut started over in
 /// capitals (`tests::a_prompt_tail_carries_a_sentence_across_the_cut`).
 pub const CUE_VOCABULARY: &str = "Glyph. Title. Heading. Bullet point. Number one. Check box. To do. Quote. \
-    Important. Bold, end bold. Italics, end italics. Divider. New paragraph. \
-    Create list. Add to list. Called. Groceries. Grocery list.";
+    Important. Bold, end bold. Italics, end italics. Divider. New paragraph.";
 
 /// The cues added since, spoken far less often: in the prompt only where a sentence has just ended, since any word
 /// past the short list above made base.en start a sentence cut in two with a capital (the prompt-tail test in
 /// tests.rs), and a cue only ever starts a sentence anyway.
 pub const MORE_CUES: &str = "Subheading. Option. Info box. Hidden line. Calculate. Hashtag. Counter. \
     Strike, end strike. Code, end code. Note link, end link. Voice memo, end memo. \
-    Done task. Footnote. Code block. Superscript. Subscript. Maths. Emoji. Anchor. Item link. Bookmark this. New line. Define.";
+    Done task. Footnote. Code block. Superscript. Subscript. Maths. Emoji. Anchor. Item link. Bookmark this. New line. Define. \
+    Create list. Add to list. Called. Groceries. Grocery list.";
 
 /// The prompt for the next window: the cue vocabulary, then the committed tail.
 pub fn prompt(committed: &str, tail_chars: usize) -> String {
@@ -271,7 +271,7 @@ mod tests {
     fn the_vocabulary_is_one_line_of_cue_sentences() {
         // The `\` continuation must not leave a run of spaces in the prompt.
         assert!(!CUE_VOCABULARY.contains("  "), "{CUE_VOCABULARY:?}");
-        assert_eq!(sentences(CUE_VOCABULARY).count(), 18);
+        assert_eq!(sentences(CUE_VOCABULARY).count(), 13);
         assert!(!MORE_CUES.contains("  "), "{MORE_CUES:?}");
     }
 
