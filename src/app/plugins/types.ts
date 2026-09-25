@@ -46,7 +46,11 @@ export interface PluginManifest {
   author: string;
   /** Ships with Glyph and is on until switched off. */
   standard: boolean;
-  /** Everything it may do, each with the reason shown to the person. */
+  /**
+   * Everything it may do, each with the reason shown to the person. The host holds a plugin to the ones it uses, and
+   * the registry to the ones its extension points need; one can also be said only so the card is honest about what
+   * the plugin reaches from off the phone, as Claude's are (claude/index.tsx), with nothing here that exercises it.
+   */
   permissions: readonly { kind: Permission; why: string }[];
   /** The outside hosts it talks to, shown with the network permission. */
   hosts?: readonly string[];
