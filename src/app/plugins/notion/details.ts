@@ -84,7 +84,7 @@ interface DatabaseSchema {
 }
 
 /** Each stage's status options, in the board's order. */
-export function stageOptionsOf(schema: DatabaseSchema): StageOptions {
+function stageOptionsOf(schema: DatabaseSchema): StageOptions {
   const options: StageOptions = { todo: [], doing: [], done: [] };
   for (const property of Object.values(schema.properties ?? {})) {
     if (property.type !== 'status' || !property.status) continue;
@@ -104,7 +104,7 @@ export function stageOptionsOf(schema: DatabaseSchema): StageOptions {
  * What a page's properties are called, for changing them: its title, and what
  * says it's done (a status or a Done checkbox).
  */
-export function writablesOf(page: NotionPage): { title: string | null; done: { name: string; kind: 'status' | 'checkbox' } | null } {
+function writablesOf(page: NotionPage): { title: string | null; done: { name: string; kind: 'status' | 'checkbox' } | null } {
   const entries = Object.entries(page.properties ?? {});
   const title = entries.find(([, value]) => value.type === 'title')?.[0] ?? null;
   const status = entries.find(([, value]) => value.type === 'status')?.[0];
@@ -113,7 +113,7 @@ export function writablesOf(page: NotionPage): { title: string | null; done: { n
 }
 
 /** Where a Notion address points, for links that aren't marks: notion.so, notion.site or app.notion.com, with a page id. */
-export function isNotionPageUrl(url: string): boolean {
+function isNotionPageUrl(url: string): boolean {
   try {
     const host = new URL(url).hostname.toLowerCase();
     const notion = host === 'notion.so' || host.endsWith('.notion.so') || host.endsWith('.notion.site') || host === 'app.notion.com';
@@ -255,11 +255,16 @@ export function detailsOf(page: NotionPage, stages: StageMap | null, now = Date.
 
 // ---- the provider -----------------------------------------------------------------------------
 
+/** Each board's statuses, by the database's id: read once, and null for a board whose schema would not read. */
 const boards = new Map<string, { stages: StageMap; options: StageOptions } | null>();
 /** Per page: its property names for writing back, and its board. Kept in memory; a read fills it. */
 const writables = new Map<string, ReturnType<typeof writablesOf> & { board: string | null }>();
 
-async function boardFor(databaseId: string | undefined | null): Promise<{ stages: StageMap; options: StageOptions } | null> {
+/**
+ * A board's statuses by stage and by option, read once per database. Not client.ts's `boardFor`, which answers the
+ * board a note sends its list to.
+ */
+async function boardStatusesOf(databaseId: string | undefined | null): Promise<{ stages: StageMap; options: StageOptions } | null> {
   if (!databaseId) return null;
   if (boards.has(databaseId)) return boards.get(databaseId) ?? null;
   const schema = await notionRequest<DatabaseSchema>('GET', `databases/${databaseId}`).catch(() => null);
@@ -272,7 +277,7 @@ async function boardFor(databaseId: string | undefined | null): Promise<{ stages
 async function read(id: string, url: string): Promise<MarkDetails> {
   const page = await notionRequest<NotionPage>('GET', `pages/${id}`);
   const databaseId = page.parent?.type === 'database_id' ? (page.parent.database_id ?? null) : null;
-  const board = await boardFor(databaseId);
+  const board = await boardStatusesOf(databaseId);
   writables.set(id, { ...writablesOf(page), board: databaseId });
   return { ...detailsOf(page, board?.stages ?? null), url: page.url ?? url };
 }
@@ -339,7 +344,7 @@ async function setDone(id: string, url: string, done: boolean): Promise<string> 
   if (write.done.kind === 'checkbox') {
     value = { checkbox: done };
   } else {
-    const board = await boardFor(write.board);
+    const board = await boardStatusesOf(write.board);
     const name = done ? board?.options.done[0] : (board?.options.todo[0] ?? board?.options.doing[0]);
     if (!name) throw new Error('Ghost.md couldn’t read this board’s statuses.');
     value = { status: { name } };

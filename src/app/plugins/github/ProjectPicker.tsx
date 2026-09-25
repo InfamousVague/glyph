@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { failureText } from '../../core/failure.ts';
 import { SheetField, SheetGroup, SheetHeading, SheetNote, SheetRow, SheetTitle } from '../kit.tsx';
 import { RepoMark } from './marks.tsx';
-import { addProject, githubToken, linkProject, projectFor, projects, setGithubToken, type Project, type Step } from './repos.ts';
+import { addProject, githubToken, linkProject, projectFor, projects, setGithubToken, type Project, type ReadStep } from './repos.ts';
 
 /**
  * The projects kept on this phone, one to link to a note, and a way to add
@@ -15,7 +15,7 @@ export function ProjectPicker({ noteId, onDone }: { noteId: string; onDone: () =
   const [link, setLink] = useState('');
   const [token, setToken] = useState(() => githubToken());
   const [showToken, setShowToken] = useState(false);
-  const [step, setStep] = useState<Step | null>(null);
+  const [step, setStep] = useState<ReadStep | null>(null);
   const [trouble, setTrouble] = useState<string | null>(null);
 
   const choose = (project: Project | null) => {
@@ -103,7 +103,7 @@ export function ProjectPicker({ noteId, onDone }: { noteId: string; onDone: () =
   );
 }
 
-function describeStep(step: Step): string {
+function describeStep(step: ReadStep): string {
   switch (step.kind) {
     case 'reading':
       return 'Asking GitHub about the repo…';
