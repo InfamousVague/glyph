@@ -75,8 +75,7 @@ export function useTape(note: Note): Tape {
       } else setAt(now);
     }, 100);
     return () => window.clearInterval(timer);
-    // The clock starts from where the playhead was when Play was pressed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the clock starts from where the playhead was when Play was pressed, so `at` is read then and not followed
   }, [web, playing, length]);
 
   // Leaving the note stops the tape.
