@@ -43,7 +43,7 @@ import { boardFrom, lanesOf } from '../core/boards.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { CaptureContext } from '../plugins/types.ts';
-import { starters, tips, TIP_AFTER_MS, type Starters, type Tip } from './tips.ts';
+import { starters, tips, TIP_AFTER_MS, type Tip } from './tips.ts';
 import { SayCard } from './SayCard.tsx';
 import { SideKeyWaves } from './SideKeyWaves.tsx';
 import { publishVoiceLevel } from './voiceLevel.ts';
@@ -245,8 +245,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** When words were last heard, for the tips in a pause. */
   const lastHeard = useRef(performance.now());
   const [tip, setTip] = useState<Tip | null>(null);
-  /** The card of things to say while the microphone waits for a first word (SayCard.tsx), with the person's own notes named once they are read. */
-  const [say, setSay] = useState<Starters>(() => starters({ keyword: preferences().commandWord }));
+  /** The notes have been read into `candidates`: the card of things to say can name one (SayCard.tsx). */
+  const [notesRead, setNotesRead] = useState(false);
   const tipTurn = useRef(0);
   const savedDraft = useRef(false);
   const finished = useRef(false);
@@ -331,10 +331,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           .filter((c) => c.title);
         // "Note link weekend trip end link" takes the note's own spelling.
         setLinkTitles(candidates.current.map((c) => c.title));
-        // The card names one of their notes, and a book if the library has one: the command reads better with a real title.
-        const recent = candidates.current.find((c) => c.id !== noteId.current)?.title ?? null;
-        const book = candidates.current.find((c) => c.id !== noteId.current && isBookBody(c.note.body))?.title ?? null;
-        setSay(starters({ noteTitle: recent, keyword: commandWordOn(), book }));
+        setNotesRead(true);
       })
       .catch(() => undefined);
     return () => {
@@ -949,8 +946,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       const commanding = take.commanding;
       take.tick(now);
       if (!commanding && quiet.current?.due(now)) void finishRef.current();
-      // A pause: one tip, until words come again.
-      if (now - lastHeard.current > TIP_AFTER_MS) {
+      // A pause, once there are words: one tip, until words come again. Before the first word the card of things to
+      // say is up instead (SayCard.tsx), and a tip picked under it would be spent unseen.
+      if (heardRef.current.length && now - lastHeard.current > TIP_AFTER_MS) {
         setTip((showing) => {
           if (showing) return showing;
           const recent = candidates.current.find((c) => c.id !== noteId.current)?.title ?? null;
@@ -1122,6 +1120,24 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
   // ---- the line at the top -----------------------------------------------------------
   const locked = isLocked();
+  /*
+   * The card of things to say while the microphone waits (SayCard.tsx, capture/tips.ts `starters`). Worked out at
+   * render rather than once: which note it names must not be the one being written to (the note's own Speak, or the
+   * one the take just moved to), over the lock screen it names none, as the rest of the page keeps the note's words
+   * off it, and the asks are offered only where an ask said first is run - a note's own Speak, unlocked (`finish`).
+   */
+  const say = useMemo(() => {
+    const own = target?.id ?? noteId.current;
+    const others = locked || !notesRead ? [] : candidates.current.filter((c) => c.id !== own);
+    return starters({
+      noteTitle: others[0]?.title ?? null,
+      keyword: commandWordOn(),
+      book: others.find((c) => isBookBody(c.note.body))?.title ?? null,
+      asking: target !== null && !locked,
+    });
+    // `candidates` and `noteId` are refs: `notesRead` says when the first was filled, `moves` when the second changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, locked, notesRead, moves]);
   let status: string | null = null;
   if (phase === 'failed') status = error ?? 'Could not start';
   else if (download) status = `Downloading voice model ${Math.round(download.received / 1e6)} / ${Math.round(download.total / 1e6)} MB`;

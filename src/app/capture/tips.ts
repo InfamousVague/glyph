@@ -4,13 +4,18 @@
  *
  * Two shapes. Before the first word, a card of them (`starters`, drawn by
  * SayCard.tsx; Matt: "when I open the AI page, I should see a list of
- * suggested prompts / commands"): one of each kind, so the whole of what can
- * be said is on the page while the microphone waits. Then, in a pause
+ * suggested prompts / commands"): a couple of each kind, so the whole of what
+ * can be said is on the page while the microphone waits. Then, in a pause
  * (`tips`), one line at a time, never the same one twice in a row, gone when
  * talking resumes. The list follows the cues `markdown.ts` actually
- * understands and the asks `ai/instruction.ts` reads, so a tip is always
+ * understands and the commands `capture/command.ts` reads, so a tip is always
  * something that works. The routing tip names one of your own notes, which
  * teaches the command better than a made-up title.
+ *
+ * The asks the AI takes (`ASKS`) are on the card alone, and only when the
+ * recording is a note's own Speak: an ask is read from the whole take
+ * (ai/instruction.ts `bareWords` wants the keyword to open it), so it is
+ * something to say first, into a note that exists, not a cue for a pause.
  */
 
 export interface Tip {
@@ -57,13 +62,14 @@ const CUES: readonly Tip[] = [
 ];
 
 /**
- * The asks the AI takes, said into a recording (ai/instruction.ts `runOf`): the words are read as an instruction
- * rather than written into the note, and the run lands in the note once it is open, marked until kept or reverted.
+ * The asks the AI takes, said first into a note's own Speak (ai/instruction.ts `runOf`; CaptureScreen.tsx `finish`):
+ * the words are read as an instruction rather than written into the note, the take is let go, and the run lands in
+ * the note as it opens, every change marked until kept or reverted. Each is held to the reader's rules by a test.
  */
-const ASKS: readonly { say: string; does: string }[] = [
-  { say: 'Fix the spelling', does: 'and the note is checked once it opens, every change marked' },
+export const ASKS: readonly Tip[] = [
+  { say: 'Fix the spelling', does: 'and the note is checked as it opens, every change marked' },
   { say: 'Summarize this', does: 'for the point of the note in far fewer words' },
-  { say: 'Make this a list', does: 'to shape what was said into a list, or “a table”, or “tasks”' },
+  { say: 'Make this a list', does: 'to shape what was said into tasks, a list or a table' },
   { say: 'Tidy this up', does: 'to format the note, keeping every word that matters' },
   { say: 'Carry on', does: 'and the AI writes on from the last line in the note’s own voice' },
 ];
@@ -100,14 +106,14 @@ export function tips({
   if (noteTitle) route.push({ say: say(`Add a table to ${noteTitle}`), does: 'and it asks for the columns and rows' });
   if (book) route.push({ say: say(`Add a chapter to ${book}`), does: 'and then its name, to put a page in that book' });
   else route.push({ say: say('Make a book called …'), does: 'to start a book; name notes after “with” to be its pages' });
-  // The asks join the commands: the keyword marks them as an instruction rather than the note's words.
-  ASKS.forEach((ask) => route.push({ say: say(ask.say), does: ask.does }));
-  // Routing first and then every few cues, since it is the least discoverable.
+  // Routing first and then every few cues, since it is the least discoverable; a routing line the cues leave no slot
+  // for (a note with a board names its lanes too) comes round after them rather than never.
   const out: Tip[] = [];
   CUES.forEach((cue, i) => {
     if (i % 3 === 0 && route[i / 3]) out.push(route[i / 3]!);
     out.push(cue);
   });
+  out.push(...route.slice(Math.ceil(CUES.length / 3)));
   return out;
 }
 
@@ -117,7 +123,7 @@ export interface Starters {
   shape: Tip[];
   /** Where to send it: adding to a note by name, and moving the recording. */
   send: Tip[];
-  /** What to ask the AI to do with it once it is a note. */
+  /** What to ask the AI to do with the note; empty where an ask cannot run. */
   ask: Tip[];
 }
 
@@ -125,21 +131,33 @@ export interface Starters {
 const EACH = 2;
 
 /**
- * The card's suggestions, one kind at a time (SayCard.tsx). Without a note to name, the sending lines are the ones
- * that make something new, so a first recording still sees that a recording can go somewhere.
+ * The card's suggestions, a couple of each kind (SayCard.tsx). The sending pair names a note of theirs when there is
+ * one to name, and a book's chapter over moving the recording when the library has a book; with nothing to name, the
+ * pair makes something new, so a first recording still sees that a recording can go somewhere. The asks are there
+ * only when `asking`: the recording is a note's own Speak, not over the lock screen, which is the one case an ask said
+ * first is run (CaptureScreen.tsx `finish`); a new recording is given none rather than a line that would end as a
+ * note of the command's words.
  */
-export function starters({ noteTitle, keyword = true, book = null }: { noteTitle?: string | null; keyword?: boolean; book?: string | null }): Starters {
+export function starters({
+  noteTitle,
+  keyword = true,
+  book = null,
+  asking = false,
+}: {
+  noteTitle?: string | null;
+  keyword?: boolean;
+  book?: string | null;
+  asking?: boolean;
+}): Starters {
   const say = (command: string) => (keyword ? `Hey Ghost, ${command.charAt(0).toLowerCase()}${command.slice(1)}` : command);
-  const send: Tip[] = [];
-  if (noteTitle) send.push({ say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' });
-  if (noteTitle) send.push({ say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' });
-  send.push({ say: say('Make a list called …'), does: 'and then its items, for a new note that is a list' });
-  if (book) send.push({ say: say(`Add a chapter to ${book}`), does: 'and then its name, to put a page in that book' });
-  else send.push({ say: say('Make a book called …'), does: 'to start a book' });
+  const chapter: Tip | null = book ? { say: say(`Add a chapter to ${book}`), does: 'and then its name, to put a page in that book' } : null;
+  const send: Tip[] = noteTitle
+    ? [{ say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' }, chapter ?? { say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' }]
+    : [{ say: say('Make a list called …'), does: 'and then its items, for a new note that is a list' }, chapter ?? { say: say('Make a book called …'), does: 'to start a book' }];
   return {
     shape: CUES.slice(0, EACH),
     send: send.slice(0, EACH),
-    ask: ASKS.slice(0, EACH).map((ask) => ({ say: say(ask.say), does: ask.does })),
+    ask: asking ? ASKS.slice(0, EACH).map((ask) => ({ say: say(ask.say), does: ask.does })) : [],
   };
 }
 

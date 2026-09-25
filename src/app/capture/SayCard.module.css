@@ -67,8 +67,17 @@
   font-weight: var(--glacier-font-weight-semibold);
 }
 
-/* A phone held upright has the room for three groups; a short window (a folded phone on its side) keeps one line each. */
+/*
+ * A phone held upright has the room for the whole card; a short window (a folded phone on its side) keeps one line a
+ * group, loses the title, and closes up, so the page above it keeps its hint and a line to start talking on.
+ */
 @media (max-height: 560px) {
+  .card {
+    gap: var(--glacier-space-1);
+    padding-block: var(--glacier-space-2);
+  }
+
+  .title,
   .line:nth-child(n + 2) {
     display: none;
   }
