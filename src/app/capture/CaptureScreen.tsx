@@ -688,7 +688,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       take.listen(segment);
       heardRef.current.push(segment.text);
     }
-    const { plain } = renderNote(spoken);
     const locked = isLocked();
 
     // The one reader for an instruction, spoken here or typed into a note's bar (ai/instruction.ts).
@@ -727,14 +726,17 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // A command's change still landing, or the take carrying on elsewhere: written before the note is.
     await writer.settled();
 
-    if (!plain.trim() && !take.tables.length && !take.clips.length) {
+    // Nothing that lays out as anything - no words, no table, no voice memo - leaves nothing behind. Asked of the
+    // laid-out words, not the transcript: a cue said alone ("Bullet point.", or Whisper echoing its prompt on
+    // silence) is held for a sentence that never comes, and saved from the transcript it made an empty note.
+    const markdown = take.markdown({ titled: !writer.target, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
+    if (!markdown.trim()) {
       await writer.undoDraft();
       endCapture(locked);
       onFinish(null, locked);
       return;
     }
 
-    const markdown = take.markdown({ titled: !writer.target, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
     const saved = await writer.queue(async () => writer.persist(writer.noteId, await writer.compose(markdown), 'capture'));
     let refineJob: ReviewHandoff['job'] = null;
     if (stopped.recordedMs !== null && session.current?.keepsAudio) {

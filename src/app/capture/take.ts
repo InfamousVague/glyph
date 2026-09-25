@@ -639,12 +639,12 @@ export class Take<N extends TakeNote> {
   }
 
   /**
-   * Whether there is anything to save: a phrase with words in it, a table, or a voice memo. Read from the transcript,
-   * not the laid-out note, as the recorder's Done reads it, so a cue said alone - which is held for a sentence that
-   * never comes, and lays out as nothing - still counts.
+   * Whether there is anything to save: words that lay out as something, a table, or a voice memo. Read from the
+   * laid-out note, as the recorder's Done reads it, so a cue said alone - held for a sentence that never comes - is
+   * nothing to save.
    */
   get hasContent(): boolean {
-    return renderNote(this.segments).plain.trim() !== '' || this.tables.length > 0 || this.clips.length > 0;
+    return renderNote(this.segments).markdown.trim() !== '' || this.tables.length > 0 || this.clips.length > 0;
   }
 
   /** The take's markdown: its words as the cues lay them out, with tables after them and links applied by `link`. */

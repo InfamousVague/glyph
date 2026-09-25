@@ -57,4 +57,11 @@ describe('what a take has to save', () => {
     clips.clips = [said('![voice 0:01](tape:0-1000)', 0)];
     expect(clips.hasContent).toBe(true);
   });
+
+  it('is not a cue said on its own, which is held for a sentence that never comes', () => {
+    const take = new Take(quietHost());
+    take.listen(said('Bullet point.', 0));
+    expect(take.segments).toHaveLength(1);
+    expect(take.hasContent).toBe(false);
+  });
 });

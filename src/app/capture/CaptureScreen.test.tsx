@@ -223,6 +223,17 @@ describe('ending a recording', () => {
     expect(await listNotes()).toEqual([]);
   });
 
+  it('leaves nothing behind when all that was heard is a cue said alone, as Whisper echoing its prompt makes', async () => {
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Bullet point.' });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    await say('Bullet point.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
+    expect(await listNotes()).toEqual([]);
+  });
+
   it('refuses a command that names a note there is none of, and saves none of its words', async () => {
     await createNote('work', 'Work');
     capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Add to shopping, oat milk.' });
