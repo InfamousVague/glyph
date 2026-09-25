@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { markGroups } from './marks.ts';
-import { GUIDE_MARKS_PAGE, GUIDE_PAGES } from './pages.ts';
+import { GUIDE_PAGES } from './pages.ts';
 import { BUILT_IN } from '../plugins/registry.ts';
 
 const rows = () => markGroups().flatMap((group) => group.rows);
 
 describe('the guide’s table of marks', () => {
   it('has a page of its own in the walkthrough', () => {
-    expect(GUIDE_PAGES).toContain('marks');
-    expect(GUIDE_MARKS_PAGE).toBeGreaterThan(0);
+    expect(GUIDE_PAGES.indexOf('marks')).toBeGreaterThan(0);
   });
 
   it('shows every mark the app writes, each with its own example', () => {
