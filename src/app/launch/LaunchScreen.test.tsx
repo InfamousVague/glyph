@@ -7,11 +7,18 @@ let native = false;
 vi.mock('../core/tauri.ts', () => ({ isTauri: () => native }));
 const { LaunchScreen } = await import('./LaunchScreen.tsx');
 
+/** The ring's geometry, which jsdom's SVG has none of: stood in by the tests that draw the eyes, and taken away after each. */
+const ringProto = SVGElement.prototype as unknown as { getTotalLength?: () => number; getPointAtLength?: (n: number) => DOMPoint };
+
 let host: HTMLDivElement | null = null;
 afterEach(() => {
   // Unmounted before the real clock is back, so the tree's cleanup clears its timers on the fake clock that set them.
   unmount();
   vi.useRealTimers();
+  // Here rather than at each test's end, so a failing assertion cannot leave them for the files after this one.
+  vi.restoreAllMocks();
+  delete ringProto.getTotalLength;
+  delete ringProto.getPointAtLength;
 });
 
 const updates = (over: Partial<Updates> = {}): Updates =>
@@ -44,6 +51,20 @@ describe('the screen opening shows', () => {
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
+  it('stops holding the door for an update check that never answers, three seconds on', () => {
+    vi.useFakeTimers();
+    native = true;
+    const onDone = vi.fn();
+    host = show(<LaunchScreen loading={false} notes={2} updates={updates({ checking: true })} sync={sync} onDone={onDone} />);
+    act(() => void vi.advanceTimersByTime(2900));
+    expect(text()).toContain('Checking for updates');
+    expect(host!.querySelector('svg')!.hasAttribute('data-finishing')).toBe(false);
+    act(() => void vi.advanceTimersByTime(1000));
+    expect(host!.querySelector('svg')!.hasAttribute('data-finishing')).toBe(true);
+    act(() => void vi.advanceTimersByTime(300));
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
   it('shows no update line where no check runs, and doesn’t wait for one', () => {
     vi.useFakeTimers();
     native = true;
@@ -63,9 +84,8 @@ describe('the ghost on the screen', () => {
     // The DOM here has no geometry and no frames: the ring answers with the point the test puts the bar at, and the
     // frames are run by hand.
     let target = { x: 124, y: 66 };
-    const proto = SVGElement.prototype as unknown as { getTotalLength?: () => number; getPointAtLength?: (n: number) => DOMPoint };
-    proto.getTotalLength = () => 400;
-    proto.getPointAtLength = () => ({ x: target.x, y: target.y }) as DOMPoint;
+    ringProto.getTotalLength = () => 400;
+    ringProto.getPointAtLength = () => ({ x: target.x, y: target.y }) as DOMPoint;
     const frames: FrameRequestCallback[] = [];
     const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => frames.push(cb));
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
@@ -93,16 +113,13 @@ describe('the ghost on the screen', () => {
     // And the bar is moved on the same clock.
     expect(host!.querySelector('path[data-driven]')).toBeTruthy();
     raf.mockRestore();
-    delete proto.getTotalLength;
-    delete proto.getPointAtLength;
   });
 
   it('once the app is open, looks out of the screen and winks, then goes', () => {
     native = false;
     vi.useFakeTimers();
-    const proto = SVGElement.prototype as unknown as { getTotalLength?: () => number; getPointAtLength?: (n: number) => DOMPoint };
-    proto.getTotalLength = () => 400;
-    proto.getPointAtLength = () => ({ x: 124, y: 66 }) as DOMPoint;
+    ringProto.getTotalLength = () => 400;
+    ringProto.getPointAtLength = () => ({ x: 124, y: 66 }) as DOMPoint;
     const frames: FrameRequestCallback[] = [];
     const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => frames.push(cb));
     let clock = performance.now();
@@ -145,7 +162,5 @@ describe('the ghost on the screen', () => {
     run(300);
     expect(onDone).toHaveBeenCalledTimes(1);
     raf.mockRestore();
-    delete proto.getTotalLength;
-    delete proto.getPointAtLength;
   });
 });
