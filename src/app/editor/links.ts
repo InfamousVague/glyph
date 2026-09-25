@@ -1,12 +1,12 @@
-import { RangeSetBuilder, StateEffect, type Extension } from '@codemirror/state';
+import { RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
-import { boardsIn, itemsIn } from '../core/boards.ts';
 import { itemWords, markOf } from '../core/itemLinks.ts';
 import { AFTER_MARK } from '../core/itemSyntax.ts';
-import { hasMarkDetails, markNameFor, onMarkDetails, peekMarkDetails, wantMarkDetails, type MarkEntry } from '../core/markDetails.ts';
+import { hasMarkDetails } from '../core/markDetails.ts';
 import { shortUrl } from '../core/shortUrl.ts';
 import { capitalise } from '../core/text.ts';
+import { detailsArrived, markReads } from './markReads.ts';
 
 /**
  * Links, shortened: `notion.so/att…b3c` in place of the whole address.
@@ -36,75 +36,36 @@ import { capitalise } from '../core/text.ts';
  * mark itself steps aside: the item's row of pills under it says what it is
  * linked to and what that is doing, and opens its menu (editor/linkedRows.ts).
  * The pill here is for a mark whose plugin is off, or one that reads nothing.
- * Either way this plugin asks for the details of every linked thing in view:
- * on opening, on coming back to the front, and once a minute while the note
- * is open.
+ * Either way the details of every linked thing in view are asked for, and
+ * their answers drawn, by editor/markReads.ts, which `shortLinks` installs
+ * beside it.
  */
 
-/** Details arrived from a plugin: redraw the pills and rows. */
-export const detailsArrived = StateEffect.define<null>();
-
-const STAGE_WORDS = { todo: 'To do', doing: 'In progress', done: 'Done' } as const;
-
-/** What the pill shows for an entry, as one string, so a widget is redrawn only when that changes. */
-function faceKey(entry: MarkEntry | null): string {
-  if (!entry) return '';
-  if (entry.state !== 'ready') return entry.state;
-  const { status, brief, gone, title } = entry.details;
-  return [status?.stage, status?.label, brief.join('·'), gone ? 'gone' : '', title].join('|');
-}
-
+/**
+ * The mark as one pill with its name on it, for a mark whose plugin is off or reads nothing: where one reads it, the
+ * row under the line carries the mark instead (`HiddenMark`, editor/linkedRows.ts), so what the plugin knows is never
+ * drawn here. The whole address is its title, for a long press to read.
+ */
 class ItemMark extends WidgetType {
-  readonly face: string;
-
   constructor(
     readonly name: string,
     readonly url: string,
-    readonly entry: MarkEntry | null,
   ) {
     super();
-    this.face = faceKey(entry);
   }
 
   eq(other: ItemMark): boolean {
-    return other.name === this.name && other.url === this.url && other.face === this.face;
+    return other.name === this.name && other.url === this.url;
   }
 
   toDOM(): HTMLElement {
     const span = document.createElement('span');
     span.className = 'cm-itemMark';
-    const part = (className: string, text?: string) => {
-      const piece = document.createElement('span');
-      piece.className = className;
-      if (text !== undefined) piece.textContent = text;
-      span.append(piece);
-      return piece;
-    };
-    part('cm-itemMark-name', capitalise(this.name));
-    const entry = this.entry;
+    const name = document.createElement('span');
+    name.className = 'cm-itemMark-name';
+    name.textContent = capitalise(this.name);
+    span.append(name);
     span.title = this.url;
-    if (entry?.state === 'ready') {
-      const { status, brief, gone, title } = entry.details;
-      span.title = title;
-      if (gone) {
-        span.dataset.gone = '';
-        part('cm-itemMark-status', 'In trash');
-      } else if (status) {
-        span.dataset.stage = status.stage;
-        part('cm-itemMark-stage').setAttribute('aria-hidden', 'true');
-        part('cm-itemMark-status', status.label || STAGE_WORDS[status.stage]);
-      }
-      if (!gone) {
-        for (const fact of brief) {
-          const piece = part('cm-itemMark-fact', fact);
-          if (fact.startsWith('Overdue')) piece.dataset.late = '';
-        }
-      }
-      span.setAttribute('aria-label', [this.name, gone ? 'in trash' : status?.label, ...brief].filter(Boolean).join(', '));
-    } else if (entry?.state === 'failed') {
-      span.dataset.failed = '';
-      span.title = entry.message;
-    }
     return span;
   }
 
@@ -165,62 +126,6 @@ function activeLines(view: EditorView): Set<number> {
   return lines;
 }
 
-const LINK = /\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g;
-
-/** Every linked thing in view, marks and links a plugin reads, for reading their details again. */
-function marksInView(view: EditorView): { name: string; url: string }[] {
-  const marks: { name: string; url: string }[] = [];
-  for (const { from, to } of view.visibleRanges) {
-    for (let pos = from; pos <= to; ) {
-      const line = view.state.doc.lineAt(pos);
-      const mark = itemWords(line.text) !== null ? markOf(line.text) : null;
-      if (mark) marks.push(mark);
-      else if (line.text.includes('](')) {
-        for (const match of line.text.matchAll(LINK)) {
-          const name = markNameFor(match[1] ?? '');
-          if (name) marks.push({ name, url: match[1] ?? '' });
-        }
-      }
-      pos = line.to + 1;
-    }
-  }
-  return [...marks, ...marksOnBoards(view)];
-}
-
-/**
- * The marks of the open to-dos on every board on screen.
- *
- * A board is drawn as one block in place of its fence (editor/boards.ts), so its lines are not among `visibleRanges`,
- * and its cards are items written further down the note, usually well out of view. Read only by their own lines, a
- * board being looked at never learned its tasks were done, so it never moved them (Matt: "a lot of the notion tickets
- * aren't moved to done"): his board had four cards in To do whose tasks were all Done in Notion, their items sixty
- * lines below it, and not one was read until they were scrolled to - then all four ticked and went to Done at once.
- *
- * Only the cards not ticked yet: what a board shows of a task is whether it is done, and those are the cards that can
- * move. The rest are read as ever when their own lines are in view. His board holds 66 cards, and reading every one
- * each minute the note is open would spend a third of what Notion allows Glyph, for four that could change.
- */
-function marksOnBoards(view: EditorView): { name: string; url: string }[] {
-  const { doc } = view.state;
-  const { viewport } = view;
-  const text = doc.toString();
-  const shown = boardsIn(text).filter((board) => doc.line(board.from).from <= viewport.to && doc.line(board.to).to >= viewport.from);
-  if (!shown.length) return [];
-  const open = new Map(itemsIn(text).filter((item) => item.done === false).map((item) => [item.id, item.line]));
-  const marks: { name: string; url: string }[] = [];
-  for (const board of shown) {
-    for (const column of board.columns) {
-      for (const id of column.cards) {
-        const number = open.get(id);
-        const line = number === undefined ? null : doc.line(number).text;
-        const mark = line !== null && itemWords(line) !== null ? markOf(line) : null;
-        if (mark) marks.push(mark);
-      }
-    }
-  }
-  return marks;
-}
-
 /** Whether what follows a link is nothing, or only a board's anchor (core/boards.ts): the link is then the item's mark. */
 function lastOnLine(after: string): boolean {
   return AFTER_MARK.test(after);
@@ -242,7 +147,7 @@ function decorate(view: EditorView): DecorationSet {
           const line = view.state.doc.lineAt(node.from);
           if (mark && text === `[${mark.name}](${mark.url})` && lastOnLine(line.text.slice(node.to - line.from)) && itemWords(line.text) !== null) {
             if (!active.has(line.number)) {
-              const widget = hasMarkDetails(mark.name) ? new HiddenMark() : new ItemMark(mark.name, mark.url, peekMarkDetails(mark.name, mark.url));
+              const widget = hasMarkDetails(mark.name) ? new HiddenMark() : new ItemMark(mark.name, mark.url);
               builder.add(node.from, node.to, Decoration.replace({ widget }));
             }
             return false;
@@ -260,73 +165,29 @@ function decorate(view: EditorView): DecorationSet {
   return builder.finish();
 }
 
-/** How often an open note reads its tasks again, while it is on screen. */
-const REREAD_MS = 60_000;
+/** Addresses shown short and marks as pills, drawn again whenever what they show may have moved. */
+const shortLinksPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
 
-/** `still`: the marks are drawn from what is already known and never read again - a note drawn small on a card. */
-function shortLinksPlugin(still: boolean) {
-  return ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet;
-      private readonly off: () => void;
-      private readonly timer: number | null;
-      private queued = false;
+    constructor(readonly view: EditorView) {
+      this.decorations = decorate(view);
+    }
 
-      constructor(readonly view: EditorView) {
-        this.decorations = decorate(view);
-        this.off = onMarkDetails(() => this.redraw());
-        if (still) {
-          this.timer = null;
-          return;
-        }
-        this.timer = window.setInterval(() => this.want(false), REREAD_MS);
-        document.addEventListener('visibilitychange', this.onVisible);
-        this.want(false);
+    update(update: ViewUpdate) {
+      // While an IME composes, the line's DOM must not be replaced (glyphLines.ts).
+      if (update.view.composing) {
+        if (update.docChanged) this.decorations = this.decorations.map(update.changes);
+        return;
       }
-
-      private readonly onVisible = () => {
-        if (document.visibilityState === 'visible') this.want(false);
-      };
-
-      /** Asks for the details of the marks in view: read again if old, or now. */
-      private want(fresh: boolean) {
-        if (document.visibilityState === 'hidden') return;
-        for (const mark of marksInView(this.view)) wantMarkDetails(mark.name, mark.url, fresh);
+      const arrived = update.transactions.some((tr) => tr.effects.some((effect) => effect.is(detailsArrived)));
+      if (arrived || update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) {
+        this.decorations = decorate(update.view);
       }
-
-      /** Answers arrive outside an update; the redraw is its own transaction, once per frame. */
-      private redraw() {
-        if (this.queued) return;
-        this.queued = true;
-        window.requestAnimationFrame(() => {
-          this.queued = false;
-          if (this.view.dom.isConnected) this.view.dispatch({ effects: detailsArrived.of(null) });
-        });
-      }
-
-      update(update: ViewUpdate) {
-        // While an IME composes, the line's DOM must not be replaced (glyphLines.ts).
-        if (update.view.composing) {
-          if (update.docChanged) this.decorations = this.decorations.map(update.changes);
-          return;
-        }
-        const arrived = update.transactions.some((tr) => tr.effects.some((effect) => effect.is(detailsArrived)));
-        if (arrived || update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) {
-          this.decorations = decorate(update.view);
-        }
-        // A mark just made or scrolled to is read; one already read recently is not.
-        if (!still && (update.docChanged || update.viewportChanged)) this.want(false);
-      }
-
-      destroy() {
-        this.off();
-        if (this.timer !== null) window.clearInterval(this.timer);
-        document.removeEventListener('visibilitychange', this.onVisible);
-      }
-    },
-    { decorations: (plugin) => plugin.decorations },
-  );
-}
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
 
 const shortLinksTheme = EditorView.baseTheme({
   '.cm-shortLink': {
@@ -352,53 +213,16 @@ const shortLinksTheme = EditorView.baseTheme({
     whiteSpace: 'nowrap',
     userSelect: 'none',
   },
-  /* What the task is doing, after the name: a hairline, then the stage, the status, the facts. */
-  '.cm-itemMark-status, .cm-itemMark-fact': {
-    marginInlineStart: '0.45em',
-  },
-  '.cm-itemMark-stage': {
-    display: 'inline-block',
-    boxSizing: 'border-box',
-    width: '0.8em',
-    height: '0.8em',
-    marginInlineStart: '0.55em',
-    paddingInlineStart: '0',
-    borderRadius: '50%',
-    border: '0.12em solid currentColor',
-    verticalAlign: '-0.08em',
-  },
-  '.cm-itemMark[data-stage="doing"] .cm-itemMark-stage': {
-    background: 'linear-gradient(90deg, currentColor 50%, transparent 50%)',
-  },
-  '.cm-itemMark[data-stage="done"] .cm-itemMark-stage': {
-    background: 'currentColor',
-  },
   '.cm-itemMark-name': {
     opacity: '0.72',
   },
-  '.cm-itemMark-fact': {
-    opacity: '0.72',
-  },
-  '.cm-itemMark-fact::before': {
-    content: '"·"',
-    marginInlineEnd: '0.45em',
-  },
-  '.cm-itemMark-fact[data-late]': {
-    opacity: '1',
-    fontWeight: '600',
-  },
-  '.cm-itemMark[data-gone] .cm-itemMark-status': {
-    textDecoration: 'line-through',
-    textDecorationThickness: '0.08em',
-  },
-  '.cm-itemMark[data-failed] .cm-itemMark-name::after': {
-    content: '" ?"',
-  },
 });
 
-export { shortUrl };
-
-/** Link addresses shown short, and item marks as pills, away from the caret's line. */
+/**
+ * Link addresses shown short, and item marks as pills, away from the caret's line; and the reads that keep the rows
+ * under linked lines current (editor/markReads.ts), which `still` stops - a note drawn small on a card is drawn from
+ * what is known.
+ */
 export function shortLinks({ still = false }: { still?: boolean } = {}): Extension {
-  return [shortLinksPlugin(still), shortLinksTheme];
+  return [shortLinksPlugin, markReads({ still }), shortLinksTheme];
 }
