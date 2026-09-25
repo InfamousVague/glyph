@@ -1,3 +1,4 @@
+import type { Segment } from '../core/store.ts';
 import { capitalise } from '../core/text.ts';
 import { isTitleShaped, localBlocks, NUMBER_CUE, ORDINAL_START, renderBlocks, STANDALONE_CUE, TITLE_CUE, type Block } from './spoken/blocks.ts';
 import { codeBlocksIn, withCodeBlocksWhole } from './spoken/codeBlocks.ts';
@@ -31,11 +32,8 @@ import { stripEnd } from './spoken/words.ts';
  * a list announced, the title.
  */
 
-export interface Segment {
-  text: string;
-  startMs: number;
-  endMs: number;
-}
+// A phrase with its times is the stored note's shape (core/store.ts); passed on for the recorder's modules.
+export type { Segment };
 
 export interface RenderedNote {
   markdown: string;

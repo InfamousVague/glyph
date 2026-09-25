@@ -3,7 +3,6 @@ import { answerHost } from './host.ts';
 import { randomId } from './ids.ts';
 import { readStored, writeStored } from './stored.ts';
 import { invoke, isTauri } from './tauri.ts';
-import type { Segment } from '../capture/markdown.ts';
 
 /**
  * Where notes live, and the one door the page uses to reach them.
@@ -21,6 +20,17 @@ import type { Segment } from '../capture/markdown.ts';
  * the same interface and the same persistence guarantees within its own world.
  * It is never used inside the Tauri webview.
  */
+
+/**
+ * One committed phrase of a recording, with where it falls on the tape: what Whisper hands the recorder, and what a
+ * spoken note keeps beside its words (`Note.segments`). Its shape is the stored note's, so it lives here; the
+ * recorder's reading of speech into a note (capture/markdown.ts) passes it on.
+ */
+export interface Segment {
+  text: string;
+  startMs: number;
+  endMs: number;
+}
 
 export interface Note {
   id: string;
