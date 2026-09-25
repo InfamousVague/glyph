@@ -1,8 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+import { describe, expect, it, vi } from 'vitest';
+import { makeNote } from '../../test/notes.ts';
+import { button, press, show, waitUntil } from '../../test/render.tsx';
 
 const now = Math.floor(Date.now() / 1000);
 const server = [
@@ -15,7 +13,7 @@ const deleted: string[] = [];
 
 vi.mock('../core/store.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../core/store.ts')>()),
-  listNotes: vi.fn(async () => [{ id: 'mine', body: '# Cabin trip\n', createdAt: 0, updatedAt: 0, source: 'editor' }]),
+  listNotes: vi.fn(async () => [makeNote('mine', '# Cabin trip\n')]),
 }));
 vi.mock('../core/account/account.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../core/account/account.ts')>()),
@@ -33,13 +31,6 @@ vi.mock('../core/account/api.ts', async (importOriginal) => ({
 const { setPreferences } = await import('../core/preferences.ts');
 const { SharedLinks } = await import('./SharedLinks.tsx');
 
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-});
-
 describe('the list of shared links', () => {
   it('lists each share by its note, and offers to take down only the ones no device lists that have settled', async () => {
     setPreferences({
@@ -48,22 +39,15 @@ describe('the list of shared links', () => {
         elsewhere: { id: 'EEEEEEEEEEEEEEEEEEEEEE', key: 'KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK', sent: '' },
       },
     });
-    host = document.createElement('div');
-    document.body.appendChild(host);
-    root = createRoot(host);
-    await act(async () => {
-      root!.render(<SharedLinks />);
-      await new Promise((resolve) => setTimeout(resolve, 20));
+    const host = show(<SharedLinks />);
+    // The notes' titles and the account's own list come from two reads the list fills in from: waited for, not slept on.
+    await waitUntil(() => {
+      const text = host.textContent ?? '';
+      expect(text).toContain('Cabin trip');
+      expect(text).toContain('A note not on this device');
+      expect(text).toContain('A link no device lists');
     });
-    const text = host.textContent ?? '';
-    expect(text).toContain('Cabin trip');
-    expect(text).toContain('A note not on this device');
-    expect(text).toContain('A link no device lists');
-    const takeDown = [...host.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Take down')!;
-    await act(async () => {
-      takeDown.click();
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    });
-    expect(deleted).toEqual(['shares/OOOOOOOOOOOOOOOOOOOOOO']);
+    press(button('Take down', host));
+    await waitUntil(() => expect(deleted).toEqual(['shares/OOOOOOOOOOOOOOOOOOOOOO']));
   });
 });

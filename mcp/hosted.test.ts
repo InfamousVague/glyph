@@ -1,43 +1,37 @@
 // @vitest-environment node
 import type { Server } from 'node:http';
-import { createServer } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { derive, passwordSalt, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
 import type { Note } from '../src/app/core/store.ts';
-import { ClaudeMemory, fakeService, FAST } from './fake.ts';
+import { fakeService, FAST, type FakeService } from '../src/test/fakeService.ts';
+import { makeNote } from '../src/test/notes.ts';
+import { ClaudeMemory } from './fake.ts';
+import { freePort } from './freePort.ts';
 import { hostedApp } from './hosted.ts';
 
 /**
  * The hosted server, connected to as Claude connects: the client library's own OAuth flow (discovery from the 401,
  * registration, the sign-in page, the code, the tokens), then the tools, against the sync service stood in for in
- * memory (fake.ts). The browser's part - the sign-in page's script - is played by the test with the same crypto.
+ * memory (src/test/fakeService.ts). The browser's part - the sign-in page's script - is played by the test with the
+ * same crypto.
  */
 
-const aNote = (id: string, body: string): Note => ({ id, body, createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000, source: 'capture', starred: false, archivedAt: null });
+const aNote = (id: string, body: string): Note => makeNote(id, body, { createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000, source: 'capture', starred: false, archivedAt: null });
 
 describe('Claude connecting to the hosted server', () => {
   let server: Server;
   let origin = '';
-  let service: Awaited<ReturnType<typeof fakeService>>;
+  let service: FakeService;
   let hosted: ReturnType<typeof hostedApp>;
   const clock = { now: 1_800_000_000_000 };
 
-  /** A port nobody is using, so the app can be made with its real address as the issuer. */
-  const freePort = () =>
-    new Promise<number>((resolve) => {
-      const probe = createServer();
-      probe.listen(0, '127.0.0.1', () => {
-        const { port } = probe.address() as { port: number };
-        probe.close(() => resolve(port));
-      });
-    });
-
   beforeAll(async () => {
-    service = await fakeService('matt', 'correct horse');
+    service = await fakeService({ handle: 'matt', password: 'correct horse' });
     await service.deviceWrites(aNote('n1', '# Groceries\n\nWe need:\n- eggs\n- milk'));
+    // A port nobody is using, so the app can be made with its real address as the issuer.
     const port = await freePort();
     origin = `http://127.0.0.1:${port}`;
     hosted = hostedApp({ issuer: `${origin}/glyph/api/mcp`, api: 'https://fake.test/glyph/api', apiPublic: 'https://fake.test/glyph/api', fetcher: service.fetcher, rateLimit: false, now: () => clock.now });

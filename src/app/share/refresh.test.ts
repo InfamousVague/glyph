@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Note } from '../core/store.ts';
+import { makeNote } from '../../test/notes.ts';
 
 /**
  * A share follows its pictures as well as its pages (the Glyph session, after Matt's HelloTrade link showed no
@@ -45,7 +46,7 @@ beforeEach(() => {
 
 describe('a share and the pictures it lacked', () => {
   it('is sent again when a picture it lacked arrives, and not before or after', async () => {
-    const note: Note = { id: 'n1', body: `# Orders\n\n![The ticket](image/${PICTURE})`, createdAt: 0, updatedAt: 0, source: 'editor' };
+    const note = makeNote('n1', `# Orders\n\n![The ticket](image/${PICTURE})`);
     notes.push(note);
     await shareNote(note, notes);
     const { key } = readShareLink(linkFor('n1')!)!;
@@ -66,7 +67,7 @@ describe('a share and the pictures it lacked', () => {
   });
 
   it('sends once more a share recorded before shares remembered what they lacked', async () => {
-    const note: Note = { id: 'n2', body: '# Words\n\nNo pictures.', createdAt: 0, updatedAt: 0, source: 'editor' };
+    const note = makeNote('n2', '# Words\n\nNo pictures.');
     notes.push(note);
     await shareNote(note, notes);
     // As 1.6.0-13 left it: the older digest, and no list.

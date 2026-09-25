@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { Note } from '../core/store.ts';
+import { makeNote } from '../../test/notes.ts';
 import { asideContent } from './aside.ts';
 
-const note = (id: string, body: string, updatedAt = 1, extra: Partial<Note> = {}): Note => ({ id, body, createdAt: 0, updatedAt, source: 'editor', ...extra });
 const BOOK = '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n- [[Trees]]\n- [[Birds]]\n';
-const notes = [note('b', BOOK, 5), note('t', '# Trees\n', 4), note('x', '# Loose\n', 3), note('a', '# Archived\n', 9, { archivedAt: 1 })];
+const notes = [makeNote('b', BOOK, { updatedAt: 5 }), makeNote('t', '# Trees\n', { updatedAt: 4 }), makeNote('x', '# Loose\n', { updatedAt: 3 }), makeNote('a', '# Archived\n', { updatedAt: 9, archivedAt: 1 })];
 
 describe('what the aside shows', () => {
   it('shows a page’s book with the page marked, and the book’s own index with none', () => {
@@ -27,15 +26,15 @@ describe('what the aside shows', () => {
 
   // Chapters saved in whatever order, each pointing back at a book that isn't a note marked as one.
   const chapter = (id: string, title: string, updatedAt: number, back = 'HelloTrade — The Book') =>
-    note(id, `# ${title}\n\n« [[${back}]] · next: [[09 · Something]]\n\nWords.`, updatedAt);
+    makeNote(id, `# ${title}\n\n« [[${back}]] · next: [[09 · Something]]\n\nWords.`, { updatedAt });
   const run = [
     chapter('c10', '10 · The mount chain', 9),
     chapter('c9', '09 · In one page', 8),
     chapter('c1', '01 · Two things', 7),
     chapter('c8', '08 · The risks, and a glossary', 6),
     chapter('o1', '01 · Another book’s first', 5, 'Another book'),
-    note('tm', '# Task Management\n', 10),
-    note('hb', '# HelloTrade — The Book\n\nThe index.', 2),
+    makeNote('tm', '# Task Management\n', { updatedAt: 10 }),
+    makeNote('hb', '# HelloTrade — The Book\n\nThe index.', { updatedAt: 2 }),
   ];
 
   it('lays out a numbered chapter’s run in number order when there is no book, the open one marked', () => {
@@ -58,7 +57,7 @@ describe('what the aside shows', () => {
   });
 
   it('groups chapters with no link by their folder, named after it', () => {
-    const inFolder = (id: string, title: string, path: string) => note(id, `# ${title}\n\nWords.`, 1, { path });
+    const inFolder = (id: string, title: string, path: string) => makeNote(id, `# ${title}\n\nWords.`, { updatedAt: 1, path });
     const folder = [inFolder('a', 'Arrival · Ch. 2', 'Trip/Arrival.md'), inFolder('b', 'Leaving · Ch. 1', 'Trip/Leaving.md'), inFolder('c', 'Other · Ch. 1', 'Else/Other.md')];
     const shown = asideContent(folder, folder[0]!);
     expect(shown?.kind === 'chapters' && shown.title).toBe('Trip');

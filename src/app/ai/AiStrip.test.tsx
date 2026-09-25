@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import type { Output, RunOptions } from '../core/ai.ts';
+import { button, press, show, unmount } from '../../test/render.tsx';
 
 /** A model that answers when the test says so. */
 const fakes: { options: RunOptions; finish: (text: string) => void; cancel: () => void }[] = [];
@@ -32,17 +32,6 @@ const { AiStrip } = await import('./AiStrip.tsx');
 const { forgetAllRuns, startRun } = await import('./runs.ts');
 const { recordChange } = await import('./log.ts');
 
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-function show(element: React.ReactElement): HTMLDivElement {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-  return host;
-}
-
 const tick = () => act(() => new Promise<void>((r) => setTimeout(r, 0)));
 
 beforeEach(() => {
@@ -51,10 +40,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
+  // Taken down before the runs are forgotten, so no strip is left on the page to hear of it.
+  unmount();
   forgetAllRuns();
 });
 
@@ -88,7 +75,7 @@ describe('the strip', () => {
     expect(el.querySelector('[aria-label="Stop"]')).toBeNull();
     // Nothing changed the note, so there is nothing to undo from the line.
     expect(el.querySelector('[aria-label="Undo this run"]')).toBeNull();
-    (el.querySelector('[aria-label="Put this away"]') as HTMLButtonElement).click();
+    press(button('Put this away', el));
     await tick();
     expect(el.textContent).toBe('');
     expect(heights[heights.length - 1]).toBe(0);
@@ -108,12 +95,11 @@ describe('the strip', () => {
     });
     await act(async () => recordChange('n', handle.id, 'before', 'after'));
     expect(el.querySelector('[aria-label="Undo this run"]')).not.toBeNull();
-    (el.querySelector('[aria-expanded]') as HTMLButtonElement).click();
+    press(el.querySelector('[aria-expanded]'));
     await tick();
     expect(el.textContent).toContain('Summarize by Qwen3.5 2B in 0:42.');
     expect(el.textContent).toContain('Just now');
-    const undo = [...el.querySelectorAll('button')].find((b) => b.textContent === 'Undo');
-    undo?.click();
+    press(button('Undo', el));
     expect(undone).toEqual([handle.id]);
   });
 
@@ -134,7 +120,7 @@ describe('the strip', () => {
       fakes[0]!.options.onProgress({ id: 'x', phase: 'generating', promptTokens: 10, promptTokensDone: 10, outputTokens: 5, tokensPerSecond: 9, elapsedMs: 2000, partial: '<think>Is seat right?', thinking: true });
     });
     expect(el.textContent).toContain('Qwen3.5 4B is thinking it through, 9.0 tokens a second, 0:02.');
-    (el.querySelector('[aria-expanded]') as HTMLButtonElement).click();
+    press(el.querySelector('[aria-expanded]'));
     await tick();
     expect(el.querySelector('pre')?.textContent).toBe('Is seat right?');
     await act(async () => {

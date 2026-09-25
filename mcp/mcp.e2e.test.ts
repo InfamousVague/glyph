@@ -12,9 +12,11 @@ import { API_BASE } from '../src/app/core/account/api.ts';
 import { memoryKeys } from '../src/app/core/account/keystore.ts';
 import { failureText } from '../src/app/core/failure.ts';
 import type { Note } from '../src/app/core/store.ts';
+import { makeNote } from '../src/test/notes.ts';
 import { emptyState, syncNotes, type LocalFiles, type LocalNotes, type SyncContext } from '../src/app/core/sync/notes.ts';
 import { derive, passwordSalt, ROUNDS, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
 import { ClaudeMemory } from './fake.ts';
+import { freePort } from './freePort.ts';
 import { GlyphAccount } from './glyph.ts';
 
 /**
@@ -30,6 +32,16 @@ import { GlyphAccount } from './glyph.ts';
 const ON = process.env.GLYPH_MCP_E2E;
 const BUNDLE = join(process.cwd(), 'mcp/dist/glyph-mcp.mjs');
 const HOSTED = join(process.cwd(), 'mcp/dist/glyph-mcp-hosted.mjs');
+
+/**
+ * The hosted run's setup: a signup at the real rounds (the password and eight recovery codes, each stretched 600 000
+ * times), a sync, and the 3.6 MB bundle started and answering. Seconds on a quiet machine and several times that on a
+ * loaded one, where Vitest's default ten-second hookTimeout - only testTimeout is raised, in vitest.config.ts - ran
+ * out first and failed the suite as a timeout that named nothing.
+ */
+const SETUP_MS = 120_000;
+/** How long the started bundle has to answer its health check, within that; it says what it printed if it does not. */
+const UP_MS = 60_000;
 
 /** A phone: the app's sync over a map. */
 function phone(deps: Deps, token: () => string) {
@@ -78,7 +90,7 @@ describe.skipIf(!ON || !existsSync(BUNDLE))('Claude and a phone on one Glyph acc
     await signUp(handle, password, deps);
     token = accountState().session!.token;
     const now = Date.now();
-    device.notes.set('phone-1', { id: 'phone-1', body: '# Groceries\n\nWe need:\n- eggs\n- milk', createdAt: now, updatedAt: now, source: 'capture', starred: false, archivedAt: null });
+    device.notes.set('phone-1', makeNote('phone-1', '# Groceries\n\nWe need:\n- eggs\n- milk', { createdAt: now, updatedAt: now, source: 'capture', starred: false, archivedAt: null }));
     await device.sync();
   });
 
@@ -178,8 +190,7 @@ describe.skipIf(!ON || !existsSync(HOSTED))('Claude on the hosted server, with a
   const deps: Deps = { keys: memoryKeys(), rounds: ROUNDS };
   let token = '';
   const device = phone(deps, () => token);
-  const port = 18821;
-  const issuer = `http://127.0.0.1:${port}/glyph/api/mcp`;
+  let issuer = '';
   let child: ChildProcess | null = null;
   let said = '';
 
@@ -187,19 +198,29 @@ describe.skipIf(!ON || !existsSync(HOSTED))('Claude on the hosted server, with a
     await signUp(handle, password, deps);
     token = accountState().session!.token;
     const now = Date.now();
-    device.notes.set('phone-1', { id: 'phone-1', body: '# Groceries\n\nWe need:\n- eggs', createdAt: now, updatedAt: now, source: 'capture', starred: false, archivedAt: null });
+    device.notes.set('phone-1', makeNote('phone-1', '# Groceries\n\nWe need:\n- eggs', { createdAt: now, updatedAt: now, source: 'capture', starred: false, archivedAt: null }));
     await device.sync();
-    child = spawn(process.execPath, [HOSTED], { env: { ...process.env, GLYPH_MCP_BIND: `127.0.0.1:${port}`, GLYPH_MCP_ISSUER: issuer, GLYPH_API: API_BASE, GLYPH_API_PUBLIC: API_BASE }, stdio: ['ignore', 'ignore', 'pipe'] });
-    child.stderr?.on('data', (chunk: Buffer) => {
+    // A port asked of the system, not a fixed one a leftover child or a second run could be holding.
+    const port = await freePort();
+    issuer = `http://127.0.0.1:${port}/glyph/api/mcp`;
+    const started = spawn(process.execPath, [HOSTED], { env: { ...process.env, GLYPH_MCP_BIND: `127.0.0.1:${port}`, GLYPH_MCP_ISSUER: issuer, GLYPH_API: API_BASE, GLYPH_API_PUBLIC: API_BASE }, stdio: ['ignore', 'ignore', 'pipe'] });
+    child = started;
+    started.stderr?.on('data', (chunk: Buffer) => {
       said += chunk.toString();
     });
-    for (let i = 0; i < 50; i += 1) {
+    let exited: number | null | undefined;
+    started.once('exit', (code) => {
+      exited = code;
+    });
+    const deadline = Date.now() + UP_MS;
+    while (Date.now() < deadline) {
+      if (exited !== undefined) throw new Error(`The hosted server exited (${exited}) before it came up. It said: ${said}`);
       const up = await fetch(`${issuer}/health`).catch(() => null);
       if (up?.ok) return;
       await new Promise((done) => setTimeout(done, 100));
     }
-    throw new Error(`The hosted server did not come up. It said: ${said}`);
-  });
+    throw new Error(`The hosted server did not come up in ${UP_MS / 1000} s. It said: ${said}`);
+  }, SETUP_MS);
 
   afterAll(() => {
     child?.kill();

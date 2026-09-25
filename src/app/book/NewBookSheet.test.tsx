@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { button, buttonSaying, show, typeInto } from '../../test/render.tsx';
 import { NewBookSheet } from './NewBookSheet.tsx';
 
 /**
@@ -8,37 +8,13 @@ import { NewBookSheet } from './NewBookSheet.tsx';
  * made with exactly that index. Closed without making it, nothing is written.
  */
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-function show(element: React.ReactElement): void {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-}
-
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
-});
-
-const button = (label: string): HTMLButtonElement => {
-  const found = [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.getAttribute('aria-label') === label || b.textContent?.trim() === label || b.textContent?.trim().startsWith(`${label}`));
-  if (!found) throw new Error(`no button ${label}`);
-  return found;
-};
+/** The row that makes the book: its words, then a hint that says what it will make. */
+const make = () => buttonSaying(document.body, 'Make the book')!;
+/** Words typed into the field whose label says `label`. */
 const type = (label: string, value: string) => {
   const field = [...document.querySelectorAll<HTMLInputElement>('input')].find((i) => i.closest('label')?.textContent?.includes(label));
   if (!field) throw new Error(`no field ${label}`);
-  act(() => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, value);
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-  });
+  typeInto(field, value);
 };
 const pages = () => [...document.querySelectorAll('ol[aria-label="Pages in this book"] li')].map((li) => li.querySelector('[class*=pageTitle]')?.textContent);
 
@@ -62,10 +38,10 @@ describe('the New book sheet', () => {
   it('needs a name before it will make the book', () => {
     const onCreate = vi.fn();
     show(<NewBookSheet open onClose={() => {}} titles={[]} onCreate={onCreate} />);
-    expect(button('Make the book').disabled).toBe(true);
+    expect(make().disabled).toBe(true);
     type('Name', 'Trip');
-    expect(button('Make the book').disabled).toBe(false);
-    act(() => button('Make the book').click());
+    expect(make().disabled).toBe(false);
+    act(() => make().click());
     expect(onCreate).toHaveBeenCalledWith('Trip', []);
   });
 
@@ -87,7 +63,7 @@ describe('the New book sheet', () => {
     expect(pages()).toEqual(['Packing', 'Days']);
     act(() => button('Move Packing up').click());
     expect(pages()).toEqual(['Packing', 'Days']);
-    act(() => button('Make the book').click());
+    act(() => make().click());
     expect(onCreate).toHaveBeenCalledWith('Cabin trip', ['Packing', 'Days']);
     expect(onClose).toHaveBeenCalled();
   });

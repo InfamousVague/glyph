@@ -1,25 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { show } from '../../test/render.tsx';
 import { INTERFACE_FACES, isCodingFace, isInterfaceFace, isTypeface, TYPEFACES } from '../core/preferences.ts';
 import { TypefaceCards } from './TypefaceCards.tsx';
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-});
-
-function show(element: React.ReactElement): HTMLDivElement {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-  return host;
-}
 
 describe('the typeface cards', () => {
   it('offer every face for a note, each a scrap of Markdown in its own family, and choose one on a tap', () => {

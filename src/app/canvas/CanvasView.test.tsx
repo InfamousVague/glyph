@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { show, typeInto, unmount, waitUntil } from '../../test/render.tsx';
 import { CanvasView } from './CanvasView.tsx';
 
 // Only the three the canvas calls are stood in for: the editor reads the rest of this module as it is.
@@ -24,24 +24,6 @@ vi.mock('../core/images.ts', async (importOriginal) => ({
 }));
 import { parseCanvas, type Canvas } from './jsonCanvas.ts';
 import { fitted, fittedTo, shown as shownBox, zoomedAt } from './viewport.ts';
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-function show(element: React.ReactElement): HTMLDivElement {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-  return host;
-}
-
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
-});
 
 const canvas = parseCanvas(`{
   "nodes": [
@@ -144,7 +126,7 @@ describe('a canvas edited', () => {
   it('is read-only without onChange, and a double-tap on the page then makes a card of words, open', () => {
     const still = show(<CanvasView canvas={canvas} dark={false} />);
     expect(still.querySelector('[role="img"]')).not.toBeNull();
-    act(() => root?.unmount());
+    unmount();
     const onChange = vi.fn();
     const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
     const page = shown.firstElementChild as HTMLElement;
@@ -237,11 +219,7 @@ describe('lines drawn', () => {
     tap(hit);
     expect(shown.querySelector('[data-line="e2"]')?.hasAttribute('data-picked')).toBe(true);
     const field = shown.querySelector('input[aria-label="Words on the line"]') as HTMLInputElement;
-    act(() => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-      setter.call(field, 'after');
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    typeInto(field, 'after');
     act(() => field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     expect(onChange).toHaveBeenCalledTimes(1);
     expect((onChange.mock.calls[0]![0] as Canvas).edges.find((e) => e.id === 'e2')).toMatchObject({ label: 'after' });
@@ -333,11 +311,7 @@ describe('more ways to add, and finding your way', () => {
     tap(shown.querySelector('button[aria-label="Add a card"]')!);
     const note = [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent?.startsWith('A note'))!;
     tap(note);
-    const field = document.querySelector('[role="dialog"] input') as HTMLInputElement;
-    act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, 'cab');
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    typeInto(document.querySelector('[role="dialog"] input') as HTMLInputElement, 'cab');
     const rows = [...document.querySelectorAll('[role="dialog"] ul button')].map((b) => b.textContent);
     expect(rows).toEqual(['Cabin trip']);
     tap(document.querySelector('[role="dialog"] ul button')!);
@@ -346,10 +320,7 @@ describe('more ways to add, and finding your way', () => {
     tap(shown.querySelector('button[aria-label="Add a card"]')!);
     tap([...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent?.startsWith('A link'))!);
     const url = document.querySelector('[role="dialog"] input') as HTMLInputElement;
-    act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(url, 'attack.fm');
-      url.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    typeInto(url, 'attack.fm');
     act(() => url.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     expect((onChange.mock.calls[1]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'link', url: 'https://attack.fm' });
   });
@@ -486,7 +457,7 @@ describe('pictures, charts and the toolbar', () => {
       shown.firstElementChild!.dispatchEvent(drop);
     });
     // The picture is kept and then the card is made, each a turn of the queue: waited for, not counted.
-    await vi.waitFor(() => expect(onChange).toHaveBeenCalled());
+    await waitUntil(() => expect(onChange).toHaveBeenCalled());
     expect((onChange.mock.calls[0]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'file', file: 'dropped.jpg' });
   });
 });

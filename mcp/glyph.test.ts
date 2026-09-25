@@ -1,12 +1,13 @@
 // @vitest-environment node
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { imageNames } from '../src/app/core/imageRefs.ts';
 import { noteTitle } from '../src/app/core/noteTitle.ts';
 import { toBase64Url } from '../src/app/core/sync/crypto.ts';
 import type { Note } from '../src/app/core/store.ts';
-import { fakeService, FAST } from './fake.ts';
+import { fakeService, FAST } from '../src/test/fakeService.ts';
+import { makeNote } from '../src/test/notes.ts';
 import { Conflict, GlyphAccount, GlyphApiError, type StoredSession } from './glyph.ts';
 import { buildServer } from './server.ts';
 
@@ -18,11 +19,11 @@ import { buildServer } from './server.ts';
 
 const API = 'https://fake.test/glyph/api';
 
-const aNote = (id: string, body: string): Note => ({ id, body, createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000, source: 'capture', starred: false, archivedAt: null });
+const aNote = (id: string, body: string): Note => makeNote(id, body, { createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000, source: 'capture', starred: false, archivedAt: null });
 
 describe('signing in from outside the app', () => {
   it('derives the password the way the app does and comes away with the account key and a device key', async () => {
-    const service = await fakeService('matt', 'correct horse');
+    const service = await fakeService({ handle: 'matt', password: 'correct horse' });
     const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
     expect(session.handle).toBe('matt');
     expect(session.accountId).toBe(7);
@@ -38,14 +39,14 @@ describe('signing in from outside the app', () => {
   });
 
   it('says so on the wrong password, without leaking which half was wrong', async () => {
-    const service = await fakeService('matt', 'correct horse');
+    const service = await fakeService({ handle: 'matt', password: 'correct horse' });
     await expect(GlyphAccount.signIn(API, 'matt', 'wrong horse', { rounds: FAST, fetcher: service.fetcher })).rejects.toThrow(GlyphApiError);
   });
 });
 
 describe('the session between runs', () => {
   async function signedIn() {
-    const service = await fakeService('matt', 'correct horse');
+    const service = await fakeService({ handle: 'matt', password: 'correct horse' });
     const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
     const saved: StoredSession[] = [];
     const account = new GlyphAccount(session, { fetcher: service.fetcher, save: (s) => saved.push(s) });
@@ -71,17 +72,36 @@ describe('the session between runs', () => {
     expect(notes.map((r) => r.note.body)).toEqual(['Hello']);
   });
 
+  // The client's own words, which name the way back (`login`), and the `lapsed` hook the hosted server marks a sign-in
+  // over by (hosted.ts). The service's own refusal of a lapsed token says "Sign in again" too, so a looser match would
+  // pass a raw 401 handed straight through.
   it('asks for the password again when it has no device key', async () => {
     const { service, session } = await signedIn();
-    const account = new GlyphAccount({ ...session, deviceKey: null }, { fetcher: service.fetcher });
+    const lapsed = vi.fn();
+    const account = new GlyphAccount({ ...session, deviceKey: null }, { fetcher: service.fetcher, lapsed });
     service.expireAllTokens();
-    await expect(account.list()).rejects.toThrow(/Sign in again/);
+    await expect(account.list()).rejects.toThrow('This session has lapsed. Sign in again with `login`.');
+    expect(lapsed).toHaveBeenCalledOnce();
+    // No key to answer a challenge with, so none is asked for.
+    expect(service.calls.slice(-2)).toEqual(['GET notes', 'POST refresh']);
+  });
+
+  it('asks for the password again when the account no longer knows its device key', async () => {
+    const { service, session } = await signedIn();
+    // A key the account never registered, as for a client whose device the account has since dropped.
+    const stranger = (await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as CryptoKeyPair;
+    const lapsed = vi.fn();
+    const account = new GlyphAccount({ ...session, deviceKey: await crypto.subtle.exportKey('jwk', stranger.privateKey) }, { fetcher: service.fetcher, lapsed });
+    service.expireAllTokens();
+    await expect(account.list()).rejects.toThrow('This session has lapsed and could not be renewed. Sign in again with `login`.');
+    expect(lapsed).toHaveBeenCalledOnce();
+    expect(service.calls.slice(-3)).toEqual(['POST refresh', 'POST login/challenge', 'POST login/device']);
   });
 });
 
 describe('reading and writing notes', () => {
   async function ready() {
-    const service = await fakeService('matt', 'correct horse');
+    const service = await fakeService({ handle: 'matt', password: 'correct horse' });
     const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
     const account = new GlyphAccount(session, { fetcher: service.fetcher });
     return { service, account };
@@ -160,7 +180,7 @@ describe('titles and pictures, read as the app reads them', () => {
   const asText = (result: Awaited<ReturnType<Client['callTool']>>) => (result.content as { text?: string }[])[0]?.text ?? '';
 
   async function connected() {
-    const service = await fakeService('matt', 'correct horse');
+    const service = await fakeService({ handle: 'matt', password: 'correct horse' });
     const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
     const account = new GlyphAccount(session, { fetcher: service.fetcher });
     const client = new Client({ name: 'claude', version: '0' });

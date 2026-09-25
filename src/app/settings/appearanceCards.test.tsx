@@ -1,29 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { accentOptions, accentSteps, themePresets } from '@glacier/tokens';
 import { THEME_PRESETS, THEMES, UI_SCALES } from '../core/preferences.ts';
 import { ScaleCards } from './ScaleCards.tsx';
 import { ThemeCards } from './ThemeCards.tsx';
 import { INK_DARK, INK_LIGHT, THEME_OPTIONS } from './themePalettes.ts';
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-function show(element: React.ReactElement): HTMLDivElement {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-  return host;
-}
-
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
-});
+import { show } from '../../test/render.tsx';
 
 const chosen = (within: ParentNode) => within.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.value;
 const pick = (within: ParentNode, value: string) => act(() => within.querySelector<HTMLInputElement>(`input[type="radio"][value="${value}"]`)!.click());

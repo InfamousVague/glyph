@@ -1,31 +1,29 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Note } from '../core/store.ts';
+import { makeNote } from '../../test/notes.ts';
 import { archivedCount, browseNotes, matches, readSort, writeSort } from './allNotes.ts';
-
-const note = (id: string, body: string, more: Partial<Note> = {}): Note => ({ id, body, createdAt: 0, updatedAt: 0, source: 'editor', ...more });
 
 afterEach(() => localStorage.clear());
 
 describe('what the search finds', () => {
   it('finds every word typed, anywhere in the note, whatever the case', () => {
-    const packing = note('a', '# Trip\n\nPacking: tent, stove');
+    const packing = makeNote('a', '# Trip\n\nPacking: tent, stove');
     expect(matches(packing, 'trip packing')).toBe(true);
     expect(matches(packing, 'TENT')).toBe(true);
     expect(matches(packing, 'tent kettle')).toBe(false);
   });
 
   it('shows every note for a blank search', () => {
-    expect(matches(note('a', '# Trip'), '')).toBe(true);
-    expect(matches(note('a', '# Trip'), '   ')).toBe(true);
+    expect(matches(makeNote('a', '# Trip'), '')).toBe(true);
+    expect(matches(makeNote('a', '# Trip'), '   ')).toBe(true);
   });
 });
 
 describe('the order and the archive', () => {
   const notes = [
-    note('old', '# Zebra', { updatedAt: 1 }),
-    note('new', '# apple', { updatedAt: 3 }),
-    note('blank', '', { updatedAt: 2 }),
-    note('gone', '# Mango', { updatedAt: 4, archivedAt: 5 }),
+    makeNote('old', '# Zebra', { updatedAt: 1 }),
+    makeNote('new', '# apple', { updatedAt: 3 }),
+    makeNote('blank', '', { updatedAt: 2 }),
+    makeNote('gone', '# Mango', { updatedAt: 4, archivedAt: 5 }),
   ];
 
   it('puts the last touched first, and keeps the archive out unless asked', () => {

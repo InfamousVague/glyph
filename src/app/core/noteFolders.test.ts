@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { makeNote } from '../../test/notes.ts';
 import type { Note } from './store.ts';
 
 const applied: Note[] = [];
@@ -17,8 +18,9 @@ vi.mock('./store.ts', () => ({
 
 const { fileNoteInFolder, folderFor, folderName } = await import('./noteFolders.ts');
 
+/** The one note these tests file, at `path` in the library or at none. */
 function note(path: string | undefined): Note {
-  return { id: 'n1', body: '# Weekend trip', createdAt: 1, updatedAt: 1, source: 'editor', ...(path === undefined ? {} : { path }) } as Note;
+  return makeNote('n1', '# Weekend trip', path === undefined ? {} : { path });
 }
 
 describe('the folder a note is filed in', () => {

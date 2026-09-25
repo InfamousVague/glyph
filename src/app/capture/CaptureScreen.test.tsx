@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createNote, listNotes, noteTitle } from '../core/store.ts';
+import { stubResizeObserver } from '../../test/stubs.ts';
 import { CaptureScreen } from './CaptureScreen.tsx';
 
 const capture = vi.hoisted(() => ({
@@ -43,11 +44,7 @@ beforeEach(() => {
     stop: async () => ({ recordedMs: null, transcript: 'add to the note labeled Go pack sunscreen' }),
     cancel: () => undefined,
   };
-  class TestResizeObserver {
-    observe() {}
-    disconnect() {}
-  }
-  Object.defineProperty(globalThis, 'ResizeObserver', { configurable: true, value: TestResizeObserver });
+  stubResizeObserver();
 });
 
 afterEach(() => cleanup());

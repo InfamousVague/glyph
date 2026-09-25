@@ -1,29 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
+import { show } from '../../test/render.tsx';
 import { externalStore, type ExternalStore } from './externalStore.ts';
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-afterEach(() => {
-  if (root) act(() => root!.unmount());
-  host?.remove();
-  root = null;
-  host = null;
-});
-
-function show(store: ExternalStore<string>): HTMLDivElement {
+function showStore(store: ExternalStore<string>): HTMLDivElement {
   function Shows() {
     return <span>{store.use()}</span>;
   }
-  host = document.createElement('div');
-  document.body.append(host);
-  root = createRoot(host);
-  act(() => root!.render(<Shows />));
-  return host;
+  return show(<Shows />);
 }
 
 describe('a store outside React', () => {
@@ -44,7 +29,7 @@ describe('a store outside React', () => {
 
   it('renders a component again when it changes', () => {
     const store = externalStore('first');
-    const shown = show(store);
+    const shown = showStore(store);
     expect(shown.textContent).toBe('first');
     act(() => store.set('second'));
     expect(shown.textContent).toBe('second');

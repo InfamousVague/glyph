@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { Note } from '../core/store.ts';
+import { makeNote } from '../../test/notes.ts';
 import { bareWords, listBody, offerOf, readInstruction, runOf } from './instruction.ts';
 
-const note = (id: string, body: string): Note => ({ id, body, createdAt: 0, updatedAt: 0, source: 'editor' }) as Note;
 const notes = [
-  { id: 'g', title: 'Groceries', note: note('g', '# Groceries\n- milk\n') },
-  { id: 'w', title: 'Work', note: note('w', '# Work\nplain words\n') },
+  { id: 'g', title: 'Groceries', note: makeNote('g', '# Groceries\n- milk\n') },
+  { id: 'w', title: 'Work', note: makeNote('w', '# Work\nplain words\n') },
 ];
 
 describe('the words themselves', () => {

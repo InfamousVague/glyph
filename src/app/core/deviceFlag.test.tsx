@@ -1,21 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
+import { show } from '../../test/render.tsx';
 import { deviceFlag, type DeviceFlag } from './deviceFlag.ts';
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
 beforeEach(() => localStorage.clear());
-afterEach(() => {
-  if (root) act(() => root!.unmount());
-  host?.remove();
-  root = null;
-  host = null;
-  vi.restoreAllMocks();
-});
+afterEach(() => vi.restoreAllMocks());
 
 function Shows({ flag }: { flag: DeviceFlag }) {
   return <span>{flag.use() ? 'on' : 'off'}</span>;
@@ -50,16 +40,11 @@ describe('a switch kept on this device', () => {
 
   it('changes every component that shows it the moment it is flipped', () => {
     const flag = deviceFlag('glyph-switch');
-    host = document.createElement('div');
-    document.body.append(host);
-    root = createRoot(host);
-    act(() =>
-      root!.render(
-        <>
-          <Shows flag={flag} />
-          <Shows flag={flag} />
-        </>,
-      ),
+    const host = show(
+      <>
+        <Shows flag={flag} />
+        <Shows flag={flag} />
+      </>,
     );
     expect(host.textContent).toBe('offoff');
     act(() => flag.set(true));

@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import type { Note } from '../core/store.ts';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
+import { makeNote } from '../../test/notes.ts';
+import { button, show, typeInto, unmount } from '../../test/render.tsx';
 import { bookNoteBody, bookOf, chaptersOf } from './book.ts';
 import { BookBar, BookFoot, BookView } from './BookView.tsx';
 
@@ -11,30 +11,6 @@ import { BookBar, BookFoot, BookView } from './BookView.tsx';
  * written back to the body, and the two ways to add one. And the bar a chapter wears.
  */
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-function show(element: React.ReactElement): void {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-}
-
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
-});
-
-const button = (label: string): HTMLButtonElement => {
-  const found = [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.getAttribute('aria-label') === label || b.textContent?.trim() === label);
-  if (!found) throw new Error(`no button ${label}`);
-  return found;
-};
 const rows = () => [...document.querySelectorAll<HTMLElement>('ol[aria-label="Chapters"] li')].map((li) => li.querySelector('[class*=chapterTitle]')?.textContent);
 
 const BOOK = bookNoteBody('Field guide', ['Introduction', 'Trees', 'Birds']);
@@ -69,11 +45,7 @@ describe('the index view', () => {
     const openCanvas = vi.fn();
     show(<BookView body={BOOK} title="Field guide" known={() => true} open={open} titles={() => []} onChange={onChange} openCanvas={openCanvas} />);
     act(() => button('Add a chapter').click());
-    const field = document.querySelector<HTMLInputElement>('input[aria-label="New chapter\'s title"]')!;
-    act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, 'Trail map');
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New chapter\'s title"]')!, 'Trail map');
     act(() => button('Add as a canvas').click());
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Trees', 'Birds', 'Trail map']);
     expect(openCanvas).toHaveBeenCalledWith('Trail map');
@@ -85,12 +57,7 @@ describe('the index view', () => {
     const open = vi.fn();
     show(<BookView body={BOOK} title="Field guide" known={() => true} open={open} titles={() => ['Field guide', 'Trees', 'Rivers', 'Mountains']} onChange={onChange} />);
     act(() => button('Add a chapter').click());
-    const field = document.querySelector<HTMLInputElement>('input[aria-label="New chapter\'s title"]')!;
-    act(() => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-      setter.call(field, 'Rivers');
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New chapter\'s title"]')!, 'Rivers');
     act(() => button('Add and open').click());
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Trees', 'Birds', 'Rivers']);
     expect(open).toHaveBeenCalledWith('Rivers');
@@ -181,10 +148,8 @@ describe('reading straight through', () => {
 });
 
 describe('the bar a chapter wears', () => {
-  const note = (id: string, body: string): Note => ({ id, body, createdAt: 0, updatedAt: 0, source: 'editor' });
-
   it('names the book and the place, and opens the neighbours and the book', () => {
-    const place = bookOf([note('b', BOOK)], 'Trees')!;
+    const place = bookOf([makeNote('b', BOOK)], 'Trees')!;
     const open = vi.fn();
     show(<BookBar place={place} open={open} />);
     expect(document.body.textContent).toContain('Field guide');
@@ -196,7 +161,7 @@ describe('the bar a chapter wears', () => {
   });
 
   it('has no way past the ends', () => {
-    const place = bookOf([note('b', BOOK)], 'Introduction')!;
+    const place = bookOf([makeNote('b', BOOK)], 'Introduction')!;
     show(<BookBar place={place} open={() => {}} />);
     expect(button('First chapter').disabled).toBe(true);
     expect(button('Next chapter: Trees').disabled).toBe(false);
@@ -204,11 +169,9 @@ describe('the bar a chapter wears', () => {
 });
 
 describe('the foot a chapter wears', () => {
-  const note = (id: string, body: string): Note => ({ id, body, createdAt: 0, updatedAt: 0, source: 'editor' });
-
   it('names the chapters either side under the page and opens them', () => {
     const open = vi.fn();
-    show(<BookFoot place={bookOf([note('b', BOOK)], 'Trees')!} open={open} />);
+    show(<BookFoot place={bookOf([makeNote('b', BOOK)], 'Trees')!} open={open} />);
     expect(document.querySelector('nav[aria-label="Previous and next chapter"]')?.textContent).toBe('PreviousIntroductionNextBirds');
     act(() => button('Previous: Introduction').click());
     act(() => button('Next: Birds').click());
@@ -216,15 +179,13 @@ describe('the foot a chapter wears', () => {
   });
 
   it('has only Next on the first chapter, only Previous on the last, and nothing for a book of one', () => {
-    show(<BookFoot place={bookOf([note('b', BOOK)], 'Introduction')!} open={() => {}} />);
+    show(<BookFoot place={bookOf([makeNote('b', BOOK)], 'Introduction')!} open={() => {}} />);
     expect([...document.querySelectorAll('[data-book-foot] button')].map((b) => b.getAttribute('aria-label'))).toEqual(['Next: Trees']);
-    act(() => root?.unmount());
-    host?.remove();
-    show(<BookFoot place={bookOf([note('b', BOOK)], 'Birds')!} open={() => {}} />);
+    unmount();
+    show(<BookFoot place={bookOf([makeNote('b', BOOK)], 'Birds')!} open={() => {}} />);
     expect([...document.querySelectorAll('[data-book-foot] button')].map((b) => b.getAttribute('aria-label'))).toEqual(['Previous: Trees']);
-    act(() => root?.unmount());
-    host?.remove();
-    show(<BookFoot place={bookOf([note('b', bookNoteBody('Short', ['Only']))], 'Only')!} open={() => {}} />);
+    unmount();
+    show(<BookFoot place={bookOf([makeNote('b', bookNoteBody('Short', ['Only']))], 'Only')!} open={() => {}} />);
     expect(document.querySelector('[data-book-foot]')).toBeNull();
   });
 });

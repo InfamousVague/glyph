@@ -1,24 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { buttonSaying, press, show, unmount } from '../../../test/render.tsx';
 import { ClaudePane } from './ClaudePane.tsx';
 import { MCP_URL } from './steps.ts';
 
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
 const written: string[] = [];
 
-function show(element: React.ReactElement): HTMLDivElement {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-  return host;
-}
-
 const dialog = () => document.body.querySelector<HTMLElement>('[role="dialog"][aria-label="Connecting Claude"]');
-const press = (element: Element | null | undefined) => act(() => element?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
-const buttonSaying = (within: ParentNode, words: string) => Array.from(within.querySelectorAll('button')).find((b) => b.textContent?.includes(words));
 
 beforeEach(() => {
   written.length = 0;
@@ -26,10 +14,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
+  // Unmounted before the real clock is back, so the tree's cleanup clears its timers on the fake clock that set them.
+  unmount();
   vi.useRealTimers();
 });
 

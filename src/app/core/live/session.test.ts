@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { settle } from '../sync/crypto.ts';
+import { newAccountKey, settle } from '../sync/crypto.ts';
 import { LiveSession, type SessionDeps } from './session.ts';
 import type { LiveTransport } from './transport.ts';
+
+/** How many rounds of messages a room may trade before settling is given up on as a room that never goes quiet. */
+const ROUNDS = 100;
 
 /**
  * A relay in memory that keeps the real one's promises (server/src/live.rs): rooms per account, the first into a room
@@ -11,27 +14,58 @@ import type { LiveTransport } from './transport.ts';
 class Relay {
   private rooms = new Map<string, Device[]>();
   private next = 1;
+  private devices: Device[] = [];
+  /** Every delivery scheduled and not yet done, the opening of the message included. */
+  private deliveries = new Set<Promise<void>>();
   device(): Device {
-    return new Device(this, this.next++);
+    const device = new Device(this, this.next++);
+    this.devices.push(device);
+    return device;
   }
   join(device: Device, room: string) {
     const members = this.rooms.get(room) ?? [];
     const first = members.length === 0;
     members.push(device);
     this.rooms.set(room, members);
-    later(() => device.session?.joined(first, members.length - 1));
-    for (const other of members) if (other !== device) later(() => other.session?.peersChanged(members.length - 1));
+    this.later(() => device.session?.joined(first, members.length - 1));
+    for (const other of members) if (other !== device) this.later(() => other.session?.peersChanged(members.length - 1));
   }
   leave(device: Device, room: string) {
     const members = (this.rooms.get(room) ?? []).filter((m) => m !== device);
     this.rooms.set(room, members);
-    for (const other of members) later(() => other.session?.peersChanged(members.length - 1));
+    for (const other of members) this.later(() => other.session?.peersChanged(members.length - 1));
   }
   send(device: Device, room: string, data: string, to?: number) {
     for (const other of this.rooms.get(room) ?? []) {
       if (other === device || (to !== undefined && other.id !== to)) continue;
-      later(() => other.session?.message(device.id, data));
+      this.later(() => other.session?.message(device.id, data));
     }
+  }
+
+  /**
+   * Lets every message in flight arrive, and every answer to one be sealed and sent, until the room has nothing
+   * left to say - asked of the relay and the sessions, never timed. The 60ms this once slept was less than the
+   * WebCrypto work took on a loaded machine; the quiet window that replaced it (six empty 15ms ticks, then give up
+   * at five seconds without a word) was still a guess, since a session seals its answer off the relay's books and a
+   * slow enough seal outlasted the window. So a round here waits for the deliveries, then for each session's seal
+   * chain (LiveSession.sent), and the room is settled when a round ends with nothing new sent. A room still talking
+   * after ROUNDS rounds throws, rather than letting a test go on to assert against a room mid-sentence.
+   */
+  async settled(): Promise<void> {
+    for (let round = 0; round < ROUNDS; round += 1) {
+      await Promise.all(this.deliveries);
+      if (this.deliveries.size > 0) continue;
+      await Promise.all(this.devices.map((device) => device.session?.sent()));
+      if (this.deliveries.size === 0) return;
+    }
+    throw new Error(`The room was still talking after ${ROUNDS} rounds of messages, ${this.deliveries.size} of them in flight.`);
+  }
+
+  private later(run: () => void | Promise<void>) {
+    const delivery: Promise<void> = new Promise<void>((arrive) => setTimeout(arrive, 0))
+      .then(run)
+      .finally(() => this.deliveries.delete(delivery));
+    this.deliveries.add(delivery);
   }
 }
 
@@ -53,35 +87,9 @@ class Device implements LiveTransport {
   close() {}
 }
 
-/** What the relay has in flight: every delivery scheduled and not yet done, the opening of a message included. */
-let inFlight = 0;
-const later = (run: () => void | Promise<void>) => {
-  inFlight++;
-  setTimeout(() => {
-    Promise.resolve()
-      .then(run)
-      .finally(() => inFlight--);
-  }, 0);
-};
-/**
- * Lets every message in flight arrive, sealing and opening included. The relay is asked rather than given a fixed
- * wait: the 60ms this used to sleep was less than the WebCrypto work took on a loaded machine, and a different test
- * in this file failed on each full run, stopping deploys at the test step. Quiet for a while, not merely quiet once,
- * since a device that has just opened a message may be sealing its answer before anything is sent.
- */
-const settleDown = async () => {
-  const tick = () => new Promise((done) => setTimeout(done, 15));
-  const until = Date.now() + 5000;
-  let quiet = 0;
-  while (Date.now() < until) {
-    await tick();
-    quiet = inFlight === 0 ? quiet + 1 : 0;
-    if (quiet >= 6) return;
-  }
-};
-
+/** An account key as a device holds one: made, then settled into a non-extractable key. */
 async function accountKey(): Promise<CryptoKey> {
-  return settle(await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']));
+  return settle(await newAccountKey());
 }
 
 interface Opened {
@@ -113,9 +121,9 @@ describe('a note live on two devices', () => {
     const relay = new Relay();
     const key = await accountKey();
     const phone = open(relay, key, 'Groceries\n- milk');
-    await settleDown();
+    await relay.settled();
     const mac = open(relay, key, 'Groceries\n- milk');
-    await settleDown();
+    await relay.settled();
     expect(phone.ready).toBe('Groceries\n- milk');
     expect(mac.ready).toBe('Groceries\n- milk');
     // The trap this avoids: two documents each built from the same words, merged, hold the words twice.
@@ -127,16 +135,16 @@ describe('a note live on two devices', () => {
     const relay = new Relay();
     const key = await accountKey();
     const phone = open(relay, key, 'Plan');
-    await settleDown();
+    await relay.settled();
     const mac = open(relay, key, 'Plan');
-    await settleDown();
+    await relay.settled();
     for (const letter of ' for Friday') {
       phone.session.text.insert(phone.session.text.length, letter);
     }
-    await settleDown();
+    await relay.settled();
     expect(mac.session.text.toString()).toBe('Plan for Friday');
     mac.session.text.insert(0, '# ');
-    await settleDown();
+    await relay.settled();
     expect(phone.session.text.toString()).toBe('# Plan for Friday');
   });
 
@@ -144,13 +152,13 @@ describe('a note live on two devices', () => {
     const relay = new Relay();
     const key = await accountKey();
     const phone = open(relay, key, 'ab');
-    await settleDown();
+    await relay.settled();
     const mac = open(relay, key, 'ab');
-    await settleDown();
+    await relay.settled();
     // Both insert between a and b before either hears of the other.
     phone.session.text.insert(1, 'PHONE');
     mac.session.text.insert(1, 'MAC');
-    await settleDown();
+    await relay.settled();
     const words = phone.session.text.toString();
     expect(mac.session.text.toString()).toBe(words);
     expect(words).toContain('PHONE');
@@ -162,9 +170,9 @@ describe('a note live on two devices', () => {
     const relay = new Relay();
     const key = await accountKey();
     open(relay, key, 'Newer words from the phone');
-    await settleDown();
+    await relay.settled();
     const mac = open(relay, key, 'Older words', false);
-    await settleDown();
+    await relay.settled();
     expect(mac.ready).toBe('Newer words from the phone');
     expect(mac.copies).toEqual([]);
   });
@@ -173,9 +181,9 @@ describe('a note live on two devices', () => {
     const relay = new Relay();
     const key = await accountKey();
     open(relay, key, 'What the phone has');
-    await settleDown();
+    await relay.settled();
     const mac = open(relay, key, 'What the Mac typed offline', true);
-    await settleDown();
+    await relay.settled();
     // The room's words stand, untouched...
     expect(mac.ready).toBe('What the phone has');
     // ...and the Mac's are kept beside them, not replayed over the phone's.
@@ -186,11 +194,11 @@ describe('a note live on two devices', () => {
     const relay = new Relay();
     const key = await accountKey();
     const phone = open(relay, key, 'x');
-    await settleDown();
+    await relay.settled();
     const mac = open(relay, key, 'Mac words');
     // The phone goes before the Mac's question reaches it.
     phone.session.close();
-    await settleDown();
+    await relay.settled();
     expect(mac.ready).toBe('Mac words');
     expect(mac.session.state).toBe('ready');
   });
@@ -198,7 +206,7 @@ describe('a note live on two devices', () => {
   it('ignores a message it cannot open', async () => {
     const relay = new Relay();
     const phone = open(relay, await accountKey(), 'Mine');
-    await settleDown();
+    await relay.settled();
     await phone.session.message(99, 'not-a-sealed-message');
     expect(phone.session.text.toString()).toBe('Mine');
   });

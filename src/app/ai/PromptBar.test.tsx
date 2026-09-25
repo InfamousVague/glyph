@@ -1,26 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { button, buttonSaying, press, show, typeInto } from '../../test/render.tsx';
 import { PromptBar } from './PromptBar.tsx';
 import type { Availability } from './available.ts';
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-function show(element: React.ReactElement): HTMLDivElement {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-  return host;
-}
-
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
-});
 
 const ready: Availability = { ok: true, model: 'qwen3.5-4b', chosen: 'qwen3.5-4b' };
 const buttons = (el: HTMLElement) => [...el.querySelectorAll('button')].map((b) => b.textContent?.trim());
@@ -33,11 +15,7 @@ describe('the prompt bar', () => {
     act(() => (el.querySelectorAll('button')[3] as HTMLButtonElement).click());
     expect(runs).toEqual([['fix', undefined, null]]);
     const field = el.querySelector('input') as HTMLInputElement;
-    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-    act(() => {
-      set.call(field, 'make it shorter');
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    typeInto(field, 'make it shorter');
     act(() => el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
     expect(runs[1]).toEqual(['ask', 'make it shorter', null]);
     expect(field.value).toBe('');
@@ -50,8 +28,7 @@ describe('the prompt bar', () => {
     act(() => (el.querySelectorAll('button')[0] as HTMLButtonElement).click());
     expect(runs).toEqual([]);
     expect(el.textContent).toContain('Format, on');
-    const part = [...el.querySelectorAll('button')].find((b) => b.textContent === 'This part') as HTMLButtonElement;
-    act(() => part.click());
+    act(() => button('This part', el).click());
     expect(runs).toEqual([['format', undefined, { from: 4, to: 20 }]]);
     expect(used).toHaveBeenCalled();
   });
@@ -70,7 +47,7 @@ describe('the prompt bar', () => {
     expect(field.disabled).toBe(true);
     expect(field.placeholder).toContain('needs a model');
     expect(buttons(el).some((b) => b?.startsWith('Get Qwen3.5 4B'))).toBe(true);
-    act(() => ([...el.querySelectorAll('button')].find((b) => b.textContent?.startsWith('Get')) as HTMLButtonElement).click());
+    press(buttonSaying(el, 'Get Qwen3.5 4B'));
     expect(got).toEqual(['qwen3.5-4b']);
     expect((el.querySelectorAll('button')[0] as HTMLButtonElement).disabled).toBe(true);
   });

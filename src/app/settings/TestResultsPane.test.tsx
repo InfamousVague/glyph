@@ -2,9 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 // The Glacier kit reads matchMedia as it loads; jsdom has none.
-vi.hoisted(() => {
-  window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as typeof window.matchMedia;
-});
+await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
 import { TestResultsPane } from './TestResultsPane.tsx';
 import { sample } from '../diag/testReport.test.ts';
 

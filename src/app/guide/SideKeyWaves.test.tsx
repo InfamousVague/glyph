@@ -1,30 +1,11 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { show, unmount } from '../../test/render.tsx';
 import { SideKeyWaves } from './SideKeyWaves.tsx';
 import { COMMON } from './sideKeys.ts';
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
 
 beforeAll(() => {
   // No canvas in this document: the layer mounts empty and must not mind.
   HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement['getContext'];
-});
-
-function show(element: React.ReactElement): HTMLDivElement {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-  return host;
-}
-
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
 });
 
 describe('the waves from the side key', () => {
@@ -47,6 +28,6 @@ describe('the waves from the side key', () => {
     const waves = shown.querySelector<HTMLElement>('[data-testid="side-key-waves"]');
     expect(waves?.dataset.edge).toBe('right');
     expect(waves?.style.getPropertyValue('--at')).toMatch(/^\d+(\.\d)?%$/);
-    expect(() => act(() => root?.unmount())).not.toThrow();
+    expect(() => unmount()).not.toThrow();
   });
 });

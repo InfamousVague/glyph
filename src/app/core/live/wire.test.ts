@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { settle } from '../sync/crypto.ts';
+import { newAccountKey, settle } from '../sync/crypto.ts';
 import { Kind, decode, encode, newSeed, openEnvelope, packState, sealEnvelope, unpackState } from './wire.ts';
 
 /** An account key as a device holds one: made, then settled into a non-extractable key. */
 async function accountKey(): Promise<CryptoKey> {
-  const raw = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-  return settle(raw);
+  return settle(await newAccountKey());
 }
 
 describe('a live message', () => {

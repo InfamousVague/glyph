@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { button, show, unmount } from '../../test/render.tsx';
+import { stubResizeObserver } from '../../test/stubs.ts';
 import { WispBench } from './WispBench.tsx';
 import { floorVerdict, reportText, wearingOf, type Row } from './wispBenchRun.ts';
 
@@ -12,46 +13,20 @@ import { floorVerdict, reportText, wearingOf, type Row } from './wispBenchRun.ts
  */
 
 // The Glacier kit reads matchMedia as it loads; jsdom has none. Hoisted, so it is there before the imports run.
-vi.hoisted(() => {
-  window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as typeof window.matchMedia;
-});
+await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
 
 // The wisp hook watches the surface's size; jsdom has no observer and no sizes, so it sees a page that never scrolls.
-class StillObserver {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-globalThis.ResizeObserver ??= StillObserver as unknown as typeof ResizeObserver;
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-function show(element: React.ReactElement): void {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-}
+stubResizeObserver();
 
 afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
+  // Unmounted before the real clock is back, so the tree's cleanup clears its timers on the fake clock that set them.
+  unmount();
+  vi.useRealTimers();
   localStorage.clear();
 });
 
 const dialog = () => document.querySelector<HTMLElement>('[role="dialog"][aria-label="Smoke bench"]');
 const surfaces = () => [...document.querySelectorAll<HTMLElement>('[data-draw]')].map((el) => el.dataset.draw);
-
-/** A button, by its words. */
-function pick(label: string): HTMLElement {
-  const found = [...document.querySelectorAll<HTMLElement>('button')].find((el) => el.textContent?.trim() === label);
-  if (!found) throw new Error(`no button called ${label}`);
-  return found;
-}
 
 /** One of the kit's segmented options: a native radio under a label, chosen by its value. */
 function choose(value: string): void {
@@ -85,63 +60,59 @@ describe('the smoke bench', () => {
     expect(surfaces()).toEqual(['mask']);
     choose('none');
     expect(surfaces()).toEqual(['none']);
-    act(() => pick('Side by side').click());
+    act(() => button('Side by side').click());
     expect(surfaces()).toEqual(['filter', 'mask', 'none']);
-    act(() => pick('One at a time').click());
+    act(() => button('One at a time').click());
     expect(surfaces()).toEqual(['none']);
   });
 
   it('runs the nine cells one surface at a time and puts them in a table with what each surface wore', async () => {
+    // Frames on a clock turned by hand, one every 16 ms, so the page without smoke holds its frames and the run goes on
+    // to the other six every time. On jsdom's own clock the frames were whatever a loaded machine gave them: the run
+    // stopped at the floor as often as not, and a test that took either answer could not fail on the six at all. The
+    // busy verdict is floorVerdict's, and is tried below on numbers.
+    vi.useFakeTimers();
     show(<WispBench open onClose={() => {}} limits={tiny} settleMs={0} />);
     await act(async () => {
-      pick('Run the bench').click();
+      button('Run the bench').click();
     });
-    // The run mounts one drawing after another; wait for it to say it is done (the table fills a moment before).
-    const deadline = Date.now() + 5000;
-    while (document.querySelector('[role="status"]') && Date.now() < deadline) {
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      });
+    // The run mounts one drawing after another; turn the clock until it says it is done (the table fills a moment
+    // before). A run is about seventy frames; one that has not finished in a thousand never will.
+    for (let frame = 0; document.querySelector('[role="status"]'); frame += 1) {
+      if (frame === 1000) throw new Error('The bench was still running after a thousand frames.');
+      await act(() => vi.advanceTimersByTimeAsync(16));
     }
     const cells = [...document.querySelectorAll<HTMLElement>('table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].slice(0, 2).map((td) => td.textContent));
     // The page without smoke goes first: its floor decides whether the rest is worth running.
-    expect(cells.slice(0, 3)).toEqual([
+    expect(cells).toEqual([
       ['No smoke', 'At rest'],
       ['No smoke', 'One repaint a frame'],
       ['No smoke', 'Scrolling'],
+      ['Filter', 'At rest'],
+      ['Filter', 'One repaint a frame'],
+      ['Filter', 'Scrolling'],
+      ['Mask', 'At rest'],
+      ['Mask', 'One repaint a frame'],
+      ['Mask', 'Scrolling'],
     ]);
-    // jsdom's frames are whatever the machine gives them; on a quiet one the run goes on to the other six, on a busy
-    // one it stops at the floor and says so. Either is the page doing its job.
-    if (cells.length === 9) {
-      expect(cells.slice(3)).toEqual([
-        ['Filter', 'At rest'],
-        ['Filter', 'One repaint a frame'],
-        ['Filter', 'Scrolling'],
-        ['Mask', 'At rest'],
-        ['Mask', 'One repaint a frame'],
-        ['Mask', 'Scrolling'],
-      ]);
-    } else {
-      expect(cells).toHaveLength(3);
-      expect(document.body.textContent).toContain('this machine was busy');
-    }
+    expect(document.body.textContent).toContain('The page without smoke held its frames');
     // Only one surface was ever on the page: the run switches them rather than adding them.
     expect(surfaces()).toHaveLength(1);
     // The run's mark is gone with it.
     expect(document.querySelectorAll('[class*="mark"]')).toHaveLength(0);
-    expect(pick('Copy as text')).toBeTruthy();
+    expect(button('Copy as text')).toBeTruthy();
   });
 
   it('tells the whole app which to draw, from the hook’s own key, and takes it back', () => {
     show(<WispBench open onClose={() => {}} />);
     choose('mask');
-    act(() => pick('Use the mask app-wide').click());
+    act(() => button('Use the mask app-wide').click());
     expect(localStorage.getItem('glyph-wisp-draw')).toBe('mask');
-    act(() => pick('Back to the default').click());
+    act(() => button('Back to the default').click());
     expect(localStorage.getItem('glyph-wisp-draw')).toBeNull();
     // No smoke is not a thing the app can be told to draw.
     choose('none');
-    expect(() => pick('Use the none app-wide')).toThrow();
+    expect(() => button('Use the none app-wide')).toThrow();
   });
 });
 

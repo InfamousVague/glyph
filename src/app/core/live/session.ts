@@ -67,6 +67,15 @@ export class LiveSession {
     return this.others;
   }
 
+  /**
+   * Settles once every message posted so far has been sealed and handed to the transport. Sealing is WebCrypto, off
+   * the caller's clock, so this is the one part of the session nobody can see finish from outside: what a test of a
+   * room waits on (session.test.ts) rather than a guess at how long a loaded machine takes to encrypt.
+   */
+  sent(): Promise<void> {
+    return this.sending;
+  }
+
   /** The relay put this device in the room: the first seeds, the rest ask. Also on every rejoin after a drop. */
   joined(first: boolean, peers: number): void {
     this.setPeers(peers);

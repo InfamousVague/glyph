@@ -1,8 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+import { show, typeInto, unmount } from '../../test/render.tsx';
 
 // The split view is the sidebar's line; each test says which side of it the window is.
 let wide = false;
@@ -29,32 +27,22 @@ const sections: SettingsSection[] = [
   },
 ];
 
-let root: Root;
 let host: HTMLDivElement;
 
-beforeEach(() => {
-  host = document.createElement('div');
-  document.body.append(host);
-  root = createRoot(host);
-});
-
 afterEach(() => {
-  act(() => root.unmount());
-  host.remove();
+  // Unmounted before the real clock is back, so the tree's cleanup clears its timers on the fake clock that set them.
+  unmount();
   vi.useRealTimers();
 });
 
 function render(onClose = () => {}) {
-  act(() => root.render(<SettingsScreen open onClose={onClose} sections={sections} />));
+  host = show(<SettingsScreen open onClose={onClose} sections={sections} />);
 }
 
+/** Words in the search field, as typed; answers the field. */
 function type(words: string) {
   const field = host.querySelector<HTMLInputElement>('input[type="search"]')!;
-  const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-  act(() => {
-    set.call(field, words);
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-  });
+  typeInto(field, words);
   return field;
 }
 

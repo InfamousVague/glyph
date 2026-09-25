@@ -1,9 +1,7 @@
 import { act } from 'react';
-import { createRoot } from 'react-dom/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { show } from '../../test/render.tsx';
 import { useRedraw } from './useRedraw.ts';
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 /** A truth React does not hold, as the find bar's count lives in the editor's state. */
 let outside = 'first';
@@ -16,17 +14,8 @@ function Mirror() {
 }
 
 describe('a render on demand', () => {
-  const host = document.createElement('div');
-  const root = createRoot(host);
-
-  afterEach(() => {
-    act(() => root.unmount());
-    host.remove();
-  });
-
   it('draws again when asked, reading the truth where it lives, with the same function every time', () => {
-    document.body.append(host);
-    act(() => root.render(<Mirror />));
+    const host = show(<Mirror />);
     expect(host.textContent).toBe('first');
 
     outside = 'second';

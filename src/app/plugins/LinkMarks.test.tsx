@@ -1,25 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { show, unmount } from '../../test/render.tsx';
 import { addWorkspace, fileNote, removeWorkspace, setWorkspaceHue, workspaces } from '../core/workspaces.ts';
 import { LinkMarks } from './LinkMarks.tsx';
 
 vi.mock('./registry.ts', () => ({ useNoteLinks: () => [] }));
 
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-function show(element: React.ReactElement): HTMLDivElement {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-  return host;
-}
-
 afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
+  // Off the page first, so the workspaces going is a change no mounted mark hears.
+  unmount();
   for (const w of workspaces().list) removeWorkspace(w.id);
 });
 

@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { stubMatchMedia } from '../../test/stubs.ts';
 import { wispSides } from './wispSides.ts';
 
 /**
@@ -31,7 +32,7 @@ const attr = (filter: SVGElement, tag: string, name: string): string | null => f
 
 beforeAll(() => {
   // The filter is refused with reduced motion, and jsdom has no matchMedia to ask.
-  window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as typeof window.matchMedia;
+  stubMatchMedia();
 });
 
 describe('wispSides', () => {

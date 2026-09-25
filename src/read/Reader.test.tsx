@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { describe, expect, it, vi } from 'vitest';
 import type { Shared } from '../app/share/share.ts';
+import { show, waitUntil } from '../test/render.tsx';
+import { stubMatchMedia } from '../test/stubs.ts';
 
 /**
  * The reader page draws a shared note's pictures from the share itself (Matt: "Images for notes are not loading on
@@ -23,18 +23,6 @@ vi.mock('../app/share/share.ts', async (importOriginal) => ({
   readShared: vi.fn(async () => shared),
 }));
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
-});
-
 describe('the reader page', () => {
   it('draws a shared note with the pictures its share carries, and downloads it as a zip', async () => {
     const lent: Blob[] = [];
@@ -43,20 +31,12 @@ describe('the reader page', () => {
       return `blob:lent-${lent.length}`;
     });
     // The page follows the system's light or dark setting.
-    window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined }) as unknown as MediaQueryList);
+    stubMatchMedia();
     history.replaceState(null, '', `/read.html#${'a'.repeat(22)}.${'b'.repeat(43)}`);
     const { Reader } = await import('./Reader.tsx');
-    host = document.createElement('div');
-    document.body.appendChild(host);
-    root = createRoot(host);
-    await act(async () => {
-      root!.render(<Reader />);
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    });
-    const img = document.querySelector<HTMLImageElement>('.cm-editor figure img');
-    expect(img?.getAttribute('src')).toBe('blob:lent-1');
+    show(<Reader />);
+    // The share is read, then drawn: waited for, not slept on.
+    await waitUntil(() => expect(document.querySelector('.cm-editor figure img')?.getAttribute('src')).toBe('blob:lent-1'));
     expect(lent[0]?.type).toBe('image/jpeg');
     expect(document.querySelector('button[aria-label="Download as Markdown (.zip)"]')).toBeTruthy();
   });
