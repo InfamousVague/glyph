@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { answerHost } from './host.ts';
 import { randomId } from './ids.ts';
+import { readStored, writeStored } from './stored.ts';
 import { invoke, isTauri } from './tauri.ts';
 import type { Segment } from '../capture/markdown.ts';
 
@@ -64,28 +65,22 @@ const byRecency = (a: Note, b: Note): number => b.updatedAt - a.updatedAt;
 
 const WEB_KEY = 'glyph-notes';
 
+/**
+ * A corrupt or unreadable store reads as empty rather than throwing: the
+ * browser half exists so development never stops, and a parse error in a
+ * dev fixture should not be the thing that stops it.
+ */
 function webAll(): Note[] {
-  try {
-    const raw = localStorage.getItem(WEB_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed)
+  return readStored<Note[]>(WEB_KEY, [], (parsed) =>
+    Array.isArray(parsed)
       ? (parsed as Array<Omit<Note, 'revision'> & { revision?: number }>).map((note) => ({ ...note, revision: note.revision ?? 1 }))
-      : [];
-  } catch {
-    // A corrupt or unreadable store reads as empty rather than throwing: the
-    // browser half exists so development never stops, and a parse error in a
-    // dev fixture should not be the thing that stops it.
-    return [];
-  }
+      : [],
+  );
 }
 
+/** Private mode, or quota: not kept, and the note stays correct in memory for this run. */
 function webWrite(notes: Note[]): void {
-  try {
-    localStorage.setItem(WEB_KEY, JSON.stringify(notes));
-  } catch {
-    // Private mode, or quota. The note stays correct in memory for this run.
-  }
+  writeStored(WEB_KEY, notes);
 }
 
 // --- the public API ---------------------------------------------------------
@@ -171,20 +166,12 @@ export interface PendingCommandUndo {
 const WEB_COMMAND_KEY = 'glyph-command-mutations';
 
 function webCommands(): WebCommandRecord[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(WEB_COMMAND_KEY) ?? '[]');
-    return Array.isArray(parsed) ? (parsed as WebCommandRecord[]) : [];
-  } catch {
-    return [];
-  }
+  return readStored<WebCommandRecord[]>(WEB_COMMAND_KEY, [], (parsed) => (Array.isArray(parsed) ? (parsed as WebCommandRecord[]) : []));
 }
 
+/** Browser development keeps the applied note even if its undo log cannot persist. */
 function webWriteCommands(records: WebCommandRecord[]): void {
-  try {
-    localStorage.setItem(WEB_COMMAND_KEY, JSON.stringify(records));
-  } catch {
-    // Browser development keeps the applied note even if its undo log cannot persist.
-  }
+  writeStored(WEB_COMMAND_KEY, records);
 }
 
 /** Apply exactly the body that was previewed, if the previewed revision still exists. */

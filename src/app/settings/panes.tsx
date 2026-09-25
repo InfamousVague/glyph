@@ -672,7 +672,7 @@ export function DeveloperPane({ onGuide }: { onGuide: (page?: number) => void })
       <PaneSection title="Reset" description="Two taps: the first arms it, the second does it. Ghost.md reloads on the welcome guide afterwards.">
         <ResetRow
           label="Reset local data"
-          hint="Notes, recordings, pictures, settings and the guide go. Downloaded models stay, and so does this page."
+          hint="Notes, recordings, pictures, settings, the guide and the sign-in go. Downloaded models stay, and so does this page."
           models={false}
         />
         <ResetRow label="Reset everything" hint="The same, and the downloaded models too. They come back when asked for." models />

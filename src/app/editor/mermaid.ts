@@ -2,6 +2,7 @@ import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extens
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
 import { failureText } from '../core/failure.ts';
 import { isDarkNow, onPreferences, preferences } from '../core/preferences.ts';
+import { readStored, writeStored } from '../core/stored.ts';
 
 /**
  * Mermaid diagrams, drawn (Matt: "Add support for Mermaid charts").
@@ -127,15 +128,9 @@ let saving = 0;
 function allHeights(): Map<string, number> {
   if (heights) return heights;
   heights = new Map();
-  try {
-    const value = JSON.parse(localStorage.getItem(HEIGHTS_KEY) ?? '[]') as unknown;
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'number') heights.set(entry[0], entry[1]);
-      }
-    }
-  } catch {
-    // No storage: diagrams are guessed at until they are drawn.
+  // No storage: diagrams are guessed at until they are drawn.
+  for (const entry of readStored<unknown[]>(HEIGHTS_KEY, [], (value) => (Array.isArray(value) ? value : null))) {
+    if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'number') heights.set(entry[0], entry[1]);
   }
   return heights;
 }
@@ -154,11 +149,8 @@ function keepHeight(code: string, height: number): void {
   if (saving || typeof window === 'undefined') return;
   saving = window.setTimeout(() => {
     saving = 0;
-    try {
-      localStorage.setItem(HEIGHTS_KEY, JSON.stringify([...all]));
-    } catch {
-      // Remembered for as long as the app is open.
-    }
+    // Not kept: remembered for as long as the app is open.
+    writeStored(HEIGHTS_KEY, [...all]);
   }, 500);
 }
 

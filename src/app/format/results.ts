@@ -1,3 +1,4 @@
+import { readStoredShared, writeStored } from '../core/stored.ts';
 
 /**
  * What the AI keeps on the page per note: the home page's one-line gist.
@@ -6,7 +7,7 @@
  * columns, for the robot's view over the note; the view is gone and the
  * model's words land in the note itself now (ai/useLanding.ts), so only the
  * gist is left, under the same key with the hash of the body it came from.
- * The key is on the reset list.
+ * A reset clears the key with every other `glyph-` one (core/reset.ts).
  */
 
 const KEY = 'glyph-ai-results';
@@ -15,31 +16,18 @@ const KEY = 'glyph-ai-results';
 type Sheet = Record<string, Partial<Record<string, unknown>>>;
 
 /**
- * The sheet as last parsed, with the text it came from: the home page reads a gist for every card it draws, and each
- * read was the whole sheet parsed again (measured: 24 parses to show the home page once). A read asks for the text,
- * which cannot be stale, and parses only when it has changed. What it answers is shared: a writer copies it first.
+ * The sheet, read shared (core/stored.ts `readStoredShared`): the home page reads a gist for every card it draws, and
+ * each read was the whole sheet parsed again (measured: 24 parses to show the home page once). A read asks for the
+ * text, which cannot be stale, and parses only when it has changed. What it answers is shared: a writer copies it
+ * first.
  */
-let parsedSheet: { raw: string; sheet: Sheet } | null = null;
-
 function readSheet(): Sheet {
-  try {
-    const raw = localStorage.getItem(KEY) ?? '{}';
-    if (parsedSheet && parsedSheet.raw === raw) return parsedSheet.sheet;
-    const value = JSON.parse(raw) as unknown;
-    const sheet = value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {};
-    parsedSheet = { raw, sheet };
-    return sheet;
-  } catch {
-    return {};
-  }
+  return readStoredShared<Sheet>(KEY, {}, (value) => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {}));
 }
 
+/** No storage: the text stays on screen for now and is written again next time. */
 function writeSheet(sheet: Sheet): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(sheet));
-  } catch {
-    // No storage: the text stays on screen for now and is written again next time.
-  }
+  writeStored(KEY, sheet);
 }
 
 /** The home page's gist: its line, the body it came from as a hash, its length and its first line, and the model. */

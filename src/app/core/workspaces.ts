@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { onPreferences, preferences, setPreferences } from './preferences.ts';
 import { fileNoteInFolder, fileNotesInFolder } from './noteFolders.ts';
+import { readStored, readStoredText, writeStoredText } from './stored.ts';
 
 /**
  * Workspaces: a name a note can be filed under, and the list shown one
@@ -83,8 +84,8 @@ function fromPrefs(): { list: Workspace[]; notes: Record<string, string> } {
 
 /** The set kept under the old key, for a device that has not moved its workspaces into the preferences yet. */
 function fromOldKey(): { list: Workspace[]; notes: Record<string, string>; current: string | null } | null {
-  try {
-    const value = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Sheet> | null;
+  return readStored<ReturnType<typeof fromOldKey>>(KEY, null, (raw) => {
+    const value = raw as Partial<Sheet> | null;
     if (!value || !Array.isArray(value.list) || !value.list.length) return null;
     const list = value.list
       .filter((w): w is Workspace => Boolean(w) && typeof w.id === 'string' && typeof w.name === 'string')
@@ -95,9 +96,7 @@ function fromOldKey(): { list: Workspace[]; notes: Record<string, string>; curre
       for (const [note, id] of Object.entries(value.notes)) if (typeof id === 'string' && ids.has(id)) notes[note] = id;
     }
     return { list, notes, current: typeof value.current === 'string' && ids.has(value.current) ? value.current : null };
-  } catch {
-    return null;
-  }
+  });
 }
 
 function read(): Sheet {
@@ -106,22 +105,11 @@ function read(): Sheet {
   const old = held.list.length ? null : fromOldKey();
   if (old) {
     setPreferences({ workspaces: { list: old.list, notes: old.notes } });
-    if (old.current) {
-      try {
-        localStorage.setItem(HERE, old.current);
-      } catch {
-        // No storage: the filter holds for this run.
-      }
-    }
+    // No storage: the filter holds for this run.
+    if (old.current) writeStoredText(HERE, old.current);
     return { list: old.list, notes: old.notes, current: old.current };
   }
-  const here = (() => {
-    try {
-      return localStorage.getItem(HERE);
-    } catch {
-      return null;
-    }
-  })();
+  const here = readStoredText(HERE);
   const ids = new Set(held.list.map((w) => w.id));
   return { list: held.list, notes: held.notes, current: here && ids.has(here) ? here : null };
 }
@@ -138,12 +126,8 @@ function write(next: Sheet): void {
   ours = true;
   setPreferences({ workspaces: { list: next.list, notes: next.notes } });
   ours = false;
-  try {
-    if (next.current) localStorage.setItem(HERE, next.current);
-    else localStorage.removeItem(HERE);
-  } catch {
-    // No storage: the change holds for this run.
-  }
+  // No storage: the change holds for this run.
+  writeStoredText(HERE, next.current || null);
   listeners.forEach((listener) => listener());
 }
 

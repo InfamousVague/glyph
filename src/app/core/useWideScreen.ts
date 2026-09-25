@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { readStoredText, writeStoredText } from './stored.ts';
 
 /**
  * Whether the screen is wide enough for more in a header: a tablet, or a folding phone opened out. Answers again as
@@ -99,19 +100,13 @@ export function useSidebar(): boolean {
 const SHOWN_KEY = 'glyph-sidebar-shown';
 
 export function readSidebarShown(): boolean {
-  try {
-    const kept = localStorage.getItem(SHOWN_KEY);
-    if (kept === '1' || kept === '0') return kept === '1';
-  } catch {
-    // Storage refused: fall through to the device's default.
-  }
+  // Never toggled, or storage refused: the device's default.
+  const kept = readStoredText(SHOWN_KEY);
+  if (kept === '1' || kept === '0') return kept === '1';
   return typeof matchMedia !== 'undefined' && matchMedia(SIDEBAR_MOUSE).matches;
 }
 
+/** Not kept, it opens as the device's default next time. */
 export function writeSidebarShown(shown: boolean): void {
-  try {
-    localStorage.setItem(SHOWN_KEY, shown ? '1' : '0');
-  } catch {
-    // Not kept: it opens as the device's default next time.
-  }
+  writeStoredText(SHOWN_KEY, shown ? '1' : '0');
 }

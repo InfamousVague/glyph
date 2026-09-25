@@ -1,3 +1,5 @@
+import { readStored, writeStored } from '../core/stored.ts';
+
 /**
  * Glyph Academy's lessons (academy/AcademyScreen.tsx): what each mark is, what to type, and how the Academy knows it
  * worked.
@@ -214,19 +216,10 @@ export function lessonsIn(chapter: Chapter): Lesson[] {
 const KEY = 'glyph-academy';
 
 export function readProgress(): Set<string> {
-  try {
-    const raw = localStorage.getItem(KEY);
-    const ids = raw ? (JSON.parse(raw) as unknown) : [];
-    return new Set(Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []);
-  } catch {
-    return new Set();
-  }
+  return new Set(readStored<string[]>(KEY, [], (ids) => (Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [])));
 }
 
+/** Not kept, progress still counts for this visit. */
 export function writeProgress(done: ReadonlySet<string>): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify([...done]));
-  } catch {
-    // Progress still counts for this visit.
-  }
+  writeStored(KEY, [...done]);
 }

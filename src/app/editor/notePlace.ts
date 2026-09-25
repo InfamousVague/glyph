@@ -1,5 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { useEffect, type RefObject } from 'react';
+import { readStored, writeStored } from '../core/stored.ts';
 import { bookmarkLineIn } from './bookmarkLine.ts';
 
 /**
@@ -32,13 +33,13 @@ const SAVE_AFTER_MS = 400;
 
 type Places = Record<string, Place & { at: number }>;
 
+/** Anything but an object of places is no places; an entry that is not an object is no place, and is let go. */
 function readAll(): Places {
-  try {
-    const value = JSON.parse(localStorage.getItem(KEY) ?? '{}') as unknown;
-    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Places) : {};
-  } catch {
-    return {};
-  }
+  return readStored<Places>(KEY, {}, (value) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (Object.fromEntries(Object.entries(value).filter(([, place]) => place && typeof place === 'object')) as Places)
+      : {},
+  );
 }
 
 export function readPlace(noteId: string): Place | null {
@@ -46,18 +47,15 @@ export function readPlace(noteId: string): Place | null {
   return place && Number.isFinite(place.pos) && Number.isFinite(place.offset) ? { pos: place.pos, offset: place.offset } : null;
 }
 
+/** Not kept, the note opens at the top, as it did. */
 export function writePlace(noteId: string, place: Place | null, now = Date.now()): void {
-  try {
-    const all = readAll();
-    if (place) all[noteId] = { ...place, at: now };
-    else delete all[noteId];
-    const kept = Object.entries(all)
-      .sort((a, b) => b[1].at - a[1].at)
-      .slice(0, KEEP);
-    localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(kept)));
-  } catch {
-    // No storage: the note opens at the top, as it did.
-  }
+  const all = readAll();
+  if (place) all[noteId] = { ...place, at: now };
+  else delete all[noteId];
+  const kept = Object.entries(all)
+    .sort((a, b) => b[1].at - a[1].at)
+    .slice(0, KEEP);
+  writeStored(KEY, Object.fromEntries(kept));
 }
 
 /**
@@ -65,12 +63,9 @@ export function writePlace(noteId: string, place: Place | null, now = Date.now()
  * note opens at it, rather than where it was last left, until it is taken off again.
  */
 function marks(): Record<string, Place> {
-  try {
-    const value = JSON.parse(localStorage.getItem(MARKS_KEY) ?? '{}') as unknown;
-    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, Place>) : {};
-  } catch {
-    return {};
-  }
+  return readStored<Record<string, Place>>(MARKS_KEY, {}, (value) =>
+    value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, Place>) : {},
+  );
 }
 
 export function readBookmark(noteId: string): Place | null {
@@ -80,14 +75,11 @@ export function readBookmark(noteId: string): Place | null {
 
 /** Puts a bookmark in `noteId`, or takes it off with null. */
 export function writeBookmark(noteId: string, place: Place | null): void {
-  try {
-    const all = marks();
-    if (place) all[noteId] = place;
-    else delete all[noteId];
-    localStorage.setItem(MARKS_KEY, JSON.stringify(all));
-  } catch {
-    // Without storage the bookmark holds while the note is open.
-  }
+  const all = marks();
+  if (place) all[noteId] = place;
+  else delete all[noteId];
+  // Without storage the bookmark holds while the note is open.
+  writeStored(MARKS_KEY, all);
 }
 
 /** Where the note's document starts inside the scrolling page, in the page's own scroll coordinates. */

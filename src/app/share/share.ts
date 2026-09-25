@@ -5,6 +5,7 @@ import { imageBytes, imageNames, keepImage, smallerImage } from '../core/images.
 import { withFrontMatterTitle, frontMatterValue } from '../core/frontMatter.ts';
 import { createNote, listNotes, newNoteId, noteTitle, NOTE_SAVED, NOTES_CHANGED, type Note } from '../core/store.ts';
 import { onPreferences, preferences, setPreferences } from '../core/preferences.ts';
+import { readStored, writeStored } from '../core/stored.ts';
 import { chaptersOf, isBookBody } from '../book/book.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 import { zipFiles } from './zip.ts';
@@ -223,17 +224,13 @@ let migrated = false;
 function migrateLegacy(): void {
   if (migrated) return;
   migrated = true;
-  try {
-    const raw = localStorage.getItem(LEGACY_KEY);
-    if (!raw) return;
-    const value = JSON.parse(raw) as unknown;
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      setPreferences({ shares: { ...(value as Record<string, Kept>), ...preferences().shares } });
-    }
-    localStorage.removeItem(LEGACY_KEY);
-  } catch {
-    // Unreadable: nothing to bring over.
+  // Nothing kept, or unreadable: nothing to bring over, and the key is left as it is.
+  const value = readStored<unknown>(LEGACY_KEY, undefined);
+  if (value === undefined) return;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    setPreferences({ shares: { ...(value as Record<string, Kept>), ...preferences().shares } });
   }
+  writeStored(LEGACY_KEY, null);
 }
 
 function readKept(): Record<string, Kept> {

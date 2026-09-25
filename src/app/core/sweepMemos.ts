@@ -1,4 +1,5 @@
 import type { Note } from './store.ts';
+import { storedFlag } from './stored.ts';
 import { isTrashed, trashNote } from './trash.ts';
 
 /**
@@ -12,7 +13,8 @@ import { isTrashed, trashNote } from './trash.ts';
  * This can go, with its key, once every phone has run a build past it.
  */
 
-const SWEPT_KEY = 'glyph-memos-swept';
+/** Nowhere to remember it: sweep, and sweep again next time, which trashes nothing new. */
+const swept = storedFlag('glyph-memos-swept');
 
 /** A front matter fence, `---` or `+++`, on a line of its own. */
 const FENCE = /^(---|\+\+\+)\s*$/;
@@ -30,32 +32,15 @@ export function wasMemo(body: string): boolean {
   return false;
 }
 
-function swept(): boolean {
-  try {
-    return localStorage.getItem(SWEPT_KEY) !== null;
-  } catch {
-    // Nowhere to remember it: sweep, and sweep again next time, which trashes nothing new.
-    return false;
-  }
-}
-
-function markSwept(): void {
-  try {
-    localStorage.setItem(SWEPT_KEY, new Date().toISOString());
-  } catch {
-    // Nowhere to remember it.
-  }
-}
-
 /** Puts every memo among the notes in the trash, once; answers how many it did, so the list can read again. */
 export function sweepMemos(notes: readonly Note[]): number {
-  if (swept()) return 0;
+  if (swept.is()) return 0;
   let count = 0;
   for (const note of notes) {
     if (!wasMemo(note.body) || isTrashed(note.id)) continue;
     trashNote(note.id);
     count += 1;
   }
-  markSwept();
+  swept.mark();
   return count;
 }

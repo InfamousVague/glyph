@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { deviceFlag } from '../deviceFlag.ts';
 
 /**
  * Whether live sync runs on this device (docs/LIVE.md, "Switched off until it works").
@@ -10,35 +10,15 @@ import { useSyncExternalStore } from 'react';
  * Kept on the device rather than in the synced settings, so trying it on one device never turns it on for another, and
  * in its own file rather than the preferences, so it can be turned on for everyone by changing one line here.
  */
-const KEY = 'glyph-live';
-const listeners = new Set<() => void>();
+const live = deviceFlag('glyph-live');
 
-export function liveEnabled(): boolean {
-  try {
-    return localStorage.getItem(KEY) === 'on';
-  } catch {
-    // Storage the page cannot reach - a locked-down webview, a private window - is not a device that asked for it.
-    return false;
-  }
-}
+/**
+ * Whether this device asked for it. Storage the page cannot reach - a locked-down webview, a private window - is not a
+ * device that asked for it.
+ */
+export const liveEnabled = live.read;
 
-export function setLiveEnabled(on: boolean): void {
-  try {
-    if (on) localStorage.setItem(KEY, 'on');
-    else localStorage.removeItem(KEY);
-  } catch {
-    // Nowhere to keep it: it stays as it was, and the switch shows as much.
-  }
-  for (const listener of listeners) listener();
-}
+/** Turns it on or off here. With nowhere to keep it, it stays as it was, and the switch shows as much. */
+export const setLiveEnabled = live.set;
 
-export function useLiveEnabled(): boolean {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    liveEnabled,
-    () => false,
-  );
-}
+export const useLiveEnabled = live.use;

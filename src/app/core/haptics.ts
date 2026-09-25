@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from 'react';
 import type { HapticKind } from '@glacier/react';
+import { deviceFlag } from './deviceFlag.ts';
 import { isNativeMobile } from './platform.ts';
 
 /**
@@ -191,38 +191,12 @@ export function installTapHaptics(): () => void {
 
 // --- the preference -------------------------------------------------------
 
-const PREF_KEY = 'glyph-haptics';
-const listeners = new Set<() => void>();
-
 /** On by default anywhere there is a motor to feel; a stored choice wins. */
-export function hapticsPref(): boolean {
-  try {
-    const stored = localStorage.getItem(PREF_KEY);
-    if (stored === 'on') return true;
-    if (stored === 'off') return false;
-  } catch {
-    // Fall through to the default.
-  }
-  return isNativeMobile;
-}
+const pref = deviceFlag('glyph-haptics', isNativeMobile);
 
-export function setHapticsPref(on: boolean): void {
-  try {
-    localStorage.setItem(PREF_KEY, on ? 'on' : 'off');
-  } catch {
-    // The choice still applies for this run.
-  }
-  for (const l of listeners) l();
-}
+export const hapticsPref = pref.read;
+
+export const setHapticsPref = pref.set;
 
 /** The switch's state, live across every component that shows it. */
-export function useHapticsPref(): boolean {
-  return useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
-    },
-    hapticsPref,
-    () => false,
-  );
-}
+export const useHapticsPref = pref.use;

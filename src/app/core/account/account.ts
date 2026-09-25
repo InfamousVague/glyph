@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from 'react';
 import { ApiError, call } from './api.ts';
+import { externalStore } from '../externalStore.ts';
 import { deviceKeys, readSession, writeSession, type KeyStore, type Session } from './keystore.ts';
 import {
   derive,
@@ -43,32 +43,16 @@ const live: Deps = { keys: deviceKeys(), rounds: ROUNDS };
 
 // --- the state the page shows ------------------------------------------------------
 
-let state: AccountState = { session: readSession(), unlocked: false };
-const listeners = new Set<() => void>();
+const shown = externalStore<AccountState>({ session: readSession(), unlocked: false });
 
-function publish(next: AccountState): void {
-  state = next;
-  for (const listener of listeners) listener();
-}
+export const accountState = shown.get;
 
-export function accountState(): AccountState {
-  return state;
-}
-
-export function useAccount(): AccountState {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    () => state,
-  );
-}
+export const useAccount = shown.use;
 
 /** Tells the page what this device holds now: the session, and whether the account key is here. */
 async function settleState(deps: Deps, session: Session | null): Promise<void> {
   writeSession(session);
-  publish({ session, unlocked: Boolean(session && (await deps.keys.accountKey())) });
+  shown.set({ session, unlocked: Boolean(session && (await deps.keys.accountKey())) });
 }
 
 // --- the rules ---------------------------------------------------------------------
@@ -179,7 +163,7 @@ export async function recover(handle: string, code: string, newPassword: string,
 
 /** The account key under a new password. Needs the current one: the key has to be opened to be wrapped again. */
 export async function changePassword(current: string, next: string, deps: Deps = live): Promise<void> {
-  const session = state.session;
+  const session = shown.get().session;
   if (!session) throw new ApiError(401, 'Sign in first.');
   const problem = passwordProblem(next);
   if (problem) throw new ApiError(400, problem);
@@ -190,7 +174,7 @@ export async function changePassword(current: string, next: string, deps: Deps =
 
 /** A new recovery sheet in place of the old. Needs the password, for the same reason. */
 export async function newRecoveryCodes(password: string, deps: Deps = live): Promise<Made> {
-  const session = state.session;
+  const session = shown.get().session;
   if (!session) throw new ApiError(401, 'Sign in first.');
   const accountKey = await openWithPassword(session, password, deps);
   const sheet = await newSheet(session.handle, accountKey, deps.rounds);
@@ -244,7 +228,7 @@ export async function resume(deps: Deps = live): Promise<void> {
  * as the account is gone. The notes on this device stay; they are the person's own files.
  */
 export async function deleteAccount(password: string, deps: Deps = live): Promise<void> {
-  const session = state.session;
+  const session = shown.get().session;
   if (!session) throw new ApiError(401, 'Sign in first.');
   const { login } = await derive(password, passwordSalt(session.handle), deps.rounds);
   await call('DELETE', 'account', { token: session.token, fetcher: deps.fetcher, body: { loginSecret: login } });

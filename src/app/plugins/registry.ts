@@ -6,6 +6,7 @@ import { onPluginStorage, PluginPermissionError } from './host.ts';
 import { registerMarkName } from '../core/itemLinks.ts';
 import { markDetailsChanged, provideMarkDetails } from '../core/markDetails.ts';
 import { onPreferences, preferences } from '../core/preferences.ts';
+import { readStored, writeStored } from '../core/stored.ts';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { InlineFormat, GlyphPlugin, ItemAction, ItemTarget, NoteAction, NoteLink, Permission, Tip, VoiceCommand, Suggestion } from './types.ts';
 
@@ -64,19 +65,11 @@ interface SwitchStore {
 
 const localSwitches: SwitchStore = {
   read() {
-    try {
-      const parsed: unknown = JSON.parse(localStorage.getItem(SWITCHES_KEY) ?? '{}');
-      return parsed && typeof parsed === 'object' ? (parsed as Record<string, boolean>) : {};
-    } catch {
-      return {};
-    }
+    return readStored<Record<string, boolean>>(SWITCHES_KEY, {}, (parsed) => (parsed && typeof parsed === 'object' ? (parsed as Record<string, boolean>) : {}));
   },
   write(switches) {
-    try {
-      localStorage.setItem(SWITCHES_KEY, JSON.stringify(switches));
-    } catch {
-      // Without storage a switch lasts as long as the page.
-    }
+    // Without storage a switch lasts as long as the page.
+    writeStored(SWITCHES_KEY, switches);
   },
 };
 

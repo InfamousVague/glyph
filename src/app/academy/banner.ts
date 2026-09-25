@@ -1,3 +1,4 @@
+import { storedFlag } from '../core/stored.ts';
 import { readProgress } from './lessons.ts';
 
 /**
@@ -12,24 +13,13 @@ import { readProgress } from './lessons.ts';
  * Academy stays in Settings either way.
  */
 
-const DISMISSED = 'glyph-academy-banner';
+/** Nowhere to remember it: better to offer once more than never again. */
+const dismissed = storedFlag('glyph-academy-banner', { value: 'done' });
 
-export function academyBannerDismissed(): boolean {
-  try {
-    return localStorage.getItem(DISMISSED) === 'done';
-  } catch {
-    // Nowhere to remember it: better to offer once more than never again.
-    return false;
-  }
-}
+export const academyBannerDismissed = dismissed.is;
 
-export function dismissAcademyBanner(): void {
-  try {
-    localStorage.setItem(DISMISSED, 'done');
-  } catch {
-    // Put away for this run at least; App.tsx holds that.
-  }
-}
+/** Not kept: put away for this run at least; App.tsx holds that. */
+export const dismissAcademyBanner = dismissed.mark;
 
 /** True while the Academy is worth offering: nothing passed yet, and not put away. */
 export function academyBannerDue(): boolean {

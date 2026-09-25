@@ -6,6 +6,7 @@ import { useWispEdge } from '../art/wispEdge.ts';
 import { WISP_DRAW_KEY, type WispDraw } from '../art/wispMask.ts';
 import { useBack } from '../core/back.ts';
 import { usePreferences } from '../core/preferences.ts';
+import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { isTauri } from '../core/tauri.ts';
 import { FrameRing, ms, runCell, type CellLimits } from '../diag/frameClock.ts';
 import { RowAction, SettingsCallout } from './kit/settingsKit.tsx';
@@ -163,20 +164,12 @@ export function WispBench({ open, onClose, limits = { quick: QUICK_LIMITS, long:
   };
   /** What the whole app is told to draw from its next start, if anything (art/wispMask.ts). */
   const [appWide, setAppWide] = useState<WispDraw | null>(() => {
-    try {
-      const asked = localStorage.getItem(WISP_DRAW_KEY);
-      return asked === 'filter' || asked === 'mask' ? asked : null;
-    } catch {
-      return null;
-    }
+    const asked = readStoredText(WISP_DRAW_KEY);
+    return asked === 'filter' || asked === 'mask' ? asked : null;
   });
+  // Nowhere to keep it: the app keeps its default.
   const tellApp = (which: WispDraw | null) => {
-    try {
-      if (which) localStorage.setItem(WISP_DRAW_KEY, which);
-      else localStorage.removeItem(WISP_DRAW_KEY);
-    } catch {
-      // Nowhere to keep it: the app keeps its default.
-    }
+    writeStoredText(WISP_DRAW_KEY, which);
     setAppWide(which);
   };
 

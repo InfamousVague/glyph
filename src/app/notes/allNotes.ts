@@ -1,3 +1,4 @@
+import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 
 /**
@@ -67,19 +68,12 @@ export function archivedCount(notes: readonly Note[]): number {
 /** The order chosen last time, kept on the device (core/reset.ts clears it). */
 const SORT_KEY = 'glyph-all-notes-sort';
 
+/** Nothing kept, or storage that cannot be read: the newest first, as on the home page. */
 export function readSort(): AllNotesSort {
-  try {
-    return localStorage.getItem(SORT_KEY) === 'title' ? 'title' : 'newest';
-  } catch {
-    // Storage that cannot be read: the newest first, as on the home page.
-    return 'newest';
-  }
+  return readStoredText(SORT_KEY) === 'title' ? 'title' : 'newest';
 }
 
+/** Storage that cannot be written: the choice holds for this page, and is asked again next time. */
 export function writeSort(sort: AllNotesSort): void {
-  try {
-    localStorage.setItem(SORT_KEY, sort);
-  } catch {
-    // Storage that cannot be written: the choice holds for this page, and is asked again next time.
-  }
+  writeStoredText(SORT_KEY, sort);
 }

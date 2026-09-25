@@ -1,5 +1,6 @@
 import { hasNativeGeneration } from './nativeGeneration.ts';
 import { preferences } from './preferences.ts';
+import { readStored, writeStored } from './stored.ts';
 import { invoke, isTauri } from './tauri.ts';
 
 /**
@@ -37,23 +38,15 @@ export const LINK_PREVIEW_READY = 'glyph:link-preview';
 let kept: Record<string, Kept> | null = null;
 
 function all(): Record<string, Kept> {
-  if (kept) return kept;
-  try {
-    kept = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Record<string, Kept>;
-  } catch {
-    kept = {};
-  }
+  kept ??= readStored<Record<string, Kept>>(KEY, {});
   return kept;
 }
 
+/** Not kept, the card still shows the site, and the title is asked again next time. */
 function save(): void {
   const entries = Object.entries(all()).sort((a, b) => b[1].at - a[1].at).slice(0, KEEP);
   kept = Object.fromEntries(entries);
-  try {
-    localStorage.setItem(KEY, JSON.stringify(kept));
-  } catch {
-    // The card still shows the site; the title is asked again next time.
-  }
+  writeStored(KEY, kept);
 }
 
 /** A web address's site as a person reads it: `airbnb.com`, without `www.`. */

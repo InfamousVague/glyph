@@ -1,4 +1,5 @@
 import { hasNativeGeneration } from '../core/nativeGeneration.ts';
+import { readStoredShared, writeStoredText } from '../core/stored.ts';
 import { invoke as tauriInvoke, isTauri } from '../core/tauri.ts';
 import type { Permission, PluginHost, PluginManifest } from './types.ts';
 
@@ -38,15 +39,6 @@ export class PluginPermissionError extends Error {
   }
 }
 
-/**
- * Each key's value as last parsed, with the text it was parsed from. A plugin reads its storage in hot places - the
- * Notion and GitHub links once per keystroke through their suggestions, the token on every render of a note - and
- * each read was a `JSON.parse` (measured: about a hundred parses for forty-one keystrokes). A read still asks
- * localStorage for the text, which is cheap and can never be stale however the key was written; it parses only when
- * the text is not the one parsed last. The value is shared, so a plugin that changes one copies it first.
- */
-const parsed = new Map<string, { raw: string; value: unknown }>();
-
 export function createHost(manifest: PluginManifest, invoke: typeof tauriInvoke = tauriInvoke): PluginHost {
   const declared = (permission: Permission) => manifest.permissions.some((p) => p.kind === permission);
   const require = (permission: Permission) => {
@@ -71,39 +63,27 @@ export function createHost(manifest: PluginManifest, invoke: typeof tauriInvoke 
       return invoke<T>(command, args);
     },
     storage: {
+      /**
+       * Read shared (core/stored.ts `readStoredShared`): a plugin reads its storage in hot places - the Notion and
+       * GitHub links once per keystroke through their suggestions, the token on every render of a note - and each
+       * read was a `JSON.parse` (measured: about a hundred parses for forty-one keystrokes). A read still asks
+       * localStorage for the text, which is cheap and can never be stale however the key was written; it parses only
+       * when the text is not the one parsed last. The value is shared, so a plugin that changes one copies it first.
+       */
       get<T>(key: string, fallback: T): T {
         owns(key);
-        try {
-          const raw = localStorage.getItem(key);
-          if (raw === null) return fallback;
-          const last = parsed.get(key);
-          if (last && last.raw === raw) return last.value as T;
-          const value = JSON.parse(raw) as T;
-          parsed.set(key, { raw, value });
-          return value;
-        } catch {
-          return fallback;
-        }
+        return readStoredShared(key, fallback);
       },
       set(key: string, value: unknown) {
         owns(key);
-        parsed.delete(key);
-        try {
-          localStorage.setItem(key, JSON.stringify(value));
-        } catch {
-          // No storage: it lasts as long as the page.
-        }
+        // As JSON whatever it is, null included; with no storage it lasts as long as the page.
+        writeStoredText(key, JSON.stringify(value));
         storageChanged();
       },
       remove(key: string) {
         owns(key);
-        parsed.delete(key);
         storageChanged();
-        try {
-          localStorage.removeItem(key);
-        } catch {
-          // Nothing to remove.
-        }
+        writeStoredText(key, null);
       },
     },
     async openUrl(url: string) {

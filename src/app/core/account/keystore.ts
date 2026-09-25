@@ -1,3 +1,5 @@
+import { readStored, writeStored } from '../stored.ts';
+
 /**
  * Where a device keeps what makes it a signed-in device (docs/SYNC.md): the session token, and two keys - the account
  * key that opens every synced note, and this device's own signing key for password-free sign-in.
@@ -25,23 +27,17 @@ const DB = 'glyph-account';
 const STORE = 'keys';
 
 export function readSession(): Session | null {
-  try {
-    const value = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null') as Partial<Session> | null;
+  return readStored<Session | null>(SESSION_KEY, null, (raw) => {
+    const value = raw as Partial<Session> | null;
     return value && typeof value.token === 'string' && typeof value.handle === 'string' && typeof value.accountId === 'number'
       ? { token: value.token, handle: value.handle, accountId: value.accountId }
       : null;
-  } catch {
-    return null;
-  }
+  });
 }
 
+/** No storage: signed in for as long as the page is open. */
 export function writeSession(session: Session | null): void {
-  try {
-    if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    else localStorage.removeItem(SESSION_KEY);
-  } catch {
-    // No storage: signed in for as long as the page is open.
-  }
+  writeStored(SESSION_KEY, session);
 }
 
 function request<T>(req: IDBRequest<T>): Promise<T> {

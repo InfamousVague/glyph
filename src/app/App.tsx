@@ -48,6 +48,7 @@ import { bookNoteBody, bookOf, isBookBody } from './book/book.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
 import { sweepMemos } from './core/sweepMemos.ts';
+import { storedFlag } from './core/stored.ts';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { afterPendingDeletes } from './capture/launch.ts';
@@ -76,23 +77,14 @@ import type { SpokenAsk } from './capture/CaptureScreen.tsx';
  * flag switched off, on pointerUP, where a tap can be told from a drag.
  */
 
-const GUIDE_KEY = 'glyph-guide-seen';
+/** No storage: showing it every launch would be worse than never. */
+const guideSeenFlag = storedFlag('glyph-guide-seen', { value: '1', unreadable: true });
 
-function guideSeen(): boolean {
-  try {
-    return localStorage.getItem(GUIDE_KEY) === '1';
-  } catch {
-    // No storage: showing it every launch would be worse than never.
-    return true;
-  }
-}
+const guideSeen = guideSeenFlag.is;
 
+/** Not kept: seen for this run, at least. */
 function markGuideSeen(): void {
-  try {
-    localStorage.setItem(GUIDE_KEY, '1');
-  } catch {
-    // Seen for this run, at least.
-  }
+  guideSeenFlag.mark();
   clearGuideProgress();
 }
 

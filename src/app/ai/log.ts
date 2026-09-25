@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { readStoredShared, writeStored } from '../core/stored.ts';
 import type { RunKind } from './kinds.ts';
 
 /**
@@ -9,7 +10,8 @@ import type { RunKind } from './kinds.ts';
  * the note. Kept on the page under one key, per note, the newest first and
  * at most a handful each (a note is asked about a few times a day, not a few
  * hundred), beside the summaries in `glyph-ai-results`; moving it into the
- * store is a native change for a later APK. The key is on the reset list.
+ * store is a native change for a later APK. A reset clears the key with every
+ * other `glyph-` one (core/reset.ts).
  *
  * A run that changed the note keeps the note as it was before and after, so
  * Undo can put the words back exactly - and only while the note still reads
@@ -45,30 +47,19 @@ const MOST = 8;
 
 type Sheet = Record<string, RunRecord[]>;
 
-/** The sheet as last parsed, with the text it came from, so a read parses only when the text has changed. */
-let parsed: { raw: string; sheet: Sheet } | null = null;
 const listeners = new Set<() => void>();
 
+/**
+ * The sheet, read shared (core/stored.ts `readStoredShared`), so a read parses only when the text has changed. What
+ * it answers is shared: a writer copies it first.
+ */
 function readSheet(): Sheet {
-  try {
-    const raw = localStorage.getItem(KEY) ?? '{}';
-    if (parsed && parsed.raw === raw) return parsed.sheet;
-    const value = JSON.parse(raw) as unknown;
-    const sheet = value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {};
-    parsed = { raw, sheet };
-    return sheet;
-  } catch {
-    return {};
-  }
+  return readStoredShared<Sheet>(KEY, {}, (value) => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {}));
 }
 
+/** No storage: the log holds for this run of the app and not beyond it. */
 function writeSheet(sheet: Sheet): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(sheet));
-  } catch {
-    // No storage: the log holds for this run of the app and not beyond it.
-  }
-  parsed = null;
+  writeStored(KEY, sheet);
   listeners.forEach((l) => l());
 }
 

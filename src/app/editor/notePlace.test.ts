@@ -28,6 +28,15 @@ describe('where a note was left', () => {
     localStorage.setItem('glyph-note-places', 'not json');
     expect(readPlace('a')).toBeNull();
   });
+
+  it('lets go of an entry that is not a place, rather than never keeping another', () => {
+    // Sorting the kept places by when they were read met the null and threw, and every place after it was lost.
+    localStorage.setItem('glyph-note-places', '{"gone":null,"a":{"pos":3,"offset":0,"at":1}}');
+    writePlace('b', { pos: 10, offset: 0 }, 2);
+    expect(readPlace('b')).toEqual({ pos: 10, offset: 0 });
+    expect(readPlace('a')).toEqual({ pos: 3, offset: 0 });
+    expect(JSON.parse(localStorage.getItem('glyph-note-places') ?? '{}')).not.toHaveProperty('gone');
+  });
 });
 
 describe('the bookmark the button puts in', () => {

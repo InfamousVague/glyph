@@ -3,6 +3,7 @@ import { boardNoteBody } from './boardNote.ts';
 import { howCanvasBody } from '../canvas/howCanvas.ts';
 import { sampleCanvasBody } from '../canvas/sampleCanvas.ts';
 import { sampleImageBlob, sampleNoteBody } from './sampleNote.ts';
+import { storedFlag } from './stored.ts';
 import { createNote, newNoteId, type Note } from './store.ts';
 
 /**
@@ -17,24 +18,12 @@ import { createNote, newNoteId, type Note } from './store.ts';
  * clears it with the rest (core/reset.ts).
  */
 
-export const SAMPLE_SEEDED_KEY = 'glyph-sample-note';
+/** Nowhere to remember it: better never to seed than to seed on every open. */
+const seeded = storedFlag('glyph-sample-note', { unreadable: true });
 
-export function sampleNoteSeeded(): boolean {
-  try {
-    return localStorage.getItem(SAMPLE_SEEDED_KEY) !== null;
-  } catch {
-    // Nowhere to remember it: better never to seed than to seed on every open.
-    return true;
-  }
-}
+export const sampleNoteSeeded = seeded.is;
 
-function markSeeded(): void {
-  try {
-    localStorage.setItem(SAMPLE_SEEDED_KEY, new Date().toISOString());
-  } catch {
-    // Nowhere to remember it.
-  }
-}
+const markSeeded = seeded.mark;
 
 /** Makes the sample note now, picture and all where a picture can be drawn, and answers it. */
 export async function addSampleNote(): Promise<Note> {

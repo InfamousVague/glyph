@@ -1,3 +1,4 @@
+import { readStored, writeStored } from '../core/stored.ts';
 import type { AiChange } from '../editor/aiChanges.ts';
 import { bodyHash } from '../format/formatter.ts';
 
@@ -8,7 +9,7 @@ import { bodyHash } from '../format/formatter.ts';
  * of the body they belong to; opened again, the marks go back on only when
  * the body still hashes the same, since a note edited elsewhere in between
  * (another device, Claude, a file) has words the positions no longer point
- * at. The key is on the reset list.
+ * at. A reset clears the key with every other `glyph-` one (core/reset.ts).
  */
 
 const KEY = 'glyph-ai-marks';
@@ -21,20 +22,12 @@ interface Kept {
 type Sheet = Record<string, Kept>;
 
 function readSheet(): Sheet {
-  try {
-    const value = JSON.parse(localStorage.getItem(KEY) ?? '{}') as unknown;
-    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {};
-  } catch {
-    return {};
-  }
+  return readStored<Sheet>(KEY, {}, (value) => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Sheet) : {}));
 }
 
+/** No storage: the marks hold while the note is open and not beyond it. */
 function writeSheet(sheet: Sheet): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(sheet));
-  } catch {
-    // No storage: the marks hold while the note is open and not beyond it.
-  }
+  writeStored(KEY, sheet);
 }
 
 /** The marks on a note as it now reads. None clears what was kept. */

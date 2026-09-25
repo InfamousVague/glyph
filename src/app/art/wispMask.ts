@@ -1,3 +1,4 @@
+import { readStoredText } from '../core/stored.ts';
 import { WISP_EDGE_FOOT_SOFT, WISP_EDGE_SOFT } from './wispEdge.ts';
 
 /**
@@ -29,12 +30,9 @@ export const WISP_DRAW_KEY = 'glyph-wisp-draw';
 
 /** Which drawing a view gets when its hook is not told: the mask in the Mac app, the filter everywhere else. */
 export function wispDraw(): WispDraw {
-  try {
-    const asked = localStorage.getItem(WISP_DRAW_KEY);
-    if (asked === 'filter' || asked === 'mask') return asked;
-  } catch {
-    // Nowhere to ask: the platform decides.
-  }
+  // Nothing asked, or nowhere to ask: the platform decides.
+  const asked = readStoredText(WISP_DRAW_KEY);
+  if (asked === 'filter' || asked === 'mask') return asked;
   if (typeof document === 'undefined') return 'filter';
   return document.documentElement.dataset.titlebar === 'overlay' ? 'mask' : 'filter';
 }
@@ -47,15 +45,12 @@ export function wispDraw(): WispDraw {
  */
 export type WispHead = 'smoke' | 'blur';
 
-export const WISP_HEAD_KEY = 'glyph-wisp-head';
+const WISP_HEAD_KEY = 'glyph-wisp-head';
 
 export function wispHead(): WispHead {
-  try {
-    const asked = localStorage.getItem(WISP_HEAD_KEY);
-    if (asked === 'smoke' || asked === 'blur') return asked;
-  } catch {
-    // Nowhere to ask: the screen decides.
-  }
+  // Nothing asked, or nowhere to ask: the screen decides.
+  const asked = readStoredText(WISP_HEAD_KEY);
+  if (asked === 'smoke' || asked === 'blur') return asked;
   if (typeof matchMedia === 'undefined') return 'smoke';
   return matchMedia('(hover: hover) and (pointer: fine)').matches ? 'blur' : 'smoke';
 }
