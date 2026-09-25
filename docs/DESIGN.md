@@ -4632,8 +4632,11 @@ Matt, of §116's heat: "The fire effect should be messing with the text above it
 should just have solid in the existing color but bold." Which is what the onboarding's flame did: it bent the words it
 stood behind, not itself.
 
-- **The words** are bold, in their own colour, with no filter (`.cm-effect-heat`, weight 700, which both note faces
-  ship).
+- **The words** are bold, in their own colour (`.cm-effect-heat`, weight 700, which both note faces ship). They
+  first had no filter at all. Then Matt asked for "a slight but not as intense heat effect to the text itself being
+  heated", so they now carry the same haze at 30% (`own` in `TEXT_EFFECTS.heat`): about a third of a letter's bend
+  on the line above becomes a tenth, and the blur almost nothing. Up close they ripple, and at a glance they still
+  read as solid bold.
 - **The haze** is the same filter as before, over the text on the line above the words, under their width and a
   third of a line either side; and on the line above that at 55%, the heat thinning as it rises. It carries over one
   blank line between paragraphs, since most notes have one, but the weaker line stops at a blank.
