@@ -1,6 +1,7 @@
 import { plugins } from '../plugins/registry.ts';
-import { accountState, signOut } from './account/account.ts';
+import { accountState } from './account/account.ts';
 import { storedKeys, writeStored } from './stored.ts';
+import { signOutHere, syncSettled } from './sync/engine.ts';
 import { invoke, isTauri } from './tauri.ts';
 
 /**
@@ -26,6 +27,14 @@ import { invoke, isTauri } from './tauri.ts';
  * send the deletions to the account and so to every other device. A reset now
  * signs the device out as well (the keys in IndexedDB with the session), so
  * nothing is left that could sync, and the account is as it was.
+ *
+ * The ORDER is load-bearing: the account is forgotten before anything is
+ * wiped (`forgetAccount`), never after. Signing out at the end, as this first
+ * did, left a window while Rust emptied the store and removed the
+ * directories (gigabytes of them, with the models) in which a sync could run
+ * against the emptied store; and a native reset that failed partway threw
+ * before the sign-out, leaving the page signed in beside the bookkeeping and
+ * an empty store, and the next sync sent a deletion for every note it knew.
  */
 
 /** The binary generation that has `reset_local_data`. */
@@ -40,17 +49,53 @@ const RESET_GENERATION = 11;
 export const SPARED: ReadonlySet<string> = new Set(['glyph-developer', 'glyph-wisp-draw', 'glyph-wisp-head']);
 
 /**
- * Everything the page keeps itself, gone: the account signed out here, then
- * every stored key but the spared. Not the notes' store on the phone, which
- * is Rust's, and no reload - `resetLocalData` does both.
+ * The first step of a reset, before anything is wiped: this device signed
+ * out (the Account page's own `signOutHere`), a sync already running
+ * finished, and every account's sync bookkeeping gone, so there is neither a
+ * session to sync with nor a record that could read a wiped note as a
+ * deleted one. A device still signed in afterwards - its keys would not go,
+ * say - is reset not at all: it throws with nothing wiped, and the notes and
+ * the bookkeeping still agree.
  */
-export async function clearPageData(): Promise<void> {
-  // Keys IndexedDB would not give up are no account once the session beside them is gone below.
-  if (accountState().session) await signOut().catch(() => undefined);
+export async function forgetAccount(): Promise<void> {
+  if (accountState().session) {
+    try {
+      await signOutHere();
+    } catch (failure) {
+      throw new Error(`Could not sign out, so nothing was reset: ${failure instanceof Error ? failure.message : String(failure)}`, { cause: failure });
+    }
+  }
+  await syncSettled();
+  // A sync that renewed the session while it ran (account.ts `resume`) has signed the device back in.
+  if (accountState().session) throw new Error('Could not sign out, so nothing was reset.');
+  for (const key of storedKeys()) if (key.startsWith('glyph-sync-')) writeStored(key, null);
+}
+
+/**
+ * Everything the page keeps itself, gone: every stored key but the spared.
+ * The last step, once the account is forgotten and the notes are wiped. Not
+ * the notes' store on the phone, which is Rust's, and no reload -
+ * `resetLocalData` does both.
+ */
+export function clearPageData(): void {
   const owned = new Set(plugins.storageKeys());
   for (const key of storedKeys()) {
     if ((key.startsWith('glyph-') || owned.has(key)) && !SPARED.has(key)) writeStored(key, null);
   }
+}
+
+/** The browser's pictures: IndexedDB's `glyph-images`, gone. A browser with none, or one that will not say, is done. */
+function deleteImages(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (typeof indexedDB === 'undefined') {
+      resolve();
+      return;
+    }
+    const request = indexedDB.deleteDatabase('glyph-images');
+    request.onsuccess = () => resolve();
+    request.onerror = () => resolve();
+    request.onblocked = () => resolve();
+  });
 }
 
 export async function resetLocalData({ models }: { models: boolean }): Promise<void> {
@@ -60,19 +105,10 @@ export async function resetLocalData({ models }: { models: boolean }): Promise<v
       () => 0,
     );
     if (generation < RESET_GENERATION) throw new Error('Resetting needs the newest Ghost.md. Install it from Settings > Updates.');
-    await invoke<void>('reset_local_data', { models });
-  } else {
-    await new Promise<void>((resolve) => {
-      if (typeof indexedDB === 'undefined') {
-        resolve();
-        return;
-      }
-      const request = indexedDB.deleteDatabase('glyph-images');
-      request.onsuccess = () => resolve();
-      request.onerror = () => resolve();
-      request.onblocked = () => resolve();
-    });
   }
-  await clearPageData();
+  await forgetAccount();
+  if (isTauri()) await invoke<void>('reset_local_data', { models });
+  else await deleteImages();
+  clearPageData();
   window.location.reload();
 }

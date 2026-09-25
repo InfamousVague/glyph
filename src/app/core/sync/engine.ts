@@ -183,6 +183,15 @@ export function syncNow(): Promise<void> {
   return running;
 }
 
+/**
+ * The sync running now, finished, and the one it queued; at once when none is. For a reset (core/reset.ts), which
+ * signs out first and then waits here: a sync already under way holds the session it began with and the bookkeeping
+ * it read, and would send every note wiped under it as a deletion. Signed out, a queued one ends as it starts.
+ */
+export function syncSettled(): Promise<void> {
+  return running ?? Promise.resolve();
+}
+
 async function once(): Promise<void> {
   const session = accountState().session;
   const key = session ? await accountKey().catch(() => null) : null;
