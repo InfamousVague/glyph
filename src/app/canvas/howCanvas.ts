@@ -10,7 +10,9 @@ import { canvasNoteBody, type Canvas } from './jsonCanvas.ts';
  * it can be a board or a canvas, and none of it leaves the phone.
  *
  * Two of the cards are the example board and the sample note themselves, so tapping them opens the real thing.
- * Written in JSON Canvas as the first is (docs/CANVAS.md).
+ * Written in JSON Canvas as the first is (docs/CANVAS.md). It is the first chapter of Ghost.md: The Guide
+ * (guide/theGuide/book.ts), so its words are held to the recorder too: the marks it names are cues the recorder
+ * reads (howCanvas.test.ts), and the button it names is the microphone the home page draws.
  */
 
 export const HOW_TITLE = 'How Ghost.md works';
@@ -28,7 +30,7 @@ export function howCanvas(): Canvas {
         width: 260,
         height: 170,
         color: '4',
-        text: '# Say it\n\nTap **Speak**, or press the side key, and talk. Ghost.md writes the words as you say them.',
+        text: '# Say it\n\nTap the **microphone**, or press the side key, and talk. Ghost.md writes the words as you say them.',
       },
       {
         id: 'marks',
@@ -37,7 +39,7 @@ export function howCanvas(): Canvas {
         y: 0,
         width: 260,
         height: 170,
-        text: '# Say the marks too\n\nSay *heading*, *list*, *done* or *table*, and Ghost.md draws them. No menus.',
+        text: '# Say the marks too\n\nSay *heading*, *bullet point*, *check box* or *done task*, and Ghost.md draws them. No menus.',
       },
       {
         id: 'note',

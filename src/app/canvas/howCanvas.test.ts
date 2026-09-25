@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { renderNote } from '../capture/markdown.ts';
 import { BOARD_TITLE } from '../core/boardNote.ts';
 import { noteTitle } from '../core/store.ts';
 import { SAMPLE_TITLE } from '../core/sampleNote.ts';
@@ -36,5 +37,25 @@ describe('the canvas that says how Ghost.md works', () => {
     expect(noteTitle(body)).toBe(HOW_TITLE);
     expect(canvasOf(body)).toEqual(howCanvas());
     expect(parseCanvas(serializeCanvas(howCanvas()))).toEqual(howCanvas());
+  });
+});
+
+describe('what the canvas says to do', () => {
+  const text = (id: string) => (howCanvas().nodes.find((node) => node.id === id) as { text: string }).text;
+
+  it('names marks the recorder reads as cues, each gone into its mark when said', () => {
+    const named = [...text('marks').matchAll(/\*([^*]+)\*/g)].map((found) => found[1]!);
+    expect(named.length).toBeGreaterThan(2);
+    for (const cue of named) {
+      const said = ['The trip.', `${cue[0]!.toUpperCase()}${cue.slice(1)}: the plan.`];
+      const markdown = renderNote(said.map((words, index) => ({ text: words, startMs: index * 1300, endMs: index * 1300 + 1000 }))).markdown;
+      expect(markdown.toLowerCase(), cue).not.toContain(cue);
+      expect(markdown, cue).toMatch(/^(?:#+|-|- \[[ x]\]) The plan$/m);
+    }
+  });
+
+  it('names the button the home page draws, the microphone', () => {
+    expect(text('speak')).toContain('**microphone**');
+    expect(JSON.stringify(howCanvas())).not.toMatch(/Speak\*\*/);
   });
 });
