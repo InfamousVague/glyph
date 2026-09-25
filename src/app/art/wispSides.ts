@@ -1,6 +1,7 @@
 import { prefersStill } from '../core/motion.ts';
 import { preferences } from '../core/preferences.ts';
-import { WISP_EDGE_BUDGET } from './wispEdge.ts';
+import { boxOf, filterShelf, mergeOf, noiseOnBlack, smokeFrom, svgPart } from './wispBox.ts';
+import { withinWispBudget } from './wispEdge.ts';
 
 /**
  * The wisp for a row that scrolls sideways: the tabs (notes/NoteTabs.tsx). Matt: "Blur the right side of the tabs and
@@ -26,9 +27,11 @@ import { WISP_EDGE_BUDGET } from './wispEdge.ts';
  *
  * What the box units cost is legibility, as wispFoot's do: a length has to be divided by the side of the row it runs
  * along, a blur needs both of its numbers (one fraction shared between a wide row and a short one is two different
- * blurs), and `feDisplacementMap` measures its throw against the box's diagonal over root two. `box` and `corner`
- * below do that arithmetic in one place. The subregions stay, converted rather than dropped: they are most of what
- * this effect costs, and a draft of wispFoot's without them ran at nearly twice the cost a frame (§54).
+ * blurs), and `feDisplacementMap` measures its throw against the box's diagonal over root two. `boxOf`
+ * (art/wispBox.ts) does that arithmetic in one place, and the chain of primitives after the band is the lane's too
+ * (`smokeFrom`). The lane's subregions are converted rather than dropped: they are most of what that effect costs,
+ * and a draft of wispFoot's without them ran at nearly twice the cost a frame (§54). This row's region is its own
+ * box grown by SIDE, so its primitives need none of their own.
  *
  * One attribute is outside all of that: the noise's `baseFrequency`, which an engine reads in user space whatever
  * the units say. Converting it with the rest is what made the smoke grainy, and the comment on it says how that was
@@ -56,12 +59,8 @@ const IN = 14;
 const BEND = 14;
 const BLUR = 1.6;
 const NEAR = 1.5;
-/** How many are kept before the oldest is taken out: a row changes size as tabs open and the window moves. */
-const KEEP = 16;
-
-const SVG = 'http://www.w3.org/2000/svg';
-const made = new Map<string, string>();
-let holder: SVGSVGElement | null = null;
+/** The rows' filters, a size and pair of ends at a time: a row changes size as tabs open and the window moves, so 16 are kept. */
+const kept = filterShelf(16);
 
 export function wispSides(width: number, height: number, start: boolean, end: boolean): string | null {
   if (typeof document === 'undefined' || !preferences().wispEdge || (!start && !end)) return null;
@@ -69,43 +68,11 @@ export function wispSides(width: number, height: number, start: boolean, end: bo
   const wide = Math.round(width);
   const tall = Math.round(height);
   if (wide <= (BAND + SOFT) * 2 || tall <= 0) return null;
-  // The budget is counted in the screen's own pixels; a row past it keeps the plain fade.
-  const dots = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
-  if (Math.ceil((wide + SIDE * 2) * dots) * Math.ceil((tall + SIDE * 2) * dots) > WISP_EDGE_BUDGET) return null;
+  // A row past the budget keeps the plain fade.
+  if (!withinWispBudget(wide + SIDE * 2, tall + SIDE * 2)) return null;
   const key = `${wide}x${tall}${start ? 's' : ''}${end ? 'e' : ''}`;
-  const known = made.get(key);
-  if (known && document.getElementById(known)) return `url(#${known})`;
   const id = `wispSides${key}`;
-  holder ??= makeHolder();
-  if (!holder.isConnected) document.body.append(holder);
-  holder.append(sidesFilter(id, wide, tall, start, end));
-  made.set(key, id);
-  if (made.size > KEEP) {
-    const [oldest] = made;
-    if (oldest) {
-      made.delete(oldest[0]);
-      document.getElementById(oldest[1])?.remove();
-    }
-  }
-  return `url(#${id})`;
-}
-
-function makeHolder(): SVGSVGElement {
-  const svg = document.createElementNS(SVG, 'svg');
-  svg.setAttribute('width', '0');
-  svg.setAttribute('height', '0');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('focusable', 'false');
-  svg.style.position = 'absolute';
-  document.body.append(svg);
-  return svg;
-}
-
-function part(name: string, attributes: Record<string, string | number>, ...children: Element[]): Element {
-  const node = document.createElementNS(SVG, name);
-  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
-  node.append(...children);
-  return node;
+  return kept(key, id, () => sidesFilter(id, wide, tall, start, end));
 }
 
 /**
@@ -117,19 +84,14 @@ function part(name: string, attributes: Record<string, string | number>, ...chil
  * as the row's own rectangle grown by SIDE, and each strip as a bar at one end of it.
  */
 function sidesFilter(id: string, wide: number, tall: number, start: boolean, end: boolean): Element {
-  /** A length along the row's width, or down its height - what it has to be divided by to be a fraction of the box. */
-  const box = (x: number, y: number, w: number, h: number) => ({ x: x / wide, y: y / tall, width: w / wide, height: h / tall });
-  /** feDisplacementMap measures its throw against this, the box's diagonal over root two. */
-  const corner = Math.sqrt((wide * wide + tall * tall) / 2);
+  const { box, corner } = boxOf(wide, tall);
   const region = box(-SIDE, -SIDE, wide + SIDE * 2, tall + SIDE * 2);
-  const merge = (result: string, ...inputs: string[]) =>
-    part('feMerge', result ? { result } : {}, ...inputs.map((input) => part('feMergeNode', { in: input })));
   const bar = (x: number) => box(x, -SIDE, PAST + IN + BAND, tall + SIDE * 2);
   const strips = [
-    ...(start ? [part('feFlood', { 'flood-color': '#fff', ...bar(-PAST), result: 'startStrip' })] : []),
-    ...(end ? [part('feFlood', { 'flood-color': '#fff', ...bar(wide - IN - BAND), result: 'endStrip' })] : []),
+    ...(start ? [svgPart('feFlood', { 'flood-color': '#fff', ...bar(-PAST), result: 'startStrip' })] : []),
+    ...(end ? [svgPart('feFlood', { 'flood-color': '#fff', ...bar(wide - IN - BAND), result: 'endStrip' })] : []),
   ];
-  return part(
+  return svgPart(
     'filter',
     { id, filterUnits: 'objectBoundingBox', primitiveUnits: 'objectBoundingBox', ...region, 'color-interpolation-filters': 'sRGB' },
     /*
@@ -141,22 +103,10 @@ function sidesFilter(id: string, wide: number, tall: number, start: boolean, end
      * frequency in box units, and the multiplied pair. The first two are the same soft cloud; the third is grain.
      * So it stays the per-pixel frequency every other wisp in the app is written in (art/wispEdge.ts, wispFormat.ts).
      */
-    part('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.07 0.035', numOctaves: 2, seed: 5, ...region, result: 'rawNoise' }),
-    part('feColorMatrix', { in: 'rawNoise', type: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1', result: 'noise' }),
-    part('feFlood', { 'flood-color': '#000', result: 'black' }),
+    ...noiseOnBlack({ baseFrequency: '0.07 0.035', numOctaves: 2, seed: 5, ...region }),
     ...strips,
-    merge('stripsOnBlack', 'black', ...(start ? ['startStrip'] : []), ...(end ? ['endStrip'] : [])),
-    part('feGaussianBlur', { in: 'stripsOnBlack', stdDeviation: `${SOFT / wide} 0`, result: 'band' }),
-    part('feComposite', { in: 'noise', in2: 'band', operator: 'arithmetic', k1: 1, k2: 0, k3: -0.5, k4: 0.5, result: 'field' }),
-    part('feDisplacementMap', { in: 'SourceGraphic', in2: 'field', scale: BEND / corner, xChannelSelector: 'R', yChannelSelector: 'G', result: 'bent' }),
-    // Both numbers, always: one fraction shared between a wide row and a short one is two different blurs.
-    part('feGaussianBlur', { in: 'bent', stdDeviation: `${BLUR / wide} ${BLUR / tall}`, result: 'soft' }),
-    part('feMorphology', { in: 'bent', operator: 'dilate', radius: `${NEAR / wide} ${NEAR / tall}`, result: 'near' }),
-    part('feComposite', { in: 'soft', in2: 'near', operator: 'in', result: 'softNear' }),
-    part('feColorMatrix', { in: 'band', type: 'luminanceToAlpha', result: 'bandAlpha' }),
-    part('feComposite', { in: 'softNear', in2: 'bandAlpha', operator: 'in', result: 'smoke' }),
-    part('feComposite', { in: 'SourceGraphic', in2: 'bandAlpha', operator: 'out', result: 'rest' }),
-    part('feComposite', { in: 'bent', in2: 'bandAlpha', operator: 'in', result: 'bentIn' }),
-    merge('', 'rest', 'bentIn', 'smoke'),
+    mergeOf('stripsOnBlack', 'black', ...(start ? ['startStrip'] : []), ...(end ? ['endStrip'] : [])),
+    svgPart('feGaussianBlur', { in: 'stripsOnBlack', stdDeviation: `${SOFT / wide} 0`, result: 'band' }),
+    ...smokeFrom({ bend: BEND / corner, blur: `${BLUR / wide} ${BLUR / tall}`, near: `${NEAR / wide} ${NEAR / tall}` }),
   );
 }
