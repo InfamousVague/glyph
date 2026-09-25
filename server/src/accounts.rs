@@ -121,6 +121,13 @@ impl Accounts {
         self.issuer.issue(&Claims { sub: id, handle: handle.to_string(), iat: now, exp: now + TOKEN_TTL_SECS })
     }
 
+    /// A token signed with the service's own key that lapses at `exp`, for the tests of what happens when one does:
+    /// the routes' refusal, and the relay closing a socket.
+    #[cfg(test)]
+    pub fn issue_until(&self, id: i64, handle: &str, exp: i64) -> String {
+        self.issuer.issue(&Claims { sub: id, handle: handle.to_string(), iat: now_secs(), exp })
+    }
+
     /// One sign-in attempt, counted against the address and the handle. Refused with a 429 when either is spent.
     fn admit(&self, peer: IpAddr, headers: &HeaderMap, handle: &str) -> Result<(), Response> {
         let now = Instant::now();

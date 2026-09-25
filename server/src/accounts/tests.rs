@@ -2,11 +2,11 @@
 //! the published key, a device added after sign-up, renewing a token, the wrapped key, a token that has lapsed, a
 //! challenge for a handle with no account, a device-only account deleted, and tokens outliving a restart.
 //!
-//! Inside the accounts module so a test can mint a token with the service's own key - one already expired - without a
-//! clock to wind on.
+//! Inside the accounts module so a test can reach the service it signs up with, and mint a token with the service's
+//! own key - one already expired - without a clock to wind on.
 
 use super::Accounts;
-use crate::identity::{Claims, TokenVerifier};
+use crate::identity::TokenVerifier;
 use crate::store::Store;
 use crate::test_support::{accounts_in, device, login, service, signup_body, wrapped, Harness, TempDir};
 use crate::wire::now_secs;
@@ -96,8 +96,7 @@ async fn a_token_that_has_lapsed_is_told_its_session_has_ended() {
     let h = Harness { service: service(Some(accounts.clone())), dir };
     h.signup("matt", &device()).await;
     // Signed with the service's own key, so only its age is wrong.
-    let now = now_secs();
-    let lapsed = accounts.issuer.issue(&Claims { sub: 1, handle: "matt".into(), iat: now - 3_600, exp: now - 1 });
+    let lapsed = accounts.issue_until(1, "matt", now_secs() - 1);
     for (method, path) in [(Method::GET, "/glyph/api/v1/keys"), (Method::POST, "/glyph/api/v1/refresh"), (Method::GET, "/glyph/api/v1/notes")] {
         let (status, body) = h.call(method, path, Some(&lapsed), None).await;
         assert_eq!((status, body), (StatusCode::UNAUTHORIZED, json!({ "error": "Your session has ended. Sign in again." })), "{path}");
