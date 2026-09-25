@@ -1,16 +1,18 @@
 # Accounts and sync
 
-Glyph accounts, and notes, settings and recordings kept the same on every device, **end-to-end encrypted**: the
-server holds copies it cannot read. Matt's brief (2026-09-16): "make a tauri/desktop version and add account signup
-to keep notes in sync across devices, copy the mechanisms on attack.fm". His choices: a Glyph account of its own
-(not the attack.fm one), end-to-end encryption, and notes + settings + recordings from the start. Served from
-`attack.fm/glyph/api` for now; the address is one setting (`VITE_GLYPH_API`).
+Ghost.md accounts, and notes, settings, recordings and pictures kept the same on every device, **end-to-end
+encrypted**: the server holds copies it cannot read. Matt's brief (2026-09-16): "make a tauri/desktop version and add
+account signup to keep notes in sync across devices, copy the mechanisms on attack.fm". His choices: an account of its
+own (not the attack.fm one), end-to-end encryption, and notes + settings + recordings from the start. Served from
+`attack.fm/glyph/api` for now. The page takes the address from one build setting, `VITE_GLYPH_API`, for accounts,
+sync, shares and the live relay; Notion's sign-in and Claude's MCP server name it on their own (README, "Moving to
+another domain").
 
 ## What is copied from AttackFM, and what is not
 
 AttackFM's registry (`AttackFM/server/crates/registry`, `crates/identity`) is the model:
 
-| Piece | AttackFM | Glyph |
+| Piece | AttackFM | Ghost.md |
 | --- | --- | --- |
 | Identity | handle + password, and/or a device key; 8 recovery codes | the same |
 | Token | `afm1.<claims>.<sig>`, Ed25519, 7 days, `POST /v1/refresh` | the same shape, tagged `glyph1` |
@@ -21,7 +23,9 @@ AttackFM's registry (`AttackFM/server/crates/registry`, `crates/identity`) is th
 | Rate limits | none on login | **added**: per address and per handle |
 | Encryption | none | **end to end**, below |
 
-Not copied: friends, invites, shares, presence, pairing codes, the review-box backdoor.
+Not copied: AttackFM's friends, invites, shares and presence, its pairing codes, and the review-box backdoor.
+Ghost.md has shared links of its own, a different thing under the same word (docs/SHARING.md), and live typing
+(docs/LIVE.md).
 
 ## Keys
 
@@ -63,11 +67,12 @@ POST login/challenge { handle }                                          -> { no
 POST login/device    { handle, nonce, signature }                        -> { token, account }
 POST login/recovery  { handle, login }                                   -> { token, account, wrapped }   (the code is spent)
 POST refresh                                                             -> { token, account }
-POST device          { devicePublicKey, label }                          -> {}
+POST device          { devicePublicKey, label }                          -> { ok: true }
 GET  keys                                                                -> { wrapped }
-PUT  password        { loginSecret, wrapped }                            -> {}
+PUT  password        { loginSecret, wrapped }                            -> { ok: true }
 GET  recovery                                                            -> { left }
-POST recovery        { codes: [8 × { login, wrapped }] }                 -> {}      (replaces the sheet)
+POST recovery        { codes: [8 × { login, wrapped }] }                 -> { left }   (replaces the sheet)
+DELETE account       { loginSecret }                                     -> { deleted: true } | 403 (not the password)
 
 GET    notes?since=<rev>&limit=                                          -> { rev, items: [{ id, rev, deleted, blob }], more }
 PUT    notes/<id>    { base, blob }                                      -> { rev } | 409 { id, rev, deleted, blob }
@@ -78,13 +83,22 @@ PUT  prefs           { base, blob }                                      -> { re
 
 PUT  recordings/<id>?base=<rev>   octet-stream                           -> { rev } | 409 { rev }
 GET  recordings/<id>              octet-stream, the rev in x-glyph-rev
+HEAD recordings/<id>              the same headers, no body
 ```
+
+Deleting the account deletes everything the service keeps for it: its notes, settings, recordings and pictures, its
+shared links, its devices and its recovery codes (Settings › Account › Delete account, or the page
+`landing/delete-account.html`). The same `/glyph/api/v1/` holds the shared links (`shares`, docs/SHARING.md) and the
+live relay (`live`, docs/LIVE.md).
+
+The HEAD has no route of its own: axum answers it through the GET, which reads the whole file to send only its
+headers. The client asks it of every picture a pass settles.
 
 One `rev` counter per account, bumped by every write, is the feed's cursor. A note's own `rev` is the counter at its
 last write, and a push names the `rev` it was made from (`base`); a push whose base is not the note's current `rev`
 lost a race and gets the winner back. A note the server has never seen is accepted whatever the base.
 
-`recordings/` holds every synced file, by an id the client makes: `r-<note id>` for a note's recording (WAV),
+The `recordings` route holds every synced file, by an id the client makes: `r-<note id>` for a note's recording (WAV),
 `i-<ext>-<stem>` for a picture `<stem>.<ext>`.
 
 What is sealed, and under which associated data: a note as `{ v: 1, note, recording?, images? }` under `note:<id>`
@@ -96,11 +110,12 @@ minute per address and 10 per handle.
 
 ## The client
 
-- `core/account/` — sign-up, sign-in, recovery, password and recovery-sheet changes, the session (as AttackFM: a
-  token in storage, refreshed on launch, device-key sign-in when it has lapsed), the keys in IndexedDB.
-- `core/sync/crypto.ts` — the key handling above, WebCrypto only, so the browser, the phone and the desktop run the
+- `src/app/core/account/` — sign-up, sign-in, recovery, password and recovery-sheet changes, deleting the account,
+  the session (as AttackFM: a token in storage, refreshed on launch, device-key sign-in when it has lapsed), the keys
+  in IndexedDB.
+- `src/app/core/sync/crypto.ts` — the key handling above, WebCrypto only, so the browser, the phone and the desktop run the
   same code.
-- `core/sync/notes.ts` — a pass: pull the feed from the cursor and merge it; then push every note whose fingerprint
+- `src/app/core/sync/notes.ts` — a pass: pull the feed from the cursor and merge it; then push every note whose fingerprint
   moved since it was last synced, and a deletion for every synced note gone since. A device keeps, per account, the
   cursor, each note's last `rev` and fingerprint, and each file's `rev` (and hash, for a recording).
 - **A conflict makes a copy, never a loss.** A note changed on both sides keeps the other device's version under its
@@ -115,18 +130,24 @@ minute per address and 10 per handle.
   there yet. A picture can reach a device by another road than the app - a note written through the MCP naming
   pictures another program put in the Mac's picture folder - and before this the Mac marked such a picture as sent
   without sending it, and a phone that asked for one too early never asked again (Matt's HelloTrade book, 2026-09-22).
-  A picture that lands while its note is on screen is drawn at once (`imageArrived`, core/images.ts).
-- `core/sync/prefs.ts` — AttackFM's settings blob, sealed. Only the settings about the person travel (theme, type,
-  density, recording behaviour, code colours, view, animations); the downloaded model and "Nothing leaves the phone"
-  stay on the device. A device that changed nothing takes the account's; one that did sends its own.
-- `core/sync/engine.ts` — runs a pass on launch, on return to the app, a few seconds after a note or setting
-  changes, and every five minutes; one at a time. Nothing runs without the account key, or with "Nothing leaves the
-  phone" on.
+  A picture that lands while its note is on screen is drawn at once (`src/app/core/images.ts`).
+- `src/app/core/sync/prefs.ts` — AttackFM's settings blob, sealed. Only the settings about the person travel (theme,
+  type, density, recording behaviour, code colours, view, animations, link previews), with the open tabs and their
+  groups, the workspaces and what is filed in each, the trash, and the shared links with their keys; the downloaded
+  model and Local only stay on the device. A device that changed nothing takes the account's; one that did sends its
+  own.
+- `src/app/core/sync/engine.ts` — runs a pass on launch, on return to the app, a few seconds after a note or setting
+  changes, and every five minutes; one at a time. Nothing runs without the account key, or with Local only on
+  (Settings › Formatting).
 - Native: `store_apply` writes a note whole, with its own times, pin, archive, folder and sidecar
   (`library::Library::apply_note`), and `sync_put_file` keeps a synced recording or picture under its own name;
   **native generation 16**. An older app doesn't sync, and the Account page says so.
-- Tests: `core/sync/crypto.test.ts`; `core/sync/sync.e2e.test.ts` runs two devices against a real `glyph-api`
-  (`GLYPH_SYNC_E2E=<data dir> VITE_GLYPH_API=http://127.0.0.1:<port>/glyph/api`); `server/src/sync_tests.rs`.
+- Tests, in the default run: `src/app/core/sync/crypto.test.ts`, `notes.test.ts` (the merge rules),
+  `engine.test.tsx` (when a pass runs), `pictures.test.ts` (`settlePictures`, without a server) and `prefs.test.ts`,
+  with `src/app/core/account/account.test.ts` and `keystore.test.ts`; the devices they sync are made by
+  `src/test/syncDevice.ts`. `src/app/core/sync/sync.e2e.test.ts` runs two devices against a real `glyph-api`
+  (`GLYPH_SYNC_E2E=<data dir> VITE_GLYPH_API=http://127.0.0.1:<port>/glyph/api`). The server's side is
+  `server/src/sync_tests.rs`.
 
 ## Claude, as a device
 
