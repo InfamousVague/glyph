@@ -39,8 +39,11 @@ export interface DetailsCacheOptions {
   read: (key: string, url: string) => Promise<MarkDetails>;
   /** Whether reading is possible at all yet (Notion's binary check); a want before then does nothing. Always, by default. */
   ready?: () => boolean;
+  /** How long an answer, or a failure, is fresh enough not to read again: 45 seconds unless said. */
   freshMs?: number;
+  /** How many answers are kept in storage, newest first: 300 unless said. */
   keep?: number;
+  /** How many reads run at once: two unless said. */
   atOnce?: number;
 }
 

@@ -14,11 +14,12 @@ import { host } from './manifest.ts';
  * closes the issue, and an issue closed on GitHub ticks the box the next time
  * the note is read.
  *
- * Reads are paced two at a time, an answer is fresh for 45 seconds so
- * scrolling a list doesn't re-read it, and the last answers are kept
- * (`glyph-github-issues`, at most 300) so a note opened offline still shows
- * the state its issues last had, with when it was read on the card: the
- * plugins' shared cache (plugins/detailsCache.ts), keyed by `issueKey`.
+ * The plugins' shared cache (plugins/detailsCache.ts, which has the numbers)
+ * paces the reads, keeps an answer fresh long enough that scrolling a list
+ * doesn't re-read it, and keeps the last answers under `glyph-github-issues`,
+ * so a note opened offline still shows the state its issues last had, with
+ * when it was read on the card. Here an issue is kept under `issueKey`, and a
+ * read is one call for the issue.
  */
 
 /** The key an issue is kept under: its repo and number. */

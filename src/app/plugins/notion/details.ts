@@ -16,17 +16,17 @@ import { host } from './manifest.ts';
  *   "Blocked" land where the board put them. The pill's facts are a
  *   priority-like select and a due-like date. The card lists every property
  *   with a value.
- * - **Reads are paced.** Two at a time; an answer is fresh for 45 seconds, so
- *   scrolling a long list doesn't re-read it; the note coming back to the
- *   front reads what it shows again (editor/links.ts), which is how a change
- *   made in Notion shows up. Notion allows about three requests a second.
- * - **The last answers are kept** (`glyph-notion-tasks`, at most 300), so a note
- *   opened offline or before the read finishes shows the status it last had,
- *   with when it was read on the card.
+ * - **Reads are paced**, because Notion allows about three requests a second,
+ *   and an answer stays fresh long enough that scrolling a long list doesn't
+ *   re-read it. The note coming back to the front reads what it shows again
+ *   (editor/links.ts), which is how a change made in Notion shows up.
+ * - **The last answers are kept** (`glyph-notion-tasks`), so a note opened
+ *   offline or before the read finishes shows the status it last had, with
+ *   when it was read on the card.
  *
  * The pacing, the freshness and the keeping are the plugins' shared cache
- * (plugins/detailsCache.ts), keyed by the page's id; what is Notion's is how a
- * page is read and what can be written back to it.
+ * (plugins/detailsCache.ts, which has the numbers), keyed by the page's id;
+ * what is Notion's is how a page is read and what can be written back to it.
  */
 
 // ---- reading a page (pure) ---------------------------------------------------------------------
