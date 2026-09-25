@@ -122,6 +122,10 @@
   /* Large type needs less air between letters than the kit's reading sizes. */
   --app-tracking-display: -0.045em;
   --app-tracking-title: -0.025em;
+  /* And small capitals need more: the spaced label over a group (`.app-eyebrow`), and a step closer for one set a size
+     up or packed tighter. */
+  --app-tracking-caps: 0.08em;
+  --app-tracking-caps-close: 0.06em;
   /* The page edge. Wide, because big type crowded against a bezel looks cheap. */
   --app-gutter: var(--glacier-space-5);
 }
@@ -176,6 +180,34 @@ html {
   outline: 2px solid var(--glacier-focus-ring);
   outline-offset: 2px;
   border-radius: var(--glacier-radius-sm);
+}
+
+/*
+ * Words for a screen reader alone: kept in the page, one pixel square and clipped to nothing, so they are read and
+ * never seen - a screen's name where it shows none, a word inside a round button, the input under a choice card.
+ * Modules take it with `composes: app-unseen from global` and add their own margin where they want one.
+ */
+.app-unseen {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * The small spaced capitals over a group or a card - "Things to say", a sheet's "Reading it", a command's heading -
+ * in the third ink, quieter than anything they head. Modules compose it (`composes: app-eyebrow from global`) and add
+ * their own margin or layout.
+ */
+.app-eyebrow {
+  margin: 0;
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: var(--app-tracking-caps);
+  text-transform: uppercase;
+  color: var(--app-ink-3);
 }
 
 html,

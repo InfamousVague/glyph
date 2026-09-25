@@ -53,13 +53,8 @@
 
 /* The page's name for a screen reader alone: the bar shows where you are with its search. */
 .saidOnly {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
+  composes: app-unseen from global;
   margin: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 /*

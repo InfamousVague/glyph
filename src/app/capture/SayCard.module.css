@@ -24,12 +24,7 @@
 }
 
 .title {
-  margin: 0;
-  font-size: var(--glacier-font-size-xs);
-  font-weight: var(--glacier-font-weight-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--app-ink-3);
+  composes: app-eyebrow from global;
 }
 
 .group {

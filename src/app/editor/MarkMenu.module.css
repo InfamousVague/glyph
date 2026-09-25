@@ -15,16 +15,11 @@
 }
 
 .eyebrow {
+  composes: app-eyebrow from global;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--glacier-space-2);
-  margin: 0;
-  font-size: var(--glacier-font-size-xs);
-  font-weight: var(--glacier-font-weight-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--app-ink-3);
 }
 
 .status {
