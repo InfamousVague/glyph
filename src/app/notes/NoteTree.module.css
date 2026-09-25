@@ -3,7 +3,7 @@
  * that fold, notes under them on a faint indent guide, and the foot with Speak and Settings.
  *
  * Docked beside a note on a desktop it fills its column, under the app's bar (`--app-safe-top`); in the pop-up it
- * fills the floating card (notes/NotesDrawer.module.css), which has no bar over it.
+ * fills the floating card (notes/FloatingCard.module.css), which has no bar over it.
  */
 
 .tree {
