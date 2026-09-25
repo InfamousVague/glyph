@@ -158,8 +158,9 @@
   color: var(--app-ink-4);
 }
 
-/* Rename, recolour or remove: there on a hover or a focus with a pointer, and always on a finger, which has no hover. */
-.folderMore {
+/* A small square button at a row's end: a folder's More, and a note in the trash's two things to do (`.trashRow`). */
+.folderMore,
+.trashAction {
   appearance: none;
   flex: none;
   display: grid;
@@ -174,6 +175,7 @@
   cursor: pointer;
 }
 
+/* Rename, recolour or remove: there on a hover or a focus with a pointer, and always on a finger, which has no hover. */
 @media (hover: hover) {
   .folderMore {
     opacity: 0;
@@ -229,21 +231,7 @@
   color: var(--app-ink-2);
 }
 
-.trashAction {
-  appearance: none;
-  flex: none;
-  display: grid;
-  place-items: center;
-  inline-size: 1.9em;
-  block-size: 1.9em;
-  padding: 0;
-  border: none;
-  border-radius: var(--glacier-radius-sm);
-  background: none;
-  color: var(--app-ink-3);
-  cursor: pointer;
-}
-
+/* Restore and delete for good: the folder's More button (`.folderMore`, above), lit on a hover. */
 .trashAction:hover {
   color: var(--app-ink);
   background: color-mix(in oklch, var(--app-ink) 8%, transparent);
