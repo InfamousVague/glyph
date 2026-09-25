@@ -3,8 +3,7 @@
  * it is over, and how far a flick along the row carries on once the finger has left it.
  *
  * Pure, over boxes the row hands in (notes/useTabDrag.ts measures them), so each rule is a test rather than something
- * to drag about and look at - the tab bar's gesture is the riskiest code in it, and none of it could be tested while
- * these read the DOM themselves.
+ * to drag about and look at: the tab bar's gesture is the riskiest code in it.
  */
 
 /** A tab in the row, or a folded group's chip, as measured on screen. */

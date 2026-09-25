@@ -216,8 +216,10 @@ function Shell() {
 
   /**
    * A note just made: filed in the workspace being looked at (core/workspaces.ts), the notes read again, and shown.
-   * In whichever tab the caller asked for: a note made from the +, from a shared link or from Settings takes one of its
-   * own, and says so before it is made, as every ordinary opener does; a page made from a book's index takes the book's.
+   * What the + makes - a note, a canvas, a book - and the note made for a title nobody has written yet end here, in
+   * whichever tab the caller asked for before making it: the + and a book take one of their own, and a page made from
+   * a book's index takes the book's. A shared link's copy and a Settings sample have ends of their own (`forkFromLink`,
+   * `openSample`).
    */
   const showMade = async (body: string) => {
     const note = await createNote(newNoteId(), body, 'editor');

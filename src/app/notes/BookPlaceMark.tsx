@@ -4,8 +4,8 @@ import styles from './BookPlaceMark.module.css';
 
 /**
  * A page of a book says which (docs/BOOKS.md): the book's mark and its name, on the note's card (notes/NoteCard.tsx)
- * and on its row in the sidebar (notes/NoteTree.tsx), with the page it is said in full to whoever points at it. Two
- * copies of this, with two copies of its rules, had lived in the two places a note is listed.
+ * and on its row in the sidebar (notes/NoteTree.tsx), with the page it is said in full to whoever points at it. One
+ * mark for both, so the two places a note is listed cannot come to say it differently.
  */
 export function BookPlaceMark({ place }: { place: BookPlace }) {
   return (

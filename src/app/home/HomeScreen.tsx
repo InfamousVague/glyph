@@ -25,8 +25,9 @@ import styles from './HomeScreen.module.css';
  *
  * What a person comes back to Glyph for, in the order they want it: anything waiting on them (an update, the
  * Academy's invitation, the voice model), the notes they pinned, their books, the ones they were in last, and every
- * to-do not yet ticked, gathered from all of their notes - ticked here without opening the note. The page does not list every note; "All notes" at
- * its foot opens the page that does, as a grid of the same cards (notes/AllNotesScreen.tsx).
+ * to-do not yet ticked, gathered from all of their notes - ticked here without opening the note. The page does not
+ * list every note; "All notes" at its foot opens the page that does, as a grid of the same cards
+ * (notes/AllNotesScreen.tsx).
  *
  * It took the place of the notes list, and kept what the list had that was not the list: the glass bar and scroller,
  * the workspace pills choosing what it shows, and the dock, so starting a note is where it always was.

@@ -14,9 +14,9 @@ import { startSync } from '../core/sync/engine.ts';
  * What the Shell keeps running for the life of the app and draws nothing for: the boot handshake, the page-wide
  * listeners, the work done in the background, and the few things done once to a library as it is first read.
  *
- * Each is an effect of its own, as it was in the Shell's body, and each keeps the comment that says why it runs when
- * it does. They are here rather than there because none of them reads or sets which screen is up; the Shell's body is
- * then the part of the app a person can see.
+ * Each is an effect of its own, with the comment that says why it runs when it does. None of them reads or sets which
+ * screen is up, which is why they are here and not in the Shell's body (App.tsx): that is the part of the app a person
+ * can see.
  */
 
 export interface HousekeepingOptions {
