@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { failureText } from '../core/failure.ts';
 import { isTauri } from '../core/tauri.ts';
 import { ensureModel } from './engine.ts';
 
@@ -40,7 +41,7 @@ export function useVoiceModel(): { state: VoiceModelState; retry: () => void } {
       ready.current = true;
       setState({ kind: 'ready' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = failureText(error);
       // Logged so it reaches logcat through the WebView console; the screen
       // shows a short version and a retry.
       console.warn('[glyph] voice model download failed:', message);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SquareKanban } from '@glacier/icons';
+import { failureText } from '../../core/failure.ts';
 import { PaneSection, RowAction, SettingRow, SettingsCallout, SettingsEmpty, SettingsFootnote } from '../../settings/kit/settingsKit.tsx';
 import { isTauri } from '../../core/tauri.ts';
 import { forgetTaskDetails } from './details.ts';
@@ -36,7 +37,7 @@ export function NotionPane() {
     let live = true;
     void listBoards().then(
       (found) => live && setBoards(found),
-      (failure: unknown) => live && setTrouble(failure instanceof Error ? failure.message : String(failure)),
+      (failure: unknown) => live && setTrouble(failureText(failure)),
     );
     return () => {
       live = false;
@@ -61,7 +62,7 @@ export function NotionPane() {
       await startNotionSignIn();
       setWaiting(true);
     } catch (failure) {
-      setTrouble(failure instanceof Error ? failure.message : String(failure));
+      setTrouble(failureText(failure));
     }
   };
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { failureText } from './failure.ts';
 import { isIOS } from './platform.ts';
 import { preferences } from './preferences.ts';
 import { invoke, isTauri } from './tauri.ts';
@@ -214,7 +215,7 @@ export function useUpdates(): Updates {
         return { kind: 'available', info: offered };
       });
     } catch (error) {
-      setLastError(error instanceof Error ? error.message : String(error));
+      setLastError(failureText(error));
     } finally {
       running.current = false;
       setChecking(false);
@@ -263,7 +264,7 @@ export function useUpdates(): Updates {
       else if (answer === 'started') setApk({ kind: 'installing', info });
       else setApk({ kind: 'failed', info, message: `The installer did not start (${answer}).` });
     } catch (error) {
-      setApk({ kind: 'failed', info, message: error instanceof Error ? error.message : String(error) });
+      setApk({ kind: 'failed', info, message: failureText(error) });
     } finally {
       unlisten?.();
     }

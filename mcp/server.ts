@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { placeWords } from '../src/app/capture/listAppend.ts';
 import { aiName, authorsOf, withAuthor } from '../src/app/core/authors.ts';
+import { failureText } from '../src/app/core/failure.ts';
 import { Conflict, GlyphApiError, noteTitle, type GlyphAccount, type NoteRecord } from './glyph.ts';
 
 /**
@@ -64,7 +65,7 @@ async function guarded(run: () => Promise<ReturnType<typeof text> | ReturnType<t
       );
     }
     if (failure instanceof GlyphApiError) return failed(`Ghost.md's sync service refused: ${failure.message}`);
-    return failed(failure instanceof Error ? failure.message : String(failure));
+    return failed(failureText(failure));
   }
 }
 

@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { KeyRound, LogOut, RefreshCw, ShieldCheck, Trash2 } from '@glacier/icons';
 import { Input, Switch } from '@glacier/react';
 import { changePassword, handleProblem, newRecoveryCodes, passwordProblem, recover, signIn, signUp, useAccount } from '../core/account/account.ts';
+import { failureText } from '../core/failure.ts';
 import { setLiveEnabled, useLiveEnabled } from '../core/live/enabled.ts';
 import { preferences } from '../core/preferences.ts';
 import { deleteAccountHere, signOutHere, syncNow, syncedWhen, useSyncStatus } from '../core/sync/engine.ts';
@@ -55,7 +56,7 @@ function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said
       else await signIn(handle, password);
       void syncNow();
     } catch (failure) {
-      setProblem(failure instanceof Error ? failure.message : String(failure));
+      setProblem(failureText(failure));
     } finally {
       setBusy(false);
     }
@@ -126,7 +127,7 @@ function PasswordForm({ onCodes, onDone }: { onCodes: (codes: string[]) => void;
         onCodes((await newRecoveryCodes(current)).codes);
       }
     } catch (failure) {
-      setProblem(failure instanceof Error ? failure.message : String(failure));
+      setProblem(failureText(failure));
     } finally {
       setBusy(false);
     }
@@ -173,7 +174,7 @@ function DeleteAccountForm({ onDeleted, onDone }: { onDeleted: () => void; onDon
       await deleteAccountHere(password);
       onDeleted();
     } catch (failure) {
-      setProblem(failure instanceof Error ? failure.message : String(failure));
+      setProblem(failureText(failure));
       setBusy(false);
     }
   };

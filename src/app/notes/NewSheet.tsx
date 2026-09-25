@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Book, Link2, SquarePen, Workflow } from '@glacier/icons';
 import { useBack } from '../core/back.ts';
+import { failureText } from '../core/failure.ts';
 import { SheetField, SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import sheet from '../editor/NoteSettings.module.css';
 import { useSheetDrag } from '../editor/sheetDrag.ts';
@@ -47,7 +48,7 @@ export function NewSheet({ open, onClose, onNote, onCanvas, onBook, onFromLink }
       await onFromLink(link.trim());
       close();
     } catch (failure) {
-      setProblem(failure instanceof Error ? failure.message : String(failure));
+      setProblem(failureText(failure));
     } finally {
       setBusy(false);
     }

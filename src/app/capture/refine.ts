@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { failureText } from '../core/failure.ts';
 import { preferences } from '../core/preferences.ts';
 import { getNote, saveNote, setNoteRecording } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
@@ -262,7 +263,7 @@ async function runNext(): Promise<void> {
     finish(job);
     onChanged?.();
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = failureText(error);
     if (/busy|cancelled/i.test(message)) {
       kick(RETRY_MS);
     } else {

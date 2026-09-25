@@ -1,6 +1,7 @@
 import { CircleCheck, ExternalLink, PencilLine, RefreshCw, RotateCcw, Unlink } from '@glacier/icons';
 import { useEffect, useReducer, useRef, useState, type ComponentType } from 'react';
 import { useBack } from '../core/back.ts';
+import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { agoText, markActions, onMarkDetails, openMarked, peekMarkDetails, wantMarkDetails, type MarkAction } from '../core/markDetails.ts';
 import sheet from './NoteSettings.module.css';
@@ -74,7 +75,7 @@ export function MarkMenu({ name, url, words, say, close, unlink }: MarkMenuProps
       }
     } catch (failure) {
       fireNativeHaptic('error');
-      say(failure instanceof Error ? failure.message : String(failure));
+      say(failureText(failure));
     } finally {
       setBusy(null);
     }

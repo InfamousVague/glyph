@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { failureText } from './failure.ts';
 import { preferences } from './preferences.ts';
 import { invoke, isTauri } from './tauri.ts';
 
@@ -120,7 +121,7 @@ export function useModels(): {
       try {
         await invoke<ModelInfo>('ai_fetch_model', { id });
       } catch (failure) {
-        setProblem(failure instanceof Error ? failure.message : String(failure));
+        setProblem(failureText(failure));
       } finally {
         unlisten();
         setDownload(null);
@@ -138,7 +139,7 @@ export function useModels(): {
       try {
         await invoke<ModelInfo>('ai_delete_model', { id });
       } catch (failure) {
-        setProblem(failure instanceof Error ? failure.message : String(failure));
+        setProblem(failureText(failure));
       }
       await refresh();
     },

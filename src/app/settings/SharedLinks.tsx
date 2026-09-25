@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link2 } from '@glacier/icons';
+import { failureText } from '../core/failure.ts';
 import { listNotes, noteTitle, NOTES_CHANGED, NOTE_SAVED } from '../core/store.ts';
 import { onShares, sharedLinks, sharesOnServer, stopSharing, takeDownShare } from '../share/share.ts';
 import { PaneSection, RowAction, SettingRow } from './kit/settingsKit.tsx';
@@ -71,7 +72,7 @@ export function SharedLinks() {
     try {
       await work();
     } catch (failure) {
-      setSaid(failure instanceof Error ? failure.message : String(failure));
+      setSaid(failureText(failure));
     } finally {
       setBusy(false);
     }

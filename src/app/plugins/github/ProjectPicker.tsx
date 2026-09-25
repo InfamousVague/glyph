@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { failureText } from '../../core/failure.ts';
 import { SheetField, SheetGroup, SheetHeading, SheetNote, SheetRow, SheetTitle } from '../kit.tsx';
 import { RepoMark } from './marks.tsx';
 import { addProject, githubToken, linkProject, projectFor, projects, setGithubToken, type Project, type Step } from './repos.ts';
@@ -33,7 +34,7 @@ export function ProjectPicker({ noteId, onDone }: { noteId: string; onDone: () =
       choose(added);
     } catch (failure) {
       setStep(null);
-      setTrouble(failure instanceof Error ? failure.message : String(failure));
+      setTrouble(failureText(failure));
     }
   };
 

@@ -1,3 +1,4 @@
+import { failureText } from '../src/app/core/failure.ts';
 import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
 import type { Note } from '../src/app/core/store.ts';
 import type { NotePayload } from '../src/app/core/sync/notes.ts';
@@ -102,7 +103,7 @@ async function callApi<T>(api: string, method: string, path: string, { token, bo
     response = await fetcher(`${api}/v1/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
   } catch (failure) {
     if (controller.signal.aborted) throw new GlyphApiError(0, 'The sync service took too long to answer.');
-    throw new GlyphApiError(0, `The sync service could not be reached (${failure instanceof Error ? failure.message : String(failure)}).`);
+    throw new GlyphApiError(0, `The sync service could not be reached (${failureText(failure)}).`);
   } finally {
     clearTimeout(timer);
   }

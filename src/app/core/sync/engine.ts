@@ -2,6 +2,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { useSyncExternalStore } from 'react';
 import { accountKey, accountState, deleteAccount, resume, signOut } from '../account/account.ts';
 import { ApiError } from '../account/api.ts';
+import { failureText } from '../failure.ts';
 import { imageBytes, keepImage } from '../images.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
 import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED, type Note } from '../store.ts';
@@ -196,7 +197,7 @@ export function syncNow(): Promise<void> {
         await once();
       } while (again);
     } catch (failure) {
-      setStatus({ phase: 'error', message: failure instanceof Error ? failure.message : String(failure) });
+      setStatus({ phase: 'error', message: failureText(failure) });
     } finally {
       running = null;
     }
@@ -248,7 +249,7 @@ async function once(): Promise<void> {
       // The session lapsed mid-sync: renew it (with this device's key if need be) and go again next time.
       await resume().catch(() => undefined);
     }
-    setStatus({ phase: 'error', message: failure instanceof Error ? failure.message : String(failure) });
+    setStatus({ phase: 'error', message: failureText(failure) });
   }
 }
 

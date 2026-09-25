@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { generate, listModels, modelName, splitThought, type Run } from '../core/ai.ts';
+import { failureText } from '../core/failure.ts';
 import { preferences } from '../core/preferences.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import { getNote, listNotes, noteTitle, saveNote, type Note } from '../core/store.ts';
@@ -173,7 +174,7 @@ export function useReview(handoff: ReviewHandoff) {
           }
         } catch (failure) {
           if (!alive) return;
-          patch((s) => ({ listen: { ...s.listen, state: 'failed', detail: failure instanceof Error ? failure.message : String(failure) } }));
+          patch((s) => ({ listen: { ...s.listen, state: 'failed', detail: failureText(failure) } }));
         }
       } else {
         patch((s) => ({ listen: { ...s.listen, state: 'skipped', detail: 'No recording was kept for this take' } }));
@@ -255,7 +256,7 @@ export function useReview(handoff: ReviewHandoff) {
         }));
       } catch (failure) {
         if (!alive) return;
-        const message = failure instanceof Error ? failure.message : String(failure);
+        const message = failureText(failure);
         const findings = wordsOnly(changes, self);
         patch((s) => ({
           think: { ...s.think, state: /cancel/i.test(message) ? 'skipped' : 'failed', detail: /cancel/i.test(message) ? 'Stopped' : message },

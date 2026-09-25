@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { getNote, type Note } from '../core/store.ts';
 import { isTauri } from '../core/tauri.ts';
@@ -90,7 +91,7 @@ export function useTape(note: Note): Tape {
     }
     const el = ref.current;
     if (!el) return;
-    if (el.paused) void el.play().catch((e: unknown) => setProblem(e instanceof Error ? e.message : String(e)));
+    if (el.paused) void el.play().catch((e: unknown) => setProblem(failureText(e)));
     else el.pause();
   }, [web]);
 

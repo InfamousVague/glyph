@@ -2,6 +2,7 @@ import { Ghost } from '../art/Ghost.tsx';
 import { Square } from '@glacier/icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
+import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { answerHost, endCapture, isLocked, setCapturing } from '../core/host.ts';
 import { deleteNote, getNote, listNotes, newNoteId, noteTitle, saveNote, setNoteRecording, type Note } from '../core/store.ts';
@@ -738,7 +739,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       } catch (failure) {
         if (cancelled) return;
         micRef.current?.stop();
-        setError(failure instanceof Error ? failure.message : String(failure));
+        setError(failureText(failure));
         setPhase('failed');
         fireNativeHaptic('error');
       }
@@ -812,7 +813,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // take added after it starts the file afresh rather than playing after the removed sound.
       stopped = (await sessionRef.current?.stop({ recordAs: noteId.current, append: continued !== null && (continued.recordingMs ?? 0) > 0 })) ?? stopped;
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
+      setError(failureText(failure));
     }
 
     // Words after a keyword that never became a command go into the note as

@@ -1,4 +1,5 @@
 import { generate, MODELS, type Hardware, type Phase, type Run } from '../core/ai.ts';
+import { failureText } from '../core/failure.ts';
 import { pluginContextFor, pluginContextVersion } from '../plugins/registry.ts';
 import { cleanNote, cleanRewrite } from './clean.ts';
 import { bodyHash, tidy, type Kept } from './formatter.ts';
@@ -243,7 +244,7 @@ export function runPipeline(id: string, body: string, passes: readonly string[],
       }
       publish({ kind: 'ended', id, mode, reason: stopped ? 'stopped' : 'done' });
     } catch (failure) {
-      const message = failure instanceof Error ? failure.message : String(failure);
+      const message = failureText(failure);
       publish({ kind: 'ended', id, mode, reason: message === 'cancelled' ? 'stopped' : 'failed', message });
     } finally {
       runs.delete(id);

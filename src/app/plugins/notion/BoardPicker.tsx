@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { failureText } from '../../core/failure.ts';
 import { SheetGroup, SheetNote, SheetRow, SheetTitle } from '../kit.tsx';
 import { boardFor, linkBoard, listBoards, startNotionSignIn, useNotionAccount, type Board } from './client.ts';
 import { NotionMark } from './marks.tsx';
@@ -19,7 +20,7 @@ export function BoardPicker({ noteId, onDone }: { noteId: string; onDone: () => 
     let live = true;
     void listBoards().then(
       (found) => live && setBoards(found),
-      (failure: unknown) => live && setTrouble(failure instanceof Error ? failure.message : String(failure)),
+      (failure: unknown) => live && setTrouble(failureText(failure)),
     );
     return () => {
       live = false;
@@ -43,7 +44,7 @@ export function BoardPicker({ noteId, onDone }: { noteId: string; onDone: () => 
           <SheetRow
             icon={NotionMark}
             label="Sign in with Notion"
-            onPress={() => void startNotionSignIn().catch((e: unknown) => setTrouble(e instanceof Error ? e.message : String(e)))}
+            onPress={() => void startNotionSignIn().catch((e: unknown) => setTrouble(failureText(e)))}
           />
         </SheetGroup>
         {trouble ? <SheetNote>{trouble}</SheetNote> : null}
