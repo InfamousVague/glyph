@@ -75,7 +75,7 @@
 }
 
 /* A run in progress: the words breathe, so a slow phone still looks alive. */
-.strip:not([data-phase='done']):not([data-phase='stopped']):not([data-phase='failed']) .words {
+.strip:not([data-phase='done']):not([data-phase='stopped']):not([data-phase='failed']):not([data-phase='marks']) .words {
   animation: strip-breathe 1.8s ease-in-out infinite;
 }
 
@@ -168,8 +168,14 @@
 }
 
 .strip[data-phase='failed'] .bar,
-.strip[data-phase='stopped'] .bar {
+.strip[data-phase='stopped'] .bar,
+.strip[data-phase='marks'] .bar {
   background: transparent;
+}
+
+/* The line as a plain span, where there is no card to open. */
+span.line {
+  cursor: default;
 }
 
 /* The card under the line, and the log under the card. */

@@ -56,6 +56,11 @@ export function progressOf(run: RunState): number | null {
   return null;
 }
 
+/** Marks left in the note with no run to speak of: how many, and that they are the AI's. */
+export function marksSentence(count: number): string {
+  return count === 1 ? 'One change from the AI is marked in the note.' : `${count} changes from the AI are marked in the note.`;
+}
+
 /** A run's phase in the AI card's older dialect (core/ai.ts `Phase`): waiting reads as loading, stopped as cancelled, failed as error. */
 export function cardPhase(run: RunState): Phase {
   if (run.phase === 'queued') return 'loading';

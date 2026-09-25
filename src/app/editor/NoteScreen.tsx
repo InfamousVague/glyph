@@ -33,9 +33,14 @@ import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.t
 import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { FormattedView, type ApplyHow } from '../format/FormattedView.tsx';
-import { useFormatter } from '../format/formatter.ts';
-import type { Mode } from '../format/modes.ts';
+import { useAvailability } from '../ai/available.ts';
+import type { RunKind } from '../ai/kinds.ts';
+import { loadMarks, saveMarks } from '../ai/marks.ts';
+import { ended, useRun } from '../ai/runs.ts';
+import { startNoteRun } from '../ai/start.ts';
+import { useLanding } from '../ai/useLanding.ts';
+import { accountState } from '../core/account/account.ts';
+import { aiEdit, keepAllAiChanges, keepAllChanges, restoreAiChanges, type AiChange } from './aiChanges.ts';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
 import { LinkMarks } from '../plugins/LinkMarks.tsx';
@@ -61,18 +66,18 @@ import styles from './NoteScreen.module.css';
  * synchronous in its decision - it checks a ref, not state - because by the
  * time a re-render could happen the process may be gone.
  *
- * The note, and over it what the robot makes of it: the robot button in the
- * More sheet's AI group lists Format, Summarize and Enhance, and choosing
- * one opens that mode's view (format/FormattedView.tsx) over the
- * note, which starts writing the first time it is opened; Close, "Back to
- * note" in the menu, or the back gesture returns to the note. Matt: "make
- * all of these buttons instead of the segmented toggle, make a robot drop
- * down button for these options". A spoken note has one more view, the
+ * The note, and the AI in it: the More sheet's AI group lists Format,
+ * Summarize and Enhance, and choosing one starts a run (ai/start.ts) whose
+ * lines land in the note itself as they finish, as tracked changes
+ * (ai/useLanding.ts, editor/aiChanges.ts), with the strip under the header
+ * saying what the model is doing (ai/AiStrip.tsx). The robot's own view
+ * over the note is gone with it: Matt chose the note as the one surface,
+ * with auto-apply, marks, and Undo. A spoken note has one more view, the
  * transcript - the recording's phrases following the sound - which shows
  * whenever the tape is playing and steps aside when it stops (Matt: "the
  * default mode whenever we're playing, not a different tab"). The editor
- * stays mounted behind the others, hidden, so nothing typed is lost and its
- * caret keeps its place.
+ * stays mounted behind it, hidden, so nothing typed is lost and its caret
+ * keeps its place.
  */
 
 interface NoteScreenProps {
@@ -202,8 +207,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     },
     [],
   );
-  /** What the robot is showing over the note, or null for the note itself. */
-  const [mode, setMode] = useState<Mode | null>(null);
+  /** The note's run, for the More sheet to mark which kind is on. */
+  const run = useRun(note.id);
+  const runningKind: RunKind | null = run && !ended(run) ? run.kind : null;
   /** The cog's sheet: pin, archive, what the note is linked to, delete. */
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Find and replace, open with its first words, or null when it's closed (FindBar.tsx). */
@@ -219,18 +225,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     return () => window.clearTimeout(id);
   }, [photoProblem]);
 
-  // The formatted text made the note (the Formatted view's Apply): said once,
-  // with the way back, for a few seconds.
-  const [applied, setApplied] = useState<{
-    said: string;
-    undo: () => void;
-  } | null>(null);
-  useEffect(() => {
-    if (!applied) return;
-    const id = window.setTimeout(() => setApplied(null), 8000);
-    return () => window.clearTimeout(id);
-  }, [applied]);
-
   // The live document, held in a ref rather than state: it changes on every
   // keystroke and nothing in this component's render depends on it, so putting
   // it in state would re-render the screen once per character for nothing.
@@ -241,10 +235,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const writable = useRef(true);
   const timer = useRef<number | null>(null);
 
-  // The robot's text for the note in the mode showing (the hook looks up
-  // what is kept itself); Format while nothing shows, so a run the queue
-  // started is found the moment the view opens.
-  const formatter = useFormatter(note.id, mode ?? 'format');
   const currentBody = useCallback(() => body.current, []);
 
   const flush = useCallback(() => {
@@ -361,6 +351,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       changes: { from: 0, to: now.length, insert: record.before },
       selection: { anchor: 0 },
       scrollIntoView: true,
+      effects: keepAllAiChanges.of(null),
+      annotations: aiEdit.of('undo'),
     });
     recordUndone(note.id, record.id);
     fireNativeHaptic('success');
@@ -399,13 +391,47 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     onDelete(note.id);
   };
 
-  const showMode = (next: Mode | null) => {
-    if (next) flush();
-    setMode(next);
-    // The editor was hidden, not unmounted, so nothing typed is lost; it
-    // measures itself again now that it has a size.
-    if (!next) window.requestAnimationFrame(() => view?.requestMeasure());
+  /*
+   * The AI, asked from the More sheet: a run on this note (ai/start.ts), whose lines land in the editor as they
+   * finish (useLanding below). What is typed is flushed first, so the run's Undo has the note as it was.
+   */
+  const availability = useAvailability();
+  const runAi = (kind: RunKind) => {
+    if (!view) return;
+    flush();
+    const started = startNoteRun(view, note.id, kind, availability.availability);
+    if (!started.ok) toast({ message: started.reason });
+    else fireNativeHaptic('selection');
   };
+  // The AI signs beside the account's handle, where there is one (core/authors.ts).
+  useLanding(note.id, view, {
+    wisp: prefs.wisp,
+    haptic: true,
+    owner: accountState().session?.handle,
+    onDropped: (count) => toast({ message: count === 1 ? 'One line the model wrote was dropped: you had written there.' : `${count} lines the model wrote were dropped: you had written there.` }),
+  });
+  /*
+   * The AI's marks (editor/aiChanges.ts): how many, for the strip, and kept with the note a moment after they change
+   * (ai/marks.ts), so leaving and coming back finds them where they were, as long as the note still reads the same.
+   */
+  const [marks, setMarks] = useState(0);
+  const marksTimer = useRef<number | null>(null);
+  const onAiMarks = useCallback(
+    (changes: readonly AiChange[]) => {
+      setMarks(changes.length);
+      if (marksTimer.current !== null) window.clearTimeout(marksTimer.current);
+      marksTimer.current = window.setTimeout(() => {
+        marksTimer.current = null;
+        saveMarks(note.id, body.current, changes);
+      }, 400);
+    },
+    [note.id],
+  );
+  useEffect(() => {
+    if (!view) return;
+    const kept = loadMarks(note.id, view.state.doc.toString());
+    if (kept?.length) view.dispatch({ effects: restoreAiChanges.of(kept) });
+  }, [view, note.id]);
 
   /**
    * The note, as plugins change it (plugins/types.ts `NoteEditing`): through the
@@ -432,40 +458,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     say: setPhotoProblem,
   };
 
-  // Apply, from the robot's view: the text goes into the note - in place of
-  // it, above it or below it. Through the editor, so its history has it, and
-  // said with an Undo that puts the old words back and the kept version back
-  // to what it was.
-  const applyFormatted = (text: string, how: ApplyHow) => {
-    if (!view) return;
-    const previous = view.state.doc.toString();
-    const piece = text.trim();
-    const next = how === 'replace' ? text : how === 'prepend' ? `${piece}\n\n${previous.replace(/^\s+/, '')}` : `${previous.replace(/\s+$/, '')}\n\n${piece}\n`;
-    view.dispatch({
-      changes: { from: 0, to: previous.length, insert: next },
-      selection: { anchor: how === 'append' ? next.length : 0 },
-      scrollIntoView: true,
-    });
-    const unkeep = formatter.apply(text, next);
-    showMode(null);
-    fireNativeHaptic('success');
-    setApplied({
-      said: how === 'replace' ? 'Applied to the note.' : how === 'prepend' ? 'Added above the note.' : 'Added below the note.',
-      undo: () => {
-        const now = view.state.doc.toString();
-        view.dispatch({
-          changes: { from: 0, to: now.length, insert: previous },
-          selection: { anchor: 0 },
-          scrollIntoView: true,
-        });
-        unkeep();
-        setApplied(null);
-      },
-    });
-  };
-
-  // Playing takes the screen for the transcript; the chosen view waits under it.
-  const shown: 'transcript' | 'robot' | 'raw' = tape.length && tape.playing ? 'transcript' : mode ? 'robot' : 'raw';
+  // Playing takes the screen for the transcript; the note waits under it.
+  const shown: 'transcript' | 'raw' = tape.length && tape.playing ? 'transcript' : 'raw';
   // The tape and note go to smoke as they slip behind the header; read again on a view change, since another view may not scroll (art/wispEdge.ts).
   // The page smokes at both ends: under the header, and off the bottom where the dock is (art/wispEdge.ts).
   // Not on a canvas: it is not a page that scrolls off its foot, and the band was smoking the canvas's own tools at
@@ -747,19 +741,11 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       {toolsSlot ? createPortal(tools, toolsSlot) : null}
       {/* The model at work on this note, and what it did: under the header, over the page (ai/AiStrip.tsx). */}
       <div className={styles.stripHolder}>
-        <AiStrip noteId={note.id} onUndo={undoRun} onHeight={onStripHeight} />
+        <AiStrip noteId={note.id} onUndo={undoRun} onHeight={onStripHeight} marks={marks && view ? { count: marks, keepAll: () => keepAllChanges(view) } : undefined} />
       </div>
       {photoProblem ? (
         <p className={styles.problem} role="alert">
           {photoProblem}
-        </p>
-      ) : null}
-      {applied ? (
-        <p className={styles.problem} role="status">
-          {applied.said}
-          <button type="button" className={`app-word ${styles.undo}`} onClick={applied.undo}>
-            Undo
-          </button>
         </p>
       ) : null}
 
@@ -798,19 +784,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {shown === 'transcript' ? (
           <div className={styles.body}>
             <TranscriptWords tape={tape} />
-          </div>
-        ) : null}
-        {shown === 'robot' ? (
-          <div className={styles.body}>
-            {/* Keyed by mode: a change of mode is a fresh view, with its own editor and its own once-per-mount start. */}
-            <FormattedView
-              key={mode}
-              formatter={formatter}
-              currentBody={currentBody}
-              dark={isDarkNow(prefs.theme)}
-              onApply={applyFormatted}
-              onClose={() => showMode(null)}
-            />
           </div>
         ) : null}
         {drawing ? (
@@ -876,6 +849,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             }
             linkMenus={{ say: (message) => editing.say(message) }}
             wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined}
+            onAiMarks={onAiMarks}
             grow
           />
           {blank && !typed ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
@@ -908,8 +882,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         name={typed ? { value: title, onChange: (next) => onChange(withFrontMatterTitle(body.current, next)) } : undefined}
         view={!wide && shown === 'raw' ? (typed ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
         onView={typed ? (next) => showSource(next === 'mixed') : chooseView}
-        mode={mode}
-        onMode={showMode}
+        running={runningKind}
+        onAi={runAi}
         onFind={
           shown === 'raw'
             ? () => {

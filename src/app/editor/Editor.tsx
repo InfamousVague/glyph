@@ -38,6 +38,7 @@ import { canvasFrames, refreshCanvasFrames } from './canvasFrames.ts';
 import { bookmarkRibbon } from './bookmarkLine.ts';
 import { localUndo, undoSlot } from './undoSlot.ts';
 import { wispRipples, type RippleSource } from './wispRipples.ts';
+import { aiChanges, type AiChange } from './aiChanges.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { InlineFormat } from '../plugins/types.ts';
 import styles from './Editor.module.css';
@@ -131,6 +132,8 @@ interface EditorProps {
   peek?: boolean;
   /** Diagrams drawn even on a peek: a canvas card is small but is read, so a chart on it is the point of the card. */
   diagrams?: boolean;
+  /** The AI's tracked changes in this note changed (editor/aiChanges.ts): told so the note can keep them. Read through a ref. */
+  onAiMarks?: (changes: readonly AiChange[]) => void;
 }
 
 /**
@@ -181,6 +184,7 @@ export function Editor({
   display = 'mixed',
   peek = false,
   diagrams = false,
+  onAiMarks,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -200,6 +204,8 @@ export function Editor({
   wikiRef.current = wiki;
   const darkRef = useRef(dark);
   darkRef.current = dark;
+  const onAiMarksRef = useRef(onAiMarks);
+  onAiMarksRef.current = onAiMarks;
 
   const themeSlot = useRef(new Compartment());
   const assistSlot = useRef(new Compartment());
@@ -283,6 +289,8 @@ export function Editor({
         grow ? Prec.highest(GROW_THEME) : [],
         arrivals || wispTyping ? wispArrivals({ typing: wispTyping }) : [],
         ripples ? wispRipples(ripples) : [],
+        // The AI's changes, tracked: tinted where it added, struck where it took away, Keep and Revert (aiChanges.ts).
+        peek ? [] : aiChanges({ onMarks: (changes) => onAiMarksRef.current?.(changes) }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString());
           for (const tr of update.transactions) feelTransaction(tr);

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Square, Undo2, X } from '@glacier/icons';
+import { Check, ChevronDown, ChevronUp, PenLine, Square, Undo2, X } from '@glacier/icons';
 import { AiCard } from '../format/AiCard.tsx';
 import { KIND_ICONS, PHASE_ICONS, spins } from './icons.ts';
 import { kindWords } from './kinds.ts';
 import { useRunLog, type RunRecord } from './log.ts';
 import { cancelRun, dismissRun, ended, useRun } from './runs.ts';
 import { when } from '../notes/when.ts';
-import { cardPhase, progressOf, recordSentence, runSentence } from './words.ts';
+import { cardPhase, marksSentence, progressOf, recordSentence, runSentence } from './words.ts';
 import styles from './AiStrip.module.css';
 
 /**
@@ -32,8 +32,11 @@ export function AiStrip({
   noteId,
   onUndo,
   onHeight,
+  marks,
 }: {
   noteId: string;
+  /** The AI's changes still marked in the note, and the way to keep them all at once; absent with none. */
+  marks?: { count: number; keepAll: () => void };
   /**
    * Puts the note back as it was before a run, if the note still reads as the run left it; answers whether it did.
    * Absent where the note cannot be written (a shared page).
@@ -51,7 +54,7 @@ export function AiStrip({
   useEffect(() => setOpen(false), [runId]);
 
   // The page makes room under the strip: its height, as it changes, and 0 once it is gone.
-  const shown = run !== null;
+  const shown = run !== null || (marks !== undefined && marks.count > 0);
   useEffect(() => {
     if (!onHeight) return undefined;
     const el = host.current;
@@ -70,7 +73,27 @@ export function AiStrip({
     };
   }, [onHeight, shown]);
 
-  if (!run) return null;
+  if (!shown) return null;
+
+  // No run to speak of, only marks left in the note: one line saying so, with Keep all.
+  if (!run) {
+    return (
+      <section ref={host} className={styles.strip} data-phase="marks" aria-label="The AI on this note">
+        <div className={styles.row}>
+          <span className={styles.line}>
+            <PenLine size={16} strokeWidth={2.2} className={styles.icon} aria-hidden="true" />
+            <span className={styles.words} role="status">
+              {marksSentence(marks?.count ?? 0)}
+            </span>
+          </span>
+          <button type="button" className={styles.action} onClick={marks?.keepAll} aria-label="Keep every change">
+            <Check size={15} strokeWidth={2.4} aria-hidden="true" />
+            <span>Keep all</span>
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   const Icon = PHASE_ICONS[run.phase];
   const over = ended(run);
@@ -89,6 +112,12 @@ export function AiStrip({
           </span>
           {open ? <ChevronUp size={16} strokeWidth={2.2} className={styles.chevron} aria-hidden="true" /> : <ChevronDown size={16} strokeWidth={2.2} className={styles.chevron} aria-hidden="true" />}
         </button>
+        {over && marks && marks.count > 0 ? (
+          <button type="button" className={styles.action} onClick={marks.keepAll} aria-label="Keep every change">
+            <Check size={15} strokeWidth={2.4} aria-hidden="true" />
+            <span>Keep all</span>
+          </button>
+        ) : null}
         {!over ? (
           <button type="button" className={styles.action} onClick={() => void cancelRun(noteId)} aria-label="Stop">
             <Square size={14} strokeWidth={2.4} aria-hidden="true" />

@@ -100,7 +100,7 @@ export function FormattingPane() {
         )}
       </PaneSection>
 
-      <SettingsFootnote>The robot's Format, Summarize and Enhance are written by the chosen model from the note's own words. The note itself is never changed unless you tap Apply.</SettingsFootnote>
+      <SettingsFootnote>Format, Summarize and Enhance are written by the chosen model from the note's own words, straight into the note as it goes. Every change is marked until you keep or revert it, and Undo in the strip puts a whole run back.</SettingsFootnote>
     </>
   );
 }

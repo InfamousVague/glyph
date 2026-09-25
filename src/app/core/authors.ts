@@ -71,7 +71,11 @@ export function aiName(said: string | undefined, client: { name?: string; title?
   return raw ? cleanName(raw) : null;
 }
 
+/** The name the app's own model signs with (ai/useLanding.ts): the ghost is the app, whichever model wrote. */
+export const AI_AUTHOR = 'Ghost';
+
 const KNOWN: [RegExp, string][] = [
+  [/^ghost$/, AI_AUTHOR],
   [/claude/, 'Claude'],
   [/chatgpt|openai/, 'ChatGPT'],
   [/gemini/, 'Gemini'],

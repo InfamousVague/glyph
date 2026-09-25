@@ -5,6 +5,7 @@ import { deleteNote, noteTitle, setNoteArchived, setNoteStarred, type Note } fro
 import { forgetNote } from '../core/workspaces.ts';
 import { forgetResults } from '../format/results.ts';
 import { forgetRuns } from '../ai/log.ts';
+import { forgetMarks } from '../ai/marks.ts';
 import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.ts';
 
 /**
@@ -81,6 +82,7 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
         forgetNote(due.id);
         forgetResults(due.id);
         forgetRuns(due.id);
+        forgetMarks(due.id);
         forgetTrashed([due.id]);
       } catch (error) {
         console.warn('[glyph] delete failed:', error);
@@ -144,6 +146,7 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
           forgetNote(note.id);
           forgetResults(note.id);
           forgetRuns(note.id);
+          forgetMarks(note.id);
         } catch (error) {
           console.warn('[glyph] delete failed:', error);
         }
