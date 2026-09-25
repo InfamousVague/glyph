@@ -1,4 +1,5 @@
 import { Tips as TipsArt } from '../../art/Shapes.tsx';
+import { Step } from './parts.tsx';
 import styles from '../Guide.module.css';
 
 /**
@@ -13,26 +14,11 @@ export function Tips() {
       <TipsArt className={styles.art} />
       <h1 className={styles.title}>A few habits.</h1>
       <ol className={styles.steps}>
-        <li>
-          <h2 className={styles.stepTitle}>Pause before a cue word.</h2>
-          <p className={styles.note}>A short pause before “heading” or “bullet point” starts a new sentence. That’s where Ghost.md listens for cues.</p>
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Or say the cue on its own.</h2>
-          <p className={styles.note}>“Bullet point.” Pause. “Oat milk.” The cue waits for the next thing you say.</p>
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Stop for two seconds to start a paragraph.</h2>
-          <p className={styles.note}>You don’t have to say it. The pause does it.</p>
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Talk normally.</h2>
-          <p className={styles.note}>Ghost.md picks lists and to-dos out of normal speech. It never changes your words, only how they’re laid out.</p>
-        </li>
-        <li>
-          <h2 className={styles.stepTitle}>Fix it after.</h2>
-          <p className={styles.note}>A voice note lands at the top of your notes. Open it to fix anything. The markdown is all there.</p>
-        </li>
+        <Step title="Pause before a cue word." note="A short pause before “heading” or “bullet point” starts a new sentence. That’s where Ghost.md listens for cues." />
+        <Step title="Or say the cue on its own." note="“Bullet point.” Pause. “Oat milk.” The cue waits for the next thing you say." />
+        <Step title="Stop for two seconds to start a paragraph." note="You don’t have to say it. The pause does it." />
+        <Step title="Talk normally." note="Ghost.md picks lists and to-dos out of normal speech. It never changes your words, only how they’re laid out." />
+        <Step title="Fix it after." note="A voice note lands at the top of your notes. Open it to fix anything. The markdown is all there." />
       </ol>
     </>
   );

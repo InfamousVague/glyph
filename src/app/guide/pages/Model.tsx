@@ -1,6 +1,7 @@
 import { gb, MODELS, modelName, useModels } from '../../core/ai.ts';
 import { setPreferences, usePreferences } from '../../core/preferences.ts';
 import { isTauri } from '../../core/tauri.ts';
+import { Choice } from './parts.tsx';
 import styles from '../Guide.module.css';
 
 /**
@@ -26,23 +27,15 @@ export function Model() {
       <p className={styles.lead}>It rewrites your notes on the phone. Bigger is more careful, and slower. Nothing leaves the phone.</p>
       <div className={styles.choices} role="radiogroup" aria-label="Model">
         {MODELS.map((model) => (
-          <button
+          <Choice
             key={model.id}
-            type="button"
-            role="radio"
-            aria-checked={formatModel === model.id}
-            className={`${styles.choice} ${formatModel === model.id ? 'app-inverse' : ''}`}
-            data-selected={formatModel === model.id ? '' : undefined}
-            onClick={() => setPreferences({ formatModel: model.id })}
-          >
-            <span className={`${styles.swatch} ${styles.size}`} aria-hidden="true">
-              {gb(model.bytes)}
-            </span>
-            <span className={styles.choiceText}>
-              <span className={styles.stepTitle}>{model.name}</span>
-              <span className={styles.note}>{model.about}</span>
-            </span>
-          </button>
+            label={model.name}
+            hint={model.about}
+            on={formatModel === model.id}
+            onPick={() => setPreferences({ formatModel: model.id })}
+            swatch={gb(model.bytes)}
+            swatchClass={styles.size}
+          />
         ))}
       </div>
       {isTauri() && chosen ? (
