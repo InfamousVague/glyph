@@ -67,8 +67,8 @@
   flex-direction: column;
   align-items: stretch;
   gap: var(--glacier-space-2);
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-1)) var(--glacier-space-2);
+  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-block: calc(var(--app-safe-top) + var(--glacier-space-1)) var(--glacier-space-2);
   font-size: var(--glacier-font-size-md);
 }
 
@@ -81,7 +81,7 @@
  * pane's foot. The page keeps that room as its own instead, so the note's first line stays where it was.
  */
 .header:empty {
-  padding-block: var(--app-safe-top, 0px) 0;
+  padding-block: var(--app-safe-top) 0;
 }
 
 .header:empty ~ .page {
@@ -105,7 +105,7 @@
 .header,
 .tapeRow,
 .body {
-  animation: noteRise 320ms var(--glacier-ease-out, ease-out) both;
+  animation: noteRise 320ms var(--glacier-ease-out) both;
 }
 
 .tapeRow {
@@ -164,7 +164,7 @@
    * alone that made them look the larger pair. The corner is the arrows' own, for the ground a hover paints.
    */
   border: none;
-  border-radius: var(--glacier-radius-md, 9px);
+  border-radius: var(--glacier-radius-md);
   background: none;
   color: var(--glacier-text);
   /*
@@ -223,7 +223,7 @@
   margin: 0;
   padding: var(--glacier-space-1) var(--app-gutter) 0;
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 /*
@@ -234,7 +234,7 @@
 .body {
   flex: 1;
   min-block-size: 0;
-  padding-block-end: var(--app-safe-bottom, 0px);
+  padding-block-end: var(--app-safe-bottom);
 }
 
 /*

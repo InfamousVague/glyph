@@ -20,14 +20,14 @@
   block-size: 2rem;
   padding: 0;
   border: 2px solid transparent;
-  border-radius: var(--glacier-radius-full, 999px);
+  border-radius: var(--glacier-radius-full);
   background: var(--app-space, var(--app-ink));
   color: var(--app-paper);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition:
-    transform 160ms var(--glacier-ease-out, ease-out),
-    box-shadow 160ms var(--glacier-ease-out, ease-out);
+    transform 160ms var(--glacier-ease-out),
+    box-shadow 160ms var(--glacier-ease-out);
 }
 
 /* Chosen: a ring of the page around it, so the dot itself keeps its colour whole. */
@@ -39,7 +39,7 @@
 }
 
 .dot:focus-visible {
-  outline: 2px solid var(--glacier-focus-ring, var(--app-ink));
+  outline: 2px solid var(--glacier-focus-ring);
   outline-offset: 3px;
 }
 

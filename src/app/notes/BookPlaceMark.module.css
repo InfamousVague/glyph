@@ -7,7 +7,7 @@
   align-items: center;
   gap: 0.3em;
   min-inline-size: 0;
-  font-size: var(--glacier-font-size-xs, 0.75rem);
+  font-size: var(--glacier-font-size-xs);
   color: var(--glacier-text-muted);
 }
 

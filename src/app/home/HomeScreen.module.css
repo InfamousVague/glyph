@@ -28,18 +28,18 @@
    * 3.2rem, which had no relation to how tall the bar actually is and was wrong the moment the bar grew a second
    * row. `--app-safe-top` is that height, known without measuring anything, so the list can never begin above it.
    */
-  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top, 0px)) + var(--glacier-space-6));
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top)) + var(--glacier-space-6));
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
   /*
    * Room at the foot for the dock's column to stand clear of the last lines: its four buttons (Settings, Search, write,
    * Speak), the three gaps between them and its padding at each end, where it floats above the foot, and a little
    * more. Counted by hand, so a button added to the dock is a number changed here.
    */
   padding-block-end: calc(
-    var(--app-safe-bottom, 0px) + var(--glacier-space-4) + var(--glacier-space-10) * 0.88 * 4 + var(--glacier-space-2) * 5 +
+    var(--app-safe-bottom) + var(--glacier-space-4) + var(--glacier-space-10) * 0.88 * 4 + var(--glacier-space-2) * 5 +
       var(--glacier-space-6)
   );
 }
@@ -60,8 +60,8 @@
   flex-direction: column;
   align-items: stretch;
   gap: var(--glacier-space-2);
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-1)) var(--glacier-space-2);
+  padding-inline: calc(var(--app-safe-left) + var(--app-gutter)) calc(var(--app-safe-right) + var(--app-gutter));
+  padding-block: calc(var(--app-safe-top) + var(--glacier-space-1)) var(--glacier-space-2);
 }
 
 /*
@@ -72,11 +72,11 @@
  * pills stay exactly where they were.
  */
 .topBar:has(> .saidOnly:only-child) {
-  padding-block: var(--app-safe-top, 0px) 0;
+  padding-block: var(--app-safe-top) 0;
 }
 
 .topBar:has(> .saidOnly:only-child) ~ .scroll {
-  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top, 0px)) + var(--glacier-space-1) + var(--glacier-space-2) + var(--glacier-space-6));
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top)) + var(--glacier-space-1) + var(--glacier-space-2) + var(--glacier-space-6));
 }
 
 /* The screen's name for a screen reader alone: the page has no visible title (HomeScreen.tsx). */
@@ -105,7 +105,7 @@
   font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
 }
 
 /* The pin, once, on the heading: tilted the way it used to sit on each row. */
@@ -194,8 +194,8 @@
  */
 .dock {
   position: absolute;
-  inset-inline: auto calc(var(--app-safe-right, 0px) + var(--glacier-space-4));
-  bottom: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-4));
+  inset-inline: auto calc(var(--app-safe-right) + var(--glacier-space-4));
+  bottom: calc(var(--app-safe-bottom) + var(--glacier-space-4));
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -328,7 +328,7 @@
 .today {
   margin: 0 0 var(--glacier-space-3);
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
 }
 
 /*
@@ -382,8 +382,8 @@
   block-size: 1.25rem;
   margin-block-start: 0.1rem;
   padding: 0;
-  border: 2px solid var(--app-ink-2, var(--glacier-text-muted));
-  border-radius: var(--glacier-radius-xs, 5px);
+  border: 2px solid var(--app-ink-2);
+  border-radius: var(--glacier-radius-xs);
   background: transparent;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -450,7 +450,7 @@
 }
 
 .allNotes:hover {
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .allNotesMark {

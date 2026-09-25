@@ -78,15 +78,15 @@
   place-items: center;
   inline-size: 1.5rem;
   block-size: 1.5rem;
-  border-radius: var(--glacier-radius-md, 8px);
-  background: var(--app-wash, var(--glacier-surface-sunken));
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-wash);
   color: var(--glacier-text-muted);
 }
 
 .symbol {
   padding: 0.1em 0.4em;
   border: var(--glacier-hairline) solid var(--glacier-border-strong);
-  border-radius: var(--glacier-radius-md, 8px);
+  border-radius: var(--glacier-radius-md);
   font-family: var(--glacier-font-mono);
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-semibold);

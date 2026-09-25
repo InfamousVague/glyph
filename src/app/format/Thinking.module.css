@@ -4,7 +4,7 @@
   display: grid;
   place-items: center;
   padding: var(--glacier-space-10) var(--app-gutter) var(--glacier-space-6);
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .robot {

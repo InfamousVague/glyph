@@ -24,10 +24,10 @@
   inline-size: 100%;
   max-block-size: 85dvh;
   overflow-y: auto;
-  padding: var(--glacier-space-2) calc(var(--app-safe-right, 0px) + var(--app-gutter)) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-5)) calc(var(--app-safe-left, 0px) + var(--app-gutter));
-  border-radius: var(--glacier-radius-xl, 1.5rem) var(--glacier-radius-xl, 1.5rem) 0 0;
+  padding: var(--glacier-space-2) calc(var(--app-safe-right) + var(--app-gutter)) calc(var(--app-safe-bottom) + var(--glacier-space-5)) calc(var(--app-safe-left) + var(--app-gutter));
+  border-radius: var(--glacier-radius-xl) var(--glacier-radius-xl) 0 0;
   /* What is shown in the sheet, the cheat sheet among it, draws against this (guide/CheatSheet.module.css). */
-  --sheet-ground: var(--app-paper-2, var(--glacier-surface));
+  --sheet-ground: var(--app-paper-2);
   /* The space kept above what scrolls in the sheet, which a pinned strip covers (the padding's first value). */
   --sheet-inset-top: var(--glacier-space-2);
   background: var(--sheet-ground);
@@ -120,7 +120,7 @@
 }
 
 .row:active:not([aria-disabled]) {
-  background: var(--app-wash, var(--glacier-surface-sunken));
+  background: var(--app-wash);
 }
 
 .row[aria-disabled] {
@@ -167,7 +167,7 @@
 
 .hint {
   font-size: var(--glacier-font-size-sm);
-  font-weight: var(--glacier-font-weight-regular, 400);
+  font-weight: var(--glacier-font-weight-regular);
   color: var(--glacier-text-subtle);
 }
 
@@ -246,7 +246,7 @@
 }
 
 .danger {
-  color: var(--glacier-red-9, oklch(0.6 0.22 27));
+  color: var(--glacier-red-9);
 }
 
 @media (prefers-reduced-motion: reduce) {

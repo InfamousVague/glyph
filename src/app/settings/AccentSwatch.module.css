@@ -19,15 +19,15 @@
   block-size: 2rem;
   padding: 0;
   border: 2px solid transparent;
-  border-radius: var(--glacier-radius-full, 999px);
+  border-radius: var(--glacier-radius-full);
   /* The ramp's solid step, which is what an accent actually paints with. */
   background: var(--glacier-accent-9);
-  color: var(--glacier-accent-contrast, var(--app-paper));
+  color: var(--glacier-accent-contrast);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition:
-    transform 160ms var(--glacier-ease-out, ease-out),
-    box-shadow 160ms var(--glacier-ease-out, ease-out);
+    transform 160ms var(--glacier-ease-out),
+    box-shadow 160ms var(--glacier-ease-out);
 }
 
 /* Ink: the page's own, which is what choosing it does - no accent at all. */
@@ -51,7 +51,7 @@
 }
 
 .dot:focus-visible {
-  outline: 2px solid var(--glacier-focus-ring, var(--app-ink));
+  outline: 2px solid var(--glacier-focus-ring);
   outline-offset: 3px;
 }
 

@@ -62,7 +62,7 @@
    * The page's gutter at each edge, notch included: what the bar pads by, and what anything reaching past the bar's
    * padding has to give back (notes/NoteTabs.module.css `.tabs`). Named once so the two cannot drift apart.
    */
-  --app-gutter-start: calc(var(--app-safe-left, 0px) + var(--app-gutter));
+  --app-gutter-start: calc(var(--app-safe-left) + var(--app-gutter));
   /*
    * The top bar's own left inset, which is NOT the page's gutter (Matt: "Sidebar toggle sits too far in from the
    * left the padding on the left is too much", and of the row below it, "There is not enough padding on the left of
@@ -74,8 +74,8 @@
    * Kept under the wisp's reach: the smoke at the row's start is drawn over the first 20px of the row's own box
    * (art/wispSides.ts), so an inset larger than that would bend empty padding and read as a plain dark gradient.
    */
-  --app-bar-start: calc(var(--app-safe-left, 0px) + var(--glacier-space-3));
-  --app-gutter-end: calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  --app-bar-start: calc(var(--app-safe-left) + var(--glacier-space-3));
+  --app-gutter-end: calc(var(--app-safe-right) + var(--app-gutter));
 
   /*
    * THE TYPE SCALE. Glyph is typography first: the words are the interface,
@@ -380,6 +380,10 @@ body:has(.app-headerPane) .app-statusScrim {
  * runs the whole height so its words can pass under the glass, and so did its scrollbar, under the blur, from the
  * window's top edge. Only where there is a pointer: styling a scrollbar gives up the platform's own, and on a phone
  * the thin one that shows only while scrolling is the right one. A slim rounded thumb in the page's ink, on no track.
+ *
+ * The one place a `var()` of a root property keeps its fallback, and a radius stays a number: a scrollbar is drawn by
+ * the engine, in pseudo-elements no computed style can be read from and no screenshot in a test shows, so nothing
+ * here is changed without a real look at it.
  */
 @media (hover: hover) and (pointer: fine) {
   [data-under-header]::-webkit-scrollbar {
@@ -464,8 +468,8 @@ body:has(.app-headerPane) .app-statusScrim {
 :root[data-split] .app-headerPane {
   background: linear-gradient(
     to bottom,
-    transparent var(--app-safe-top, 0px),
-    color-mix(in srgb, var(--glacier-bg) 66%, transparent) var(--app-safe-top, 0px)
+    transparent var(--app-safe-top),
+    color-mix(in srgb, var(--glacier-bg) 66%, transparent) var(--app-safe-top)
   );
 }
 

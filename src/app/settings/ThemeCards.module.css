@@ -21,16 +21,16 @@
   display: grid;
   min-inline-size: 0;
   overflow: hidden;
-  border: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
   border-radius: var(--glacier-radius-lg);
-  background: var(--glacier-surface-raised, var(--app-raised));
+  background: var(--glacier-surface-raised);
   color: var(--glacier-text);
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   transition:
-    border-color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out),
-    box-shadow var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out);
+    border-color var(--glacier-duration-fast) var(--glacier-ease-out),
+    box-shadow var(--glacier-duration-fast) var(--glacier-ease-out);
 }
 
 .option:hover {
@@ -63,7 +63,7 @@
   position: relative;
   block-size: 6.5rem;
   overflow: hidden;
-  border-block-end: var(--glacier-hairline, 1px) solid var(--theme-border);
+  border-block-end: var(--glacier-hairline) solid var(--theme-border);
   background: var(--theme-background);
   color: var(--theme-text);
 }
@@ -228,20 +228,20 @@
   inline-size: 1.25rem;
   block-size: 1.25rem;
   place-items: center;
-  border: var(--glacier-hairline, 1px) solid var(--glacier-border);
-  border-radius: var(--glacier-radius-full, 999px);
+  border: var(--glacier-hairline) solid var(--glacier-border);
+  border-radius: var(--glacier-radius-full);
   background: transparent;
   color: transparent;
   transition:
-    background-color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out),
-    border-color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out),
-    color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out);
+    background-color var(--glacier-duration-fast) var(--glacier-ease-out),
+    border-color var(--glacier-duration-fast) var(--glacier-ease-out),
+    color var(--glacier-duration-fast) var(--glacier-ease-out);
 }
 
 .option[data-selected] .indicator {
   border-color: var(--glacier-accent-solid);
   background: var(--glacier-accent-solid);
-  color: var(--glacier-accent-contrast, var(--app-paper));
+  color: var(--glacier-accent-contrast);
 }
 
 @media (prefers-reduced-motion: reduce) {

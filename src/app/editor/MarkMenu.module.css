@@ -20,11 +20,11 @@
   align-items: center;
   gap: var(--glacier-space-2);
   margin: 0;
-  font-size: var(--glacier-font-size-xs, 0.75rem);
+  font-size: var(--glacier-font-size-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 .status {
@@ -33,8 +33,8 @@
   gap: 0.45em;
   padding: 0.15em 0.7em;
   border-radius: 999px;
-  background: var(--app-ink, var(--glacier-text));
-  color: var(--app-paper, var(--glacier-bg));
+  background: var(--app-ink);
+  color: var(--app-paper);
 }
 
 .stage {
@@ -54,16 +54,16 @@
 }
 
 .fact {
-  color: var(--app-ink-2, var(--glacier-text));
+  color: var(--app-ink-2);
 }
 
 .title {
   margin: 0;
-  font-size: var(--app-h3, var(--glacier-font-size-2xl));
-  font-weight: var(--glacier-font-weight-bold, 700);
+  font-size: var(--app-h3);
+  font-weight: var(--glacier-font-weight-bold);
   line-height: 1.12;
   letter-spacing: -0.02em;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   overflow-wrap: anywhere;
 }
 
@@ -81,25 +81,25 @@
 }
 
 .field dt {
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 .field dd {
   margin: 0;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   overflow-wrap: anywhere;
 }
 
 .quiet {
   margin: 0;
-  font-size: var(--glacier-font-size-xs, 0.75rem);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3);
 }
 
 /* The things to do: full-width rows, a drawn icon and a word in display weight, hairlines between. */
 .options {
   display: grid;
-  border-block-start: var(--glacier-hairline, 1px) solid var(--app-rule, var(--glacier-border-subtle));
+  border-block-start: var(--glacier-hairline) solid var(--app-rule);
 }
 
 .option {
@@ -110,11 +110,11 @@
   min-block-size: 3.4rem;
   padding: 0;
   border: none;
-  border-block-end: var(--glacier-hairline, 1px) solid var(--app-rule, var(--glacier-border-subtle));
+  border-block-end: var(--glacier-hairline) solid var(--app-rule);
   background: none;
   font: inherit;
   text-align: start;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -124,16 +124,16 @@
 }
 
 .option:active {
-  background: color-mix(in srgb, var(--app-ink, #000) 6%, transparent);
+  background: color-mix(in srgb, var(--app-ink) 6%, transparent);
 }
 
 .option:disabled {
   cursor: default;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 .option[data-quiet] {
-  color: var(--app-ink-2, var(--glacier-text));
+  color: var(--app-ink-2);
 }
 
 /* An 18 px drawing in a 30 px ring: it looks the size of the note header's icons, whose rings are bigger and dimmer (Matt: "make the icons on the notion drawer smaller to match"). */
@@ -143,12 +143,12 @@
   inline-size: 1.875rem;
   block-size: 1.875rem;
   border-radius: 50%;
-  background: var(--app-paper, var(--glacier-bg));
-  border: 1.5px solid var(--app-ink, var(--glacier-text));
+  background: var(--app-paper);
+  border: 1.5px solid var(--app-ink);
 }
 
 .label {
-  font-size: var(--glacier-font-size-xl, 1.25rem);
-  font-weight: var(--glacier-font-weight-semibold, 600);
+  font-size: var(--glacier-font-size-xl);
+  font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: -0.01em;
 }

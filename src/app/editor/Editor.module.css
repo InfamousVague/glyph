@@ -105,7 +105,7 @@
   font-family: var(--glacier-font-mono);
   color: var(--glacier-accent-text);
   /* The mono font's own features and no spacing, so its ligatures show (typefaces.css). */
-  font-feature-settings: var(--app-mono-features, 'calt', 'liga');
+  font-feature-settings: var(--app-mono-features);
   letter-spacing: 0;
 }
 
@@ -364,7 +364,7 @@
  */
 .editor :global(.cm-line).lineCode {
   font-family: var(--glacier-font-mono);
-  font-feature-settings: var(--app-mono-features, 'calt', 'liga');
+  font-feature-settings: var(--app-mono-features);
   letter-spacing: 0;
   font-size: calc(var(--app-body) * 0.82);
   background: var(--code-bg);
@@ -415,14 +415,14 @@
   display: block;
   max-inline-size: 100%;
   max-block-size: 60vh;
-  border-radius: var(--glacier-radius-md, 8px);
-  background: var(--app-paper-2, var(--glacier-surface));
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper-2);
 }
 
 .figure[data-waiting]::before {
   content: '';
   display: block;
   min-block-size: 3rem;
-  border-radius: var(--glacier-radius-md, 8px);
-  background: var(--app-paper-2, var(--glacier-surface));
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper-2);
 }

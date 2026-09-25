@@ -6,9 +6,9 @@
   gap: var(--glacier-space-1);
   margin: 0 0 var(--glacier-space-3);
   padding: var(--glacier-space-4);
-  border: 1.5px solid var(--app-ink, var(--glacier-text));
+  border: 1.5px solid var(--app-ink);
   border-radius: var(--glacier-radius-lg);
-  background: var(--app-paper-2, var(--glacier-surface));
+  background: var(--app-paper-2);
   animation: card-pop 420ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
 }
 
@@ -25,7 +25,7 @@
   font-weight: var(--glacier-font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 .line {
@@ -33,7 +33,7 @@
   font-size: var(--glacier-font-size-lg);
   font-weight: var(--glacier-font-weight-semibold);
   line-height: 1.25;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   overflow-wrap: anywhere;
 }
 
@@ -41,7 +41,7 @@
 .hint {
   margin: 0;
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 .actions {

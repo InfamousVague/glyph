@@ -10,7 +10,7 @@
   align-items: center;
   column-gap: var(--glacier-space-4);
   row-gap: var(--glacier-space-2);
-  padding: var(--glacier-space-3) calc(var(--app-safe-right, 0px) + var(--app-gutter)) var(--glacier-space-1) calc(var(--app-safe-left, 0px) + var(--app-gutter));
+  padding: var(--glacier-space-3) calc(var(--app-safe-right) + var(--app-gutter)) var(--glacier-space-1) calc(var(--app-safe-left) + var(--app-gutter));
 }
 
 .cassette {
@@ -21,7 +21,7 @@
   background: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 160ms var(--glacier-ease-out, ease-out);
+  transition: transform 160ms var(--glacier-ease-out);
 }
 
 .cassette:active {
@@ -44,12 +44,12 @@
 .time {
   font-variant-numeric: tabular-nums;
   font-weight: var(--glacier-font-weight-semibold);
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .of {
-  font-weight: var(--glacier-font-weight-regular, 400);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--app-ink-3);
 }
 
 /* What to do with the audio, under Play: two quiet words, each with its mark; three while Remove is asking. */
@@ -104,7 +104,7 @@
   block-size: 1em;
   margin-block: var(--glacier-space-2);
   border-radius: var(--glacier-radius-sm);
-  background: var(--app-paper-3, var(--glacier-surface-sunken));
+  background: var(--app-paper-3);
   animation: phraseBreathe 1.6s ease-in-out infinite;
 }
 
@@ -125,7 +125,7 @@
   grid-column: 1 / -1;
   margin: 0;
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 /* Transcript: the phrases as spoken, in the note's own size, scrolling in the note's place. */
@@ -133,7 +133,7 @@
   block-size: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--glacier-space-5) calc(var(--app-safe-right, 0px) + var(--app-gutter)) var(--glacier-space-24) calc(var(--app-safe-left, 0px) + var(--app-gutter));
+  padding: var(--glacier-space-5) calc(var(--app-safe-right) + var(--app-gutter)) var(--glacier-space-24) calc(var(--app-safe-left) + var(--app-gutter));
 }
 
 .words {
@@ -155,16 +155,16 @@
   font: inherit;
   font-size: var(--app-body);
   line-height: 1.4;
-  color: var(--app-ink-4, var(--glacier-text-subtle));
+  color: var(--app-ink-4);
   cursor: pointer;
-  transition: color 160ms var(--glacier-ease-out, ease-out);
+  transition: color 160ms var(--glacier-ease-out);
   -webkit-tap-highlight-color: transparent;
 }
 
 .phrase[data-past] {
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 .phrase[data-current] {
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }

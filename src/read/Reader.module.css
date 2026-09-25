@@ -3,7 +3,7 @@
 .page {
   max-inline-size: 48rem;
   margin: 0 auto;
-  padding: var(--glacier-space-5) var(--app-gutter, var(--glacier-space-5)) var(--glacier-space-8);
+  padding: var(--glacier-space-5) var(--app-gutter) var(--glacier-space-8);
   color: var(--glacier-text);
   background: var(--glacier-bg);
   min-block-size: 100dvh;
@@ -14,7 +14,7 @@
   position: sticky;
   inset-block-start: 0;
   z-index: 2;
-  background: var(--app-paper-2, var(--glacier-surface));
+  background: var(--app-paper-2);
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
   font-size: var(--glacier-font-size-sm);
 }
@@ -25,13 +25,13 @@
   gap: var(--glacier-space-3);
   max-inline-size: 48rem;
   margin: 0 auto;
-  padding: var(--glacier-space-2) var(--app-gutter, var(--glacier-space-4));
+  padding: var(--glacier-space-2) var(--app-gutter);
 }
 
 .brand {
   flex: none;
   font-weight: var(--glacier-font-weight-semibold);
-  letter-spacing: var(--app-tracking-title, -0.01em);
+  letter-spacing: var(--app-tracking-title);
 }
 
 .pitch {
@@ -45,7 +45,7 @@
 
 .getApp {
   color: var(--glacier-text);
-  font-weight: var(--glacier-font-weight-medium, 500);
+  font-weight: var(--glacier-font-weight-medium);
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
@@ -74,11 +74,11 @@
   min-block-size: 2rem;
   padding: 0 0.75em;
   font: inherit;
-  font-weight: var(--glacier-font-weight-medium, 500);
+  font-weight: var(--glacier-font-weight-medium);
   cursor: pointer;
   background: none;
-  border-radius: var(--glacier-radius-full, 999px);
-  font-size: var(--glacier-font-size-xs, 0.75rem);
+  border-radius: var(--glacier-radius-full);
+  font-size: var(--glacier-font-size-xs);
   line-height: 1;
   text-decoration: none;
   white-space: nowrap;
@@ -91,8 +91,8 @@
 
 .primary {
   border: var(--glacier-hairline) solid transparent;
-  background: var(--app-ink, var(--glacier-text));
-  color: var(--app-paper, var(--glacier-bg));
+  background: var(--app-ink);
+  color: var(--app-paper);
 }
 
 .save {
@@ -102,7 +102,7 @@
   padding: var(--glacier-space-4);
   margin-block-end: var(--glacier-space-5);
   border-radius: var(--glacier-radius-lg);
-  background: var(--app-paper-2, var(--glacier-surface));
+  background: var(--app-paper-2);
 }
 
 .saveWays {
@@ -125,7 +125,7 @@
   gap: 0.4em;
   margin: 0 0 var(--glacier-space-4);
   font-size: var(--glacier-font-size-3xl);
-  letter-spacing: var(--app-tracking-title, -0.01em);
+  letter-spacing: var(--app-tracking-title);
 }
 
 .note {

@@ -11,7 +11,7 @@
   flex-direction: column;
   gap: var(--glacier-space-1);
   max-inline-size: calc(100vw - 16px);
-  animation: menuIn 140ms var(--glacier-ease-out, ease-out);
+  animation: menuIn 140ms var(--glacier-ease-out);
 }
 
 @keyframes menuIn {
@@ -33,8 +33,8 @@
   overflow-x: auto;
   scrollbar-width: none;
   border-radius: 18px;
-  background: var(--app-paper-2, var(--glacier-surface-raised));
-  border: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
+  background: var(--app-paper-2);
+  border: var(--glacier-hairline) solid var(--app-rule);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 
@@ -76,7 +76,7 @@
   font: inherit;
   font-size: var(--glacier-font-size-md);
   font-weight: var(--glacier-font-weight-medium);
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   white-space: nowrap;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -84,28 +84,28 @@
 
 /* The word under its icon: small, but in display weight. */
 .word {
-  font-size: var(--glacier-font-size-xs, 0.75rem);
+  font-size: var(--glacier-font-size-xs);
   font-weight: 700;
   letter-spacing: 0.01em;
 }
 
 .item + .item {
-  border-inline-start: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
+  border-inline-start: var(--glacier-hairline) solid var(--app-rule);
 }
 
 .item:active {
-  background: var(--app-paper-3, var(--glacier-surface-sunken));
+  background: var(--app-paper-3);
 }
 
 /* A style lit while it applies: printed in reverse, like a chosen row. */
 .style[data-lit] {
-  background: var(--app-ink, var(--glacier-text));
-  color: var(--app-paper, var(--glacier-bg));
+  background: var(--app-ink);
+  color: var(--app-paper);
 }
 
 /* The styles come in out of smoke, one after another along the band. */
 .style {
-  animation: styleIn 260ms var(--glacier-ease-out, ease-out) both;
+  animation: styleIn 260ms var(--glacier-ease-out) both;
   animation-delay: calc(var(--i, 0) * 22ms);
 }
 

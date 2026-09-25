@@ -20,9 +20,9 @@
    * popover not a full sidebar even on desktop"): as tall as the notes in it, and no taller than the window leaves
    * below the bar, where the notes scroll inside it.
    */
-  inset-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-2));
-  inset-inline-start: calc(var(--app-safe-left, 0px) + var(--glacier-space-3));
-  max-block-size: calc(100dvh - var(--app-safe-top, 0px) - var(--app-safe-bottom, 0px) - var(--glacier-space-2) - var(--glacier-space-3));
+  inset-block-start: calc(var(--app-safe-top) + var(--glacier-space-2));
+  inset-inline-start: calc(var(--app-safe-left) + var(--glacier-space-3));
+  max-block-size: calc(100dvh - var(--app-safe-top) - var(--app-safe-bottom) - var(--glacier-space-2) - var(--glacier-space-3));
   inline-size: min(20rem, calc(100vw - var(--glacier-space-10)));
   display: flex;
   flex-direction: column;
@@ -30,20 +30,20 @@
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-lg, 16px);
+  border-radius: var(--glacier-radius-lg);
   background: color-mix(in srgb, var(--glacier-bg) 88%, var(--glacier-text) 4%);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   box-shadow: 0 16px 40px rgb(0 0 0 / 34%);
   /* Grows out of the icon above it, as a popover does, rather than sliding in from the edge like a drawer. */
   transform-origin: top left;
-  animation: drawerIn 180ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+  animation: drawerIn 180ms var(--glacier-ease-out);
 }
 
 /* The same card at the right, hung from the tab row's mirrored icon: the aside (aside/Aside.tsx `AsideCard`). */
 .card[data-side='end'] {
   inset-inline-start: auto;
-  inset-inline-end: calc(var(--app-safe-right, 0px) + var(--glacier-space-3));
+  inset-inline-end: calc(var(--app-safe-right) + var(--glacier-space-3));
   transform-origin: top right;
 }
 

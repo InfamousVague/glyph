@@ -19,7 +19,7 @@
 /* A ring the voice sent out (SideKeyWaves.tsx): its size, brightness and life are animated from there. */
 .ring {
   fill: none;
-  stroke: var(--app-ink-3, var(--glacier-text-muted));
+  stroke: var(--app-ink-3);
   stroke-width: 2px;
   vector-effect: non-scaling-stroke;
   opacity: 0;

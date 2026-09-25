@@ -12,7 +12,7 @@
    * on the screen without scrolling, and never more than a ceiling, so a large monitor does not get a poster.
    */
   inline-size: min(100%, 28rem, calc(40dvh * var(--ghost-ratio, 1)));
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
   background-color: currentColor;
   -webkit-mask-image: var(--ghost-image);
   mask-image: var(--ghost-image);

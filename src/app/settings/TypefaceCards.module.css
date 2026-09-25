@@ -16,15 +16,15 @@
   display: grid;
   min-inline-size: 0;
   overflow: hidden;
-  border: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
   border-radius: var(--glacier-radius-md);
-  background: var(--glacier-surface-raised, var(--app-raised));
+  background: var(--glacier-surface-raised);
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   transition:
-    border-color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out),
-    box-shadow var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out);
+    border-color var(--glacier-duration-fast) var(--glacier-ease-out),
+    box-shadow var(--glacier-duration-fast) var(--glacier-ease-out);
 }
 
 .card:hover {
@@ -56,7 +56,7 @@
   display: grid;
   gap: 0.2rem;
   padding: var(--glacier-space-2);
-  border-block-end: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
   background: var(--app-paper-2);
   color: var(--app-ink);
   white-space: nowrap;
@@ -117,7 +117,7 @@
 
 .mark,
 .line .mark {
-  font-weight: var(--glacier-font-weight-regular, 400);
+  font-weight: var(--glacier-font-weight-regular);
   color: var(--glacier-text-muted);
 }
 

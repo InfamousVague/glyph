@@ -34,57 +34,57 @@
 
 /* Words: a filled block. */
 .mapCard rect {
-  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 55%, transparent);
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 55%, transparent);
   stroke: none;
 }
 
 /* A note: outlined, with a faint ground, so it reads as something to open rather than something written here. */
 .mapCard[data-kind='note'] rect {
-  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 12%, transparent);
-  stroke: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 70%, transparent);
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 12%, transparent);
+  stroke: color-mix(in oklch, var(--app-space, var(--app-ink)) 70%, transparent);
   stroke-width: 1;
 }
 
 /* A picture: filled dark, the one solid thing. */
 .mapCard[data-kind='picture'] rect {
-  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 85%, transparent);
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 85%, transparent);
 }
 
 /* A link: outlined, with a dot in it. */
 .mapCard[data-kind='link'] rect {
   fill: none;
-  stroke: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 60%, transparent);
+  stroke: color-mix(in oklch, var(--app-space, var(--app-ink)) 60%, transparent);
   stroke-width: 1;
 }
 
 .mapCard[data-kind='link'] circle {
-  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 70%, transparent);
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 70%, transparent);
 }
 
 .mapGroup rect {
-  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 6%, transparent);
-  stroke: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 35%, transparent);
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 6%, transparent);
+  stroke: color-mix(in oklch, var(--app-space, var(--app-ink)) 35%, transparent);
   stroke-width: 1;
   stroke-dasharray: 3 2;
 }
 
 .mapLabel {
-  fill: color-mix(in oklch, var(--app-space, var(--app-ink, currentColor)) 75%, var(--glacier-text-muted));
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 75%, var(--glacier-text-muted));
   font-size: 7px;
   font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: 0.02em;
 }
 
 .mapLine {
-  stroke: color-mix(in oklch, var(--app-ink, currentColor) 35%, transparent);
+  stroke: color-mix(in oklch, var(--app-ink) 35%, transparent);
   stroke-width: 1;
   stroke-linecap: round;
 }
 
 /* The screen's box: a light wash inside a firm line, so where you are reads at a glance. */
 .mapSeen {
-  fill: color-mix(in oklch, var(--app-ink, currentColor) 7%, transparent);
-  stroke: var(--app-ink, var(--glacier-text));
+  fill: color-mix(in oklch, var(--app-ink) 7%, transparent);
+  stroke: var(--app-ink);
   stroke-width: 1.5;
 }
 

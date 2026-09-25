@@ -151,7 +151,7 @@
   min-inline-size: 0;
   padding: var(--glacier-space-3);
   border: var(--glacier-hairline) solid color-mix(in oklch, currentColor 10%, transparent);
-  border-radius: var(--glacier-radius-lg, 0.75rem);
+  border-radius: var(--glacier-radius-lg);
   background: color-mix(in oklch, currentColor 4%, var(--cs-ground));
 }
 
@@ -173,8 +173,8 @@
   flex: none;
   inline-size: 1.75rem;
   block-size: 1.75rem;
-  border-radius: var(--glacier-radius-md, 8px);
-  background: var(--app-wash, var(--glacier-surface-sunken));
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-wash);
   color: var(--glacier-text-muted);
 }
 
@@ -191,7 +191,7 @@
   flex: none;
   padding: 0.15em 0.45em;
   border: var(--glacier-hairline) solid var(--glacier-border-strong);
-  border-radius: var(--glacier-radius-md, 8px);
+  border-radius: var(--glacier-radius-md);
   font-family: var(--glacier-font-mono);
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-semibold);
@@ -209,7 +209,7 @@
 .typed {
   margin: 0 0 var(--glacier-space-2);
   padding: var(--glacier-space-2);
-  border-radius: var(--glacier-radius-md, 8px);
+  border-radius: var(--glacier-radius-md);
   background: var(--glacier-surface-sunken);
   color: var(--glacier-text-muted);
   font-family: var(--glacier-font-mono);

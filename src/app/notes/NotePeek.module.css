@@ -7,7 +7,7 @@
 
 .peek {
   /* Roughly the kit's smallest reading size against the note's body size, keeping the reader's own text-size setting. */
-  --peek-scale: calc(0.62 * var(--app-text-scale, 1));
+  --peek-scale: calc(0.62 * var(--app-text-scale));
   --app-body: calc(var(--glacier-font-size-lg) * var(--peek-scale));
   --app-h1: calc(var(--glacier-font-size-3xl) * var(--peek-scale));
   --app-h2: calc(var(--glacier-font-size-2xl) * var(--peek-scale));
@@ -33,7 +33,7 @@
   max-block-size: calc(1.6em * 6.2);
   margin-block-start: var(--glacier-space-2);
   overflow: hidden;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
   pointer-events: none;
   user-select: none;
 }
