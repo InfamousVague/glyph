@@ -35,6 +35,7 @@ import { useSyncStatus } from './core/sync/engine.ts';
 import { createNote, getNote, newNoteId, noteTitle, updateNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote } from './core/seed.ts';
+import { addTheGuide } from './guide/theGuide/book.ts';
 import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, isBookBody } from './book/book.ts';
@@ -281,7 +282,8 @@ function Shell() {
     await showMade(make(title));
   };
 
-  // Settings > About: a sample note, a board, a canvas or the canvas that explains canvases (core/seed.ts), opened at once.
+  // Settings > About: a sample note, a board, a canvas or the canvas that explains canvases (core/seed.ts), or Ghost.md:
+  // The Guide, the book of them all (guide/theGuide/book.ts), opened at once.
   const openSample = (add: () => Promise<Note>) => () => {
     tabs.replaceNext(null);
     void (async () => {
@@ -717,6 +719,7 @@ function Shell() {
           // A row's press hands its event along; only a number is a page.
           guide.show(typeof page === 'number' ? page : 0);
         }}
+        onTheGuide={openSample(addTheGuide)}
         onSample={openSample(addSampleNote)}
         onBoard={openSample(addBoardNote)}
         onCanvas={openSample(addCanvasNote)}
