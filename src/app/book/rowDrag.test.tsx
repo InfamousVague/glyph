@@ -100,5 +100,50 @@ describe('rows dragged by their grip', () => {
     pointer('pointermove', grip('c'), 104);
     pointer('pointerup', grip('c'), 104);
     expect(onMove).not.toHaveBeenCalled();
+    // Nudged up as far, it is still over its own place: it moves up only once it is past the middle of the row above.
+    pointer('pointerdown', grip('c'), 100);
+    pointer('pointermove', grip('c'), 96);
+    expect(document.querySelector('li[data-lifted]')?.previousElementSibling?.getAttribute('style') ?? '').not.toContain('translateY');
+    pointer('pointerup', grip('c'), 96);
+    expect(onMove).not.toHaveBeenCalled();
+    pointer('pointerdown', grip('c'), 100);
+    pointer('pointermove', grip('c'), 50);
+    pointer('pointerup', grip('c'), 50);
+    expect(onMove).toHaveBeenCalledWith(2, 1);
+  });
+
+  it('makes room as a row goes by: the rows it passes move a row the other way', () => {
+    const onMove = vi.fn();
+    showRows(<Rows onMove={onMove} />);
+    const styleOf = (name: string) => document.querySelector<HTMLElement>(`[data-grip="${name}"]`)!.closest('li')!.getAttribute('style') ?? '';
+    // Down: a's middle (20) moved 130px is 150, past the middles of b, c and d, which each move up a row.
+    pointer('pointerdown', grip('a'), 20);
+    pointer('pointermove', grip('a'), 150);
+    expect(['b', 'c', 'd'].map(styleOf).every((style) => style.includes('translateY(-40px)'))).toBe(true);
+    pointer('pointerup', grip('a'), 150);
+    expect(onMove).toHaveBeenLastCalledWith(0, 3);
+    // Up: d over b's middle, so b and c move down a row and a stays.
+    pointer('pointerdown', grip('d'), 140);
+    pointer('pointermove', grip('d'), 50);
+    expect(styleOf('b')).toContain('translateY(40px)');
+    expect(styleOf('c')).toContain('translateY(40px)');
+    expect(styleOf('a')).not.toContain('translateY');
+    pointer('pointerup', grip('d'), 50);
+    expect(onMove).toHaveBeenLastCalledWith(3, 1);
+  });
+
+  it('lands past the last row as the last, and a cancelled drag moves nothing', () => {
+    const onMove = vi.fn();
+    showRows(<Rows onMove={onMove} />);
+    pointer('pointerdown', grip('b'), 60);
+    pointer('pointermove', grip('b'), 900);
+    pointer('pointerup', grip('b'), 900);
+    expect(onMove).toHaveBeenCalledWith(1, 3);
+    onMove.mockClear();
+    pointer('pointerdown', grip('b'), 60);
+    pointer('pointermove', grip('b'), 900);
+    pointer('pointercancel', grip('b'), 900);
+    expect(onMove).not.toHaveBeenCalled();
+    expect(document.querySelector('li[data-lifted]')).toBeNull();
   });
 });
