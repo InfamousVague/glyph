@@ -120,6 +120,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     fireNativeHaptic('selection');
   };
   const [view, setView] = useState<EditorView | null>(null);
+  const { toast } = useToast();
+  // The live words, and their saving: everything below that reads or writes the note goes through these.
+  const { body, onChange, flush, title, blank } = useNoteSaving(note, rename);
   /*
    * A note that is a canvas (docs/CANVAS.md) is drawn as one where its words would be. Its JSON is there behind the
    * header's view switch (Matt: "the raw JSON in the editor"), but as the note's own switch rather than the
@@ -152,8 +155,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   };
   useLiveNote(view, note.id);
   const pictures = useNotePictures(view);
-  const { toast } = useToast();
-  const { body, onChange, flush, title, blank } = useNoteSaving(note, rename);
   const { tape, recording, removeRecording, forgetRemoved } = useNoteTape(note, body, toast);
   /** The More sheet: how it is read, the AI, pin, archive, what the note is linked to, delete (NoteSettings.tsx). */
   const [settingsOpen, setSettingsOpen] = useState(false);
