@@ -19,6 +19,8 @@ let contexts: FakeContext[] = [];
 let taps: { port: { onmessage: ((event: MessageEvent<Float32Array>) => void) | null }; disconnect: ReturnType<typeof vi.fn> }[] = [];
 let asked: MediaStreamConstraints[] = [];
 let tracks: { stop: ReturnType<typeof vi.fn> }[] = [];
+/** The gain nodes the microphone made: the sink the tap feeds, which must play nothing. */
+let sinks: { gain: { value: number } }[] = [];
 let rate = 16_000;
 let startsSuspended = false;
 let resumeSettles = true;
@@ -39,6 +41,7 @@ beforeEach(() => {
   taps = [];
   asked = [];
   tracks = [{ stop: vi.fn() }];
+  sinks = [];
   rate = 16_000;
   startsSuspended = false;
   resumeSettles = true;
@@ -68,7 +71,9 @@ beforeEach(() => {
         return node(this as unknown as FakeContext, 'source');
       }
       createGain() {
-        return { ...node(this as unknown as FakeContext, 'sink'), gain: { value: 1 } };
+        const sink = { ...node(this as unknown as FakeContext, 'sink'), gain: { value: 1 } };
+        sinks.push(sink);
+        return sink;
       }
     },
   );
@@ -98,6 +103,8 @@ describe('the microphone', () => {
     await openMicrophone({ onChunk: vi.fn(), onLevel: vi.fn() });
     expect(asked).toEqual([{ audio: { channelCount: 1, noiseSuppression: true, autoGainControl: true, echoCancellation: false } }]);
     expect(contexts[0]?.connected).toEqual(['source->tap', 'tap->sink', 'sink->destination']);
+    // Silent: whoever is speaking must not hear themselves back.
+    expect(sinks.map((sink) => sink.gain.value)).toEqual([0]);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:tap');
   });
 

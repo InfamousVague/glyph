@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bareWords, runOf } from '../ai/instruction.ts';
-import { ASKS, starters, tips } from './tips.ts';
+import { bookNoteBody } from '../book/book.ts';
+import { ASKS, starters, tipInPause, tips } from './tips.ts';
 
 describe('tips in a pause', () => {
   it('teach the newer cues, and a note’s board lanes when it has a board', () => {
@@ -50,5 +51,59 @@ describe('the card before the first word', () => {
       expect(bare?.keyed, said).toBe(true);
       expect(runOf(bare!.words), said).not.toBeNull();
     }
+  });
+});
+
+describe('the tip for a pause', () => {
+  const groceries = { id: 'groceries', title: 'Groceries', note: { body: '# Groceries\n\n- Eggs' } };
+  const work = { id: 'work', title: 'Work', note: { body: '# Work' } };
+  const guide = { id: 'guide', title: 'Field guide', note: { body: bookNoteBody('Field guide', ['Birds']) } };
+  const board = '# Launch\n\n```board\nTo do:\nDoing:\nDone:\n```';
+  const pause = (turn: number, over: Partial<Parameters<typeof tipInPause>[0]> = {}) =>
+    tipInPause({ notes: [groceries, work], own: 'new', target: null, keyword: true, pluginTips: () => [], turn, ...over });
+  /** Every tip a recording's pauses come round to: more turns than there are tips, so each is seen. */
+  const all = (over: Partial<Parameters<typeof tipInPause>[0]> = {}) => [...new Set(Array.from({ length: 120 }, (_, turn) => pause(turn, over)?.say ?? ''))];
+
+  it('comes round the tips in turn, and back to the first after the last', () => {
+    const list = tips({ noteTitle: 'Groceries', continuing: false });
+    expect(pause(0)).toEqual(list[0]);
+    expect(pause(1)).toEqual(list[1]);
+    expect(pause(4)).toEqual(list[4]);
+    expect(pause(list.length)).toEqual(list[0]);
+    expect(pause(list.length + 2)).toEqual(list[2]);
+  });
+
+  it('names the most recent note that is not the one being written to', () => {
+    expect(all()).toContain('Hey Ghost, add … to Groceries');
+    const aimed = all({ own: 'groceries', target: groceries.note });
+    expect(aimed).toContain('Hey Ghost, add … to Work');
+    expect(aimed.some((say) => say.includes('Groceries'))).toBe(false);
+  });
+
+  it('names a continued board’s second lane, where things go once started, and its first when it has only one', () => {
+    expect(all({ target: { body: board } })).toContain('Hey Ghost, move … to Doing');
+    expect(all({ target: { body: '# Solo\n\n```board\nTo do:\n```' } })).toContain('Hey Ghost, move … to To do');
+    expect(all().some((say) => say.startsWith('Hey Ghost, move … to'))).toBe(false);
+  });
+
+  it('teaches a chapter for a book in the library, never the book being written to', () => {
+    expect(all({ notes: [groceries, guide] })).toContain('Hey Ghost, add a chapter to Field guide');
+    const own = all({ notes: [groceries, guide], own: 'guide', target: guide.note });
+    expect(own).not.toContain('Hey Ghost, add a chapter to Field guide');
+    expect(own).toContain('Hey Ghost, make a book called …');
+  });
+
+  it('adds the plugins’ own tips for the note it names, said after the keyword only when it is on', () => {
+    const asked: (string | null)[] = [];
+    const pluginTips = (recent: string | null) => {
+      asked.push(recent);
+      return [{ say: 'Send that to Notion', does: 'to make it a task' }];
+    };
+    expect(all({ pluginTips })).toContain('Hey Ghost, send that to Notion');
+    expect(asked[0]).toBe('Groceries');
+    const plain = all({ pluginTips, keyword: false });
+    expect(plain).toContain('Send that to Notion');
+    expect(plain).toContain('Add … to Groceries');
+    expect(plain.some((say) => say.startsWith('Hey Ghost'))).toBe(false);
   });
 });
