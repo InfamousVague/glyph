@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Book, Link2, SquarePen, Workflow } from '@glacier/icons';
 import { useBack } from '../core/back.ts';
 import { failureText } from '../core/failure.ts';
@@ -34,20 +34,24 @@ export function NewSheet({ open, onClose, onNote, onCanvas, onBook, onFromLink }
   const [link, setLink] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (!open) return null;
-
-  const close = () => {
+  /*
+   * However it closed - the scrim, a drag down, the back gesture, a choice made - the next + opens on the choices,
+   * not on the field and the words left in it. Only the scrim used to clear them.
+   */
+  useEffect(() => {
+    if (open) return;
     setLink(null);
     setProblem(null);
-    onClose();
-  };
+  }, [open]);
+  if (!open) return null;
+
   const fork = async () => {
     if (!onFromLink || !link?.trim()) return;
     setBusy(true);
     setProblem(null);
     try {
       await onFromLink(link.trim());
-      close();
+      onClose();
     } catch (failure) {
       setProblem(failureText(failure));
     } finally {
@@ -60,7 +64,7 @@ export function NewSheet({ open, onClose, onNote, onCanvas, onBook, onFromLink }
     make();
   };
   return (
-    <div className={sheet.scrim} onClick={close}>
+    <div className={sheet.scrim} onClick={onClose}>
       <section ref={panel} className={sheet.sheet} role="dialog" aria-modal="true" aria-label="New" onClick={(e) => e.stopPropagation()}>
         <span className={sheet.grip} aria-hidden="true" {...drag} />
         <SheetTitle>New</SheetTitle>
