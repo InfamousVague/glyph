@@ -42,6 +42,20 @@ describe('reading a u32 constant out of ota.rs', () => {
     expect(() => rustU32Const('NATIVE_GENERATION', path)).toThrow('no longer declares NATIVE_GENERATION');
   });
 
+  it('lets a file that cannot be read throw its own error, with its code, which a missing literal has not', () => {
+    // deploy-ota words the missing literal itself and lets a read error stop it unworded, as it did before.
+    const codeOf = (act) => {
+      try {
+        act();
+      } catch (error) {
+        return error.code ?? null;
+      }
+      return 'no throw';
+    };
+    expect(codeOf(() => rustU32Const('BUNDLE_REQUIRES', join(dir, 'missing.rs')))).toBe('ENOENT');
+    expect(codeOf(() => rustU32Const('NO_SUCH_GENERATION'))).toBeNull();
+  });
+
   it('refuses a name that is not a Rust constant, rather than building a pattern out of it', () => {
     expect(() => rustU32Const('BUNDLE_REQUIRES|NATIVE_GENERATION')).toThrow('is not the name of a Rust constant');
   });

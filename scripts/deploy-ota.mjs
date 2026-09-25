@@ -281,8 +281,10 @@ if (withApk) {
   let native = 0;
   try {
     native = rustU32Const('NATIVE_GENERATION');
-  } catch {
-    // Reported on the next line, beside the APK's version: either one missing stops the deploy the same way.
+  } catch (error) {
+    // A literal that is gone is reported on the next line, beside the APK's version. A file that cannot be read at
+    // all (an error with a code) is something else, and stops the deploy as it always did.
+    if (error.code) throw error;
   }
   if (!meta?.versionName || !meta?.versionCode || !native) fail('Could not read the APK version or the native generation.');
   const bytes = readFileSync(APK);
