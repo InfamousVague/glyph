@@ -327,6 +327,11 @@
   pointer-events: auto;
 }
 
+/* A command's confirm card, over the bar, in the gutters. */
+.cardHolder {
+  margin: 0 var(--app-gutter-end, var(--app-gutter)) 0 var(--app-gutter-start, var(--app-gutter));
+}
+
 /*
  * The AI's strip floats under the header, over the page (NoteScreen.tsx sets `--ai-strip-top` from the header's
  * height and `--ai-strip-room` from the strip's). Over the page's smoke, which is drawn on the page itself, and under

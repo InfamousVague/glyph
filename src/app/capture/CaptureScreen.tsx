@@ -33,7 +33,9 @@ import { appendToList, placeWords } from './listAppend.ts';
 import { listTitle } from './instructionMutation.ts';
 import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandInstructionCommand } from './understand.ts';
-import { classifyFinalTranscript } from './finalInstruction.ts';
+import { readInstruction } from '../ai/instruction.ts';
+import { ConfirmCard } from '../ai/ConfirmCard.tsx';
+import type { RunKind } from '../ai/kinds.ts';
 import { appendBlock } from './table.ts';
 import { appendBody } from './appendBody.ts';
 import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
@@ -90,10 +92,16 @@ interface CaptureScreenProps {
   noteId?: string;
   /** The saved note, or null when the capture was cancelled or nothing was said. */
   /** The take is over. `review` is set when the review after a recording should look at it (review/); `sort` when it was a memo, to be sorted (sort/). */
-  onFinish: (note: Note | null, locked: boolean, review?: ReviewHandoff) => void;
+  onFinish: (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk) => void;
 }
 
 type Phase = 'starting' | 'listening' | 'finishing' | 'failed';
+
+/** A spoken instruction about the note being continued ("hey Ghost, fix the spelling"): run on it once it is open (ai/instruction.ts). */
+export interface SpokenAsk {
+  kind: RunKind;
+  instruction?: string;
+}
 
 /** How long a quiet after words has to last before "Stop when I go quiet" saves the take. */
 const QUIET_STOP_MS = 4000;
@@ -996,28 +1004,38 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const { plain } = renderNote(spoken);
     const locked = isLocked();
 
-    const decision = await classifyFinalTranscript(transcript, candidates.current);
-    if (decision.kind === 'offer') {
+    // The one reader for an instruction, spoken here or typed into a note's bar (ai/instruction.ts).
+    const read = await readInstruction(transcript, candidates.current, true);
+    if (read.kind === 'command') {
       // The stopped audio is already retained under this capture id.  The
       // mutation remains pending until this card is explicitly confirmed.
-      take.offerFinal(decision.plan, performance.now());
-      const target = decision.plan.kind === 'place' ? decision.plan.note.note : null;
-      const create = decision.plan.kind === 'create-list' ? { title: decision.plan.title, items: decision.plan.items ?? [] } : undefined;
+      take.offerFinal(read.plan, performance.now());
+      const target = read.plan.kind === 'place' ? read.plan.note.note : null;
+      const create = read.plan.kind === 'create-list' ? { title: read.plan.title, items: read.plan.items ?? [] } : undefined;
       finalCommand.current = { note: target, ...(create ? { create } : {}), locked, temporaryId: noteId.current, recordedMs: stopped.recordedMs };
       setPhase('listening');
       return;
     }
-    if (decision.kind === 'rejected') {
+    if (read.kind === 'reject') {
       // Unsupported, destructive, ambiguous, and missing-target command
       // shapes fail closed: do not create a note containing command prose.
-      setRoute({ phase: 'said', text: decision.reason });
+      setRoute({ phase: 'said', text: read.reason });
       await discardRecording(noteId.current).catch(() => undefined);
       await undoDraft();
       endCapture(locked);
       onFinish(null, locked);
       return;
     }
-    if (decision.notice) setRoute({ phase: 'said', text: decision.notice });
+    if ((read.kind === 'run' || read.kind === 'ask') && continued && !locked) {
+      // "Hey Ghost, fix the spelling", said into a note: the words are an instruction, not the note's, and the note
+      // opens with the run on it (App.tsx, editor/NoteScreen.tsx). The recording of the instruction goes.
+      await discardRecording(noteId.current).catch(() => undefined);
+      await undoDraft();
+      endCapture(locked);
+      onFinish(continued, locked, undefined, read.kind === 'run' ? { kind: read.run } : { kind: 'ask', instruction: read.instruction });
+      return;
+    }
+    if (read.kind === 'words' && read.notice) setRoute({ phase: 'said', text: read.notice });
 
     // A command's change still landing, or the take carrying on elsewhere: written before the note is.
     await writes.current;
@@ -1174,7 +1192,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       {tableView ? (
         <TableCard draft={tableView} heard={itemWords} onDone={finishTable} onCancel={() => cancelTable(null)} />
       ) : pending ? (
-        <ConfirmCard offer={pending} onConfirm={confirmPending} onCancel={() => cancelPending(null)} />
+        <ConfirmCard
+          offer={pending}
+          onConfirm={confirmPending}
+          onCancel={() => cancelPending(null)}
+          hint="Or say “yes” or “no”."
+          table={pending.kind === 'table' ? <TablePreview columns={pending.columns} rows={pending.rows} /> : undefined}
+        />
       ) : route ? (
         <p
           className={styles.route}
@@ -1296,79 +1320,6 @@ function partialCommand(text: string): string {
  * paragraph), and the two answers. "Yes" or "no" said aloud answer it as well
  * as a tap does, and saying nothing for a while is a no.
  */
-function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer<Note>; onConfirm: () => void; onCancel: () => void }) {
-  const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
-  let heading: string;
-  let action: string;
-  let lines: string[] = [];
-  let detail: string | null = null;
-  switch (offer.kind) {
-    case 'place':
-      heading = `Add to ${offer.title}`;
-      action = 'Add';
-      lines = offer.added.map(show);
-      detail = offer.into === 'list' ? 'In its list' : 'As a new paragraph';
-      if (offer.placement.target) detail += `, then to ${offer.placement.target.charAt(0).toUpperCase()}${offer.placement.target.slice(1)}`;
-      break;
-    case 'change':
-      heading = `${offer.heading} in ${offer.title}`;
-      action = offer.action;
-      lines = offer.lines;
-      break;
-    case 'board':
-      heading = 'Make this note a board';
-      action = 'Make it';
-      detail = 'Its list items become cards';
-      break;
-    case 'book':
-      heading = `Make a book called ${offer.title}`;
-      action = 'Make it';
-      lines = offer.pages;
-      detail = offer.pages.length ? 'Its pages, in this order' : 'Empty, with its index ready';
-      break;
-    case 'move':
-      heading = `Move this recording to ${offer.title}`;
-      action = 'Move';
-      break;
-    case 'new':
-      heading = offer.title ? `Create ${listTitle(offer.title)}` : 'Start a new note from here';
-      action = offer.title ? 'Create' : 'Start';
-      lines = [...(offer.lines ?? [])];
-      if (offer.lines?.length) detail = 'As a new list';
-      break;
-    case 'table':
-      heading = `Add this table to ${offer.title}`;
-      action = 'Add';
-      detail = `${offer.rows.length} ${offer.rows.length === 1 ? 'row' : 'rows'}, at the end of the note`;
-      break;
-    default:
-      heading = offer.title;
-      action = offer.action;
-  }
-  return (
-    <section className={styles.confirm} aria-live="assertive" aria-label={heading}>
-      <p className={styles.confirmHeading}>{heading}</p>
-      {lines.map((line, i) => (
-        <p key={i} className={styles.confirmLine}>
-          {line}
-        </p>
-      ))}
-      {offer.kind === 'table' ? <TablePreview columns={offer.columns} rows={offer.rows} /> : null}
-      {detail ? <p className={styles.confirmDetail}>{detail}</p> : null}
-      <div className={styles.confirmActions}>
-        <button type="button" className="app-word" onClick={onCancel}>
-          Cancel
-        </button>
-        <button type="button" className="app-pill" onClick={onConfirm}>
-          {action}
-        </button>
-      </div>
-      <p className={styles.confirmHint}>Or say “yes” or “no”.</p>
-    </section>
-  );
-}
-
-/** A table as it will look, small, scrolling sideways inside the card when it is wide. */
 function TablePreview({ columns, rows }: { columns: readonly string[]; rows: readonly (readonly string[])[] }) {
   return (
     <div className={styles.tableWrap}>

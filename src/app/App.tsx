@@ -52,6 +52,7 @@ import { sweepMemos } from './core/sweepMemos.ts';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { afterPendingDeletes } from './capture/launch.ts';
+import type { SpokenAsk } from './capture/CaptureScreen.tsx';
 
 /**
  * The whole app: a list, a note, a capture, and a settings sheet.
@@ -103,6 +104,8 @@ type Screen =
       note: Note;
       /** The item to land on, `^anchor`, when the note was opened by a link that pointed inside it (core/boards.ts). */
       at?: string;
+      /** A spoken instruction about this note ("hey Ghost, fix the spelling"), run on it as it opens; `key` tells one from the next. */
+      ask?: SpokenAsk & { key: number };
     }
   | {
       name: 'capture';
@@ -656,10 +659,16 @@ function Shell() {
   }, [screen.name]);
 
   const captureFinished = useCallback(
-    async (note: Note | null, locked: boolean, review?: ReviewHandoff) => {
+    async (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk) => {
       // A spoken note lands in the workspace the list is showing, unless it is filed already.
       if (note) fileNewNote(note.id);
       await refresh();
+      // An instruction spoken into a note: the note opens with the run on it (ai/instruction.ts, editor/NoteScreen.tsx).
+      if (note && ask) {
+        const fresh = await getNote(note.id).catch(() => null);
+        setScreen({ name: 'note', note: fresh ?? note, ask: { ...ask, key: Date.now() } });
+        return;
+      }
       if (note && review) {
         setScreen({ name: 'review', handoff: review });
         return;
@@ -769,6 +778,7 @@ function Shell() {
         onSpeak={speakInto}
         onPin={(n) => actions.pin(n)}
         at={screen.at}
+        ask={screen.ask}
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
         onOpenWithin={openTitleWithin}
@@ -958,7 +968,7 @@ function Shell() {
           fromAssistant={screen.fromAssistant}
           stopRequests={screen.stop}
           noteId={screen.noteId}
-          onFinish={(note, locked, review) => void captureFinished(note, locked, review)}
+          onFinish={(note, locked, review, ask) => void captureFinished(note, locked, review, ask)}
         />
       ) : screen.name === 'academy' ? (
         <AcademyScreen

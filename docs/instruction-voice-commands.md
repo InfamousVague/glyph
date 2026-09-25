@@ -1,5 +1,18 @@
 # Instruction-aware voice commands
 
+## One reader
+
+A spoken instruction after Done and an instruction typed into a note's bar go
+through the same reader, `src/app/ai/instruction.ts`: the chips' runs said in
+words ("fix the spelling", "make this a list") are those runs on the note;
+a command naming another note ("add eggs to Groceries") is read by the rules
+below and, on a name they cannot match, the on-device model, and offered on the
+same confirm card (`src/app/ai/ConfirmCard.tsx`) before anything is written; a
+command that named a note there is no note for fails closed with its reason;
+anything else typed is an ask about the note, and spoken, an ask only after
+"hey Ghost". An instruction spoken into a note it continues opens the note with
+the run on it, and the instruction's own recording is discarded.
+
 ## Safety boundary
 
 Whisper phrase commits are listen-only: they update the visible accumulated transcript and nothing else. They do not derive a title, create or update a note, route a command, or invoke a model. Only an explicit Done/stop obtains the complete final transcript and classifies it once. A wake word still works, but is not required when the final utterance itself begins with narrowly gated explicit command language (`make`, `create`, `new`, `add`, `put`, `append`, or `I need/want a new…`). The gate is anchored at the beginning, so ordinary prose that merely mentions command words later—and quoted or reported commands—is not eligible. The deterministic parser runs against that complete transcript first; `ai_infer_command` receives that same complete transcript once only on a parser miss.
@@ -47,7 +60,8 @@ capture mounts or reads candidates.
 ## Inference session isolation
 
 Each `CaptureScreen` is a fresh keyed mount whose transcript, pending command,
-and inference refs start empty; unmount and Finish cancel any active inference.
+and inference refs start empty; unmount cancels any active inference, and Done
+waits on the one pass over the final transcript.
 Each native generation calls `clear_kv_cache()` before prefill. The only reused
 state is a snapshot captured after the immutable system/template prefix and
 before the per-job user remainder. `llm/prompt.rs` tests that user utterances

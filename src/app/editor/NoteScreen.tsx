@@ -27,7 +27,7 @@ import { insertImageAt, releaseImageSpot, reserveImageSpot } from './images.ts';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { useUnfold } from '../core/unfold.ts';
-import { getNote, noteTitle, setNoteRecording, updateNote, type Note } from '../core/store.ts';
+import { applyCommandMutation, getNote, listNotes, newNoteId, noteTitle, setNoteRecording, undoCommandMutation, updateNote, type Note } from '../core/store.ts';
 import type { Segment } from '../capture/markdown.ts';
 import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.ts';
 import { useWideScreen } from '../core/useWideScreen.ts';
@@ -35,13 +35,21 @@ import type { NoteView } from './viewMode.ts';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useAvailability } from '../ai/available.ts';
 import { PromptBar } from '../ai/PromptBar.tsx';
+import { ConfirmCard } from '../ai/ConfirmCard.tsx';
+import { listBody, offerOf, readInstruction } from '../ai/instruction.ts';
+import { recordChange, recordRun } from '../ai/log.ts';
+import type { Plan } from '../capture/command.ts';
+import { placeWords } from '../capture/listAppend.ts';
+import type { Candidate } from '../capture/route.ts';
+import type { Offer } from '../capture/take.ts';
+import { commonEnds, wisp } from './wispArrivals.ts';
 import type { RunKind } from '../ai/kinds.ts';
 import { loadMarks, saveMarks } from '../ai/marks.ts';
 import { ended, useRun, type RunScope } from '../ai/runs.ts';
 import { startNoteRun } from '../ai/start.ts';
 import { useLanding } from '../ai/useLanding.ts';
 import { accountState } from '../core/account/account.ts';
-import { aiEdit, keepAllAiChanges, keepAllChanges, restoreAiChanges, type AiChange } from './aiChanges.ts';
+import { addAiChanges, aiEdit, keepAllAiChanges, keepAllChanges, restoreAiChanges, type AiChange } from './aiChanges.ts';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
 import { LinkMarks } from '../plugins/LinkMarks.tsx';
@@ -114,15 +122,22 @@ interface NoteScreenProps {
    * asking, so renaming twice to the same name still lands.
    */
   rename?: { id: string; title: string; asked: number } | null;
+  /** A spoken instruction about this note, to run on it as it opens (App.tsx, ai/instruction.ts); `key` tells one from the next. */
+  ask?: { kind: RunKind; instruction?: string; key: number };
   /** The "← Notes" in the header; off where the list is already beside the note (the desktop sidebar, App.tsx). */
 }
+
+/** A command on a note by name, read from the bar and waiting to be confirmed (ai/instruction.ts). */
+type CommandPlan = Extract<Plan<Candidate & { note: Note }>, { kind: 'place' | 'create-list' }>;
+
+const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
 
 const SAVE_DEBOUNCE_MS = 400;
 
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -418,6 +433,118 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const onBarHeight = useCallback((height: number) => {
     screen.current?.style.setProperty('--ai-bar-room', height ? `${height + 12}px` : '0px');
   }, []);
+  // A spoken instruction the note opened with: run once the editor and the AI are ready.
+  const askDone = useRef<number | null>(null);
+  useEffect(() => {
+    if (!ask || !view || askDone.current === ask.key) return;
+    if (!availability.availability.ok) {
+      if (availability.availability.waiting) return;
+      askDone.current = ask.key;
+      toast({ message: availability.availability.reason });
+      return;
+    }
+    askDone.current = ask.key;
+    runAi(ask.kind, ask.instruction);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runAi is made afresh each render; the key and the readiness are what this keys on
+  }, [ask, view, availability.availability]);
+  /*
+   * Words typed into the bar go through the one reader (ai/instruction.ts): a chip said in words is that run; a
+   * command naming another note is offered on the confirm card first, as a spoken one is; anything else is an ask
+   * about this note. Words about a selected part are always an ask about that part.
+   */
+  const [offer, setOffer] = useState<{ plan: CommandPlan; offer: Offer<Note>; words: string } | null>(null);
+  const askBar = async (instruction: string, scope: RunScope | null) => {
+    if (scope) {
+      runAi('ask', instruction, scope);
+      return;
+    }
+    const notes = await listNotes().catch(() => [] as Note[]);
+    const candidates = notes.filter((n) => !n.archivedAt).map((n) => ({ id: n.id, title: noteTitle(n.body), note: n }));
+    const read = await readInstruction(instruction, candidates, false);
+    if (read.kind === 'run') runAi(read.run);
+    else if (read.kind === 'ask') runAi('ask', read.instruction);
+    else if (read.kind === 'reject') toast({ message: read.reason });
+    else if (read.kind === 'command') {
+      const shown = offerOf(read.plan);
+      if (!shown) {
+        toast({ message: 'Nothing to add.' });
+        return;
+      }
+      setOffer({ plan: read.plan, offer: shown, words: instruction });
+    }
+  };
+  /** A command's record in the log, so the note it changed says the AI did, with the words asked. */
+  const stamp = (noteId: string) => {
+    const id = `cmd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    recordRun({ id, noteId, kind: 'ask', instruction: offer?.words ?? null, model: 'rules', at: Date.now(), ms: 0, outputTokens: 0, outcome: 'done', message: null, truncated: false });
+    return id;
+  };
+  /**
+   * The confirmed command, done: into this note through the editor as a tracked change; into another note through
+   * the guarded write, with Undo, as a spoken command does it (capture/CaptureScreen.tsx); a new list made.
+   */
+  const confirmOffer = async () => {
+    const chosen = offer;
+    if (!chosen || !view) return;
+    setOffer(null);
+    const { plan } = chosen;
+    if (plan.kind === 'create-list') {
+      const made = await applyCommandMutation({ mutationId: newNoteId(), noteId: newNoteId(), kind: 'create', beforeRevision: null, beforeBody: null, afterBody: listBody(plan.title, plan.items ?? []), source: 'editor' }).catch(() => null);
+      if (made?.status !== 'applied') {
+        toast({ message: 'That list could not be made.' });
+        return;
+      }
+      const { mutationId } = made;
+      fireNativeHaptic('success');
+      toast({ message: `Made ${noteTitle(made.note.body)}.`, duration: 6000, action: { label: 'Undo', onPress: () => void undoCommandMutation(mutationId) } });
+      return;
+    }
+    const { kind: _kind, note: named, text, ...placement } = plan;
+    const target = named.note;
+    const more = (added: string[]) => (added.length > 1 ? ` and ${added.length - 1} more` : '');
+    if (target.id === note.id) {
+      const before = view.state.doc.toString();
+      const placed = placeWords(before, text, placement);
+      if (!placed.added.length) return;
+      const { prefix, suffix } = commonEnds(before, placed.body);
+      const insert = placed.body.slice(prefix, placed.body.length - suffix);
+      const id = stamp(note.id);
+      const change: AiChange = { id: `c-${id}`, runId: id, from: prefix, to: prefix + insert.replace(/\n$/, '').length, removed: before.slice(prefix, before.length - suffix), block: true };
+      view.dispatch({
+        changes: { from: prefix, to: before.length - suffix, insert },
+        effects: addAiChanges.of([change]),
+        annotations: [aiEdit.of('land'), ...(prefs.wisp ? [wisp.of({ kind: 'heard' })] : [])],
+        userEvent: 'ai.land',
+      });
+      recordChange(note.id, id, before, view.state.doc.toString());
+      fireNativeHaptic('success');
+      toast({ message: `Added “${show(placed.added[0] ?? '')}”${more(placed.added)}.` });
+      return;
+    }
+    const placed = placeWords(target.body, text, placement);
+    if (!placed.added.length) return;
+    const mutationId = newNoteId();
+    const result = await applyCommandMutation({ mutationId, noteId: target.id, kind: 'append', beforeRevision: target.revision ?? 1, beforeBody: target.body, afterBody: placed.body, source: target.source }).catch(() => null);
+    if (result?.status !== 'applied') {
+      toast({ message: `${named.title} changed after the preview, so nothing was added.` });
+      fireNativeHaptic('warning');
+      return;
+    }
+    const id = stamp(target.id);
+    recordChange(target.id, id, target.body, result.note.body);
+    fireNativeHaptic('success');
+    toast({
+      message: `Added “${show(placed.added[0] ?? '')}”${more(placed.added)} to ${named.title}.`,
+      duration: 6000,
+      action: {
+        label: 'Undo',
+        onPress: () =>
+          void undoCommandMutation(mutationId).then((undone) => {
+            if (undone.status === 'undone') recordUndone(target.id, id);
+          }),
+      },
+    });
+  };
   // The AI signs beside the account's handle, where there is one (core/authors.ts).
   useLanding(note.id, view, {
     wisp: prefs.wisp,
@@ -874,9 +1001,14 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       </div>
       {/* The bar at the foot: the six chips and a field for anything else (ai/PromptBar.tsx). Not on a canvas or a book's index, and not while the transcript plays. */}
       <div className={styles.barHolder}>
+        {offer ? (
+          <div className={styles.cardHolder}>
+            <ConfirmCard offer={offer.offer} onConfirm={() => void confirmOffer()} onCancel={() => setOffer(null)} />
+          </div>
+        ) : null}
         <PromptBar
           availability={availability.availability}
-          onRun={(kind, instruction, scope) => runAi(kind, instruction, scope)}
+          onRun={(kind, instruction, scope) => (kind === 'ask' && instruction ? void askBar(instruction, scope) : runAi(kind, instruction, scope))}
           onGet={(model) => void availability.fetch(model)}
           scope={askScope}
           onScopeUsed={() => setAskScope(null)}
