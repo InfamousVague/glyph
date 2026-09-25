@@ -49,7 +49,7 @@ import {
  * no foot, so a page that doesn't ask for one pays for a few empty primitives and nothing else.
  *
  * Two filters, not one: the header's band and the foot's band each have their own, and a view wearing both chains
- * them (app.css). They were one filter, and every attribute on it is global - so on a desktop, with the notes list
+ * them (art/wisp.css). They were one filter, and every attribute on it is global - so on a desktop, with the notes list
  * scrolled in the sidebar and the note beside it wearing the filter only for its foot, the list's header band was
  * switched on for the note too and smoked along the top of it (Matt: "the wisp effect under the header happens across
  * the whole page when I scroll just in the sidebar"). Measured: two elements wore the one filter, the sidebar's list

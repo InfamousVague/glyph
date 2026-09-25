@@ -112,7 +112,7 @@ export function wispMaskImage(end: 'top' | 'foot'): string {
 
 let installed = false;
 
-/** Puts both images on the root once, for app.css to draw from (`--wisp-mask-top`, `--wisp-mask-foot`). */
+/** Puts both images on the root once, for art/wisp.css to draw from (`--wisp-mask-top`, `--wisp-mask-foot`). */
 export function installWispMasks(): void {
   if (installed || typeof document === 'undefined') return;
   installed = true;

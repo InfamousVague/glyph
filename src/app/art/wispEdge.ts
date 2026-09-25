@@ -37,7 +37,7 @@ import { installWispMasks, type WispDraw, wispDraw, wispHead } from './wispMask.
  * To use it: mount `<WispEdgeFilter />` once (App.tsx does), and call
  * `useWispEdge(scrollerRef)` for the element that scrolls. The effect is only
  * worn once the element has been scrolled off its top (the `data-wisp-edge`
- * attribute, styled in app.css), so a still, unscrolled view pays nothing.
+ * attribute, styled in art/wisp.css), so a still, unscrolled view pays nothing.
  */
 
 export const WISP_EDGE_FILTER_ID = 'wispEdge';
@@ -178,7 +178,7 @@ function driftStep(now: number): void {
   footSlide?.setAttribute('dy', dy);
 }
 
-/** The views drawn as a mask right now: the drift slides their smoke by writing on them (app.css `--wisp-noise-x/y`). */
+/** The views drawn as a mask right now: the drift slides their smoke by writing on them (art/wisp.css `--wisp-noise-x/y`). */
 function masked(): HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>('[data-wisp-draw="mask"]')];
 }
@@ -230,7 +230,7 @@ function placeFoot(height: number, on: boolean): void {
   const top = height - WISP_EDGE_FOOT_LIFT - WISP_EDGE_FOOT_REACH;
   /*
    * The lip sits above the edge (`WISP_EDGE_FOOT_LIFT`), as the top band's sits below its header: where the words are still
-   * there to bend. At the edge itself, where the lip used to be, the view's own fade (app.css `--wisp-foot-fade`) had
+   * there to bend. At the edge itself, where the lip used to be, the view's own fade (art/wisp.css `--wisp-foot-fade`) had
    * already taken them, so the strongest bend happened to nothing and what showed was the fade - a black gradient
    * where the header has smoke (Matt: "it's just a black gradient not the cool effect").
    */
@@ -327,7 +327,7 @@ export function useWispEdge(
     // Both refs are set by the time the effect runs; the header is read once so the cleanup sees the same node.
     const header = under?.current ?? null;
     const still = prefersStill();
-    // Which drawing this view wears, said on the element for the stylesheet (app.css) and for anyone measuring.
+    // Which drawing this view wears, said on the element for the stylesheet (art/wisp.css) and for anyone measuring.
     // On a desktop neither end smokes: the top is a blur strip under the header, the foot a short fade at the very edge,
     // so the page runs down to the window's bottom (Matt: "the desktop UI on the home page isn't reaching to the bottom
     // of the screen"). The mask's foot hid the last 104px, which a dock row across the bottom used to stand over.
@@ -338,7 +338,7 @@ export function useWispEdge(
     /** Whether this view wears the SVG filter, and so has its bands placed in the filter's coordinates. */
     const filtered = mode === 'filter';
     // On a desktop the top is a blurred strip hung under the header's glass, not smoke (art/wispMask.ts `wispHead`,
-    // app.css `.app-headerBlur`). Only with a header to hang it from; the foot smokes as it always did.
+    // art/wisp.css `.app-headerBlur`). Only with a header to hang it from; the foot smokes as it always did.
     const blurHead = !!header && plain;
     // The strip is the header's sibling, laid just under it: a child of the header would blur only the header's own
     // contents, since an element wearing a backdrop filter is where its children's backdrops stop.
