@@ -1,15 +1,16 @@
 import { useCallback, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { HOLD_MS } from '../core/gestures.ts';
 
 /**
  * Rows dragged into a new order, by their grip (Matt: "drag to reorder pages"). The shape the app's other drags
- * have (canvas/gestures.ts, notes/NoteTabs.tsx): on touch a short hold before the row lifts, so a finger that
+ * have (canvas/gestures.ts, notes/useTabDrag.ts): on touch a short hold before the row lifts, so a finger that
  * meant to scroll still scrolls; with a mouse at once; the pointer captured so the drag survives leaving the row;
  * the lifted row following the finger and the others making room; on release, the row's new place handed back as
  * an index. The rows' own arrow buttons stay for the keyboard.
  */
 
-/** How long a finger holds before a row lifts; a mouse needs none. */
-export const ROW_HOLD_MS = 220;
+/** How long a finger holds before a row lifts (core/gestures.ts), passed on for the rows' tests; a mouse needs none. */
+export const ROW_HOLD_MS = HOLD_MS;
 /** How far the pointer moves before a press is a drag, not a tap. */
 const TRAVEL = 6;
 

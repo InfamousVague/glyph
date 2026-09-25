@@ -1,4 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
+import { HOLD_MS } from '../core/gestures.ts';
 import type { Camera } from './camera.ts';
 import { movedWithHeld } from './edits.ts';
 import type { Canvas, CanvasNode } from './jsonCanvas.ts';
@@ -21,10 +22,10 @@ import { clampScale, type View } from './viewport.ts';
 /** How far a finger moves before a press is a drag rather than a tap, in screen pixels. */
 const SLOP_PX = 4;
 /**
- * How long a press stays put before it lifts the card under it rather than panning the page: the boards' own wait.
- * Exported for the canvas's tests, which wait it out.
+ * How long a press stays put before it lifts the card under it rather than panning the page: the boards' own wait
+ * (core/gestures.ts). Passed on for the canvas's tests, which wait it out.
  */
-export const HOLD_MS = 220;
+export { HOLD_MS };
 
 type Pointers = Map<number, { x: number; y: number }>;
 

@@ -1,3 +1,4 @@
+import { HOLD_MS } from '../../core/gestures.ts';
 import { fireNativeHaptic } from '../../core/haptics.ts';
 import type { Card } from '../../core/boards.ts';
 import { EDGE, noteScroller } from './scrolling.ts';
@@ -12,8 +13,7 @@ import { EDGE, noteScroller } from './scrolling.ts';
  * module only ever moves the page's own elements, and never the note.
  */
 
-/** How long a finger rests on a card before it is picked up, and how far it may stray first. */
-const HOLD = 220;
+/** How far a finger resting on a card may stray before the hold (core/gestures.ts `HOLD_MS`) is up. */
 const SLOP = 10;
 /** How fast a held card near an edge (`EDGE`) rolls the board, a lane or the note along. */
 const EDGE_STEP = 14;
@@ -39,7 +39,7 @@ export function holdToDrag(card: HTMLElement, held: Card, land: (column: number,
     let timer = window.setTimeout(() => {
       timer = 0;
       lift = pickUp(board, card, held, startX, startY);
-    }, HOLD);
+    }, HOLD_MS);
 
     const move = (moving: PointerEvent) => {
       if (moving.pointerId !== event.pointerId) return;

@@ -1,4 +1,5 @@
 import { useRef, type Dispatch, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject, type SetStateAction } from 'react';
+import { HOLD_MS } from '../core/gestures.ts';
 import { coasted, groupAt, placeAt, type DropSpot, type RowStop } from './tabDrag.ts';
 import { joinGroup, leaveGroup, type TabGroups } from './tabGroups.ts';
 
@@ -26,8 +27,6 @@ import { joinGroup, leaveGroup, type TabGroups } from './tabGroups.ts';
 
 /** How far a pointer must travel before a press on a tab is a pull on the row rather than a click. */
 const TRAVEL = 6;
-/** How long a press has to stay put before it picks the tab up rather than pulling the row along. */
-const HOLD_MS = 220;
 
 export interface TabDragOptions {
   groups: TabGroups;
