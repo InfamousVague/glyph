@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { watchBattery } from './battery.ts';
 
 /**
  * What the page can read about the phone on its own, for the AI card: the
@@ -13,11 +14,6 @@ interface DeviceFacts {
   battery: { level: number; charging: boolean } | null;
 }
 
-interface BatteryLike extends EventTarget {
-  level: number;
-  charging: boolean;
-}
-
 export function useDeviceFacts(): DeviceFacts {
   const [facts, setFacts] = useState<DeviceFacts>(() => ({
     cores: typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : null,
@@ -25,28 +21,15 @@ export function useDeviceFacts(): DeviceFacts {
     battery: null,
   }));
 
-  useEffect(() => {
-    const getBattery = (navigator as { getBattery?: () => Promise<BatteryLike> }).getBattery;
-    if (typeof getBattery !== 'function') return undefined;
-    let battery: BatteryLike | null = null;
-    let alive = true;
-    const read = () => {
-      if (battery && alive) setFacts((previous) => ({ ...previous, battery: { level: battery!.level, charging: battery!.charging } }));
-    };
-    void getBattery.call(navigator).then((found) => {
-      if (!alive) return;
-      battery = found;
-      read();
-      found.addEventListener('levelchange', read);
-      found.addEventListener('chargingchange', read);
-    });
-    return () => {
-      alive = false;
-      battery?.removeEventListener('levelchange', read);
-      battery?.removeEventListener('chargingchange', read);
-    };
-  }, []);
+  useEffect(
+    () =>
+      watchBattery(({ charging, level }) => {
+        // A battery that will not say is no reading at all, and nothing to draw again for.
+        const battery = charging === null || level === null ? null : { level, charging };
+        setFacts((previous) => (battery === null && previous.battery === null ? previous : { ...previous, battery }));
+      }),
+    [],
+  );
 
   return facts;
 }
-
