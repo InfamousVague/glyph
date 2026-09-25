@@ -30,6 +30,19 @@ import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.t
 
 const UNDO_MS = 5000;
 
+/**
+ * What the app kept about a note beside the note itself, let go once the note is deleted for good: its filing
+ * (core/workspaces.ts), its kept summaries and gist (format/results.ts), the runs it has seen (ai/log.ts) and the
+ * changes marked in it (ai/marks.ts). Its place in the trash goes with it too, which the caller does, once for all of
+ * them when the whole trash is emptied.
+ */
+function forgetKept(id: string): void {
+  forgetNote(id);
+  forgetResults(id);
+  forgetRuns(id);
+  forgetMarks(id);
+}
+
 function label(note: Note): string {
   const title = noteTitle(note.body);
   // A long title is not cut short with an ellipsis: it is simply not named.
@@ -77,11 +90,7 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
     const run = committing.current.then(async () => {
       try {
         await deleteNote(due.id);
-        // Its filing (core/workspaces.ts), its kept summaries and gist (format/results.ts) and its place in the trash go with it.
-        forgetNote(due.id);
-        forgetResults(due.id);
-        forgetRuns(due.id);
-        forgetMarks(due.id);
+        forgetKept(due.id);
         forgetTrashed([due.id]);
       } catch (error) {
         console.warn('[glyph] delete failed:', error);
@@ -142,10 +151,7 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
       for (const note of notes) {
         try {
           await deleteNote(note.id);
-          forgetNote(note.id);
-          forgetResults(note.id);
-          forgetRuns(note.id);
-          forgetMarks(note.id);
+          forgetKept(note.id);
         } catch (error) {
           console.warn('[glyph] delete failed:', error);
         }
