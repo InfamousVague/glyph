@@ -7,10 +7,11 @@
  * keep its place, and on a phone that move stops a fling dead (Matt: "scrolling past boards is glitchy and stops
  * scroll momentum"). So the height each one was drawn at is kept, and a note opened again knows it before drawing.
  *
- * Kept newest last, the oldest let go past a cap, and written half a second after the last change so a board settling
- * through several sizes is one write. Each kind of block keeps the storage key, the cap and the rounding it has always
- * had: a build rolled back over the air reads what the newer one wrote. The key is named where the block is, in the
- * `store` it hands over, because that is where core/reset.test.ts looks to prove a reset can find it.
+ * Kept newest last, the oldest let go past a cap, and written half a second after the first change since the last
+ * write, so a board settling through several sizes in that time is one write. Each kind of block keeps the storage
+ * key, the cap and the rounding it has always had: a build rolled back over the air reads what the newer one wrote.
+ * The key is named where the block is, in the `store` it hands over, because that is where core/reset.test.ts looks
+ * to prove a reset can find it.
  */
 
 export interface HeightMemory {
@@ -26,7 +27,11 @@ export interface HeightStore {
   write(pairs: [string, number][]): void;
 }
 
-/** Writes wait this long after the last change, so a block settling through several heights is one write. */
+/**
+ * A write waits this long after the first change since the last one. Later changes ride along with it rather than
+ * pushing it back, so a block settling through several heights is one write, and one that keeps changing is still
+ * written.
+ */
 const SAVE_AFTER_MS = 500;
 
 /**
