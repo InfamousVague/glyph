@@ -9,6 +9,10 @@ describe('the note as the model sees it', () => {
       `- [ ] Buy milk [notion](${NOTION})\n- [ ] Old one. [notion](${NOTION})\n- read [the docs](https://example.com/docs)\nSee [the board](${NOTION}) too.\n`,
     );
   });
+
+  it('takes any list item for an item, numbered past 999 or spaced wide, and keeps its lead as written (core/itemSyntax.ts)', () => {
+    expect(cleanNote(`1000. [Buy milk](${NOTION})\n-  [ ] [Buy eggs](${NOTION})`)).toBe(`1000. Buy milk [notion](${NOTION})\n-  [ ] Buy eggs [notion](${NOTION})`);
+  });
 });
 
 describe('the rewrite, tidy', () => {

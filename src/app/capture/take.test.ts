@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bookNoteBody, chaptersOf } from '../book/book.ts';
-import { Take, type TakeHost, type TakeNote } from './take.ts';
+import { describeOffer, Take, type Offer, type TakeHost, type TakeNote } from './take.ts';
 
 /**
  * The take with a book among the notes (docs/BOOKS.md): a chapter asked for lands in the book's index after a yes, a
@@ -98,5 +98,13 @@ describe('a book by voice', () => {
     expect(take.offering).toEqual({ kind: 'book', title: 'Trip', pages: ['Packing list', 'Maps'], span: { startMs: 0, endMs: 900 } });
     take.confirm(2000);
     expect(calls).toEqual(['book Trip: Packing list, Maps']);
+  });
+});
+
+describe('what a command did, in words', () => {
+  it('says each added line by its words, whatever list it went into (core/itemSyntax.ts)', () => {
+    // A starred or numbered to-do was said with its box: "add “[ ] Buy milk”".
+    const offer = { kind: 'place', title: 'Shopping', added: ['* [ ] Buy milk', '2. [ ] Ring Sam', '-  Bread'], into: 'list' } as unknown as Offer<TakeNote>;
+    expect(describeOffer(offer, 'done')).toBe('Did: add “Buy milk”, “Ring Sam”, “Bread” to Shopping’s list');
   });
 });

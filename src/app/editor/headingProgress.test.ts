@@ -15,6 +15,11 @@ describe('progress under a heading', () => {
     ]);
   });
 
+  it('counts only the boxes the note draws, so a heading never says a to-do is open that has no box to tick', () => {
+    const note = doc(['## Shop', '- [ ]milk', '- [x](https://example.com/x)', '* [ ] eggs', '+ [X] bread'].join('\n'));
+    expect(headingCounts(note)).toEqual([{ line: 1, done: 1, total: 2 }]);
+  });
+
   it('ignores boxes and headings inside code', () => {
     const note = doc(['## Code', '```', '# not a heading', '- [ ] not a to-do', '```', '- [ ] real'].join('\n'));
     expect(headingCounts(note)).toEqual([{ line: 1, done: 0, total: 1 }]);

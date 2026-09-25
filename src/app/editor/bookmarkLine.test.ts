@@ -69,6 +69,13 @@ describe('the words a bookmark sits on', () => {
     expect(markedWords(on, on.state.doc.line(4).from)).toBe('A line of ordinary words that…');
     expect(markedWords(editor('   \n\n'), 0)).toBeNull();
   });
+
+  it('takes any list item’s box off, and its anchor wherever the item keeps it (core/itemSyntax.ts)', () => {
+    const on = editor('1. [ ] Book the cabin\n- ( ) Tent ^tent\n- [ ] Pack ^pack [3/8]');
+    expect(markedWords(on, on.state.doc.line(1).from)).toBe('Book the cabin');
+    expect(markedWords(on, on.state.doc.line(2).from)).toBe('Tent');
+    expect(markedWords(on, on.state.doc.line(3).from)).toBe('Pack [3/8]');
+  });
 });
 
 describe('a place on a blank line', () => {

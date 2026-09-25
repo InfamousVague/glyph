@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Text } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { history, undo } from '@codemirror/commands';
 import { markDetailsChanged, provideMarkDetails, type MarkAction, type MarkDetails, type MarkEntry } from '../core/markDetails.ts';
-import { doneSync } from './doneSync.ts';
+import { boxesDue, doneSync, flipsIn } from './doneSync.ts';
 
 const answers = new Map<string, MarkEntry | null>();
 /** What the service was asked to do, and whether it can write tasks at all. */
@@ -174,6 +174,20 @@ describe('a box ticked in the note', () => {
     await settled();
     expect(sent).toEqual([]);
     view.destroy();
+  });
+
+  it('follows a numbered or starred to-do both ways, as it does a dashed one (core/itemSyntax.ts)', () => {
+    // It used to take only a bullet and one space: a numbered to-do never followed its task, nor its task it.
+    answers.set(A, ready(A, 'done'));
+    answers.set(B, ready(B, 'done'));
+    const doc = Text.of([`1. [ ] milk [notion](${A})`, `*  [ ] eggs [notion](${B})`]);
+    expect(boxesDue(doc, new Map()).map((change) => [change.url, change.from, change.insert])).toEqual([
+      [A, 4, 'x'],
+      [B, doc.line(2).from + 4, 'x'],
+    ]);
+    const state = EditorState.create({ doc: `1. [ ] milk [notion](${A})\n` });
+    const tr = state.update({ changes: { from: 4, to: 5, insert: 'x' }, userEvent: 'input' });
+    expect(flipsIn(tr)).toEqual([{ name: 'notion', url: A, done: true }]);
   });
 
   it('keeps a box ticked by hand when its task can’t be written', async () => {

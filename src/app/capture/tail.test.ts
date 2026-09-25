@@ -19,6 +19,16 @@ describe('the recorder lays out the live note', () => {
     expect(text(lines[2]?.runs ?? [])).toBe('Book the cabin');
   });
 
+  it('reads every marker the note can hold, as core/itemSyntax.ts spells them', () => {
+    const lines = layout('* [ ] Starred to-do\n+ Plus bullet\n2) Bracketed\n1234. Long numbered', null);
+    expect(lines.map((l) => [l.kind, l.mark])).toEqual([
+      ['task', '* [ ]'],
+      ['bullet', '+'],
+      ['number', '2)'],
+      ['number', '1234.'],
+    ]);
+  });
+
   it('dims the stars around bold and not the bold words', () => {
     const [line] = layout('We agreed on **four thousand** today', null);
     expect(line?.runs).toEqual([

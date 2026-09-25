@@ -117,4 +117,21 @@ describe('the note as the card’s own editor is given it', () => {
     expect(peekMarkdown('# Title')).toBe('');
     expect(peekMarkdown('# Title\n\n\n')).toBe('');
   });
+
+  it('takes an anchor off with a mark after it too, the order a sent item used to be written in (core/itemSyntax.ts)', () => {
+    expect(peekMarkdown('# T\n- [ ] Ship it ^ship [notion](https://n.so/a)')).toBe('- [ ] Ship it [notion](https://n.so/a)');
+  });
+});
+
+describe('the note drawn small, read by the one grammar (core/itemSyntax.ts)', () => {
+  it('draws a numbered to-do as a to-do, and a choice by its words', () => {
+    expect(notePeek('# T\n1. [x] Book the cabin\n- ( ) Tent')).toEqual([
+      { kind: 'task', done: true, text: 'Book the cabin' },
+      { kind: 'bullet', text: 'Tent' },
+    ]);
+  });
+
+  it('keeps two section signs that are words, and drops the bookmark', () => {
+    expect(bareWords('See §§12 for the rest §§')).toBe('See §§12 for the rest');
+  });
 });

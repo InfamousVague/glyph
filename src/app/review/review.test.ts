@@ -66,6 +66,19 @@ describe('the reviewing model’s findings', () => {
     expect(changed.get('n')).toContain('- [ ] Fix the seek bar');
     expect(changed.get('h')).toBe('# HelloTrade\n\n- Ship the APK\n- Update the readme\n');
   });
+
+  it('adds a starred or numbered to-do by its words, as a dashed one is (core/itemSyntax.ts)', () => {
+    // The box after `*` used to be read as words, and the list's own box went in front of it: `- [ ] [ ] Update…`.
+    const findings = readFindings(
+      JSON.stringify([
+        { check: 'commands', what: 'Readme', why: '', add: '* [ ] Update the readme' },
+        { check: 'commands', what: 'Docs', why: '', add: '2. [ ] Write the docs' },
+      ]),
+      self,
+      [],
+    );
+    expect(applyFindings([self], findings).get('n')).toBe('# Bug bash\n\n- [ ] Fix the seat bar\n- [ ] Downloads stuck\n- [ ] Update the readme\n- [ ] Write the docs\n');
+  });
 });
 
 describe('what the reviewing model is shown', () => {

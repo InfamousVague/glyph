@@ -932,3 +932,24 @@ describe('where an item\u2019s words end', () => {
     expect(itemWords('- See §§12 ^see')).toBe('See §§12');
   });
 });
+
+describe('a card’s box is the box the note draws (core/itemSyntax.ts)', () => {
+  it('has no box when the brackets are glued to the words, since the editor draws none there to tick', () => {
+    expect(itemOnLine('- [ ]Ship it ^ship')).toEqual({ id: 'ship', text: '[ ]Ship it', done: null, line: 0 });
+    expect(setItemDone('- [ ]Ship it ^ship', true)).toBe('- [ ]Ship it ^ship');
+  });
+
+  it('reads a link whose words are "x" as the link it is, not as a ticked box', () => {
+    expect(itemOnLine('- [x](https://example.com/x) ^x-link')).toEqual({ id: 'x-link', text: '[x](https://example.com/x)', done: null, line: 0 });
+  });
+
+  it('is no item at all for an empty choice, as an empty to-do is none', () => {
+    expect(isItemLine('- ( )')).toBe(false);
+    expect(isItemLine('- [ ]')).toBe(false);
+    expect(isItemLine('- ( ) Tent')).toBe(true);
+  });
+
+  it('puts the caret after an empty choice’s box, as it does after a to-do’s', () => {
+    expect(wordsEnd('- ( ) ^pick')).toBe('- ( ) '.length);
+  });
+});
