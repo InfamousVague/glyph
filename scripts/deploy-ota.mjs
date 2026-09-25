@@ -84,7 +84,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deployFlags } from './deployOta/flags.mjs';
-import { boxSshOptions, openBox } from './lib/box.mjs';
+import { BOX_ENV_KEYS, boxSshOptions, openBox } from './lib/box.mjs';
 import { loadEnv } from './lib/env.mjs';
 import { sha256Hex } from './lib/hash.mjs';
 import { rustU32Const } from './lib/otaRs.mjs';
@@ -138,7 +138,7 @@ const SERVICES_FILE = join(ROOT, 'src-tauri/ota-services.json');
  */
 const curl = (args) => String(spawnSync('curl', args, { encoding: 'utf8' }).stdout ?? '').trim();
 
-const env = loadEnv(['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS']);
+const env = loadEnv(BOX_ENV_KEYS);
 const box = openBox(env, boxSshOptions());
 if (spawnSync('sshpass', ['-V'], { stdio: 'ignore' }).status !== 0) {
   fail('sshpass is not installed (brew install sshpass).');

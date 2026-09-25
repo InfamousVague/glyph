@@ -52,7 +52,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { boxSshOptions, openBox, tarball } from './lib/box.mjs';
+import { BOX_ENV_KEYS, boxSshOptions, openBox, tarball } from './lib/box.mjs';
 import { loadEnv } from './lib/env.mjs';
 import { ROOT } from './lib/paths.mjs';
 import { run } from './lib/run.mjs';
@@ -79,7 +79,7 @@ const API = 'https://attack.fm/glyph/api';
 
 /** .env, with the token and the Notion credentials checked for shape as well as presence. */
 function loadServerEnv() {
-  const env = loadEnv(['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS', 'VITE_GLYPH_API_TOKEN']);
+  const env = loadEnv([...BOX_ENV_KEYS, 'VITE_GLYPH_API_TOKEN']);
   // The shape is checked because the value is interpolated into a heredoc on
   // the box: hex cannot close a heredoc or start a command substitution.
   if (!/^[0-9a-f]{64}$/.test(env.VITE_GLYPH_API_TOKEN)) {

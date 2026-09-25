@@ -34,6 +34,9 @@ import { join } from 'node:path';
 import { run } from './run.mjs';
 import { fail } from './say.mjs';
 
+/** The .env keys openBox reads: the box's address, and the account and password on it. */
+export const BOX_ENV_KEYS = ['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS'];
+
 /** The shared connection: deploy-ota and deploy-server must name the same socket for one login to serve both. */
 const CONTROL_SOCKET = [
   '-o', 'ControlMaster=auto',

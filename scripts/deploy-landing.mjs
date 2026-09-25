@@ -26,7 +26,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { boxSshOptions, openBox, tarball } from './lib/box.mjs';
+import { BOX_ENV_KEYS, boxSshOptions, openBox, tarball } from './lib/box.mjs';
 import { loadEnv } from './lib/env.mjs';
 import { ROOT } from './lib/paths.mjs';
 import { fail } from './lib/say.mjs';
@@ -110,7 +110,7 @@ if (process.argv.includes('--print')) {
   process.stdout.write(REMOTE);
   process.exit(0);
 }
-const env = loadEnv(['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS']);
+const env = loadEnv(BOX_ENV_KEYS);
 const result = openBox(env, SSH_OPTS).exec(REMOTE, {
   input: site,
   stdio: ['pipe', 'inherit', 'inherit'],

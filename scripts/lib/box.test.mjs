@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { boxSshOptions, openBox, tarball } from './box.mjs';
+import { BOX_ENV_KEYS, boxSshOptions, openBox, tarball } from './box.mjs';
 
 /*
  * No box is contacted here. `ssh`, `sshpass` and `rsync` are stand-ins put
@@ -63,6 +63,12 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+});
+
+describe('what a deploy needs to reach the box', () => {
+  it('is three .env keys, in the order a missing .env names them', () => {
+    expect(BOX_ENV_KEYS).toEqual(['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS']);
+  });
 });
 
 describe('the ssh options each deploy passes', () => {
