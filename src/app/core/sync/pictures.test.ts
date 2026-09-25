@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { Note } from '../store.ts';
 import { fakeService, type FakeService } from '../../../test/fakeService.ts';
 import { makeNote } from '../../../test/notes.ts';
+import { syncDevice } from '../../../test/syncDevice.ts';
 import { openBytes, type Bytes } from './crypto.ts';
-import { ASK_AGAIN_MS, emptyState, fileId, mark, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncState } from './notes.ts';
+import { ASK_AGAIN_MS, emptyState, fileId, mark } from './notes.ts';
 
 /**
  * Pictures reach every device, whatever road they took to the first one. Matt's HelloTrade book: another program wrote
@@ -15,43 +16,6 @@ import { ASK_AGAIN_MS, emptyState, fileId, mark, syncNotes, type FileKind, type 
 
 /** The account both devices are signed in to, on the sync service in memory. */
 const ACCOUNT = { handle: 'matt', password: 'correct horse' };
-
-/** A device signed in to the account: its notes, its pictures, and what it remembers of the account. */
-function device(api: FakeService, clock: { at: number }, pictures: Record<string, Bytes> = {}) {
-  const { accountKey: key, fetcher } = api;
-  const token = api.signedIn();
-  const notes = new Map<string, Note>();
-  const held = new Map(Object.entries(pictures));
-  let state: SyncState = emptyState();
-  const local: LocalNotes = {
-    list: async () => [...notes.values()],
-    get: async (id) => notes.get(id) ?? null,
-    apply: async (note) => {
-      notes.set(note.id, note);
-      return note;
-    },
-    remove: async (id) => {
-      notes.delete(id);
-    },
-  };
-  const files: LocalFiles = {
-    read: async (kind: FileKind, name: string) => (kind === 'image' ? (held.get(name) ?? null) : null),
-    write: async (kind: FileKind, name: string, bytes) => {
-      if (kind === 'image') held.set(name, bytes);
-    },
-  };
-  return {
-    notes,
-    held,
-    get state() {
-      return state;
-    },
-    set state(next: SyncState) {
-      state = next;
-    },
-    sync: () => syncNotes({ token, key, notes: local, files, state, save: (s) => (state = s), fetcher, now: () => clock.at }),
-  };
-}
 
 const PICTURE = 'a1b2c3d4-0000-4000-8000-000000000001.jpg';
 const bytes: Bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
@@ -66,8 +30,8 @@ describe('pictures that reached a device some other way than sync', () => {
   it('are sent by the Mac that holds them, and fetched by a phone that asked before they were there', async () => {
     const clock = { at: 1_000_000 };
     const api = await fakeService(ACCOUNT);
-    const phone = device(api, clock);
-    const mac = device(api, clock, { [PICTURE]: bytes });
+    const phone = syncDevice(api, { clock });
+    const mac = syncDevice(api, { clock, pictures: { [PICTURE]: bytes } });
     await writtenElsewhere(api, chapter);
 
     // The phone reads the chapter first: the picture is not in the account, so it has nothing to draw.
@@ -94,7 +58,7 @@ describe('pictures that reached a device some other way than sync', () => {
     const clock = { at: 5_000_000 };
     const api = await fakeService(ACCOUNT);
     const key = api.accountKey;
-    const mac = device(api, clock, { [PICTURE]: bytes });
+    const mac = syncDevice(api, { clock, pictures: { [PICTURE]: bytes } });
     await writtenElsewhere(api, chapter);
     await mac.sync();
     // Put back as the older app left it: the note seen, the picture at revision 0, nothing in the account.
@@ -108,7 +72,7 @@ describe('pictures that reached a device some other way than sync', () => {
   it('does not send a picture the account already holds, and settles it by asking for its head', async () => {
     const clock = { at: 9_000_000 };
     const api = await fakeService(ACCOUNT);
-    const first = device(api, clock, { [PICTURE]: bytes });
+    const first = syncDevice(api, { clock, pictures: { [PICTURE]: bytes } });
     first.notes.set('ch-1', chapter);
     await first.sync();
     const id = fileId('image', PICTURE)!;
@@ -131,7 +95,7 @@ describe('pictures that reached a device some other way than sync', () => {
     const clock = { at: 13_000_000 };
     const api = await fakeService(ACCOUNT, { head: false });
     const key = api.accountKey;
-    const mac = device(api, clock, { [PICTURE]: bytes });
+    const mac = syncDevice(api, { clock, pictures: { [PICTURE]: bytes } });
     await writtenElsewhere(api, chapter);
     await mac.sync();
     const id = fileId('image', PICTURE)!;
