@@ -56,35 +56,16 @@
   color: var(--app-ink-3);
 }
 
-/* The note's own editor lives here; the rule above it is the line between typing and reading. */
+/*
+ * The note's own editor lives here; the rule above it is the line between typing and reading. The editor brings its
+ * own look, and what is here is only the room it sits in, the same room a mark's example has (guide/MarkExample
+ * .module.css `.room`).
+ */
 .shown {
+  composes: room from '../guide/MarkExample.module.css';
   min-block-size: 3em;
   padding-block-start: var(--glacier-space-3);
   border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
-}
-
-/* The editor brings its own look; what is here is only the room it sits in (guide/MarkExample.module.css). */
-.shown :global(.cm-editor) {
-  background: none;
-}
-
-.shown :global(.cm-scroller) {
-  overflow: visible;
-  font-family: inherit;
-}
-
-.shown :global(.cm-content) {
-  padding: 0;
-  caret-color: transparent;
-}
-
-.shown :global(.cm-line) {
-  padding-inline: 0;
-}
-
-.shown :global(.cm-cursor),
-.shown :global(.cm-gutters) {
-  display: none;
 }
 
 .waiting {

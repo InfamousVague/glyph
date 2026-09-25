@@ -5,7 +5,36 @@
  * its own, and text that matches the page around it rather than the note's.
  */
 
+/*
+ * The room a read-only editor sits in, wherever one is shown as an example rather than written in: no ground of its
+ * own, no scrolling of its own, no padding, no caret and no gutters. The Academy's live page (academy/Playground
+ * .module.css `.shown`) composes it too.
+ */
+.room :global(.cm-editor) {
+  background: none;
+}
+
+.room :global(.cm-scroller) {
+  overflow: visible;
+  font-family: inherit;
+}
+
+.room :global(.cm-content) {
+  padding: 0;
+  caret-color: transparent;
+}
+
+.room :global(.cm-line) {
+  padding-inline: 0;
+}
+
+.room :global(.cm-cursor),
+.room :global(.cm-gutters) {
+  display: none;
+}
+
 .example {
+  composes: room;
   /* The card is the example's room: a quote or a block of code stands clear of the card by its own padding, not the page's gutter. */
   --app-gutter: 0px;
   min-inline-size: 0;
@@ -13,28 +42,9 @@
   line-height: var(--glacier-leading-md);
 }
 
-.example :global(.cm-editor) {
-  background: none;
-}
-
+/* The page's leading, not the note's. */
 .example :global(.cm-scroller) {
-  overflow: visible;
-  font-family: inherit;
   line-height: inherit;
-}
-
-.example :global(.cm-content) {
-  padding: 0;
-  caret-color: transparent;
-}
-
-.example :global(.cm-line) {
-  padding-inline: 0;
-}
-
-.example :global(.cm-cursor),
-.example :global(.cm-gutters) {
-  display: none;
 }
 
 /* A board is the one example wider than its card: it scrolls inside itself, as it does in a note. */
