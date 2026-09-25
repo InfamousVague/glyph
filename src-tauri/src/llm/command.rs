@@ -147,38 +147,55 @@ pub fn parse(text: &str, truncated: bool) -> Result<CommandIntent, String> {
     }
 }
 
-/// A model is not asked to reinterpret requests outside the single safe set.
+/// A model is not asked to reinterpret requests outside the single safe set:
+/// a destructive verb aimed at a note, a list or everything in one. The verb
+/// alone is not enough - people say "remind me to send the invoice" and name
+/// films like "Send Help" - so it needs its object within a few words.
+/// Several steps ("make a list and add…") are one request now: the model
+/// answers them as a create with content, or none.
 pub fn refusal(utterance: &str) -> Option<NoneReason> {
-    let lower = utterance.to_lowercase();
-    let destructive = [
-        "delete",
-        "remove",
-        "erase",
-        "destroy",
-        "archive",
-        "overwrite",
-        "replace",
-        "rename",
-        "share",
-        "email",
-        "send ",
+    const DESTRUCTIVE: &[&str] = &[
+        "delete", "remove", "erase", "destroy", "archive", "overwrite", "replace", "rename", "clear",
+        "wipe", "empty", "share", "email", "send",
     ];
-    if destructive.iter().any(|word| lower.contains(word)) {
-        return Some(NoneReason::Destructive);
-    }
-    let action_words = lower
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|word| {
-            matches!(
-                *word,
-                "add" | "append" | "put" | "create" | "make" | "start"
-            )
-        })
-        .count();
-    if lower.contains(" and then ") || lower.contains(';') || action_words > 1 {
-        return Some(NoneReason::Compound);
+    const OBJECTS: &[&str] = &[
+        "note", "notes", "list", "lists", "page", "everything", "all", "it", "them", "that", "this",
+    ];
+    const REACH: usize = 6;
+    let lower = utterance.to_lowercase();
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_alphanumeric() && c != '\'')
+        .filter(|word| !word.is_empty())
+        .collect();
+    for (at, word) in words.iter().enumerate() {
+        if DESTRUCTIVE.contains(word)
+            && words[at + 1..].iter().take(REACH).any(|next| OBJECTS.contains(next))
+        {
+            return Some(NoneReason::Destructive);
+        }
     }
     None
+}
+
+/// The model's question: the person's note titles, then what they said. Titles
+/// are cleaned of control characters and cut short; bodies and ids never go in.
+pub fn user_prompt(utterance: &str, titles: &[String]) -> String {
+    let titles: Vec<String> = titles
+        .iter()
+        .map(|title| {
+            title
+                .chars()
+                .map(|c| if c.is_control() { ' ' } else { c })
+                .take(80)
+                .collect::<String>()
+                .trim()
+                .to_string()
+        })
+        .filter(|title| !title.is_empty())
+        .take(60)
+        .collect();
+    let notes = if titles.is_empty() { "(none)".to_string() } else { titles.join("; ") };
+    format!("Notes: {notes}\nSaid: {utterance}")
 }
 
 #[cfg(test)]
@@ -230,18 +247,30 @@ mod tests {
     }
 
     #[test]
-    fn destructive_and_compound_requests_are_refused_before_inference() {
+    fn destructive_requests_are_refused_before_inference_and_several_steps_are_not() {
         assert_eq!(
             refusal("delete my work note"),
             Some(NoneReason::Destructive)
         );
+        assert_eq!(refusal("create errands and then add milk to it"), None);
         assert_eq!(
-            refusal("create errands and then add milk to it"),
-            Some(NoneReason::Compound)
+            refusal("I watched Send Help last night, can you add it to my movies list"),
+            None
+        );
+        assert_eq!(
+            refusal("so yeah, remove everything from the groceries list"),
+            Some(NoneReason::Destructive)
         );
         assert_eq!(
             refusal("put a bug about losing position in Attack FM"),
             None
         );
+    }
+
+    #[test]
+    fn the_prompt_carries_titles_but_nothing_else_of_a_note() {
+        let titles = vec!["Go".to_string(), "Movies\u{0}".to_string(), "  ".to_string()];
+        assert_eq!(user_prompt("add Heat to movies", &titles), "Notes: Go; Movies\nSaid: add Heat to movies");
+        assert_eq!(user_prompt("new note", &[]), "Notes: (none)\nSaid: new note");
     }
 }

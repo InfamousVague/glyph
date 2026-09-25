@@ -99,13 +99,13 @@ describe('final transcript instruction scan', () => {
       'Create a new list called comic books with Spider-Man, Batman, Superman, the Fantastic Four and the Green Lantern.',
       'Okay, make a new list called comic books. Add these: Spider-Man, Batman, Superman, the Fantastic Four and the Green Lantern.',
     ])('offers one new list titled Comic books with its items: %s', async (words) => {
-      await expect(classifyFinalTranscript(words, notes, never)).resolves.toEqual({ kind: 'offer', plan: { kind: 'create-list', title: 'comic books', items: heroes } });
+      await expect(classifyFinalTranscript(words, notes, never)).resolves.toEqual({ kind: 'offer', conversational: false, plan: { kind: 'create-list', title: 'comic books', items: heroes } });
       expect(never).not.toHaveBeenCalled();
     });
 
     it('keeps a title that only contains “with”, and a list said with no items', async () => {
-      await expect(classifyFinalTranscript('make a new list called books with pictures', notes, never)).resolves.toEqual({ kind: 'offer', plan: { kind: 'create-list', title: 'books with pictures' } });
-      await expect(classifyFinalTranscript('make a new list called comic books', notes, never)).resolves.toEqual({ kind: 'offer', plan: { kind: 'create-list', title: 'comic books' } });
+      await expect(classifyFinalTranscript('make a new list called books with pictures', notes, never)).resolves.toEqual({ kind: 'offer', conversational: false, plan: { kind: 'create-list', title: 'books with pictures' } });
+      await expect(classifyFinalTranscript('make a new list called comic books', notes, never)).resolves.toEqual({ kind: 'offer', conversational: false, plan: { kind: 'create-list', title: 'comic books' } });
     });
   });
 
@@ -134,6 +134,52 @@ describe('final transcript instruction scan', () => {
     it('leaves a sentence a sentence', async () => {
       const decision = await classifyFinalTranscript('add to Movies we should watch these on Friday, after dinner, with Sam and the kids if everyone is free', movies, never());
       expect(decision).toMatchObject({ kind: 'offer', plan: { how: 'leave' } });
+    });
+  });
+
+  describe('a request anywhere in the recording', () => {
+    const lists = [
+      { id: 'movies', title: 'Movies', note: { body: 'Movies\n\n- Jaws\n' } },
+      { id: 'groceries', title: 'Groceries', note: { body: 'Groceries\n\n- Eggs\n' } },
+    ];
+
+    it.each([
+      ['Let’s add oat milk and bread to my groceries list.', 'groceries', ['oat milk', 'bread']],
+      ['So I was at the store earlier and it was packed. Anyway, can you put oat milk and bread on the groceries list?', 'groceries', ['oat milk', 'bread']],
+      ['I watched a bunch of stuff this weekend. Go ahead and add Heat, Alien and the Matrix to Movies.', 'movies', ['Heat', 'Alien', 'the Matrix']],
+    ])('reads the request inside the talk: %s', async (words, id, items) => {
+      const decision = await classifyFinalTranscript(words, lists, never());
+      expect(decision).toMatchObject({ kind: 'offer', conversational: true, plan: { kind: 'place', note: { id }, items } });
+    });
+
+    it('lets the model reason over the whole recording, with the note titles, and make the list it asked for', async () => {
+      const run = vi.fn((_words: string, _titles: readonly string[]) =>
+        inferred({ status: 'intent', model: 'local', intent: { action: 'create', target: 'comic books', content: 'Spider-Man; Batman; The Fantastic Four' } }),
+      );
+      const words = 'Okay so I was reading last night and I really need a list of comic books, like Spider-Man, Batman and the Fantastic Four.';
+      await expect(classifyFinalTranscript(words, lists, run)).resolves.toMatchObject({
+        kind: 'offer',
+        conversational: true,
+        plan: { kind: 'create-list', title: 'Comic Books', items: ['Spider\\-Man', 'Batman', 'The Fantastic Four'] },
+      });
+      expect(run).toHaveBeenCalledWith(words, ['Movies', 'Groceries']);
+    });
+
+    it.each([
+      'I need to make dinner and then add some photos to the album.',
+      'I want to add more to this idea tomorrow when I have time.',
+      'I told Sam to add oat milk to the groceries list.',
+      'She said, “put it on the list”, and then left.',
+      'We added the groceries list to the fridge door last week.',
+    ])('leaves dictation as a note: %s', async (words) => {
+      await expect(classifyFinalTranscript(words, lists, never())).resolves.toEqual({ kind: 'ordinary', notice: null });
+    });
+
+    it('keeps the recording as a note when a request found in it cannot be carried out', async () => {
+      const unclear = vi.fn(() => inferred({ status: 'intent', model: 'local', intent: { action: 'none', reason: 'unclear' } }));
+      await expect(classifyFinalTranscript('Honestly the note from yesterday was fine, I might make it a list someday.', lists, unclear)).resolves.toEqual({ kind: 'ordinary', notice: null });
+      const missing = vi.fn(() => inferred({ status: 'intent', model: 'local', intent: { action: 'append', target: 'Camping', content: 'tent', placement: 'list' } }));
+      await expect(classifyFinalTranscript('Before I forget, can you add a tent to the camping list?', lists, missing)).resolves.toMatchObject({ kind: 'ordinary', notice: expect.stringMatching(/Saved this recording as a note/) });
     });
   });
 });

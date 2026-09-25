@@ -82,12 +82,12 @@ export type InterpretedCommand<N extends Candidate> =
   | { source: 'rejected'; reason: string };
 
 /** Native-only inference. It never downloads a model or calls a remote service. */
-export function inferInstruction(utterance: string): InferenceRun {
+export function inferInstruction(utterance: string, titles: readonly string[] = []): InferenceRun {
   const id = `command-${Date.now().toString(36)}-${(sequence += 1)}`;
   if (!isTauri()) {
     return { done: Promise.resolve({ status: 'unavailable', reason: 'Instruction inference is available in the installed Android app.' }), cancel: () => undefined };
   }
-  const done = invoke<unknown>('ai_infer_command', { request: { id, utterance, preferredModel: preferences().formatModel } })
+  const done = invoke<unknown>('ai_infer_command', { request: { id, utterance, titles: titles.slice(0, 60), preferredModel: preferences().formatModel } })
     .then((value) => {
       const checked = validateInference(value);
       return checked ?? { status: 'unavailable' as const, reason: 'The on-device model returned an invalid command.' };

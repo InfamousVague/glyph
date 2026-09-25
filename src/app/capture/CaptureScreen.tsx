@@ -243,6 +243,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     note: Note | null;
     /** "Make a new list called … and add …": the note to create on confirmation, instead of one to add to. */
     create?: { title: string; items: readonly string[] };
+    /** A command found inside dictation: declined, the recording is saved as a note instead of discarded. */
+    keep?: () => Promise<void>;
     locked: boolean;
     temporaryId: string;
     recordedMs: number | null;
@@ -796,6 +798,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const final = finalCommand.current;
     if (!final) return;
     finalCommand.current = null;
+    if (final.keep) {
+      void final.keep();
+      return;
+    }
     void discardRecording(final.temporaryId).catch(() => undefined);
     endCapture(final.locked);
     onFinish(null, final.locked);
@@ -975,14 +981,78 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const { plain } = renderNote(spoken);
     const locked = isLocked();
 
+    /** This recording saved as a note of its words: dictation, or a command found in it that was not carried out. */
+    const keepAsNote = async (): Promise<void> => {
+      // A command's change still landing, or the take carrying on elsewhere: written before the note is.
+      await writes.current;
+
+      if (!plain.trim() && !take.tables.length && !take.clips.length) {
+        await undoDraft();
+        endCapture(locked);
+        onFinish(null, locked);
+        return;
+      }
+
+      const markdown = take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
+      const saved = await queueWrite(async () => persistBody(noteId.current, await compose(markdown), 'capture'));
+      let refineJob: ReviewHandoff['job'] = null;
+      if (stopped.recordedMs !== null && sessionRef.current?.keepsAudio) {
+        // New phrases sit after the continued tape's, shifted by its length.
+        const offset = continued?.recordingMs ?? 0;
+        const prior = continued?.segments ?? [];
+        const all = [...prior, ...spoken.map((s) => ({ ...s, startMs: s.startMs + offset, endMs: s.endMs + offset }))];
+        await setNoteRecording(saved.id, stopped.recordedMs, all).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
+        // The tape this take wrote to, so its voice memos know it again when the note is opened (core/clips.ts).
+        setTapeId(saved.id, tapeOfTake());
+        // The better words: the larger model over this take's recording, later,
+        // or now in the review after a recording when that runs.
+        const base = continued ? ((await baseBody.current) ?? continued.body) : '';
+        refineJob = {
+          id: saved.id,
+          fromMs: offset,
+          recordingMs: stopped.recordedMs,
+          baseBody: base,
+          savedBody: saved.body,
+          titled: !continued,
+          priorSegments: prior,
+          promptTail: renderNote(prior).plain.slice(-200),
+          skip: take.commandSpans.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
+          // The voice memos this take left: the better words never heard them, and they go back where they were.
+          clips: take.clips.map((clip) => ({ ...clip, startMs: clip.startMs + offset, endMs: clip.endMs + offset })),
+          keywordAt: take.keywordSpans.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
+        };
+      }
+      fireNativeHaptic('success');
+      endCapture(locked);
+      // The review after a recording: it runs the better words and the formatting when it is done.
+      // Not over a locked phone, whose note is not shown to whoever is holding it.
+      if (!locked && (await reviewAvailable())) {
+        onFinish(saved, locked, { noteId: saved.id, job: refineJob, heard: heardRef.current.join(' '), commands: [...commandLog.current], touched: [...take.touched] });
+        return;
+      }
+      if (refineJob) enqueueRefine(refineJob);
+      // The staged rewrite (format/queue.ts): a quick draft, then slower models
+      // revising it. After the refine job, which it waits for.
+      enqueueFormat(saved.id);
+      onFinish(saved, locked);
+    };
+
     const decision = await classifyFinalTranscript(transcript, candidates.current);
     if (decision.kind === 'offer') {
       // The stopped audio is already retained under this capture id.  The
       // mutation remains pending until this card is explicitly confirmed.
+      const said = take.segments;
       take.offerFinal(decision.plan, performance.now());
       const target = decision.plan.kind === 'place' ? decision.plan.note.note : null;
       const create = decision.plan.kind === 'create-list' ? { title: decision.plan.title, items: decision.plan.items ?? [] } : undefined;
-      finalCommand.current = { note: target, ...(create ? { create } : {}), locked, temporaryId: noteId.current, recordedMs: stopped.recordedMs };
+      // Found inside dictation: declined, the recording is kept as the note it may have been.
+      const keep = decision.conversational
+        ? async () => {
+            for (const segment of said) take.listen(segment);
+            await keepAsNote();
+          }
+        : undefined;
+      finalCommand.current = { note: target, ...(create ? { create } : {}), ...(keep ? { keep } : {}), locked, temporaryId: noteId.current, recordedMs: stopped.recordedMs };
       setPhase('listening');
       return;
     }
@@ -998,58 +1068,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
     if (decision.notice) setRoute({ phase: 'said', text: decision.notice });
 
-    // A command's change still landing, or the take carrying on elsewhere: written before the note is.
-    await writes.current;
-
-    if (!plain.trim() && !take.tables.length && !take.clips.length) {
-      await undoDraft();
-      endCapture(locked);
-      onFinish(null, locked);
-      return;
-    }
-
-    const markdown = take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
-    const saved = await queueWrite(async () => persistBody(noteId.current, await compose(markdown), 'capture'));
-    let refineJob: ReviewHandoff['job'] = null;
-    if (stopped.recordedMs !== null && sessionRef.current?.keepsAudio) {
-      // New phrases sit after the continued tape's, shifted by its length.
-      const offset = continued?.recordingMs ?? 0;
-      const prior = continued?.segments ?? [];
-      const all = [...prior, ...spoken.map((s) => ({ ...s, startMs: s.startMs + offset, endMs: s.endMs + offset }))];
-      await setNoteRecording(saved.id, stopped.recordedMs, all).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
-      // The tape this take wrote to, so its voice memos know it again when the note is opened (core/clips.ts).
-      setTapeId(saved.id, tapeOfTake());
-      // The better words: the larger model over this take's recording, later,
-      // or now in the review after a recording when that runs.
-      const base = continued ? ((await baseBody.current) ?? continued.body) : '';
-      refineJob = {
-        id: saved.id,
-        fromMs: offset,
-        recordingMs: stopped.recordedMs,
-        baseBody: base,
-        savedBody: saved.body,
-        titled: !continued,
-        priorSegments: prior,
-        promptTail: renderNote(prior).plain.slice(-200),
-        skip: take.commandSpans.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
-        // The voice memos this take left: the better words never heard them, and they go back where they were.
-        clips: take.clips.map((clip) => ({ ...clip, startMs: clip.startMs + offset, endMs: clip.endMs + offset })),
-        keywordAt: take.keywordSpans.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
-      };
-    }
-    fireNativeHaptic('success');
-    endCapture(locked);
-    // The review after a recording: it runs the better words and the formatting when it is done.
-    // Not over a locked phone, whose note is not shown to whoever is holding it.
-    if (!locked && (await reviewAvailable())) {
-      onFinish(saved, locked, { noteId: saved.id, job: refineJob, heard: heardRef.current.join(' '), commands: [...commandLog.current], touched: [...take.touched] });
-      return;
-    }
-    if (refineJob) enqueueRefine(refineJob);
-    // The staged rewrite (format/queue.ts): a quick draft, then slower models
-    // revising it. After the refine job, which it waits for.
-    enqueueFormat(saved.id);
-    onFinish(saved, locked);
+    await keepAsNote();
   }, [onFinish, compose, undoDraft, take]);
 
   // The side key held again: Done.

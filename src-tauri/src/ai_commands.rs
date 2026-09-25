@@ -82,6 +82,10 @@ fn default_temperature() -> f32 {
 pub struct CommandInferenceRequest {
     pub id: String,
     pub utterance: String,
+    /// The titles of the person's notes, so the model can tell which one was
+    /// meant. Titles only: never a body or an id.
+    #[serde(default)]
+    pub titles: Vec<String>,
     pub preferred_model: String,
 }
 
@@ -96,26 +100,33 @@ pub enum CommandInferenceResult {
 /// prefix snapshot after it stays valid across commands; the worked examples
 /// are the phrasings people actually say ("my note labeled Go", "a list
 /// with…"), which a 2B model follows far better than a rule alone.
-const COMMAND_SYSTEM: &str = r#"Translate one spoken note command to JSON. Allowed actions: append to an existing note, create a new note, or none.
+const COMMAND_SYSTEM: &str = r#"Read what someone said into a notes app and work out whether they asked for a change to their notes, and if so what they want in the end. They talk naturally: the request can come after other talk ("so I was thinking… can you make me a list"), and a request someone else was given, or talk about adding things later, is not one. Answer with JSON. Allowed actions: append to an existing note, create a new note, or none.
+- Their notes are listed first. For append, "target" should be one of those titles, allowing for misheard words.
 - append: "target" is only the note's title as spoken, without words like "my", "the", "note", "list", "labeled", "called" or "named". "content" is only what to add, in the speaker's words, without the command or the title. "placement" is "list" when they ask for a list, items, bullets or points; "tasks" for tasks, to-dos or check boxes; "bugs" for bugs or issues; "notes" for a paragraph or a note; otherwise null.
 - When they name several things to add (movies, places, groceries), placement is "list" even if they did not say "list".
 - For "list" and "tasks", separate the items in "content" with "; " and keep each item whole: "Paris, Texas; Austin, Texas".
 - create: "target" is the new note's title and "content" is its body, or null.
-- none: destructive (delete, remove, clear), compound (several different actions), unsupported, or unclear requests.
+- "Make a list called X and add A and B" is one request: create X with content "A; B".
+- none: destructive (delete, remove, clear) or unsupported requests; "unclear" when it is ordinary talk, not a request.
 Never invent content or a title. Output exactly one object in the required schema.
 
 Examples:
-Command: add to my note labeled Go a list with Parkersburg West Virginia Marietta Ohio and Detroit Michigan
+Notes: Go, Work
+Said: add to my note labeled Go a list with Parkersburg West Virginia Marietta Ohio and Detroit Michigan
 {"action":"append","target":"Go","content":"Parkersburg, West Virginia; Marietta, Ohio; Detroit, Michigan","placement":"list"}
-Command: put call Sam and book the flights on my work to-do list
+Said: put call Sam and book the flights on my work to-do list
 {"action":"append","target":"Work","content":"call Sam; book the flights","placement":"tasks"}
-Command: add to the note called Weekend trip that we should book the ferry early
+Said: add to the note called Weekend trip that we should book the ferry early
 {"action":"append","target":"Weekend trip","content":"we should book the ferry early","placement":null}
-Command: add eggs milk and bread to groceries
+Said: add eggs milk and bread to groceries
 {"action":"append","target":"groceries","content":"eggs; milk; bread","placement":"list"}
-Command: make a new note called Packing
+Said: make a new note called Packing
 {"action":"create","target":"Packing","content":null}
-Command: delete everything in my Go note
+Said: ok so I was watching stuff last night, can you make me a list called movies with Jaws, Alien and Heat
+{"action":"create","target":"Movies","content":"Jaws; Alien; Heat"}
+Said: I told Sam I would add the photos to the album later
+{"action":"none","reason":"unclear"}
+Said: delete everything in my Go note
 {"action":"none","reason":"destructive"}"#;
 
 /// One model of the catalogue, with whether this phone has it.
@@ -395,7 +406,7 @@ pub async fn ai_infer_command(
             id: request.id.clone(),
             system: COMMAND_SYSTEM.into(),
             context: None,
-            prompt: format!("Command: {utterance}"),
+            prompt: command::user_prompt(utterance, &request.titles),
             // Room for a spoken list of a dozen places; a truncated answer fails closed.
             max_tokens: 384,
             temperature: 0.0,
