@@ -7,9 +7,15 @@ import styles from './SideKeyWaves.module.css';
 
 /**
  * Rings widening out of the screen's edge where this phone's side key is
- * (sideKeys.ts), behind the first page's words: the key is there, and the
+ * (sideKeys.ts), behind the side-key page's words: the key is there, and the
  * page knows it. Nothing points at it and nothing says "press" (Matt: "don't
- * do anything to prompt the user to press it yet").
+ * do anything to prompt the user to press it yet"). They wait for that page
+ * (guide/Guide.tsx draws them), where the key is the subject.
+ *
+ * The recorder draws its own rings, from the same side of the phone but by
+ * its own table and with the Developer page's height (capture/sideKey.ts,
+ * capture/SideKeyWaves.tsx), so on one phone the two can start from different
+ * heights; which table should win is a decision, not a tidy-up.
  *
  * Drawn on a canvas, since the rings are not circles: their outlines waver
  * (waves.ts) and they keep a resting beat. They answered the microphone once
