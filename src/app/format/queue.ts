@@ -1,5 +1,6 @@
 import { listModels } from '../core/ai.ts';
 import { preferences } from '../core/preferences.ts';
+import { readStored, writeStored } from '../core/stored.ts';
 import { getNote } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import { isRunning, noteHash, passesFor, revisionPasses, runPipeline } from './pipeline.ts';
@@ -33,30 +34,21 @@ interface Job {
 }
 
 function readQueue(): Job[] {
-  try {
-    const value = JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]') as unknown;
-    return Array.isArray(value) ? (value as Job[]).filter((j) => j && typeof j.id === 'string') : [];
-  } catch {
-    return [];
-  }
+  return readStored(QUEUE_KEY, [], (value) => (Array.isArray(value) ? (value as Job[]).filter((j) => j && typeof j.id === 'string') : []));
 }
 
+/** No storage: the job runs now or not at all. */
 function writeQueue(jobs: Job[]): void {
-  try {
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(jobs));
-  } catch {
-    // No storage: the job runs now or not at all.
-  }
+  writeStored(QUEUE_KEY, jobs);
 }
 
 /** Whether the whisper post-pass still has this note: its words are about to change. */
 function refinePending(id: string): boolean {
-  try {
-    const value = JSON.parse(localStorage.getItem(REFINE_QUEUE_KEY) ?? '[]') as unknown;
-    return Array.isArray(value) && value.some((j) => j && typeof j === 'object' && (j as { id?: unknown }).id === id);
-  } catch {
-    return false;
-  }
+  return readStored(
+    REFINE_QUEUE_KEY,
+    false,
+    (value) => Array.isArray(value) && value.some((j) => j && typeof j === 'object' && (j as { id?: unknown }).id === id),
+  );
 }
 
 let paused = false;

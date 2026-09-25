@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { deviceFlag } from '../core/deviceFlag.ts';
 
 /**
  * Developer mode: the switch behind the hidden tools.
@@ -8,44 +8,20 @@ import { useSyncExternalStore } from 'react';
  * Developer page. While it is on, Settings grows a Developer section under
  * About; while it is off the section is absent from the list.
  *
- * A live store rather than a preference, the same shape as core/haptics.ts:
- * the flag is flipped from INSIDE a pane (About) and has to change the
- * PARENT's sections on the spot. Kept in its own key, not in the preferences
- * object, so a device that never unlocked the tools carries nothing about
- * them.
+ * A live store rather than a preference, the same shape as core/haptics.ts
+ * (core/deviceFlag.ts): the flag is flipped from INSIDE a pane (About) and has
+ * to change the PARENT's sections on the spot. Kept in its own key, not in the
+ * preferences object, so a device that never unlocked the tools carries
+ * nothing about them - and a reset leaves it on (core/reset.ts).
  */
-const KEY = 'glyph-developer';
-const listeners = new Set<() => void>();
+const developer = deviceFlag('glyph-developer');
 
-export function developerModeEnabled(): boolean {
-  try {
-    return localStorage.getItem(KEY) === 'on';
-  } catch {
-    return false;
-  }
-}
+export const developerModeEnabled = developer.read;
 
-export function setDeveloperMode(on: boolean): void {
-  try {
-    if (on) localStorage.setItem(KEY, 'on');
-    else localStorage.removeItem(KEY);
-  } catch {
-    // Storage refused: the mode holds for this run and not beyond it.
-  }
-  for (const l of listeners) l();
-}
+export const setDeveloperMode = developer.set;
 
 /** The flag, live across every component that reads it. */
-export function useDeveloperMode(): boolean {
-  return useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
-    },
-    developerModeEnabled,
-    () => false,
-  );
-}
+export const useDeveloperMode = developer.use;
 
 /** Presses on the version in About needed to unlock the tools. */
 export const KNOCKS_WANTED = 7;

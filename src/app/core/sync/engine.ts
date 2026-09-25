@@ -1,10 +1,11 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { useSyncExternalStore } from 'react';
 import { accountKey, accountState, deleteAccount, resume, signOut } from '../account/account.ts';
 import { ApiError } from '../account/api.ts';
+import { externalStore } from '../externalStore.ts';
 import { imageBytes, keepImage } from '../images.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
 import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED, type Note } from '../store.ts';
+import { readStored, writeStored } from '../stored.ts';
 import { invoke, isTauri } from '../tauri.ts';
 import { toBase64Url, type Bytes } from './crypto.ts';
 import { emptyState, mark, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncState } from './notes.ts';
@@ -34,23 +35,13 @@ export interface SyncStatus {
   conflicts: number;
 }
 
-let status: SyncStatus = { phase: 'off', lastAt: null, message: null, conflicts: 0 };
-const listeners = new Set<() => void>();
+const status = externalStore<SyncStatus>({ phase: 'off', lastAt: null, message: null, conflicts: 0 });
 
 function setStatus(next: Partial<SyncStatus>): void {
-  status = { ...status, ...next };
-  for (const listener of listeners) listener();
+  status.update((was) => ({ ...was, ...next }));
 }
 
-export function useSyncStatus(): SyncStatus {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    () => status,
-  );
-}
+export const useSyncStatus = status.use;
 
 /** How long ago a sync finished, as the Account page says it. */
 export function syncedWhen(ms: number): string {
@@ -75,20 +66,12 @@ function stateKey(accountId: number, part: string): string {
 }
 
 function load<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? ({ ...fallback, ...(JSON.parse(raw) as T) } as T) : fallback;
-  } catch {
-    return fallback;
-  }
+  return readStored(key, fallback, (raw) => ({ ...fallback, ...(raw as T) }) as T);
 }
 
+/** Full or private, it is not kept: the next sync starts from what was last kept, which only costs a longer sync. */
 function store(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Full or private: the next sync starts from what was last kept, which only costs a longer sync.
-  }
+  writeStored(key, value);
 }
 
 /**
@@ -106,11 +89,7 @@ export function hasUnsyncedChanges(note: Note): boolean {
 
 /** Forgets what this device knew of an account's sync: for signing out. */
 export function forgetSync(accountId: number): void {
-  try {
-    for (const part of ['notes', 'prefs']) localStorage.removeItem(stateKey(accountId, part));
-  } catch {
-    // Nothing kept.
-  }
+  for (const part of ['notes', 'prefs']) writeStored(stateKey(accountId, part), null);
 }
 
 /** Signs out and forgets this device's sync bookkeeping for the account. The notes stay. */

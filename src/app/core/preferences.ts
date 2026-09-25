@@ -1,8 +1,9 @@
 import type { TabGroups } from '../notes/tabGroups.ts';
-import { useSyncExternalStore } from 'react';
 import { isCodeThemeDark, isCodeThemeLight, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { MOST_TABS } from '../notes/openTabs.ts';
 import { isNoteView, type NoteView } from '../editor/viewMode.ts';
+import { externalStore } from './externalStore.ts';
+import { readStored, writeStored } from './stored.ts';
 
 /**
  * The look-and-feel knobs, and how they reach the tokens.
@@ -311,81 +312,77 @@ export const DEFAULT_PREFERENCES: Preferences = {
 };
 
 const STORAGE_KEY = 'glyph-preferences';
-const listeners = new Set<() => void>();
-let current: Preferences = load();
+const chosen = externalStore<Preferences>(load(), { server: () => DEFAULT_PREFERENCES });
 
+/** What is kept, or the defaults: nothing kept, or nothing that reads as JSON, is a device that chose nothing yet. */
 function load(): Preferences {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_PREFERENCES;
-    const loaded = { ...DEFAULT_PREFERENCES, ...(JSON.parse(raw) as Partial<Preferences>) };
-    // A theme a later build removed falls back to the default rather than to no colours at all.
-    if (!isCodeThemeLight(loaded.codeLight) || !loaded.codeChosen) loaded.codeLight = DEFAULT_PREFERENCES.codeLight;
-    if (!isCodeThemeDark(loaded.codeDark) || !loaded.codeChosen) loaded.codeDark = DEFAULT_PREFERENCES.codeDark;
-    if (!isNoteView(loaded.noteView)) loaded.noteView = DEFAULT_PREFERENCES.noteView;
-    // A theme from a later build, or from a device with one this build lacks, reads as the default.
-    if (!isTheme(loaded.theme)) loaded.theme = DEFAULT_PREFERENCES.theme;
-    // A size that is not one of the steps - another build's, or a half-written store - is the kit's own.
-    if (!isUiScale(loaded.uiScale)) loaded.uiScale = DEFAULT_PREFERENCES.uiScale;
-    if (!isSidebarStyle(loaded.sidebarStyle)) loaded.sidebarStyle = DEFAULT_PREFERENCES.sidebarStyle;
-    // Tabs from another build, or a half-written store: anything but a list of ids is no tabs at all.
-    loaded.openNotes = Array.isArray(loaded.openNotes) ? loaded.openNotes.filter((id): id is string => typeof id === 'string').slice(-MOST_TABS) : [];
-    // Tab groups from another build, or a half-written store: only well-formed groups, and tabs pointing at them.
-    loaded.tabGroups = readTabGroups(loaded.tabGroups);
-    // Workspaces from another build, or a half-written store: anything but the shape below is no workspaces at all.
-    const spaces = loaded.workspaces as Partial<Preferences['workspaces']> | undefined;
-    const list = Array.isArray(spaces?.list) ? spaces.list.filter((w) => w && typeof w.id === 'string' && typeof w.name === 'string') : [];
-    const ids = new Set(list.map((w) => w.id));
-    const notes: Record<string, string> = {};
-    if (spaces?.notes && typeof spaces.notes === 'object') {
-      for (const [note, id] of Object.entries(spaces.notes)) if (typeof id === 'string' && ids.has(id)) notes[note] = id;
-    }
-    loaded.workspaces = { list, notes };
-    // The trash from another build, or a half-written store: only ids with a time.
-    const thrown: Record<string, number> = {};
-    if (loaded.trash && typeof loaded.trash === 'object') {
-      for (const [id, at] of Object.entries(loaded.trash)) if (typeof at === 'number' && Number.isFinite(at)) thrown[id] = at;
-    }
-    loaded.trash = thrown;
-    // Shares from another build, or a half-written store: only entries with an id and a key a link can carry.
-    const shares: Preferences['shares'] = {};
-    const LINK_PART = /^[A-Za-z0-9_-]{16,64}$/;
-    if (loaded.shares && typeof loaded.shares === 'object') {
-      for (const [note, kept] of Object.entries(loaded.shares as Record<string, unknown>)) {
-        const k = kept as { id?: unknown; key?: unknown; sent?: unknown; lacked?: unknown } | null;
-        if (!k || typeof k.id !== 'string' || typeof k.key !== 'string' || !LINK_PART.test(k.id) || !LINK_PART.test(k.key)) continue;
-        const lacked = Array.isArray(k.lacked) ? k.lacked.filter((n): n is string => typeof n === 'string') : undefined;
-        shares[note] = { id: k.id, key: k.key, sent: typeof k.sent === 'string' ? k.sent : '', ...(lacked?.length ? { lacked } : {}) };
-      }
-    }
-    loaded.shares = shares;
-    if (!(loaded.motionSpeed in MOTION_SCALE)) loaded.motionSpeed = DEFAULT_PREFERENCES.motionSpeed;
-    // An accent or a rounding this build does not have - one from an older store, where the accent was a colour the
-    // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.
-    if (!isAccent(loaded.accent)) loaded.accent = DEFAULT_PREFERENCES.accent;
-    if (!isRounding(loaded.rounding)) loaded.rounding = DEFAULT_PREFERENCES.rounding;
-    // The two faces, settled: one face for everything, as a store from before the pair has it, is read as a pair.
-    const faces = facesOf(loaded);
-    loaded.typeface = faces.ui;
-    loaded.noteFace = faces.note;
-    return loaded;
-  } catch {
-    return DEFAULT_PREFERENCES;
-  }
+  return readStored(STORAGE_KEY, DEFAULT_PREFERENCES, settle);
 }
 
-export function preferences(): Preferences {
-  return current;
+/** A stored set of preferences made whole, whatever build or half-written store it came from. */
+function settle(raw: unknown): Preferences {
+  const loaded = { ...DEFAULT_PREFERENCES, ...(raw as Partial<Preferences>) };
+  // A theme a later build removed falls back to the default rather than to no colours at all.
+  if (!isCodeThemeLight(loaded.codeLight) || !loaded.codeChosen) loaded.codeLight = DEFAULT_PREFERENCES.codeLight;
+  if (!isCodeThemeDark(loaded.codeDark) || !loaded.codeChosen) loaded.codeDark = DEFAULT_PREFERENCES.codeDark;
+  if (!isNoteView(loaded.noteView)) loaded.noteView = DEFAULT_PREFERENCES.noteView;
+  // A theme from a later build, or from a device with one this build lacks, reads as the default.
+  if (!isTheme(loaded.theme)) loaded.theme = DEFAULT_PREFERENCES.theme;
+  // A size that is not one of the steps - another build's, or a half-written store - is the kit's own.
+  if (!isUiScale(loaded.uiScale)) loaded.uiScale = DEFAULT_PREFERENCES.uiScale;
+  if (!isSidebarStyle(loaded.sidebarStyle)) loaded.sidebarStyle = DEFAULT_PREFERENCES.sidebarStyle;
+  // Tabs from another build, or a half-written store: anything but a list of ids is no tabs at all.
+  loaded.openNotes = Array.isArray(loaded.openNotes) ? loaded.openNotes.filter((id): id is string => typeof id === 'string').slice(-MOST_TABS) : [];
+  // Tab groups from another build, or a half-written store: only well-formed groups, and tabs pointing at them.
+  loaded.tabGroups = readTabGroups(loaded.tabGroups);
+  // Workspaces from another build, or a half-written store: anything but the shape below is no workspaces at all.
+  const spaces = loaded.workspaces as Partial<Preferences['workspaces']> | undefined;
+  const list = Array.isArray(spaces?.list) ? spaces.list.filter((w) => w && typeof w.id === 'string' && typeof w.name === 'string') : [];
+  const ids = new Set(list.map((w) => w.id));
+  const notes: Record<string, string> = {};
+  if (spaces?.notes && typeof spaces.notes === 'object') {
+    for (const [note, id] of Object.entries(spaces.notes)) if (typeof id === 'string' && ids.has(id)) notes[note] = id;
+  }
+  loaded.workspaces = { list, notes };
+  // The trash from another build, or a half-written store: only ids with a time.
+  const thrown: Record<string, number> = {};
+  if (loaded.trash && typeof loaded.trash === 'object') {
+    for (const [id, at] of Object.entries(loaded.trash)) if (typeof at === 'number' && Number.isFinite(at)) thrown[id] = at;
+  }
+  loaded.trash = thrown;
+  // Shares from another build, or a half-written store: only entries with an id and a key a link can carry.
+  const shares: Preferences['shares'] = {};
+  const LINK_PART = /^[A-Za-z0-9_-]{16,64}$/;
+  if (loaded.shares && typeof loaded.shares === 'object') {
+    for (const [note, kept] of Object.entries(loaded.shares as Record<string, unknown>)) {
+      const k = kept as { id?: unknown; key?: unknown; sent?: unknown; lacked?: unknown } | null;
+      if (!k || typeof k.id !== 'string' || typeof k.key !== 'string' || !LINK_PART.test(k.id) || !LINK_PART.test(k.key)) continue;
+      const lacked = Array.isArray(k.lacked) ? k.lacked.filter((n): n is string => typeof n === 'string') : undefined;
+      shares[note] = { id: k.id, key: k.key, sent: typeof k.sent === 'string' ? k.sent : '', ...(lacked?.length ? { lacked } : {}) };
+    }
+  }
+  loaded.shares = shares;
+  if (!(loaded.motionSpeed in MOTION_SCALE)) loaded.motionSpeed = DEFAULT_PREFERENCES.motionSpeed;
+  // An accent or a rounding this build does not have - one from an older store, where the accent was a colour the
+  // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.
+  if (!isAccent(loaded.accent)) loaded.accent = DEFAULT_PREFERENCES.accent;
+  if (!isRounding(loaded.rounding)) loaded.rounding = DEFAULT_PREFERENCES.rounding;
+  // The two faces, settled: one face for everything, as a store from before the pair has it, is read as a pair.
+  const faces = facesOf(loaded);
+  loaded.typeface = faces.ui;
+  loaded.noteFace = faces.note;
+  return loaded;
 }
+
+export const preferences = chosen.get;
 
 /** Reads the stored preferences again: after a reset, and in tests. */
 export function reloadPreferences(): void {
-  current = load();
-  for (const l of listeners) l();
+  chosen.set(load());
 }
 
 /** The chosen pace as a multiplier for a duration: 1 at the normal speed. */
-export function motionScale(prefs: Preferences = current): number {
+export function motionScale(prefs: Preferences = chosen.get()): number {
   return MOTION_SCALE[prefs.motionSpeed] ?? 1;
 }
 
@@ -398,33 +395,18 @@ const DURATIONS: [string, number][] = [
   ['--glacier-duration-slower', 600],
 ];
 
+/** Kept, applied to the page, and then told to everyone following; not kept, the choice still applies for this run. */
 export function setPreferences(next: Partial<Preferences>): void {
-  current = { ...current, ...next };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-  } catch {
-    // The choice still applies for this run.
-  }
-  applyPreferences(current);
-  for (const l of listeners) l();
+  const merged = { ...chosen.get(), ...next };
+  writeStored(STORAGE_KEY, merged);
+  applyPreferences(merged);
+  chosen.set(merged);
 }
 
 /** Called after every change, for code outside React that must follow a preference. */
-export function onPreferences(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
+export const onPreferences = chosen.subscribe;
 
-export function usePreferences(): Preferences {
-  return useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
-    },
-    preferences,
-    () => DEFAULT_PREFERENCES,
-  );
-}
+export const usePreferences = chosen.use;
 
 /** Whether the editor should be built with CodeMirror's dark base rules. */
 export function isDarkNow(theme: ThemePref): boolean {
@@ -468,7 +450,7 @@ function matchChrome(theme: ThemePref): void {
  * default clears its attribute so the token `:root` defaults win, which is how
  * the Glacier docs app and AttackFM both drive their theming.
  */
-export function applyPreferences(prefs: Preferences = current): void {
+export function applyPreferences(prefs: Preferences = chosen.get()): void {
   const root = document.documentElement;
 
   // A named theme is stamped twice: its side of the page as `data-theme`, so every light-or-dark rule reads it as

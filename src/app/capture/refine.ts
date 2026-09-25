@@ -1,5 +1,6 @@
-import { useSyncExternalStore } from 'react';
+import { externalStore, type ExternalStore } from '../core/externalStore.ts';
 import { preferences } from '../core/preferences.ts';
+import { readStored, writeStored } from '../core/stored.ts';
 import { getNote, saveNote, setNoteRecording } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import { findKeyword } from './command.ts';
@@ -66,20 +67,12 @@ const RETRY_MS = 20_000;
 // ---- the queue -------------------------------------------------------------------------
 
 function readQueue(): RefineJob[] {
-  try {
-    const value = JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]') as unknown;
-    return Array.isArray(value) ? (value as RefineJob[]).filter((j) => j && typeof j.id === 'string') : [];
-  } catch {
-    return [];
-  }
+  return readStored(QUEUE_KEY, [], (value) => (Array.isArray(value) ? (value as RefineJob[]).filter((j) => j && typeof j.id === 'string') : []));
 }
 
+/** No storage: the job runs now or not at all. */
 function writeQueue(jobs: RefineJob[]): void {
-  try {
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(jobs));
-  } catch {
-    // No storage: the job runs now or not at all.
-  }
+  writeStored(QUEUE_KEY, jobs);
 }
 
 // ---- what the screen sees ---------------------------------------------------------------
@@ -91,26 +84,18 @@ export interface RefineState {
   download: { received: number; total: number } | null;
 }
 
-let state: RefineState = { pending: new Set(), download: null };
-const listeners = new Set<() => void>();
+const refining: ExternalStore<RefineState> = externalStore<RefineState>(
+  { pending: new Set(), download: null },
+  { server: () => refining.get() },
+);
 function publish(next: Partial<RefineState>): void {
-  state = { ...state, ...next };
-  listeners.forEach((l) => l());
+  refining.update((was) => ({ ...was, ...next }));
 }
 function syncPending(): void {
   publish({ pending: new Set(readQueue().map((j) => j.id)) });
 }
 
-export function useRefining(): RefineState {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    () => state,
-    () => state,
-  );
-}
+export const useRefining = refining.use;
 
 // ---- the pure part -----------------------------------------------------------------------
 

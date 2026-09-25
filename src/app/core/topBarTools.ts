@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { externalStore } from './externalStore.ts';
 
 /**
  * Where a screen's own controls go when the app's top bar is there to hold them.
@@ -13,29 +13,13 @@ import { useSyncExternalStore } from 'react';
  * a moment before the bar has mounted - still works.
  */
 
-let slot: HTMLElement | null = null;
-const listeners = new Set<() => void>();
+const slot = externalStore<HTMLElement | null>(null, {
+  // On a server, and on the first paint, there is no bar yet: the screen draws its own.
+  server: () => null,
+});
 
 /** The bar, saying where its slot is - or that it has gone. */
-export function setTopBarTools(element: HTMLElement | null): void {
-  if (slot === element) return;
-  slot = element;
-  for (const listener of listeners) listener();
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
+export const setTopBarTools = slot.set;
 
 /** The slot to draw a screen's controls into, or null to draw them where they are. */
-export function useTopBarTools(): HTMLElement | null {
-  return useSyncExternalStore(
-    subscribe,
-    () => slot,
-    // On a server, and on the first paint, there is no bar yet: the screen draws its own.
-    () => null,
-  );
-}
+export const useTopBarTools = slot.use;
