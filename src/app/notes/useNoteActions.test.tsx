@@ -5,6 +5,9 @@ import { createNote, getNote } from '../core/store.ts';
 import { reloadPreferences } from '../core/preferences.ts';
 import { isTrashed, trashNote } from '../core/trash.ts';
 import { addWorkspace, fileNote, workspaceOf } from '../core/workspaces.ts';
+import { keepGist, readGist } from '../format/results.ts';
+import { recordRun, runsOf } from '../ai/log.ts';
+import { hasMarks, saveMarks } from '../ai/marks.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, show, unmount } from '../../test/render.tsx';
 import type { NoteActions } from './useNoteActions.ts';
@@ -38,6 +41,13 @@ const settle = () =>
     for (let i = 0; i < 10; i += 1) await Promise.resolve();
   });
 const said = () => document.body.textContent ?? '';
+/** What the app keeps beside a note, on this device: its gist on the home page, its AI runs and the marks they left. */
+function keepBeside(id: string): void {
+  keepGist(id, { text: 'A gist.', for: 1, model: 'qwen3.5-4b' });
+  recordRun({ id: `run-${id}`, noteId: id, kind: 'format', instruction: null, model: 'qwen3.5-4b', at: 0, ms: 1000, outputTokens: 5, outcome: 'done', message: null, truncated: false });
+  saveMarks(id, '# Apples', [{ id: 'c', runId: `run-${id}`, from: 0, to: 3, removed: '', block: true }]);
+}
+const keptBeside = (id: string) => ({ gist: readGist(id) !== null, runs: runsOf(id).length, marks: hasMarks(id) });
 const apples = makeNote('a', '# Apples');
 const bread = makeNote('b', '# Bread');
 const cheese = makeNote('c', '# Cheese');
@@ -57,17 +67,20 @@ describe('deleting for good', () => {
     const space = addWorkspace('Kitchen')!;
     fileNote('a', space.id);
     trashNote('a');
+    keepBeside('a');
     mount();
-    act(() => actions.destroy((apples)));
+    act(() => actions.destroy(apples));
     expect(actions.hidden.has('a')).toBe(true);
     expect(said()).toContain('Deleted “Apples” for good.');
     await act(async () => void vi.advanceTimersByTime(4999));
     await settle();
     expect(await getNote('a')).not.toBeNull();
+    expect(keptBeside('a')).toEqual({ gist: true, runs: 1, marks: true });
     await act(async () => void vi.advanceTimersByTime(1));
     await settle();
     expect(await getNote('a')).toBeNull();
     expect(workspaceOf('a')).toBeNull();
+    expect(keptBeside('a')).toEqual({ gist: false, runs: 0, marks: false });
     expect(isTrashed('a')).toBe(false);
     expect(actions.hidden.has('a')).toBe(false);
     expect(refresh).toHaveBeenCalled();
@@ -75,6 +88,7 @@ describe('deleting for good', () => {
 
   it('keeps the note when Undo is pressed in time', async () => {
     vi.useFakeTimers();
+    keepBeside('a');
     mount();
     act(() => actions.destroy(apples));
     act(() => button('Undo').click());
@@ -82,6 +96,7 @@ describe('deleting for good', () => {
     await act(async () => void vi.advanceTimersByTime(10_000));
     await settle();
     expect(await getNote('a')).not.toBeNull();
+    expect(keptBeside('a')).toEqual({ gist: true, runs: 1, marks: true });
   });
 
   it('makes the first final when a second is deleted, since only one Undo is on screen', async () => {
@@ -140,11 +155,15 @@ describe('the trash', () => {
   it('empties at once, and says how many went', async () => {
     trashNote('a');
     trashNote('b');
+    keepBeside('a');
+    fileNote('a', addWorkspace('Kitchen')!.id);
     mount();
     await act(async () => actions.emptyTrash([apples, bread]));
     expect(await getNote('a')).toBeNull();
     expect(await getNote('b')).toBeNull();
     expect(isTrashed('a')).toBe(false);
+    expect(workspaceOf('a')).toBeNull();
+    expect(keptBeside('a')).toEqual({ gist: false, runs: 0, marks: false });
     expect(said()).toContain('Deleted 2 notes for good.');
   });
 
