@@ -98,6 +98,33 @@ describe('native stop transcript handoff', () => {
   });
 });
 
+describe('the card after Done', () => {
+  it('waits for its tap however long it is up, so the finished take can still be answered', async () => {
+    await createNote('go', 'Go');
+    const ticks = vi.fn(() => 2600);
+    capture.session!.positionMs = ticks;
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await screen.findByRole('region', { name: 'Add to Go' });
+
+    // Well past the twenty seconds a spoken question is given (take.ts TAKE_TIMING.confirmMs), and ticked through.
+    const clock = performance.now.bind(performance);
+    const later = vi.spyOn(performance, 'now').mockImplementation(() => clock() + 60_000);
+    try {
+      const before = ticks.mock.calls.length;
+      await waitFor(() => expect(ticks.mock.calls.length).toBeGreaterThan(before + 1));
+      expect(screen.getByRole('region', { name: 'Add to Go' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
+    } finally {
+      later.mockRestore();
+    }
+    expect((await listNotes()).map((note) => note.body)).toEqual(['Go']);
+  });
+});
+
 describe('things to say', () => {
   it('shows the card until the first words, naming one of their notes and no ask on a new recording, then tips one at a time', async () => {
     await createNote('groceries', 'Groceries');

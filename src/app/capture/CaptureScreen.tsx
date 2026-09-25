@@ -625,9 +625,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       setRecorded(session.current?.positionMs() ?? 0);
       setDiagnostics({ ...counts.current });
       const now = performance.now();
-      // A command being said, or waiting for its yes, holds the recording open.
+      // A command being said, or waiting for its yes, holds the recording open. Once the recording is over, the card of
+      // the command read from it waits for a tap: the take's clock gives up on a question it could hear answered, and
+      // with the microphone stopped a dropped card left Done, Discard and back all refusing a take already finished.
       const commanding = take.commanding;
-      take.tick(now);
+      if (!finished.current) take.tick(now);
       if (!commanding && quiet.current?.due(now)) void finishRef.current();
       // A pause, once there are words: one tip, until words come again. Before the first word the card of things to
       // say is up instead (SayCard.tsx), and a tip picked under it would be spent unseen.
