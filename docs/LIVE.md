@@ -46,8 +46,9 @@ relay carrying the offer, answer and ICE candidates (sealed like everything else
 whenever the direct link will not form, which on phone networks is often. Nothing above the transport would change
 when it lands.
 
-**The seal** - every message is `src/app/core/sync/crypto.ts`'s AES-256-GCM under the account key, with `live:<note id>` as associated
-data, so a message cannot be replayed into another note. The relay sees sizes and timing.
+**The seal** - every message is `src/app/core/sync/crypto.ts`'s AES-256-GCM under the account key, with
+`live:<note id>` as associated data, so a message cannot be replayed into another note. The relay sees sizes and
+timing.
 
 **The document** - `src/app/core/live/session.ts`. A `Y.Doc` per note in a live session, its text in a `Y.Text`. Inside
 the sealed messages, one byte of kind and then the payload (`src/app/core/live/wire.ts`): `query` ("I have joined and
@@ -83,11 +84,11 @@ merging them **doubles the note**. So a document is made once, by one device, an
 
 ## Living with the pass sync
 
-The pass sync makes a conflict copy when a note was changed on two devices and the words differ. While two people type,
-their words differ by a few characters in flight at every instant - so a pass in the middle of a session would split the
-note in two. **A note in a live session with another device is left out of the pass**, pushed and merged by neither
-half. When the session goes quiet, both devices hold the same words (the CRDT's promise), the pass pushes them, the other
-device pulls words identical to its own, and nothing is copied.
+The pass sync makes a conflict copy when a note was changed on two devices and the words differ. While two people
+type, their words differ by a few characters in flight at every instant - so a pass in the middle of a session would
+split the note in two. **A note in a live session with another device is left out of the pass**, pushed and merged by
+neither half. When the session goes quiet, both devices hold the same words (the CRDT's promise), the pass pushes
+them, the other device pulls words identical to its own, and nothing is copied.
 
 ## What the relay learns
 
@@ -97,17 +98,17 @@ ids, which the sync feed already shows it. Never a word.
 ## Switched off until it works
 
 Off by default, and on by hand per device under **Settings › Account › Sync › Live typing (trial)**
-(`src/app/core/live/enabled.ts`, kept on the device and never in the synced settings, so trying it on one device never turns it on for
-another). It applies to the next note opened. Off, none of it is even loaded: the note screen imports the live code on
-demand (`src/app/core/live/open.ts`), so Yjs and its binding are not in the app everyone downloads - measured in the browser,
-with the switch off no live module is fetched at all, and undo works exactly as it did.
+(`src/app/core/live/enabled.ts`, kept on the device and never in the synced settings, so trying it on one device never
+turns it on for another). It applies to the next note opened. Off, none of it is even loaded: the note screen imports
+the live code on demand (`src/app/core/live/open.ts`), so Yjs and its binding are not in the app everyone downloads -
+measured in the browser, with the switch off no live module is fetched at all, and undo works exactly as it did.
 
 Nothing on screen says a note is live: the typing arriving from the other device is the sign. A small **Live** with a
 green dot stood in the top bar while it was, and went on 2026-09-25 (Matt: "There is a strange live indicator in the
 top nav remove it").
 
-The wisp arrivals livelock (`src/app/editor/wispArrivals.ts`), which a paragraph pasted on another device could have set off,
-was fixed before this shipped.
+The wisp arrivals livelock (`src/app/editor/wispArrivals.ts`), which a paragraph pasted on another device could have
+set off, was fixed before this shipped.
 
 ## Where the pieces are
 
@@ -131,11 +132,12 @@ was fixed before this shipped.
   one device; leaving told to the others; bad frames refused without dropping the socket; an oversized frame ends it;
   a foreign origin refused, the site's own and the apps' let in. Two of these were proven able to fail by breaking
   what they guard and watching them go red.
-- **The document** (`src/app/core/live/session.test.ts`, through a relay in memory): made once and adopted, never built
-  twice; typing both ways; two people typing into one spot both kept; behind adopts with no copy; unsynced changes kept
-  as a copy; the first to go leaves the next to make it. Making every device seed its own - the trap - fails five of
-  them. `session.rules.test.ts` beside it takes the session's rules a step at a time, and `hub.test.ts`,
-  `open.test.ts`, `transport.test.ts` and `wire.test.ts` hold the two doors, the socket and the seal.
+- **The document** (`src/app/core/live/session.test.ts`, through a relay in memory): made once and adopted, never
+  built twice; typing both ways; two people typing into one spot both kept; behind adopts with no copy; unsynced
+  changes kept as a copy; the first to go leaves the next to make it. Making every device seed its own - the trap -
+  fails five of them. `src/app/core/live/session.rules.test.ts` beside it takes the session's rules a step at a time,
+  and `src/app/core/live/hub.test.ts`, `src/app/core/live/open.test.ts`, `src/app/core/live/transport.test.ts` and
+  `src/app/core/live/wire.test.ts` hold the two doors, the socket and the seal.
 - **The whole path** (`src/app/core/live/live.e2e.test.ts`, run with `GLYPH_LIVE_E2E` set, two devices through a
   local glyph-api running the code on the box): a keystroke crossed in **2.8 ms median** on one machine (sealing, the
   relay, opening, applying); concurrent typing, a device away and back, and the server's database never holding a

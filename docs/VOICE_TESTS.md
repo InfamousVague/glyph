@@ -42,12 +42,12 @@ first five build one note, **Cabin weekend**, that holds one of everything the c
 sixth is prose that must not format, ending in silence. Each script lists what to say, what the note should
 read afterwards, and what to look at on the screen.
 
-The rules under test are `src/app/capture/markdown.ts` and the rule families it drives in
-`src/app/capture/spoken/` (cues), `src/app/capture/finalInstruction.ts` with `command.ts` and `route.ts` (a
-command read from the finished recording), and `quiet.ts` (stopping on silence). The guide makes the same promises:
-the "say" line beside each mark on its marks page (`src/app/guide/marks.ts`), and the habits on its Tips page, whose
-examples `src/app/guide/phrases.ts` keeps. A script here that fails is either a rule to fix or a promise to
-correct.
+The rules under test are `src/app/capture/markdown.ts` and the rule families it drives in `src/app/capture/spoken/`
+(cues), `src/app/capture/finalInstruction.ts` with `src/app/capture/command.ts` and `src/app/capture/route.ts` (a
+command read from the finished recording), and `src/app/capture/quiet.ts` (stopping on silence). The guide makes the
+same promises: the "say" line beside each mark on its marks page (`src/app/guide/marks.ts`), and the habits on its
+Tips page, whose examples `src/app/guide/phrases.ts` keeps. A script here that fails is either a rule to fix or a
+promise to correct.
 
 ## Recording the audio
 
@@ -347,7 +347,7 @@ app on its home page does nothing. The in-app wake-word listener this section on
 ## Keeping score
 
 For each script note what came out against what was expected, in three columns: the cue, what the note
-shows, and whether the fault is the rule (fix `markdown.ts` and add the phrase to its test) or the
+shows, and whether the fault is the rule (fix `src/app/capture/markdown.ts` and add the phrase to its test) or the
 transcription (a word Whisper mishears: change the cue or its vocabulary). A miss in the guide's own
 examples is already covered by `src/app/guide/guide.test.ts`, which renders each spoken example in
 `src/app/guide/phrases.ts` through the real rules.

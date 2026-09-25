@@ -113,11 +113,11 @@ minute per address and 10 per handle.
 - `src/app/core/account/` — sign-up, sign-in, recovery, password and recovery-sheet changes, deleting the account,
   the session (as AttackFM: a token in storage, refreshed on launch, device-key sign-in when it has lapsed), the keys
   in IndexedDB.
-- `src/app/core/sync/crypto.ts` — the key handling above, WebCrypto only, so the browser, the phone and the desktop run the
-  same code.
-- `src/app/core/sync/notes.ts` — a pass: pull the feed from the cursor and merge it; then push every note whose fingerprint
-  moved since it was last synced, and a deletion for every synced note gone since. A device keeps, per account, the
-  cursor, each note's last `rev` and fingerprint, and each file's `rev` (and hash, for a recording).
+- `src/app/core/sync/crypto.ts` — the key handling above, WebCrypto only, so the browser, the phone and the desktop
+  run the same code.
+- `src/app/core/sync/notes.ts` — a pass: pull the feed from the cursor and merge it; then push every note whose
+  fingerprint moved since it was last synced, and a deletion for every synced note gone since. A device keeps, per
+  account, the cursor, each note's last `rev` and fingerprint, and each file's `rev` (and hash, for a recording).
 - **A conflict makes a copy, never a loss.** A note changed on both sides keeps the other device's version under its
   id, and this device's version becomes a new note beside it (the file gets a number, `Title 2.md`). A note deleted
   on one device and changed on another comes back. A push that loses a race is merged the same way and sent again.
@@ -142,10 +142,11 @@ minute per address and 10 per handle.
 - Native: `store_apply` writes a note whole, with its own times, pin, archive, folder and sidecar
   (`library::Library::apply_note`), and `sync_put_file` keeps a synced recording or picture under its own name;
   **native generation 16**. An older app doesn't sync, and the Account page says so.
-- Tests, in the default run: `src/app/core/sync/crypto.test.ts`, `notes.test.ts` (the merge rules),
-  `engine.test.tsx` (when a pass runs), `pictures.test.ts` (`settlePictures`, without a server) and `prefs.test.ts`,
-  with `src/app/core/account/account.test.ts` and `keystore.test.ts`; the devices they sync are made by
-  `src/test/syncDevice.ts`. `src/app/core/sync/sync.e2e.test.ts` runs two devices against a real `glyph-api`
+- Tests, in the default run: `src/app/core/sync/crypto.test.ts`, `src/app/core/sync/notes.test.ts` (the merge rules),
+  `src/app/core/sync/engine.test.tsx` (when a pass runs), `src/app/core/sync/pictures.test.ts` (`settlePictures`,
+  without a server) and `src/app/core/sync/prefs.test.ts`, with `src/app/core/account/account.test.ts` and
+  `src/app/core/account/keystore.test.ts`; the devices they sync are made by `src/test/syncDevice.ts`.
+  `src/app/core/sync/sync.e2e.test.ts` runs two devices against a real `glyph-api`
   (`GLYPH_SYNC_E2E=<data dir> VITE_GLYPH_API=http://127.0.0.1:<port>/glyph/api`). The server's side is
   `server/src/sync_tests.rs`.
 

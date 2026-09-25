@@ -37,7 +37,7 @@ Everything else Apple asks for is fixed or listed below (DESIGN §113).
    or a native picker. With the native picker comes `NSPhotoLibraryUsageDescription`.
 3. **A real device build.** Only a simulator build has been made (2026-09-11).
    - Build with release signing (team F6ZAL7ANAD).
-   - `ExportOptions.plist` needs `method = app-store-connect`.
+   - `src-tauri/gen/apple/ExportOptions.plist` needs `method = app-store-connect`.
    - `src-tauri/gen/apple/project.yml` hardcodes version 0.1.0. Make the archive carry the app's version (1.8.0
      today, `src-tauri/tauri.conf.json`).
    - Check that the built plist keeps both URL schemes: the deep-link plugin replaces `CFBundleURLTypes`. The

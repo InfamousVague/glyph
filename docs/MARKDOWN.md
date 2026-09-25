@@ -16,10 +16,10 @@ tree.
 | Strikethrough `~~`         | yes    | yes   | GFM                                                         |
 | Inline code, fenced code   | yes    | yes   | A fence with a language is highlighted in it; the block is drawn as one card |
 | Lists, ordered lists       | yes    | yes   | Wrapped lines hang off the marker, measured in the real face |
-| Task lists `- [ ]`         | yes    | yes   | GFM. Ticking one syncs to a linked task (`editor/doneSync.ts`) |
+| Task lists `- [ ]`         | yes    | yes   | GFM. Ticking one syncs to a linked task (`src/app/editor/doneSync.ts`) |
 | Blockquotes, nested        | yes    | yes   |                                                             |
 | Tables                     | yes    | yes   | GFM. Drawn as a table, the fence still editable             |
-| Links, reference links      | yes    | yes   | A long URL is shown short (`editor/links.ts`)               |
+| Links, reference links      | yes    | yes   | A long URL is shown short (`src/app/editor/links.ts`)               |
 | Autolinks (bare and `< >`) | yes    | yes   | GFM                                                         |
 | Images `![]()`             | yes    | yes   | Drawn under their line                                      |
 | Hard line breaks            | yes    | yes   | Two spaces at the end of a line                             |
@@ -91,7 +91,7 @@ canvas from within a frame inside the note"). The frame is the canvas note's own
 zoom, the minimap, every card drawn as it is on the canvas, the whole of it fitted to the frame to begin with; over
 it, the canvas's name and an Open that opens the canvas note. With the caret on the line the frame steps aside and
 the line shows as typed. The words are a wiki link like any other, so elsewhere the note reads as a link to the
-canvas; a title that names a note of words, or no note, stays the link it is. (`editor/canvasFrames.ts`)
+canvas; a title that names a note of words, or no note, stays the link it is. (`src/app/editor/canvasFrames.ts`)
 
 ### Footnotes — `[^sam]` and `[^sam]: what it says`
 
@@ -107,10 +107,10 @@ readable lines anywhere else.
 
 ### Emoji — `:tada:` → 🎉
 
-Parsed already; now drawn. This is the one place besides tables, pictures and clips where the editor replaces what
-is written, and it earns it because the drawn thing is unmistakably the written thing. The words come back the moment the
-caret is on that line. The list is the hundred-odd names people actually type (`core/emoji.ts`), GitHub's spellings;
-anything else stays as the words that were typed.
+Parsed already; now drawn. This is the one place besides tables, pictures and clips where the editor replaces what is
+written, and it earns it because the drawn thing is unmistakably the written thing. The words come back the moment the
+caret is on that line. The list is the hundred-odd names people actually type (`src/app/core/emoji.ts`), GitHub's
+spellings; anything else stays as the words that were typed.
 
 ### Front matter
 
@@ -129,29 +129,29 @@ Written in plain characters that read sensibly anywhere; Ghost.md just does more
 from a list of ideas.
 
 - **Tags — `#web`.** A `#` against a letter, on a list item or anywhere in a line; `#work/clients` nests. Drawn as a
-  chip. Not a heading (`# ` has a space), not `#42`, not inside links or code. (`editor/tags.ts`)
+  chip. Not a heading (`# ` has a space), not `#42`, not inside links or code. (`src/app/editor/tags.ts`)
 - **Counters — `[3/8]`.** A count and a goal. A tap adds one, a hold takes one away, never past the goal or below
   nothing. Drawn as a chip that fills. Boards and Notion titles leave them out of an item's words.
-  (`editor/counters.ts`)
+  (`src/app/editor/counters.ts`)
 - **Sums — `= $450 + 120 * 2`.** A line (or list item, or quote) starting `= ` shows its answer after it, `→ $690`,
   never written into the note. Arithmetic only: `+ - * / ^`, brackets, `%` after a number; a currency sign and
-  thousands commas carry over. (`editor/sums.ts`)
+  thousands commas carry over. (`src/app/editor/sums.ts`)
 - **Choices — `- ( )` / `- (x)`.** Round boxes on bullets, one picked per group (the choice lines side by side at
-  one indent). A tap picks, and clears the rest; tapping the picked one clears it. (`editor/choices.ts`)
+  one indent). A tap picks, and clears the rest; tapping the picked one clears it. (`src/app/editor/choices.ts`)
 - **Hidden lines — `>| the answer`.** A quote whose first character is a bar goes to smoke, like `||this||`, until
   the caret is in it; a run of them clears together. Part of the spoiler, so part of the Marks plugin: with it off,
   it's a quote.
-  (`editor/wispFormat.ts`)
+  (`src/app/editor/wispFormat.ts`)
 - **Progress under a heading.** Nothing to type: a heading with to-dos under it says "3 of 7", or "All 7 done",
-  counting its subsections too. (`editor/headingProgress.ts`)
+  counting its subsections too. (`src/app/editor/headingProgress.ts`)
 - **Link cards.** A line that is only a link (bare, `<bare>`, or `[words](address)`, in a list or not) gets a card
-  under it with the page's title, site and summary; a tap opens it. The title is read by the app
-  (`link_preview`, native generation 17) for a card on screen, cached for a week, and never with Link previews off
-  (Settings › Type) or Local only on (Settings › Formatting). Links a plugin reads keep their own rows. (`editor/linkCards.ts`)
+  under it with the page's title, site and summary; a tap opens it. The title is read by the app (`link_preview`,
+  native generation 17) for a card on screen, cached for a week, and never with Link previews off (Settings › Type) or
+  Local only on (Settings › Formatting). Links a plugin reads keep their own rows. (`src/app/editor/linkCards.ts`)
 - **The bookmark — `§§`.** Two section signs at the end of the bookmarked line's words (before a list item's mark,
   counters and anchor), one per note. The note opens there; the header's bookmark button moves it to the line being
-  read, or takes it off that line. Drawn as a small ribbon. (`editor/bookmarkLine.ts`)
-- **Tapping a box.** `- [ ]` and `- [x]` tick and clear on a tap of the box itself. (`editor/taskToggle.ts`)
+  read, or takes it off that line. Drawn as a small ribbon. (`src/app/editor/bookmarkLine.ts`)
+- **Tapping a box.** `- [ ]` and `- [x]` tick and clear on a tap of the box itself. (`src/app/editor/taskToggle.ts`)
 
 ### Deliberately not
 
@@ -164,9 +164,9 @@ from a list of ideas.
 
 Every mark above has words for it while recording (`src/app/capture/markdown.ts`, with its rule families in
 `src/app/capture/spoken/`), and the guide's marks page shows them beside each row (`src/app/guide/MarksTable.tsx`,
-from each row's `say` in `src/app/guide/marks.ts`). The cheat sheet in Settings draws the marks without them. Words that are also everyday words need both halves ("… end link") or a pause
-either side ("…, new line, …"), so a sentence that only mentions them stays a sentence; the voice suite
-(`voice-tests/suite.json`) holds one of those.
+from each row's `say` in `src/app/guide/marks.ts`). The cheat sheet in Settings draws the marks without them. Words
+that are also everyday words need both halves ("… end link") or a pause either side ("…, new line, …"), so a sentence
+that only mentions them stays a sentence; the voice suite (`voice-tests/suite.json`) holds one of those.
 
 | Mark | Said |
 | --- | --- |

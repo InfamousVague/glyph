@@ -79,9 +79,9 @@ The same anchor works in the middle of a sentence:
 The pricing page is waiting on [[#^ask-sam]].
 ```
 
-`[[#^anchor]]` is an item in this note; `[[Note title#^anchor]]` is one in another note (`src/app/editor/wikiLinks.ts` owns
-the title half, `src/app/core/boards.ts` the anchor half). It is drawn as a quiet link and tapping it goes to the line. An
-anchor nothing answers is drawn dotted rather than hidden, so a name that has gone can be seen.
+`[[#^anchor]]` is an item in this note; `[[Note title#^anchor]]` is one in another note (`src/app/editor/wikiLinks.ts`
+owns the title half, `src/app/core/boards.ts` the anchor half). It is drawn as a quiet link and tapping it goes to the
+line. An anchor nothing answers is drawn dotted rather than hidden, so a name that has gone can be seen.
 
 This is why the anchor is worth having on every kind of item, not only on the ones a board names: one name, pointed
 at from a column, from a sentence, or from another note.
@@ -124,12 +124,12 @@ at from a column, from a sentence, or from another note.
   lane holding seventeen ids and drawing two: "items are in the Doing swimlane in the board code"). A card someone has
   just moved by hand stays where they put it.
 - **A board on screen reads its open tasks.** A task can only go Done once Ghost.md has read it again, and an open
-  note re-reads the linked items on screen (`src/app/editor/markReads.ts`). A board is drawn as one block in place of its fence, so it
-  is not among CodeMirror's `visibleRanges`, and its cards' items usually sit far below it. Read only by their own
-  lines, a board being looked at never learned its tasks were done (Matt: "a lot of the notion tickets aren't moved to
-  done": four cards in To do, all Done in Notion, their items sixty lines down). So the unticked to-dos on any board in
-  the viewport are read too. Only those: they are the cards that can move, and his board holds 66 cards, so reading
-  them all each minute would be 66 Notion reads a minute for four that could change.
+  note re-reads the linked items on screen (`src/app/editor/markReads.ts`). A board is drawn as one block in place of
+  its fence, so it is not among CodeMirror's `visibleRanges`, and its cards' items usually sit far below it. Read only
+  by their own lines, a board being looked at never learned its tasks were done (Matt: "a lot of the notion tickets
+  aren't moved to done": four cards in To do, all Done in Notion, their items sixty lines down). So the unticked
+  to-dos on any board in the viewport are read too. Only those: they are the cards that can move, and his board holds
+  66 cards, so reading them all each minute would be 66 Notion reads a minute for four that could change.
 - **Column names are free.** "To do", "Waiting on Sam", "This week": anything up to the colon, and the same name
   twice is one column.
 - **Empty columns stay.** `Blocked:` with nothing after it is a column with no cards, not a mistake.
@@ -139,10 +139,11 @@ at from a column, from a sentence, or from another note.
 ## What Ghost.md does with it
 
 - `src/app/core/boards.ts` is the door every caller imports from, and the modules behind it in `src/app/core/boards/`
-  read and write both pieces: `items.ts` (anchors, words, boxes and pointers in prose), `fence.ts` (the fence and its
-  height), `columns.ts` (cards moved, dropped and drawn in Done), `settle.ts` (a tick carried to every fence),
-  `make.ts` (boards made from a note's lists) and `lanes.ts` (lanes by voice). Only they know the fence's syntax.
-  The item line's - its marker, box, bookmark, mark, counters and anchor - is spelled once, in
+  read and write both pieces: `src/app/core/boards/items.ts` (anchors, words, boxes and pointers in prose),
+  `src/app/core/boards/fence.ts` (the fence and its height), `src/app/core/boards/columns.ts` (cards moved, dropped
+  and drawn in Done), `src/app/core/boards/settle.ts` (a tick carried to every fence), `src/app/core/boards/make.ts`
+  (boards made from a note's lists) and `src/app/core/boards/lanes.ts` (lanes by voice). Only they know the fence's
+  syntax. The item line's - its marker, box, bookmark, mark, counters and anchor - is spelled once, in
   `src/app/core/itemSyntax.ts`, and boards read it from there, as does everything else in `src/app` that reads a list
   line: ticking a box, Done following a Notion task, the Notion and GitHub links, the recorder adding to a list.
 - `src/app/editor/boards.ts` draws the board in a note, and puts the caret in the fence when it is tapped for editing,
@@ -156,13 +157,13 @@ at from a column, from a sentence, or from another note.
 - **One list at a time** (Matt: "add ability to auto list a section of list items into a board"): press and hold an
   item and choose **Board from list**. The list it is in - its items, the lines indented under them, a single blank
   line between two of them, up to a heading, a paragraph, a block of code or two blank lines - becomes a board set in
-  just above it (`src/app/core/boards/make.ts` `listAround`, `boardFromList`). Select several lines first and those lines are the
-  list instead. The rest of the note is left as it is, so a note can hold a board for each of its lists; a list that
-  already has a board right above it is not offered again. **Add to board** is still there beside it, for putting one
-  item on a board (Matt: "add an 'add to board' option when other items in the list are in a board already"): the
-  board its own list is already on, else the nearest one above; the first lane, or Done when the item is ticked; and
-  beside the neighbour it follows in the list, so the board keeps the list's order. The lane it went to is said
-  aloud, since the board is often off the screen.
+  just above it (`src/app/core/boards/make.ts` `listAround`, `boardFromList`). Select several lines first and those
+  lines are the list instead. The rest of the note is left as it is, so a note can hold a board for each of its lists;
+  a list that already has a board right above it is not offered again. **Add to board** is still there beside it, for
+  putting one item on a board (Matt: "add an 'add to board' option when other items in the list are in a board
+  already"): the board its own list is already on, else the nearest one above; the first lane, or Done when the item
+  is ticked; and beside the neighbour it follows in the list, so the board keeps the list's order. The lane it went to
+  is said aloud, since the board is often off the screen.
 - A card says its item's words with the markdown taken off — a link reads as its own words, not its URL — and shows
   three lines at most. The note below always has the whole thing.
 
