@@ -20,6 +20,12 @@ import { asBoardMarkdown, Take } from './take.ts';
  * Two ways in. From the script, each line is one committed phrase with the silence written after it, which checks
  * the rules. From the audio (`npm run voice:suite`), Whisper on this machine hears the recording exactly as the phone
  * would (src-tauri/src/whisper/suite.rs writes what it heard), which checks the rules against real speech.
+ *
+ * Test infrastructure beside the code it tests: only voiceSuite.test.ts imports it, so it is in no bundle the app
+ * ships. It drives the take a phrase at a time (`phrase`, `tick`), the live reading of commands the recorder itself has
+ * left dormant since PR #1, which is how the command rules and their timing are still held to their scripts. Its host
+ * is the recorder's in miniature, over an in-memory store; where the two differ - the suite's new note by name is
+ * `# Named`, the recorder's a title line (listTitle) - it is the suite's expectations that were written against it.
  */
 
 export interface SuiteTest {

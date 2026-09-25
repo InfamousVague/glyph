@@ -1,8 +1,8 @@
 /**
- * The live note, laid out for the recorder: the markdown a spoken note is
+ * The live note, laid out for Tail.tsx: the markdown a spoken note is
  * turning into, as lines with their structure read off them.
  *
- * The recorder shows the note formatted as it is said - a heading set large, a
+ * Tail shows the note formatted as it is said - a heading set large, a
  * to-do behind its box, a bullet indented - with the markdown mark that made
  * each line kept, dimmed, in a gutter, so what the spoken cues produce is
  * visible without the note reading as source. Inline `**` around emphasis is
