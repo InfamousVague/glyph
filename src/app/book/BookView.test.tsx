@@ -39,6 +39,26 @@ describe('the index view', () => {
     expect(button('Move Birds down').disabled).toBe(true);
   });
 
+  it('writes a chapter dragged by its grip to where it is let go', () => {
+    const onChange = vi.fn();
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => []} onChange={onChange} />);
+    const rowEls = [...document.querySelectorAll<HTMLElement>('ol[aria-label="Chapters"] li')];
+    // jsdom lays nothing out: each row 40px tall, one under another.
+    rowEls.forEach((li, i) => {
+      li.getBoundingClientRect = () => ({ top: i * 40, bottom: i * 40 + 40, height: 40, left: 0, right: 300, width: 300, x: 0, y: i * 40, toJSON: () => ({}) }) as DOMRect;
+    });
+    const grip = rowEls[0]!.querySelector<HTMLElement>('[class*=grip]')!;
+    const drag = (type: string, clientY: number) =>
+      act(() => {
+        grip.dispatchEvent(Object.assign(new MouseEvent(type, { bubbles: true, clientY, button: 0 }), { pointerId: 1, pointerType: 'mouse' }));
+      });
+    drag('pointerdown', 20);
+    drag('pointermove', 110);
+    drag('pointerup', 110);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Trees', 'Birds', 'Introduction']);
+  });
+
   it('adds a new chapter as a canvas when asked, opening it as one, and offers that only where a canvas can be made', () => {
     const onChange = vi.fn();
     const open = vi.fn();
