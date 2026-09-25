@@ -41,7 +41,6 @@ import { localUndo, undoSlot } from './undoSlot.ts';
 import { wispRipples, type RippleSource } from './wispRipples.ts';
 import { aiChanges, type AiChange } from './aiChanges.ts';
 import { plugins } from '../plugins/registry.ts';
-import type { InlineFormat } from '../plugins/types.ts';
 import styles from './Editor.module.css';
 
 /**
@@ -60,6 +59,18 @@ import styles from './Editor.module.css';
  * opened). It is deliberately not a controlled prop in the React sense, because
  * round-tripping every keystroke through a parent's state is exactly the
  * latency this app exists to avoid.
+ *
+ * So a prop reaches the view in one of three ways, and a caller has to know
+ * which. The callbacks (`onChange`, `onImageError`, `swipeAction`, `suggest`,
+ * `linkMenus`, `wiki`, `onAiMarks`) are read through refs when they are used.
+ * `dark`, `assist`, `readOnly`, `tape`/`tapeId` and `display` sit in
+ * Compartments and are swapped in place when they change. Everything else -
+ * `grow`, `arrivals`, `wispTyping`, `ripples`, `peek`, `diagrams`,
+ * `placeholder`, and whether `wiki` or `linkMenus` was given at all - is read
+ * once, when the view is made; a caller that needs a different set remounts
+ * the editor with a new `key` (src/read/Reader.tsx does). And a new `wiki`
+ * object is also a sign the notes changed (below), so a caller keeps the same
+ * one while its lookups are the same.
  */
 
 interface EditorProps {
@@ -117,12 +128,6 @@ interface EditorProps {
    * level as the source. Read once, when the editor is made.
    */
   ripples?: RippleSource;
-  /**
-   * The inline formattings plugins add (plugins/types.ts `InlineFormat`), parsed
-   * and drawn in this note. Read once, when the editor is made; absent, the
-   * switched-on plugins' own.
-   */
-  formats?: readonly InlineFormat[];
   /** The mixed page, marks and formatting both (the default), or just the formatted text (editor/viewMode.ts). */
   display?: NoteView;
   /**
@@ -181,7 +186,6 @@ export function Editor({
   arrivals = false,
   wispTyping = false,
   ripples,
-  formats,
   display = 'mixed',
   peek = false,
   diagrams = false,
@@ -217,7 +221,8 @@ export function Editor({
   useEffect(() => {
     if (!host.current) return undefined;
 
-    const formatList = formats ?? plugins.formats();
+    // The switched-on plugins' inline formattings (plugins/types.ts `InlineFormat`), parsed and drawn in this note.
+    const formatList = plugins.formats();
     const state = EditorState.create({
       doc: value,
       extensions: [
@@ -319,7 +324,9 @@ export function Editor({
     view.current?.dispatch({ effects: [themeSlot.current.reconfigure(glyphTheme(dark)), refreshCanvasFrames.of(null)] });
   }, [dark]);
 
-  // The notes changed under the links: a canvas framed in this note may have been drawn on, so its frame is looked at again.
+  // The notes changed under the links: a canvas framed in this note may have been drawn on, so its frame is looked at
+  // again. Told by a new `wiki`, which is why a caller keeps the one object while nothing has changed: each new one
+  // rescans the whole note (editor/canvasFrames.ts).
   useEffect(() => {
     if (wiki?.body) view.current?.dispatch({ effects: refreshCanvasFrames.of(null) });
   }, [wiki]);
