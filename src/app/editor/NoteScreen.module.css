@@ -178,7 +178,7 @@
 }
 
 .cog svg {
-  transition: transform 420ms cubic-bezier(0.3, 1.4, 0.5, 1);
+  transition: transform var(--app-turn);
 }
 
 .cog:active svg {

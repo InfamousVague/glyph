@@ -139,7 +139,7 @@
   block-size: 1.875rem;
   border-radius: 50%;
   background: var(--app-paper);
-  border: 1.5px solid var(--app-ink);
+  border: var(--app-line) solid var(--app-ink);
 }
 
 .label {

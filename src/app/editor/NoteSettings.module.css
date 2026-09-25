@@ -132,7 +132,7 @@
   inline-size: 1.875rem;
   block-size: 1.875rem;
   border-radius: 50%;
-  border: 1.5px solid currentColor;
+  border: var(--app-line) solid currentColor;
   font-size: 18px;
 }
 
@@ -229,7 +229,7 @@
   inline-size: 100%;
   padding: var(--glacier-space-2) 0;
   border: none;
-  border-block-end: 1.5px solid var(--glacier-border-strong);
+  border-block-end: var(--app-line) solid var(--glacier-border-strong);
   background: none;
   color: var(--glacier-text);
   font: inherit;
@@ -261,7 +261,7 @@
 .viewChoice {
   display: inline-flex;
   padding: 3px;
-  border: 1.5px solid var(--glacier-border-strong);
+  border: var(--app-line) solid var(--glacier-border-strong);
   border-radius: var(--glacier-radius-full);
 }
 

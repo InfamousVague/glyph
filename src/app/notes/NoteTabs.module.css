@@ -158,7 +158,7 @@
  */
 .sidebar[data-on] {
   color: var(--glacier-text);
-  box-shadow: inset 0 0 0 1.5px var(--glacier-text);
+  box-shadow: inset 0 0 0 var(--app-line) var(--glacier-text);
 }
 
 .tabs {

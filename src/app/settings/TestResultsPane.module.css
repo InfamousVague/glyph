@@ -10,7 +10,7 @@
   gap: var(--glacier-space-3);
   padding: var(--glacier-space-4);
   border-radius: var(--glacier-radius-lg);
-  border: 1.5px solid var(--test-red);
+  border: var(--app-line) solid var(--test-red);
   background: color-mix(in oklch, var(--test-red) 9%, transparent);
 }
 

@@ -111,7 +111,7 @@ span.headButton:hover {
 
 /* The open chapter: a ring, as the sidebar marks the open note. */
 .row[data-current] {
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--app-ink) 55%, transparent);
+  box-shadow: inset 0 0 0 var(--app-line) color-mix(in oklch, var(--app-ink) 55%, transparent);
 }
 
 .number {

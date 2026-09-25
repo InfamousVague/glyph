@@ -239,7 +239,7 @@
   inline-size: var(--app-ring);
   block-size: var(--app-ring);
   padding: 0;
-  border: 1.5px solid var(--glacier-border-strong);
+  border: var(--app-line) solid var(--glacier-border-strong);
   border-radius: var(--glacier-radius-full);
   background: var(--glacier-bg);
   color: var(--glacier-text);
@@ -249,7 +249,7 @@
 }
 
 .round svg {
-  transition: transform 420ms cubic-bezier(0.3, 1.4, 0.5, 1);
+  transition: transform var(--app-turn);
 }
 
 .round:focus-visible {

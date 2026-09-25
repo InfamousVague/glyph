@@ -6,10 +6,10 @@
   gap: var(--glacier-space-1);
   margin: 0 0 var(--glacier-space-3);
   padding: var(--glacier-space-4);
-  border: 1.5px solid var(--app-ink);
+  border: var(--app-line) solid var(--app-ink);
   border-radius: var(--glacier-radius-lg);
   background: var(--app-paper-2);
-  animation: card-pop 420ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+  animation: card-pop var(--app-pop) both;
 }
 
 @keyframes card-pop {

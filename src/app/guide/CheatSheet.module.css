@@ -50,7 +50,7 @@
 }
 
 .find:focus-within {
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklch, currentColor 45%, transparent);
+  box-shadow: inset 0 0 0 var(--app-line) color-mix(in oklch, currentColor 45%, transparent);
 }
 
 .findIcon {

@@ -44,7 +44,7 @@
   min-inline-size: 0;
   block-size: 2.5rem;
   padding: 0 var(--glacier-space-3);
-  border: 1.5px solid var(--glacier-border-strong);
+  border: var(--app-line) solid var(--glacier-border-strong);
   border-radius: var(--glacier-radius-full);
   background: none;
   font: inherit;
