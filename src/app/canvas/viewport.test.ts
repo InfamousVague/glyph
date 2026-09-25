@@ -1,17 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { VIEW_SAMPLE } from '../../test/canvas.ts';
 import { parseCanvas, type Canvas } from './jsonCanvas.ts';
 import { clampScale, fitted, fittedTo, shown, zoomedAt } from './viewport.ts';
 
 /** The view maths the canvas moves by (canvas/CanvasView.tsx): fitting, zooming about a point, and what the screen shows. */
 
-const canvas = parseCanvas(`{
-  "nodes": [
-    { "id": "g", "type": "group", "x": -20, "y": -20, "width": 400, "height": 200, "label": "Before" },
-    { "id": "t", "type": "text", "x": 0, "y": 0, "width": 200, "height": 80, "text": "Words" },
-    { "id": "f", "type": "file", "x": 300, "y": 0, "width": 200, "height": 80, "file": "Launch week.md" },
-    { "id": "n", "type": "file", "x": 300, "y": 100, "width": 200, "height": 80, "file": "Nowhere.md" }
-  ]
-}`) as Canvas;
+const canvas = parseCanvas(VIEW_SAMPLE) as Canvas;
 
 describe('fitting the canvas to the screen', () => {
   it('scales the whole canvas into the screen with room around it, no larger than life, centred', () => {
@@ -20,13 +14,12 @@ describe('fitting the canvas to the screen', () => {
     expect(view.scale).toBe(1);
     expect(view.x).toBe((1000 - 520) / 2 + 20);
     expect(view.y).toBe((600 - 200) / 2 + 20);
+    // Too wide for 300 by 300: the cards' 520 fill the 236 between the room, and sit centred down the screen.
     const small = fitted(canvas, 300, 300);
     expect(small.scale).toBeCloseTo((300 - 64) / 520, 5);
+    expect(small.x - 20 * small.scale).toBeCloseTo(32, 5);
+    expect(small.y - 20 * small.scale).toBeCloseTo((300 - 200 * small.scale) / 2, 5);
     expect(fitted({ nodes: [], edges: [] }, 300, 300)).toEqual({ x: 32, y: 32, scale: 1 });
-  });
-
-  it('fits the canvas as it would fit one box round all its cards', () => {
-    expect(fitted(canvas, 300, 300)).toEqual(fittedTo({ x: -20, y: -20, width: 520, height: 200 }, 300, 300));
   });
 
   it('has room and life size for a screen with no size yet, and for a card with none', () => {

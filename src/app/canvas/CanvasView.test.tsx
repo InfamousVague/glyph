@@ -24,21 +24,10 @@ vi.mock('../core/images.ts', async (importOriginal) => ({
   pickImage: vi.fn(async () => 'picked.jpg'),
   saveImageFile: vi.fn(async () => 'dropped.jpg'),
 }));
+import { VIEW_SAMPLE } from '../../test/canvas.ts';
 import { parseCanvas, type Canvas } from './jsonCanvas.ts';
 
-const canvas = parseCanvas(`{
-  "nodes": [
-    { "id": "g", "type": "group", "x": -20, "y": -20, "width": 400, "height": 200, "label": "Before" },
-    { "id": "t", "type": "text", "x": 0, "y": 0, "width": 200, "height": 80, "text": "# Book it\\n\\n- [ ] The cabin", "color": "4" },
-    { "id": "f", "type": "file", "x": 300, "y": 0, "width": 200, "height": 80, "file": "Launch week.md", "subpath": "#^photos" },
-    { "id": "n", "type": "file", "x": 300, "y": 100, "width": 200, "height": 80, "file": "Nowhere.md" },
-    { "id": "l", "type": "link", "x": 0, "y": 100, "width": 200, "height": 80, "url": "https://attack.fm/glyph", "color": "#ff8800" }
-  ],
-  "edges": [
-    { "id": "e1", "fromNode": "t", "toNode": "f", "label": "then" },
-    { "id": "e2", "fromNode": "t", "toNode": "l", "toEnd": "none" }
-  ]
-}`) as Canvas;
+const canvas = parseCanvas(VIEW_SAMPLE) as Canvas;
 
 describe('a canvas drawn', () => {
   it('places every card where the file puts it, the group behind, and its words in the note’s own editor', () => {

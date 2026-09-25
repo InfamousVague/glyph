@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { show, typeInto, unmount } from '../../test/render.tsx';
 import { CanvasView } from './CanvasView.tsx';
+import { VIEW_SAMPLE } from '../../test/canvas.ts';
 import { parseCanvas, type Canvas } from './jsonCanvas.ts';
 
 /**
@@ -12,19 +13,7 @@ import { parseCanvas, type Canvas } from './jsonCanvas.ts';
  * is given where one matters.
  */
 
-const canvas = parseCanvas(`{
-  "nodes": [
-    { "id": "g", "type": "group", "x": -20, "y": -20, "width": 400, "height": 200, "label": "Before" },
-    { "id": "t", "type": "text", "x": 0, "y": 0, "width": 200, "height": 80, "text": "# Book it\\n\\n- [ ] The cabin", "color": "4" },
-    { "id": "f", "type": "file", "x": 300, "y": 0, "width": 200, "height": 80, "file": "Launch week.md", "subpath": "#^photos" },
-    { "id": "n", "type": "file", "x": 300, "y": 100, "width": 200, "height": 80, "file": "Nowhere.md" },
-    { "id": "l", "type": "link", "x": 0, "y": 100, "width": 200, "height": 80, "url": "https://attack.fm/glyph", "color": "#ff8800" }
-  ],
-  "edges": [
-    { "id": "e1", "fromNode": "t", "toNode": "f", "label": "then" },
-    { "id": "e2", "fromNode": "t", "toNode": "l", "toEnd": "none" }
-  ]
-}`) as Canvas;
+const canvas = parseCanvas(VIEW_SAMPLE) as Canvas;
 
 /** The view as the world wears it: its offset on the screen and its scale. */
 function viewOf(root: HTMLElement): { x: number; y: number; scale: number } {
@@ -66,6 +55,7 @@ const key = (init: KeyboardEventInit) =>
 afterEach(() => {
   unmount();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('two fingers and a wheel', () => {
@@ -201,6 +191,11 @@ describe('the keys, and the fit that follows the screen', () => {
     act(() => (shown.querySelector('button[aria-label^="Fit the whole canvas"]') as HTMLElement).click());
     resized(1000, 600);
     expect(viewOf(shown)).toEqual({ x: 260, y: 220, scale: 1 });
+    // A zoom to a card is a hand moving the view too: f centred on the screen stays centred when the screen changes.
+    act(() => shown.querySelector('[data-card="f"] [data-card-title]')!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(viewOf(shown)).toEqual({ x: (1000 - 200) / 2 - 300, y: (600 - 80) / 2, scale: 1 });
+    resized(400, 300);
+    expect(viewOf(shown)).toEqual({ x: 100, y: 260, scale: 1 });
   });
 });
 
@@ -241,7 +236,7 @@ describe('a card’s title and the minimap', () => {
     expect(shown.querySelector('svg[aria-label^="A map of the canvas"]')).toBeNull();
   });
 
-  it('grows the minimap on a press, moves the screen with a drag on it, and goes where a tap on the grown map lands', () => {
+  it('grows the minimap on a press that moves nothing, and a press on the canvas puts it back', () => {
     const shown = show(<CanvasView canvas={canvas} dark={false} />);
     const map = shown.querySelector('svg[aria-label^="A map of the canvas"]') as SVGSVGElement;
     const world = shown.querySelector('[class*="world"]') as HTMLElement;
@@ -254,43 +249,56 @@ describe('a card’s title and the minimap', () => {
     expect(map.getAttribute('data-big')).toBe('true');
     at('pointerup', 60, 40);
     expect(world.style.transform).toBe(before);
-    // A drag moves the screen's box by what the finger moved: the view goes the other way, by that in world units.
-    at('pointerdown', 60, 40);
-    at('pointermove', 61, 40);
-    at('pointermove', 80, 50);
-    at('pointerup', 80, 50);
-    expect(world.style.transform).not.toBe(before);
-    const moved = world.style.transform;
-    // A tap on the grown map goes there.
-    at('pointerdown', 30, 30);
-    at('pointerup', 30, 30);
-    expect(world.style.transform).not.toBe(moved);
     expect(map.getAttribute('data-big')).toBe('true');
     // A press on the canvas puts it back.
     act(() => pageOf(shown).dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 300, clientY: 300, buttons: 1 })));
     expect(map.hasAttribute('data-big')).toBe(false);
   });
 
-  it('reads a drag on the map by the size the map is on the page at that moment, so a grown map moves the view less', () => {
-    /** How far the view moves across for a 27px drag on a map this wide on the page. */
-    const movedBy = (mapWidth: number): number => {
-      const shown = show(<CanvasView canvas={canvas} dark={false} />);
-      const map = shown.querySelector('svg[aria-label^="A map of the canvas"]') as SVGSVGElement;
-      map.getBoundingClientRect = () => ({ left: 0, top: 0, width: mapWidth, height: (mapWidth * 2) / 3, right: mapWidth, bottom: (mapWidth * 2) / 3, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
-      const start = viewOf(shown).x;
-      const at = (type: string, x: number) => act(() => map.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: 40, buttons: type === 'pointerup' ? 0 : 1 })));
-      at('pointerdown', 60);
-      at('pointermove', 87);
-      at('pointerup', 87);
-      const moved = viewOf(shown).x - start;
-      unmount();
-      return moved;
+  it('moves the view by what a finger moved on the map, read at the map’s size on the page, and goes where a tap on the grown map lands', () => {
+    // The map is drawn from the view as a frame copies it: the frames are run by hand, so the map is drawn when the test says.
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => frames.push(callback));
+    const runFrames = () => act(() => frames.splice(0).forEach((frame) => frame(0)));
+    const shown = show(<CanvasView canvas={canvas} dark={false} />);
+    const page = pageOf(shown);
+    sized(page, 400, 300);
+    // Twice life size about the room's corner: the screen's box, -16,-16 and 200 by 150, is inside the cards, so the
+    // map frames the cards alone - their 520 by 200 in the 164 by 104 inside the map's room, 164/520 of a unit a pixel.
+    wheel(page, { deltaY: -100 * Math.log(2), ctrlKey: true, clientX: 32, clientY: 32 });
+    runFrames();
+    const zoomed = viewOf(shown);
+    expect(zoomed.scale).toBeCloseTo(2, 10);
+    const unit = 164 / 520;
+    const map = shown.querySelector('svg[aria-label^="A map of the canvas"]') as SVGSVGElement;
+    /** The map this wide on the page, as it is small (180) and grown (270). */
+    const onPage = (width: number) => {
+      map.getBoundingClientRect = () => ({ left: 0, top: 0, width, height: (width * 2) / 3, right: width, bottom: (width * 2) / 3, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
     };
-    const small = movedBy(180);
-    const grown = movedBy(270);
-    // The screen's box goes the way the finger went, so the view goes the other way.
-    expect(small).toBeLessThan(0);
-    expect(small / grown).toBeCloseTo(1.5, 5);
+    const at = (type: string, x: number, y = 40) => act(() => map.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, buttons: type === 'pointerup' ? 0 : 1 })));
+
+    // 27px on the small map is 27 of its units, 27/unit of the canvas; the view goes the other way by that, at its scale.
+    onPage(180);
+    at('pointerdown', 60);
+    at('pointermove', 87);
+    at('pointerup', 87);
+    const dragged = viewOf(shown);
+    expect(dragged.x).toBeCloseTo(zoomed.x - (27 / unit) * 2, 5);
+    expect(dragged.y).toBeCloseTo(zoomed.y, 5);
+    // Grown half again, the same 27px is a third fewer units.
+    onPage(270);
+    at('pointerdown', 60);
+    at('pointermove', 87);
+    at('pointerup', 87);
+    expect(viewOf(shown).x).toBeCloseTo(dragged.x - (27 / 1.5 / unit) * 2, 5);
+
+    // The middle of the grown map is the middle of the cards, 240,80, and the 400 by 300 screen is centred on it.
+    at('pointerdown', 135, 90);
+    at('pointerup', 135, 90);
+    const went = viewOf(shown);
+    expect(went.x).toBeCloseTo(200 - 240 * 2, 5);
+    expect(went.y).toBeCloseTo(150 - 80 * 2, 5);
+    expect(went.scale).toBeCloseTo(2, 10);
   });
 });
 
