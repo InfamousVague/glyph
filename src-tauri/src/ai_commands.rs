@@ -40,6 +40,10 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::llm::command::{self, CommandIntent};
 use crate::llm::model::{self, LlmSpec};
+// A lock some earlier command panicked while holding is recovered, not
+// obeyed; see `crate::lock`.
+use crate::lock::lock;
+use crate::model_downloads;
 
 #[cfg(not(target_os = "ios"))]
 use crate::llm::engine::{Llm, Request};
@@ -47,7 +51,7 @@ use crate::llm::engine::{Llm, Request};
 use std::sync::OnceLock;
 
 #[cfg(target_os = "ios")]
-const NOT_ON_IOS: &str = "Formatting on the phone is not available on iOS yet.";
+use crate::unsupported::{on_ios, FORMATTING};
 
 /// What the page asks for.
 #[derive(Debug, Clone, Deserialize)]
@@ -129,14 +133,6 @@ pub struct ModelInfo {
     pub path: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ModelProgress {
-    id: String,
-    received_bytes: u64,
-    total_bytes: u64,
-}
-
 #[derive(Default)]
 pub struct AiState {
     /// Started on the first generation, never before: a launch pays nothing
@@ -162,12 +158,6 @@ impl AiState {
             flag.store(true, Ordering::Relaxed);
         }
     }
-}
-
-/// Recovers a guard from a lock some earlier command panicked while holding;
-/// the same reasoning as `NotesStore::lock`.
-fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// Hands the state to Tauri. Called once, from `setup`. Touches nothing.
@@ -208,16 +198,15 @@ fn known(id: &str) -> Result<&'static LlmSpec, String> {
 /// The page decides what fits.
 #[tauri::command]
 pub fn ai_device(app: AppHandle) -> crate::llm::device::Device {
-    let dir = if cfg!(target_os = "ios") { None } else { crate::capture_commands::models_dir(&app).ok() };
-    crate::llm::device::read(dir.as_deref())
+    crate::llm::device::read(model_downloads::models_here(&app).as_deref())
 }
 
 /// The catalogue, with what is on this phone.
 #[tauri::command]
 pub fn ai_models(app: AppHandle) -> Vec<ModelInfo> {
-    // No data directory (or iOS) is every model absent - and NOT a relative
-    // path, which would answer for whatever sits in the working directory.
-    let dir = if cfg!(target_os = "ios") { None } else { crate::capture_commands::models_dir(&app).ok() };
+    // No data directory (or iOS) is every model absent: see
+    // `model_downloads::models_here`.
+    let dir = model_downloads::models_here(&app);
     model::CATALOGUE.iter().map(|spec| info(dir.as_deref(), spec)).collect()
 }
 
@@ -227,28 +216,19 @@ pub fn ai_models(app: AppHandle) -> Vec<ModelInfo> {
 pub async fn ai_fetch_model(app: AppHandle, state: State<'_, AiState>, id: String) -> Result<ModelInfo, String> {
     let spec = known(&id)?;
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, spec);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(FORMATTING, (app, state, spec));
     #[cfg(not(target_os = "ios"))]
     {
-        use tauri::Emitter;
-        let dir = crate::capture_commands::models_dir(&app)?;
-        let _one_download = state.fetching.lock().await;
-        let emitter = app.clone();
-        let mirrors = model::mirrors_with(spec, &crate::ota::services(&app).model_mirrors);
-        let name = spec.id.to_string();
-        crate::whisper::model::fetch(&dir, &spec.spec, &mirrors, move |received, total| {
-            let _ = emitter.emit(
-                "ai://model-progress",
-                ModelProgress {
-                    id: name.clone(),
-                    received_bytes: received,
-                    total_bytes: total,
-                },
-            );
-        })
+        let dir = crate::paths::models_dir(&app)?;
+        model_downloads::fetch_reporting(
+            &app,
+            &dir,
+            &state.fetching,
+            &spec.spec,
+            |preferred| model::mirrors_with(spec, preferred),
+            "ai://model-progress",
+            Some(spec.id),
+        )
         .await?;
         Ok(info(Some(&dir), spec))
     }
@@ -260,13 +240,10 @@ pub async fn ai_fetch_model(app: AppHandle, state: State<'_, AiState>, id: Strin
 pub async fn ai_delete_model(app: AppHandle, state: State<'_, AiState>, id: String) -> Result<ModelInfo, String> {
     let spec = known(&id)?;
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, spec);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(FORMATTING, (app, state, spec));
     #[cfg(not(target_os = "ios"))]
     {
-        let dir = crate::capture_commands::models_dir(&app)?;
+        let dir = crate::paths::models_dir(&app)?;
         // A run on this model ends, and the engine lets go of the file, before
         // it is removed. Unlinking a mapped file is safe on Android and macOS
         // either way; this is about giving the space back.
@@ -274,13 +251,8 @@ pub async fn ai_delete_model(app: AppHandle, state: State<'_, AiState>, id: Stri
         if let Some(llm) = state.llm.get() {
             llm.unload();
         }
-        let path = crate::whisper::model::path_in(&dir, &spec.spec);
-        for candidate in [path.clone(), path.with_extension("gguf.part")] {
-            match std::fs::remove_file(&candidate) {
-                Ok(()) => {}
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                Err(e) => return Err(format!("cannot remove {}: {e}", candidate.display())),
-            }
+        for candidate in [crate::whisper::model::path_in(&dir, &spec.spec), crate::whisper::model::part_path(&dir, &spec.spec)] {
+            crate::fsx::remove_file_if_present(&candidate).map_err(|e| format!("cannot remove {}: {e}", candidate.display()))?;
         }
         Ok(info(Some(&dir), spec))
     }
@@ -303,14 +275,11 @@ pub async fn ai_generate(
 ) -> Result<GenerateOutput, String> {
     let spec = known(&request.model)?;
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, spec);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(FORMATTING, (app, state, spec));
     #[cfg(not(target_os = "ios"))]
     {
         use tauri::Emitter;
-        let dir = crate::capture_commands::models_dir(&app)?;
+        let dir = crate::paths::models_dir(&app)?;
         let status = crate::whisper::model::status(&dir, &spec.spec);
         if !status.present {
             return Err(format!("The model {} is not on this phone yet.", spec.id));
@@ -379,7 +348,7 @@ pub async fn ai_infer_command(
     }
     #[cfg(not(target_os = "ios"))]
     {
-        let dir = crate::capture_commands::models_dir(&app)?;
+        let dir = crate::paths::models_dir(&app)?;
         let preferred = model::find(&request.preferred_model)
             .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
         let fallback = model::find("qwen3.5-2b")

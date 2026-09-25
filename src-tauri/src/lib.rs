@@ -2,6 +2,17 @@
 // crate owns what has to outlive it or reach past it: the notes store, the
 // Taptic Engine, and (later) the voice capture that runs without the webview.
 
+// Building blocks every other module shares, each written once. See each header.
+// The poison-tolerant lock, Tauri-free so whisper/ and llm/ can use it.
+mod lock;
+// Whole-file writes, JSON with a fallback, removals where gone is done. Tauri-free too.
+mod fsx;
+// Where the app keeps things, and the four directory names Kotlin shares.
+mod paths;
+// What iOS does not have, and the one sentence each such command answers with there.
+#[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+mod unsupported;
+
 // The notes themselves. `pub`, and free of Tauri types, so a caller with no
 // Tauri in its process could reach it over JNI - DESIGN 6.1's capture service,
 // which did not ship in that form (capture runs in the page; DESIGN 13). The
@@ -17,6 +28,10 @@ mod commands;
 // On-device transcription. `pub` and Tauri-free for the same reason as `store`,
 // though today only the capture commands drive it. See whisper/mod.rs's header.
 pub mod whisper;
+
+// The Tauri half of a model download, which both doors below share: where
+// models live on this device, the progress event, one download at a time.
+mod model_downloads;
 
 // The webview's door to live dictation: the model download, a capture's
 // start/push/stop, and the events that carry text back. See its header for the

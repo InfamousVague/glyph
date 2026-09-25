@@ -253,7 +253,7 @@ impl Llm {
     /// job first (its flag) for this to be quick.
     pub fn shutdown(&self) {
         let _ = self.jobs.send(Message::Shutdown);
-        let thread = self.thread.lock().unwrap_or_else(|p| p.into_inner()).take();
+        let thread = crate::lock::lock(&self.thread).take();
         if let Some(thread) = thread {
             let _ = thread.join();
         }

@@ -14,10 +14,9 @@
 //! `-`, then one image extension. A name comes from the page, and one that is
 //! not that - a slash, a `..` - must never name a file to read or delete.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::Serialize;
-use tauri::Manager;
 
 /// The URI scheme the page loads pictures through.
 pub const SCHEME: &str = "img";
@@ -29,13 +28,13 @@ const MAX_BYTES: u64 = 25 * 1024 * 1024;
 
 const EXTENSIONS: [&str; 4] = ["jpg", "jpeg", "png", "webp"];
 
-/// Whether `name` is a picture name this module will turn into a path.
+/// Whether `name` is a picture name this module will turn into a path: a
+/// plain id (`fsx::plain_id`) of at most 64 characters - a picture's stem is a
+/// uuid, so it never needed the 128 a note id may have, and a name that was
+/// refused before must stay refused - then one image extension.
 pub fn valid_name(name: &str) -> bool {
     let Some((stem, extension)) = name.rsplit_once('.') else { return false };
-    !stem.is_empty()
-        && stem.len() <= 64
-        && stem.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-        && EXTENSIONS.contains(&extension)
+    stem.len() <= 64 && crate::fsx::plain_id(stem) && EXTENSIONS.contains(&extension)
 }
 
 fn content_type(name: &str) -> &'static str {
@@ -67,11 +66,6 @@ pub fn referenced(body: &str) -> Vec<String> {
         rest = &after[end..];
     }
     names
-}
-
-/// `<app_data_dir>/images`, where pictures live. Shared with the reset.
-pub(crate) fn images_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<PathBuf> {
-    app.path().app_data_dir().ok().map(|dir| dir.join("images"))
 }
 
 /// Moves a picked picture from `picked` into `images` under a fresh name, and
@@ -136,29 +130,17 @@ fn decode(text: &str) -> Result<Vec<u8>, String> {
 }
 
 /// Keeps a picture's bytes in `images` under a fresh name, and answers the
-/// name. The extension comes from the bytes. Written to a hidden `.part` file
-/// and renamed, so a picture is whole or not there; a `.part` is never a valid
-/// name, so the scheme never serves one half written.
+/// name. The extension comes from the bytes. Written whole or not at all
+/// (`fsx::write_atomically`), through a hidden temporary file that is never a
+/// valid name, so the scheme never serves one half written.
 pub fn keep(images: &Path, bytes: &[u8]) -> Result<String, String> {
     if bytes.len() as u64 > MAX_BYTES {
         return Err("That picture is too big to add.".to_string());
     }
     let extension = kind(bytes).ok_or_else(|| "That is not a picture Glyph can add.".to_string())?;
     std::fs::create_dir_all(images).map_err(|e| format!("There is no room to keep pictures: {e}"))?;
-    let id = uuid::Uuid::new_v4();
-    let name = format!("{id}.{extension}");
-    let part = images.join(format!(".{id}.part"));
-    let written = (|| {
-        use std::io::Write as _;
-        let mut file = std::fs::File::create(&part)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        std::fs::rename(&part, images.join(&name))
-    })();
-    if let Err(e) = written {
-        let _ = std::fs::remove_file(&part);
-        return Err(format!("The picture could not be saved: {e}"));
-    }
+    let name = format!("{}.{extension}", uuid::Uuid::new_v4());
+    crate::fsx::write_atomically(&images.join(&name), bytes).map_err(|e| format!("The picture could not be saved: {e}"))?;
     Ok(name)
 }
 
@@ -179,11 +161,7 @@ pub fn place(images: &Path, name: &str, base64: &str) -> Result<(), String> {
         return Err("That picture is not what its name says.".to_string());
     }
     std::fs::create_dir_all(images).map_err(|e| format!("There is no room to keep pictures: {e}"))?;
-    let part = images.join(format!(".{name}.part"));
-    std::fs::write(&part, &bytes).and_then(|()| std::fs::rename(&part, images.join(name))).map_err(|e| {
-        let _ = std::fs::remove_file(&part);
-        format!("The picture could not be saved: {e}")
-    })
+    crate::fsx::write_atomically(&images.join(name), &bytes).map_err(|e| format!("The picture could not be saved: {e}"))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -195,12 +173,8 @@ pub struct SavedImage {
 /// and answers its name for `![](image/<name>)`. Native generation 8.
 #[tauri::command]
 pub fn save_image(app: tauri::AppHandle, path: String) -> Result<SavedImage, String> {
-    let picked = app
-        .path()
-        .app_cache_dir()
-        .map(|dir| dir.join("picked"))
-        .map_err(|_| "That picture could not be added.".to_string())?;
-    let images = images_dir(&app).ok_or_else(|| "There is no room to keep pictures.".to_string())?;
+    let picked = crate::paths::picked_dir(&app).map_err(|_| "That picture could not be added.".to_string())?;
+    let images = crate::paths::images_dir(&app).map_err(|_| "There is no room to keep pictures.".to_string())?;
     adopt(&picked, &images, Path::new(&path)).map(|name| SavedImage { name })
 }
 
@@ -210,7 +184,7 @@ pub fn save_image(app: tauri::AppHandle, path: String) -> Result<SavedImage, Str
 #[tauri::command(async)]
 pub fn save_image_data(app: tauri::AppHandle, base64: String) -> Result<SavedImage, String> {
     let bytes = decode(&base64)?;
-    let images = images_dir(&app).ok_or_else(|| "There is no room to keep pictures.".to_string())?;
+    let images = crate::paths::images_dir(&app).map_err(|_| "There is no room to keep pictures.".to_string())?;
     keep(&images, &bytes).map(|name| SavedImage { name })
 }
 
@@ -218,7 +192,7 @@ pub fn save_image_data(app: tauri::AppHandle, base64: String) -> Result<SavedIma
 /// does. Best effort: a picture that cannot be removed is left, and the delete
 /// it follows has already happened.
 pub fn remove_unreferenced<R: tauri::Runtime>(app: &tauri::AppHandle<R>, store: &crate::library::Library, body: &str) {
-    let Some(dir) = images_dir(app) else { return };
+    let Ok(dir) = crate::paths::images_dir(app) else { return };
     for name in referenced(body) {
         if store.image_in_use(&name).unwrap_or(true) {
             continue;
@@ -233,7 +207,7 @@ pub fn serve<R: tauri::Runtime>(app: &tauri::AppHandle<R>, request: &tauri::http
     use tauri::http::{header, Response, StatusCode};
     let name = request.uri().path().trim_start_matches('/');
     let bytes = valid_name(name)
-        .then(|| images_dir(app))
+        .then(|| crate::paths::images_dir(app).ok())
         .flatten()
         .and_then(|dir| std::fs::read(dir.join(name)).ok());
     let builder = Response::builder().header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
@@ -252,6 +226,7 @@ pub fn serve<R: tauri::Runtime>(app: &tauri::AppHandle<R>, request: &tauri::http
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn temp(label: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("glyph-images-{label}-{}", uuid::Uuid::new_v4()));
@@ -300,7 +275,7 @@ mod tests {
             assert_eq!(std::fs::read(images.join(&name)).unwrap(), png);
         }
         let left: Vec<_> = std::fs::read_dir(&images).unwrap().map(|e| e.unwrap().file_name()).collect();
-        assert_eq!(left.len(), 2, "no .part left behind: {left:?}");
+        assert_eq!(left.len(), 2, "no temporary file left behind: {left:?}");
 
         // Not base64, not a picture, and too big: refused, and nothing written.
         assert!(decode("not base64 at all!").is_err());

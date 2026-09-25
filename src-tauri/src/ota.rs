@@ -71,11 +71,20 @@
 //! list back. README "Moving to another domain" is the procedure.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tauri::http::{header, Response, StatusCode};
 use tauri::{AppHandle, Manager, Runtime, State};
+
+// A poisoned lock is recovered (`crate::lock`): every write below is a whole
+// file, so a panic mid-command leaves either the old state or the new one,
+// never half.
+use crate::fsx;
+use crate::lock::lock;
+
+#[cfg(target_os = "ios")]
+use crate::unsupported::{on_ios, APK, UPDATES};
 
 /// What this binary provides to a bundle. See the module header.
 ///
@@ -394,29 +403,16 @@ pub fn install<R: Runtime>(app: &tauri::App<R>) {
     });
 }
 
-/// A poisoned lock is recovered: every write below is a whole file, so a panic
-/// mid-command leaves either the old state or the new one, never half.
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
 // ---- disk -----------------------------------------------------------------------
 
 fn root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("no app data directory: {e}"))?
-        .join("ota");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    let dir = crate::paths::ota_dir(app)?;
+    fsx::make_dir(&dir)?;
     Ok(dir)
 }
 
 fn read_stored(root: &Path) -> Stored {
-    std::fs::read(root.join("state.json"))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
+    fsx::read_json_or(&root.join("state.json"), Stored::default())
 }
 
 /// Around every read-modify-write of `installed.json` and `sources.json`. Those
@@ -426,23 +422,13 @@ fn read_stored(root: &Path) -> Stored {
 /// check can both read the old file and the older write can land last.
 static FILES: Mutex<()> = Mutex::new(());
 
-/// Write `name` under `root` via a uniquely named temporary file and a rename,
-/// so a process killed mid-write leaves the previous file rather than a
-/// truncated one, and two writers at once never share - and garble - one
-/// temporary file.
-fn write_atomically(root: &Path, name: &str, bytes: &[u8]) -> std::io::Result<()> {
-    let temp = root.join(format!(".{name}.{}.tmp", uuid::Uuid::new_v4().simple()));
-    std::fs::write(&temp, bytes)?;
-    std::fs::rename(&temp, root.join(name)).inspect_err(|_| {
-        let _ = std::fs::remove_file(&temp);
-    })
-}
-
 /// A truncated state reads back as "no bundle, nothing quarantined", which is
-/// why this goes through `write_atomically`.
+/// why this goes through `fsx::write_atomically`: a process killed mid-write
+/// leaves the previous file rather than a truncated one, and two writers at
+/// once never share - and garble - one temporary file.
 fn write_stored(root: &Path, stored: &Stored) -> Result<(), String> {
     let bytes = serde_json::to_vec_pretty(stored).map_err(|e| e.to_string())?;
-    write_atomically(root, "state.json", &bytes).map_err(|e| format!("cannot write OTA state: {e}"))
+    fsx::write_atomically(&root.join("state.json"), &bytes).map_err(|e| format!("cannot write OTA state: {e}"))
 }
 
 /// A build id is 14 digits and nothing else: it becomes a directory name.
@@ -489,10 +475,7 @@ fn compiled_sources() -> Vec<String> {
 }
 
 fn read_known(root: &Path) -> Known {
-    std::fs::read(root.join("sources.json"))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
+    fsx::read_json_or(&root.join("sources.json"), Known::default())
 }
 
 /// The remembered sources first, then the compiled ones, without repeats. The
@@ -547,7 +530,7 @@ fn validate(manifest: &Manifest) -> Result<(), String> {
 
 /// A bundle directory's manifest, if the directory is complete.
 fn bundle_manifest(dir: &Path) -> Option<Manifest> {
-    let manifest: Manifest = serde_json::from_slice(&std::fs::read(dir.join(MANIFEST_FILE)).ok()?).ok()?;
+    let manifest: Manifest = fsx::read_json(&dir.join(MANIFEST_FILE))?;
     validate(&manifest).ok()?;
     let complete = manifest.files.iter().all(|f| {
         std::fs::metadata(dir.join(&f.path))
@@ -591,26 +574,17 @@ struct Installed {
 
 fn record_installed(root: &Path, build: &str) {
     let _files = lock(&FILES);
-    let had = std::fs::read(root.join("installed.json"))
-        .ok()
-        .and_then(|b| serde_json::from_slice::<Installed>(&b).ok())
-        .and_then(|i| i.build)
-        .as_deref()
-        .and_then(build_number)
-        .unwrap_or(0);
+    let had = read_installed(root).as_deref().and_then(build_number).unwrap_or(0);
     if build_number(build).unwrap_or(0) <= had {
         return;
     }
     if let Ok(bytes) = serde_json::to_vec(&Installed { build: Some(build.to_string()) }) {
-        let _ = write_atomically(root, "installed.json", &bytes);
+        let _ = fsx::write_atomically(&root.join("installed.json"), &bytes);
     }
 }
 
 fn read_installed(root: &Path) -> Option<String> {
-    std::fs::read(root.join("installed.json"))
-        .ok()
-        .and_then(|b| serde_json::from_slice::<Installed>(&b).ok())
-        .and_then(|i| i.build)
+    fsx::read_json_or(&root.join("installed.json"), Installed::default()).build
 }
 
 /// The scheme's URL prefix on this platform. Android and Windows route custom
@@ -932,7 +906,7 @@ fn remember(root: &Path, manifest: &Manifest) {
     }
     let next = Known { sources: manifest.sources.clone(), services: manifest.services.clone(), build: Some(manifest.build.clone()) };
     if let Ok(bytes) = serde_json::to_vec_pretty(&next) {
-        let _ = write_atomically(root, "sources.json", &bytes);
+        let _ = fsx::write_atomically(&root.join("sources.json"), &bytes);
     }
 }
 
@@ -950,10 +924,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 #[tauri::command]
 pub async fn ota_check<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>) -> Result<CheckResult, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state);
-        Err("Over-the-air updates are Android-only.".to_string())
-    }
+    return on_ios(UPDATES, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
         if STAGING {
@@ -1055,7 +1026,7 @@ pub struct Peek {
 #[cfg(not(target_os = "ios"))]
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 pub fn peek(root: &Path) -> Result<Peek, String> {
-    std::fs::create_dir_all(root).map_err(|e| format!("cannot create {}: {e}", root.display()))?;
+    fsx::make_dir(root)?;
     tauri::async_runtime::block_on(async {
         let client = client()?;
         let (source, manifest) = find_manifest(&client, &effective_sources(&read_known(root))).await?;
@@ -1204,10 +1175,7 @@ struct ApkProgress {
 #[tauri::command]
 pub async fn ota_fetch_apk<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>) -> Result<String, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state);
-        Err("There is no APK on iOS.".to_string())
-    }
+    return on_ios(APK, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
         use std::io::Write;
@@ -1241,12 +1209,8 @@ pub async fn ota_fetch_apk<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaSt
             let file = safe_relative(&info.url).filter(|f| !f.contains('/')).ok_or("bad APK name")?;
             format!("{base}/{file}")
         };
-        let dir = app
-            .path()
-            .app_cache_dir()
-            .map_err(|e| format!("no cache directory: {e}"))?
-            .join("updates");
-        std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+        let dir = crate::paths::updates_dir(&app)?;
+        fsx::make_dir(&dir)?;
         let target = dir.join(format!("glyph-{}.apk", info.version_code));
 
         if std::fs::read(&target).map(|b| sha256_hex(&b) == info.sha256.to_ascii_lowercase()).unwrap_or(false) {

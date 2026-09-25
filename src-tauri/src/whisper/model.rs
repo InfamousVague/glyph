@@ -94,8 +94,17 @@ pub const MIRRORS: [&str; 2] = [
 /// binary, so a mirror only ever decides where bytes come from, never which
 /// bytes are accepted.
 pub fn mirrors_with(preferred: &[String]) -> Vec<String> {
+    mirrors(preferred, MIRRORS)
+}
+
+/// `preferred` then `compiled`, as one list of mirrors to try in order:
+/// trailing slashes trimmed, empty entries dropped, and no mirror twice. The
+/// rule both catalogues follow (this module's [`MIRRORS`], and the formatting
+/// models' own list in `llm::model`), so they cannot come to disagree about
+/// what "the same mirror" means.
+pub fn mirrors<'a>(preferred: &'a [String], compiled: impl IntoIterator<Item = &'a str>) -> Vec<String> {
     let mut all: Vec<String> = Vec::new();
-    for mirror in preferred.iter().map(String::as_str).chain(MIRRORS) {
+    for mirror in preferred.iter().map(String::as_str).chain(compiled) {
         let mirror = mirror.trim_end_matches('/');
         if !mirror.is_empty() && !all.iter().any(|seen| seen == mirror) {
             all.push(mirror.to_string());
@@ -118,9 +127,31 @@ pub struct ModelStatus {
     pub bytes: u64,
 }
 
+impl ModelStatus {
+    /// `spec`, not on this device and with nowhere it would be: the answer on
+    /// a platform with no models directory, which is iOS, or one whose data
+    /// directory cannot be resolved.
+    pub fn absent(spec: &ModelSpec) -> ModelStatus {
+        ModelStatus {
+            present: false,
+            name: spec.file.to_string(),
+            path: String::new(),
+            bytes: spec.bytes,
+        }
+    }
+}
+
 /// Where `spec` lives (or will live) in `dir`.
 pub fn path_in(dir: &Path, spec: &ModelSpec) -> PathBuf {
     dir.join(spec.file)
+}
+
+/// Where a download of `spec` into `dir` writes until every byte hashes right:
+/// `<file>.part`, beside the file it becomes. Named here once, so that what
+/// deletes a model (`ai_delete_model`) removes the same partial file the
+/// download writes, whatever the file's extension.
+pub fn part_path(dir: &Path, spec: &ModelSpec) -> PathBuf {
+    dir.join(format!("{}.part", spec.file))
 }
 
 /// Whether `spec` is present in `dir`, by name and size. See the module header
@@ -171,7 +202,7 @@ pub async fn fetch(
     if current.present {
         return Ok(current);
     }
-    std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    crate::fsx::make_dir(dir)?;
 
     // A connect timeout and a READ timeout, never a total one: 190 MB over a
     // slow connection is legitimately minutes, but thirty seconds with no byte
@@ -269,7 +300,7 @@ async fn download(
     use sha2::{Digest, Sha256};
     use std::io::{Seek, SeekFrom, Write};
 
-    let part = dir.join(format!("{}.part", spec.file));
+    let part = part_path(dir, spec);
     // Removes the partial file on every exit that is not the rename. A `.part`
     // left behind is harmless to `status` (wrong name), but it is 60 MB of a
     // phone's storage that nothing will ever read.
@@ -494,6 +525,15 @@ mod tests {
         assert!(!answer.present, "a truncated download must not read as a model");
         assert_eq!(answer.name, "ggml-base.en-q5_1.bin");
         assert_eq!(answer.bytes, 59_721_011);
+        let absent = ModelStatus::absent(&ACTIVE);
+        assert_eq!(absent, ModelStatus { path: String::new(), ..answer }, "absent is the same answer with nowhere to be");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_download_writes_beside_the_file_it_becomes() {
+        let dir = Path::new("/models");
+        assert_eq!(part_path(dir, &ACTIVE), Path::new("/models/ggml-base.en-q5_1.bin.part"));
+        assert_eq!(part_path(dir, &REFINE).parent(), path_in(dir, &REFINE).parent());
     }
 }

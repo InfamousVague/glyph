@@ -11,6 +11,9 @@
 
 use serde::Serialize;
 
+#[cfg(target_os = "ios")]
+use crate::unsupported::{on_ios, LINK_PREVIEWS};
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Preview {
@@ -29,63 +32,61 @@ const MAX_BYTES: usize = 512 * 1024;
 /// The longest title or summary kept, in characters.
 const MAX_CHARS: usize = 300;
 
-#[cfg(target_os = "ios")]
-#[tauri::command]
-pub async fn link_preview(_url: String) -> Result<Preview, String> {
-    Err("Link previews are not available on iOS yet.".into())
-}
-
-#[cfg(not(target_os = "ios"))]
 #[tauri::command]
 pub async fn link_preview(url: String) -> Result<Preview, String> {
-    let parsed = reqwest::Url::parse(url.trim()).map_err(|_| "That isn't a web address.".to_string())?;
-    if !matches!(parsed.scheme(), "http" | "https") {
-        return Err("Only web pages have previews.".into());
-    }
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(8))
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .user_agent("Mozilla/5.0 (compatible; GlyphLinkPreview/1.0)")
-        .build()
-        .map_err(|e| format!("cannot make an HTTP client: {e}"))?;
-    let mut response = client
-        .get(parsed.clone())
-        .header("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1")
-        .send()
-        .await
-        .map_err(|_| "The page couldn't be reached.".to_string())?;
-    if !response.status().is_success() {
-        return Err(format!("The page answered {}.", response.status().as_u16()));
-    }
-    let html_like = response
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_none_or(|v| v.contains("html"));
-    let site_host = response.url().host_str().map(str::to_string);
-    let mut preview = Preview { url: response.url().to_string(), ..Preview::default() };
-    if html_like {
-        let mut body = Vec::new();
-        while body.len() < MAX_BYTES {
-            match response.chunk().await {
-                Ok(Some(chunk)) => {
-                    body.extend_from_slice(&chunk);
-                    // The head is all that's wanted: stop once it has closed.
-                    if contains_ci(&body, b"</head>") {
-                        break;
-                    }
-                }
-                Ok(None) => break,
-                Err(_) => break,
-            }
+    #[cfg(target_os = "ios")]
+    return on_ios(LINK_PREVIEWS, url);
+    #[cfg(not(target_os = "ios"))]
+    {
+        let parsed = reqwest::Url::parse(url.trim()).map_err(|_| "That isn't a web address.".to_string())?;
+        if !matches!(parsed.scheme(), "http" | "https") {
+            return Err("Only web pages have previews.".into());
         }
-        body.truncate(MAX_BYTES);
-        preview = read_head(&String::from_utf8_lossy(&body), preview);
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(8))
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .user_agent("Mozilla/5.0 (compatible; GlyphLinkPreview/1.0)")
+            .build()
+            .map_err(|e| format!("cannot make an HTTP client: {e}"))?;
+        let mut response = client
+            .get(parsed.clone())
+            .header("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1")
+            .send()
+            .await
+            .map_err(|_| "The page couldn't be reached.".to_string())?;
+        if !response.status().is_success() {
+            return Err(format!("The page answered {}.", response.status().as_u16()));
+        }
+        let html_like = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .is_none_or(|v| v.contains("html"));
+        let site_host = response.url().host_str().map(str::to_string);
+        let mut preview = Preview { url: response.url().to_string(), ..Preview::default() };
+        if html_like {
+            let mut body = Vec::new();
+            while body.len() < MAX_BYTES {
+                match response.chunk().await {
+                    Ok(Some(chunk)) => {
+                        body.extend_from_slice(&chunk);
+                        // The head is all that's wanted: stop once it has closed.
+                        if contains_ci(&body, b"</head>") {
+                            break;
+                        }
+                    }
+                    Ok(None) => break,
+                    Err(_) => break,
+                }
+            }
+            body.truncate(MAX_BYTES);
+            preview = read_head(&String::from_utf8_lossy(&body), preview);
+        }
+        if preview.site.is_none() {
+            preview.site = site_host.map(|h| h.trim_start_matches("www.").to_string());
+        }
+        Ok(preview)
     }
-    if preview.site.is_none() {
-        preview.site = site_host.map(|h| h.trim_start_matches("www.").to_string());
-    }
-    Ok(preview)
 }
 
 #[cfg_attr(target_os = "ios", allow(dead_code))]

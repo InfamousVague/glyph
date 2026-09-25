@@ -50,13 +50,10 @@ pub fn apply_command_mutation(
     store: tauri::State<'_, NotesStore>,
     request: ApplyCommandRequest,
 ) -> std::result::Result<CommandMutationResult, String> {
-    let plain_id = |id: &str| {
-        !id.is_empty()
-            && id.len() <= 128
-            && id
-                .chars()
-                .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
-    };
+    // The crate's one rule for an id from the page: the note id may become a
+    // recording's or a sidecar's file name, and the mutation id is held to the
+    // same bound.
+    use crate::fsx::plain_id;
     if !plain_id(&request.mutation_id) || !plain_id(&request.note_id) {
         return Err("a command mutation needs plain bounded ids".into());
     }
@@ -151,18 +148,18 @@ impl NotesStore {
     /// committed the row or not. So the real choice is between recovering the
     /// guard and refusing every note operation for the rest of the process's
     /// life because one of them once panicked - which is how an app goes from
-    /// having a bug to being a brick.
+    /// having a bug to being a brick. The recovery itself is `crate::lock`'s.
     pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, Library> {
-        self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        crate::lock::lock(&self.0)
     }
 }
 
 /// Opens the store and hands it to Tauri's managed state. Called once, from
 /// `setup`.
 ///
-/// This is where `app_data_dir()` is resolved, and it is the ONLY place in the
-/// crate that does: `store::open` takes a path precisely so that this
-/// resolution - which needs an `AppHandle`, and therefore a running Tauri -
+/// `app_data_dir()` is resolved here through `paths`, which is the only module
+/// in the crate that resolves it: `store::open` takes a path precisely so that
+/// this resolution - which needs an `AppHandle`, and therefore a running Tauri -
 /// stays on this side of the seam.
 ///
 /// The directory is created rather than assumed. On a first launch nothing has
@@ -176,19 +173,12 @@ impl NotesStore {
 /// silently dropping what they then write is worse than not starting - a crash
 /// is at least a fact they can act on.
 pub fn install(app: &tauri::App) -> std::result::Result<(), String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("no app data directory to keep notes in: {e}"))?;
-    std::fs::create_dir_all(&dir)
-        .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    let dir = crate::paths::data_dir(app)?;
+    crate::fsx::make_dir(&dir)?;
     let library = open_library(&dir)?;
     app.manage(NotesStore(Mutex::new(library)));
     Ok(())
 }
-
-/// The library folder in the app's own storage (docs/LIBRARY.md, phase 1).
-const LIBRARY_DIR: &str = "Library";
 
 /// Opens the library, and the first time, moves every note of the old
 /// database into it as a file. The old database is kept, renamed
@@ -197,7 +187,8 @@ const LIBRARY_DIR: &str = "Library";
 /// it was, and the next launch finishes it, because a note already in the
 /// library is never written twice.
 fn open_library(dir: &std::path::Path) -> std::result::Result<Library, String> {
-    let mut library = Library::open_fs(&dir.join(LIBRARY_DIR)).map_err(|e| e.to_string())?;
+    // The library folder in the app's own storage (docs/LIBRARY.md, phase 1).
+    let mut library = Library::open_fs(&dir.join(crate::paths::LIBRARY)).map_err(|e| e.to_string())?;
     let old = dir.join(DB_FILE);
     if old.exists() && !library.moved_in() {
         let store = Store::open(&old).map_err(|e| e.to_string())?;
@@ -228,7 +219,7 @@ pub fn library_reveal(app: tauri::AppHandle) -> std::result::Result<(), String> 
     #[cfg(desktop)]
     {
         use tauri_plugin_opener::OpenerExt;
-        let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join(LIBRARY_DIR);
+        let dir = crate::paths::library_dir(&app)?;
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
     }
@@ -311,16 +302,10 @@ pub fn delete_note(
         crate::images::remove_unreferenced(&app, &store, &body);
     }
     drop(store);
-    if let Some(file) = recordings_dir(&app).and_then(|dir| recording_file(&dir, &id)) {
+    if let Some(file) = crate::paths::recordings_dir(&app).ok().and_then(|dir| recording_file(&dir, &id)) {
         let _ = std::fs::remove_file(file);
     }
     Ok(removed)
-}
-
-/// `<app_data_dir>/recordings`, where the capture layer keeps each spoken
-/// note's audio as `<id>.wav`.
-pub fn recordings_dir(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_data_dir().ok().map(|dir| dir.join("recordings"))
 }
 
 /// Keeps a spoken note's recording length and phrases (`recordingMs` with
@@ -359,23 +344,19 @@ pub fn store_apply(store: tauri::State<'_, NotesStore>, note: Note) -> std::resu
 pub fn sync_put_file(app: tauri::AppHandle, kind: String, name: String, base64: String) -> std::result::Result<(), String> {
     match kind.as_str() {
         "image" => {
-            let images = crate::images::images_dir(&app).ok_or_else(|| "There is no room to keep pictures.".to_string())?;
+            let images = crate::paths::images_dir(&app).map_err(|_| "There is no room to keep pictures.".to_string())?;
             crate::images::place(&images, &name, &base64)
         }
         "recording" => {
             use base64::Engine as _;
-            let dir = recordings_dir(&app).ok_or_else(|| "There is no room to keep recordings.".to_string())?;
+            let dir = crate::paths::recordings_dir(&app).map_err(|_| "There is no room to keep recordings.".to_string())?;
             let file = recording_file(&dir, &name).ok_or_else(|| "That is not a note id.".to_string())?;
             let bytes = base64::engine::general_purpose::STANDARD.decode(base64.trim()).map_err(|_| "That recording could not be read.".to_string())?;
             if !bytes.starts_with(b"RIFF") {
                 return Err("That is not a recording Glyph can keep.".to_string());
             }
             std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            let part = dir.join(format!(".{name}.part"));
-            std::fs::write(&part, &bytes).and_then(|()| std::fs::rename(&part, &file)).map_err(|e| {
-                let _ = std::fs::remove_file(&part);
-                format!("The recording could not be saved: {e}")
-            })
+            crate::fsx::write_atomically(&file, &bytes).map_err(|e| format!("The recording could not be saved: {e}"))
         }
         _ => Err(format!("Nothing is kept as {kind}.")),
     }

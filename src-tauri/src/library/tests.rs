@@ -118,6 +118,22 @@ fn recordings_and_formatted_versions_live_beside_not_in_the_markdown() {
 }
 
 #[test]
+fn a_sidecar_is_kept_only_under_an_id_that_may_become_a_file_name() {
+    let root = temp("sidecar-ids");
+    let mut library = Library::open_fs(&root).unwrap();
+    let longest = "x".repeat(crate::fsx::PLAIN_ID_MAX);
+    assert!(library.sidecar_path(&longest).is_some());
+    // The cap a recording's file always had: before `fsx::plain_id` a sidecar had none.
+    assert!(library.sidecar_path(&format!("{longest}x")).is_none());
+    assert!(library.sidecar_path("../escape").is_none() && library.sidecar_path("").is_none());
+    library.save_note("s", "# Said\n", "capture").unwrap();
+    library.set_formatted("s", Some("# Said\n\nTidy."), Some(1), Some("qwen3.5-4b")).unwrap();
+    let kept: Vec<_> = std::fs::read_dir(root.join(".glyph/notes")).unwrap().map(|e| e.unwrap().file_name()).collect();
+    assert_eq!(kept, ["s.json"], "written whole, with nothing left beside it");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn the_index_is_only_a_cache() {
     let root = temp("rebuild");
     {

@@ -26,7 +26,7 @@ use super::model::{self, LlmSpec};
 static SERIAL: Mutex<()> = Mutex::new(());
 
 fn serial() -> MutexGuard<'static, ()> {
-    SERIAL.lock().unwrap_or_else(|p| p.into_inner())
+    crate::lock::lock(&SERIAL)
 }
 
 fn chosen() -> &'static LlmSpec {

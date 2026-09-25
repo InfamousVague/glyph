@@ -57,10 +57,22 @@
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
+use crate::model_downloads;
+use crate::paths;
 use crate::whisper::model::{self, ModelStatus};
+
+#[cfg(target_os = "ios")]
+use crate::unsupported::{on_ios, TRANSCRIPTION};
 
 #[cfg(not(target_os = "ios"))]
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
+
+// Every value behind these locks is either whole or `None`, so a lock some
+// earlier command panicked while holding is recovered, not obeyed: refusing
+// every capture for the rest of the process over one panic is how a bug
+// becomes a brick. See `crate::lock`.
+#[cfg(not(target_os = "ios"))]
+use crate::lock::lock;
 
 #[cfg(not(target_os = "ios"))]
 use tauri::Emitter;
@@ -71,12 +83,6 @@ use crate::whisper::{
     stream::Event,
     worker::Capture,
 };
-
-/// The directory under `app_data_dir()` that models are kept in.
-const MODELS_DIR: &str = "models";
-
-#[cfg(target_os = "ios")]
-const NOT_ON_IOS: &str = "On-device transcription is not supported on iOS yet.";
 
 /// What `transcribe_wav` measured.
 #[derive(Debug, Clone, Serialize)]
@@ -90,14 +96,6 @@ pub struct Transcript {
     /// `audioMs` by for a real-time factor.
     pub elapsed_ms: u64,
     pub model: String,
-}
-
-#[cfg(not(target_os = "ios"))]
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ModelProgress {
-    received_bytes: u64,
-    total_bytes: u64,
 }
 
 /// The loaded model and the capture in progress, for the life of the process.
@@ -132,17 +130,6 @@ pub struct CaptureState {
     refining: AtomicBool,
 }
 
-/// Recovers a guard from a lock some earlier command panicked while holding -
-/// the same reasoning as `NotesStore::lock`: every value behind these locks is
-/// either whole or `None`, and refusing every capture for the rest of the
-/// process over one panic is how a bug becomes a brick.
-#[cfg(not(target_os = "ios"))]
-fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
 /// Hands the capture state to Tauri. Called once, from `setup`.
 ///
 /// Opens nothing and touches no file on the way: a first launch with no model
@@ -172,14 +159,6 @@ pub fn shutdown(app: &AppHandle) {
     let _ = app;
 }
 
-/// `<app_data_dir>/models`, where whisper's and the formatting models live.
-pub(crate) fn models_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|dir| dir.join(MODELS_DIR))
-        .map_err(|e| format!("no app data directory to keep models in: {e}"))
-}
-
 /// The cached engine, loading it on first use.
 ///
 /// The load runs on the blocking pool: it is a 60 MB file read and tensor
@@ -193,7 +172,7 @@ async fn engine(app: &AppHandle, state: &CaptureState) -> Result<Arc<Engine>, St
     if let Some(engine) = lock(&state.engine).clone() {
         return Ok(engine);
     }
-    let status = model::status(&models_dir(app)?, &model::ACTIVE);
+    let status = model::status(&paths::models_dir(app)?, &model::ACTIVE);
     if !status.present {
         return Err(format!(
             "The transcription model ({}) has not been downloaded yet - call capture_fetch_model first.",
@@ -224,19 +203,7 @@ fn emit(app: &AppHandle, event: Event) {
 /// Whether the refine model (`model::REFINE`) is on this device.
 #[tauri::command]
 pub fn capture_refine_model_status(app: AppHandle) -> ModelStatus {
-    let absent = ModelStatus {
-        present: false,
-        name: model::REFINE.file.to_string(),
-        path: String::new(),
-        bytes: model::REFINE.bytes,
-    };
-    if cfg!(target_os = "ios") {
-        return absent;
-    }
-    match models_dir(&app) {
-        Ok(dir) => model::status(&dir, &model::REFINE),
-        Err(_) => absent,
-    }
+    model_downloads::status_here(&app, &model::REFINE)
 }
 
 /// Downloads the refine model, from the same mirrors as the live one, and
@@ -248,25 +215,19 @@ pub async fn capture_fetch_refine_model(
     state: State<'_, CaptureState>,
 ) -> Result<ModelStatus, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
-        let dir = models_dir(&app)?;
-        let _one_download = state.fetching_refine.lock().await;
-        let emitter = app.clone();
-        let mirrors = model::mirrors_with(&crate::ota::services(&app).model_mirrors);
-        model::fetch(&dir, &model::REFINE, &mirrors, move |received, total| {
-            let _ = emitter.emit(
-                "capture://refine-model-progress",
-                ModelProgress {
-                    received_bytes: received,
-                    total_bytes: total,
-                },
-            );
-        })
+        let dir = paths::models_dir(&app)?;
+        model_downloads::fetch_reporting(
+            &app,
+            &dir,
+            &state.fetching_refine,
+            &model::REFINE,
+            model::mirrors_with,
+            "capture://refine-model-progress",
+            None,
+        )
         .await
     }
 }
@@ -301,10 +262,7 @@ pub async fn capture_refine(
     prompt_tail: String,
 ) -> Result<Vec<crate::store::RecordedSegment>, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, id, from_ms, prompt_tail);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state, id, from_ms, prompt_tail));
     #[cfg(not(target_os = "ios"))]
     {
         use std::sync::atomic::{AtomicI32, Ordering};
@@ -312,12 +270,13 @@ pub async fn capture_refine(
         if lock(&state.capture).is_some() {
             return Err("busy".into());
         }
-        let dir = models_dir(&app)?;
+        let dir = paths::models_dir(&app)?;
         let status = model::status(&dir, &model::REFINE);
         if !status.present {
             return Err("model missing".into());
         }
-        let recording = crate::commands::recordings_dir(&app)
+        let recording = paths::recordings_dir(&app)
+            .ok()
             .and_then(|recordings| crate::store::recording_file(&recordings, &id))
             .ok_or_else(|| "no such recording".to_string())?;
         if state.refining.swap(true, Ordering::SeqCst) {
@@ -413,22 +372,9 @@ fn offset_segments(
 /// Whether the active model is on this device, where, and how big it is.
 #[tauri::command]
 pub fn capture_model_status(app: AppHandle) -> ModelStatus {
-    let absent = ModelStatus {
-        present: false,
-        name: model::ACTIVE.file.to_string(),
-        path: String::new(),
-        bytes: model::ACTIVE.bytes,
-    };
-    if cfg!(target_os = "ios") {
-        return absent;
-    }
-    // No data directory is a model that cannot be present - and NOT a
-    // relative path, which would answer for whatever file happens to sit in
-    // the process's working directory.
-    match models_dir(&app) {
-        Ok(dir) => model::status(&dir, &model::ACTIVE),
-        Err(_) => absent,
-    }
+    // No data directory (or iOS) is a model that cannot be present: see
+    // `model_downloads::models_here`.
+    model_downloads::status_here(&app, &model::ACTIVE)
 }
 
 /// Downloads the active model into `<app_data_dir>/models/` if it is not there,
@@ -440,27 +386,21 @@ pub async fn capture_fetch_model(
     state: State<'_, CaptureState>,
 ) -> Result<ModelStatus, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
-        let dir = models_dir(&app)?;
-        let _one_download = state.fetching.lock().await;
-        let emitter = app.clone();
+        let dir = paths::models_dir(&app)?;
         // Mirrors a signed update manifest has moved come first; the compiled
         // ones follow. See model::mirrors_with.
-        let mirrors = model::mirrors_with(&crate::ota::services(&app).model_mirrors);
-        model::fetch(&dir, &model::ACTIVE, &mirrors, move |received, total| {
-            let _ = emitter.emit(
-                "capture://model-progress",
-                ModelProgress {
-                    received_bytes: received,
-                    total_bytes: total,
-                },
-            );
-        })
+        model_downloads::fetch_reporting(
+            &app,
+            &dir,
+            &state.fetching,
+            &model::ACTIVE,
+            model::mirrors_with,
+            "capture://model-progress",
+            None,
+        )
         .await
     }
 }
@@ -505,11 +445,9 @@ pub fn serve_recording<R: tauri::Runtime>(
     let Some(id) = path.strip_suffix(".wav") else {
         return respond(StatusCode::NOT_FOUND, Vec::new(), Vec::new());
     };
-    let file = app
-        .path()
-        .app_data_dir()
+    let file = paths::recordings_dir(app)
         .ok()
-        .and_then(|dir| crate::store::recording_file(&dir.join("recordings"), id));
+        .and_then(|dir| crate::store::recording_file(&dir, id));
     let Some(bytes) = file.and_then(|f| std::fs::read(f).ok()) else {
         return respond(StatusCode::NOT_FOUND, Vec::new(), Vec::new());
     };
@@ -558,10 +496,7 @@ pub fn serve_recording<R: tauri::Runtime>(
 #[tauri::command]
 pub async fn capture_start(app: AppHandle, state: State<'_, CaptureState>) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
         state
@@ -606,10 +541,7 @@ pub fn capture_push(
     state: State<'_, CaptureState>,
 ) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (request, state);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (request, state));
     #[cfg(not(target_os = "ios"))]
     {
         use base64::Engine as _;
@@ -660,10 +592,7 @@ pub async fn capture_stop(
     append: Option<bool>,
 ) -> Result<Finished, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, record_as, append);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state, record_as, append));
     #[cfg(not(target_os = "ios"))]
     {
         let capture = lock(&state.capture)
@@ -679,8 +608,7 @@ pub async fn capture_stop(
         let mut recorded_ms = None;
         if let Some(id) = record_as {
             if !stopped.recording.is_empty() {
-                let dir = crate::commands::recordings_dir(&app)
-                    .ok_or("no app data directory to keep recordings in")?;
+                let dir = paths::recordings_dir(&app)?;
                 let path = crate::store::recording_file(&dir, &id).ok_or("not a note id")?;
                 let recording = stopped.recording;
                 let samples = tauri::async_runtime::spawn_blocking(move || {
@@ -709,14 +637,10 @@ pub async fn capture_reassign_recording(
     append: Option<bool>,
 ) -> Result<Option<u64>, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, from_id, to_id, append);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, from_id, to_id, append));
     #[cfg(not(target_os = "ios"))]
     {
-        let dir = crate::commands::recordings_dir(&app)
-            .ok_or("no app data directory to keep recordings in")?;
+        let dir = paths::recordings_dir(&app)?;
         let from = crate::store::recording_file(&dir, &from_id).ok_or("not a note id")?;
         let to = crate::store::recording_file(&dir, &to_id).ok_or("not a note id")?;
         let count = tauri::async_runtime::spawn_blocking(move || {
@@ -731,13 +655,11 @@ pub async fn capture_reassign_recording(
 /// Remove a stopped capture that was rejected or cancelled before it had a note.
 #[tauri::command]
 pub async fn capture_discard_recording(app: AppHandle, id: String) -> Result<(), String> {
-    let dir = crate::commands::recordings_dir(&app)
-        .ok_or("no app data directory to keep recordings in")?;
+    let dir = paths::recordings_dir(&app)?;
     let path = crate::store::recording_file(&dir, &id).ok_or("not a note id")?;
-    tauri::async_runtime::spawn_blocking(move || match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(format!("could not remove the temporary recording: {e}")),
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::fsx::remove_file_if_present(&path)
+            .map_err(|e| format!("could not remove the temporary recording: {e}"))
     })
     .await
     .map_err(|e| format!("the temporary recording did not clean up: {e}"))?
@@ -748,10 +670,7 @@ pub async fn capture_discard_recording(app: AppHandle, id: String) -> Result<(),
 #[tauri::command]
 pub async fn capture_rewind(state: State<'_, CaptureState>, to_ms: u64) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (state, to_ms);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (state, to_ms));
     #[cfg(not(target_os = "ios"))]
     {
         // Asked for under the lock, waited for outside it, so pushes and a
@@ -774,10 +693,7 @@ pub async fn capture_rewind(state: State<'_, CaptureState>, to_ms: u64) -> Resul
 #[tauri::command]
 pub async fn capture_cancel(state: State<'_, CaptureState>) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = state;
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, state);
     #[cfg(not(target_os = "ios"))]
     {
         let Some(capture) = lock(&state.capture).take() else {
@@ -798,10 +714,7 @@ pub async fn transcribe_wav(
     path: String,
 ) -> Result<Transcript, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, path);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state, path));
     #[cfg(not(target_os = "ios"))]
     {
         use crate::whisper::{samples_to_ms, wav};

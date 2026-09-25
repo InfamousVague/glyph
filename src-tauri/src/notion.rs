@@ -25,7 +25,10 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+
+#[cfg(target_os = "ios")]
+use crate::unsupported::{on_ios, NOTION};
 
 const NOTION_API: &str = "https://api.notion.com/v1/";
 const NOTION_VERSION: &str = "2022-06-28";
@@ -73,30 +76,28 @@ pub struct Request {
 }
 
 /// Where the account lives: `<app_data_dir>/notion.json`.
-pub fn account_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_data_dir().ok().map(|dir| dir.join(FILE))
+pub fn account_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(crate::paths::data_dir(app)?.join(FILE))
 }
 
 fn read(app: &AppHandle) -> Option<Account> {
-    let text = std::fs::read_to_string(account_path(app)?).ok()?;
-    serde_json::from_str::<Account>(&text).ok().filter(|a| !a.access_token.is_empty())
+    crate::fsx::read_json::<Account>(&account_path(app).ok()?).filter(|a| !a.access_token.is_empty())
 }
 
 fn write(app: &AppHandle, account: &Account) -> Result<(), String> {
-    let path = account_path(app).ok_or("no app data directory")?;
+    write_account(&account_path(app)?, account)
+}
+
+/// The account as the file at `path`. Apart from `write` so a test can reach
+/// it with no app around it.
+fn write_account(path: &std::path::Path, account: &Account) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
     }
     let text = serde_json::to_string(account).map_err(|e| e.to_string())?;
-    // Written beside and renamed over, so a crash never leaves half a token.
-    let partial = path.with_extension("json.part");
-    std::fs::write(&partial, text).map_err(|e| format!("cannot write the Notion account: {e}"))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&partial, std::fs::Permissions::from_mode(0o600));
-    }
-    std::fs::rename(&partial, &path).map_err(|e| format!("cannot keep the Notion account: {e}"))
+    // Written beside and renamed over, so a crash never leaves half a token,
+    // and born readable by this app's user only.
+    crate::fsx::write_private(path, text.as_bytes()).map_err(|e| format!("cannot write the Notion account: {e}"))
 }
 
 /// The routes below /v1/ Glyph calls. Anything else is refused, so the page
@@ -133,53 +134,47 @@ pub fn notion_account(app: AppHandle) -> AccountInfo {
 
 #[tauri::command]
 pub fn notion_disconnect(app: AppHandle) -> Result<(), String> {
-    let Some(path) = account_path(&app) else { return Ok(()) };
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(format!("cannot forget the Notion account: {e}")),
-    }
+    let Ok(path) = account_path(&app) else { return Ok(()) };
+    crate::fsx::remove_file_if_present(&path).map_err(|e| format!("cannot forget the Notion account: {e}"))
 }
 
-#[cfg(target_os = "ios")]
-#[tauri::command]
-pub async fn notion_request(_app: AppHandle, _request: Request) -> Result<Answer, String> {
-    Err("Notion is not available on iOS yet.".into())
-}
-
-#[cfg(not(target_os = "ios"))]
 #[tauri::command]
 pub async fn notion_request(app: AppHandle, request: Request) -> Result<Answer, String> {
-    if !allowed_path(&request.path) {
-        return Err(format!("Glyph doesn't call Notion's {} route.", request.path));
-    }
-    let method = match request.method.to_ascii_uppercase().as_str() {
-        "GET" => reqwest::Method::GET,
-        "POST" => reqwest::Method::POST,
-        "PATCH" => reqwest::Method::PATCH,
-        other => return Err(format!("Glyph doesn't send {other} to Notion.")),
-    };
-    let mut account = read(&app).ok_or("Glyph isn't signed in to Notion.")?;
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| format!("cannot make an HTTP client: {e}"))?;
+    #[cfg(target_os = "ios")]
+    return on_ios(NOTION, (app, request));
+    #[cfg(not(target_os = "ios"))]
+    {
+        if !allowed_path(&request.path) {
+            return Err(format!("Glyph doesn't call Notion's {} route.", request.path));
+        }
+        let method = match request.method.to_ascii_uppercase().as_str() {
+            "GET" => reqwest::Method::GET,
+            "POST" => reqwest::Method::POST,
+            "PATCH" => reqwest::Method::PATCH,
+            other => return Err(format!("Glyph doesn't send {other} to Notion.")),
+        };
+        let mut account = read(&app).ok_or("Glyph isn't signed in to Notion.")?;
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| format!("cannot make an HTTP client: {e}"))?;
 
-    let mut answer = send(&client, &method, &request, &account.access_token).await?;
-    if answer.status == 401 {
-        if let Some(refresh) = account.refresh_token.clone() {
-            if let Ok(fresh) = refresh_account(&client, &refresh).await {
-                account = Account {
-                    access_token: fresh.access_token,
-                    refresh_token: fresh.refresh_token.or(account.refresh_token),
-                    ..account
-                };
-                write(&app, &account)?;
-                answer = send(&client, &method, &request, &account.access_token).await?;
+        let mut answer = send(&client, &method, &request, &account.access_token).await?;
+        if answer.status == 401 {
+            if let Some(refresh) = account.refresh_token.clone() {
+                if let Ok(fresh) = refresh_account(&client, &refresh).await {
+                    account = Account {
+                        access_token: fresh.access_token,
+                        refresh_token: fresh.refresh_token.or(account.refresh_token),
+                        ..account
+                    };
+                    write(&app, &account)?;
+                    answer = send(&client, &method, &request, &account.access_token).await?;
+                }
             }
         }
+        Ok(answer)
     }
-    Ok(answer)
 }
 
 #[cfg(not(target_os = "ios"))]
@@ -242,5 +237,28 @@ mod tests {
         assert_eq!(account.workspace_name.as_deref(), Some("AttackFM"));
         assert_eq!(info(Some(&account)).workspace_name.as_deref(), Some("AttackFM"));
         assert!(!info(None).connected);
+    }
+
+    #[test]
+    fn an_account_is_kept_whole_and_private_or_not_at_all() {
+        let dir = std::env::temp_dir().join(format!("glyph-notion-{}", uuid::Uuid::new_v4()));
+        let path = dir.join(FILE);
+        let account = Account { access_token: "secret_x".into(), ..Account::default() };
+        write_account(&path, &account).unwrap();
+        assert_eq!(crate::fsx::read_json::<Account>(&path).map(|a| a.access_token).as_deref(), Some("secret_x"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600, "never readable by anyone else");
+        }
+        // A write that cannot land says so in one sentence and leaves nothing beside the file.
+        let blocked = dir.join("blocked.json");
+        std::fs::create_dir_all(blocked.join("inside")).unwrap();
+        let error = write_account(&blocked, &account).unwrap_err();
+        assert!(error.starts_with("cannot write the Notion account: "), "{error}");
+        let mut left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        left.sort();
+        assert_eq!(left, ["blocked.json", FILE]);
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

@@ -297,7 +297,7 @@ impl Library {
         let manifest = glyph.join("library.json");
         if !manifest.exists() {
             let fresh = Manifest { version: 1, created: iso(now_ms()), moved_from: None, moved_notes: None };
-            std::fs::write(&manifest, serde_json::to_string_pretty(&fresh).unwrap_or_default())?;
+            crate::fsx::write_atomically(&manifest, serde_json::to_string_pretty(&fresh).unwrap_or_default().as_bytes())?;
         }
         let index = Connection::open(glyph.join("index.sqlite"))?;
         let _: String = index.query_row("PRAGMA journal_mode=WAL", [], |row| row.get(0))?;
@@ -313,15 +313,13 @@ impl Library {
         Ok(library)
     }
 
+    /// `.glyph/notes/<id>.json`, for an id that may become a file name (`fsx::plain_id`).
     fn sidecar_path(&self, id: &str) -> Option<std::path::PathBuf> {
-        (!id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')).then(|| self.vault.glyph_dir().join("notes").join(format!("{id}.json")))
+        crate::fsx::plain_id(id).then(|| self.vault.glyph_dir().join("notes").join(format!("{id}.json")))
     }
 
     fn sidecar(&self, id: &str) -> Sidecar {
-        self.sidecar_path(id)
-            .and_then(|path| std::fs::read_to_string(path).ok())
-            .and_then(|text| serde_json::from_str(&text).ok())
-            .unwrap_or_default()
+        self.sidecar_path(id).and_then(|path| crate::fsx::read_json(&path)).unwrap_or_default()
     }
 
     fn write_sidecar(&self, id: &str, sidecar: &Sidecar) -> Result<()> {
@@ -330,9 +328,7 @@ impl Library {
             let _ = std::fs::remove_file(path);
             return Ok(());
         }
-        let part = path.with_extension("json.part");
-        std::fs::write(&part, serde_json::to_string(sidecar).unwrap_or_default())?;
-        std::fs::rename(part, path)?;
+        crate::fsx::write_atomically(&path, serde_json::to_string(sidecar).unwrap_or_default().as_bytes())?;
         Ok(())
     }
 
@@ -850,7 +846,7 @@ impl Library {
     // ---- moving in from the old database -----------------------------------------------------
 
     fn manifest(&self) -> Manifest {
-        std::fs::read_to_string(self.vault.glyph_dir().join("library.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+        crate::fsx::read_json_or(&self.vault.glyph_dir().join("library.json"), Manifest::default())
     }
 
     /// Whether the old database's notes were already written out.
@@ -917,7 +913,7 @@ impl Library {
         }
         manifest.moved_from = Some(from.to_string());
         manifest.moved_notes = Some(notes);
-        std::fs::write(self.vault.glyph_dir().join("library.json"), serde_json::to_string_pretty(&manifest).unwrap_or_default())?;
+        crate::fsx::write_atomically(&self.vault.glyph_dir().join("library.json"), serde_json::to_string_pretty(&manifest).unwrap_or_default().as_bytes())?;
         Ok(())
     }
 }
