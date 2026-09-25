@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Note } from '../core/store.ts';
+import { makeNote } from '../../test/notes.ts';
 import { noteTitle } from '../core/store.ts';
 import { bookNoteBody, chaptersOf } from '../book/book.ts';
 import { forkShared, newShareId, newShareKey, openShare, readShareLink, sealShare, shareLink, sharedAsFile, sharedOf, withPictures, type Shared } from './share.ts';
 import { crc32, zipFiles } from './zip.ts';
 
-const note = (id: string, body: string): Note => ({ id, body, createdAt: 0, updatedAt: 0, source: 'editor' }) as Note;
 
 describe('a share sealed by its link', () => {
   it('opens with its own key and with no other, and the link carries both halves after the #', async () => {
@@ -27,8 +26,8 @@ describe('a share sealed by its link', () => {
 });
 
 describe('what a note or a book shares', () => {
-  const book = note('b', bookNoteBody('Cabin trip', ['Packing', 'Route map', 'Not written']));
-  const notes = [book, note('p', '# Packing\n\n- [ ] Tent'), note('r', '---\ntitle: "Route map"\n---\n{"nodes":[],"edges":[]}'), note('x', '# Elsewhere')];
+  const book = makeNote('b', bookNoteBody('Cabin trip', ['Packing', 'Route map', 'Not written']));
+  const notes = [book, makeNote('p', '# Packing\n\n- [ ] Tent'), makeNote('r', '---\ntitle: "Route map"\n---\n{"nodes":[],"edges":[]}'), makeNote('x', '# Elsewhere')];
 
   it('shares a note as itself, and a book as its index then every chapter that has a note, in order', () => {
     expect(sharedOf(notes[1]!, notes)).toMatchObject({ kind: 'note', title: 'Packing', pages: [{ title: 'Packing' }] });
@@ -41,10 +40,10 @@ describe('what a note or a book shares', () => {
     const shared = sharedOf(book, notes);
     const saved: string[] = [];
     const first = await forkShared(shared, {
-      notes: async () => [note('mine', '# Packing\n\nMy own list.')],
+      notes: async () => [makeNote('mine', '# Packing\n\nMy own list.')],
       save: async (body) => {
         saved.push(body);
-        return note(`s${saved.length}`, body);
+        return makeNote(`s${saved.length}`, body);
       },
     });
     expect(noteTitle(first.body)).toBe('Cabin trip');
@@ -147,7 +146,7 @@ describe('the pictures a share carries', () => {
       { ...paged, pictures: { [A]: jpeg(1), [B]: jpeg(2) } },
       {
         notes: async () => [],
-        save: async (body) => note(`s-${body.length}`, body),
+        save: async (body) => makeNote(`s-${body.length}`, body),
         keep: async (name) => {
           kept.push(name);
         },

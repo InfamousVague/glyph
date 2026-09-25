@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FAST } from '../../../test/fakeService.ts';
 import {
   CODES,
   derive,
@@ -21,9 +22,6 @@ import {
   unwrap,
   wrap,
 } from './crypto.ts';
-
-/** A handful of rounds: the tests are about what goes where, not about being slow. */
-const FAST = 1_000;
 
 describe('a secret', () => {
   it('becomes a login half and a wrap key, the same every time for the same secret and handle', async () => {

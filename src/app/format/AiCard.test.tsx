@@ -1,25 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { describe, expect, it } from 'vitest';
+import { show } from '../../test/render.tsx';
 import { AiCard } from './AiCard.tsx';
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-function show(element: React.ReactElement): HTMLDivElement {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-  return host;
-}
-
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
-});
 
 describe('the AI card', () => {
   it('names the model, says it runs on the phone, and what it is doing', () => {

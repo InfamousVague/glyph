@@ -5,6 +5,7 @@ import { accountState, changePassword, deleteAccount, recover, signIn, signUp, t
 import { memoryKeys } from '../account/keystore.ts';
 import { DEFAULT_PREFERENCES, type Preferences } from '../preferences.ts';
 import type { Note } from '../store.ts';
+import { FAST } from '../../../test/fakeService.ts';
 import type { Bytes } from './crypto.ts';
 import { emptyState, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncContext } from './notes.ts';
 import { syncPrefs, type PrefsContext } from './prefs.ts';
@@ -18,7 +19,6 @@ import { syncPrefs, type PrefsContext } from './prefs.ts';
  */
 
 const DATA = process.env.GLYPH_SYNC_E2E;
-const FAST = 1_000;
 
 interface Device {
   deps: Deps;

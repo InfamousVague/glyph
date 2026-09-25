@@ -15,6 +15,7 @@ vi.mock('../core/ai.ts', async () => {
 });
 
 import { generate, listModels } from '../core/ai.ts';
+import { show } from '../../test/render.tsx';
 import { bodyHash } from './formatter.ts';
 import { gistFor, runGists, useGists } from './gist.ts';
 import { readGist } from './results.ts';
@@ -27,16 +28,12 @@ describe('the gist runner', () => {
 
   it('writes a gist for a note the home page showed, with the smallest model, and keeps it against the body', async () => {
     // useGists is a hook; its module-level list of bodies is what the runner reads, so seed it the way the page would.
-    const { act } = await import('react');
-    const { createRoot } = await import('react-dom/client');
-    const host = document.createElement('div');
-    const root = createRoot(host);
     const notes = [{ id: 'n1', body: 'things for tomorrow\n- milk\n', updatedAt: 2 }, { id: 'n2', body: '', updatedAt: 1 }] as never[];
     function Home() {
       useGists(notes);
       return null;
     }
-    act(() => root.render(<Home />));
+    show(<Home />);
     await runGists();
     expect(listModels).toHaveBeenCalled();
     expect(vi.mocked(generate).mock.calls[0]?.[0]).toMatchObject({ model: 'qwen3.5-2b', maxTokens: 40 });
@@ -45,6 +42,5 @@ describe('the gist runner', () => {
     // The empty note is never asked about, and a note with a gist is not asked twice.
     await runGists();
     expect(vi.mocked(generate)).toHaveBeenCalledTimes(1);
-    act(() => root.unmount());
   });
 });

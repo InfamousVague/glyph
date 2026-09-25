@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { makeNote } from '../../test/notes.ts';
 import { preferences, setPreferences } from './preferences.ts';
-import type { Note } from './store.ts';
 import { forget, inTrash, isTrashed, outOfTrash, restoreNote, trashNote } from './trash.ts';
 
-const note = (id: string): Note => ({ id, body: `# ${id}`, createdAt: 0, updatedAt: 0, source: 'editor' });
 
 describe('the trash', () => {
   beforeEach(() => setPreferences({ trash: {} }));
@@ -19,7 +18,7 @@ describe('the trash', () => {
   it('keeps a trashed note out of everything else, and shows the trash newest first', () => {
     trashNote('a', 10);
     trashNote('c', 30);
-    const notes = [note('a'), note('b'), note('c')];
+    const notes = [makeNote('a'), makeNote('b'), makeNote('c')];
     expect(outOfTrash(notes, preferences().trash).map((n) => n.id)).toEqual(['b']);
     expect(inTrash(notes, preferences().trash).map((n) => n.id)).toEqual(['c', 'a']);
   });

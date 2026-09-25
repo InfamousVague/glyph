@@ -66,7 +66,6 @@ describe('pictures that reached a device some other way than sync', () => {
   it('are sent by the Mac that holds them, and fetched by a phone that asked before they were there', async () => {
     const clock = { at: 1_000_000 };
     const api = await fakeService(ACCOUNT);
-    const key = api.accountKey;
     const phone = device(api, clock);
     const mac = device(api, clock, { [PICTURE]: bytes });
     await writtenElsewhere(api, chapter);

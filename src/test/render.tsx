@@ -1,6 +1,6 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach } from 'vitest';
+import { afterEach, vi } from 'vitest';
 
 /**
  * How a component test puts React on the page, and takes it off again: one host `div` in the document per `show`,
@@ -51,6 +51,24 @@ export function unmount(): void {
 }
 
 afterEach(unmount);
+
+/**
+ * Lets React, and the promises its effects wait on, run inside `act` until `check` stops throwing - for a tree
+ * that fills in from a fetch or a file rather than on the render itself. What a fixed sleep guessed at, asked
+ * instead. Gives up after `timeoutMs` with `check`'s own error, kept under the suite's twenty-second testTimeout
+ * (vitest.config.ts) so the failure names what never arrived rather than only that the test ran out of time.
+ */
+export async function waitUntil(check: () => void, timeoutMs = 15_000): Promise<void> {
+  await vi.waitFor(
+    async () => {
+      await act(async () => {
+        // Nothing to do but let what is queued run, inside act so React's updates are flushed as they land.
+      });
+      check();
+    },
+    { timeout: timeoutMs, interval: 10 },
+  );
+}
 
 /**
  * The button named `label`, by its accessible label or its words exactly (trimmed), in `within` or the whole

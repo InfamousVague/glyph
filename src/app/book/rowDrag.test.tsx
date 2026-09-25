@@ -1,18 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { useRef } from 'react';
+import { act, useRef, type ReactElement } from 'react';
+import { show, unmount } from '../../test/render.tsx';
 import { ROW_HOLD_MS, useRowDrag } from './rowDrag.ts';
 
 /**
  * Rows dragged by their grip: a mouse lifts at once, a finger after a hold - and a finger that moves before the
  * hold is scrolling, not dragging. The row's new place comes back on release, and only when it changed.
  */
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
 
 function Rows({ onMove }: { onMove: (from: number, to: number) => void }) {
   const els = useRef<(HTMLElement | null)[]>([]);
@@ -44,19 +38,15 @@ function layRowsOut(): void {
   if (!Element.prototype.setPointerCapture) Element.prototype.setPointerCapture = () => undefined;
 }
 
-function show(element: React.ReactElement): void {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
+/** The rows on the page, laid out. */
+function showRows(element: ReactElement): void {
+  show(element);
   layRowsOut();
 }
 
 afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
+  // Taken down while a test's fake clock is still in.
+  unmount();
   vi.useRealTimers();
 });
 
@@ -69,7 +59,7 @@ const pointer = (type: string, target: HTMLElement, clientY: number, pointerType
 describe('rows dragged by their grip', () => {
   it('lifts at once under a mouse, follows it, and lands where it is let go', () => {
     const onMove = vi.fn();
-    show(<Rows onMove={onMove} />);
+    showRows(<Rows onMove={onMove} />);
     pointer('pointerdown', grip('a'), 20);
     expect(document.querySelector('li[data-lifted]')?.textContent).toBe('a');
     pointer('pointermove', grip('a'), 110);
@@ -82,7 +72,7 @@ describe('rows dragged by their grip', () => {
   it('under a finger, lifts only after the hold, and a move before it is a scroll', () => {
     vi.useFakeTimers();
     const onMove = vi.fn();
-    show(<Rows onMove={onMove} />);
+    showRows(<Rows onMove={onMove} />);
     pointer('pointerdown', grip('b'), 60, 'touch');
     expect(document.querySelector('li[data-lifted]')).toBeNull();
     pointer('pointermove', grip('b'), 90, 'touch');
@@ -105,7 +95,7 @@ describe('rows dragged by their grip', () => {
 
   it('says nothing when a row is let go where it was', () => {
     const onMove = vi.fn();
-    show(<Rows onMove={onMove} />);
+    showRows(<Rows onMove={onMove} />);
     pointer('pointerdown', grip('c'), 100);
     pointer('pointermove', grip('c'), 104);
     pointer('pointerup', grip('c'), 104);

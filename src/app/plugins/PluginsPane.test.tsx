@@ -1,37 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { describe, expect, it, vi } from 'vitest';
+import { button, press, show } from '../../test/render.tsx';
 import { PluginsPane } from './PluginsPane.tsx';
 import { reachLine } from './reach.ts';
 import { manifest as claude } from './claude/index.tsx';
 import { manifest as notion } from './notion/manifest.ts';
 
 // The Glacier kit reads matchMedia as it loads; jsdom has none. Hoisted, so it is there before the imports run.
-vi.hoisted(() => {
-  window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as typeof window.matchMedia;
-});
+await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
 
-let root: Root | null = null;
-let host: HTMLDivElement | null = null;
-
-function show(element: React.ReactElement): HTMLDivElement {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root!.render(element));
-  return host;
-}
-
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = null;
-  host = null;
-});
-
-const press = (element: Element | null | undefined) => act(() => element?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 const cardOf = (pane: ParentNode, name: string) => Array.from(pane.querySelectorAll('section')).find((s) => s.querySelector('.setk-hero__title')?.textContent === name);
-const buttonSaying = (within: ParentNode, words: string) => Array.from(within.querySelectorAll('button')).find((b) => b.textContent?.trim() === words);
 
 describe('Settings › Plugins', () => {
   it('has a card for every plugin that ships, Claude among them, each with its switch', () => {
@@ -49,9 +26,9 @@ describe('Settings › Plugins', () => {
     const card = cardOf(pane, 'Claude')!;
     expect(card.textContent).toContain(reachLine(claude));
     expect(card.textContent).not.toContain(claude.permissions[0]!.why);
-    press(buttonSaying(card, 'Why'));
+    press(button('Why', card));
     expect(card.textContent).toContain(claude.permissions[0]!.why);
-    expect(buttonSaying(card, 'Less')).toBeTruthy();
+    expect(button('Less', card)).toBeTruthy();
   });
 
   it('opens a plugin’s own page from its card', () => {

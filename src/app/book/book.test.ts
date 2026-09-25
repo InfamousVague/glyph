@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Note } from '../core/store.ts';
+import { makeNote } from '../../test/notes.ts';
 import { bodyWithoutTitle, bookIndex, bookWords, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, titleKey, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 
 /**
@@ -7,7 +7,6 @@ import { bodyWithoutTitle, bookIndex, bookWords, bookNoteBody, bookOf, chaptersO
  * line at a time, and found again from any of its chapters.
  */
 
-const note = (id: string, body: string): Note => ({ id, body, createdAt: 0, updatedAt: 0, source: 'editor' });
 
 const BOOK = `---
 title: "Field guide"
@@ -103,7 +102,7 @@ describe('changing the index', () => {
 });
 
 describe('the book a note is in', () => {
-  const notes = [note('b', BOOK), note('t', '# Trees\n\nTall.'), note('o', '# Oaks\n'), note('x', '# Loose\n')];
+  const notes = [makeNote('b', BOOK), makeNote('t', '# Trees\n\nTall.'), makeNote('o', '# Oaks\n'), makeNote('x', '# Loose\n')];
 
   it('is found from any chapter, with its place, and not from a note that is in no book', () => {
     const place = bookOf(notes, 'Oaks');
@@ -116,7 +115,7 @@ describe('the book a note is in', () => {
   });
 
   it('is not the book itself', () => {
-    const selfish = note('s', '---\nbook: true\n---\n# Self\n\n- [[Self]]\n');
+    const selfish = makeNote('s', '---\nbook: true\n---\n# Self\n\n- [[Self]]\n');
     expect(bookOf([selfish], 'Self')).toBeNull();
   });
 });
@@ -132,11 +131,11 @@ describe('a chapter read straight through', () => {
 
 describe('the marks a list draws', () => {
   const notes = [
-    note('b', BOOK),
-    note('t', '# Trees\n\nTall.'),
-    note('o', '# oaks\n'),
-    note('x', '# Loose\n'),
-    note('b2', '---\ntitle: "Other"\nbook: true\n---\n# Other\n\n- [[Trees]]\n'),
+    makeNote('b', BOOK),
+    makeNote('t', '# Trees\n\nTall.'),
+    makeNote('o', '# oaks\n'),
+    makeNote('x', '# Loose\n'),
+    makeNote('b2', '---\ntitle: "Other"\nbook: true\n---\n# Other\n\n- [[Trees]]\n'),
   ];
 
   it('keys titles the way links are matched', () => {

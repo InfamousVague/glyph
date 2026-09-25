@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { buttonSaying, show, typeInto } from '../../test/render.tsx';
+import { stubMatchMedia } from '../../test/stubs.ts';
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-// The component kit asks the window's resolution as it loads; the test's DOM has no matchMedia of its own.
-window.matchMedia ??= (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} })) as unknown as typeof window.matchMedia;
+// The component kit asks the window's resolution as it loads; the test's DOM has no matchMedia of its own. Before
+// the pane's own import below, which is the first to reach the kit.
+stubMatchMedia();
 
 // Signed in as sam until the account is deleted.
 let session: { handle: string; token: string; accountId: number } | null = { handle: 'sam', token: 't', accountId: 1 };
@@ -32,40 +33,20 @@ vi.mock('./SharedLinks.tsx', () => ({ SharedLinks: () => null }));
 
 const { AccountPane } = await import('./AccountPane.tsx');
 
-let root: Root;
-let host: HTMLDivElement;
-afterEach(() => {
-  act(() => root.unmount());
-  host.remove();
-});
-
-function type(field: HTMLInputElement, words: string) {
-  const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-  act(() => {
-    set.call(field, words);
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-}
-
-const button = (words: string) => [...host.querySelectorAll('button')].find((b) => b.textContent?.includes(words))!;
-
 describe('Delete account', () => {
   it('says what goes, asks for the password, and lands signed out with the notes kept', async () => {
-    host = document.createElement('div');
-    document.body.append(host);
-    root = createRoot(host);
-    act(() => root.render(<AccountPane />));
-    act(() => button('Delete account').click());
+    const host = show(<AccountPane />);
+    act(() => buttonSaying(host, 'Delete account')!.click());
     expect(host.textContent).toContain("every link you've shared");
     expect(host.textContent).toContain('The notes on this device stay here.');
-    const submit = button('Delete my account');
+    const submit = buttonSaying(host, 'Delete my account')!;
     expect(submit.disabled).toBe(true);
     const field = host.querySelector<HTMLInputElement>('input[type="password"]')!;
-    type(field, 'wrong');
+    typeInto(field, 'wrong');
     await act(async () => submit.form!.requestSubmit());
     expect(host.querySelector('[role="alert"]')?.textContent).toBe('That is not the password.');
     expect(session).not.toBeNull();
-    type(field, 'right');
+    typeInto(field, 'right');
     await act(async () => submit.form!.requestSubmit());
     expect(deleteAccountHere).toHaveBeenLastCalledWith('right');
     expect(host.textContent).toContain('Your account is deleted. The notes on this device are still here.');
