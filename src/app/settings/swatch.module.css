@@ -1,0 +1,56 @@
+/*
+ * A row of colour dots to choose one from, the chosen one ringed in the page's paper and then its own colour again:
+ * the accent swatch (AccentSwatch.module.css) and the workspace colour swatch (notes/WorkspaceSwatch.module.css),
+ * which are the same gesture in two places. Each composes `swatch` and `dot`, and says what a dot is filled with:
+ * `--swatch-fill` for its ground and its ring, `--swatch-ink` for the tick on it.
+ */
+
+/* One row, however narrow the sheet: the dots share what room there is rather than wrapping to a second line. */
+.swatch {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-3) var(--glacier-space-4) var(--glacier-space-4);
+}
+
+.dot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  /* A thumb's worth of target, whatever the dot inside it looks like. */
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--glacier-radius-full);
+  background: var(--swatch-fill);
+  color: var(--swatch-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 160ms var(--glacier-ease-out),
+    box-shadow 160ms var(--glacier-ease-out);
+}
+
+/* Chosen: a ring of the page around it, then the dot's own colour again, so the dot keeps its colour whole. */
+.dot[aria-checked='true'] {
+  box-shadow:
+    0 0 0 2px var(--app-paper),
+    0 0 0 4px var(--swatch-fill);
+  transform: scale(1.06);
+}
+
+.dot:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot {
+    transition: none;
+  }
+
+  .dot[aria-checked='true'] {
+    transform: none;
+  }
+}
