@@ -24,37 +24,41 @@
 //!   GET  /glyph/api/v1/recovery          how many codes are left
 //!   POST /glyph/api/v1/recovery          a new sheet of codes
 //!   DELETE /glyph/api/v1/account         the account and everything it keeps here, with the password
+//!
+//! This file owns the service itself - the signing key, issuing and checking tokens, the sign-in limits, and the
+//! `Claims` extractor every signed-in route in the crate opens with - and the route table. The routes are beside it:
+//! `accounts/ways_in.rs` the open ones that hand out a token, `accounts/account.rs` what a signed-in device may do to
+//! its account, with `accounts/credentials.rs` for the rules and hashes of what a device sends and
+//! `accounts/challenges.rs` for the nonces a device signs.
 
 // A refusal here is the response itself, handed straight back from a handler; boxing it would only move it.
 #![allow(clippy::result_large_err)]
 
+mod account;
+mod challenges;
+mod credentials;
+#[cfg(test)]
+mod tests;
+mod ways_in;
+
 use crate::guard;
 use crate::identity::{Claims, Issuer};
 use crate::store::Store;
-use crate::wire::{base64url, error, now_secs};
-use argon2::password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
-use argon2::Argon2;
-use axum::extract::{ConnectInfo, FromRequestParts, State};
+use crate::wire::{error, now_secs};
+use axum::extract::{FromRequestParts, State};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use base64::Engine;
-use rand::RngCore;
-use serde::Deserialize;
+use challenges::Challenges;
 use serde_json::json;
-use sha2::Digest;
-use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
-use std::sync::{Arc, Mutex};
+use std::net::IpAddr;
+use std::sync::Arc;
 use std::time::Instant;
 
 /// A token lives a week; the app renews it long before, as AttackFM's does.
 const TOKEN_TTL_SECS: i64 = 7 * 24 * 3600;
-/// A device-login challenge is good for two minutes.
-const CHALLENGE_TTL_SECS: i64 = 120;
 /// Sign-in attempts per address, and per handle, per minute.
 const SIGN_IN_PER_ADDRESS: u32 = 20;
 const SIGN_IN_PER_HANDLE: u32 = 10;
@@ -62,15 +66,13 @@ const SIGN_IN_PER_HANDLE: u32 = 10;
 pub const RECOVERY_CODES: usize = 8;
 /// The signing key's name in the database's meta table.
 const ISSUER_SECRET_KEY: &str = "issuer_secret_b64";
-/// A wrapped key is a few dozen bytes of base64; this is a ceiling on a mistake, not on anything real.
-const WRAPPED_LIMIT: usize = 512;
 
+/// The accounts service: the database, the key tokens are signed with, the device-login challenges outstanding, and
+/// the sign-in limits. Sync, shares and the relay hold the same one, for its `claims` and its `store`.
 pub struct Accounts {
     pub store: Arc<Store>,
     issuer: Issuer,
-    /// Outstanding device-login challenges: nonce -> (account id, issued at). In memory, as AttackFM keeps them: a
-    /// challenge lost to a restart only means the device asks for another.
-    challenges: Mutex<HashMap<String, (i64, i64)>>,
+    challenges: Challenges,
     by_address: guard::RateLimiter<IpAddr>,
     by_handle: guard::RateLimiter<String>,
 }
@@ -92,7 +94,7 @@ impl Accounts {
         Arc::new(Self {
             store,
             issuer,
-            challenges: Mutex::new(HashMap::new()),
+            challenges: Challenges::default(),
             by_address: guard::RateLimiter::new(SIGN_IN_PER_ADDRESS, now),
             by_handle: guard::RateLimiter::new(SIGN_IN_PER_HANDLE, now),
         })
@@ -166,353 +168,14 @@ impl HasAccounts for Arc<Accounts> {
     }
 }
 
-// --- the rules --------------------------------------------------------------------
-
-/// AttackFM's handle rule: 3 to 24 letters, digits, `.`, `_` or `-`, starting with a letter or digit.
-pub fn valid_handle(handle: &str) -> bool {
-    let n = handle.chars().count();
-    (3..=24).contains(&n)
-        && handle.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
-        && handle.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
-}
-
-/// A login half is 32 bytes a device derived, as 64 hex characters. Anything else is not one.
-fn valid_login(login: &str) -> bool {
-    login.len() == 64 && login.bytes().all(|b| b.is_ascii_hexdigit())
-}
-
-fn valid_wrapped(wrapped: &str) -> bool {
-    base64url(wrapped, 1..=WRAPPED_LIMIT)
-}
-
-fn hash_login(login: &str) -> Result<String, Response> {
-    let salt = SaltString::generate(&mut OsRng);
-    Argon2::default()
-        .hash_password(login.to_lowercase().as_bytes(), &salt)
-        .map(|h| h.to_string())
-        .map_err(|_| error(StatusCode::INTERNAL_SERVER_ERROR, "Could not store that password."))
-}
-
-fn verify_login(login: &str, hash: &str) -> bool {
-    !hash.is_empty()
-        && PasswordHash::new(hash).map(|parsed| Argon2::default().verify_password(login.to_lowercase().as_bytes(), &parsed).is_ok()).unwrap_or(false)
-}
-
-/// A recovery code's login half, as it is kept: SHA-256. The half is already 32 random-looking bytes, so a fast hash
-/// is enough, and it can be looked up directly.
-fn hash_code(login: &str) -> String {
-    sha2::Sha256::digest(login.to_lowercase().as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
-}
-
-#[derive(Deserialize)]
-struct CodeBody {
-    login: String,
-    wrapped: String,
-}
-
-/// A recovery sheet, checked and made ready to store: eight codes, each a login half and a wrapped key.
-fn sheet(codes: &[CodeBody]) -> Result<Vec<(String, String)>, Response> {
-    if codes.len() != RECOVERY_CODES {
-        return Err(error(StatusCode::BAD_REQUEST, "A recovery sheet is eight codes."));
-    }
-    codes
-        .iter()
-        .map(|code| {
-            if valid_login(&code.login) && valid_wrapped(&code.wrapped) {
-                Ok((hash_code(&code.login), code.wrapped.clone()))
-            } else {
-                Err(error(StatusCode::BAD_REQUEST, "A recovery code could not be read."))
-            }
-        })
-        .collect()
-}
-
+/// What every way in answers: a fresh token and the account it is for, and the account key wrapped under the secret
+/// that got in, when that way hands one out (a password or a recovery code; a device keeps its own key).
 fn signed_in(accounts: &Accounts, id: i64, handle: &str, wrapped: Option<&str>) -> Response {
     let mut body = json!({ "token": accounts.issue(id, handle), "account": { "id": id, "handle": handle } });
     if let Some(wrapped) = wrapped {
         body["wrapped"] = json!(wrapped);
     }
     Json(body).into_response()
-}
-
-// --- routes -----------------------------------------------------------------------
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SignupBody {
-    handle: String,
-    #[serde(default)]
-    login_secret: String,
-    #[serde(default)]
-    wrapped: String,
-    #[serde(default)]
-    device_public_key: String,
-    #[serde(default)]
-    device_label: String,
-    #[serde(default)]
-    recovery: Vec<CodeBody>,
-}
-
-/// `POST v1/signup`. Open, like AttackFM's: anyone may make an account.
-async fn signup(State(accounts): State<Arc<Accounts>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Json(body): Json<SignupBody>) -> Response {
-    let handle = body.handle.trim().to_string();
-    if let Err(refused) = accounts.admit(peer.ip(), &headers, &handle) {
-        return refused;
-    }
-    if !valid_handle(&handle) {
-        return error(StatusCode::BAD_REQUEST, "A handle is 3 to 24 letters, digits, . _ or -, starting with a letter or digit.");
-    }
-    let has_password = !body.login_secret.is_empty();
-    let device = body.device_public_key.trim();
-    if !has_password && device.is_empty() {
-        return error(StatusCode::BAD_REQUEST, "Set a password, or sign up from a device.");
-    }
-    if has_password && (!valid_login(&body.login_secret) || !valid_wrapped(&body.wrapped)) {
-        return error(StatusCode::BAD_REQUEST, "That password could not be read.");
-    }
-    // End to end, the recovery sheet is the only way back into notes whose every device and password are gone, so an
-    // account is not made without one.
-    let codes = match sheet(&body.recovery) {
-        Ok(codes) => codes,
-        Err(refused) => return refused,
-    };
-    if accounts.store.account_by_handle(&handle).is_some() {
-        return error(StatusCode::CONFLICT, "That handle is taken.");
-    }
-    let login_hash = if has_password {
-        match hash_login(&body.login_secret) {
-            Ok(hash) => hash,
-            Err(refused) => return refused,
-        }
-    } else {
-        String::new()
-    };
-    let label = if body.device_label.trim().is_empty() { "device" } else { body.device_label.trim() };
-    let device = (!device.is_empty()).then_some((device, label));
-    let wrapped = if has_password { body.wrapped.as_str() } else { "" };
-    match accounts.store.create_account(&handle, &login_hash, wrapped, device, &codes, now_secs()) {
-        Ok(account) => signed_in(&accounts, account.id, &account.handle, None),
-        // The UNIQUE index is the real gate: a signup racing this one lands here.
-        Err(_) => error(StatusCode::CONFLICT, "That handle is taken."),
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LoginBody {
-    handle: String,
-    login_secret: String,
-}
-
-/// `POST v1/login`. The same answer for a wrong handle and a wrong password, as AttackFM gives.
-async fn login(State(accounts): State<Arc<Accounts>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Json(body): Json<LoginBody>) -> Response {
-    if let Err(refused) = accounts.admit(peer.ip(), &headers, &body.handle) {
-        return refused;
-    }
-    match accounts.store.account_by_handle(body.handle.trim()).filter(|a| verify_login(&body.login_secret, &a.login_hash)) {
-        Some(account) => {
-            accounts.store.touch_seen(account.id, now_secs());
-            signed_in(&accounts, account.id, &account.handle, Some(&account.wrapped))
-        }
-        None => error(StatusCode::UNAUTHORIZED, "Wrong handle or password."),
-    }
-}
-
-#[derive(Deserialize)]
-struct ChallengeBody {
-    handle: String,
-}
-
-/// `POST v1/login/challenge`. A nonce whether or not the handle exists, so this says nothing about which do.
-async fn challenge(State(accounts): State<Arc<Accounts>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Json(body): Json<ChallengeBody>) -> Response {
-    if let Err(refused) = accounts.admit(peer.ip(), &headers, &body.handle) {
-        return refused;
-    }
-    let account = accounts.store.account_by_handle(body.handle.trim()).map(|a| a.id).unwrap_or(-1);
-    let mut bytes = [0u8; 24];
-    rand::thread_rng().fill_bytes(&mut bytes);
-    let nonce = URL_SAFE_NO_PAD.encode(bytes);
-    let now = now_secs();
-    if let Ok(mut challenges) = accounts.challenges.lock() {
-        challenges.retain(|_, (_, issued)| now - *issued < CHALLENGE_TTL_SECS);
-        challenges.insert(nonce.clone(), (account, now));
-    }
-    Json(json!({ "nonce": nonce })).into_response()
-}
-
-#[derive(Deserialize)]
-struct DeviceLoginBody {
-    handle: String,
-    nonce: String,
-    signature: String,
-}
-
-/// `POST v1/login/device`. The nonce is spent by the attempt, whether or not the signature holds.
-async fn login_device(State(accounts): State<Arc<Accounts>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Json(body): Json<DeviceLoginBody>) -> Response {
-    if let Err(refused) = accounts.admit(peer.ip(), &headers, &body.handle) {
-        return refused;
-    }
-    let now = now_secs();
-    let claimed = accounts.challenges.lock().ok().and_then(|mut c| c.remove(&body.nonce));
-    let Some((account_id, _)) = claimed.filter(|(_, issued)| now - issued < CHALLENGE_TTL_SECS) else {
-        return error(StatusCode::UNAUTHORIZED, "That sign-in took too long. Try again.");
-    };
-    let verified = accounts.store.account_by_handle(body.handle.trim()).filter(|a| a.id == account_id).filter(|a| {
-        accounts
-            .store
-            .device_keys(a.id)
-            .iter()
-            .any(|key| crate::identity::verify_detached(key, body.nonce.as_bytes(), &body.signature))
-    });
-    match verified {
-        Some(account) => {
-            accounts.store.touch_seen(account.id, now);
-            signed_in(&accounts, account.id, &account.handle, None)
-        }
-        None => error(StatusCode::UNAUTHORIZED, "This device could not be verified."),
-    }
-}
-
-#[derive(Deserialize)]
-struct RecoveryLoginBody {
-    handle: String,
-    login: String,
-}
-
-/// `POST v1/login/recovery`. The code is spent, and what comes back is the key wrapped under that code alone.
-async fn login_recovery(State(accounts): State<Arc<Accounts>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Json(body): Json<RecoveryLoginBody>) -> Response {
-    if let Err(refused) = accounts.admit(peer.ip(), &headers, &body.handle) {
-        return refused;
-    }
-    let now = now_secs();
-    let found = accounts.store.account_by_handle(body.handle.trim()).and_then(|a| {
-        let wrapped = valid_login(&body.login).then(|| accounts.store.use_recovery_code(a.id, &hash_code(&body.login), now)).flatten()?;
-        Some((a, wrapped))
-    });
-    match found {
-        Some((account, wrapped)) => {
-            accounts.store.touch_seen(account.id, now);
-            signed_in(&accounts, account.id, &account.handle, Some(&wrapped))
-        }
-        None => error(StatusCode::UNAUTHORIZED, "Wrong handle or code, or a code already used."),
-    }
-}
-
-/// `POST v1/refresh`. A fresh token for a live one.
-async fn refresh(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
-    match accounts.store.account_by_id(who.sub) {
-        Some(account) => signed_in(&accounts, account.id, &account.handle, None),
-        None => error(StatusCode::UNAUTHORIZED, "That account is gone."),
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AddDeviceBody {
-    device_public_key: String,
-    #[serde(default)]
-    label: String,
-}
-
-/// `POST v1/device`. Another device for the signed-in account, so it can sign in without the password.
-async fn add_device(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body): Json<AddDeviceBody>) -> Response {
-    let key = body.device_public_key.trim();
-    if key.is_empty() || key.len() > 64 {
-        return error(StatusCode::BAD_REQUEST, "That device key could not be read.");
-    }
-    let label = if body.label.trim().is_empty() { "device" } else { body.label.trim() };
-    match accounts.store.add_device_key(who.sub, key, label, now_secs()) {
-        Ok(()) => Json(json!({ "ok": true })).into_response(),
-        Err(_) => error(StatusCode::BAD_REQUEST, "That device key could not be stored."),
-    }
-}
-
-/// `GET v1/keys`. The account key wrapped under the password, for a signed-in device that needs to unlock it.
-async fn keys(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
-    match accounts.store.account_by_id(who.sub) {
-        Some(account) => Json(json!({ "wrapped": account.wrapped })).into_response(),
-        None => error(StatusCode::UNAUTHORIZED, "That account is gone."),
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PasswordBody {
-    login_secret: String,
-    wrapped: String,
-}
-
-/// `PUT v1/password`. A new password: set after a recovery code, or changed on a signed-in device.
-async fn password(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body): Json<PasswordBody>) -> Response {
-    if !valid_login(&body.login_secret) || !valid_wrapped(&body.wrapped) {
-        return error(StatusCode::BAD_REQUEST, "That password could not be read.");
-    }
-    let hash = match hash_login(&body.login_secret) {
-        Ok(hash) => hash,
-        Err(refused) => return refused,
-    };
-    match accounts.store.set_password(who.sub, &hash, &body.wrapped) {
-        Ok(()) => Json(json!({ "ok": true })).into_response(),
-        Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "That password could not be stored."),
-    }
-}
-
-/// `GET v1/recovery`. How many unused codes are left, for Settings.
-async fn recovery_left(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
-    Json(json!({ "left": accounts.store.recovery_codes_left(who.sub) })).into_response()
-}
-
-#[derive(Deserialize)]
-struct RecoverySheetBody {
-    codes: Vec<CodeBody>,
-}
-
-/// `POST v1/recovery`. A new sheet in place of the old: the device made the codes, and sends only their login halves
-/// and the key wrapped under each.
-async fn recovery_replace(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body): Json<RecoverySheetBody>) -> Response {
-    let codes = match sheet(&body.codes) {
-        Ok(codes) => codes,
-        Err(refused) => return refused,
-    };
-    match accounts.store.replace_recovery_codes(who.sub, &codes) {
-        Ok(()) => Json(json!({ "left": RECOVERY_CODES })).into_response(),
-        Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "Those codes could not be stored."),
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DeleteAccountBody {
-    /// The login half of the password, as sign-in sends it. Asked for so a phone left unlocked can't lose its owner's
-    /// account; an account with no password (a device key only) has nothing to ask for.
-    #[serde(default)]
-    login_secret: String,
-}
-
-/// `DELETE v1/account`. The account and everything it keeps here: its notes, settings, recordings and pictures,
-/// shared links, devices and recovery codes (store.rs `delete_account`). What is on a device stays on the device. The
-/// password check is counted against sign-in's limits, as it is one more way to try a password.
-async fn delete_account(
-    State(accounts): State<Arc<Accounts>>,
-    ConnectInfo(peer): ConnectInfo<SocketAddr>,
-    headers: HeaderMap,
-    who: Claims,
-    Json(body): Json<DeleteAccountBody>,
-) -> Response {
-    let Some(account) = accounts.store.account_by_id(who.sub) else {
-        return error(StatusCode::UNAUTHORIZED, "That account is gone.");
-    };
-    if let Err(refused) = accounts.admit(peer.ip(), &headers, &account.handle) {
-        return refused;
-    }
-    // 403 rather than 401: the session is fine, only the password is wrong, and a 401 reads as signed out.
-    if !account.login_hash.is_empty() && !verify_login(&body.login_secret, &account.login_hash) {
-        return error(StatusCode::FORBIDDEN, "That is not the password.");
-    }
-    match accounts.store.delete_account(account.id) {
-        Ok(_) => Json(json!({ "deleted": true })).into_response(),
-        Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "The account could not be deleted. Nothing was lost; try again."),
-    }
 }
 
 /// `GET v1/pubkey`. The key tokens are checked against, published as AttackFM publishes its own.
@@ -523,16 +186,16 @@ async fn pubkey(State(accounts): State<Arc<Accounts>>) -> Response {
 pub fn router(accounts: Arc<Accounts>) -> Router {
     Router::new()
         .route("/glyph/api/v1/pubkey", get(pubkey))
-        .route("/glyph/api/v1/signup", post(signup))
-        .route("/glyph/api/v1/login", post(login))
-        .route("/glyph/api/v1/login/challenge", post(challenge))
-        .route("/glyph/api/v1/login/device", post(login_device))
-        .route("/glyph/api/v1/login/recovery", post(login_recovery))
-        .route("/glyph/api/v1/refresh", post(refresh))
-        .route("/glyph/api/v1/device", post(add_device))
-        .route("/glyph/api/v1/keys", get(keys))
-        .route("/glyph/api/v1/password", put(password))
-        .route("/glyph/api/v1/recovery", get(recovery_left).post(recovery_replace))
-        .route("/glyph/api/v1/account", delete(delete_account))
+        .route("/glyph/api/v1/signup", post(ways_in::signup))
+        .route("/glyph/api/v1/login", post(ways_in::login))
+        .route("/glyph/api/v1/login/challenge", post(ways_in::challenge))
+        .route("/glyph/api/v1/login/device", post(ways_in::login_device))
+        .route("/glyph/api/v1/login/recovery", post(ways_in::login_recovery))
+        .route("/glyph/api/v1/refresh", post(account::refresh))
+        .route("/glyph/api/v1/device", post(account::add_device))
+        .route("/glyph/api/v1/keys", get(account::keys))
+        .route("/glyph/api/v1/password", put(account::password))
+        .route("/glyph/api/v1/recovery", get(account::recovery_left).post(account::recovery_replace))
+        .route("/glyph/api/v1/account", delete(account::delete_account))
         .with_state(accounts)
 }
