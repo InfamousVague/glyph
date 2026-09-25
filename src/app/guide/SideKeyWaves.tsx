@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { prefersStill } from '../core/motion.ts';
+import { deviceMaker } from './assistant.ts';
 import { onScreen, sideKeySpot, type Edge, type SideKeySpot } from './sideKeys.ts';
 import { grown, paceWaves, shining, wobbleAmount, wobbleAt, type Pacer, type Ring } from './waves.ts';
 import styles from './SideKeyWaves.module.css';
@@ -23,17 +24,9 @@ import styles from './SideKeyWaves.module.css';
 const POINTS = 96;
 const MAX_RINGS = 14;
 
-function maker(): string {
-  try {
-    return window.GlyphHost?.deviceMaker?.() ?? '';
-  } catch {
-    return '';
-  }
-}
-
 /** This phone's side key, read once. */
 function useSideKeySpot(): SideKeySpot {
-  return useMemo(() => sideKeySpot(typeof navigator === 'undefined' ? '' : navigator.userAgent, maker()), []);
+  return useMemo(() => sideKeySpot(typeof navigator === 'undefined' ? '' : navigator.userAgent, deviceMaker()), []);
 }
 
 class Waves {
