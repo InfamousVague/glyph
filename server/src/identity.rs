@@ -10,8 +10,8 @@ use base64::Engine;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
-/// The token version, so the format can change without a server mistaking an old
-/// token for a new one. Bumped only on a breaking shape change.
+/// The token version, so the format can change without the service mistaking an
+/// old token for a new one. Bumped only on a breaking shape change.
 const TOKEN_V: &str = "glyph1";
 
 /// Exactly `N` bytes from unpadded base64url - a key is 32, a signature 64 - or
@@ -24,28 +24,29 @@ fn decode_array<const N: usize>(s: &str) -> Option<[u8; N]> {
 
 /// What a verified token asserts: who the bearer is, and for how long.
 ///
-/// Kept minimal on purpose - identity only. What a given account may DO on a
-/// given server (owner, member, banned) is the server's own business, read from
-/// its memberships table keyed by `sub`, never carried in the token. That keeps
-/// the token stable when a role changes and means a server is the sole authority
-/// on its own permissions.
+/// Kept minimal on purpose - identity only. Everything an account keeps is
+/// found by `sub` in the database, never carried in the token, so a token stays
+/// good however the account changes and says nothing about what is in it.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Claims {
-    /// The account id in the registry. Stable for the life of the account, and
-    /// the key a server stores memberships against.
+    /// The account's id (`accounts.id`). Stable for the life of the account, and
+    /// what every row it keeps is found by.
     pub sub: i64,
-    /// The handle at issue time, for display without a round-trip. A server must
-    /// treat `sub` - not this - as identity: handles can be changed, ids cannot.
+    /// The handle at issue time, for display without a round-trip. `sub` - not
+    /// this - is identity: a handle is matched without its case, an id exactly.
     pub handle: String,
     /// Issued-at, unix seconds.
     pub iat: i64,
-    /// Expiry, unix seconds. A short life is fine because the app refreshes
-    /// against the registry; a stolen token is only useful until it lapses.
+    /// Expiry, unix seconds: a week on (accounts.rs), renewed with `refresh` long
+    /// before, so a stolen token is only useful until it lapses. A live socket
+    /// lasts until then too (live.rs).
     pub exp: i64,
 }
 
-/// Why a token was refused. Distinguished so a caller can tell "sign in again"
-/// (expired) from "this is not one of ours" (bad signature / malformed).
+/// Why a token was refused. Kept apart for the tests below, and for a caller
+/// that ever needs to tell an expired token from one that is not ours; the
+/// service's one caller (accounts.rs `claims`) answers every refusal alike,
+/// "Your session has ended. Sign in again."
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VerifyError {
     /// The wire form was not `v.claims.sig`, or a field would not decode.
@@ -64,8 +65,9 @@ pub struct Issuer {
 }
 
 impl Issuer {
-    /// A fresh signing key. Called once, when a registry is first set up; the
-    /// bytes are then persisted (see `secret_b64`) and reloaded on every boot.
+    /// A fresh signing key. Called once, on the service's first start
+    /// (accounts.rs); the bytes are then kept in the database (see
+    /// `secret_b64`) and reloaded on every start after.
     pub fn generate() -> Self {
         let mut rng = rand::rngs::OsRng;
         Self { key: SigningKey::generate(&mut rng) }
@@ -76,22 +78,22 @@ impl Issuer {
         Some(Self { key: SigningKey::from_bytes(&decode_array(s.trim())?) })
     }
 
-    /// The secret, base64url, for storing in the registry's config. This is the
-    /// crown jewel: anyone holding it can mint a token for any account.
+    /// The secret, base64url, for the database's meta table. This is the crown
+    /// jewel: anyone holding it can mint a token for any account, which is why
+    /// the database is the one thing on the box to back up, and to guard.
     pub fn secret_b64(&self) -> String {
         URL_SAFE_NO_PAD.encode(self.key.to_bytes())
     }
 
-    /// The public half, base64url, to hand to every server. Safe to publish -
-    /// it verifies tokens but cannot mint them.
+    /// The public half, base64url, published at `GET v1/pubkey`. Safe to
+    /// publish - it verifies tokens but cannot mint them.
     pub fn public_b64(&self) -> String {
         URL_SAFE_NO_PAD.encode(self.key.verifying_key().to_bytes())
     }
 
-    /// The verifier for this issuer, for tests and for a registry that also
-    /// wants to check its own tokens.
-    pub fn verifier(&self) -> Verifier2 {
-        Verifier2 { key: self.key.verifying_key() }
+    /// The verifier for this issuer's tokens: how the service checks its own.
+    pub fn verifier(&self) -> TokenVerifier {
+        TokenVerifier { key: self.key.verifying_key() }
     }
 
     /// Sign a set of claims into a wire token.
@@ -105,17 +107,16 @@ impl Issuer {
     }
 }
 
-/// A server's verifying half: the registry's public key, and nothing else. Named
-/// with the `2` so it does not collide with dalek's `Verifier` trait in callers.
+/// The verifying half: the public key, and nothing else.
 #[derive(Clone)]
-pub struct Verifier2 {
+pub struct TokenVerifier {
     key: VerifyingKey,
 }
 
-impl Verifier2 {
-    /// Build from the base64url public key a registry published (`public_b64`). Only the tests do: this service checks
+impl TokenVerifier {
+    /// Build from the published public key (`public_b64`), as anyone could. Only the tests do: this service checks
     /// its own tokens with its own key.
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg(test)]
     pub fn from_public_b64(s: &str) -> Option<Self> {
         VerifyingKey::from_bytes(&decode_array(s.trim())?).ok().map(|key| Self { key })
     }
@@ -158,9 +159,10 @@ impl Verifier2 {
 ///
 /// This is the primitive behind passwordless login. A device holds its own key
 /// and registers the public half; to log in it signs a one-time challenge the
-/// registry hands out, and the registry checks it here. Same curve as the token,
-/// but a wholly separate key per device - the registry never sees a device's
-/// private key, only that it can produce signatures the public half accepts.
+/// service hands out (accounts/challenges.rs), and the service checks it here.
+/// Same curve as the token, but a wholly separate key per device - the service
+/// never sees a device's private key, only that it can produce signatures the
+/// public half accepts.
 pub fn verify_detached(public_b64: &str, message: &[u8], sig_b64: &str) -> bool {
     let Some(key) = decode_array(public_b64.trim()).and_then(|bytes| VerifyingKey::from_bytes(&bytes).ok()) else {
         return false;
@@ -182,7 +184,7 @@ mod tests {
     #[test]
     fn round_trips() {
         let iss = Issuer::generate();
-        let ver = Verifier2::from_public_b64(&iss.public_b64()).unwrap();
+        let ver = TokenVerifier::from_public_b64(&iss.public_b64()).unwrap();
         let c = claims(1_000, 3_600);
         let token = iss.issue(&c);
         assert_eq!(ver.verify(&token, 1_000).unwrap(), c);
