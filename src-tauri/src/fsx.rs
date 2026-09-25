@@ -37,6 +37,10 @@ use serde::de::DeserializeOwned;
 /// exists, it is removed: a `.tmp` left behind is invisible to the library's
 /// walk and the picture scheme (neither takes a dot file) but it is storage
 /// nothing will ever read.
+///
+/// The temporary name is [`temporary_beside`]'s, which does not carry the
+/// target's name, so it fits beside a target of any length the file system
+/// allows.
 pub fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     write_whole(path, bytes, false)
 }
@@ -48,11 +52,26 @@ pub fn write_private(path: &Path, bytes: &[u8]) -> io::Result<()> {
     write_whole(path, bytes, true)
 }
 
+/// The hidden, unique file a whole write goes through before it is renamed
+/// over `path`: `.<32 hex digits>.tmp` in the same directory, 37 bytes
+/// whatever the target is called.
+///
+/// It names nothing but a uuid on purpose. Linux file systems, Android's ext4
+/// and f2fs among them, cap a name at 255 bytes, not characters, and the
+/// library names notes itself from their titles: 80 characters of Chinese or
+/// Japanese is 240 bytes before `.md`. A temporary name built from the
+/// target's (`.<name>.<uuid>.tmp` adds 38 bytes to it, and the vault's old
+/// `.<name>.part` 6) would push such a note past the cap and fail its save,
+/// where this one fits beside any name the target can have.
+fn temporary_beside(path: &Path) -> io::Result<std::path::PathBuf> {
+    if path.file_name().is_none() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("not a file path: {}", path.display())));
+    }
+    Ok(path.with_file_name(format!(".{}.tmp", uuid::Uuid::new_v4().simple())))
+}
+
 fn write_whole(path: &Path, bytes: &[u8], private: bool) -> io::Result<()> {
-    let name = path
-        .file_name()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, format!("not a file path: {}", path.display())))?;
-    let temp = path.with_file_name(format!(".{}.{}.tmp", name.to_string_lossy(), uuid::Uuid::new_v4().simple()));
+    let temp = temporary_beside(path)?;
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -176,6 +195,29 @@ mod tests {
         write_atomically(&path, b"second, and longer").unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), b"second, and longer");
         assert_eq!(names(&dir), ["state.json"]);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_long_name_is_writable_because_the_temporary_name_does_not_grow_with_it() {
+        // 80 characters of CJK, the most `names::file_stem` keeps, is 240
+        // bytes; with `.md` it is 243. A Linux file system allows 255 bytes, so
+        // the note itself fits and a temporary name built from it would not.
+        let long = format!("{}.md", "\u{6f22}".repeat(80));
+        assert_eq!(long.len(), 243);
+        let dir = temp("long");
+        for target in [dir.join(&long), dir.join(format!("{}.md", "\u{6f22}".repeat(84))), dir.join("a")] {
+            let temporary = temporary_beside(&target).unwrap();
+            assert_eq!(temporary.parent(), target.parent(), "beside the target, so the rename is on one file system");
+            let name = temporary.file_name().unwrap().to_str().unwrap();
+            assert!(name.starts_with('.') && name.ends_with(".tmp"), "{name}");
+            assert_eq!(name.len(), 37, "the same short name whatever the target is called: {name}");
+        }
+        let path = dir.join(&long);
+        write_atomically(&path, "# \u{6f22}".as_bytes()).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "# \u{6f22}");
+        assert_eq!(names(&dir), [long]);
+        assert!(temporary_beside(Path::new("/")).is_err(), "a path with no file name has nowhere beside it");
         let _ = std::fs::remove_dir_all(dir);
     }
 
