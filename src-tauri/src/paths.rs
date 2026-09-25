@@ -15,10 +15,11 @@
 //! `ota::peek` all do, so a caller with no Tauri in its process (the
 //! update-alert worker today) resolves its own.
 //!
-//! Before this module, nine places resolved these by hand with three return
-//! shapes and four error sentences, and the one comment that claimed
-//! `commands::install` was the only resolver had stopped being true. Now there
-//! is one sentence per root, and the directories answer `Result`: a caller that
+//! Before this module, ten places resolved these by hand, some answering
+//! `Option` and some `Result`, with a different sentence nearly every time, and
+//! the one comment that claimed `commands::install` was the only resolver had
+//! stopped being true. Now there is one sentence per root, and the directories
+//! answer `Result`: a caller that
 //! treats "no directory" as "nothing there" says so with `.ok()`, which is the
 //! choice the model status makes (no data directory is a model that cannot be
 //! present - and NOT a relative path, which would answer for whatever file
