@@ -52,14 +52,16 @@ describe('instruction-aware final capture utterances', () => {
     expect(offered()).toBeNull();
 
     const read = await classifyFinalTranscript(take.segments.map((segment) => segment.text).join(' '), [{ id: 'todo', title: 'To-Do', note: todo }]);
-    expect(read).toMatchObject({ kind: 'offer', plan: { kind: 'place' } });
-    if (read.kind !== 'offer') throw new Error('expected offer');
-    take.offerFinal(read.plan, 5000);
+    expect(read).toMatchObject({ kind: 'offer', actions: [{ do: 'append', note: { id: 'todo' } }] });
+    if (read.kind !== 'offer' || read.actions[0]?.do !== 'append') throw new Error('expected an append offer');
+    take.offerChanges({ heading: 'Add to To-Do', action: 'Add', lines: [], detail: null }, 5000);
     expect(take.segments).toEqual([]);
-    expect(offered()).toMatchObject({ kind: 'place', title: 'To-Do', added: ['- [ ] Wash dishes', '- [ ] Take out trash', '- [ ] Fold clothes'] });
-
+    expect(offered()).toMatchObject({ kind: 'plan', heading: 'Add to To-Do' });
+    // Confirming a finished recording's changes is the recorder's to carry out (CaptureScreen `runFinalActions`).
     take.confirm(5100);
-    expect(addItems).toHaveBeenCalledOnce();
+    expect(addItems).not.toHaveBeenCalled();
+    const append = read.actions[0];
+    todo.body = placeWords(todo.body, append.text, append.placement).body;
     expect(todo.body).toBe('To-Do\n\n- [ ] Wash dishes\n- [ ] Take out trash\n- [ ] Fold clothes\n');
   });
 

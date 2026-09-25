@@ -68,7 +68,9 @@ export type Offer<N extends TakeNote> =
   | { kind: 'new'; title?: string; lines?: readonly string[]; span: Span }
   | { kind: 'board'; title: string; span: Span }
   | { kind: 'table'; note: N | null; title: string; columns: string[]; rows: string[][]; markdown: string; span: Span }
-  | { kind: 'plugin'; voice: VoiceCommand; parsed: unknown; title: string; action: string; span: Span };
+  | { kind: 'plugin'; voice: VoiceCommand; parsed: unknown; title: string; action: string; span: Span }
+  /** A finished recording's changes, carried out by the recorder itself once confirmed (finalInstruction.ts). */
+  | { kind: 'plan'; heading: string; action: string; lines: string[]; detail: string | null; span: Span };
 
 /** What the chip at the foot of the recorder says. */
 export type RouteView =
@@ -314,6 +316,9 @@ export class Take<N extends TakeNote> {
     } else if (held.kind === 'new') {
       this.host.route({ phase: 'moved', title: held.title ?? 'New note' });
       this.host.newNote(held.title);
+    } else if (held.kind === 'plan') {
+      this.host.route({ phase: 'done', text: held.heading });
+      this.host.haptic('success');
     } else if (held.kind === 'board') {
       this.asBoard = true;
       this.host.changed();
@@ -510,6 +515,17 @@ export class Take<N extends TakeNote> {
     this.segments = [...this.segments, { ...segment, text }];
     this.host.said(text);
     this.host.changed();
+  }
+
+  /** Offer a finished recording's changes: shown, and on yes left to the recorder to carry out. */
+  offerChanges(card: { heading: string; action: string; lines: string[]; detail: string | null }, now: number): void {
+    this.segments = [];
+    this.host.changed();
+    this.listening = null;
+    this.awaiting = null;
+    this.setPending({ kind: 'plan', ...card, span: { startMs: 0, endMs: 0 } }, now);
+    this.host.route(null);
+    this.host.haptic('selection');
   }
 
   /** Offer a plan only after the complete capture has been classified. */
@@ -763,7 +779,9 @@ export function describeOffer<N extends TakeNote>(offer: Offer<N>, outcome: 'don
             ? offer.title ? `create ${offer.title}` : 'start a new note'
             : offer.kind === 'board'
               ? 'make this note a board'
-              : offer.kind === 'table'
+              : offer.kind === 'plan'
+                ? offer.heading.charAt(0).toLowerCase() + offer.heading.slice(1)
+                : offer.kind === 'table'
                 ? `add a table (${offer.columns.join(', ')}; ${offer.rows.length} rows) to ${offer.title}`
                 : offer.title.charAt(0).toLowerCase() + offer.title.slice(1);
   if (outcome === 'done') return `Did: ${what}`;

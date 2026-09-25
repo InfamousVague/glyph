@@ -430,6 +430,106 @@ pub async fn ai_infer_command(
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VoiceStepRequest {
+    pub id: String,
+    /// The whole finished recording.
+    pub transcript: String,
+    /// The titles of the person's notes: never a body or an id.
+    #[serde(default)]
+    pub titles: Vec<String>,
+    /// "sort", or "plan" with the `kind` sorting found.
+    pub stage: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+    pub preferred_model: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum VoiceStepResult {
+    /// The model's JSON, checked to be one whole object, and its raw text for the voice log.
+    Answer { answer: serde_json::Value, raw: String, model: String },
+    /// A destructive request: not given to the model at all.
+    Refused { reason: String },
+    Unavailable { reason: String },
+}
+
+/// One step of reading a finished recording (llm/command.rs): "sort" says what
+/// kind of thing it is, "plan" turns it into actions with real item lists.
+/// Only an installed model, a native fixed prompt and a native fixed grammar.
+#[tauri::command]
+pub async fn ai_voice_step(
+    app: AppHandle,
+    state: State<'_, AiState>,
+    request: VoiceStepRequest,
+) -> Result<VoiceStepResult, String> {
+    let transcript = request.transcript.trim();
+    if request.id.is_empty() || transcript.is_empty() || transcript.chars().count() > 4_000 {
+        return Ok(VoiceStepResult::Unavailable { reason: "The recording was empty or too long.".into() });
+    }
+    let (system, grammar, kind, max_tokens): (&str, &'static str, Option<&str>, u32) = match (request.stage.as_str(), request.kind.as_deref()) {
+        ("sort", _) => (command::SORT_SYSTEM, command::SORT_GRAMMAR, None, 16),
+        ("plan", Some(kind @ ("add" | "new" | "mixed"))) => (command::PLAN_SYSTEM, command::PLAN_GRAMMAR, Some(kind), 640),
+        _ => return Ok(VoiceStepResult::Unavailable { reason: "Unknown voice step.".into() }),
+    };
+    if command::refusal(transcript).is_some() {
+        return Ok(VoiceStepResult::Refused { reason: "Deleting, clearing or sending notes by voice is not supported.".into() });
+    }
+    #[cfg(target_os = "ios")]
+    {
+        let _ = (app, state, system, grammar, kind, max_tokens);
+        return Ok(VoiceStepResult::Unavailable { reason: "The on-device model is not available on iOS yet.".into() });
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let dir = crate::capture_commands::models_dir(&app)?;
+        let preferred = model::find(&request.preferred_model)
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let fallback = model::find("qwen3.5-2b")
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let Some(spec) = preferred.or(fallback) else {
+            return Ok(VoiceStepResult::Unavailable {
+                reason: "No compatible installed model is available for voice commands.".into(),
+            });
+        };
+        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let cancel = Arc::new(AtomicBool::new(false));
+        {
+            let mut runs = lock(&state.runs);
+            if !runs.is_empty() {
+                return Ok(VoiceStepResult::Unavailable { reason: "The on-device model is already working.".into() });
+            }
+            runs.insert(request.id.clone(), Arc::clone(&cancel));
+        }
+        let engine_request = Request {
+            id: request.id.clone(),
+            system: system.into(),
+            context: None,
+            prompt: command::voice_prompt(transcript, &request.titles, kind),
+            max_tokens,
+            temperature: 0.0,
+            think: false,
+            think_budget: 0,
+            grammar: Some(grammar),
+        };
+        let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, |_| {});
+        let received = tauri::async_runtime::spawn_blocking(move || answer.recv()).await;
+        lock(&state.runs).remove(&request.id);
+        let result = received
+            .map_err(|e| format!("the voice step did not finish: {e}"))?
+            .map_err(|_| "the voice step engine went away".to_string())?;
+        match result {
+            Ok(output) => match command::check_answer(&output.text, output.truncated) {
+                Ok(answer) => Ok(VoiceStepResult::Answer { answer, raw: output.text, model: spec.id.into() }),
+                Err(reason) => Ok(VoiceStepResult::Unavailable { reason: format!("{reason}: {}", output.text.chars().take(300).collect::<String>()) }),
+            },
+            Err(failure) => Ok(VoiceStepResult::Unavailable { reason: failure.to_string() }),
+        }
+    }
+}
+
 #[cfg(not(target_os = "ios"))]
 impl Drop for AiState {
     fn drop(&mut self) {

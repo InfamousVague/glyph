@@ -33,7 +33,8 @@ import { appendToList, placeWords } from './listAppend.ts';
 import { listTitle } from './instructionMutation.ts';
 import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandInstructionCommand } from './understand.ts';
-import { classifyFinalTranscript } from './finalInstruction.ts';
+import { classifyFinalTranscript, type VoiceAction } from './finalInstruction.ts';
+import { settleRecording } from './voiceLog.ts';
 import { appendBlock } from './table.ts';
 import { appendBody } from './appendBody.ts';
 import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
@@ -240,9 +241,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const finished = useRef(false);
   /** A stopped command is awaiting its explicit confirmation; its words never become a note. */
   const finalCommand = useRef<{
-    note: Note | null;
-    /** "Make a new list called … and add …": the note to create on confirmation, instead of one to add to. */
-    create?: { title: string; items: readonly string[] };
+    /** The changes the recording asked for, checked (finalInstruction.ts), carried out on confirmation. */
+    actions: VoiceAction<Candidate & { note: Note }>[];
+    /** The rest of what was said, kept as its own note on confirmation; null for none. */
+    rest: string | null;
+    /** Its entry in the voice log, for what the person chose. */
+    trace?: number;
     /** A command found inside dictation: declined, the recording is saved as a note instead of discarded. */
     keep?: () => Promise<void>;
     locked: boolean;
@@ -763,8 +767,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const final = finalCommand.current;
     if (!final) return;
     finalCommand.current = null;
+    if (final.trace !== undefined) settleRecording(final.trace, 'confirmed');
     void writes.current.then(async () => {
-      let saved = final.create ? await createFinalList(final.create.title, final.create.items) : final.note ? await getNote(final.note.id).catch(() => final.note) : null;
+      let saved = await runFinalActions(final.actions, final.rest);
       if (saved && final.recordedMs !== null) {
         const recordingMs = await reassignRecording(final.temporaryId, saved.id, (saved.recordingMs ?? 0) > 0).catch(() => null);
         if (recordingMs !== null) saved = (await setNoteRecording(saved.id, recordingMs, saved.segments ?? []).catch(() => saved)) ?? saved;
@@ -775,20 +780,53 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       onFinish(saved, final.locked);
     });
   };
+  /**
+   * A confirmed recording's changes, one after another, each a guarded write
+   * against the note as it is now. Answers the note that keeps the recording:
+   * the rest-of-what-was-said note when there is one, else the first note changed.
+   */
+  const runFinalActions = async (actions: readonly VoiceAction<Candidate & { note: Note }>[], rest: string | null): Promise<Note | null> => {
+    let keeper: Note | null = null;
+    for (const action of actions) {
+      if (action.do === 'create') {
+        keeper ??= await createFinalList(action.title, action.items, action.tasks);
+        continue;
+      }
+      const fresh = (await getNote(action.note.id).catch(() => null)) ?? action.note.note;
+      const placed = placeWords(fresh.body, action.text, action.placement);
+      if (!placed.added.length) continue;
+      const result = await applyCommandMutation({
+        mutationId: newNoteId(),
+        noteId: fresh.id,
+        kind: 'append',
+        beforeRevision: fresh.revision ?? 1,
+        beforeBody: fresh.body,
+        afterBody: placed.body,
+        source: fresh.source,
+      }).catch(() => null);
+      if (result?.status === 'applied') keeper ??= result.note;
+      else setRoute({ phase: 'said', text: `${action.note.title} changed after the preview, so nothing was added to it.` });
+    }
+    if (rest) keeper = (await createFinalNote(rest)) ?? keeper;
+    return keeper;
+  };
   /** The confirmed new list of a finished recording: its title, then its items as a list. */
-  const createFinalList = async (title: string, items: readonly string[]): Promise<Note | null> => {
+  const createFinalList = async (title: string, items: readonly string[], tasks = false): Promise<Note | null> => {
     const named = listTitle(title);
+    return createFinalNote(items.length ? appendToList(named, items, { asTasks: tasks }).body : named);
+  };
+  const createFinalNote = async (body: string): Promise<Note | null> => {
     const result = await applyCommandMutation({
       mutationId: newNoteId(),
       noteId: newNoteId(),
       kind: 'create',
       beforeRevision: null,
       beforeBody: null,
-      afterBody: items.length ? appendToList(named, items).body : named,
+      afterBody: body,
       source: 'capture',
     }).catch(() => null);
     if (result?.status !== 'applied') {
-      setRoute({ phase: 'said', text: 'That list could not be created safely.' });
+      setRoute({ phase: 'said', text: 'That note could not be created safely.' });
       return null;
     }
     return result.note;
@@ -798,6 +836,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const final = finalCommand.current;
     if (!final) return;
     finalCommand.current = null;
+    if (final.trace !== undefined) settleRecording(final.trace, final.keep ? 'cancelled, kept as a note' : 'cancelled');
     if (final.keep) {
       void final.keep();
       return;
@@ -1040,11 +1079,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const decision = await classifyFinalTranscript(transcript, candidates.current);
     if (decision.kind === 'offer') {
       // The stopped audio is already retained under this capture id.  The
-      // mutation remains pending until this card is explicitly confirmed.
+      // changes remain pending until this card is explicitly confirmed.
       const said = take.segments;
-      take.offerFinal(decision.plan, performance.now());
-      const target = decision.plan.kind === 'place' ? decision.plan.note.note : null;
-      const create = decision.plan.kind === 'create-list' ? { title: decision.plan.title, items: decision.plan.items ?? [] } : undefined;
+      take.offerChanges(changesCard(decision.actions, decision.note), performance.now());
       // Found inside dictation: declined, the recording is kept as the note it may have been.
       const keep = decision.conversational
         ? async () => {
@@ -1052,7 +1089,15 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             await keepAsNote();
           }
         : undefined;
-      finalCommand.current = { note: target, ...(create ? { create } : {}), ...(keep ? { keep } : {}), locked, temporaryId: noteId.current, recordedMs: stopped.recordedMs };
+      finalCommand.current = {
+        actions: decision.actions,
+        rest: decision.note,
+        ...(decision.trace !== undefined ? { trace: decision.trace } : {}),
+        ...(keep ? { keep } : {}),
+        locked,
+        temporaryId: noteId.current,
+        recordedMs: stopped.recordedMs,
+      };
       setPhase('listening');
       return;
     }
@@ -1287,6 +1332,28 @@ function partialCommand(text: string): string {
   return (findKeyword(text)?.after ?? text).trim();
 }
 
+/** What the card says a finished recording's changes are: the lines as they will land. */
+function changesCard(actions: readonly VoiceAction<Candidate & { note: Note }>[], rest: string | null): { heading: string; action: string; lines: string[]; detail: string | null } {
+  const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '').replace(/\\(.)/g, '$1');
+  const one = actions.length === 1 && !rest ? actions[0] : null;
+  const lines: string[] = [];
+  for (const action of actions) {
+    const added =
+      action.do === 'create'
+        ? action.items
+        : placeWords(action.note.note.body, action.text, action.placement).added;
+    if (!one) lines.push(action.do === 'create' ? `New list: ${listTitle(action.title)}` : `Add to ${action.note.title}:`);
+    for (const line of added) lines.push(`${one ? '' : '  '}${show(line)}`);
+  }
+  if (rest) lines.push(`Keep as a note: “${show(rest).slice(0, 120)}${rest.length > 120 ? '…' : ''}”`);
+  if (one?.do === 'create') return { heading: `Create ${listTitle(one.title).replace(/\\(.)/g, '$1')}`, action: 'Create', lines, detail: one.items.length ? 'As a new list' : null };
+  if (one?.do === 'append') {
+    const into = one.placement.how === 'item' ? 'In its list' : 'Where it fits';
+    return { heading: `Add to ${one.note.title}`, action: 'Add', lines, detail: into };
+  }
+  return { heading: actions.length > 1 ? `${actions.length} changes` : 'This change', action: 'Do it', lines, detail: null };
+}
+
 /**
  * "Shall I?": what a command understood will do, before it does anything.
  *
@@ -1332,6 +1399,12 @@ function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer<Note>; onCon
       heading = `Add this table to ${offer.title}`;
       action = 'Add';
       detail = `${offer.rows.length} ${offer.rows.length === 1 ? 'row' : 'rows'}, at the end of the note`;
+      break;
+    case 'plan':
+      heading = offer.heading;
+      action = offer.action;
+      lines = offer.lines;
+      detail = offer.detail;
       break;
     default:
       heading = offer.title;

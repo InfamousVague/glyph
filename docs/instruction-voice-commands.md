@@ -18,6 +18,17 @@ The native model can produce only this allowlisted intent set:
 
 The selected formatting model is used only when it is installed. Otherwise the already-installed Qwen3.5 2B model is the fallback. Glyph never downloads a model for a command and never calls remote AI. If another llama.cpp run is active, inference returns unavailable rather than queueing behind or disturbing it. iOS returns unavailable for inference while deterministic commands remain functional.
 
+## Reading a recording with the model: sort, then plan
+
+When the rules (`command.ts`) do not know the phrasing, and the recording has any request word or names a note, the model reads the whole recording in two small steps through `ai_voice_step` (`voicePlan.ts`; prompts and grammars in `llm/command.rs`):
+
+1. **sort** answers one word: `note`, `add`, `new` or `mixed`. `note` ends it: dictation.
+2. **plan** answers `{"actions":[…],"note":…}`. Each action is `append` (a title from the person's notes, `items` as a JSON array or `text`, `as` list/tasks/text) or `create` (a title and `items`); `note` is the rest of what was said worth keeping. At most three actions.
+
+The app checks everything: shape, that an append's note is one of the person's notes, and that every item, title and note is made of words that were said (`grounded`; numbers must be said too, "two" and "2" alike). What fails is dropped and written to the log. Model text is escaped so it cannot become Markdown structure. One card shows all the changes; confirming runs them in order as guarded writes, keeps the rest as its own note, and gives the recording to that note (or the first note changed).
+
+Settings › Recording › **Voice log** keeps the last 40 recordings on the phone: the transcript, each step (rules, the model's raw sort and plan, what the checks dropped) and what the person chose, with Copy and Clear.
+
 ## Mutation boundary
 
 TypeScript resolves inferred title strings to `resolved`, `ambiguous`, or `not-found`, and creates final Markdown with deterministic placement rules. A confirmation card shows the exact action before any write.

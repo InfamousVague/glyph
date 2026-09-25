@@ -16,6 +16,7 @@ import { resetLocalData } from '../core/reset.ts';
 import { GUIDE_MODEL_PAGE } from '../guide/pages.ts';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsFootnote } from './kit/settingsKit.tsx';
 import { SideKeyWaves } from '../capture/SideKeyWaves.tsx';
+import { clearVoiceLog, useVoiceLog, voiceLogText } from '../capture/voiceLog.ts';
 import { WispBench } from './WispBench.tsx';
 import { windowFacts } from './windowFacts.ts';
 import { defaultHeight, saveHeight, savedHeight, useSideKeySpot } from '../capture/sideKey.ts';
@@ -249,6 +250,7 @@ export function RecordingPane() {
         />
       </PaneSection>
       {isTauri() ? <SideKeyPlace /> : null}
+      <VoiceLogSection />
       <PaneSection title="After recording">
         <SettingRow
           label="Better words"
@@ -257,6 +259,48 @@ export function RecordingPane() {
         />
       </PaneSection>
     </>
+  );
+}
+
+/**
+ * What happened to each recording, step by step (capture/voiceLog.ts): the
+ * transcript, which step decided, the model's raw answers, what the checks
+ * dropped and what was chosen. Copied whole, to read back a recording that went
+ * wrong exactly.
+ */
+function VoiceLogSection() {
+  const entries = useVoiceLog();
+  const { toast } = useToast();
+  const copy = () => {
+    const text = voiceLogText(entries);
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => toast({ message: `Copied ${entries.length} ${entries.length === 1 ? 'recording' : 'recordings'}.` }))
+      .catch(() => toast({ message: 'Could not copy: select the text below instead.' }));
+  };
+  return (
+    <PaneSection
+      title="Voice log"
+      description="What the app understood from each recording and why: the words it heard, the model's answers and what you chose. Kept only on this phone."
+    >
+      <SettingRow
+        label={entries.length ? `${entries.length} ${entries.length === 1 ? 'recording' : 'recordings'}` : 'Nothing yet'}
+        hint="Copy it and paste it into a message when something went wrong."
+        control={
+          <>
+            <RowAction onPress={copy} disabled={!entries.length}>
+              Copy
+            </RowAction>
+            <RowAction onPress={clearVoiceLog} disabled={!entries.length}>
+              Clear
+            </RowAction>
+          </>
+        }
+      />
+      {entries.length ? (
+        <pre style={{ whiteSpace: 'pre-wrap', userSelect: 'text', fontSize: 12, maxHeight: 320, overflow: 'auto', margin: 0, padding: '8px 0' }}>{voiceLogText(entries.slice(0, 5))}</pre>
+      ) : null}
+    </PaneSection>
   );
 }
 
