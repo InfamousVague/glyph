@@ -1,6 +1,5 @@
 // @vitest-environment node
 import type { Server } from 'node:http';
-import { createServer } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -10,6 +9,7 @@ import type { Note } from '../src/app/core/store.ts';
 import { fakeService, FAST, type FakeService } from '../src/test/fakeService.ts';
 import { makeNote } from '../src/test/notes.ts';
 import { ClaudeMemory } from './fake.ts';
+import { freePort } from './freePort.ts';
 import { hostedApp } from './hosted.ts';
 
 /**
@@ -28,19 +28,10 @@ describe('Claude connecting to the hosted server', () => {
   let hosted: ReturnType<typeof hostedApp>;
   const clock = { now: 1_800_000_000_000 };
 
-  /** A port nobody is using, so the app can be made with its real address as the issuer. */
-  const freePort = () =>
-    new Promise<number>((resolve) => {
-      const probe = createServer();
-      probe.listen(0, '127.0.0.1', () => {
-        const { port } = probe.address() as { port: number };
-        probe.close(() => resolve(port));
-      });
-    });
-
   beforeAll(async () => {
     service = await fakeService({ handle: 'matt', password: 'correct horse' });
     await service.deviceWrites(aNote('n1', '# Groceries\n\nWe need:\n- eggs\n- milk'));
+    // A port nobody is using, so the app can be made with its real address as the issuer.
     const port = await freePort();
     origin = `http://127.0.0.1:${port}`;
     hosted = hostedApp({ issuer: `${origin}/glyph/api/mcp`, api: 'https://fake.test/glyph/api', apiPublic: 'https://fake.test/glyph/api', fetcher: service.fetcher, rateLimit: false, now: () => clock.now });
