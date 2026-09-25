@@ -1,7 +1,7 @@
 import { similarity } from '../../capture/route.ts';
 import { failureText } from '../../core/failure.ts';
 import { fireNativeHaptic } from '../../core/haptics.ts';
-import { linkedLine } from '../../core/itemLinks.ts';
+import { itemWords, linkedLine } from '../../core/itemLinks.ts';
 import type { CaptureContext, ItemTarget, VoiceCommand } from '../types.ts';
 import { boardFor, boardLinks, createTask, findTasks, notionReadyNow } from './client.ts';
 
@@ -60,7 +60,8 @@ async function sendLines(noteId: string, lines: string[], ctx: CaptureContext) {
   try {
     const links: Array<{ line: string; url: string }> = [];
     for (const line of lines) {
-      const words = line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
+      // What the item says, as any item sent to Notion is titled (core/itemLinks.ts); a paragraph is sent as it is.
+      const words = itemWords(line) ?? line;
       links.push({ line, url: (await createTask(board, words)).url });
     }
     await ctx.updateNote(noteId, (body) => links.reduce((next, { line, url }) => next.replace(line, linkedLine(line, url)), body));

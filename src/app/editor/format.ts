@@ -1,5 +1,6 @@
 import { EditorSelection, Transaction, type ChangeSpec, type EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
+import { BOX, BULLET, NUMBER } from '../core/itemSyntax.ts';
 
 /**
  * What the Style page of the press-and-hold menu writes (editor/ContextMenu.tsx).
@@ -46,9 +47,11 @@ const BLOCK_PREFIXES: Record<Block, string> = {
 const BLOCK_PATTERNS: Record<Block, RegExp> = {
   heading: /^#{1,6}\s+/,
   quote: /^>\s+/,
-  bullet: /^[-*+]\s+/,
-  number: /^\d+[.)]\s+/,
-  task: /^[-*+]\s+\[[ xX]\]\s+/,
+  // The list forms in core/itemSyntax.ts's spelling. A to-do here is a bullet's: the bar's forms are one each, and a
+  // numbered to-do is shown, and toggled, as the numbered line it also is.
+  bullet: new RegExp(String.raw`^${BULLET}\s+`),
+  number: new RegExp(String.raw`^${NUMBER}\s+`),
+  task: new RegExp(String.raw`^${BULLET}\s+${BOX}\s+`),
 };
 
 /** The order forms are recognised in: a to-do before the list it also is. */

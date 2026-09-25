@@ -11,7 +11,8 @@ import { adoptImagePath, pickImage } from '../core/images.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { caretPlace, placeOf, readBookmark, scrollToPlace, useNotePlace, writeBookmark } from './notePlace.ts';
 import { bookmarkLineIn, markedLine, markedWords, placeBookmark, showBookmark } from './bookmarkLine.ts';
-import { boardFrom, itemAt, wordsEnd } from '../core/boards.ts';
+import { boardFrom, itemAt } from '../core/boards.ts';
+import { withoutLead, wordsEnd } from '../core/itemSyntax.ts';
 import { hasClips, setTapeId, tapeId } from '../core/clips.ts';
 import { useNoteZoom } from './pinchZoom.ts';
 import { ContextMenu } from './ContextMenu.tsx';
@@ -134,8 +135,6 @@ interface NoteScreenProps {
 
 /** A command on a note by name, read from the bar and waiting to be confirmed (ai/instruction.ts). */
 type CommandPlan = Extract<Plan<Candidate & { note: Note }>, { kind: 'place' | 'create-list' }>;
-
-const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
 
 const SAVE_DEBOUNCE_MS = 400;
 
@@ -526,7 +525,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       });
       recordChange(note.id, id, before, view.state.doc.toString());
       fireNativeHaptic('success');
-      toast({ message: `Added “${show(placed.added[0] ?? '')}”${more(placed.added)}.` });
+      toast({ message: `Added “${withoutLead(placed.added[0] ?? '')}”${more(placed.added)}.` });
       return;
     }
     const placed = placeWords(target.body, text, placement);
@@ -542,7 +541,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     recordChange(target.id, id, target.body, result.note.body);
     fireNativeHaptic('success');
     toast({
-      message: `Added “${show(placed.added[0] ?? '')}”${more(placed.added)} to ${named.title}.`,
+      message: `Added “${withoutLead(placed.added[0] ?? '')}”${more(placed.added)} to ${named.title}.`,
       duration: 6000,
       action: {
         label: 'Undo',

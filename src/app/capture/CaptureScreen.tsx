@@ -43,6 +43,7 @@ import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from
 import { bookNoteBody, isBookBody } from '../book/book.ts';
 import { boardFrom, lanesOf } from '../core/boards.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
+import { withoutLead } from '../core/itemSyntax.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { CaptureContext } from '../plugins/types.ts';
 import { tips, TIP_AFTER_MS, type Tip } from './tips.ts';
@@ -616,8 +617,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         setTarget(saved);
       }
       lastChange.current = { id: saved.id, before: note.body, what: `“${spoken}”`, mutationId };
-      const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
-      if (targetRef.current?.id === saved.id) setRoute({ phase: 'done', text: `Added “${show(placed.added[0] ?? '')}”${placed.added.length > 1 ? ` and ${placed.added.length - 1} more` : ''}` });
+      if (targetRef.current?.id === saved.id) setRoute({ phase: 'done', text: `Added “${withoutLead(placed.added[0] ?? '')}”${placed.added.length > 1 ? ` and ${placed.added.length - 1} more` : ''}` });
       else setRoute({ phase: 'added', title: noteTitle(saved.body) || 'that note', body: saved.body, added: placed.added });
       fireNativeHaptic('success');
       lastSaid.current = { kind: 'items', noteId: saved.id, lines: placed.added };
@@ -1379,19 +1379,18 @@ function ListLanding({ title, body, added }: { title: string; body: string; adde
   const end = lines.lastIndexOf(added[added.length - 1] ?? '');
   const start = end - added.length + 1;
   const before = lines.slice(Math.max(0, start - 2), Math.max(0, start)).filter((line) => line.trim());
-  const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
   return (
     <div className={styles.landing} aria-label={`Added to ${title}`}>
       <p className={styles.contextTitle}>{title}</p>
       {before.map((line, i) => (
         <p key={`b${i}`} className={styles.contextLine}>
-          {show(line)}
+          {withoutLead(line)}
         </p>
       ))}
       {added.map((line, i) => (
         <p key={`a${i}`} className={styles.landed} style={{ animationDelay: `${120 + i * 140}ms` }}>
           <span className={styles.landedTick} aria-hidden="true" />
-          {show(line)}
+          {withoutLead(line)}
         </p>
       ))}
     </div>

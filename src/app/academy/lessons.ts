@@ -1,3 +1,4 @@
+import { BOX, BULLET, MARKER, NUMBER } from '../core/itemSyntax.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 
 /**
@@ -141,7 +142,7 @@ export const LESSONS: Lesson[] = [
     teach: 'A dash and a space starts a list, one line each. Press Enter and the next line is a bullet too.',
     example: '- Oat milk\n- Rye bread\n- Coffee',
     task: 'Write a list of two or three things.',
-    passes: line(/^[ \t]*[-*+][ \t]+\S/m),
+    passes: line(new RegExp(String.raw`^[ \t]*${BULLET}[ \t]+\S`, 'm')),
     praise: 'That is a list.',
     hint: 'Start each line with a dash and a space.',
   },
@@ -153,7 +154,7 @@ export const LESSONS: Lesson[] = [
     teach: 'A number, a dot and a space when the order is the point: steps to follow, one after another.',
     example: '1. Unplug it\n2. Wait a minute\n3. Plug it back in',
     task: 'Write two steps in order.',
-    passes: line(/^[ \t]*\d+[.)][ \t]+\S/m),
+    passes: line(new RegExp(String.raw`^[ \t]*${NUMBER}[ \t]+\S`, 'm')),
     praise: 'Numbered.',
     hint: 'Start the line with 1. and a space; the next one with 2.',
   },
@@ -165,7 +166,7 @@ export const LESSONS: Lesson[] = [
     teach: 'A dash, then a box: - [ ] and the thing to do. Tap the box in a note to tick it off, or type an x between the brackets.',
     example: '- [ ] Book the cabin\n- [x] Pick a date',
     task: 'Write something you have to do.',
-    passes: line(/^[ \t]*[-*+][ \t]+\[[ xX]\][ \t]*\S/m),
+    passes: line(new RegExp(String.raw`^[ \t]*${MARKER}[ \t]+${BOX}[ \t]*\S`, 'm')),
     praise: 'That is a to-do, and its box is real: tap it in a note.',
     hint: 'A dash, a space, then [ ] with a space between the brackets.',
   },

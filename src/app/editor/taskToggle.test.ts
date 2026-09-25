@@ -13,6 +13,16 @@ describe('tapping a to-do box', () => {
     expect(boxAt(state, line(5))).toBeNull();
   });
 
+  it('finds no box where the editor draws none: brackets glued to the words, or a link whose words are "x"', () => {
+    // A tap on either used to write into the brackets, turning `[x](…)`'s words into a space.
+    const state = EditorState.create({ doc: '- [ ]milk\n- [x](https://example.com/x)\n- [ ]' });
+    const line = (n: number) => state.doc.line(n).from;
+    expect(boxAt(state, line(1))).toBeNull();
+    expect(boxAt(state, line(2))).toBeNull();
+    // An empty to-do is still one, while its words are being typed.
+    expect(boxAt(state, line(3))).toMatchObject({ from: line(3) + 2, done: false });
+  });
+
   it('ticks an empty box and clears a ticked one, touching nothing else, as one edit', () => {
     let state = EditorState.create({ doc: '- [ ] milk [notion](https://notion.so/x) ^milk' });
     const tr = toggleBox(state, boxAt(state, 0)!);

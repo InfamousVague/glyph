@@ -1,4 +1,5 @@
 import { frontMatterEnd } from './frontMatter.ts';
+import { BOOKMARK_SIGNS } from './itemSyntax.ts';
 
 /**
  * A note's title: the first line of its words, which is the only title Glyph has, and its lines with the front
@@ -10,8 +11,12 @@ import { frontMatterEnd } from './frontMatter.ts';
  * React and the Tauri bridge, which a Node bundle cannot take. So the server kept a copy, and the copy drifted: it
  * took any block between two fences as front matter, and a note that opened with a rule, some words and another rule
  * was called one thing in the app's list and another by Claude's tools. This module imports nothing but the front
- * matter rule, so the server bundles the same code the list runs.
+ * matter rule and the bookmark's signs (core/itemSyntax.ts, which imports nothing), so the server bundles the same
+ * code the list runs.
  */
+
+/** The bookmark and the whitespace either side of it, which a title reads as one space. */
+const BOOKMARK_IN_TITLE = new RegExp(String.raw`\s*${BOOKMARK_SIGNS}\s*`, 'g');
 
 /** A note's lines with its front matter taken off, and its `title:` first where it has one. */
 export function withoutFrontMatter(lines: readonly string[]): string[] {
@@ -41,5 +46,5 @@ export function noteTitle(body: string): string {
   // every character; this is a label, not an edit.
   // The bookmark's mark too (editor/bookmarkLine.ts): set on the first line, it said "Weekend trip §§" in every tab and
   // card. It says where the note opens, not what it is called.
-  return line.replace(/^#{1,6}\s+/, '').replace(/\s*§§\s*/g, ' ').trim();
+  return line.replace(/^#{1,6}\s+/, '').replace(BOOKMARK_IN_TITLE, ' ').trim();
 }

@@ -10,6 +10,8 @@
  * Pure, so it is tested without a screen.
  */
 
+import { BOX, BULLET, NUMBER } from '../core/itemSyntax.ts';
+
 export type LineKind = 'heading' | 'task' | 'bullet' | 'number' | 'quote' | 'para' | 'blank';
 
 export type RunKind = 'text' | 'mark' | 'pending';
@@ -31,8 +33,11 @@ export interface Line {
   pending: boolean;
 }
 
-/** A markdown mark at the start of a line, with its trailing space. */
-const LEADING = /^(?:(#{1,6}) |(- \[[ xX]\]) |([-*]) |(\d{1,3}\.) |(>) )/;
+/**
+ * A markdown mark at the start of a line, with its trailing space: a heading, a to-do, a bullet or a numbered step in
+ * core/itemSyntax.ts's spelling, a quote.
+ */
+const LEADING = new RegExp(String.raw`^(?:(#{1,6}) |(${BULLET} ${BOX}) |(${BULLET}) |(${NUMBER}) |(>) )`);
 
 /**
  * Lines for `markdown` from `start` on. `pendingFrom` is an offset into the

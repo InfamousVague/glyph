@@ -65,6 +65,14 @@ describe('Ghost.md Academy’s lessons', () => {
     expect(passes('fence', '```js\nconst x = 1;')).toBe(false);
   });
 
+  it('knows a to-do the way the note does: a box after any marker, with a space after it (core/itemSyntax.ts)', () => {
+    const passes = (text: string) => LESSONS.find((lesson) => lesson.id === 'todo')!.passes(text);
+    expect(passes('1. [ ] ring the site')).toBe(true);
+    expect(passes('* [x] rang the site')).toBe(true);
+    // Brackets against the words draw no box in a note, so there is nothing to tap: not a to-do yet.
+    expect(passes('- [ ]ring the site')).toBe(false);
+  });
+
   it('keeps what has been learned, and shrugs off a store it cannot read', () => {
     writeProgress(new Set(['title', 'bold']));
     expect(readProgress()).toEqual(new Set(['title', 'bold']));

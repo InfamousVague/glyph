@@ -136,7 +136,10 @@ at from a column, from a sentence, or from another note.
 
 ## What Glyph does with it
 
-- `src/app/core/boards.ts` reads and writes both pieces, and is the only place that knows the syntax.
+- `src/app/core/boards.ts` reads and writes both pieces, and is the only place that knows the fence's syntax. The
+  item line's - its marker, box, bookmark, mark, counters and anchor - is spelled once, in
+  `src/app/core/itemSyntax.ts`, and boards read it from there, as does everything else in `src/app` that reads a list
+  line: ticking a box, Done following a Notion task, the Notion and GitHub links, the recorder adding to a list.
 - `src/app/editor/boards.ts` draws the board in a note, and puts the caret in the fence when it is tapped for editing,
   the way a table steps aside (`editor/tables.ts`).
 - Moving a card, ticking it, or adding one rewrites the fence and the item line as a person would have typed them.

@@ -1,5 +1,6 @@
 import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
+import { BOX, MARKER } from '../core/itemSyntax.ts';
 import { LINK_PREVIEW_READY, openLink, pathOf, previewFor, siteOf, wantPreview } from '../core/linkPreview.ts';
 import { markNameFor } from '../core/markDetails.ts';
 import { onPreferences, preferences } from '../core/preferences.ts';
@@ -21,7 +22,9 @@ import { linkedOn } from './linkedRows.ts';
  */
 
 /** The whole line is a link: bare, `<bare>`, or `[words](address)`, optionally as a list item or a to-do. */
-const ONLY_LINK = /^\s*(?:(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?(?:<?(https?:\/\/[^\s<>]+?)>?|\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\))\s*$/;
+const ONLY_LINK = new RegExp(
+  String.raw`^\s*(?:${MARKER}\s+(?:${BOX}\s+)?)?(?:<?(https?:\/\/[^\s<>]+?)>?|\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\))\s*$`,
+);
 const FENCE = /^\s*(```|~~~)/;
 
 export interface LinkLine {

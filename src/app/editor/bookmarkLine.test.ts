@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Bookmark } from '@glacier/icons';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { BOOKMARK_PATH, bookmarkLineIn, bookmarkRibbon, markedWords, placeBookmark, showBookmark } from './bookmarkLine.ts';
+import { BOOKMARK_PATH, bookmarkLineIn, bookmarkRibbon, markedLine, markedWords, placeBookmark, showBookmark } from './bookmarkLine.ts';
 
 const doc = [
   '# Launch week',
@@ -69,6 +69,13 @@ describe('the words a bookmark sits on', () => {
     expect(markedWords(on, on.state.doc.line(4).from)).toBe('A line of ordinary words that…');
     expect(markedWords(editor('   \n\n'), 0)).toBeNull();
   });
+
+  it('takes any list item’s box off, and its anchor wherever the item keeps it (core/itemSyntax.ts)', () => {
+    const on = editor('1. [ ] Book the cabin\n- ( ) Tent ^tent\n- [ ] Pack ^pack [3/8]');
+    expect(markedWords(on, on.state.doc.line(1).from)).toBe('Book the cabin');
+    expect(markedWords(on, on.state.doc.line(2).from)).toBe('Tent');
+    expect(markedWords(on, on.state.doc.line(3).from)).toBe('Pack [3/8]');
+  });
 });
 
 describe('a place on a blank line', () => {
@@ -77,6 +84,19 @@ describe('a place on a blank line', () => {
     on.dispatch({ effects: showBookmark.of(on.state.doc.line(2).from) });
     expect(ribboned(on)).toEqual([3]);
     expect(markedWords(on, on.state.doc.line(2).from)).toBe('Write the pricing page');
+  });
+
+  // `- ` and `- [ ] ` were always passed over; the rest were kept before core/itemSyntax.ts, and said back as "[ ]"
+  // or "^a".
+  it('passes over a list item with no words yet, whatever its box, to the next line that has words', () => {
+    for (const empty of ['- ', '- [ ] ', '- [ ]', '* [x]', '1. [ ]', '1. [ ] ', '- ( )', '- ^a', '- [ ] ^a']) {
+      const state = EditorState.create({ doc: `${empty}\nThe next words` });
+      expect(markedLine(state, 0), JSON.stringify(empty)).toBe(2);
+    }
+    const on = editor('- [ ]\nThe next words');
+    expect(markedWords(on, 0)).toBe('The next words');
+    // With nothing after it that has words, the place stays where it was.
+    expect(markedLine(EditorState.create({ doc: '- [ ]\n\n' }), 0)).toBe(1);
   });
 });
 

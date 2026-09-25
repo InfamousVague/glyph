@@ -1,6 +1,7 @@
 import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, ViewPlugin, type DecorationSet, type EditorView, type ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
+import { BOX, MARKER } from '../core/itemSyntax.ts';
 import styles from './Editor.module.css';
 
 /**
@@ -37,9 +38,12 @@ const LINE_CLASS: Record<string, string | undefined> = {
 
 /**
  * A list line's marker as far as its words: the indent, `-` or `10.`, a task's
- * box, and the spaces after them.
+ * box, and the spaces after them (core/itemSyntax.ts spells the marker and the
+ * box; the spaces are the ones the editor's parser hangs the words after).
  */
-const MARKER = /^(\s*(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?)\S/;
+const HANGING = new RegExp(String.raw`^(\s*${MARKER}[ \t]+(?:${BOX}[ \t]+)?)\S`);
+/** A to-do's box inside a marker. */
+const BOX_IN = new RegExp(BOX);
 
 /*
  * How wide a marker is, measured in the editor's own font. Wrapped lines of an
@@ -58,7 +62,7 @@ const widths = new Map<string, number>();
 function markerWidth(view: EditorView, marker: string): number {
   const style = getComputedStyle(view.contentDOM);
   // Ticked or not, a box is the same width: one measure for both.
-  const key = `${style.fontFamily}|${style.fontSize}|${style.fontWeight}|${style.letterSpacing}|${marker.replace(/\[[xX]\]/, '[ ]')}`;
+  const key = `${style.fontFamily}|${style.fontSize}|${style.fontWeight}|${style.letterSpacing}|${marker.replace(BOX_IN, '[ ]')}`;
   const known = widths.get(key);
   if (known !== undefined) return known;
   const ruler = document.createElement('span');
@@ -72,7 +76,7 @@ function markerWidth(view: EditorView, marker: string): number {
     pointerEvents: 'none',
   });
   // A to-do's box is set in the monospace face (Editor.module.css `.taskMarker`), so `[ ]` and `[x]` are one width.
-  const box = /\[[ xX]\]/.exec(marker);
+  const box = BOX_IN.exec(marker);
   if (box) {
     const drawn = document.createElement('span');
     drawn.className = styles.taskMarker ?? '';
@@ -135,7 +139,7 @@ function buildLines(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   for (const at of [...perLine.keys()].sort((a, b) => a - b)) {
     const classes = perLine.get(at)!;
-    const marker = classes.includes(styles.lineItem ?? '') ? MARKER.exec(doc.lineAt(at).text)?.[1] : undefined;
+    const marker = classes.includes(styles.lineItem ?? '') ? HANGING.exec(doc.lineAt(at).text)?.[1] : undefined;
     const attributes = marker ? { style: `--hang: ${markerWidth(view, marker).toFixed(2)}px` } : undefined;
     builder.add(at, at, Decoration.line({ class: classes.join(' '), attributes }));
   }

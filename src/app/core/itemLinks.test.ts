@@ -150,3 +150,40 @@ describe('a choice or a counter on an item', () => {
     expect(markOf(`- [ ] Pack socks §§ [notion](${url}) ^pack-socks`)).toEqual({ name: 'notion', url });
   });
 });
+
+describe('the same line read the same way everywhere (core/itemSyntax.ts)', () => {
+  it('leaves a ticked to-do alone after any marker, not only after a dash', () => {
+    // It was offered to Notion as a task called "[x] Done thing": the box was read only after `- `.
+    expect(unsentItems('* [x] Done thing\n+ [X] Also done\n1. [x] Done step\n- [x] Done')).toEqual([]);
+    expect(itemWords('* [x] Done thing')).toBe('Done thing');
+    expect(itemWords('1. [ ] Call the plumber')).toBe('Call the plumber');
+  });
+
+  it('sends a starred or numbered to-do by its words, box off', () => {
+    expect(unsentItems('* [ ] Buy milk\n2) [ ] Book the cabin')).toEqual([
+      { line: 1, text: 'Buy milk' },
+      { line: 2, text: 'Book the cabin' },
+    ]);
+    expect(linkedLine('* [ ] Buy milk', 'https://n.so/m')).toBe('* [ ] Buy milk [notion](https://n.so/m)');
+  });
+
+  it('takes the space after a marker as any run of spaces', () => {
+    expect(unsentItems('-  [ ] Two spaces\n-\tA tab')).toEqual([
+      { line: 1, text: 'Two spaces' },
+      { line: 2, text: 'A tab' },
+    ]);
+  });
+
+  it('never sends an empty box as a task called "[ ]"', () => {
+    expect(unsentItems('- [ ]\n- [x]')).toEqual([]);
+  });
+
+  it('reads a list numbered past 999, as the editor does', () => {
+    expect(unsentItems('1000. The thousandth thing')).toEqual([{ line: 1, text: 'The thousandth thing' }]);
+  });
+
+  it('puts one space before the mark on an item with no words yet', () => {
+    expect(linkedLine('- ^only-a-name', 'https://n.so/a')).toBe('- [notion](https://n.so/a) ^only-a-name');
+    expect(linkedLine('- ( ) ^pick', 'https://n.so/a')).toBe('- ( ) [notion](https://n.so/a) ^pick');
+  });
+});

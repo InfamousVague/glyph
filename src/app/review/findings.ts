@@ -1,5 +1,6 @@
 import { appendToList, leaveNote } from '../capture/listAppend.ts';
 import { matchNote } from '../capture/route.ts';
+import { listLead } from '../core/itemSyntax.ts';
 import { escapeRegExp } from '../core/text.ts';
 
 /**
@@ -113,10 +114,16 @@ export function readFindings(answer: string, self: NoteText, others: readonly No
   return out;
 }
 
-/** A line added to a note: a list item joins its list, anything else goes where it fits. */
+/**
+ * A line added to a note: a list item joins its list, anything else goes where it fits. A to-do's box is the list's to
+ * write, so it goes; a choice's `( )` is part of what is added, so it stays with the words.
+ */
 export function addLine(body: string, line: string): string {
-  const item = /^\s*(- \[[ xX]\] |[-*+] |\d+[.)] )(.*)$/.exec(line);
-  if (item) return appendToList(body, [item[2] ?? ''], { asTasks: /\[/.test(item[1] ?? '') }).body;
+  const item = listLead(line);
+  if (item) {
+    const words = line.slice(item.picked !== null ? item.boxAt : item.wordsAt);
+    return appendToList(body, [words], { asTasks: item.done !== null }).body;
+  }
   return leaveNote(body, line).body;
 }
 

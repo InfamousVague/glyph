@@ -1,3 +1,4 @@
+import { MARKER } from '../core/itemSyntax.ts';
 import { finalCommandWords, planCommand, type Placement, type Plan } from './command.ts';
 import { inferInstruction, type InferenceRun } from './instructionIntent.ts';
 import { resolveTarget, type Candidate } from './route.ts';
@@ -11,8 +12,8 @@ export type FinalInstruction<N extends Candidate> =
 
 /** A spoken command that says it is about a list. */
 const LIST_WORDS = /\b(?:list|lists|items?|bullets?|bullet\s+points?|tasks?|to-?\s?dos?|check\s?list)\b/i;
-/** A Markdown list line: the note already keeps a list. */
-const LIST_LINE = /^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)\S/m;
+/** A Markdown list line, its marker (core/itemSyntax.ts) and then words or a to-do's box: the note already keeps a list. */
+const LIST_LINE = new RegExp(String.raw`^\s*${MARKER}\s+\S`, 'm');
 /** The most words an item has when nobody said "list": longer pieces are a sentence with commas in it. */
 const SHORT_ITEM_WORDS = 4;
 /** "We should…", "it was…": a piece that starts like a sentence is not an item. */

@@ -1,5 +1,6 @@
 import { Transaction, type Extension, type Text } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { taskBox } from '../core/itemSyntax.ts';
 import { markActions, onMarkDetails, peekMarkDetails, wantMarkDetails } from '../core/markDetails.ts';
 import { settleFences } from './boards.ts';
 import { linkedOn } from './linkedRows.ts';
@@ -25,9 +26,6 @@ import { linkedOn } from './linkedRows.ts';
  * is open.
  */
 
-/** A to-do's box: its indent and bullet, then what is in the box. */
-const BOX = /^(\s*[-*+] )\[([ xX])\] /;
-
 export interface BoxChange {
   /** The space inside the box. */
   from: number;
@@ -47,7 +45,7 @@ export function boxesDue(doc: Text, acted: ReadonlyMap<string, number>, skip: Re
   const changes: BoxChange[] = [];
   for (let n = 1; n <= doc.lines; n += 1) {
     const line = doc.line(n);
-    const box = BOX.exec(line.text);
+    const box = taskBox(line.text);
     if (!box) continue;
     const mark = linkedOn(line.text);
     if (!mark?.item || skip.has(mark.url)) continue;
@@ -56,10 +54,10 @@ export function boxesDue(doc: Text, acted: ReadonlyMap<string, number>, skip: Re
     const { details } = entry;
     if (details.gone || !details.status) continue;
     const done = details.status.stage === 'done';
-    if (done === (box[2] !== ' ')) continue;
+    if (done === box.done) continue;
     const stamp = details.editedAt ?? details.readAt;
     if (acted.get(mark.url) === stamp) continue;
-    const at = line.from + (box[1] ?? '').length + 1;
+    const at = line.from + box.at + 1;
     changes.push({ from: at, to: at + 1, url: mark.url, insert: done ? 'x' : ' ', stamp });
   }
   return changes;
@@ -80,14 +78,13 @@ export function flipsIn(tr: Transaction): Flip[] {
   tr.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => {
     for (let pos = fromB; pos <= toB;) {
       const line = tr.state.doc.lineAt(pos);
-      const now = BOX.exec(line.text);
+      const now = taskBox(line.text);
       const mark = now ? linkedOn(line.text) : null;
       if (now && mark?.item) {
         const was = tr.startState.doc.lineAt(Math.min(back.mapPos(line.from, -1), tr.startState.doc.length));
-        const before = BOX.exec(was.text);
+        const before = taskBox(was.text);
         const wasMark = before ? linkedOn(was.text) : null;
-        const ticked = now[2] !== ' ';
-        if (before && wasMark?.url === mark.url && (before[2] !== ' ') !== ticked) flips.set(mark.url, { name: mark.name, url: mark.url, done: ticked });
+        if (before && wasMark?.url === mark.url && before.done !== now.done) flips.set(mark.url, { name: mark.name, url: mark.url, done: now.done });
       }
       pos = line.to + 1;
     }

@@ -1,6 +1,6 @@
 import { StateEffect, StateField, type EditorState, type Extension, type Text, type TransactionSpec } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
-import { wordsEnd } from '../core/boards.ts';
+import { BOOKMARK, BOOKMARK_SIGNS, listLead, withoutAnchor, withoutBookmark, wordsEnd } from '../core/itemSyntax.ts';
 
 /**
  * The bookmark, written in the note (Matt: "we should show the bookmark in markdown as a physical symbol combo thats
@@ -23,21 +23,21 @@ import { wordsEnd } from '../core/boards.ts';
  * the button next puts one in the note.
  */
 
-export const BOOKMARK = '§§';
-/** The mark and the space before it, wherever it sits on a line. */
-const MARK = /[ \t]*§§(?=\s|$)/g;
+/** The mark and the space before it, wherever it sits on a line (core/itemSyntax.ts spells the mark). */
+const SPACED = String.raw`[ \t]*${BOOKMARK}`;
+/** Every mark on a line, for taking them all off. */
+const MARK = new RegExp(SPACED, 'g');
+/** The first mark on a line, for drawing it. */
+const FIRST_MARK = new RegExp(SPACED);
+/** The mark alone, for finding it. */
+const SIGNS = new RegExp(BOOKMARK);
 
 /** The line (from 1) holding the note's bookmark, or null. */
 export function bookmarkLineIn(doc: Text | string): number | null {
   const text = typeof doc === 'string' ? doc : doc.toString();
-  const at = text.search(/§§(?=\s|$)/);
+  const at = text.search(SIGNS);
   if (at < 0) return null;
   return text.slice(0, at).split('\n').length;
-}
-
-/** A line's text with the bookmark taken out. */
-export function withoutBookmark(line: string): string {
-  return line.replace(MARK, '');
 }
 
 /**
@@ -59,7 +59,7 @@ export function placeBookmark(state: EditorState, number: number | null): Transa
     // Positions in the clean line map onto the real one because the marks taken out all sit at or after the words' end.
     const at = line.from + Math.min(end, line.text.length);
     const before = clean.slice(0, end);
-    changes.push({ from: at, to: at, insert: `${before && !/\s$/.test(before) ? ' ' : ''}${BOOKMARK}` });
+    changes.push({ from: at, to: at, insert: `${before && !/\s$/.test(before) ? ' ' : ''}${BOOKMARK_SIGNS}` });
   }
   return { changes, userEvent: 'input.bookmark' };
 }
@@ -132,12 +132,12 @@ function decorate(state: EditorState, kept: number | null): DecorationSet {
   if (number === null) return Decoration.none;
   const line = state.doc.line(number);
   const ranges = [ribbon.range(line.from)];
-  const found = written !== null ? /[ \t]*§§(?=\s|$)/.exec(line.text) : null;
+  const found = written !== null ? FIRST_MARK.exec(line.text) : null;
   if (found) {
     const from = line.from + found.index;
     const to = from + found[0].length;
     // The signs as text only while the caret is at them, so they can be edited; a caret elsewhere on the line leaves the ribbon.
-    const editing = state.selection.ranges.some((range) => range.from <= to && range.to >= from + found[0].length - BOOKMARK.length);
+    const editing = state.selection.ranges.some((range) => range.from <= to && range.to >= from + found[0].length - BOOKMARK_SIGNS.length);
     if (!editing) ranges.push(hidden.range(from, to));
   }
   return Decoration.set(ranges, true);
@@ -198,18 +198,25 @@ const SAY = 32;
 /** Lines looked at from the bookmark before giving up on finding words: a place can land on a blank line. */
 const LOOK = 5;
 
-/** The words on a line, without the marks that make them a heading, a bullet or a to-do, or the bookmark. */
+/**
+ * The words on a line, without the marks that make them a heading, a quote, a list item or a to-do (core/itemSyntax.ts
+ * `listLead`), the bookmark, or the anchor naming an item.
+ */
 function wordsOn(state: EditorState, number: number): string {
-  return withoutBookmark(state.doc.line(number).text)
-    .replace(/^\s*(#{1,6}\s+|[-*+]\s+(\[[ xX]\]\s+)?|>\s+|\d+[.)]\s+)/, '')
+  const line = withoutBookmark(state.doc.line(number).text);
+  const lead = listLead(line);
+  const words = lead ? line.slice(lead.wordsAt) : line.replace(/^\s*(?:#{1,6}\s+|>\s+)/, '');
+  return withoutAnchor(words)
     .replace(/[*_`~]/g, '')
-    .replace(/\s+\^[a-z0-9][a-z0-9_-]*$/, '')
     .trim();
 }
 
 /**
  * Which line a place stands for: the one it is on, or the next with words on it. A place is often the blank line
- * between two paragraphs, and a bookmark on a blank line marks nothing a person can see.
+ * between two paragraphs, and a bookmark on a blank line marks nothing a person can see. A list item with no words yet
+ * is passed over the same way, whatever its box: an empty to-do, step or choice, or an item named only by its anchor.
+ * The empty to-do the format bar and Enter write, `- [ ] ` with its space, always was; the same line without the space
+ * was kept, and said back as "[ ]", only because the pattern before core/itemSyntax.ts wanted a space after the box.
  */
 export function markedLine(state: EditorState, pos: number): number {
   const first = state.doc.lineAt(Math.max(0, Math.min(pos, state.doc.length))).number;

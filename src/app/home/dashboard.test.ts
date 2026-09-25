@@ -49,6 +49,11 @@ describe('the home page', () => {
     ).toBe(3);
     expect(tickedTasks([note('c', '- [ ] only open', 1)])).toBe(0);
   });
+
+  it('takes brackets glued to the words as words, as the note draws them (core/itemSyntax.ts)', () => {
+    expect(openTasks([note('n', '- [ ]Buy milk\n- [ ] Real', 1)]).map((t) => t.text)).toEqual(['Real']);
+    expect(tickedTasks([note('n', '- [x]Done\n- [x](https://example.com/x)', 1)])).toBe(0);
+  });
 });
 
 describe('the library', () => {

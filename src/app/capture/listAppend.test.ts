@@ -32,6 +32,18 @@ describe('adding spoken items to a note’s list', () => {
   it('adds nothing for empty items', () => {
     expect(appendToList('- a', ['  ', '.']).added).toEqual([]);
   });
+
+  it('grows a starred or numbered to-do list by to-dos, as every other reader takes them for to-dos (core/itemSyntax.ts)', () => {
+    // A `* [ ]` list was read as bullets, so what was said came in with no box to tick.
+    expect(appendToList('* [ ] Milk\n* [x] Eggs', ['bread']).added).toEqual(['* [ ] Bread']);
+    expect(appendToList('1. [ ] Unplug it\n2. [ ] Wait', ['plug it back in']).added).toEqual(['3. [ ] Plug it back in']);
+    expect(appendToList('- [ ]', ['first thing']).added).toEqual(['- [ ] First thing']);
+  });
+
+  it('knows a list however it is spaced or numbered', () => {
+    expect(appendToList('# Ideas\n\n-\tTabbed\n-  Spaced', ['more']).body).toBe('# Ideas\n\n-\tTabbed\n-  Spaced\n- More');
+    expect(appendToList('1000. The thousandth', ['next']).added).toEqual(['1001. Next']);
+  });
 });
 
 describe('leaving a spoken note in another note', () => {

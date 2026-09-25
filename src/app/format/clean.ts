@@ -19,9 +19,9 @@
  */
 
 import { isMarkName } from '../core/itemLinks.ts';
+import { listLead } from '../core/itemSyntax.ts';
 
 const NOTION_HOST = /^https?:\/\/(?:[a-z0-9-]+\.)?notion\.(?:so|site)\//i;
-const ITEM = /^(\s*(?:- \[[ xX]\] |[-*+] |\d{1,3}[.)] ))(.*)$/;
 /** `[words](url)` where the words hold no link of their own. */
 const LINK = /\[([^[\]]*)\]\((https?:\/\/[^\s()]+)\)/g;
 
@@ -35,9 +35,10 @@ const LINK = /\[([^[\]]*)\]\((https?:\/\/[^\s()]+)\)/g;
  * Notion link and no mark, comes back as it was.
  */
 function markItem(line: string): string {
-  const item = ITEM.exec(line);
+  const item = listLead(line);
   if (!item) return line;
-  const words = item[2] ?? '';
+  const lead = line.slice(0, item.wordsAt);
+  const words = line.slice(item.wordsAt);
   let url: string | null = null;
   let name = 'notion';
   const stripped = words
@@ -59,7 +60,7 @@ function markItem(line: string): string {
     .replace(/\s+([.,;:!?])/g, '$1')
     .trim();
   if (url === null) return line;
-  return `${item[1]}${stripped}${stripped ? ' ' : ''}[${name}](${url})`;
+  return `${lead}${stripped}${stripped ? ' ' : ''}[${name}](${url})`;
 }
 
 /** The note as the model should see it: Notion item links as marks. */
@@ -85,7 +86,8 @@ export function cleanRewrite(text: string): string {
     .split('\n')
     .map((raw) => {
       let line = raw.replace(/[ \t]+$/, '');
-      // Plain bullets, and task boxes with their spaces.
+      // Plain bullets, and task boxes with their spaces. Looser than core/itemSyntax.ts on purpose: this repairs what
+      // a model wrote (`-[ ]three`), which the grammar rightly does not read as a to-do until it has been repaired.
       line = line.replace(/^(\s*)[*+] /, '$1- ');
       line = line.replace(/^(\s*)-\s*\[\s*([xX ]?)\s*\]\s*/, (_, indent: string, box: string) => `${indent}- [${box.toLowerCase() === 'x' ? 'x' : ' '}] `);
       // A space after the hashes of a heading.

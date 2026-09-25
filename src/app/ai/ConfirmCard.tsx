@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Offer } from '../capture/take.ts';
 import { listTitle } from '../capture/instructionMutation.ts';
+import { withoutLead } from '../core/itemSyntax.ts';
 import type { Note } from '../core/store.ts';
 import { capitalise } from '../core/text.ts';
 import styles from './ConfirmCard.module.css';
@@ -27,7 +28,6 @@ export function ConfirmCard({
   /** A table's own preview, drawn by whoever has the rows. */
   table?: ReactNode;
 }) {
-  const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
   let heading: string;
   let action: string;
   let lines: string[] = [];
@@ -36,7 +36,7 @@ export function ConfirmCard({
     case 'place':
       heading = `Add to ${offer.title}`;
       action = 'Add';
-      lines = offer.added.map(show);
+      lines = offer.added.map(withoutLead);
       detail = offer.into === 'list' ? 'In its list' : 'As a new paragraph';
       if (offer.placement.target) detail += `, then to ${capitalise(offer.placement.target)}`;
       break;

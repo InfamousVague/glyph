@@ -28,23 +28,27 @@
  * shape of line is a test.
  */
 
-const ITEM = /^(\s*(?:- \[[ xX]\] |[-*+] |\d{1,3}[.)] ))(.*)$/;
-/** The mark: the last thing on a line but a board's anchor, a link whose words are one lowercase name. */
-const MARK = /\s*\[([a-z][a-z0-9-]*)\]\((https?:\/\/[^\s)]+)\)\s*$/;
+import { COUNTER_IN_WORDS, ITEM_TAIL, MARK_NAME, MARK_URL, listLead, withoutBookmark } from './itemSyntax.ts';
+
 /**
- * What may come after an item's mark, at the very end of its line: a board's anchor (core/boards.ts, `^buy-milk`)
- * and counters (editor/counters.ts, `[3/8]`), in any order. Written after the mark or typed after it later, they
- * leave the mark the item's mark. An anchor needs whitespace, or nothing, before its caret and the end of the line
- * or another of these after its name, which is what leaves `x^2^` the superscript it is.
+ * A list item's line in two: what opens it (the indent, the marker, and a to-do's or a choice's box, as
+ * core/itemSyntax.ts reads them) and the rest, with whether its box is ticked. Null for a line that is not an item.
  */
-export const ITEM_TAIL = String.raw`\^[a-z0-9][a-z0-9_-]*|\[\d{1,4}\/\d{1,4}\]`;
+function item(line: string): { lead: string; rest: string; ticked: boolean } | null {
+  const lead = listLead(line);
+  return lead ? { lead: line.slice(0, lead.wordsAt), rest: line.slice(lead.wordsAt), ticked: lead.done === true } : null;
+}
+
+/** The mark: the last thing on a line but a board's anchor, a link whose words are one lowercase name. */
+const MARK_AT_END = new RegExp(String.raw`\s*\[(${MARK_NAME})\]\((${MARK_URL})\)\s*$`);
+/**
+ * What may come after an item's mark, at the very end of its line (core/itemSyntax.ts `ITEM_TAIL`): a board's anchor
+ * and counters, in any order. An anchor needs whitespace, or nothing, before its caret and the end of the line or
+ * another of these after its name, which is what leaves `x^2^` the superscript it is.
+ */
 const TAIL_END = new RegExp(String.raw`(?:(?:^|\s+)(?:${ITEM_TAIL}))+\s*$`);
-/** A counter anywhere in an item's words: `[3/8]`, as editor/counters.ts reads it. */
-const COUNTER = /(?<![!\]\w])\[\d{1,4}\/\d{1,4}\](?!\()/g;
-/** A choice's box after a bullet (editor/choices.ts): `- ( ) Pick A`, `- (x) Pick A`. */
-const CHOICE = /^\(([ xX])\) /;
-/** The bookmark (editor/bookmarkLine.ts): `§§` after an item's words, a place in the note and never part of a title. */
-const BOOKMARK = /\s*§§(?=\s|$)/g;
+/** Every counter in an item's words: `[3/8]`, as editor/counters.ts reads it. */
+const COUNTERS = new RegExp(COUNTER_IN_WORDS, 'g');
 
 /** `text` without what comes after its mark, and that tail as written (`[3/8] ^buy-milk`, or '' where there is none). */
 function anchorOff(text: string): { body: string; anchor: string } {
@@ -53,12 +57,11 @@ function anchorOff(text: string): { body: string; anchor: string } {
 }
 
 /**
- * What an item says, for a title or for finding it again: no choice box, no counters, which are a count kept on the
- * item rather than part of its name, and no bookmark.
+ * What an item says, for a title or for finding it again: no counters, which are a count kept on the item rather than
+ * part of its name, and no bookmark. A choice's box is already off, with the lead it belongs to.
  */
-function said(marker: string, text: string): string {
-  const unchosen = /[-*+] $/.test(marker) ? text.replace(CHOICE, '') : text;
-  return unchosen.replace(COUNTER, '').replace(BOOKMARK, '').replace(/\s+/g, ' ').trim();
+function said(text: string): string {
+  return withoutBookmark(text.replace(COUNTERS, '')).replace(/\s+/g, ' ').trim();
 }
 
 /** Words with an anchor put back after them, one space between. */
@@ -97,14 +100,14 @@ export function isMarkName(name: string): boolean {
 
 /** The mark at the end of `text`, a board's anchor aside, if it has one. */
 export function markOf(text: string): ItemMark | null {
-  const match = MARK.exec(anchorOff(text).body);
+  const match = MARK_AT_END.exec(anchorOff(text).body);
   return match && isMarkName(match[1] ?? '') ? { name: match[1] ?? '', url: match[2] ?? '' } : null;
 }
 
 /** `text` without its mark; a board's anchor after it stays. */
 export function unmarked(text: string): string {
   const { body, anchor } = anchorOff(text);
-  const bare = markOf(body) ? body.replace(MARK, '').trimEnd() : body.trimEnd();
+  const bare = markOf(body) ? body.replace(MARK_AT_END, '').trimEnd() : body.trimEnd();
   return withAnchorBack(bare, anchor).trimEnd();
 }
 
@@ -113,10 +116,10 @@ export function unmarked(text: string): string {
  * as a task's title. Null for a line that is not an item.
  */
 export function itemWords(lineText: string): string | null {
-  const match = ITEM.exec(lineText);
-  if (!match) return null;
-  const { body } = anchorOff(match[2] ?? '');
-  return said(match[1] ?? '', markOf(body) ? body.replace(MARK, '') : body);
+  const found = item(lineText);
+  if (!found) return null;
+  const { body } = anchorOff(found.rest);
+  return said(markOf(body) ? body.replace(MARK_AT_END, '') : body);
 }
 
 /**
@@ -137,14 +140,13 @@ function linked(text: string): boolean {
 export function unsentItems(body: string): Item[] {
   const items: Item[] = [];
   body.split('\n').forEach((raw, index) => {
-    const match = ITEM.exec(raw);
-    if (!match) return;
-    const marker = match[1] ?? '';
+    const found = item(raw);
+    if (!found) return;
     // The anchor is the board's name for the item, not part of what it says, and a counter or a choice's box is not
     // part of its name: none of them is sent.
-    const whole = anchorOff((match[2] ?? '').trim()).body.trim();
-    const text = said(marker, whole);
-    if (!text || /\[[xX]\]/.test(marker) || linked(whole) || whole.startsWith('![')) return;
+    const whole = anchorOff(found.rest.trim()).body.trim();
+    const text = said(whole);
+    if (!text || found.ticked || linked(whole) || whole.startsWith('![')) return;
     items.push({ line: index + 1, text });
   });
   return items;
@@ -157,11 +159,13 @@ export function itemAt(lineText: string, line: number): Item | null {
 
 /** `lineText` with a mark to `url` at its end, before a board's anchor; the marker, the indent and the words stay. */
 export function linkedLine(lineText: string, url: string, name = 'notion'): string {
-  const match = ITEM.exec(lineText);
-  if (!match) return lineText;
-  const { body, anchor } = anchorOff(match[2] ?? '');
+  const found = item(lineText);
+  if (!found) return lineText;
+  const { body, anchor } = anchorOff(found.rest);
   const words = unmarked(body).trim();
-  return `${match[1]}${withAnchorBack(`${words} [${name}](${url})`, anchor)}`;
+  // The lead ends in its own space, so an item with no words takes the mark straight after it.
+  const mark = `[${name}](${url})`;
+  return `${found.lead}${withAnchorBack(words ? `${words} ${mark}` : mark, anchor)}`;
 }
 
 export interface SentLink {
@@ -191,11 +195,11 @@ export function applyLinks(markdown: string, links: readonly SentLink[]): string
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i] ?? '';
       if (line.includes(`](${link.url})`)) break;
-      const match = ITEM.exec(line);
-      const marker = match ? (match[1] ?? '') : '';
-      const whole = match ? (match[2] ?? '') : line;
-      const { body: words, anchor } = match ? anchorOff(whole) : { body: whole, anchor: '' };
-      if (squash(match ? said(marker, words) : words) === wanted) {
+      const found = item(line);
+      const marker = found?.lead ?? '';
+      const whole = found?.rest ?? line;
+      const { body: words, anchor } = found ? anchorOff(whole) : { body: whole, anchor: '' };
+      if (squash(found ? said(words) : words) === wanted) {
         lines[i] = `${marker}${withAnchorBack(`${words.trim().replace(/[.,;:!?]+$/, '')} ${mark}`, anchor)}`;
         break;
       }

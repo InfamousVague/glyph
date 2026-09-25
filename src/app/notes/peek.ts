@@ -1,3 +1,4 @@
+import { listLead, withoutAnchor, withoutBookmark } from '../core/itemSyntax.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
 import { withoutFrontMatter } from '../core/store.ts';
 
@@ -78,13 +79,11 @@ export function peekMarkdown(body: string, most: number = PEEK_SOURCE_LINES): st
       board = fenced[2]?.toLowerCase() === 'board';
       if (board) continue;
     }
-    out.push(line.replace(ANCHOR_AT_END, ''));
+    // An item's anchor (core/itemSyntax.ts), with the space before it.
+    out.push(withoutAnchor(line));
   }
   return out.join('\n').replace(/\s+$/, '');
 }
-
-/** An item's anchor at the end of its line (core/boards.ts), with the space before it. */
-const ANCHOR_AT_END = /(^|\s)\^[a-z0-9][a-z0-9_-]*\s*$/;
 
 /** At most this many cells of a table row: three is what a sidebar can show without them all becoming slivers. */
 const MOST_CELLS = 3;
@@ -96,14 +95,16 @@ const PAIRED = /(\*\*|__|~~|`|\|\||==|%%|\?\?|@@|\^\^|\+\+)/g;
 /** A line as its words: links as their text, marks gone, addresses shortened the way the list shortens them. */
 export function bareWords(text: string): string {
   return shortenUrls(
-    text
-      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-      .replace(PAIRED, '')
-      // The bookmark's mark (editor/bookmarkLine.ts): it says where the note opens, not anything the line says.
-      .replace(/§§/g, '')
-      // An item's anchor at the end of its line (core/boards.ts): the name a board calls it by, not its words.
-      .replace(/(^|\s)\^[a-z0-9][a-z0-9_-]*\s*$/, '$1')
+    // The bookmark's mark (editor/bookmarkLine.ts): it says where the note opens, not anything the line says. And an
+    // item's anchor at the end of its line (core/boards.ts): the name a board calls it by, not its words.
+    withoutAnchor(
+      withoutBookmark(
+        text
+          .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+          .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+          .replace(PAIRED, ''),
+      ),
+    )
       // A lone `*` or `_` around a word, which the paired rule above leaves behind.
       .replace(/(^|\s)[*_](\S)/g, '$1$2')
       .replace(/(\S)[*_](?=\s|$|[.,;:!?])/g, '$1'),
@@ -179,22 +180,11 @@ export function notePeek(body: string, most: number = PEEK_LINES): PeekLine[] {
       if (text) out.push({ kind: 'quote', text });
       continue;
     }
-    const task = /^[-*+]\s+\[([ xX])\]\s*(.*)$/.exec(line);
-    if (task) {
-      const text = bareWords(task[2] ?? '');
-      if (text) out.push({ kind: 'task', done: task[1] !== ' ', text });
-      continue;
-    }
-    const bullet = /^[-*+]\s+(.*)$/.exec(line);
-    if (bullet) {
-      const text = bareWords(bullet[1] ?? '');
-      if (text) out.push({ kind: 'bullet', text });
-      continue;
-    }
-    const numbered = /^\d+[.)]\s+(.*)$/.exec(line);
-    if (numbered) {
-      const text = bareWords(numbered[1] ?? '');
-      if (text) out.push({ kind: 'number', text });
+    // A to-do, a bullet or a numbered step, as core/itemSyntax.ts reads them.
+    const lead = listLead(line);
+    if (lead) {
+      const text = bareWords(line.slice(lead.wordsAt));
+      if (text) out.push(lead.done !== null ? { kind: 'task', done: lead.done, text } : { kind: /\d/.test(lead.marker) ? 'number' : 'bullet', text });
       continue;
     }
     const text = bareWords(line);
