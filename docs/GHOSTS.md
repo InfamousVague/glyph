@@ -5,25 +5,29 @@ Ghost.md's mascot, drawn for the empty pages and quiet moments of the app. Matt 
 **Shipped, 2026-09-22.** Matt generated the fourteen scenes (2-15) in dotwork and asked for them wired in: "process
 them to be smaller sizes and then wire them all and ship an OTA update". Each 2048px PNG (2-4 MB) became a WebP mask -
 600px at first, then 1024px when the ghosts were drawn twice as big ("they should take up at least 4x more space"),
-2.0 MB for all fourteen (`src/app/art/ghosts/`) - drawn by `art/Ghost.tsx`: the dots are the
+about 1.8 MB for all fourteen once each was cropped to its drawing (`src/app/art/ghosts/`, listed in
+`src/app/art/ghosts.ts`) - drawn by `src/app/art/Ghost.tsx`: the dots are the
 image's alpha and the element paints them in `currentColor`, so the same file is black on the light page and white on
 the dark one. Only a light set came - both zips held the same light images - and none was needed. Where each went:
 
 | Scene | In the app |
 | --- | --- |
-| 2. No notes yet | the empty home page (was `Blank`), and the sidebar's "No notes yet" |
-| 3. Nothing in this workspace | the empty home page with a workspace chosen |
+| 2. No notes yet | the empty home page and the empty All notes grid, and the sidebar's "No notes yet" |
+| 3. Nothing in this workspace | the empty home page, and the All notes grid, with a workspace chosen |
 | 4. A new note | under the first line of a note with no words, gone at the first word |
-| 5. Search found nothing | the command palette's "Nothing by that name" |
+| 5. Search found nothing | the command palette's "Nothing by that name", and a search of All notes that finds nothing |
 | 8. Listening | the recorder, listening, before the first word |
-| 9. The model working | the review screen while the model thinks it through |
 | 10. An empty canvas | the middle of a canvas with no cards, over "Double-tap to add a card" |
 | 11. Every to-do ticked | the home page's To do, once every to-do in the notes is ticked |
 | 12. Signed out | Settings › Account, signed out |
-| 14. Welcome | the guide's first page, over the headline |
-| 15. An update is ready | the home page's update card, for an update to take (not while it downloads) |
+| 15. An update is ready | the home page's update card, for an update to take (not while it downloads), drawn small |
 | 6, 7. Trash and archive, empty | shipped but not placed: the sidebar shows those folders only when they hold something, so there is no empty page for them |
+| 9. The model working | shipped but no longer placed: it stood on the review screen while the model thought, and the review screen went (DESIGN §114) |
 | 13. Something went wrong | shipped but not placed: the app has no error screen; the recorder's "Nothing was recorded" is the nearest, and it keeps its own picture for now |
+| 14. Welcome | shipped but no longer placed: it stood over the guide's first page until Matt asked for it to go (DESIGN §65) |
+
+The five pictures not placed (about 600 KB) are still imported by `src/app/art/ghosts.ts`, so they ride in every
+update. They are candidates to take out, or to place.
 
 **Before that, 2026-09-21.** Style picked: **stipple dotwork** ("I like the dotwork ghost"). The ghost itself was then made a touch more mature ("I think the ghost could be just a touch more mature looking"), and its folded corner, taken out for a round, came back: "the more I look at it I like the dog ear on the ghost too it makes it feel like notes". Next: generate the test prompt below, and if it lands, the fifteen. Nothing goes into the app until Matt has approved the images.
 
@@ -144,17 +148,19 @@ A stipple dotwork illustration, black ink on pure white: form, folds and shadow 
 ## What the app needs from the images
 
 - **One ink.** Pure black dots on pure white, no grey: the app draws the picture in the page's own ink, so it has to be a single colour to invert with the theme. "No grey tones" is in every prompt for this.
-- **Room.** About 200px where a picture leads a page (the empty home page, welcome), 120px where it sits under words. Dots clump below a certain size; check each at 120px before it is used there.
+- **Room.** As the ghosts are drawn now (`src/app/art/Ghost.module.css`), as big as the room allows: the column's whole width, but no more than 28rem, or 40% of the window's height; one that leads a page (the empty home page) up to 36rem, or 45% of the height; one in a card, 3rem tall. Dots clump below a certain size; check each at its smallest before it is used there.
 - **Decoration only.** Every picture is `aria-hidden`; the words beside it carry the meaning.
 
 ## After they come back
 
 Dotwork is thousands of marks, so it does not become a traced vector path the way the abstract shapes in `art/Shapes.tsx` are: a tracer would turn every dot into its own path and the file would weigh more than the picture. It ships as an image instead, and still takes the theme's ink:
 
-1. **Clean it.** In an image editor: threshold to pure black and white (no grey pixels), make the white transparent, and square it at 600×600 so it is sharp at 200px on a 3x screen.
-2. **Save it small.** WebP with transparency, lossless or near it; a dot picture of this size is tens of kilobytes, so all fifteen together are well under a megabyte in the update.
-3. **Draw it in the page's ink.** Not an `<img>`: an element whose `background` is `currentColor` and whose `mask-image` is the picture. The dots then take `--app-ink` or `--app-ink-3` like everything else, and turn white on the dark theme without a second file.
-4. **Give it its thing to do.** Every picture in the app moves slowly on a loop with long rests (`art/Shapes.module.css`) and holds still under reduced motion. The ghost drifts up an eighth of its height and back. If the shadow should stay put while it drifts, the shadow is cut into its own small image beneath it.
+This is how the fourteen were made, and how another scene is added:
+
+1. **Clean it.** In an image editor: threshold to pure black and white (no grey pixels), make the white transparent, and crop it to the drawing. The shipped ones are 1024px on their long side, and none is square: each one's shape is in `GHOST_RATIOS` (`src/app/art/ghosts.ts`).
+2. **Save it small.** WebP with transparency, lossless or near it. The shipped ones are 70 to 240 KB each, about 1.8 MB for all fourteen.
+3. **Draw it in the page's ink.** Not an `<img>`: an element whose `background` is `currentColor` and whose `mask-image` is the picture (`src/app/art/Ghost.tsx`). The dots then take `--app-ink` or `--app-ink-3` like everything else, and turn white on the dark theme without a second file.
+4. **Let it stand still.** The plan was for each ghost to drift up an eighth of its height and back on a slow loop, as the abstract shapes did. It did, until Matt asked for it not to ("I want the ghost pictures not to float", DESIGN §67): the ghosts are still.
 
 ## How we got here
 
@@ -171,4 +177,6 @@ What it taught about writing these: a word like "small", "friendly" or "simple" 
 
 ## Not asked, so not chosen
 
-How many of these ship, whether the ghost replaces the abstract shapes everywhere or only where a page is empty, and whether it ever speaks. The 2026-09-13 direction was abstract shapes for the guide's pictures; a character is a change of mind about that, and may be one Matt wants only where a page is empty.
+Written on 2026-09-21, before the scenes shipped: how many of these ship, whether the ghost replaces the abstract shapes everywhere or only where a page is empty, and whether it ever speaks. The 2026-09-13 direction was abstract shapes for the guide's pictures; a character is a change of mind about that, and may be one Matt wants only where a page is empty.
+
+Since answered in part: all fourteen shipped (2026-09-22), and the ghost is the app's mark and icon too (DESIGN §90, §93). The guide's side-key and tips pages still draw the abstract shapes (`src/app/art/Shapes.tsx`). Whether it ever speaks has not been asked.
