@@ -1,16 +1,15 @@
 import { bookNoteBody } from '../book/book.ts';
-import { boardFrom } from '../core/boards.ts';
 import { clipMarkdown } from '../core/clips.ts';
 import { BOX, BULLET, CHOICE, NUMBER } from '../core/itemSyntax.ts';
-import { noteTitle } from '../core/store.ts';
+import { noteTitle } from '../core/noteTitle.ts';
 import { capitalise } from '../core/text.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
-import { appendBody } from './appendBody.ts';
+import { appendBlock, appendBody } from './appendBody.ts';
 import { placeWords } from './listAppend.ts';
-import { renderNote, setLinkTitles, spokenNumber, type Segment } from './markdown.ts';
+import { setLinkTitles, spokenNumber, type Segment } from './markdown.ts';
+import type { TakeCandidate, TakeNote } from './offers.ts';
 import { QuietWatch } from './quiet.ts';
-import { appendBlock } from './table.ts';
-import { Take, type TakeCandidate, type TakeNote } from './take.ts';
+import { asBoardMarkdown, Take } from './take.ts';
 
 /**
  * The voice test suite (voice-tests/suite.json): a recording per feature, replayed through the recorder's own logic
@@ -137,8 +136,8 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
   const flush = () => {
     const current = target;
     if (!current) return;
-    const markdown = take.markdown({ titled: false, board: (text) => boardFrom(text)?.doc ?? text });
-    if (renderNote(take.segments).plain.trim() || take.tables.length || take.clips.length) change(current.id, (body) => appendBody(body, markdown));
+    const markdown = take.markdown({ titled: false, board: asBoardMarkdown });
+    if (take.hasContent) change(current.id, (body) => appendBody(body, markdown));
     take.fork();
   };
   let made = 0;
@@ -212,10 +211,9 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
 
   take.end(stoppedAtMs ?? heard.audioMs);
   const titled = target === null;
-  const markdown = take.markdown({ titled, board: (text) => boardFrom(text)?.doc ?? text });
-  const said = renderNote(take.segments).plain.trim() || take.tables.length || take.clips.length;
+  const markdown = take.markdown({ titled, board: asBoardMarkdown });
   let note: string | null = null;
-  if (said) {
+  if (take.hasContent) {
     if (target) change(target.id, (body) => appendBody(body, markdown));
     else note = markdown;
   }

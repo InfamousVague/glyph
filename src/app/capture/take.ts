@@ -1,14 +1,16 @@
-import { lowerFirst } from '../core/text.ts';
+import { boardFrom } from '../core/boards.ts';
+import { clipLength } from '../core/clips.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
-import { chaptersOf, withChapter } from '../book/book.ts';
-import { withoutLead } from '../core/itemSyntax.ts';
-import { sameTitle } from '../editor/wikiLinks.ts';
-import { actionable, findKeyword, findSoundAlike, forBook, isStandaloneCommandLike, placedOn, planCommand, reply, type Placement, type Plan } from './command.ts';
-import { placeWords } from './listAppend.ts';
+import { appendBlock } from './appendBody.ts';
+import { actionable, findKeyword, findSoundAlike, forBook, isStandaloneCommandLike, placedOn, planCommand, reply, type Plan } from './command.ts';
 import { renderNote, type Segment } from './markdown.ts';
-import type { Candidate } from './route.ts';
-import { appendBlock, cellsOf, fitRow, saysDone, tableMarkdown } from './table.ts';
+import { describeOffer, offerFor, type Offer, type Span, type TakeCandidate, type TakeNote } from './offers.ts';
+import { cellsOf, fitRow, saysDone, tableMarkdown } from './table.ts';
+import type { RouteView, TableDraft, TakeHost } from './takeHost.ts';
 import { endsMemo, MEMO_GAP_MS, startsMemo } from './voiceMemo.ts';
+
+// The confirm card and the note's bar (ai/, editor/) read offers from here, where the recorder's take makes them.
+export type { Offer } from './offers.ts';
 
 /**
  * One recording's words and commands, as a state machine with no screen and no clock of its own.
@@ -43,99 +45,6 @@ export const TAKE_TIMING = {
   /** A command asked about and not answered: this long, and it is not done. */
   confirmMs: 20_000,
 };
-
-export interface TakeNote {
-  id: string;
-  body: string;
-}
-
-export type TakeCandidate<N extends TakeNote> = Candidate & { note: N };
-
-export interface Span {
-  startMs: number;
-  endMs: number;
-}
-
-/** A table being asked for: its note (null for the one being recorded), its labels, its rows so far. */
-export interface TableDraft<N extends TakeNote> {
-  note: N | null;
-  title: string;
-  columns: string[];
-  rows: string[][];
-  lastAt: number;
-}
-
-/** A command understood and waiting for yes or no: what it will do, shown on the card. */
-export type Offer<N extends TakeNote> =
-  | { kind: 'place'; note: N; title: string; text: string; placement: Placement; added: string[]; into: 'list' | 'paragraph'; span: Span }
-  | { kind: 'change'; note: N; title: string; heading: string; action: string; lines: string[]; change: (body: string) => string | null; span: Span }
-  | { kind: 'move'; note: N; title: string; span: Span }
-  | { kind: 'new'; title?: string; lines?: readonly string[]; span: Span }
-  | { kind: 'board'; title: string; span: Span }
-  | { kind: 'book'; title: string; pages: string[]; span: Span }
-  | { kind: 'table'; note: N | null; title: string; columns: string[]; rows: string[][]; markdown: string; span: Span }
-  | { kind: 'plugin'; voice: VoiceCommand; parsed: unknown; title: string; action: string; span: Span };
-
-/** What the chip at the foot of the recorder says. */
-export type RouteView =
-  | { phase: 'hearing'; name: string; guess: string | null; lead: 'Add to' | 'New item for' | 'Move to' | 'Start' | 'Table for' | 'Chapter for' | 'New book' }
-  | { phase: 'done'; text: string }
-  | { phase: 'command'; words: string; thinking?: boolean }
-  | { phase: 'said'; text: string }
-  | { phase: 'waiting'; title: string; many: boolean; leave: boolean }
-  | { phase: 'added'; title: string; body: string; added: string[] }
-  | { phase: 'moved'; title: string }
-  | { phase: 'missed'; title: string }
-  | { phase: 'plugin'; state: 'working' | 'done' | 'failed'; lead: string | null; title: string }
-  | null;
-
-export type Haptic = 'light' | 'selection' | 'success' | 'warning';
-
-/** What the take asks of whoever runs it. */
-export interface TakeHost<N extends TakeNote> {
-  /** The notes a command can name, most recent first. */
-  notes(): readonly TakeCandidate<N>[];
-  /** The note this take is written onto, or null for a new one. */
-  target(): N | null;
-  commandWord(): boolean;
-  /** Clear command-shaped full utterances may act without a wake word. */
-  instructionCommands(): boolean;
-  voiceCommands(): readonly VoiceCommand[];
-  /** The words switched-on plugins let an item command end a note's name with ("…in Notion"). */
-  itemTargets(): readonly string[];
-  /** A plan the rules couldn't read, read by the phone's command model; absent where there is none. */
-  understand?(words: string): { done: Promise<Plan<TakeCandidate<N>> | null>; cancel: () => void };
-
-  route(view: RouteView): void;
-  offer(offer: Offer<N> | null): void;
-  table(draft: TableDraft<N> | null): void;
-  /** What of a command is being heard, for the chip; empty when none. */
-  itemWords(text: string): void;
-  haptic(kind: Haptic): void;
-  /** The take's words changed: segments, tables or the board flag. */
-  changed(): void;
-
-  /** Yes to a place offer: the words into that note. */
-  addItems(note: N, spoken: string, placement: Placement): void;
-  /** Yes to a change offer: that note's body rewritten. */
-  changeNote(note: N, change: (body: string) => string | null, title: string): void;
-  addTable(note: N, title: string, markdown: string): void;
-  /** Yes to a move offer: this take's words so far go to `note` and carry on there. */
-  moveTo(note: N): void;
-  /** A new note from here, the words so far staying where they were said (the take is forked, `fork`); with a `title`, one already named. */
-  newNote(title?: string): void;
-  /** Yes to a book offer: a book note with that title and those pages, made beside this take, which carries on (docs/BOOKS.md). */
-  newBook(title: string, pages: readonly string[]): void;
-  /** Yes to a plugin's command: what it keeps in the note, if anything. */
-  runPlugin(voice: VoiceCommand, parsed: unknown): string | null;
-  describePlugin(voice: VoiceCommand, parsed: unknown): { title: string; action: string };
-  /** A voice memo closed: the clip's markdown, for the stretch of this take's tape. */
-  clip(span: Span): string;
-  /** A line for the review's check of commands. */
-  log(line: string): void;
-  /** What was last said, for plugin commands ("send that to Notion"). */
-  said(text: string): void;
-}
 
 export class Take<N extends TakeNote> {
   /** The words of the note, as committed phrases (commands taken out). */
@@ -246,65 +155,13 @@ export class Take<N extends TakeNote> {
     this.listening = null;
     this.awaiting = null;
     this.host.itemWords('');
-    if (plan.kind === 'no-note' || plan.kind === 'await' || plan.kind === 'table') return;
-    if (plan.kind === 'place') {
-      const note = plan.note.note;
-      const preview = placeWords(note.body, plan.text, plan);
-      if (!preview.added.length) return;
-      this.setPending({ kind: 'place', note, title: plan.note.title, text: plan.text, placement: plan, added: preview.added, into: preview.into, span }, now);
-    } else if (plan.kind === 'lane' || plan.kind === 'card') {
-      const note = plan.note.note;
-      const change = plan.change;
-      const after = change(note.body);
-      if (after === null) {
-        this.host.route({ phase: 'said', text: plan.kind === 'card' ? `No item like “${plan.words}” in ${plan.note.title}.` : `Nothing to add to ${plan.lane}.` });
-        return;
-      }
-      this.setPending(
-        {
-          kind: 'change',
-          note,
-          title: plan.note.title,
-          heading: plan.kind === 'card' ? `Move to ${plan.lane}` : `Add to ${plan.lane}`,
-          action: plan.kind === 'card' ? 'Move' : 'Add',
-          lines: [plan.words],
-          change,
-          span,
-        },
-        now,
-      );
-    } else if (plan.kind === 'chapter') {
-      // A chapter for a book (docs/BOOKS.md): the title said, or this note's. The change is the index with one more line.
-      const note = plan.note.note;
-      const title = plan.title ?? this.ownTitle();
-      if (title === null) {
-        this.host.route({ phase: 'said', text: 'This note has no name yet, so it can’t be a chapter.' });
-        return;
-      }
-      if (sameTitle(title, plan.note.title) || (plan.title === null && this.host.target()?.id === note.id)) {
-        this.host.route({ phase: 'said', text: `${plan.note.title} can’t be a chapter of itself.` });
-        return;
-      }
-      if (chaptersOf(note.body).some((chapter) => sameTitle(chapter.title, title))) {
-        this.host.route({ phase: 'said', text: `${title} is already in ${plan.note.title}.` });
-        return;
-      }
-      const change = (body: string) => {
-        const next = withChapter(body, title);
-        return next === body ? null : next;
-      };
-      this.setPending({ kind: 'change', note, title: plan.note.title, heading: 'New chapter', action: 'Add', lines: [title], change, span }, now);
-    } else if (plan.kind === 'book') {
-      this.setPending({ kind: 'book', title: plan.title, pages: plan.pages, span }, now);
-    } else if (plan.kind === 'move') {
-      this.setPending({ kind: 'move', note: plan.note.note, title: plan.note.title, span }, now);
-    } else if (plan.kind === 'board') {
-      this.setPending({ kind: 'board', title: 'this note', span }, now);
-    } else if (plan.kind === 'create-list') {
-      this.setPending({ kind: 'new', title: plan.title, ...(plan.items?.length ? { lines: plan.items } : {}), span }, now);
-    } else {
-      this.setPending({ kind: 'new', span }, now);
+    const made = offerFor<N>(plan, span, { ownTitle: () => this.ownTitle(), targetId: () => this.host.target()?.id ?? null });
+    if (!made) return;
+    if ('refused' in made) {
+      this.host.route({ phase: 'said', text: made.refused });
+      return;
     }
+    this.setPending(made.offer, now);
     this.host.route(null);
     this.host.haptic('selection');
   }
@@ -525,8 +382,7 @@ export class Take<N extends TakeNote> {
     this.clips = [...this.clips, written];
     this.segments = [...this.segments, written].sort((a, b) => a.startMs - b.startMs);
     this.host.changed();
-    const seconds = Math.max(0, Math.round((endMs - held.startMs) / 1000));
-    const length = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+    const length = clipLength({ startMs: held.startMs, endMs });
     this.host.log(`Kept a voice memo of ${length}`);
     this.host.route({ phase: 'done', text: `Voice memo, ${length}` });
     this.host.haptic('success');
@@ -777,32 +633,54 @@ export class Take<N extends TakeNote> {
     if (this.listening) this.giveBack('No command there, so the words stay in the note.');
   }
 
+  /** Whether there is anything to save: words that come to something once laid out, a table, or a voice memo. */
+  get hasContent(): boolean {
+    return renderNote(this.segments).plain.trim() !== '' || this.tables.length > 0 || this.clips.length > 0;
+  }
+
   /** The take's markdown: its words as the cues lay them out, with tables after them and links applied by `link`. */
-  markdown({ titled, link = (text) => text, board }: { titled: boolean; link?: (markdown: string) => string; board?: (markdown: string) => string }): string {
-    let markdown = link(renderNote(this.segments, '', { titled }).markdown);
-    markdown = this.tables.reduce((body, table) => appendBlock(body, table), markdown).replace(/\n$/, '');
-    return this.asBoard && board ? board(markdown) : markdown;
+  markdown(options: TakeMarkdownOptions): string {
+    return takeMarkdown(this, options).markdown;
   }
 }
 
-/** What a command offered, in words, and what came of it: for the review's check of commands. */
-export function describeOffer<N extends TakeNote>(offer: Offer<N>, outcome: 'done' | 'declined' | 'dropped'): string {
-  const what =
-    offer.kind === 'place'
-      ? `add “${offer.added.map(withoutLead).join('”, “')}” to ${offer.title}${offer.into === 'list' ? '’s list' : ' as a paragraph'}`
-      : offer.kind === 'change'
-        ? `${lowerFirst(offer.heading)}: “${offer.lines.join('”, “')}” in ${offer.title}`
-        : offer.kind === 'move'
-          ? `move this recording to ${offer.title}`
-          : offer.kind === 'new'
-            ? offer.title ? `create ${offer.title}` : 'start a new note'
-            : offer.kind === 'board'
-              ? 'make this note a board'
-              : offer.kind === 'table'
-                ? `add a table (${offer.columns.join(', ')}; ${offer.rows.length} rows) to ${offer.title}`
-                : offer.kind === 'book'
-                  ? `make a book called ${offer.title}${offer.pages.length ? ` with ${offer.pages.join(', ')}` : ''}`
-                  : lowerFirst(offer.title);
-  if (outcome === 'done') return `Did: ${what}`;
-  return outcome === 'declined' ? `Offered to ${what}; the person said no` : `Offered to ${what}; nobody answered, so it was not done`;
+export interface TakeMarkdownOptions {
+  /** Whether the words may take a `# title`: not when they go on the end of a note that has one. */
+  titled: boolean;
+  /** The phrase still being guessed, set after the words and marked as pending. */
+  partial?: string;
+  /** Links a plugin made for words of the take (a Notion task): put wherever the cues put those words. */
+  link?: (markdown: string) => string;
+  /** The words as a board, when "make this a board" was said (`asBoardMarkdown`). */
+  board?: (markdown: string) => string;
+}
+
+/**
+ * A take's markdown, from what it holds: its words as the cues lay them out, the phrase still being guessed after them,
+ * its links, its tables after the words, and the whole as a board when it was asked to be one. What the page shows as
+ * it is spoken and what is saved at Done are this, so they cannot disagree. `pendingFrom` is where the guessed phrase
+ * starts, for drawing it lighter; a link or a board rewrites lines, so after either there is no telling, and it is null.
+ */
+export function takeMarkdown(
+  take: { readonly segments: readonly Segment[]; readonly tables: readonly string[]; readonly asBoard: boolean },
+  { titled, partial = '', link, board }: TakeMarkdownOptions,
+): { markdown: string; pendingFrom: number | null } {
+  const rendered = renderNote(take.segments, partial, { titled });
+  let markdown = rendered.markdown;
+  let pendingFrom = rendered.pendingFrom;
+  if (link) {
+    markdown = link(markdown);
+    pendingFrom = null;
+  }
+  if (take.tables.length) markdown = take.tables.reduce((body, table) => appendBlock(body, table), markdown).replace(/\n$/, '');
+  if (take.asBoard && board) {
+    markdown = board(markdown);
+    pendingFrom = null;
+  }
+  return { markdown, pendingFrom };
+}
+
+/** A take's words as a board, when "make this a board" was said and there is a list to make one of (core/boards.ts). */
+export function asBoardMarkdown(markdown: string): string {
+  return boardFrom(markdown)?.doc ?? markdown;
 }

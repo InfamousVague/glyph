@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { bookNoteBody, chaptersOf } from '../book/book.ts';
 import { quietHost } from '../../test/takeHost.ts';
-import { describeOffer, Take, type Offer, type TakeNote } from './take.ts';
+import { describeOffer, type Offer, type TakeNote } from './offers.ts';
+import { Take } from './take.ts';
 
 /**
  * The take with a book among the notes (docs/BOOKS.md): a chapter asked for lands in the book's index after a yes, a

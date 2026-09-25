@@ -1,3 +1,5 @@
+import { isBookBody } from '../book/book.ts';
+import { lanesOf } from '../core/boards.ts';
 import { lowerFirst } from '../core/text.ts';
 
 /**
@@ -117,6 +119,41 @@ export function tips({
   });
   out.push(...route.slice(Math.ceil(CUES.length / 3)));
   return out;
+}
+
+/**
+ * The tip for this pause (CaptureScreen.tsx shows it until words come again): the `turn`th of the tips, round and
+ * round, then the switched-on plugins' own. The routing tip names the most recent note that is not the one being
+ * written to; a continued note with a board names one of its lanes, the second when it has one, since the first is
+ * usually the one things start in; the chapter tip names a book in the library. With the keyword on, the plugins' tips
+ * are said after it, as every command is.
+ */
+export function tipInPause({
+  notes,
+  own,
+  target,
+  keyword,
+  pluginTips,
+  turn,
+}: {
+  /** The notes a command can name, most recent first. */
+  notes: readonly { id: string; title: string; note: { body: string } }[];
+  /** The id of the note being written to, which no tip sends words to. */
+  own: string;
+  /** The note being continued, or null for a new one. */
+  target: { body: string } | null;
+  keyword: boolean;
+  /** The switched-on plugins' tips, for the routing tip's note (plugins/registry.ts `tips`). */
+  pluginTips: (recent: string | null) => readonly Tip[];
+  /** How many tips have been shown this recording. */
+  turn: number;
+}): Tip | null {
+  const recent = notes.find((c) => c.id !== own)?.title ?? null;
+  const theirs = pluginTips(recent).map((t) => (keyword ? { ...t, say: `Hey Ghost, ${lowerFirst(t.say)}` } : t));
+  const lane = target ? ((lanesOf(target.body)[1] ?? lanesOf(target.body)[0])?.name ?? null) : null;
+  const book = notes.find((c) => c.id !== own && isBookBody(c.note.body))?.title ?? null;
+  const list = [...tips({ noteTitle: recent, continuing: target !== null, keyword, lane, book }), ...theirs];
+  return list[turn % list.length] ?? null;
 }
 
 /** What the card before the first word shows, and in what order. */

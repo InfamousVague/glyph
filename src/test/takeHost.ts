@@ -1,4 +1,5 @@
-import type { TakeHost, TakeNote } from '../app/capture/take.ts';
+import type { TakeNote } from '../app/capture/offers.ts';
+import type { TakeHost } from '../app/capture/takeHost.ts';
 
 /**
  * A host for a Take (capture/take.ts) under test: every member does nothing, or answers what nothing answers, until a

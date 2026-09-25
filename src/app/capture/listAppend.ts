@@ -1,5 +1,6 @@
 import { listLead, type ListLead } from '../core/itemSyntax.ts';
 import { capitalise } from '../core/text.ts';
+import { appendBlock } from './appendBody.ts';
 import { enumeration } from './markdown.ts';
 
 /**
@@ -154,8 +155,7 @@ export function appendToList(
 
   if (!run) {
     const added = texts.map((text) => `${asTasks ? '- [ ] ' : '- '}${text}`);
-    const base = body.replace(/\s+$/, '');
-    return { body: `${base}${base ? '\n\n' : ''}${added.join('\n')}\n`, added };
+    return { body: appendBlock(body, added.join('\n')), added };
   }
 
   let number = run.style.kind === 'number' ? run.style.next : 0;
@@ -165,6 +165,17 @@ export function appendToList(
   );
   const next = [...lines.slice(0, run.last + 1), ...added, ...lines.slice(run.last + 1)];
   return { body: next.join('\n'), added };
+}
+
+/**
+ * The lines of `body` just above the last `added.length` lines ending at the last of `added`, blank ones left out: the
+ * list as it was before `appendToList` put the items on its end, for showing them land under it.
+ */
+export function linesAbove(body: string, added: readonly string[], keep = 2): string[] {
+  const lines = body.split('\n');
+  const end = lines.lastIndexOf(added[added.length - 1] ?? '');
+  const start = end - added.length + 1;
+  return lines.slice(Math.max(0, start - keep), Math.max(0, start)).filter((line) => line.trim());
 }
 
 /** What a spoken note starts with that is not the note: "that", "to", "saying". */
@@ -200,14 +211,13 @@ export function leaveNote(body: string, text: string, { asParagraph = false } = 
   const words = text.replace(LEAD_IN, '').replace(/^["“]+|["”]+$/g, '').trim();
   if (!words) return { body, added: [], into: 'paragraph' };
   const lines = body.split('\n');
-  // Asked for as a line (the memo flow's "add a line"), it is one, list or no list.
+  // A short thing, on a note of lists, is an item; asked for as a paragraph (`placeWords`' "paragraph"), it is one, list or no list.
   if (!asParagraph && runsOf(lines).length && itemShaped(words)) {
     return { ...appendToList(body, [words], { near: words }), into: 'list' };
   }
   const sentence = capitalise(words);
   const line = /[.!?…]$/.test(sentence) ? sentence : `${sentence}.`;
-  const base = body.replace(/\s+$/, '');
-  return { body: `${base}${base ? '\n\n' : ''}${line}\n`, added: [line], into: 'paragraph' };
+  return { body: appendBlock(body, line), added: [line], into: 'paragraph' };
 }
 
 export interface Placing {

@@ -5,30 +5,15 @@ import { useBack } from '../core/back.ts';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { answerHost, endCapture, isLocked, setCapturing } from '../core/host.ts';
-import {
-  applyCommandMutation,
-  createNote,
-  deleteNote,
-  getNote,
-  listNotes,
-  newNoteId,
-  noteTitle,
-  setNoteRecording,
-  updateNote as updateStoredNote,
-  type Note,
-} from '../core/store.ts';
+import { applyCommandMutation, createNote, getNote, listNotes, newNoteId, noteTitle, setNoteRecording, type Note } from '../core/store.ts';
 import { preferences } from '../core/preferences.ts';
-import { isTauri } from '../core/tauri.ts';
-import { lowerFirst } from '../core/text.ts';
-import { openMicrophone, type Microphone, type MicrophoneHandlers } from './audio.ts';
 import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { reviewAvailable, type ReviewHandoff } from '../ai/review.ts';
-import { discardRecording, reassignRecording, startCapture, type CaptureSession, type EngineKind, type Stopped } from './engine.ts';
+import { discardRecording, reassignRecording, type Stopped } from './engine.ts';
 import { renderNote, setLinkTitles, setSpokenFormats, type Segment } from './markdown.ts';
 import { Opening } from './Opening.tsx';
 import { QuietWatch } from './quiet.ts';
-import { type Candidate } from './route.ts';
-import { findKeyword, type Placement } from './command.ts';
+import type { Placement } from './command.ts';
 import { appendToList, placeWords } from './listAppend.ts';
 import { listTitle } from './instructionMutation.ts';
 import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
@@ -36,16 +21,17 @@ import { commandModel, understandInstructionCommand } from './understand.ts';
 import { readInstruction } from '../ai/instruction.ts';
 import { ConfirmCard } from '../ai/ConfirmCard.tsx';
 import type { RunKind } from '../ai/kinds.ts';
-import { appendBlock } from './table.ts';
-import { appendBody } from './appendBody.ts';
-import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
+import { appendBlock } from './appendBody.ts';
+import { shifted } from './offers.ts';
+import { asBoardMarkdown, Take, takeMarkdown, type Offer } from './take.ts';
+import { hostThrough, type RouteView, type TableDraft, type TakeHost } from './takeHost.ts';
+import { TakeWriter, type NamedNote } from './takeWriter.ts';
 import { bookNoteBody, isBookBody } from '../book/book.ts';
-import { boardFrom, lanesOf } from '../core/boards.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { withoutLead } from '../core/itemSyntax.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { CaptureContext } from '../plugins/types.ts';
-import { starters, tips, TIP_AFTER_MS, type Tip } from './tips.ts';
+import { starters, tipInPause, TIP_AFTER_MS, type Tip } from './tips.ts';
 import { SayCard } from './SayCard.tsx';
 import { SideKeyWaves } from './SideKeyWaves.tsx';
 import { publishVoiceLevel } from './voiceLevel.ts';
@@ -53,37 +39,46 @@ import { useSideKeySpot } from './sideKey.ts';
 import { LivePage } from './LivePage.tsx';
 import { Tail } from './Tail.tsx';
 import { counter } from './tape.ts';
+import { ListLanding, TableCard, TablePreview } from './CaptureCards.tsx';
+import { lingerMs } from './chip.ts';
+import { RouteChip } from './RouteChip.tsx';
+import { diagnosticsLine, EMPTY_DIAGNOSTICS, soundsSilent, type Diagnostics } from './diagnostics.ts';
+import { withFinalWords } from './finalWords.ts';
+import { statusLine, stopHint, whereLine } from './screenText.ts';
+import { useCaptureSession } from './useCaptureSession.ts';
 import styles from './CaptureScreen.module.css';
 
 /**
  * A note being spoken.
  *
  * One screen for both ways in - the Speak button and the held side key - and
- * it shows one thing: the note taking shape as you say it, set large, the
- * spoken cues turning into dimmed markdown marks as they land. A small line at
- * the top says where the words are going; a counter says how long; Discard and
- * Done are the only buttons. Until the first words arrive, a drawing of sound
- * beginning is the whole screen, so the microphone being live is visible before
+ * it shows one thing: the note taking shape as you say it, on its own page, the
+ * spoken cues turning into its marks as they land. A small line at the top says
+ * where the words are going; a counter says how long; Discard and Done are the
+ * only buttons. Until the first words arrive, a card of things to say and the
+ * ghost listening are the page, so the microphone being live is visible before
  * a word has been understood.
  *
- * Opened by a held side key, so everything here is ordered around one promise:
- * the microphone is listening before anything else is ready. The microphone is
- * opened first, the model loads while it listens, and samples captured in the
- * meantime are held and replayed rather than dropped. The first words of a
- * voice note are usually its subject, and a capture screen that needs a second
- * to warm up loses exactly them.
+ * The microphone opens before anything else is ready, and the model loads while
+ * it listens (useCaptureSession.ts): the first words of a voice note are usually
+ * its subject.
  *
  * The note is written at Done, from the final transcript read once (PR #1):
  * a committed phrase only shows on the page, so a partial phrase can never
  * route a command or write a note. The sound is kept as it is recorded under
  * an id chosen at mount, so the phone killing the app mid-sentence loses no
  * audio; a cancel deletes it; Done, or a confirmed command, writes the note.
+ * Every write to a note goes through one chain (takeWriter.ts).
  *
  * A recording from the Speak button or the side key is a new note; a note's own Speak adds to that note.
  *
  * Done goes back to the list, whatever started the capture: the new note is at
  * the top, a tap away, and a locked phone has already stepped back behind its
  * lock screen without showing the note to whoever is holding it.
+ *
+ * The pieces are their own modules: the cards (CaptureCards.tsx), the chip (RouteChip.tsx), the lines of words that
+ * are not the note (screenText.ts), the diagnostics line (diagnostics.ts) and the last words of a stopped decode
+ * (finalWords.ts). This screen ties them to the take (take.ts), which decides.
  */
 
 interface CaptureScreenProps {
@@ -91,14 +86,15 @@ interface CaptureScreenProps {
   fromAssistant: boolean;
   /** Counts side-key presses during this capture: each one after the first means "stop and save". */
   stopRequests?: number;
-  /** Talking into this note (its Speak): the words go on its end, whatever memo mode says. */
+  /** Talking into this note (its Speak): the words go on its end. */
   noteId?: string;
-  /** The saved note, or null when the capture was cancelled or nothing was said. */
-  /** The take is over. `review` is set when the review after a recording should look at it (review/); `sort` when it was a memo, to be sorted (sort/). */
+  /**
+   * The take is over. `note` is the saved note, or null when the capture was cancelled or nothing was said. `review`
+   * is set when the review after a recording should look at it (ai/review.ts); `ask` when the words were an
+   * instruction about the note being continued, to run once it is open.
+   */
   onFinish: (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk) => void;
 }
-
-type Phase = 'starting' | 'listening' | 'finishing' | 'failed';
 
 /** A spoken instruction about the note being continued ("hey Ghost, fix the spelling"): run on it once it is open (ai/instruction.ts). */
 export interface SpokenAsk {
@@ -109,66 +105,11 @@ export interface SpokenAsk {
 /** How long a quiet after words has to last before "Stop when I go quiet" saves the take. */
 const QUIET_STOP_MS = 4000;
 
-const ENGINE_LABEL: Record<EngineKind, string> = {
-  whisper: 'On-device Whisper',
-  browser: 'Browser speech recognition',
-  simulated: 'Simulated voice',
-};
-
-/** Words used only to tell whether native's final decode extends phrase events. */
-const transcriptWords = (text: string): string[] =>
-  Array.from(text.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu), (match) => match[0]!.normalize('NFKD').replace(/\p{M}/gu, '').toLocaleLowerCase());
-
-/** The original text after `wordCount` words, retaining Whisper's punctuation/casing. */
-function afterWords(text: string, wordCount: number): string {
-  if (!wordCount) return text.trim();
-  const words = Array.from(text.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu));
-  const end = words[wordCount - 1]?.index;
-  const last = words[wordCount - 1]?.[0];
-  if (end === undefined || !last) return '';
-  return text.slice(end + last.length).replace(/^[\s,;:!?….-]+/, '').trim();
-}
-
-/**
- * `capture_stop` drains Whisper after the last event listener can be removed.
- * When that final decode extends the committed phrases, retain their timing and
- * append only the missing terminal words for ordinary-note rendering/tapes.
- * Classification always uses the complete native text.
- */
-function appendFinalTranscriptSuffix(segments: readonly Segment[], transcript: string | null, endMs: number): Segment[] {
-  const finalText = transcript?.trim();
-  if (!finalText) return [...segments];
-  const committed = transcriptWords(segments.map((segment) => segment.text).join(' '));
-  const finalWords = transcriptWords(finalText);
-  if (!finalWords.length || committed.length >= finalWords.length || !committed.every((word, index) => word === finalWords[index])) return [...segments];
-  const suffix = afterWords(finalText, committed.length);
-  if (!suffix) return [...segments];
-  const startMs = segments.at(-1)?.endMs ?? 0;
-  return [...segments, { text: suffix, startMs, endMs: Math.max(endMs, startMs + 1) }];
-}
-
 export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, onFinish }: CaptureScreenProps) {
-  /** The note being written: a new id, or the note this capture continues. */
-  const noteId = useRef(newNoteId());
-  /** The note this capture is being added to, if it continues one. */
+  /** The note this capture is being added to, if it continues one, as the page shows it (`writer.target` is the truth). */
   const [target, setTarget] = useState<Note | null>(null);
-  const targetRef = useRef<Note | null>(null);
-  /** The persisted row for a new capture draft, once explicitly created. */
-  const draftNote = useRef<Note | null>(null);
-  /**
-   * The continued note's text before this capture, read from the store once,
-   * when first needed - after the editor that may have been open has flushed
-   * its last keystrokes. A promise, so two drafts racing both get the text from
-   * BEFORE either of them wrote.
-   */
-  const baseBody = useRef<Promise<string> | null>(null);
-
-  const [phase, setPhase] = useState<Phase>('starting');
   const [segments, setSegments] = useState<Segment[]>([]);
   const [partial, setPartial] = useState('');
-  const [engine, setEngine] = useState<EngineKind | null>(null);
-  const [download, setDownload] = useState<{ received: number; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   /** Milliseconds on the recording, copied from the session a few times a second. */
   const [recorded, setRecorded] = useState(0);
   const [diagnostics, setDiagnostics] = useState<Diagnostics>(EMPTY_DIAGNOSTICS);
@@ -177,8 +118,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   // Mirrors the render state reads at Done, which runs after the last events
   // have landed but before React has necessarily re-rendered with them.
   const segmentsRef = useRef<Segment[]>([]);
-  const sessionRef = useRef<CaptureSession | null>(null);
-  const micRef = useRef<Microphone | null>(null);
   const meterRef = useRef<HTMLDivElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
   /** The line at the top: a pane the note's page runs under (app.css .app-headerPane), so the wisp sits below it. */
@@ -201,7 +140,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const spot = useSideKeySpot();
 
   /** The notes a spoken "add to …" can name, most recent first; loaded as the capture opens. */
-  const candidates = useRef<(Candidate & { note: Note })[]>([]);
+  const candidates = useRef<NamedNote[]>([]);
   /**
    * The routing chip: a note being named while it is still being said, then
    * the note the words moved to (or a name that matched nothing).
@@ -226,12 +165,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const [tableView, setTableView] = useState<TableDraft<Note> | null>(null);
   /** What a command will do once it is confirmed, by "yes" or a tap. */
   const [pending, setPendingView] = useState<Offer<Note> | null>(null);
-  /**
-   * Every write to a note, in turn: a command's change, the draft, the take carrying on elsewhere. Two close together
-   * used to read the same body and the second lost the first; and a draft composed from a base that a command was
-   * replacing wrote the old base back.
-   */
-  const writes = useRef<Promise<unknown>>(Promise.resolve());
   const [tables, setTables] = useState<string[]>([]);
   const [asBoard, setAsBoard] = useState(false);
   /** The tape this take writes to: the continued note's, or a new one (core/clips.ts). Read once, when it is first needed. */
@@ -248,7 +181,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** The notes have been read into `candidates`: the card of things to say can name one (SayCard.tsx). */
   const [notesRead, setNotesRead] = useState(false);
   const tipTurn = useRef(0);
-  const savedDraft = useRef(false);
   const finished = useRef(false);
   /** A stopped command is awaiting its explicit confirmation; its words never become a note. */
   const finalCommand = useRef<{
@@ -259,15 +191,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     temporaryId: string;
     recordedMs: number | null;
   } | null>(null);
-  /*
-   * What the pipeline has actually done, counted where it happens and copied to
-   * the screen a few times a second. The line itself is essential: the first
-   * real capture on the Fold transcribed nothing and said "Listening" the whole
-   * time, because an error during listening was stored and never shown.
-   * "Heard 8.2 s · 0 phrases" and "heard 0.0 s" point at different halves of
-   * the chain, which is the whole diagnosis without a debugger attached.
-   */
-  const counts = useRef<Diagnostics>({ ...EMPTY_DIAGNOSTICS });
 
   const titled = target === null;
   /** While an item for another note is being said, its words show in the chip, not in this note. */
@@ -275,14 +198,18 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** Words of this take a plugin linked to something (a Notion task): links wherever the cues put them. */
   const [sentLinks, setSentLinks] = useState<SentLink[]>([]);
   const sentLinksRef = useRef<SentLink[]>([]);
-  const note = useMemo(() => {
-    const rendered = renderNote(segments, itemWords ? '' : partial, { titled });
-    const linked = sentLinks.length ? { ...rendered, markdown: applyLinks(rendered.markdown, sentLinks), pendingFrom: null } : rendered;
-    const tabled = tables.length ? { ...linked, markdown: tables.reduce((body, table) => appendBlock(body, table), linked.markdown).replace(/\n$/, '') } : linked;
-    return asBoard ? { ...tabled, markdown: asBoardMarkdown(tabled.markdown), pendingFrom: null } : tabled;
-  }, [segments, partial, titled, itemWords, sentLinks, tables, asBoard]);
+  // The page as it is spoken: the take's markdown, from what React holds of it, with the phrase still being guessed.
+  const note = useMemo(
+    () =>
+      takeMarkdown(
+        { segments, tables, asBoard },
+        { titled, partial: itemWords ? '' : partial, link: sentLinks.length ? (text) => applyLinks(text, sentLinks) : undefined, board: asBoardMarkdown },
+      ),
+    [segments, partial, titled, itemWords, sentLinks, tables, asBoard],
+  );
 
-  // The switched-on plugins' formattings can be said like bold ("spoiler … end spoiler"); read as the recorder opens.
+  // The switched-on plugins' formattings can be said like bold ("spoiler … end spoiler"); read as the recorder opens,
+  // before the first render lays the page out with them.
   useState(() => setSpokenFormats(plugins.formats().flatMap((format) => (format.cue ? [{ word: format.cue, delimiter: format.delimiter }] : []))));
 
   // No background pass over an earlier recording while this one is live: same cores.
@@ -298,6 +225,21 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     return () => void setCapturing(false);
   }, []);
 
+  // What the take asks of the recorder, filled in below. Through a ref, so the take (made once) always reaches the
+  // newest render's code (takeHost.ts `hostThrough`).
+  const hostImpl = useRef<TakeHost<Note>>(null!);
+  const [take] = useState(() => new Take<Note>(hostThrough(hostImpl)));
+  /** The note this take is written into, and the one chain every write to a note joins. */
+  const [writer] = useState(
+    () =>
+      new TakeWriter({
+        markdown: (asTitled) => take.markdown({ titled: asTitled, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown }),
+        hasWords: () => take.segments.length > 0 || take.tables.length > 0 || take.clips.length > 0,
+        candidates: () => candidates.current,
+        targetChanged: setTarget,
+      }),
+  );
+
   // ---- which note --------------------------------------------------------------------
   // A note's own Speak aims the recording at that note; otherwise it is a new one.
   useEffect(() => {
@@ -305,17 +247,14 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const chosen = aimedAt ? getNote(aimedAt).catch(() => null) : Promise.resolve<Note | null>(null);
     void chosen.then((found) => {
       // Found after a draft was already written to a new note: stay with that one.
-      if (!current || !found || savedDraft.current || finished.current) return;
-      targetRef.current = found;
-      draftNote.current = null;
-      noteId.current = found.id;
-      setTarget(found);
+      if (!current || !found || writer.savedDraft || finished.current) return;
+      writer.aim(found);
     });
     return () => {
       current = false;
     };
     // Decided once, as the capture opens: a new capture is a new mount.
-  }, [aimedAt]);
+  }, [aimedAt, writer]);
 
   // The notes "add to …" can name. Read once: a capture lasts minutes, and a
   // note made meanwhile is not one someone will name mid-sentence.
@@ -339,88 +278,28 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     };
   }, []);
 
-  /** The body to store: this capture's markdown, below the continued note's text if there is one. */
-  const compose = useCallback(async (markdown: string): Promise<string> => {
-    const continued = targetRef.current;
-    if (!continued) return markdown;
-    baseBody.current ??= getNote(continued.id)
-      .catch(() => null)
-      .then((stored) => stored?.body ?? continued.body);
-    return appendBody(await baseBody.current, markdown);
-  }, []);
-
-  /** Persist a birth or a revision-checked edit; never upsert a missing id. */
-  const persistBody = async (id: string, body: string, source: Note['source'] = 'capture'): Promise<Note> => {
-    const known = targetRef.current?.id === id ? targetRef.current : draftNote.current?.id === id ? draftNote.current : null;
-    const saved = known ? await updateStoredNote(id, body, known.revision ?? 1) : await createNote(id, body, source);
-    if (targetRef.current?.id === id) {
-      targetRef.current = saved;
-      setTarget(saved);
-    } else if (noteId.current === id) {
-      draftNote.current = saved;
-    }
-    const candidate = candidates.current.find((item) => item.id === id);
-    if (candidate) candidate.note = saved;
-    return saved;
-  };
-
-  /** Undoes whatever drafts wrote: the continued note gets its text back, a new note goes. */
-  const undoDraft = useCallback(async () => {
-    if (!savedDraft.current) return;
-    savedDraft.current = false;
-    await writes.current.catch(() => undefined);
-    const continued = targetRef.current;
-    if (continued) await persistBody(continued.id, (await baseBody.current) ?? continued.body, continued.source);
-    else await deleteNote(noteId.current);
-  }, []);
-
-  /** A write to a note, after every write before it (`writes`). */
-  const queueWrite = <T,>(run: () => Promise<T>): Promise<T> => {
-    const done = writes.current.then(run, run);
-    writes.current = done.catch(() => undefined);
-    return done;
-  };
-
-  /** The words so far, written to the note they were said for now rather than at the draft timer's next tick. */
-  const flushDraft = useCallback(async () => {
-    if (!take.segments.length && !take.tables.length && !take.clips.length) return;
-    await queueWrite(async () => {
-      savedDraft.current = true;
-      const body = await compose(take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown }));
-      await persistBody(noteId.current, body, 'capture');
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compose]);
-
   /**
    * The take carries on in `chosen`, or in a new note: what was said so far stays on the note it was said for,
    * written now, and the take starts afresh (take.fork). "New note", on a capture aimed at a note.
    */
   const carryOn = useCallback(
     async (chosen: Note | null) => {
-      await flushDraft();
+      await writer.flushDraft();
       take.fork();
-      savedDraft.current = false;
-      baseBody.current = null;
+      writer.savedDraft = false;
+      writer.baseBody = null;
       // The take's tape is the note it ends on: a note with a recording takes it on the end of its own.
       takeTape.current = null;
       if (chosen) {
         const full = (await getNote(chosen.id).catch(() => null)) ?? chosen;
-        targetRef.current = full;
-        draftNote.current = null;
-        noteId.current = full.id;
-        setTarget(full);
+        writer.aim(full);
         setRoute({ phase: 'moved', title: noteTitle(full.body) || 'that note' });
       } else {
-        targetRef.current = null;
-        draftNote.current = null;
-        noteId.current = newNoteId();
-        setTarget(null);
+        writer.aim(null);
       }
       setMoves((n) => n + 1);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [flushDraft],
+    [take, writer],
   );
 
   /** "New note": a fresh one from here; with a `title`, one already named. */
@@ -432,11 +311,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         return;
       }
       const named = listTitle(title);
-      const id = newNoteId();
-      const mutationId = newNoteId();
       const result = await applyCommandMutation({
-        mutationId,
-        noteId: id,
+        mutationId: newNoteId(),
+        noteId: newNoteId(),
         kind: 'create',
         beforeRevision: null,
         beforeBody: null,
@@ -464,28 +341,25 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     async (chosen: Note) => {
       setRoute({ phase: 'moved', title: noteTitle(chosen.body) || 'that note' });
       fireNativeHaptic('success');
-      if (chosen.id === noteId.current) return;
-      setGhost({ markdown: renderNote(segmentsRef.current, '', { titled: !targetRef.current }).markdown, key: Date.now() });
-      await undoDraft();
+      if (chosen.id === writer.noteId) return;
+      setGhost({ markdown: renderNote(segmentsRef.current, '', { titled: !writer.target }).markdown, key: Date.now() });
+      await writer.undoDraft();
       // The full note, for its recording and phrases: this take's tape goes on the end of them.
       const full = (await getNote(chosen.id).catch(() => null)) ?? chosen;
-      targetRef.current = full;
-      draftNote.current = null;
-      baseBody.current = null;
-      noteId.current = full.id;
-      setTarget(full);
+      writer.baseBody = null;
+      writer.aim(full);
       setMoves((n) => n + 1);
       // The next draft save writes the words so far to the note.
       setSegments([...segmentsRef.current]);
     },
-    [undoDraft],
+    [writer],
   );
 
   // The moved chip and the sliding words have their moment, then go.
   useEffect(() => {
-    const settled = route?.phase === 'moved' || route?.phase === 'missed' || route?.phase === 'added' || route?.phase === 'said' || route?.phase === 'done' || (route?.phase === 'plugin' && route.state !== 'working');
-    if (!settled || !route) return undefined;
-    const timer = window.setTimeout(() => setRoute(null), route.phase === 'added' || route.phase === 'said' ? 3200 : 2200);
+    const ms = lingerMs(route);
+    if (ms === null) return undefined;
+    const timer = window.setTimeout(() => setRoute(null), ms);
     return () => window.clearTimeout(timer);
   }, [route]);
   useEffect(() => {
@@ -503,46 +377,42 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     });
   };
 
+  // ---- the microphone and the transcriber (useCaptureSession.ts) ----------------------
+  const { phase, setPhase, engine, download, error, setError, session, microphone, counts } = useCaptureSession({
+    fromAssistant,
+    isFinished: () => finished.current,
+    events: {
+      onPartial: (text) => {
+        if (text) {
+          quiet.current?.words(performance.now());
+          heard();
+        }
+        // A partial is display only.  It cannot influence routing or a
+        // model prompt before Whisper has committed the final transcript.
+        setPartial(text);
+      },
+      onSegment: (raw) => {
+        quiet.current?.words(performance.now());
+        heard();
+        heardRef.current.push(raw.text);
+        take.listen(raw);
+        setPartial('');
+      },
+      onLevel: (level, rms) => {
+        // Straight to a custom property: five updates a second is too many
+        // React renders for a meter nobody reads precisely. The screen
+        // carries it too, for the side key's rings to swell with.
+        meterRef.current?.style.setProperty('--level', String(level));
+        screenRef.current?.style.setProperty('--level', String(level));
+        publishVoiceLevel(level);
+        quiet.current?.level(rms, performance.now());
+      },
+    },
+  });
+
   // ---- commands: "Glyph", then what to do, then yes or no (capture/take.ts) ----------
 
   const commandWordOn = () => preferences().commandWord;
-
-  /**
-   * A note's body rewritten.
-   *
-   * The note being recorded onto is a special case: the change goes into the note as it was before this take's
-   * words, and the words are composed onto the end of that again. Applied to the stored note, which already holds
-   * the words a draft saved, they were composed on a second time at the next save.
-   */
-  const updateNote = (id: string, change: (body: string) => string | null): Promise<string | null> =>
-    queueWrite(async () => {
-      const fresh = await getNote(id);
-      if (!fresh) return null;
-      const continued = targetRef.current;
-      if (continued?.id === id) {
-        // No draft composed yet means the store holds the note as it was; otherwise the base is what drafts build on.
-        const base = await (baseBody.current ??= Promise.resolve(fresh.body));
-        const next = change(base);
-        if (next === null || next === base) return null;
-        baseBody.current = Promise.resolve(next);
-        const updated = { ...fresh, body: next };
-        targetRef.current = updated;
-        // The page shows the change land, in its place above the words being said.
-        setTarget(updated);
-        const known = candidates.current.find((c) => c.id === id);
-        if (known) known.note = updated;
-        const saved = await updateStoredNote(id, appendBody(next, take.markdown({ titled: false, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown })), fresh.revision ?? 1);
-        targetRef.current = saved;
-        if (known) known.note = saved;
-        return next;
-      }
-      const body = change(fresh.body);
-      if (body === null || body === fresh.body) return null;
-      const saved = await updateStoredNote(id, body, fresh.revision ?? 1);
-      const known = candidates.current.find((c) => c.id === id);
-      if (known) known.note = saved;
-      return body;
-    });
 
   /**
    * Items spoken for another note's list go straight into that note: its last
@@ -556,9 +426,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // overwritten by the voice command.
       const placed = placeWords(note.body, spoken, { how, task, many, near, items });
       if (!placed.added.length) return;
-      const mutationId = newNoteId();
       const result = await applyCommandMutation({
-        mutationId,
+        mutationId: newNoteId(),
         noteId: note.id,
         kind: 'append',
         beforeRevision: note.revision ?? 1,
@@ -572,14 +441,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         return;
       }
       const saved = result.note;
-      const known = candidates.current.find((candidate) => candidate.id === saved.id);
-      if (known) known.note = saved;
-      if (targetRef.current?.id === saved.id) {
-        targetRef.current = saved;
-        baseBody.current = Promise.resolve(saved.body);
-        setTarget(saved);
-      }
-      if (targetRef.current?.id === saved.id) setRoute({ phase: 'done', text: `Added “${withoutLead(placed.added[0] ?? '')}”${placed.added.length > 1 ? ` and ${placed.added.length - 1} more` : ''}` });
+      writer.remember(saved);
+      writer.rebase(saved);
+      if (writer.target?.id === saved.id) setRoute({ phase: 'done', text: `Added “${withoutLead(placed.added[0] ?? '')}”${placed.added.length > 1 ? ` and ${placed.added.length - 1} more` : ''}` });
       else setRoute({ phase: 'added', title: noteTitle(saved.body) || 'that note', body: saved.body, added: placed.added });
       fireNativeHaptic('success');
       lastSaid.current = { kind: 'items', noteId: saved.id, lines: placed.added };
@@ -594,7 +458,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
   /** What a plugin's voice command may do to this take (plugins/types.ts). Refs and setters only, so any render's copy works. */
   const captureContext: CaptureContext = {
-    noteId: () => noteId.current,
+    noteId: () => writer.noteId,
     lastSaid: () => lastSaid.current,
     said: (text) => {
       lastSaid.current = { kind: 'take', text };
@@ -610,7 +474,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       syncTake();
     },
     updateNote: async (id, change) => {
-      await updateNote(id, change);
+      await writer.updateNote(id, change);
     },
   };
 
@@ -620,7 +484,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** A confirmed table for another note: its own block at the end of that note. */
   const addTable = async (note: Note, title: string, markdown: string) => {
     try {
-      const body = await updateNote(note.id, (current) => appendBlock(current, markdown));
+      const body = await writer.updateNote(note.id, (current) => appendBlock(current, markdown));
       if (body === null) return;
       setRoute({ phase: 'done', text: `Table added to ${title}` });
       fireNativeHaptic('success');
@@ -648,14 +512,14 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   };
 
   /** Which tape this take is part of: the one a continued note holds, or a fresh one for a new file. */
-  const tapeOfTake = (): string => {
+  const tapeOfTake = useCallback((): string => {
     if (!takeTape.current) {
-      const continued = targetRef.current;
+      const continued = writer.target;
       const appending = continued !== null && (continued.recordingMs ?? 0) > 0;
       takeTape.current = (appending ? tapeId(continued.id) : null) ?? freshTapeId();
     }
     return takeTape.current;
-  };
+  }, [writer]);
 
   /** The take's segments and tables, copied to what the screen draws. */
   const syncTake = () => {
@@ -665,11 +529,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     setAsBoard(take.asBoard);
   };
 
-  // What the take asks of the recorder. Through a ref, so the take (made once) always reaches the newest render's code.
-  const hostImpl = useRef<TakeHost<Note>>(null!);
   hostImpl.current = {
     notes: () => candidates.current,
-    target: () => targetRef.current,
+    target: () => writer.target,
     commandWord: commandWordOn,
     instructionCommands: () => true,
     voiceCommands: () => plugins.voiceCommands(),
@@ -683,7 +545,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     changed: syncTake,
     addItems: (target, spoken, placement) => void addItems(target, spoken, placement),
     changeNote: (target, change, title) =>
-      void updateNote(target.id, change).then((body) => {
+      void writer.updateNote(target.id, change).then((body) => {
         if (body === null) setRoute({ phase: 'said', text: `${title} didn’t change.` });
         else {
           setRoute({ phase: 'done', text: `Done in ${title}` });
@@ -699,7 +561,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     describePlugin: (voice, parsed) => voice.describe(parsed, captureContext),
     clip: (span) => {
       // The tape a continued note already has comes first, so the clip points at the right sound in the whole recording.
-      const offset = targetRef.current?.recordingMs ?? 0;
+      const offset = writer.target?.recordingMs ?? 0;
       return clipMarkdown({ startMs: span.startMs + offset, endMs: span.endMs + offset, tape: tapeOfTake() });
     },
     log: (line) => commandLog.current.push(line),
@@ -707,44 +569,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       lastSaid.current = { kind: 'take', text };
     },
   };
-  const [take] = useState(
-    () =>
-      new Take<Note>({
-        notes: () => hostImpl.current.notes(),
-        target: () => hostImpl.current.target(),
-        commandWord: () => hostImpl.current.commandWord(),
-        instructionCommands: () => hostImpl.current.instructionCommands(),
-        voiceCommands: () => hostImpl.current.voiceCommands(),
-        itemTargets: () => hostImpl.current.itemTargets(),
-        get understand() {
-          return hostImpl.current.understand;
-        },
-        route: (view) => hostImpl.current.route(view),
-        offer: (offer) => hostImpl.current.offer(offer),
-        table: (draft) => hostImpl.current.table(draft),
-        itemWords: (text) => hostImpl.current.itemWords(text),
-        haptic: (kind) => hostImpl.current.haptic(kind),
-        changed: () => hostImpl.current.changed(),
-        addItems: (target, spoken, placement) => hostImpl.current.addItems(target, spoken, placement),
-        changeNote: (target, change, title) => hostImpl.current.changeNote(target, change, title),
-        addTable: (target, title, markdown) => hostImpl.current.addTable(target, title, markdown),
-        moveTo: (target) => hostImpl.current.moveTo(target),
-        newNote: (title) => hostImpl.current.newNote(title),
-        newBook: (title, pages) => hostImpl.current.newBook(title, pages),
-        runPlugin: (voice, parsed) => hostImpl.current.runPlugin(voice, parsed),
-        describePlugin: (voice, parsed) => hostImpl.current.describePlugin(voice, parsed),
-        clip: (span) => hostImpl.current.clip(span),
-        log: (line) => hostImpl.current.log(line),
-        said: (text) => hostImpl.current.said(text),
-      }),
-  );
 
   const confirmPending = () => {
     take.confirm(performance.now());
     const final = finalCommand.current;
     if (!final) return;
     finalCommand.current = null;
-    void writes.current.then(async () => {
+    void writer.settled().then(async () => {
       let saved = final.create ? await createFinalList(final.create.title, final.create.items) : final.note ? await getNote(final.note.id).catch(() => final.note) : null;
       if (saved && final.recordedMs !== null) {
         const recordingMs = await reassignRecording(final.temporaryId, saved.id, (saved.recordingMs ?? 0) > 0).catch(() => null);
@@ -785,117 +616,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   };
   const finishTable = () => take.finishTable(performance.now());
   const cancelTable = (why: string | null) => take.cancelTable(why);
-  // ---- start ------------------------------------------------------------------
-  useEffect(() => {
-    let cancelled = false;
-    const held: Float32Array[] = [];
-
-    async function start() {
-      const simulate = new URLSearchParams(window.location.search).has('simulate');
-      try {
-        if (isTauri() && !simulate) {
-          const handlers: MicrophoneHandlers = {
-            onChunk: (samples) => {
-              // A start that was called off keeps nothing it hears (see the microphone opening below).
-              if (cancelled) return;
-              counts.current.heardSamples += samples.length;
-              if (sessionRef.current) sessionRef.current.push(samples);
-              else held.push(samples);
-            },
-            onLevel: (rms) => {
-              // Straight to a custom property: five updates a second is too many
-              // React renders for a meter nobody reads precisely. The screen
-              // carries it too, for the side key's rings to swell with.
-              const level = String(Math.min(1, rms * 8));
-              meterRef.current?.style.setProperty('--level', level);
-              screenRef.current?.style.setProperty('--level', level);
-              publishVoiceLevel(Math.min(1, rms * 8));
-              quiet.current?.level(rms, performance.now());
-            },
-          };
-          const opened = await openMicrophone(handlers);
-          // Called off while the microphone was opening (React's development double start, or the screen closed at
-          // once): this start's microphone goes, rather than living on unowned and feeding the next start's session
-          // a second copy of every chunk, interleaved - a take that plays back choppy at half speed, and that the
-          // voice model hears as nonsense.
-          if (cancelled) {
-            opened.stop();
-            return;
-          }
-          micRef.current = opened;
-          const mic = micRef.current;
-          if (mic) {
-            counts.current.deviceRate = mic.deviceRate;
-            console.info(`[glyph] microphone open at ${mic.deviceRate} Hz, context ${mic.state()}`);
-          }
-        }
-        const session = await startCapture({
-          onPartial: (text) => {
-            if (text) {
-              counts.current.partials += 1;
-              quiet.current?.words(performance.now());
-              heard();
-            }
-            setPartial(text);
-            // A partial is display only.  It cannot influence routing or a
-            // model prompt before Whisper has committed the final transcript.
-          },
-          onSegment: (raw) => {
-            counts.current.segments += 1;
-            quiet.current?.words(performance.now());
-            heard();
-            counts.current.lastError = null;
-            heardRef.current.push(raw.text);
-            take.listen(raw);
-            setPartial('');
-          },
-          onError: (message) => {
-            counts.current.errors += 1;
-            counts.current.lastError = message;
-            console.warn('[glyph] capture error:', message);
-            setError(message);
-          },
-          onModelProgress: (received, total) => setDownload({ received, total }),
-        });
-        if (cancelled) {
-          session.cancel();
-          micRef.current?.stop();
-          return;
-        }
-        sessionRef.current = session;
-        if (session.wantsSamples) held.splice(0).forEach((samples) => session.push(samples));
-        else micRef.current?.stop();
-        setEngine(session.kind);
-        setDownload(null);
-        setPhase('listening');
-        console.info(`[glyph] capture started with ${session.kind}`);
-        if (!fromAssistant) fireNativeHaptic('medium');
-      } catch (failure) {
-        if (cancelled) return;
-        micRef.current?.stop();
-        setError(failureText(failure));
-        setPhase('failed');
-        fireNativeHaptic('error');
-      }
-    }
-    void start();
-
-    return () => {
-      cancelled = true;
-      if (!finished.current) {
-        sessionRef.current?.cancel();
-        micRef.current?.stop();
-      }
-    };
-    // Started once per mount; a new capture is a new mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ---- the counter ---------------------------------------------------------------
   useEffect(() => {
     if (phase !== 'listening') return undefined;
     const timer = window.setInterval(() => {
-      setRecorded(sessionRef.current?.positionMs() ?? 0);
+      setRecorded(session.current?.positionMs() ?? 0);
       setDiagnostics({ ...counts.current });
       const now = performance.now();
       // A command being said, or waiting for its yes, holds the recording open.
@@ -905,20 +631,22 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // A pause, once there are words: one tip, until words come again. Before the first word the card of things to
       // say is up instead (SayCard.tsx), and a tip picked under it would be spent unseen.
       if (heardRef.current.length && now - lastHeard.current > TIP_AFTER_MS) {
-        setTip((showing) => {
-          if (showing) return showing;
-          const recent = candidates.current.find((c) => c.id !== noteId.current)?.title ?? null;
-          const keyword = commandWordOn();
-          const pluginTips = plugins.tips(recent ?? null).map((t) => (keyword ? { ...t, say: `Hey Ghost, ${lowerFirst(t.say)}` } : t));
-          const lane = targetRef.current ? (lanesOf(targetRef.current.body)[1] ?? lanesOf(targetRef.current.body)[0])?.name ?? null : null;
-          const book = candidates.current.find((c) => c.id !== noteId.current && isBookBody(c.note.body))?.title ?? null;
-          const list = [...tips({ noteTitle: recent, continuing: targetRef.current !== null, keyword, lane, book }), ...pluginTips];
-          return list[tipTurn.current % list.length] ?? null;
-        });
+        setTip(
+          (showing) =>
+            showing ??
+            tipInPause({
+              notes: candidates.current,
+              own: writer.noteId,
+              target: writer.target,
+              keyword: commandWordOn(),
+              pluginTips: (recent) => plugins.tips(recent),
+              turn: tipTurn.current,
+            }),
+        );
       }
     }, 250);
     return () => window.clearInterval(timer);
-  }, [phase, take]);
+  }, [phase, take, writer, session, counts]);
 
   // No draft timer: phrase commits are display-only.  The complete transcript
   // is saved exactly once after final instruction classification.
@@ -929,16 +657,15 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     finished.current = true;
     setCapturing(false);
     setPhase('finishing');
-    micRef.current?.stop();
-    // A voice memo still running is closed by Done: what was said up to here is its sound.
+    microphone.current?.stop();
     // The tape is kept under the note's id, added to the end of the continued
     // note's tape when there is one, so its words and its sound stay one timeline.
-    const continued = targetRef.current;
+    const continued = writer.target;
     let stopped: Stopped = { recordedMs: null, transcript: null };
     try {
       // Appended only onto a tape the note still has: a recording removed from the note leaves its file behind, and a
       // take added after it starts the file afresh rather than playing after the removed sound.
-      stopped = (await sessionRef.current?.stop({ recordAs: noteId.current, append: continued !== null && (continued.recordingMs ?? 0) > 0 })) ?? stopped;
+      stopped = (await session.current?.stop({ recordAs: writer.noteId, append: continued !== null && (continued.recordingMs ?? 0) > 0 })) ?? stopped;
     } catch (failure) {
       setError(failureText(failure));
     }
@@ -949,9 +676,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // command classification may inspect; browser/simulated engines fall back
     // to their committed phrases because they explicitly return null.
     const transcript = stopped.transcript ?? committed.map((segment) => segment.text).join(' ').trim();
-    const spoken = appendFinalTranscriptSuffix(committed, stopped.transcript, sessionRef.current?.positionMs() ?? committed.at(-1)?.endMs ?? 0);
-    const appended = spoken.slice(committed.length);
-    for (const segment of appended) {
+    const spoken = withFinalWords(committed, stopped.transcript, session.current?.positionMs() ?? committed.at(-1)?.endMs ?? 0);
+    for (const segment of spoken.slice(committed.length)) {
       // `listen` remains display-only, so completing the ordinary-note stream
       // here cannot revive phrase-level routing or execution.
       take.listen(segment);
@@ -966,9 +692,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // The stopped audio is already retained under this capture id.  The
       // mutation remains pending until this card is explicitly confirmed.
       take.offerFinal(read.plan, performance.now());
-      const target = read.plan.kind === 'place' ? read.plan.note.note : null;
+      const aimed = read.plan.kind === 'place' ? read.plan.note.note : null;
       const create = read.plan.kind === 'create-list' ? { title: read.plan.title, items: read.plan.items ?? [] } : undefined;
-      finalCommand.current = { note: target, ...(create ? { create } : {}), locked, temporaryId: noteId.current, recordedMs: stopped.recordedMs };
+      finalCommand.current = { note: aimed, ...(create ? { create } : {}), locked, temporaryId: writer.noteId, recordedMs: stopped.recordedMs };
       setPhase('listening');
       return;
     }
@@ -976,8 +702,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // Unsupported, destructive, ambiguous, and missing-target command
       // shapes fail closed: do not create a note containing command prose.
       setRoute({ phase: 'said', text: read.reason });
-      await discardRecording(noteId.current).catch(() => undefined);
-      await undoDraft();
+      await discardRecording(writer.noteId).catch(() => undefined);
+      await writer.undoDraft();
       endCapture(locked);
       onFinish(null, locked);
       return;
@@ -985,8 +711,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     if ((read.kind === 'run' || read.kind === 'ask') && continued && !locked) {
       // "Hey Ghost, fix the spelling", said into a note: the words are an instruction, not the note's, and the note
       // opens with the run on it (App.tsx, editor/NoteScreen.tsx). The recording of the instruction goes.
-      await discardRecording(noteId.current).catch(() => undefined);
-      await undoDraft();
+      await discardRecording(writer.noteId).catch(() => undefined);
+      await writer.undoDraft();
       endCapture(locked);
       onFinish(continued, locked, undefined, read.kind === 'run' ? { kind: read.run } : { kind: 'ask', instruction: read.instruction });
       return;
@@ -994,29 +720,29 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     if (read.kind === 'words' && read.notice) setRoute({ phase: 'said', text: read.notice });
 
     // A command's change still landing, or the take carrying on elsewhere: written before the note is.
-    await writes.current;
+    await writer.settled();
 
     if (!plain.trim() && !take.tables.length && !take.clips.length) {
-      await undoDraft();
+      await writer.undoDraft();
       endCapture(locked);
       onFinish(null, locked);
       return;
     }
 
-    const markdown = take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
-    const saved = await queueWrite(async () => persistBody(noteId.current, await compose(markdown), 'capture'));
+    const markdown = take.markdown({ titled: !writer.target, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
+    const saved = await writer.queue(async () => writer.persist(writer.noteId, await writer.compose(markdown), 'capture'));
     let refineJob: ReviewHandoff['job'] = null;
-    if (stopped.recordedMs !== null && sessionRef.current?.keepsAudio) {
+    if (stopped.recordedMs !== null && session.current?.keepsAudio) {
       // New phrases sit after the continued tape's, shifted by its length.
       const offset = continued?.recordingMs ?? 0;
       const prior = continued?.segments ?? [];
-      const all = [...prior, ...spoken.map((s) => ({ ...s, startMs: s.startMs + offset, endMs: s.endMs + offset }))];
+      const all = [...prior, ...shifted(spoken, offset)];
       await setNoteRecording(saved.id, stopped.recordedMs, all).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
       // The tape this take wrote to, so its voice memos know it again when the note is opened (core/clips.ts).
       setTapeId(saved.id, tapeOfTake());
       // The better words: the larger model over this take's recording, later,
       // or now in the review after a recording when that runs.
-      const base = continued ? ((await baseBody.current) ?? continued.body) : '';
+      const base = continued ? ((await writer.baseBody) ?? continued.body) : '';
       refineJob = {
         id: saved.id,
         fromMs: offset,
@@ -1026,10 +752,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         titled: !continued,
         priorSegments: prior,
         promptTail: renderNote(prior).plain.slice(-200),
-        skip: take.commandSpans.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
+        skip: shifted(take.commandSpans, offset),
         // The voice memos this take left: the better words never heard them, and they go back where they were.
-        clips: take.clips.map((clip) => ({ ...clip, startMs: clip.startMs + offset, endMs: clip.endMs + offset })),
-        keywordAt: take.keywordSpans.map((span) => ({ startMs: span.startMs + offset, endMs: span.endMs + offset })),
+        clips: shifted(take.clips, offset),
+        keywordAt: shifted(take.keywordSpans, offset),
       };
     }
     fireNativeHaptic('success');
@@ -1042,7 +768,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
     if (refineJob) enqueueRefine(refineJob);
     onFinish(saved, locked);
-  }, [onFinish, compose, undoDraft, take]);
+  }, [onFinish, take, writer, tapeOfTake, session, microphone, setPhase, setError]);
 
   // The side key held again: Done.
   useEffect(() => {
@@ -1062,13 +788,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     if (finished.current) return;
     finished.current = true;
     setCapturing(false);
-    sessionRef.current?.cancel();
-    micRef.current?.stop();
-    await undoDraft();
+    session.current?.cancel();
+    microphone.current?.stop();
+    await writer.undoDraft();
     const locked = isLocked();
     endCapture(locked);
     onFinish(null, locked);
-  }, [onFinish, undoDraft]);
+  }, [onFinish, writer, session, microphone]);
 
   // The phone's back gesture ends the take the way Done does: what was said
   // is kept, and a take with nothing in it leaves nothing behind.
@@ -1083,7 +809,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    * off it, and the asks are offered only where an ask said first is run - a note's own Speak, unlocked (`finish`).
    */
   const say = useMemo(() => {
-    const own = target?.id ?? noteId.current;
+    const own = target?.id ?? writer.noteId;
     const others = locked || !notesRead ? [] : candidates.current.filter((c) => c.id !== own);
     return starters({
       noteTitle: others[0]?.title ?? null,
@@ -1091,20 +817,14 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       book: others.find((c) => isBookBody(c.note.body))?.title ?? null,
       asking: target !== null && !locked,
     });
-    // `candidates` and `noteId` are refs: `notesRead` says when the first was filled, `moves` when the second changed.
+    // `candidates` is a ref and `writer.noteId` a field: `notesRead` says when the first was filled, `moves` when the second changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, locked, notesRead, moves]);
-  let status: string | null = null;
-  if (phase === 'failed') status = error ?? 'Could not start';
-  else if (download) status = `Downloading voice model ${Math.round(download.received / 1e6)} / ${Math.round(download.total / 1e6)} MB`;
-  else if (phase === 'starting') status = 'Starting';
-  else if (phase === 'finishing') status = 'Saving';
-  else if (error && !segments.length) status = `Problem: ${error}`;
-  const where = target ? (locked ? 'Adding to your last note' : `Adding to “${noteTitle(target.body)}”`) : 'New note';
+  const status = statusLine({ phase, error, download, heardWords: segments.length > 0 });
 
   // A capture that has heard a while and produced nothing is the one worth
   // explaining without being asked: the line that diagnosed the Fold.
-  const silent = engine === 'whisper' && diagnostics.heardSamples > 8 * 16_000 && !diagnostics.partials && !diagnostics.segments;
+  const silent = soundsSilent(engine, diagnostics);
   const hasWords = note.markdown.length > 0;
 
   return (
@@ -1117,7 +837,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           <>
             {/* Tapping the line shows what the pipeline has done, for diagnosing a silent capture. */}
             <button type="button" className={`app-word ${styles.where}`} onClick={() => setShowDiagnostics((on) => !on)}>
-              {where}
+              {whereLine(target, locked)}
             </button>
             {target ? (
               <button type="button" className={`app-word ${styles.newNote}`} onClick={() => void startNewNote()}>
@@ -1171,79 +891,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           table={pending.kind === 'table' ? <TablePreview columns={pending.columns} rows={pending.rows} /> : undefined}
         />
       ) : route ? (
-        <p
-          className={styles.route}
-          data-phase={
-            route.phase === 'plugin' ? (route.state === 'done' ? 'moved' : route.state === 'failed' ? 'missed' : 'hearing') : route.phase === 'command' ? 'hearing' : route.phase === 'said' ? 'missed' : route.phase === 'done' ? 'moved' : route.phase
-          }
-          role="status"
-        >
-          {route.phase === 'hearing' ? (
-            <>
-              <span className={styles.routeDots} aria-hidden="true" />
-              {route.guess ? (
-                <>
-                  {route.lead} <strong>{route.guess}</strong>
-                </>
-              ) : (
-                <>Looking for “{route.name}”</>
-              )}
-            </>
-          ) : route.phase === 'waiting' ? (
-            itemWords ? (
-              <>
-                <strong>{route.title}:</strong> {itemWords}
-              </>
-            ) : (
-              <>
-                <span className={styles.routeDots} aria-hidden="true" />
-                {route.leave ? 'Say the note for' : route.many ? 'Say the items for' : 'Say the item for'} <strong>{route.title}</strong>
-              </>
-            )
-          ) : route.phase === 'plugin' ? (
-            route.state === 'failed' ? (
-              <>{route.title}</>
-            ) : (
-              <>
-                <span className={route.state === 'working' ? styles.routeDots : styles.routeTick} aria-hidden="true" />
-                {route.lead ? `${route.lead} ` : null}
-                <strong>{route.title}</strong>
-              </>
-            )
-          ) : route.phase === 'command' ? (
-            <>
-              <span className={styles.routeDots} aria-hidden="true" />
-              <span>
-                <strong>Hey Ghost</strong>
-                {route.words || partialCommand(itemWords) ? `: ${[route.words, partialCommand(itemWords)].filter(Boolean).join(' ')}` : ', listening for a command'}
-                {route.thinking ? <span className={styles.routeThinking}> · working it out</span> : null}
-              </span>
-            </>
-          ) : route.phase === 'said' ? (
-            <>{route.text}</>
-          ) : route.phase === 'done' ? (
-            <>
-              <span className={styles.routeTick} aria-hidden="true" />
-              {route.text}
-            </>
-          ) : route.phase === 'added' ? (
-            <>
-              <span className={styles.routeTick} aria-hidden="true" />
-              {route.added.length === 1 ? 'Added to' : `${route.added.length} added to`} <strong>{route.title}</strong>
-            </>
-          ) : route.phase === 'moved' ? (
-            <>
-              <span className={styles.routeTick} aria-hidden="true" />
-              {route.title === 'New note' ? 'New note' : (
-                <>
-                  Now on <strong>{route.title}</strong>
-                </>
-              )}
-            </>
-          ) : (
-            <>No note called “{route.title}”, so it stays here</>
-          )}
-        </p>
+        <RouteChip route={route} itemWords={itemWords} />
       ) : !hasWords && phase === 'listening' ? (
         // Before the first word: the whole of what can be said, as a card (SayCard.tsx); once talking has begun, one tip at a time in a pause.
         <SayCard starters={say} />
@@ -1253,9 +901,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         </p>
       ) : null}
 
-      {showDiagnostics || silent || diagnostics.errors ? (
-        <p className={styles.diagnostics}>{[engine ? ENGINE_LABEL[engine] : null, describe(diagnostics)].filter(Boolean).join(' · ')}</p>
-      ) : null}
+      {showDiagnostics || silent || diagnostics.errors ? <p className={styles.diagnostics}>{diagnosticsLine(engine, diagnostics)}</p> : null}
 
       <footer className={styles.footer}>
         <button type="button" className="app-word" onClick={() => void cancel()} disabled={phase === 'finishing'}>
@@ -1275,139 +921,4 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       </footer>
     </div>
   );
-}
-
-/** The take's words as a board, when "make this a board" was said and there is a list to make one of. */
-function asBoardMarkdown(markdown: string): string {
-  return boardFrom(markdown)?.doc ?? markdown;
-}
-
-/** The words of a command still being said, with the keyword taken off if it is in them. */
-function partialCommand(text: string): string {
-  return (findKeyword(text)?.after ?? text).trim();
-}
-
-/**
- * "Shall I?": what a command understood will do, before it does anything.
- *
- * The note's name, the lines as they will land (in its list, or as a
- * paragraph), and the two answers. "Yes" or "no" said aloud answer it as well
- * as a tap does, and saying nothing for a while is a no.
- */
-function TablePreview({ columns, rows }: { columns: readonly string[]; rows: readonly (readonly string[])[] }) {
-  return (
-    <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            {columns.map((label, i) => (
-              <th key={i}>{label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, r) => (
-            <tr key={r}>
-              {columns.map((_, i) => (
-                <td key={i}>{row[i] ?? ''}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/**
- * "And what will the column labels be?": the table being said, one question
- * at a time. Matt wanted the recorder to guide a table rather than expect it in
- * one breath, so the card asks for the labels, then the first row, then the
- * next or "done", showing the table as it grows and the words being heard
- * for the piece it asked for.
- */
-function TableCard({ draft, heard, onDone, onCancel }: { draft: TableDraft<Note>; heard: string; onDone: () => void; onCancel: () => void }) {
-  const question = !draft.columns.length ? 'What will the column labels be?' : draft.rows.length ? 'Next row? Or say “done”.' : 'What goes in the first row?';
-  const hint = !draft.columns.length ? 'Say them with commas, like “bug, owner, status”.' : `In order: ${draft.columns.join(', ')}.`;
-  const words = heard ? (findKeyword(heard)?.after ?? heard) : '';
-  return (
-    <section className={styles.confirm} aria-live="polite" aria-label={`Table for ${draft.title}`}>
-      <p className={styles.confirmHeading}>Table for {draft.title}</p>
-      <p className={styles.tableQuestion}>{question}</p>
-      {draft.columns.length ? <TablePreview columns={draft.columns} rows={draft.rows} /> : null}
-      {words ? <p className={styles.confirmDetail}>“{words}”</p> : <p className={styles.confirmHint}>{hint}</p>}
-      <div className={styles.confirmActions}>
-        <button type="button" className="app-word" onClick={onCancel}>
-          Cancel
-        </button>
-        {draft.columns.length ? (
-          <button type="button" className="app-pill" onClick={onDone}>
-            That’s all
-          </button>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-/**
- * Items landing in another note's list: the note's name, the list's last lines
- * as they were, and the new lines arriving under them with a tick each.
- */
-function ListLanding({ title, body, added }: { title: string; body: string; added: string[] }) {
-  const lines = body.split('\n');
-  const end = lines.lastIndexOf(added[added.length - 1] ?? '');
-  const start = end - added.length + 1;
-  const before = lines.slice(Math.max(0, start - 2), Math.max(0, start)).filter((line) => line.trim());
-  return (
-    <div className={styles.landing} aria-label={`Added to ${title}`}>
-      <p className={styles.contextTitle}>{title}</p>
-      {before.map((line, i) => (
-        <p key={`b${i}`} className={styles.contextLine}>
-          {withoutLead(line)}
-        </p>
-      ))}
-      {added.map((line, i) => (
-        <p key={`a${i}`} className={styles.landed} style={{ animationDelay: `${120 + i * 140}ms` }}>
-          <span className={styles.landedTick} aria-hidden="true" />
-          {withoutLead(line)}
-        </p>
-      ))}
-    </div>
-  );
-}
-
-/** What ends this recording, in a line under "Start talking." */
-function stopHint(fromSideKey: boolean, pressStops: boolean, quietStops: boolean): string {
-  const key = pressStops ? 'press the side key' : fromSideKey ? 'hold the side key again' : null;
-  if (quietStops) return key ? `Stop talking to finish, or ${key}.` : 'Stop talking to finish, or tap Done.';
-  if (key) return `${key[0]!.toUpperCase()}${key.slice(1)} to stop.`;
-  return 'Tap Done to stop.';
-}
-
-interface Diagnostics {
-  heardSamples: number;
-  deviceRate: number | null;
-  partials: number;
-  segments: number;
-  errors: number;
-  lastError: string | null;
-}
-
-const EMPTY_DIAGNOSTICS: Diagnostics = {
-  heardSamples: 0,
-  deviceRate: null,
-  partials: 0,
-  segments: 0,
-  errors: 0,
-  lastError: null,
-};
-
-/** "heard 8.2 s at 48 kHz · 3 guesses · 1 phrase", plus the last error if there is one. */
-function describe(d: Diagnostics): string {
-  const parts = [`heard ${(d.heardSamples / 16_000).toFixed(1)} s${d.deviceRate ? ` at ${Math.round(d.deviceRate / 1000)} kHz` : ''}`];
-  parts.push(`${d.partials} ${d.partials === 1 ? 'guess' : 'guesses'}`);
-  parts.push(`${d.segments} ${d.segments === 1 ? 'phrase' : 'phrases'}`);
-  if (d.errors) parts.push(`${d.errors} ${d.errors === 1 ? 'error' : 'errors'}: ${d.lastError ?? ''}`);
-  return parts.join(' · ');
 }

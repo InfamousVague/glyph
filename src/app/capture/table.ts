@@ -68,8 +68,8 @@ export function tableMarkdown(columns: readonly string[], rows: readonly (readon
   return [line(columns), line(columns.map(() => '---')), ...rows.map((row) => line(fitRow(row, columns.length)))].join('\n');
 }
 
-/** `body` with `block` as its own block at the end. */
-export function appendBlock(body: string, block: string): string {
-  const base = body.replace(/\s+$/, '');
-  return `${base}${base ? '\n\n' : ''}${block}\n`;
+/** What the recorder asks next while a table is said: the labels first, then the first row, then the next or "done". */
+export function tableQuestion({ columns, rows }: { columns: readonly string[]; rows: readonly (readonly string[])[] }): { question: string; hint: string } {
+  if (!columns.length) return { question: 'What will the column labels be?', hint: 'Say them with commas, like “bug, owner, status”.' };
+  return { question: rows.length ? 'Next row? Or say “done”.' : 'What goes in the first row?', hint: `In order: ${columns.join(', ')}.` };
 }
