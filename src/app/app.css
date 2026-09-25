@@ -1,6 +1,18 @@
 /*
- * App-level layout. Component look comes from Glacier; this file only arranges
- * the shell for a phone. Every value is a Glacier token or a safe-area inset.
+ * The shell, and the app's own vocabulary. Component look comes from Glacier and colour from ink.css; this file
+ * arranges the phone's shell and names the values the modules share, so none of them writes its own copy:
+ *
+ * - the root's custom properties: the notch and home-indicator insets, the tab bar's heights, the gutter at each edge,
+ *   the type scale and its tracking, the one round control (`--app-ring`), the weight of a drawn line (`--app-line`),
+ *   the header's glass and the app's own movements (`--app-pop`, `--app-turn`, `--app-settle`);
+ * - the app's own pieces, which modules wear or compose: `.app-word`, the quiet button; `.app-unseen`, words for a
+ *   screen reader alone; `.app-eyebrow`, the small spaced capitals over a group (`.app-pill` and `.app-inverse` are
+ *   ink.css's, being made of ink);
+ * - the page itself, the Mac's title bar, the tab bar, the drag strip, the status bar's scrim, the scrollbar under a
+ *   header, the header's glass pane, the icon wash and the split window's columns.
+ *
+ * The page's edges under a header - the wisp and the desktop's blur strip - are art/wisp.css. In the cascade this
+ * comes after the kit's tokens and styles and before ink.css (src/main.tsx), and every CSS module after all of them.
  */
 
 *,
