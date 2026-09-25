@@ -23,7 +23,13 @@ import { keepGist, readGist } from './results.ts';
  * Each gist is kept with the hash of the body it came from (results.ts), so a
  * note that has not changed is never asked about twice, and a note that has
  * shows its old line until the new one lands. A note the runner could not gist
- * is left alone for the rest of the session. Nothing leaves the phone.
+ * is left alone for the rest of the session, and a note's own run always goes
+ * first (ai/runs.ts): the model is one. Nothing leaves the phone.
+ *
+ * The home page and the page of every note both draw gists
+ * (home/HomeScreen.tsx, notes/AllNotesScreen.tsx), never at once: the bodies
+ * the runner works from are the last page's to hand them over, so two pages
+ * drawn together would take turns replacing each other's.
  */
 
 /** The model's answer as a card's line: the first line, bare, at most this long. */
@@ -133,7 +139,7 @@ async function pump(): Promise<void> {
   try {
     const model = smallestOf(presentIds(await listModels()));
     if (!model) return;
-    // Links go in as tokens, as for every pass, and the line never has them.
+    // Links go in as tokens, as for every run, and the line never has them.
     const { text } = protectLinks(body);
     const output = await generate({ model, system: GIST_PROMPT, prompt: text, maxTokens: 40, temperature: TEMPERATURE, onProgress: () => undefined }).done;
     const line = tidyGist(output.text);
