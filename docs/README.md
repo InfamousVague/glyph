@@ -110,6 +110,6 @@ Some parts of the app are described only in the header of the code that runs the
 | The Android build's switches (staging, dev, Play, signing) | `src-tauri/gen/android/app/build.gradle.kts` |
 | glyph-api's routes and environment | `server/src/main.rs` |
 | The native commands, by the generation that brought each | `NATIVE_GENERATION` in `src-tauri/src/ota.rs` |
-| The spoken cues, and the commands a recording reads | `src/app/capture/markdown.ts` with `src/app/capture/spoken/`, and `src/app/capture/command.ts` |
+| The spoken cues, and the commands a recording reads | `src/app/capture/markdown.ts` with `src/app/capture/spoken/`; `src/app/ai/instruction.ts`, which decides what the recorder does with a command, `src/app/capture/finalInstruction.ts` and `src/app/capture/command.ts` |
 | The app's shell: its screens, tabs, trail and boot | `src/app/App.tsx` and `src/app/shell/` |
 | The settings kit and searching Settings | `src/app/settings/kit/settingsKit.tsx` and `src/app/settings/settingsSearch.ts` |

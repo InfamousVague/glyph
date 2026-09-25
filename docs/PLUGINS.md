@@ -111,8 +111,9 @@ change is one undo step and saves like typing.
 **Voice commands, today.** Since the recorder reads a command only from the finished recording (DESIGN §114,
 `src/app/ai/instruction.ts`), `voice` and `itemTargets` are heard only by the phrase-by-phrase reader in
 `src/app/capture/take.ts`, which the voice test suite drives (docs/VOICE_TESTS.md). A recording made in the app does
-not run them: "send that to Notion" said into the recorder stays words. `tips` and a format's `cue` still reach the
-recorder.
+not run them. "Hey Ghost, send that to Notion", said into an open note, opens that note with an AI ask carrying those
+words; said as a fresh recording, or without the keyword, it is saved as a note's words. `tips` and a format's `cue`
+still reach the recorder.
 
 **Local only.** While the person has Local only on (Settings › Formatting), every plugin whose manifest
 declares the `network` permission is off, whatever its switch says, and the registry tells its listeners

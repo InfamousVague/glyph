@@ -171,10 +171,15 @@ at from a column, from a sentence, or from another note.
 
 Matt: "add voice commands and cues for adding to swimlanes on the board". These are built, but a recording made in
 the app no longer runs them. Since the instruction-aware commands of DESIGN §114, the recorder reads a command once,
-from the whole recording, when Done is pressed, and a finished recording may only add to a note or make a new list;
-"Hey Ghost, add call Sam to Doing" said into the recorder is refused as a command the recorder does not take. The rules
-below are still read a phrase at a time by `src/app/capture/take.ts`, which the voice test suite drives
-(docs/VOICE_TESTS.md), and are what a board by voice would do once the recorder takes them again.
+from the whole recording, when Done is pressed, and a finished recording may only add to a note or make a new list.
+Neither command below is recognised there. A move is not a command at Done at all, since "move" is not one of the
+words a command there starts with. A lane is not either: the lane rule needs the board being recorded into, and Done
+does not pass it (`src/app/capture/finalInstruction.ts`), so "Hey Ghost, add call Sam to Doing" is read as an addition
+to a note called Doing, which the on-device model may offer when there is one or refuse when there is not. Words that
+end up as no command at all, after "Hey Ghost" and said into an open note, open that note with an AI ask carrying
+them; otherwise they are the note's words (docs/instruction-voice-commands.md). The rules below are still read a
+phrase at a time by `src/app/capture/take.ts`, which the voice test suite drives (docs/VOICE_TESTS.md), and are what
+a board by voice would do once the recorder takes them again.
 
 While a note with a board is being recorded into, a lane is named the way a note is, and the recorder asks before it
 acts:

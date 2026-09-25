@@ -89,11 +89,13 @@ What to know before the walk.
 ## By voice
 
 Two commands, read by the rules in `src/app/capture/command.ts` and asked about before they act, as every command is.
-They are built, but a recording made in the app no longer runs them: since DESIGN §114 the recorder reads a command
-once, from the whole recording, when Done is pressed, and a finished recording may only add to a note or make a new
-list, so "make a book called …" and "add a chapter to …" are refused there. The phrase-by-phrase reader that runs
-them, `src/app/capture/take.ts`, is what the voice test suite drives (docs/VOICE_TESTS.md). What follows is what that
-reader does.
+They are built, but a recording made in the app no longer runs them. Since DESIGN §114 the recorder reads a command
+once, from the whole recording, when Done is pressed (`src/app/ai/instruction.ts`), and a finished recording may only
+add to a note or make a new list. "Make a book called …" and "add a chapter to …" are turned down there without a
+word: after "Hey Ghost", said into an open note, they open that note with an AI ask carrying the words; said as a
+fresh recording, or without the keyword, they are saved as a note's words (docs/instruction-voice-commands.md). The
+phrase-by-phrase reader that runs them, `src/app/capture/take.ts`, is what the voice test suite drives
+(docs/VOICE_TESTS.md). What follows is what that reader does.
 
 - **"Hey Ghost, make a book called Field guide"** makes the book note, empty with its index ready, beside the
   recording, which carries on where it was. Pages can follow the name: "…with Trees, Birds and the work note", each a
@@ -108,7 +110,8 @@ reader does.
   not offered.
 - The card is the one a board's lane uses (*New chapter in Field guide*, *Add*); a book's card lists its pages. The
   recorder still suggests "add a chapter to …" naming a book you have, or how to make one, in a pause and on its
-  Things to say card, although a finished recording refuses both.
+  Things to say card, although a finished recording runs neither: it hands the words to the AI or keeps them as the
+  note's.
 
 ## Chapter numbers
 
