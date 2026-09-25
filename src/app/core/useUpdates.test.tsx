@@ -125,13 +125,15 @@ describe('when the page looks for an update', () => {
   it('looks when the app comes back, if it has not looked for a minute', async () => {
     show(<Updates />);
     await wait(4_000);
+    // Back 59 s after the last look: too soon.
     hidden(true);
-    await wait(30_000);
+    await wait(59_000);
     hidden(false);
     await wait(0);
     expect(checks()).toBe(1);
+    // Back again once the minute has passed, still short of the two-minute beat.
     hidden(true);
-    await wait(31_000);
+    await wait(1_001);
     hidden(false);
     await wait(0);
     expect(checks()).toBe(2);
