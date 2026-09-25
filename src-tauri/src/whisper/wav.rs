@@ -1,9 +1,11 @@
 //! A WAV file, as 16 kHz mono `f32` samples, or a sentence saying why not.
 //!
-//! Two readers: `transcribe_wav` (whole-file benchmarking on the phone, where
-//! the Android capture service writes 16 kHz mono PCM16 to `<filesDir>/
-//! captures/`), and the tests, which read a fixture `afconvert` wrote. Both
-//! produce exactly the formats handled here, and nothing else is.
+//! It writes a note's kept recording (`capture_stop`, as 16 kHz mono PCM16,
+//! appended to when a take continues the note) and moves one to the note it
+//! belongs to (`capture_reassign_recording`). It reads one back for the refine
+//! pass (`capture_refine`), for `transcribe_wav`'s whole-file benchmark on the
+//! phone, and for the tests, which read a fixture `afconvert` wrote. All of
+//! those are exactly the formats handled here, and nothing else is.
 //!
 //! Hand-written rather than `hound`, and on the same arithmetic as
 //! `store.rs`'s error enum: RIFF is a chunk list with a four-byte tag and a
@@ -208,10 +210,7 @@ fn decode(body: &[u8], tag: u16, channels: usize, bits: u16) -> Result<Vec<f32>,
             .chunks_exact(2)
             .map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0)
             .collect(),
-        (FORMAT_FLOAT, 32) => body
-            .chunks_exact(4)
-            .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-            .collect(),
+        (FORMAT_FLOAT, 32) => super::f32_samples(body),
         _ => {
             return Err(format!(
                 "unsupported sample format (tag {tag}, {bits}-bit); expected 16-bit PCM or 32-bit float"
@@ -265,7 +264,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_written_recording_reads_back_and_appends_onto_itself() {
-        let dir = std::env::temp_dir().join(format!("glyph-wav-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("glyph-wav-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("take.wav");
         let first: Vec<i16> = (0..1600).map(|i| (i % 200) as i16 * 100).collect();
@@ -305,6 +304,26 @@ pub(crate) mod tests {
         for (a, b) in decoded.iter().zip(&samples) {
             assert!((a - b).abs() < 1e-4);
         }
+    }
+
+    #[test]
+    fn float_samples_come_back_exactly() {
+        // `encode`'s PCM16 file, made a 32-bit float one: format tag 3, four
+        // bytes a sample, and the data chunk holding the floats themselves.
+        let samples = [0.5f32, -0.25, 1.0, -1.0, 0.0];
+        let mut bytes = encode(&[0.0; 5], 1);
+        bytes[20..22].copy_from_slice(&FORMAT_FLOAT.to_le_bytes());
+        bytes[28..32].copy_from_slice(&(SAMPLE_RATE as u32 * 4).to_le_bytes());
+        bytes[32..34].copy_from_slice(&4u16.to_le_bytes());
+        bytes[34..36].copy_from_slice(&32u16.to_le_bytes());
+        let data_at = bytes.windows(4).position(|w| w == b"data").unwrap();
+        bytes.truncate(data_at + 4);
+        bytes.extend_from_slice(&(samples.len() as u32 * 4).to_le_bytes());
+        bytes.extend(samples.iter().flat_map(|s| s.to_le_bytes()));
+        let riff_len = (bytes.len() - 8) as u32;
+        bytes[4..8].copy_from_slice(&riff_len.to_le_bytes());
+        assert_eq!(parse(&bytes).unwrap(), samples);
+        assert_eq!(crate::whisper::f32_samples(&[0, 0, 0, 0x3f, 0xff]), [0.5], "a partial sample is not one");
     }
 
     #[test]

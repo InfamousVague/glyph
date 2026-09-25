@@ -79,3 +79,10 @@ pub fn samples_to_ms(samples: usize) -> u64 {
 pub const fn ms_to_samples(ms: u64) -> usize {
     (ms as usize * SAMPLE_RATE) / 1_000
 }
+
+/// Little-endian 32-bit float samples, as the page pushes them and a float WAV
+/// holds them. A partial sample at the end is not a sample, and is left out;
+/// a caller that must refuse one checks the length first.
+pub fn f32_samples(bytes: &[u8]) -> Vec<f32> {
+    bytes.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect()
+}

@@ -302,10 +302,7 @@ pub fn capture_push(
                 bytes.len()
             ));
         }
-        let samples: Vec<f32> = bytes
-            .chunks_exact(4)
-            .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-            .collect();
+        let samples = crate::whisper::f32_samples(bytes);
         match lock(&state.capture).as_ref() {
             Some(capture) => {
                 capture.push(&samples);

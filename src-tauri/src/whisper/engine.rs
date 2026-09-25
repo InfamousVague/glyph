@@ -159,7 +159,7 @@ impl Session {
     /// its length - whisper's last timestamp can land past the final sample.
     /// `progress` receives whisper.cpp's percentage as the call runs.
     pub fn transcribe_timed(&mut self, audio: &[f32], prompt: &str, progress: &AtomicI32) -> Result<Vec<TimedText>, String> {
-        let length_ms = (audio.len() as u64 * 1000) / SAMPLE_RATE as u64;
+        let length_ms = super::samples_to_ms(audio.len());
         self.run(audio, prompt, Pass::Commit, Some(progress))?;
         let mut out = Vec::new();
         for segment in self.state.as_iter() {
