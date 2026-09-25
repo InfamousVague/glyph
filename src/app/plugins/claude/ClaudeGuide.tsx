@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Copy, X } from '@glacier/icons';
 import { useBack } from '../../core/back.ts';
+import { useCopied } from '../../settings/kit/useCopied.ts';
 import { guides, type Way } from './steps.ts';
-import { useCopied } from './useCopied.ts';
 import styles from './claude.module.css';
 
 /**

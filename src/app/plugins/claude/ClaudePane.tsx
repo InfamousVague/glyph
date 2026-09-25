@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { BookOpen, Bot, KeyRound, Laptop, Link2 } from '@glacier/icons';
 import { useAccount } from '../../core/account/account.ts';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from '../../settings/kit/settingsKit.tsx';
+import { useCopied } from '../../settings/kit/useCopied.ts';
 import { ClaudeGuide } from './ClaudeGuide.tsx';
 import { CAN_DO, MCP_URL, type Way } from './steps.ts';
-import { useCopied } from './useCopied.ts';
 
 /**
  * Settings › Claude: Claude on your notes, through the MCP server (docs/MCP.md). What it is, the address Claude
