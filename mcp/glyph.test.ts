@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { toBase64Url } from '../src/app/core/sync/crypto.ts';
 import type { Note } from '../src/app/core/store.ts';
-import { fakeService, FAST } from './fake.ts';
+import { fakeService, FAST } from '../src/test/fakeService.ts';
+import { makeNote } from '../src/test/notes.ts';
 import { Conflict, GlyphAccount, GlyphApiError, imageNames, noteTitle, type StoredSession } from './glyph.ts';
 
 /**
@@ -13,11 +14,11 @@ import { Conflict, GlyphAccount, GlyphApiError, imageNames, noteTitle, type Stor
 
 const API = 'https://fake.test/glyph/api';
 
-const aNote = (id: string, body: string): Note => ({ id, body, createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000, source: 'capture', starred: false, archivedAt: null });
+const aNote = (id: string, body: string): Note => makeNote(id, body, { createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000, source: 'capture', starred: false, archivedAt: null });
 
 describe('signing in from outside the app', () => {
   it('derives the password the way the app does and comes away with the account key and a device key', async () => {
-    const service = await fakeService('matt', 'correct horse');
+    const service = await fakeService({ handle: 'matt', password: 'correct horse' });
     const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
     expect(session.handle).toBe('matt');
     expect(session.accountId).toBe(7);
@@ -33,14 +34,14 @@ describe('signing in from outside the app', () => {
   });
 
   it('says so on the wrong password, without leaking which half was wrong', async () => {
-    const service = await fakeService('matt', 'correct horse');
+    const service = await fakeService({ handle: 'matt', password: 'correct horse' });
     await expect(GlyphAccount.signIn(API, 'matt', 'wrong horse', { rounds: FAST, fetcher: service.fetcher })).rejects.toThrow(GlyphApiError);
   });
 });
 
 describe('the session between runs', () => {
   async function signedIn() {
-    const service = await fakeService('matt', 'correct horse');
+    const service = await fakeService({ handle: 'matt', password: 'correct horse' });
     const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
     const saved: StoredSession[] = [];
     const account = new GlyphAccount(session, { fetcher: service.fetcher, save: (s) => saved.push(s) });
@@ -76,7 +77,7 @@ describe('the session between runs', () => {
 
 describe('reading and writing notes', () => {
   async function ready() {
-    const service = await fakeService('matt', 'correct horse');
+    const service = await fakeService({ handle: 'matt', password: 'correct horse' });
     const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
     const account = new GlyphAccount(session, { fetcher: service.fetcher });
     return { service, account };
