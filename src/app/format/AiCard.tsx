@@ -1,4 +1,5 @@
 import { gb, modelName, MODELS, type Hardware, type Phase } from '../core/ai.ts';
+import { clock, pace } from '../ai/words.ts';
 import { useDeviceFacts } from './deviceFacts.ts';
 import { Thinking } from './Thinking.tsx';
 import styles from './AiCard.module.css';
@@ -9,8 +10,8 @@ import styles from './AiCard.module.css';
  * Matt: "highlight the local AI part of this, making sure the app can be run
  * totally without a server; a better, consistent AI card that renders when
  * it's thinking, and it should render things like real phone hardware
- * usage". So one card, drawn by the robot's views (and offered to the review
- * screen): the model and its size on disk, what it is doing and how fast,
+ * usage". So one card, opened from the strip under a note's header while a
+ * run is on (ai/AiStrip.tsx): the model and its size on disk, what it is doing and how fast,
  * the little reader while nothing has arrived yet, and the phone underneath
  * it - the cores it runs on, the memory it holds, the battery it draws on,
  * and, from native generation 14, the engine's own readings every tick:
@@ -28,27 +29,15 @@ export interface AiCardProps {
   phase: Phase;
   /** "Formatting", "Summarizing": the verb for what the model is doing. */
   doing: string;
-  /** Of how many passes, when there are several: "a draft, then the 4B". */
-  pass?: { at: number; of: number };
   promptTokens: number;
   promptTokensDone: number;
   outputTokens: number;
   tokensPerSecond: number;
   elapsedMs: number;
   hardware?: Hardware | null;
-  /** The words that act on it: Stop. */
-  children?: React.ReactNode;
 }
 
-/** Milliseconds as m:ss. */
-function clock(ms: number): string {
-  const seconds = Math.round(ms / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-}
-
-const pace = (perSecond: number) => `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} tokens a second`;
-
-export function AiCard({ model, phase, doing, pass, promptTokens, promptTokensDone, outputTokens, tokensPerSecond, elapsedMs, hardware, children }: AiCardProps) {
+export function AiCard({ model, phase, doing, promptTokens, promptTokensDone, outputTokens, tokensPerSecond, elapsedMs, hardware }: AiCardProps) {
   const facts = useDeviceFacts();
   const spec = MODELS.find((m) => m.id === model);
   const cores = hardware?.cores ?? facts.cores;
@@ -60,7 +49,7 @@ export function AiCard({ model, phase, doing, pass, promptTokens, promptTokensDo
   let line: string;
   if (phase === 'loading') line = `Loading ${modelName(model)}.`;
   else if (phase === 'prefill') line = promptTokens ? `Reading the note, ${promptTokensDone} of ${promptTokens}.` : 'Reading the note.';
-  else if (phase === 'generating') line = `${doing}${pass && pass.of > 1 ? ` a draft` : ''}, ${pace(tokensPerSecond)}, ${clock(elapsedMs)}.`;
+  else if (phase === 'generating') line = `${doing}, ${pace(tokensPerSecond)}, ${clock(elapsedMs)}.`;
   else line = `${doing}.`;
 
   return (
@@ -98,7 +87,6 @@ export function AiCard({ model, phase, doing, pass, promptTokens, promptTokensDo
         </dl>
         <p className={styles.foot}>
           <span>Nothing leaves the phone.</span>
-          {children}
         </p>
       </div>
     </section>
