@@ -230,6 +230,14 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // Where the app's bar wants this screen's controls, if it is there to hold them (core/topBarTools.ts).
   const toolsSlot = useTopBarTools();
 
+  /*
+   * The links for the editor, one object for as long as App's lookups are the same ones: the editor looks again at the
+   * canvases framed in the note whenever it is handed a new one (editor/Editor.tsx), which rescans the whole note, and
+   * this screen draws several times a second while a tape plays. App makes new lookups when the notes change, which is
+   * when a framed canvas may have been drawn on.
+   */
+  const wiki = useMemo(() => (onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined), [onOpenTitle, hasTitle, bodyOfTitle]);
+
   const tools = (
     <NoteTools
       kind={canvas ? 'canvas' : isBook ? 'book' : 'words'}
@@ -356,7 +364,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             swipeAction={() => itemSend(note.id, editing)}
             suggest={(text) => lineOffers(note.id, editing, text)}
             linkMenus={{ say: (message) => editing.say(message) }}
-            wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined}
+            wiki={wiki}
             onAiMarks={ai.onAiMarks}
             grow
           />
