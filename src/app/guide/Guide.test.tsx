@@ -19,8 +19,19 @@ const layout = {
   scrollHeight: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight'),
   clientHeight: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight'),
 };
+const watcher = globalThis.IntersectionObserver;
 beforeAll(() => {
   stubResizeObserver();
+  // A screen watcher that never reports, so the marks page's examples keep their placeholder words
+  // (guide/MarkExample.tsx): without one, every row builds its editor at once, fifty of them.
+  globalThis.IntersectionObserver = class StillWatcher {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  } as unknown as typeof IntersectionObserver;
   Object.defineProperty(HTMLElement.prototype, 'scrollHeight', { configurable: true, get: () => (long ? 2000 : 400) });
   Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 400 });
   // The side-key page's rings: no canvas in this document, and the layer mounts empty.
@@ -28,6 +39,7 @@ beforeAll(() => {
 });
 afterAll(() => {
   for (const [name, was] of Object.entries(layout)) if (was) Object.defineProperty(HTMLElement.prototype, name, was);
+  globalThis.IntersectionObserver = watcher;
 });
 beforeEach(() => {
   long = false;
