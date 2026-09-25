@@ -36,8 +36,9 @@ vi.mock('./transport.ts', async (importOriginal) => ({
   },
 }));
 
-const { closeLive, openLive } = await import('./hub.ts');
-const { setLiveEnabled } = await import('./enabled.ts');
+// The hub keeps its connection and its sessions in module state, so every test is given a hub of its own.
+let hub: typeof import('./hub.ts');
+let setLiveEnabled: typeof import('./enabled.ts').setLiveEnabled;
 const { newAccountKey, settle } = await import('../sync/crypto.ts');
 
 const hooks = { hasUnsynced: async () => false, keepCopy: async () => undefined };
@@ -49,31 +50,34 @@ function listener() {
 }
 
 beforeEach(async () => {
+  vi.resetModules();
   localStorage.clear();
   connections.length = 0;
   session = { token: 't1', handle: 'matt', accountId: 7 };
   key = await settle(await newAccountKey());
+  hub = await import('./hub.ts');
+  ({ setLiveEnabled } = await import('./enabled.ts'));
   setLiveEnabled(true);
 });
 
 describe('a note made live', () => {
   it('is not, with the switch off, signed out, or without the key to seal a word', async () => {
     setLiveEnabled(false);
-    expect(await openLive('a', 'words', listener(), hooks)).toBeNull();
+    expect(await hub.openLive('a', 'words', listener(), hooks)).toBeNull();
     setLiveEnabled(true);
     session = null;
-    expect(await openLive('a', 'words', listener(), hooks)).toBeNull();
+    expect(await hub.openLive('a', 'words', listener(), hooks)).toBeNull();
     session = { token: 't1', handle: 'matt', accountId: 7 };
     key = null;
-    expect(await openLive('a', 'words', listener(), hooks)).toBeNull();
+    expect(await hub.openLive('a', 'words', listener(), hooks)).toBeNull();
     expect(connections).toEqual([]);
   });
 
   it('shares one connection with every other live note, and hears only its own room', async () => {
     const one = listener();
     const two = listener();
-    const a = await openLive('a', 'words of a', one, hooks);
-    const b = await openLive('b', 'words of b', two, hooks);
+    const a = await hub.openLive('a', 'words of a', one, hooks);
+    const b = await hub.openLive('b', 'words of b', two, hooks);
     expect(connections).toHaveLength(1);
     expect(connections[0]?.url).toMatch(/^wss?:\/\/.*\/v1\/live$/);
     expect(connections[0]?.joined).toEqual(['a', 'b']);
@@ -84,28 +88,28 @@ describe('a note made live', () => {
     connections[0]?.events.peers('a', 2);
     expect(one.heard.peers).toEqual([2]);
     expect(two.heard.peers).toEqual([0]);
-    closeLive('a');
-    closeLive('b');
+    hub.closeLive('a');
+    hub.closeLive('b');
   });
 
   it('opened again, closes the session it had', async () => {
-    const first = await openLive('a', 'words', listener(), hooks);
-    const second = await openLive('a', 'words', listener(), hooks);
+    const first = await hub.openLive('a', 'words', listener(), hooks);
+    const second = await hub.openLive('a', 'words', listener(), hooks);
     expect(first?.state).toBe('closed');
     expect(second?.state).toBe('joining');
-    closeLive('a');
+    hub.closeLive('a');
   });
 
   it('leaves the connection up while any note is live, and takes it down with the last', async () => {
-    await openLive('a', 'words', listener(), hooks);
-    await openLive('b', 'words', listener(), hooks);
-    closeLive('a');
+    await hub.openLive('a', 'words', listener(), hooks);
+    await hub.openLive('b', 'words', listener(), hooks);
+    hub.closeLive('a');
     expect(connections[0]?.closed).toBe(false);
-    closeLive('b');
+    hub.closeLive('b');
     expect(connections[0]?.closed).toBe(true);
     // The next live note has a connection of its own.
-    await openLive('c', 'words', listener(), hooks);
+    await hub.openLive('c', 'words', listener(), hooks);
     expect(connections).toHaveLength(2);
-    closeLive('c');
+    hub.closeLive('c');
   });
 });
