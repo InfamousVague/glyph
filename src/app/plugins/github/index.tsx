@@ -36,7 +36,7 @@ import { projectContextFor, projectContextVersion, projectFor, projects, type Pr
 /** What has just been sent from a note, so the same words are never made into two issues (plugins/sendItems.ts). */
 const sender = itemSender('github');
 
-/** For the tests, and for a note that is closed: nothing here outlives the app. */
+/** For the tests: what was sent is otherwise kept in memory for the app's life, five minutes a send. */
 export const forgetSent = sender.forget;
 
 /**
@@ -44,7 +44,7 @@ export const forgetSent = sender.forget;
  * (plugins/sendItems.ts has the rules), then says how many lines now link to one.
  */
 async function sendItems(project: Project, items: readonly { text: string; line?: number }[], editing: NoteEditing): Promise<void> {
-  const done = await sender.send(items, editing, async (text) => {
+  const done = await sender.send(items, project.id, editing, async (text) => {
     const issue = await createIssue(project, text);
     rememberIssue(issue);
     return issue.url;

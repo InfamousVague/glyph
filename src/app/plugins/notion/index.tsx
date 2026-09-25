@@ -26,7 +26,7 @@ import { notionItems, sendCommand, taskNoteCommand } from './voice.ts';
 /** What has just been sent from a note, so the same words are never made into two tasks (plugins/sendItems.ts). */
 const sender = itemSender('notion');
 
-/** For the tests, and for a note that is closed: nothing here outlives the app. */
+/** For the tests: what was sent is otherwise kept in memory for the app's life, five minutes a send. */
 export const forgetSent = sender.forget;
 
 /**
@@ -34,7 +34,7 @@ export const forgetSent = sender.forget;
  * (plugins/sendItems.ts has the rules), then says how many went, or that one was made and its line has gone.
  */
 async function sendItems(board: Board, items: readonly { text: string; line?: number }[], editing: NoteEditing): Promise<void> {
-  const done = await sender.send(items, editing, async (text) => (await createTask(board, text)).url);
+  const done = await sender.send(items, board.id, editing, async (text) => (await createTask(board, text)).url);
   if (!done) return;
   const { sent, marked } = done;
   if (sent || marked) {

@@ -10,14 +10,17 @@ import type { NoteEditing } from '../types.ts';
  */
 
 const made: string[] = [];
+const boardOf = (id: string, title: string) => ({ id, title, url: `https://notion.so/${id}`, titleProperty: 'Name', doneProperty: null });
+/** The board the note is linked to; a test that moves the note to another sets it. */
+let board = boardOf('b', 'Jobs');
 
 vi.mock('./client.ts', () => ({
   createTask: vi.fn(async (_board: unknown, title: string) => {
     made.push(title);
     return { id: `id-${made.length}`, title, url: `https://notion.so/task-${made.length}` };
   }),
-  boardFor: () => ({ id: 'b', title: 'Jobs', url: 'https://notion.so/b', titleProperty: 'Name', doneProperty: null }),
-  boardLinks: () => ({ 'note-1': { id: 'b', title: 'Jobs' } }),
+  boardFor: () => board,
+  boardLinks: () => ({ 'note-1': board }),
   notionAvailable: async () => true,
   notionReadyNow: () => true,
 }));
@@ -49,6 +52,7 @@ function noteOf(body: string) {
 
 beforeEach(() => {
   made.length = 0;
+  board = boardOf('b', 'Jobs');
   forgetSent();
 });
 
@@ -71,6 +75,18 @@ describe('sending an item to Notion', () => {
     expect(state.lines[0]).toBe('- [ ] Book the cabin [notion](https://notion.so/task-1)');
   });
 
+  it('makes a new task when the same words go to another board', async () => {
+    const { state, editing } = noteOf('- [ ] Book the cabin');
+    await sendItemsFor(editing, 'Book the cabin');
+    // Undone, and the note linked to another board: the words are that board's to have, not a link to the first one's.
+    state.lines[0] = '- [ ] Book the cabin';
+    board = boardOf('c', 'Home');
+    await sendItemsFor(editing, 'Book the cabin');
+    expect(made).toEqual(['Book the cabin', 'Book the cabin']);
+    expect(state.lines[0]).toBe('- [ ] Book the cabin [notion](https://notion.so/task-2)');
+    expect(state.said.at(-1)).toBe('Sent 1 task to Home.');
+  });
+
   it('marks the line it was on when the words have changed since', async () => {
     const { state, editing } = noteOf('- [ ] Book the cabin');
     const run = sendItemsFor(editing, 'Book the cabin');
@@ -80,6 +96,17 @@ describe('sending an item to Notion', () => {
     expect(made).toEqual(['Book the cabin']);
     expect(state.lines[0]).toBe('- [ ] Book the cabin for Friday [notion](https://notion.so/task-1)');
     expect(state.said.join(' ')).not.toContain('isn’t marked');
+  });
+
+  it('gives each task its own item when a line above them goes while Notion answers', async () => {
+    const { state, editing } = noteOf('- [ ] One\n- [ ] Two\n- [ ] Three');
+    const run = notionPlugin.noteActions!.find((a) => a.id === 'notion-send-list')!.run(editing);
+    // The first item is deleted while its task is made: the others move up a line each.
+    state.lines.splice(0, 1);
+    await run;
+    expect(made).toEqual(['One', 'Two', 'Three']);
+    expect(state.lines, 'no item may take the link of the one before it').toEqual(['- [ ] Two [notion](https://notion.so/task-2)', '- [ ] Three [notion](https://notion.so/task-3)']);
+    expect(state.said.join(' ')).toContain('isn’t marked');
   });
 
   it('says so when the task was made and the line is gone, rather than nothing at all', async () => {
