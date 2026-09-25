@@ -11,37 +11,29 @@ import { useSheetDrag } from '../editor/sheetDrag.ts';
 import { NotePeek } from '../notes/NotePeek.tsx';
 import { openLink } from '../core/linkPreview.ts';
 import { shortUrl } from '../core/shortUrl.ts';
+import { fileTitle, isImageFile, isOnlyTable, paintOf } from './cards.ts';
 import {
-  edgePaths,
-  LABEL_LINE,
-  fileTitle,
-  isImageFile,
-  isOnlyTable,
+  CHART_CARD,
   joined,
-  anchorOf,
-  sidesOf,
   labelledEdge,
   labelledGroup,
   movedWithHeld,
+  NEW_CARD,
   newEdge,
   newFileNode,
   newLinkNode,
   newPictureNode,
   newTextNode,
-  CHART_CARD,
-  TABLE_CARD,
-  bounds,
-  NEW_CARD,
-  paintOf,
   resizedNode,
+  TABLE_CARD,
   withEdge,
   withNode,
   withoutEdge,
   withoutNode,
-  type Canvas,
-  type CanvasEdge,
-  type CanvasNode,
-} from './jsonCanvas.ts';
+} from './edits.ts';
+import { anchorOf, bounds, sidesOf } from './geometry.ts';
+import type { Canvas, CanvasEdge, CanvasNode } from './jsonCanvas.ts';
+import { edgePaths, LABEL_LINE } from './lines.ts';
 import { clampScale, FIT_ROOM, fitted, fittedTo, shown as shownBox, zoomedAt, type View } from './viewport.ts';
 import styles from './CanvasView.module.css';
 
@@ -562,7 +554,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
     return () => el.removeEventListener('wheel', onWheel);
   }, [apply]);
 
-  // Drawn together: where one line's end sits depends on the others' (jsonCanvas.ts `edgePaths`).
+  // Drawn together: where one line's end sits depends on the others' (lines.ts `edgePaths`).
   const edges = useMemo(() => {
     const paths = edgePaths(live);
     return live.edges.map((edge) => ({ edge, path: paths.get(edge.id) ?? null })).filter((e) => e.path);
