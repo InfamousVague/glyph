@@ -172,7 +172,9 @@ async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
      * chunk.
      */
     const pcm = toBase64(new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength));
-    chain = chain.then(() => invoke('capture_push', { pcm })).catch((error: unknown) => handlers.onError(String(error)));
+    // Asked again when its turn comes: a push still queued when the session was cancelled or stopped is one Rust
+    // would refuse, or, if another session has started since, land in the wrong recording.
+    chain = chain.then(() => (owner === me ? invoke('capture_push', { pcm }) : undefined)).catch((error: unknown) => handlers.onError(String(error)));
   };
 
   // Asked rather than assumed: a bundle carrying this page can run on a binary

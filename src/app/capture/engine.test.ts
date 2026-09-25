@@ -83,6 +83,18 @@ describe('Whisper on the phone', () => {
     expect(session.positionMs()).toBe(1500);
   });
 
+  it('sends nothing still queued once the session is cancelled', async () => {
+    const { startCapture } = await engine();
+    const session = await startCapture(handlers());
+    session.push(new Float32Array(1_600).fill(0.25));
+    session.push(new Float32Array(1_600).fill(-0.25));
+    await session.cancel();
+    // A macrotask, so every queued push has had its turn.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(pushes()).toEqual([]);
+    expect(invoked.some((call) => call.command === 'capture_cancel')).toBe(true);
+  });
+
   it('keeps the recording under the note’s id on a binary that can, and gives back its final words', async () => {
     const { startCapture } = await engine(6);
     const session = await startCapture(handlers());
