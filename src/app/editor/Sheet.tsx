@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useRef, type PointerEventHandler, type ReactNode } from 'react';
 import { useBack } from '../core/back.ts';
 import { useSheetDrag } from './sheetDrag.ts';
 import sheet from './NoteSettings.module.css';
@@ -11,8 +11,10 @@ import sheet from './NoteSettings.module.css';
  * is under it (core/back.ts). It is mounted only while it is open, and takes the gesture for as long as it is.
  *
  * The look is NoteSettings.module.css, which is the app's sheet stylesheet in all but its name - it began as the
- * note's settings - and the rows inside are plugins/kit.tsx's. The note's More sheet and a linked line's drawer are
- * drawn in this; the other sheets (notes/, book/, canvas/) still write the same shell out by hand.
+ * note's settings - and the rows inside are plugins/kit.tsx's. Every bottom sheet is drawn in this: the note's More
+ * sheet, a linked line's drawer, the New sheet, What's new, a workspace's sheet, a new book and the canvas's + sheet.
+ * One that stays mounted while it is shut (notes/NewSheet.tsx, book/NewBookSheet.tsx) draws this only while it is
+ * open, so the gesture is taken exactly then.
  */
 
 interface SheetProps {
@@ -24,15 +26,17 @@ interface SheetProps {
   onBack?: () => void;
   /** The panel's own look, on top of the sheet's. */
   className?: string;
+  /** A press on the scrim, before its tap: the canvas's + sheet keeps it from the canvas's own gestures under it. */
+  onScrimPointerDown?: PointerEventHandler<HTMLDivElement>;
   children: ReactNode;
 }
 
-export function Sheet({ label, onClose, onBack = onClose, className, children }: SheetProps) {
+export function Sheet({ label, onClose, onBack = onClose, className, onScrimPointerDown, children }: SheetProps) {
   const panel = useRef<HTMLElement>(null);
   const drag = useSheetDrag(panel, onClose);
   useBack(true, onBack);
   return (
-    <div className={sheet.scrim} onClick={onClose}>
+    <div className={sheet.scrim} onClick={onClose} onPointerDown={onScrimPointerDown}>
       <section ref={panel} className={className ? `${sheet.sheet} ${className}` : sheet.sheet} role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()}>
         <span className={sheet.grip} aria-hidden="true" {...drag} />
         {children}

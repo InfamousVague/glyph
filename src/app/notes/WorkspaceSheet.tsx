@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { useBack } from '../core/back.ts';
+import { useEffect, useState } from 'react';
 import { addWorkspace, chooseWorkspace, removeWorkspace, renameWorkspace, setWorkspaceHue, type Workspace, type WorkspaceHue } from '../core/workspaces.ts';
 import { SheetField, SheetGroup, SheetHeading, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import { WorkspaceSwatch } from './WorkspaceSwatch.tsx';
-import sheet from '../editor/NoteSettings.module.css';
-import { useSheetDrag } from '../editor/sheetDrag.ts';
+import { Sheet } from '../editor/Sheet.tsx';
 
 /**
  * A workspace's sheet, from the row on the list: a name to add, or the name
@@ -20,13 +18,10 @@ export function WorkspaceSheet({ which, onClose }: { which: Workspace | 'new' | 
   const editing = which && which !== 'new' ? which : null;
   const [name, setName] = useState('');
   const [hue, setHue] = useState<WorkspaceHue>('ink');
-  const panel = useRef<HTMLElement>(null);
-  const drag = useSheetDrag(panel, onClose);
   useEffect(() => {
     setName(editing?.name ?? '');
     setHue(editing?.hue ?? 'ink');
   }, [editing, which]);
-  useBack(which !== null, onClose);
   if (!which) return null;
 
   const clean = name.trim();
@@ -41,60 +36,50 @@ export function WorkspaceSheet({ which, onClose }: { which: Workspace | 'new' | 
     onClose();
   };
   return (
-    <div className={sheet.scrim} onClick={onClose}>
-      <section
-        ref={panel}
-        className={sheet.sheet}
-        role="dialog"
-        aria-modal="true"
-        aria-label={editing ? editing.name : 'New workspace'}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span className={sheet.grip} aria-hidden="true" {...drag} />
-        <SheetTitle>{editing ? editing.name : 'New workspace'}</SheetTitle>
-        {editing ? null : <SheetNote>Notes filed in a workspace show together. A note made while one is chosen goes there.</SheetNote>}
+    <Sheet label={editing ? editing.name : 'New workspace'} onClose={onClose}>
+      <SheetTitle>{editing ? editing.name : 'New workspace'}</SheetTitle>
+      {editing ? null : <SheetNote>Notes filed in a workspace show together. A note made while one is chosen goes there.</SheetNote>}
+      <SheetGroup>
+        <SheetField
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          autoCapitalize="words"
+          enterKeyHint="done"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              submit();
+            }
+          }}
+        />
+        <SheetRow label={editing ? 'Rename' : 'Add'} onPress={submit} disabled={!clean || clean === editing?.name} />
+      </SheetGroup>
+      <SheetHeading>Colour</SheetHeading>
+      <SheetGroup>
+        <WorkspaceSwatch
+          hue={hue}
+          onHue={(picked) => {
+            setHue(picked);
+            // One that exists changes as it is tapped; a new one wears it when it is made.
+            if (editing) setWorkspaceHue(editing.id, picked);
+          }}
+        />
+      </SheetGroup>
+      {editing ? (
         <SheetGroup>
-          <SheetField
-            label="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-            autoCapitalize="words"
-            enterKeyHint="done"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                submit();
-              }
+          <SheetRow
+            label="Remove workspace"
+            hint="Its notes stay; they just aren’t filed."
+            danger
+            onPress={() => {
+              removeWorkspace(editing.id);
+              onClose();
             }}
           />
-          <SheetRow label={editing ? 'Rename' : 'Add'} onPress={submit} disabled={!clean || clean === editing?.name} />
         </SheetGroup>
-        <SheetHeading>Colour</SheetHeading>
-        <SheetGroup>
-          <WorkspaceSwatch
-            hue={hue}
-            onHue={(picked) => {
-              setHue(picked);
-              // One that exists changes as it is tapped; a new one wears it when it is made.
-              if (editing) setWorkspaceHue(editing.id, picked);
-            }}
-          />
-        </SheetGroup>
-        {editing ? (
-          <SheetGroup>
-            <SheetRow
-              label="Remove workspace"
-              hint="Its notes stay; they just aren’t filed."
-              danger
-              onPress={() => {
-                removeWorkspace(editing.id);
-                onClose();
-              }}
-            />
-          </SheetGroup>
-        ) : null}
-      </section>
-    </div>
+      ) : null}
+    </Sheet>
   );
 }

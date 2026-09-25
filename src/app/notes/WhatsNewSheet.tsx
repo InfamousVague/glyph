@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { useBack } from '../core/back.ts';
+import { useEffect, useState } from 'react';
 import { fetchReleases, releasesSince, releaseWhen, type Release } from '../core/changelog.ts';
 import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { SheetGroup, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
-import sheet from '../editor/NoteSettings.module.css';
-import { useSheetDrag } from '../editor/sheetDrag.ts';
+import { Sheet } from '../editor/Sheet.tsx';
 
 /**
  * What's new, once, after an update (Matt: "show changelog after installing update in modal drawer").
@@ -33,10 +31,7 @@ function writeSeen(build: string): void {
 
 export function WhatsNewSheet({ sources, hold }: { sources: readonly string[] | undefined; hold: boolean }) {
   const [releases, setReleases] = useState<Release[] | null>(null);
-  const panel = useRef<HTMLElement>(null);
   const close = () => setReleases(null);
-  const drag = useSheetDrag(panel, close);
-  useBack(releases !== null, close);
 
   useEffect(() => {
     if (hold) return undefined;
@@ -65,24 +60,21 @@ export function WhatsNewSheet({ sources, hold }: { sources: readonly string[] | 
   if (!releases) return null;
   const newest = releases[0]!;
   return (
-    <div className={sheet.scrim} onClick={close}>
-      <section ref={panel} className={sheet.sheet} role="dialog" aria-modal="true" aria-label="What's new" onClick={(e) => e.stopPropagation()}>
-        <span className={sheet.grip} aria-hidden="true" {...drag} />
-        <SheetTitle>What's new in {newest.version}</SheetTitle>
-        <SheetNote>{releases.length === 1 ? 'Ghost.md just updated.' : `Ghost.md just updated, ${releases.length} releases at once.`}</SheetNote>
-        <SheetGroup>
-          {releases.map((release) => (
-            <SheetRow
-              key={release.build}
-              label={`${release.version} · ${releaseWhen(release)}`}
-              hint={[release.notes ?? 'Fixes and small changes.', release.apk ? `Installed as Ghost.md ${release.apk}.` : null].filter(Boolean).join(' ')}
-            />
-          ))}
-        </SheetGroup>
-        <SheetGroup>
-          <SheetRow label="Done" onPress={close} />
-        </SheetGroup>
-      </section>
-    </div>
+    <Sheet label="What's new" onClose={close}>
+      <SheetTitle>What's new in {newest.version}</SheetTitle>
+      <SheetNote>{releases.length === 1 ? 'Ghost.md just updated.' : `Ghost.md just updated, ${releases.length} releases at once.`}</SheetNote>
+      <SheetGroup>
+        {releases.map((release) => (
+          <SheetRow
+            key={release.build}
+            label={`${release.version} · ${releaseWhen(release)}`}
+            hint={[release.notes ?? 'Fixes and small changes.', release.apk ? `Installed as Ghost.md ${release.apk}.` : null].filter(Boolean).join(' ')}
+          />
+        ))}
+      </SheetGroup>
+      <SheetGroup>
+        <SheetRow label="Done" onPress={close} />
+      </SheetGroup>
+    </Sheet>
   );
 }

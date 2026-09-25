@@ -3,11 +3,9 @@ import { Check, ChevronDown, ChevronUp, GripVertical, X } from '@glacier/icons';
 import { useRowDrag } from './rowDrag.ts';
 import { toggledTitle } from './book.ts';
 import { CanvasMark } from './CanvasMark.tsx';
-import { useBack } from '../core/back.ts';
-import { useSheetDrag } from '../editor/sheetDrag.ts';
+import { Sheet } from '../editor/Sheet.tsx';
 import { sameTitle } from '../editor/wikiLinks.ts';
 import { SheetField, SheetGroup, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
-import sheet from '../editor/NoteSettings.module.css';
 import styles from './NewBookSheet.module.css';
 
 /**
@@ -30,9 +28,6 @@ export interface NewBookSheetProps {
 }
 
 export function NewBookSheet({ open, onClose, titles, onCreate, isCanvas }: NewBookSheetProps) {
-  const panel = useRef<HTMLElement>(null);
-  const drag = useSheetDrag(panel, onClose);
-  useBack(open, onClose);
   const [name, setName] = useState('');
   const [find, setFind] = useState('');
   const [pages, setPages] = useState<string[]>([]);
@@ -75,84 +70,81 @@ export function NewBookSheet({ open, onClose, titles, onCreate, isCanvas }: NewB
   };
 
   return (
-    <div className={sheet.scrim} onClick={onClose}>
-      <section ref={panel} className={`${sheet.sheet} ${styles.sheet}`} role="dialog" aria-modal="true" aria-label="New book" onClick={(e) => e.stopPropagation()}>
-        <span className={sheet.grip} aria-hidden="true" {...drag} />
-        <SheetTitle>New book</SheetTitle>
-        <form
-          className={styles.form}
-          onSubmit={(event) => {
-            event.preventDefault();
-            make();
-          }}
-        >
-          <SheetField label="Name" value={name} placeholder="Field guide" autoFocus onChange={(event) => setName(event.target.value)} />
-          <SheetNote>Its pages are notes, in the order you choose. Pick any now, or add them later from the book's index.</SheetNote>
+    <Sheet label="New book" onClose={onClose} className={styles.sheet}>
+      <SheetTitle>New book</SheetTitle>
+      <form
+        className={styles.form}
+        onSubmit={(event) => {
+          event.preventDefault();
+          make();
+        }}
+      >
+        <SheetField label="Name" value={name} placeholder="Field guide" autoFocus onChange={(event) => setName(event.target.value)} />
+        <SheetNote>Its pages are notes, in the order you choose. Pick any now, or add them later from the book's index.</SheetNote>
 
-          {pages.length ? (
-            <ol className={styles.pages} aria-label="Pages in this book">
-              {pages.map((title, i) => (
-                <li
-                  key={title}
-                  ref={(el) => {
-                    pageEls.current[i] = el;
-                  }}
-                  className={styles.page}
-                  data-lifted={rows.lifted?.index === i || undefined}
-                  style={rows.rowStyle(i)}
-                >
-                  <span className={styles.grip} aria-hidden="true" {...rows.grip(i)}>
-                    <GripVertical size={16} />
+        {pages.length ? (
+          <ol className={styles.pages} aria-label="Pages in this book">
+            {pages.map((title, i) => (
+              <li
+                key={title}
+                ref={(el) => {
+                  pageEls.current[i] = el;
+                }}
+                className={styles.page}
+                data-lifted={rows.lifted?.index === i || undefined}
+                style={rows.rowStyle(i)}
+              >
+                <span className={styles.grip} aria-hidden="true" {...rows.grip(i)}>
+                  <GripVertical size={16} />
+                </span>
+                <span className={styles.number} aria-hidden="true">
+                  {i + 1}
+                </span>
+                <span className={styles.pageTitle}>
+                  {title}
+                  {isCanvas?.(title) ? <CanvasMark /> : null}
+                </span>
+                <span className={styles.tools}>
+                  <button type="button" className={styles.tool} aria-label={`Move ${title} up`} disabled={i === 0} onClick={() => move(title, -1)}>
+                    <ChevronUp size={16} aria-hidden="true" />
+                  </button>
+                  <button type="button" className={styles.tool} aria-label={`Move ${title} down`} disabled={i === pages.length - 1} onClick={() => move(title, 1)}>
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </button>
+                  <button type="button" className={styles.tool} aria-label={`Leave ${title} out`} onClick={() => toggle(title)}>
+                    <X size={16} aria-hidden="true" />
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+
+        <SheetField label="Find a note" value={find} placeholder="Type to find" onChange={(event) => setFind(event.target.value)} />
+        <ul className={styles.found} aria-label="Notes">
+          {found.length === 0 ? <li className={styles.none}>{titles.length ? 'No note by that name.' : 'No notes yet: the book starts empty, and pages can be added from its index.'}</li> : null}
+          {found.map((title) => {
+            const on = chosen(title);
+            return (
+              <li key={title}>
+                <button type="button" className={styles.pick} aria-pressed={on} onClick={() => toggle(title)}>
+                  <span className={styles.pickMark} aria-hidden="true">
+                    {on ? <Check size={14} /> : null}
                   </span>
-                  <span className={styles.number} aria-hidden="true">
-                    {i + 1}
-                  </span>
-                  <span className={styles.pageTitle}>
+                  <span className={styles.pickTitle}>
                     {title}
                     {isCanvas?.(title) ? <CanvasMark /> : null}
                   </span>
-                  <span className={styles.tools}>
-                    <button type="button" className={styles.tool} aria-label={`Move ${title} up`} disabled={i === 0} onClick={() => move(title, -1)}>
-                      <ChevronUp size={16} aria-hidden="true" />
-                    </button>
-                    <button type="button" className={styles.tool} aria-label={`Move ${title} down`} disabled={i === pages.length - 1} onClick={() => move(title, 1)}>
-                      <ChevronDown size={16} aria-hidden="true" />
-                    </button>
-                    <button type="button" className={styles.tool} aria-label={`Leave ${title} out`} onClick={() => toggle(title)}>
-                      <X size={16} aria-hidden="true" />
-                    </button>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
 
-          <SheetField label="Find a note" value={find} placeholder="Type to find" onChange={(event) => setFind(event.target.value)} />
-          <ul className={styles.found} aria-label="Notes">
-            {found.length === 0 ? <li className={styles.none}>{titles.length ? 'No note by that name.' : 'No notes yet: the book starts empty, and pages can be added from its index.'}</li> : null}
-            {found.map((title) => {
-              const on = chosen(title);
-              return (
-                <li key={title}>
-                  <button type="button" className={styles.pick} aria-pressed={on} onClick={() => toggle(title)}>
-                    <span className={styles.pickMark} aria-hidden="true">
-                      {on ? <Check size={14} /> : null}
-                    </span>
-                    <span className={styles.pickTitle}>
-                      {title}
-                      {isCanvas?.(title) ? <CanvasMark /> : null}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          <SheetGroup>
-            <SheetRow label="Make the book" hint={pages.length ? `${pages.length} page${pages.length === 1 ? '' : 's'}, in this order.` : 'Empty, with its index ready.'} onPress={make} disabled={!name.trim()} />
-          </SheetGroup>
-        </form>
-      </section>
-    </div>
+        <SheetGroup>
+          <SheetRow label="Make the book" hint={pages.length ? `${pages.length} page${pages.length === 1 ? '' : 's'}, in this order.` : 'Empty, with its index ready.'} onPress={make} disabled={!name.trim()} />
+        </SheetGroup>
+      </form>
+    </Sheet>
   );
 }
