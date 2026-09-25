@@ -60,7 +60,7 @@ function mapChange(change: AiChange, mapping: ChangeDesc): AiChange {
 }
 
 export const addAiChanges = StateEffect.define<readonly AiChange[]>({ map: (changes, mapping) => changes.map((c) => mapChange(c, mapping)) });
-export const keepAiChanges = StateEffect.define<readonly string[]>();
+const keepAiChanges = StateEffect.define<readonly string[]>();
 export const keepAllAiChanges = StateEffect.define<null>();
 /** The marks a note was closed with, back on it (ai/marks.ts). */
 export const restoreAiChanges = StateEffect.define<readonly AiChange[]>({ map: (changes, mapping) => changes.map((c) => mapChange(c, mapping)) });
@@ -291,11 +291,6 @@ export function revertChanges(view: EditorView, ids: readonly string[]): void {
     annotations: aiEdit.of('revert'),
     userEvent: 'ai.revert',
   });
-}
-
-/** The changes a run made, still marked. */
-export function changesOfRun(state: EditorState, runId: string): readonly AiChange[] {
-  return state.field(aiChangesField).filter((c) => c.runId === runId);
 }
 
 // ---- the extension ----------------------------------------------------------------------------

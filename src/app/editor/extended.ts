@@ -46,7 +46,7 @@ export function frontMatter(doc: { line: (n: number) => { text: string }; lines:
 }
 
 /** A callout's kind, as GitHub writes it: `> [!NOTE]` on the quote's first line. */
-export const CALLOUT = /^\s*>\s*\[!(note|tip|important|warning|caution)\]\s*(.*)$/i;
+const CALLOUT = /^\s*>\s*\[!(note|tip|important|warning|caution)\]\s*(.*)$/i;
 
 /** The kind of callout a blockquote is, or null for an ordinary quote. */
 export function calloutKind(firstLine: string): string | null {
@@ -209,7 +209,7 @@ const theme = EditorView.baseTheme({
   '.cm-emoji': { fontSize: '1.05em', lineHeight: '1' },
 });
 
-/** Superscript, subscript and callouts, drawn as what they are. */
+/** The extended markdown drawn as what it is: raised and lowered runs, callouts, definitions, front matter, maths and shortcodes. */
 export function extendedMarkdown(): Extension {
   return [
     ViewPlugin.fromClass(

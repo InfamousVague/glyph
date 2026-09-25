@@ -111,7 +111,7 @@ export function caretPlace(view: EditorView, page: HTMLElement): Place | null {
 }
 
 /** The bookmark written in the note (editor/bookmarkLine.ts), as a place: its line, from the top. */
-export function writtenBookmark(view: EditorView): Place | null {
+function writtenBookmark(view: EditorView): Place | null {
   const number = bookmarkLineIn(view.state.doc);
   return number === null ? null : { pos: view.state.doc.line(number).from, offset: 0 };
 }

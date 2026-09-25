@@ -10,7 +10,7 @@
  * stays with its module.
  */
 
-export const SVG_NS = 'http://www.w3.org/2000/svg';
+const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** An SVG element with `attributes` set in the order given, holding `children`. */
 export function svgElement<T extends SVGElement = SVGElement>(name: string, attributes: Record<string, string | number>, ...children: Element[]): T {

@@ -46,7 +46,7 @@ function nearest(matches: readonly Match[], pos: number): number {
   return index >= 0 ? index : 0;
 }
 
-export const findState = StateField.define<FindState>({
+const findState = StateField.define<FindState>({
   create: () => EMPTY,
   update(value, tr) {
     let next = value;

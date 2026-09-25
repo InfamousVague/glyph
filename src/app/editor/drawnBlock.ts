@@ -16,7 +16,7 @@ import { EditorView } from '@codemirror/view';
 const setFocus = StateEffect.define<boolean>();
 
 /** Whether the view has focus, as the last focus change said: false until it is first focused. */
-export const focusField = StateField.define<boolean>({
+const focusField = StateField.define<boolean>({
   create: () => false,
   update(focused, tr) {
     for (const effect of tr.effects) if (effect.is(setFocus)) return effect.value;

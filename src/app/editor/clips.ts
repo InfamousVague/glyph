@@ -204,7 +204,7 @@ const clipTheme = EditorView.baseTheme({
   '.cm-clipLength': { fontVariantNumeric: 'tabular-nums' },
 });
 
-/** Voice memos drawn and played in the editor; `src` is the note's recording. */
+/** Voice memos drawn and played in the editor, from the note's recording as `tapeSource` names it. */
 export function clips(): Extension {
   return [clipField, clipTheme];
 }

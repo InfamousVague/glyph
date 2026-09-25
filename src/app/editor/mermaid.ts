@@ -83,7 +83,7 @@ function library(): Promise<(typeof import('mermaid'))['default']> {
 }
 
 /** A diagram drawn, or the reason it could not be: cached, and never two at once. */
-export async function draw(code: string, dark: boolean): Promise<Drawing> {
+async function draw(code: string, dark: boolean): Promise<Drawing> {
   const key = `${dark ? 'dark' : 'light'}\n${code}`;
   const already = drawn.get(key);
   if (already) return already;
