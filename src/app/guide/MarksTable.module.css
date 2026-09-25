@@ -13,13 +13,9 @@
   margin-block-start: var(--glacier-space-8);
 }
 
+/* A group of marks' name, as the cheat sheet sets the same groups' names (CheatSheet.module.css `.title`). */
 .groupTitle {
-  margin: 0;
-  font-size: var(--glacier-font-size-sm);
-  letter-spacing: var(--app-tracking-caps);
-  text-transform: uppercase;
-  font-weight: var(--glacier-font-weight-semibold);
-  color: var(--glacier-text-subtle);
+  composes: title from './CheatSheet.module.css';
 }
 
 .groupLead {
