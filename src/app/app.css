@@ -647,7 +647,7 @@ body:has(.app-headerPane) .app-statusScrim {
   fill: none;
 }
 
-:where(svg.lucide-bookmark, svg.lucide-play, svg.lucide-puzzle, svg.lucide-square, svg.lucide-thermometer),
+:where(svg.lucide-bookmark, svg.lucide-play, svg.lucide-puzzle, svg.lucide-square),
 :where(svg.lucide-pause, svg.lucide-layout-grid, svg.lucide-ellipsis-vertical),
 /*
  * The board draws its own icons rather than importing them (editor/boards/icons.ts), so none of the rules above could ever
