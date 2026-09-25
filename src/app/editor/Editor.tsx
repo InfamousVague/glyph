@@ -71,6 +71,10 @@ import styles from './Editor.module.css';
  * the editor with a new `key` (src/read/Reader.tsx does). And a new `wiki`
  * object is also a sign the notes changed (below), so a caller keeps the same
  * one while its lookups are the same.
+ *
+ * Editor.module.css is named for this host but is the markdown renderer's
+ * rule book: the classes glyphHighlight.ts, glyphLines.ts and the widgets hand
+ * to CodeMirror, and read by ten other files. Only `.editor` is the host's own.
  */
 
 interface EditorProps {
