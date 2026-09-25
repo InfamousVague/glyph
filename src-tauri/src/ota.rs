@@ -490,4 +490,44 @@ mod tests {
     fn the_page_never_needs_more_than_this_binary_provides() {
         const { assert!(BUNDLE_REQUIRES <= NATIVE_GENERATION) };
     }
+
+    fn keys(value: serde_json::Value) -> Vec<String> {
+        let mut keys: Vec<String> = value.as_object().expect("an object").keys().cloned().collect();
+        keys.sort();
+        keys
+    }
+
+    /// The names the page reads these answers by: `OtaStatus` and `ApkInfo`
+    /// in src/app/core/ota.ts, and the bundle in index.html's loader. A field
+    /// renamed here is a silent `undefined` there, so the names are pinned.
+    #[test]
+    fn what_the_page_is_answered_with_keeps_its_names() {
+        let status = Status {
+            native_version: "1.8.0".into(),
+            native_generation: NATIVE_GENERATION,
+            embedded_build: None,
+            embedded_version: None,
+            active_build: None,
+            active_version: None,
+            running_build: None,
+            quarantined: vec![],
+            sources: vec![],
+            services: Services::default(),
+            store: None,
+        };
+        let status = serde_json::to_value(&status).unwrap();
+        assert_eq!(keys(status["services"].clone()), ["format", "modelMirrors"]);
+        assert_eq!(
+            keys(status),
+            ["activeBuild", "activeVersion", "embeddedBuild", "embeddedVersion", "nativeGeneration", "nativeVersion", "quarantined", "runningBuild", "services", "sources", "store"]
+        );
+        let bundle = BootBundle { build: "b".into(), version: "v".into(), base: "ota://localhost/".into(), entry: "e".into(), styles: vec![] };
+        let boot = serde_json::to_value(BootState { bundle: Some(bundle) }).unwrap();
+        assert_eq!(keys(boot["bundle"].clone()), ["base", "build", "entry", "styles", "version"]);
+        let apk = ApkInfo { version: "1.8.0".into(), version_code: 1, native: 1, sha256: "a".repeat(64), bytes: 1, url: "glyph.apk".into() };
+        let check = CheckResult { web: "current", web_build: None, web_version: None, apk: Some(apk), error: None, source: None };
+        let check = serde_json::to_value(&check).unwrap();
+        assert_eq!(keys(check["apk"].clone()), ["bytes", "native", "sha256", "url", "version", "versionCode"]);
+        assert_eq!(keys(check), ["apk", "error", "source", "web", "webBuild", "webVersion"]);
+    }
 }

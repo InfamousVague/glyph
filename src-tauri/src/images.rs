@@ -204,12 +204,15 @@ pub fn remove_unreferenced(images: &Path, library: &crate::library::Library, bod
 /// Serves `<app_data_dir>/images/<name>` to the page. Names are uuids that
 /// never change, so the answer can be cached for good.
 pub fn serve<R: tauri::Runtime>(app: &tauri::AppHandle<R>, request: &tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<u8>> {
-    use tauri::http::{header, Response, StatusCode};
     let name = request.uri().path().trim_start_matches('/');
-    let bytes = valid_name(name)
-        .then(|| crate::paths::images_dir(app).ok())
-        .flatten()
-        .and_then(|dir| std::fs::read(dir.join(name)).ok());
+    answer(crate::paths::images_dir(app).ok().as_deref(), name)
+}
+
+/// The answer to a request for the picture `name`, kept in `images` (or
+/// nowhere, when the platform gave no directory).
+fn answer(images: Option<&Path>, name: &str) -> tauri::http::Response<Vec<u8>> {
+    use tauri::http::{header, Response, StatusCode};
+    let bytes = images.filter(|_| valid_name(name)).and_then(|dir| std::fs::read(dir.join(name)).ok());
     let builder = Response::builder().header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
     let response = match bytes {
         Some(bytes) => builder
@@ -232,6 +235,26 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("glyph-images-{label}-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn a_picture_is_served_to_be_cached_for_good_and_only_by_its_own_name() {
+        use tauri::http::{header, StatusCode};
+        let images = temp("serve");
+        std::fs::write(images.join("0f8e-uuid.png"), b"\x89PNG\r\n\x1a\n").unwrap();
+        std::fs::write(images.join("secret.txt"), b"not a picture").unwrap();
+        let served = answer(Some(&images), "0f8e-uuid.png");
+        let header_of = |name| served.headers().get(name).and_then(|v| v.to_str().ok());
+        assert_eq!(served.status(), StatusCode::OK);
+        assert_eq!(header_of(header::CONTENT_TYPE), Some("image/png"));
+        assert_eq!(header_of(header::CACHE_CONTROL), Some("public, max-age=31536000, immutable"), "a name never changes, so neither do its bytes");
+        assert_eq!(header_of(header::ACCESS_CONTROL_ALLOW_ORIGIN), Some("*"));
+        assert_eq!(header_of(header::CONTENT_LENGTH), Some("8"));
+        for name in ["secret.txt", "../0f8e-uuid.png", "gone.jpg"] {
+            assert_eq!(answer(Some(&images), name).status(), StatusCode::NOT_FOUND, "{name}");
+        }
+        assert_eq!(answer(None, "0f8e-uuid.png").status(), StatusCode::NOT_FOUND, "nowhere to keep pictures, none to serve");
+        let _ = std::fs::remove_dir_all(&images);
     }
 
     #[test]
