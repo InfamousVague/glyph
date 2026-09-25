@@ -1,5 +1,7 @@
 import { themePresets, type ThemePreviewPalette } from '@glacier/tokens';
 import { THEME_PRESETS, type ThemePref, type ThemePreset } from '../core/preferences.ts';
+import { lowerFirst } from '../core/text.ts';
+import { ACCENT_WORDS, THEME_WORDS } from './words.ts';
 
 /**
  * Each theme's colours, for the cards that choose one (ThemeCards.tsx): what the page would look like, painted small.
@@ -33,7 +35,7 @@ export const INK_DARK: ThemePreviewPalette = {
   ...LIVE_ACCENT,
 };
 
-export interface ThemeOption {
+interface ThemeOption {
   value: ThemePref;
   label: string;
   description: string;
@@ -42,20 +44,19 @@ export interface ThemeOption {
   alternatePalette?: ThemePreviewPalette;
 }
 
-const ACCENT_WORDS: Record<string, string> = { red: 'red', green: 'green', amber: 'amber', blue: 'blue' };
-
-function presetOption(id: ThemePreset, label: string): ThemeOption {
+/** A named theme's card: the kit's own preview, and which side of the page it is with the accent it brings, "Light, with red". */
+function presetOption(id: ThemePreset): ThemeOption {
   const kit = themePresets.find((p) => p.id === id);
   if (!kit) throw new Error(`The kit has no theme called “${id}”.`);
   const { scheme, accent } = THEME_PRESETS[id];
-  return { value: id, label, description: `${scheme === 'light' ? 'Light' : 'Dark'}, with ${ACCENT_WORDS[accent] ?? accent}`, palette: kit.preview };
+  return { value: id, label: THEME_WORDS[id], description: `${scheme === 'light' ? 'Light' : 'Dark'}, with ${lowerFirst(ACCENT_WORDS[accent])}`, palette: kit.preview };
 }
 
 export const THEME_OPTIONS: readonly ThemeOption[] = [
-  { value: 'system', label: 'System', description: 'Follows the phone', palette: INK_LIGHT, alternatePalette: INK_DARK },
-  { value: 'light', label: 'Light', description: 'Ink on paper', palette: INK_LIGHT },
-  { value: 'dark', label: 'Dark', description: 'Paper on ink', palette: INK_DARK },
-  presetOption('dawn', 'Dawn'),
-  presetOption('boreal', 'Boreal'),
-  presetOption('ember', 'Ember'),
+  { value: 'system', label: THEME_WORDS.system, description: 'Follows the phone', palette: INK_LIGHT, alternatePalette: INK_DARK },
+  { value: 'light', label: THEME_WORDS.light, description: 'Ink on paper', palette: INK_LIGHT },
+  { value: 'dark', label: THEME_WORDS.dark, description: 'Paper on ink', palette: INK_DARK },
+  presetOption('dawn'),
+  presetOption('boreal'),
+  presetOption('ember'),
 ];

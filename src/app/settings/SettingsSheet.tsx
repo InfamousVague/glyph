@@ -15,9 +15,17 @@ import { markGroups } from '../guide/marks.ts';
 import { FormattingPane } from './FormattingPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
 import { usePlugins } from '../plugins/registry.ts';
-import { AboutPane, AnimationsPane, DeveloperPane, FeelPane, RecordingPane, AppearancePane, TypePane } from './panes.tsx';
+import { AboutPane } from './AboutPane.tsx';
+import { AnimationsPane } from './AnimationsPane.tsx';
+import { AppearancePane } from './AppearancePane.tsx';
+import { DeveloperPane } from './DeveloperPane.tsx';
+import { FeelPane } from './FeelPane.tsx';
+import { RecordingPane } from './RecordingPane.tsx';
 import { SettingsScreen, type SettingsSection } from './SettingsScreen.tsx';
 import { TestResultsPane } from './TestResultsPane.tsx';
+import { TypePane } from './TypePane.tsx';
+import { updatesSummary } from './updateLines.ts';
+import { ACCENT_WORDS, DENSITY_WORDS, FACE_WORDS, ROUNDING_WORDS, SIZE_WORDS, THEME_WORDS } from './words.ts';
 import { reportSummary } from '../diag/testReport.ts';
 
 /**
@@ -25,11 +33,16 @@ import { reportSummary } from '../diag/testReport.ts';
  * screen that lists them (SettingsScreen). The readings come from the same
  * stores the panes edit, so a row can never disagree with its pane.
  *
- * Five clusters: how it looks (Type, Theme), how it works (Recording,
- * Formatting, Feel), the plugins (each switched-on plugin's own page, then
- * Plugins to switch them), the app itself (Updates, About), and the hidden
- * page (Developer). Recording only where there is a side key, Feel only where
- * there is a motor, Developer only once unlocked.
+ * Six clusters, in the list's order: who you are (Account); how it looks
+ * (Type, Appearance); how it works (Recording, Formatting, Feel, and
+ * Animations, which sits with them though it is listed after the plugins);
+ * the plugins (each switched-on plugin's own page, then Plugins to switch
+ * them); help and the app itself (the Cheat sheet, and About, which holds the
+ * updates and what's new); and the hidden pages (Developer, Test results).
+ * Recording only on Android, where there is a side key, Feel only where there
+ * is a motor, the hidden pages only once unlocked. Each pane is a file of its
+ * own; the words for a preference's values are words.ts, shared with the
+ * panes, so a reading here says what the pane's control says.
  */
 
 interface SettingsSheetProps {
@@ -55,20 +68,6 @@ interface SettingsSheetProps {
   toCheatSheet?: number;
 }
 
-const SIZE_WORDS: Record<string, string> = { large: 'Large', larger: 'Larger', largest: 'Largest' };
-const FACE_WORDS: Record<string, string> = { inter: 'Inter', noto: 'Noto', plex: 'Plex', maple: 'Maple Mono', fira: 'Fira Code' };
-// Only said in the row's reading when it is not the one the app is drawn at.
-const DENSITY_WORDS: Record<string, string> = {
-  'extra-compact': 'Tightest',
-  compact: 'Tight',
-  comfortable: 'Comfortable',
-  spacious: 'Roomy',
-  'more-space': 'Roomiest',
-};
-const THEME_WORDS: Record<string, string> = { system: 'System', light: 'Light', dark: 'Dark' };
-const ACCENT_WORDS: Record<string, string> = { graphite: 'Graphite', red: 'Red', amber: 'Amber', green: 'Green', teal: 'Teal', purple: 'Purple' };
-const ROUNDING_WORDS: Record<string, string> = { square: 'Square', soft: 'Soft', round: 'Round', rounder: 'Roundest' };
-
 export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
   const prefs = usePreferences();
   const faces = facesOf(prefs);
@@ -89,14 +88,6 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
   const formattingSummary = !isTauri()
     ? 'Runs on the phone'
     : `${modelName(prefs.formatModel)} · ${modelHere ? 'on the phone' : `${gb(chosenModel?.bytes ?? 0)} to get`}`;
-
-  let updatesSummary: string;
-  if (!isTauri()) updatesSummary = 'Web version';
-  else if (updates.checking) updatesSummary = 'Checking';
-  else if (updates.apk.kind === 'available') updatesSummary = `${updates.apk.info.version} ready to install`;
-  else if (updates.ready) updatesSummary = 'New version downloaded';
-  else if (updates.lastError) updatesSummary = "Couldn't check";
-  else updatesSummary = updates.lastChecked ? 'Up to date' : 'Not checked yet';
 
   const sections: SettingsSection[] = [
     // Who you are, first and on its own card (Matt: "move account to top of settings section"): it is what a person
@@ -139,6 +130,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
       content: <TypePane />,
       // Spacing moved to Appearance, where the rest of how the app is drawn lives.
       // The size, then the two faces: the note's, then the interface's.
+      // The size as it is kept when it has no word: core/preferences.ts settles the faces on reading, not the size.
       summary: `${SIZE_WORDS[prefs.textSize] ?? prefs.textSize} · ${FACE_WORDS[faces.note]} · ${FACE_WORDS[faces.ui]}`,
       group: 0,
     },
@@ -159,10 +151,11 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
       content: <AppearancePane />,
       // The page, then anything else that has been moved off its default: the colour, the air, the corners.
       summary: [
-        THEME_WORDS[prefs.theme] ?? prefs.theme,
-        prefs.accent === 'ink' ? null : ACCENT_WORDS[prefs.accent] ?? prefs.accent,
-        prefs.density === 'comfortable' ? null : DENSITY_WORDS[prefs.density] ?? prefs.density,
-        prefs.rounding === 'round' ? null : ROUNDING_WORDS[prefs.rounding] ?? prefs.rounding,
+        THEME_WORDS[prefs.theme],
+        prefs.accent === 'ink' ? null : ACCENT_WORDS[prefs.accent],
+        // The density is not settled on reading either (core/preferences.ts): one with no word is said as it is kept.
+        prefs.density === 'comfortable' ? null : (DENSITY_WORDS[prefs.density] ?? prefs.density),
+        prefs.rounding === 'round' ? null : ROUNDING_WORDS[prefs.rounding],
       ]
         .filter(Boolean)
         .join(' · '),
@@ -304,7 +297,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
         />
       ),
       // The version and where it stands, now that updates live on this page too.
-      summary: `${updates.version} · ${updatesSummary}`,
+      summary: `${updates.version} · ${updatesSummary(updates)}`,
       group: 3,
     },
     ...(devMode
