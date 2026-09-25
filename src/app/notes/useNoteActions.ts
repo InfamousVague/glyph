@@ -4,6 +4,7 @@ import { fireNativeHaptic } from '../core/haptics.ts';
 import { deleteNote, noteTitle, setNoteArchived, setNoteStarred, type Note } from '../core/store.ts';
 import { forgetNote } from '../core/workspaces.ts';
 import { forgetResults } from '../format/results.ts';
+import { forgetRuns } from '../ai/log.ts';
 import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.ts';
 
 /**
@@ -79,6 +80,7 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
         // Its filing (core/workspaces.ts), its kept summaries and gist (format/results.ts) and its place in the trash go with it.
         forgetNote(due.id);
         forgetResults(due.id);
+        forgetRuns(due.id);
         forgetTrashed([due.id]);
       } catch (error) {
         console.warn('[glyph] delete failed:', error);
@@ -141,6 +143,7 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
           await deleteNote(note.id);
           forgetNote(note.id);
           forgetResults(note.id);
+          forgetRuns(note.id);
         } catch (error) {
           console.warn('[glyph] delete failed:', error);
         }

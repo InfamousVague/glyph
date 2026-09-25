@@ -86,7 +86,7 @@
 }
 
 .header:empty ~ .page {
-  padding-block-start: calc(var(--wisp-under, 3.6rem) + var(--glacier-space-1) + var(--glacier-space-2));
+  padding-block-start: calc(var(--wisp-under, 3.6rem) + var(--glacier-space-1) + var(--glacier-space-2) + var(--ai-strip-room, 0px));
 }
 
 /* The controls themselves: the way back at one end, the tools at the other. */
@@ -305,8 +305,25 @@
   min-block-size: 0;
   display: flex;
   flex-direction: column;
-  /* Starts under the header, so the tape and the note only meet its blur once scrolled. */
-  padding-block-start: var(--wisp-under, 3.6rem);
+  /* Starts under the header, so the tape and the note only meet its blur once scrolled; and under the AI's strip while there is one. */
+  padding-block-start: calc(var(--wisp-under, 3.6rem) + var(--ai-strip-room, 0px));
+}
+
+/*
+ * The AI's strip floats under the header, over the page (NoteScreen.tsx sets `--ai-strip-top` from the header's
+ * height and `--ai-strip-room` from the strip's). Over the page's smoke, which is drawn on the page itself, and under
+ * a sheet or a menu. The holder takes no taps of its own, so the page under an empty holder still scrolls.
+ */
+.stripHolder {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: calc(var(--ai-strip-top, 3.6rem) + var(--glacier-space-2));
+  z-index: 4;
+  pointer-events: none;
+}
+
+.stripHolder > * {
+  pointer-events: auto;
 }
 
 .page[data-scrolls] {

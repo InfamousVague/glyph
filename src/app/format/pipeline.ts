@@ -1,4 +1,6 @@
-import { generate, MODELS, type Hardware, type Phase, type Run } from '../core/ai.ts';
+import { MODELS, type Hardware, type Phase } from '../core/ai.ts';
+import { modelFor } from '../ai/available.ts';
+import { startRun, subscribeRuns, ended as runEnded, type RunState } from '../ai/runs.ts';
 import { pluginContextFor, pluginContextVersion } from '../plugins/registry.ts';
 import { cleanNote, cleanRewrite } from './clean.ts';
 import { bodyHash, tidy, type Kept } from './formatter.ts';
@@ -9,34 +11,36 @@ import { keepResult } from './results.ts';
 import { protectTables, restoreTables } from './tables.ts';
 
 /**
- * Formatting in passes: a quick draft, then revisions by slower models.
+ * The robot's modes, run: one model, one pass, on the engine every AI run
+ * shares (ai/runs.ts).
  *
- * Matt, after a spoken note came out rough: "the quick format wasn't really
- * fast, maybe the quick format needs to reformat a few times with slower
- * models to make revisions". So a note is formatted the way whisper already
- * transcribes it - a small model first, a bigger one after - and the passes
- * are the models on the phone from the smallest up to the one chosen in
- * Settings. Each pass writes from the note itself (not from the draft, which
- * would anchor a careful model to a careless one) and is saved as it lands,
- * so a killed app keeps the best it had, and a note opened after a draft has
- * landed shows the draft while the revision is still being written.
+ * This used to be formatting in passes - a quick draft by the smallest model
+ * on the phone, then revisions by the bigger ones up to the chosen one - and
+ * Matt has since chosen one pass by the chosen model: fastest to the first
+ * line, and no draft for the careful model's lines to replace under the
+ * person's eyes. `passesFor` keeps its name and its shape (a list of models,
+ * the last of which has the last word) so the queue and the Formatted view
+ * read as they did, and answers one model: the chosen one when it is on the
+ * phone, else what is (ai/available.ts `modelFor`).
  *
- * One run per note at a time, shared by whoever asked - the Formatted view or
- * the background queue - and watched through `subscribe`: the view draws the
- * draft as it streams and the revision's progress line, the queue only waits
- * for the end. Everything here is module state on purpose: a run outlives the
- * screen that started it, the way the whisper post-pass does.
+ * What this module still owns is the note's preparation and its keeping: the
+ * tidy-up before the model (clean.ts), tables and links swapped for tokens it
+ * can copy and put back after (tables.ts, links.ts), the hash of the body it
+ * was written from, and the result kept per mode (results.ts). The run
+ * itself, its streaming, its queue and its log are the engine's; the events
+ * here are the engine's, translated for the view and the queue that watch
+ * them.
  */
 
 export interface PipelineProgress {
   id: string;
   mode: Mode;
-  /** Which pass is running, from 1, of how many. */
+  /** Which pass is running, from 1, of how many. Always 1 of 1 now; kept for the view's words. */
   pass: number;
   passes: number;
   model: string;
   phase: Phase;
-  /** The pass's own text so far; empty while a revision runs (the draft is on screen). */
+  /** The text so far: the lines the model has finished and the one under its pen. */
   text: string;
   promptTokens: number;
   promptTokensDone: number;
@@ -56,7 +60,7 @@ export interface PassLanded {
   hash: number;
   ms: number;
   truncated: boolean;
-  /** The model of the pass that follows, or null when this was the last. */
+  /** The model of the pass that follows, or null when this was the last. Always null now. */
   next: string | null;
 }
 
@@ -114,14 +118,13 @@ function sizeOf(id: string): number {
 }
 
 /**
- * The passes for a note: every model on the phone no bigger than the chosen
- * one, smallest first, so the draft comes quickly and the chosen model has
- * the last word. A chosen model that is not on the phone leaves the passes
- * that are; nothing on the phone is no passes at all.
+ * The passes for a note: one, by the model that runs here (ai/available.ts
+ * `modelFor`) - the chosen one when it is on the phone, else what is. Nothing
+ * on the phone is no passes at all.
  */
 export function passesFor(present: readonly string[], chosen: string): string[] {
-  const ceiling = sizeOf(chosen);
-  return [...new Set(present)].filter((id) => sizeOf(id) <= ceiling).sort((a, b) => sizeOf(a) - sizeOf(b));
+  const model = modelFor(present, chosen);
+  return model ? [model] : [];
 }
 
 /**
@@ -137,8 +140,8 @@ export function noteHash(id: string, body: string): number {
 
 /**
  * Whether a note needs formatting, given what it has: nothing kept, kept text
- * from a different body, or a draft by a model smaller than the last pass
- * would use. `hash` is the note's `noteHash` now.
+ * from a different body, or a text by a model smaller than the one that would
+ * run now. `hash` is the note's `noteHash` now.
  */
 export function needsPasses(kept: Kept | null, hash: number, passes: readonly string[]): boolean {
   const last = passes[passes.length - 1];
@@ -149,8 +152,9 @@ export function needsPasses(kept: Kept | null, hash: number, passes: readonly st
 
 /**
  * The passes still owed to a note: all of them when nothing fresh is kept,
- * and only the ones by bigger models when a fresh draft is - so a draft by
- * the 2B is revised by the 4B without the 2B running again.
+ * and only the ones by bigger models when a fresh text is - so a text by the
+ * 2B is written again by the 4B once the 4B is on the phone, and never by the
+ * 2B again.
  */
 export function revisionPasses(kept: Kept | null, hash: number, passes: readonly string[]): string[] {
   if (!kept?.formatted || kept.formattedFor !== hash) return [...passes];
@@ -159,96 +163,91 @@ export function revisionPasses(kept: Kept | null, hash: number, passes: readonly
 }
 
 /**
- * Runs the passes for a note, one after another, saving each. A second call
- * for the same note while one runs answers the run already going, whatever
- * its mode: one note, one model at a time. Resolves when the last pass has
- * landed, or the run was stopped, or a pass failed (the passes that landed
- * stay saved).
+ * The note as the model should see it, and the way back: tables and links go
+ * in as tokens the model can copy (tables first, so a link in a cell is
+ * inside the block) and come back out in reverse; the tidy-up before
+ * (clean.ts) keeps the hash the note's own. A summary may leave a table out.
+ */
+export function prepareNote(body: string, mode: Mode): { prompt: string; restore: (text: string, final: boolean) => string } {
+  const { text: withoutTables, tables } = protectTables(cleanNote(body));
+  const { text: prompt, links } = protectLinks(withoutTables);
+  const put = (text: string, final: boolean) => restoreTables(restoreLinks(text, links, final), tables, final, mode !== 'summarize');
+  return {
+    prompt,
+    restore: (text, final) => (final ? tidy(cleanRewrite(put(tidy(text), true))) : put(text, false)),
+  };
+}
+
+function progressOf(run: RunState): PipelineProgress {
+  return {
+    id: run.noteId,
+    mode: run.kind as Mode,
+    pass: 1,
+    passes: 1,
+    model: run.model,
+    phase: run.phase === 'queued' ? 'loading' : run.phase === 'stopped' ? 'cancelled' : run.phase === 'failed' ? 'error' : run.phase,
+    text: [...run.lines, run.partial].join('\n'),
+    promptTokens: run.promptTokens,
+    promptTokensDone: run.promptTokensDone,
+    outputTokens: run.outputTokens,
+    tokensPerSecond: run.tokensPerSecond,
+    elapsedMs: run.elapsedMs,
+    hardware: run.hardware,
+  };
+}
+
+/**
+ * Runs the pass for a note and keeps its text. A second call for the same
+ * note while one runs answers the run already going, whatever its mode: one
+ * note, one model at a time. Resolves when the text has landed, or the run
+ * was stopped, or it failed.
  */
 export function runPipeline(id: string, body: string, passes: readonly string[], mode: Mode = 'format'): Promise<void> {
   const existing = runs.get(id);
   if (existing) return existing.done;
-  if (!passes.length) return Promise.resolve();
+  const model = passes[passes.length - 1];
+  if (!model) return Promise.resolve();
 
-  let current: Run | null = null;
-  let stopped = false;
   const hash = noteHash(id, body);
   // What plugins know about the note (a linked project's briefing) goes in
   // with it, in the system message, so it is part of the snapshotted prefix.
   const context = pluginContextFor(id) ?? undefined;
-  // Tables and links go in as tokens the model can copy, and come back out
-  // (tables.ts, links.ts): tables first, so a link in a cell is inside the
-  // block; and back in reverse. A summary may leave a table out.
-  // The note as the model should see it (clean.ts): the hash stays the note's own.
-  const { text: withoutTables, tables } = protectTables(cleanNote(body));
-  const { text: protectedBody, links } = protectLinks(withoutTables);
-  const restore = (text: string, final: boolean) => restoreTables(restoreLinks(text, links, final), tables, final, mode !== 'summarize');
-  const entry = { cancel: () => undefined, progress: null as PipelineProgress | null, done: Promise.resolve() };
-  entry.cancel = () => {
-    stopped = true;
-    current?.cancel();
-  };
-
-  entry.done = (async () => {
-    try {
-      for (let index = 0; index < passes.length; index += 1) {
-        if (stopped) break;
-        const model = passes[index]!;
-        const next = passes[index + 1] ?? null;
-        const first = index === 0;
-        const progressOf = (phase: Phase, text = '', extra: Partial<PipelineProgress> = {}): PipelineProgress => ({
-          id,
-          mode,
-          pass: index + 1,
-          passes: passes.length,
-          model,
-          phase,
-          text,
-          promptTokens: 0,
-          promptTokensDone: 0,
-          outputTokens: 0,
-          tokensPerSecond: 0,
-          elapsedMs: 0,
-          ...extra,
-        });
-        entry.progress = progressOf('loading');
-        publish({ kind: 'progress', progress: entry.progress });
-        current = generate({
-          model,
-          system: promptFor(mode),
-          context,
-          prompt: protectedBody,
-          maxTokens: budgetFor(mode, protectedBody.length),
-          temperature: TEMPERATURE,
-          onProgress: (p) => {
-            if (p.phase === 'done' || p.phase === 'error' || p.phase === 'cancelled') return;
-            // The draft streams; a revision keeps the draft on screen and
-            // reports only its pace, so the words do not vanish and regrow.
-            entry.progress = progressOf(p.phase, first ? restore(p.partial, false) : '', {
-              promptTokens: p.promptTokens,
-              promptTokensDone: p.promptTokensDone,
-              outputTokens: p.outputTokens,
-              tokensPerSecond: p.tokensPerSecond,
-              elapsedMs: p.elapsedMs,
-              hardware: p.hardware ?? null,
-            });
-            publish({ kind: 'progress', progress: entry.progress });
-          },
-        });
-        const output = await current.done;
-        current = null;
-        const text = tidy(cleanRewrite(restore(tidy(output.text), true)));
-        await keepResult(id, mode, text, hash, model).catch((failure: unknown) => console.warn('[glyph] result not kept:', failure));
-        publish({ kind: 'landed', landed: { id, mode, text, model, hash, ms: output.ms, truncated: output.truncated, next: stopped ? null : next } });
+  const { prompt, restore } = prepareNote(body, mode);
+  const handle = startRun({
+    noteId: id,
+    kind: mode,
+    model,
+    system: promptFor(mode),
+    context,
+    prompt,
+    maxTokens: budgetFor(mode, prompt.length),
+    temperature: TEMPERATURE,
+    restore,
+    hash,
+  });
+  const entry = { cancel: handle.cancel, progress: null as PipelineProgress | null, done: Promise.resolve() };
+  const off = subscribeRuns((run) => {
+    if (run.id !== handle.id || runEnded(run)) return;
+    entry.progress = progressOf(run);
+    publish({ kind: 'progress', progress: entry.progress });
+  });
+  entry.done = handle.done
+    .then(async (run) => {
+      off();
+      if (run.phase === 'done' && run.text !== null) {
+        await keepResult(id, mode, run.text, hash, model).catch((failure: unknown) => console.warn('[glyph] result not kept:', failure));
+        publish({ kind: 'landed', landed: { id, mode, text: run.text, model, hash, ms: run.elapsedMs, truncated: run.truncated, next: null } });
+        publish({ kind: 'ended', id, mode, reason: 'done' });
+      } else if (run.phase === 'stopped') {
+        publish({ kind: 'ended', id, mode, reason: 'stopped' });
+      } else {
+        publish({ kind: 'ended', id, mode, reason: 'failed', message: run.message ?? 'The model stopped.' });
       }
-      publish({ kind: 'ended', id, mode, reason: stopped ? 'stopped' : 'done' });
-    } catch (failure) {
-      const message = failure instanceof Error ? failure.message : String(failure);
-      publish({ kind: 'ended', id, mode, reason: message === 'cancelled' ? 'stopped' : 'failed', message });
-    } finally {
+    })
+    .finally(() => {
+      off();
       runs.delete(id);
-    }
-  })();
+    });
 
   runs.set(id, entry);
   return entry.done;

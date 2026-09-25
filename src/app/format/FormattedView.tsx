@@ -8,7 +8,6 @@ import { fireNativeHaptic } from '../core/haptics.ts';
 import { usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import type { Formatter } from './formatter.ts';
-import { AiCard } from './AiCard.tsx';
 import { modeWords } from './modes.ts';
 import { APPLIED, EDITED } from './pipeline.ts';
 import styles from './Formatted.module.css';
@@ -254,24 +253,8 @@ export function FormattedView({
           <span style={{ inlineSize: '64%' }} />
         </div>
       ) : null}
-      {/* A pass writing and nothing on screen yet: the card, with the reader and the phone's readings. */}
-      {!waiting && state.kind === 'running' && text === '' ? (
-        <AiCard
-          model={state.model}
-          phase={state.phase}
-          doing={words.doing}
-          pass={{ at: state.pass, of: state.passes }}
-          promptTokens={state.promptTokens}
-          promptTokensDone={state.promptTokensDone}
-          outputTokens={state.outputTokens}
-          tokensPerSecond={state.tokensPerSecond}
-          elapsedMs={state.elapsedMs}
-          hardware={state.hardware}
-        >
-          {isTauri() ? <Word onPress={formatter.stop}>Stop</Word> : null}
-        </AiCard>
-      ) : null}
-      {!waiting && !(state.kind === 'running' && text === '') ? (
+      {/* A pass writing and nothing on screen yet: the strip under the header says so, with the phone's readings a tap away (ai/AiStrip.tsx). */}
+      {!waiting ? (
         <p className={styles.line} role="status" data-busy={busy || undefined}>
           {line}
           {canApply && !choosing ? <Word onPress={() => setChoosing(true)}>Apply</Word> : null}

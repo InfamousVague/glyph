@@ -21,7 +21,7 @@ const RESET_GENERATION = 11;
  * their manifests (plugins/registry.ts), switched on or not; `glyph-projects`
  * is what the 0.4.x projects feature left behind.
  */
-const KEYS = ['glyph-preferences', 'glyph-guide-seen', 'glyph-refine-queue', 'glyph-last-capture', 'glyph-haptics', 'glyph-notes', 'glyph-side-key', 'glyph-format-queue', 'glyph-ai-results', 'glyph-projects', 'glyph-workspaces', 'glyph-guide-started', 'glyph-guide-page', 'glyph-sample-note'];
+const KEYS = ['glyph-preferences', 'glyph-guide-seen', 'glyph-refine-queue', 'glyph-last-capture', 'glyph-haptics', 'glyph-notes', 'glyph-side-key', 'glyph-format-queue', 'glyph-ai-results', 'glyph-ai-log', 'glyph-projects', 'glyph-workspaces', 'glyph-guide-started', 'glyph-guide-page', 'glyph-sample-note'];
 
 export async function resetLocalData({ models }: { models: boolean }): Promise<void> {
   if (isTauri()) {

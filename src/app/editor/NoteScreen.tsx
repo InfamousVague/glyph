@@ -42,6 +42,8 @@ import { LinkMarks } from '../plugins/LinkMarks.tsx';
 import { plugins } from '../plugins/registry.ts';
 import type { NoteEditing } from '../plugins/types.ts';
 import { useTape } from '../tapes/useTape.ts';
+import { AiStrip } from '../ai/AiStrip.tsx';
+import { recordUndone, type RunRecord } from '../ai/log.ts';
 import styles from './NoteScreen.module.css';
 
 /**
@@ -322,6 +324,49 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // On a folding phone, the note flattens with the hinge as the phone opens.
   const screen = useRef<HTMLDivElement>(null);
   useUnfold(screen);
+
+  /*
+   * The AI's strip (ai/AiStrip.tsx) floats under the header and over the page, never in the page's smoke, and the
+   * page makes room under it so the note's first lines are not covered while the model works. Two measures, written
+   * as custom properties on the screen rather than held as state: where the header ends (`--ai-strip-top`, the
+   * header is a pane of glass whose height the app's bar decides), and how tall the strip is (`--ai-strip-room`,
+   * zero once it is gone). Neither is anything this component's render depends on.
+   */
+  useEffect(() => {
+    const pane = header.current;
+    const host = screen.current;
+    if (!pane || !host) return undefined;
+    const fit = () => host.style.setProperty('--ai-strip-top', `${pane.offsetHeight}px`);
+    fit();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const watched = new ResizeObserver(fit);
+    watched.observe(pane, { box: 'border-box' });
+    return () => watched.disconnect();
+  }, []);
+  const onStripHeight = useCallback((height: number) => {
+    screen.current?.style.setProperty('--ai-strip-room', height ? `${height + 8}px` : '0px');
+  }, []);
+  /**
+   * Undo for a run in the strip's log: the note back as it was before the run, but only while it still reads as the
+   * run left it - a later edit is the person's, and would be lost under the old words.
+   */
+  const undoRun = (record: RunRecord): boolean => {
+    if (!view || record.before === undefined || record.after === undefined) return false;
+    const now = view.state.doc.toString();
+    if (now !== record.after) {
+      toast({ message: 'The note has changed since, so that run can’t be undone.' });
+      return false;
+    }
+    view.dispatch({
+      changes: { from: 0, to: now.length, insert: record.before },
+      selection: { anchor: 0 },
+      scrollIntoView: true,
+    });
+    recordUndone(note.id, record.id);
+    fireNativeHaptic('success');
+    toast({ message: 'Put back as it was.' });
+    return true;
+  };
 
   // A picture, put into the note at the caret on its own line: from the
   // phone's picker (the menu's Add image), or one the activity copied out of
@@ -700,6 +745,10 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         )}
       </header>
       {toolsSlot ? createPortal(tools, toolsSlot) : null}
+      {/* The model at work on this note, and what it did: under the header, over the page (ai/AiStrip.tsx). */}
+      <div className={styles.stripHolder}>
+        <AiStrip noteId={note.id} onUndo={undoRun} onHeight={onStripHeight} />
+      </div>
       {photoProblem ? (
         <p className={styles.problem} role="alert">
           {photoProblem}

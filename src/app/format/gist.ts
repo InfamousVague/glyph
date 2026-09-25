@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { generate, listModels } from '../core/ai.ts';
-import { preferences } from '../core/preferences.ts';
 import type { Note } from '../core/store.ts';
 import { isTauri } from '../core/tauri.ts';
 import { bodyHash } from './formatter.ts';
 import { protectLinks } from './links.ts';
-import { isRunning, passesFor } from './pipeline.ts';
+import { smallestOf } from '../ai/available.ts';
+import { anyRunning } from '../ai/runs.ts';
+import { isRunning } from './pipeline.ts';
 import { GIST_PROMPT, TEMPERATURE } from './prompt.ts';
 import { keepGist, readGist } from './results.ts';
 
@@ -103,13 +104,19 @@ export async function runGists(): Promise<void> {
 
 async function pump(): Promise<void> {
   if (active || !isTauri() || document.visibilityState !== 'visible') return;
+  // A note's own run comes first: the model is one, and a line for the home page can wait a few seconds.
+  if (anyRunning()) {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => void pump(), 3000);
+    return;
+  }
   const next = owed();
   if (!next) return;
   const [id, body] = next;
   active = id;
   try {
     const present = (await listModels()).filter((m) => m.present).map((m) => m.id);
-    const model = passesFor(present, preferences().formatModel)[0];
+    const model = smallestOf(present);
     if (!model) return;
     // Links go in as tokens, as for every pass, and the line never has them.
     const { text } = protectLinks(body);

@@ -3,16 +3,17 @@ import { bodyHash } from './formatter.ts';
 import { EDITED, needsPasses, noteHash, passesFor, revisionPasses } from './pipeline.ts';
 
 describe('the passes a note gets', () => {
-  it('runs every model on the phone up to the chosen one, smallest first', () => {
-    expect(passesFor(['qwen3.5-4b', 'qwen3.5-2b'], 'qwen3.5-4b')).toEqual(['qwen3.5-2b', 'qwen3.5-4b']);
-    expect(passesFor(['qwen3.5-9b', 'qwen3.5-2b', 'qwen3.5-4b'], 'qwen3.5-4b')).toEqual(['qwen3.5-2b', 'qwen3.5-4b']);
-    expect(passesFor(['qwen3.5-2b', 'qwen3.5-4b', 'qwen3.5-9b'], 'qwen3.5-9b')).toEqual(['qwen3.5-2b', 'qwen3.5-4b', 'qwen3.5-9b']);
+  it('is one pass, by the chosen model when it is on the phone', () => {
+    expect(passesFor(['qwen3.5-4b', 'qwen3.5-2b'], 'qwen3.5-4b')).toEqual(['qwen3.5-4b']);
+    expect(passesFor(['qwen3.5-9b', 'qwen3.5-2b', 'qwen3.5-4b'], 'qwen3.5-4b')).toEqual(['qwen3.5-4b']);
+    expect(passesFor(['qwen3.5-2b', 'qwen3.5-4b', 'qwen3.5-9b'], 'qwen3.5-9b')).toEqual(['qwen3.5-9b']);
   });
 
-  it('makes do with what is on the phone when the chosen model is not', () => {
+  it('makes do with what is on the phone when the chosen model is not: the biggest under it, else the smallest there is', () => {
     expect(passesFor(['qwen3.5-2b'], 'qwen3.5-4b')).toEqual(['qwen3.5-2b']);
+    expect(passesFor(['qwen3.5-2b', 'qwen3.5-9b'], 'qwen3.5-4b')).toEqual(['qwen3.5-2b']);
+    expect(passesFor(['qwen3.5-9b'], 'qwen3.5-2b')).toEqual(['qwen3.5-9b']);
     expect(passesFor([], 'qwen3.5-4b')).toEqual([]);
-    expect(passesFor(['qwen3.5-9b'], 'qwen3.5-2b')).toEqual([]);
   });
 
   it('never repeats a model', () => {
