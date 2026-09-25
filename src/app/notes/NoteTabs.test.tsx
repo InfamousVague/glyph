@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, type ComponentProps } from 'react';
+import { act, useState, type ComponentProps } from 'react';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
 import { reloadPreferences } from '../core/preferences.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, rerender, show, typeInto } from '../../test/render.tsx';
 import { stubMatchMedia, stubResizeObserver } from '../../test/stubs.ts';
-import type { TabGroups } from './tabGroups.ts';
+import { NO_GROUPS, type TabGroups } from './tabGroups.ts';
 
 /**
  * The app's top bar: the controls, the tabs and the gesture on them. The rules of where a dragged tab lands are
@@ -204,6 +204,50 @@ describe('a group’s chip', () => {
     expect(menuItems()).toEqual(expect.arrayContaining(['Rename', 'Ungroup', 'Close group']));
     act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === 'Close group')!.click());
     expect(onCloseTabs).toHaveBeenCalledWith(['b', 'c']);
+  });
+});
+
+describe('grouping tabs from their menus', () => {
+  /** The bar with its groups held as the Shell holds them, and read back out. */
+  let held: TabGroups = NO_GROUPS;
+  function Grouping() {
+    const [groups, setGroups] = useState<TabGroups>(NO_GROUPS);
+    held = groups;
+    return bar({ groups, onGroups: setGroups });
+  }
+  const menuOf = (id: string) => act(() => void tab(id).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  const choose = (words: string) => act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.trim() === words)!.click());
+
+  it('makes a group around a tab and names it at once: Enter keeps the name, Escape the one it had', () => {
+    show(<Grouping />);
+    menuOf('a');
+    choose('Add to a new group');
+    expect(held.of).toEqual({ a: held.list[0]!.id });
+    const field = document.querySelector<HTMLInputElement>('input[aria-label="Group name"]')!;
+    expect(field.value).toBe('Group');
+    typeInto(field, 'Lunch');
+    act(() => void field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(held.list[0]!.name).toBe('Lunch');
+    act(() => void button('Lunch, 1 tab').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+    choose('Rename');
+    const again = document.querySelector<HTMLInputElement>('input[aria-label="Group name"]')!;
+    typeInto(again, 'Dinner');
+    act(() => void again.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(held.list[0]!.name).toBe('Lunch');
+  });
+
+  it('adds a tab to a group there already is, and takes it out again', () => {
+    show(<Grouping />);
+    menuOf('a');
+    choose('Add to a new group');
+    act(() => void document.querySelector<HTMLInputElement>('input[aria-label="Group name"]')!.blur());
+    menuOf('c');
+    act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.includes('Add to group'))!.click());
+    choose('Group');
+    expect(held.of.c).toBe(held.of.a);
+    menuOf('c');
+    choose('Remove from group');
+    expect(held.of.c).toBeUndefined();
   });
 });
 
