@@ -350,6 +350,29 @@ async fn download(
     Ok(())
 }
 
+/// A loopback server's half of one request: the path asked for, and where a
+/// `Range` asked to start (0 without one). What the download tests below serve by.
+#[cfg(all(test, not(target_os = "ios")))]
+fn read_request(stream: &std::net::TcpStream) -> (String, usize) {
+    use std::io::{BufRead, BufReader};
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    let mut path = String::new();
+    let mut from = 0usize;
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+            break;
+        }
+        if path.is_empty() {
+            path = line.split_whitespace().nth(1).unwrap_or_default().to_string();
+        }
+        if let Some(range) = line.to_ascii_lowercase().strip_prefix("range: bytes=") {
+            from = range.trim().trim_end_matches('-').parse().unwrap_or(0);
+        }
+    }
+    (path, from)
+}
+
 /// A server that cuts its first answer partway, then serves the rest to a `Range` (or, with `ranges` off, the whole
 /// file again): the downloader must still end with every byte, hashed right.
 #[cfg(all(test, not(target_os = "ios")))]
@@ -357,7 +380,7 @@ mod resume_tests {
     use super::*;
     use crate::test_support::TempDir;
     use sha2::{Digest, Sha256};
-    use std::io::{BufRead, BufReader, Write};
+    use std::io::Write;
     use std::net::TcpListener;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
@@ -371,17 +394,7 @@ mod resume_tests {
             for stream in listener.incoming() {
                 let Ok(mut stream) = stream else { continue };
                 let n = count.fetch_add(1, Ordering::SeqCst);
-                let mut reader = BufReader::new(stream.try_clone().unwrap());
-                let mut from = 0usize;
-                loop {
-                    let mut line = String::new();
-                    if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
-                        break;
-                    }
-                    if let Some(range) = line.to_ascii_lowercase().strip_prefix("range: bytes=") {
-                        from = range.trim().trim_end_matches('-').parse().unwrap_or(0);
-                    }
-                }
+                let (_, from) = read_request(&stream);
                 let resuming = ranges && from > 0;
                 let rest = if resuming { &body[from..] } else { &body[..] };
                 let head = if resuming {
@@ -424,6 +437,124 @@ mod resume_tests {
         let (result, written, body, _) = fetch_from(false);
         assert_eq!(result, Ok(()));
         assert!(written == body, "every byte, in order");
+    }
+}
+
+/// Mirrors that fail the ways real ones have - no file there (a 404), or the
+/// right length of the wrong bytes - are each given up on for the next, and a
+/// refused download leaves no `.part` behind.
+#[cfg(all(test, not(target_os = "ios")))]
+mod mirror_tests {
+    use super::*;
+    use crate::test_support::TempDir;
+    use sha2::{Digest, Sha256};
+    use std::io::Write;
+    use std::net::TcpListener;
+    use std::sync::{Arc, Mutex};
+
+    /// How a mirror answers for `model.bin`.
+    #[derive(Debug, Clone, Copy)]
+    enum Answer {
+        Missing,
+        WrongBytes,
+        Right,
+    }
+
+    /// One `fetch` through a loopback server holding a mirror under each
+    /// name, tried in the order given.
+    struct Run {
+        result: Result<ModelStatus, String>,
+        dir: TempDir,
+        body: Vec<u8>,
+        mirrors: Vec<String>,
+        /// The paths the server was asked for, in order.
+        asked: Vec<String>,
+        reports: Vec<(u64, u64)>,
+    }
+
+    fn fetch_through(mirrors: &[(&'static str, Answer)]) -> Run {
+        let body: Vec<u8> = (0..50_000u32).map(|i| (i % 241) as u8).collect();
+        let sha: String = Sha256::digest(&body).iter().map(|b| format!("{b:02x}")).collect();
+        let spec = ModelSpec { file: "model.bin", bytes: body.len() as u64, sha256: Box::leak(sha.into_boxed_str()) };
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let (log, served, answers) = (Arc::clone(&asked), body.clone(), mirrors.to_vec());
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let (path, _) = read_request(&stream);
+                let answer = answers.iter().find(|(name, _)| path == format!("/{name}/model.bin")).map_or(Answer::Missing, |(_, answer)| *answer);
+                log.lock().unwrap().push(path);
+                let bytes: Vec<u8> = match answer {
+                    Answer::Missing => Vec::new(),
+                    Answer::WrongBytes => served.iter().map(|b| !b).collect(),
+                    Answer::Right => served.clone(),
+                };
+                let status = if matches!(answer, Answer::Missing) { "404 Not Found" } else { "200 OK" };
+                let head = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", bytes.len());
+                let _ = stream.write_all(head.as_bytes());
+                let _ = stream.write_all(&bytes);
+                let _ = stream.flush();
+            }
+        });
+
+        let dir = TempDir::new("mirror-test");
+        let urls: Vec<String> = mirrors.iter().map(|(name, _)| format!("{base}/{name}")).collect();
+        let mut reports = Vec::new();
+        let result = tauri::async_runtime::block_on(fetch(&dir, &spec, &urls, |got, of| reports.push((got, of))));
+        let asked = asked.lock().unwrap().clone();
+        Run { result, dir, body, mirrors: urls, asked, reports }
+    }
+
+    fn names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn a_mirror_without_the_file_is_passed_over_for_the_next() {
+        let run = fetch_through(&[("gone", Answer::Missing), ("good", Answer::Right)]);
+        assert!(run.result.as_ref().is_ok_and(|status| status.present), "{:?}", run.result);
+        assert_eq!(run.asked, ["/gone/model.bin", "/good/model.bin"], "a 404 is not asked again");
+        assert!(std::fs::read(run.dir.join("model.bin")).unwrap() == run.body);
+        assert_eq!(names(&run.dir), ["model.bin"], "no .part left beside it");
+    }
+
+    #[test]
+    fn a_mirror_serving_the_wrong_bytes_is_passed_over_and_its_part_removed() {
+        let run = fetch_through(&[("bad", Answer::WrongBytes), ("good", Answer::Right)]);
+        assert!(run.result.as_ref().is_ok_and(|status| status.present), "{:?}", run.result);
+        assert_eq!(run.asked, ["/bad/model.bin", "/good/model.bin"]);
+        assert!(std::fs::read(run.dir.join("model.bin")).unwrap() == run.body, "the file is the right mirror's, hashed right");
+        assert_eq!(names(&run.dir), ["model.bin"]);
+        let whole = run.body.len() as u64;
+        assert_eq!(run.reports.last(), Some(&(whole, whole)), "progress ends on the whole file");
+    }
+
+    #[test]
+    fn when_every_mirror_fails_the_error_names_each_and_nothing_is_left() {
+        let run = fetch_through(&[("gone", Answer::Missing), ("bad", Answer::WrongBytes)]);
+        let error = run.result.unwrap_err();
+        assert!(error.starts_with("could not download model.bin. "), "{error}");
+        for mirror in &run.mirrors {
+            assert!(error.contains(&format!("{mirror}/model.bin: ")), "{mirror} in {error}");
+        }
+        assert!(error.contains("404") && error.contains("does not match"), "what each did: {error}");
+        assert!(names(&run.dir).is_empty(), "neither a model nor a .part: {:?}", names(&run.dir));
+    }
+
+    #[test]
+    fn a_model_already_here_is_not_fetched_again() {
+        let body: Vec<u8> = vec![7; 10];
+        let spec = ModelSpec { file: "model.bin", bytes: body.len() as u64, sha256: "unchecked" };
+        let dir = TempDir::new("mirror-present");
+        std::fs::write(dir.join("model.bin"), &body).unwrap();
+        let unreachable = ["http://127.0.0.1:9".to_string()];
+        let status = tauri::async_runtime::block_on(fetch(&dir, &spec, &unreachable, |_, _| panic!("nothing is downloaded")));
+        assert_eq!(status.map(|status| status.present), Ok(true));
     }
 }
 
