@@ -21,12 +21,12 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { arch, platform, tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { ROOT } from './lib/paths.mjs';
+import { MARK } from './lib/say.mjs';
 import { fromCargo, fromVitest, totalsOf } from './testReport/parse.mjs';
 import { REPORT_PATH, sourceHash } from './testReport/source.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, REPORT_PATH);
 const arg = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1]?.split(',') ?? null;
 const only = arg('only');
@@ -40,13 +40,14 @@ const run = (command, args, options = {}) => {
 };
 const firstLine = (command, args, cwd = ROOT) => (spawnSync(command, args, { cwd, encoding: 'utf8' }).stdout ?? '').split('\n')[0].trim() || null;
 
-const say = (text) => process.stdout.write(`\x1b[36m>\x1b[0m ${text}\n`);
+/** A suite starting: the release voice's mark, without the blank line and bold a deploy's own steps get. */
+const heading = (text) => process.stdout.write(`${MARK.step} ${text}\n`);
 
 function vitestSuite() {
   const dir = mkdtempSync(join(tmpdir(), 'glyph-vitest-'));
   const json = join(dir, 'report.json');
   const args = ['vitest', 'run', '--reporter=default', '--reporter=json', `--outputFile.json=${json}`, '--includeTaskLocation'];
-  say('Page tests (Vitest)');
+  heading('Page tests (Vitest)');
   const result = run('npx', args, { stdio: ['ignore', 'inherit', 'inherit'] });
   const parsed = existsSync(json) ? JSON.parse(readFileSync(json, 'utf8')) : null;
   rmSync(dir, { recursive: true, force: true });
@@ -55,7 +56,7 @@ function vitestSuite() {
 
 function cargoSuite(id, title, manifest, extra) {
   const args = ['test', '--manifest-path', manifest, ...extra, '--', '--test-threads=1'];
-  say(title);
+  heading(title);
   const result = run('cargo', args);
   process.stdout.write(result.output.split('\n').filter((l) => /^test result|FAILED|panicked|^error/.test(l)).join('\n') + '\n');
   return fromCargo(result.output, { id, title, command: `cargo ${args.join(' ')}`, exitCode: result.status, durationMs: result.durationMs, version: firstLine('cargo', ['--version']) });
@@ -100,5 +101,5 @@ const report = {
 
 writeFileSync(OUT, `${JSON.stringify(report, null, 2)}\n`);
 const summary = `${totals.passed} passed, ${totals.failed} failed, ${totals.skipped} skipped${totals.notRun ? `, ${totals.notRun} suite${totals.notRun === 1 ? '' : 's'} not run` : ''}`;
-process.stdout.write(`${report.ok ? '\x1b[32mok\x1b[0m' : '\x1b[31mx\x1b[0m'} ${summary} -> ${REPORT_PATH}\n`);
+process.stdout.write(`${report.ok ? MARK.ok : MARK.fail} ${summary} -> ${REPORT_PATH}\n`);
 process.exit(report.ok ? 0 : 1);

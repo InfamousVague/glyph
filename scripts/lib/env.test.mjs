@@ -51,6 +51,7 @@ describe('loading the repository’s .env', () => {
   function attempt(text, required) {
     dir = mkdtempSync(join(tmpdir(), 'glyph-env-'));
     if (text !== null) writeFileSync(join(dir, '.env'), text);
+    vi.restoreAllMocks();
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.spyOn(process, 'exit').mockImplementation((code) => {
       throw new Error(`exit ${code}`);

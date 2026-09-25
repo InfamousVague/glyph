@@ -21,10 +21,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { ROOT } from './lib/paths.mjs';
+import { fatal, say } from './lib/say.mjs';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SDK = process.env.ANDROID_HOME ?? join(homedir(), 'Library/Android/sdk');
 const ADB = join(SDK, 'platform-tools/adb');
 const APP_ID = 'com.mattssoftware.glyph';
@@ -44,11 +44,6 @@ const env = {
 };
 
 const adb = (...args) => execFileSync(ADB, args, { env, encoding: 'utf8' }).trim();
-const say = (line) => console.log(`  ${line}`);
-const fail = (message) => {
-  console.error(`\nError: ${message}\n`);
-  process.exit(1);
-};
 
 // ---- 1. find the phone ------------------------------------------------------
 /*
@@ -145,7 +140,7 @@ const candidates = [
 ];
 const address = candidates.find(connect);
 if (!address) {
-  fail(
+  fatal(
     'could not reach the phone.\n' +
       `  tried: ${candidates.length ? candidates.join(', ') : '(nothing advertised, nothing remembered)'}\n` +
       '  On the Fold: wake the screen, then Settings > Developer options > Wireless debugging (on),\n' +
@@ -160,7 +155,7 @@ try {
 }
 const state = spawnSync(ADB, ['-s', address, 'get-state'], { env, encoding: 'utf8' });
 if (state.stdout.trim() !== 'device') {
-  fail(
+  fatal(
     `the phone is reachable but not authorised (${(state.stderr || state.stdout).trim()}).\n` +
       'Pair once: Wireless debugging > Pair device with pairing code, then\n' +
       `  ${ADB} pair <ip:pairing-port> <code>`,
@@ -179,7 +174,7 @@ if (!process.argv.includes('--no-build')) {
     ['tauri', 'android', 'build', '--debug', '--apk', '--target', 'aarch64'],
     { cwd: ROOT, env, stdio: 'inherit' },
   );
-  if (build.status !== 0) fail('the Android build failed; see above');
+  if (build.status !== 0) fatal('the Android build failed; see above');
 }
 
 // ---- 3. install + launch ----------------------------------------------------
@@ -203,12 +198,12 @@ function newestApk(dir) {
   return best;
 }
 const apk = newestApk(outputs);
-if (!apk) fail(`no debug APK under ${outputs}`);
+if (!apk) fatal(`no debug APK under ${outputs}`);
 say(`installing ${apk.path.replace(ROOT + '/', '')}`);
 // -r keeps the app's data across reinstalls so a tester's notes survive a
 // new build; -d allows a downgrade so an older branch can be pushed too.
 const install = spawnSync(ADB, ['-s', address, 'install', '-r', '-d', apk.path], { env, stdio: 'inherit' });
-if (install.status !== 0) fail('adb install failed');
+if (install.status !== 0) fatal('adb install failed');
 /*
  * WAIT FOR THE UPDATE TO SETTLE BEFORE LAUNCHING. `adb install` returns while
  * the package manager is still finishing the replace, and the tail of that work

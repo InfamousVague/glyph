@@ -43,6 +43,7 @@ const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\
 
 /** Runs `act`, turning the script's exit into a throw; what it returned or the exit, and what it printed on stderr. */
 function caught(act) {
+  vi.restoreAllMocks();
   const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`exit ${code}`);

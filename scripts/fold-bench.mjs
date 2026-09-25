@@ -22,10 +22,9 @@
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { ROOT } from './lib/paths.mjs';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const wavPath = process.argv[2] ?? join(ROOT, 'models', 'fixture.wav');
 const wav = readFileSync(wavPath);
 
