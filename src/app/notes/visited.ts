@@ -16,8 +16,11 @@
  * Pure, and tested in visited.test.ts: App.tsx holds the trail in state and does the going.
  */
 
-/** A place: 'list', or a note by id. */
+/** A place: 'list' (the home page), 'notes' (the All notes grid), or a note by id. */
 export type Place = string;
+
+/** The All notes page (notes/AllNotesScreen.tsx): a place like the list, since the tab row is on it and the arrows should reach it. */
+export const ALL_NOTES: Place = 'notes';
 
 export interface Trail {
   places: Place[];

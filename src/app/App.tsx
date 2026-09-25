@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HapticsProvider, ToastProvider, useToast } from '@glacier/react';
 import { UpdateNotice } from './notes/Notices.tsx';
 import { HomeScreen } from './home/HomeScreen.tsx';
+import { AllNotesScreen } from './notes/AllNotesScreen.tsx';
 import type { OpenTask } from './home/dashboard.ts';
 import { setItemDone } from './core/boards.ts';
 import { inTrash, outOfTrash, useTrash } from './core/trash.ts';
@@ -15,7 +16,7 @@ import { asideContent, readAsideShown, writeAsideShown } from './aside/aside.ts'
 import { NoteTree } from './notes/NoteTree.tsx';
 import { addOpen, afterClose, closeOpen, moveOpen, openOnly, swapOpen } from './notes/openTabs.ts';
 import { afterMove, displayOrder, joinGroup, leaveGroup, newGroup, pruneGroups, type TabGroups } from './notes/tabGroups.ts';
-import { backFrom, canGoBack, canGoOn, FIRST, noteIdOf, notePlace, onFrom, placeAt, went, type Place } from './notes/visited.ts';
+import { ALL_NOTES, backFrom, canGoBack, canGoOn, FIRST, noteIdOf, notePlace, onFrom, placeAt, went, type Place } from './notes/visited.ts';
 import { readSidebarShown, useSidebar, writeSidebarShown } from './core/useWideScreen.ts';
 import { SettingsSheet } from './settings/SettingsSheet.tsx';
 import type { ReviewHandoff } from './ai/review.ts';
@@ -97,6 +98,8 @@ function markGuideSeen(): void {
 
 type Screen =
   | { name: 'list' }
+  /** Every note as a grid of cards (notes/AllNotesScreen.tsx), from the home page's "All notes". */
+  | { name: 'notes' }
   | {
       name: 'note';
       note: Note;
@@ -401,7 +404,7 @@ function Shell() {
    */
   const [trail, setTrail] = useState(FIRST);
   const jumped = useRef(false);
-  const place: Place | null = screen.name === 'note' ? notePlace(screen.note.id) : screen.name === 'list' ? 'list' : null;
+  const place: Place | null = screen.name === 'note' ? notePlace(screen.note.id) : screen.name === 'list' ? 'list' : screen.name === 'notes' ? ALL_NOTES : null;
   useEffect(() => {
     if (!place) return;
     if (jumped.current) {
@@ -421,7 +424,8 @@ function Shell() {
   const land = (spot: Place) => {
     jumped.current = true;
     const id = noteIdOf(spot);
-    if (id === null) void backToList();
+    if (spot === ALL_NOTES) setScreen({ name: 'notes' });
+    else if (id === null) void backToList();
     else openNote(id);
   };
   const goBack = () => {
@@ -694,7 +698,7 @@ function Shell() {
 
   // The list and the open note sit side by side on a wide desktop window; the capture, review and sort
   // flows still take the whole window.
-  const split = sidebar && (screen.name === 'list' || screen.name === 'note');
+  const split = sidebar && (screen.name === 'list' || screen.name === 'notes' || screen.name === 'note');
   /*
    * The sidebar docked beside the note, rather than a popover over it: a window wide enough, and Docked chosen in
    * Settings. A popover is the default everywhere (Matt: "Sidebar should open and close in a popover not a full
@@ -711,11 +715,11 @@ function Shell() {
     if (docked) setDrawer(false);
   }, [docked]);
   /*
-   * The routes that carry the app's tab row (app.css .app-tabBar): the list and a note, which are the two places a
-   * tab means anything. A capture, a review, a sort and the Academy are each the whole screen and the way out of them
+   * The routes that carry the app's tab row (app.css .app-tabBar): the list, the All notes grid and a note, which are
+   * the places a tab means anything. A capture, a review, a sort and the Academy are each the whole screen and the way out of them
    * is their own; the bar's height leaves `--app-safe-top` with it, so those screens keep their own top edge.
    */
-  const tabBar = screen.name === 'list' || screen.name === 'note';
+  const tabBar = screen.name === 'list' || screen.name === 'notes' || screen.name === 'note';
   /*
    * And how tall it is: one line of controls, or that line with the open notes under it (app.css `--app-tabs`). The
    * bar is two rows now (Matt: "put the tabs on the next line down"), and the second is not there at all when
@@ -806,11 +810,17 @@ function Shell() {
     await updateNote(note.id, lines.join('\n'), note.revision ?? 1);
     await refresh();
   };
-  // Every note, from the home page's "All notes": the sidebar, docked or as its popover.
+  /*
+   * Every note, from the home page's "All notes": a page of cards (notes/AllNotesScreen.tsx). It used to open the
+   * sidebar, which is a tree for jumping to a note you know by name (Matt: "Browsing all notes is super hard there is
+   * no good UI it just opens in the sidebar, I'd like a grid view of all the notes"). A note opened from it takes a tab
+   * as one opened from anywhere does; its arrow and the phone's back gesture come back home.
+   */
   const showAllNotes = () => {
-    if (!docked) setDrawer(true);
-    else if (!sidebarShown) toggleDock();
+    setDrawer(false);
+    setScreen({ name: 'notes' });
   };
+  const allNotes = <AllNotesScreen notes={shownNotes} loading={loading} onOpen={openNote} onBack={() => void backToList()} />;
   /*
    * The home page (home/HomeScreen.tsx): the start page on every screen (Matt: "Add a 'home' button to take us to a
    * dashboard like page"). It took the notes list's place on a phone and the empty "No note open" pane beside the
@@ -871,6 +881,7 @@ function Shell() {
       speakInto,
       closeTab,
       showList: () => void backToList(),
+      browseNotes: showAllNotes,
       back: goBack,
       forward: goOn,
       settings: () => setSettings(true),
@@ -1005,7 +1016,7 @@ function Shell() {
             </aside>
           ) : null}
           <main className="app-notePane">
-            {noteScreen ?? home}
+            {noteScreen ?? (screen.name === 'notes' ? allNotes : home)}
           </main>
           {/* The right-hand aside as a column beside a docked sidebar: a book's index, or a run of chapters (aside/Aside.tsx). */}
           {asideDocked && asideBody ? (
@@ -1015,7 +1026,7 @@ function Shell() {
           ) : null}
         </div>
       ) : (
-        (noteScreen ?? home)
+        (noteScreen ?? (screen.name === 'notes' ? allNotes : home))
       )}
       {/* With the sidebar a floating card, the aside is the same card at the right (aside/Aside.tsx `AsideCard`). */}
       {asideShown && !asideDocked && asideBody ? (

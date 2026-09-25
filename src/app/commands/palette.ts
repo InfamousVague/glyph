@@ -54,6 +54,8 @@ export interface PaletteDoing {
   speakInto: (id: string) => void;
   closeTab: (id: string) => void;
   showList: () => void;
+  /** The All notes grid (notes/AllNotesScreen.tsx). */
+  browseNotes: () => void;
   back: () => void;
   forward: () => void;
   settings: () => void;
@@ -129,7 +131,8 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing): Palet
   // ---- making and going ---------------------------------------------------------------------
   add({ id: 'new', label: 'New note', group: 'Notes', keywords: 'write blank create add', shortcut: '⌘N' }, () => doing.newNote());
   add({ id: 'speak', label: 'Speak a new note', group: 'Notes', keywords: 'record voice dictate mic talk' }, () => doing.speak());
-  add({ id: 'list', label: 'All notes', group: 'Notes', keywords: 'home list back library' }, () => doing.showList());
+  add({ id: 'list', label: 'Home', group: 'Notes', keywords: 'home list back dashboard start' }, () => doing.showList());
+  add({ id: 'notes', label: 'All notes', group: 'Notes', keywords: 'browse every grid cards library search archive' }, () => doing.browseNotes());
 
   // ---- the tabs -----------------------------------------------------------------------------
   for (const tab of world.tabs) {

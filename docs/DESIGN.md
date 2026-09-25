@@ -4503,3 +4503,35 @@ decided the shape; the ones that changed the architecture are recorded here, wit
   Android and Mac binaries carrying generation 19 are still to be built and run; the 54 Rust host tests pass, the
   page's 1,300-odd tests pass, and the web build passes. A physical run with a model on the phone is what settles the
   reading rules' feel - how often a rewritten line reads as "nearly the same" - and the pace the lines land at.
+
+## 115. All notes as a grid of cards (2026-09-25)
+
+Matt: "Browsing all notes is super hard there is no good UI it just opens in the sidebar, I'd like a grid view of all
+the notes in the 'all notes' section."
+
+The home page's "All notes" opened the sidebar. The sidebar is a tree for jumping to a note you already know by name:
+a column of small rows over the page, folded by workspace, with the trash at its foot. For looking through what there
+is - which is what "all notes" asks for - it was the wrong shape. So "All notes" is now a page (`notes/AllNotesScreen.tsx`),
+and the tab row's house, the arrow in its bar and the phone's back gesture come back home from it.
+
+- **The same card, once** (`notes/NoteCard.tsx`, `NoteCard.module.css`). The home page drew its cards inline - a
+  note's, and a book's - and the grid wanted the same ones, so the card is one component now, and its rules left
+  `HomeScreen.module.css` for a stylesheet of its own. A book's card and a note's are the one component deciding by
+  the body. Drawn `dense`, for the grid, it is a step smaller all through: less padding, the title at the body size,
+  the preview four lines rather than six, and the pin and the archive said on the card itself, since there the cards
+  are not under headings that say so. The AI's ring and dot in the corner (§114) came with it.
+- **The page.** A glass bar with the arrow and the search; under it the workspace pills (the ones the home page has,
+  choosing the same workspace), a line of words - Newest or A to Z, how many notes, and the archive's word with its
+  count once there is one - and the grid: cards a step narrower than the home page's, so a phone holds two across,
+  the Fold opened out four, and a desktop window's reading column five. The order chosen is kept on the device
+  (`glyph-all-notes-sort`, cleared by the reset). The gist runner is given the first twenty-four cards, not every note.
+- **The search** is over the notes' words, not their names: every word typed must appear somewhere in the note,
+  whatever the case, so "trip packing" finds the note with both. Nothing found is the ghost with the search and a
+  line, which says to look in the archive when there is one and it is not shown.
+- **The rules** are `notes/allNotes.ts` - what matches, the two orders (a nameless note sorts after every name), the
+  archive kept out unless asked for - and `allNotes.test.ts` reads them.
+- **A place on the trail** (`notes/visited.ts` `ALL_NOTES`). The page carries the tab row, so the arrows reach it the
+  way they reach the home page and a note; a recording and the Academy are still things you do rather than places.
+  On a wide window it sits in the note pane beside a docked sidebar, as the home page does.
+- **The palette** says "Home" for the command that goes home (it said "All notes", which now means the grid) and gains
+  "All notes" for the page.
