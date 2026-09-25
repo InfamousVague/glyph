@@ -39,12 +39,13 @@ GLYPH_STORE=play npm run android:build -- --aab --target aarch64
    - Back up the keystore and its password.
 3. **Deploy what the app now calls:**
    - glyph-api, for the delete endpoint.
-   - The landing pages (`node scripts/deploy-landing.mjs`), with the contact address filled in.
+   - The landing pages (`node scripts/deploy-landing.mjs`).
    - Then an OTA, so installed apps get the Delete account button.
 4. **Play Console: create the app** (Ghost.md, `com.mattssoftware.glyph`, free). Then fill in:
    - **Store listing:** short and full description, the 512 icon, a 1024×500 feature graphic, phone screenshots and
      tablet screenshots (use the Fold opened out).
    - **Privacy policy:** `https://ghostmarkdown.com/privacy.html`.
+   - **Contact email:** infamousvaguerat@gmail.com, the same as the privacy page.
    - **Account deletion:** `https://ghostmarkdown.com/delete-account.html`.
    - **App access:** everything works without an account. Say so, or give reviewers a test account.
    - **Ads:** none.
@@ -72,7 +73,6 @@ Find that out before answering.
 
 ## Decisions for Matt
 
-- **Contact address** for the listing and the privacy page. Both pages say `CONTACT_EMAIL` until it's filled in.
 - **Personal or organisation developer account.** A personal account means the 12-tester, 14-day closed test.
 - **What happens to people who installed the APK.** The Play copy is signed with a different key, so it can't update
   over the sideloaded app. Uninstalling the old app deletes the notes that are only on that phone. Ask them to sign in
