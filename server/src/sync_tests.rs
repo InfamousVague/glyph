@@ -239,6 +239,10 @@ async fn a_request_with_no_token_is_refused_before_its_body_is_read() {
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{path}");
         assert_eq!(serde_json::from_slice::<Value>(&bytes).unwrap(), json!({ "error": "Sign in first." }), "{path}");
     }
+    // A query that will not read is still refused before the token is looked at, as it always was: `who: Claims`
+    // comes after `Query` in the handler.
+    let (status, _) = h.call(Method::GET, "/glyph/api/v1/notes?since=soon", None, None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
     // Signed in, the same bad body is the body's refusal, as it always was.
     let token = h.signup("matt", &device()).await;
     let request = Request::put("/glyph/api/v1/notes/n-1")
