@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { EditorState } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 import { MARKS } from '../plugins/marks/index.tsx';
 import type { InlineFormat } from '../plugins/types.ts';
-import { isTint, noteAt, notePattern, notesIn } from './markNotes.ts';
+import { glyphMarkdown } from './language.ts';
+import { isTint, markNotes, noteAt, notePattern, notesIn } from './markNotes.ts';
 
 const pattern = () => notePattern(MARKS)!;
 
@@ -71,5 +74,41 @@ describe('brackets that name a colour', () => {
     const [note] = notesIn('the ==key==(Sam has one) is under the mat', pattern);
     expect(note?.text).toBe('Sam has one');
     expect(isTint(note!, tinted)).toBe(false);
+  });
+});
+
+describe('a tap on noted words', () => {
+  const line = 'The ??deposit??(Sam said 400) and the ==key==(green) are sorted.';
+  let view: EditorView | null = null;
+
+  afterEach(() => {
+    view?.destroy();
+    view = null;
+    vi.restoreAllMocks();
+  });
+
+  /** A tap landing at `pos`; jsdom lays nothing out, so where the words are is said here. */
+  function tapAt(pos: number): EditorView {
+    view ??= new EditorView({ state: EditorState.create({ doc: line, extensions: [glyphMarkdown(MARKS), markNotes(MARKS)] }), parent: document.body });
+    const on = view;
+    vi.spyOn(on, 'posAtCoords').mockReturnValue(pos);
+    vi.spyOn(on, 'coordsAtPos').mockReturnValue({ left: 40, right: 50, top: 0, bottom: 20 });
+    on.contentDOM.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    return on;
+  }
+  const panel = (on: EditorView) => on.dom.querySelector('.cm-markNotePanel');
+
+  it('shows what the note says, and a tap anywhere else closes it', () => {
+    const on = tapAt(line.indexOf('deposit') + 2);
+    expect(panel(on)?.textContent).toBe('Sam said 400');
+    expect(panel(on)?.getAttribute('aria-label')).toBe('Note');
+    tapAt(1);
+    expect(panel(on)).toBeNull();
+  });
+
+  it('shows nothing for a colour named in the brackets, where there is nothing to say', () => {
+    const on = tapAt(line.indexOf('deposit') + 2);
+    tapAt(line.indexOf('key') + 1);
+    expect(panel(on)).toBeNull();
   });
 });
