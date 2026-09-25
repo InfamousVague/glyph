@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import styles from './Editor.module.css';
 import { glyphLines } from './glyphLines.ts';
+import { parseWhole } from '../../test/syntaxTree.ts';
 import { glyphMarkdown } from './language.ts';
 
 let view: EditorView | null = null;
@@ -21,7 +22,7 @@ afterEach(() => {
 });
 
 function open(doc: string): EditorView {
-  view = new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(), glyphLines] }), parent: document.body });
+  view = parseWhole(new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(), glyphLines] }), parent: document.body }));
   return view;
 }
 const lines = (on: EditorView) => [...on.contentDOM.querySelectorAll<HTMLElement>('.cm-line')];
@@ -58,6 +59,7 @@ describe('what a line is, drawn on the line', () => {
     const on = open('milk');
     expect(has(lines(on)[0], 'lineH1')).toBe(false);
     on.dispatch({ changes: { from: 0, insert: '# ' } });
+    parseWhole(on);
     expect(has(lines(on)[0], 'lineH1')).toBe(true);
   });
 });

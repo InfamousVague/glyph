@@ -3,6 +3,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { counters, countersIn, stepped } from './counters.ts';
+import { parseWhole } from '../../test/syntaxTree.ts';
 import { glyphMarkdown } from './language.ts';
 
 describe('counters', () => {
@@ -35,7 +36,7 @@ describe('a counter in a note', () => {
 
   function open(doc: string, readOnly = false): EditorView {
     vi.useFakeTimers();
-    view = new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(), counters(), history(), EditorState.readOnly.of(readOnly)] }), parent: document.body });
+    view = parseWhole(new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(), counters(), history(), EditorState.readOnly.of(readOnly)] }), parent: document.body }));
     return view;
   }
   const chip = (on: EditorView) => on.contentDOM.querySelector<HTMLElement>('.cm-counter')!;

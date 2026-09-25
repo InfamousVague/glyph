@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { parseWhole } from '../../test/syntaxTree.ts';
 import { glyphMarkdown } from './language.ts';
 import { drawnTables, parseTable } from './tables.ts';
 
@@ -29,7 +30,7 @@ describe('a table drawn in a note', () => {
 
   function open(readOnly = false): EditorView {
     const extensions = [glyphMarkdown(), drawnTables(), readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []];
-    view = new EditorView({ state: EditorState.create({ doc, extensions }), parent: document.body });
+    view = parseWhole(new EditorView({ state: EditorState.create({ doc, extensions }), parent: document.body }));
     return view;
   }
   const drawn = (on: EditorView) => on.dom.querySelector('.cm-glyphTable');

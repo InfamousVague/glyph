@@ -2,6 +2,7 @@ import { cursorCharRight } from '@codemirror/commands';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { parseWhole } from '../../test/syntaxTree.ts';
 import { glyphMarkdown } from './language.ts';
 import { isNoteView, noteView, type NoteView } from './viewMode.ts';
 
@@ -10,7 +11,7 @@ const doc = ['# Packing', '**Warm** things, _dry_ ones, ~~wet~~ none, and `code`
 let view: EditorView | null = null;
 
 function open(shown: NoteView): EditorView {
-  view = new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(), noteView(shown)] }), parent: document.body });
+  view = parseWhole(new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(), noteView(shown)] }), parent: document.body }));
   return view;
 }
 /** What a line reads as on the page. */
