@@ -17,8 +17,9 @@ export type { Offer } from './offers.ts';
  *
  * The recorder (CaptureScreen) hands it each committed phrase with `listen`, which only shows it: since PR #1 a phrase
  * can never route a command or write a note, and the command in a recording is read once, from the whole transcript,
- * at Done (ai/instruction.ts), then offered here with `offerFinal` for a yes or a tap. The live reading of commands a
- * phrase at a time - `phrase` and `tick`, with its tables and voice memos - is what the voice test suite (voice-tests/,
+ * at Done (ai/instruction.ts), then offered here with `offerFinal`; with the microphone stopped, its card waits for a
+ * tap, and the recorder no longer ticks the take to time it out. The live reading of commands a phrase at a time -
+ * `phrase` and `tick`, with its tables and voice memos - is what the voice test suite (voice-tests/,
  * capture/voiceSuite.ts) drives from recorded audio, checking the notes that result.
  *
  * The rules it follows:
