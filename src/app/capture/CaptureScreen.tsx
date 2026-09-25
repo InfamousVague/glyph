@@ -690,8 +690,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
     const locked = isLocked();
 
-    // The one reader for an instruction, spoken here or typed into a note's bar (ai/instruction.ts).
-    const read = await readInstruction(transcript, candidates.current, true);
+    // The one reader for a spoken instruction (ai/instruction.ts).
+    const read = await readInstruction(transcript, candidates.current);
     if (read.kind === 'command') {
       // The stopped audio is already retained under this capture id.  The
       // mutation remains pending until this card is explicitly confirmed.

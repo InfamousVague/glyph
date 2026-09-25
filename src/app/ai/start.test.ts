@@ -16,7 +16,7 @@ vi.mock('./runs.ts', async (importOriginal) => {
   };
 });
 
-const { landingAt, placementOf, startNoteRun, wholeLines } = await import('./start.ts');
+const { landingAt, placementOf, startNoteRun } = await import('./start.ts');
 
 let view: EditorView | null = null;
 function open(doc: string): EditorView {
@@ -61,16 +61,6 @@ describe('starting a run on the note', () => {
     startNoteRun(v, 'n', 'continue', ready);
     expect(v.state.field(landingField)).toMatchObject({ start: 10, cursor: 10, oldEnd: 10 });
     expect(requests[1]?.maxTokens).toBeLessThanOrEqual(512);
-  });
-
-  it('works on a part, widened to whole lines, with the rest of the note for context', () => {
-    const v = open('# A\nfirst line here\nsecond line\nthird\n');
-    expect(wholeLines(v, { from: 6, to: 22 })).toEqual({ from: 4, to: 31 });
-    startNoteRun(v, 'n', 'fix', ready, { scope: { from: 6, to: 22 } });
-    expect(requests[0]).toMatchObject({ kind: 'fix', prompt: 'first line here\nsecond line', scope: { from: 4, to: 31 } });
-    expect(requests[0]?.system).toContain('ONE PART of a longer note');
-    expect(requests[0]?.context).toContain('The rest of the note:\n# A\nfirst line here');
-    expect(v.state.field(landingField)).toMatchObject({ start: 4, cursor: 4, oldEnd: 31 });
   });
 
   it('puts an ask’s instruction in with the note, and refuses an ask with none', () => {

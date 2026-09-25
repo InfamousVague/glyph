@@ -6,8 +6,8 @@ import { recordRun } from './log.ts';
 
 /**
  * A run of the model on a note, as the screen watches it: the one engine
- * behind the robot's modes, the prompt bar, a spoken instruction and the
- * review after a recording.
+ * behind the More sheet's runs, a spoken instruction and the review after a
+ * recording.
  *
  * Matt: "more real time, more interactive, with UI updates, iconography and
  * general feedback". So a run is not a promise that resolves with a text a
@@ -36,7 +36,7 @@ import { recordRun } from './log.ts';
 
 export type RunPhase = 'queued' | 'loading' | 'prefill' | 'generating' | 'done' | 'stopped' | 'failed';
 
-/** A part of the note a run works on, as offsets into the body when it started. */
+/** The span of the note a run works on, as offsets into the body when it started: the words after the front matter. */
 export interface RunScope {
   from: number;
   to: number;
@@ -168,9 +168,8 @@ export function splitLines(text: string): { lines: string[]; partial: string } {
 
 /**
  * A reasoning run's text as its thought and its answer, the answer's own
- * newlines kept: `splitThought` (core/ai.ts) trims the answer for a screen
- * that shows it whole, and a trimmed answer never ends in the newline that
- * says its last line is finished.
+ * newlines kept: the answer is never trimmed, since a trimmed answer never
+ * ends in the newline that says its last line is finished.
  */
 export function splitThinking(text: string, thinking: boolean): { thought: string; answer: string } {
   if (!thinking) return { thought: '', answer: text };

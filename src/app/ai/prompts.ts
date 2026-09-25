@@ -131,13 +131,6 @@ If the instruction asks for something you cannot do to these words (it asks abou
 
 ${PLAIN}`;
 
-/**
- * A part of a note rather than the whole: the model gets the part as the
- * note and the rest for context, and answers with the part alone, so the
- * answer can take the part's place.
- */
-export const PART_NOTE = String.raw`What you receive as the note is ONE PART of a longer note, the lines the writer chose. The rest of the note is given to you under "The rest of the note", for context only: never write it again, never repeat it, and never refer to it. Your answer is the part alone, written again as it should read now, so it can take the part's place, with no heading added unless the part has one.`;
-
 /** The system prompt for a kind. */
 export function promptForKind(kind: RunKind): string {
   switch (kind) {
@@ -183,9 +176,4 @@ export function budgetForKind(kind: RunKind, chars: number): number {
 /** The user message for an ask: the instruction, then the note. */
 export function askMessage(instruction: string, text: string): string {
   return `Instruction: ${instruction.trim()}\n\nThe note:\n${text}`;
-}
-
-/** The whole note, given as context beside a part of it. */
-export function restOfNote(body: string): string {
-  return `The rest of the note:\n${body}`;
 }

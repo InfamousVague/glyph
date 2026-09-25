@@ -9,13 +9,13 @@ const notes = [
 
 describe('the words themselves', () => {
   it('drops the keyword at the start and the lead-ins, and says whether the keyword was said', () => {
-    expect(bareWords('Hey Ghost, please fix the spelling.', true)).toEqual({ words: 'fix the spelling', keyed: true });
-    expect(bareWords('okay um, summarise it', false)).toEqual({ words: 'summarise it', keyed: false });
-    expect(bareWords('I told Sam, hey Ghost, add eggs', true)).toBeNull();
+    expect(bareWords('Hey Ghost, please fix the spelling.')).toEqual({ words: 'fix the spelling', keyed: true });
+    expect(bareWords('okay um, summarise it')).toEqual({ words: 'summarise it', keyed: false });
+    expect(bareWords('I told Sam, hey Ghost, add eggs')).toBeNull();
   });
 });
 
-describe('a chip said in words', () => {
+describe('a run said in words', () => {
   it('reads the phrasings that mean one kind', () => {
     expect(runOf('fix the spelling')).toBe('fix');
     expect(runOf('check my grammar')).toBe('fix');
@@ -35,8 +35,8 @@ describe('a chip said in words', () => {
 });
 
 describe('reading an instruction', () => {
-  it('is a run for a chip’s words, spoken or typed', async () => {
-    expect(await readInstruction('hey ghost fix the spelling', notes, true)).toEqual({ kind: 'run', run: 'fix' });
+  it('is a run for a run’s words, with the keyword or without', async () => {
+    expect(await readInstruction('hey ghost fix the spelling', notes)).toEqual({ kind: 'run', run: 'fix' });
     expect(await readInstruction('Make this a list', notes)).toEqual({ kind: 'run', run: 'shape' });
   });
 
@@ -54,14 +54,14 @@ describe('reading an instruction', () => {
   it('refuses a command that named a note there is no note for, with its reason', async () => {
     const read = await readInstruction('add to the camping list eggs and milk', notes);
     expect(read.kind).toBe('reject');
-    // A name the rules cannot read at all is an ask, never a wait on the command model.
-    expect(await readInstruction('add eggs to the camping list', notes)).toEqual({ kind: 'ask', instruction: 'add eggs to the camping list' });
+    // A name the rules cannot read at all is an ask after the keyword, not a refusal.
+    expect(await readInstruction('hey ghost, add eggs to the camping list', notes)).toEqual({ kind: 'ask', instruction: 'add eggs to the camping list' });
   });
 
-  it('is an ask about the note for anything else typed, and spoken only after the keyword', async () => {
-    expect(await readInstruction('add a heading about the budget', notes)).toEqual({ kind: 'ask', instruction: 'add a heading about the budget' });
-    expect(await readInstruction('shorten the second paragraph', notes)).toEqual({ kind: 'ask', instruction: 'shorten the second paragraph' });
-    expect(await readInstruction('hey ghost, shorten the second paragraph', notes, true)).toEqual({ kind: 'ask', instruction: 'shorten the second paragraph' });
-    expect(await readInstruction('we should shorten the second paragraph', notes, true)).toEqual({ kind: 'words' });
+  it('is an ask about the note only after the keyword; without it, the words are the note’s', async () => {
+    expect(await readInstruction('hey ghost, add a heading about the budget', notes)).toEqual({ kind: 'ask', instruction: 'add a heading about the budget' });
+    expect(await readInstruction('hey ghost, shorten the second paragraph', notes)).toEqual({ kind: 'ask', instruction: 'shorten the second paragraph' });
+    expect(await readInstruction('shorten the second paragraph', notes)).toMatchObject({ kind: 'words' });
+    expect(await readInstruction('we should shorten the second paragraph', notes)).toEqual({ kind: 'words' });
   });
 });

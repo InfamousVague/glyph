@@ -10,7 +10,7 @@ import { cellsOf, fitRow, saysDone, tableMarkdown } from './table.ts';
 import type { RouteView, TableDraft, TakeHost } from './takeHost.ts';
 import { endsMemo, MEMO_GAP_MS, startsMemo } from './voiceMemo.ts';
 
-// The confirm card and the note's bar (ai/, editor/) read offers from here, where the recorder's take makes them.
+// The confirm card (ai/ConfirmCard.tsx) reads offers from here, where the recorder's take makes them.
 export type { Offer } from './offers.ts';
 
 /**

@@ -47,7 +47,7 @@ describe('the card before the first word', () => {
     expect(ASKS.length).toBe(5);
     for (const ask of ASKS) {
       const said = `Hey Ghost, ${ask.say.charAt(0).toLowerCase()}${ask.say.slice(1)}`;
-      const bare = bareWords(said, true);
+      const bare = bareWords(said);
       expect(bare?.keyed, said).toBe(true);
       expect(runOf(bare!.words), said).not.toBeNull();
     }

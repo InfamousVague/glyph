@@ -1,12 +1,13 @@
 /**
  * What the AI can do to a note: the kinds of run.
  *
- * The robot had three (format/modes.ts: Format, Summarize, Enhance). The
- * prompt bar adds three more a person reaches for daily - fix the spelling,
- * make a shape of it, carry on writing - and a free-text Ask for everything
- * else. The review after a recording is a kind too, so the strip and the log
+ * The robot had three (format/modes.ts: Format, Summarize, Enhance), which
+ * the More sheet still runs. A spoken instruction adds three more a person
+ * reaches for daily - fix the spelling, make a shape of it, carry on
+ * writing - and a free-text Ask for everything else (ai/instruction.ts).
+ * The review after a recording is a kind too, so the strip and the log
  * speak of it in the same words as the rest. Each kind is a set of words the
- * screen says (the chip, its hint, the verb while it runs, the word once it
+ * screen says (its name, its hint, the verb while it runs, the word once it
  * has); its prompt and budget live with the prompts (format/prompt.ts, and
  * ai/prompts.ts for the newer kinds), and the run itself is the same
  * machine for all of them (ai/runs.ts).
@@ -16,7 +17,7 @@ export type RunKind = 'format' | 'summarize' | 'enhance' | 'fix' | 'shape' | 'co
 
 export interface KindWords {
   id: RunKind;
-  /** The word on the chip and in the menu. */
+  /** Its name, in the menu and the log. */
   label: string;
   /** What it does, under the word. */
   hint: string;
