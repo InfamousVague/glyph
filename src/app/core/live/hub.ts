@@ -1,7 +1,7 @@
 import { accountKey, accountState } from '../account/account.ts';
 import { API_BASE } from '../account/api.ts';
 import { liveEnabled } from './enabled.ts';
-import { LiveSession, type SessionListener } from './session.ts';
+import { LiveSession, type SessionDeps, type SessionListener } from './session.ts';
 import { WebSocketTransport, liveUrl, type LiveTransport } from './transport.ts';
 
 /**
@@ -10,10 +10,7 @@ import { WebSocketTransport, liveUrl, type LiveTransport } from './transport.ts'
  */
 
 /** What the pass sync knows that a joining note needs: whether it has unsent changes, and how to keep a copy. */
-export interface SyncHooks {
-  hasUnsynced(noteId: string): boolean | Promise<boolean>;
-  keepCopy(noteId: string, words: string): Promise<void>;
-}
+export type SyncHooks = Pick<SessionDeps, 'hasUnsynced' | 'keepCopy'>;
 
 let transport: LiveTransport | null = null;
 const sessions = new Map<string, LiveSession>();

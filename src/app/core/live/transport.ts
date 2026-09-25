@@ -39,7 +39,7 @@ const CLOSE_SIGN_IN = 4401;
 const FIRST_WAIT_MS = 500;
 const LONGEST_WAIT_MS = 30_000;
 
-type Socket = Pick<WebSocket, 'send' | 'close' | 'readyState'> & {
+type Socket = Pick<WebSocket, 'send' | 'close'> & {
   onopen: ((event: Event) => void) | null;
   onmessage: ((event: MessageEvent) => void) | null;
   onclose: ((event: CloseEvent) => void) | null;

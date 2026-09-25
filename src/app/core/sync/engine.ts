@@ -22,7 +22,7 @@ import { syncPrefs, type PrefsState } from './prefs.ts';
  */
 
 /** Native generation that has `store_apply` and `sync_put_file`. */
-export const SYNC_GENERATION = 16;
+const SYNC_GENERATION = 16;
 const QUIET_MS = 4_000;
 const EVERY_MS = 5 * 60_000;
 
@@ -90,7 +90,7 @@ export function hasUnsyncedChanges(note: Note): boolean {
 }
 
 /** Forgets what this device knew of an account's sync: for signing out. */
-export function forgetSync(accountId: number): void {
+function forgetSync(accountId: number): void {
   for (const part of ['notes', 'prefs']) writeStored(stateKey(accountId, part), null);
 }
 
@@ -241,7 +241,7 @@ let quiet: ReturnType<typeof setTimeout> | null = null;
 let applyingRemote = false;
 
 /** A sync a moment from now, pushed back by every change in between. */
-export function syncSoon(): void {
+function syncSoon(): void {
   if (quiet) clearTimeout(quiet);
   quiet = setTimeout(() => {
     quiet = null;

@@ -72,7 +72,7 @@ async function put(name: string, value: unknown): Promise<void> {
 }
 
 /** The device's keys in IndexedDB. */
-export const indexedKeys: KeyStore = {
+const indexedKeys: KeyStore = {
   accountKey: () => get<CryptoKey>('account'),
   setAccountKey: (key) => put('account', key),
   deviceKey: () => get<CryptoKeyPair>('device'),
