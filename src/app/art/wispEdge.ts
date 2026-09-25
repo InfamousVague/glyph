@@ -70,7 +70,7 @@ export const WISP_EDGE_FOOT_SOFT_ID = 'wispEdgeFootSoft';
 export const WISP_EDGE_SOFT = 15;
 export const WISP_EDGE_BAND = 7;
 /** How far below a header's edge the band's lip sits: the smoke happens under a solid header, not hidden behind it. */
-export const WISP_EDGE_DROP = 12;
+const WISP_EDGE_DROP = 12;
 /** The strip starts this far above the view, so its blur never opens the top. */
 export const WISP_EDGE_ABOVE = 200;
 /**
@@ -206,7 +206,7 @@ function drift(on: boolean, reset = true): void {
 }
 
 /** How far above the view's bottom edge the foot's bend and blur are computed: its lip, its ramp, and room for the drift. */
-export const WISP_EDGE_FOOT_REACH = WISP_EDGE_FOOT_BAND + WISP_EDGE_FOOT_SOFT * 4 + 48;
+const WISP_EDGE_FOOT_REACH = WISP_EDGE_FOOT_BAND + WISP_EDGE_FOOT_SOFT * 4 + 48;
 
 /**
  * Puts the foot band at the view's bottom edge, or takes it away: the same smoke as the top, so words scrolling off

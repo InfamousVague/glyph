@@ -42,16 +42,6 @@ interface WispTextProps {
   className?: string;
   /** Called once the text on screen has fully settled, with that text. */
   onSettled?: (text: string) => void;
-  /** Called as each arriving letter starts to appear, with the letter: for a haptic tick per letter, say. Not for leaving letters, nor with reduced motion. */
-  onLetter?: (letter: string) => void;
-  /** A wait, in ms, before the first text starts to type in: titles on a page come in one after another. Later swaps don't wait. */
-  delay?: number;
-  /**
-   * What moves as one: each letter (the default, a headline typed by hand), or each word, which arrives whole at its
-   * first letter's moment under one filter. Words for a list of titles all typing at once: a filter and a layer a
-   * letter there made the phone lag (Matt: "the titles loading in with the wisp animation is still lagging out").
-   */
-  unit?: 'letter' | 'word';
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -120,7 +110,6 @@ class WispEngine {
     pace: number,
     private readonly reduced: boolean,
     private onSettled: (text: string) => void,
-    private readonly unit: 'letter' | 'word' = 'letter',
   ) {
     this.wait = cadence(pace * SPEED);
     this.svg = document.createElementNS(SVG_NS, 'svg');
@@ -135,18 +124,13 @@ class WispEngine {
     this.wait = cadence(pace * SPEED);
   }
 
-  private delay = 0;
-
-  setDelay(ms: number): void {
-    this.delay = Math.max(0, ms);
-  }
-
   setOnSettled(onSettled: (text: string) => void): void {
     this.onSettled = onSettled;
   }
 
   private onLetter: (letter: string) => void = () => undefined;
 
+  /** Told as each arriving letter starts to appear, with the letter: not for leaving letters, nor with reduced motion. */
   setOnLetter(onLetter: (letter: string) => void): void {
     this.onLetter = onLetter;
   }
@@ -174,12 +158,10 @@ class WispEngine {
       return;
     }
     const plan = planSwap(from ?? '', text, this.wait, OUT_GAP_MS);
-    // The first text can wait its turn; a later swap is a change the eye is already watching for.
-    const steps = from === null && this.delay ? plan.in.map((step) => ({ ...step, at: step.at + this.delay })) : plan.in;
     const arrive = () => {
       this.layout(plan.to, new Set(plan.diff.arriving));
       this.text = text;
-      this.begin('in', steps, runLength(steps, IN_MS + IN_JITTER_MS), (step) => this.show(step), () => {
+      this.begin('in', plan.in, runLength(plan.in, IN_MS + IN_JITTER_MS), (step) => this.show(step), () => {
         this.phase = null;
         this.onSettled(text);
       });
@@ -341,11 +323,9 @@ class WispEngine {
     // Room for the bend and the blur: a letter is a dozen pixels wide and the
     // displacement reaches seventeen; a region cut to the letter's box clipped
     // the smeared strokes, and the clipped edge crawled as the noise moved.
-    // A word is several letters wide, so its region needs a far smaller share of it for the same spill.
-    const word = this.unit === 'word';
-    filter.setAttribute('x', word ? '-40%' : '-300%');
+    filter.setAttribute('x', '-300%');
     filter.setAttribute('y', '-150%');
-    filter.setAttribute('width', word ? '180%' : '700%');
+    filter.setAttribute('width', '700%');
     filter.setAttribute('height', '400%');
     // In sRGB: the default linearRGB lightens the anti-aliased edges of thin
     // type, so a letter brightened while filtered and dimmed as the filter came off.
@@ -377,21 +357,8 @@ class WispEngine {
     return this.letters[step.token]?.[step.char] ?? null;
   }
 
-  /** A letter arrives, or by words a whole word at its first letter: visible, fading in, bent by its own filter until it sets. */
+  /** A letter arrives: visible, fading in, bent by its own filter until it sets. */
   private show(step: Step): void {
-    if (this.unit === 'word') {
-      if (step.char !== 0) return;
-      const letters = this.letters[step.token] ?? [];
-      const word = letters[0]?.parentElement;
-      if (!word) return;
-      for (const letter of letters) letter.classList.remove(cls('hidden'));
-      const dur = IN_MS + Math.random() * IN_JITTER_MS;
-      word.style.setProperty('--dur', `${Math.round(dur)}ms`);
-      word.classList.add(cls('new'));
-      this.bend(word, { dir: 'in', dur, scale: BEND, blur: SOFT });
-      this.onLetter(word.textContent ?? '');
-      return;
-    }
     const span = this.letter(step);
     if (!span) return;
     span.classList.remove(cls('hidden'));
@@ -402,18 +369,8 @@ class WispEngine {
     this.onLetter(span.textContent ?? '');
   }
 
-  /** A letter leaves, or by words a whole word at its first letter: thinning as it bends, and gone at the end. */
+  /** A letter leaves: thinning as it bends, and gone at the end. */
   private hide(step: Step): void {
-    if (this.unit === 'word') {
-      if (step.char !== 0) return;
-      const letters = this.letters[step.token] ?? [];
-      const word = letters[0]?.parentElement;
-      if (!word) return;
-      word.style.setProperty('--out', `${OUT_MS}ms`);
-      word.classList.add(cls('out'));
-      this.bendOut(word, letters);
-      return;
-    }
     const span = this.letter(step);
     if (!span) return;
     span.style.setProperty('--out', `${OUT_MS}ms`);
@@ -431,15 +388,6 @@ class WispEngine {
     if (!this.phase) this.tick();
   }
 
-  /** A whole word leaving: its letters are hidden with it once it has gone. */
-  private bendOut(word: HTMLElement, letters: HTMLElement[]): void {
-    this.leaving.set(word, letters);
-    this.bend(word, { dir: 'out', dur: OUT_MS, scale: 0, blur: 0 });
-  }
-
-  /** The letters of each word leaving whole, to hide once it has gone. */
-  private readonly leaving = new Map<HTMLElement, HTMLElement[]>();
-
   /** Crisp before the filter comes off, so taking it away changes nothing on screen. */
   private settle(span: HTMLElement, run: Run): void {
     run.slot.disp.setAttribute('scale', '0');
@@ -449,26 +397,18 @@ class WispEngine {
       span.classList.remove(cls('new'));
     } else {
       span.classList.remove(cls('out'));
-      const letters = this.leaving.get(span);
-      if (letters) {
-        for (const letter of letters) letter.classList.add(cls('hidden'));
-        this.leaving.delete(span);
-      } else {
-        span.classList.add(cls('hidden'));
-      }
+      span.classList.add(cls('hidden'));
     }
     run.slot.busy = false;
     this.active.delete(span);
   }
 }
 
-export function WispText({ text, pace = 14, still = false, as: Tag = 'span', className, onSettled, onLetter, delay = 0, unit = 'letter' }: WispTextProps) {
+export function WispText({ text, pace = 14, still = false, as: Tag = 'span', className, onSettled }: WispTextProps) {
   const host = useRef<HTMLElement>(null);
   const engine = useRef<WispEngine | null>(null);
   const settled = useRef(onSettled);
   settled.current = onSettled;
-  const letter = useRef(onLetter);
-  letter.current = onLetter;
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
 
   useLayoutEffect(() => {
@@ -479,12 +419,11 @@ export function WispText({ text, pace = 14, still = false, as: Tag = 'span', cla
       // Settled: the host says so, for styles that wait for the last letter (a title's clamp).
       element.removeAttribute('data-wisp-typing');
       settled.current?.(shown);
-    }, unit);
+    });
     // Typing past the bottom of a box that clips (a title clamped to two lines): the letters that show are all in,
     // so the host stops saying it types once they've settled, whatever is still arriving out of sight.
     let overflowed = 0;
-    made.setOnLetter((ch) => {
-      letter.current?.(ch);
+    made.setOnLetter(() => {
       if (!overflowed && element.clientHeight && element.scrollHeight > element.clientHeight + 1) {
         // Once the last visible letter has set, the unseen tail lands at once rather than typing on for nobody.
         overflowed = window.setTimeout(() => made.finish(), IN_MS + IN_JITTER_MS);
@@ -510,16 +449,13 @@ export function WispText({ text, pace = 14, still = false, as: Tag = 'span', cla
       lastText.current = text;
       host.current?.setAttribute('data-wisp-typing', '');
     }
-    engine.current?.setDelay(delay);
     engine.current?.set(text, still);
-    // The delay only matters to the first text, set here with it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, still]);
 
   // The letters are aria-hidden (a screen reader would spell them out); the whole text is read from here.
   return createElement(
     Tag,
-    { ref: host, className: [styles.text, className].filter(Boolean).join(' '), 'data-unit': unit === 'word' ? 'word' : undefined },
+    { ref: host, className: [styles.text, className].filter(Boolean).join(' ') },
     createElement('span', { className: styles.read }, text),
   );
 }

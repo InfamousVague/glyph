@@ -35,7 +35,7 @@ export const INK_DARK: ThemePreviewPalette = {
   ...LIVE_ACCENT,
 };
 
-interface ThemeOption {
+export interface ThemeOption {
   value: ThemePref;
   label: string;
   description: string;

@@ -16,8 +16,6 @@ import { deviceFlag } from '../core/deviceFlag.ts';
  */
 const developer = deviceFlag('glyph-developer');
 
-export const developerModeEnabled = developer.read;
-
 export const setDeveloperMode = developer.set;
 
 /** The flag, live across every component that reads it. */

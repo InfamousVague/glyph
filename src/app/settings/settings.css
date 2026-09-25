@@ -145,73 +145,6 @@
   }
 }
 
-/* ── skeletons: the shape of what is coming, breathing ────────────────────── */
-
-/* Every async spot in Settings draws the same placeholder: a paper-3 block
-   the size of the words it stands for, pulsing slowly. Decorative; the region
-   that is loading says so with aria-busy. */
-.setk-skeleton {
-  display: inline-block;
-  border-radius: var(--glacier-radius-sm);
-  background: var(--app-paper-3);
-  animation: setkBreathe 1.6s ease-in-out infinite;
-}
-
-.setk-skeleton--line {
-  inline-size: 60%;
-  block-size: 0.85em;
-}
-
-.setk-skeleton--title {
-  inline-size: 40%;
-  block-size: 1.1em;
-}
-
-.setk-skeleton--tile {
-  inline-size: 1.85rem;
-  block-size: 1.85rem;
-  border-radius: 0.55rem;
-}
-
-.setk-skeleton--control {
-  inline-size: 2.6rem;
-  block-size: 1.5rem;
-  border-radius: 999px;
-}
-
-/* A whole row's worth: a tile, a title line and a hint line, in a row's seat. */
-.setk-row--skeleton {
-  display: flex;
-  align-items: center;
-  gap: var(--glacier-space-3);
-  padding: var(--glacier-space-3);
-  min-block-size: var(--glacier-space-14, 3.5rem);
-}
-
-.setk-row--skeleton + .setk-row--skeleton {
-  border-block-start: var(--glacier-hairline) solid var(--app-rule);
-}
-
-.setk-row--skeleton .setk-skeleton--text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-@keyframes setkBreathe {
-  50% {
-    opacity: 0.45;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .setk-skeleton {
-    animation: none;
-    opacity: 0.7;
-  }
-}
-
 /* The top line: a word on each side, the way every Glyph screen begins. */
 .settingsScreen__head {
   flex: none;
@@ -281,7 +214,6 @@
   gap: var(--glacier-space-2);
 }
 
-.settingsScreen__groupLabel,
 .setk__title {
   font-size: 0.72rem;
   font-weight: var(--glacier-font-weight-semibold);
