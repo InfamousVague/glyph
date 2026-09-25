@@ -18,6 +18,7 @@ import { derive, passwordSalt, ROUNDS, toBase64Url, unwrap } from '../src/app/co
 import { ClaudeMemory } from './fake.ts';
 import { freePort } from './freePort.ts';
 import { GlyphAccount } from './glyph.ts';
+import { asText } from './testKit.ts';
 
 /**
  * The MCP server against a real glyph-api and the app's own sync code: run with
@@ -129,10 +130,6 @@ describe.skipIf(!ON || !existsSync(BUNDLE))('Claude and a phone on one Glyph acc
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(['account_status', 'append_to_note', 'create_note', 'list_notes', 'read_note', 'search_notes', 'set_note_flags', 'update_note']);
 
-    const asText = (result: Awaited<ReturnType<Client['callTool']>>) => {
-      const content = result.content as { type: string; text?: string }[];
-      return content[0]?.text ?? '';
-    };
     const listed = JSON.parse(asText(await client.callTool({ name: 'list_notes', arguments: {} }))) as { count: number; notes: { id: string; title: string }[] };
     expect(listed.count).toBe(2);
     expect(listed.notes.map((n) => n.title).sort()).toEqual(['From Claude', 'Groceries']);
@@ -248,7 +245,6 @@ describe.skipIf(!ON || !existsSync(HOSTED))('Claude on the hosted server, with a
 
     transport = new StreamableHTTPClientTransport(url, { authProvider: memory });
     await client.connect(transport);
-    const asText = (result: Awaited<ReturnType<Client['callTool']>>) => (result.content as { text?: string }[])[0]?.text ?? '';
     const listed = JSON.parse(asText(await client.callTool({ name: 'list_notes', arguments: {} }))) as { notes: { title: string }[] };
     expect(listed.notes.map((n) => n.title)).toEqual(['Groceries']);
     const created = JSON.parse(asText(await client.callTool({ name: 'create_note', arguments: { title: 'From the hosted server', body: '- [ ] Works' } }))) as { created: { id: string } };
