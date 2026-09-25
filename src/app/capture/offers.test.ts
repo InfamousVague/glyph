@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { bookNoteBody } from '../book/book.ts';
 import type { Placement } from './command.ts';
-import { offerFor, shifted, type OfferContext, type TakeNote } from './offers.ts';
+import { offerFor, type OfferContext } from './offers.ts';
+import type { TakeNote } from './takeTypes.ts';
 
 /** What each plan comes to before its yes (capture/offers.ts): the card's offer, a reason said instead, or nothing. */
 
@@ -92,16 +93,5 @@ describe('the other plans', () => {
   it('offer a new list with its items when some were said, and without lines when none were', () => {
     expect(offerFor({ kind: 'create-list', title: 'Comic books', items: ['Batman', 'Superman'] }, span, onNewNote)).toEqual({ offer: { kind: 'new', title: 'Comic books', lines: ['Batman', 'Superman'], span } });
     expect(offerFor({ kind: 'create-list', title: 'Comic books', items: [] }, span, onNewNote)).toEqual({ offer: { kind: 'new', title: 'Comic books', span } });
-  });
-});
-
-describe('a take’s stretches on its note’s tape', () => {
-  it('move later by the tape the note already had, keeping what else they carry', () => {
-    const clip = { text: '![voice 0:05](tape:0-5000)', startMs: 0, endMs: 5000 };
-    expect(shifted([clip, { startMs: 6000, endMs: 7000 }], 12_000)).toEqual([
-      { text: '![voice 0:05](tape:0-5000)', startMs: 12_000, endMs: 17_000 },
-      { startMs: 18_000, endMs: 19_000 },
-    ]);
-    expect(shifted([], 500)).toEqual([]);
   });
 });

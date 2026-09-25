@@ -5,7 +5,7 @@ import { sameTitle } from '../editor/wikiLinks.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
 import type { Placement, Plan } from './command.ts';
 import { placeWords } from './listAppend.ts';
-import type { Candidate } from './route.ts';
+import type { Span, TakeCandidate, TakeNote } from './takeTypes.ts';
 
 /**
  * "Shall I?": what a command understood will do, before it does anything.
@@ -18,29 +18,6 @@ import type { Candidate } from './route.ts';
  *
  * Pure, so every plan's offer is a test.
  */
-
-export interface TakeNote {
-  id: string;
-  body: string;
-}
-
-export type TakeCandidate<N extends TakeNote> = Candidate & { note: N };
-
-/** A stretch of the take's recording, in ms on its own timeline. */
-export interface Span {
-  startMs: number;
-  endMs: number;
-}
-
-/**
- * `spans` moved `by` ms later. A take's phrases, commands and voice memos are timed from the start of the take; a
- * continued note's tape starts earlier, by the length it already had, and everything stored against the tape - its
- * phrases, the clips' marks, the better words' job - is on that longer timeline. One that forgot the shift would play
- * the wrong sound.
- */
-export function shifted<T extends Span>(spans: readonly T[], by: number): T[] {
-  return spans.map((span) => ({ ...span, startMs: span.startMs + by, endMs: span.endMs + by }));
-}
 
 /** A command understood and waiting for yes or no: what it will do, shown on the card. */
 export type Offer<N extends TakeNote> =

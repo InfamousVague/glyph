@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { quietHost } from '../../test/takeHost.ts';
 import type { Plan } from './command.ts';
-import type { Offer, TakeCandidate, TakeNote } from './offers.ts';
+import type { Offer } from './offers.ts';
+import type { TakeCandidate, TakeNote } from './takeTypes.ts';
 import { TAKE_TIMING, Take } from './take.ts';
 import type { RouteView, TakeHost } from './takeHost.ts';
 

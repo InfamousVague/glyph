@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { quietHost } from '../../test/takeHost.ts';
-import type { TakeNote } from './offers.ts';
+import type { TakeNote } from './takeTypes.ts';
 import { Take } from './take.ts';
 import { hostThrough, type TakeHost } from './takeHost.ts';
 

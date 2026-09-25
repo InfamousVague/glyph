@@ -1,4 +1,4 @@
-import type { TakeNote } from '../app/capture/offers.ts';
+import type { TakeNote } from '../app/capture/takeTypes.ts';
 import type { TakeHost } from '../app/capture/takeHost.ts';
 
 /**

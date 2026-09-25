@@ -7,7 +7,7 @@ import type { VoiceCommand } from '../plugins/types.ts';
 import { appendBlock, appendBody } from './appendBody.ts';
 import { placeWords } from './listAppend.ts';
 import type { Segment } from './markdown.ts';
-import type { TakeCandidate, TakeNote } from './offers.ts';
+import type { TakeCandidate, TakeNote } from './takeTypes.ts';
 import { QuietWatch } from './quiet.ts';
 import { setLinkTitles } from './spoken/extras.ts';
 import { spokenNumber } from './spoken/numbers.ts';

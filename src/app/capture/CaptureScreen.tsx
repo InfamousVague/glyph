@@ -24,7 +24,6 @@ import { readInstruction } from '../ai/instruction.ts';
 import { ConfirmCard } from '../ai/ConfirmCard.tsx';
 import type { RunKind } from '../ai/kinds.ts';
 import { appendBlock } from './appendBody.ts';
-import { shifted } from './offers.ts';
 import { asBoardMarkdown, Take, takeMarkdown, type Offer } from './take.ts';
 import { hostThrough, type RouteView, type TableDraft, type TakeHost } from './takeHost.ts';
 import { TakeWriter, type NamedNote } from './takeWriter.ts';
@@ -46,6 +45,7 @@ import { lingerMs } from './chip.ts';
 import { RouteChip } from './RouteChip.tsx';
 import { diagnosticsLine, EMPTY_DIAGNOSTICS, soundsSilent, type Diagnostics } from './diagnostics.ts';
 import { withFinalWords } from './finalWords.ts';
+import { appendsTo, onTape } from './timeline.ts';
 import { statusLine, stopHint, whereLine } from './screenText.ts';
 import { useCaptureSession } from './useCaptureSession.ts';
 import styles from './CaptureScreen.module.css';
@@ -664,13 +664,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     setPhase('finishing');
     microphone.current?.stop();
     // The tape is kept under the note's id, added to the end of the continued
-    // note's tape when there is one, so its words and its sound stay one timeline.
+    // note's tape when there is one, so its words and its sound stay one timeline (timeline.ts).
     const continued = writer.target;
+    const append = appendsTo(continued);
     let stopped: Stopped = { recordedMs: null, transcript: null };
     try {
-      // Appended only onto a tape the note still has: a recording removed from the note leaves its file behind, and a
-      // take added after it starts the file afresh rather than playing after the removed sound.
-      stopped = (await session.current?.stop({ recordAs: writer.noteId, append: continued !== null && (continued.recordingMs ?? 0) > 0 })) ?? stopped;
+      stopped = (await session.current?.stop({ recordAs: writer.noteId, append })) ?? stopped;
     } catch (failure) {
       setError(failureText(failure));
     }
@@ -741,10 +740,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     let refineJob: ReviewHandoff['job'] = null;
     if (stopped.recordedMs !== null && session.current?.keepsAudio) {
       // New phrases sit after the continued tape's, shifted by its length.
-      const offset = continued?.recordingMs ?? 0;
-      const prior = continued?.segments ?? [];
-      const all = [...prior, ...shifted(spoken, offset)];
-      await setNoteRecording(saved.id, stopped.recordedMs, all).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
+      const tape = onTape(continued, take, spoken);
+      await setNoteRecording(saved.id, stopped.recordedMs, tape.segments).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
       // The tape this take wrote to, so its voice memos know it again when the note is opened (core/clips.ts).
       setTapeId(saved.id, tapeOfTake());
       // The better words: the larger model over this take's recording, later,
@@ -752,17 +749,17 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       const base = continued ? ((await writer.baseBody) ?? continued.body) : '';
       refineJob = {
         id: saved.id,
-        fromMs: offset,
+        fromMs: tape.fromMs,
         recordingMs: stopped.recordedMs,
         baseBody: base,
         savedBody: saved.body,
         titled: !continued,
-        priorSegments: prior,
-        promptTail: renderNote(prior).plain.slice(-200),
-        skip: shifted(take.commandSpans, offset),
+        priorSegments: tape.prior,
+        promptTail: renderNote(tape.prior).plain.slice(-200),
+        skip: tape.skip,
         // The voice memos this take left: the better words never heard them, and they go back where they were.
-        clips: shifted(take.clips, offset),
-        keywordAt: shifted(take.keywordSpans, offset),
+        clips: tape.clips,
+        keywordAt: tape.keywordAt,
       };
     }
     fireNativeHaptic('success');
