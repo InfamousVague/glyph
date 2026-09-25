@@ -85,7 +85,7 @@ export interface ModelStatus {
   bytes: number;
 }
 
-export async function modelStatus(): Promise<ModelStatus | null> {
+async function modelStatus(): Promise<ModelStatus | null> {
   if (!isTauri()) return null;
   return invoke<ModelStatus>('capture_model_status');
 }

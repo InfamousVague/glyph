@@ -20,7 +20,7 @@ export const REEL_Y = 88;
 export const LEFT_X = 104;
 export const RIGHT_X = 216;
 /** Tape speed, in units per millisecond: a half-full reel turns about once every 2.5 s. */
-export const TAPE_SPEED = 0.075;
+const TAPE_SPEED = 0.075;
 
 export interface Packs {
   /** The left reel, which tape leaves while recording. */

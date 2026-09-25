@@ -131,7 +131,7 @@ function styleOf(lead: ListLead): Run['style'] {
 }
 
 /** One item's text as a list line: first letter up, no closing full stop. */
-export function itemText(text: string): string {
+function itemText(text: string): string {
   const trimmed = text.trim().replace(/[\s.,;:]+$/, '');
   return capitalise(trimmed);
 }

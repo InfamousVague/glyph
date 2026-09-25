@@ -1,4 +1,4 @@
-import { generate, listModels, type ModelInfo } from '../core/ai.ts';
+import { listModels, type ModelInfo } from '../core/ai.ts';
 import { matchNote, type Candidate } from './route.ts';
 import type { Plan } from './command.ts';
 import { interpretWakeCommand } from './instructionIntent.ts';
@@ -17,10 +17,15 @@ import { literalMarkdown } from './instructionMutation.ts';
  * matched by title the way the rules match a spoken name, and the recorder still asks "shall I?" before anything
  * changes. An answer that is not a command, or that names no note there is, is no answer.
  *
- * The prompt is a `String.raw` literal so `src-tauri/src/llm/tests.rs` can read it and measure the phone's models on
- * the Mac against the same words. Qwen3.5 4B runs it when it is on the phone, else 2B (`commandModelOf`). It runs
- * only in a pause and is cancelled when speech resumes (capture/CaptureScreen.tsx): it shares the phone's cores with
- * Whisper, and is not loaded ahead of time for the same reason, so the first command of a launch waits on the load.
+ * What asks the model now is `understandInstructionCommand`: the rules first, and only when they have nothing, the
+ * on-device instruction model through `ai_infer_command` (capture/instructionIntent.ts), whose answer is checked field
+ * by field and mapped back onto the plans the recorder already knows how to confirm. `commandModel` says whether the
+ * phone has a model to ask at all; Qwen3.5 4B is preferred when it is on the phone, else 2B (`commandModelOf`).
+ *
+ * `COMMAND_PROMPT` and `readCommandAnswer` are the pass before that one, which put this prompt to the model itself.
+ * Nothing on the page asks with them any more. They stay because `src-tauri/src/llm/tests.rs` reads the prompt out of
+ * this file by name - it is a `String.raw` literal for that - and measures the phone's models on the Mac against the
+ * same words (`understands_spoken_commands`), and understand.test.ts holds the reader to the answers it asks for.
  */
 
 export const COMMAND_PROMPT = String.raw`You read one spoken command for Ghost.md, a notes app, and answer with JSON. The person said "hey Ghost" (or "Glyph") and then the command. It was written down by speech recognition, so words can be misheard and a note's name can come out spelled or split differently.
@@ -159,20 +164,16 @@ export function commandModel(): Promise<string | null> {
     .catch(() => null);
 }
 
-/** How long a command waits on the model before the rules' answer stands. */
-export const UNDERSTAND_MS = 12_000;
-
 export interface Understanding<N extends Candidate> {
   /** The plan, or null when the model had none, or there was no model. */
   done: Promise<Plan<N> | null>;
   cancel: () => void;
 }
 
-/** Asks the phone's command model what `words` would have Glyph do, among `notes`. */
 /**
- * Constrained instruction fallback for command-shaped capture utterances. The
- * deterministic parser still wins inside `interpretWakeCommand`; inferred
- * strings are escaped and mapped back into application-owned placement rules.
+ * What `words` would have Glyph do among `notes`: the rules' plan, or the on-device instruction model's when the rules
+ * have none. The deterministic parser still wins inside `interpretWakeCommand`; inferred strings are escaped and mapped
+ * back into the app's own placement rules, so a model cannot write markdown structure into a note.
  */
 export function understandInstructionCommand<N extends Candidate>(words: string, notes: readonly N[]): Understanding<N> {
   const run = interpretWakeCommand(words, { notes });
@@ -197,42 +198,5 @@ export function understandInstructionCommand<N extends Candidate>(words: string,
         ...(placement === 'bugs' ? { near: 'bugs' as const } : {}),
       };
     }),
-  };
-}
-
-export function understandCommand<N extends Candidate>(words: string, notes: readonly N[]): Understanding<N> {
-  let cancelled = false;
-  let stop: (() => void) | null = null;
-  const done = (async () => {
-    const model = await commandModel();
-    if (!model || cancelled) return null;
-    const run = generate({
-      model,
-      system: COMMAND_PROMPT,
-      prompt: commandMessage(
-        words,
-        notes.map((note) => note.title).filter((title) => title.trim()),
-      ),
-      maxTokens: 96,
-      temperature: 0,
-      onProgress: () => undefined,
-    });
-    stop = run.cancel;
-    const timer = window.setTimeout(run.cancel, UNDERSTAND_MS);
-    try {
-      const output = await run.done;
-      return cancelled ? null : readCommandAnswer(output.text, notes);
-    } catch {
-      return null;
-    } finally {
-      window.clearTimeout(timer);
-    }
-  })();
-  return {
-    done,
-    cancel: () => {
-      cancelled = true;
-      stop?.();
-    },
   };
 }

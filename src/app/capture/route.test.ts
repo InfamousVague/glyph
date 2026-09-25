@@ -32,8 +32,7 @@ describe('hearing "add to <note>"', () => {
     expect(parseRoute('Remember to ask Sam about the dog.')).toBeNull();
   });
 
-  it('reads a name that is still being said, for a guess', () => {
-    expect(parseRoute('add to we', { partial: true })).toEqual({ kind: 'note', name: 'we', rest: '' });
+  it('does not take a name of a letter or two for a note', () => {
     expect(parseRoute('add to we')).toBeNull();
   });
 });
@@ -49,8 +48,7 @@ describe('hearing "new item for <note>"', () => {
     expect(parseRoute('New to-dos for work.')).toMatchObject({ kind: 'item', name: 'work', task: true, many: true });
   });
 
-  it('only guesses while the name is still being said', () => {
-    expect(parseRoute('new item for attack', { partial: true })).toMatchObject({ kind: 'item', name: 'attack' });
+  it('waits for the phrase to end, or the item to follow, before the name counts', () => {
     expect(parseRoute('new item for attack')).toBeNull();
   });
 
@@ -115,7 +113,6 @@ describe('hearing "leave a note for <note> that says …"', () => {
 
   it('waits for the note when the phrase stops at the name', () => {
     expect(parseRoute('Leave a note for weekend trip.')).toEqual({ kind: 'leave', name: 'weekend trip', rest: '' });
-    expect(parseRoute('Leave a note for week', { partial: true })).toEqual({ kind: 'leave', name: 'week', rest: '' });
     // A finished phrase with no stop could still be growing: not yet.
     expect(parseRoute('Leave a note for weekend trip')).toBeNull();
   });
