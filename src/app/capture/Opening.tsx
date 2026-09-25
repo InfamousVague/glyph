@@ -1,14 +1,11 @@
 import styles from './CaptureScreen.module.css';
 
 /**
- * The recorder's two pictures, drawn in the app's own ink: sound beginning,
- * and a sentence coming to a stop.
+ * The recorder's picture of sound beginning, drawn in the app's own ink: a dot and three arcs opening to the right.
  *
- * Abstract, like the rest of the artwork - a dot and three arcs opening to the
- * right; a bar ending in a dot. `Opening` plays as the microphone opens (each
- * arc arrives in turn) and is the whole screen until the first words land;
- * `Saved` takes its place while the note is being written. Both are single
- * colour so they invert with the theme.
+ * Abstract, like the rest of the artwork. It plays as the microphone opens, each arc arriving in turn, and stays,
+ * dashed, when the microphone never did (CaptureScreen.tsx's failed state). Single colour, so it inverts with the
+ * theme.
  */
 
 export function Opening({ failed = false }: { failed?: boolean }) {
@@ -24,15 +21,6 @@ export function Opening({ failed = false }: { failed?: boolean }) {
           strokeDasharray={failed ? '6 7' : undefined}
         />
       ))}
-    </svg>
-  );
-}
-
-export function Saved() {
-  return (
-    <svg viewBox="0 0 160 120" className={styles.picture} aria-hidden="true">
-      <rect x="28" y="54" width="82" height="12" rx="6" className={styles.pictureInk} />
-      <circle cx="126" cy="60" r="7" className={`${styles.pictureInk} ${styles.pictureDot}`} />
     </svg>
   );
 }
