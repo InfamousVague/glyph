@@ -1,10 +1,12 @@
 /**
  * Which kind of machine the app is running on.
  *
- * Three callers need this and each means something different by it: haptics
- * asks whether there is a motor to drive, the editor asks whether the keyboard
- * is on screen (so the formatting bar has something to track), and the CSS
- * asks whether the screen has corners that curve. Sniffed from the user agent
+ * The callers each mean something different by it: haptics asks whether there
+ * is a motor to drive, updates and the AI whether this is an iPhone (the App
+ * Store's to update, and no AI there yet), the guide, Settings and the lists
+ * whether it is Android and so has a side key, and the CSS - through
+ * the `data-platform` stamped below - where the chrome sits and whether the
+ * screen has corners that curve. Sniffed from the user agent
  * rather than asked of `@tauri-apps/plugin-os`, because the answer never
  * changes during a run and the plugin's is an async call plus a Rust
  * dependency for a constant.
