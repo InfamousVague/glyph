@@ -58,6 +58,8 @@ pub struct Notion {
     client_id: String,
     client_secret: String,
     redirect_uri: String,
+    /// Where codes and refresh tokens are swapped: Notion's `TOKEN`, or a stand-in in the tests.
+    token_url: String,
     http: reqwest::Client,
     pending: Mutex<HashMap<String, Pending>>,
     limiter: guard::RateLimiter,
@@ -71,10 +73,16 @@ struct Pending {
 
 impl Notion {
     pub fn new(client_id: String, client_secret: String, redirect_uri: String) -> Arc<Self> {
+        Self::swapping_at(TOKEN, client_id, client_secret, redirect_uri)
+    }
+
+    /// `new`, with codes swapped at `token_url` rather than at Notion.
+    fn swapping_at(token_url: &str, client_id: String, client_secret: String, redirect_uri: String) -> Arc<Self> {
         Arc::new(Notion {
             client_id,
             client_secret,
             redirect_uri,
+            token_url: token_url.to_string(),
             http: reqwest::Client::builder().timeout(Duration::from_secs(20)).build().unwrap_or_default(),
             pending: Mutex::new(HashMap::new()),
             limiter: guard::RateLimiter::new(REQUESTS_PER_MINUTE, Instant::now()),
@@ -103,7 +111,7 @@ impl Notion {
     async fn exchange(&self, body: Value) -> Result<Value, String> {
         let response = self
             .http
-            .post(TOKEN)
+            .post(&self.token_url)
             .basic_auth(&self.client_id, Some(&self.client_secret))
             .header("Notion-Version", "2022-06-28")
             .json(&body)
@@ -394,5 +402,161 @@ mod tests {
         let uri = format!("/glyph/api/notion/callback?code=abc&state={STATE}");
         let response = service(configured()).oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::GONE);
+    }
+
+    /// What a stand-in for Notion was sent: the Authorization header, the Notion-Version header, and the body.
+    type Swaps = Arc<Mutex<Vec<(String, String, Value)>>>;
+
+    /// A stand-in for Notion's token endpoint on a loopback port: every swap is answered with `status` and `answer`,
+    /// and kept, so a test can read what the service sent.
+    async fn notion_answering(status: StatusCode, answer: Value) -> (String, Swaps) {
+        let swaps: Swaps = Arc::new(Mutex::new(Vec::new()));
+        let kept = swaps.clone();
+        let app = Router::new().route(
+            "/v1/oauth/token",
+            post(move |headers: HeaderMap, Json(body): Json<Value>| {
+                let (kept, answer) = (kept.clone(), answer.clone());
+                async move {
+                    let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+                    kept.lock().unwrap().push((header("authorization"), header("notion-version"), body));
+                    (status, Json(answer))
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (format!("http://{address}/v1/oauth/token"), swaps)
+    }
+
+    fn swapping_at(token_url: &str) -> Arc<Notion> {
+        Notion::swapping_at(token_url, "client-id".into(), "client-secret".into(), DEFAULT_REDIRECT.into())
+    }
+
+    async fn body_of(response: Response) -> (StatusCode, String) {
+        let status = response.status();
+        (status, String::from_utf8(to_bytes(response.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap())
+    }
+
+    fn get(uri: String) -> Request<Body> {
+        Request::get(uri).body(Body::empty()).unwrap()
+    }
+
+    fn start_uri(state: &str) -> String {
+        format!("/glyph/api/notion/start?state={state}&challenge={}", challenge_of(VERIFIER))
+    }
+
+    #[tokio::test]
+    async fn a_callback_swaps_the_code_and_the_phone_claims_the_tokens_once() {
+        let answer = json!({ "access_token": "secret-token", "refresh_token": "r1", "bot_id": "bot", "workspace_id": "ws",
+                             "workspace_name": "Matt's <HQ>", "workspace_icon": null, "owner": { "type": "user" } });
+        let (url, swaps) = notion_answering(StatusCode::OK, answer).await;
+        let notion = swapping_at(&url);
+        service(notion.clone()).oneshot(get(start_uri(STATE))).await.unwrap();
+
+        let page = service(notion.clone()).oneshot(get(format!("/glyph/api/notion/callback?code=the-code&state={STATE}"))).await.unwrap();
+        let (status, html) = body_of(page).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("<h1>Connected</h1>"), "{html}");
+        assert!(html.contains("Ghost.md can use Matt's &lt;HQ&gt; now."), "the workspace's name, escaped in the page: {html}");
+        assert!(!html.contains("<HQ>"));
+
+        let sent = swaps.lock().unwrap().clone();
+        assert_eq!(sent.len(), 1);
+        let (authorization, version, body) = &sent[0];
+        assert_eq!(authorization, &format!("Basic {}", base64::engine::general_purpose::STANDARD.encode("client-id:client-secret")));
+        assert_eq!(version, "2022-06-28");
+        assert_eq!(body, &json!({ "grant_type": "authorization_code", "code": "the-code", "redirect_uri": DEFAULT_REDIRECT }));
+
+        let (status, tokens) = body_of(service(notion.clone()).oneshot(claim_request(VERIFIER)).await.unwrap()).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            serde_json::from_str::<Value>(&tokens).unwrap(),
+            json!({ "accessToken": "secret-token", "refreshToken": "r1", "botId": "bot", "workspaceId": "ws",
+                    "workspaceName": "Matt's <HQ>", "workspaceIcon": null }),
+            "the tokens and the workspace's name, and nothing else of Notion's answer"
+        );
+        let again = service(notion.clone()).oneshot(claim_request(VERIFIER)).await.unwrap();
+        assert_eq!(again.status(), StatusCode::NOT_FOUND, "claimed once");
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_sign_in_is_told_to_the_page_and_to_the_phone() {
+        let (url, swaps) = notion_answering(StatusCode::OK, json!({})).await;
+        let notion = swapping_at(&url);
+        service(notion.clone()).oneshot(get(start_uri(STATE))).await.unwrap();
+        let page = service(notion.clone()).oneshot(get(format!("/glyph/api/notion/callback?error=access_denied&state={STATE}"))).await.unwrap();
+        let (status, html) = body_of(page).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("<h1>Not connected</h1>") && html.contains("You cancelled the sign-in."), "{html}");
+        assert!(swaps.lock().unwrap().is_empty(), "nothing to swap");
+        // A second callback for a sign-in that has its answer is an old link.
+        let late = service(notion.clone()).oneshot(get(format!("/glyph/api/notion/callback?code=abc&state={STATE}"))).await.unwrap();
+        assert_eq!(late.status(), StatusCode::GONE);
+        let (status, body) = body_of(service(notion).oneshot(claim_request(VERIFIER)).await.unwrap()).await;
+        assert_eq!((status, body), (StatusCode::BAD_REQUEST, r#"{"error":"You cancelled the sign-in."}"#.to_string()));
+    }
+
+    #[tokio::test]
+    async fn refresh_swaps_a_refresh_token_and_passes_notion_s_refusal_on_in_its_own_words() {
+        let refresh = |token: &str| {
+            Request::post("/glyph/api/notion/refresh")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "refreshToken": token }).to_string()))
+                .unwrap()
+        };
+        let off = Notion::new(String::new(), String::new(), DEFAULT_REDIRECT.into());
+        let (status, body) = body_of(service(off).oneshot(refresh("r1")).await.unwrap()).await;
+        assert_eq!((status, body), (StatusCode::SERVICE_UNAVAILABLE, r#"{"error":"Sign in with Notion isn't set up yet."}"#.to_string()));
+
+        let (url, swaps) = notion_answering(StatusCode::OK, json!({ "access_token": "fresh", "refresh_token": "r2" })).await;
+        let (status, body) = body_of(service(swapping_at(&url)).oneshot(refresh("r1")).await.unwrap()).await;
+        assert_eq!(status, StatusCode::OK);
+        let tokens: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!((tokens["accessToken"].clone(), tokens["refreshToken"].clone()), (json!("fresh"), json!("r2")));
+        assert_eq!(swaps.lock().unwrap()[0].2, json!({ "grant_type": "refresh_token", "refresh_token": "r1" }));
+
+        let (url, _) = notion_answering(StatusCode::BAD_REQUEST, json!({ "error": "invalid_grant", "error_description": "The token is spent." })).await;
+        let (status, body) = body_of(service(swapping_at(&url)).oneshot(refresh("r1")).await.unwrap()).await;
+        assert_eq!((status, body), (StatusCode::BAD_GATEWAY, r#"{"error":"Notion said no: The token is spent."}"#.to_string()));
+
+        let (status, body) = body_of(service(swapping_at("http://127.0.0.1:9/v1/oauth/token")).oneshot(refresh("r1")).await.unwrap()).await;
+        assert_eq!((status, body), (StatusCode::BAD_GATEWAY, r#"{"error":"Notion could not be reached."}"#.to_string()));
+    }
+
+    #[tokio::test]
+    async fn sign_ins_in_flight_are_capped_and_one_already_started_may_start_again() {
+        let notion = configured();
+        let from = |i: usize, state: &str| {
+            let mut start = get(start_uri(state));
+            start.headers_mut().insert("x-forwarded-for", format!("10.0.{}.{}", i / 250, i % 250).parse().unwrap());
+            start
+        };
+        let state = |i: usize| format!("state-{i:04}-0123456789abcdefghijklmnopqrstuv");
+        for i in 0..MAX_PENDING {
+            let response = service(notion.clone()).oneshot(from(i, &state(i))).await.unwrap();
+            assert!(response.status().is_redirection(), "sign-in {i}");
+        }
+        let (status, html) = body_of(service(notion.clone()).oneshot(from(MAX_PENDING, &state(MAX_PENDING))).await.unwrap()).await;
+        assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+        assert!(html.contains("Too many sign-ins at once."), "{html}");
+        let again = service(notion).oneshot(from(MAX_PENDING + 1, &state(0))).await.unwrap();
+        assert!(again.status().is_redirection(), "the same sign-in, started again, takes no new place");
+    }
+
+    #[tokio::test]
+    async fn one_address_starting_sign_ins_is_slowed_down() {
+        let notion = configured();
+        let mut refused = None;
+        for i in 0..REQUESTS_PER_MINUTE as usize + 20 {
+            let response = service(notion.clone()).oneshot(get(start_uri(&format!("state-{i:04}-0123456789abcdefghijklmnopqrstuv")))).await.unwrap();
+            if response.status() == StatusCode::TOO_MANY_REQUESTS {
+                refused = Some((i, body_of(response).await.1));
+                break;
+            }
+        }
+        let (at, html) = refused.expect("a burst from one address meets the limit");
+        assert!(at >= REQUESTS_PER_MINUTE as usize, "the first {REQUESTS_PER_MINUTE} are let through, refused at {at}");
+        assert!(html.contains("<h1>Slow down</h1>"), "{html}");
     }
 }
