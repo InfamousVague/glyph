@@ -33,3 +33,16 @@ pieces by script, which the OFL counts as modifying it; the app shows the name "
 If that is ever a concern, the author's own unmodified WOFF2 files from the maple-font releases can take the
 package's place under the same name.
 
+
+## Models
+
+The app ships no model. It downloads them when asked, each checked against a SHA-256 compiled into the binary, from
+the box's own mirror first (`https://attack.fm/glyph/models`) and then from Hugging Face at a pinned revision:
+
+- **Whisper**, for transcription: `ggml-base.en-q5_1.bin` and `ggml-small.en-q5_1.bin`, from ggerganov/whisper.cpp
+  on Hugging Face (`src-tauri/src/whisper/model.rs`). The box keeps a copy of both, so it redistributes them.
+- **The language models** the AI runs on the phone and the Mac: Qwen3.5 2B, 4B and 9B, and Gemma 4 E4B, as GGUF files
+  from unsloth's Hugging Face repositories (`src-tauri/src/llm/model.rs` `CATALOGUE`).
+
+Their licences are not recorded here yet. They should be, before a store listing, since the box's mirror hands the
+files out itself.
