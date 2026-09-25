@@ -3,6 +3,7 @@ import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/s
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { prefersStill } from '../core/motion.ts';
 import type { InlineFormat } from '../plugins/types.ts';
+import { hiddenDefs, smokeFilter, type Smoke } from './svgFilters.ts';
 
 /**
  * The look of a plugin formatting whose look is smoke (plugins/types.ts
@@ -30,16 +31,6 @@ export interface SmokeLetter {
   to: number;
 }
 
-/** A letter's smoke: what the animation moves. */
-interface Slot {
-  noise: SVGElement;
-  disp: SVGElement;
-  blur: SVGElement;
-  lift: SVGElement;
-  alpha: SVGElement;
-}
-
-const SVG_NS = 'http://www.w3.org/2000/svg';
 const POOL = 12;
 const STEP_MS = 33;
 const BEND = 36;
@@ -119,46 +110,18 @@ export function spoilerLineLetters(state: EditorState, range: { from: number; to
   return letters;
 }
 
-function slot(defs: SVGDefsElement, id: string, seed: number): Slot {
-  const filter = document.createElementNS(SVG_NS, 'filter');
-  filter.setAttribute('id', id);
-  // Room for a letter thrown well outside its box, so the smear is never clipped; in sRGB, so thin type doesn't brighten.
-  filter.setAttribute('x', '-400%');
-  filter.setAttribute('y', '-200%');
-  filter.setAttribute('width', '900%');
-  filter.setAttribute('height', '500%');
-  filter.setAttribute('color-interpolation-filters', 'sRGB');
-  const noise = document.createElementNS(SVG_NS, 'feTurbulence');
-  noise.setAttribute('type', 'fractalNoise');
-  noise.setAttribute('baseFrequency', '0.02 0.07');
-  noise.setAttribute('numOctaves', '2');
-  noise.setAttribute('seed', String(seed));
-  noise.setAttribute('result', 'n');
-  const disp = document.createElementNS(SVG_NS, 'feDisplacementMap');
-  disp.setAttribute('in', 'SourceGraphic');
-  disp.setAttribute('in2', 'n');
-  disp.setAttribute('scale', String(BEND));
-  disp.setAttribute('xChannelSelector', 'R');
-  disp.setAttribute('yChannelSelector', 'G');
-  disp.setAttribute('result', 'd');
-  const blur = document.createElementNS(SVG_NS, 'feGaussianBlur');
-  blur.setAttribute('in', 'd');
-  blur.setAttribute('stdDeviation', String(SOFT));
-  blur.setAttribute('result', 'b');
-  const lift = document.createElementNS(SVG_NS, 'feOffset');
-  lift.setAttribute('in', 'b');
-  lift.setAttribute('dx', '0');
-  lift.setAttribute('dy', '0');
-  lift.setAttribute('result', 'l');
-  const transfer = document.createElementNS(SVG_NS, 'feComponentTransfer');
-  transfer.setAttribute('in', 'l');
-  const alpha = document.createElementNS(SVG_NS, 'feFuncA');
-  alpha.setAttribute('type', 'linear');
-  alpha.setAttribute('slope', '0.75');
-  transfer.appendChild(alpha);
-  filter.append(noise, disp, blur, lift, transfer);
-  defs.appendChild(filter);
-  return { noise, disp, blur, lift, alpha };
+/** A letter's smoke: what the animation moves. Room for a letter thrown well outside its box, so the smear is never clipped. */
+function slot(defs: SVGDefsElement, id: string, seed: number): Smoke {
+  return smokeFilter(defs, {
+    id,
+    region: { x: '-400%', y: '-200%', width: '900%', height: '500%' },
+    frequency: '0.02 0.07',
+    octaves: 2,
+    seed,
+    bend: String(BEND),
+    soft: String(SOFT),
+    shown: '0.75',
+  });
 }
 
 export function wispFormat(formats: readonly InlineFormat[]): Extension {
@@ -169,7 +132,7 @@ export function wispFormat(formats: readonly InlineFormat[]): Extension {
     class {
       decorations: DecorationSet = Decoration.none;
       private readonly svg: SVGSVGElement;
-      private readonly slots: Slot[] = [];
+      private readonly slots: Smoke[] = [];
       private readonly marks: Decoration[] = [];
       private frame = 0;
       private last = 0;
@@ -177,17 +140,13 @@ export function wispFormat(formats: readonly InlineFormat[]): Extension {
       constructor(readonly view: EditorView) {
         instances += 1;
         const prefix = `wispfmt-${instances}`;
-        this.svg = document.createElementNS(SVG_NS, 'svg');
-        this.svg.setAttribute('aria-hidden', 'true');
-        this.svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
-        const defs = document.createElementNS(SVG_NS, 'defs');
-        this.svg.appendChild(defs);
+        const { svg, defs } = hiddenDefs(view.dom);
+        this.svg = svg;
         for (let i = 0; i < POOL; i += 1) {
           const id = `${prefix}-${i}`;
           this.slots.push(slot(defs, id, i * 11 + 3));
           this.marks.push(Decoration.mark({ class: 'cm-wispFormat', attributes: { style: `filter:url(#${id})` } }));
         }
-        view.dom.appendChild(this.svg);
         this.redraw();
       }
 

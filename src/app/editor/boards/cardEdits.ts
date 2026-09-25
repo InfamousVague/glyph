@@ -19,7 +19,7 @@ import { hushGoTo, reveal } from './navigate.ts';
  * What a card does to the note: ticked, stepped a lane along, dropped somewhere, or taken off the board. Each is one
  * change and one undo, the fence rewritten and the item's box turned together where the card crosses a Done column,
  * so the note says what the board shows. Every one carries the `input.board` user event: a board's edits are not
- * typing, and the wisp does not smoke them as letters someone wrote (editor/wispArrivals.ts).
+ * typing, and the wisp does not smoke them as letters someone wrote (editor/wispMotion.ts).
  */
 
 /** The card's tick box is the item's: the line is ticked, and a Done column takes the card. */

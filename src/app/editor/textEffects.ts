@@ -3,6 +3,7 @@ import { RangeSetBuilder, StateEffect, type EditorState, type Extension } from '
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { prefersStill } from '../core/motion.ts';
 import type { InlineFormat } from '../plugins/types.ts';
+import { hiddenDefs, svgElement } from './svgFilters.ts';
 
 /**
  * Effects on words: moving looks a mark can give the text between its delimiters (plugins/types.ts `FormatLook`
@@ -78,15 +79,6 @@ export interface LetterEffect {
 
 export type TextEffect = RisingEffect | FilterEffect | LetterEffect;
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
-function element(name: string, attributes: Record<string, string | number>, ...children: Element[]): Element {
-  const node = document.createElementNS(SVG_NS, name);
-  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
-  node.append(...children);
-  return node;
-}
-
 /** The type the filters are tuned on: a note's body text. */
 const TUNED_PX = 16;
 
@@ -114,13 +106,13 @@ function heat(filter: SVGFilterElement, fontPx: number, still: boolean, strength
   const moving = still
     ? []
     : [
-        element('animate', { attributeName: 'baseFrequency', values: `${low};${high};${low}`, dur: '2.4s', repeatCount: 'indefinite' }),
-        element('animate', { attributeName: 'seed', values: '7;8;9;10;11;12', dur: '0.9s', calcMode: 'discrete', repeatCount: 'indefinite' }),
+        svgElement('animate', { attributeName: 'baseFrequency', values: `${low};${high};${low}`, dur: '2.4s', repeatCount: 'indefinite' }),
+        svgElement('animate', { attributeName: 'seed', values: '7;8;9;10;11;12', dur: '0.9s', calcMode: 'discrete', repeatCount: 'indefinite' }),
       ];
   filter.append(
-    element('feTurbulence', { type: 'fractalNoise', baseFrequency: low, numOctaves: 2, seed: 7, result: 'noise' }, ...moving),
-    element('feDisplacementMap', { in: 'SourceGraphic', in2: 'noise', scale: (5.5 * k * strength).toFixed(2), xChannelSelector: 'R', yChannelSelector: 'G', result: 'bent' }),
-    element('feGaussianBlur', { in: 'bent', stdDeviation: (0.6 * k * strength).toFixed(2) }),
+    svgElement('feTurbulence', { type: 'fractalNoise', baseFrequency: low, numOctaves: 2, seed: 7, result: 'noise' }, ...moving),
+    svgElement('feDisplacementMap', { in: 'SourceGraphic', in2: 'noise', scale: (5.5 * k * strength).toFixed(2), xChannelSelector: 'R', yChannelSelector: 'G', result: 'bent' }),
+    svgElement('feGaussianBlur', { in: 'bent', stdDeviation: (0.6 * k * strength).toFixed(2) }),
   );
 }
 
@@ -137,18 +129,18 @@ function frost(filter: SVGFilterElement, fontPx: number, still: boolean): void {
   const reach = 1.4 * k;
   const creep = still
     ? []
-    : [element('animate', { attributeName: 'radius', values: `${(0.5 * reach).toFixed(2)};${reach.toFixed(2)};${reach.toFixed(2)};${(0.5 * reach).toFixed(2)}`, keyTimes: '0;0.45;0.8;1', dur: '7s', repeatCount: 'indefinite' })];
-  const reroll = still ? [] : [element('animate', { attributeName: 'seed', values: '3;4;5;6', dur: '4.8s', calcMode: 'discrete', repeatCount: 'indefinite' })];
+    : [svgElement('animate', { attributeName: 'radius', values: `${(0.5 * reach).toFixed(2)};${reach.toFixed(2)};${reach.toFixed(2)};${(0.5 * reach).toFixed(2)}`, keyTimes: '0;0.45;0.8;1', dur: '7s', repeatCount: 'indefinite' })];
+  const reroll = still ? [] : [svgElement('animate', { attributeName: 'seed', values: '3;4;5;6', dur: '4.8s', calcMode: 'discrete', repeatCount: 'indefinite' })];
   filter.append(
-    element('feColorMatrix', { in: 'SourceGraphic', type: 'matrix', values: '0.82 0 0 0 0.02  0 0.92 0 0 0.04  0 0 1 0 0.1  0 0 0 1 0', result: 'cold' }),
-    element('feMorphology', { in: 'SourceAlpha', operator: 'dilate', radius: reach.toFixed(2), result: 'thick' }, ...creep),
-    element('feTurbulence', { type: 'fractalNoise', baseFrequency: (0.55 / k).toFixed(3), numOctaves: 2, seed: 3, result: 'grain' }, ...reroll),
-    element('feColorMatrix', { in: 'grain', type: 'matrix', values: '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 5 -1.9', result: 'specks' }),
-    element('feComposite', { in: 'thick', in2: 'specks', operator: 'in', result: 'rimeShape' }),
-    element('feFlood', { class: 'cm-effectFrostIce', 'flood-color': '#b9e2ff', 'flood-opacity': 0.95, result: 'ice' }),
-    element('feComposite', { in: 'ice', in2: 'rimeShape', operator: 'in', result: 'rime' }),
-    element('feGaussianBlur', { in: 'rime', stdDeviation: (0.35 * k).toFixed(2), result: 'soft' }),
-    element('feMerge', {}, element('feMergeNode', { in: 'soft' }), element('feMergeNode', { in: 'cold' })),
+    svgElement('feColorMatrix', { in: 'SourceGraphic', type: 'matrix', values: '0.82 0 0 0 0.02  0 0.92 0 0 0.04  0 0 1 0 0.1  0 0 0 1 0', result: 'cold' }),
+    svgElement('feMorphology', { in: 'SourceAlpha', operator: 'dilate', radius: reach.toFixed(2), result: 'thick' }, ...creep),
+    svgElement('feTurbulence', { type: 'fractalNoise', baseFrequency: (0.55 / k).toFixed(3), numOctaves: 2, seed: 3, result: 'grain' }, ...reroll),
+    svgElement('feColorMatrix', { in: 'grain', type: 'matrix', values: '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 5 -1.9', result: 'specks' }),
+    svgElement('feComposite', { in: 'thick', in2: 'specks', operator: 'in', result: 'rimeShape' }),
+    svgElement('feFlood', { class: 'cm-effectFrostIce', 'flood-color': '#b9e2ff', 'flood-opacity': 0.95, result: 'ice' }),
+    svgElement('feComposite', { in: 'ice', in2: 'rimeShape', operator: 'in', result: 'rime' }),
+    svgElement('feGaussianBlur', { in: 'rime', stdDeviation: (0.35 * k).toFixed(2), result: 'soft' }),
+    svgElement('feMerge', {}, svgElement('feMergeNode', { in: 'soft' }), svgElement('feMergeNode', { in: 'cold' })),
   );
 }
 
@@ -393,12 +385,7 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
       constructor(readonly view: EditorView) {
         instances += 1;
         this.prefix = `glyph-effect-${instances}`;
-        this.svg = document.createElementNS(SVG_NS, 'svg');
-        this.svg.setAttribute('aria-hidden', 'true');
-        this.svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
-        this.defs = document.createElementNS(SVG_NS, 'defs');
-        this.svg.appendChild(this.defs);
-        view.dom.appendChild(this.svg);
+        ({ svg: this.svg, defs: this.defs } = hiddenDefs(view.dom));
         this.redraw();
       }
 
@@ -427,7 +414,7 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
             this.wordMarks.set(name, Decoration.mark({ class: `cm-textEffect cm-effect-${name}`, attributes: { 'data-effect': name } }));
             for (const strength of effect.strengths) {
               const id = `${this.prefix}-${name}-above-${Math.round(strength * 100)}`;
-              const filter = element('filter', {
+              const filter = svgElement('filter', {
                 id,
                 x: effect.region.x,
                 y: effect.region.y,
@@ -443,7 +430,7 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
           }
           if (effect.kind !== 'filter') continue;
           const id = `${this.prefix}-${name}`;
-          const filter = element('filter', {
+          const filter = svgElement('filter', {
             id,
             x: effect.region.x,
             y: effect.region.y,
