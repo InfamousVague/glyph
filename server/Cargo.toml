@@ -34,6 +34,17 @@ rand = "0.8"
 lto = true
 strip = true
 
+# Argon2 is the one hot loop the tests run - every sign-up hashes a login secret and every password sign-in verifies
+# one - and unoptimised it takes seconds a call on a loaded machine: long enough for the per-handle sign-in bucket to
+# refill between the attempts sync_tests.rs counts, so the test of that limit failed for a reason it was not testing.
+# Optimising these two crates in debug builds keeps the tests about the rules rather than the clock; a release build
+# is optimised whole anyway.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
+
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 # A real WebSocket client for the relay's tests, the same version axum's `ws` speaks: the in-memory router the other
