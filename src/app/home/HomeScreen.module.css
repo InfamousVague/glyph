@@ -331,17 +331,26 @@
 }
 
 /*
- * The notes as cards (notes/NoteCard.tsx, which the All notes grid draws too), each the note itself drawn small
- * (notes/NotePeek.tsx), as the sidebar has them. As many to a row as fit a readable width: one on a phone, two or
- * three on the Fold opened out and on a desktop window.
+ * The notes as cards (notes/NoteCard.tsx, which the All notes grid draws too, the same grid), each the note itself
+ * drawn small (notes/NotePeek.tsx), as the sidebar has them. One to a row on a phone held upright, where a card must
+ * be big enough to read (Matt: "... on small displays like standard phone portrait view we may only see one note per
+ * row while unfolded may see 3-4"): under the app's 600px line (core/useWideScreen.ts). Wider, as many as fit a card
+ * 12rem across: two at 600px, three at 750, four from about 870 and in the page's 60rem column - three or four on the
+ * Fold opened out.
  */
 .cards {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--glacier-space-3);
+}
+
+@media (min-width: 600px) {
+  .cards {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
+  }
 }
 
 /* How many to-dos are open, beside the heading, in the heading's own quiet. */

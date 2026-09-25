@@ -4670,3 +4670,23 @@ while its spot's chapter is already on screen opens at its index.
 Leaving the read-through for the index spends its place: *Read straight through* again starts where the page is, as it
 always did. The reader page (src/read/Reader.tsx) keeps nothing.
 
+## 121. One note card to a row on a phone (2026-09-25)
+
+Matt: "Please make the size of the cards for note previews larger on small displays like standard phone portrait view
+we may only see one note per row while unfolded may see 3-4".
+
+The All notes page (§115's grid) sized its cards a step under the home page's, 10rem at the least, so a phone
+held two across at about 180px each: four lines of a note's preview in type small enough to squint at. The home page's
+cards were 15rem, one to a phone row already, but only three across the Fold opened out and on a desktop.
+
+Both grids are now the same rule (`HomeScreen.module.css` and `AllNotesScreen.module.css`, `.cards`):
+
+- **Under 600px wide, one column.** That is the app's phone line (`core/useWideScreen.ts`), the width at which it
+  stops splitting, so a phone held upright always gets one card per row, whatever its width.
+- **From 600px, as many as fit a card 12rem across.** Measured in the preview: two at 600px, three at 750, four at
+  882, and four in a desktop window, where the page's 60rem column is the limit. The Fold opened out lands on three or
+  four, depending on the width it reports.
+
+Text size does not change this. The Larger and Largest settings scale the type (`--app-text-scale`), not the root
+`rem`, so a card is the same width at every setting; its preview just holds fewer words.
+
