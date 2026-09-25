@@ -5,7 +5,7 @@ import type { CaptureScreen } from './capture/CaptureScreen.tsx';
 import type { Guide } from './guide/Guide.tsx';
 import { createNote, getNote, type Note } from './core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from './core/preferences.ts';
-import { button, show, unmount, waitUntil } from '../test/render.tsx';
+import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
 import { stubResizeObserver } from '../test/stubs.ts';
 
 /**
@@ -146,6 +146,25 @@ describe('the tab row', () => {
     // An ordinary open after it takes a tab of its own again.
     await act(async () => seen.note!.onOpenTitle!('Apples'));
     expect(tabs()).toEqual(['b', 'a']);
+  });
+
+  it('gives a note opened after a page asked for its own tab again a tab of its own, from the + or from home', async () => {
+    await seed(['a', '# Apples'], ['b', '# Bread']);
+    await openApp();
+    act(() => card('Apples').click());
+    // The chapter being read, tapped in the aside: nothing changes, and nothing is left waiting to take its tab.
+    await act(async () => seen.note!.onOpenWithin!('Apples'));
+    expect(tabs()).toEqual(['a']);
+    act(() => button('New note in a new tab').click());
+    await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+    await waitUntil(() => expect(tabs()).toHaveLength(2));
+    const made = tabs()[1];
+    expect(tabs()).toEqual(['a', made]);
+    act(() => button('Apples').click());
+    await act(async () => seen.note!.onOpenWithin!('Apples'));
+    act(() => button('Home').click());
+    act(() => card('Bread').click());
+    expect(tabs()).toEqual(['a', made, 'b']);
   });
 
   it('keeps tab groups through the first render, before any note has loaded', async () => {

@@ -55,6 +55,15 @@ describe('the open tabs', () => {
     expect(ids()).toEqual(['b', 'c']);
   });
 
+  it('forgets a request nothing read once no note is on screen', () => {
+    show(<Probe shown="a" />);
+    // Asked for from the note already shown: no tab changes, so nothing reads it.
+    act(() => tabs.replaceNext('a'));
+    rerender(<Probe shown={null} />);
+    rerender(<Probe shown="b" />);
+    expect(ids()).toEqual(['a', 'b']);
+  });
+
   it('answers where to land when the tab being read closes, and nothing when another does', () => {
     setPreferences({ openNotes: ['a', 'b', 'c'] });
     show(<Probe shown="b" />);

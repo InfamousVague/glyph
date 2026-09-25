@@ -201,7 +201,11 @@ function Shell() {
   /** That note's body, for a canvas card that is a note to draw it small (canvas/CanvasView.tsx); null for none. */
   const bodyOfTitle = (title: string) => titled(title)?.body ?? null;
 
-  /** A note just made: filed in the workspace being looked at (core/workspaces.ts), the notes read again, and shown. */
+  /**
+   * A note just made: filed in the workspace being looked at (core/workspaces.ts), the notes read again, and shown.
+   * In whichever tab the caller asked for: a note made from the +, from a shared link or from Settings takes one of its
+   * own, and says so before it is made, as every ordinary opener does; a page made from a book's index takes the book's.
+   */
   const showMade = async (body: string) => {
     const note = await createNote(newNoteId(), body, 'editor');
     fileNewNote(note.id);
@@ -211,6 +215,7 @@ function Shell() {
 
   // A copy of something shared with this person, from its link (share/share.ts): saved into the library, then opened.
   const forkFromLink = async (link: string) => {
+    tabs.replaceNext(null);
     const made = await forkShared(await readShared(link));
     await refresh();
     setScreen({ name: 'note', note: made });
@@ -256,6 +261,7 @@ function Shell() {
 
   // Settings > About: a sample note, a board, a canvas or the canvas that explains canvases (core/seed.ts), opened at once.
   const openSample = (add: () => Promise<Note>) => () => {
+    tabs.replaceNext(null);
     void (async () => {
       setSettings(false);
       const note = await add();
@@ -270,7 +276,10 @@ function Shell() {
    */
   const [bookSheet, setBookSheet] = useState(false);
   const newBook = () => setBookSheet(true);
-  const createBook = (title: string, pages: readonly string[]) => showMade(bookNoteBody(title, pages));
+  const createBook = (title: string, pages: readonly string[]) => {
+    tabs.replaceNext(null);
+    return showMade(bookNoteBody(title, pages));
+  };
   /** What can be a page: every note's title but the books' own. */
   const pageTitles = () => shownNotes.filter((n) => !isBookBody(n.body)).map((n) => noteTitle(n.body)).filter((t) => t.trim());
 
@@ -280,7 +289,10 @@ function Shell() {
   // The library holds it as a draft with no file until its first words
   // (docs/LIBRARY.md), so a note opened and left leaves nothing behind.
   // Made while the list shows one workspace, it belongs there (core/workspaces.ts).
-  const newNote = () => showMade('');
+  const newNote = () => {
+    tabs.replaceNext(null);
+    return showMade('');
+  };
 
   /*
    * What the + makes (notes/NewSheet.tsx): a note, a canvas or a book, or a copy from a shared link. The sheet is one
@@ -288,7 +300,10 @@ function Shell() {
    */
   const [newSheet, setNewSheet] = useState(false);
 
-  const newCanvas = () => showMade(canvasNoteBody('Untitled canvas', { nodes: [], edges: [] }));
+  const newCanvas = () => {
+    tabs.replaceNext(null);
+    return showMade(canvasNoteBody('Untitled canvas', { nodes: [], edges: [] }));
+  };
 
   // From the editor's Delete: the same undoable delete a swipe does.
   const removeNote = (id: string) => {

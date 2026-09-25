@@ -60,6 +60,10 @@ export function useOpenTabs(shown: string | null, notes: readonly Note[], live: 
    * tab's place rather than a tab of its own (notes/openTabs.ts `swapOpen`; Matt: "the book should open in one tab
    * instead of each page opening in a new tab"). The tab to give up is noted here and read once by the effect that
    * turns a shown note into a tab.
+   *
+   * A request that nothing read goes as soon as no note is on screen. It used to wait: a page asked for from its own
+   * aside is already the note shown, so no tab changed and the request stayed, and the next note opened from the home
+   * page or made by a capture took that page's tab instead of one of its own.
    */
   const swap = useRef<string | null>(null);
   const [open, setOpen] = useState<string[]>(() => preferences().openNotes);
@@ -67,7 +71,10 @@ export function useOpenTabs(shown: string | null, notes: readonly Note[], live: 
     if (open.join('\u0000') !== preferences().openNotes.join('\u0000')) setPreferences({ openNotes: open });
   }, [open]);
   useEffect(() => {
-    if (!shown) return;
+    if (!shown) {
+      swap.current = null;
+      return;
+    }
     const from = swap.current;
     swap.current = null;
     setOpen((was) => (from ? swapOpen(was, from, shown) : addOpen(was, shown)));
