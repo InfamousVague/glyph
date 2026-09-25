@@ -88,8 +88,9 @@ And a note whose title starts "AttackFM bug bash" should exist (any body). If it
 
 ## The target note
 
-After scripts 1 to 5, **Cabin weekend** should read like this (the exact wording of a table cell or a
-number can differ; the marks cannot):
+After scripts 1 to 5, **Cabin weekend** should read like this (the exact wording of a number can differ; the
+marks cannot). No script makes a table any more: script 5 used to say one a piece at a time, and a finished
+recording does not take a table (docs/instruction-voice-commands.md).
 
 ```markdown
 # Cabin weekend
@@ -142,17 +143,11 @@ For the drive we need:
 ---
 
 - Firewood from the farm shop
+- Buy ice
 
 ## The house rules
 
 The deadline for the balance is **Wednesday at noon**, not Friday. The owner said the hot tub is _strictly off limits_ after ten. The gate code is ||four four one seven||, don't say it out loud. ==The wifi password is on the fridge==. %%I still think we should have booked the other place%%. The stove is ??gas??, it might be electric. ^^No shoes on the rug^^. Sunday breakfast is ++pancakes++.
-
-- [ ] Buy ice
-
-| What | Where | Packed |
-| --- | --- | --- |
-| Tent | Garage | Yes |
-| Stove | Loft | No |
 ```
 
 ---
@@ -300,20 +295,24 @@ before anything is written. Needs the Groceries and AttackFM bug bash notes from
 **Expected:**
 
 - None of the commands lands anywhere as words: a recording that is a command is not a note.
-- Groceries gains `- oat milk` at the end of its list.
-- Cabin weekend gains `- [ ] Buy ice` at the end of its last list.
-- AttackFM bug bash gains a line "The login is still broken on Android." (as an item if the note ends in
-  a list, else as a paragraph).
+- Groceries gains `- Oat milk` at the end of its list. An item a command adds is capitalised, although the
+  items the list was made with are not.
+- Cabin weekend gains `- Buy ice` under `- Firewood from the farm shop`, before "The house rules": the task goes on
+  the end of the note's last list, in that list's own style, and that list is bullets, so it has no box.
+- AttackFM bug bash gains a line "The login is still broken on Android." (as an item if the note has a list,
+  else as a paragraph).
 - A new note, Firewood, holds the three as a list.
 
 **Watch for:** the card naming the note and the words before anything changes, and nothing changing until it is
 tapped. The microphone has stopped by the time the card shows, so a spoken "yes" is not heard, whatever the card's
 hint says. A command naming a note that does not exist says so and changes nothing. Known to fail today: the rules
-split "oat milk" into two items, `- oat` and `- milk`, because a list note takes short bare words said one after
+split "oat milk" into two items, `- Oat` and `- Milk`, because a list note takes short bare words said one after
 another as several items (`src/app/capture/spokenList.ts`). That is a rule to fix, not a promise to correct.
 
-Tables, boards, books and moves by voice are not in this script: a finished recording refuses them ("That command is
-not supported from a voice capture"). The voice suite still checks the phrase-by-phrase rules for them.
+Tables, boards, books and moves by voice are not in this script, because a finished recording does not run them. It
+does not say so either: after "Hey Ghost", said into an open note, such a command opens that note with an AI ask
+carrying its words, and otherwise its words are saved as a note's (docs/instruction-voice-commands.md). The voice
+suite still checks the phrase-by-phrase rules for them.
 
 ## Script 6: prose that must stay prose, then silence
 
