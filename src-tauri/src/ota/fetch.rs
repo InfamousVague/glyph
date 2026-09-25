@@ -16,7 +16,7 @@ pub(super) const CONTEXT_APK: &[u8] = b"glyph-apk\0";
 /// The client every OTA request goes through.
 pub(super) fn client() -> Result<reqwest::Client, String> {
     // Connect and read timeouts, never a total one: a 43 MB APK over a slow
-    // connection is legitimately minutes (the same reasoning as model.rs).
+    // connection is legitimately minutes (the same reasoning as model_files.rs).
     reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(15))
         .read_timeout(std::time::Duration::from_secs(30))

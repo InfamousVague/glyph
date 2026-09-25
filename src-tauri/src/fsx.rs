@@ -12,7 +12,7 @@
 //! safest behaviour any copy had, so every caller now gets all of it.
 //!
 //! What stays out on purpose: the streamed downloads (a model's `.part` in
-//! `whisper::model`, the APK in `ota.rs`) hash as they write and resume or
+//! `model_files`, the APK in `ota/apk.rs`) hash as they write and resume or
 //! restart on their own terms, so they keep their own files; and a best-effort
 //! `let _ = remove_file(..)` that ignores every error is not a removal that
 //! tolerates NotFound, so those sites stay as they are.

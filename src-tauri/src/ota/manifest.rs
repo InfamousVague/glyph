@@ -56,7 +56,8 @@ pub struct Services {
     /// validated and reported, so a manifest that names one stays valid.
     pub format: Option<String>,
     /// Base URLs the Whisper model files are served under, most preferred first
-    /// (src-tauri/src/whisper/model.rs). Hashes stay pinned in the binary.
+    /// (src-tauri/src/whisper/model.rs, and the formatter's in llm/model.rs).
+    /// Hashes stay pinned in the binary.
     pub model_mirrors: Vec<String>,
 }
 
