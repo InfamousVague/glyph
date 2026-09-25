@@ -1,4 +1,4 @@
-import { gb, MODELS, modelName, useModels } from '../../core/ai.ts';
+import { gb, MODELS, modelName, modelSpec, useModels } from '../../core/ai.ts';
 import { setPreferences, usePreferences } from '../../core/preferences.ts';
 import { isTauri } from '../../core/tauri.ts';
 import { Choice } from './parts.tsx';
@@ -20,7 +20,7 @@ export function Model() {
   const { formatModel } = usePreferences();
   const { models, download, problem, fetch } = useModels();
   const here = models.find((m) => m.id === formatModel)?.present ?? false;
-  const chosen = MODELS.find((m) => m.id === formatModel);
+  const chosen = modelSpec(formatModel);
   return (
     <>
       <h1 className={styles.title}>Choose your model</h1>

@@ -1,6 +1,6 @@
 import { Download, Sparkles } from '@glacier/icons';
 import { ProgressBar, Switch } from '@glacier/react';
-import { DEFAULT_MODEL, gb, MODELS, useModels } from '../core/ai.ts';
+import { DEFAULT_MODEL, gb, MODELS, modelSpec, useModels } from '../core/ai.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { PaneSection, Pick, RowAction, SettingRow, SettingsCallout, SettingsEmpty, SettingsFootnote } from './kit/settingsKit.tsx';
@@ -21,7 +21,7 @@ export function FormattingPane() {
   const present = new Set(models.filter((m) => m.present).map((m) => m.id));
   const onPhone = MODELS.filter((m) => present.has(m.id));
   const held = onPhone.reduce((sum, m) => sum + m.bytes, 0);
-  const downloading = download ? MODELS.find((m) => m.id === download.id) : null;
+  const downloading = download ? modelSpec(download.id) : null;
 
   if (!isTauri()) {
     return (

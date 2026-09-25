@@ -3,7 +3,7 @@ import { BookOpen, CircleUser, FlaskConical, Info, Mic, Puzzle, Sparkles, SunMoo
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
-import { gb, modelName, MODELS, useModels } from '../core/ai.ts';
+import { gb, modelName, modelSpec, useModels } from '../core/ai.ts';
 import { hapticsAvailable, useHapticsPref } from '../core/haptics.ts';
 import { isAndroid } from '../core/platform.ts';
 import type { Updates } from '../core/ota.ts';
@@ -83,7 +83,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
     if (toCheatSheet) setGoTo({ id: 'cheatsheet', nonce: toCheatSheet });
   }, [toCheatSheet]);
 
-  const chosenModel = MODELS.find((m) => m.id === prefs.formatModel);
+  const chosenModel = modelSpec(prefs.formatModel);
   const modelHere = models.find((m) => m.id === prefs.formatModel)?.present ?? false;
   const formattingSummary = !isTauri()
     ? 'Runs on the phone'

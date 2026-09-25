@@ -37,8 +37,13 @@ export const MODELS: readonly ModelChoice[] = [
 
 export const DEFAULT_MODEL = 'qwen3.5-4b';
 
+/** A model in the catalogue by its id, or undefined for one this build does not offer. */
+export function modelSpec(id: string): ModelChoice | undefined {
+  return MODELS.find((m) => m.id === id);
+}
+
 export function modelName(id: string): string {
-  return MODELS.find((m) => m.id === id)?.name ?? id;
+  return modelSpec(id)?.name ?? id;
 }
 
 /** Bytes as a person reads them: "2.7 GB". */
@@ -117,7 +122,7 @@ export function useModels(): {
       const unlisten = await listenTo<{ id: string; receivedBytes: number; totalBytes: number }>('ai://model-progress', (progress) => {
         if (progress.id === id) setDownload({ id, received: progress.receivedBytes, total: progress.totalBytes });
       });
-      setDownload({ id, received: 0, total: MODELS.find((m) => m.id === id)?.bytes ?? 0 });
+      setDownload({ id, received: 0, total: modelSpec(id)?.bytes ?? 0 });
       try {
         await invoke<ModelInfo>('ai_fetch_model', { id });
       } catch (failure) {

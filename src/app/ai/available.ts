@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MODELS, useModels, type Download, type ModelInfo } from '../core/ai.ts';
+import { modelSpec, useModels, type Download, type ModelInfo } from '../core/ai.ts';
 import { hasNativeGeneration, nativeGeneration } from '../core/nativeGeneration.ts';
 import { isIOS } from '../core/platform.ts';
 import { preferences, usePreferences } from '../core/preferences.ts';
@@ -42,7 +42,7 @@ export type Availability =
 
 /** Bytes of a model, for choosing among what is on the phone; an unknown id sorts last. */
 function sizeOf(id: string): number {
-  return MODELS.find((m) => m.id === id)?.bytes ?? Number.MAX_SAFE_INTEGER;
+  return modelSpec(id)?.bytes ?? Number.MAX_SAFE_INTEGER;
 }
 
 /**

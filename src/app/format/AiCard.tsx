@@ -1,4 +1,4 @@
-import { gb, modelName, MODELS, type Hardware, type Phase } from '../core/ai.ts';
+import { gb, modelName, modelSpec, type Hardware, type Phase } from '../core/ai.ts';
 import { clock, pace } from '../ai/words.ts';
 import { useDeviceFacts } from './deviceFacts.ts';
 import { Thinking } from './Thinking.tsx';
@@ -39,7 +39,7 @@ export interface AiCardProps {
 
 export function AiCard({ model, phase, doing, promptTokens, promptTokensDone, outputTokens, tokensPerSecond, elapsedMs, hardware }: AiCardProps) {
   const facts = useDeviceFacts();
-  const spec = MODELS.find((m) => m.id === model);
+  const spec = modelSpec(model);
   const cores = hardware?.cores ?? facts.cores;
   const threads = hardware?.threads ?? null;
   const cpuShare = hardware && cores ? Math.min(1, hardware.cpuPercent / (100 * cores)) : null;
