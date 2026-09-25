@@ -1,6 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ModelInfo } from '../core/ai.ts';
-import { availability, modelFor, presentIds, smallestOf } from './available.ts';
+
+/** A browser until a test says the page is on a phone, whose binary and catalogue it then answers for. */
+let native = false;
+let catalogue: ModelInfo[] = [];
+vi.mock('../core/tauri.ts', () => ({
+  isTauri: () => native,
+  invoke: async (command: string) => (command === 'ota_status' ? { nativeGeneration: 19 } : command === 'ai_models' ? catalogue : null),
+}));
+
+const { show, waitUntil } = await import('../../test/render.tsx');
+const { availability, modelFor, modelNow, presentIds, smallestOf, useAvailability } = await import('./available.ts');
+const { setPreferences } = await import('../core/preferences.ts');
 
 const model = (id: string, present: boolean): ModelInfo => ({ id, file: `${id}.gguf`, bytes: 1, present, path: '' });
 const phone = { tauri: true, ios: false, localOnly: false, generation: 19 };
@@ -41,5 +52,35 @@ describe('whether the AI can run here', () => {
     expect(availability([], 'qwen3.5-4b', phone)).toMatchObject({ ok: false, waiting: true });
     expect(availability([model('qwen3.5-4b', false)], 'qwen3.5-4b', phone)).toMatchObject({ ok: false, get: 'qwen3.5-4b', waiting: false });
     expect(availability([model('qwen3.5-4b', false)], 'qwen3.5-4b', { ...phone, localOnly: true })).toMatchObject({ ok: false, get: null, reason: expect.stringContaining('Local only') });
+  });
+});
+
+describe('the answer as a screen sees it', () => {
+  /** What the hook answers on its latest render. */
+  function mounted() {
+    const seen: { current: ReturnType<typeof useAvailability> | null } = { current: null };
+    function Screen() {
+      seen.current = useAvailability();
+      return null;
+    }
+    show(<Screen />);
+    return seen;
+  }
+
+  it('says the AI runs on the phone, in a browser', async () => {
+    native = false;
+    const seen = mounted();
+    await waitUntil(() => expect(seen.current?.availability).toMatchObject({ ok: false, reason: expect.stringContaining('runs on the phone') }));
+  });
+
+  it('runs the chosen model on a phone that has it, and the next one down when it does not', async () => {
+    native = true;
+    catalogue = [model('qwen3.5-2b', true), model('qwen3.5-4b', true)];
+    setPreferences({ formatModel: 'qwen3.5-4b' });
+    const seen = mounted();
+    await waitUntil(() => expect(seen.current?.availability).toEqual({ ok: true, model: 'qwen3.5-4b', chosen: 'qwen3.5-4b' }));
+    expect(seen.current?.models.map((m) => m.id)).toEqual(['qwen3.5-2b', 'qwen3.5-4b']);
+    // Outside React, from the catalogue as last read: the same rule.
+    expect(modelNow([model('qwen3.5-2b', true), model('qwen3.5-4b', false)])).toBe('qwen3.5-2b');
   });
 });
