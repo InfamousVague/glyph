@@ -2105,8 +2105,8 @@ just a small preview".
   the formatted view, at 0.62 of the note's type (`--app-body` and the heading sizes redefined on the card, so the
   ratios hold), given the note after its title (`notes/peek.ts` `peekMarkdown`, fourteen lines at most) and clipped
   to about six lines in its own em, with a mask fade on the last line only when there is more below. The card is a
-  button, so the editor takes no pointer events. It replaces the hand-drawn miniature (`notePeek`, still there for
-  the sample note's tests), whose six-pixel box for a to-do was the "weird checkbox".
+  button, so the editor takes no pointer events. It replaces the hand-drawn miniature (`notePeek`, since removed),
+  whose six-pixel box for a to-do was the "weird checkbox".
 - **Peek mode** (`Editor`'s `peek`): the same formatter, but nothing that fetches, polls or acts - no link preview
   cards, no Mermaid, no board drawing, no tap-to-tick, no Notion reads for the marks (`shortLinks({ still })` draws
   them from what is known). A board's fence is left out of the markdown too: its items follow and are drawn as the
