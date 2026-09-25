@@ -19,7 +19,7 @@ await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedi
 stubResizeObserver();
 
 afterEach(() => {
-  // Taken down on the clock that drew it, before a run's fake clock goes.
+  // Unmounted before the real clock is back, so the tree's cleanup clears its timers on the fake clock that set them.
   unmount();
   vi.useRealTimers();
   localStorage.clear();

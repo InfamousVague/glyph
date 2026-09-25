@@ -30,7 +30,7 @@ const sections: SettingsSection[] = [
 let host: HTMLDivElement;
 
 afterEach(() => {
-  // Taken down while the fake clock that drew it is still in.
+  // Unmounted before the real clock is back, so the tree's cleanup clears its timers on the fake clock that set them.
   unmount();
   vi.useRealTimers();
 });

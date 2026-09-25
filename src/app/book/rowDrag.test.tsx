@@ -45,7 +45,7 @@ function showRows(element: ReactElement): void {
 }
 
 afterEach(() => {
-  // Taken down while a test's fake clock is still in.
+  // Unmounted before the real clock is back, so the tree's cleanup clears its timers on the fake clock that set them.
   unmount();
   vi.useRealTimers();
 });
