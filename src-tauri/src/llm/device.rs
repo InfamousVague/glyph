@@ -2,9 +2,10 @@
 //! and room on disk.
 //!
 //! Only facts, no judgement. Whether a model "runs well", is "tight" or is
-//! "too big" is the page's call (`core/models.ts`), so the thresholds can be
-//! tuned over the air as phones get measured; this module just has to read
-//! the numbers right. Everything comes from places an app may read without a
+//! "too big" is a call for the page, where thresholds can be tuned over the air
+//! as phones get measured. Today the page reads only `phone`
+//! (capture/sideKey.ts, to find the side key); the rest waits for a model
+//! picker that judges fit. This module just has to read the numbers right. Everything comes from places an app may read without a
 //! permission: `/proc/meminfo`, the cpufreq tree under `/sys`, Android's
 //! system properties through `getprop`, and `statvfs` on the models folder.
 //!

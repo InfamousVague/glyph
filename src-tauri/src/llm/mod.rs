@@ -30,7 +30,11 @@
 //! - `device` reads what the phone has (memory, cores, chip, disk) so the
 //!   page can judge which models fit.
 //! - `engine` owns llama.cpp: one worker thread holding the model and its
-//!   context, a queue of generations, progress callbacks, cancellation.
+//!   context, a queue of generations, cancellation. One run's prefill and
+//!   sampling are `generate`, and what it reports as it goes is `report`
+//!   (with the phone's readings from `hardware`).
+//! - `command` is the fixed contract a voice command is read under: the
+//!   grammar compiled into this binary, and the checks on what comes back.
 //!
 //! ONE GGML. llama.cpp and whisper.cpp both vendor ggml, at different versions,
 //! under the same library names, and two copies in one .so link without error
@@ -46,6 +50,10 @@ pub mod prompt;
 
 #[cfg(not(target_os = "ios"))]
 pub mod engine;
+#[cfg(not(target_os = "ios"))]
+mod generate;
+#[cfg(not(target_os = "ios"))]
+mod report;
 
 #[cfg(all(test, not(target_os = "ios")))]
 mod tests;
