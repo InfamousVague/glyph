@@ -235,6 +235,22 @@ describe('the actions', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('```board'));
   });
 
+  it('adds the line it was offered for, wherever the caret has gone while the menu was open', async () => {
+    const say = vi.fn();
+    editor('# List\n\n- [ ] milk\n- [ ] eggs', { anchor: 10 });
+    show(<ContextMenu view={view} say={say} />);
+    await hold();
+    await choose('Board from list');
+    act(() => view.dispatch({ changes: { from: view.state.doc.length, insert: '\n- [ ] bread' }, selection: { anchor: view.state.doc.length + 4 } }));
+    const bread = view.state.doc.lines;
+    await hold();
+    // A keyboard on a desktop keeps the editor's focus while the menu is up, so the caret can move under it.
+    act(() => view.dispatch({ selection: { anchor: 0 } }));
+    await choose('Add to board');
+    expect(say).toHaveBeenLastCalledWith('Added to To do.');
+    expect(view.state.doc.line(bread).text).toMatch(/^- \[ \] bread \^\S+$/);
+  });
+
   it('sends the line’s words, without the item’s marks, where a plugin takes them', async () => {
     const run = vi.fn();
     editor('- [ ] Buy milk ^milk', { anchor: 3 });

@@ -184,7 +184,7 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
   };
 
   const putOnBoard = () => {
-    const column = joinBoard(view);
+    const column = joinBoard(view, caretLine.number);
     if (column === null) return;
     fireNativeHaptic('success');
     say?.(`Added to ${column}.`);

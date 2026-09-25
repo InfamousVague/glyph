@@ -82,13 +82,14 @@ export function makeListBoard(view: EditorView, lines: LineRange): { cards: numb
 }
 
 /**
- * The caret's item joins its list's board: the line gains its anchor, and the fence gains the card (core/boards.ts
- * `addToBoard`; Matt: "add an 'add to board' option when other items in the list are in a board already"). Answers the
- * column it went into, since the board may be well off the screen and where it went is said aloud; null for none.
+ * The item on line `lineNumber` (1-based) joins its list's board: the line gains its anchor, and the fence gains the card
+ * (core/boards.ts `addToBoard`; Matt: "add an 'add to board' option when other items in the list are in a board
+ * already"). The line is the one the row was offered for, not wherever the caret has gone since. Answers the column
+ * it went into, since the board may be well off the screen and where it went is said aloud; null for none.
  */
-export function joinBoard(view: EditorView): string | null {
+export function joinBoard(view: EditorView, lineNumber: number): string | null {
   const doc = view.state.doc;
-  const added = addToBoard(doc.toString(), doc.lineAt(view.state.selection.main.head).number);
+  const added = addToBoard(doc.toString(), lineNumber);
   if (!added) return null;
   const open = doc.line(added.fence.from);
   const close = doc.line(added.fence.to);
