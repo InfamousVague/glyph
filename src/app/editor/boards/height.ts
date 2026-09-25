@@ -2,6 +2,7 @@ import type { EditorView } from '@codemirror/view';
 import { wispFoot, wispFootFade } from '../../art/wispFoot.ts';
 import { markOf, unmarked } from '../../core/itemLinks.ts';
 import { cardText } from '../../core/boards.ts';
+import { readStored, writeStored } from '../../core/stored.ts';
 import { heightMemory } from '../heightMemory.ts';
 import type { DrawnBoard } from './drawn.ts';
 import { BOARD_TYPE, LANE_FOOT } from './theme.ts';
@@ -93,7 +94,12 @@ function lanesFoot(board: HTMLElement): void {
  * (`estimatedHeight`). A board being typed into, having a card dragged, or having its height dragged is not at its
  * own height, and is not remembered.
  */
-const heights = heightMemory('glyph-board-heights', 300, (px) => Math.round(px * 10) / 10);
+const HEIGHTS_KEY = 'glyph-board-heights';
+const heights = heightMemory(
+  { read: () => readStored<unknown>(HEIGHTS_KEY, null), write: (pairs) => writeStored(HEIGHTS_KEY, pairs) },
+  300,
+  (px) => Math.round(px * 10) / 10,
+);
 /** The type a board and the note around it were last drawn in, in px, for guessing at a board not yet drawn. */
 const drawnType = { board: 16.64, note: 19.35 };
 

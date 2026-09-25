@@ -3,6 +3,7 @@ import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } fr
 import { failureText } from '../core/failure.ts';
 import { isDarkNow, onPreferences, preferences } from '../core/preferences.ts';
 import { caretIn, focusMoved, openOnPress, trackFocus } from './drawnBlock.ts';
+import { readStored, writeStored } from '../core/stored.ts';
 import { heightMemory } from './heightMemory.ts';
 
 /**
@@ -122,7 +123,8 @@ let id = 0;
  * out, and without this the editor would count an undrawn one as a single line and shift the note under a reading
  * finger when it arrives.
  */
-const heights = heightMemory('glyph-mermaid-heights', 200, Math.round);
+const HEIGHTS_KEY = 'glyph-mermaid-heights';
+const heights = heightMemory({ read: () => readStored<unknown>(HEIGHTS_KEY, null), write: (pairs) => writeStored(HEIGHTS_KEY, pairs) }, 200, Math.round);
 
 /** How tall a diagram is before it has been drawn: what it was last time, else a guess from how much it says. */
 function guessHeight(code: string): number {
