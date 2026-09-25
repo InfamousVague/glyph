@@ -180,6 +180,23 @@ describe('the tab row', () => {
     expect(noteShown()).toBe('c');
   });
 
+  it("closes the note being read from the palette onto the tab beside it now, not one closed since", async () => {
+    await seed(['a', '# Apples'], ['b', '# Bread'], ['c', '# Cheese']);
+    setPreferences({ openNotes: ['a', 'b', 'c'] });
+    await openApp();
+    act(() => button('Cheese').click());
+    // A tab behind the one being read, closed by hand: the row changes and the screen does not.
+    act(() => button('Close Bread').click());
+    expect(tabs()).toEqual(['a', 'c']);
+    act(() => button('All your notes').click());
+    act(() => button('Search and commands').click());
+    const command = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent?.includes('Close the Cheese tab'));
+    // The kit's palette runs a command on the press itself, before the click.
+    act(() => void command!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })));
+    expect(tabs()).toEqual(['a']);
+    expect(noteShown()).toBe('a');
+  });
+
   it('keeps tab groups through the first render, before any note has loaded', async () => {
     await seed(['a', '# Apples'], ['b', '# Bread']);
     const groups = { list: [{ id: 'g', name: 'Food', hue: 'sea' as const, collapsed: false }], of: { a: 'g' } };

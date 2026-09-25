@@ -19,6 +19,7 @@ import { SettingsSheet } from './settings/SettingsSheet.tsx';
 import { CaptureScreen } from './capture/CaptureScreen.tsx';
 import { AcademyScreen } from './academy/AcademyScreen.tsx';
 import { CommandBar } from './commands/CommandBar.tsx';
+import type { PaletteDoing } from './commands/palette.ts';
 import type { NoteView } from './editor/viewMode.ts';
 import { academyBannerDue, dismissAcademyBanner } from './academy/banner.ts';
 import { WhatsNewSheet } from './notes/WhatsNewSheet.tsx';
@@ -518,45 +519,46 @@ function Shell() {
     [shownNotes, tabs.tabs, spaces, screen, walk.canBack, walk.canOn, prefs.noteView, prefs.theme, tabs.groups],
   );
   const { setGroups } = tabs;
-  const paletteDoing = useMemo(
-    () => ({
-      openNote,
-      openNoteWhereLeft,
-      newNote: () => void newNote(),
-      speak,
-      speakInto,
-      closeTab,
-      showList: () => void backToList(),
-      browseNotes: showAllNotes,
-      back: goBack,
-      forward: goOn,
-      settings: () => setSettings(true),
-      cheatSheet: () => {
-        setSettings(true);
-        setToCheatSheet(Date.now());
-      },
-      guide: () => guide.show(0),
-      academy: () => setScreen({ name: 'academy' }),
-      chooseWorkspace,
-      fileNote,
-      setView: (view: NoteView) => setPreferences({ noteView: view }),
-      setTheme: (theme: ThemePref) => setPreferences(themeChoice(theme, preferences())),
-      groupTab: (id: string) => setGroups((was) => newGroup(was, id).groups),
-      joinTabGroup: (id: string, group: string) => setGroups((was) => joinGroup(was, id, group)),
-      leaveTabGroup: (id: string) => setGroups((was) => leaveGroup(was, id)),
-      pin: (id: string) => {
-        const note = notes.find((n) => n.id === id);
-        if (note) actions.pin(note);
-      },
-      archive: (id: string) => {
-        const note = notes.find((n) => n.id === id);
-        if (note) actions.archive(note, true);
-      },
-      remove: removeNote,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [notes, actions, walk.trail, screen],
-  );
+  /*
+   * The doings, built on every render: each one closes over this render's tabs, screen and trail. A memo keyed on less
+   * than all of them would hand the palette a closure from an older render - "Close tab" would then land on a tab the
+   * row no longer has - and one keyed on all of them would be rebuilt every render anyway.
+   */
+  const paletteDoing: PaletteDoing = {
+    openNote,
+    openNoteWhereLeft,
+    newNote: () => void newNote(),
+    speak,
+    speakInto,
+    closeTab,
+    showList: () => void backToList(),
+    browseNotes: showAllNotes,
+    back: goBack,
+    forward: goOn,
+    settings: () => setSettings(true),
+    cheatSheet: () => {
+      setSettings(true);
+      setToCheatSheet(Date.now());
+    },
+    guide: () => guide.show(0),
+    academy: () => setScreen({ name: 'academy' }),
+    chooseWorkspace,
+    fileNote,
+    setView: (view: NoteView) => setPreferences({ noteView: view }),
+    setTheme: (theme: ThemePref) => setPreferences(themeChoice(theme, preferences())),
+    groupTab: (id: string) => setGroups((was) => newGroup(was, id).groups),
+    joinTabGroup: (id: string, group: string) => setGroups((was) => joinGroup(was, id, group)),
+    leaveTabGroup: (id: string) => setGroups((was) => leaveGroup(was, id)),
+    pin: (id: string) => {
+      const note = notes.find((n) => n.id === id);
+      if (note) actions.pin(note);
+    },
+    archive: (id: string) => {
+      const note = notes.find((n) => n.id === id);
+      if (note) actions.archive(note, true);
+    },
+    remove: removeNote,
+  };
 
   /*
    * An update waiting: the sidebar's to carry on a wide window, where there is no home list to show them
