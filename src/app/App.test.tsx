@@ -256,6 +256,20 @@ describe('the side key', () => {
     expect(document.querySelector<HTMLElement>('[data-screen="guide"]')?.dataset.tooSoon).toBe('true');
   });
 
+  it('held on a reading page of the guide before a relaunch, brings the guide back with its line and no recording', async () => {
+    localStorage.removeItem('glyph-guide-seen');
+    localStorage.setItem('glyph-guide-started', '1');
+    localStorage.setItem('glyph-guide-page', '0');
+    history.replaceState(null, '', '/?capture');
+    show(<App />);
+    await waitUntil(() => expect(document.querySelector('[data-screen="guide"]')).not.toBeNull());
+    expect(document.querySelector<HTMLElement>('[data-screen="guide"]')?.dataset.tooSoon).toBe('true');
+    await act(async () => {
+      // Long enough for a capture to have begun, had one been going to.
+    });
+    expect(screenNow()?.dataset.screen).not.toBe('capture');
+  });
+
   it('opens the app on a capture when it was what launched it', async () => {
     history.replaceState(null, '', '/?capture');
     show(<App />);

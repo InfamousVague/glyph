@@ -32,6 +32,23 @@ describe('the guide', () => {
     expect(guide.tooSoonAtBoot).toBe(false);
   });
 
+  it('comes back with its line on a relaunch that finds it left on a page still to be read', () => {
+    localStorage.setItem('glyph-guide-started', '1');
+    localStorage.setItem('glyph-guide-page', '0');
+    show(<Probe />);
+    expect(guide.open).toBe(true);
+    expect(guide.tooSoon).toBe(true);
+  });
+
+  it('comes back with its line, and holds the recording, when the side key was held on a page still to be read', () => {
+    localStorage.setItem('glyph-guide-started', '1');
+    localStorage.setItem('glyph-guide-page', '0');
+    show(<Probe launchedByKey />);
+    expect(guide.open).toBe(true);
+    expect(guide.tooSoon).toBe(true);
+    expect(guide.tooSoonAtBoot).toBe(true);
+  });
+
   it('does not open by itself once seen, and is seen for good when it is closed', () => {
     show(<Probe />);
     act(() => guide.close());
