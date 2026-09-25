@@ -111,7 +111,7 @@ A count and a goal in square brackets is a counter: tap it to add one, hold it t
 
 - Water [3/8]
 
-A line that starts with an equals sign shows its answer after it, and never writes it into the note. Say "calculate".
+An equals sign and a space at the start of a line work out the sum after them, and show its answer without writing it into the note. Say "calculate".
 
 = $450 + 120 * 2
 
