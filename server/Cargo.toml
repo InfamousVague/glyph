@@ -12,16 +12,14 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
 tower-http = { version = "0.6", features = ["cors"] }
 # rustls rather than native-tls: the binary is cross-compiled with zig and has
-# to run on a box whose OpenSSL this Mac never sees. It speaks HTTPS to
-# api.notion.com for Notion sign-in (src/notion.rs) and plain HTTP to the
-# loopback Ollama and MCP server, and a TLS stack that links against nothing
+# to run on a box whose OpenSSL this Mac never sees. It only ever speaks plain
+# HTTP to a loopback Ollama today, but a TLS stack that links against nothing
 # is the one that cannot break on an apt upgrade later.
 # `stream` for src/mcp_proxy.rs, which passes the hosted MCP server's answers on as they come.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# SHA-256 for Notion sign-in's PKCE check (src/notion.rs) and for the recovery codes' login halves
-# (src/accounts/credentials.rs); base64url for every token, key, nonce and id.
+# Notion sign-in (src/notion.rs): the PKCE check on claim, and base64url for it.
 sha2 = "0.10"
 base64 = "0.22"
 # Accounts and sync (src/accounts.rs, src/sync.rs, docs/SYNC.md), as AttackFM's registry does them: one SQLite file
@@ -35,17 +33,6 @@ rand = "0.8"
 [profile.release]
 lto = true
 strip = true
-
-# Argon2 is the one hot loop the tests run - every sign-up hashes a login secret and every password sign-in verifies
-# one - and unoptimised it takes seconds a call on a loaded machine: long enough for the per-handle sign-in bucket to
-# refill between the attempts sync_tests.rs counts, so the test of that limit failed for a reason it was not testing.
-# Optimising these two crates in debug builds keeps the tests about the rules rather than the clock; a release build
-# is optimised whole anyway.
-[profile.dev.package.argon2]
-opt-level = 3
-
-[profile.dev.package.blake2]
-opt-level = 3
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
