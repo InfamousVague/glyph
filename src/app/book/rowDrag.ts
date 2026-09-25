@@ -2,7 +2,7 @@ import { useCallback, useRef, useState, type CSSProperties, type PointerEvent as
 
 /**
  * Rows dragged into a new order, by their grip (Matt: "drag to reorder pages"). The shape the app's other drags
- * have (canvas/CanvasView.tsx, notes/NoteTabs.tsx): on touch a short hold before the row lifts, so a finger that
+ * have (canvas/gestures.ts, notes/NoteTabs.tsx): on touch a short hold before the row lifts, so a finger that
  * meant to scroll still scrolls; with a mouse at once; the pointer captured so the drag survives leaving the row;
  * the lifted row following the finger and the others making room; on release, the row's new place handed back as
  * an index. The rows' own arrow buttons stay for the keyboard.

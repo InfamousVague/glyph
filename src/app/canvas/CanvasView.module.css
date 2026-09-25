@@ -1,6 +1,9 @@
 /*
- * A canvas on the screen (canvas/CanvasView.tsx). The page is the note's ground; the world inside it is moved and
- * scaled by a transform the fingers write, and everything in the world is placed in the canvas's own pixels.
+ * A canvas on the screen (canvas/CanvasView.tsx), and what is drawn in its world: the cards (Card.tsx, Near.tsx), the
+ * crosses (Remove.tsx), the lines (LineLayer.tsx) and a picked line's words (LineWords.tsx). One stylesheet for all of
+ * them, since their rules reach each other (a cross inside a group's name, the cards while a line is drawn). The page
+ * is the note's ground; the world inside it is moved and scaled by a transform the fingers write, and everything in
+ * the world is placed in the canvas's own pixels. The minimap and the + sheet have stylesheets of their own.
  */
 .canvas {
   position: relative;
@@ -15,7 +18,7 @@
   /*
    * A grid of dots under the cards, as Obsidian's canvas has (Matt: "the grid dots are missing from canvas"): drawn
    * by the page's background so it costs nothing, and moved and scaled with the world through the three variables
-   * `apply` writes (CanvasView.tsx), so the dots stay under the same points of the canvas as it pans and zooms. At
+   * `apply` writes (camera.ts), so the dots stay under the same points of the canvas as it pans and zooms. At
    * the smallest zooms the dots would crowd into a grey, so they fade out below a third.
    */
   --canvas-x: 0px;
