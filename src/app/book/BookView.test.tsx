@@ -3,6 +3,7 @@ import { act } from 'react';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, show, typeInto, unmount } from '../../test/render.tsx';
+import { dragGrip, layRowsOut } from '../../test/rows.ts';
 import { bookNoteBody, bookOf, chaptersOf } from './book.ts';
 import { BookBar, BookFoot } from './BookNav.tsx';
 import { BookView } from './BookView.tsx';
@@ -45,18 +46,8 @@ describe('the index view', () => {
     const onChange = vi.fn();
     show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => []} onChange={onChange} />);
     const rowEls = [...document.querySelectorAll<HTMLElement>('ol[aria-label="Chapters"] li')];
-    // jsdom lays nothing out: each row 40px tall, one under another.
-    rowEls.forEach((li, i) => {
-      li.getBoundingClientRect = () => ({ top: i * 40, bottom: i * 40 + 40, height: 40, left: 0, right: 300, width: 300, x: 0, y: i * 40, toJSON: () => ({}) }) as DOMRect;
-    });
-    const grip = rowEls[0]!.querySelector<HTMLElement>('[class*=grip]')!;
-    const drag = (type: string, clientY: number) =>
-      act(() => {
-        grip.dispatchEvent(Object.assign(new MouseEvent(type, { bubbles: true, clientY, button: 0 }), { pointerId: 1, pointerType: 'mouse' }));
-      });
-    drag('pointerdown', 20);
-    drag('pointermove', 110);
-    drag('pointerup', 110);
+    layRowsOut(rowEls);
+    dragGrip(rowEls[0]!.querySelector('[class*=grip]')!, 20, 110);
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Trees', 'Birds', 'Introduction']);
   });
