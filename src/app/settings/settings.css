@@ -270,28 +270,25 @@
 /*
  * The chip each row wears: a small squircle in its section's colour, see-through, with the glyph in the same colour at
  * full strength (SettingsScreen.tsx `hueOf`). It used to be ink with the glyph in paper, one chip for every section.
+ * A section's page wears its colour too: each row's icon in the same chip as the list's.
  */
+.settingsScreen__rowIcon,
+.settingsScreen__pane .setk-row__icon {
+  inline-size: 1.85rem;
+  block-size: 1.85rem;
+  border-radius: 0.55rem;
+}
+
 .settingsScreen__rowIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
-  inline-size: 1.85rem;
-  block-size: 1.85rem;
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent);
-  color: var(--hue, var(--app-ink));
 }
 
-/* A section's page wears its colour too: each row's icon in the same chip as the list's, the hero's and the callouts'. */
 .settingsScreen__pane .setk-row__icon {
   display: inline-grid;
   place-items: center;
-  inline-size: 1.85rem;
-  block-size: 1.85rem;
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent);
-  color: var(--hue, var(--app-ink));
 }
 
 .settingsScreen__pane .setk-row__icon svg {
@@ -299,62 +296,45 @@
   block-size: 1.05rem;
 }
 
-.settingsScreen__pane .setk-hero__glyph,
-.settingsScreen__pane .setk-empty__icon {
+/* The colour, on the list's chips and on a page's: its rows', its hero's and its empty state's, and its callouts' glyph. */
+.settingsScreen__rowIcon,
+.settingsScreen__pane :is(.setk-row__icon, .setk-hero__glyph, .setk-empty__icon) {
   background: color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent);
+}
+
+.settingsScreen__rowIcon,
+.settingsScreen__pane :is(.setk-row__icon, .setk-hero__glyph, .setk-empty__icon, .setk-callout__icon) {
   color: var(--hue, var(--app-ink));
 }
 
-.settingsScreen__pane .setk-callout__icon {
-  color: var(--hue, var(--app-ink));
+/*
+ * The colours: a shade deeper on the light page, so the glyph holds its contrast on paper; brighter on the dark one.
+ * Each section's pair on one line, and the dark one taken up wherever the page is dark: an explicit Dark, and System
+ * on a dark phone, which leaves `data-theme` off (core/preferences.ts) and so needs the media query's twin.
+ */
+[data-hue='blue']     { --hue: #0a6fe0; --hue-dark: #4ea1ff; }
+[data-hue='indigo']   { --hue: #5552d4; --hue-dark: #8583ff; }
+[data-hue='purple']   { --hue: #9a45c9; --hue-dark: #c77dff; }
+[data-hue='red']      { --hue: #dd3a30; --hue-dark: #ff6b61; }
+[data-hue='orange']   { --hue: #d97706; --hue-dark: #ffa53a; }
+[data-hue='teal']     { --hue: #1b92a8; --hue-dark: #5ccfe6; }
+[data-hue='graphite'] { --hue: #5f6368; --hue-dark: #aeb2b8; }
+[data-hue='coral']    { --hue: #c8643f; --hue-dark: #f0906b; }
+[data-hue='green']    { --hue: #2a9d4b; --hue-dark: #4cd571; }
+[data-hue='pink']     { --hue: #d9315a; --hue-dark: #ff6b8d; }
+[data-hue='yellow']   { --hue: #b58400; --hue-dark: #ffd43b; }
+[data-hue='grey']     { --hue: #7c7c82; --hue-dark: #a1a1a8; }
+[data-hue='brown']    { --hue: #93724e; --hue-dark: #c7a57f; }
+[data-hue='mint']     { --hue: #1f9e8f; --hue-dark: #5fe0cf; }
+
+:root[data-theme='dark'] [data-hue] {
+  --hue: var(--hue-dark);
 }
-
-/* The colours: a shade deeper on the light page, so the glyph holds its contrast on paper; brighter on the dark one. */
-[data-hue='blue'] { --hue: #0a6fe0; }
-[data-hue='indigo'] { --hue: #5552d4; }
-[data-hue='purple'] { --hue: #9a45c9; }
-[data-hue='red'] { --hue: #dd3a30; }
-[data-hue='orange'] { --hue: #d97706; }
-[data-hue='teal'] { --hue: #1b92a8; }
-[data-hue='graphite'] { --hue: #5f6368; }
-[data-hue='coral'] { --hue: #c8643f; }
-[data-hue='green'] { --hue: #2a9d4b; }
-[data-hue='pink'] { --hue: #d9315a; }
-[data-hue='yellow'] { --hue: #b58400; }
-[data-hue='grey'] { --hue: #7c7c82; }
-[data-hue='brown'] { --hue: #93724e; }
-[data-hue='mint'] { --hue: #1f9e8f; }
-
-:root[data-theme='dark'] [data-hue='blue'] { --hue: #4ea1ff; }
-:root[data-theme='dark'] [data-hue='indigo'] { --hue: #8583ff; }
-:root[data-theme='dark'] [data-hue='purple'] { --hue: #c77dff; }
-:root[data-theme='dark'] [data-hue='red'] { --hue: #ff6b61; }
-:root[data-theme='dark'] [data-hue='orange'] { --hue: #ffa53a; }
-:root[data-theme='dark'] [data-hue='teal'] { --hue: #5ccfe6; }
-:root[data-theme='dark'] [data-hue='graphite'] { --hue: #aeb2b8; }
-:root[data-theme='dark'] [data-hue='coral'] { --hue: #f0906b; }
-:root[data-theme='dark'] [data-hue='green'] { --hue: #4cd571; }
-:root[data-theme='dark'] [data-hue='pink'] { --hue: #ff6b8d; }
-:root[data-theme='dark'] [data-hue='yellow'] { --hue: #ffd43b; }
-:root[data-theme='dark'] [data-hue='grey'] { --hue: #a1a1a8; }
-:root[data-theme='dark'] [data-hue='brown'] { --hue: #c7a57f; }
-:root[data-theme='dark'] [data-hue='mint'] { --hue: #5fe0cf; }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) [data-hue='blue'] { --hue: #4ea1ff; }
-  :root:not([data-theme='light']) [data-hue='indigo'] { --hue: #8583ff; }
-  :root:not([data-theme='light']) [data-hue='purple'] { --hue: #c77dff; }
-  :root:not([data-theme='light']) [data-hue='red'] { --hue: #ff6b61; }
-  :root:not([data-theme='light']) [data-hue='orange'] { --hue: #ffa53a; }
-  :root:not([data-theme='light']) [data-hue='teal'] { --hue: #5ccfe6; }
-  :root:not([data-theme='light']) [data-hue='graphite'] { --hue: #aeb2b8; }
-  :root:not([data-theme='light']) [data-hue='coral'] { --hue: #f0906b; }
-  :root:not([data-theme='light']) [data-hue='green'] { --hue: #4cd571; }
-  :root:not([data-theme='light']) [data-hue='pink'] { --hue: #ff6b8d; }
-  :root:not([data-theme='light']) [data-hue='yellow'] { --hue: #ffd43b; }
-  :root:not([data-theme='light']) [data-hue='grey'] { --hue: #a1a1a8; }
-  :root:not([data-theme='light']) [data-hue='brown'] { --hue: #c7a57f; }
-  :root:not([data-theme='light']) [data-hue='mint'] { --hue: #5fe0cf; }
+  :root:not([data-theme='light']) [data-hue] {
+    --hue: var(--hue-dark);
+  }
 }
 
 /* Label over the live one-line reading of the section's state. */
