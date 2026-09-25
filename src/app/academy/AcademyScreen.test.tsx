@@ -6,8 +6,9 @@ vi.mock('../core/haptics.ts', async (importOriginal) => ({ ...(await importOrigi
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { goBack } from '../core/back.ts';
 import { button, buttonSaying, press, show, typeInto } from '../../test/render.tsx';
+import { plugins } from '../plugins/registry.ts';
 import { AcademyScreen } from './AcademyScreen.tsx';
-import { LESSONS, readProgress, writeProgress } from './lessons.ts';
+import { LESSONS, lessonsIn, readProgress, writeProgress } from './lessons.ts';
 
 /**
  * The Academy as a person takes it: a lesson, their own line typed under it, the tick the moment the mark is in, and
@@ -16,6 +17,7 @@ import { LESSONS, readProgress, writeProgress } from './lessons.ts';
 
 beforeEach(() => {
   localStorage.clear();
+  plugins.setEnabled('marks', true);
   vi.mocked(fireNativeHaptic).mockClear();
 });
 
@@ -34,8 +36,48 @@ describe('the Academy', () => {
     writeProgress(new Set([first!.id]));
     const { el } = academy();
     expect(title(el)).toBe(second!.title);
-    expect(el.textContent).toContain(`2 of ${LESSONS.length}`);
+    // Where it is in its chapter, and how much of the whole has been learned.
+    expect(el.textContent).toContain(`Markdown basics · 2 of ${lessonsIn('Markdown basics').length}`);
     expect(el.querySelector('[aria-label$="learned"]')?.getAttribute('aria-label')).toBe(`1 of ${LESSONS.length} learned`);
+  });
+
+  it('goes on from the last lesson of a chapter to the first of the next, and draws that chapter’s bars', () => {
+    const basics = lessonsIn('Markdown basics');
+    const more = lessonsIn('More Markdown');
+    writeProgress(new Set(basics.slice(0, -1).map((lesson) => lesson.id)));
+    const { el } = academy();
+    expect(title(el)).toBe(basics.at(-1)!.title);
+    expect(el.querySelectorAll('ol[aria-hidden] > li')).toHaveLength(basics.length);
+    press(button('Skip', el));
+    expect(title(el)).toBe(more[0]!.title);
+    expect(el.textContent).toContain(`More Markdown · 1 of ${more.length}`);
+    expect(el.querySelectorAll('ol[aria-hidden] > li')).toHaveLength(more.length);
+  });
+
+  it('teaches an effect with the note’s own drawing of it underneath', () => {
+    const heat = LESSONS.find((lesson) => lesson.id === 'heat')!;
+    writeProgress(new Set(LESSONS.slice(0, LESSONS.indexOf(heat)).map((lesson) => lesson.id)));
+    const { el } = academy();
+    expect(title(el)).toBe('Heat');
+    typeInto(field(el), '🔥🔥too hot🔥🔥');
+    expect(el.textContent).toContain(heat.praise);
+    expect(readProgress().has('heat')).toBe(true);
+  });
+
+  it('offers no lesson for a mark that is switched off, and counts without it', () => {
+    plugins.setEnabled('marks', false);
+    try {
+      writeProgress(new Set(LESSONS.filter((lesson) => !lesson.needs).map((lesson) => lesson.id)));
+      const { el } = academy();
+      // Every lesson on offer is learned: the plugin's are not waiting to be taken.
+      expect(title(el)).toBe('That is every mark.');
+      const offered = LESSONS.filter((lesson) => !lesson.needs).length;
+      expect(el.querySelector('[aria-label$="learned"]')?.getAttribute('aria-label')).toBe(`${offered} of ${offered} learned`);
+      expect(el.textContent).not.toContain('Marks and effects');
+      expect(buttonSaying(el, 'A spoiler')).toBeUndefined();
+    } finally {
+      plugins.setEnabled('marks', true);
+    }
   });
 
   it('ticks a lesson the moment its mark is typed, once, and waits for Next', () => {
@@ -81,7 +123,7 @@ describe('the Academy', () => {
   it('ends at the summary, where any lesson can be taken again, or all of them from the start', () => {
     writeProgress(new Set(LESSONS.map((lesson) => lesson.id)));
     const { el, onCheatSheet } = academy();
-    expect(title(el)).toBe('That is markdown.');
+    expect(title(el)).toBe('That is every mark.');
     press(buttonSaying(el, 'Cheat sheet'));
     expect(onCheatSheet).toHaveBeenCalledTimes(1);
     press(buttonSaying(el, second!.title));
@@ -96,11 +138,11 @@ describe('the Academy', () => {
     expect(title(el)).toBe(first!.title);
   });
 
-  it('says the chapter is over, not that markdown is learned, when lessons were skipped', () => {
+  it('says the Academy is over, not that every mark is learned, when lessons were skipped', () => {
     writeProgress(new Set([first!.id]));
     const { el } = academy();
     for (let i = 1; i < LESSONS.length; i += 1) press(button('Skip', el));
-    expect(title(el)).toBe('That is the end of the chapter.');
+    expect(title(el)).toBe('That is the end of the Academy.');
   });
 
   it('closes on its arrow and on the back gesture', () => {
