@@ -1,6 +1,7 @@
 /*
- * The typeface cards (TypefaceCards.tsx): the interface-size cards' language (ScaleCards.module.css) - a hairline, the
- * accent ring when chosen, a scrap of a note or of the app on paper-2 over the name - small, as many to a row as fit.
+ * The typeface cards (TypefaceCards.tsx): the choice card the size and theme cards are (choiceCard.module.css) - a
+ * hairline, the accent ring when chosen - with a scrap of a note or of the app on paper-2 over the name, small, as
+ * many to a row as fit.
  */
 
 .grid {

@@ -1,4 +1,7 @@
-/* Flat vector in two inks; no gradients, no shadows. See TapeArt.tsx. */
+/*
+ * The cassette on a spoken note's tape (TapeArt.tsx, drawn by NoteTape.tsx): flat vector in the page's two inks, paper
+ * on ink, with no gradients and no shadows, so it turns with the theme like the words beside it.
+ */
 .tape {
   display: block;
   inline-size: 100%;

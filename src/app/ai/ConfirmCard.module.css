@@ -1,4 +1,7 @@
-/* The card: a ring of ink on paper-2, the heading small and spaced, the words large. */
+/*
+ * The confirm card (ConfirmCard.tsx), and the recorder's cards drawn in its shell (capture/CaptureCards.tsx): a ring
+ * of ink on paper-2, the heading small and spaced (app.css `.app-eyebrow`), the words large.
+ */
 
 .confirm {
   flex: none;

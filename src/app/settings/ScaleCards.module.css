@@ -1,7 +1,7 @@
 /*
- * The interface-size cards (ScaleCards.tsx): the theme cards' language (ThemeCards.module.css) - the hairline, the
- * accent ring when chosen - on five small cards in a row, each holding the same row of the app drawn at its step. The
- * row inside is in em, and the card sets its font size to the step, so the piece scales as the app does.
+ * The interface-size cards (ScaleCards.tsx): the choice card the theme cards are (choiceCard.module.css) - the
+ * hairline, the accent ring when chosen - on five small cards in a row, each holding the same row of the app drawn at
+ * its step. The row inside is in em, and the card sets its font size to the step, so the piece scales as the app does.
  */
 
 .row {

@@ -1,3 +1,10 @@
+/*
+ * The note screen (NoteScreen.tsx), and the note's tools wherever they are drawn (NoteTools.tsx): the header pane of
+ * glass over the page, the round tool buttons, the page under it with the note's type scale redefined for a pinch's
+ * zoom, the AI strip's holder, the ghost on a blank note and the byline. The fold of a phone opening (the crease)
+ * moves the body alone.
+ */
+
 .screen {
   position: relative;
   display: flex;
@@ -51,11 +58,6 @@
 }
 
 /*
- * The header hugs the notch and draws nothing of its own: no bar, no rule.
- * `--app-safe-top` is zero everywhere but a phone, so the same rule gives a
- * desktop window an ordinary strip.
- */
-/*
  * The header is a pane of frosted glass over the page rather than a strip
  * above it (app.css .app-headerPane): the page runs under it, blurred through
  * it, with the gentle wisp just below its edge. The page pads itself by the
@@ -95,7 +97,6 @@
   justify-content: space-between;
   gap: var(--glacier-space-4);
 }
-
 
 /*
  * The note arrives: the header, then the tape, then the body, each a beat
