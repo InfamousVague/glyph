@@ -1,25 +1,17 @@
 // @vitest-environment node
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { describe, expect, it, vi } from 'vitest';
 import { imageNames } from '../src/app/core/imageRefs.ts';
 import { noteTitle } from '../src/app/core/noteTitle.ts';
 import { toBase64Url } from '../src/app/core/sync/crypto.ts';
-import type { Note } from '../src/app/core/store.ts';
 import { fakeService, FAST } from '../src/test/fakeService.ts';
-import { makeNote } from '../src/test/notes.ts';
 import { Conflict, GlyphAccount, GlyphApiError, type StoredSession } from './glyph.ts';
-import { buildServer } from './server.ts';
+import { aNote, API, asText, connected } from './testKit.ts';
 
 /**
  * The client against a sync service stood in for in memory: the same routes, revisions and refusals as
  * server/src/sync.rs and accounts.rs, so every rule the client lives by is tried without a server. The end-to-end
  * test (mcp.e2e.test.ts) tries the same against the real one.
  */
-
-const API = 'https://fake.test/glyph/api';
-
-const aNote = (id: string, body: string): Note => makeNote(id, body, { createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000, source: 'capture', starred: false, archivedAt: null });
 
 describe('signing in from outside the app', () => {
   it('derives the password the way the app does and comes away with the account key and a device key', async () => {
@@ -177,18 +169,6 @@ describe('reading and writing notes', () => {
  * could then find it by a name the person had never seen. These pin the app's answer through the tools.
  */
 describe('titles and pictures, read as the app reads them', () => {
-  const asText = (result: Awaited<ReturnType<Client['callTool']>>) => (result.content as { text?: string }[])[0]?.text ?? '';
-
-  async function connected() {
-    const service = await fakeService({ handle: 'matt', password: 'correct horse' });
-    const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
-    const account = new GlyphAccount(session, { fetcher: service.fetcher });
-    const client = new Client({ name: 'claude', version: '0' });
-    const [ours, theirs] = InMemoryTransport.createLinkedPair();
-    await Promise.all([buildServer(account).connect(theirs), client.connect(ours)]);
-    return { service, account, client };
-  }
-
   it('names a note in list_notes and read_note what the app’s list names it, and by nothing else', async () => {
     const { service, account, client } = await connected();
     const ruled = '---\nSome words here\n---\nReal title';

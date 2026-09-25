@@ -5,12 +5,11 @@ import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { derive, passwordSalt, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
-import type { Note } from '../src/app/core/store.ts';
 import { fakeService, FAST, type FakeService } from '../src/test/fakeService.ts';
-import { makeNote } from '../src/test/notes.ts';
 import { ClaudeMemory } from './fake.ts';
 import { freePort } from './freePort.ts';
 import { hostedApp } from './hosted.ts';
+import { aNote, asText } from './testKit.ts';
 
 /**
  * The hosted server, connected to as Claude connects: the client library's own OAuth flow (discovery from the 401,
@@ -18,8 +17,6 @@ import { hostedApp } from './hosted.ts';
  * memory (src/test/fakeService.ts). The browser's part - the sign-in page's script - is played by the test with the
  * same crypto.
  */
-
-const aNote = (id: string, body: string): Note => makeNote(id, body, { createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000, source: 'capture', starred: false, archivedAt: null });
 
 describe('Claude connecting to the hosted server', () => {
   let server: Server;
@@ -62,8 +59,6 @@ describe('Claude connecting to the hosted server', () => {
     expect(done.status, body.error).toBe(200);
     return new URL(body.redirect!);
   }
-
-  const asText = (result: Awaited<ReturnType<Client['callTool']>>) => (result.content as { text?: string }[])[0]?.text ?? '';
 
   it('is found from the 401, registers Claude, sends the person to sign in, and then serves the tools', async () => {
     const memory = new ClaudeMemory('http://localhost:9999/callback');
