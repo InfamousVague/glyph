@@ -120,7 +120,44 @@ describe('the walkthrough', () => {
     expect(pageOf(el).contains(rings)).toBe(false);
     // Off Android, the page says how to start a voice note instead of which rows to tap.
     expect(el.textContent).toContain('Start a voice note with Speak.');
-    again(at('tips'));
-    expect(el.querySelector('[data-testid="side-key-waves"]')).toBeNull();
+    // Not before it (Matt: "remove the animation … until we get to that step"), and not after.
+    for (const page of GUIDE_PAGES.filter((name) => name !== 'sidekey')) {
+      again(at(page));
+      expect(el.querySelector('[data-testid="side-key-waves"]'), page).toBeNull();
+    }
+  });
+});
+
+describe('swiping through the walkthrough', () => {
+  /** A quick sideways drag across the guide, `dx` pixels: left is forward, right is back. */
+  function swipe(el: HTMLElement, dx: number) {
+    const target = pageOf(el);
+    const at = (type: string, clientX: number) =>
+      Object.assign(new MouseEvent(type, { bubbles: true, clientX, clientY: 300, button: 0 }), { pointerId: 1, isPrimary: true });
+    act(() => {
+      target.dispatchEvent(at('pointerdown', 200));
+      target.dispatchEvent(at('pointerup', 200 + dx));
+    });
+  }
+
+  it('goes forward on a swipe left only once the page is read to the bottom, as Next does', () => {
+    long = true;
+    const { el, onIndex } = guide(at('welcome'));
+    swipe(el, -120);
+    expect(onIndex).not.toHaveBeenCalled();
+    const page = pageOf(el);
+    Object.defineProperty(page, 'scrollTop', { configurable: true, value: 1590 });
+    act(() => page.dispatchEvent(new Event('scroll')));
+    swipe(el, -120);
+    expect(onIndex).toHaveBeenCalledWith(at('welcome') + 1);
+  });
+
+  it('goes back on a swipe right, and never forward from the last page', () => {
+    const { el, onIndex, onClose } = guide(GUIDE_PAGES.length - 1);
+    swipe(el, -120);
+    expect(onIndex).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    swipe(el, 120);
+    expect(onIndex).toHaveBeenCalledWith(GUIDE_PAGES.length - 2);
   });
 });
