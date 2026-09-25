@@ -83,6 +83,9 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use crate::fsx;
 use crate::lock::lock;
 
+#[cfg(target_os = "ios")]
+use crate::unsupported::{on_ios, APK, UPDATES};
+
 /// What this binary provides to a bundle. See the module header.
 ///
 /// 2: signed manifests, remembered sources and services (0.3.0). A page may
@@ -917,10 +920,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 #[tauri::command]
 pub async fn ota_check<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>) -> Result<CheckResult, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state);
-        Err("Over-the-air updates are Android-only.".to_string())
-    }
+    return on_ios(UPDATES, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
         if STAGING {
@@ -1171,10 +1171,7 @@ struct ApkProgress {
 #[tauri::command]
 pub async fn ota_fetch_apk<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>) -> Result<String, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state);
-        Err("There is no APK on iOS.".to_string())
-    }
+    return on_ios(APK, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
         use std::io::Write;

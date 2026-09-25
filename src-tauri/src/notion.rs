@@ -27,6 +27,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::AppHandle;
 
+#[cfg(target_os = "ios")]
+use crate::unsupported::{on_ios, NOTION};
+
 const NOTION_API: &str = "https://api.notion.com/v1/";
 const NOTION_VERSION: &str = "2022-06-28";
 const REFRESH: &str = "https://attack.fm/glyph/api/notion/refresh";
@@ -130,45 +133,43 @@ pub fn notion_disconnect(app: AppHandle) -> Result<(), String> {
     crate::fsx::remove_file_if_present(&path).map_err(|e| format!("cannot forget the Notion account: {e}"))
 }
 
-#[cfg(target_os = "ios")]
-#[tauri::command]
-pub async fn notion_request(_app: AppHandle, _request: Request) -> Result<Answer, String> {
-    Err("Notion is not available on iOS yet.".into())
-}
-
-#[cfg(not(target_os = "ios"))]
 #[tauri::command]
 pub async fn notion_request(app: AppHandle, request: Request) -> Result<Answer, String> {
-    if !allowed_path(&request.path) {
-        return Err(format!("Glyph doesn't call Notion's {} route.", request.path));
-    }
-    let method = match request.method.to_ascii_uppercase().as_str() {
-        "GET" => reqwest::Method::GET,
-        "POST" => reqwest::Method::POST,
-        "PATCH" => reqwest::Method::PATCH,
-        other => return Err(format!("Glyph doesn't send {other} to Notion.")),
-    };
-    let mut account = read(&app).ok_or("Glyph isn't signed in to Notion.")?;
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| format!("cannot make an HTTP client: {e}"))?;
+    #[cfg(target_os = "ios")]
+    return on_ios(NOTION, (app, request));
+    #[cfg(not(target_os = "ios"))]
+    {
+        if !allowed_path(&request.path) {
+            return Err(format!("Glyph doesn't call Notion's {} route.", request.path));
+        }
+        let method = match request.method.to_ascii_uppercase().as_str() {
+            "GET" => reqwest::Method::GET,
+            "POST" => reqwest::Method::POST,
+            "PATCH" => reqwest::Method::PATCH,
+            other => return Err(format!("Glyph doesn't send {other} to Notion.")),
+        };
+        let mut account = read(&app).ok_or("Glyph isn't signed in to Notion.")?;
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| format!("cannot make an HTTP client: {e}"))?;
 
-    let mut answer = send(&client, &method, &request, &account.access_token).await?;
-    if answer.status == 401 {
-        if let Some(refresh) = account.refresh_token.clone() {
-            if let Ok(fresh) = refresh_account(&client, &refresh).await {
-                account = Account {
-                    access_token: fresh.access_token,
-                    refresh_token: fresh.refresh_token.or(account.refresh_token),
-                    ..account
-                };
-                write(&app, &account)?;
-                answer = send(&client, &method, &request, &account.access_token).await?;
+        let mut answer = send(&client, &method, &request, &account.access_token).await?;
+        if answer.status == 401 {
+            if let Some(refresh) = account.refresh_token.clone() {
+                if let Ok(fresh) = refresh_account(&client, &refresh).await {
+                    account = Account {
+                        access_token: fresh.access_token,
+                        refresh_token: fresh.refresh_token.or(account.refresh_token),
+                        ..account
+                    };
+                    write(&app, &account)?;
+                    answer = send(&client, &method, &request, &account.access_token).await?;
+                }
             }
         }
+        Ok(answer)
     }
-    Ok(answer)
 }
 
 #[cfg(not(target_os = "ios"))]

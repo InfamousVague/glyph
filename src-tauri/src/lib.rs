@@ -9,6 +9,9 @@ mod lock;
 mod fsx;
 // Where the app keeps things, and the four directory names Kotlin shares.
 mod paths;
+// What iOS does not have, and the one sentence each such command answers with there.
+#[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+mod unsupported;
 
 // The notes themselves. `pub`, and free of Tauri types, so a caller with no
 // Tauri in its process could reach it over JNI - DESIGN 6.1's capture service,

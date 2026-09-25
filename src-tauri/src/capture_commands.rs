@@ -60,6 +60,9 @@ use tauri::{AppHandle, Manager, State};
 use crate::paths;
 use crate::whisper::model::{self, ModelStatus};
 
+#[cfg(target_os = "ios")]
+use crate::unsupported::{on_ios, TRANSCRIPTION};
+
 #[cfg(not(target_os = "ios"))]
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 
@@ -79,9 +82,6 @@ use crate::whisper::{
     stream::Event,
     worker::Capture,
 };
-
-#[cfg(target_os = "ios")]
-const NOT_ON_IOS: &str = "On-device transcription is not supported on iOS yet.";
 
 /// What `transcribe_wav` measured.
 #[derive(Debug, Clone, Serialize)]
@@ -231,10 +231,7 @@ pub fn capture_refine_model_status(app: AppHandle) -> ModelStatus {
 #[tauri::command]
 pub async fn capture_fetch_refine_model(app: AppHandle, state: State<'_, CaptureState>) -> Result<ModelStatus, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
         let dir = paths::models_dir(&app)?;
@@ -284,10 +281,7 @@ pub async fn capture_refine(
     prompt_tail: String,
 ) -> Result<Vec<crate::store::RecordedSegment>, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, id, from_ms, prompt_tail);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state, id, from_ms, prompt_tail));
     #[cfg(not(target_os = "ios"))]
     {
         use std::sync::atomic::{AtomicI32, Ordering};
@@ -406,10 +400,7 @@ pub async fn capture_fetch_model(
     state: State<'_, CaptureState>,
 ) -> Result<ModelStatus, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
         let dir = paths::models_dir(&app)?;
@@ -504,10 +495,7 @@ pub fn serve_recording<R: tauri::Runtime>(app: &AppHandle<R>, request: &tauri::h
 #[tauri::command]
 pub async fn capture_start(app: AppHandle, state: State<'_, CaptureState>) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
         state.refine_abort.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -550,10 +538,7 @@ pub fn capture_push(
     state: State<'_, CaptureState>,
 ) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (request, state);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (request, state));
     #[cfg(not(target_os = "ios"))]
     {
         use base64::Engine as _;
@@ -602,10 +587,7 @@ pub async fn capture_stop(
     append: Option<bool>,
 ) -> Result<Finished, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, record_as, append);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state, record_as, append));
     #[cfg(not(target_os = "ios"))]
     {
         let capture = lock(&state.capture)
@@ -645,10 +627,7 @@ pub async fn capture_stop(
 #[tauri::command]
 pub async fn capture_rewind(state: State<'_, CaptureState>, to_ms: u64) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (state, to_ms);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (state, to_ms));
     #[cfg(not(target_os = "ios"))]
     {
         // Asked for under the lock, waited for outside it, so pushes and a
@@ -669,10 +648,7 @@ pub async fn capture_rewind(state: State<'_, CaptureState>, to_ms: u64) -> Resul
 #[tauri::command]
 pub async fn capture_cancel(state: State<'_, CaptureState>) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = state;
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, state);
     #[cfg(not(target_os = "ios"))]
     {
         let Some(capture) = lock(&state.capture).take() else {
@@ -693,10 +669,7 @@ pub async fn transcribe_wav(
     path: String,
 ) -> Result<Transcript, String> {
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, path);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(TRANSCRIPTION, (app, state, path));
     #[cfg(not(target_os = "ios"))]
     {
         use crate::whisper::{samples_to_ms, wav};

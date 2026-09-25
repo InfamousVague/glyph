@@ -63,7 +63,8 @@ pub const PICKED: &str = "picked";
 
 /// Under the CACHE: the verified APK. KOTLIN TWIN: `MainActivity.kt`'s
 /// `installApk`, which accepts only a file directly inside
-/// `File(cacheDir, "updates")`.
+/// `File(cacheDir, "updates")`. Not on iOS, which has no APK.
+#[cfg_attr(target_os = "ios", allow(dead_code))]
 pub const UPDATES: &str = "updates";
 
 /// `<app_data_dir>`, or the one sentence that says the platform gave none.
@@ -76,7 +77,9 @@ pub fn cache_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
     said(app.path().app_cache_dir(), "no cache directory")
 }
 
-/// `<app_data_dir>/Library`.
+/// `<app_data_dir>/Library`, for the desktop's Reveal: on a phone the notes'
+/// folder opens through the Files app, which Kotlin serves itself.
+#[cfg_attr(mobile, allow(dead_code))]
 pub fn library_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
     Ok(data_dir(app)?.join(LIBRARY))
 }
@@ -106,7 +109,8 @@ pub fn picked_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> 
     Ok(cache_dir(app)?.join(PICKED))
 }
 
-/// `<app_cache_dir>/updates`.
+/// `<app_cache_dir>/updates`. Not on iOS, which has no APK.
+#[cfg_attr(target_os = "ios", allow(dead_code))]
 pub fn updates_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
     Ok(cache_dir(app)?.join(UPDATES))
 }

@@ -49,7 +49,7 @@ use crate::llm::engine::{Llm, Request};
 use std::sync::OnceLock;
 
 #[cfg(target_os = "ios")]
-const NOT_ON_IOS: &str = "Formatting on the phone is not available on iOS yet.";
+use crate::unsupported::{on_ios, FORMATTING};
 
 /// What the page asks for.
 #[derive(Debug, Clone, Deserialize)]
@@ -182,10 +182,7 @@ pub fn ai_models(app: AppHandle) -> Vec<ModelInfo> {
 pub async fn ai_fetch_model(app: AppHandle, state: State<'_, AiState>, id: String) -> Result<ModelInfo, String> {
     let spec = known(&id)?;
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, spec);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(FORMATTING, (app, state, spec));
     #[cfg(not(target_os = "ios"))]
     {
         use tauri::Emitter;
@@ -215,10 +212,7 @@ pub async fn ai_fetch_model(app: AppHandle, state: State<'_, AiState>, id: Strin
 pub async fn ai_delete_model(app: AppHandle, state: State<'_, AiState>, id: String) -> Result<ModelInfo, String> {
     let spec = known(&id)?;
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, spec);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(FORMATTING, (app, state, spec));
     #[cfg(not(target_os = "ios"))]
     {
         let dir = crate::paths::models_dir(&app)?;
@@ -254,10 +248,7 @@ pub async fn ai_generate(
 ) -> Result<GenerateOutput, String> {
     let spec = known(&request.model)?;
     #[cfg(target_os = "ios")]
-    {
-        let _ = (app, state, spec);
-        Err(NOT_ON_IOS.to_string())
-    }
+    return on_ios(FORMATTING, (app, state, spec));
     #[cfg(not(target_os = "ios"))]
     {
         use tauri::Emitter;
