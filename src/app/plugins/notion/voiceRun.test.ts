@@ -128,4 +128,20 @@ describe('“add a note for the Notion task for …”', () => {
     expect(did.appended).toEqual([]);
     expect(last()).toEqual({ state: 'failed', title: 'No Notion task called “fix login”.' });
   });
+
+  it('links a task that just reaches the bar, and not one just under it', async () => {
+    // "Order some more paint" scores about 0.62 against "order paint", and "Order more white paint" about 0.59
+    // (capture/route.ts `similarity`): either side of the 0.6 a task must reach.
+    tasks = { b: [{ id: 't1', title: 'Order some more paint', url: 'https://notion.so/t1' }] };
+    const near = take();
+    taskNoteCommand.run({ name: 'order paint' }, near.ctx);
+    await near.finished;
+    expect(near.did.appended).toEqual(['Notion task: [Order some more paint](https://notion.so/t1).']);
+    tasks = { b: [{ id: 't2', title: 'Order more white paint', url: 'https://notion.so/t2' }] };
+    const under = take();
+    taskNoteCommand.run({ name: 'order paint' }, under.ctx);
+    await under.finished;
+    expect(under.did.appended).toEqual([]);
+    expect(under.last()).toEqual({ state: 'failed', title: 'No Notion task called “order paint”.' });
+  });
 });

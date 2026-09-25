@@ -108,6 +108,22 @@ describe('the details cache', () => {
     expect(c.peek('a')).toEqual({ state: 'ready', details: details('a'), loading: false });
   });
 
+  it('reads a stale answer again at once after its re-read failed, rather than waiting out the failure', async () => {
+    const { cache: c, calls, read } = cache();
+    c.want('a', 'https://x/a');
+    calls[0]!.resolve(details('a'));
+    await settle();
+    vi.setSystemTime(Date.now() + 46_000);
+    c.want('a', 'https://x/a');
+    calls[1]!.reject(new Error('The network is not back yet.'));
+    await settle();
+    // The pill keeps the answer it had, not the failure,
+    expect(c.peek('a')).toMatchObject({ state: 'ready', details: { title: 'a' }, loading: false });
+    // and the answer is as stale as before, so the next time it is drawn it is read again.
+    c.want('a', 'https://x/a');
+    expect(read).toHaveBeenCalledTimes(3);
+  });
+
   it('keeps the newest answers across a reload, and leaves out what another build kept in another shape', async () => {
     const first = cache({ keep: 2 });
     first.cache.keep('old', details('old', Date.now() - 3000));
