@@ -153,7 +153,6 @@ export function useModels(): {
 
 export type Phase = 'loading' | 'prefill' | 'generating' | 'done' | 'error' | 'cancelled';
 
-/** Mirrors Rust's Progress. */
 /**
  * What the phone is doing for the model, sampled with each progress report
  * by the engine (native generation 14): its own memory and what the phone has
@@ -171,6 +170,7 @@ export interface Hardware {
   tempC?: number | null;
 }
 
+/** Mirrors Rust's Progress. */
 export interface Progress {
   id: string;
   phase: Phase;
@@ -198,7 +198,7 @@ export interface Output {
   loadMs: number;
   tokensPerSecond: number;
   truncated: boolean;
-  /** The text starts with reasoning (see `splitThought`). */
+  /** The text starts with reasoning, up to `</think>` (ai/runs.ts `splitThinking` parts the two). */
   thinking?: boolean;
 }
 
@@ -268,16 +268,3 @@ export function generate(options: RunOptions): Run {
   };
 }
 
-/**
- * A reasoning run's text, as its thought and its answer. The model writes
- * `<think>` (or its template already did), reasons, closes with `</think>`,
- * and answers; while it is still reasoning there is no answer yet. A run
- * without `thinking` is all answer.
- */
-export function splitThought(text: string, thinking: boolean): { thought: string; answer: string; answering: boolean } {
-  if (!thinking) return { thought: '', answer: text, answering: true };
-  const body = text.replace(/^\s*<think>\s*/, '');
-  const end = body.indexOf('</think>');
-  if (end < 0) return { thought: body, answer: '', answering: false };
-  return { thought: body.slice(0, end).trim(), answer: body.slice(end + '</think>'.length).trim(), answering: true };
-}
