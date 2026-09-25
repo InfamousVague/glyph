@@ -5,7 +5,7 @@
 //! (`<id>.wav`, the capture seam), `images/` (images.rs), `models/` (whisper's
 //! and the formatter's alike), `ota/` (ota.rs), and two files that are not
 //! directories and so are named where they are used: `notion.json`
-//! (notion.rs) and the old `glyph.sqlite` (commands.rs). Under
+//! (notion.rs) and the old `glyph.sqlite` (library/move_in.rs). Under
 //! `<app_cache_dir>`: `picked/` (a picture the Android shell shrank, adopted
 //! by images.rs) and `updates/` (the verified APK).
 //!

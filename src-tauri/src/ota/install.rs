@@ -14,10 +14,10 @@ use tauri::{AppHandle, Runtime};
 
 use super::apk::offered_apk;
 use super::boot::embedded_manifest;
+use super::disk::{bundle_manifest, read_installed, read_stored, record_installed, remove_bundle, write_stored};
 use super::fetch::{client, find_manifest, sha256_hex};
 use super::manifest::{build_number, Manifest, MANIFEST_FILE};
 use super::sources::{effective_sources, read_known, remember};
-use super::disk::{bundle_manifest, read_installed, read_stored, record_installed, remove_bundle, write_stored};
 use super::{CheckResult, OtaState, NATIVE_GENERATION, STAGING};
 use crate::fsx;
 use crate::lock::lock;

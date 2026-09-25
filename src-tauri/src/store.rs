@@ -364,7 +364,6 @@ mod tests {
     use super::*;
     use crate::note::{new_id, RecordedSegment};
 
-
     /// A database of its own per test, swept up when the test ends however it
     /// ends.
     ///
@@ -415,7 +414,6 @@ mod tests {
     fn segment(text: &str, start_ms: u64, end_ms: u64) -> RecordedSegment {
         RecordedSegment { text: text.into(), start_ms, end_ms }
     }
-
 
     #[test]
     fn a_recording_is_kept_beside_the_note_and_the_list_leaves_its_segments_out() {

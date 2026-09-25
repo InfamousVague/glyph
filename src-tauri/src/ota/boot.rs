@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Runtime};
 
-use super::manifest::{build_number, validate, Manifest, MANIFEST_FILE};
 use super::disk::{bundle_manifest, record_installed, remove_bundle, Stored};
+use super::manifest::{build_number, validate, Manifest, MANIFEST_FILE};
 use super::{OtaState, NATIVE_GENERATION};
 use crate::lock::lock;
 

@@ -349,7 +349,6 @@ pub fn set_note_archived(
     store.lock().set_archived(&id, archived).map_err(|e| e.to_string())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

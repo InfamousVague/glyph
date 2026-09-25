@@ -23,10 +23,10 @@ use std::time::Instant;
 use super::engine::{Engine, Session};
 use super::fixtures::{models_dir, to_16k_mono_wav};
 use super::model;
-use crate::model_files::{self, ModelSpec};
 use super::stream::{Event, Streamer};
 use super::vad::rms;
 use super::{ms_to_samples, samples_to_ms, wav, SAMPLE_RATE};
+use crate::model_files::{self, ModelSpec};
 
 const SCRIPT: &str = "Remember to buy oat milk and fresh bread on the way home. \
     [[slnc 1500]] Then call the plumber about the leaking kitchen tap before Thursday. \

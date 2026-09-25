@@ -201,8 +201,8 @@ async fn engine(app: &AppHandle, state: &CaptureState) -> Result<Arc<Engine>, St
     Ok(engine)
 }
 
-#[cfg(not(target_os = "ios"))]
 /// One engine event, as the page hears it.
+#[cfg(not(target_os = "ios"))]
 fn emit(app: &AppHandle, event: Event) {
     // An event the webview is not there to hear (reloading, or closed) is not
     // a failure of the capture.
