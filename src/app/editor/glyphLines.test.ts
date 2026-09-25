@@ -62,4 +62,44 @@ describe('what a line is, drawn on the line', () => {
     parseWhole(on);
     expect(has(lines(on)[0], 'lineH1')).toBe(true);
   });
+
+  it('moves what it drew along with a change while an IME is composing, and draws again only once it is done', () => {
+    const on = open('milk\n# eggs');
+    // Redrawn under a live composition, a line's DOM is replaced and the phone's keyboard garbles what it is writing.
+    let composing = true;
+    Object.defineProperty(on, 'composing', { configurable: true, get: () => composing });
+    on.dispatch({ changes: { from: 0, insert: '# ' } });
+    parseWhole(on);
+    // The heading below is still drawn as one, where it now is; the line being written is not drawn again yet.
+    expect([has(lines(on)[0], 'lineH1'), has(lines(on)[1], 'lineH1')]).toEqual([false, true]);
+    composing = false;
+    on.dispatch({ changes: { from: on.state.doc.line(1).to, insert: 's' } });
+    parseWhole(on);
+    expect([has(lines(on)[0], 'lineH1'), has(lines(on)[1], 'lineH1')]).toEqual([true, true]);
+  });
+
+  it("measures a marker again once the note's face has loaded, since it was measured in the fallback", () => {
+    const fonts = new EventTarget();
+    Object.defineProperty(document, 'fonts', { configurable: true, value: fonts });
+    try {
+      // A face of its own, so no other test's measure of `- ` is the one kept.
+      const on = open('- milk');
+      on.contentDOM.style.fontFamily = 'Loading Face';
+      on.dispatch({ changes: { from: on.state.doc.length, insert: 's' } });
+      expect(lines(on)[0]?.style.getPropertyValue('--hang')).toBe('16.00px');
+      // The face arrives, wider: 10px a character.
+      vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (this: HTMLElement) {
+        return new DOMRect(0, 0, (this.textContent ?? '').length * 10, 20);
+      });
+      on.dispatch({ changes: { from: on.state.doc.length, insert: '!' } });
+      // Until the fonts say so, the width kept for the face is the one used.
+      expect(lines(on)[0]?.style.getPropertyValue('--hang')).toBe('16.00px');
+      fonts.dispatchEvent(new Event('loadingdone'));
+      expect(lines(on)[0]?.style.getPropertyValue('--hang')).toBe('20.00px');
+      on.destroy();
+      view = null;
+    } finally {
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
 });
