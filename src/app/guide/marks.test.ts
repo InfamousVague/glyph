@@ -55,6 +55,12 @@ describe('the guide’s table of marks', () => {
     }
   });
 
+  it('says each mark with a cue, never a “Hey Ghost” command, since the recorder makes no mark from one', () => {
+    // At Done the recorder acts on two commands only - words into a note by its name, and a new list by name
+    // (capture/finalInstruction.ts) - and says any other, a table or a board among them, is not supported.
+    for (const row of rows()) if (row.say) expect(row.say, row.name).not.toMatch(/hey ghost|glyph,/i);
+  });
+
   it('draws a plugin’s look from the CSS the plugin declares', () => {
     const own = markGroups().find((group) => group.title === 'Ghost.md’s own');
     const highlight = own?.rows.find((row) => row.name === 'Highlight');

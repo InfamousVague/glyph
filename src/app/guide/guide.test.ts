@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { readInstruction } from '../ai/instruction.ts';
-import { finalCommandWords, planCommand } from '../capture/command.ts';
 import { ASK, COMMAND, CUE_ALONE, PHRASES, renderExample } from './phrases.ts';
 
 /**
@@ -39,14 +38,14 @@ describe('what the habits page says to say after “Hey Ghost”', () => {
   const groceries = { id: 'g1', title: 'Groceries', note: { body: '# Groceries\n\n- Eggs\n' } };
   const library = [groceries, { id: 'w1', title: 'Work', note: { body: '# Work\n' } }];
 
-  it('is a command the recorder reads, putting the words in the note it names', () => {
-    const words = finalCommandWords(COMMAND.say);
-    expect(words).not.toBeNull();
-    const plan = planCommand(words!, { notes: library });
-    expect(plan?.kind).toBe('place');
-    if (plan?.kind !== 'place') return;
-    expect(plan.note.title).toBe(COMMAND.note);
-    expect(plan.text).toBe(COMMAND.words);
+  it('is a command the recorder acts on at Done, putting the words in the note it names', async () => {
+    const read = await readInstruction(COMMAND.say, library);
+    expect(read.kind).toBe('command');
+    if (read.kind !== 'command' || read.plan.kind !== 'place') throw new Error(`not a command to place words: ${read.kind}`);
+    expect(read.plan.note.title).toBe(COMMAND.note);
+    expect(read.plan.text).toBe(COMMAND.words);
+    // One thing, not a list of them.
+    expect(read.plan.items).toBeUndefined();
   });
 
   it('is an ask the AI runs on the note, not words written into it', async () => {

@@ -148,7 +148,7 @@ Two section signs, \`§§\`, at the end of a line are the note's bookmark, and t
 
 ## Tables
 
-Pipes between cells and a row of dashes under the first. Or say "Hey Ghost, add a table to this note" and answer its questions. Tap a drawn table to change it.
+Pipes between cells and a row of dashes under the first. Or press and hold, choose Style, then Table. Tap a drawn table to change it.
 
 | What | Where |
 | :--- | ---: |

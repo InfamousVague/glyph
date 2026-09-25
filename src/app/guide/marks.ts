@@ -115,7 +115,10 @@ export interface MarkRow {
   icon: ComponentType<{ size?: number }>;
   /** How it is drawn, where a page needs the plugin's own CSS. */
   css?: string;
-  /** Said while recording, where there is a way to say it. */
+  /**
+   * Said while recording, where there is a way to say it: a cue (capture/markdown.ts), never a "Hey Ghost" command,
+   * since the recorder acts on only two of those at Done and neither makes a mark (guide/marks.test.ts).
+   */
   say?: string;
   /** What the popover says, for the row that shows a note on a mark (editor/markNotes.ts). */
   note?: string;
@@ -240,7 +243,6 @@ const OWN: MarkGroup[] = [
         words: '',
         looks: 'table',
         icon: Table,
-        say: '“Hey Ghost, add a table to this note”',
       },
       { symbol: '![ ]( )', name: 'A picture', typed: '![A cassette](image/tape.jpg)', words: 'A cassette', looks: 'picture', icon: Image },
       { symbol: '```', name: 'A block of code', typed: '```js\nconst note = "hello";\n```', words: 'const note = "hello";', looks: 'fence', icon: SquareCode, say: '“code block in bash” … “end code block”' },
@@ -269,7 +271,6 @@ const OWN: MarkGroup[] = [
         words: 'ship-page',
         looks: 'board',
         icon: LayoutGrid,
-        say: '“Hey Ghost, make this a board”',
       },
     ],
   },
