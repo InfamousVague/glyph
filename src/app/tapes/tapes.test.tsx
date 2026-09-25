@@ -3,8 +3,10 @@ import { act } from 'react';
 import { createNote, setNoteRecording, type Note } from '../core/store.ts';
 import type { Segment } from '../capture/markdown.ts';
 import { makeNote } from '../../test/notes.ts';
+import { stubMatchMedia } from '../../test/stubs.ts';
 import { button, show } from '../../test/render.tsx';
 import { NoteTape, TranscriptWords } from './NoteTape.tsx';
+import { TapeArt } from './TapeArt.tsx';
 import { useTape, type Tape } from './useTape.ts';
 
 /**
@@ -30,7 +32,11 @@ beforeEach(() => {
   // A phrase heard is scrolled into view, which jsdom has nothing to do with.
   Element.prototype.scrollIntoView = () => undefined;
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  stubMatchMedia(false);
+});
 
 describe('the tape, playing', () => {
   it('fetches the phrases of a note the list loaded without them, and says so while it waits', async () => {
@@ -121,5 +127,37 @@ describe('the tape at the top of a note', () => {
     act(() => button("Remove this note's recording", host).click());
     act(() => button('Remove the recording and stop its voice memos', host).click());
     expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the cassette', () => {
+  /** The frames, run by hand on a clock of the test's own. */
+  const frames = () => {
+    const queued: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => queued.push(cb));
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    let clock = performance.now();
+    return (count: number) => {
+      for (let i = 0; i < count; i += 1) act(() => queued.shift()?.((clock += 16)));
+    };
+  };
+  const reels = (host: HTMLElement) => [...host.querySelectorAll('svg > g:not([mask])')].map((g) => g.getAttribute('transform'));
+
+  it('turns its reels, frame by frame, while it plays', () => {
+    const run = frames();
+    const host = show(<TapeArt positionMs={30_000} playing title="Trip" />);
+    run(5);
+    const turned = reels(host);
+    expect(turned.every((t) => t?.startsWith('rotate('))).toBe(true);
+    run(5);
+    expect(reels(host)).not.toEqual(turned);
+  });
+
+  it('does not turn for someone who asked for less motion', () => {
+    stubMatchMedia(true);
+    const run = frames();
+    const host = show(<TapeArt positionMs={30_000} playing title="Trip" />);
+    run(5);
+    expect(reels(host)).toEqual([null, null]);
   });
 });
