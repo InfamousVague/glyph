@@ -72,10 +72,11 @@ export const manifest: PluginManifest = {
 
 The manifest is enforced, not decorative:
 
-- **The host** refuses what the manifest doesn't list: a native command, a storage key, or `host.require(kind)`
-  for an undeclared permission. `host.openUrl` needs `network`. Plugin code that calls a core module directly
-  asserts the permission with `host.require` first: the GitHub plugin before its `fetch` (`src/app/plugins/github/repos.ts`,
-  `src/app/plugins/github/issues.ts`) and before the model writes its briefing, and Notion's client before each request.
+- **The host** refuses what the manifest doesn't list: a native command, a storage key, or `host.require(kind)` for an
+  undeclared permission. `host.openUrl` needs `network`. Plugin code that calls a core module directly asserts the
+  permission with `host.require` first: the GitHub plugin before its `fetch` (`src/app/plugins/github/repos.ts`,
+  `src/app/plugins/github/issues.ts`) and before the model writes its briefing, and Notion's client before each
+  request.
 - **The registry** refuses to load a plugin whose extension points outrun its permissions. Voice commands and item
   targets need `voice`. Note actions, the item swipe, item targets and suggestions need `notes`. It also refuses a
   formatting whose name is not a capitalised word of letters and digits, or whose delimiter is not one to three of
@@ -118,14 +119,14 @@ declares the `network` permission is off, whatever its switch says, and the regi
 when that changes. A plugin that can do part of its work without the network should split that part
 into a plugin without the permission, or it goes dark with the rest.
 
-**Linking an item.** There is one form for a list item linked to something outside Ghost.md, and every plugin
-writes it through `core/itemLinks.ts` `linkedLine(line, url, name)`: the words stay as they are and the item
-ends with a mark, a link whose words are the plugin's lowercase name - `- [ ] Buy milk [notion](https://…)`.
-The editor draws the mark as a small solid pill with the name on it, `unsentItems` skips marked items (and
-the older whole-words form), and a run of the model keeps the mark's link by construction (`format/links.ts`): a
-link whose words survive is made the link again. A plugin should not invent its own way of marking a line: the pill, the suggestion and the model's handling all key
-off this one shape. Sending itself follows `sendItems.ts`: the same words are never made twice, a made thing
-always gets its link, and a failure stops the run.
+**Linking an item.** There is one form for a list item linked to something outside Ghost.md, and every plugin writes
+it through `core/itemLinks.ts` `linkedLine(line, url, name)`: the words stay as they are and the item ends with a
+mark, a link whose words are the plugin's lowercase name - `- [ ] Buy milk [notion](https://…)`. The editor draws the
+mark as a small solid pill with the name on it, `unsentItems` skips marked items (and the older whole-words form), and
+a run of the model keeps the mark's link by construction (`format/links.ts`): a link whose words survive is made the
+link again. A plugin should not invent its own way of marking a line: the pill, the suggestion and the model's
+handling all key off this one shape. Sending itself follows `sendItems.ts`: the same words are never made twice, a
+made thing always gets its link, and a failure stops the run.
 
 `CaptureContext` (for voice commands) can:
 
