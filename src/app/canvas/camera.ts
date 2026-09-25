@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { Box, Point } from './geometry.ts';
 import type { Canvas } from './jsonCanvas.ts';
-import { FIT_ROOM, fitted, fittedTo, zoomedAt, type View } from './viewport.ts';
+import { fitted, fittedTo, HOME, zoomedAt, type View } from './viewport.ts';
 
 /**
  * Where the screen is over a canvas, and what moves it (canvas/CanvasView.tsx): the view (viewport.ts), written
@@ -27,6 +27,10 @@ export interface Camera {
   moveTo: (next: View) => void;
   /** The view fitted to one box of the canvas, no larger than life: zoom to a card. */
   zoomToBox: (box: Box) => void;
+  /** The screen centred on this point of the canvas, at the scale it is at: a tap on the minimap. */
+  centreOn: (point: Point) => void;
+  /** The screen moved this far over the canvas, in the canvas's own pixels: a drag on the minimap. */
+  panBy: (dx: number, dy: number) => void;
   /** The point of the canvas under a point of the screen. */
   under: (clientX: number, clientY: number) => Point;
   /** The middle of the screen, in the canvas's pixels. */
@@ -35,7 +39,7 @@ export interface Camera {
 
 export function useCamera(host: RefObject<HTMLDivElement | null>, canvas: Canvas): Camera {
   const world = useRef<HTMLDivElement>(null);
-  const view = useRef<View>({ x: FIT_ROOM, y: FIT_ROOM, scale: 1 });
+  const view = useRef<View>({ ...HOME });
   /** Whether a finger or a wheel has moved the view: until then, a screen that changes size fits the canvas again. */
   const touched = useRef(false);
   const [shown, setShown] = useState<View>(view.current);
@@ -112,6 +116,18 @@ export function useCamera(host: RefObject<HTMLDivElement | null>, canvas: Canvas
     [host, moveTo],
   );
 
+  const centreOn = ({ x, y }: Point) => {
+    const el = host.current;
+    if (!el) return;
+    const { scale } = view.current;
+    moveTo({ x: el.clientWidth / 2 - x * scale, y: el.clientHeight / 2 - y * scale, scale });
+  };
+
+  const panBy = (dx: number, dy: number) => {
+    const { x, y, scale } = view.current;
+    moveTo({ x: x - dx * scale, y: y - dy * scale, scale });
+  };
+
   const under = (clientX: number, clientY: number): Point => {
     const rect = host.current?.getBoundingClientRect();
     const { x, y, scale } = view.current;
@@ -123,5 +139,5 @@ export function useCamera(host: RefObject<HTMLDivElement | null>, canvas: Canvas
     return under((rect?.left ?? 0) + (rect?.width ?? 0) / 2, (rect?.top ?? 0) + (rect?.height ?? 0) / 2);
   };
 
-  return { world, view, shown, fit, moveTo, zoomToBox, under, middle };
+  return { world, view, shown, fit, moveTo, zoomToBox, centreOn, panBy, under, middle };
 }

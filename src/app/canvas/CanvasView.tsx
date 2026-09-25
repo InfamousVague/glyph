@@ -415,16 +415,8 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
         host={host}
         big={mapBig}
         onBig={() => setMapBig(true)}
-        onGo={(x, y) => {
-          const el = host.current;
-          if (!el) return;
-          const { scale } = camera.view.current;
-          camera.moveTo({ x: el.clientWidth / 2 - x * scale, y: el.clientHeight / 2 - y * scale, scale });
-        }}
-        onMove={(dx, dy) => {
-          const { x, y, scale } = camera.view.current;
-          camera.moveTo({ x: x - dx * scale, y: y - dy * scale, scale });
-        }}
+        onGo={(x, y) => camera.centreOn({ x, y })}
+        onMove={camera.panBy}
       />
       {adding ? (
         <AddSheet

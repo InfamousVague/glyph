@@ -14,9 +14,9 @@ export interface View {
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 3;
 /** Room around the whole canvas when it is fitted to the screen, in screen pixels. */
-export const FIT_ROOM = 32;
+const FIT_ROOM = 32;
 /** The view before there is anything to fit, or a screen to fit it in: room at the top left, life size. */
-const HOME: View = { x: FIT_ROOM, y: FIT_ROOM, scale: 1 };
+export const HOME: Readonly<View> = { x: FIT_ROOM, y: FIT_ROOM, scale: 1 };
 
 /** A scale no smaller than a tenth of life and no larger than three times. */
 export const clampScale = (scale: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
