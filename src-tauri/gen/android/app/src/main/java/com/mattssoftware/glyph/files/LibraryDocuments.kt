@@ -40,6 +40,7 @@ class LibraryDocuments : DocumentsProvider() {
     )
   }
 
+  // The folder Rust keeps the notes in: `LIBRARY` in src-tauri/src/paths.rs. Rename both together.
   private fun library(): File = File(context!!.dataDir, "Library")
 
   private fun idOf(file: File): String {

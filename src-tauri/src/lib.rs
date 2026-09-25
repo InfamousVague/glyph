@@ -7,6 +7,8 @@
 mod lock;
 // Whole-file writes, JSON with a fallback, removals where gone is done. Tauri-free too.
 mod fsx;
+// Where the app keeps things, and the four directory names Kotlin shares.
+mod paths;
 
 // The notes themselves. `pub`, and free of Tauri types, so a caller with no
 // Tauri in its process could reach it over JNI - DESIGN 6.1's capture service,

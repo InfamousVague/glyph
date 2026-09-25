@@ -399,12 +399,8 @@ pub fn install<R: Runtime>(app: &tauri::App<R>) {
 // ---- disk -----------------------------------------------------------------------
 
 fn root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("no app data directory: {e}"))?
-        .join("ota");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    let dir = crate::paths::ota_dir(app)?;
+    fsx::make_dir(&dir)?;
     Ok(dir)
 }
 
@@ -1212,12 +1208,8 @@ pub async fn ota_fetch_apk<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaSt
             let file = safe_relative(&info.url).filter(|f| !f.contains('/')).ok_or("bad APK name")?;
             format!("{base}/{file}")
         };
-        let dir = app
-            .path()
-            .app_cache_dir()
-            .map_err(|e| format!("no cache directory: {e}"))?
-            .join("updates");
-        std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+        let dir = crate::paths::updates_dir(&app)?;
+        fsx::make_dir(&dir)?;
         let target = dir.join(format!("glyph-{}.apk", info.version_code));
 
         if std::fs::read(&target).map(|b| sha256_hex(&b) == info.sha256.to_ascii_lowercase()).unwrap_or(false) {

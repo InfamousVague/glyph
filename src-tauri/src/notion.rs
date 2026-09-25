@@ -25,7 +25,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 const NOTION_API: &str = "https://api.notion.com/v1/";
 const NOTION_VERSION: &str = "2022-06-28";
@@ -73,16 +73,16 @@ pub struct Request {
 }
 
 /// Where the account lives: `<app_data_dir>/notion.json`.
-pub fn account_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_data_dir().ok().map(|dir| dir.join(FILE))
+pub fn account_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(crate::paths::data_dir(app)?.join(FILE))
 }
 
 fn read(app: &AppHandle) -> Option<Account> {
-    crate::fsx::read_json::<Account>(&account_path(app)?).filter(|a| !a.access_token.is_empty())
+    crate::fsx::read_json::<Account>(&account_path(app).ok()?).filter(|a| !a.access_token.is_empty())
 }
 
 fn write(app: &AppHandle, account: &Account) -> Result<(), String> {
-    let path = account_path(app).ok_or("no app data directory")?;
+    let path = account_path(app)?;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
     }
@@ -126,7 +126,7 @@ pub fn notion_account(app: AppHandle) -> AccountInfo {
 
 #[tauri::command]
 pub fn notion_disconnect(app: AppHandle) -> Result<(), String> {
-    let Some(path) = account_path(&app) else { return Ok(()) };
+    let Ok(path) = account_path(&app) else { return Ok(()) };
     crate::fsx::remove_file_if_present(&path).map_err(|e| format!("cannot forget the Notion account: {e}"))
 }
 

@@ -14,10 +14,9 @@
 //! `-`, then one image extension. A name comes from the page, and one that is
 //! not that - a slash, a `..` - must never name a file to read or delete.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::Serialize;
-use tauri::Manager;
 
 /// The URI scheme the page loads pictures through.
 pub const SCHEME: &str = "img";
@@ -67,11 +66,6 @@ pub fn referenced(body: &str) -> Vec<String> {
         rest = &after[end..];
     }
     names
-}
-
-/// `<app_data_dir>/images`, where pictures live. Shared with the reset.
-pub(crate) fn images_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<PathBuf> {
-    app.path().app_data_dir().ok().map(|dir| dir.join("images"))
 }
 
 /// Moves a picked picture from `picked` into `images` under a fresh name, and
@@ -179,12 +173,8 @@ pub struct SavedImage {
 /// and answers its name for `![](image/<name>)`. Native generation 8.
 #[tauri::command]
 pub fn save_image(app: tauri::AppHandle, path: String) -> Result<SavedImage, String> {
-    let picked = app
-        .path()
-        .app_cache_dir()
-        .map(|dir| dir.join("picked"))
-        .map_err(|_| "That picture could not be added.".to_string())?;
-    let images = images_dir(&app).ok_or_else(|| "There is no room to keep pictures.".to_string())?;
+    let picked = crate::paths::picked_dir(&app).map_err(|_| "That picture could not be added.".to_string())?;
+    let images = crate::paths::images_dir(&app).map_err(|_| "There is no room to keep pictures.".to_string())?;
     adopt(&picked, &images, Path::new(&path)).map(|name| SavedImage { name })
 }
 
@@ -194,7 +184,7 @@ pub fn save_image(app: tauri::AppHandle, path: String) -> Result<SavedImage, Str
 #[tauri::command(async)]
 pub fn save_image_data(app: tauri::AppHandle, base64: String) -> Result<SavedImage, String> {
     let bytes = decode(&base64)?;
-    let images = images_dir(&app).ok_or_else(|| "There is no room to keep pictures.".to_string())?;
+    let images = crate::paths::images_dir(&app).map_err(|_| "There is no room to keep pictures.".to_string())?;
     keep(&images, &bytes).map(|name| SavedImage { name })
 }
 
@@ -202,7 +192,7 @@ pub fn save_image_data(app: tauri::AppHandle, base64: String) -> Result<SavedIma
 /// does. Best effort: a picture that cannot be removed is left, and the delete
 /// it follows has already happened.
 pub fn remove_unreferenced<R: tauri::Runtime>(app: &tauri::AppHandle<R>, store: &crate::library::Library, body: &str) {
-    let Some(dir) = images_dir(app) else { return };
+    let Ok(dir) = crate::paths::images_dir(app) else { return };
     for name in referenced(body) {
         if store.image_in_use(&name).unwrap_or(true) {
             continue;
@@ -217,7 +207,7 @@ pub fn serve<R: tauri::Runtime>(app: &tauri::AppHandle<R>, request: &tauri::http
     use tauri::http::{header, Response, StatusCode};
     let name = request.uri().path().trim_start_matches('/');
     let bytes = valid_name(name)
-        .then(|| images_dir(app))
+        .then(|| crate::paths::images_dir(app).ok())
         .flatten()
         .and_then(|dir| std::fs::read(dir.join(name)).ok());
     let builder = Response::builder().header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
@@ -236,6 +226,7 @@ pub fn serve<R: tauri::Runtime>(app: &tauri::AppHandle<R>, request: &tauri::http
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn temp(label: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("glyph-images-{label}-{}", uuid::Uuid::new_v4()));

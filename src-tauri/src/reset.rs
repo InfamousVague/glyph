@@ -18,7 +18,8 @@
 
 use tauri::{AppHandle, State};
 
-use crate::commands::{recordings_dir, NotesStore};
+use crate::commands::NotesStore;
+use crate::paths;
 
 /// Removes a directory and everything in it; a missing one is already done.
 fn remove_dir(dir: Option<std::path::PathBuf>, what: &str) -> Result<(), String> {
@@ -30,14 +31,14 @@ fn remove_dir(dir: Option<std::path::PathBuf>, what: &str) -> Result<(), String>
 #[tauri::command]
 pub fn reset_local_data(app: AppHandle, store: State<'_, NotesStore>, models: bool) -> Result<(), String> {
     store.lock().clear().map_err(|e| e.to_string())?;
-    remove_dir(recordings_dir(&app), "recordings")?;
-    remove_dir(crate::images::images_dir(&app), "pictures")?;
+    remove_dir(paths::recordings_dir(&app).ok(), "recordings")?;
+    remove_dir(paths::images_dir(&app).ok(), "pictures")?;
     // The Notion sign-in: a reset leaves no account behind.
-    if let Some(path) = crate::notion::account_path(&app) {
+    if let Ok(path) = crate::notion::account_path(&app) {
         crate::fsx::remove_file_if_present(&path).map_err(|e| format!("could not forget the Notion account: {e}"))?;
     }
     if models {
-        remove_dir(crate::capture_commands::models_dir(&app).ok(), "models")?;
+        remove_dir(paths::models_dir(&app).ok(), "models")?;
     }
     Ok(())
 }

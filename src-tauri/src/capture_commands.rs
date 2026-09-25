@@ -57,6 +57,7 @@
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
+use crate::paths;
 use crate::whisper::model::{self, ModelStatus};
 
 #[cfg(not(target_os = "ios"))]
@@ -78,9 +79,6 @@ use crate::whisper::{
     stream::Event,
     worker::Capture,
 };
-
-/// The directory under `app_data_dir()` that models are kept in.
-const MODELS_DIR: &str = "models";
 
 #[cfg(target_os = "ios")]
 const NOT_ON_IOS: &str = "On-device transcription is not supported on iOS yet.";
@@ -168,14 +166,6 @@ pub fn shutdown(app: &AppHandle) {
     let _ = app;
 }
 
-/// `<app_data_dir>/models`, where whisper's and the formatting models live.
-pub(crate) fn models_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|dir| dir.join(MODELS_DIR))
-        .map_err(|e| format!("no app data directory to keep models in: {e}"))
-}
-
 /// The cached engine, loading it on first use.
 ///
 /// The load runs on the blocking pool: it is a 60 MB file read and tensor
@@ -189,7 +179,7 @@ async fn engine(app: &AppHandle, state: &CaptureState) -> Result<Arc<Engine>, St
     if let Some(engine) = lock(&state.engine).clone() {
         return Ok(engine);
     }
-    let status = model::status(&models_dir(app)?, &model::ACTIVE);
+    let status = model::status(&paths::models_dir(app)?, &model::ACTIVE);
     if !status.present {
         return Err(format!(
             "The transcription model ({}) has not been downloaded yet - call capture_fetch_model first.",
@@ -229,7 +219,7 @@ pub fn capture_refine_model_status(app: AppHandle) -> ModelStatus {
     if cfg!(target_os = "ios") {
         return absent;
     }
-    match models_dir(&app) {
+    match paths::models_dir(&app) {
         Ok(dir) => model::status(&dir, &model::REFINE),
         Err(_) => absent,
     }
@@ -247,7 +237,7 @@ pub async fn capture_fetch_refine_model(app: AppHandle, state: State<'_, Capture
     }
     #[cfg(not(target_os = "ios"))]
     {
-        let dir = models_dir(&app)?;
+        let dir = paths::models_dir(&app)?;
         let _one_download = state.fetching_refine.lock().await;
         let emitter = app.clone();
         let mirrors = model::mirrors_with(&crate::ota::services(&app).model_mirrors);
@@ -305,12 +295,13 @@ pub async fn capture_refine(
         if lock(&state.capture).is_some() {
             return Err("busy".into());
         }
-        let dir = models_dir(&app)?;
+        let dir = paths::models_dir(&app)?;
         let status = model::status(&dir, &model::REFINE);
         if !status.present {
             return Err("model missing".into());
         }
-        let recording = crate::commands::recordings_dir(&app)
+        let recording = paths::recordings_dir(&app)
+            .ok()
             .and_then(|recordings| crate::store::recording_file(&recordings, &id))
             .ok_or_else(|| "no such recording".to_string())?;
         if state.refining.swap(true, Ordering::SeqCst) {
@@ -400,7 +391,7 @@ pub fn capture_model_status(app: AppHandle) -> ModelStatus {
     // No data directory is a model that cannot be present - and NOT a
     // relative path, which would answer for whatever file happens to sit in
     // the process's working directory.
-    match models_dir(&app) {
+    match paths::models_dir(&app) {
         Ok(dir) => model::status(&dir, &model::ACTIVE),
         Err(_) => absent,
     }
@@ -421,7 +412,7 @@ pub async fn capture_fetch_model(
     }
     #[cfg(not(target_os = "ios"))]
     {
-        let dir = models_dir(&app)?;
+        let dir = paths::models_dir(&app)?;
         let _one_download = state.fetching.lock().await;
         let emitter = app.clone();
         // Mirrors a signed update manifest has moved come first; the compiled
@@ -475,11 +466,7 @@ pub fn serve_recording<R: tauri::Runtime>(app: &AppHandle<R>, request: &tauri::h
     let Some(id) = path.strip_suffix(".wav") else {
         return respond(StatusCode::NOT_FOUND, Vec::new(), Vec::new());
     };
-    let file = app
-        .path()
-        .app_data_dir()
-        .ok()
-        .and_then(|dir| crate::store::recording_file(&dir.join("recordings"), id));
+    let file = paths::recordings_dir(app).ok().and_then(|dir| crate::store::recording_file(&dir, id));
     let Some(bytes) = file.and_then(|f| std::fs::read(f).ok()) else {
         return respond(StatusCode::NOT_FOUND, Vec::new(), Vec::new());
     };
@@ -634,7 +621,7 @@ pub async fn capture_stop(
         let mut recorded_ms = None;
         if let Some(id) = record_as {
             if !stopped.recording.is_empty() {
-                let dir = crate::commands::recordings_dir(&app).ok_or("no app data directory to keep recordings in")?;
+                let dir = paths::recordings_dir(&app)?;
                 let path = crate::store::recording_file(&dir, &id).ok_or("not a note id")?;
                 let recording = stopped.recording;
                 let samples = tauri::async_runtime::spawn_blocking(move || {

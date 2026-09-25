@@ -258,6 +258,7 @@ class MainActivity : TauriActivity() {
       if (rotation != 0f) postRotate(rotation)
     }
     val upright = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+    // Where `save_image` adopts from: `PICKED` in src-tauri/src/paths.rs. Rename both together.
     val dir = File(cacheDir, "picked").apply { mkdirs() }
     val out = File(dir, "${UUID.randomUUID()}.jpg")
     FileOutputStream(out).use { upright.compress(Bitmap.CompressFormat.JPEG, 85, it) }
@@ -654,6 +655,7 @@ class MainActivity : TauriActivity() {
     fun installApk(path: String): String {
       // A copy from a store updates through the store, and Play forbids installing APKs (build.gradle.kts, GLYPH_STORE).
       if (BuildConfig.STORE.isNotEmpty()) return "store"
+      // Where `ota_fetch_apk` downloads to: `UPDATES` in src-tauri/src/paths.rs. Rename both together.
       val updates = File(cacheDir, "updates").canonicalFile
       val apk = File(path).canonicalFile
       if (apk.parentFile != updates || !apk.name.endsWith(".apk") || !apk.isFile) return "not an update"

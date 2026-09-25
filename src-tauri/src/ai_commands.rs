@@ -163,7 +163,7 @@ fn known(id: &str) -> Result<&'static LlmSpec, String> {
 /// The page decides what fits.
 #[tauri::command]
 pub fn ai_device(app: AppHandle) -> crate::llm::device::Device {
-    let dir = if cfg!(target_os = "ios") { None } else { crate::capture_commands::models_dir(&app).ok() };
+    let dir = if cfg!(target_os = "ios") { None } else { crate::paths::models_dir(&app).ok() };
     crate::llm::device::read(dir.as_deref())
 }
 
@@ -172,7 +172,7 @@ pub fn ai_device(app: AppHandle) -> crate::llm::device::Device {
 pub fn ai_models(app: AppHandle) -> Vec<ModelInfo> {
     // No data directory (or iOS) is every model absent - and NOT a relative
     // path, which would answer for whatever sits in the working directory.
-    let dir = if cfg!(target_os = "ios") { None } else { crate::capture_commands::models_dir(&app).ok() };
+    let dir = if cfg!(target_os = "ios") { None } else { crate::paths::models_dir(&app).ok() };
     model::CATALOGUE.iter().map(|spec| info(dir.as_deref(), spec)).collect()
 }
 
@@ -189,7 +189,7 @@ pub async fn ai_fetch_model(app: AppHandle, state: State<'_, AiState>, id: Strin
     #[cfg(not(target_os = "ios"))]
     {
         use tauri::Emitter;
-        let dir = crate::capture_commands::models_dir(&app)?;
+        let dir = crate::paths::models_dir(&app)?;
         let _one_download = state.fetching.lock().await;
         let emitter = app.clone();
         let mirrors = model::mirrors_with(spec, &crate::ota::services(&app).model_mirrors);
@@ -221,7 +221,7 @@ pub async fn ai_delete_model(app: AppHandle, state: State<'_, AiState>, id: Stri
     }
     #[cfg(not(target_os = "ios"))]
     {
-        let dir = crate::capture_commands::models_dir(&app)?;
+        let dir = crate::paths::models_dir(&app)?;
         // A run on this model ends, and the engine lets go of the file, before
         // it is removed. Unlinking a mapped file is safe on Android and macOS
         // either way; this is about giving the space back.
@@ -261,7 +261,7 @@ pub async fn ai_generate(
     #[cfg(not(target_os = "ios"))]
     {
         use tauri::Emitter;
-        let dir = crate::capture_commands::models_dir(&app)?;
+        let dir = crate::paths::models_dir(&app)?;
         let status = crate::whisper::model::status(&dir, &spec.spec);
         if !status.present {
             return Err(format!("The model {} is not on this phone yet.", spec.id));

@@ -32,6 +32,7 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : Worker(con
     if (context.packageName.endsWith(".staging") || context.packageName.endsWith(".dev")) return Result.success()
     if (!UpdateAlerts.isEnabled(context) || !UpdateAlerts.canNotify(context)) return Result.success()
 
+    // The app's own OTA folder: `OTA` in src-tauri/src/paths.rs. Rename both together.
     val otaDir = File(context.dataDir, "ota").absolutePath
     val answer = try {
       JSONObject(UpdateCheck.run(otaDir) ?: return Result.success())
