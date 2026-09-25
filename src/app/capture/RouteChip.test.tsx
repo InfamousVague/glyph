@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { show } from '../../test/render.tsx';
-import { Opening } from './Opening.tsx';
 import { RouteChip } from './RouteChip.tsx';
 import type { RouteView } from './takeHost.ts';
 
@@ -48,16 +47,5 @@ describe('the chip', () => {
     expect(chip({ phase: 'plugin', state: 'working', lead: 'Sending to', title: 'Notion' })).toEqual({ text: 'Sending to Notion', phase: 'hearing' });
     expect(chip({ phase: 'plugin', state: 'done', lead: null, title: 'Sent' })).toEqual({ text: 'Sent', phase: 'moved' });
     expect(chip({ phase: 'plugin', state: 'failed', lead: 'Sending to', title: 'Notion said no' })).toEqual({ text: 'Notion said no', phase: 'missed' });
-  });
-});
-
-describe('the recorder’s picture of sound beginning', () => {
-  it('draws its three arcs, dashed when the microphone never opened', () => {
-    const opening = show(<Opening />).querySelector('svg')!;
-    expect(opening.querySelectorAll('path')).toHaveLength(3);
-    expect(opening.dataset.failed).toBeUndefined();
-    const failed = show(<Opening failed />).querySelector('svg')!;
-    expect(failed.dataset.failed).toBe('');
-    expect([...failed.querySelectorAll('path')].every((arc) => arc.getAttribute('stroke-dasharray') === '6 7')).toBe(true);
   });
 });

@@ -41,7 +41,7 @@ export const ENGINE_LABEL: Record<EngineKind, string> = {
 };
 
 /** "heard 8.2 s at 48 kHz · 3 guesses · 1 phrase", plus the last error if there is one. */
-export function describe(d: Diagnostics): string {
+export function countsLine(d: Diagnostics): string {
   const parts = [`heard ${(d.heardSamples / 16_000).toFixed(1)} s${d.deviceRate ? ` at ${Math.round(d.deviceRate / 1000)} kHz` : ''}`];
   parts.push(`${d.partials} ${d.partials === 1 ? 'guess' : 'guesses'}`);
   parts.push(`${d.segments} ${d.segments === 1 ? 'phrase' : 'phrases'}`);
@@ -56,5 +56,5 @@ export function soundsSilent(engine: EngineKind | null, d: Diagnostics): boolean
 
 /** The whole line: the engine, then what the pipeline has done. */
 export function diagnosticsLine(engine: EngineKind | null, d: Diagnostics): string {
-  return [engine ? ENGINE_LABEL[engine] : null, describe(d)].filter(Boolean).join(' · ');
+  return [engine ? ENGINE_LABEL[engine] : null, countsLine(d)].filter(Boolean).join(' · ');
 }

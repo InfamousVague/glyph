@@ -1,7 +1,7 @@
 import card from '../ai/ConfirmCard.module.css';
 import { withoutLead } from '../core/itemSyntax.ts';
 import type { Note } from '../core/store.ts';
-import { findKeyword } from './command.ts';
+import { partialCommand } from './chip.ts';
 import { linesAbove } from './listAppend.ts';
 import { tableQuestion } from './table.ts';
 import type { TableDraft } from './takeHost.ts';
@@ -12,9 +12,9 @@ import styles from './CaptureScreen.module.css';
  * and items arriving in another note's list. Drawn by CaptureScreen.tsx from what the take tells it; they hold no
  * state of their own.
  *
- * The table card is the confirm card's shape (ai/ConfirmCard.module.css), so the questions and the yes that follows
- * them read as one card; the question and the table are the only parts of its own. It was drawn with the recorder's
- * copy of those rules until the confirm card moved to ai/ and took them with it (20618bb), which left it unstyled.
+ * The table card is the confirm card's shape, drawn with that card's own stylesheet (ai/ConfirmCard.module.css), so
+ * the questions and the yes that follows them read as one card; the question and the table are the only parts of its
+ * own (CaptureScreen.module.css).
  */
 
 /** A table as it stands: the labels, then each row, padded to them. */
@@ -52,7 +52,7 @@ export function TablePreview({ columns, rows }: { columns: readonly string[]; ro
  */
 export function TableCard({ draft, heard, onDone, onCancel }: { draft: TableDraft<Note>; heard: string; onDone: () => void; onCancel: () => void }) {
   const { question, hint } = tableQuestion(draft);
-  const words = heard ? (findKeyword(heard)?.after ?? heard) : '';
+  const words = heard ? partialCommand(heard) : '';
   return (
     <section className={card.confirm} aria-live="polite" aria-label={`Table for ${draft.title}`}>
       <p className={card.heading}>Table for {draft.title}</p>
