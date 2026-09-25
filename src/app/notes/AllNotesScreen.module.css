@@ -1,0 +1,285 @@
+/*
+ * The All notes page (AllNotesScreen.tsx): a glass bar with the way home and the search, and under it the workspace
+ * pills, one line of order words, and the grid of cards (NoteCard.module.css, drawn dense). It is built as the home
+ * page is (home/HomeScreen.module.css): the same scroller under the same pane, so it feels like the same app.
+ */
+
+.screen {
+  position: relative;
+  block-size: 100dvh;
+  background: var(--glacier-bg);
+}
+
+.scroll {
+  block-size: 100%;
+  /* Under the bar, which is a pane over this (app.css .app-headerPane; art/wispEdge.ts sets `--wisp-under`), and clear of it. */
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top, 0px)) + var(--glacier-space-4));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block-end: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-10));
+}
+
+/* The bar: the arrow home, the page's name for a screen reader, and the search taking the rest of the line. */
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-2)) var(--glacier-space-2);
+}
+
+.back {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  margin-inline-start: calc(-1 * var(--glacier-space-2));
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-full, 999px);
+  background: none;
+  color: var(--app-ink, var(--glacier-text));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.back:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The page's name for a screen reader alone: the bar shows where you are with its search. */
+.saidOnly {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * The search: a pill of the faint ink wash with the glass mark at its start, the field through the middle and, once
+ * there are words, an x to clear them. It is the bar's whole width but for the arrow, since it is the page's tool.
+ */
+.search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  min-block-size: var(--glacier-space-9);
+  padding-inline: var(--glacier-space-3) var(--glacier-space-1);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-full, 999px);
+  background: color-mix(in oklch, var(--app-ink, currentColor) 4%, transparent);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.search:focus-within {
+  border-color: var(--glacier-border-strong);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+}
+
+.searchMark {
+  flex: none;
+}
+
+.field {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: var(--glacier-space-8);
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  color: var(--app-ink, var(--glacier-text));
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* The browser's own clearing x, where it draws one: the pill has its own. */
+.field::-webkit-search-cancel-button,
+.field::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.field::placeholder {
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.clear {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-7);
+  block-size: var(--glacier-space-7);
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--app-ink, currentColor) 8%, transparent);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.clear:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/* One column a reader's width, in the middle of a wide window, as the home page is. */
+.page {
+  max-inline-size: 60rem;
+  margin-inline: auto;
+  container: all-notes / inline-size;
+}
+
+/*
+ * The line over the cards: the order words at the start, how many notes in the middle, and the archive's word at the
+ * end. Small type in the quiet ink, so the cards are what the page is about.
+ */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  margin-block: var(--glacier-space-3) var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+}
+
+.sorts {
+  display: inline-flex;
+  gap: var(--glacier-space-1);
+}
+
+/* An order word: a pill of nothing until chosen, then the ink wash with the ink's own colour. */
+.sortWord,
+.archiveWord {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  min-block-size: var(--glacier-space-7);
+  margin: 0;
+  padding-inline: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid transparent;
+  border-radius: var(--glacier-radius-full, 999px);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sortWord[aria-checked='true'],
+.archiveWord[aria-pressed='true'] {
+  border-color: var(--glacier-border-subtle);
+  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.sortWord:focus-visible,
+.archiveWord:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.archiveWord {
+  margin-inline-start: auto;
+}
+
+.archiveMark {
+  font-size: 1.05em;
+}
+
+/* How many, in the middle of the line, in figures that line up as they change. */
+.tally {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  white-space: nowrap;
+}
+
+/*
+ * The grid: as many cards to a row as fit a card a step narrower than the home page's. Two across a phone, four on
+ * the Fold opened out, five in a desktop window's reading column.
+ */
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
+  gap: var(--glacier-space-3);
+}
+
+/* The empty page, and the search that found nothing: the ghost (art/Ghost.tsx) and a line, as on the home page. */
+.empty {
+  padding-block: var(--glacier-space-6) var(--glacier-space-8);
+}
+
+.emptyArt {
+  display: block;
+  margin-block-end: var(--glacier-space-5);
+  color: var(--app-ink-3);
+}
+
+.empty > .emptyArt[data-size] {
+  inline-size: min(100%, 36rem, calc(38dvh * var(--ghost-ratio, 1)));
+}
+
+@container all-notes (min-width: 44rem) {
+  .empty {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-rows: auto auto;
+    column-gap: var(--glacier-space-6);
+    align-content: center;
+  }
+
+  .empty > .emptyArt[data-size] {
+    grid-row: 1 / span 2;
+    margin-block-end: 0;
+    inline-size: min(100%, 36rem, calc(45dvh * var(--ghost-ratio, 1)));
+  }
+
+  .emptyLead {
+    align-self: end;
+  }
+
+  .emptyHint {
+    align-self: start;
+  }
+}
+
+.emptyLead {
+  margin: 0;
+  font-size: var(--glacier-font-size-3xl);
+  line-height: var(--glacier-leading-3xl);
+  letter-spacing: var(--app-tracking-title);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-subtle);
+  overflow-wrap: anywhere;
+}
+
+.emptyHint {
+  margin: var(--glacier-space-3) 0 0;
+  max-inline-size: 28ch;
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+  color: var(--glacier-text-muted);
+}

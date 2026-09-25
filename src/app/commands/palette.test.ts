@@ -8,6 +8,7 @@ const doing = (): PaletteDoing => ({
   speakInto: vi.fn(),
   closeTab: vi.fn(),
   showList: vi.fn(),
+  browseNotes: vi.fn(),
   back: vi.fn(),
   forward: vi.fn(),
   settings: vi.fn(),

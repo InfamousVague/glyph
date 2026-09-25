@@ -150,6 +150,7 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
     notes: candidates,
     target: () => target,
     commandWord: () => test.prefs.commandWord ?? true,
+    instructionCommands: () => false,
     voiceCommands: () => voiceCommands,
     itemTargets: () => [],
     route: () => undefined,

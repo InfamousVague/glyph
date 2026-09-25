@@ -95,6 +95,13 @@ describe('what a command asks for', () => {
     expect(plan('add to work: call Sam')).toMatchObject({ kind: 'place', note: at('w'), text: 'call Sam' });
   });
 
+  it('uses an actual titled prefix for labeled, called, and short bare targets', () => {
+    const go = [{ id: 'go', title: 'Go', note: { body: 'Go' } }];
+    for (const words of ['add to the note labeled Go pack the charger', 'add to the note called go: pack the charger', 'add to GO, pack the charger']) {
+      expect(planCommand(words, { notes: go })).toMatchObject({ kind: 'place', note: { id: 'go' }, text: 'pack the charger' });
+    }
+  });
+
   it('adds a list item when one is asked for, and waits for it when it is not said yet', () => {
     expect(plan('add a list item to the hello trade')).toEqual({ kind: 'await', note: at('h'), how: 'item', task: false, many: false, target: null });
     expect(plan('add a task buy stamps to work')).toMatchObject({ kind: 'place', note: at('w'), text: 'buy stamps', how: 'item', task: true });

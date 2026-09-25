@@ -1,0 +1,182 @@
+/*
+ * The bar: a card of paper-2 with a hairline at the foot of the note, the
+ * chips in a row that scrolls sideways, the field under them with the spark
+ * at one end and the arrow at the other. Ink and paper, like everything.
+ */
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-1);
+  margin: 0 var(--app-gutter-end, var(--app-gutter)) 0 var(--app-gutter-start, var(--app-gutter));
+  padding: var(--glacier-space-2) var(--glacier-space-2) var(--glacier-space-2);
+  border-radius: var(--glacier-radius-lg);
+  background: color-mix(in srgb, var(--app-paper-2, var(--glacier-surface-raised)) 92%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
+  box-shadow: 0 10px 28px -16px color-mix(in srgb, var(--app-ink, black) 45%, transparent);
+  animation: bar-in 220ms var(--glacier-ease-out, ease-out) both;
+}
+
+@keyframes bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* The chips scroll sideways on a phone, no bar shown for it. */
+.chips {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  padding-inline: var(--glacier-space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+/* A chip: an icon and its word, outlined in faint ink, the size of the inline suggestion pill's older cousin. */
+.chip {
+  appearance: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin: 0;
+  padding: 0.2em 0.7em;
+  border: 1px solid color-mix(in oklch, var(--app-ink, currentColor) 35%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.6;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chip:active {
+  background: color-mix(in oklch, var(--app-ink, currentColor) 10%, transparent);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.chip:disabled {
+  color: var(--app-ink-4, var(--glacier-text-subtle));
+  border-color: color-mix(in oklch, var(--app-ink, currentColor) 18%, transparent);
+  cursor: default;
+}
+
+/* The two ways, asked when words are selected: this part, or the whole note. */
+.chip[data-scope] {
+  color: var(--app-ink, var(--glacier-text));
+  border-color: color-mix(in oklch, var(--app-ink, currentColor) 70%, transparent);
+}
+
+.which {
+  flex: none;
+  padding-inline-end: var(--glacier-space-1);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-inline-size: 12rem;
+}
+
+.never {
+  min-block-size: 0;
+  padding: 0 var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  padding-inline-start: var(--glacier-space-2);
+}
+
+.spark {
+  flex: none;
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.bar:not([data-ready]) .spark {
+  color: var(--app-ink-4, var(--glacier-text-subtle));
+}
+
+.field {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: var(--glacier-space-9);
+  margin: 0;
+  padding: var(--glacier-space-1) 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  color: var(--app-ink, var(--glacier-text));
+  outline: none;
+}
+
+.field::placeholder {
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.field:disabled::placeholder {
+  color: var(--app-ink-4, var(--glacier-text-subtle));
+}
+
+/* The arrow: a small filled circle of ink, grey until there is something to send. */
+.send {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--app-ink, var(--glacier-text));
+  color: var(--app-paper, var(--glacier-bg));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 160ms ease-out;
+}
+
+.send:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.get {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  min-block-size: 0;
+  padding: 0 var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink, var(--glacier-text));
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    animation: none;
+  }
+
+  .send {
+    transition: none;
+  }
+}

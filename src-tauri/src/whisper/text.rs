@@ -93,7 +93,8 @@ pub fn clean(raw: &str) -> String {
 /// sentence of its own and a phrase carried across a cut started over in
 /// capitals (`tests::a_prompt_tail_carries_a_sentence_across_the_cut`).
 pub const CUE_VOCABULARY: &str = "Glyph. Title. Heading. Bullet point. Number one. Check box. To do. Quote. \
-    Important. Bold, end bold. Italics, end italics. Divider. New paragraph.";
+    Important. Bold, end bold. Italics, end italics. Divider. New paragraph. \
+    Create list. Add to list. Called. Groceries. Grocery list.";
 
 /// The cues added since, spoken far less often: in the prompt only where a sentence has just ended, since any word
 /// past the short list above made base.en start a sentence cut in two with a capital (the prompt-tail test in
@@ -129,12 +130,17 @@ pub fn without_prompt_echo(text: &str) -> String {
     const RUN: usize = 3;
     let cues: Vec<String> = sentences(CUE_VOCABULARY).chain(sentences(MORE_CUES)).map(normalise).collect();
     let pieces: Vec<&str> = sentences(text).collect();
-    let is_cue: Vec<bool> = pieces.iter().map(|p| cues.contains(&normalise(p))).collect();
+    let is_cue: Vec<bool> = pieces
+        .iter()
+        .map(|p| cues.contains(&normalise(p)))
+        .collect();
 
     let mut keep = vec![true; pieces.len()];
     let mut start = 0;
     while start < pieces.len() {
-        let end = (start..pieces.len()).find(|&i| !is_cue[i]).unwrap_or(pieces.len());
+        let end = (start..pieces.len())
+            .find(|&i| !is_cue[i])
+            .unwrap_or(pieces.len());
         if end - start >= RUN {
             keep[start..end].iter_mut().for_each(|k| *k = false);
         }
@@ -228,7 +234,10 @@ mod tests {
         assert_eq!(clean(" (music)"), "");
         assert_eq!(clean(" ♪ ♪"), "");
         assert_eq!(clean(" Buy milk. [BLANK_AUDIO]"), "Buy milk.");
-        assert_eq!(clean(" (upbeat music) Ring the plumber."), "Ring the plumber.");
+        assert_eq!(
+            clean(" (upbeat music) Ring the plumber."),
+            "Ring the plumber."
+        );
         // The full stop left standing when the annotation between it and its
         // word goes has to rejoin the word, or the note reads "Hello ."
         assert_eq!(clean(" Hello [BLANK_AUDIO] ."), "Hello.");
@@ -262,7 +271,7 @@ mod tests {
     fn the_vocabulary_is_one_line_of_cue_sentences() {
         // The `\` continuation must not leave a run of spaces in the prompt.
         assert!(!CUE_VOCABULARY.contains("  "), "{CUE_VOCABULARY:?}");
-        assert_eq!(sentences(CUE_VOCABULARY).count(), 13);
+        assert_eq!(sentences(CUE_VOCABULARY).count(), 18);
         assert!(!MORE_CUES.contains("  "), "{MORE_CUES:?}");
     }
 
@@ -271,7 +280,9 @@ mod tests {
         assert_eq!(without_prompt_echo(CUE_VOCABULARY), "");
         assert_eq!(without_prompt_echo("Title. Heading. Bullet point."), "");
         assert_eq!(
-            without_prompt_echo("Buy milk. Title. Heading. Bullet point. Number one. Call the bank."),
+            without_prompt_echo(
+                "Buy milk. Title. Heading. Bullet point. Number one. Call the bank."
+            ),
             "Buy milk. Call the bank."
         );
         // Whisper's casing and closing marks vary, so the match ignores both.

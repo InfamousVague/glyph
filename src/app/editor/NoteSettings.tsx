@@ -7,8 +7,9 @@ import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
 import { SheetField, SheetIcon } from '../plugins/kit.tsx';
 import { plugins, usePlugins } from '../plugins/registry.ts';
 import type { NoteEditing, NoteLink } from '../plugins/types.ts';
-import { MODES, type Mode } from '../format/modes.ts';
-import { Robot } from '../art/Icons.tsx';
+import { MODES } from '../format/modes.ts';
+import { KIND_ICONS } from '../ai/icons.ts';
+import type { RunKind } from '../ai/kinds.ts';
 import { WorkspacePicker } from './WorkspacePicker.tsx';
 import { ShareRows } from '../share/ShareRows.tsx';
 import type { NoteView } from './viewMode.ts';
@@ -53,9 +54,9 @@ interface NoteSettingsProps {
   name?: { value: string; onChange: (title: string) => void };
   /** How the note is shown, when the header has no room for its switch (a folded phone); absent, no row. */
   view?: NoteView;
-  /** What the robot is showing over the note, and how to choose (format/modes.ts). Absent on a note that can't be read to. */
-  mode?: Mode | null;
-  onMode?: (mode: Mode | null) => void;
+  /** The AI's kind of run on this note now, if one is on, and how to ask for one (ai/start.ts). Absent on a note that can't be read to. */
+  running?: RunKind | null;
+  onAi?: (kind: RunKind) => void;
   onView?: (view: NoteView) => void;
 }
 
@@ -74,8 +75,8 @@ export function NoteSettings({
   name,
   view,
   onView,
-  mode,
-  onMode,
+  running,
+  onAi,
 }: NoteSettingsProps) {
   // Re-rendered when a plugin is switched, so its rows come and go.
   usePlugins();
@@ -197,31 +198,34 @@ export function NoteSettings({
           </>
         ) : null}
 
-        {onMode ? (
+        {onAi ? (
           <>
             <p className={styles.heading}>AI</p>
             <div className={styles.group}>
-              {MODES.map((words) => (
-                <button
-                  key={words.id}
-                  type="button"
-                  className={styles.row}
-                  aria-pressed={mode === words.id}
-                  onClick={() => {
-                    onClose();
-                    onMode(mode === words.id ? null : words.id);
-                  }}
-                >
-                  <span className={styles.icon} aria-hidden="true">
-                    <Robot />
-                  </span>
-                  <span className={styles.label}>
-                    {words.label}
-                    <span className={styles.hint}>{words.hint}</span>
-                  </span>
-                  {mode === words.id ? <span className={styles.chosen} aria-hidden="true" /> : null}
-                </button>
-              ))}
+              {MODES.map((words) => {
+                const Icon = KIND_ICONS[words.id];
+                return (
+                  <button
+                    key={words.id}
+                    type="button"
+                    className={styles.row}
+                    aria-pressed={running === words.id}
+                    onClick={() => {
+                      onClose();
+                      onAi(words.id);
+                    }}
+                  >
+                    <span className={styles.icon} aria-hidden="true">
+                      <Icon size={20} strokeWidth={2.1} />
+                    </span>
+                    <span className={styles.label}>
+                      {words.label}
+                      <span className={styles.hint}>{words.hint}</span>
+                    </span>
+                    {running === words.id ? <span className={styles.chosen} aria-hidden="true" /> : null}
+                  </button>
+                );
+              })}
             </div>
           </>
         ) : null}

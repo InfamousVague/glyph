@@ -3,7 +3,7 @@ import { accountState } from '../core/account/account.ts';
 import { fromBase64Url, openBytes, sealBytes, toBase64Url, type Bytes } from '../core/sync/crypto.ts';
 import { imageBytes, imageNames, keepImage, smallerImage } from '../core/images.ts';
 import { withFrontMatterTitle, frontMatterValue } from '../core/frontMatter.ts';
-import { listNotes, newNoteId, noteTitle, saveNote, NOTE_SAVED, NOTES_CHANGED, type Note } from '../core/store.ts';
+import { createNote, listNotes, newNoteId, noteTitle, NOTE_SAVED, NOTES_CHANGED, type Note } from '../core/store.ts';
 import { onPreferences, preferences, setPreferences } from '../core/preferences.ts';
 import { chaptersOf, isBookBody } from '../book/book.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
@@ -402,7 +402,7 @@ export async function forkShared(
   shared: Shared,
   deps: { notes: () => Promise<Note[]>; save: (body: string) => Promise<Note>; keep?: (name: string, bytes: Bytes) => Promise<void> } = {
     notes: listNotes,
-    save: (body) => saveNote(newNoteId(), body, 'editor'),
+    save: (body) => createNote(newNoteId(), body, 'editor'),
   },
 ): Promise<Note> {
   // The pictures first, under their own names, so the pages draw them as they open; sync sends them on from here.

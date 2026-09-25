@@ -38,6 +38,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
+use crate::llm::command::{self, CommandIntent};
 use crate::llm::model::{self, LlmSpec};
 
 #[cfg(not(target_os = "ios"))]
@@ -75,6 +76,47 @@ pub struct GenerateRequest {
 fn default_temperature() -> f32 {
     0.3
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CommandInferenceRequest {
+    pub id: String,
+    pub utterance: String,
+    pub preferred_model: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum CommandInferenceResult {
+    Intent { intent: CommandIntent, model: String },
+    Unavailable { reason: String },
+}
+
+/// The command model's standing instructions. Fixed text, so the llama KV
+/// prefix snapshot after it stays valid across commands; the worked examples
+/// are the phrasings people actually say ("my note labeled Go", "a list
+/// with…"), which a 2B model follows far better than a rule alone.
+const COMMAND_SYSTEM: &str = r#"Translate one spoken note command to JSON. Allowed actions: append to an existing note, create a new note, or none.
+- append: "target" is only the note's title as spoken, without words like "my", "the", "note", "list", "labeled", "called" or "named". "content" is only what to add, in the speaker's words, without the command or the title. "placement" is "list" when they ask for a list, items, bullets or points; "tasks" for tasks, to-dos or check boxes; "bugs" for bugs or issues; "notes" for a paragraph or a note; otherwise null.
+- When they name several things to add (movies, places, groceries), placement is "list" even if they did not say "list".
+- For "list" and "tasks", separate the items in "content" with "; " and keep each item whole: "Paris, Texas; Austin, Texas".
+- create: "target" is the new note's title and "content" is its body, or null.
+- none: destructive (delete, remove, clear), compound (several different actions), unsupported, or unclear requests.
+Never invent content or a title. Output exactly one object in the required schema.
+
+Examples:
+Command: add to my note labeled Go a list with Parkersburg West Virginia Marietta Ohio and Detroit Michigan
+{"action":"append","target":"Go","content":"Parkersburg, West Virginia; Marietta, Ohio; Detroit, Michigan","placement":"list"}
+Command: put call Sam and book the flights on my work to-do list
+{"action":"append","target":"Work","content":"call Sam; book the flights","placement":"tasks"}
+Command: add to the note called Weekend trip that we should book the ferry early
+{"action":"append","target":"Weekend trip","content":"we should book the ferry early","placement":null}
+Command: add eggs milk and bread to groceries
+{"action":"append","target":"groceries","content":"eggs; milk; bread","placement":"list"}
+Command: make a new note called Packing
+{"action":"create","target":"Packing","content":null}
+Command: delete everything in my Go note
+{"action":"none","reason":"destructive"}"#;
 
 /// One model of the catalogue, with whether this phone has it.
 #[derive(Debug, Clone, Serialize)]
@@ -285,6 +327,7 @@ pub async fn ai_generate(
             temperature: request.temperature,
             think: request.think,
             think_budget: request.think_budget,
+            grammar: None,
         };
         let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, move |progress| {
             let _ = emitter.emit("ai://progress", progress);
@@ -309,6 +352,77 @@ pub fn ai_cancel(state: State<'_, AiState>, id: String) -> bool {
             true
         }
         None => false,
+    }
+}
+
+/// Interprets one wake-word-qualified utterance using only an already installed
+/// model, a native fixed prompt, and a native fixed grammar.
+#[tauri::command]
+pub async fn ai_infer_command(
+    app: AppHandle,
+    state: State<'_, AiState>,
+    request: CommandInferenceRequest,
+) -> Result<CommandInferenceResult, String> {
+    let utterance = request.utterance.trim();
+    if request.id.is_empty() || utterance.is_empty() || utterance.chars().count() > 4_000 {
+        return Ok(CommandInferenceResult::Unavailable { reason: "The command was empty or too long.".into() });
+    }
+    if let Some(reason) = command::refusal(utterance) {
+        return Ok(CommandInferenceResult::Intent { intent: CommandIntent::None { reason }, model: String::new() });
+    }
+    #[cfg(target_os = "ios")]
+    {
+        let _ = (app, state);
+        return Ok(CommandInferenceResult::Unavailable {
+            reason: "Instruction inference is not available on iOS; Glyph’s built-in commands still work.".into(),
+        });
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let dir = crate::capture_commands::models_dir(&app)?;
+        let preferred = model::find(&request.preferred_model)
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let fallback = model::find("qwen3.5-2b")
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let Some(spec) = preferred.or(fallback) else {
+            return Ok(CommandInferenceResult::Unavailable {
+                reason: "No compatible installed model is available for instruction commands.".into(),
+            });
+        };
+        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let cancel = Arc::new(AtomicBool::new(false));
+        {
+            let mut runs = lock(&state.runs);
+            if !runs.is_empty() {
+                return Ok(CommandInferenceResult::Unavailable { reason: "The on-device model is already working.".into() });
+            }
+            runs.insert(request.id.clone(), Arc::clone(&cancel));
+        }
+        let engine_request = Request {
+            id: request.id.clone(),
+            system: COMMAND_SYSTEM.into(),
+            context: None,
+            prompt: format!("Command: {utterance}"),
+            // Room for a spoken list of a dozen places; a truncated answer fails closed.
+            max_tokens: 384,
+            temperature: 0.0,
+            think: false,
+            think_budget: 0,
+            grammar: Some(command::GRAMMAR),
+        };
+        let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, |_| {});
+        let received = tauri::async_runtime::spawn_blocking(move || answer.recv()).await;
+        lock(&state.runs).remove(&request.id);
+        let result = received
+            .map_err(|e| format!("the command inference did not finish: {e}"))?
+            .map_err(|_| "the command inference engine went away".to_string())?;
+        match result {
+            Ok(output) => match command::parse(&output.text, output.truncated) {
+                Ok(intent) => Ok(CommandInferenceResult::Intent { intent, model: spec.id.into() }),
+                Err(reason) => Ok(CommandInferenceResult::Unavailable { reason }),
+            },
+            Err(failure) => Ok(CommandInferenceResult::Unavailable { reason: failure.to_string() }),
+        }
     }
 }
 

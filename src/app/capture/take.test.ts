@@ -17,6 +17,7 @@ function fakeHost(notes: FakeNote[], target: FakeNote | null = null) {
     notes: () => notes.map((n) => ({ id: n.id, title: n.title, note: n })),
     target: () => target,
     commandWord: () => true,
+    instructionCommands: () => true,
     voiceCommands: () => [],
     itemTargets: () => [],
     route: (view) => {

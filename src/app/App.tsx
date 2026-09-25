@@ -1,9 +1,10 @@
 import { forkShared, readShared } from './share/share.ts';
 import { followAppLinks } from './share/appLinks.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { HapticsProvider, ToastProvider } from '@glacier/react';
+import { HapticsProvider, ToastProvider, useToast } from '@glacier/react';
 import { UpdateNotice } from './notes/Notices.tsx';
 import { HomeScreen } from './home/HomeScreen.tsx';
+import { AllNotesScreen } from './notes/AllNotesScreen.tsx';
 import type { OpenTask } from './home/dashboard.ts';
 import { setItemDone } from './core/boards.ts';
 import { inTrash, outOfTrash, useTrash } from './core/trash.ts';
@@ -15,18 +16,16 @@ import { asideContent, readAsideShown, writeAsideShown } from './aside/aside.ts'
 import { NoteTree } from './notes/NoteTree.tsx';
 import { addOpen, afterClose, closeOpen, moveOpen, openOnly, swapOpen } from './notes/openTabs.ts';
 import { afterMove, displayOrder, joinGroup, leaveGroup, newGroup, pruneGroups, type TabGroups } from './notes/tabGroups.ts';
-import { backFrom, canGoBack, canGoOn, FIRST, noteIdOf, notePlace, onFrom, placeAt, went, type Place } from './notes/visited.ts';
+import { ALL_NOTES, backFrom, canGoBack, canGoOn, FIRST, noteIdOf, notePlace, onFrom, placeAt, went, type Place } from './notes/visited.ts';
 import { readSidebarShown, useSidebar, writeSidebarShown } from './core/useWideScreen.ts';
 import { SettingsSheet } from './settings/SettingsSheet.tsx';
-import { ReviewScreen } from './review/ReviewScreen.tsx';
-import type { ReviewHandoff } from './review/useReview.ts';
+import type { ReviewHandoff } from './ai/review.ts';
 import { CaptureScreen } from './capture/CaptureScreen.tsx';
 import { AcademyScreen } from './academy/AcademyScreen.tsx';
 import { CommandBar } from './commands/CommandBar.tsx';
 import type { NoteView } from './editor/viewMode.ts';
 import { academyBannerDue, dismissAcademyBanner } from './academy/banner.ts';
 import { startRefining } from './capture/refine.ts';
-import { startFormatting } from './format/queue.ts';
 import { startSync } from './core/sync/engine.ts';
 import { WhatsNewSheet } from './notes/WhatsNewSheet.tsx';
 import { Guide } from './guide/Guide.tsx';
@@ -40,7 +39,7 @@ import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { settleBoot, useUpdates } from './core/ota.ts';
 import { LaunchScreen } from './launch/LaunchScreen.tsx';
 import { useSyncStatus } from './core/sync/engine.ts';
-import { getNote, newNoteId, NOTE_SAVED, noteTitle, saveNote, useNotes, type Note, listNotes } from './core/store.ts';
+import { createNote, getNote, latestCommandMutation, newNoteId, NOTE_SAVED, noteTitle, undoCommandMutation, updateNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote, sampleNoteSeeded, seedSampleNote } from './core/seed.ts';
 import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
@@ -51,6 +50,8 @@ import { NewSheet } from './notes/NewSheet.tsx';
 import { sweepMemos } from './core/sweepMemos.ts';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
+import { afterPendingDeletes } from './capture/launch.ts';
+import type { SpokenAsk } from './capture/CaptureScreen.tsx';
 
 /**
  * The whole app: a list, a note, a capture, and a settings sheet.
@@ -97,11 +98,17 @@ function markGuideSeen(): void {
 
 type Screen =
   | { name: 'list' }
+  /** Every note as a grid of cards (notes/AllNotesScreen.tsx), from the home page's "All notes". */
+  | { name: 'notes' }
   | {
       name: 'note';
       note: Note;
       /** The item to land on, `^anchor`, when the note was opened by a link that pointed inside it (core/boards.ts). */
       at?: string;
+      /** A spoken instruction about this note ("hey Ghost, fix the spelling"), run on it as it opens; `key` tells one from the next. */
+      ask?: SpokenAsk & { key: number };
+      /** After Stop: the slower models check the take in the note itself (ai/useNoteReview.ts); `key` tells one review from the next. */
+      review?: ReviewHandoff & { key: number };
     }
   | {
       name: 'capture';
@@ -111,8 +118,6 @@ type Screen =
       /** Talking into this note, from its Speak: the words go here, and the capture comes back here. */
       noteId?: string;
     }
-  /** After Stop: the slower models check the take, and the person commits what they find (review/). */
-  | { name: 'review'; handoff: ReviewHandoff }
   /** After a memo: where its parts go, proposed, and filed when committed (sort/). */
   /** Glyph Academy: markdown taught a mark at a time, open from Settings whenever it is wanted (academy/). */
   | { name: 'academy' };
@@ -131,12 +136,21 @@ export function App() {
 function Shell() {
   const { notes, loading, refresh } = useNotes();
   const actions = useNoteActions(refresh);
-  const [screen, setScreen] = useState<Screen>(() => {
-    const launch = takeCaptureLaunch();
-    // The side key held before the guide got to it: the guide again, not a recording (guide/tooSoon.ts).
-    if (launch && launchedTooSoon(guideSeen())) return { name: 'list' };
-    return launch ? { name: 'capture', key: Date.now(), fromAssistant: true, stop: 0 } : { name: 'list' };
-  });
+  const { flushDeletes } = actions;
+  const { toast } = useToast();
+  const bootCapture = useRef(takeCaptureLaunch());
+  const bootTooSoon = useRef(Boolean(bootCapture.current && launchedTooSoon(guideSeen())));
+  const [screen, setScreen] = useState<Screen>({ name: 'list' });
+
+  /** Capture reads targets immediately, so every deferred permanent delete must finish first. */
+  const launchCapture = useCallback(
+    async (fromAssistant: boolean, noteId?: string) => {
+      await afterPendingDeletes(flushDeletes, () => {
+        setScreen({ name: 'capture', key: Date.now(), fromAssistant, stop: 0, ...(noteId ? { noteId } : {}) });
+      });
+    },
+    [flushDeletes],
+  );
   // Read by the side-key handler, which is registered once.
   const screenRef = useRef(screen);
   screenRef.current = screen;
@@ -145,11 +159,43 @@ function Shell() {
   const [toCheatSheet, setToCheatSheet] = useState(0);
   // The walkthrough opens by itself once, on the first launch that is not a
   // side-key capture - a person who held the key is already mid-sentence.
-  const [guide, setGuide] = useState(() => screen.name !== 'capture' && !guideSeen());
+  const [guide, setGuide] = useState(() => !bootCapture.current && !guideSeen());
   // "Not yet, finish reading.": a relaunch, or the side key, while the guide was still on a reading page.
-  const [tooSoon, setTooSoon] = useState(() => screen.name !== 'capture' && launchedTooSoon(guideSeen()));
+  const [tooSoon, setTooSoon] = useState(() => bootTooSoon.current);
 
   const [guidePage, setGuidePage] = useState(0);
+
+  useEffect(() => {
+    if (!bootCapture.current || bootTooSoon.current) return;
+    bootCapture.current = false;
+    void launchCapture(true);
+  }, [launchCapture]);
+
+  const undoRecoveryChecked = useRef(false);
+  // A confirmed command and its undo record are persisted together. If the
+  // process stopped before its success chip could be used, re-offer the same
+  // guarded undo once; a later edit turns it into a conflict rather than data loss.
+  useEffect(() => {
+    if (undoRecoveryChecked.current) return undefined;
+    undoRecoveryChecked.current = true;
+    let live = true;
+    void latestCommandMutation()
+      .then((pending) => {
+        if (!live || !pending) return;
+        toast({
+          message: pending.kind === 'create' ? 'Voice command created a note.' : 'Voice command changed a note.',
+          duration: 10_000,
+          action: {
+            label: 'Undo',
+            onPress: () => void undoCommandMutation(pending.mutationId).then(() => refresh()),
+          },
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [refresh, toast]);
   // Read by the side-key handler, which is registered once.
   const guideRef = useRef({ open: guide, page: guidePage });
   guideRef.current = { open: guide, page: guidePage };
@@ -209,9 +255,9 @@ function Shell() {
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         setSettings(false);
         setGuide(false);
-        setScreen({ name: 'capture', key: Date.now(), fromAssistant: true, stop: 0 });
+        void launchCapture(true);
       }),
-    [],
+    [launchCapture],
   );
 
   // Fetched when the app opens and again whenever it returns to the screen,
@@ -221,8 +267,6 @@ function Shell() {
   // The better words after a recording, worked out in the background; the list
   // is refreshed when a note's words change.
   useEffect(() => startRefining(() => void refresh()), [refresh]);
-  // The staged formatting passes after a recording: draft, then revisions.
-  useEffect(() => startFormatting(() => void refresh()), [refresh]);
   // Sync, for a device signed in to an account (docs/SYNC.md); nothing happens without one.
   useEffect(() => startSync(), []);
   // A desktop window wide enough keeps the notes in a sidebar beside the open note (core/useWideScreen.ts).
@@ -360,7 +404,7 @@ function Shell() {
    */
   const [trail, setTrail] = useState(FIRST);
   const jumped = useRef(false);
-  const place: Place | null = screen.name === 'note' ? notePlace(screen.note.id) : screen.name === 'list' ? 'list' : null;
+  const place: Place | null = screen.name === 'note' ? notePlace(screen.note.id) : screen.name === 'list' ? 'list' : screen.name === 'notes' ? ALL_NOTES : null;
   useEffect(() => {
     if (!place) return;
     if (jumped.current) {
@@ -380,7 +424,8 @@ function Shell() {
   const land = (spot: Place) => {
     jumped.current = true;
     const id = noteIdOf(spot);
-    if (id === null) void backToList();
+    if (spot === ALL_NOTES) setScreen({ name: 'notes' });
+    else if (id === null) void backToList();
     else openNote(id);
   };
   const goBack = () => {
@@ -488,7 +533,7 @@ function Shell() {
       setScreen({ name: 'note', note: fresh, at });
       return;
     }
-    const made = await saveNote(newNoteId(), make(title), 'editor');
+    const made = await createNote(newNoteId(), make(title), 'editor');
     fileNewNote(made.id);
     await refresh();
     setScreen({ name: 'note', note: made });
@@ -548,7 +593,7 @@ function Shell() {
   const [bookSheet, setBookSheet] = useState(false);
   const newBook = () => setBookSheet(true);
   const createBook = async (title: string, pages: readonly string[]) => {
-    const note = await saveNote(newNoteId(), bookNoteBody(title, pages), 'editor');
+    const note = await createNote(newNoteId(), bookNoteBody(title, pages), 'editor');
     fileNewNote(note.id);
     await refresh();
     setScreen({ name: 'note', note });
@@ -562,7 +607,7 @@ function Shell() {
     // and an empty row in the list is a far smaller problem than a lost one.
     // The library holds it as a draft with no file until its first words
     // (docs/LIBRARY.md), so a note opened and left leaves nothing behind.
-    const note = await saveNote(newNoteId(), '', 'editor');
+    const note = await createNote(newNoteId(), '', 'editor');
     // Made while the list shows one workspace: it belongs there (core/workspaces.ts).
     fileNewNote(note.id);
     await refresh();
@@ -576,7 +621,7 @@ function Shell() {
   const [newSheet, setNewSheet] = useState(false);
 
   const newCanvas = async () => {
-    const note = await saveNote(newNoteId(), canvasNoteBody('Untitled canvas', { nodes: [], edges: [] }), 'editor');
+    const note = await createNote(newNoteId(), canvasNoteBody('Untitled canvas', { nodes: [], edges: [] }), 'editor');
     fileNewNote(note.id);
     await refresh();
     setScreen({ name: 'note', note });
@@ -587,17 +632,19 @@ function Shell() {
     const note = notes.find((n) => n.id === id);
     setOpen((was) => closeOpen(was, id));
     setScreen({ name: 'list' });
-    if (note) actions.remove(note);
-    else void refresh();
+    if (note) {
+      actions.remove(note);
+      return;
+    }
+    // A note the list has not read yet (one a voice command just made or changed): read it now rather than closing
+    // it and deleting nothing.
+    void getNote(id)
+      .catch(() => null)
+      .then((fresh) => {
+        if (fresh) actions.remove(fresh);
+        return refresh();
+      });
   };
-
-  // A capture over the list takes the Undo toast's place; a delete it hides
-  // becomes final rather than silently waiting behind the recorder.
-  const { flushDeletes } = actions;
-  useEffect(() => {
-    if (screen.name === 'capture') flushDeletes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen.name]);
 
   const backToList = async () => {
     setScreen({ name: 'list' });
@@ -612,12 +659,20 @@ function Shell() {
   }, [screen.name]);
 
   const captureFinished = useCallback(
-    async (note: Note | null, locked: boolean, review?: ReviewHandoff) => {
+    async (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk) => {
       // A spoken note lands in the workspace the list is showing, unless it is filed already.
       if (note) fileNewNote(note.id);
       await refresh();
+      // An instruction spoken into a note: the note opens with the run on it (ai/instruction.ts, editor/NoteScreen.tsx).
+      if (note && ask) {
+        const fresh = await getNote(note.id).catch(() => null);
+        setScreen({ name: 'note', note: fresh ?? note, ask: { ...ask, key: Date.now() } });
+        return;
+      }
+      // The review after a recording runs in the note (ai/useNoteReview.ts), read fresh, since its words just changed.
       if (note && review) {
-        setScreen({ name: 'review', handoff: review });
+        const fresh = await getNote(note.id).catch(() => null);
+        setScreen({ name: 'note', note: fresh ?? note, review: { ...review, key: Date.now() } });
         return;
       }
       // Talking into a note from the note: back to that note, read fresh, since
@@ -639,11 +694,11 @@ function Shell() {
     [refresh],
   );
 
-  const speakInto = (id: string) => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0, noteId: id });
+  const speakInto = (id: string) => void launchCapture(false, id);
 
   // The list and the open note sit side by side on a wide desktop window; the capture, review and sort
   // flows still take the whole window.
-  const split = sidebar && (screen.name === 'list' || screen.name === 'note');
+  const split = sidebar && (screen.name === 'list' || screen.name === 'notes' || screen.name === 'note');
   /*
    * The sidebar docked beside the note, rather than a popover over it: a window wide enough, and Docked chosen in
    * Settings. A popover is the default everywhere (Matt: "Sidebar should open and close in a popover not a full
@@ -660,11 +715,11 @@ function Shell() {
     if (docked) setDrawer(false);
   }, [docked]);
   /*
-   * The routes that carry the app's tab row (app.css .app-tabBar): the list and a note, which are the two places a
-   * tab means anything. A capture, a review, a sort and the Academy are each the whole screen and the way out of them
+   * The routes that carry the app's tab row (app.css .app-tabBar): the list, the All notes grid and a note, which are
+   * the places a tab means anything. A capture, a review, a sort and the Academy are each the whole screen and the way out of them
    * is their own; the bar's height leaves `--app-safe-top` with it, so those screens keep their own top edge.
    */
-  const tabBar = screen.name === 'list' || screen.name === 'note';
+  const tabBar = screen.name === 'list' || screen.name === 'notes' || screen.name === 'note';
   /*
    * And how tall it is: one line of controls, or that line with the open notes under it (app.css `--app-tabs`). The
    * bar is two rows now (Matt: "put the tabs on the next line down"), and the second is not there at all when
@@ -711,7 +766,7 @@ function Shell() {
     void (async () => {
       const note = await getNote(id);
       if (!note) return;
-      await saveNote(id, withFrontMatterTitle(note.body, title), note.source);
+      await updateNote(id, withFrontMatterTitle(note.body, title), note.revision ?? 1);
       await refresh();
     })();
   };
@@ -725,6 +780,8 @@ function Shell() {
         onSpeak={speakInto}
         onPin={(n) => actions.pin(n)}
         at={screen.at}
+        ask={screen.ask}
+        review={screen.review}
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
         onOpenWithin={openTitleWithin}
@@ -750,14 +807,20 @@ function Shell() {
     const line = lines?.[task.line];
     if (!note || !lines || line === undefined) return;
     lines[task.line] = setItemDone(line, true);
-    await saveNote(note.id, lines.join('\n'));
+    await updateNote(note.id, lines.join('\n'), note.revision ?? 1);
     await refresh();
   };
-  // Every note, from the home page's "All notes": the sidebar, docked or as its popover.
+  /*
+   * Every note, from the home page's "All notes": a page of cards (notes/AllNotesScreen.tsx). It used to open the
+   * sidebar, which is a tree for jumping to a note you know by name (Matt: "Browsing all notes is super hard there is
+   * no good UI it just opens in the sidebar, I'd like a grid view of all the notes"). A note opened from it takes a tab
+   * as one opened from anywhere does; its arrow and the phone's back gesture come back home.
+   */
   const showAllNotes = () => {
-    if (!docked) setDrawer(true);
-    else if (!sidebarShown) toggleDock();
+    setDrawer(false);
+    setScreen({ name: 'notes' });
   };
+  const allNotes = <AllNotesScreen notes={shownNotes} loading={loading} onOpen={openNote} onBack={() => void backToList()} />;
   /*
    * The home page (home/HomeScreen.tsx): the start page on every screen (Matt: "Add a 'home' button to take us to a
    * dashboard like page"). It took the notes list's place on a phone and the empty "No note open" pane beside the
@@ -772,7 +835,7 @@ function Shell() {
         if (note) setScreen({ name: 'note', note, at });
       }}
       onNew={() => setNewSheet(true)}
-      onCapture={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
+      onCapture={() => void launchCapture(false)}
       onSettings={() => setSettings(true)}
       onAllNotes={showAllNotes}
       onTick={(task) => void tickTask(task)}
@@ -814,10 +877,11 @@ function Shell() {
     () => ({
       openNote,
       newNote: () => void newNote(),
-      speak: () => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 }),
+      speak: () => void launchCapture(false),
       speakInto,
       closeTab,
       showList: () => void backToList(),
+      browseNotes: showAllNotes,
       back: goBack,
       forward: goOn,
       settings: () => setSettings(true),
@@ -914,7 +978,7 @@ function Shell() {
           fromAssistant={screen.fromAssistant}
           stopRequests={screen.stop}
           noteId={screen.noteId}
-          onFinish={(note, locked, review) => void captureFinished(note, locked, review)}
+          onFinish={(note, locked, review, ask) => void captureFinished(note, locked, review, ask)}
         />
       ) : screen.name === 'academy' ? (
         <AcademyScreen
@@ -923,18 +987,6 @@ function Shell() {
             setScreen({ name: 'list' });
             setSettings(true);
             setToCheatSheet(Date.now());
-          }}
-        />
-      ) : screen.name === 'review' ? (
-        <ReviewScreen
-          key={screen.handoff.noteId}
-          handoff={screen.handoff}
-          onDone={(id) => {
-            void (async () => {
-              await refresh();
-              const fresh = await getNote(id).catch(() => null);
-              setScreen(fresh ? { name: 'note', note: fresh } : { name: 'list' });
-            })();
           }}
         />
       ) : split ? (
@@ -954,7 +1006,7 @@ function Shell() {
                 onNew={() => setNewSheet(true)}
                 onCommands={openCommands ?? undefined}
                 onSettings={() => setSettings(true)}
-                onSpeak={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
+                onSpeak={() => void launchCapture(false)}
                 notices={notices}
                 trashed={trashedNotes}
                 onRestore={actions.restore}
@@ -964,7 +1016,7 @@ function Shell() {
             </aside>
           ) : null}
           <main className="app-notePane">
-            {noteScreen ?? home}
+            {noteScreen ?? (screen.name === 'notes' ? allNotes : home)}
           </main>
           {/* The right-hand aside as a column beside a docked sidebar: a book's index, or a run of chapters (aside/Aside.tsx). */}
           {asideDocked && asideBody ? (
@@ -974,7 +1026,7 @@ function Shell() {
           ) : null}
         </div>
       ) : (
-        (noteScreen ?? home)
+        (noteScreen ?? (screen.name === 'notes' ? allNotes : home))
       )}
       {/* With the sidebar a floating card, the aside is the same card at the right (aside/Aside.tsx `AsideCard`). */}
       {asideShown && !asideDocked && asideBody ? (
@@ -1007,7 +1059,7 @@ function Shell() {
         }}
         onSpeak={() => {
           setDrawer(false);
-          setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 });
+          void launchCapture(false);
         }}
         onCommands={
           openCommands
@@ -1061,7 +1113,7 @@ function Shell() {
             // The list underneath loaded while the guide was up; ask again now it shows.
             void refresh();
           }}
-          onTry={() => setScreen({ name: 'capture', key: Date.now(), fromAssistant: false, stop: 0 })}
+          onTry={() => void launchCapture(false)}
         />
       ) : null}
     </>

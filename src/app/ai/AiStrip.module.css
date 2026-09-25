@@ -1,0 +1,276 @@
+/*
+ * The strip: paper-2 with a hairline, one line of the quiet ink, a bar along
+ * its foot, and the card under it when opened. It floats under the header
+ * and over the page (NoteScreen.tsx), so it is never in the smoke.
+ */
+
+.strip {
+  position: relative;
+  margin: 0 var(--app-gutter-end, var(--app-gutter)) 0 var(--app-gutter-start, var(--app-gutter));
+  border-radius: var(--glacier-radius-md, 9px);
+  background: var(--app-paper-2, var(--glacier-surface-raised));
+  border: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
+  box-shadow: 0 6px 18px -12px color-mix(in srgb, var(--app-ink, black) 40%, transparent);
+  overflow: hidden;
+  animation: strip-in 220ms var(--glacier-ease-out, ease-out) both;
+}
+
+@keyframes strip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  min-block-size: 2.25rem;
+  padding-inline: var(--glacier-space-3) var(--glacier-space-2);
+}
+
+/* The line is a button: the whole of it opens the card. */
+.line {
+  appearance: none;
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  padding: var(--glacier-space-1) 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon {
+  flex: none;
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.icon[data-spin] {
+  animation: strip-spin 1.1s linear infinite;
+}
+
+@keyframes strip-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.words {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A run in progress: the words breathe, so a slow phone still looks alive. */
+.strip:not([data-phase='done']):not([data-phase='stopped']):not([data-phase='failed']):not([data-phase='marks']):not([data-phase='stage']) .words {
+  animation: strip-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes strip-breathe {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.chevron {
+  flex: none;
+  color: var(--app-ink-4, var(--glacier-text-subtle));
+}
+
+/* Stop and Undo: an icon and its word, in ink. */
+.action {
+  appearance: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  margin: 0;
+  padding: var(--glacier-space-1) var(--glacier-space-2);
+  border: none;
+  border-radius: var(--glacier-radius-sm, 6px);
+  background: none;
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink, var(--glacier-text));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.action:active,
+.dismiss:active {
+  background: var(--app-paper-3, var(--glacier-surface-sunken));
+}
+
+.dismiss {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-sm, 6px);
+  background: none;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The bar along the foot: a hairline track, ink filling it. Without a share to draw, a short run of ink goes to and fro. */
+.bar {
+  position: relative;
+  block-size: 2px;
+  background: color-mix(in oklch, var(--app-ink, currentColor) 12%, transparent);
+  overflow: hidden;
+}
+
+.bar > span {
+  display: block;
+  block-size: 100%;
+  inline-size: 0;
+  background: var(--app-ink, var(--glacier-text));
+  transition: inline-size 300ms ease-out;
+}
+
+.bar[data-going] > span {
+  inline-size: 28%;
+  animation: strip-going 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes strip-going {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(360%);
+  }
+}
+
+.strip[data-phase='done'] .bar > span {
+  background: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.strip[data-phase='failed'] .bar,
+.strip[data-phase='stopped'] .bar,
+.strip[data-phase='marks'] .bar {
+  background: transparent;
+}
+
+/* The thinking: monospace, small, the quiet ink, a few lines tall and scrolling, following the newest while it streams. */
+.thought {
+  margin: var(--glacier-space-2) var(--glacier-space-3) 0;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  max-block-size: 9rem;
+  overflow-y: auto;
+  border-radius: var(--glacier-radius-sm, 6px);
+  background: var(--app-paper-3, var(--glacier-surface-sunken));
+  font: var(--glacier-font-size-xs) / 1.45 var(--glacier-font-mono, ui-monospace, monospace);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The line as a plain span, where there is no card to open. */
+span.line {
+  cursor: default;
+}
+
+/* The card under the line, and the log under the card. */
+.card {
+  border-block-start: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
+}
+
+/* The AI card draws its own margins for a page; here it is inside a strip. */
+.card > section {
+  margin: var(--glacier-space-2) var(--glacier-space-2) 0;
+  border: none;
+  background: transparent;
+}
+
+.none {
+  margin: 0;
+  padding: var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.log {
+  margin: 0;
+  padding: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-3);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+}
+
+.entry {
+  display: flex;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+}
+
+.entryIcon {
+  flex: none;
+  align-self: center;
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.entry[data-outcome='failed'] .entryIcon,
+.entry[data-outcome='stopped'] .entryIcon {
+  color: var(--app-ink-4, var(--glacier-text-subtle));
+}
+
+.entryWords {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.entryWhen {
+  color: var(--app-ink-4, var(--glacier-text-subtle));
+}
+
+.entryUndo {
+  min-block-size: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .strip,
+  .icon[data-spin],
+  .words,
+  .bar[data-going] > span {
+    animation: none;
+  }
+
+  .bar[data-going] > span {
+    inline-size: 100%;
+    opacity: 0.35;
+  }
+
+  .bar > span {
+    transition: none;
+  }
+}

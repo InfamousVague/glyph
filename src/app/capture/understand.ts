@@ -1,6 +1,8 @@
 import { generate, listModels, type ModelInfo } from '../core/ai.ts';
 import { matchNote, type Candidate } from './route.ts';
 import type { Plan } from './command.ts';
+import { interpretWakeCommand } from './instructionIntent.ts';
+import { literalMarkdown } from './instructionMutation.ts';
 
 /**
  * The second pass on a spoken command: a small language model on the phone reads what was said after "Glyph" when
@@ -167,6 +169,37 @@ export interface Understanding<N extends Candidate> {
 }
 
 /** Asks the phone's command model what `words` would have Glyph do, among `notes`. */
+/**
+ * Constrained instruction fallback for command-shaped capture utterances. The
+ * deterministic parser still wins inside `interpretWakeCommand`; inferred
+ * strings are escaped and mapped back into application-owned placement rules.
+ */
+export function understandInstructionCommand<N extends Candidate>(words: string, notes: readonly N[]): Understanding<N> {
+  const run = interpretWakeCommand(words, { notes });
+  return {
+    cancel: run.cancel,
+    done: run.done.then((read): Plan<N> | null => {
+      if (read.source === 'deterministic') return read.plan;
+      if (read.source !== 'inferred') return null;
+      if (read.intent.action === 'create') {
+        return read.intent.content === null ? { kind: 'create-list', title: read.intent.target } : null;
+      }
+      if (!('note' in read)) return null;
+      const placement = read.intent.placement;
+      return {
+        kind: 'place',
+        note: read.note,
+        text: literalMarkdown(read.intent.content),
+        how: placement === 'notes' ? 'paragraph' : placement === 'bugs' || placement === 'tasks' || placement === 'list' ? 'item' : 'leave',
+        task: placement === 'tasks',
+        many: false,
+        target: null,
+        ...(placement === 'bugs' ? { near: 'bugs' as const } : {}),
+      };
+    }),
+  };
+}
+
 export function understandCommand<N extends Candidate>(words: string, notes: readonly N[]): Understanding<N> {
   let cancelled = false;
   let stop: (() => void) | null = null;

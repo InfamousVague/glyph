@@ -88,14 +88,6 @@ export function Plus({ className }: IconProps) {
   return icon(className, 'M12 5v14M5 12h14');
 }
 
-/** A robot's head: an antenna, a rounded box, two eyes and a level mouth. The AI's button. */
-export function Robot({ className }: IconProps) {
-  return icon(
-    className,
-    'M12 3v4M5.5 7h13a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9A1.5 1.5 0 0 1 5.5 7M9 12.5h.01M15 12.5h.01M9.5 16h5',
-  );
-}
-
 /** A pushpin: a cap, a flared body, and the needle below it. */
 export function Pin({ className }: IconProps) {
   return icon(className, 'M8.5 3h7M10 3l-.9 5.6L6 12.4h12l-3.1-3.8L14 3M12 12.4V21');

@@ -27,21 +27,39 @@ import { insertImageAt, releaseImageSpot, reserveImageSpot } from './images.ts';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { useUnfold } from '../core/unfold.ts';
-import { getNote, noteTitle, saveNote, setNoteRecording, type Note } from '../core/store.ts';
+import { applyCommandMutation, getNote, listNotes, newNoteId, noteTitle, setNoteRecording, undoCommandMutation, updateNote, type Note } from '../core/store.ts';
 import type { Segment } from '../capture/markdown.ts';
 import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.ts';
 import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { FormattedView, type ApplyHow } from '../format/FormattedView.tsx';
-import { useFormatter } from '../format/formatter.ts';
-import type { Mode } from '../format/modes.ts';
+import { useAvailability } from '../ai/available.ts';
+import { PromptBar } from '../ai/PromptBar.tsx';
+import { ConfirmCard } from '../ai/ConfirmCard.tsx';
+import { listBody, offerOf, readInstruction } from '../ai/instruction.ts';
+import { recordChange, recordRun } from '../ai/log.ts';
+import type { Plan } from '../capture/command.ts';
+import { placeWords } from '../capture/listAppend.ts';
+import type { Candidate } from '../capture/route.ts';
+import type { Offer } from '../capture/take.ts';
+import { commonEnds, wisp } from './wispArrivals.ts';
+import type { RunKind } from '../ai/kinds.ts';
+import { loadMarks, saveMarks } from '../ai/marks.ts';
+import { ended, useRun, type RunScope } from '../ai/runs.ts';
+import { startNoteRun } from '../ai/start.ts';
+import { useLanding } from '../ai/useLanding.ts';
+import { useNoteReview } from '../ai/useNoteReview.ts';
+import type { ReviewHandoff } from '../ai/review.ts';
+import { accountState } from '../core/account/account.ts';
+import { addAiChanges, aiEdit, keepAllAiChanges, keepAllChanges, restoreAiChanges, type AiChange } from './aiChanges.ts';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
 import { LinkMarks } from '../plugins/LinkMarks.tsx';
 import { plugins } from '../plugins/registry.ts';
 import type { NoteEditing } from '../plugins/types.ts';
 import { useTape } from '../tapes/useTape.ts';
+import { AiStrip } from '../ai/AiStrip.tsx';
+import { recordUndone, type RunRecord } from '../ai/log.ts';
 import styles from './NoteScreen.module.css';
 
 /**
@@ -59,18 +77,18 @@ import styles from './NoteScreen.module.css';
  * synchronous in its decision - it checks a ref, not state - because by the
  * time a re-render could happen the process may be gone.
  *
- * The note, and over it what the robot makes of it: the robot button in the
- * More sheet's AI group lists Format, Summarize and Enhance, and choosing
- * one opens that mode's view (format/FormattedView.tsx) over the
- * note, which starts writing the first time it is opened; Close, "Back to
- * note" in the menu, or the back gesture returns to the note. Matt: "make
- * all of these buttons instead of the segmented toggle, make a robot drop
- * down button for these options". A spoken note has one more view, the
+ * The note, and the AI in it: the More sheet's AI group lists Format,
+ * Summarize and Enhance, and choosing one starts a run (ai/start.ts) whose
+ * lines land in the note itself as they finish, as tracked changes
+ * (ai/useLanding.ts, editor/aiChanges.ts), with the strip under the header
+ * saying what the model is doing (ai/AiStrip.tsx). The robot's own view
+ * over the note is gone with it: Matt chose the note as the one surface,
+ * with auto-apply, marks, and Undo. A spoken note has one more view, the
  * transcript - the recording's phrases following the sound - which shows
  * whenever the tape is playing and steps aside when it stops (Matt: "the
  * default mode whenever we're playing, not a different tab"). The editor
- * stays mounted behind the others, hidden, so nothing typed is lost and its
- * caret keeps its place.
+ * stays mounted behind it, hidden, so nothing typed is lost and its caret
+ * keeps its place.
  */
 
 interface NoteScreenProps {
@@ -106,15 +124,24 @@ interface NoteScreenProps {
    * asking, so renaming twice to the same name still lands.
    */
   rename?: { id: string; title: string; asked: number } | null;
+  /** A spoken instruction about this note, to run on it as it opens (App.tsx, ai/instruction.ts); `key` tells one from the next. */
+  ask?: { kind: RunKind; instruction?: string; key: number };
+  /** The review after the recording that just made or grew this note (ai/useNoteReview.ts): run here, in the strip and the note. */
+  review?: ReviewHandoff & { key: number };
   /** The "← Notes" in the header; off where the list is already beside the note (the desktop sidebar, App.tsx). */
 }
+
+/** A command on a note by name, read from the bar and waiting to be confirmed (ai/instruction.ts). */
+type CommandPlan = Extract<Plan<Candidate & { note: Note }>, { kind: 'place' | 'create-list' }>;
+
+const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
 
 const SAVE_DEBOUNCE_MS = 400;
 
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask, review }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -200,8 +227,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     },
     [],
   );
-  /** What the robot is showing over the note, or null for the note itself. */
-  const [mode, setMode] = useState<Mode | null>(null);
+  /** The note's run, for the More sheet to mark which kind is on. */
+  const run = useRun(note.id);
+  const runningKind: RunKind | null = run && !ended(run) ? run.kind : null;
   /** The cog's sheet: pin, archive, what the note is linked to, delete. */
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Find and replace, open with its first words, or null when it's closed (FindBar.tsx). */
@@ -217,29 +245,16 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     return () => window.clearTimeout(id);
   }, [photoProblem]);
 
-  // The formatted text made the note (the Formatted view's Apply): said once,
-  // with the way back, for a few seconds.
-  const [applied, setApplied] = useState<{
-    said: string;
-    undo: () => void;
-  } | null>(null);
-  useEffect(() => {
-    if (!applied) return;
-    const id = window.setTimeout(() => setApplied(null), 8000);
-    return () => window.clearTimeout(id);
-  }, [applied]);
-
   // The live document, held in a ref rather than state: it changes on every
   // keystroke and nothing in this component's render depends on it, so putting
   // it in state would re-render the screen once per character for nothing.
   const body = useRef(note.body);
   const saved = useRef(note.body);
+  const revision = useRef(note.revision ?? 1);
+  const writes = useRef<Promise<void>>(Promise.resolve());
+  const writable = useRef(true);
   const timer = useRef<number | null>(null);
 
-  // The robot's text for the note in the mode showing (the hook looks up
-  // what is kept itself); Format while nothing shows, so a run the queue
-  // started is found the moment the view opens.
-  const formatter = useFormatter(note.id, mode ?? 'format');
   const currentBody = useCallback(() => body.current, []);
 
   const flush = useCallback(() => {
@@ -250,8 +265,19 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     if (body.current === saved.current) return;
     const pending = body.current;
     saved.current = pending;
-    void saveNote(note.id, pending, note.source);
-  }, [note.id, note.source]);
+    writes.current = writes.current.then(async () => {
+      if (!writable.current) return;
+      try {
+        const stored = await updateNote(note.id, pending, revision.current);
+        revision.current = stored.revision ?? revision.current + 1;
+      } catch (failure) {
+        // The row was deleted or another writer won. Most importantly, this
+        // editor has no insertion API and therefore cannot bring Delete back.
+        writable.current = false;
+        console.warn('[glyph] editor save stopped:', failure);
+      }
+    });
+  }, [note.id]);
 
   // A note with no words in it yet shows the ghost with its pen under the editor, until the first word (art/Ghost.tsx).
   const [blank, setBlank] = useState(() => !note.body.trim());
@@ -309,6 +335,51 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const screen = useRef<HTMLDivElement>(null);
   useUnfold(screen);
 
+  /*
+   * The AI's strip (ai/AiStrip.tsx) floats under the header and over the page, never in the page's smoke, and the
+   * page makes room under it so the note's first lines are not covered while the model works. Two measures, written
+   * as custom properties on the screen rather than held as state: where the header ends (`--ai-strip-top`, the
+   * header is a pane of glass whose height the app's bar decides), and how tall the strip is (`--ai-strip-room`,
+   * zero once it is gone). Neither is anything this component's render depends on.
+   */
+  useEffect(() => {
+    const pane = header.current;
+    const host = screen.current;
+    if (!pane || !host) return undefined;
+    const fit = () => host.style.setProperty('--ai-strip-top', `${pane.offsetHeight}px`);
+    fit();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const watched = new ResizeObserver(fit);
+    watched.observe(pane, { box: 'border-box' });
+    return () => watched.disconnect();
+  }, []);
+  const onStripHeight = useCallback((height: number) => {
+    screen.current?.style.setProperty('--ai-strip-room', height ? `${height + 8}px` : '0px');
+  }, []);
+  /**
+   * Undo for a run in the strip's log: the note back as it was before the run, but only while it still reads as the
+   * run left it - a later edit is the person's, and would be lost under the old words.
+   */
+  const undoRun = (record: RunRecord): boolean => {
+    if (!view || record.before === undefined || record.after === undefined) return false;
+    const now = view.state.doc.toString();
+    if (now !== record.after) {
+      toast({ message: 'The note has changed since, so that run can’t be undone.' });
+      return false;
+    }
+    view.dispatch({
+      changes: { from: 0, to: now.length, insert: record.before },
+      selection: { anchor: 0 },
+      scrollIntoView: true,
+      effects: keepAllAiChanges.of(null),
+      annotations: aiEdit.of('undo'),
+    });
+    recordUndone(note.id, record.id);
+    fireNativeHaptic('success');
+    toast({ message: 'Put back as it was.' });
+    return true;
+  };
+
   // A picture, put into the note at the caret on its own line: from the
   // phone's picker (the menu's Add image), or one the activity copied out of
   // the clipboard (the menu's Paste). Pasting with the keyboard is the
@@ -340,13 +411,176 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     onDelete(note.id);
   };
 
-  const showMode = (next: Mode | null) => {
-    if (next) flush();
-    setMode(next);
-    // The editor was hidden, not unmounted, so nothing typed is lost; it
-    // measures itself again now that it has a size.
-    if (!next) window.requestAnimationFrame(() => view?.requestMeasure());
+  /*
+   * The AI, asked from the More sheet: a run on this note (ai/start.ts), whose lines land in the editor as they
+   * finish (useLanding below). What is typed is flushed first, so the run's Undo has the note as it was.
+   */
+  const availability = useAvailability();
+  const runAi = (kind: RunKind, instruction?: string, scope: RunScope | null = null) => {
+    if (!view) return;
+    flush();
+    const started = startNoteRun(view, note.id, kind, availability.availability, { instruction, scope });
+    if (!started.ok) toast({ message: started.reason });
+    else fireNativeHaptic('selection');
   };
+  /*
+   * The Ask over a selection (editor/ContextMenu.tsx): the selected words become the bar's scope, and the bar asks
+   * which - this part or the whole note - when a chip is pressed or an instruction sent (ai/PromptBar.tsx). The scope
+   * is the selection as it stands, read again when the person acts, since the caret may have moved meanwhile.
+   */
+  const [askScope, setAskScope] = useState<RunScope | null>(null);
+  const [focusAsk, setFocusAsk] = useState(0);
+  const askAbout = (from: number, to: number) => {
+    setAskScope({ from, to });
+    setFocusAsk((n) => n + 1);
+  };
+  const onBarHeight = useCallback((height: number) => {
+    screen.current?.style.setProperty('--ai-bar-room', height ? `${height + 12}px` : '0px');
+  }, []);
+  // The review after a recording: listening again and comparing as a stage in the strip, the thinking as a run, the
+  // findings landing as tracked changes (ai/useNoteReview.ts).
+  const reviewStage = useNoteReview(review, view, { wisp: prefs.wisp, say: (message) => toast({ message, duration: 7000 }) });
+  // A spoken instruction the note opened with: run once the editor and the AI are ready.
+  const askDone = useRef<number | null>(null);
+  useEffect(() => {
+    if (!ask || !view || askDone.current === ask.key) return;
+    if (!availability.availability.ok) {
+      if (availability.availability.waiting) return;
+      askDone.current = ask.key;
+      toast({ message: availability.availability.reason });
+      return;
+    }
+    askDone.current = ask.key;
+    runAi(ask.kind, ask.instruction);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runAi is made afresh each render; the key and the readiness are what this keys on
+  }, [ask, view, availability.availability]);
+  /*
+   * Words typed into the bar go through the one reader (ai/instruction.ts): a chip said in words is that run; a
+   * command naming another note is offered on the confirm card first, as a spoken one is; anything else is an ask
+   * about this note. Words about a selected part are always an ask about that part.
+   */
+  const [offer, setOffer] = useState<{ plan: CommandPlan; offer: Offer<Note>; words: string } | null>(null);
+  const askBar = async (instruction: string, scope: RunScope | null) => {
+    if (scope) {
+      runAi('ask', instruction, scope);
+      return;
+    }
+    const notes = await listNotes().catch(() => [] as Note[]);
+    const candidates = notes.filter((n) => !n.archivedAt).map((n) => ({ id: n.id, title: noteTitle(n.body), note: n }));
+    const read = await readInstruction(instruction, candidates, false);
+    if (read.kind === 'run') runAi(read.run);
+    else if (read.kind === 'ask') runAi('ask', read.instruction);
+    else if (read.kind === 'reject') toast({ message: read.reason });
+    else if (read.kind === 'command') {
+      const shown = offerOf(read.plan);
+      if (!shown) {
+        toast({ message: 'Nothing to add.' });
+        return;
+      }
+      setOffer({ plan: read.plan, offer: shown, words: instruction });
+    }
+  };
+  /** A command's record in the log, so the note it changed says the AI did, with the words asked. */
+  const stamp = (noteId: string) => {
+    const id = `cmd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    recordRun({ id, noteId, kind: 'ask', instruction: offer?.words ?? null, model: 'rules', at: Date.now(), ms: 0, outputTokens: 0, outcome: 'done', message: null, truncated: false });
+    return id;
+  };
+  /**
+   * The confirmed command, done: into this note through the editor as a tracked change; into another note through
+   * the guarded write, with Undo, as a spoken command does it (capture/CaptureScreen.tsx); a new list made.
+   */
+  const confirmOffer = async () => {
+    const chosen = offer;
+    if (!chosen || !view) return;
+    setOffer(null);
+    const { plan } = chosen;
+    if (plan.kind === 'create-list') {
+      const made = await applyCommandMutation({ mutationId: newNoteId(), noteId: newNoteId(), kind: 'create', beforeRevision: null, beforeBody: null, afterBody: listBody(plan.title, plan.items ?? []), source: 'editor' }).catch(() => null);
+      if (made?.status !== 'applied') {
+        toast({ message: 'That list could not be made.' });
+        return;
+      }
+      const { mutationId } = made;
+      fireNativeHaptic('success');
+      toast({ message: `Made ${noteTitle(made.note.body)}.`, duration: 6000, action: { label: 'Undo', onPress: () => void undoCommandMutation(mutationId) } });
+      return;
+    }
+    const { kind: _kind, note: named, text, ...placement } = plan;
+    const target = named.note;
+    const more = (added: string[]) => (added.length > 1 ? ` and ${added.length - 1} more` : '');
+    if (target.id === note.id) {
+      const before = view.state.doc.toString();
+      const placed = placeWords(before, text, placement);
+      if (!placed.added.length) return;
+      const { prefix, suffix } = commonEnds(before, placed.body);
+      const insert = placed.body.slice(prefix, placed.body.length - suffix);
+      const id = stamp(note.id);
+      const change: AiChange = { id: `c-${id}`, runId: id, from: prefix, to: prefix + insert.replace(/\n$/, '').length, removed: before.slice(prefix, before.length - suffix), block: true };
+      view.dispatch({
+        changes: { from: prefix, to: before.length - suffix, insert },
+        effects: addAiChanges.of([change]),
+        annotations: [aiEdit.of('land'), ...(prefs.wisp ? [wisp.of({ kind: 'heard' })] : [])],
+        userEvent: 'ai.land',
+      });
+      recordChange(note.id, id, before, view.state.doc.toString());
+      fireNativeHaptic('success');
+      toast({ message: `Added “${show(placed.added[0] ?? '')}”${more(placed.added)}.` });
+      return;
+    }
+    const placed = placeWords(target.body, text, placement);
+    if (!placed.added.length) return;
+    const mutationId = newNoteId();
+    const result = await applyCommandMutation({ mutationId, noteId: target.id, kind: 'append', beforeRevision: target.revision ?? 1, beforeBody: target.body, afterBody: placed.body, source: target.source }).catch(() => null);
+    if (result?.status !== 'applied') {
+      toast({ message: `${named.title} changed after the preview, so nothing was added.` });
+      fireNativeHaptic('warning');
+      return;
+    }
+    const id = stamp(target.id);
+    recordChange(target.id, id, target.body, result.note.body);
+    fireNativeHaptic('success');
+    toast({
+      message: `Added “${show(placed.added[0] ?? '')}”${more(placed.added)} to ${named.title}.`,
+      duration: 6000,
+      action: {
+        label: 'Undo',
+        onPress: () =>
+          void undoCommandMutation(mutationId).then((undone) => {
+            if (undone.status === 'undone') recordUndone(target.id, id);
+          }),
+      },
+    });
+  };
+  // The AI signs beside the account's handle, where there is one (core/authors.ts).
+  useLanding(note.id, view, {
+    wisp: prefs.wisp,
+    haptic: true,
+    owner: accountState().session?.handle,
+    onDropped: (count) => toast({ message: count === 1 ? 'One line the model wrote was dropped: you had written there.' : `${count} lines the model wrote were dropped: you had written there.` }),
+  });
+  /*
+   * The AI's marks (editor/aiChanges.ts): how many, for the strip, and kept with the note a moment after they change
+   * (ai/marks.ts), so leaving and coming back finds them where they were, as long as the note still reads the same.
+   */
+  const [marks, setMarks] = useState(0);
+  const marksTimer = useRef<number | null>(null);
+  const onAiMarks = useCallback(
+    (changes: readonly AiChange[]) => {
+      setMarks(changes.length);
+      if (marksTimer.current !== null) window.clearTimeout(marksTimer.current);
+      marksTimer.current = window.setTimeout(() => {
+        marksTimer.current = null;
+        saveMarks(note.id, body.current, changes);
+      }, 400);
+    },
+    [note.id],
+  );
+  useEffect(() => {
+    if (!view) return;
+    const kept = loadMarks(note.id, view.state.doc.toString());
+    if (kept?.length) view.dispatch({ effects: restoreAiChanges.of(kept) });
+  }, [view, note.id]);
 
   /**
    * The note, as plugins change it (plugins/types.ts `NoteEditing`): through the
@@ -373,40 +607,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     say: setPhotoProblem,
   };
 
-  // Apply, from the robot's view: the text goes into the note - in place of
-  // it, above it or below it. Through the editor, so its history has it, and
-  // said with an Undo that puts the old words back and the kept version back
-  // to what it was.
-  const applyFormatted = (text: string, how: ApplyHow) => {
-    if (!view) return;
-    const previous = view.state.doc.toString();
-    const piece = text.trim();
-    const next = how === 'replace' ? text : how === 'prepend' ? `${piece}\n\n${previous.replace(/^\s+/, '')}` : `${previous.replace(/\s+$/, '')}\n\n${piece}\n`;
-    view.dispatch({
-      changes: { from: 0, to: previous.length, insert: next },
-      selection: { anchor: how === 'append' ? next.length : 0 },
-      scrollIntoView: true,
-    });
-    const unkeep = formatter.apply(text, next);
-    showMode(null);
-    fireNativeHaptic('success');
-    setApplied({
-      said: how === 'replace' ? 'Applied to the note.' : how === 'prepend' ? 'Added above the note.' : 'Added below the note.',
-      undo: () => {
-        const now = view.state.doc.toString();
-        view.dispatch({
-          changes: { from: 0, to: now.length, insert: previous },
-          selection: { anchor: 0 },
-          scrollIntoView: true,
-        });
-        unkeep();
-        setApplied(null);
-      },
-    });
-  };
-
-  // Playing takes the screen for the transcript; the chosen view waits under it.
-  const shown: 'transcript' | 'robot' | 'raw' = tape.length && tape.playing ? 'transcript' : mode ? 'robot' : 'raw';
+  // Playing takes the screen for the transcript; the note waits under it.
+  const shown: 'transcript' | 'raw' = tape.length && tape.playing ? 'transcript' : 'raw';
   // The tape and note go to smoke as they slip behind the header; read again on a view change, since another view may not scroll (art/wispEdge.ts).
   // The page smokes at both ends: under the header, and off the bottom where the dock is (art/wispEdge.ts).
   // Not on a canvas: it is not a page that scrolls off its foot, and the band was smoking the canvas's own tools at
@@ -686,17 +888,13 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         )}
       </header>
       {toolsSlot ? createPortal(tools, toolsSlot) : null}
+      {/* The model at work on this note, and what it did: under the header, over the page (ai/AiStrip.tsx). */}
+      <div className={styles.stripHolder}>
+        <AiStrip noteId={note.id} onUndo={undoRun} onHeight={onStripHeight} marks={marks && view ? { count: marks, keepAll: () => keepAllChanges(view) } : undefined} stage={reviewStage} />
+      </div>
       {photoProblem ? (
         <p className={styles.problem} role="alert">
           {photoProblem}
-        </p>
-      ) : null}
-      {applied ? (
-        <p className={styles.problem} role="status">
-          {applied.said}
-          <button type="button" className={`app-word ${styles.undo}`} onClick={applied.undo}>
-            Undo
-          </button>
         </p>
       ) : null}
 
@@ -735,19 +933,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {shown === 'transcript' ? (
           <div className={styles.body}>
             <TranscriptWords tape={tape} />
-          </div>
-        ) : null}
-        {shown === 'robot' ? (
-          <div className={styles.body}>
-            {/* Keyed by mode: a change of mode is a fresh view, with its own editor and its own once-per-mount start. */}
-            <FormattedView
-              key={mode}
-              formatter={formatter}
-              currentBody={currentBody}
-              dark={isDarkNow(prefs.theme)}
-              onApply={applyFormatted}
-              onClose={() => showMode(null)}
-            />
           </div>
         ) : null}
         {drawing ? (
@@ -813,6 +998,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             }
             linkMenus={{ say: (message) => editing.say(message) }}
             wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined}
+            onAiMarks={onAiMarks}
             grow
           />
           {blank && !typed ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
@@ -820,12 +1006,33 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {/* And under its last line, the chapters either side again, to go on from the end of the page (docs/BOOKS.md). */}
         {book && onOpenTitle && shown === 'raw' ? <BookFoot place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}
       </div>
-      {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image. */}
+      {/* The bar at the foot: the six chips and a field for anything else (ai/PromptBar.tsx). Not on a canvas or a book's index, and not while the transcript plays. */}
+      <div className={styles.barHolder}>
+        {offer ? (
+          <div className={styles.cardHolder}>
+            <ConfirmCard offer={offer.offer} onConfirm={() => void confirmOffer()} onCancel={() => setOffer(null)} />
+          </div>
+        ) : null}
+        <PromptBar
+          availability={availability.availability}
+          onRun={(kind, instruction, scope) => (kind === 'ask' && instruction ? void askBar(instruction, scope) : runAi(kind, instruction, scope))}
+          onGet={(model) => void availability.fetch(model)}
+          scope={askScope}
+          onScopeUsed={() => setAskScope(null)}
+          focusAsk={focusAsk}
+          onHeight={onBarHeight}
+          disabled={typed || shown !== 'raw'}
+        />
+      </div>
+      {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image; and on a selection, Ask the AI. */}
       <ContextMenu
         view={view}
         onAddImage={() => void addPhoto()}
         onPasteImage={pasteImage}
         say={(message) => toast({ message })}
+        edits={typed ? [] : [{ id: 'ask', label: 'Ask the AI' }]}
+        onEdit={(_id, from, to) => askAbout(from, to)}
+        editsUnavailable={availability.availability.ok ? null : availability.availability.reason}
         onFind={setFinding}
         // The same send a swipe on the item does, where a plugin takes this note's items (a Notion board, a GitHub issue).
         send={(() => {
@@ -845,8 +1052,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         name={typed ? { value: title, onChange: (next) => onChange(withFrontMatterTitle(body.current, next)) } : undefined}
         view={!wide && shown === 'raw' ? (typed ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
         onView={typed ? (next) => showSource(next === 'mixed') : chooseView}
-        mode={mode}
-        onMode={showMode}
+        running={runningKind}
+        onAi={runAi}
         onFind={
           shown === 'raw'
             ? () => {

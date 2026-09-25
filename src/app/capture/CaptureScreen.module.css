@@ -535,55 +535,6 @@
  * recorder's own word and pill, so it reads as part of the recorder rather
  * than a dialog over it.
  */
-.confirm {
-  flex: none;
-  display: grid;
-  gap: var(--glacier-space-1);
-  margin: 0 0 var(--glacier-space-3);
-  padding: var(--glacier-space-4);
-  border: 1.5px solid var(--app-ink, var(--glacier-text));
-  border-radius: var(--glacier-radius-lg);
-  background: var(--app-paper-2, var(--glacier-surface));
-  animation: chip-pop 420ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
-}
-
-.confirmHeading {
-  margin: 0;
-  font-size: var(--glacier-font-size-xs);
-  font-weight: var(--glacier-font-weight-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--app-ink-3, var(--glacier-text-muted));
-}
-
-.confirmLine {
-  margin: 0;
-  font-size: var(--glacier-font-size-lg);
-  font-weight: var(--glacier-font-weight-semibold);
-  line-height: 1.25;
-  color: var(--app-ink, var(--glacier-text));
-  overflow-wrap: anywhere;
-}
-
-.confirmDetail,
-.confirmHint {
-  margin: 0;
-  font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-3, var(--glacier-text-muted));
-}
-
-.confirmActions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-block-start: var(--glacier-space-2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .confirm {
-    animation: none;
-  }
-}
 
 /* The table card's question: the one thing to answer, in the landing line's type. */
 /*

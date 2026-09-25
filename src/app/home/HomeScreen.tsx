@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Book, Mic } from '@glacier/icons';
+import { Book, LayoutGrid, Mic } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
@@ -9,15 +9,14 @@ import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { Cog, Pin, Plus } from '../art/Icons.tsx';
-import { NotePeek } from '../notes/NotePeek.tsx';
+import { NoteCard } from '../notes/NoteCard.tsx';
 import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { AcademyCard, RefiningNotice, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
-import { when } from '../notes/when.ts';
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
 import { bookNotes, openTasks, pinnedNotes, recentNotes, tickedTasks, type OpenTask } from './dashboard.ts';
-import { bookIndex, chaptersOf, placeOf } from '../book/book.ts';
+import { bookIndex, placeOf } from '../book/book.ts';
 import styles from './HomeScreen.module.css';
 
 /**
@@ -26,8 +25,8 @@ import styles from './HomeScreen.module.css';
  *
  * What a person comes back to Glyph for, in the order they want it: anything waiting on them (an update, a memo to
  * sort, the voice model), the notes they pinned, the ones they were in last, and every to-do not yet ticked, gathered
- * from all of their notes - ticked here without opening the note. Every note is one tap away in the sidebar, so the
- * page does not list them all again; "All notes" opens it.
+ * from all of their notes - ticked here without opening the note. The page does not list every note; "All notes" at
+ * its foot opens the page that does, as a grid of the same cards (notes/AllNotesScreen.tsx).
  *
  * It took the place of the notes list, and kept what the list had that was not the list: the glass bar and scroller,
  * the workspace pills choosing what it shows, and the dock, so starting a note is where it always was.
@@ -40,7 +39,7 @@ interface HomeScreenProps {
   onNew: () => void;
   onCapture: () => void;
   onSettings: () => void;
-  /** Every note: the sidebar, which holds them all. */
+  /** Every note, as a grid of cards (notes/AllNotesScreen.tsx). */
   onAllNotes: () => void;
   /** A to-do ticked from here: its note's line rewritten with the box ticked. */
   onTick: (task: OpenTask) => void;
@@ -106,58 +105,10 @@ export function HomeScreen({
 
   const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
-  const card = (note: Note, i: number) => {
-    const title = noteTitle(note.body);
-    const place = placeOf(inBooks, note);
-    return (
-      <li key={note.id} className={styles.cardItem} style={{ '--i': Math.min(i, 8) } as React.CSSProperties}>
-        <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
-          <span className={styles.cardTitle} data-untitled={title ? undefined : ''}>
-            {title ? shortenUrls(title) : 'Untitled'}
-          </span>
-          {/* A page of a book says which (docs/BOOKS.md). */}
-          {place ? (
-            <span className={styles.cardBook} title={`Page ${place.at + 1} of ${place.title}`}>
-              <Book size={12} aria-hidden="true" />
-              <span className={styles.cardBookName}>{place.title}</span>
-            </span>
-          ) : null}
-          {/* What the note is about, when the phone has written it; the preview under it is the note itself. */}
-          {gists[note.id] ? <span className={styles.cardGist}>{gists[note.id]}</span> : null}
-          <NotePeek body={note.body} className={styles.cardPeek} />
-          <span className={styles.cardWhen}>{when(note.updatedAt)}</span>
-        </button>
-      </li>
-    );
-  };
-
-  /** A book's card (docs/BOOKS.md): its name, how many pages, and the first few of them; a tap opens the index. */
-  const bookCard = (note: Note, i: number) => {
-    const title = noteTitle(note.body);
-    const chapters = chaptersOf(note.body);
-    return (
-      <li key={note.id} className={styles.cardItem} style={{ '--i': Math.min(i, 8) } as React.CSSProperties}>
-        <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
-          <span className={styles.cardTitle} data-untitled={title ? undefined : ''}>
-            {title || 'Untitled book'}
-          </span>
-          <span className={styles.bookMeta}>{chapters.length === 0 ? 'No pages yet' : chapters.length === 1 ? '1 page' : `${chapters.length} pages`}</span>
-          {chapters.length ? (
-            <ol className={styles.bookPages} aria-hidden="true">
-              {chapters.slice(0, 4).map((c, n) => (
-                <li key={`${c.line}-${c.title}`} data-depth={c.depth}>
-                  <span className={styles.bookPageNumber}>{n + 1}</span>
-                  {c.title}
-                </li>
-              ))}
-              {chapters.length > 4 ? <li className={styles.bookMore}>and {chapters.length - 4} more</li> : null}
-            </ol>
-          ) : null}
-          <span className={styles.cardWhen}>{when(note.updatedAt)}</span>
-        </button>
-      </li>
-    );
-  };
+  /** A note's card (notes/NoteCard.tsx), at its place in the run of cards down the page. */
+  const card = (note: Note, i: number) => (
+    <NoteCard key={note.id} note={note} index={i} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} />
+  );
 
   return (
     <div className={styles.screen}>
@@ -198,7 +149,7 @@ export function HomeScreen({
                 <Book className={styles.groupIconStill} />
                 Library
               </h2>
-              <ol className={styles.cards}>{books.map((n, i) => bookCard(n, i + pinned.length))}</ol>
+              <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length))}</ol>
             </section>
           ) : null}
 
@@ -247,7 +198,9 @@ export function HomeScreen({
             </section>
           ) : null}
 
+          {/* The way to every note: the grid page (notes/AllNotesScreen.tsx), with how many wait there. */}
           <button type="button" className={`app-word ${styles.allNotes}`} onClick={onAllNotes}>
+            <LayoutGrid size={16} strokeWidth={2.1} className={styles.allNotesMark} aria-hidden="true" />
             All notes · {notes.filter((n) => !n.archivedAt).length}
           </button>
         </div>

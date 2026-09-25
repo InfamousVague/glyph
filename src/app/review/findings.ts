@@ -113,7 +113,7 @@ export function readFindings(answer: string, self: NoteText, others: readonly No
 }
 
 /** A line added to a note: a list item joins its list, anything else goes where it fits. */
-function addLine(body: string, line: string): string {
+export function addLine(body: string, line: string): string {
   const item = /^\s*(- \[[ xX]\] |[-*+] |\d+[.)] )(.*)$/.exec(line);
   if (item) return appendToList(body, [item[2] ?? ''], { asTasks: /\[/.test(item[1] ?? '') }).body;
   return leaveNote(body, line).body;

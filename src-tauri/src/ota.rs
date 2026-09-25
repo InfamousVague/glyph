@@ -146,13 +146,17 @@ use tauri::{AppHandle, Manager, Runtime, State};
 ///
 /// 18: the notes' folder shown where the device shows folders: `library_reveal` opens it in Finder, and on Android
 /// the activity's `browseFiles` opens it in the Files app, where files/LibraryDocuments.kt lists it (1.7.2).
-pub const NATIVE_GENERATION: u32 = 18;
+///
+/// 19: revision-checked note create and update (`create_note`, `update_note`), guarded command mutation and its
+/// undo (`apply_command_mutation`, `undo_command_mutation`, `latest_command_mutation`), and constrained on-device
+/// instruction inference (`ai_infer_command`), for voice commands read from a finished recording.
+pub const NATIVE_GENERATION: u32 = 19;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in
 /// Rust reads it but the test that keeps it at or under `NATIVE_GENERATION`.
 #[allow(dead_code)]
-pub const BUNDLE_REQUIRES: u32 = 1;
+pub const BUNDLE_REQUIRES: u32 = 19;
 
 /// The public keys a manifest must be signed by (any one of them). Compiled in:
 /// trust belongs to whoever holds a private key, never to whichever domain
