@@ -4,7 +4,7 @@ import { itemWords, markOf } from '../core/itemLinks.ts';
 import { ITEM_TAIL, MARK_NAME, MARK_URL } from '../core/itemSyntax.ts';
 import { hasMarkDetails, markNameFor, peekMarkDetails, type MarkEntry } from '../core/markDetails.ts';
 import { capitalise, escapeRegExp } from '../core/text.ts';
-import { detailsArrived } from './links.ts';
+import { detailsArrived, LINK } from './markReads.ts';
 import { mountMarkMenu } from './markMenuMount.tsx';
 
 /**
@@ -34,7 +34,7 @@ import { mountMarkMenu } from './markMenuMount.tsx';
  *   A tap on the dimmed note or the back gesture closes it again.
  *
  * Block widgets can only come from state, so the rows are a StateField over the
- * whole document, recomputed when it changes, when details arrive (links.ts
+ * whole document, recomputed when it changes, when details arrive (markReads.ts
  * dispatches `detailsArrived`), and when a menu opens or closes. The drawer is a
  * view plugin that follows which line's menu is open. Notes are short; a line
  * without `](` is skipped at once.
@@ -50,8 +50,6 @@ export interface Linked {
   kind: 'mark' | 'link';
   item: boolean;
 }
-
-const LINK = /\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
 
 /** The linked thing on a line, if there is one: an item's mark first, else the first link a plugin reads. */
 export function linkedOn(text: string, from = 0): Linked | null {
@@ -88,7 +86,7 @@ export interface LinkMenus {
 const menusFacet = Facet.define<LinkMenus | null, LinkMenus | null>({ combine: (values) => values.find(Boolean) ?? null });
 
 /** Opens the menu under the line starting at `from`, or closes it with null. */
-export const toggleMenu = StateEffect.define<number | null>();
+const toggleMenu = StateEffect.define<number | null>();
 
 const openMenu = StateField.define<number | null>({
   create: () => null,
@@ -101,11 +99,15 @@ const openMenu = StateField.define<number | null>({
 
 const STAGE_WORDS = { todo: 'To do', doing: 'In progress', done: 'Done' } as const;
 
+/**
+ * What the row shows for an entry, as one string, so the row is redrawn only when that changes. The title is in it:
+ * it is the row's tooltip and what a screen reader says, and a task renamed in its service kept its old name there.
+ */
 function faceOf(entry: MarkEntry | null): string {
   if (!entry) return '';
   if (entry.state !== 'ready') return entry.state;
-  const { status, brief, gone } = entry.details;
-  return [status?.stage, status?.label, brief.join('·'), gone ? 'gone' : ''].join('|');
+  const { status, brief, gone, title } = entry.details;
+  return [status?.stage, status?.label, brief.join('·'), gone ? 'gone' : '', title].join('|');
 }
 
 class RowWidget extends WidgetType {

@@ -2,7 +2,9 @@ import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extens
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
 import { failureText } from '../core/failure.ts';
 import { isDarkNow, onPreferences, preferences } from '../core/preferences.ts';
+import { caretIn, focusMoved, openOnPress, trackFocus } from './drawnBlock.ts';
 import { readStored, writeStored } from '../core/stored.ts';
+import { heightMemory } from './heightMemory.ts';
 
 /**
  * Mermaid diagrams, drawn (Matt: "Add support for Mermaid charts").
@@ -82,7 +84,7 @@ function library(): Promise<(typeof import('mermaid'))['default']> {
 }
 
 /** A diagram drawn, or the reason it could not be: cached, and never two at once. */
-export async function draw(code: string, dark: boolean): Promise<Drawing> {
+async function draw(code: string, dark: boolean): Promise<Drawing> {
   const key = `${dark ? 'dark' : 'light'}\n${code}`;
   const already = drawn.get(key);
   if (already) return already;
@@ -117,56 +119,16 @@ async function render(code: string, dark: boolean): Promise<Drawing> {
 let id = 0;
 
 /**
- * How tall each diagram was drawn, by what it says: a diagram is drawn after the note is laid out, and without this
- * the editor would count an undrawn one as a single line and shift the note under a reading finger when it arrives.
+ * How tall each diagram was drawn, by what it says (editor/heightMemory.ts): a diagram is drawn after the note is laid
+ * out, and without this the editor would count an undrawn one as a single line and shift the note under a reading
+ * finger when it arrives.
  */
 const HEIGHTS_KEY = 'glyph-mermaid-heights';
-const HEIGHTS_KEPT = 200;
-let heights: Map<string, number> | null = null;
-let saving = 0;
-
-function allHeights(): Map<string, number> {
-  if (heights) return heights;
-  heights = new Map();
-  // No storage: diagrams are guessed at until they are drawn.
-  for (const entry of readStored<unknown[]>(HEIGHTS_KEY, [], (value) => (Array.isArray(value) ? value : null))) {
-    if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'number') heights.set(entry[0], entry[1]);
-  }
-  return heights;
-}
-
-function keepHeight(code: string, height: number): void {
-  const all = allHeights();
-  const key = codeKey(code);
-  const px = Math.round(height);
-  if (all.get(key) === px) return;
-  all.delete(key);
-  all.set(key, px);
-  for (const old of all.keys()) {
-    if (all.size <= HEIGHTS_KEPT) break;
-    all.delete(old);
-  }
-  if (saving || typeof window === 'undefined') return;
-  saving = window.setTimeout(() => {
-    saving = 0;
-    // Not kept: remembered for as long as the app is open.
-    writeStored(HEIGHTS_KEY, [...all]);
-  }, 500);
-}
-
-/** A short name for a diagram: its length and an FNV-1a hash, since the diagram itself can be long. */
-function codeKey(code: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < code.length; i += 1) {
-    hash ^= code.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return `${code.length.toString(36)}.${(hash >>> 0).toString(36)}`;
-}
+const heights = heightMemory({ read: () => readStored<unknown>(HEIGHTS_KEY, null), write: (pairs) => writeStored(HEIGHTS_KEY, pairs) }, 200, Math.round);
 
 /** How tall a diagram is before it has been drawn: what it was last time, else a guess from how much it says. */
 function guessHeight(code: string): number {
-  const known = allHeights().get(codeKey(code));
+  const known = heights.known(code);
   if (known) return known;
   // Lines of a diagram are steps, and a step is about a row of boxes; near enough to keep the note still.
   const lines = code.split('\n').filter((line) => line.trim()).length;
@@ -210,7 +172,7 @@ class MermaidWidget extends WidgetType {
         view.requestMeasure({
           read: () => wrap.getBoundingClientRect().height,
           write: (height) => {
-            if (height > 0) keepHeight(this.code, height);
+            if (height > 0) heights.keep(this.code, height);
           },
         });
         return;
@@ -221,12 +183,7 @@ class MermaidWidget extends WidgetType {
       wrap.append(why);
     });
 
-    wrap.addEventListener('mousedown', (event) => {
-      if (!view.state.facet(EditorView.editable)) return;
-      event.preventDefault();
-      view.dispatch({ selection: { anchor: this.from } });
-      view.focus();
-    });
+    openOnPress(view, wrap, this.from);
     return wrap;
   }
 
@@ -241,7 +198,6 @@ function firstLine(said: string): string {
   return (said.split('\n')[0] ?? said).slice(0, 120);
 }
 
-const setFocus = StateEffect.define<boolean>();
 /** The app painted the other way: every diagram on the page is drawn again, in the colours it is now read in. */
 const setDark = StateEffect.define<boolean>();
 
@@ -281,24 +237,15 @@ const darkWatch = ViewPlugin.fromClass(
   },
 );
 
-const focusField = StateField.define<boolean>({
-  create: () => false,
-  update(focused, tr) {
-    for (const effect of tr.effects) if (effect.is(setFocus)) return effect.value;
-    return focused;
-  },
-});
-
 function build(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const focused = state.field(focusField, false) ?? false;
   const editable = state.facet(EditorView.editable);
   const dark = state.field(darkField, false) ?? darkNow();
   for (const diagram of diagramsIn(state.doc.toString())) {
     const from = state.doc.line(diagram.from).from;
     const to = state.doc.line(diagram.to).to;
     // The caret in the fence: the lines themselves, to edit. Elsewhere, and in a view with no caret, the diagram.
-    const inside = editable && focused && state.selection.ranges.some((range) => range.to >= from && range.from <= to);
+    const inside = editable && caretIn(state, from, to);
     if (inside || !diagram.code.trim()) continue;
     builder.add(from, to, Decoration.replace({ widget: new MermaidWidget(diagram.code, from, dark), block: true }));
   }
@@ -308,7 +255,7 @@ function build(state: EditorState): DecorationSet {
 const mermaidField = StateField.define<DecorationSet>({
   create: build,
   update(decorations, tr) {
-    const moved = tr.effects.some((effect) => effect.is(setFocus) || effect.is(setDark));
+    const moved = focusMoved(tr) || tr.effects.some((effect) => effect.is(setDark));
     if (tr.docChanged || tr.selection || moved || tr.reconfigured) return build(tr.state);
     return decorations;
   },
@@ -352,5 +299,5 @@ const mermaidTheme = EditorView.baseTheme({
 });
 
 export function drawnMermaid(): Extension {
-  return [focusField, darkField, darkWatch, mermaidField, mermaidTheme, EditorView.focusChangeEffect.of((_state, focusing) => setFocus.of(focusing))];
+  return [trackFocus, darkField, darkWatch, mermaidField, mermaidTheme];
 }

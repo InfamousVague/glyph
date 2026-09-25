@@ -1,5 +1,6 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { closeTextPanel, showTextPanel, textPanel } from './textPanel.ts';
 
 /**
  * Footnotes, as extended markdown writes them (docs/MARKDOWN.md):
@@ -81,25 +82,16 @@ function decorate(state: EditorState): DecorationSet {
   return builder.finish();
 }
 
+/** The panel a tap on a marker opens, saying what the footnote says (editor/textPanel.ts). */
+const PANEL = 'cm-footPanel';
+const panel = textPanel(PANEL);
+
 function showFoot(view: EditorView, note: Footnote, at: number): void {
-  closeFoot(view);
-  const coords = view.coordsAtPos(at);
-  if (!coords) return;
-  const panel = document.createElement('div');
-  panel.className = 'cm-footPanel';
-  panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-label', `Footnote ${note.name}`);
-  panel.textContent = note.text || `Nothing written under [^${note.name}] yet.`;
-  const box = view.dom.getBoundingClientRect();
-  panel.style.left = '0px';
-  panel.style.top = `${coords.bottom - box.top + 6}px`;
-  view.dom.appendChild(panel);
-  const width = panel.getBoundingClientRect().width;
-  panel.style.left = `${Math.max(8, Math.min(coords.left - box.left, box.width - width - 8))}px`;
+  showTextPanel(view, at, note.text || `Nothing written under [^${note.name}] yet.`, { className: PANEL, label: `Footnote ${note.name}` });
 }
 
 function closeFoot(view: EditorView): void {
-  view.dom.querySelector('.cm-footPanel')?.remove();
+  closeTextPanel(view, PANEL);
 }
 
 const theme = EditorView.baseTheme({
@@ -113,19 +105,6 @@ const theme = EditorView.baseTheme({
   },
   // The small print at the foot of the note.
   '.cm-footDefinition, .cm-footDefinition *': { fontSize: '0.88em', color: 'var(--app-ink-3, var(--glacier-text-muted))', textDecoration: 'none' },
-  '.cm-footPanel': {
-    position: 'absolute',
-    zIndex: '30',
-    maxInlineSize: 'min(20rem, 76vw)',
-    padding: '0.5em 0.7em',
-    borderRadius: 'var(--glacier-radius-lg, 0.75rem)',
-    background: 'var(--app-paper-2, var(--glacier-surface))',
-    border: '1px solid var(--app-rule, var(--glacier-border-subtle))',
-    boxShadow: '0 6px 20px rgb(0 0 0 / 0.18)',
-    font: 'inherit',
-    fontSize: '0.86em',
-    lineHeight: '1.4',
-  },
 });
 
 /** Footnotes: the marker raised, the definition quiet, and what it says on a tap. */
@@ -166,6 +145,6 @@ export function footnotes(): Extension {
       },
     ),
     theme,
-    EditorView.domEventHandlers({ scroll: (_event, view) => void closeFoot(view) }),
+    panel,
   ];
 }

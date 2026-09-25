@@ -1,7 +1,8 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { prefersStill } from '../core/motion.ts';
-import { moving } from './wispArrivals.ts';
+import { hiddenDefs, svgElement } from './svgFilters.ts';
+import { moving } from './wispMotion.ts';
 
 /**
  * Ripples through the words as the person talks: the recorder's page
@@ -75,44 +76,20 @@ interface Slot {
   blur: SVGElement;
 }
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
 const FILTERS = 4;
 const STEP_MS = 33;
 
 let instances = 0;
 
+/** One of the shared filters: a slow, wide noise, swayed a few pixels, bending the words, with a touch of blur. */
 function slot(defs: SVGDefsElement, id: string, seed: number): Slot {
-  const filter = document.createElementNS(SVG_NS, 'filter');
-  filter.setAttribute('id', id);
+  const noise = svgElement('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.007 0.045', numOctaves: '2', seed, result: 'n' });
+  const sway = svgElement('feOffset', { in: 'n', dx: '0', dy: '0', result: 's' });
+  const bend = svgElement('feDisplacementMap', { in: 'SourceGraphic', in2: 's', scale: '0', xChannelSelector: 'R', yChannelSelector: 'G', result: 'd' });
+  const blur = svgElement('feGaussianBlur', { in: 'd', stdDeviation: '0' });
   // Wide margins for the bend and the sway, so a short stretch bent hard is never clipped and the noise never runs out.
-  filter.setAttribute('x', '-150%');
-  filter.setAttribute('y', '-150%');
-  filter.setAttribute('width', '400%');
-  filter.setAttribute('height', '400%');
-  filter.setAttribute('color-interpolation-filters', 'sRGB');
-  const noise = document.createElementNS(SVG_NS, 'feTurbulence');
-  noise.setAttribute('type', 'fractalNoise');
-  noise.setAttribute('baseFrequency', '0.007 0.045');
-  noise.setAttribute('numOctaves', '2');
-  noise.setAttribute('seed', String(seed));
-  noise.setAttribute('result', 'n');
-  const sway = document.createElementNS(SVG_NS, 'feOffset');
-  sway.setAttribute('in', 'n');
-  sway.setAttribute('dx', '0');
-  sway.setAttribute('dy', '0');
-  sway.setAttribute('result', 's');
-  const bend = document.createElementNS(SVG_NS, 'feDisplacementMap');
-  bend.setAttribute('in', 'SourceGraphic');
-  bend.setAttribute('in2', 's');
-  bend.setAttribute('scale', '0');
-  bend.setAttribute('xChannelSelector', 'R');
-  bend.setAttribute('yChannelSelector', 'G');
-  bend.setAttribute('result', 'd');
-  const blur = document.createElementNS(SVG_NS, 'feGaussianBlur');
-  blur.setAttribute('in', 'd');
-  blur.setAttribute('stdDeviation', '0');
-  filter.append(noise, sway, bend, blur);
-  defs.appendChild(filter);
+  const region = { x: '-150%', y: '-150%', width: '400%', height: '400%' };
+  defs.appendChild(svgElement('filter', { id, ...region, 'color-interpolation-filters': 'sRGB' }, noise, sway, bend, blur));
   return { noise, sway, bend, blur };
 }
 
@@ -134,17 +111,13 @@ export function wispRipples(source: RippleSource): Extension {
       constructor(readonly view: EditorView) {
         instances += 1;
         const prefix = `wispripple-${instances}`;
-        this.svg = document.createElementNS(SVG_NS, 'svg');
-        this.svg.setAttribute('aria-hidden', 'true');
-        this.svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
-        const defs = document.createElementNS(SVG_NS, 'defs');
-        this.svg.appendChild(defs);
+        const { svg, defs } = hiddenDefs(view.dom);
+        this.svg = svg;
         for (let i = 0; i < FILTERS; i += 1) {
           const id = `${prefix}-${i}`;
           this.slots.push(slot(defs, id, i * 13 + 5));
           this.marks.push(Decoration.mark({ class: 'cm-wispRipple', attributes: { style: `filter:url(#${id})` } }));
         }
-        view.dom.appendChild(this.svg);
         this.redraw();
         this.stop = source.subscribe((level) => {
           this.level = Math.max(0, Math.min(1, level));

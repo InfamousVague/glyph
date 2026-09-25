@@ -1,6 +1,7 @@
 import { RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
+import { selectedLines } from './lines.ts';
 
 /**
  * How a note is shown (Matt: "the default mode is the mixed mode we use, where it's Markdown symbols and the formatted
@@ -21,12 +22,7 @@ function hiddenMarks(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const { state } = view;
   // While the note is being written, the lines the caret or a selection touches keep their marks.
-  const active = new Set<number>();
-  for (const range of view.hasFocus ? state.selection.ranges : []) {
-    const first = state.doc.lineAt(range.from).number;
-    const last = state.doc.lineAt(range.to).number;
-    for (let n = first; n <= last; n += 1) active.add(n);
-  }
+  const active = view.hasFocus ? selectedLines(state) : new Set<number>();
   const hide = Decoration.replace({});
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(state).iterate({

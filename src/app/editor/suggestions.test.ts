@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { lineSuggestions, type LineSuggestion } from './suggestions.ts';
@@ -51,9 +51,8 @@ describe('inline suggestions', () => {
     expect(words(view)).toEqual(['Sending']);
     expect(view.contentDOM.querySelector<HTMLButtonElement>('.cm-suggest')?.disabled).toBe(true);
     finish();
-    await running;
-    await Promise.resolve();
-    expect(words(view)).toEqual(['Notion']);
+    // However many hops the run's settling takes, the word comes back.
+    await vi.waitFor(() => expect(words(view)).toEqual(['Notion']));
     view.destroy();
   });
 });

@@ -2,6 +2,7 @@ import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/s
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { escapeRegExp } from '../core/text.ts';
 import type { InlineFormat } from '../plugins/types.ts';
+import { closeTextPanel, showTextPanel, textPanel } from './textPanel.ts';
 
 /**
  * A note on a mark, shown when the words are tapped (Matt: "add the ability to include tooltip text for the
@@ -91,44 +92,17 @@ function decorate(state: EditorState, pattern: RegExp): { marks: DecorationSet; 
   return { marks: builder.finish(), notes };
 }
 
-/** The panel a tap opens: one at a time, over the words it belongs to. */
+/** The panel a tap opens (editor/textPanel.ts): one at a time, over the words it belongs to. */
+const PANEL = 'cm-markNotePanel';
+const panel = textPanel(PANEL);
+
 function showNote(view: EditorView, note: MarkNote): void {
-  closeNote(view);
-  const at = view.coordsAtPos(note.words.from);
-  if (!at) return;
-  const panel = document.createElement('div');
-  panel.className = 'cm-markNotePanel';
-  panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-label', 'Note');
-  panel.textContent = note.text;
-  const box = view.dom.getBoundingClientRect();
-  panel.style.left = '0px';
-  panel.style.top = `${at.bottom - box.top + 6}px`;
-  view.dom.appendChild(panel);
-  // Measured once it is there: a panel as wide as its words would otherwise run off the edge it opened near.
-  const width = panel.getBoundingClientRect().width;
-  panel.style.left = `${Math.max(8, Math.min(at.left - box.left, box.width - width - 8))}px`;
+  showTextPanel(view, note.words.from, note.text, { className: PANEL, label: 'Note' });
 }
 
 function closeNote(view: EditorView): void {
-  view.dom.querySelector('.cm-markNotePanel')?.remove();
+  closeTextPanel(view, PANEL);
 }
-
-const noteTheme = EditorView.baseTheme({
-  '.cm-markNotePanel': {
-    position: 'absolute',
-    zIndex: '30',
-    maxInlineSize: 'min(20rem, 76vw)',
-    padding: '0.5em 0.7em',
-    borderRadius: 'var(--glacier-radius-lg, 0.75rem)',
-    background: 'var(--app-paper-2, var(--glacier-surface))',
-    border: '1px solid var(--app-rule, var(--glacier-border-subtle))',
-    boxShadow: '0 6px 20px rgb(0 0 0 / 0.18)',
-    font: 'inherit',
-    fontSize: '0.86em',
-    lineHeight: '1.4',
-  },
-});
 
 /** Notes on marks: the brackets hidden after the words, and the panel a tap on them opens. */
 export function markNotes(formats: readonly InlineFormat[]): Extension {
@@ -177,5 +151,5 @@ export function markNotes(formats: readonly InlineFormat[]): Extension {
       },
     },
   );
-  return [plugin, noteTheme, EditorView.domEventHandlers({ scroll: (_event, view) => void closeNote(view) })];
+  return [plugin, panel];
 }

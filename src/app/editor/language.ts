@@ -75,7 +75,7 @@ export function delimiterUnit(delimiter: string): string {
  * is (plugins/marks, editor/textEffects.ts). A longer run of the piece is not this formatting either way, so three
  * flames are three flames.
  */
-export function inlineFormat({ name, delimiter }: Pick<InlineFormat, 'name' | 'delimiter'>): MarkdownConfig {
+function inlineFormat({ name, delimiter }: Pick<InlineFormat, 'name' | 'delimiter'>): MarkdownConfig {
   const mark = `${name}Mark`;
   const type = { resolve: name, mark };
   const unit = delimiterUnit(delimiter);

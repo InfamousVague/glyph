@@ -1,6 +1,8 @@
 import { syntaxTree } from '@codemirror/language';
-import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
+import { RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { forEachVisibleLine } from './lines.ts';
+import { inQuietText } from './syntax.ts';
 
 /**
  * Tags on list items, and anywhere else in a line (Matt: "add ability to make tags on list items"):
@@ -37,31 +39,14 @@ export function tagsIn(text: string, offset = 0): Tag[] {
   return found;
 }
 
-/** Nodes whose text is never a tag. */
-const QUIET = /Code|URL|FrontMatter|HTML|Comment|Math/;
-
-function inQuiet(state: EditorState, pos: number): boolean {
-  for (let node: ReturnType<ReturnType<typeof syntaxTree>['resolveInner']> | null = syntaxTree(state).resolveInner(pos, 1); node; node = node.parent) {
-    if (QUIET.test(node.name)) return true;
-  }
-  return false;
-}
-
 const chip = Decoration.mark({ class: 'cm-tag' });
 
 function decorate(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const { state } = view;
-  for (const { from, to } of view.visibleRanges) {
-    let line = state.doc.lineAt(from);
-    for (;;) {
-      for (const tag of tagsIn(line.text, line.from)) {
-        if (!inQuiet(state, tag.from)) builder.add(tag.from, tag.to, chip);
-      }
-      if (line.to >= to || line.number >= state.doc.lines) break;
-      line = state.doc.line(line.number + 1);
-    }
-  }
+  // Nothing inside code, an address, front matter, HTML, a comment or maths is a tag.
+  forEachVisibleLine(view, (line) => {
+    for (const tag of tagsIn(line.text, line.from)) if (!inQuietText(view.state, tag.from)) builder.add(tag.from, tag.to, chip);
+  });
   return builder.finish();
 }
 

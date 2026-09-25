@@ -69,12 +69,26 @@ describe('a link that points inside a note', () => {
       state: EditorState.create({ doc: 'go [[The cabin trip#^friday]]', extensions: [glyphMarkdown([], []), wikiLinks({ known: () => true, open })] }),
       parent: document.body,
     });
-    const mark = view.contentDOM.querySelector('.cm-wiki') as HTMLElement;
-    const box = mark.getBoundingClientRect();
-    view.contentDOM.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: box.left + 2, clientY: box.top + 2 }));
+    // jsdom lays nothing out, so where the press lands is said: inside the link's brackets.
+    vi.spyOn(view, 'posAtCoords').mockReturnValue('go [['.length + 2);
+    const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    view.contentDOM.dispatchEvent(press);
     view.destroy();
-    // jsdom has no layout, so the press may not resolve to a position; the split itself is what matters here.
-    if (open.mock.calls.length) expect(open).toHaveBeenCalledWith('The cabin trip', '^friday');
+    expect(open).toHaveBeenCalledWith('The cabin trip', '^friday');
+    // The press was the link's: the caret stays where it was.
+    expect(press.defaultPrevented).toBe(true);
+  });
+
+  it('leaves a press beside a link to the editor', () => {
+    const open = vi.fn();
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'go [[The cabin trip]]', extensions: [glyphMarkdown([], []), wikiLinks({ known: () => true, open })] }),
+      parent: document.body,
+    });
+    vi.spyOn(view, 'posAtCoords').mockReturnValue(1);
+    view.contentDOM.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    view.destroy();
+    expect(open).not.toHaveBeenCalled();
   });
 
   it('draws a note-and-place link by whether the note exists', () => {

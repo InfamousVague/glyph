@@ -5,6 +5,7 @@ import { LINK_PREVIEW_READY, openLink, pathOf, previewFor, siteOf, wantPreview }
 import { markNameFor } from '../core/markDetails.ts';
 import { onPreferences, preferences } from '../core/preferences.ts';
 import { linkedOn } from './linkedRows.ts';
+import { forEachLineOutsideFences } from './lines.ts';
 
 /**
  * Link preview cards (Matt: "add link preview cards"): a line that is only a link gets a card under it, with the
@@ -25,7 +26,6 @@ import { linkedOn } from './linkedRows.ts';
 const ONLY_LINK = new RegExp(
   String.raw`^\s*(?:${MARKER}\s+(?:${BOX}\s+)?)?(?:<?(https?:\/\/[^\s<>]+?)>?|\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\))\s*$`,
 );
-const FENCE = /^\s*(```|~~~)/;
 
 export interface LinkLine {
   url: string;
@@ -119,18 +119,11 @@ const refresh = StateEffect.define<null>();
 function decorate(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   if (!preferences().linkPreviews) return builder.finish();
-  let fence: string | null = null;
-  for (let n = 1; n <= state.doc.lines; n += 1) {
-    const line = state.doc.line(n);
-    const marker = FENCE.exec(line.text)?.[1];
-    if (marker) {
-      fence = fence === null ? marker : fence === marker ? null : fence;
-      continue;
-    }
-    if (fence) continue;
+  // A link in fenced code is code, and gets no card.
+  forEachLineOutsideFences(state.doc, (line) => {
     const link = linkLine(line.text);
     if (link) builder.add(line.to, line.to, Decoration.widget({ widget: new CardWidget(link.url, link.words), block: true, side: 1 }));
-  }
+  });
   return builder.finish();
 }
 

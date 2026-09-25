@@ -1,8 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EditorState, type Transaction } from '@codemirror/state';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { ensureSyntaxTree } from '@codemirror/language';
-import { feelOf } from './feel.ts';
+import { feelOf, feelTransaction } from './feel.ts';
+
+/** What the hand was given, in order: a haptic's kind, or `tick` for the micro tick. */
+const felt = vi.hoisted(() => ({ calls: [] as string[] }));
+vi.mock('../core/haptics.ts', () => ({
+  fireFelt: (kind: string) => felt.calls.push(kind),
+  fireMicroTick: () => felt.calls.push('tick'),
+}));
 
 /**
  * What the hand is allowed to say.
@@ -104,5 +111,31 @@ describe('feelOf', () => {
   it('says nothing for a transaction that changed no text', () => {
     const state = stateOf('**bold**');
     expect(feelOf(state.update({ selection: { anchor: 2 } }))).toBeNull();
+  });
+
+  /*
+   * Enter in a list: the markdown keymap writes the newline and the next marker in one insert, a to-do's box too, in
+   * a quote or not. Texture rather than news, but still felt.
+   */
+  it('feels a list continuing itself onto the next line', () => {
+    const continued = (before: string, insert: string) => stateOf(before).update({ changes: { from: before.length, insert }, userEvent: 'input' });
+    expect(feelOf(continued('- milk', '\n- '))).toBe('continue');
+    expect(feelOf(continued('1. milk', '\n2. '))).toBe('continue');
+    expect(feelOf(continued('- [ ] milk', '\n- [ ] '))).toBe('continue');
+    expect(feelOf(continued('> - milk', '\n> - '))).toBe('continue');
+    // A plain newline, or a line of words after it, is not a list continuing.
+    expect(feelOf(continued('- milk', '\n'))).toBeNull();
+    expect(feelOf(continued('- milk', '\neggs'))).toBeNull();
+  });
+});
+
+describe('what each is felt as', () => {
+  it('a mark closing as a tick, a heading heavier, any other block light, and a list continuing as the lightest', () => {
+    feelTransaction(type('**bold*', '*'));
+    feelTransaction(type('', '#'));
+    feelTransaction(type('', '>'));
+    feelTransaction(stateOf('- milk').update({ changes: { from: 6, insert: '\n- ' }, userEvent: 'input' }));
+    feelTransaction(type('hello worl', 'd'));
+    expect(felt.calls).toEqual(['selection', 'medium', 'light', 'tick']);
   });
 });

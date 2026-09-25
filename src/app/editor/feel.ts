@@ -1,8 +1,8 @@
-import { syntaxTree, syntaxTreeAvailable } from '@codemirror/language';
-import type { EditorState, Transaction } from '@codemirror/state';
-import type { SyntaxNode } from '@lezer/common';
+import { syntaxTreeAvailable } from '@codemirror/language';
+import type { Transaction } from '@codemirror/state';
 import { fireFelt, fireMicroTick } from '../core/haptics.ts';
 import { BOX, MARKER } from '../core/itemSyntax.ts';
+import { enclosing } from './syntax.ts';
 
 /**
  * The hand under the text: which keystrokes are worth a taptic, and which are
@@ -35,14 +35,6 @@ const INLINE = new Set(['StrongEmphasis', 'Emphasis', 'Strikethrough', 'InlineCo
 
 /** Block forms worth a tap when they are created. */
 const BLOCK = /^(ATXHeading[1-6]|Blockquote|ListItem|FencedCode|HorizontalRule)$/;
-
-/** The nearest enclosing node at `pos` whose name passes `test`. */
-function enclosing(state: EditorState, pos: number, test: (name: string) => boolean): SyntaxNode | null {
-  for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1); node; node = node.parent) {
-    if (test(node.name)) return node;
-  }
-  return null;
-}
 
 /** Every character this transaction inserted, in order. */
 function insertedText(tr: Transaction): string {
