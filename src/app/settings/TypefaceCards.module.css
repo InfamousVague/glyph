@@ -11,44 +11,14 @@
   inline-size: 100%;
 }
 
+/* A choice card (choiceCard.module.css): its hairline, its rings and its hidden radio. */
 .card {
-  position: relative;
-  display: grid;
-  min-inline-size: 0;
-  overflow: hidden;
-  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  composes: card from './choiceCard.module.css';
   border-radius: var(--glacier-radius-md);
-  background: var(--glacier-surface-raised);
-  cursor: pointer;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    border-color var(--glacier-duration-fast) var(--glacier-ease-out),
-    box-shadow var(--glacier-duration-fast) var(--glacier-ease-out);
-}
-
-.card:hover {
-  border-color: var(--glacier-border-strong);
-}
-
-.card[data-selected] {
-  border-color: var(--glacier-accent-solid);
-  box-shadow: 0 0 0 1px var(--glacier-accent-solid);
 }
 
 .input {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.card:has(.input:focus-visible) {
-  outline: 2px solid var(--glacier-focus-ring);
-  outline-offset: 2px;
+  composes: input from './choiceCard.module.css';
 }
 
 /* The scrap of a note: a heading and a line, the marks dimmed as the editor dims them. */
@@ -65,7 +35,7 @@
 
 /* A coding face as the app sets it: its own features, so `->` joins, and no spacing, which would break the joins. */
 .card[data-coding] .sample {
-  font-feature-settings: 'calt', 'liga';
+  font-feature-settings: var(--app-mono-features);
   letter-spacing: 0;
 }
 
@@ -131,10 +101,4 @@
 
 .card[data-selected] .name {
   color: var(--glacier-text);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .card {
-    transition: none;
-  }
 }

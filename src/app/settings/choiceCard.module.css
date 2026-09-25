@@ -1,0 +1,48 @@
+/*
+ * A card that is a choice (Settings > Appearance and Type): a label holding a hidden radio and a picture of what
+ * choosing it gives - the theme cards (ThemeCards.module.css), the interface-size cards (ScaleCards.module.css) and the
+ * typeface cards (TypefaceCards.module.css). The hairline, the stronger line under a pointer, the accent ring when
+ * chosen and the focus ring when the radio has the keyboard are this file's; each card's size, corner and picture
+ * are its own. Each composes `card` for the label and `input` for the radio.
+ */
+
+.card {
+  position: relative;
+  display: grid;
+  min-inline-size: 0;
+  overflow: hidden;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  background: var(--glacier-surface-raised);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--glacier-duration-fast) var(--glacier-ease-out),
+    box-shadow var(--glacier-duration-fast) var(--glacier-ease-out);
+}
+
+.card:hover {
+  border-color: var(--glacier-border-strong);
+}
+
+.card[data-selected] {
+  border-color: var(--glacier-accent-solid);
+  box-shadow: 0 0 0 1px var(--glacier-accent-solid);
+}
+
+/* The radio: there for the keyboard and a screen reader, never seen. */
+.input {
+  composes: app-unseen from global;
+  margin: -1px;
+}
+
+.card:has(.input:focus-visible) {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+}
