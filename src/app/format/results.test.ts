@@ -1,36 +1,30 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { forgetResults, keepResult, keptFor } from './results.ts';
+import { forgetResults, keepGist, readGist } from './results.ts';
 
-describe('where each mode keeps its text', () => {
+describe('the gist kept on the page', () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it('keeps a summary and an enhanced text apart, per note, on the page', async () => {
-    await keepResult('n1', 'summarize', '# Short\n', 11, 'qwen3.5-2b');
-    await keepResult('n1', 'enhance', '# Long\n', 11, 'qwen3.5-4b');
-    await keepResult('n2', 'summarize', '# Other\n', 22, 'qwen3.5-2b');
-    expect(await keptFor('n1', 'summarize')).toEqual({ formatted: '# Short\n', formattedFor: 11, formattedModel: 'qwen3.5-2b' });
-    expect(await keptFor('n1', 'enhance')).toEqual({ formatted: '# Long\n', formattedFor: 11, formattedModel: 'qwen3.5-4b' });
-    expect(await keptFor('n2', 'enhance')).toBeNull();
-    expect(await keptFor('n3', 'summarize')).toBeNull();
+  it('keeps a gist per note, with the body it came from', () => {
+    keepGist('n1', { text: 'Call the plumber by Thursday', for: 11, model: 'qwen3.5-2b', len: 40, head: 'plumber' });
+    keepGist('n2', { text: 'The weekend trip', for: 22, model: 'qwen3.5-2b' });
+    expect(readGist('n1')).toMatchObject({ text: 'Call the plumber by Thursday', for: 11 });
+    expect(readGist('n2')?.text).toBe('The weekend trip');
+    expect(readGist('n3')).toBeNull();
   });
 
-  it('forgets a mode with a null hash, and a whole note on request', async () => {
-    await keepResult('n1', 'summarize', '# Short\n', 11, 'qwen3.5-2b');
-    await keepResult('n1', 'enhance', '# Long\n', 11, 'qwen3.5-4b');
-    await keepResult('n1', 'summarize', '', null, null);
-    expect(await keptFor('n1', 'summarize')).toBeNull();
-    expect(await keptFor('n1', 'enhance')).not.toBeNull();
+  it('forgets a note on request', () => {
+    keepGist('n1', { text: 'A line', for: 11, model: 'qwen3.5-2b' });
     forgetResults('n1');
-    expect(await keptFor('n1', 'enhance')).toBeNull();
+    expect(readGist('n1')).toBeNull();
     expect(localStorage.getItem('glyph-ai-results')).toBe('{}');
   });
 
-  it('survives a broken sheet', async () => {
+  it('survives a broken sheet, and reads past an older sheet’s mode texts', () => {
     localStorage.setItem('glyph-ai-results', '[not json');
-    expect(await keptFor('n1', 'summarize')).toBeNull();
-    await keepResult('n1', 'summarize', '# Short\n', 11, 'qwen3.5-2b');
-    expect((await keptFor('n1', 'summarize'))?.formatted).toBe('# Short\n');
+    expect(readGist('n1')).toBeNull();
+    localStorage.setItem('glyph-ai-results', JSON.stringify({ n1: { summarize: { text: '# Short\n', for: 11, model: 'x' }, gist: { text: 'A line', for: 11, model: 'x' } } }));
+    expect(readGist('n1')?.text).toBe('A line');
   });
 });

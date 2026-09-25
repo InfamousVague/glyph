@@ -48,6 +48,8 @@ import { loadMarks, saveMarks } from '../ai/marks.ts';
 import { ended, useRun, type RunScope } from '../ai/runs.ts';
 import { startNoteRun } from '../ai/start.ts';
 import { useLanding } from '../ai/useLanding.ts';
+import { useNoteReview } from '../ai/useNoteReview.ts';
+import type { ReviewHandoff } from '../ai/review.ts';
 import { accountState } from '../core/account/account.ts';
 import { addAiChanges, aiEdit, keepAllAiChanges, keepAllChanges, restoreAiChanges, type AiChange } from './aiChanges.ts';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
@@ -124,6 +126,8 @@ interface NoteScreenProps {
   rename?: { id: string; title: string; asked: number } | null;
   /** A spoken instruction about this note, to run on it as it opens (App.tsx, ai/instruction.ts); `key` tells one from the next. */
   ask?: { kind: RunKind; instruction?: string; key: number };
+  /** The review after the recording that just made or grew this note (ai/useNoteReview.ts): run here, in the strip and the note. */
+  review?: ReviewHandoff & { key: number };
   /** The "← Notes" in the header; off where the list is already beside the note (the desktop sidebar, App.tsx). */
 }
 
@@ -137,7 +141,7 @@ const SAVE_DEBOUNCE_MS = 400;
 /** How far below the header a note opened at an item sits, so the line is not against it. */
 const LAND_ROOM = 12;
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask, review }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -433,6 +437,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const onBarHeight = useCallback((height: number) => {
     screen.current?.style.setProperty('--ai-bar-room', height ? `${height + 12}px` : '0px');
   }, []);
+  // The review after a recording: listening again and comparing as a stage in the strip, the thinking as a run, the
+  // findings landing as tracked changes (ai/useNoteReview.ts).
+  const reviewStage = useNoteReview(review, view, { wisp: prefs.wisp, say: (message) => toast({ message, duration: 7000 }) });
   // A spoken instruction the note opened with: run once the editor and the AI are ready.
   const askDone = useRef<number | null>(null);
   useEffect(() => {
@@ -883,7 +890,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       {toolsSlot ? createPortal(tools, toolsSlot) : null}
       {/* The model at work on this note, and what it did: under the header, over the page (ai/AiStrip.tsx). */}
       <div className={styles.stripHolder}>
-        <AiStrip noteId={note.id} onUndo={undoRun} onHeight={onStripHeight} marks={marks && view ? { count: marks, keepAll: () => keepAllChanges(view) } : undefined} />
+        <AiStrip noteId={note.id} onUndo={undoRun} onHeight={onStripHeight} marks={marks && view ? { count: marks, keepAll: () => keepAllChanges(view) } : undefined} stage={reviewStage} />
       </div>
       {photoProblem ? (
         <p className={styles.problem} role="alert">

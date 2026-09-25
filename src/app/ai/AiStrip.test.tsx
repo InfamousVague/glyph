@@ -117,6 +117,31 @@ describe('the strip', () => {
     expect(undone).toEqual([handle.id]);
   });
 
+  it('says the review’s own stage while no run is on, with its percent along the foot', () => {
+    const el = show(<AiStrip noteId="quiet" stage={{ what: 'Listening again', detail: 'The slower speech model is listening to the recording again.', percent: 40 }} />);
+    expect(el.textContent).toContain('Listening again, 40%. The slower speech model is listening to the recording again.');
+    const bar = el.querySelector('span[style]') as HTMLElement;
+    expect(bar.style.inlineSize).toBe('40%');
+  });
+
+  it('shows a thinking model’s thought in the card', async () => {
+    const el = show(<AiStrip noteId="n" />);
+    await act(async () => {
+      startRun({ noteId: 'n', kind: 'review', model: 'qwen3.5-4b', system: 's', prompt: 'p', maxTokens: 100, think: true });
+    });
+    await tick();
+    await act(async () => {
+      fakes[0]!.options.onProgress({ id: 'x', phase: 'generating', promptTokens: 10, promptTokensDone: 10, outputTokens: 5, tokensPerSecond: 9, elapsedMs: 2000, partial: '<think>Is seat right?', thinking: true });
+    });
+    expect(el.textContent).toContain('Qwen3.5 4B is thinking it through, 9.0 tokens a second, 0:02.');
+    (el.querySelector('[aria-expanded]') as HTMLButtonElement).click();
+    await tick();
+    expect(el.querySelector('pre')?.textContent).toBe('Is seat right?');
+    await act(async () => {
+      fakes[0]!.cancel();
+    });
+  });
+
   it('stops the run from the line', async () => {
     const el = show(<AiStrip noteId="n" />);
     let handle!: ReturnType<typeof startRun>;

@@ -1,27 +1,18 @@
-import { getNote, setNoteFormatted } from '../core/store.ts';
-import type { Kept } from './formatter.ts';
-import type { Mode } from './modes.ts';
 
 /**
- * Where each mode's text is kept, per note.
+ * What the AI keeps on the page per note: the home page's one-line gist.
  *
- * Format's lives with the note in the store (`formatted`, `formatted_for`,
- * `formatted_model` in SQLite on the phone): it is the one the background
- * queue writes after a recording, and the one the list and the settings
- * already know. Summarize and Enhance are asked for by hand and kept here,
- * on the page, under one key, each with the hash of the body it was written
- * from and the model that wrote it - the same three things, so the pipeline
- * and the view treat all three modes alike. Moving them into the store is a
- * native change (a column each, a generation bump); this is what ships over
- * the air today.
+ * Each mode's text used to be kept here too, beside the store's `formatted`
+ * columns, for the robot's view over the note; the view is gone and the
+ * model's words land in the note itself now (ai/useLanding.ts), so only the
+ * gist is left, under the same key with the hash of the body it came from.
+ * The key is on the reset list.
  */
 
 const KEY = 'glyph-ai-results';
 
-type Stored = { text: string; for: number; model: string };
-/** What is kept here per note: the modes that are not Format's, and the home page's one-line gist. */
-type Kind = Exclude<Mode, 'format'> | 'gist';
-type Sheet = Record<string, Partial<Record<Kind, Stored>>>;
+/** What is kept here per note: the home page's one-line gist. Older sheets may still hold a mode's text; it is read past. */
+type Sheet = Record<string, Partial<Record<string, unknown>>>;
 
 /**
  * The sheet as last parsed, with the text it came from: the home page reads a gist for every card it draws, and each
@@ -51,32 +42,6 @@ function writeSheet(sheet: Sheet): void {
   }
 }
 
-/** The kept text for a note in a mode, or null when nothing is kept. */
-export async function keptFor(id: string, mode: Mode): Promise<Kept | null> {
-  if (mode === 'format') {
-    const note = await getNote(id);
-    if (!note) return null;
-    return { formatted: note.formatted, formattedFor: note.formattedFor, formattedModel: note.formattedModel };
-  }
-  const stored = readSheet()[id]?.[mode];
-  return stored ? { formatted: stored.text, formattedFor: stored.for, formattedModel: stored.model } : null;
-}
-
-/** Keep a mode's text for a note: what it was written from, and by what. */
-export async function keepResult(id: string, mode: Mode, text: string, hash: number | null, model: string | null): Promise<void> {
-  if (mode === 'format') {
-    await setNoteFormatted(id, text, hash, model);
-    return;
-  }
-  const sheet = { ...readSheet() };
-  const mine = { ...(sheet[id] ?? {}) };
-  if (hash === null || model === null) delete mine[mode];
-  else mine[mode] = { text, for: hash, model };
-  if (Object.keys(mine).length) sheet[id] = mine;
-  else delete sheet[id];
-  writeSheet(sheet);
-}
-
 /** The home page's gist: its line, the body it came from as a hash, its length and its first line, and the model. */
 export interface Gist {
   text: string;
@@ -97,7 +62,7 @@ export function keepGist(id: string, gist: Gist): void {
   writeSheet(sheet);
 }
 
-/** A note is gone: so are its summary, its enhanced text and its gist. */
+/** A note is gone: so is its gist. */
 export function forgetResults(id: string): void {
   const sheet = { ...readSheet() };
   if (!(id in sheet)) return;

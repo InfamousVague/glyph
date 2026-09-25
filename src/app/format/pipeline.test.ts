@@ -1,61 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { bodyHash } from './formatter.ts';
-import { EDITED, needsPasses, noteHash, passesFor, revisionPasses } from './pipeline.ts';
+import { noteHash, prepareNote } from './pipeline.ts';
 
-describe('the passes a note gets', () => {
-  it('is one pass, by the chosen model when it is on the phone', () => {
-    expect(passesFor(['qwen3.5-4b', 'qwen3.5-2b'], 'qwen3.5-4b')).toEqual(['qwen3.5-4b']);
-    expect(passesFor(['qwen3.5-9b', 'qwen3.5-2b', 'qwen3.5-4b'], 'qwen3.5-4b')).toEqual(['qwen3.5-4b']);
-    expect(passesFor(['qwen3.5-2b', 'qwen3.5-4b', 'qwen3.5-9b'], 'qwen3.5-9b')).toEqual(['qwen3.5-9b']);
-  });
-
-  it('makes do with what is on the phone when the chosen model is not: the biggest under it, else the smallest there is', () => {
-    expect(passesFor(['qwen3.5-2b'], 'qwen3.5-4b')).toEqual(['qwen3.5-2b']);
-    expect(passesFor(['qwen3.5-2b', 'qwen3.5-9b'], 'qwen3.5-4b')).toEqual(['qwen3.5-2b']);
-    expect(passesFor(['qwen3.5-9b'], 'qwen3.5-2b')).toEqual(['qwen3.5-9b']);
-    expect(passesFor([], 'qwen3.5-4b')).toEqual([]);
-  });
-
-  it('never repeats a model', () => {
-    expect(passesFor(['qwen3.5-4b', 'qwen3.5-4b'], 'qwen3.5-4b')).toEqual(['qwen3.5-4b']);
-  });
-});
-
-describe('whether a note needs formatting', () => {
-  const body = '# Trip\n\ncall the plumber';
-  const hash = bodyHash(body);
-  const passes = ['qwen3.5-2b', 'qwen3.5-4b'];
-
-  it('does with nothing kept, and does not with the last pass already kept for this body', () => {
-    expect(needsPasses(null, hash, passes)).toBe(true);
-    expect(needsPasses({ formatted: 'x', formattedFor: hash, formattedModel: 'qwen3.5-4b' }, hash, passes)).toBe(false);
-  });
-
-  it('does when the body changed, or only a draft by a smaller model is kept', () => {
-    expect(needsPasses({ formatted: 'x', formattedFor: bodyHash('other'), formattedModel: 'qwen3.5-4b' }, hash, passes)).toBe(true);
-    expect(needsPasses({ formatted: 'x', formattedFor: hash, formattedModel: 'qwen3.5-2b' }, hash, passes)).toBe(true);
-  });
-
-  it('never runs with no passes', () => {
-    expect(needsPasses(null, hash, [])).toBe(false);
-  });
-
-  it('owes only the bigger passes when a fresh draft is kept, and all of them otherwise', () => {
-    expect(revisionPasses({ formatted: 'x', formattedFor: hash, formattedModel: 'qwen3.5-2b' }, hash, passes)).toEqual(['qwen3.5-4b']);
-    expect(revisionPasses({ formatted: 'x', formattedFor: hash, formattedModel: 'qwen3.5-4b' }, hash, passes)).toEqual([]);
-    expect(revisionPasses({ formatted: 'x', formattedFor: bodyHash('other'), formattedModel: 'qwen3.5-4b' }, hash, passes)).toEqual(passes);
-    expect(revisionPasses(null, hash, passes)).toEqual(passes);
-  });
-
-  it("leaves a person's own edit alone until the note changes", () => {
-    const edited = { formatted: 'x', formattedFor: hash, formattedModel: EDITED };
-    expect(needsPasses(edited, hash, passes)).toBe(false);
-    expect(revisionPasses(edited, hash, passes)).toEqual([]);
-    expect(needsPasses({ ...edited, formattedFor: bodyHash('other') }, hash, passes)).toBe(true);
-    expect(revisionPasses({ ...edited, formattedFor: bodyHash('other') }, hash, passes)).toEqual(passes);
-  });
-
+describe('a note as the model sees it', () => {
   it('hashes a note with no project as its body alone', () => {
+    const body = '# Trip\n\ncall the plumber';
     expect(noteHash('no-such-note', body)).toBe(bodyHash(body));
+  });
+
+  it('swaps links for tokens the model can copy, and puts them back as the lines land and once at the end', () => {
+    const { prompt, restore } = prepareNote('see [the docs](https://example.com/docs) now\n', 'format');
+    expect(prompt).toContain('[the docs](link-1)');
+    expect(prompt).not.toContain('https://example.com');
+    expect(restore('# Notes\nsee [the docs](link-1) no', false)).toBe('# Notes\nsee [the docs](https://example.com/docs) no');
+    expect(restore('* see [the docs](link-1) now', true)).toBe('- see [the docs](https://example.com/docs) now\n');
+  });
+
+  it('keeps a table whole through the model', () => {
+    const table = '| a | b |\n| - | - |\n| 1 | 2 |';
+    const { prompt, restore } = prepareNote(`# T\n\n${table}\n`, 'format');
+    expect(prompt).toContain('![table-1](table)');
+    expect(restore(`# T\n\n![table-1](table)\n`, true)).toBe(`# T\n\n${table}\n`);
   });
 });

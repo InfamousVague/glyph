@@ -4418,3 +4418,88 @@ left. What was fixed now:
 1. glyph-api, which is Matt's call;
 2. the landing pages, once there's a contact address;
 3. then the OTA.
+
+## 114. The AI in the note: runs that land as tracked changes, a strip, a bar, one reader (2026-09-25)
+
+Matt: "rewrite the AI tooling to be more real time, more interactive with UI updates, iconography and general
+feedback, while using the AI in the app to write and edit notes." Twenty-five choices, made before a line was written,
+decided the shape; the ones that changed the architecture are recorded here, with what they became.
+
+- **Merge PR #1 first, as it stood.** Kevin's instruction-aware voice commands (the final transcript classified once,
+  after Done; a confirm card before any write; revision-guarded `create_note` and `update_note`; a guarded command
+  mutation with durable undo; `ai_infer_command` with a grammar) came in as a merge onto 1.7.2, resolved against
+  everything that had landed since its base: books by voice kept, "add this to the field guide" falling through to the
+  book rules, `saveNote`'s last two callers moved to `createNote`. Its native commands are **generation 19**, and the
+  page requires 19, so nothing from this tree ships over the air until a binary carrying them reaches each channel
+  (attack.fm's APK, the Play build, the Mac app). That is the cost of merging as is, and it was chosen with eyes open.
+
+- **One engine** (`ai/runs.ts`). A run of the model on a note is a state the page draws at every report - which phase,
+  which model, how fast, the phone underneath - and, the part everything else rests on, **the lines as they finish**,
+  cut at the last newline so `lines` only ever grows by whole lines. One model, one pass: the draft-then-careful
+  passes and their background queue went (the chosen model when it is on the phone, else the biggest under it, else
+  the smallest there is; `ai/available.ts`). One run at a time, the next waiting as `queued` where the strip can say
+  so; a second ask on the same note takes the first's place. The gist waits behind a note's own run. A model asked to
+  think keeps its reasoning apart from its answer, and the answer's newlines are kept, since `splitThought`'s trim
+  would never let a last line finish.
+
+- **The note is the only surface.** Matt chose a live diff over the note, then auto-apply with Undo, then tracked
+  marks that stay until Keep, Revert, Clear marks or typing on the line - and those three together mean: the model's
+  lines go into the editor as they finish (`ai/land.ts`), the note is always the text as it now reads (what is saved,
+  synced, shared), and the marks are decorations over it (`editor/aiChanges.ts`): added words tinted, the words that
+  went struck through where they were (a block above the line for whole lines, inline for words within one), Keep and
+  Revert on each run of changes. The robot's own view over the note, its Apply and its kept texts went with it.
+  - **The reading rules** (`ai/landing.ts`). Each finished line is looked for among the next eight old lines: found,
+    the lines passed over were dropped; nearly the same (half its words shared, and two of them), the old line is
+    rewritten word by word, compared with their case and without the punctuation on their end; else it is new. Blank
+    lines only ever match the very next line. The decisions are made once, in order, and never revisited, which is what
+    lets a line land the moment it arrives and stay where it landed.
+  - **Typing while it runs** is fine. The landing bookmark and every mark are mapped through the person's edits; the
+    ranges they touched are theirs - never struck, never rewritten - and a line of the model's that would have replaced
+    one is dropped and counted, said in a toast when the run ends.
+  - **The finished text is read back over the landed lines**, so the tidy-up at the end (a `*` bullet made a `-`, a
+    link that came back late) lands as one more small change rather than a rewrite of everything.
+  - **A summary lands above the note, Continue under it, everything else over the words it was given.** The front
+    matter is never the model's.
+  - **The marks are kept with the note** (`ai/marks.ts`), against a hash of the body, and come back when it opens and
+    still reads the same. A run's Undo, in the strip or its log, puts the whole note back while it still reads as the
+    run left it.
+  - **The AI is an author.** A run that changed the note signs it "Ghost" in `authors:` beside the account's handle,
+    and the byline draws its spark (`core/authors.ts`, §95). In a live session its lines arrive on the other device as
+    any remote typing does; the tint is on the device that ran it.
+
+- **The strip** (`ai/AiStrip.tsx`): one line under the header, floating over the page and never in its smoke, with the
+  phase's icon from the kit's set (Matt chose lucide through `@glacier/icons` for every AI state and action), the
+  sentence, a hairline bar that fills as the note is read and then as the answer is written, and Stop; afterwards what
+  happened and how long, Undo, Keep all while marks remain, and a cross to put it away. Tap it for the AI card with the
+  phone's readings, the model's thinking when it thought, and the note's **run log** (`ai/log.ts`): each run, what was
+  asked, which model, how long, how it ended, with Undo per run. The log is on the page, per note, a handful at most.
+
+- **The bar** (`ai/PromptBar.tsx`) at the foot of the note: six chips - Format, Summarize, Enhance, Fix spelling,
+  Make a list, Continue - and a field for anything else. Where the AI cannot run (a browser, iOS, no model, an older
+  binary) it shows greyed with the reason in the field and Get <model> where getting one is the fix. The press-and-hold
+  menu offers **Ask the AI** on a selection, which opens the bar with the part as its scope; a chip or an instruction
+  then asks, each time, this part or the whole note. A part is widened to whole lines and goes to the model as the
+  note, with the rest for context and a word that it is a part (`ai/prompts.ts`), so its answer takes the part's place.
+
+- **One reader** (`ai/instruction.ts`) for an instruction typed or spoken. The chips' runs said in words come first
+  ("fix the spelling", "make this a list", "carry on"); a command naming another note is read by the voice commands'
+  rules and, for speech, the on-device model once on a name the rules could not match, and offered on the **one
+  confirm card** (`ai/ConfirmCard.tsx`, the recorder's, shared); a command that named a note there is no note for
+  fails closed with its reason; anything else typed is an ask about the note, and spoken, an ask only after "hey
+  Ghost". Typed words never wait on the command model, so "add a heading about the budget" is an ask and not a hunt
+  for a note called budget. A confirmed command lands in the open note as a tracked change, or in another note
+  through the guarded write with Undo in a toast and a record in that note's log. An instruction spoken into a note
+  it continues opens the note with the run on it.
+
+- **The review, in the note** (`ai/useNoteReview.ts`). Stop opens the note. Listening again and comparing are a stage
+  of the strip's own, with the percent along its foot; the thinking is a run the strip follows like any other, its
+  thought readable in the card as it streams; and each finding lands as a tracked change with Keep and Revert -
+  another note's through the guarded write. The review screen, its cards and its Commit are gone; so is the
+  formatting queue that ran after it, since the model's words land in the note with the person watching.
+  `?simulate=review&review` in a browser still runs the whole flow with the model played by a script
+  (`ai/reviewSimulation.ts`, handed to the engine).
+
+- **What could not be done here.** The Tauri crate does not compile on the box this was written on (no GTK), so the
+  Android and Mac binaries carrying generation 19 are still to be built and run; the 54 Rust host tests pass, the
+  page's 1,300-odd tests pass, and the web build passes. A physical run with a model on the phone is what settles the
+  reading rules' feel - how often a rewritten line reads as "nearly the same" - and the pace the lines land at.

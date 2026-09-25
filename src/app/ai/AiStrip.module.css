@@ -75,7 +75,7 @@
 }
 
 /* A run in progress: the words breathe, so a slow phone still looks alive. */
-.strip:not([data-phase='done']):not([data-phase='stopped']):not([data-phase='failed']):not([data-phase='marks']) .words {
+.strip:not([data-phase='done']):not([data-phase='stopped']):not([data-phase='failed']):not([data-phase='marks']):not([data-phase='stage']) .words {
   animation: strip-breathe 1.8s ease-in-out infinite;
 }
 
@@ -171,6 +171,20 @@
 .strip[data-phase='stopped'] .bar,
 .strip[data-phase='marks'] .bar {
   background: transparent;
+}
+
+/* The thinking: monospace, small, the quiet ink, a few lines tall and scrolling, following the newest while it streams. */
+.thought {
+  margin: var(--glacier-space-2) var(--glacier-space-3) 0;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  max-block-size: 9rem;
+  overflow-y: auto;
+  border-radius: var(--glacier-radius-sm, 6px);
+  background: var(--app-paper-3, var(--glacier-surface-sunken));
+  font: var(--glacier-font-size-xs) / 1.45 var(--glacier-font-mono, ui-monospace, monospace);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* The line as a plain span, where there is no card to open. */

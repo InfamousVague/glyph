@@ -333,7 +333,7 @@ function browser(handlers: CaptureHandlers): CaptureSession {
  * `?simulate=tableask` stops at the table's yes; `?simulate=say&say=a|b` speaks
  * the phrases given, bar-separated. `?simulate=review&review`
  * says a note with a misheard word and, on Done, runs the review with its
- * models simulated (review/useReview.ts).
+ * models simulated in the note it opens (ai/useNoteReview.ts, ai/reviewSimulation.ts).
  */
 const SCRIPTS: Record<string, string[]> = {
   note: [

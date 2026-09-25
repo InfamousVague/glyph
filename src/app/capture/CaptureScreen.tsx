@@ -21,8 +21,7 @@ import { preferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { openMicrophone, type Microphone, type MicrophoneHandlers } from './audio.ts';
 import { enqueueRefine, setRecorderLive } from './refine.ts';
-import { enqueueFormat, setFormattingPaused } from '../format/queue.ts';
-import { reviewAvailable, type ReviewHandoff } from '../review/useReview.ts';
+import { reviewAvailable, type ReviewHandoff } from '../ai/review.ts';
 import { discardRecording, reassignRecording, startCapture, type CaptureSession, type EngineKind, type Stopped } from './engine.ts';
 import { renderNote, setLinkTitles, setSpokenFormats, type Segment } from './markdown.ts';
 import { Opening } from './Opening.tsx';
@@ -285,12 +284,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   // No background pass over an earlier recording while this one is live: same cores.
   useEffect(() => {
     setRecorderLive(true);
-    // Nor a formatting pass: the recorder has the cores while it is on screen.
-    setFormattingPaused(true);
-    return () => {
-      setRecorderLive(false);
-      setFormattingPaused(false);
-    };
+    return () => setRecorderLive(false);
   }, []);
 
   // The screen stays on while this runs, and pressing the side key (which
@@ -1085,9 +1079,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       return;
     }
     if (refineJob) enqueueRefine(refineJob);
-    // The staged rewrite (format/queue.ts): a quick draft, then slower models
-    // revising it. After the refine job, which it waits for.
-    enqueueFormat(saved.id);
     onFinish(saved, locked);
   }, [onFinish, compose, undoDraft, take]);
 

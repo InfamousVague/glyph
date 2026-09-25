@@ -5,8 +5,7 @@ import { isTauri } from '../core/tauri.ts';
 import { bodyHash } from './formatter.ts';
 import { protectLinks } from './links.ts';
 import { smallestOf } from '../ai/available.ts';
-import { anyRunning } from '../ai/runs.ts';
-import { isRunning } from './pipeline.ts';
+import { anyRunning, isRunning } from '../ai/runs.ts';
 import { GIST_PROMPT, TEMPERATURE } from './prompt.ts';
 import { keepGist, readGist } from './results.ts';
 

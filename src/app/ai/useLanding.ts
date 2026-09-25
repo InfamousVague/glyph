@@ -29,6 +29,8 @@ export function useLanding(
 
   useEffect(() => {
     if (!view || !run) return;
+    // The review's answer is its findings, which it lands itself (ai/useNoteReview.ts).
+    if (run.kind === 'review') return;
     if (current.current && current.current.runId !== run.id) {
       // Another run took this one's place: what landed stays.
       current.current.lander.abandon();

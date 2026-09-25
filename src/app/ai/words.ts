@@ -31,6 +31,7 @@ export function runSentence(run: RunState): string {
     case 'prefill':
       return run.promptTokens ? `Reading the note, ${run.promptTokensDone} of ${run.promptTokens}.` : 'Reading the note.';
     case 'generating': {
+      if (run.kind === 'review') return `${name} is ${run.lines.length || run.partial ? 'writing what it found' : 'thinking it through'}, ${pace(run.tokensPerSecond)}, ${clock(run.elapsedMs)}.`;
       const lines = run.lines.length ? `, ${run.lines.length} ${run.lines.length === 1 ? 'line' : 'lines'}` : '';
       return `${doing} with ${name}, ${pace(run.tokensPerSecond)}, ${clock(run.elapsedMs)}${lines}.`;
     }

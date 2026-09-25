@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { generate, type Hardware, type Output, type Progress } from '../core/ai.ts';
+import { generate, type Hardware, type Output, type Progress, type Run, type RunOptions } from '../core/ai.ts';
 import type { RunKind } from './kinds.ts';
 import { recordRun } from './log.ts';
 
@@ -127,6 +127,13 @@ const waiting: Entry[] = [];
 /** The latest run of each note, going or ended, until it is dismissed or the next one replaces it. */
 const latest = new Map<string, RunState>();
 let count = 0;
+
+/** The model played by a script, for a browser trying a flow (`?review`, ai/reviewSimulation.ts); null for the real one. */
+let simulator: ((options: RunOptions) => Run) | null = null;
+
+export function simulateRuns(fn: ((options: RunOptions) => Run) | null): void {
+  simulator = fn;
+}
 
 export function subscribeRuns(listener: Listener): () => void {
   listeners.add(listener);
@@ -257,7 +264,7 @@ function pump(): void {
 async function execute(entry: Entry): Promise<void> {
   set(entry, { phase: 'loading' });
   const { request } = entry;
-  const run = generate({
+  const run = (simulator ?? generate)({
     model: request.model,
     system: request.system,
     context: request.context,

@@ -1,8 +1,7 @@
 import type { EditorView } from '@codemirror/view';
 import { setLanding } from '../editor/aiChanges.ts';
-import { noteHash, prepareNote } from '../format/pipeline.ts';
+import { noteContext, noteHash, prepareNote } from '../format/pipeline.ts';
 import { TEMPERATURE } from '../format/prompt.ts';
-import { pluginContextFor } from '../plugins/registry.ts';
 import type { Availability } from './available.ts';
 import type { RunKind } from './kinds.ts';
 import { frontMatterEnd } from './landing.ts';
@@ -64,7 +63,7 @@ export function startNoteRun(view: EditorView, noteId: string, kind: RunKind, av
   const { prompt: text, restore } = prepareNote(source, kind === 'summarize' ? 'summarize' : 'format');
   const prompt = kind === 'ask' && instruction ? askMessage(instruction, text) : text;
   const system = part ? `${promptForKind(kind)}\n\n${PART_NOTE}` : promptForKind(kind);
-  const briefing = pluginContextFor(noteId);
+  const briefing = noteContext(noteId);
   const context = [briefing, part ? restOfNote(body.slice(front)) : null].filter(Boolean).join('\n\n') || undefined;
   const landing =
     placement === 'replace'

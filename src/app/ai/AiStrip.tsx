@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronUp, PenLine, Square, Undo2, X } from '@glacier/icons';
+import { Check, ChevronDown, ChevronUp, Ear, PenLine, Square, Undo2, X } from '@glacier/icons';
 import { AiCard } from '../format/AiCard.tsx';
 import { KIND_ICONS, PHASE_ICONS, spins } from './icons.ts';
 import { kindWords } from './kinds.ts';
 import { useRunLog, type RunRecord } from './log.ts';
 import { cancelRun, dismissRun, ended, useRun } from './runs.ts';
+import type { ReviewStage } from './useNoteReview.ts';
 import { when } from '../notes/when.ts';
 import { cardPhase, marksSentence, progressOf, recordSentence, runSentence } from './words.ts';
 import styles from './AiStrip.module.css';
@@ -33,8 +34,11 @@ export function AiStrip({
   onUndo,
   onHeight,
   marks,
+  stage = null,
 }: {
   noteId: string;
+  /** The review's own stages before its run - listening again, comparing - said while no run is on (ai/useNoteReview.ts). */
+  stage?: ReviewStage | null;
   /** The AI's changes still marked in the note, and the way to keep them all at once; absent with none. */
   marks?: { count: number; keepAll: () => void };
   /**
@@ -54,7 +58,7 @@ export function AiStrip({
   useEffect(() => setOpen(false), [runId]);
 
   // The page makes room under the strip: its height, as it changes, and 0 once it is gone.
-  const shown = run !== null || (marks !== undefined && marks.count > 0);
+  const shown = run !== null || stage !== null || (marks !== undefined && marks.count > 0);
   useEffect(() => {
     if (!onHeight) return undefined;
     const el = host.current;
@@ -74,6 +78,26 @@ export function AiStrip({
   }, [onHeight, shown]);
 
   if (!shown) return null;
+
+  // The review listening again or comparing: the stage as a line of its own, with its percent along the foot.
+  if (!run && stage) {
+    return (
+      <section ref={host} className={styles.strip} data-phase="stage" aria-label="The AI on this note">
+        <div className={styles.row}>
+          <span className={styles.line}>
+            <Ear size={16} strokeWidth={2.2} className={styles.icon} aria-hidden="true" />
+            <span className={styles.words} role="status" aria-live="polite">
+              {stage.what}
+              {stage.percent !== null && stage.percent > 0 ? `, ${stage.percent}%` : ''}. {stage.detail}
+            </span>
+          </span>
+        </div>
+        <div className={styles.bar} aria-hidden="true" data-going={stage.percent === null || undefined}>
+          <span style={{ inlineSize: stage.percent === null ? undefined : `${Math.round(stage.percent)}%` }} />
+        </div>
+      </section>
+    );
+  }
 
   // No run to speak of, only marks left in the note: one line saying so, with Keep all.
   if (!run) {
@@ -141,6 +165,7 @@ export function AiStrip({
       </div>
       {open ? (
         <div className={styles.card}>
+          {run.thought ? <Thought text={run.thought} live={!over} /> : null}
           {!over ? (
             <AiCard
               model={run.model}
@@ -158,6 +183,20 @@ export function AiStrip({
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** The model's own thinking, raw, in a quiet pane that follows the newest line while it streams (Matt: "show the AI reasoning"). */
+function Thought({ text, live }: { text: string; live: boolean }) {
+  const pane = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    const el = pane.current;
+    if (el && live) el.scrollTop = el.scrollHeight;
+  }, [text, live]);
+  return (
+    <pre ref={pane} className={styles.thought} aria-label="The model's thinking" data-live={live || undefined}>
+      {text}
+    </pre>
   );
 }
 

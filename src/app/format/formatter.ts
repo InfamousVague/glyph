@@ -1,23 +1,17 @@
 /**
- * What the robot's modes keep of a note: the hash a kept text is written
- * against, and the tidy-up of a model's answer at the edges.
+ * The hash a kept text is written against, and the tidy-up of a model's
+ * answer at the edges.
  *
  * The hook that watched a mode's text stream into the robot's own view went
  * with that view: the model's lines land in the note itself now
- * (ai/useLanding.ts). What stayed here is what the pipeline, the queue, the
- * gist and the marks still share.
+ * (ai/useLanding.ts). What stayed here is what the preparation, the gist and
+ * the marks still share.
  *
- * The text is saved with a hash of the exact body it was written from
- * (`formattedFor`), not the body's time: the editor saves on a debounce, so
- * "the time the body last changed" and "the body the model read" can name
- * different texts inside the same second. A hash of the text itself cannot.
+ * A text is kept with a hash of the exact body it was written from, not the
+ * body's time: the editor saves on a debounce, so "the time the body last
+ * changed" and "the body the model read" can name different texts inside
+ * the same second. A hash of the text itself cannot.
  */
-
-export interface Kept {
-  formatted?: string | null;
-  formattedFor?: number | null;
-  formattedModel?: string | null;
-}
 
 /**
  * FNV-1a over the UTF-16 code units, folded to 52 bits so it survives JSON and

@@ -18,15 +18,13 @@ import { afterMove, displayOrder, joinGroup, leaveGroup, newGroup, pruneGroups, 
 import { backFrom, canGoBack, canGoOn, FIRST, noteIdOf, notePlace, onFrom, placeAt, went, type Place } from './notes/visited.ts';
 import { readSidebarShown, useSidebar, writeSidebarShown } from './core/useWideScreen.ts';
 import { SettingsSheet } from './settings/SettingsSheet.tsx';
-import { ReviewScreen } from './review/ReviewScreen.tsx';
-import type { ReviewHandoff } from './review/useReview.ts';
+import type { ReviewHandoff } from './ai/review.ts';
 import { CaptureScreen } from './capture/CaptureScreen.tsx';
 import { AcademyScreen } from './academy/AcademyScreen.tsx';
 import { CommandBar } from './commands/CommandBar.tsx';
 import type { NoteView } from './editor/viewMode.ts';
 import { academyBannerDue, dismissAcademyBanner } from './academy/banner.ts';
 import { startRefining } from './capture/refine.ts';
-import { startFormatting } from './format/queue.ts';
 import { startSync } from './core/sync/engine.ts';
 import { WhatsNewSheet } from './notes/WhatsNewSheet.tsx';
 import { Guide } from './guide/Guide.tsx';
@@ -106,6 +104,8 @@ type Screen =
       at?: string;
       /** A spoken instruction about this note ("hey Ghost, fix the spelling"), run on it as it opens; `key` tells one from the next. */
       ask?: SpokenAsk & { key: number };
+      /** After Stop: the slower models check the take in the note itself (ai/useNoteReview.ts); `key` tells one review from the next. */
+      review?: ReviewHandoff & { key: number };
     }
   | {
       name: 'capture';
@@ -115,8 +115,6 @@ type Screen =
       /** Talking into this note, from its Speak: the words go here, and the capture comes back here. */
       noteId?: string;
     }
-  /** After Stop: the slower models check the take, and the person commits what they find (review/). */
-  | { name: 'review'; handoff: ReviewHandoff }
   /** After a memo: where its parts go, proposed, and filed when committed (sort/). */
   /** Glyph Academy: markdown taught a mark at a time, open from Settings whenever it is wanted (academy/). */
   | { name: 'academy' };
@@ -266,8 +264,6 @@ function Shell() {
   // The better words after a recording, worked out in the background; the list
   // is refreshed when a note's words change.
   useEffect(() => startRefining(() => void refresh()), [refresh]);
-  // The staged formatting passes after a recording: draft, then revisions.
-  useEffect(() => startFormatting(() => void refresh()), [refresh]);
   // Sync, for a device signed in to an account (docs/SYNC.md); nothing happens without one.
   useEffect(() => startSync(), []);
   // A desktop window wide enough keeps the notes in a sidebar beside the open note (core/useWideScreen.ts).
@@ -669,8 +665,10 @@ function Shell() {
         setScreen({ name: 'note', note: fresh ?? note, ask: { ...ask, key: Date.now() } });
         return;
       }
+      // The review after a recording runs in the note (ai/useNoteReview.ts), read fresh, since its words just changed.
       if (note && review) {
-        setScreen({ name: 'review', handoff: review });
+        const fresh = await getNote(note.id).catch(() => null);
+        setScreen({ name: 'note', note: fresh ?? note, review: { ...review, key: Date.now() } });
         return;
       }
       // Talking into a note from the note: back to that note, read fresh, since
@@ -779,6 +777,7 @@ function Shell() {
         onPin={(n) => actions.pin(n)}
         at={screen.at}
         ask={screen.ask}
+        review={screen.review}
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
         onOpenWithin={openTitleWithin}
@@ -977,18 +976,6 @@ function Shell() {
             setScreen({ name: 'list' });
             setSettings(true);
             setToCheatSheet(Date.now());
-          }}
-        />
-      ) : screen.name === 'review' ? (
-        <ReviewScreen
-          key={screen.handoff.noteId}
-          handoff={screen.handoff}
-          onDone={(id) => {
-            void (async () => {
-              await refresh();
-              const fresh = await getNote(id).catch(() => null);
-              setScreen(fresh ? { name: 'note', note: fresh } : { name: 'list' });
-            })();
           }}
         />
       ) : split ? (
