@@ -38,6 +38,7 @@ use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
 
 use crate::guard;
+use crate::wire::{base64url, error};
 
 const AUTHORIZE: &str = "https://api.notion.com/v1/oauth/authorize";
 const TOKEN: &str = "https://api.notion.com/v1/oauth/token";
@@ -49,6 +50,9 @@ const PENDING_TTL: Duration = Duration::from_secs(10 * 60);
 /// matters to something hammering `start`.
 const MAX_PENDING: usize = 256;
 const REQUESTS_PER_MINUTE: u32 = 30;
+/// How long a state or a challenge may be: long enough not to be guessed. A challenge is a SHA-256, which is 43
+/// base64url characters.
+const STATE_LENGTH: std::ops::RangeInclusive<usize> = 32..=128;
 
 pub struct Notion {
     client_id: String,
@@ -56,7 +60,7 @@ pub struct Notion {
     redirect_uri: String,
     http: reqwest::Client,
     pending: Mutex<HashMap<String, Pending>>,
-    limiter: Mutex<guard::RateLimiter>,
+    limiter: guard::RateLimiter,
 }
 
 struct Pending {
@@ -73,7 +77,7 @@ impl Notion {
             redirect_uri,
             http: reqwest::Client::builder().timeout(Duration::from_secs(20)).build().unwrap_or_default(),
             pending: Mutex::new(HashMap::new()),
-            limiter: Mutex::new(guard::RateLimiter::new(REQUESTS_PER_MINUTE, Instant::now())),
+            limiter: guard::RateLimiter::new(REQUESTS_PER_MINUTE, Instant::now()),
         })
     }
 
@@ -89,8 +93,7 @@ impl Notion {
     }
 
     fn allowed(&self, peer: SocketAddr, headers: &HeaderMap) -> bool {
-        let ip = guard::client_ip(peer.ip(), headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()));
-        self.limiter.lock().map(|mut l| l.take(ip, Instant::now())).unwrap_or(false)
+        self.limiter.take(guard::client_ip_of(peer.ip(), headers), Instant::now())
     }
 
     fn prune(pending: &mut HashMap<String, Pending>, now: Instant) {
@@ -131,7 +134,7 @@ fn tokens(answer: &Value) -> Value {
 
 /// A state or a challenge: base64url, long enough not to be guessed.
 fn well_formed(value: &str) -> bool {
-    (32..=128).contains(&value.len()) && value.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    base64url(value, STATE_LENGTH)
 }
 
 /// The PKCE S256 transform: the challenge a verifier proves.
@@ -154,10 +157,6 @@ fn page(status: StatusCode, heading: &str, line: &str) -> Response {
         escape(line)
     );
     (status, Html(body)).into_response()
-}
-
-fn error(status: StatusCode, message: &str) -> Response {
-    (status, Json(json!({ "error": message }))).into_response()
 }
 
 #[derive(Deserialize)]

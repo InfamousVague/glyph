@@ -22,7 +22,9 @@
 //! A browser cannot put an Authorization header on a WebSocket, so the token comes in the first frame rather than the
 //! URL, where access logs would keep it.
 
-use crate::accounts::{now_secs, Accounts};
+use crate::accounts::Accounts;
+use crate::guard::Bucket;
+use crate::wire::{base64url, now_secs};
 use axum::extract::ws::{CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
@@ -54,6 +56,9 @@ const QUEUE: usize = 128;
 /// Frames a device may send: a burst, and a steady rate. Typing is a few a second; a caret moving, a few more.
 const BURST: f64 = 200.0;
 const PER_SECOND: f64 = 100.0;
+/// One room name: a note id, or anything else shaped like one, as base64url. Kept short and plain so a room is never a
+/// way in.
+const ROOM_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
 
 /// Close codes. 4000-4999 are the application's own; a client reconnects after all of these but CLOSE_AUTH.
 pub const CLOSE_AUTH: u16 = 4401;
@@ -129,38 +134,6 @@ fn text(value: Value) -> Message {
 
 fn close(code: u16, reason: &'static str) -> Message {
     Message::Close(Some(CloseFrame { code, reason: Utf8Bytes::from_static(reason) }))
-}
-
-/// One room name: a note id, or anything else shaped like one. Kept short and plain so a room is never a way in.
-fn valid_room(room: &str) -> bool {
-    (1..=64).contains(&room.len()) && room.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-}
-
-/// Ciphertext as base64url, and nothing else: the relay only ever carries sealed bytes it cannot read.
-fn valid_data(data: &str) -> bool {
-    !data.is_empty() && data.len() <= MAX_FRAME && data.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-}
-
-/// A token bucket: `BURST` frames at once, refilled at `PER_SECOND`.
-struct Bucket {
-    tokens: f64,
-    at: Instant,
-}
-
-impl Bucket {
-    fn new(now: Instant) -> Self {
-        Bucket { tokens: BURST, at: now }
-    }
-    fn take(&mut self, now: Instant) -> bool {
-        self.tokens = (self.tokens + now.duration_since(self.at).as_secs_f64() * PER_SECOND).min(BURST);
-        self.at = now;
-        if self.tokens >= 1.0 {
-            self.tokens -= 1.0;
-            true
-        } else {
-            false
-        }
-    }
 }
 
 impl Live {
@@ -310,7 +283,8 @@ async fn serve(live: Arc<Live>, mut socket: WebSocket) {
 
     let _ = out.send(text(json!({ "t": "ready", "id": id }))).await;
     let mut rooms: HashSet<String> = HashSet::new();
-    let mut bucket = Bucket::new(Instant::now());
+    // `BURST` frames at once, refilled at `PER_SECOND`.
+    let mut bucket = Bucket::new(BURST, PER_SECOND, Instant::now());
     // The socket lasts as long as the token does; the device comes back with a fresh one.
     let ends = tokio::time::sleep(Duration::from_secs(u64::try_from((claims.exp - now_secs()).max(0)).unwrap_or(0)));
     tokio::pin!(ends);
@@ -341,7 +315,7 @@ async fn serve(live: Arc<Live>, mut socket: WebSocket) {
         let refuse = |message: &'static str| text(json!({ "t": "error", "message": message }));
         match serde_json::from_str::<Incoming>(&frame) {
             Ok(Incoming::Join { room }) => {
-                if !valid_room(&room) {
+                if !base64url(&room, ROOM_LENGTH) {
                     let _ = out.try_send(refuse("That room name could not be read."));
                 } else if !rooms.contains(&room) && rooms.len() >= ROOMS_PER_SOCKET {
                     let _ = out.try_send(refuse("Too many notes live at once on this device."));
@@ -356,10 +330,11 @@ async fn serve(live: Arc<Live>, mut socket: WebSocket) {
                     live.leave(account, &room, id);
                 }
             }
+            // Ciphertext as base64url, and nothing else: the relay only ever carries sealed bytes it cannot read.
             Ok(Incoming::Msg { room, data, to }) => {
                 if !rooms.contains(&room) {
                     let _ = out.try_send(refuse("Join the room first."));
-                } else if !valid_data(&data) {
+                } else if !base64url(&data, 1..=MAX_FRAME) {
                     let _ = out.try_send(refuse("That message could not be read."));
                 } else {
                     live.relay(account, &room, id, &data, to);

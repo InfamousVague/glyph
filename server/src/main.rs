@@ -16,6 +16,7 @@
 //! This file owns the wire: routes, CORS, the order the guards run in, and
 //! what each failure looks like to the phone. `model.rs` owns the Ollama call,
 //! `shape.rs` owns the verbatim rule, `guard.rs` owns tokens and rate limits,
+//! `wire.rs` owns the error shape and the base64url check every route shares,
 //! and `bench.rs` measures the same pipeline from a shell on the box.
 //!
 //! A GUEST ON SOMEBODY ELSE'S BOX. The Ollama this calls is AttackFM's, and
@@ -39,6 +40,9 @@ mod live;
 mod mcp_proxy;
 mod shares;
 mod sync;
+mod wire;
+#[cfg(test)]
+mod test_support;
 #[cfg(test)]
 mod sync_tests;
 #[cfg(test)]
@@ -59,6 +63,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 use tower_http::cors::{AllowOrigin, CorsLayer};
+use wire::error;
 
 /// Loopback only. Caddy is the one door; a port open to the internet would be
 /// a second one with no TLS and no access log.
@@ -130,7 +135,7 @@ fn allowed_origin(origin: &[u8]) -> bool {
 struct App {
     token: String,
     ollama: model::Ollama,
-    limiter: Mutex<guard::RateLimiter>,
+    limiter: guard::RateLimiter,
     breaker: Mutex<guard::Breaker>,
     /// `UPSTREAM_TIMEOUT` and `model::ADMISSION_WAIT` in production; fields
     /// only so a test can hold the service to milliseconds instead of minutes.
@@ -155,10 +160,6 @@ struct Formatted {
     elapsed_ms: u64,
 }
 
-fn error(status: StatusCode, message: &str) -> Response {
-    (status, Json(json!({ "error": message }))).into_response()
-}
-
 async fn health(State(app): State<Arc<App>>) -> Json<serde_json::Value> {
     Json(json!({ "ok": true, "model": app.ollama.model(), "ollama": app.ollama.reachable().await }))
 }
@@ -180,10 +181,7 @@ async fn format(
     body: Body,
 ) -> Response {
     let started = Instant::now();
-    let ip = guard::client_ip(peer.ip(), headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()));
-
-    let allowed = app.limiter.lock().map(|mut l| l.take(ip, started)).unwrap_or(false);
-    if !allowed {
+    if !app.limiter.take(guard::client_ip_of(peer.ip(), &headers), started) {
         eprintln!("format 429 rate limited");
         return error(StatusCode::TOO_MANY_REQUESTS, "rate limited: at most 20 requests a minute");
     }
@@ -318,7 +316,7 @@ fn app_bounded(token: String, ollama: model::Ollama, budget: Duration, admission
     Arc::new(App {
         token,
         ollama,
-        limiter: Mutex::new(guard::RateLimiter::new(REQUESTS_PER_MINUTE, Instant::now())),
+        limiter: guard::RateLimiter::new(REQUESTS_PER_MINUTE, Instant::now()),
         breaker: Mutex::new(guard::Breaker::new(BREAKER_COOLDOWN)),
         budget,
         admission,
@@ -399,17 +397,14 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::{self, TOKEN};
     use axum::extract::connect_info::MockConnectInfo;
     use axum::http::Request;
     use tower::ServiceExt;
 
-    const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-    /// Ollama pointed at a port nothing listens on, so a test that reaches the
-    /// model gets a refused connection in microseconds instead of a real call.
+    /// The service without accounts, its Ollama at a port nothing listens on (test_support.rs says why).
     fn service() -> Router {
-        router(app_with(TOKEN.into(), model::Ollama::new("http://127.0.0.1:9", "test-model")), None)
-            .layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))))
+        test_support::service(None)
     }
 
     fn post(body: impl Into<Body>, token: Option<&str>) -> Request<Body> {

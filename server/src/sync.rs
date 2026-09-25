@@ -15,11 +15,13 @@
 //!
 //! Every body here is something a device encrypted. The service checks sizes and shapes, never content.
 
-use crate::accounts::{error, now_secs, Accounts};
+use crate::accounts::Accounts;
+use crate::identity::Claims;
 use crate::store::{NoteRow, WriteError};
+use crate::wire::{base64url, error, now_secs};
 use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
-use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
+use axum::http::{header, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
@@ -35,15 +37,17 @@ const PREFS_LIMIT: usize = 350_000;
 const RECORDING_LIMIT: usize = 64 * 1024 * 1024;
 /// The most notes one page of the feed carries.
 const PAGE_LIMIT: i64 = 500;
+/// How long a note's or a recording's id may be.
+const ID_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
 
 /// Ids are the app's own: UUIDs, or its older `n-…` form. Anything else is refused before it reaches a path.
 fn valid_id(id: &str) -> bool {
-    (1..=64).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    base64url(id, ID_LENGTH)
 }
 
 /// A blob is base64url, as a device writes it.
 fn valid_blob(blob: &str, limit: usize) -> bool {
-    !blob.is_empty() && blob.len() <= limit && blob.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    base64url(blob, 1..=limit)
 }
 
 fn note_json(note: &NoteRow) -> serde_json::Value {
@@ -57,11 +61,7 @@ struct FeedQuery {
     limit: Option<i64>,
 }
 
-async fn feed(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Query(query): Query<FeedQuery>) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn feed(State(accounts): State<Arc<Accounts>>, Query(query): Query<FeedQuery>, who: Claims) -> Response {
     let limit = query.limit.unwrap_or(PAGE_LIMIT).clamp(1, PAGE_LIMIT);
     match accounts.store.notes_since(who.sub, query.since.max(0), limit) {
         Ok((notes, more, head)) => {
@@ -91,11 +91,7 @@ fn written(result: Result<i64, WriteError>) -> Response {
     }
 }
 
-async fn put_note(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Path(id): Path<String>, Json(body): Json<NoteBody>) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn put_note(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>, who: Claims, Json(body): Json<NoteBody>) -> Response {
     if !valid_id(&id) {
         return error(StatusCode::BAD_REQUEST, "That note id could not be read.");
     }
@@ -105,22 +101,14 @@ async fn put_note(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Pat
     written(accounts.store.put_note(who.sub, &id, body.base, Some(blob), now_secs()))
 }
 
-async fn delete_note(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Path(id): Path<String>, Json(body): Json<NoteBody>) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn delete_note(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>, who: Claims, Json(body): Json<NoteBody>) -> Response {
     if !valid_id(&id) {
         return error(StatusCode::BAD_REQUEST, "That note id could not be read.");
     }
     written(accounts.store.put_note(who.sub, &id, body.base, None, now_secs()))
 }
 
-async fn get_prefs(State(accounts): State<Arc<Accounts>>, headers: HeaderMap) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn get_prefs(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
     // Rev 0 and no blob says "nothing has ever been stored": a device keeps what it has and pushes it.
     let (rev, blob) = accounts.store.prefs(who.sub).map_or((0, None), |(rev, blob)| (rev, Some(blob)));
     Json(json!({ "rev": rev, "blob": blob })).into_response()
@@ -133,11 +121,7 @@ struct PrefsBody {
     blob: String,
 }
 
-async fn put_prefs(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Json(body): Json<PrefsBody>) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn put_prefs(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body): Json<PrefsBody>) -> Response {
     if !valid_blob(&body.blob, PREFS_LIMIT) {
         return error(StatusCode::BAD_REQUEST, "Those settings are empty or too large to sync.");
     }
@@ -148,11 +132,7 @@ async fn put_prefs(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Js
     }
 }
 
-async fn get_recording(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn get_recording(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>, who: Claims) -> Response {
     if !valid_id(&id) {
         return error(StatusCode::BAD_REQUEST, "That recording id could not be read.");
     }
@@ -177,11 +157,13 @@ struct RecordingQuery {
     base: i64,
 }
 
-async fn put_recording(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Path(id): Path<String>, Query(query): Query<RecordingQuery>, body: Bytes) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn put_recording(
+    State(accounts): State<Arc<Accounts>>,
+    Path(id): Path<String>,
+    Query(query): Query<RecordingQuery>,
+    who: Claims,
+    body: Bytes,
+) -> Response {
     if !valid_id(&id) {
         return error(StatusCode::BAD_REQUEST, "That recording id could not be read.");
     }

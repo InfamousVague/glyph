@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// token for a new one. Bumped only on a breaking shape change.
 const TOKEN_V: &str = "glyph1";
 
+/// Exactly `N` bytes from unpadded base64url - a key is 32, a signature 64 - or
+/// nothing: text that will not decode and bytes of any other length are the same
+/// refusal. It does not trim; the callers that forgive surrounding whitespace
+/// trim before they ask, and a token's signature is taken exactly as it came.
+fn decode_array<const N: usize>(s: &str) -> Option<[u8; N]> {
+    URL_SAFE_NO_PAD.decode(s).ok()?.try_into().ok()
+}
+
 /// What a verified token asserts: who the bearer is, and for how long.
 ///
 /// Kept minimal on purpose - identity only. What a given account may DO on a
@@ -65,9 +73,7 @@ impl Issuer {
 
     /// Reload from the 32 secret bytes produced by `secret_b64`.
     pub fn from_secret_b64(s: &str) -> Option<Self> {
-        let bytes = URL_SAFE_NO_PAD.decode(s.trim()).ok()?;
-        let arr: [u8; 32] = bytes.try_into().ok()?;
-        Some(Self { key: SigningKey::from_bytes(&arr) })
+        Some(Self { key: SigningKey::from_bytes(&decode_array(s.trim())?) })
     }
 
     /// The secret, base64url, for storing in the registry's config. This is the
@@ -111,9 +117,7 @@ impl Verifier2 {
     /// its own tokens with its own key.
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn from_public_b64(s: &str) -> Option<Self> {
-        let bytes = URL_SAFE_NO_PAD.decode(s.trim()).ok()?;
-        let arr: [u8; 32] = bytes.try_into().ok()?;
-        VerifyingKey::from_bytes(&arr).ok().map(|key| Self { key })
+        VerifyingKey::from_bytes(&decode_array(s.trim())?).ok().map(|key| Self { key })
     }
 
     /// Check a token against a wall-clock `now` (unix seconds) and return its
@@ -131,12 +135,7 @@ impl Verifier2 {
             return Err(VerifyError::Version);
         }
 
-        let sig_bytes: [u8; 64] = URL_SAFE_NO_PAD
-            .decode(sig_b64)
-            .ok()
-            .and_then(|v| v.try_into().ok())
-            .ok_or(VerifyError::Malformed)?;
-        let signature = Signature::from_bytes(&sig_bytes);
+        let signature = Signature::from_bytes(&decode_array(sig_b64).ok_or(VerifyError::Malformed)?);
         let body = format!("{ver}.{claims_b64}");
         self.key
             .verify(body.as_bytes(), &signature)
@@ -163,24 +162,13 @@ impl Verifier2 {
 /// but a wholly separate key per device - the registry never sees a device's
 /// private key, only that it can produce signatures the public half accepts.
 pub fn verify_detached(public_b64: &str, message: &[u8], sig_b64: &str) -> bool {
-    let Some(pk_bytes) = URL_SAFE_NO_PAD
-        .decode(public_b64.trim())
-        .ok()
-        .and_then(|v| <[u8; 32]>::try_from(v).ok())
-    else {
+    let Some(key) = decode_array(public_b64.trim()).and_then(|bytes| VerifyingKey::from_bytes(&bytes).ok()) else {
         return false;
     };
-    let Ok(key) = VerifyingKey::from_bytes(&pk_bytes) else {
+    let Some(signature) = decode_array(sig_b64.trim()).map(|bytes| Signature::from_bytes(&bytes)) else {
         return false;
     };
-    let Some(sig_bytes) = URL_SAFE_NO_PAD
-        .decode(sig_b64.trim())
-        .ok()
-        .and_then(|v| <[u8; 64]>::try_from(v).ok())
-    else {
-        return false;
-    };
-    key.verify(message, &Signature::from_bytes(&sig_bytes)).is_ok()
+    key.verify(message, &signature).is_ok()
 }
 
 #[cfg(test)]
@@ -221,6 +209,30 @@ mod tests {
         let b = Issuer::generate();
         let token = a.issue(&claims(1_000, 60));
         assert_eq!(b.verifier().verify(&token, 1_000), Err(VerifyError::BadSignature));
+    }
+
+    #[test]
+    fn decode_array_takes_exactly_n_bytes_and_nothing_else() {
+        let key = [7u8; 32];
+        assert_eq!(decode_array::<32>(&URL_SAFE_NO_PAD.encode(key)), Some(key));
+        assert_eq!(decode_array::<64>(&URL_SAFE_NO_PAD.encode(key)), None, "32 bytes are not a signature");
+        assert_eq!(decode_array::<32>(&URL_SAFE_NO_PAD.encode([7u8; 31])), None, "one short");
+        assert_eq!(decode_array::<32>("not base64!"), None);
+        assert_eq!(decode_array::<32>(&format!(" {}", URL_SAFE_NO_PAD.encode(key))), None, "it does not trim");
+    }
+
+    #[test]
+    fn a_detached_signature_checks_against_its_own_key_only() {
+        let device = SigningKey::generate(&mut rand::rngs::OsRng);
+        let public = URL_SAFE_NO_PAD.encode(device.verifying_key().to_bytes());
+        let signature = URL_SAFE_NO_PAD.encode(device.sign(b"nonce").to_bytes());
+        assert!(verify_detached(&public, b"nonce", &signature));
+        assert!(verify_detached(&format!(" {public} "), b"nonce", &format!("{signature}\n")), "both are trimmed");
+        assert!(!verify_detached(&public, b"another nonce", &signature));
+        let stranger = URL_SAFE_NO_PAD.encode(SigningKey::generate(&mut rand::rngs::OsRng).verifying_key().to_bytes());
+        assert!(!verify_detached(&stranger, b"nonce", &signature));
+        assert!(!verify_detached("short", b"nonce", &signature));
+        assert!(!verify_detached(&public, b"nonce", "short"));
     }
 
     #[test]

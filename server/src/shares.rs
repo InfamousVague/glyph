@@ -14,9 +14,11 @@
 //! An id is the device's own - 128 random bits, base64url - so the link can be made before anything is sent, and one
 //! share's id says nothing about another's. Reading is open, so it is rate-limited by address; writing is the owner's.
 
-use crate::accounts::{error, now_secs, Accounts};
+use crate::accounts::{Accounts, HasAccounts};
 use crate::guard;
+use crate::identity::Claims;
 use crate::store::ShareWrite;
+use crate::wire::{base64url, error, now_secs};
 use axum::extract::{ConnectInfo, DefaultBodyLimit, Path, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -25,7 +27,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::json;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 
 /// A share's ciphertext, as base64url: a book of its index and every chapter, generously.
@@ -34,26 +36,30 @@ const SHARE_LIMIT: usize = 6_000_000;
 pub const SHARES_PER_ACCOUNT: i64 = 500;
 /// Reads of shares, per address, per minute: a reader opening a book and its chapters, several times over.
 const READS_PER_MINUTE: u32 = 240;
+/// How long a share's id may be. The app's are 128 random bits, which is 22 base64url characters.
+const ID_LENGTH: std::ops::RangeInclusive<usize> = 22..=64;
 
 pub struct Shares {
     accounts: Arc<Accounts>,
-    readers: Mutex<guard::RateLimiter>,
+    readers: guard::RateLimiter,
 }
 
 impl Shares {
     pub fn new(accounts: Arc<Accounts>) -> Arc<Self> {
-        Arc::new(Self { accounts, readers: Mutex::new(guard::RateLimiter::new(READS_PER_MINUTE, Instant::now())) })
+        Arc::new(Self { accounts, readers: guard::RateLimiter::new(READS_PER_MINUTE, Instant::now()) })
+    }
+}
+
+/// Where the `Claims` extractor (accounts.rs) finds the accounts behind this router's own state.
+impl HasAccounts for Arc<Shares> {
+    fn accounts(&self) -> &Accounts {
+        &self.accounts
     }
 }
 
 /// A share's id, as a device makes one: 22 to 64 base64url characters.
 fn valid_id(id: &str) -> bool {
-    (22..=64).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-}
-
-/// What a device sends: base64url ciphertext, not empty, under the limit.
-fn valid_blob(blob: &str) -> bool {
-    !blob.is_empty() && blob.len() <= SHARE_LIMIT && blob.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    base64url(id, ID_LENGTH)
 }
 
 #[derive(Deserialize)]
@@ -61,15 +67,12 @@ struct ShareBody {
     blob: String,
 }
 
-async fn put_share(State(shares): State<Arc<Shares>>, headers: HeaderMap, Path(id): Path<String>, Json(body): Json<ShareBody>) -> Response {
-    let who = match shares.accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn put_share(State(shares): State<Arc<Shares>>, Path(id): Path<String>, who: Claims, Json(body): Json<ShareBody>) -> Response {
     if !valid_id(&id) {
         return error(StatusCode::BAD_REQUEST, "That share's id could not be read.");
     }
-    if !valid_blob(&body.blob) {
+    // What a device sends: base64url ciphertext, not empty, under the limit.
+    if !base64url(&body.blob, 1..=SHARE_LIMIT) {
         return error(StatusCode::BAD_REQUEST, "That share is empty or too large.");
     }
     match shares.accounts.store.put_share(who.sub, &id, &body.blob, now_secs(), SHARES_PER_ACCOUNT) {
@@ -80,11 +83,7 @@ async fn put_share(State(shares): State<Arc<Shares>>, headers: HeaderMap, Path(i
     }
 }
 
-async fn delete_share(State(shares): State<Arc<Shares>>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let who = match shares.accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn delete_share(State(shares): State<Arc<Shares>>, Path(id): Path<String>, who: Claims) -> Response {
     if !valid_id(&id) {
         return error(StatusCode::BAD_REQUEST, "That share's id could not be read.");
     }
@@ -93,18 +92,13 @@ async fn delete_share(State(shares): State<Arc<Shares>>, headers: HeaderMap, Pat
     StatusCode::NO_CONTENT.into_response()
 }
 
-async fn list_shares(State(shares): State<Arc<Shares>>, headers: HeaderMap) -> Response {
-    let who = match shares.accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn list_shares(State(shares): State<Arc<Shares>>, who: Claims) -> Response {
     let list: Vec<_> = shares.accounts.store.shares_of(who.sub).into_iter().map(|(id, updated)| json!({ "id": id, "updated": updated })).collect();
     Json(json!({ "shares": list })).into_response()
 }
 
 async fn read_share(State(shares): State<Arc<Shares>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let ip = guard::client_ip(peer.ip(), headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()));
-    if !shares.readers.lock().map(|mut l| l.take(ip, Instant::now())).unwrap_or(false) {
+    if !shares.readers.take(guard::client_ip_of(peer.ip(), &headers), Instant::now()) {
         return error(StatusCode::TOO_MANY_REQUESTS, "Too many reads in a minute. Try again shortly.");
     }
     if !valid_id(&id) {

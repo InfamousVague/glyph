@@ -31,9 +31,11 @@
 use crate::guard;
 use crate::identity::{Claims, Issuer};
 use crate::store::Store;
+use crate::wire::{base64url, error, now_secs};
 use argon2::password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
-use axum::extract::{ConnectInfo, State};
+use axum::extract::{ConnectInfo, FromRequestParts, State};
+use axum::http::request::Parts;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
@@ -69,8 +71,8 @@ pub struct Accounts {
     /// Outstanding device-login challenges: nonce -> (account id, issued at). In memory, as AttackFM keeps them: a
     /// challenge lost to a restart only means the device asks for another.
     challenges: Mutex<HashMap<String, (i64, i64)>>,
-    by_address: Mutex<guard::RateLimiter<IpAddr>>,
-    by_handle: Mutex<guard::RateLimiter<String>>,
+    by_address: guard::RateLimiter<IpAddr>,
+    by_handle: guard::RateLimiter<String>,
 }
 
 impl Accounts {
@@ -91,13 +93,13 @@ impl Accounts {
             store,
             issuer,
             challenges: Mutex::new(HashMap::new()),
-            by_address: Mutex::new(guard::RateLimiter::new(SIGN_IN_PER_ADDRESS, now)),
-            by_handle: Mutex::new(guard::RateLimiter::new(SIGN_IN_PER_HANDLE, now)),
+            by_address: guard::RateLimiter::new(SIGN_IN_PER_ADDRESS, now),
+            by_handle: guard::RateLimiter::new(SIGN_IN_PER_HANDLE, now),
         })
     }
 
-    /// The account a bearer token speaks for, or why not.
-    pub fn caller(&self, headers: &HeaderMap) -> Result<Claims, Response> {
+    /// The account a bearer token speaks for, or why not: what the `Claims` extractor below answers with.
+    fn caller(&self, headers: &HeaderMap) -> Result<Claims, Response> {
         let raw = headers
             .get("authorization")
             .and_then(|v| v.to_str().ok())
@@ -119,10 +121,9 @@ impl Accounts {
 
     /// One sign-in attempt, counted against the address and the handle. Refused with a 429 when either is spent.
     fn admit(&self, peer: IpAddr, headers: &HeaderMap, handle: &str) -> Result<(), Response> {
-        let ip = guard::client_ip(peer, headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()));
         let now = Instant::now();
-        let by_address = self.by_address.lock().map(|mut l| l.take(ip, now)).unwrap_or(false);
-        let by_handle = self.by_handle.lock().map(|mut l| l.take(handle.trim().to_lowercase(), now)).unwrap_or(false);
+        let by_address = self.by_address.take(guard::client_ip_of(peer, headers), now);
+        let by_handle = self.by_handle.take(handle.trim().to_lowercase(), now);
         if by_address && by_handle {
             Ok(())
         } else {
@@ -131,12 +132,38 @@ impl Accounts {
     }
 }
 
-pub fn error(status: StatusCode, message: &str) -> Response {
-    (status, Json(json!({ "error": message }))).into_response()
+/// The signed-in caller, as a handler's argument: `who: Claims`, in place of the four lines that read the bearer header
+/// and handed the refusal back by hand, which seventeen handlers across accounts.rs, sync.rs and shares.rs opened with.
+///
+/// Generic over the router's state so the shares router, whose state is its own (`Arc<Shares>`, which carries a
+/// limiter as well), gets the same extractor by saying where its accounts are (`HasAccounts`, below). The rejection is
+/// `caller`'s own 401 - "Sign in first." with no token, "Your session has ended. Sign in again." with one that is not
+/// current - word for word what the handlers answered before.
+///
+/// ORDER: axum runs the extractors that read a request's parts before the one that reads its body, so a request with
+/// no token is refused with this 401 before its body is looked at, however malformed or large the body is. Each
+/// handler lists `who: Claims` after its `Path` and `Query`, so those are still read first, as they were when the check
+/// was the handler's first line.
+impl<S: HasAccounts + Send + Sync> FromRequestParts<S> for Claims {
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        state.accounts().caller(&parts.headers)
+    }
 }
 
-pub fn now_secs() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+/// A router state the `Claims` extractor can find the accounts in.
+///
+/// A trait of this crate's own rather than axum's `FromRef`, because `FromRef<Arc<Shares>> for Arc<Accounts>` names
+/// no type this crate owns at the top level (`Arc` is std's), and Rust's orphan rule refuses it.
+pub trait HasAccounts {
+    fn accounts(&self) -> &Accounts;
+}
+
+impl HasAccounts for Arc<Accounts> {
+    fn accounts(&self) -> &Accounts {
+        self
+    }
 }
 
 // --- the rules --------------------------------------------------------------------
@@ -155,7 +182,7 @@ fn valid_login(login: &str) -> bool {
 }
 
 fn valid_wrapped(wrapped: &str) -> bool {
-    !wrapped.is_empty() && wrapped.len() <= WRAPPED_LIMIT && wrapped.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    base64url(wrapped, 1..=WRAPPED_LIMIT)
 }
 
 fn hash_login(login: &str) -> Result<String, Response> {
@@ -327,10 +354,9 @@ async fn login_device(State(accounts): State<Arc<Accounts>>, ConnectInfo(peer): 
     }
     let now = now_secs();
     let claimed = accounts.challenges.lock().ok().and_then(|mut c| c.remove(&body.nonce));
-    let Some((account_id, issued)) = claimed.filter(|(_, issued)| now - issued < CHALLENGE_TTL_SECS) else {
+    let Some((account_id, _)) = claimed.filter(|(_, issued)| now - issued < CHALLENGE_TTL_SECS) else {
         return error(StatusCode::UNAUTHORIZED, "That sign-in took too long. Try again.");
     };
-    let _ = issued;
     let verified = accounts.store.account_by_handle(body.handle.trim()).filter(|a| a.id == account_id).filter(|a| {
         accounts
             .store
@@ -373,11 +399,7 @@ async fn login_recovery(State(accounts): State<Arc<Accounts>>, ConnectInfo(peer)
 }
 
 /// `POST v1/refresh`. A fresh token for a live one.
-async fn refresh(State(accounts): State<Arc<Accounts>>, headers: HeaderMap) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn refresh(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
     match accounts.store.account_by_id(who.sub) {
         Some(account) => signed_in(&accounts, account.id, &account.handle, None),
         None => error(StatusCode::UNAUTHORIZED, "That account is gone."),
@@ -393,11 +415,7 @@ struct AddDeviceBody {
 }
 
 /// `POST v1/device`. Another device for the signed-in account, so it can sign in without the password.
-async fn add_device(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Json(body): Json<AddDeviceBody>) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn add_device(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body): Json<AddDeviceBody>) -> Response {
     let key = body.device_public_key.trim();
     if key.is_empty() || key.len() > 64 {
         return error(StatusCode::BAD_REQUEST, "That device key could not be read.");
@@ -410,11 +428,7 @@ async fn add_device(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, J
 }
 
 /// `GET v1/keys`. The account key wrapped under the password, for a signed-in device that needs to unlock it.
-async fn keys(State(accounts): State<Arc<Accounts>>, headers: HeaderMap) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn keys(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
     match accounts.store.account_by_id(who.sub) {
         Some(account) => Json(json!({ "wrapped": account.wrapped })).into_response(),
         None => error(StatusCode::UNAUTHORIZED, "That account is gone."),
@@ -429,11 +443,7 @@ struct PasswordBody {
 }
 
 /// `PUT v1/password`. A new password: set after a recovery code, or changed on a signed-in device.
-async fn password(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Json(body): Json<PasswordBody>) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn password(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body): Json<PasswordBody>) -> Response {
     if !valid_login(&body.login_secret) || !valid_wrapped(&body.wrapped) {
         return error(StatusCode::BAD_REQUEST, "That password could not be read.");
     }
@@ -448,11 +458,8 @@ async fn password(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Jso
 }
 
 /// `GET v1/recovery`. How many unused codes are left, for Settings.
-async fn recovery_left(State(accounts): State<Arc<Accounts>>, headers: HeaderMap) -> Response {
-    match accounts.caller(&headers) {
-        Ok(who) => Json(json!({ "left": accounts.store.recovery_codes_left(who.sub) })).into_response(),
-        Err(refused) => refused,
-    }
+async fn recovery_left(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
+    Json(json!({ "left": accounts.store.recovery_codes_left(who.sub) })).into_response()
 }
 
 #[derive(Deserialize)]
@@ -462,11 +469,7 @@ struct RecoverySheetBody {
 
 /// `POST v1/recovery`. A new sheet in place of the old: the device made the codes, and sends only their login halves
 /// and the key wrapped under each.
-async fn recovery_replace(State(accounts): State<Arc<Accounts>>, headers: HeaderMap, Json(body): Json<RecoverySheetBody>) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn recovery_replace(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body): Json<RecoverySheetBody>) -> Response {
     let codes = match sheet(&body.codes) {
         Ok(codes) => codes,
         Err(refused) => return refused,
@@ -489,11 +492,13 @@ struct DeleteAccountBody {
 /// `DELETE v1/account`. The account and everything it keeps here: its notes, settings, recordings and pictures,
 /// shared links, devices and recovery codes (store.rs `delete_account`). What is on a device stays on the device. The
 /// password check is counted against sign-in's limits, as it is one more way to try a password.
-async fn delete_account(State(accounts): State<Arc<Accounts>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Json(body): Json<DeleteAccountBody>) -> Response {
-    let who = match accounts.caller(&headers) {
-        Ok(who) => who,
-        Err(refused) => return refused,
-    };
+async fn delete_account(
+    State(accounts): State<Arc<Accounts>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    who: Claims,
+    Json(body): Json<DeleteAccountBody>,
+) -> Response {
     let Some(account) = accounts.store.account_by_id(who.sub) else {
         return error(StatusCode::UNAUTHORIZED, "That account is gone.");
     };
