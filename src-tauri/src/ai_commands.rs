@@ -434,9 +434,12 @@ mod tests {
 
     #[cfg(not(target_os = "ios"))]
     #[test]
-    fn a_formatting_run_never_takes_a_grammar_from_the_page() {
+    fn a_pages_grammar_is_dropped_on_reading_and_the_mapping_never_adds_one() {
+        // `GenerateRequest` has no `grammar` field and does not deny unknown
+        // ones, so a page that sends one is still read - without it - and the
+        // mapping to the engine's request sets none of its own.
         let json = r#"{"id":"r1","model":"qwen3.5-4b","system":"Format.","context":"c","prompt":"hi","maxTokens":200,"think":true,"thinkBudget":64,"grammar":"root ::= \"x\""}"#;
-        let request = Request::from(serde_json::from_str::<GenerateRequest>(json).unwrap());
+        let request = Request::from(serde_json::from_str::<GenerateRequest>(json).expect("an extra key is not an error"));
         assert_eq!(request.grammar, None);
         assert_eq!((request.id.as_str(), request.context.as_deref(), request.max_tokens, request.think_budget), ("r1", Some("c"), 200, 64));
         assert!(request.think && (request.temperature - 0.3).abs() < f32::EPSILON);

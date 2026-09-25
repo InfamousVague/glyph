@@ -249,6 +249,22 @@ mod tests {
     }
 
     #[test]
+    fn a_download_of_the_very_build_the_apk_carries_is_dropped_too() {
+        // The common case: a new APK ships the frontend already downloaded over the air.
+        let (root, mut stored) = two_bundles();
+        assert_eq!(chosen(claim(&root, &mut stored, Some(&manifest(NEWER)))), None, "the APK's copy is served, not the download");
+        assert_eq!((stored.active.as_deref(), stored.pending.as_deref()), (None, None));
+        assert!(!root.join(NEWER).exists(), "and the download is removed");
+    }
+
+    #[test]
+    fn a_download_newer_than_the_apks_own_frontend_is_still_run() {
+        let (root, mut stored) = two_bundles();
+        assert_eq!(chosen(claim(&root, &mut stored, Some(&manifest(OLDER)))).as_deref(), Some(NEWER));
+        assert_eq!(read_installed(&root).as_deref(), Some(OLDER), "installed.json follows the APK even so");
+    }
+
+    #[test]
     fn a_bundle_needing_a_newer_binary_is_dropped_for_the_one_before_it() {
         let root = temp("native");
         bundle(&root, &manifest(OLDER));

@@ -407,7 +407,15 @@ mod tests {
         std::fs::write(phone.file("recordings/gone.wav"), b"bytes").unwrap();
         assert_eq!(phone.delete("gone"), Ok(false), "a stale list's second tap is not an error");
         assert!(!phone.file("recordings/gone.wav").exists(), "a recording no note can play is not left behind");
-        assert_eq!(phone.delete("../escape"), Ok(false), "an id that cannot name a file removes none");
+    }
+
+    #[test]
+    fn an_id_that_cannot_name_a_file_removes_none() {
+        let phone = Phone::new();
+        // Where `recordings/../escape.wav` would land if the id were joined as it came.
+        std::fs::write(phone.file("escape.wav"), b"bytes").unwrap();
+        assert_eq!(phone.delete("../escape"), Ok(false));
+        assert!(phone.file("escape.wav").exists(), "nothing outside the recordings folder is touched");
     }
 
     #[test]
@@ -443,6 +451,16 @@ mod tests {
         assert_eq!(refused(request("replace", Some((1, "x")))), "only append and create command mutations are supported");
         assert_eq!(refused(request("create", Some((1, "x")))), "a create command cannot replace an existing note");
         assert_eq!(refused(request("append", None)), "an append command needs the previewed note revision");
+        // Half a preview is no preview, either way round.
+        let half = |revision: Option<i64>, body: Option<&str>, kind: &str| ApplyCommandRequest {
+            before_revision: revision,
+            before_body: body.map(str::to_string),
+            ..request(kind, None)
+        };
+        assert_eq!(refused(half(Some(1), None, "append")), "an append command needs the previewed note revision");
+        assert_eq!(refused(half(None, Some("# To-Do\n"), "append")), "an append command needs the previewed note revision");
+        assert_eq!(refused(half(Some(1), None, "create")), "a create command cannot replace an existing note");
+        assert_eq!(refused(half(None, Some("# To-Do\n"), "create")), "a create command cannot replace an existing note");
     }
 
     #[test]

@@ -112,9 +112,14 @@ mod tests {
     }
 
     #[test]
-    fn the_prefix_is_the_platforms_rule_for_a_custom_scheme() {
-        let base = scheme_base();
-        assert!(base == "http://ota.localhost/" || base == "ota://localhost/", "{base}");
-        assert_eq!(base == "http://ota.localhost/", cfg!(any(target_os = "android", target_os = "windows")));
+    fn the_prefix_is_the_one_this_platforms_webview_reaches_a_custom_scheme_by() {
+        // The bundle's base URL as the loader is handed it (the module header's
+        // examples): an http host on Android's and Windows' webviews, the
+        // scheme itself on the rest.
+        let expected = match std::env::consts::OS {
+            "android" | "windows" => "http://ota.localhost/",
+            _ => "ota://localhost/",
+        };
+        assert_eq!(scheme_base(), expected);
     }
 }
