@@ -118,6 +118,14 @@ export function afterMove(groups: TabGroups, order: readonly string[], noteId: s
   return own ? leaveGroup(groups, noteId) : groups;
 }
 
+/**
+ * Whether two sets of groups say the same thing, compared as they are kept (JSON): groups read back from another
+ * device, or a prune that found nothing to take out, are not a change worth a render or a write.
+ */
+export function sameGroups(a: TabGroups, b: TabGroups): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 /** No empty group, and no tab pointing at a group that has gone. */
 function tidy(groups: TabGroups): TabGroups {
   const known = new Set(groups.list.map((g) => g.id));
