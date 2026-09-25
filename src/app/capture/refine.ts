@@ -183,6 +183,13 @@ async function ensureRefineModel(): Promise<boolean> {
   }
 }
 
+/**
+ * The first job in the queue, if the phone can take it now. What comes next is decided by how this one went: the next
+ * job half a second after one that finished or was given up on, and this one again after a wait when the model was
+ * not there or the pass failed. The wait used to be set and then, in the same breath, replaced by the half-second
+ * kick meant for the next job, so a phone without the larger model - Local only on, say - asked for it twice a second
+ * for as long as the app stayed open.
+ */
 async function runNext(): Promise<void> {
   if (running || held) return;
   const queue = readQueue();
@@ -190,9 +197,10 @@ async function runNext(): Promise<void> {
   if (!job) return;
   if (!(await canRefine())) return;
   running = true;
+  let next = 500;
   try {
     if (!(await ensureRefineModel())) {
-      kick(RETRY_MS * 3);
+      next = RETRY_MS * 3;
       return;
     }
     const refined = await invoke<Segment[]>('capture_refine', { id: job.id, fromMs: job.fromMs, promptTail: job.promptTail });
@@ -202,18 +210,18 @@ async function runNext(): Promise<void> {
   } catch (error) {
     const message = failureText(error);
     if (/busy|cancelled/i.test(message)) {
-      kick(RETRY_MS);
+      next = RETRY_MS;
     } else {
       console.warn('[glyph] the better words did not come:', message);
       if (job.tries + 1 >= MAX_TRIES) finish(job);
       else {
         writeQueue(readQueue().map((j) => (j.id === job.id && j.fromMs === job.fromMs ? { ...j, tries: j.tries + 1 } : j)));
-        kick(RETRY_MS);
+        next = RETRY_MS;
       }
     }
   } finally {
     running = false;
-    if (readQueue().length) kick(500);
+    if (readQueue().length) kick(next);
   }
 }
 
