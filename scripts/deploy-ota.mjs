@@ -81,11 +81,17 @@
  * few ssh sessions as possible.
  */
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { homedir } from 'node:os';
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { deployFlags } from './deployOta/flags.mjs';
+import { boxSshOptions, openBox } from './lib/box.mjs';
+import { loadEnv } from './lib/env.mjs';
+import { sha256Hex } from './lib/hash.mjs';
+import { rustU32Const } from './lib/otaRs.mjs';
+import { ROOT } from './lib/paths.mjs';
+import { run } from './lib/run.mjs';
+import { dim, fail, ok, step } from './lib/say.mjs';
+import { isNewerVersion } from './lib/version.mjs';
 import {
   CONTEXT,
   KEY_PATH,
@@ -98,7 +104,6 @@ import {
   verifyBytes,
 } from './ota-sign.mjs';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const DIST = join(ROOT, 'dist');
 const REMOTE = '/opt/attackfm-site/glyph';
 const URL_ = 'https://attack.fm/glyph/';
@@ -121,133 +126,20 @@ const MAC_BUNDLE = join(ROOT, 'src-tauri/target', MAC_TARGET, 'release/bundle');
 const MAC_TEAM = 'F6ZAL7ANAD';
 const MAC_IDENTITY = process.env.GLYPH_MAC_IDENTITY ?? `Developer ID Application: Matt Wisniewski (${MAC_TEAM})`;
 
-const withApk = process.argv.includes('--apk');
-const withDesktop = process.argv.includes('--desktop');
-/** Claude's MCP server as one file (scripts/build-mcp.mjs), published at /glyph/mcp/glyph-mcp.mjs beside the app. */
-const withMcp = process.argv.includes('--mcp');
+// The flags, and the checks on --release and --notes, are read by deployOta/flags.mjs.
+const { withApk, withDesktop, withMcp, sameVersion, isPublic, keepConnection, skipTests, askedRelease, notes } = deployFlags(process.argv);
 const MCP_FILE = join(ROOT, 'mcp/dist/glyph-mcp.mjs');
-const sameVersion = process.argv.includes('--same-version');
-const isPublic = process.argv.includes('--public');
-// Leave the connection open (it closes itself two minutes after its last use)
-// so a server deploy straight after this one spends no second login.
-const keepConnection = process.argv.includes('--keep-connection');
-// Ship without running the tests first: only for a release that cannot wait. The
-// Test results page in that build then says its report is from other code.
-const skipTests = process.argv.includes('--skip-tests');
-// The release number by hand, for the one case the live manifest cannot answer: after a rollback it is an older
-// manifest, so the next release must go past the HIGHEST ever published, not past what is live.
-const releaseFlag = process.argv.indexOf('--release');
-const askedRelease = releaseFlag >= 0 ? Number(process.argv[releaseFlag + 1]) : null;
-if (releaseFlag >= 0 && (!Number.isInteger(askedRelease) || askedRelease < 1)) fail('--release needs a whole number, the release this is on the current version.');
-const notesFlag = process.argv.indexOf('--notes');
-const notes = notesFlag >= 0 ? String(process.argv[notesFlag + 1] ?? '').trim() : '';
-if (notesFlag >= 0 && (!notes || notes.startsWith('--'))) fail('--notes needs the text of what changed.');
-if (notes.length > 2000) fail('--notes is limited to 2000 characters; the app refuses a longer manifest.');
 const SERVICES_FILE = join(ROOT, 'src-tauri/ota-services.json');
 
-const c = {
-  bold: (s) => `\x1b[1m${s}\x1b[0m`,
-  dim: (s) => `\x1b[2m${s}\x1b[0m`,
-};
-const step = (s) => console.log(`\n\x1b[36m>\x1b[0m ${c.bold(s)}`);
-const ok = (s) => console.log(`\x1b[32mok\x1b[0m ${s}`);
-const fail = (message) => {
-  console.error(`\x1b[31mx\x1b[0m ${message}`);
-  process.exit(1);
-};
-
-function loadEnv() {
-  const path = join(ROOT, '.env');
-  if (!existsSync(path)) {
-    fail(`No .env at ${path} (needs AFM_DEPLOY_HOST / AFM_DEPLOY_USER / AFM_DEPLOY_PASS).`);
-  }
-  const env = {};
-  for (const line of readFileSync(path, 'utf8').split('\n')) {
-    const match = /^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-    if (match) env[match[1]] = match[2].trim().replace(/^['"]|['"]$/g, '');
-  }
-  for (const key of ['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS']) {
-    if (!env[key]) fail(`.env is missing ${key}.`);
-  }
-  return env;
-}
-
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { stdio: 'inherit', ...options });
-  if (result.status !== 0) fail(`${command} failed (exit ${result.status ?? 'signal'}).`);
-}
-
 /*
- * ONE LOGIN PER DEPLOY. The box locks an account out after a handful of logins
- * in a short window, and the lockout answers "Permission denied" with the right
- * password - on 2026-09-12 a deploy authenticated its backup and its web upload
- * and was refused on the third login, the APK. So every ssh and rsync here
- * shares one multiplexed connection: the first authenticates (sshpass supplies
- * the password once), the rest ride its control socket with no login at all,
- * and the master closes itself a minute after the last use. ~/.ssh because a
- * control socket path must be short (%C is a hash) and private.
+ * ONE LOGIN PER DEPLOY: every ssh and rsync below rides one multiplexed
+ * connection, opened once by box.logIn(). lib/box.mjs has the day the box's
+ * lockout taught this, and why the master is opened on its own.
  */
-const SSH_OPTS = [
-  '-o', 'StrictHostKeyChecking=no',
-  '-o', 'ControlMaster=auto',
-  '-o', `ControlPath=${join(homedir(), '.ssh', 'glyph-deploy-%C')}`,
-  '-o', 'ControlPersist=120',
-  // A refused login costs one strike, not ssh's default three prompts' worth.
-  '-o', 'NumberOfPasswordPrompts=1',
-];
-
-/*
- * The master is opened on its own, before anything else, with every stdio
- * ignored and `-fN` (authenticate, then background with no command). Letting
- * the first real command create it instead does not work here: that master
- * inherits the command's stdout pipe, spawnSync waits for the pipe to close,
- * the pipe closes only when the master exits - and the next command, finding
- * no master, logs in again.
- */
-function openMaster(env) {
-  // A master left open by a deploy a moment ago (deploy-server.mjs rides the
-  // same socket) is a login already spent: use it.
-  if (spawnSync('ssh', [...SSH_OPTS, '-O', 'check', `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}`], { stdio: 'ignore' }).status === 0) return;
-  const result = spawnSync('sshpass', ['-e', 'ssh', ...SSH_OPTS, '-fN', `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}`], {
-    stdio: 'ignore',
-    env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS },
-  });
-  if (result.status !== 0) {
-    fail('Could not log in to the box. If the password is right, it is the lockout: wait ten minutes, and do not retry sooner.');
-  }
-}
-
-function closeMaster(env) {
-  spawnSync('ssh', [...SSH_OPTS, '-O', 'exit', `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}`], { stdio: 'ignore' });
-}
-const RSYNC_SSH = `ssh ${SSH_OPTS.map((o) => (o.includes(' ') ? `'${o}'` : o)).join(' ')}`;
-
-function ssh(env, script, { capture = false } = {}) {
-  const result = spawnSync(
-    'sshpass',
-    ['-e', 'ssh', ...SSH_OPTS, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}`, script],
-    {
-      stdio: capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
-      env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS },
-      encoding: 'utf8',
-    },
-  );
-  if (result.status !== 0) fail('Remote command failed.');
-  return capture ? String(result.stdout ?? '').trim() : '';
-}
-
 const curl = (args) => String(spawnSync('curl', args, { encoding: 'utf8' }).stdout ?? '').trim();
 
-/** Dotted versions compared numerically. The app compares the same way (core/ota.ts). */
-function isNewer(offered, installed) {
-  const parse = (v) => String(v).split(/[.+-]/).slice(0, 3).map((p) => Number.parseInt(p, 10) || 0);
-  const a = parse(offered);
-  const b = parse(installed);
-  for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] > b[i];
-  return false;
-}
-
-const env = loadEnv();
+const env = loadEnv(['AFM_DEPLOY_HOST', 'AFM_DEPLOY_USER', 'AFM_DEPLOY_PASS']);
+const box = openBox(env, boxSshOptions());
 if (spawnSync('sshpass', ['-V'], { stdio: 'ignore' }).status !== 0) {
   fail('sshpass is not installed (brew install sshpass).');
 }
@@ -278,7 +170,7 @@ if (!skipTests) {
     fail('A test failed or a suite did not run (the lines above say which). Fix it and release again, or pass --skip-tests to ship anyway.');
   }
 } else {
-  console.log(c.dim('  --skip-tests: the Test results page in this build will say its report is from other code.'));
+  console.log(dim('  --skip-tests: the Test results page in this build will say its report is from other code.'));
 }
 
 // ---- number this release -----------------------------------------------------
@@ -318,7 +210,7 @@ ok(`release ${base}-${release}`);
 
 // ---- build ------------------------------------------------------------------
 
-step(`Building the web app${isPublic ? c.dim(' (public: no formatting token)') : ''}`);
+step(`Building the web app${isPublic ? dim(' (public: no formatting token)') : ''}`);
 // A real environment variable beats .env in Vite, so an empty one keeps the
 // token out of a public build; annotate.ts then formats locally.
 run('npm', ['run', 'build'], {
@@ -386,15 +278,19 @@ if (withApk) {
   }
 
   const meta = JSON.parse(readFileSync(APK_META, 'utf8')).elements?.[0];
-  const ota = readFileSync(join(ROOT, 'src-tauri/src/ota.rs'), 'utf8');
-  const native = Number(/pub const NATIVE_GENERATION: u32 = (\d+);/.exec(ota)?.[1]);
+  let native = 0;
+  try {
+    native = rustU32Const('NATIVE_GENERATION');
+  } catch {
+    // Reported on the next line, beside the APK's version: either one missing stops the deploy the same way.
+  }
   if (!meta?.versionName || !meta?.versionCode || !native) fail('Could not read the APK version or the native generation.');
   const bytes = readFileSync(APK);
   apkInfo = {
     version: meta.versionName,
     versionCode: meta.versionCode,
     native,
-    sha256: createHash('sha256').update(bytes).digest('hex'),
+    sha256: sha256Hex(bytes),
     bytes: bytes.length,
     url: 'glyph.apk',
     build: manifest.build,
@@ -406,7 +302,7 @@ if (withApk) {
   const live = curl(['-s', '-m', '20', `${URL_}apk.json`]);
   try {
     const current = JSON.parse(live);
-    if (!isNewer(apkInfo.version, current.version) && !sameVersion) {
+    if (!isNewerVersion(apkInfo.version, current.version) && !sameVersion) {
       fail(`The live APK is ${current.version} and this one is ${apkInfo.version}. Bump the version in tauri.conf.json, or pass --same-version.`);
     }
   } catch {
@@ -485,7 +381,7 @@ if (withDesktop) {
   desktopInfo = {
     version: plist.CFBundleShortVersionString,
     build: manifest.build,
-    sha256: createHash('sha256').update(dmgBytes).digest('hex'),
+    sha256: sha256Hex(dmgBytes),
     bytes: dmgBytes.length,
     url: 'glyph.dmg',
     arch: archs,
@@ -504,7 +400,7 @@ if (withMcp) {
   run('node', [join(ROOT, 'scripts/build-mcp.mjs')]);
   if (!existsSync(MCP_FILE)) fail(`The MCP build left nothing at ${MCP_FILE}.`);
   const mcpBytes = readFileSync(MCP_FILE);
-  mcpInfo = { bytes: mcpBytes.length, sha256: createHash('sha256').update(mcpBytes).digest('hex') };
+  mcpInfo = { bytes: mcpBytes.length, sha256: sha256Hex(mcpBytes) };
   ok(`MCP server, ${(mcpInfo.bytes / 1e6).toFixed(1)} MB`);
 }
 
@@ -528,7 +424,7 @@ const releaseList = (json, what) => {
     const list = JSON.parse(json);
     return Array.isArray(list) ? list.filter((entry) => entry && typeof entry === 'object' && entry.build) : [];
   } catch {
-    if (what) console.log(c.dim(`  ${what} could not be read; carrying on without it.`));
+    if (what) console.log(dim(`  ${what} could not be read; carrying on without it.`));
     return [];
   }
 };
@@ -570,14 +466,13 @@ ok(`signed ota.json${withApk ? ' and apk.json' : ''}; sources ${sources.join(', 
 // ---- publish ----------------------------------------------------------------
 
 step('Logging in to the box');
-openMaster(env);
+box.logIn();
 
 step('Backing up what is on the box');
 // Backup and staging in one session, to spend as few connections as possible.
 // The stamp comes off the REMOTE clock: this may run from another zone.
 const STAGE = `/home/${env.AFM_DEPLOY_USER}/.glyph-stage`;
-const stamp = ssh(
-  env,
+const stamp = box.ssh(
   `set -e
    stamp=$(date -u +%Y%m%d-%H%M%S)
    if [ -d ${REMOTE} ]; then
@@ -600,43 +495,26 @@ const stamp = ssh(
 step('Uploading');
 // rsync writes into a staging path the deploy user owns, then the move is done
 // with sudo, because /opt is not writable by that account.
-run(
-  'sshpass',
-  ['-e', 'rsync', '-az', '--delete', '-e', RSYNC_SSH, `${DIST}/`, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}:${STAGE}/`],
-  { env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS } },
-);
+box.rsync(['-az', '--delete'], `${DIST}/`, `${STAGE}/`);
 
 if (withApk) {
-  step(`Uploading the APK ${c.dim(`(${(apkInfo.bytes / 1e6).toFixed(0)} MB, this is the slow part)`)}`);
-  run(
-    'sshpass',
-    ['-e', 'rsync', '-z', '--progress', '-e', RSYNC_SSH, APK, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}:${STAGE}/glyph.apk`],
-    { env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS } },
-  );
+  step(`Uploading the APK ${dim(`(${(apkInfo.bytes / 1e6).toFixed(0)} MB, this is the slow part)`)}`);
+  box.rsync(['-z', '--progress'], APK, `${STAGE}/glyph.apk`);
 }
 
 if (withDesktop) {
   // Not compressed on the way: a DMG is already compressed, and -z would only spend time.
-  step(`Uploading the Mac app ${c.dim(`(${(desktopInfo.bytes / 1e6).toFixed(0)} MB)`)}`);
-  run(
-    'sshpass',
-    ['-e', 'rsync', '--progress', '-e', RSYNC_SSH, desktopDmg, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}:${STAGE}/glyph.dmg`],
-    { env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS } },
-  );
+  step(`Uploading the Mac app ${dim(`(${(desktopInfo.bytes / 1e6).toFixed(0)} MB)`)}`);
+  box.rsync(['--progress'], desktopDmg, `${STAGE}/glyph.dmg`);
 }
 
 if (withMcp) {
   step('Uploading the MCP server');
-  run(
-    'sshpass',
-    ['-e', 'rsync', '-z', '-e', RSYNC_SSH, MCP_FILE, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}:${STAGE}/glyph-mcp.mjs`],
-    { env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS } },
-  );
+  box.rsync(['-z'], MCP_FILE, `${STAGE}/glyph-mcp.mjs`);
 }
 
 step('Publishing');
-ssh(
-  env,
+box.ssh(
   `set -e
    sudo mkdir -p ${REMOTE}
    # P protects from --delete. models/ is never staged, and glyph.apk is only
@@ -684,7 +562,7 @@ ssh(
    rm -rf ${STAGE}`,
 );
 
-if (!keepConnection) closeMaster(env);
+if (!keepConnection) box.close();
 
 // ---- prove it ---------------------------------------------------------------
 
@@ -714,7 +592,7 @@ try {
 if (liveManifest.build !== manifest.build) fail(`ota.json is build ${liveManifest.build}, expected ${manifest.build}.`);
 const entryFile = manifest.files.find((f) => f.path === manifest.entry);
 const servedEntry = fetchBytes(`${URL_}${manifest.entry}`);
-if (createHash('sha256').update(servedEntry).digest('hex') !== entryFile.sha256) {
+if (sha256Hex(servedEntry) !== entryFile.sha256) {
   fail(`the served ${manifest.entry} does not match its checksum in ota.json; installed apps would refuse it.`);
 }
 ok(`OTA manifest live and verified: build ${manifest.build}`);
@@ -747,7 +625,7 @@ if (withDesktop) {
   if (liveDesktop.sha256 !== desktopInfo.sha256) fail('desktop.json on the box does not describe the Mac app just built.');
   // The whole download, hashed, rather than its length: it is small enough, and it is the one file a person runs.
   const servedDmg = fetchBytes(`${URL_}${desktopInfo.url}`);
-  const servedHash = createHash('sha256').update(servedDmg).digest('hex');
+  const servedHash = sha256Hex(servedDmg);
   if (servedHash !== desktopInfo.sha256) {
     fail(`${desktopInfo.url} is served as ${servedDmg.length} bytes hashing to ${servedHash}, not the DMG just built.`);
   }
@@ -756,12 +634,12 @@ if (withDesktop) {
 
 if (withMcp) {
   const servedMcp = fetchBytes(`${URL_}mcp/glyph-mcp.mjs`);
-  const servedHash = createHash('sha256').update(servedMcp).digest('hex');
+  const servedHash = sha256Hex(servedMcp);
   if (servedHash !== mcpInfo.sha256) fail(`mcp/glyph-mcp.mjs is served as ${servedMcp.length} bytes hashing to ${servedHash}, not the file just built.`);
   ok(`MCP server live: ${mcpInfo.bytes} bytes, SHA-256 matches`);
 }
 
-ok(`Published to ${URL_} ${c.dim(`serving ${built}`)}`);
+ok(`Published to ${URL_} ${dim(`serving ${built}`)}`);
 console.log('');
 console.log(`  open on the phone   ${URL_}install.html`);
 console.log(`  install the app     ${URL_}glyph.apk`);
@@ -779,5 +657,5 @@ console.log('');
 // an older build than it has. To undo a bad over-the-air release, publish a
 // fixed one. (A release that cannot boot at all undoes itself - the app
 // quarantines it and falls back; see src-tauri/src/ota.rs.)
-console.log(c.dim(`  rollback: sudo rsync -a --delete --filter 'P /models/' ${REMOTE}.bak-${stamp}/ ${REMOTE}/`));
-console.log(c.dim(`  after a rollback the live manifest is older, so number the next release by hand: --release ${release + 1} or higher`));
+console.log(dim(`  rollback: sudo rsync -a --delete --filter 'P /models/' ${REMOTE}.bak-${stamp}/ ${REMOTE}/`));
+console.log(dim(`  after a rollback the live manifest is older, so number the next release by hand: --release ${release + 1} or higher`));
