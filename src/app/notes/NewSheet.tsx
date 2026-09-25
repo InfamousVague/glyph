@@ -8,9 +8,10 @@ import { useSheetDrag } from '../editor/sheetDrag.ts';
 
 /**
  * What the + makes (Matt: "make the plus button ask if they want to create a canvas, note or memo"; memos were then
- * taken out of the app - "we're going to focus on notes and canvases"): a small sheet with the two, in the note's
- * settings' own look, from every + there is - the home dock's, the tab strip's and the sidebar's - so a + means the
- * same thing wherever it is. A tap on the scrim, the back gesture or a drag down closes it and makes nothing.
+ * taken out of the app - "we're going to focus on notes and canvases"): a small sheet offering a note, a canvas or a
+ * book (docs/BOOKS.md), in the note's settings' own look, from every + there is - the home dock's, the tab strip's and
+ * the sidebar's - so a + means the same thing wherever it is. A tap on the scrim, the back gesture or a drag down
+ * closes it and makes nothing.
  *
  * And a copy of something shared with you (share/share.ts, docs/SHARING.md): "From a shared link" takes a link to a
  * shared note or book and saves it into this library as your own copy.

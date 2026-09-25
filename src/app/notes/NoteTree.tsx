@@ -23,8 +23,8 @@ import styles from './NoteTree.module.css';
  * than a fill, so what is drawn inside it sits on the same paper as everywhere else.
  *
  * `onClose` makes it the pop-up: a close button joins the tools. `notices` is what the desktop sidebar must still
- * carry now that it is no longer the home list - an update waiting, a memo waiting - since there is no other screen
- * on a desktop to show them. They sit at the bottom, over the foot.
+ * carry now that it is no longer the home list - an update waiting - since there is no other screen on a desktop to
+ * show it. It sits at the bottom, over the foot.
  */
 
 export interface NoteTreeProps {

@@ -324,8 +324,7 @@
   color: var(--glacier-text-muted);
 }
 
-/* The foot: Speak, and Settings at the far end. */
-/* An update or a memo waiting, over the foot, padded clear of the notes, the edges and the rule under it. */
+/* An update waiting, over the foot, padded clear of the notes, the edges and the rule under it. */
 .notices {
   flex: none;
   display: flex;
@@ -344,6 +343,7 @@
   margin: 0;
 }
 
+/* The foot: Speak, and Settings at the far end. */
 .foot {
   flex: none;
   display: flex;

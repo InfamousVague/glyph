@@ -10,9 +10,9 @@
 }
 
 /*
- * One scroller for the title and the notes together, so the big title leaves
- * with the first flick. The end padding is the dock's height plus its fade,
- * so the last note can be scrolled clear of Write and Speak.
+ * One scroller for the whole page, under the top bar. The end padding is the
+ * dock's height plus its fade, so the last card can be scrolled clear of the
+ * dock's buttons.
  */
 .scroll {
   block-size: 100%;
@@ -91,9 +91,10 @@
 }
 
 /*
- * The heading over a group of notes - Pinned, then Others. Spaced capitals a
- * step below the titles, in the second ink, with the pin on the Pinned one:
- * the one mark for the whole group, so no row needs its own.
+ * The heading over a group on the page - Pinned, Library, Recent, To do.
+ * Spaced capitals a step below the titles, in the second ink, with the pin on
+ * the Pinned one and the book on the Library: the one mark for the whole
+ * group, so no card needs its own.
  */
 .group {
   display: flex;
