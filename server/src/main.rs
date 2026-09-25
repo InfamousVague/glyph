@@ -6,7 +6,7 @@
 //!   /glyph/api/v1/live       live sync's relay, a WebSocket passing sealed edits, see `live.rs`
 //!   /glyph/api/notion/*      Notion sign-in, see `notion.rs`
 //!   /glyph/api/mcp/*         Claude's hosted MCP server, running beside this one, see `mcp_proxy.rs`
-//!   GET  /glyph/api/health   the service is up, and whether the format route's model is
+//!   GET  /glyph/api/health   the service is up, and whether the format route's model is, see `health` below
 //!   POST /glyph/api/format   annotations for a transcript, which nothing in the app asks for any more, see `format.rs`
 //!
 //! This file owns startup and the wiring every route shares: the environment, the router the routes are merged into,
@@ -14,10 +14,12 @@
 //! not there. `wire.rs` owns the error shape and the base64url check every route uses, `guard.rs` client addresses and
 //! rate limits, `identity.rs` the session tokens, and `store.rs` the one SQLite file everything is kept in.
 //!
-//! THE ENVIRONMENT, all of it, as glyph-api.service sets it on the box: GLYPH_API_BIND (where to listen, loopback);
-//! GLYPH_API_DATA (where accounts are kept - unset, the service runs without accounts, sync, shares or the relay);
-//! GLYPH_API_TOKEN, GLYPH_API_MODEL and OLLAMA_URL (the format route's token and model, `format.rs`); GLYPH_MCP_UPSTREAM
-//! (`mcp_proxy.rs`); and NOTION_CLIENT_ID, NOTION_CLIENT_SECRET and NOTION_REDIRECT_URI (`notion.rs`).
+//! THE ENVIRONMENT, every variable the binary reads: GLYPH_API_BIND (where to listen, loopback); GLYPH_API_DATA (where
+//! accounts are kept - unset, the service runs without accounts, sync, shares or the relay); GLYPH_API_TOKEN,
+//! GLYPH_API_MODEL and OLLAMA_URL (the format route's token and model, `format.rs`); GLYPH_MCP_UPSTREAM
+//! (`mcp_proxy.rs`); and NOTION_CLIENT_ID, NOTION_CLIENT_SECRET and NOTION_REDIRECT_URI (`notion.rs`). On the box,
+//! glyph-api.service sets GLYPH_API_BIND, OLLAMA_URL and GLYPH_API_DATA, and its env file the token and Notion's client
+//! id and secret; GLYPH_API_MODEL, GLYPH_MCP_UPSTREAM and NOTION_REDIRECT_URI are left at their defaults.
 //!
 //! Caddy routes `/glyph/api/*` here; the prefix is not stripped, so the routes carry it.
 
@@ -41,9 +43,12 @@ mod shares_tests;
 #[cfg(test)]
 mod live_tests;
 
+use axum::extract::State;
 use axum::http::{header, HeaderValue, Method, StatusCode};
 use axum::response::Response;
-use axum::Router;
+use axum::routing::get;
+use axum::{Json, Router};
+use serde_json::json;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -83,6 +88,13 @@ fn allowed_origin(origin: &[u8]) -> bool {
     })
 }
 
+/// `GET /glyph/api/health`, with no token: the service is up, and whether the format route's model is. The deploy polls
+/// it on loopback before it keeps a new binary, and reads it from outside after every ship, so it is the service's
+/// answer rather than the format route's, and outlives that route; only the model's two fields are the route's.
+async fn health(State(app): State<Arc<format::App>>) -> Json<serde_json::Value> {
+    Json(json!({ "ok": true, "model": app.ollama().model(), "ollama": app.ollama().reachable().await }))
+}
+
 async fn not_found() -> Response {
     error(StatusCode::NOT_FOUND, "no such route")
 }
@@ -91,7 +103,7 @@ async fn method_not_allowed() -> Response {
     error(StatusCode::METHOD_NOT_ALLOWED, "method not allowed")
 }
 
-/// Every route, merged: the format route and health, Notion, then - when the service has somewhere to keep them -
+/// Every route, merged: health and the format route, Notion, then - when the service has somewhere to keep them -
 /// accounts, sync, shares and the relay, then the MCP proxy, all inside one CORS layer.
 fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> Router {
     // The layer wraps every route, so a preflight is answered before method
@@ -107,7 +119,11 @@ fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> R
         .expose_headers([header::HeaderName::from_static("x-glyph-rev")])
         .max_age(Duration::from_secs(600));
     let notion = notion::Notion::from_env();
-    let mut routes = format::router(app).merge(notion::router(notion));
+    let mut routes = Router::new()
+        .route("/glyph/api/health", get(health))
+        .with_state(app.clone())
+        .merge(format::router(app))
+        .merge(notion::router(notion));
     // Accounts and sync, when the service has somewhere to keep them.
     if let Some(accounts) = accounts {
         routes = routes
@@ -258,6 +274,14 @@ mod tests {
         request.headers_mut().insert(header::ORIGIN, HeaderValue::from_static("http://localhost:5255"));
         let response = service().oneshot(request).await.unwrap();
         assert_eq!(response.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN], "http://localhost:5255");
+    }
+
+    #[tokio::test]
+    async fn health_needs_no_token_and_reports_ollama_honestly() {
+        let response = service().oneshot(Request::get("/glyph/api/health").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(), json!({ "ok": true, "model": "test-model", "ollama": false }));
     }
 
     #[tokio::test]

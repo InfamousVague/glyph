@@ -9,15 +9,20 @@
 //! Nothing here returns prose, and nothing here can change a word of the note.
 //!
 //!   POST /glyph/api/format   { "text" }  ->  annotations, model, elapsedMs
-//!   GET  /glyph/api/health                ->  { ok, model, ollama }
 //!
 //! Since 0.6.0 the phone formats with its spoken cues and its own rules only, and nothing in the app calls the route
 //! (docs/DESIGN.md §13). It still runs, behind its token, and the deploy still checks it answers
-//! (scripts/deploy-server.mjs), so it is kept whole: this file and the folder beside it, which nothing else in the
-//! service depends on. `model.rs` owns the Ollama call, `prompt.rs` what the model is asked, `shape.rs` the verbatim
-//! rule, `chunks.rs` how a long note is cut, `breaker.rs` the rest after an overrun, and `bench.rs` measures the same
-//! pipeline from a shell on the box. Taking the route out is this module, its line in main.rs's router, the token
-//! gate in `main`, and the deploy's two checks.
+//! (scripts/deploy-server.mjs), so it is kept whole: this file and the folder beside it. `model.rs` owns the Ollama
+//! call, `prompt.rs` what the model is asked, `shape.rs` the verbatim rule, `chunks.rs` how a long note is cut,
+//! `breaker.rs` the rest after an overrun, and `bench.rs` measures the same pipeline from a shell on the box.
+//!
+//! TAKING IT OUT is this module and its folder, its merge in main.rs's `router`, and the token gate and the model's
+//! two variables in `main` - and four things beyond them that lean on it:
+//! - `health` in main.rs reports this route's model. It is the service's own answer, which the deploy polls on
+//!   loopback before it keeps a new binary, so it stays, without its `model` and `ollama` fields.
+//! - main.rs's CORS tests use this route as the one with a token that needs no account; they move to a v1 route.
+//! - test_support's `routes` builds this route's state, and its `TOKEN` is this route's token.
+//! - scripts/deploy-server.mjs fails a deploy when `health` says `ollama` is false, and checks this route's 401.
 //!
 //! A GUEST ON SOMEBODY ELSE'S BOX. The Ollama this calls is AttackFM's, and
 //! AttackFM's enrichment, DJ and discovery loops use it all day - through a
@@ -51,11 +56,10 @@ use axum::body::{to_bytes, Body};
 use axum::extract::{ConnectInfo, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::post;
 use axum::{Json, Router};
 use breaker::Breaker;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -129,9 +133,16 @@ fn app_bounded(token: String, ollama: model::Ollama, budget: Duration, admission
     })
 }
 
-/// The route and the service's health, with their state; merged into glyph-api's router.
+impl App {
+    /// The model this route asks, which the service's health reports (main.rs `health`).
+    pub fn ollama(&self) -> &model::Ollama {
+        &self.ollama
+    }
+}
+
+/// The route, with its state; merged into glyph-api's router.
 pub fn router(app: Arc<App>) -> Router {
-    Router::new().route("/glyph/api/health", get(health)).route("/glyph/api/format", post(format)).with_state(app)
+    Router::new().route("/glyph/api/format", post(format)).with_state(app)
 }
 
 /// Whether an `Authorization` header carries exactly this bearer token.
@@ -166,12 +177,6 @@ struct Formatted {
     annotations: shape::Annotations,
     model: String,
     elapsed_ms: u64,
-}
-
-/// `GET /glyph/api/health`, with no token: the service is up, and whether its model is. The deploy reads it from
-/// outside after every ship.
-async fn health(State(app): State<Arc<App>>) -> Json<serde_json::Value> {
-    Json(json!({ "ok": true, "model": app.ollama.model(), "ollama": app.ollama.reachable().await }))
 }
 
 /// The one route that costs anything.
@@ -278,6 +283,7 @@ mod tests {
     use super::*;
     use crate::test_support::{self, TOKEN};
     use axum::http::Request;
+    use serde_json::json;
     use std::sync::atomic::Ordering;
     use tower::ServiceExt;
 
@@ -395,12 +401,5 @@ mod tests {
         }
         let response = service.clone().oneshot(post(r#"{"text":""}"#, Some(TOKEN))).await.unwrap();
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
-    }
-
-    #[tokio::test]
-    async fn health_needs_no_token_and_reports_ollama_honestly() {
-        let response = service().oneshot(Request::get("/glyph/api/health").body(Body::empty()).unwrap()).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(json_of(response).await, json!({ "ok": true, "model": "test-model", "ollama": false }));
     }
 }
