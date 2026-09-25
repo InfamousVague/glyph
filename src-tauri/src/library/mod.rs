@@ -183,15 +183,6 @@ impl Library {
         let (_, body) = split(&text);
         if body != row.body {
             self.scan()?;
-            // `scan` knows a file changed by its time and size, and an edit
-            // that kept both - a same-length change on a clock too coarse to
-            // tell, or an editor that puts the time back - slips past it. This
-            // file has just been seen to differ, so it is read in whatever
-            // they say.
-            if self.row(id)?.is_some_and(|stale| stale.body == row.body && stale.path == row.path) {
-                let entry = self.vault.stat(&row.path)?;
-                self.index_file(&entry)?;
-            }
             return Ok(self.row(id)?.map(|row| self.note_of(row, true)));
         }
         Ok(Some(self.note_of(row, true)))
