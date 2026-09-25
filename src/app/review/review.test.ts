@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { wordChanges } from './diff.ts';
 import { applyFindings, locate, readArray, readFindings } from './findings.ts';
-import { reviewMessage } from './prompt.ts';
+import { reviewBudget, reviewMessage } from './prompt.ts';
 
 describe('where the two speech models disagree', () => {
   it('finds the runs, ignoring case and punctuation, with context to place them', () => {
@@ -109,5 +109,26 @@ describe('what the reviewing model is shown', () => {
     expect(message).toMatch(/^WHAT THE FAST SPEECH MODEL HEARD:/);
     expect(message).toContain('- …fix the [seat → seek] bar…');
     expect(message.trim().endsWith('# Bug bash')).toBe(true);
+  });
+
+  it('says when the two models agree, and when nothing ran or nothing else was heard', () => {
+    const message = reviewMessage({ title: 'Plain', body: '# Plain', heard: '  ', careful: 'plain words', changes: [], commands: [], titles: [], touched: [{ title: 'Groceries', body: '- Milk\n' }] });
+    expect(message).toContain('WHAT THE FAST SPEECH MODEL HEARD:\n(nothing)');
+    expect(message).toContain('WHERE THEY DISAGREE: nowhere.');
+    expect(message).toContain('COMMANDS THAT RAN:\n(none)');
+    expect(message).toContain("THE PERSON'S NOTE TITLES:\n(none)");
+    expect(message).toContain('OTHER NOTE A COMMAND CHANGED, "Groceries":\n- Milk');
+    // With no second listen there is nothing to compare, and nothing is said about it.
+    const once = reviewMessage({ title: 'Plain', body: '# Plain', heard: 'words', careful: null, changes: [], commands: [], titles: [], touched: [] });
+    expect(once).not.toContain('SLOWER');
+    expect(once).not.toContain('DISAGREE');
+  });
+});
+
+describe('how long the reviewing model may take', () => {
+  it('lets a bigger model think less, gives the answer room by the note’s length, and caps the whole', () => {
+    expect(reviewBudget('qwen3-9b', 0)).toEqual({ think: 500, total: 1000 });
+    expect(reviewBudget('gemma-2b', 1200)).toEqual({ think: 600, total: 1200 });
+    expect(reviewBudget('qwen3-4b', 12_000)).toEqual({ think: 700, total: 1900 });
   });
 });
