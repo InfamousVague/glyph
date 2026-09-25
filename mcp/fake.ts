@@ -1,8 +1,9 @@
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { OAuthClientInformationFull, OAuthClientMetadata, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
-import { derive, newAccountKey, open, passwordSalt, seal, wrap } from '../src/app/core/sync/crypto.ts';
+import type { SignedIn } from '../src/app/core/account/account.ts';
 import type { Note } from '../src/app/core/store.ts';
-import type { NotePayload } from '../src/app/core/sync/notes.ts';
+import { derive, newAccountKey, open, passwordSalt, seal, wrap } from '../src/app/core/sync/crypto.ts';
+import type { FeedItem, NotePayload } from '../src/app/core/sync/notes.ts';
 
 /**
  * Glyph's sync service stood in for in memory, for the tests (glyph.test.ts, hosted.test.ts): the same routes,
@@ -15,11 +16,8 @@ export const FAST = 1_000;
 
 const encoder = new TextEncoder();
 
-interface Stored {
-  rev: number;
-  deleted: boolean;
-  blob: string | null;
-}
+/** A note as the service keeps it: a feed item, filed under the id it leaves out. */
+type Stored = Omit<FeedItem, 'id'>;
 
 /** The service in memory: one account, its feed, and the tokens it has handed out. */
 export async function fakeService(handle: string, password: string) {
@@ -50,7 +48,7 @@ export async function fakeService(handle: string, password: string) {
     calls.push(`${method} ${path}`);
     if (method === 'POST' && path === 'login') {
       if (body.handle !== handle || body.loginSecret !== login) return json(401, { error: 'Wrong handle or password.' });
-      return json(200, { token: token(), account, wrapped });
+      return json(200, { token: token(), account, wrapped } satisfies SignedIn);
     }
     if (method === 'POST' && path === 'login/challenge') {
       const nonce = `nonce-${++issued}`;
@@ -62,10 +60,10 @@ export async function fakeService(handle: string, password: string) {
       const key = await crypto.subtle.importKey('raw', Uint8Array.from(atob(String(devicePublicKey).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)), { name: 'Ed25519' }, false, ['verify']);
       const sig = Uint8Array.from(atob(String(body.signature).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
       const ok = await crypto.subtle.verify({ name: 'Ed25519' }, key, sig, encoder.encode(String(body.nonce)));
-      return ok ? json(200, { token: token(), account }) : json(401, { error: 'Bad signature.' });
+      return ok ? json(200, { token: token(), account } satisfies SignedIn) : json(401, { error: 'Bad signature.' });
     }
     if (!bearer || !tokens.has(bearer)) return json(401, { error: 'Sign in first.' });
-    if (method === 'POST' && path === 'refresh') return json(200, { token: token(), account });
+    if (method === 'POST' && path === 'refresh') return json(200, { token: token(), account } satisfies SignedIn);
     if (method === 'POST' && path === 'device') {
       devicePublicKey = String(body.devicePublicKey);
       return json(200, {});
@@ -75,14 +73,14 @@ export async function fakeService(handle: string, password: string) {
       const items = [...notes.entries()]
         .filter(([, n]) => n.rev > since)
         .sort(([, a], [, b]) => a.rev - b.rev)
-        .map(([id, n]) => ({ id, ...n }));
+        .map(([id, n]): FeedItem => ({ id, ...n }));
       return json(200, { rev: counter, items, more: false });
     }
     const put = /^notes\/([^/]+)$/.exec(path);
     if (put && (method === 'PUT' || method === 'DELETE')) {
       const id = decodeURIComponent(put[1]!);
       const current = notes.get(id);
-      if (current && current.rev !== Number(body.base)) return json(409, { id, ...current });
+      if (current && current.rev !== Number(body.base)) return json(409, { id, ...current } satisfies FeedItem);
       counter += 1;
       notes.set(id, method === 'PUT' ? { rev: counter, deleted: false, blob: String(body.blob) } : { rev: counter, deleted: true, blob: null });
       return json(200, { rev: counter });

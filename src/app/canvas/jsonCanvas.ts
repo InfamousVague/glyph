@@ -1,3 +1,5 @@
+import { frontMatterEnd, quotedTitle } from '../core/frontMatter.ts';
+
 /**
  * JSON Canvas (jsoncanvas.org, 1.0), the open format Obsidian's canvas is written in, read and written as it is.
  *
@@ -168,20 +170,14 @@ export function serializeCanvas(canvas: Canvas): string {
 
 // ---- a canvas as a note ---------------------------------------------------------------------
 
-/** A front matter fence, `---` or `+++`, on a line of its own. */
-const FENCE = /^(---|\+\+\+)\s*$/;
-
 /**
- * The body after its front matter, where it opens with one: what `withoutFrontMatter` (core/store.ts) does, but
+ * The body after its front matter, where it opens with one: what `withoutFrontMatter` (core/noteTitle.ts) does, but
  * without putting the title back as a first line - a canvas's first line is `{`, and the title is the note's name.
  */
 function afterFrontMatter(body: string): string {
   const lines = body.split('\n');
-  if (!FENCE.test(lines[0] ?? '')) return body;
-  for (let n = 1; n < Math.min(lines.length, 40); n += 1) {
-    if (FENCE.test(lines[n] ?? '')) return lines.slice(n + 1).join('\n');
-  }
-  return body;
+  const end = frontMatterEnd(lines);
+  return end ? lines.slice(end).join('\n') : body;
 }
 
 /** The canvas a note's body is, or null for a note that is words: front matter, then the JSON and nothing else. */
@@ -200,8 +196,7 @@ export function isCanvasBody(body: string): boolean {
  * reads `title:`), then the canvas exactly as the spec writes it. Quoted, so a title with a colon in it stays one line.
  */
 export function canvasNoteBody(title: string, canvas: Canvas): string {
-  const safe = title.replace(/["\n]/g, "'").trim() || 'Canvas';
-  return `---\ntitle: "${safe}"\n---\n${serializeCanvas(canvas)}`;
+  return `---\ntitle: ${quotedTitle(title, 'Canvas')}\n---\n${serializeCanvas(canvas)}`;
 }
 
 // ---- changing a canvas ----------------------------------------------------------------------
@@ -213,12 +208,8 @@ export function canvasNoteBody(title: string, canvas: Canvas): string {
  */
 export function withCanvas(body: string, canvas: Canvas): string {
   const lines = body.split('\n');
-  if (FENCE.test(lines[0] ?? '')) {
-    for (let n = 1; n < Math.min(lines.length, 40); n += 1) {
-      if (FENCE.test(lines[n] ?? '')) return `${lines.slice(0, n + 1).join('\n')}\n${serializeCanvas(canvas)}`;
-    }
-  }
-  return serializeCanvas(canvas);
+  const end = frontMatterEnd(lines);
+  return end ? `${lines.slice(0, end).join('\n')}\n${serializeCanvas(canvas)}` : serializeCanvas(canvas);
 }
 
 /** An id for a new node or edge: sixteen hex characters, the shape Obsidian gives its own. */

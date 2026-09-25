@@ -2,6 +2,7 @@ import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/s
 import { syntaxTree } from '@codemirror/language';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { shortcodesIn } from '../core/emoji.ts';
+import { FENCE, FRONT_MATTER_LINES, frontMatterEnd } from '../core/frontMatter.ts';
 
 /**
  * The extended markdown Glyph draws but had no look for.
@@ -32,17 +33,16 @@ const SCRIPTS: Record<string, string | undefined> = { Superscript: 'cm-sup', Sub
 const DEFINITION = /^(\s{0,3}:)(\s+\S.*)$/;
 /** Maths, inline or on its own lines: `$x^2$`, `$$ … $$`. */
 const MATHS = /\$\$[^$]+\$\$|\$[^$\n]+\$/g;
-/** The fence of a front matter block, which is only front matter on the note's first line. */
-const FRONT = /^(---|\+\+\+)\s*$/;
-
-/** Which lines the note's front matter covers, or null: an opening fence on line 1 and the next one that closes it. */
+/**
+ * Which lines the note's front matter covers, as line numbers, or null: what core/frontMatter.ts counts as front
+ * matter, so the keys drawn quiet here are the ones the list takes the note's name from. Only the lines the rule can
+ * reach are read, and only when the first is a fence.
+ */
 export function frontMatter(doc: { line: (n: number) => { text: string }; lines: number }): { from: number; to: number } | null {
-  if (!FRONT.test(doc.line(1).text)) return null;
-  for (let n = 2; n <= Math.min(doc.lines, 40); n += 1) {
-    if (FRONT.test(doc.line(n).text)) return { from: 1, to: n };
-    if (!/^\s*[\w.-]+\s*:/.test(doc.line(n).text) && doc.line(n).text.trim() !== '') return null;
-  }
-  return null;
+  if (!FENCE.test(doc.line(1).text)) return null;
+  const head = Array.from({ length: Math.min(doc.lines, FRONT_MATTER_LINES) }, (_, n) => doc.line(n + 1).text);
+  const end = frontMatterEnd(head);
+  return end ? { from: 1, to: end } : null;
 }
 
 /** A callout's kind, as GitHub writes it: `> [!NOTE]` on the quote's first line. */

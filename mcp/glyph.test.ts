@@ -1,9 +1,14 @@
 // @vitest-environment node
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { describe, expect, it } from 'vitest';
+import { imageNames } from '../src/app/core/imageRefs.ts';
+import { noteTitle } from '../src/app/core/noteTitle.ts';
 import { toBase64Url } from '../src/app/core/sync/crypto.ts';
 import type { Note } from '../src/app/core/store.ts';
 import { fakeService, FAST } from './fake.ts';
-import { Conflict, GlyphAccount, GlyphApiError, imageNames, noteTitle, type StoredSession } from './glyph.ts';
+import { Conflict, GlyphAccount, GlyphApiError, type StoredSession } from './glyph.ts';
+import { buildServer } from './server.ts';
 
 /**
  * The client against a sync service stood in for in memory: the same routes, revisions and refusals as
@@ -145,12 +150,52 @@ describe('reading and writing notes', () => {
   });
 });
 
-describe('the helpers that mirror the app', () => {
-  it('titles a note as the list does, and names its pictures', () => {
-    expect(noteTitle('# Weekend trip §§\n\nWords')).toBe('Weekend trip');
-    expect(noteTitle('---\ntitle: Front\n---\nBody')).toBe('Front');
-    expect(noteTitle('![](image/a.jpg)\nUnder the picture')).toBe('Under the picture');
-    expect(imageNames('![a](image/one.jpg) and ![](image/two.png)')).toEqual(['one.jpg', 'two.png']);
+/**
+ * The server titles notes and names their pictures with the app's own code (core/noteTitle.ts, core/imageRefs.ts).
+ * It used to keep copies, and the title's drifted: it took any block between two fences as front matter, so a note
+ * that opens with a rule, some words and another rule was "---" in the app's list and "Real title" to Claude, who
+ * could then find it by a name the person had never seen. These pin the app's answer through the tools.
+ */
+describe('titles and pictures, read as the app reads them', () => {
+  const asText = (result: Awaited<ReturnType<Client['callTool']>>) => (result.content as { text?: string }[])[0]?.text ?? '';
+
+  async function connected() {
+    const service = await fakeService('matt', 'correct horse');
+    const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
+    const account = new GlyphAccount(session, { fetcher: service.fetcher });
+    const client = new Client({ name: 'claude', version: '0' });
+    const [ours, theirs] = InMemoryTransport.createLinkedPair();
+    await Promise.all([buildServer(account).connect(theirs), client.connect(ours)]);
+    return { service, account, client };
+  }
+
+  it('names a note in list_notes and read_note what the app’s list names it, and by nothing else', async () => {
+    const { service, account, client } = await connected();
+    const ruled = '---\nSome words here\n---\nReal title';
+    await service.deviceWrites({ ...aNote('r', ruled), updatedAt: 2 });
+    await service.deviceWrites({ ...aNote('f', '---\ntitle: "Front"\nbook: true\n---\n# Front'), updatedAt: 1 });
+    expect(noteTitle(ruled)).toBe('---');
+
+    const listed = JSON.parse(asText(await client.callTool({ name: 'list_notes', arguments: {} }))) as { notes: { id: string; title: string }[] };
+    expect(listed.notes.map((n) => [n.id, n.title])).toEqual([
+      ['r', '---'],
+      ['f', 'Front'],
+    ]);
+    const missing = await client.callTool({ name: 'read_note', arguments: { title: 'Real title' } });
+    expect(missing.isError).toBe(true);
+    expect(await account.byTitle('Real title')).toBeNull();
+    expect(await account.byTitle('---')).toMatchObject({ note: { id: 'r' } });
+    expect(await account.byTitle('front')).toMatchObject({ note: { id: 'f' } });
+    await client.close();
+  });
+
+  it('names the pictures a note it writes carries as the app names them', async () => {
+    const { service, account, client } = await connected();
+    const body = '# Trip\n\n![a](image/one.jpg) and ![](image/two.png) and ![](http://elsewhere/x.png)';
+    const made = await account.create(body);
+    expect(made.images).toEqual(['one.jpg', 'two.png']);
+    expect((await service.stored(made.note.id))?.images).toEqual(imageNames(body));
     expect(toBase64Url(new Uint8Array([1, 2, 3]))).toBe('AQID');
+    await client.close();
   });
 });

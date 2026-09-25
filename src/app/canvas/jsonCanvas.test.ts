@@ -82,6 +82,15 @@ describe('a canvas as a note', () => {
     expect(isCanvasBody('---\ntitle: Plans\n---\n# Plans\n\n{ not a canvas }')).toBe(false);
     expect(isCanvasBody('')).toBe(false);
   });
+
+  // Until 2026-09-25 a canvas took any block that closed within forty lines as front matter, words and all; it now
+  // takes what the list takes (core/frontMatter.ts), so the note it names is the note the list names.
+  it('has front matter as the list reads it, and a rule with words under it is not that', () => {
+    expect(isCanvasBody('---\nA rule, then words\n---\n{ "nodes": [] }')).toBe(false);
+    const titled = '---\ntitle: "Plan"\n\ntags: [trip]\n---\n{ "nodes": [] }';
+    expect(isCanvasBody(titled)).toBe(true);
+    expect(withCanvas(titled, canvas).startsWith('---\ntitle: "Plan"\n\ntags: [trip]\n---\n{')).toBe(true);
+  });
 });
 
 describe('where things are', () => {

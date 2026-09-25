@@ -217,42 +217,9 @@ export function newNoteId(): string {
   return `n-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** A note's lines with its front matter taken off, and its `title:` first where it has one. */
-export function withoutFrontMatter(lines: readonly string[]): string[] {
-  if (!/^(---|\+\+\+)\s*$/.test(lines[0] ?? '')) return [...lines];
-  for (let n = 1; n < Math.min(lines.length, 40); n += 1) {
-    const line = lines[n] ?? '';
-    if (/^(---|\+\+\+)\s*$/.test(line)) {
-      const named = lines.slice(1, n).find((key) => /^\s*title\s*:/i.test(key));
-      const title = named
-        ? named
-            .replace(/^\s*title\s*:\s*/i, '')
-            .replace(/^['"]|['"]$/g, '')
-            .trim()
-        : '';
-      return title ? [title, ...lines.slice(n + 1)] : lines.slice(n + 1);
-    }
-    if (!/^\s*[\w.-]+\s*:/.test(line) && line.trim() !== '') return [...lines];
-  }
-  return [...lines];
-}
-
-/** The first line of a note, which is the only title Glyph has. */
-export function noteTitle(body: string): string {
-  // A note that opens with front matter is titled by its words, not by the
-  // fence: `---` in the list looked like a note with no name at all
-  // (docs/MARKDOWN.md). The keys between the fences are skipped with it, and
-  // `title:` among them is taken as the name, which is what wrote it.
-  const lines = withoutFrontMatter(body.split('\n'));
-  // The first line that is words, not a picture: a note that opens with a
-  // photo is titled by what is said under it.
-  const line = lines.find((l) => l.trim() && !/^!\[[^\]]*\]\([^)]*\)\s*$/.test(l)) ?? '';
-  // Strip leading heading markers for the LIST only. The note itself keeps
-  // every character; this is a label, not an edit.
-  // The bookmark's mark too (editor/bookmarkLine.ts): set on the first line, it said "Weekend trip §§" in every tab and
-  // card. It says where the note opens, not what it is called.
-  return line.replace(/^#{1,6}\s+/, '').replace(/\s*§§\s*/g, ' ').trim();
-}
+// A note's title, and its lines with the front matter taken off, are core/noteTitle.ts: pure, so the MCP server
+// titles a note with the code the list runs. Here for the many callers that have always found them here.
+export { noteTitle, withoutFrontMatter } from './noteTitle.ts';
 
 // --- the hook the list uses -------------------------------------------------
 

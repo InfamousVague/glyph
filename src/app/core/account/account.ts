@@ -93,7 +93,8 @@ function deviceLabel(): string {
   return 'Web';
 }
 
-interface SignedIn {
+/** The service's answer to a sign-in or a renewal, `wrapped` being the account key under the password; the MCP server reads it too (mcp/glyph.ts). */
+export interface SignedIn {
   token: string;
   account: { id: number; handle: string };
   wrapped?: string;

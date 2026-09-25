@@ -1,3 +1,4 @@
+import { frontMatterEnd } from './frontMatter.ts';
 import type { Note } from './store.ts';
 import { isTrashed, trashNote } from './trash.ts';
 
@@ -14,20 +15,11 @@ import { isTrashed, trashNote } from './trash.ts';
 
 const SWEPT_KEY = 'glyph-memos-swept';
 
-/** A front matter fence, `---` or `+++`, on a line of its own. */
-const FENCE = /^(---|\+\+\+)\s*$/;
-
 /** Whether the note's front matter says `kind: memo`. */
 export function wasMemo(body: string): boolean {
   const lines = body.split('\n');
-  if (!FENCE.test(lines[0] ?? '')) return false;
-  for (let n = 1; n < Math.min(lines.length, 40); n += 1) {
-    const line = lines[n] ?? '';
-    if (FENCE.test(line)) return false;
-    if (/^\s*kind\s*:\s*memo\s*$/i.test(line)) return true;
-    if (!/^\s*[\w.-]+\s*:/.test(line) && line.trim() !== '') return false;
-  }
-  return false;
+  const end = frontMatterEnd(lines);
+  return end > 0 && lines.slice(1, end - 1).some((line) => /^\s*kind\s*:\s*memo\s*$/i.test(line));
 }
 
 function swept(): boolean {

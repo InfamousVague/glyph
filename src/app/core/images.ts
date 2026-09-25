@@ -15,17 +15,8 @@ import { invoke, isTauri } from './tauri.ts';
  * be built and judged without a phone.
  */
 
-export const IMAGE_REF = /!\[([^\]]*)\]\(image\/([A-Za-z0-9_.-]+)\)/g;
-
-/** The markdown for a picture, on a line of its own. */
-export function imageMarkdown(name: string, caption = ''): string {
-  return `![${caption}](image/${name})`;
-}
-
-/** Every picture a note refers to. */
-export function imageNames(body: string): string[] {
-  return [...body.matchAll(IMAGE_REF)].map((m) => m[2] ?? '').filter(Boolean);
-}
+// How a body refers to a picture is core/imageRefs.ts, which the MCP server imports too; here for this module's callers.
+export { IMAGE_REF, imageMarkdown, imageNames } from './imageRefs.ts';
 
 // ---- the phone ----------------------------------------------------------------------
 

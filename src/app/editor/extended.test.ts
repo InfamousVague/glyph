@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Text } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { glyphMarkdown } from './language.ts';
-import { calloutKind, extendedMarkdown } from './extended.ts';
+import { calloutKind, extendedMarkdown, frontMatter } from './extended.ts';
 
 function drawn(doc: string) {
   const view = new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown([], []), extendedMarkdown()] }), parent: document.body });
@@ -56,6 +56,14 @@ describe('front matter', () => {
   it('is not a rule in the middle of a note, nor a fence with prose under it', () => {
     expect(drawn('Words.\n\n---\n\nMore.').html).not.toContain('cm-front');
     expect(drawn('---\njust some words\n---').html).not.toContain('cm-front');
+  });
+
+  it('covers the lines the list counts as front matter (core/frontMatter.ts), forty at most', () => {
+    const block = (count: number) => Text.of(['---', ...Array.from({ length: count }, (_, n) => `key${n}: value`), '---', 'Words']);
+    expect(frontMatter(Text.of(['---', 'title: A', '', '---', 'Words']))).toEqual({ from: 1, to: 4 });
+    expect(frontMatter(block(38))).toEqual({ from: 1, to: 40 });
+    expect(frontMatter(block(39))).toBeNull();
+    expect(frontMatter(Text.of(['---']))).toBeNull();
   });
 });
 

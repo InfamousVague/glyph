@@ -39,6 +39,15 @@ describe('a book note', () => {
     expect(bookNoteBody('  ')).toContain('title: "Book"');
   });
 
+  // Until 2026-09-25 a book took any block between two fences as its front matter, however far down the second, so
+  // `book: true` was read out of a block the list showed as words, and an opening rule that never closed hid the rest.
+  it('has front matter as the list reads it, and reads a note whose opening rule is not front matter from the top', () => {
+    expect(isBookBody('---\nbook: true\nsome words about it\n---\n- [[One]]\n')).toBe(false);
+    expect(chaptersOf('---\n- [[One]]\n- [[Two]]\n').map((c) => c.title)).toEqual(['One', 'Two']);
+    expect(bookWords('---\nA rule, then words\n---\n- [[One]]\n').before).toBe('---\nA rule, then words');
+    expect(bookWords('---\ntitle: "Trip"\nbook: true\n---\nFirst.\n\n- [[One]]\n').before).toBe('First.');
+  });
+
   it('reads its chapters in order with their depth, and numbers them as an index does', () => {
     const chapters = chaptersOf(BOOK);
     expect(chapters.map((c) => [c.title, c.depth])).toEqual([
