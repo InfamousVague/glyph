@@ -34,9 +34,10 @@ import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useAvailability } from '../ai/available.ts';
+import { PromptBar } from '../ai/PromptBar.tsx';
 import type { RunKind } from '../ai/kinds.ts';
 import { loadMarks, saveMarks } from '../ai/marks.ts';
-import { ended, useRun } from '../ai/runs.ts';
+import { ended, useRun, type RunScope } from '../ai/runs.ts';
 import { startNoteRun } from '../ai/start.ts';
 import { useLanding } from '../ai/useLanding.ts';
 import { accountState } from '../core/account/account.ts';
@@ -396,13 +397,27 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
    * finish (useLanding below). What is typed is flushed first, so the run's Undo has the note as it was.
    */
   const availability = useAvailability();
-  const runAi = (kind: RunKind) => {
+  const runAi = (kind: RunKind, instruction?: string, scope: RunScope | null = null) => {
     if (!view) return;
     flush();
-    const started = startNoteRun(view, note.id, kind, availability.availability);
+    const started = startNoteRun(view, note.id, kind, availability.availability, { instruction, scope });
     if (!started.ok) toast({ message: started.reason });
     else fireNativeHaptic('selection');
   };
+  /*
+   * The Ask over a selection (editor/ContextMenu.tsx): the selected words become the bar's scope, and the bar asks
+   * which - this part or the whole note - when a chip is pressed or an instruction sent (ai/PromptBar.tsx). The scope
+   * is the selection as it stands, read again when the person acts, since the caret may have moved meanwhile.
+   */
+  const [askScope, setAskScope] = useState<RunScope | null>(null);
+  const [focusAsk, setFocusAsk] = useState(0);
+  const askAbout = (from: number, to: number) => {
+    setAskScope({ from, to });
+    setFocusAsk((n) => n + 1);
+  };
+  const onBarHeight = useCallback((height: number) => {
+    screen.current?.style.setProperty('--ai-bar-room', height ? `${height + 12}px` : '0px');
+  }, []);
   // The AI signs beside the account's handle, where there is one (core/authors.ts).
   useLanding(note.id, view, {
     wisp: prefs.wisp,
@@ -857,12 +872,28 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {/* And under its last line, the chapters either side again, to go on from the end of the page (docs/BOOKS.md). */}
         {book && onOpenTitle && shown === 'raw' ? <BookFoot place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}
       </div>
-      {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image. */}
+      {/* The bar at the foot: the six chips and a field for anything else (ai/PromptBar.tsx). Not on a canvas or a book's index, and not while the transcript plays. */}
+      <div className={styles.barHolder}>
+        <PromptBar
+          availability={availability.availability}
+          onRun={(kind, instruction, scope) => runAi(kind, instruction, scope)}
+          onGet={(model) => void availability.fetch(model)}
+          scope={askScope}
+          onScopeUsed={() => setAskScope(null)}
+          focusAsk={focusAsk}
+          onHeight={onBarHeight}
+          disabled={typed || shown !== 'raw'}
+        />
+      </div>
+      {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image; and on a selection, Ask the AI. */}
       <ContextMenu
         view={view}
         onAddImage={() => void addPhoto()}
         onPasteImage={pasteImage}
         say={(message) => toast({ message })}
+        edits={typed ? [] : [{ id: 'ask', label: 'Ask the AI' }]}
+        onEdit={(_id, from, to) => askAbout(from, to)}
+        editsUnavailable={availability.availability.ok ? null : availability.availability.reason}
         onFind={setFinding}
         // The same send a swipe on the item does, where a plugin takes this note's items (a Notion board, a GitHub issue).
         send={(() => {

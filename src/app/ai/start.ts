@@ -1,12 +1,12 @@
 import type { EditorView } from '@codemirror/view';
 import { setLanding } from '../editor/aiChanges.ts';
 import { noteHash, prepareNote } from '../format/pipeline.ts';
-import { budgetFor, promptFor, TEMPERATURE } from '../format/prompt.ts';
-import type { Mode } from '../format/modes.ts';
+import { TEMPERATURE } from '../format/prompt.ts';
 import { pluginContextFor } from '../plugins/registry.ts';
 import type { Availability } from './available.ts';
 import type { RunKind } from './kinds.ts';
 import { frontMatterEnd } from './landing.ts';
+import { askMessage, budgetForKind, PART_NOTE, promptForKind, restOfNote } from './prompts.ts';
 import { startRun, type RunHandle, type RunScope } from './runs.ts';
 
 /**
@@ -16,11 +16,13 @@ import { startRun, type RunHandle, type RunScope } from './runs.ts';
  * The landing is decided here, before the model has read a word, and written
  * into the editor (editor/aiChanges.ts `setLanding`), so the person's typing
  * while it loads moves the bookmark with it. A rewrite - Format, Enhance,
- * and the newer kinds - lands over the note's words (or the part asked
- * about); a summary lands above them (Matt, 29d: a summary belongs on top);
- * Continue lands under them. The front matter is never the model's: a
- * rewrite of the whole note starts after it, and the model is given the
- * words alone.
+ * Fix, Make a list, Ask - lands over the words it was given, the whole note
+ * or the part chosen; a summary lands above the note (Matt, 29d: a summary
+ * belongs on top); Continue lands under it. The front matter is never the
+ * model's: a rewrite of the whole note starts after it, and the model is
+ * given the words alone. A part of the note goes to the model as the note,
+ * with the whole for context and a word that it is a part (ai/prompts.ts
+ * `PART_NOTE`), so its answer can take the part's place.
  */
 
 export interface StartOptions {
@@ -39,17 +41,31 @@ export function placementOf(kind: RunKind): 'replace' | 'prepend' | 'append' {
   return 'replace';
 }
 
+/** A part chosen by its offsets, widened to whole lines: the model writes lines, and a line lands as one. */
+export function wholeLines(view: EditorView, scope: RunScope): RunScope {
+  const { doc } = view.state;
+  const from = doc.lineAt(Math.min(scope.from, doc.length)).from;
+  const to = doc.lineAt(Math.min(scope.to, doc.length)).to;
+  return { from, to };
+}
+
 export function startNoteRun(view: EditorView, noteId: string, kind: RunKind, availability: Availability, options: StartOptions = {}): Started {
   if (!availability.ok) return { ok: false, reason: availability.reason };
   const body = view.state.doc.toString();
   const front = frontMatterEnd(body);
   const placement = placementOf(kind);
-  const scope: RunScope = options.scope ?? { from: front, to: body.length };
+  // A part is only ever of a rewrite; a summary or a continuation is of the whole note.
+  const part = placement === 'replace' && options.scope && options.scope.to > options.scope.from ? wholeLines(view, options.scope) : null;
+  const scope: RunScope = part ?? { from: front, to: body.length };
   const source = placement === 'replace' ? body.slice(scope.from, scope.to) : body.slice(front);
-  if (!source.trim()) return { ok: false, reason: 'Nothing in the note yet.' };
-  // Only the three older kinds have prompts so far; the rest come with the bar (ai/prompts.ts).
-  const mode = (kind === 'format' || kind === 'summarize' || kind === 'enhance' ? kind : 'format') as Mode;
-  const { prompt, restore } = prepareNote(source, mode);
+  if (!source.trim()) return { ok: false, reason: part ? 'Nothing selected to work on.' : 'Nothing in the note yet.' };
+  const instruction = options.instruction?.trim() || undefined;
+  if (kind === 'ask' && !instruction) return { ok: false, reason: 'Say what to do with the note.' };
+  const { prompt: text, restore } = prepareNote(source, kind === 'summarize' ? 'summarize' : 'format');
+  const prompt = kind === 'ask' && instruction ? askMessage(instruction, text) : text;
+  const system = part ? `${promptForKind(kind)}\n\n${PART_NOTE}` : promptForKind(kind);
+  const briefing = pluginContextFor(noteId);
+  const context = [briefing, part ? restOfNote(body.slice(front)) : null].filter(Boolean).join('\n\n') || undefined;
   const landing =
     placement === 'replace'
       ? { start: scope.from, cursor: scope.from, oldEnd: scope.to }
@@ -60,12 +76,12 @@ export function startNoteRun(view: EditorView, noteId: string, kind: RunKind, av
   const handle = startRun({
     noteId,
     kind,
-    instruction: options.instruction,
+    instruction,
     model: availability.model,
-    system: promptFor(mode),
-    context: pluginContextFor(noteId) ?? undefined,
+    system,
+    context,
     prompt,
-    maxTokens: budgetFor(mode, prompt.length),
+    maxTokens: budgetForKind(kind, text.length),
     temperature: TEMPERATURE,
     restore,
     hash: noteHash(noteId, body),
