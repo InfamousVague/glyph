@@ -24,4 +24,12 @@ describe('a chapter number in a title', () => {
     expect(chapterOf('2026 plans')).toBeNull();
     expect(chapterOf('Task Management')).toBeNull();
   });
+
+  it('reads § as the word for a chapter, and numbers to three places, but not four', () => {
+    expect(chapterOf('Notes § 4')).toEqual({ number: 4, name: 'Notes' });
+    expect(chapterOf('§ 3 · Rules')).toEqual({ number: 3, name: 'Rules' });
+    expect(chapterOf('The end · Ch. 120')).toEqual({ number: 120, name: 'The end' });
+    expect(chapterOf('The end · Chapter C')).toEqual({ number: 100, name: 'The end' });
+    expect(chapterOf('The end · Ch. 1200')).toBeNull();
+  });
 });

@@ -3,8 +3,10 @@ import { act } from 'react';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, show, typeInto, unmount } from '../../test/render.tsx';
+import { dragGrip, layRowsOut } from '../../test/rows.ts';
 import { bookNoteBody, bookOf, chaptersOf } from './book.ts';
-import { BookBar, BookFoot, BookView } from './BookView.tsx';
+import { BookBar, BookFoot } from './BookNav.tsx';
+import { BookView } from './BookView.tsx';
 import { readBookSpot, writeBookSpot } from './bookSpot.ts';
 
 /**
@@ -38,6 +40,16 @@ describe('the index view', () => {
     // The first cannot go up, the last cannot go down.
     expect(button('Move Introduction up').disabled).toBe(true);
     expect(button('Move Birds down').disabled).toBe(true);
+  });
+
+  it('writes a chapter dragged by its grip to where it is let go', () => {
+    const onChange = vi.fn();
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => []} onChange={onChange} />);
+    const rowEls = [...document.querySelectorAll<HTMLElement>('ol[aria-label="Chapters"] li')];
+    layRowsOut(rowEls);
+    dragGrip(rowEls[0]!.querySelector('[class*=grip]')!, 20, 110);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Trees', 'Birds', 'Introduction']);
   });
 
   it('adds a new chapter as a canvas when asked, opening it as one, and offers that only where a canvas can be made', () => {

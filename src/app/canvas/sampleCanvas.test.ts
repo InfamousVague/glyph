@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { canvasOf, isOnlyTable, parseCanvas, serializeCanvas } from './jsonCanvas.ts';
+import { isOnlyTable } from './cardLooks.ts';
+import { canvasOf, parseCanvas, serializeCanvas } from './jsonCanvas.ts';
 import { CANVAS_TITLE, sampleCanvas, sampleCanvasBody } from './sampleCanvas.ts';
 import { noteTitle } from '../core/store.ts';
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
-import { bodyWithoutTitle, bookIndex, bookWords, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, prefaceOf, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
+import { bodyWithoutTitle, bookIndex, bookWords, bookNoteBody, bookOf, chaptersOf, isBookBody, numbered, placeOf, toggledTitle, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 
 /**
  * A book is its index: a list of links in a note that says `book: true`. Read from the body, written back to it a
@@ -61,8 +61,9 @@ describe('a book note', () => {
   });
 
   it('keeps its own words apart from the index', () => {
-    expect(prefaceOf(BOOK)).toEqual(['What to know before the walk.']);
-    expect(prefaceOf(bookNoteBody('Trip'))).toEqual([]);
+    // Less the front matter and the heading that names the book, which the header says.
+    expect(bookWords(BOOK)).toEqual({ before: 'What to know before the walk.', after: '' });
+    expect(bookWords(bookNoteBody('Trip'))).toEqual({ before: '', after: '' });
   });
 });
 
@@ -74,6 +75,12 @@ describe('changing the index', () => {
     expect(chaptersOf(after).map((c) => [c.title, c.depth])[3]).toEqual(['Elms', 1]);
     expect(withChapter(BOOK, 'trees')).toBe(BOOK);
     expect(withChapter(BOOK, '  ')).toBe(BOOK);
+  });
+
+  it('adds a chapter after the last when the one named is not in the index, in the list and not after it', () => {
+    const next = withChapter(BOOK, 'Rivers', 'Nope');
+    expect(next).toContain('- [[Birds]]\n- [[Rivers]]');
+    expect(chaptersOf(next).map((c) => c.title).pop()).toBe('Rivers');
   });
 
   it('starts an index in a book with none, after its words', () => {
@@ -106,6 +113,16 @@ describe('changing the index', () => {
     expect(chaptersOf(withChapterMoved(BOOK, 'Introduction', 1)).map((c) => c.title)).toEqual(['Trees', 'Introduction', 'Oaks', 'Pines', 'Birds']);
     expect(withChapterMoved(BOOK, 'Introduction', -1)).toBe(BOOK);
     expect(withChapterMoved(BOOK, 'Birds', 1)).toBe(BOOK);
+  });
+});
+
+describe('a picker’s ticks', () => {
+  it('ticks a title by putting it last, and unticks it however it is typed', () => {
+    expect(toggledTitle(['Trees'], 'Birds')).toEqual(['Trees', 'Birds']);
+    expect(toggledTitle(['Trees', 'Birds'], 'trees!')).toEqual(['Birds']);
+    const was = ['Trees'];
+    toggledTitle(was, 'Birds');
+    expect(was).toEqual(['Trees']);
   });
 });
 
@@ -215,6 +232,11 @@ describe('what counts as a chapter', () => {
   it('still reads an index of bullets, as the app writes one, and skips a bullet that only mentions a note', () => {
     const plain = bookNoteBody('Trip', ['Packing', 'Route']) + '- We decided in [[Planning]].\n';
     expect(chaptersOf(plain).map((c) => c.title)).toEqual(['Packing', 'Route']);
+  });
+
+  it('adds a chapter a numbered index counts when the one named is not in it', () => {
+    const next = withChapter(HELLO, 'New chapter', 'Nope');
+    expect(chaptersOf(next).map((c) => c.title)).toContain('New chapter');
   });
 
   it('adds a chapter to a numbered index as the next number, so it counts', () => {

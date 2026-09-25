@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it } from 'vitest';
-import { fromBase64Url, toBase64Url } from '../src/app/core/sync/crypto.ts';
+import { toBase64Url } from '../src/app/core/sync/crypto.ts';
+import { importAccountKey } from './glyph.ts';
 import { ensureWebCrypto } from './webcrypto.ts';
 
 /**
@@ -23,11 +24,7 @@ afterEach(() => {
 });
 
 /** What the hosted server does with what the sign-in page hands it (mcp/hosted.ts, `/authorize/complete`). */
-async function takeTheKey(accountKey: string): Promise<CryptoKey> {
-  const raw = fromBase64Url(accountKey);
-  if (raw.length !== 32) throw new Error('not 32 bytes');
-  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-}
+const takeTheKey = (raw: string) => importAccountKey(raw, { length: 32 });
 
 describe('a Node without WebCrypto', () => {
   it('refuses a perfectly good account key, which is what made this so hard to see', async () => {

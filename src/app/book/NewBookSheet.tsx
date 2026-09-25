@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, GripVertical, X } from '@glacier/icons';
 import { useRowDrag } from './rowDrag.ts';
-import { CanvasMark } from './BookView.tsx';
+import { toggledTitle } from './book.ts';
+import { CanvasMark } from './CanvasMark.tsx';
 import { useBack } from '../core/back.ts';
 import { useSheetDrag } from '../editor/sheetDrag.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
@@ -53,7 +54,7 @@ export function NewBookSheet({ open, onClose, titles, onCreate, isCanvas }: NewB
   if (!open) return null;
 
   const chosen = (title: string) => pages.some((p) => sameTitle(p, title));
-  const toggle = (title: string) => setPages((was) => (was.some((p) => sameTitle(p, title)) ? was.filter((p) => !sameTitle(p, title)) : [...was, title]));
+  const toggle = (title: string) => setPages((was) => toggledTitle(was, title));
   const move = (title: string, by: -1 | 1) =>
     setPages((was) => {
       const at = was.findIndex((p) => sameTitle(p, title));

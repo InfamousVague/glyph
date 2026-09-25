@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { button, buttonSaying, show, typeInto } from '../../test/render.tsx';
+import { goBack } from '../core/back.ts';
+import { button, buttonSaying, rerender, show, typeInto } from '../../test/render.tsx';
+import { dragGrip, layRowsOut } from '../../test/rows.ts';
 import { NewBookSheet } from './NewBookSheet.tsx';
 
 /**
@@ -66,5 +68,31 @@ describe('the New book sheet', () => {
     act(() => make().click());
     expect(onCreate).toHaveBeenCalledWith('Cabin trip', ['Packing', 'Days']);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('closes on a back gesture while open, and holds none while closed', () => {
+    const onClose = vi.fn();
+    show(<NewBookSheet open onClose={onClose} titles={[]} onCreate={() => {}} />);
+    expect(goBack()).toBe(true);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    rerender(<NewBookSheet open={false} onClose={onClose} titles={[]} onCreate={() => {}} />);
+    expect(goBack()).toBe(false);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves a page dragged by its grip, and leaves one out by its cross', () => {
+    const onCreate = vi.fn();
+    show(<NewBookSheet open onClose={() => {}} titles={['Packing', 'Days', 'Food']} onCreate={onCreate} />);
+    type('Name', 'Trip');
+    for (const title of ['Packing', 'Days', 'Food']) act(() => button(title).click());
+    const rows = [...document.querySelectorAll<HTMLElement>('ol[aria-label="Pages in this book"] li')];
+    layRowsOut(rows);
+    // Food, from the bottom to above Packing's middle: the first page.
+    dragGrip(rows[2]!.querySelector('[class*=grip]')!, 100, 10);
+    expect(pages()).toEqual(['Food', 'Packing', 'Days']);
+    act(() => button('Leave Packing out').click());
+    expect(pages()).toEqual(['Food', 'Days']);
+    act(() => make().click());
+    expect(onCreate).toHaveBeenCalledWith('Trip', ['Food', 'Days']);
   });
 });

@@ -48,10 +48,7 @@ export class GlyphApiError extends Error {
 
 /** A write another device beat: the service kept theirs, and here it is. */
 export class Conflict extends Error {
-  constructor(
-    readonly id: string,
-    readonly theirs: NoteRecord | null,
-  ) {
+  constructor(readonly theirs: NoteRecord | null) {
     super(theirs ? 'Another device changed this note first; read it again before writing.' : 'Another device deleted this note.');
   }
 }
@@ -105,8 +102,21 @@ async function callApi<T>(api: string, method: string, path: string, { token, bo
   return answer as T;
 }
 
-async function importAccountKey(raw: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey('raw', fromBase64Url(raw), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+/**
+ * The account key from its raw bytes as base64url, as a key this process can use and never read out: the kept
+ * session's (`StoredSession.accountKey`), or what the hosted sign-in page unwrapped in the person's browser
+ * (mcp/hosted.ts). Given `length`, a key of any other length is refused before it is imported: the hosted route asks
+ * for 32 bytes, since what it is handed comes from a browser, while a kept session's key is imported as it was kept.
+ * The bytes are zeroed once the key is made, or refused.
+ */
+export async function importAccountKey(raw: string, { length }: { length?: number } = {}): Promise<CryptoKey> {
+  const bytes = fromBase64Url(raw);
+  try {
+    if (length !== undefined && bytes.length !== length) throw new Error(`not ${length} bytes`);
+    return await crypto.subtle.importKey('raw', bytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  } finally {
+    bytes.fill(0);
+  }
 }
 
 export class GlyphAccount {
@@ -160,11 +170,6 @@ export class GlyphAccount {
 
   get api(): string {
     return this.session.api;
-  }
-
-  /** The session as it should be kept. */
-  get stored(): StoredSession {
-    return this.session;
   }
 
   private async accountKey(): Promise<CryptoKey> {
@@ -287,7 +292,7 @@ export class GlyphAccount {
       const theirs = await this.record(winner);
       if (theirs) this.cache.set(note.id, theirs);
       else this.cache.delete(note.id);
-      throw new Conflict(note.id, theirs);
+      throw new Conflict(theirs);
     }
   }
 

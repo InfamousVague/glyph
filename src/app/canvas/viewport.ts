@@ -1,4 +1,5 @@
-import { bounds, type Box, type Canvas } from './jsonCanvas.ts';
+import { bounds, type Box } from './geometry.ts';
+import type { Canvas } from './jsonCanvas.ts';
 
 /**
  * Where the screen is over the canvas (canvas/CanvasView.tsx): the world's offset in screen pixels and its scale.
@@ -10,23 +11,20 @@ export interface View {
   scale: number;
 }
 
-export const MIN_SCALE = 0.1;
-export const MAX_SCALE = 3;
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 3;
 /** Room around the whole canvas when it is fitted to the screen, in screen pixels. */
-export const FIT_ROOM = 32;
+const FIT_ROOM = 32;
+/** The view before there is anything to fit, or a screen to fit it in: room at the top left, life size. */
+export const HOME: Readonly<View> = { x: FIT_ROOM, y: FIT_ROOM, scale: 1 };
 
+/** A scale no smaller than a tenth of life and no larger than three times. */
 export const clampScale = (scale: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
 
 /** The view that shows the whole canvas in a screen this big, centred, no larger than life. */
 export function fitted(canvas: Canvas, width: number, height: number): View {
   const box = bounds(canvas);
-  if (!box || width <= 0 || height <= 0) return { x: FIT_ROOM, y: FIT_ROOM, scale: 1 };
-  const scale = clampScale(Math.min((width - FIT_ROOM * 2) / Math.max(box.width, 1), (height - FIT_ROOM * 2) / Math.max(box.height, 1), 1));
-  return {
-    x: (width - box.width * scale) / 2 - box.x * scale,
-    y: (height - box.height * scale) / 2 - box.y * scale,
-    scale,
-  };
+  return box ? fittedTo(box, width, height) : { ...HOME };
 }
 
 /** The view with the point of the canvas that was under (px, py) still under it at `scale`. */
@@ -37,7 +35,7 @@ export function zoomedAt(view: View, px: number, py: number, scale: number): Vie
 
 /** The view that shows this box in a screen this big, centred, no larger than life: zoom-to-card (choice 10). */
 export function fittedTo(box: Box, width: number, height: number): View {
-  if (width <= 0 || height <= 0) return { x: FIT_ROOM, y: FIT_ROOM, scale: 1 };
+  if (width <= 0 || height <= 0) return { ...HOME };
   const scale = clampScale(Math.min((width - FIT_ROOM * 2) / Math.max(box.width, 1), (height - FIT_ROOM * 2) / Math.max(box.height, 1), 1));
   return { x: (width - box.width * scale) / 2 - box.x * scale, y: (height - box.height * scale) / 2 - box.y * scale, scale };
 }

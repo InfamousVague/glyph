@@ -95,7 +95,9 @@ export function withChapter(body: string, title: string, after: string | null = 
   const lines = body.split('\n');
   const chapters = chaptersOf(body);
   if (chapters.some((c) => sameTitle(c.title, clean))) return body;
-  const place = after ? chapters.find((c) => sameTitle(c.title, after)) : chapters[chapters.length - 1];
+  // After the one named where it is in the index, else after the last: a name the index does not have is not a
+  // reason to start a second list under the first, which a numbered index would not count.
+  const place = (after ? chapters.find((c) => sameTitle(c.title, after)) : undefined) ?? chapters[chapters.length - 1];
   if (place) {
     const indent = place.depth === 1 ? '  ' : '';
     // In the index's own style: a numbered index goes on numbering, or the new chapter would be a bullet it skips.
@@ -108,6 +110,14 @@ export function withChapter(body: string, title: string, after: string | null = 
   while (lines.length && lines[lines.length - 1]!.trim() === '') lines.pop();
   lines.push(lines.length ? '' : '', `- [[${clean}]]`, '');
   return lines.join('\n').replace(/^\n/, '');
+}
+
+/**
+ * The titles with `title` taken out where it is there, matched as a link matches, or put on the end where it is not:
+ * a tap on a note in a picker, ticking it or unticking it (book/BookView.tsx, book/NewBookSheet.tsx).
+ */
+export function toggledTitle(titles: readonly string[], title: string): string[] {
+  return titles.some((t) => sameTitle(t, title)) ? titles.filter((t) => !sameTitle(t, title)) : [...titles, title];
 }
 
 /** The body with a chapter's line taken out of the index; the note it names is untouched. */
@@ -244,12 +254,4 @@ export function bookWords(body: string): { before: string; after: string } {
   // A rule or a heading left dangling at the end of the words before - the lead-in to the list - goes with the list.
   const before = tidy(head).replace(/(\n+(?:-{3,}|\*{3,}|#{1,6}\s.*))+\s*$/, '').replace(/^(?:-{3,}|\*{3,})$/, '').trim();
   return { before, after: chapters.length ? tidy(lines.slice(last + 1)) : '' };
-}
-
-/** The lines of the book's words before its index, each trimmed: what a list of books shows as its lead. */
-export function prefaceOf(body: string): string[] {
-  return bookWords(body)
-    .before.split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
 }

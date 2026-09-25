@@ -1,0 +1,7 @@
+/* The canvas's mark after a title that is a canvas (CanvasMark.tsx): quiet, in the words' line. */
+.canvasMark {
+  display: inline-flex;
+  vertical-align: -0.1em;
+  margin-inline-start: 0.4em;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}

@@ -14,10 +14,10 @@ import { failureText } from '../src/app/core/failure.ts';
 import type { Note } from '../src/app/core/store.ts';
 import { makeNote } from '../src/test/notes.ts';
 import { emptyState, syncNotes, type LocalFiles, type LocalNotes, type SyncContext } from '../src/app/core/sync/notes.ts';
-import { derive, passwordSalt, ROUNDS, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
-import { ClaudeMemory } from './fake.ts';
+import { ROUNDS } from '../src/app/core/sync/crypto.ts';
 import { freePort } from './freePort.ts';
 import { GlyphAccount } from './glyph.ts';
+import { asText, ClaudeMemory, playSignInPage, readSignInPage } from './testKit.ts';
 
 /**
  * The MCP server against a real glyph-api and the app's own sync code: run with
@@ -129,10 +129,6 @@ describe.skipIf(!ON || !existsSync(BUNDLE))('Claude and a phone on one Glyph acc
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(['account_status', 'append_to_note', 'create_note', 'list_notes', 'read_note', 'search_notes', 'set_note_flags', 'update_note']);
 
-    const asText = (result: Awaited<ReturnType<Client['callTool']>>) => {
-      const content = result.content as { type: string; text?: string }[];
-      return content[0]?.text ?? '';
-    };
     const listed = JSON.parse(asText(await client.callTool({ name: 'list_notes', arguments: {} }))) as { count: number; notes: { id: string; title: string }[] };
     expect(listed.count).toBe(2);
     expect(listed.notes.map((n) => n.title).sort()).toEqual(['From Claude', 'Groceries']);
@@ -235,20 +231,12 @@ describe.skipIf(!ON || !existsSync(HOSTED))('Claude on the hosted server, with a
     expect(memory.sentTo?.pathname).toBe('/glyph/api/mcp/authorize');
 
     // The page, played step by step: the real service's sign-in, the key unwrapped, the code back to Claude.
-    const html = await (await fetch(memory.sentTo!)).text();
-    const request = /data-request="([^"]+)"/.exec(html)![1]!;
-    const { login, wrapKey } = await derive(password, passwordSalt(handle), ROUNDS);
-    const answer = (await (await fetch(`${API_BASE}/v1/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ handle, loginSecret: login }) })).json()) as { token: string; wrapped: string; account: { handle: string } };
-    const key = await unwrap(answer.wrapped, wrapKey, true);
-    const raw = toBase64Url(new Uint8Array(await crypto.subtle.exportKey('raw', key)));
-    const done = await fetch(`${issuer}/authorize/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request, handle: answer.account.handle, token: answer.token, accountKey: raw }) });
-    const { redirect, error } = (await done.json()) as { redirect?: string; error?: string };
-    expect(done.status, error).toBe(200);
-    await transport.finishAuth(new URL(redirect!).searchParams.get('code')!);
+    const done = await playSignInPage(await readSignInPage(memory.sentTo!), { handle, password, rounds: ROUNDS });
+    expect(done.status, done.body.error).toBe(200);
+    await transport.finishAuth(new URL(done.body.redirect!).searchParams.get('code')!);
 
     transport = new StreamableHTTPClientTransport(url, { authProvider: memory });
     await client.connect(transport);
-    const asText = (result: Awaited<ReturnType<Client['callTool']>>) => (result.content as { text?: string }[])[0]?.text ?? '';
     const listed = JSON.parse(asText(await client.callTool({ name: 'list_notes', arguments: {} }))) as { notes: { title: string }[] };
     expect(listed.notes.map((n) => n.title)).toEqual(['Groceries']);
     const created = JSON.parse(asText(await client.callTool({ name: 'create_note', arguments: { title: 'From the hosted server', body: '- [ ] Works' } }))) as { created: { id: string } };

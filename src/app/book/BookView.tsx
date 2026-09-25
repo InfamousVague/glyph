@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState, type RefObject } from 'react';
-import { BookOpen, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, GripVertical, List, Plus, Workflow, X } from '@glacier/icons';
+import { BookOpen, Check, ChevronDown, ChevronUp, GripVertical, List, Plus, Workflow, X } from '@glacier/icons';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 import { authorsAcross } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
-import { bodyWithoutTitle, bookWords, chaptersOf, numbered, withChapter, withChapterAt, withChapterMoved, withoutChapter, type BookPlace } from './book.ts';
+import { bodyWithoutTitle, bookWords, chaptersOf, numbered, toggledTitle, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
+import { CanvasMark } from './CanvasMark.tsx';
 import { Editor } from '../editor/Editor.tsx';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { readBookSpot, useBookSpot } from './bookSpot.ts';
@@ -15,9 +16,12 @@ import styles from './BookView.module.css';
  * A book's index, drawn where its words would be (editor/NoteScreen.tsx): its own words first, then the chapters,
  * numbered, each a row that opens the note - or makes it, where a chapter is a title with no note yet, which the row
  * says. The index is edited here in the three ways an index is: a chapter added (a new one, named here and opened at
- * once; or a note already written, picked from the library), moved a place up or down, or taken out - none of which
- * touches the chapter's own note. Every change is a change to the book note's body (book/book.ts), written the way
- * typing is, so the Markdown behind the view is always the index it shows, and the view is a toggle away from it.
+ * once; or a note already written, picked from the library), moved - a place up or down, or dragged by its grip
+ * (book/rowDrag.ts) - or taken out, none of which touches the chapter's own note. Every change is a change to the
+ * book note's body (book/book.ts), written the way typing is, so the Markdown behind the view is always the index it
+ * shows, and the view is a toggle away from it. The chapters can also be read straight through, one after another,
+ * each in the note's own read-only editor. The bar and the foot a chapter wears to find its way round the book are
+ * BookNav.tsx.
  *
  * A chapter can be a canvas (Matt: "Add the ability for canvases to be in books as well"): a canvas is a note found
  * by its title like any other, so it was always a page a book could hold and open - what the index lacked was saying
@@ -60,15 +64,6 @@ function BookWords({ words, known, open, dark }: { words: string; known: (title:
     <div className={styles.preface}>
       <Editor value={words} onChange={noop} dark={dark} assist={false} readOnly display="formatted" wiki={{ known, open }} grow />
     </div>
-  );
-}
-
-/** The canvas's mark, beside a title that is a canvas: the index's, and the new-book sheet's (book/NewBookSheet.tsx). */
-export function CanvasMark() {
-  return (
-    <span className={styles.canvasMark} title="A canvas">
-      <Workflow size={13} strokeWidth={2.2} aria-hidden="true" />
-    </span>
   );
 }
 
@@ -118,7 +113,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
     if (asCanvas && openCanvas) openCanvas(name);
     else open(name);
   };
-  const togglePick = (name: string) => setPicked((was) => (was.some((p) => sameTitle(p, name)) ? was.filter((p) => !sameTitle(p, name)) : [...was, name]));
+  const togglePick = (name: string) => setPicked((was) => toggledTitle(was, name));
   const addPicked = () => {
     let next = body;
     for (const name of picked) next = withChapter(next, name);
@@ -340,74 +335,6 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * The bar a chapter wears under its header: the book it is in, its place in it, and the chapters either side
- * (`bookOf` in book/book.ts finds them). A tap on the book opens the index; the ends open the neighbours.
- */
-/** The chapters either side of this one: null at either end. */
-function sides(place: BookPlace): { prev: string | null; next: string | null } {
-  return {
-    prev: place.at > 0 ? place.chapters[place.at - 1]!.title : null,
-    next: place.at < place.chapters.length - 1 ? place.chapters[place.at + 1]!.title : null,
-  };
-}
-
-export function BookBar({ place, open }: { place: BookPlace; open: (title: string) => void }) {
-  const { prev, next } = sides(place);
-  return (
-    <nav className={styles.bar} aria-label="Book">
-      <button type="button" className={styles.end} disabled={!prev} onClick={() => prev && open(prev)} aria-label={prev ? `Previous chapter: ${prev}` : 'First chapter'}>
-        <ChevronLeft size={16} aria-hidden="true" />
-        <span className={styles.endTitle}>{prev ?? ''}</span>
-      </button>
-      <button type="button" className={styles.middle} onClick={() => open(place.title)} aria-label={`Open the book ${place.title}`}>
-        <BookOpen size={15} aria-hidden="true" />
-        <span className={styles.bookTitle}>{place.title}</span>
-        <span className={styles.count}>
-          {place.at + 1} of {place.chapters.length}
-        </span>
-      </button>
-      <button type="button" className={styles.end} data-next="" disabled={!next} onClick={() => next && open(next)} aria-label={next ? `Next chapter: ${next}` : 'Last chapter'}>
-        <span className={styles.endTitle}>{next ?? ''}</span>
-        <ChevronRight size={16} aria-hidden="true" />
-      </button>
-    </nav>
-  );
-}
-
-/**
- * The foot a chapter wears (Matt: "add the book navigation for next and prev buttons at the bottom of the page"): the
- * chapters either side, as two wide buttons under the last line, so a reader who reaches the end of a page goes on
- * from there rather than scrolling back up to the bar. The same place as the bar (`BookBar`), so the two always agree.
- * At the first chapter there is only Next, at the last only Previous, and a book of one chapter has no foot.
- */
-export function BookFoot({ place, open }: { place: BookPlace; open: (title: string) => void }) {
-  const { prev, next } = sides(place);
-  if (!prev && !next) return null;
-  return (
-    <nav className={styles.foot} aria-label="Previous and next chapter" data-book-foot="">
-      {prev ? (
-        <button type="button" className={styles.step} onClick={() => open(prev)} aria-label={`Previous: ${prev}`}>
-          <span className={styles.stepLabel}>
-            <ChevronLeft size={14} aria-hidden="true" />
-            Previous
-          </span>
-          <span className={styles.stepTitle}>{prev}</span>
-        </button>
-      ) : null}
-      {next ? (
-        <button type="button" className={styles.step} data-next="" onClick={() => open(next)} aria-label={`Next: ${next}`}>
-          <span className={styles.stepLabel}>
-            Next
-            <ChevronRight size={14} aria-hidden="true" />
-          </span>
-          <span className={styles.stepTitle}>{next}</span>
-        </button>
-      ) : null}
-    </nav>
   );
 }
 

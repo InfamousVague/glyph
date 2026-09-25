@@ -1,6 +1,7 @@
 /*
  * The New book sheet (NewBookSheet.tsx): the note settings sheet's own shell (editor/NoteSettings.module.css), with
- * the pages chosen so far as a short numbered list and the library's notes under a search, each a row that ticks.
+ * the pages chosen so far as a short numbered list and the library's notes under a search, each a row that ticks. A
+ * page's number, grip, arrows and cross are the index's (rows.module.css).
  */
 
 .sheet {
@@ -23,6 +24,7 @@
 }
 
 .page {
+  composes: lifts from './rows.module.css';
   display: grid;
   grid-template-columns: 1.4em 2em minmax(0, 1fr) auto;
   align-items: center;
@@ -36,9 +38,7 @@
 }
 
 .number {
-  color: var(--glacier-text-muted);
-  font-variant-numeric: tabular-nums;
-  text-align: end;
+  composes: number from './rows.module.css';
 }
 
 .pageTitle {
@@ -48,30 +48,11 @@
 }
 
 .tools {
-  display: inline-flex;
-  gap: 2px;
+  composes: tools from './rows.module.css';
 }
 
 .tool {
-  display: inline-grid;
-  place-items: center;
-  inline-size: 2em;
-  block-size: 2em;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--glacier-text-muted);
-  cursor: pointer;
-}
-
-.tool:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--glacier-text) 8%, transparent);
-  color: var(--glacier-text);
-}
-
-.tool:disabled {
-  opacity: 0.3;
-  cursor: default;
+  composes: tool from './rows.module.css';
 }
 
 .found {
@@ -131,17 +112,7 @@
   font-size: var(--glacier-font-size-sm, 0.875rem);
 }
 
-/* The grip a page is dragged by (rowDrag.ts). */
+/* The grip a page is dragged by, and the look it is lifted with (rows.module.css). */
 .grip {
-  display: inline-grid;
-  place-items: center;
-  block-size: 2em;
-  color: var(--glacier-text-subtle, var(--glacier-text-muted));
-  cursor: grab;
-  touch-action: none;
-}
-
-.page[data-lifted] {
-  background: color-mix(in srgb, var(--glacier-bg) 88%, var(--glacier-text) 6%);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+  composes: grip from './rows.module.css';
 }
