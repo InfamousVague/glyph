@@ -96,6 +96,7 @@ fn request(id: &str, system: &str, note: &str, max_tokens: u32) -> Request {
         temperature: 0.3,
         think: false,
         think_budget: 0,
+        grammar: None,
     }
 }
 

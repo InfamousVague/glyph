@@ -1,6 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { bindLive, unbindLive } from '../../editor/liveBinding.ts';
-import { announceNotesChanged, getNote, newNoteId, saveNote } from '../store.ts';
+import { announceNotesChanged, createNote, getNote, newNoteId } from '../store.ts';
 import { hasUnsyncedChanges } from '../sync/engine.ts';
 import { closeLive, openLive } from './hub.ts';
 import type { LiveSession } from './session.ts';
@@ -32,7 +32,7 @@ export async function goLive(view: EditorView, noteId: string, onPeers: (count: 
       },
       // This device's own words, kept beside the room's: a conflict makes a copy, never a loss.
       keepCopy: async (_id, words) => {
-        await saveNote(newNoteId(), words, 'editor');
+        await createNote(newNoteId(), words, 'editor');
         announceNotesChanged();
       },
     },

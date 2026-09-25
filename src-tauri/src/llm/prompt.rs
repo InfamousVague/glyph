@@ -79,6 +79,18 @@ mod tests {
     }
 
     #[test]
+    fn the_snapshotted_prefix_excludes_every_user_utterance() {
+        let framed = frame(CHATML, false).unwrap();
+        let old = format!("{}{}{}", framed.prefix, "make Brofries", framed.suffix);
+        let current = format!("{}{}{}", framed.prefix, "add eggs to groceries", framed.suffix);
+        assert_eq!(&old[..framed.prefix.len()], framed.prefix);
+        assert_eq!(&current[..framed.prefix.len()], framed.prefix);
+        assert!(!framed.prefix.contains("Brofries"));
+        assert!(!framed.prefix.contains("groceries"));
+        assert_ne!(old, current, "only the uncached user remainder changes");
+    }
+
+    #[test]
     fn a_thinking_template_gets_an_empty_thought_once() {
         assert_eq!(frame(CHATML, true).unwrap().suffix, "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n");
         let already = CHATML.replace("assistant\n", "assistant\n<think>\n\n</think>\n\n");

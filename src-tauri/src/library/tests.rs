@@ -1,5 +1,5 @@
 use super::*;
-use crate::store::{RecordedSegment, Recording, Store};
+use crate::store::{CommandMutation, CommandMutationResult, CommandUndoResult, RecordedSegment, Recording, Store};
 
 fn temp(label: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("glyph-library-{label}-{}", uuid::Uuid::new_v4()));
@@ -242,6 +242,7 @@ fn remote(id: &str, body: &str) -> Note {
         formatted_for: Some(42),
         formatted_model: Some("m".into()),
         path: Some("Work/Trips/Hello.md".into()),
+        revision: 7,
     }
 }
 
@@ -314,4 +315,57 @@ fn a_synced_note_replaces_a_draft_of_the_same_id() {
     assert_eq!(library.get_note("d").unwrap().unwrap().body, "# Hello\n");
     library.save_note("d", "", "editor").unwrap();
     assert!(library.get_note("d").unwrap().is_some(), "a synced note is not a draft to be dropped");
+}
+
+#[test]
+fn a_stale_writer_cannot_resurrect_a_deleted_library_note() {
+    let root = temp("deleted-cas");
+    let mut library = Library::open_fs(&root).unwrap();
+    let original = library.create_note("gone", "# Gone\n", "capture").unwrap().unwrap();
+    assert!(library.delete_note(&original.id).unwrap());
+    assert_eq!(library.update_note(&original.id, "# Returned\n", original.revision).unwrap(), None);
+    assert_eq!(library.get_note(&original.id).unwrap(), None);
+}
+
+#[test]
+fn command_mutation_is_cas_guarded_and_undo_survives_reopen() {
+    let root = temp("command-cas");
+    let mut library = Library::open_fs(&root).unwrap();
+    let before = library.create_note("todo", "To-Do\n", "editor").unwrap().unwrap();
+    let mutation = CommandMutation {
+        id: "m1".into(),
+        note_id: before.id.clone(),
+        kind: "append".into(),
+        before_revision: Some(before.revision),
+        before_body: Some(before.body.clone()),
+        after_body: "To-Do\n\n- [ ] Wash dishes\n".into(),
+        source: "capture".into(),
+    };
+    let applied = library.apply_command(&mutation).unwrap();
+    assert!(matches!(applied, CommandMutationResult::Applied { .. }));
+    drop(library);
+
+    let mut reopened = Library::open_fs(&root).unwrap();
+    let undone = reopened.undo_command("m1").unwrap();
+    assert!(matches!(undone, CommandUndoResult::Undone { .. }));
+    assert_eq!(reopened.get_note("todo").unwrap().unwrap().body, "To-Do\n");
+    assert_eq!(reopened.undo_command("m1").unwrap(), CommandUndoResult::AlreadyUndone);
+}
+
+#[test]
+fn stale_command_preview_never_overwrites_a_later_library_edit() {
+    let root = temp("command-conflict");
+    let mut library = Library::open_fs(&root).unwrap();
+    let shown = library.create_note("todo", "To-Do\n", "editor").unwrap().unwrap();
+    let edited = library.update_note("todo", "To-Do\n\nTyped later.\n", shown.revision).unwrap().unwrap();
+    let result = library.apply_command(&CommandMutation {
+        id: "stale".into(),
+        note_id: shown.id,
+        kind: "append".into(),
+        before_revision: Some(shown.revision),
+        before_body: Some(shown.body),
+        after_body: "To-Do\n\n- [ ] Voice\n".into(),
+        source: "capture".into(),
+    }).unwrap();
+    assert_eq!(result, CommandMutationResult::Conflict { current: Some(edited) });
 }

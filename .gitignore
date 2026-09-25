@@ -4,6 +4,8 @@ node_modules
 /mcp/dist
 .DS_Store
 src-tauri/target
+# The host-test harness is its own Cargo workspace.
+tools/host-tests/target
 /coverage
 
 # Generated mobile projects. `tauri ios init` / `android init` rebuild these.

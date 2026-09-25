@@ -2,6 +2,7 @@ import { isBookBody } from '../book/book.ts';
 import { addToLane, lanesOf, matchLane, moveToLane, type Lane } from '../core/boards.ts';
 import { matchNote, parseRoute, type Candidate } from './route.ts';
 import { cellsOf } from './table.ts';
+import { spokenListItems } from './spokenList.ts';
 
 /**
  * "Glyph, add buy milk to HelloTrade": commands while recording, which only
@@ -113,6 +114,10 @@ export interface Placement {
   many: boolean;
   /** A plugin's word after the note's name ("…in Notion"). */
   target: string | null;
+  /** Semantic list area named explicitly by the command. */
+  near?: 'bugs';
+  /** The items already told apart ("a list with…"), so a comma inside one ("Parkersburg, West Virginia") stays in it. */
+  items?: readonly string[];
 }
 
 export type Plan<N extends Candidate = Candidate> =
@@ -124,6 +129,8 @@ export type Plan<N extends Candidate = Candidate> =
   | { kind: 'move'; note: N }
   /** This take becomes a new note. */
   | { kind: 'new' }
+  /** A standalone Speak request creates a separately titled list note, with the items said for it. */
+  | { kind: 'create-list'; title: string; items?: readonly string[] }
   /** A table, asked for a piece at a time (capture/table.ts): in a named note, or this one when none is named. */
   | { kind: 'table'; note: N | null; columns: string[] }
   /** A card for a board's lane: "Glyph, add fix the login bug to Doing" (core/boards.ts). */
@@ -143,9 +150,101 @@ const LEAD = /^\s*(?:(?:please|can you|could you|would you|and|so|ok(?:ay)?|um+|
 const MOVERS = /^\s*(?:switch|go|jump|change|move|carry on|continue)\b/i;
 
 /** "a list item", "a task", "a note that says" at the front of what is being added: the kind of thing, not the thing. */
-const OBJECT_NOUN = /^(?:(?:a|an|another|one more|some|new)\s+)?(?:quick\s+)?(?:(list\s+)?(items?|entry|entries|bullets?|points?)|(tasks?|to-?\s?dos?|check\s?box(?:es)?)|(notes?|lines?|reminders?|comments?|memos?))(?:\s+(?:that\s+says|saying|which\s+says|called|:|,))?\s*/i;
+const OBJECT_NOUN = /^(?:(?:a|an|another|one more|some|new)\s+)?(?:quick\s+)?(?:(list\s+)?(items?|entry|entries|bullets?|points?)|(tasks?|to-?\s?dos?|check\s?box(?:es)?)|(notes?|lines?|reminders?|comments?|memos?)|(bugs?|issues?|defects?))(?:\s+(?:about|that\s+says|saying|which\s+says|called|:|,))?\s*/i;
 
 const TABLE = /^(?:add|make|create|start|put|insert|draw|build|new)\s+(?:(?:a|an|another|one)\s+)?(?:new\s+)?table\b(.*)$/i;
+const CREATE_LIST = /^(?:(?:please\s+)?(?:make|create|start)\s+(?:(?:me\s+)?(?:a|another)\s+)?(?:new\s+)?list|(?:i\s+(?:need|want|would\s+like))\s+(?:a\s+)?new\s+list)\s+(?:called|named|titled)\s+(.+)$/i;
+const ADD_TO_LIST = /^(?:please\s+)?(?:add|put|append)\s+(?:these\s+)?(?:items?\s+)?(?:to|in|into|on)\s+(?:the\s+)?(.+?)\s+list(?:\s+(?:that\s+)?(?:i\s+(?:need|want)|with|containing|:))?\s+(.+)$/i;
+const DIRECT_APPEND = /^(?:please\s+)?(?:add|put|append)\s+(?:(?:this|these|the\s+following)\s+)?to\s+(?:(?:the|my|our)\s+)?(?:(?:note|list|page)\s+(?:that(?:'s|\s+is)\s+)?(?:label(?:ed|led)|called|named|titled)\s+|note\s+)?(.+)$/i;
+
+/**
+ * What is added, when it says it is a list: "a list with…", "a to-do list of…", "the following items:", "these
+ * tasks…". The words after it are the items, told apart by `spokenListItems`.
+ */
+const LIST_INTRO = /^(?:(?:a|an|the|this|my)\s+)?(?:(?:new|short|quick)\s+)?(?:(?:bullet(?:ed)?|bulleted|numbered|check(?:ed)?|(to-?\s?do|task|check)|shopping|grocery)\s+)?(?:list|items?|(tasks?|to-?\s?dos?|check\s?list))\s*(?:(?:of|with|containing|including|that\s+(?:has|says|includes)|saying|for)\b|:|,|-)\s*|^(?:the\s+following(?:\s+(?:items?|things|places|(tasks?|to-?\s?dos?)))?|(?:these|those)\s+(?:items?|things|places|(tasks?|to-?\s?dos?)))\s*(?::|,|-)?\s*/i;
+
+/** "…and add to the list", "…then put", ", add these": where a new list's title ends and its items begin. */
+const THEN_ADD = /(?:\s*[,.;:]\s*|\s+)(?:(?:and|then|and\s+then)\s+)?(?:add|put)\s+/i;
+/** "…with", "…containing", "…:": the same, when what follows is plainly several items. */
+const WITH_ITEMS = /\s+(?:with|containing|including|that\s+has|of)\s+|\s*:\s*/i;
+const THE_LIST = String.raw`(?:(?:the|that|this|my)\s+)?(?:new\s+)?(?:list|note|it)`;
+const INTO_LIST_FIRST = new RegExp(String.raw`^(?:to|in|on|into|onto)\s+${THE_LIST}\b\s*[,:]?\s*`, 'i');
+const INTO_LIST_LAST = new RegExp(String.raw`\s+(?:to|in|on|into|onto)\s+${THE_LIST}\s*$`, 'i');
+const THESE = /^(?:(?:these|the\s+following)(?:\s+(?:items?|things))?|items?)\s*[,:]?\s+/i;
+
+/**
+ * "Comic books and add to the list Spider-Man, Batman and Superman": the new list's title, and its items when some
+ * were said. A title that merely contains "with" ("Books with pictures") stays a title: only several items split it.
+ */
+function titleAndItems(said: string): { title: string; items: string[] } {
+  const added = THEN_ADD.exec(said);
+  if (added && added.index > 0) {
+    const rest = said
+      .slice(added.index + added[0].length)
+      .replace(INTO_LIST_FIRST, '')
+      .replace(INTO_LIST_LAST, '')
+      .replace(THESE, '')
+      .trim();
+    const items = spokenListItems(rest);
+    if (items.length) return { title: said.slice(0, added.index).trim(), items };
+  }
+  const listed = WITH_ITEMS.exec(said);
+  if (listed && listed.index > 0) {
+    const items = spokenListItems(said.slice(listed.index + listed[0].length).replace(THESE, ''));
+    if (items.length > 1) return { title: said.slice(0, listed.index).trim(), items };
+  }
+  return { title: said, items: [] };
+}
+
+/** A named note's words, as a list when they say they are one. */
+function directPayload(text: string): Pick<Placement, 'how' | 'task' | 'many' | 'items'> & { text: string } {
+  const intro = LIST_INTRO.exec(text);
+  const rest = intro ? text.slice(intro[0].length).trim() : '';
+  if (!intro || !rest) return { text, how: 'leave', task: false, many: false };
+  const items = spokenListItems(rest);
+  const task = Boolean(intro[1] || intro[2] || intro[3] || intro[4]);
+  return { text: items.join(', '), how: 'item', task, many: items.length > 1, items };
+}
+
+/** A terminal voice stop cue is control, never command content. */
+export function isStopCue(text: string): boolean {
+  return /^\s*(?:end|stop)\s*[.!?]*\s*$/i.test(text);
+}
+
+export function stripStopCue(text: string): string {
+  return text.replace(/(?:[.!?]\s*)?\b(?:end|stop)\s*[.!?]*\s*$/i, '').trim();
+}
+
+/**
+ * The command in a finished recording, or null when it is not one: what is left once a leading "hey Ghost", "okay",
+ * "um" or "can you" is gone, if that starts like a command. Only the very start counts, so a command said inside a
+ * sentence ("I told Sam, add to…") stays words.
+ */
+export function finalCommandWords(text: string): string | null {
+  let words = stripStopCue(text.trim()).replace(/^[\s.,;:!?…"“]+/, '');
+  for (let pass = 0; pass < 3; pass += 1) {
+    const before = words;
+    const keyword = findKeyword(words);
+    if (keyword && !keyword.before.trim()) words = keyword.after;
+    words = words.replace(/^\s*(?:(?:hey|hi|please|can you|could you|would you|will you|and|so|ok(?:ay)?|alright|all right|um+|uh+|er+|hmm+)[,.\s]+)+/i, '').trim();
+    if (words === before) break;
+  }
+  return isStandaloneCommandLike(words) ? words : null;
+}
+
+/** Narrow gate for no-wake commands in a fresh main Speak capture. */
+export function isStandaloneCommandLike(text: string): boolean {
+  return /^(?:please\s+)?(?:make|create|new|add|put|append|i\s+(?:need|want|would\s+like)\s+(?:a\s+)?new)\b/i.test(stripStopCue(text));
+}
+
+/** Split only unmistakable short enumerations; preserve ordinary phrases. */
+export function splitSpokenItems(text: string, allowBareWords = false): string[] {
+  const cleaned = text.trim().replace(/^(?:that\s+)?i\s+(?:need|want)\s+/i, '').replace(/[.!?]+$/, '').trim();
+  const punctuated = cleaned.split(/\s*(?:,|;|\band\b)\s*/i).filter(Boolean);
+  if (punctuated.length > 1) return punctuated;
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  return allowBareWords && words.length >= 2 && words.length <= 8 && words.every((word) => /^[\p{L}\p{N}'-]+$/u.test(word)) ? words : [cleaned];
+}
 /** "…with columns bug, owner and status": the labels said up front, so the first question is skipped. */
 const TABLE_COLUMNS = /\s*,?\s*(?:with|using|that has|having)\s+(?:the\s+)?(?:columns?|column labels?|headings?|headers?|labels?)\s*(?:of|:|,)?\s*(.+)$/i;
 
@@ -165,8 +264,25 @@ function noteNamed<N extends Candidate>(raw: string, notes: readonly N[]): { not
   return matchNote(name, notes);
 }
 
+/** Match an actual title at the start of a spoken tail, case/punctuation-insensitively. */
+function titledPrefix<N extends Candidate>(tail: string, notes: readonly N[]): { note: N; text: string } | null {
+  const found = notes
+    .map((note) => {
+      const words = note.title.trim().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(/\s+/).filter(Boolean);
+      if (!words.length) return null;
+      const pattern = words.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(String.raw`[\s\p{P}_]+`);
+      const match = new RegExp(String.raw`^\s*${pattern}(?:[\s\p{P}_]+)(.+)$`, 'iu').exec(tail);
+      return match?.[1]?.trim() ? { note, text: match[1].trim() } : null;
+    })
+    .filter((value): value is { note: N; text: string } => value !== null);
+  return found.length === 1 ? (found[0] ?? null) : null;
+}
+
 function placementOf(noun: RegExpExecArray | null): Placement {
   if (noun?.[3]) return { how: 'item', task: true, many: /s$|es$/i.test(noun[3]), target: null };
+  // Group 2 is "items"/"bullets", group 5 is "bugs"/"issues": both are list
+  // items. A bug request also carries its semantic area to list placement.
+  if (noun?.[5]) return { how: 'item', task: false, many: /s$|ies$/i.test(noun[5]), target: null, near: 'bugs' };
   if (noun?.[2]) return { how: 'item', task: false, many: /s$|ies$/i.test(noun[2]), target: null };
   return { how: 'leave', task: false, many: false, target: null };
 }
@@ -185,8 +301,11 @@ export interface PlanOptions<N extends Candidate & { note?: { body: string } }> 
 
 export function planCommand<N extends Candidate & { note?: { body: string } }>(words: string, options: PlanOptions<N>): Plan<N> | null {
   const plan = readCommand(words, options);
-  // What is added is words, not the end of a spoken sentence.
-  return plan?.kind === 'place' ? { ...plan, text: plan.text.replace(/[\s.,;:!?]+$/, '') } : plan;
+  // What is added is words, not the end of a spoken sentence. Spoken quote
+  // cues are user punctuation, not literal command prose.
+  return plan?.kind === 'place'
+    ? { ...plan, text: plan.text.replace(/\bquote\s+(.+?)\s+quote\b/gi, '"$1"').replace(/[\s.,;:!?]+$/, '') }
+    : plan;
 }
 
 /** "Make this a board", "turn the list into a kanban board". */
@@ -256,9 +375,37 @@ function readCommand<N extends Candidate & { note?: { body: string } }>(words: s
 }
 
 function readWords<N extends Candidate & { note?: { body: string } }>(words: string, { notes, targets = [], board = null }: PlanOptions<N>): Plan<N> | null {
-  const text = words.replace(LEAD, '').trim();
+  const text = stripStopCue(words.replace(LEAD, '').trim());
   if (!text) return null;
   if (MAKE_BOARD.test(text)) return { kind: 'board' };
+  const createList = CREATE_LIST.exec(text);
+  if (createList?.[1]) {
+    const { title, items } = titleAndItems(createList[1].replace(/[.!?]+$/, '').trim());
+    return title ? { kind: 'create-list', title, ...(items.length ? { items } : {}) } : null;
+  }
+  const addList = ADD_TO_LIST.exec(text);
+  if (addList?.[1] && addList[2]) {
+    const found = noteNamed(addList[1], notes);
+    if (found) {
+      const items = splitSpokenItems(addList[2], true);
+      return { kind: 'place', note: found.note, text: items.join(', '), how: 'item', task: false, many: items.length > 1, target: null };
+    }
+  }
+  // "Add to my note labeled Go a list with…" also reads as "add to <my note labeled Go a> list with…": when that name
+  // is no note, the labeled note is the reading, and the no-note answer waits until it has failed too.
+  const missing: Plan<N> | null = addList?.[1] && addList[2] ? { kind: 'no-note', name: addList[1].replace(/[\s.,;:!?]+$/, '').trim() } : null;
+  const directAppend = DIRECT_APPEND.exec(text);
+  if (directAppend?.[1]) {
+    // 'labeled "Go" a list…': the quotes are the title's, not the words'.
+    const named = /^["“]([^"”]+)["”]\s*(.*)$/.exec(directAppend[1]);
+    const found = titledPrefix(named ? `${named[1]} ${named[2]}` : directAppend[1], notes);
+    if (found) return { kind: 'place', note: found.note, target: null, ...directPayload(found.text.replace(/^[\s,:;-]+/, '')) };
+    // "Add this to the field guide": a whole title with nothing after it is this recording going there, which the
+    // rules below read (a chapter, when the note is a book). Only a shape with words after the title fails closed
+    // here, when no unique title is found.
+    if (!noteNamed(directAppend[1], notes)) return missing ?? { kind: 'no-note', name: directAppend[1].replace(/[\s.,;:!?]+$/, '').trim() };
+  }
+  if (missing) return missing;
 
   // "Make a book called Field guide with Trees, Birds and Rivers" (docs/BOOKS.md). Said with no name, it waits for one.
   const making = MAKE_BOOK.exec(text);

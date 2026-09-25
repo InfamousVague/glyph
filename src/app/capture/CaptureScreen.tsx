@@ -4,22 +4,36 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { answerHost, endCapture, isLocked, setCapturing } from '../core/host.ts';
-import { deleteNote, getNote, listNotes, newNoteId, noteTitle, saveNote, setNoteRecording, type Note } from '../core/store.ts';
+import {
+  applyCommandMutation,
+  createNote,
+  deleteNote,
+  getNote,
+  listNotes,
+  newNoteId,
+  noteTitle,
+  setNoteRecording,
+  undoCommandMutation,
+  updateNote as updateStoredNote,
+  type Note,
+} from '../core/store.ts';
 import { preferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { openMicrophone, type Microphone, type MicrophoneHandlers } from './audio.ts';
 import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { enqueueFormat, setFormattingPaused } from '../format/queue.ts';
 import { reviewAvailable, type ReviewHandoff } from '../review/useReview.ts';
-import { startCapture, type CaptureSession, type EngineKind } from './engine.ts';
+import { discardRecording, reassignRecording, startCapture, type CaptureSession, type EngineKind, type Stopped } from './engine.ts';
 import { renderNote, setLinkTitles, setSpokenFormats, type Segment } from './markdown.ts';
 import { Opening } from './Opening.tsx';
 import { QuietWatch } from './quiet.ts';
 import { type Candidate } from './route.ts';
 import { findKeyword, type Placement } from './command.ts';
-import { placeWords } from './listAppend.ts';
+import { appendToList, placeWords } from './listAppend.ts';
+import { listTitle } from './instructionMutation.ts';
 import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
-import { commandModel, understandCommand } from './understand.ts';
+import { commandModel, understandInstructionCommand } from './understand.ts';
+import { classifyFinalTranscript } from './finalInstruction.ts';
 import { appendBlock } from './table.ts';
 import { appendBody } from './appendBody.ts';
 import { Take, type Offer, type RouteView, type TableDraft, type TakeHost } from './take.ts';
@@ -81,9 +95,6 @@ interface CaptureScreenProps {
 
 type Phase = 'starting' | 'listening' | 'finishing' | 'failed';
 
-/** How often the in-progress note is written to the store. */
-const DRAFT_SAVE_MS = 1000;
-
 /** How long a quiet after words has to last before "Stop when I go quiet" saves the take. */
 const QUIET_STOP_MS = 4000;
 
@@ -93,12 +104,46 @@ const ENGINE_LABEL: Record<EngineKind, string> = {
   simulated: 'Simulated voice',
 };
 
+/** Words used only to tell whether native's final decode extends phrase events. */
+const transcriptWords = (text: string): string[] =>
+  Array.from(text.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu), (match) => match[0]!.normalize('NFKD').replace(/\p{M}/gu, '').toLocaleLowerCase());
+
+/** The original text after `wordCount` words, retaining Whisper's punctuation/casing. */
+function afterWords(text: string, wordCount: number): string {
+  if (!wordCount) return text.trim();
+  const words = Array.from(text.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu));
+  const end = words[wordCount - 1]?.index;
+  const last = words[wordCount - 1]?.[0];
+  if (end === undefined || !last) return '';
+  return text.slice(end + last.length).replace(/^[\s,;:!?….-]+/, '').trim();
+}
+
+/**
+ * `capture_stop` drains Whisper after the last event listener can be removed.
+ * When that final decode extends the committed phrases, retain their timing and
+ * append only the missing terminal words for ordinary-note rendering/tapes.
+ * Classification always uses the complete native text.
+ */
+function appendFinalTranscriptSuffix(segments: readonly Segment[], transcript: string | null, endMs: number): Segment[] {
+  const finalText = transcript?.trim();
+  if (!finalText) return [...segments];
+  const committed = transcriptWords(segments.map((segment) => segment.text).join(' '));
+  const finalWords = transcriptWords(finalText);
+  if (!finalWords.length || committed.length >= finalWords.length || !committed.every((word, index) => word === finalWords[index])) return [...segments];
+  const suffix = afterWords(finalText, committed.length);
+  if (!suffix) return [...segments];
+  const startMs = segments.at(-1)?.endMs ?? 0;
+  return [...segments, { text: suffix, startMs, endMs: Math.max(endMs, startMs + 1) }];
+}
+
 export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, onFinish }: CaptureScreenProps) {
   /** The note being written: a new id, or the note this capture continues. */
   const noteId = useRef(newNoteId());
   /** The note this capture is being added to, if it continues one. */
   const [target, setTarget] = useState<Note | null>(null);
   const targetRef = useRef<Note | null>(null);
+  /** The persisted row for a new capture draft, once explicitly created. */
+  const draftNote = useRef<Note | null>(null);
   /**
    * The continued note's text before this capture, read from the store once,
    * when first needed - after the editor that may have been open has flushed
@@ -177,7 +222,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    */
   const writes = useRef<Promise<unknown>>(Promise.resolve());
   /** What the last command changed in a note, for "undo": the note and its body before. */
-  const lastChange = useRef<{ id: string; before: string; what: string } | null>(null);
+  const lastChange = useRef<{ id: string; before: string; what: string; mutationId?: string } | null>(null);
   const [tables, setTables] = useState<string[]>([]);
   const [asBoard, setAsBoard] = useState(false);
   /** The tape this take writes to: the continued note's, or a new one (core/clips.ts). Read once, when it is first needed. */
@@ -194,6 +239,15 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const tipTurn = useRef(0);
   const savedDraft = useRef(false);
   const finished = useRef(false);
+  /** A stopped command is awaiting its explicit confirmation; its words never become a note. */
+  const finalCommand = useRef<{
+    note: Note | null;
+    /** "Make a new list called … and add …": the note to create on confirmation, instead of one to add to. */
+    create?: { title: string; items: readonly string[] };
+    locked: boolean;
+    temporaryId: string;
+    recordedMs: number | null;
+  } | null>(null);
   /*
    * What the pipeline has actually done, counted where it happens and copied to
    * the screen a few times a second. The line itself is essential: the first
@@ -247,6 +301,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // Found after a draft was already written to a new note: stay with that one.
       if (!current || !found || savedDraft.current || finished.current) return;
       targetRef.current = found;
+      draftNote.current = null;
       noteId.current = found.id;
       setTarget(found);
     });
@@ -287,12 +342,28 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     return appendBody(await baseBody.current, markdown);
   }, []);
 
+  /** Persist a birth or a revision-checked edit; never upsert a missing id. */
+  const persistBody = async (id: string, body: string, source: Note['source'] = 'capture'): Promise<Note> => {
+    const known = targetRef.current?.id === id ? targetRef.current : draftNote.current?.id === id ? draftNote.current : null;
+    const saved = known ? await updateStoredNote(id, body, known.revision ?? 1) : await createNote(id, body, source);
+    if (targetRef.current?.id === id) {
+      targetRef.current = saved;
+      setTarget(saved);
+    } else if (noteId.current === id) {
+      draftNote.current = saved;
+    }
+    const candidate = candidates.current.find((item) => item.id === id);
+    if (candidate) candidate.note = saved;
+    return saved;
+  };
+
   /** Undoes whatever drafts wrote: the continued note gets its text back, a new note goes. */
   const undoDraft = useCallback(async () => {
     if (!savedDraft.current) return;
     savedDraft.current = false;
+    await writes.current.catch(() => undefined);
     const continued = targetRef.current;
-    if (continued) await saveNote(continued.id, (await baseBody.current) ?? continued.body, continued.source);
+    if (continued) await persistBody(continued.id, (await baseBody.current) ?? continued.body, continued.source);
     else await deleteNote(noteId.current);
   }, []);
 
@@ -309,7 +380,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     await queueWrite(async () => {
       savedDraft.current = true;
       const body = await compose(take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown }));
-      await saveNote(noteId.current, body, 'capture');
+      await persistBody(noteId.current, body, 'capture');
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compose]);
@@ -329,11 +400,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       if (chosen) {
         const full = (await getNote(chosen.id).catch(() => null)) ?? chosen;
         targetRef.current = full;
+        draftNote.current = null;
         noteId.current = full.id;
         setTarget(full);
         setRoute({ phase: 'moved', title: noteTitle(full.body) || 'that note' });
       } else {
         targetRef.current = null;
+        draftNote.current = null;
         noteId.current = newNoteId();
         setTarget(null);
       }
@@ -351,8 +424,24 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         fireNativeHaptic('selection');
         return;
       }
-      const named = `${title.charAt(0).toUpperCase()}${title.slice(1)}`;
-      const made = await saveNote(newNoteId(), `# ${named}`, 'capture');
+      const named = listTitle(title);
+      const id = newNoteId();
+      const mutationId = newNoteId();
+      const result = await applyCommandMutation({
+        mutationId,
+        noteId: id,
+        kind: 'create',
+        beforeRevision: null,
+        beforeBody: null,
+        afterBody: named,
+        source: 'capture',
+      });
+      if (result.status === 'conflict') {
+        setRoute({ phase: 'said', text: 'That note could not be created safely.' });
+        return;
+      }
+      const made = result.note;
+      lastChange.current = { id: made.id, before: '', what: `the new ${named} note`, mutationId };
       candidates.current = [{ id: made.id, title: named, note: made }, ...candidates.current];
       await carryOn(made);
     },
@@ -375,6 +464,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // The full note, for its recording and phrases: this take's tape goes on the end of them.
       const full = (await getNote(chosen.id).catch(() => null)) ?? chosen;
       targetRef.current = full;
+      draftNote.current = null;
       baseBody.current = null;
       noteId.current = full.id;
       setTarget(full);
@@ -436,15 +526,17 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         setTarget(updated);
         const known = candidates.current.find((c) => c.id === id);
         if (known) known.note = updated;
-        await saveNote(id, appendBody(next, take.markdown({ titled: false, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown })), fresh.source);
+        const saved = await updateStoredNote(id, appendBody(next, take.markdown({ titled: false, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown })), fresh.revision ?? 1);
+        targetRef.current = saved;
+        if (known) known.note = saved;
         return next;
       }
       const body = change(fresh.body);
       if (body === null || body === fresh.body) return null;
       if (what) lastChange.current = { id, before: fresh.body, what };
-      await saveNote(id, body, fresh.source);
+      const saved = await updateStoredNote(id, body, fresh.revision ?? 1);
       const known = candidates.current.find((c) => c.id === id);
-      if (known) known.note = { ...fresh, body };
+      if (known) known.note = saved;
       return body;
     });
 
@@ -453,7 +545,33 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const last = lastChange.current;
     if (!last) return null;
     lastChange.current = null;
-    void updateNote(last.id, () => last.before).catch((failure: unknown) => console.warn('[glyph] not undone:', failure));
+    if (last.mutationId) {
+      void undoCommandMutation(last.mutationId)
+        .then((result) => {
+          if (result.status !== 'undone') return;
+          if (result.note) {
+            const known = candidates.current.find((candidate) => candidate.id === result.note?.id);
+            if (known) known.note = result.note;
+            if (targetRef.current?.id === result.note.id) {
+              targetRef.current = result.note;
+              baseBody.current = Promise.resolve(result.note.body);
+              setTarget(result.note);
+            }
+          } else {
+            candidates.current = candidates.current.filter((candidate) => candidate.id !== last.id);
+            if (targetRef.current?.id === last.id) {
+              targetRef.current = null;
+              draftNote.current = null;
+              baseBody.current = null;
+              noteId.current = newNoteId();
+              setTarget(null);
+            }
+          }
+        })
+        .catch((failure: unknown) => console.warn('[glyph] command not undone:', failure));
+    } else {
+      void updateNote(last.id, () => last.before).catch((failure: unknown) => console.warn('[glyph] not undone:', failure));
+    }
     return last.what;
   };
 
@@ -462,28 +580,43 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    * list grows by them, in its own style, while this take carries on where it
    * was. The chip and the landing preview show the lines arriving.
    */
-  const addItems = async (note: Note, spoken: string, { how, task, many, target = null }: Placement) => {
+  const addItems = async (note: Note, spoken: string, { how, task, many, target = null, near, items }: Placement) => {
     try {
-      let added: string[] = [];
-      const body = await updateNote(
-        note.id,
-        (current) => {
-          // "Leave a note for …": into the list it fits, or its own paragraph.
-          const placed = placeWords(current, spoken, { how, task, many });
-          added = placed.added;
-          return placed.added.length ? placed.body : null;
-        },
-        `“${spoken}”`,
-      );
-      if (body === null) return;
+      // The offer was made from this exact note snapshot. Confirmation is a
+      // compare-and-swap, so a later edit or delete wins instead of being
+      // overwritten by the voice command.
+      const placed = placeWords(note.body, spoken, { how, task, many, near, items });
+      if (!placed.added.length) return;
+      const mutationId = newNoteId();
+      const result = await applyCommandMutation({
+        mutationId,
+        noteId: note.id,
+        kind: 'append',
+        beforeRevision: note.revision ?? 1,
+        beforeBody: note.body,
+        afterBody: placed.body,
+        source: note.source,
+      });
+      if (result.status === 'conflict') {
+        setRoute({ phase: 'said', text: `${noteTitle(note.body) || 'That note'} changed after the preview, so nothing was added.` });
+        fireNativeHaptic('warning');
+        return;
+      }
+      const saved = result.note;
+      const known = candidates.current.find((candidate) => candidate.id === saved.id);
+      if (known) known.note = saved;
+      if (targetRef.current?.id === saved.id) {
+        targetRef.current = saved;
+        baseBody.current = Promise.resolve(saved.body);
+        setTarget(saved);
+      }
+      lastChange.current = { id: saved.id, before: note.body, what: `“${spoken}”`, mutationId };
       const show = (line: string) => line.replace(/^\s*(?:- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
-      // Into the note on screen, the page itself shows the line land; into another, its list is shown arriving.
-      if (targetRef.current?.id === note.id) setRoute({ phase: 'done', text: `Added “${show(added[0] ?? '')}”${added.length > 1 ? ` and ${added.length - 1} more` : ''}` });
-      else setRoute({ phase: 'added', title: noteTitle(body) || 'that note', body, added });
+      if (targetRef.current?.id === saved.id) setRoute({ phase: 'done', text: `Added “${show(placed.added[0] ?? '')}”${placed.added.length > 1 ? ` and ${placed.added.length - 1} more` : ''}` });
+      else setRoute({ phase: 'added', title: noteTitle(saved.body) || 'that note', body: saved.body, added: placed.added });
       fireNativeHaptic('success');
-      lastSaid.current = { kind: 'items', noteId: note.id, lines: added };
-      // "…in Notion": the plugin that offers the word takes the lines from here.
-      if (target) plugins.itemTargets().find((t) => t.word === target)?.afterAdd(note.id, added, captureContext);
+      lastSaid.current = { kind: 'items', noteId: saved.id, lines: placed.added };
+      if (target) plugins.itemTargets().find((itemTarget) => itemTarget.word === target)?.afterAdd(saved.id, placed.added, captureContext);
     } catch (failure) {
       console.warn('[glyph] item not added:', failure);
       setRoute({ phase: 'missed', title: noteTitle(note.body) || 'that note' });
@@ -536,7 +669,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    */
   const makeBook = async (title: string, pages: readonly string[]) => {
     try {
-      const made = await saveNote(newNoteId(), bookNoteBody(title, pages), 'capture');
+      const made = await createNote(newNoteId(), bookNoteBody(title, pages), 'capture');
       candidates.current = [{ id: made.id, title, note: made }, ...candidates.current];
       take.touched.add(made.id);
       setRoute({ phase: 'done', text: `Made the book ${title}` });
@@ -571,9 +704,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     notes: () => candidates.current,
     target: () => targetRef.current,
     commandWord: commandWordOn,
+    instructionCommands: () => true,
     voiceCommands: () => plugins.voiceCommands(),
     itemTargets: itemWordsOfPlugins,
-    understand: commandModelId.current ? (words) => understandCommand(words, candidates.current) : undefined,
+    understand: commandModelId.current ? (words) => understandInstructionCommand(words, candidates.current) : undefined,
     route: setRoute,
     offer: setPendingView,
     table: setTableView,
@@ -592,7 +726,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     addTable: (target, title, markdown) => void addTable(target, title, markdown),
     moveTo: (target) => void routeTo(target),
     carryOn: (target) => void carryOn(target),
-    newNote: (title) => void startNewNote(title),
+    // A finished recording's "new list" is created by `confirmPending`, not by carrying the capture on into it.
+    newNote: (title) => void (finished.current ? undefined : startNewNote(title)),
     newBook: (title, pages) => void makeBook(title, pages),
     undo: undoLast,
     runPlugin: (voice, parsed) => voice.run(parsed, captureContext),
@@ -613,6 +748,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         notes: () => hostImpl.current.notes(),
         target: () => hostImpl.current.target(),
         commandWord: () => hostImpl.current.commandWord(),
+        instructionCommands: () => hostImpl.current.instructionCommands(),
         voiceCommands: () => hostImpl.current.voiceCommands(),
         itemTargets: () => hostImpl.current.itemTargets(),
         get understand() {
@@ -640,13 +776,52 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       }),
   );
 
-  const confirmPending = () => take.confirm(performance.now());
-  const cancelPending = (why: string | null) => take.cancel(why, performance.now());
+  const confirmPending = () => {
+    take.confirm(performance.now());
+    const final = finalCommand.current;
+    if (!final) return;
+    finalCommand.current = null;
+    void writes.current.then(async () => {
+      let saved = final.create ? await createFinalList(final.create.title, final.create.items) : final.note ? await getNote(final.note.id).catch(() => final.note) : null;
+      if (saved && final.recordedMs !== null) {
+        const recordingMs = await reassignRecording(final.temporaryId, saved.id, (saved.recordingMs ?? 0) > 0).catch(() => null);
+        if (recordingMs !== null) saved = (await setNoteRecording(saved.id, recordingMs, saved.segments ?? []).catch(() => saved)) ?? saved;
+      } else if (final.recordedMs !== null) {
+        void discardRecording(final.temporaryId).catch(() => undefined);
+      }
+      endCapture(final.locked);
+      onFinish(saved, final.locked);
+    });
+  };
+  /** The confirmed new list of a finished recording: its title, then its items as a list. */
+  const createFinalList = async (title: string, items: readonly string[]): Promise<Note | null> => {
+    const named = listTitle(title);
+    const result = await applyCommandMutation({
+      mutationId: newNoteId(),
+      noteId: newNoteId(),
+      kind: 'create',
+      beforeRevision: null,
+      beforeBody: null,
+      afterBody: items.length ? appendToList(named, items).body : named,
+      source: 'capture',
+    }).catch(() => null);
+    if (result?.status !== 'applied') {
+      setRoute({ phase: 'said', text: 'That list could not be created safely.' });
+      return null;
+    }
+    return result.note;
+  };
+  const cancelPending = (why: string | null) => {
+    take.cancel(why, performance.now());
+    const final = finalCommand.current;
+    if (!final) return;
+    finalCommand.current = null;
+    void discardRecording(final.temporaryId).catch(() => undefined);
+    endCapture(final.locked);
+    onFinish(null, final.locked);
+  };
   const finishTable = () => take.finishTable(performance.now());
   const cancelTable = (why: string | null) => take.cancelTable(why);
-  /** The chip while a command is heard: the note it names, as soon as it can tell. */
-  const showGuess = (text: string) => setRoute((current) => take.guess(text, current));
-
   // ---- start ------------------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
@@ -699,11 +874,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
               heard();
             }
             setPartial(text);
-            // Words of a command show in the chip, not in the note.
-            // Talking again: the command model stops, so it never takes the phone from the words being heard, and reads the command again at the next pause.
-            if (text) take.heardPartial(performance.now());
-            setItemWords(take.partOfCommand(text) ? text : '');
-            showGuess(text);
+            // A partial is display only.  It cannot influence routing or a
+            // model prompt before Whisper has committed the final transcript.
           },
           onSegment: (raw) => {
             counts.current.segments += 1;
@@ -711,7 +883,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             heard();
             counts.current.lastError = null;
             heardRef.current.push(raw.text);
-            take.phrase(raw, performance.now());
+            take.listen(raw);
             setPartial('');
           },
           onError: (message) => {
@@ -784,15 +956,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     return () => window.clearInterval(timer);
   }, [phase, take]);
 
-  // ---- the draft, saved as it is spoken ------------------------------------------
-  useEffect(() => {
-    if (!segments.length) return undefined;
-    const timer = window.setTimeout(() => {
-      if (finished.current) return;
-      void flushDraft();
-    }, DRAFT_SAVE_MS);
-    return () => window.clearTimeout(timer);
-  }, [segments, target, flushDraft]);
+  // No draft timer: phrase commits are display-only.  The complete transcript
+  // is saved exactly once after final instruction classification.
 
   // ---- ending ----------------------------------------------------------------------
   const finish = useCallback(async () => {
@@ -802,11 +967,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     setPhase('finishing');
     micRef.current?.stop();
     // A voice memo still running is closed by Done: what was said up to here is its sound.
-    const position = sessionRef.current?.positionMs() ?? take.segments[take.segments.length - 1]?.endMs ?? 0;
     // The tape is kept under the note's id, added to the end of the continued
     // note's tape when there is one, so its words and its sound stay one timeline.
     const continued = targetRef.current;
-    let stopped: { recordedMs: number | null } = { recordedMs: null };
+    let stopped: Stopped = { recordedMs: null, transcript: null };
     try {
       // Appended only onto a tape the note still has: a recording removed from the note leaves its file behind, and a
       // take added after it starts the file afresh rather than playing after the removed sound.
@@ -815,14 +979,48 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       setError(failure instanceof Error ? failure.message : String(failure));
     }
 
-    // Words after a keyword that never became a command go into the note as
-    // they were said: Done must never be how dictation is lost.
-    take.end(position);
-    // A command's change still landing, or the take carrying on elsewhere: written before the note is.
-    await writes.current;
-    const spoken = take.segments;
+    const committed = take.segments;
+    // Native's stop-time result includes words whose phrase event was still in
+    // flight when `stop()` detached event listeners. It is the one transcript
+    // command classification may inspect; browser/simulated engines fall back
+    // to their committed phrases because they explicitly return null.
+    const transcript = stopped.transcript ?? committed.map((segment) => segment.text).join(' ').trim();
+    const spoken = appendFinalTranscriptSuffix(committed, stopped.transcript, sessionRef.current?.positionMs() ?? committed.at(-1)?.endMs ?? 0);
+    const appended = spoken.slice(committed.length);
+    for (const segment of appended) {
+      // `listen` remains display-only, so completing the ordinary-note stream
+      // here cannot revive phrase-level routing or execution.
+      take.listen(segment);
+      heardRef.current.push(segment.text);
+    }
     const { plain } = renderNote(spoken);
     const locked = isLocked();
+
+    const decision = await classifyFinalTranscript(transcript, candidates.current);
+    if (decision.kind === 'offer') {
+      // The stopped audio is already retained under this capture id.  The
+      // mutation remains pending until this card is explicitly confirmed.
+      take.offerFinal(decision.plan, performance.now());
+      const target = decision.plan.kind === 'place' ? decision.plan.note.note : null;
+      const create = decision.plan.kind === 'create-list' ? { title: decision.plan.title, items: decision.plan.items ?? [] } : undefined;
+      finalCommand.current = { note: target, ...(create ? { create } : {}), locked, temporaryId: noteId.current, recordedMs: stopped.recordedMs };
+      setPhase('listening');
+      return;
+    }
+    if (decision.kind === 'rejected') {
+      // Unsupported, destructive, ambiguous, and missing-target command
+      // shapes fail closed: do not create a note containing command prose.
+      setRoute({ phase: 'said', text: decision.reason });
+      await discardRecording(noteId.current).catch(() => undefined);
+      await undoDraft();
+      endCapture(locked);
+      onFinish(null, locked);
+      return;
+    }
+    if (decision.notice) setRoute({ phase: 'said', text: decision.notice });
+
+    // A command's change still landing, or the take carrying on elsewhere: written before the note is.
+    await writes.current;
 
     if (!plain.trim() && !take.tables.length && !take.clips.length) {
       await undoDraft();
@@ -832,7 +1030,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
 
     const markdown = take.markdown({ titled: !targetRef.current, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
-    const saved = await saveNote(noteId.current, await compose(markdown), 'capture');
+    const saved = await queueWrite(async () => persistBody(noteId.current, await compose(markdown), 'capture'));
     let refineJob: ReviewHandoff['job'] = null;
     if (stopped.recordedMs !== null && sessionRef.current?.keepsAudio) {
       // New phrases sit after the continued tape's, shifted by its length.
@@ -1133,8 +1331,10 @@ function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer<Note>; onCon
       action = 'Move';
       break;
     case 'new':
-      heading = 'Start a new note from here';
-      action = 'Start';
+      heading = offer.title ? `Create ${listTitle(offer.title)}` : 'Start a new note from here';
+      action = offer.title ? 'Create' : 'Start';
+      lines = [...(offer.lines ?? [])];
+      if (offer.lines?.length) detail = 'As a new list';
       break;
     case 'table':
       heading = `Add this table to ${offer.title}`;

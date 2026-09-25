@@ -50,13 +50,14 @@ export interface NoteActions {
   /** Every note given, deleted for good now: the trash emptied, once the person has said so. */
   emptyTrash: (notes: readonly Note[]) => Promise<void>;
   /** Make any pending delete final now. */
-  flushDeletes: () => void;
+  flushDeletes: () => Promise<void>;
 }
 
 export function useNoteActions(refresh: () => Promise<void>): NoteActions {
   const { toast } = useToast();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
   const pending = useRef<{ id: string; timer: number } | null>(null);
+  const committing = useRef<Promise<void>>(Promise.resolve());
 
   const unhide = useCallback((id: string) => {
     setHidden((prev) => {
@@ -67,23 +68,27 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
     });
   }, []);
 
-  const commit = useCallback(async () => {
+  const commit = useCallback((): Promise<void> => {
     const due = pending.current;
-    if (!due) return;
+    if (!due) return committing.current;
     pending.current = null;
     window.clearTimeout(due.timer);
-    try {
-      await deleteNote(due.id);
-      // Its filing (core/workspaces.ts), its kept summaries and gist (format/results.ts) and its place in the trash go with it.
-      forgetNote(due.id);
-      forgetResults(due.id);
-      forgetTrashed([due.id]);
-    } catch (error) {
-      console.warn('[glyph] delete failed:', error);
-    } finally {
-      await refresh();
-      unhide(due.id);
-    }
+    const run = committing.current.then(async () => {
+      try {
+        await deleteNote(due.id);
+        // Its filing (core/workspaces.ts), its kept summaries and gist (format/results.ts) and its place in the trash go with it.
+        forgetNote(due.id);
+        forgetResults(due.id);
+        forgetTrashed([due.id]);
+      } catch (error) {
+        console.warn('[glyph] delete failed:', error);
+      } finally {
+        await refresh().catch((error: unknown) => console.warn('[glyph] refresh after delete failed:', error));
+        unhide(due.id);
+      }
+    });
+    committing.current = run.catch(() => undefined);
+    return run;
   }, [refresh, unhide]);
 
   useEffect(() => {
@@ -204,5 +209,5 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
     [refresh],
   );
 
-  return { hidden, pin, archive, remove, restore, destroy, emptyTrash, flushDeletes: () => void commit() };
+  return { hidden, pin, archive, remove, restore, destroy, emptyTrash, flushDeletes: commit };
 }

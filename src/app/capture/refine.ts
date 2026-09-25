@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { preferences } from '../core/preferences.ts';
-import { getNote, saveNote, setNoteRecording } from '../core/store.ts';
+import { getNote, setNoteRecording, updateNote } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import { findKeyword } from './command.ts';
 import { appendBody } from './appendBody.ts';
@@ -284,7 +284,7 @@ async function apply(job: RefineJob, refined: Segment[]): Promise<void> {
   if (!refined.length) return;
   const note = await getNote(job.id);
   if (!note) return;
-  if (note.body === job.savedBody) await saveNote(job.id, refinedBody(job, refined), 'capture');
+  if (note.body === job.savedBody) await updateNote(job.id, refinedBody(job, refined), note.revision ?? 1).catch(() => null);
   await setNoteRecording(job.id, job.recordingMs, refinedSegments(job, refined)).catch(() => null);
 }
 

@@ -26,7 +26,80 @@ use std::sync::Mutex;
 use tauri::Manager;
 
 use crate::library::Library;
-use crate::store::{recording_file, Note, RecordedSegment, Recording, Store};
+use crate::store::{
+    recording_file, CommandMutation, CommandMutationResult, CommandUndoResult, Note,
+    PendingCommandUndo, RecordedSegment, Recording, Store,
+};
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ApplyCommandRequest {
+    mutation_id: String,
+    note_id: String,
+    kind: String,
+    before_revision: Option<i64>,
+    before_body: Option<String>,
+    after_body: String,
+    source: String,
+}
+
+/// Applies only the already-previewed deterministic Markdown. Inference never
+/// reaches this command and cannot provide ids, revisions, or note bodies.
+#[tauri::command]
+pub fn apply_command_mutation(
+    store: tauri::State<'_, NotesStore>,
+    request: ApplyCommandRequest,
+) -> std::result::Result<CommandMutationResult, String> {
+    let plain_id = |id: &str| {
+        !id.is_empty()
+            && id.len() <= 128
+            && id
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+    };
+    if !plain_id(&request.mutation_id) || !plain_id(&request.note_id) {
+        return Err("a command mutation needs plain bounded ids".into());
+    }
+    if !matches!(request.source.as_str(), "editor" | "capture") {
+        return Err("a command mutation has an unsupported source".into());
+    }
+    if !matches!(request.kind.as_str(), "append" | "create") {
+        return Err("only append and create command mutations are supported".into());
+    }
+    if request.kind == "create" && (request.before_revision.is_some() || request.before_body.is_some()) {
+        return Err("a create command cannot replace an existing note".into());
+    }
+    if request.kind == "append" && (request.before_revision.is_none() || request.before_body.is_none()) {
+        return Err("an append command needs the previewed note revision".into());
+    }
+    store
+        .lock()
+        .apply_command(&CommandMutation {
+            id: request.mutation_id,
+            note_id: request.note_id,
+            kind: request.kind,
+            before_revision: request.before_revision,
+            before_body: request.before_body,
+            after_body: request.after_body,
+            source: request.source,
+        })
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn undo_command_mutation(
+    store: tauri::State<'_, NotesStore>,
+    mutation_id: String,
+) -> std::result::Result<CommandUndoResult, String> {
+    store.lock().undo_command(&mutation_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn latest_command_mutation(
+    store: tauri::State<'_, NotesStore>,
+) -> std::result::Result<Option<PendingCommandUndo>, String> {
+    store.lock().latest_command_undo(10 * 60 * 1_000).map_err(|e| e.to_string())
+}
 
 /// Keeps the on-device model's formatted version of a note, or clears it with
 /// `null`. `formattedFor` is the page's hash of the body it was made from and
@@ -182,23 +255,35 @@ pub fn get_note(
     store.lock().get_note(&id).map_err(|e| e.to_string())
 }
 
-/// Creates or edits a note and answers with what is now on disk.
+/// Creates a note only while its id is unused.
 ///
 /// The id comes from the page rather than being minted here, because the page
 /// has to have one before the first save lands: a new note is routed to and
 /// drawn as soon as it is tapped, and an id that only exists after a 400 ms
 /// debounce is an id the editor spends its first keystrokes without.
 ///
-/// `source` is only read when the note is new - see `store::save_note` for the
-/// birth-facts rule and why an edit must not overwrite it.
 #[tauri::command]
-pub fn save_note(
+pub fn create_note(
     store: tauri::State<'_, NotesStore>,
     id: String,
     body: String,
     source: String,
 ) -> std::result::Result<Note, String> {
-    store.lock().save_note(&id, &body, &source).map_err(|e| e.to_string())
+    store.lock().create_note(&id, &body, &source).map_err(|e| e.to_string())?
+        .ok_or_else(|| "the note id already exists".to_string())
+}
+
+/// Updates exactly an existing revision. A deleted row is a conflict, never
+/// an invitation to insert it again.
+#[tauri::command]
+pub fn update_note(
+    store: tauri::State<'_, NotesStore>,
+    id: String,
+    body: String,
+    expected_revision: i64,
+) -> std::result::Result<Note, String> {
+    store.lock().update_note(&id, &body, expected_revision).map_err(|e| e.to_string())?
+        .ok_or_else(|| "the note was deleted or changed".to_string())
 }
 
 /// Removes a note, answering `true` when a row actually went and `false` when

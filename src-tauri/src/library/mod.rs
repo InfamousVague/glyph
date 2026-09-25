@@ -30,7 +30,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::store::{Note, RecordedSegment, Recording, Store};
+use crate::store::{
+    CommandMutation, CommandMutationResult, CommandUndoResult, Note, PendingCommandUndo,
+    RecordedSegment, Recording, Store,
+};
 use frontmatter::{join, split, FrontMatter, Value};
 use names::{file_stem, title_of, unique_name};
 use vault::{Entry, FsVault, Vault};
@@ -38,7 +41,7 @@ use vault::{Entry, FsVault, Vault};
 /// Where new notes go.
 pub const INBOX: &str = "Inbox";
 /// The index's shape. A different one is dropped and rebuilt: it is only a cache.
-const INDEX_VERSION: i64 = 1;
+const INDEX_VERSION: i64 = 2;
 
 const INDEX_SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS notes (
@@ -55,8 +58,21 @@ const INDEX_SCHEMA: &str = "
         id_in_file INTEGER NOT NULL DEFAULT 0,
         recording_ms INTEGER,
         formatted_for INTEGER,
-        formatted_model TEXT
+        formatted_model TEXT,
+        revision INTEGER NOT NULL DEFAULT 1
     );
+    CREATE TABLE IF NOT EXISTS command_mutations (
+        id TEXT PRIMARY KEY,
+        note_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        before_body TEXT,
+        after_body TEXT NOT NULL,
+        before_revision INTEGER,
+        after_revision INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        undone_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS command_mutations_note ON command_mutations (note_id, created_at DESC);
 ";
 
 #[derive(Debug)]
@@ -141,9 +157,10 @@ struct Row {
     recording_ms: Option<i64>,
     formatted_for: Option<i64>,
     formatted_model: Option<String>,
+    revision: i64,
 }
 
-const ROW_COLUMNS: &str = "id, path, body, created_at, modified_at, source, pinned, archived_at, id_in_file, recording_ms, formatted_for, formatted_model";
+const ROW_COLUMNS: &str = "id, path, body, created_at, modified_at, source, pinned, archived_at, id_in_file, recording_ms, formatted_for, formatted_model, revision";
 
 fn row_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
     Ok(Row {
@@ -159,6 +176,7 @@ fn row_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
         recording_ms: row.get(9)?,
         formatted_for: row.get(10)?,
         formatted_model: row.get(11)?,
+        revision: row.get::<_, Option<i64>>(12)?.unwrap_or(1),
     })
 }
 
@@ -286,7 +304,7 @@ impl Library {
         index.busy_timeout(std::time::Duration::from_secs(5))?;
         let version: i64 = index.query_row("PRAGMA user_version", [], |row| row.get(0))?;
         if version != INDEX_VERSION {
-            index.execute_batch("DROP TABLE IF EXISTS notes;")?;
+            index.execute_batch("DROP TABLE IF EXISTS notes; DROP TABLE IF EXISTS command_mutations;")?;
             index.execute_batch(INDEX_SCHEMA)?;
             index.execute_batch(&format!("PRAGMA user_version = {INDEX_VERSION};"))?;
         }
@@ -364,6 +382,11 @@ impl Library {
             None => (at_path.as_ref().map(|r| r.id.clone()).unwrap_or_else(|| uuid::Uuid::new_v4().to_string()), false),
         };
         let previous = self.row(&id)?;
+        let prior_revision = previous
+            .as_ref()
+            .or(at_path.as_ref())
+            .map(|row| if row.body == body { row.revision } else { row.revision.saturating_add(1) })
+            .unwrap_or(1);
         let created_at = front
             .text("created")
             .and_then(|t| parse_iso(&t))
@@ -374,7 +397,7 @@ impl Library {
         let sidecar = self.sidecar(&id);
         self.index.execute("DELETE FROM notes WHERE path = ?1 OR id = ?2", rusqlite::params![entry.path, id])?;
         self.index.execute(
-            &format!("INSERT INTO notes ({ROW_COLUMNS}, title, size) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"),
+            &format!("INSERT INTO notes ({ROW_COLUMNS}, title, size) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"),
             rusqlite::params![
                 id,
                 entry.path,
@@ -388,6 +411,7 @@ impl Library {
                 sidecar.recording_ms,
                 sidecar.formatted_for,
                 sidecar.formatted_model,
+                prior_revision,
                 title_of(body),
                 entry.size as i64,
             ],
@@ -411,6 +435,7 @@ impl Library {
             formatted_for: row.formatted_for,
             formatted_model: row.formatted_model,
             path: Some(row.path),
+            revision: row.revision,
         }
     }
 
@@ -502,6 +527,114 @@ impl Library {
             .ok_or_else(|| LibraryError::Index(rusqlite::Error::QueryReturnedNoRows))
     }
 
+    /// Creates a note only while its id is unused. This is the only normal
+    /// insertion path; queued writers use `update_note` and cannot recreate a
+    /// deleted file.
+    pub fn create_note(&mut self, id: &str, body: &str, source: &str) -> Result<Option<Note>> {
+        if self.row(id)?.is_some() || self.drafts.contains_key(id) {
+            return Ok(None);
+        }
+        self.save_note(id, body, source).map(Some)
+    }
+
+    /// Updates exactly the revision the caller read. Missing or changed notes
+    /// are conflicts and never become new files.
+    pub fn update_note(&mut self, id: &str, body: &str, expected_revision: i64) -> Result<Option<Note>> {
+        let Some(current) = self.get_note(id)? else { return Ok(None) };
+        if current.revision != expected_revision {
+            return Ok(None);
+        }
+        let mut saved = self.save_note(id, body, &current.source)?;
+        let revision = expected_revision.saturating_add(1);
+        if saved.path.is_some() {
+            self.index.execute("UPDATE notes SET revision = ?2 WHERE id = ?1", rusqlite::params![id, revision])?;
+            saved = self.get_note(id)?.ok_or_else(|| LibraryError::Index(rusqlite::Error::QueryReturnedNoRows))?;
+        } else if let Some(draft) = self.drafts.get_mut(id) {
+            draft.revision = revision;
+            saved = draft.clone();
+        }
+        Ok(Some(saved))
+    }
+
+    /// Applies a confirmed preview only while its exact base is current, then
+    /// records enough for guarded undo.
+    pub fn apply_command(&mut self, change: &CommandMutation) -> Result<CommandMutationResult> {
+        let current = self.get_note(&change.note_id)?;
+        let matches = match (&current, change.before_revision) {
+            (None, None) => true,
+            (Some(note), Some(revision)) => note.revision == revision && change.before_body.as_deref() == Some(note.body.as_str()),
+            _ => false,
+        };
+        if !matches {
+            return Ok(CommandMutationResult::Conflict { current });
+        }
+        let note = match change.before_revision {
+            Some(revision) => self
+                .update_note(&change.note_id, &change.after_body, revision)?
+                .ok_or_else(|| LibraryError::Store("the note changed during the command".into()))?,
+            None => self
+                .create_note(&change.note_id, &change.after_body, &change.source)?
+                .ok_or_else(|| LibraryError::Store("the note id already exists".into()))?,
+        };
+        self.index.execute(
+            "INSERT INTO command_mutations
+             (id, note_id, kind, before_body, after_body, before_revision, after_revision, created_at, undone_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL)",
+            rusqlite::params![change.id, change.note_id, change.kind, change.before_body, change.after_body, change.before_revision, note.revision, now_ms()],
+        )?;
+        Ok(CommandMutationResult::Applied { mutation_id: change.id.clone(), note })
+    }
+
+    /// Reverses a command only while its exact result is still current.
+    pub fn undo_command(&mut self, mutation_id: &str) -> Result<CommandUndoResult> {
+        let record = self.index.query_row(
+            "SELECT note_id, before_body, after_body, before_revision, after_revision, undone_at
+             FROM command_mutations WHERE id = ?1",
+            [mutation_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<i64>>(3)?, row.get::<_, i64>(4)?, row.get::<_, Option<i64>>(5)?)),
+        ).optional()?;
+        let Some((note_id, before_body, after_body, before_revision, after_revision, undone_at)) = record else {
+            return Ok(CommandUndoResult::NotFound);
+        };
+        if undone_at.is_some() {
+            return Ok(CommandUndoResult::AlreadyUndone);
+        }
+        let current = self.get_note(&note_id)?;
+        if !current.as_ref().is_some_and(|note| note.revision == after_revision && note.body == after_body) {
+            return Ok(CommandUndoResult::Conflict { current });
+        }
+        let note = if let (Some(body), Some(_)) = (before_body, before_revision) {
+            self.update_note(&note_id, &body, after_revision)?
+        } else {
+            self.delete_note(&note_id)?;
+            None
+        };
+        self.index.execute(
+            "UPDATE command_mutations SET undone_at = ?2 WHERE id = ?1",
+            rusqlite::params![mutation_id, now_ms()],
+        )?;
+        Ok(CommandUndoResult::Undone { mutation_id: mutation_id.to_string(), note })
+    }
+
+    pub fn latest_command_undo(&mut self, max_age_ms: i64) -> Result<Option<PendingCommandUndo>> {
+        let cutoff = now_ms().saturating_sub(max_age_ms.max(0));
+        let rows: Vec<(String, String, String, i64, String, i64)> = {
+            let mut stmt = self.index.prepare(
+                "SELECT id, note_id, kind, created_at, after_body, after_revision
+                 FROM command_mutations WHERE undone_at IS NULL AND created_at >= ?1
+                 ORDER BY created_at DESC, id DESC",
+            )?;
+            let mapped = stmt.query_map([cutoff], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)))?;
+            mapped.collect::<rusqlite::Result<_>>()?
+        };
+        for (mutation_id, note_id, kind, created_at, after_body, after_revision) in rows {
+            if self.get_note(&note_id)?.is_some_and(|note| note.revision == after_revision && note.body == after_body) {
+                return Ok(Some(PendingCommandUndo { mutation_id, note_id, kind, created_at }));
+            }
+        }
+        Ok(None)
+    }
+
     /// A blank note with no file, held until it has words.
     fn draft(&mut self, id: &str, body: &str, source: &str) -> Note {
         let now = now_ms();
@@ -519,6 +652,7 @@ impl Library {
             formatted_for: None,
             formatted_model: None,
             path: None,
+            revision: 1,
         });
         draft.body = body.to_string();
         draft.updated_at = now;
@@ -702,13 +836,15 @@ impl Library {
         )?;
         let entry = self.vault.keep_modified(&path, note.updated_at)?;
         self.index_file(&entry)?;
+        self.index.execute("UPDATE notes SET revision = ?2 WHERE id = ?1", rusqlite::params![note.id, note.revision])?;
         self.row(&note.id)?
             .map(|row| self.note_of(row, true))
             .ok_or_else(|| LibraryError::Index(rusqlite::Error::QueryReturnedNoRows))
     }
 
     pub fn append_capture(&mut self, body: &str, source: &str) -> Result<Note> {
-        self.save_note(&uuid::Uuid::new_v4().to_string(), body, source)
+        self.create_note(&uuid::Uuid::new_v4().to_string(), body, source)?
+            .ok_or_else(|| LibraryError::Store("a generated note id already exists".into()))
     }
 
     // ---- moving in from the old database -----------------------------------------------------

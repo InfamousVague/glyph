@@ -1,7 +1,7 @@
 import type { VoiceCommand } from '../plugins/types.ts';
 import { chaptersOf, withChapter } from '../book/book.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
-import { actionable, findKeyword, findSoundAlike, forBook, placedOn, planCommand, reply, type Placement, type Plan } from './command.ts';
+import { actionable, findKeyword, findSoundAlike, forBook, isStandaloneCommandLike, placedOn, planCommand, reply, type Placement, type Plan } from './command.ts';
 import { placeWords } from './listAppend.ts';
 import { renderNote, type Segment } from './markdown.ts';
 import type { Candidate } from './route.ts';
@@ -67,7 +67,7 @@ export type Offer<N extends TakeNote> =
   | { kind: 'place'; note: N; title: string; text: string; placement: Placement; added: string[]; into: 'list' | 'paragraph'; span: Span }
   | { kind: 'change'; note: N; title: string; heading: string; action: string; lines: string[]; change: (body: string) => string | null; span: Span }
   | { kind: 'move'; note: N; title: string; span: Span }
-  | { kind: 'new'; span: Span }
+  | { kind: 'new'; title?: string; lines?: readonly string[]; span: Span }
   | { kind: 'board'; title: string; span: Span }
   | { kind: 'book'; title: string; pages: string[]; span: Span }
   | { kind: 'table'; note: N | null; title: string; columns: string[]; rows: string[][]; markdown: string; span: Span }
@@ -95,6 +95,8 @@ export interface TakeHost<N extends TakeNote> {
   /** The note this take is written onto, or null for a new one. */
   target(): N | null;
   commandWord(): boolean;
+  /** Clear command-shaped full utterances may act without a wake word. */
+  instructionCommands(): boolean;
   voiceCommands(): readonly VoiceCommand[];
   /** The words switched-on plugins let an item command end a note's name with ("…in Notion"). */
   itemTargets(): readonly string[];
@@ -228,6 +230,7 @@ export class Take<N extends TakeNote> {
       return { phase: 'command', words: heard ? heard.words : '' };
     }
     if (plan.kind === 'new') return { phase: 'hearing', name: 'new note', guess: 'New note', lead: 'Start' };
+    if (plan.kind === 'create-list') return { phase: 'hearing', name: plan.title, guess: plan.title, lead: 'Start' };
     if (plan.kind === 'board') return { phase: 'hearing', name: 'board', guess: 'this note', lead: 'Start' };
     if (plan.kind === 'table') return { phase: 'hearing', name: 'table', guess: plan.note?.title ?? 'this note', lead: 'Table for' };
     if (plan.kind === 'book') return { phase: 'hearing', name: 'book', guess: plan.title, lead: 'New book' };
@@ -305,6 +308,8 @@ export class Take<N extends TakeNote> {
       this.setPending({ kind: 'move', note: plan.note.note, title: plan.note.title, span }, now);
     } else if (plan.kind === 'board') {
       this.setPending({ kind: 'board', title: 'this note', span }, now);
+    } else if (plan.kind === 'create-list') {
+      this.setPending({ kind: 'new', title: plan.title, ...(plan.items?.length ? { lines: plan.items } : {}), span }, now);
     } else {
       this.setPending({ kind: 'new', span }, now);
     }
@@ -347,8 +352,8 @@ export class Take<N extends TakeNote> {
     } else if (held.kind === 'move') {
       this.host.moveTo(held.note);
     } else if (held.kind === 'new') {
-      this.host.route({ phase: 'moved', title: 'New note' });
-      this.host.newNote();
+      this.host.route({ phase: 'moved', title: held.title ?? 'New note' });
+      this.host.newNote(held.title);
     } else if (held.kind === 'book') {
       this.host.newBook(held.title, held.pages);
     } else if (held.kind === 'board') {
@@ -537,6 +542,27 @@ export class Take<N extends TakeNote> {
 
   // ---- a phrase --------------------------------------------------------------------------------------
 
+  /**
+   * Listen only.  CaptureScreen uses this for every live Whisper commit: it
+   * renders the accumulating transcript but cannot route, infer, write, or
+   * derive a note from an incomplete utterance.
+   */
+  listen(segment: Segment): void {
+    const text = segment.text.replace(/^[\s.,;:!?…]+/, '');
+    if (!text) return;
+    this.lastHeard = performance.now();
+    this.segments = [...this.segments, { ...segment, text }];
+    this.host.said(text);
+    this.host.changed();
+  }
+
+  /** Offer a plan only after the complete capture has been classified. */
+  offerFinal(plan: Plan<TakeCandidate<N>>, now: number): void {
+    this.segments = [];
+    this.host.changed();
+    this.offer(plan, { startMs: 0, endMs: 0 }, now);
+  }
+
   /** A committed phrase: read for commands, and whatever of it is the note's added to its words. */
   phrase(segment: Segment, now: number): void {
     this.lastHeard = now;
@@ -653,6 +679,37 @@ export class Take<N extends TakeNote> {
     }
 
     if (keywordOn && !found) {
+      // Full-utterance instruction mode is deliberately narrow: only speech
+      // whose beginning is unmistakably command-shaped is eligible. Ordinary
+      // prose that later mentions “add”, “create”, or another command remains
+      // note content. Re-read all committed phrases so segmentation cannot
+      // decide whether a clear command is seen.
+      const utteranceSegments = [...this.segments, segment];
+      const utterance = utteranceSegments.map((part) => part.text).join(' ').trim();
+      if (this.host.instructionCommands() && isStandaloneCommandLike(utterance)) {
+        const plugin = this.pluginFor(utterance);
+        const plan = plugin ? null : this.plan(utterance);
+        if (plugin || (plan && plan.kind !== 'no-note')) {
+          for (const part of utteranceSegments) this.commandSpans.push({ startMs: part.startMs, endMs: part.endMs });
+          this.segments = [];
+          this.host.changed();
+          this.listening = { words: utterance, said: utteranceSegments, lastAt: now };
+          if (plugin) this.offerPlugin(plugin, plugin.parse(utterance), span, now);
+          else this.decide(utterance, span, now);
+          return null;
+        }
+        // The deterministic parser missed, but a constrained local model may
+        // still interpret this explicitly command-shaped utterance at pause.
+        if (!plan && this.host.understand) {
+          for (const part of utteranceSegments) this.commandSpans.push({ startMs: part.startMs, endMs: part.endMs });
+          this.segments = [];
+          this.host.changed();
+          this.listening = { words: utterance, said: utteranceSegments, lastAt: now };
+          this.host.itemWords('');
+          this.host.route({ phase: 'command', words: utterance });
+          return null;
+        }
+      }
       this.host.said(text);
       return segment;
     }
@@ -747,7 +804,7 @@ export function describeOffer<N extends TakeNote>(offer: Offer<N>, outcome: 'don
         : offer.kind === 'move'
           ? `move this recording to ${offer.title}`
           : offer.kind === 'new'
-            ? 'start a new note'
+            ? offer.title ? `create ${offer.title}` : 'start a new note'
             : offer.kind === 'board'
               ? 'make this note a board'
               : offer.kind === 'table'

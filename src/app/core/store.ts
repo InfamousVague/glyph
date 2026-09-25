@@ -50,6 +50,8 @@ export interface Note {
   formattedModel?: string | null;
   /** Where the note's file is in the library, relative to it (`Inbox/AttackFM.md`). Native generation 15; absent before, and in a browser. */
   path?: string;
+  /** Monotonic body version used by previewed command compare-and-swap writes. */
+  revision?: number;
 }
 
 export type NoteSource = 'editor' | 'capture';
@@ -66,7 +68,9 @@ function webAll(): Note[] {
     const raw = localStorage.getItem(WEB_KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Note[]) : [];
+    return Array.isArray(parsed)
+      ? (parsed as Array<Omit<Note, 'revision'> & { revision?: number }>).map((note) => ({ ...note, revision: note.revision ?? 1 }))
+      : [];
   } catch {
     // A corrupt or unreadable store reads as empty rather than throwing: the
     // browser half exists so development never stops, and a parse error in a
@@ -103,23 +107,140 @@ export async function getNote(id: string): Promise<Note | null> {
   return webAll().find((n) => n.id === id) ?? null;
 }
 
-/**
- * Write a note and get back what was actually stored.
- *
- * The caller supplies the id even for a new note, so the editor can open on a
- * note that has never been saved and still know what it is editing. Rust
- * upserts on that id: `created_at` is set once and never moved, `updated_at`
- * always is.
- */
-export async function saveNote(id: string, body: string, source: NoteSource = 'editor'): Promise<Note> {
-  if (isTauri()) return touched(await invoke<Note>('save_note', { id, body, source }));
-
+/** Create a genuinely new note. Existing-note writers must use updateNote. */
+export async function createNote(id: string, body: string, source: NoteSource = 'editor'): Promise<Note> {
+  if (isTauri()) return touched(await invoke<Note>('create_note', { id, body, source }));
   const now = Date.now();
   const notes = webAll();
-  const existing = notes.find((n) => n.id === id);
-  const note: Note = existing ? { ...existing, body, updatedAt: now } : { id, body, createdAt: now, updatedAt: now, source };
-  webWrite([note, ...notes.filter((n) => n.id !== id)]);
+  if (notes.some((note) => note.id === id)) throw new Error('the note id already exists');
+  const note: Note = { id, body, createdAt: now, updatedAt: now, source, revision: 1 };
+  webWrite([note, ...notes]);
   return touched(note);
+}
+
+/**
+ * Update exactly the existing revision the caller read. Missing means deleted,
+ * and is deliberately an error rather than an insert: stale autosaves must not
+ * resurrect notes.
+ */
+export async function updateNote(id: string, body: string, expectedRevision: number): Promise<Note> {
+  if (isTauri()) return touched(await invoke<Note>('update_note', { id, body, expectedRevision }));
+  const now = Date.now();
+  const notes = webAll();
+  const existing = notes.find((note) => note.id === id);
+  if (!existing || (existing.revision ?? 1) !== expectedRevision) throw new Error('the note was deleted or changed');
+  const note: Note = { ...existing, body, updatedAt: now, revision: expectedRevision + 1 };
+  webWrite(notes.map((candidate) => (candidate.id === id ? note : candidate)));
+  return touched(note);
+}
+
+export interface CommandMutationRequest {
+  mutationId: string;
+  noteId: string;
+  kind: 'append' | 'create';
+  beforeRevision: number | null;
+  beforeBody: string | null;
+  afterBody: string;
+  source: NoteSource;
+}
+
+export type CommandMutationResult =
+  | { status: 'applied'; mutationId: string; note: Note }
+  | { status: 'conflict'; current: Note | null };
+
+export type CommandUndoResult =
+  | { status: 'undone'; mutationId: string; note: Note | null }
+  | { status: 'conflict'; current: Note | null }
+  | { status: 'already-undone' }
+  | { status: 'not-found' };
+
+interface WebCommandRecord extends CommandMutationRequest {
+  afterRevision: number;
+  createdAt: number;
+  undone: boolean;
+}
+
+export interface PendingCommandUndo {
+  mutationId: string;
+  noteId: string;
+  kind: 'append' | 'create';
+  createdAt: number;
+}
+
+const WEB_COMMAND_KEY = 'glyph-command-mutations';
+
+function webCommands(): WebCommandRecord[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(WEB_COMMAND_KEY) ?? '[]');
+    return Array.isArray(parsed) ? (parsed as WebCommandRecord[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function webWriteCommands(records: WebCommandRecord[]): void {
+  try {
+    localStorage.setItem(WEB_COMMAND_KEY, JSON.stringify(records));
+  } catch {
+    // Browser development keeps the applied note even if its undo log cannot persist.
+  }
+}
+
+/** Apply exactly the body that was previewed, if the previewed revision still exists. */
+export async function applyCommandMutation(request: CommandMutationRequest): Promise<CommandMutationResult> {
+  if (isTauri()) return touched(await invoke<CommandMutationResult>('apply_command_mutation', { request }));
+  const notes = webAll();
+  const current = notes.find((note) => note.id === request.noteId) ?? null;
+  const matches =
+    request.beforeRevision === null
+      ? current === null && request.beforeBody === null
+      : (current?.revision ?? 1) === request.beforeRevision && current?.body === request.beforeBody;
+  if (!matches) return { status: 'conflict', current };
+  const now = Date.now();
+  const note: Note = current
+    ? { ...current, body: request.afterBody, updatedAt: now, revision: (current.revision ?? 1) + 1 }
+    : { id: request.noteId, body: request.afterBody, createdAt: now, updatedAt: now, source: request.source, revision: 1 };
+  webWrite([note, ...notes.filter((candidate) => candidate.id !== note.id)]);
+  webWriteCommands([
+    ...webCommands().filter((record) => record.mutationId !== request.mutationId),
+    { ...request, afterRevision: note.revision ?? 1, createdAt: now, undone: false },
+  ]);
+  return touched({ status: 'applied', mutationId: request.mutationId, note });
+}
+
+/** Undo only while the command's exact result remains current. */
+export async function latestCommandMutation(): Promise<PendingCommandUndo | null> {
+  if (isTauri()) return invoke<PendingCommandUndo | null>('latest_command_mutation');
+  const cutoff = Date.now() - 10 * 60 * 1_000;
+  const notes = webAll();
+  const record = webCommands()
+    .filter((candidate) => !candidate.undone && candidate.createdAt >= cutoff)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .find((candidate) => {
+      const note = notes.find((item) => item.id === candidate.noteId);
+      return note?.body === candidate.afterBody && (note.revision ?? 1) === candidate.afterRevision;
+    });
+  return record ? { mutationId: record.mutationId, noteId: record.noteId, kind: record.kind, createdAt: record.createdAt } : null;
+}
+
+export async function undoCommandMutation(mutationId: string): Promise<CommandUndoResult> {
+  if (isTauri()) return touched(await invoke<CommandUndoResult>('undo_command_mutation', { mutationId }));
+  const records = webCommands();
+  const record = records.find((candidate) => candidate.mutationId === mutationId);
+  if (!record) return { status: 'not-found' };
+  if (record.undone) return { status: 'already-undone' };
+  const notes = webAll();
+  const current = notes.find((note) => note.id === record.noteId) ?? null;
+  if (!current || (current.revision ?? 1) !== record.afterRevision || current.body !== record.afterBody) return { status: 'conflict', current };
+  let restored: Note | null = null;
+  if (record.beforeRevision !== null && record.beforeBody !== null) {
+    restored = { ...current, body: record.beforeBody, updatedAt: Date.now(), revision: record.afterRevision + 1 };
+    webWrite(notes.map((note) => (note.id === restored?.id ? restored : note)));
+  } else {
+    webWrite(notes.filter((note) => note.id !== current.id));
+  }
+  webWriteCommands(records.map((candidate) => (candidate.mutationId === mutationId ? { ...candidate, undone: true } : candidate)));
+  return touched({ status: 'undone', mutationId, note: restored });
 }
 
 /**

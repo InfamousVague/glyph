@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { generate, listModels, modelName, splitThought, type Run } from '../core/ai.ts';
 import { preferences } from '../core/preferences.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
-import { getNote, listNotes, noteTitle, saveNote, type Note } from '../core/store.ts';
+import { getNote, listNotes, noteTitle, updateNote, type Note } from '../core/store.ts';
 import { enqueueRefine, holdRefining, keepBetterPhrases, listenAgain, type RefineJob } from '../capture/refine.ts';
 import { renderNote, type Segment } from '../capture/markdown.ts';
 import { enqueueFormat, setFormattingPaused } from '../format/queue.ts';
@@ -317,7 +317,7 @@ export function useReview(handoff: ReviewHandoff) {
       const changed = applyFindings(fresh, accepted);
       for (const [id, body] of changed) {
         const note = await getNote(id).catch(() => null);
-        if (note) await saveNote(id, body, note.source);
+        if (note) await updateNote(id, body, note.revision ?? 1);
       }
     }
     if (handoff.job && refined.current && listened.current) await keepBetterPhrases(handoff.job, refined.current);
