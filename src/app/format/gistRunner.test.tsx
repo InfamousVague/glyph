@@ -16,7 +16,7 @@ vi.mock('../core/ai.ts', async () => {
 
 import { generate, listModels } from '../core/ai.ts';
 import { show } from '../../test/render.tsx';
-import { bodyHash } from './formatter.ts';
+import { bodyHash } from './bodyHash.ts';
 import { gistFor, runGists, useGists } from './gist.ts';
 import { readGist } from './results.ts';
 

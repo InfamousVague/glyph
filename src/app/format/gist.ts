@@ -4,7 +4,7 @@ import { MARKER } from '../core/itemSyntax.ts';
 import type { Note } from '../core/store.ts';
 import { isTauri } from '../core/tauri.ts';
 import { useRedraw } from '../core/useRedraw.ts';
-import { bodyHash } from './formatter.ts';
+import { bodyHash } from './bodyHash.ts';
 import { protectLinks } from './links.ts';
 import { smallestOf } from '../ai/available.ts';
 import { anyRunning, isRunning } from '../ai/runs.ts';

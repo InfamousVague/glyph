@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bodyHash } from './formatter.ts';
+import { bodyHash } from './bodyHash.ts';
 import { noteHash, prepareNote } from './pipeline.ts';
 
 describe('a note as the model sees it', () => {
@@ -14,6 +14,19 @@ describe('a note as the model sees it', () => {
     expect(prompt).not.toContain('https://example.com');
     expect(restore('# Notes\nsee [the docs](link-1) no', false)).toBe('# Notes\nsee [the docs](https://example.com/docs) no');
     expect(restore('* see [the docs](link-1) now', true)).toBe('- see [the docs](https://example.com/docs) now\n');
+  });
+
+  it('takes off a code fence a model put round its whole answer, with or without a language, and the blank edges', () => {
+    const { restore } = prepareNote('# Trip\n', 'format');
+    expect(restore('```markdown\n# Trip\n\n- call Sam\n```', true)).toBe('# Trip\n\n- call Sam\n');
+    expect(restore('\n\n```\n# Trip\n```\n\n', true)).toBe('# Trip\n');
+    expect(restore('\n\n# Trip\n\n\n', true)).toBe('# Trip\n');
+  });
+
+  it('leaves a code block inside the answer where it is', () => {
+    const { restore } = prepareNote('# Setup\n', 'format');
+    const answer = '# Setup\n\n```bash\nnpm run dev\n```\n\nThen open the page.';
+    expect(restore(answer, true)).toBe(`${answer}\n`);
   });
 
   it('keeps a table whole through the model', () => {

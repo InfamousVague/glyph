@@ -1,6 +1,6 @@
 import { pluginContextFor, pluginContextVersion } from '../plugins/registry.ts';
 import { cleanNote, cleanRewrite } from './clean.ts';
-import { bodyHash, tidy } from './formatter.ts';
+import { bodyHash } from './bodyHash.ts';
 import { protectLinks, restoreLinks } from './links.ts';
 import type { Mode } from './modes.ts';
 import { protectTables, restoreTables } from './tables.ts';
@@ -32,6 +32,17 @@ export function noteHash(id: string, body: string): number {
 /** What plugins know about the note (a linked project's briefing), for the system message, where it is snapshotted. */
 export function noteContext(id: string): string | undefined {
   return pluginContextFor(id) ?? undefined;
+}
+
+/**
+ * What a model still gets wrong at the edges: a code fence around the whole
+ * note, and blank lines at either end. The words are left alone.
+ */
+function tidy(text: string): string {
+  let out = text.trim();
+  const fenced = /^```[a-z]*\n([\s\S]*?)\n```$/i.exec(out);
+  if (fenced?.[1]) out = fenced[1].trim();
+  return `${out}\n`;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { readStored, writeStored } from '../core/stored.ts';
 import type { AiChange } from '../editor/aiChanges.ts';
-import { bodyHash } from '../format/formatter.ts';
+import { bodyHash } from '../format/bodyHash.ts';
 
 /**
  * The AI's marks on a note, kept with it: Matt chose marks that stay until
