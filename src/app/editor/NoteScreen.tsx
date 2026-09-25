@@ -2,7 +2,6 @@ import { Ghost } from '../art/Ghost.tsx';
 import { createPortal } from 'react-dom';
 import { useTopBarTools } from '../core/topBarTools.ts';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Sparkles } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import type { EditorView } from '@codemirror/view';
 import { useWispEdge } from '../art/wispEdge.ts';
@@ -17,6 +16,7 @@ import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
 import { BookBar, BookFoot, BookView } from '../book/BookView.tsx';
 import { isBookBody, type BookPlace } from '../book/book.ts';
+import { writeBookSpot } from '../book/bookSpot.ts';
 import { withFrontMatterTitle } from '../core/frontMatter.ts';
 import { authorsOf } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
@@ -27,8 +27,6 @@ import type { Note } from '../core/store.ts';
 import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.ts';
 import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
-import { PromptBar } from '../ai/PromptBar.tsx';
-import { ConfirmCard } from '../ai/ConfirmCard.tsx';
 import type { ReviewHandoff } from '../ai/review.ts';
 import { keepAllChanges } from './aiChanges.ts';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
@@ -38,7 +36,6 @@ import { AiStrip } from '../ai/AiStrip.tsx';
 import { boardMadeWords } from './boardActions.ts';
 import { itemSend, lineOffers, noteEditing } from './notePlugins.ts';
 import { NoteTools } from './NoteTools.tsx';
-import { useAiBar, useAiRoom } from './aiBar.ts';
 import { useBookmark } from './useBookmark.ts';
 import { useLandAt } from './useLandAt.ts';
 import { useLiveNote } from './useLiveNote.ts';
@@ -46,6 +43,7 @@ import { useNoteAi, type NoteAsk } from './useNoteAi.ts';
 import { useNotePictures } from './useNotePictures.ts';
 import { useNoteSaving, type NoteRename } from './useNoteSaving.ts';
 import { useNoteTape } from './useNoteTape.ts';
+import { useStripRoom } from './useStripRoom.ts';
 import styles from './NoteScreen.module.css';
 
 /**
@@ -64,7 +62,7 @@ import styles from './NoteScreen.module.css';
  *
  * The rest is composed here from pieces with one job each: the tools (editor/NoteTools.tsx) and the bookmark behind
  * one of them (editor/useBookmark.ts), the tape and its removal (editor/useNoteTape.ts), the AI in the note
- * (editor/useNoteAi.ts, with its bar and strip in editor/aiBar.ts), pictures and the note's one line of problems
+ * (editor/useNoteAi.ts, with the room its strip takes in editor/useStripRoom.ts), pictures and the note's one line of problems
  * (editor/useNotePictures.ts), landing on an item a link pointed at (editor/useLandAt.ts), live sync
  * (editor/useLiveNote.ts), and the ways plugins reach the note (editor/notePlugins.ts).
  */
@@ -185,9 +183,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // On a folding phone, the note flattens with the hinge as the phone opens.
   const screen = useRef<HTMLDivElement>(null);
   useUnfold(screen);
+  const onStripHeight = useStripRoom(screen, header);
 
   const ai = useNoteAi({ note, view, flush, body, wisp: prefs.wisp, ask, review, toast });
-  const bar = useAiBar(prefs.aiBar);
 
   const remove = () => {
     // No confirmation: it goes to the trash, with an Undo, and is only deleted
@@ -200,7 +198,6 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
 
   // Playing takes the screen for the transcript; the note waits under it.
   const shown: 'transcript' | 'raw' = tape.length && tape.playing ? 'transcript' : 'raw';
-  const { onStripHeight, onBarHeight } = useAiRoom(screen, header, { barShown: bar.shown, ringShown: !bar.shown && !typed && shown === 'raw' });
   // The tape and note go to smoke as they slip behind the header; read again on a view change, since another view may not scroll (art/wispEdge.ts).
   // The page smokes at both ends: under the header, and off the bottom where the dock is (art/wispEdge.ts).
   // Not on a canvas: it is not a page that scrolls off its foot, and the band was smoking the canvas's own tools at
@@ -209,6 +206,11 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // The note opens where it was left, and remembers where it is left (editor/notePlace.ts).
   // Opened at an item, the note goes to that line rather than back to where it was left last time.
   useNotePlace(note.id, page, view, shown === 'raw' && !at);
+  // A chapter open is where its book was left, so the book opens here again from outside it (book/bookSpot.ts).
+  const inBook = book?.book.id ?? null;
+  useEffect(() => {
+    if (inBook) writeBookSpot(inBook, { kind: 'chapter', title });
+  }, [inBook, title]);
   const { marked, bookmark } = useBookmark(note, view, page, (message) => toast({ message }));
   useLandAt(at, view, page, header);
 
@@ -349,6 +351,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               openCanvas={onNewCanvas}
               titles={allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
+              spot={{ id: note.id, page }}
               onChange={(next) => {
                 setBookBody(next);
                 onChange(next);
@@ -382,45 +385,12 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {/* And under its last line, the chapters either side again, to go on from the end of the page (docs/BOOKS.md). */}
         {book && onOpenTitle && shown === 'raw' ? <BookFoot place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}
       </div>
-      {/*
-        The bar at the foot: the six chips and a field for anything else (ai/PromptBar.tsx), while it is shown, and the
-        ✨ ring that shows it while it is not. Neither on a canvas or a book's index, nor while the transcript plays.
-        The page keeps room under its last line for whichever is there (the bar's height, told as it changes, or the
-        ring's), so the end of the note is never under either.
-      */}
-      <div className={styles.barHolder}>
-        {ai.offer ? (
-          <div className={styles.cardHolder}>
-            <ConfirmCard offer={ai.offer.offer} onConfirm={() => void ai.confirmOffer()} onCancel={ai.cancelOffer} />
-          </div>
-        ) : null}
-        {bar.shown ? (
-          <PromptBar
-            onHide={bar.hide}
-            availability={ai.availability.availability}
-            onRun={(kind, instruction, scope) => (kind === 'ask' && instruction ? void ai.askBar(instruction, scope) : ai.runAi(kind, instruction, scope))}
-            onGet={(model) => void ai.availability.fetch(model)}
-            scope={bar.scope}
-            onScopeUsed={bar.clearScope}
-            focusAsk={bar.focusAsk}
-            onHeight={onBarHeight}
-            disabled={typed || shown !== 'raw'}
-          />
-        ) : typed || shown !== 'raw' ? null : (
-          <button type="button" className={styles.aiSpark} onClick={bar.show} aria-label="Show the AI bar" aria-expanded="false">
-            <Sparkles size={20} strokeWidth={2.1} aria-hidden="true" />
-          </button>
-        )}
-      </div>
-      {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image; and on a selection, Ask the AI. */}
+      {/* Press and hold in the note: Cut, Copy, Paste, Select all, Add image. */}
       <ContextMenu
         view={view}
         onAddImage={() => void pictures.addPhoto()}
         onPasteImage={pictures.pasteImage}
         say={(message) => toast({ message })}
-        edits={typed ? [] : [{ id: 'ask', label: 'Ask the AI' }]}
-        onEdit={(_id, from, to) => bar.askAbout(from, to)}
-        editsUnavailable={ai.availability.availability.ok ? null : ai.availability.availability.reason}
         onFind={setFinding}
         // The same send a swipe on the item does, where a plugin takes this note's items (a Notion board, a GitHub issue).
         send={itemSend(note.id, editing)}

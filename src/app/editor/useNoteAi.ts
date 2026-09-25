@@ -2,23 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
 import type { ToastOptions } from '@glacier/react';
 import { useAvailability, type AvailabilityState } from '../ai/available.ts';
-import { offerOf, readInstruction } from '../ai/instruction.ts';
 import type { RunKind } from '../ai/kinds.ts';
 import { recordUndone, type RunRecord } from '../ai/log.ts';
 import { loadMarks, saveMarks } from '../ai/marks.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
-import { ended, useRun, type RunScope } from '../ai/runs.ts';
+import { ended, useRun } from '../ai/runs.ts';
 import { startNoteRun } from '../ai/start.ts';
 import { useLanding } from '../ai/useLanding.ts';
 import { useNoteReview } from '../ai/useNoteReview.ts';
 import { accountState } from '../core/account/account.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
-import { listNotes, noteTitle, type Note } from '../core/store.ts';
+import type { Note } from '../core/store.ts';
 import { aiEdit, keepAllAiChanges, restoreAiChanges, type AiChange } from './aiChanges.ts';
-import { confirmCommand, type CommandOffer } from './noteCommand.ts';
 
 /**
- * The AI in the open note: a run started from the More sheet, the bar or a spoken instruction (ai/start.ts), whose
+ * The AI in the open note: a run started from the More sheet or a spoken instruction (ai/start.ts), whose
  * lines land in the note itself as they finish, as tracked changes (ai/useLanding.ts, editor/aiChanges.ts), with the
  * strip under the header saying what the model is doing (ai/AiStrip.tsx). The robot's own view over the note is gone:
  * Matt chose the note as the one surface, with auto-apply, marks, and Undo.
@@ -28,10 +26,6 @@ import { confirmCommand, type CommandOffer } from './noteCommand.ts';
  * finds them where they were, as long as the note still reads the same. The review after a recording runs here too:
  * listening again and comparing as a stage in the strip, the thinking as a run, the findings landing as tracked
  * changes (ai/useNoteReview.ts).
- *
- * Words typed into the bar go through the one reader (ai/instruction.ts): a chip said in words is that run; a command
- * naming another note is offered on the confirm card first, as a spoken one is (editor/noteCommand.ts); anything else
- * is an ask about this note. Words about a selected part are always an ask about that part.
  */
 
 /** A spoken instruction about this note, to run on it as it opens (App.tsx, ai/instruction.ts); `key` tells one from the next. */
@@ -58,8 +52,8 @@ interface NoteAiOptions {
 export interface NoteAi {
   /** Whether the AI can run here, and the model to get where it cannot (ai/available.ts). */
   availability: AvailabilityState;
-  /** Starts a run on the note, or on `scope` of it; says why not when it cannot. */
-  runAi: (kind: RunKind, instruction?: string, scope?: RunScope | null) => void;
+  /** Starts a run on the note; says why not when it cannot. */
+  runAi: (kind: RunKind, instruction?: string) => void;
   /** The kind of run on the note now, for the More sheet to mark, or null. */
   runningKind: RunKind | null;
   /** The review's stage, for the strip. */
@@ -70,12 +64,6 @@ export interface NoteAi {
   onAiMarks: (changes: readonly AiChange[]) => void;
   /** Undo for a run in the strip's log; false when it cannot be undone. */
   undoRun: (record: RunRecord) => boolean;
-  /** Words typed into the bar, about `scope` of the note or the whole of it. */
-  askBar: (instruction: string, scope: RunScope | null) => Promise<void>;
-  /** A command from the bar waiting on its confirm card, or null. */
-  offer: CommandOffer | null;
-  confirmOffer: () => Promise<void>;
-  cancelOffer: () => void;
 }
 
 export function useNoteAi({ note, view, flush, body, wisp, ask, review, toast }: NoteAiOptions): NoteAi {
@@ -83,10 +71,10 @@ export function useNoteAi({ note, view, flush, body, wisp, ask, review, toast }:
   const runningKind: RunKind | null = run && !ended(run) ? run.kind : null;
   const availability = useAvailability();
 
-  const runAi = (kind: RunKind, instruction?: string, scope: RunScope | null = null) => {
+  const runAi = (kind: RunKind, instruction?: string) => {
     if (!view) return;
     flush();
-    const started = startNoteRun(view, note.id, kind, availability.availability, { instruction, scope });
+    const started = startNoteRun(view, note.id, kind, availability.availability, { instruction });
     if (!started.ok) toast({ message: started.reason });
     else fireNativeHaptic('selection');
   };
@@ -107,34 +95,6 @@ export function useNoteAi({ note, view, flush, body, wisp, ask, review, toast }:
     runAi(ask.kind, ask.instruction);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runAi is made afresh each render; the key and the readiness are what this keys on
   }, [ask, view, availability.availability]);
-
-  const [offer, setOffer] = useState<CommandOffer | null>(null);
-  const askBar = async (instruction: string, scope: RunScope | null) => {
-    if (scope) {
-      runAi('ask', instruction, scope);
-      return;
-    }
-    const notes = await listNotes().catch(() => [] as Note[]);
-    const candidates = notes.filter((n) => !n.archivedAt).map((n) => ({ id: n.id, title: noteTitle(n.body), note: n }));
-    const read = await readInstruction(instruction, candidates, false);
-    if (read.kind === 'run') runAi(read.run);
-    else if (read.kind === 'ask') runAi('ask', read.instruction);
-    else if (read.kind === 'reject') toast({ message: read.reason });
-    else if (read.kind === 'command') {
-      const shown = offerOf(read.plan);
-      if (!shown) {
-        toast({ message: 'Nothing to add.' });
-        return;
-      }
-      setOffer({ plan: read.plan, offer: shown, words: instruction });
-    }
-  };
-  const confirmOffer = async () => {
-    const chosen = offer;
-    if (!chosen || !view) return;
-    setOffer(null);
-    await confirmCommand(chosen, { note, view, wisp, toast });
-  };
 
   // The AI signs beside the account's handle, where there is one (core/authors.ts).
   useLanding(note.id, view, {
@@ -187,5 +147,5 @@ export function useNoteAi({ note, view, flush, body, wisp, ask, review, toast }:
     return true;
   };
 
-  return { availability, runAi, runningKind, reviewStage, marks, onAiMarks, undoRun, askBar, offer, confirmOffer, cancelOffer: () => setOffer(null) };
+  return { availability, runAi, runningKind, reviewStage, marks, onAiMarks, undoRun };
 }

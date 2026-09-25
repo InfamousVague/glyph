@@ -49,7 +49,7 @@ name, so a note read anywhere else still says what was meant.
 
 | Written | Effect | Said while recording |
 |---|---|---|
-| `🔥🔥too hot to touch🔥🔥` | Heat: the words go bold, and the text on the line above them wavers in the heat coming off them, thinner on the line above that | "heated … end heated" |
+| `🔥🔥too hot to touch🔥🔥` | Heat: the words go bold and shimmer slightly, and the text on the line above them wavers in the heat coming off them, thinner on the line above that | "heated … end heated" |
 | `❄️❄️frozen solid❄️❄️` | Frost: the words go cold, a grainy rime creeping over their edges and settling | "frosted … end frosted" |
 | `🌊🌊out to sea🌊🌊` | Wave: the words bob along the line, a ripple passing through them | "wavy … end wavy" |
 | `✨✨silver thread✨✨` | Shimmer: a glint slides across the words every few seconds | "shimmering … end shimmering" |
