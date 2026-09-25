@@ -10,7 +10,7 @@ import type { Segment } from './markdown.ts';
 import type { TakeCandidate, TakeNote } from './takeTypes.ts';
 import { QuietWatch } from './quiet.ts';
 import { setLinkTitles } from './spoken/extras.ts';
-import { spokenNumber } from './spoken/numbers.ts';
+import { NUMBER_WORD, spokenNumber } from './spoken/numbers.ts';
 import { asBoardMarkdown, Take } from './take.ts';
 
 /**
@@ -232,7 +232,8 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
   return { note, notes, offers, newNote, stoppedAtMs, lastWordsMs, log };
 }
 
-const NUMBER_RUN = /\b(?:(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)(?:[\s-]+(?:and[\s-]+)?(?=\w)|\b))+/gi;
+/** A run of number words, "and" allowed between them, as Whisper may spell a number out. */
+const NUMBER_RUN = new RegExp(String.raw`\b(?:(?:${NUMBER_WORD})(?:[\s-]+(?:and[\s-]+)?(?=\w)|\b))+`, 'gi');
 
 /**
  * Text as it is compared for recorded audio: a number said is a number however Whisper wrote it ("four thousand",

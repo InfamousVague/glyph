@@ -13,8 +13,17 @@ const NUMBER_WORDS: Record<string, number> = {
   twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
 };
 
+/**
+ * The words a number is said in, as regex alternations, written once for every pattern that finds one: a count, a
+ * table's column, a number inside a sentence, and the voice suite's runs of them.
+ */
+export const ONE_TO_TEN = 'one|two|three|four|five|six|seven|eight|nine|ten';
+const ELEVEN_TO_NINETY = 'eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety';
+/** Every word a number from zero to the thousands is said in. */
+export const NUMBER_WORD = `zero|${ONE_TO_TEN}|${ELEVEN_TO_NINETY}|hundred|thousand`;
+
 /** A small count said or written, as a cue that numbers something takes one: "number three", "item number 12". */
-export const SMALL_NUMBER = String.raw`(?:one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2})`;
+export const SMALL_NUMBER = String.raw`(?:${ONE_TO_TEN}|\d{1,2})`;
 
 /**
  * A number said in words or written in digits: "four hundred fifty", "1,200", "twenty-one", "two thousand and five".
@@ -47,7 +56,7 @@ export function spokenNumber(text: string): number | null {
 }
 
 /** A number as it may be said inside a sentence, in digits or in words, for a pattern to find before `spokenNumber` reads it. */
-export const NUMBER_PHRASE = String.raw`(?:\d[\d,]*(?:\.\d+)?|(?:(?:zero|none|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|and)[\s-]*)+)`;
+export const NUMBER_PHRASE = String.raw`(?:\d[\d,]*(?:\.\d+)?|(?:(?:zero|none|${ONE_TO_TEN}|${ELEVEN_TO_NINETY}|hundred|thousand|million|and)[\s-]*)+)`;
 
 /** The operators as they are said, and the signs they are written as. "x" is times only with a space either side. */
 const OPERATORS: [RegExp, string][] = [

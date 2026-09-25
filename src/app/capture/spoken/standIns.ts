@@ -10,15 +10,16 @@
  *
  * Defined once, here, because they are matched by code point in more places than they are made: the sentence
  * splitter treats a line break as a sentence's end, and the title rule refuses an opening sentence that holds any of
- * them (capture/markdown.ts). A regex that spelled `` out would go on matching the old character if one of these
- * ever moved.
+ * them (capture/markdown.ts, spoken/blocks.ts). A regex that spelled the line break out would go on matching the old
+ * character if one of these ever moved. They are written as escapes, U+E000 to U+E003, because the characters
+ * themselves show as nothing in an editor or a diff, and an editor that strips unusual characters would empty them.
  */
 
 /** Where a line's name was said; the name sits between two of them. */
-export const ANCHOR_MARK = '';
+export const ANCHOR_MARK = '\uE000';
 /** Where "bookmark this" was said. */
-export const BOOKMARK_MARK = '';
+export const BOOKMARK_MARK = '\uE001';
 /** Where "new line" was said. */
-export const BREAK_MARK = '';
+export const BREAK_MARK = '\uE002';
 /** Where a raised or lowered mark joins its neighbours, while the paragraph is still being read. */
-export const GLUE = '';
+export const GLUE = '\uE003';

@@ -1,7 +1,7 @@
 import { capitalise } from '../../core/text.ts';
 import { itemOf, enumeration } from './lists.ts';
 import { SMALL_NUMBER, spokenSum } from './numbers.ts';
-import { ANCHOR_MARK, BREAK_MARK } from './standIns.ts';
+import { ANCHOR_MARK, BOOKMARK_MARK, BREAK_MARK } from './standIns.ts';
 import { stripEnd, words } from './words.ts';
 
 /**
@@ -290,7 +290,7 @@ export function renderBlocks(blocks: readonly Block[], paragraphStarts: Readonly
  * too (spoken/standIns.ts): a line's name, the bookmark or a break said in the first sentence make it a line, not a
  * title.
  */
-const KEPT_AS_SAID = new RegExp(String.raw`\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||` + '`' + String.raw`|!\[|\[\[|\[\^|\]\(|<https?:|[\^~$${ANCHOR_MARK}-${BREAK_MARK}]|:[a-z_+-]+:|(?:^|\s)_\S`);
+const KEPT_AS_SAID = new RegExp(String.raw`\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||` + '`' + String.raw`|!\[|\[\[|\[\^|\]\(|<https?:|[\^~$${ANCHOR_MARK}${BOOKMARK_MARK}${BREAK_MARK}]|:[a-z_+-]+:|(?:^|\s)_\S`);
 
 /**
  * Whether an opening sentence reads as a title: short, not a question, and not
