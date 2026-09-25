@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { button, buttonSaying, press, show, typeInto } from '../../test/render.tsx';
+import { button, buttonSaying, press, rerender, show, typeInto } from '../../test/render.tsx';
 import { PromptBar } from './PromptBar.tsx';
 import type { Availability } from './available.ts';
 
@@ -59,7 +59,7 @@ describe('the prompt bar', () => {
     expect(spark?.getAttribute('aria-expanded')).toBe('true');
     act(() => spark!.click());
     expect(hid).toHaveBeenCalledTimes(1);
-    act(() => root!.render(<PromptBar availability={ready} onRun={() => {}} scope={null} />));
+    rerender(<PromptBar availability={ready} onRun={() => {}} scope={null} />);
     expect(el.querySelector('button[aria-label="Hide the AI bar"]')).toBeNull();
   });
 

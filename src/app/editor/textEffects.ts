@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder, StateEffect, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { prefersStill } from '../core/motion.ts';
 import type { InlineFormat } from '../plugins/types.ts';
 
 /**
@@ -360,8 +361,6 @@ function probeOf(view: EditorView): ProbeLine {
 
 /** Said to the plugin when the text above its heated words has been measured afresh and differs from what it drew. */
 const heatMeasured = StateEffect.define<null>();
-
-const prefersStill = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let instances = 0;
 

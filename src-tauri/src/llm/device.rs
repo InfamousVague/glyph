@@ -117,6 +117,9 @@ fn free_bytes(path: &Path) -> Option<u64> {
     // SAFETY: `c_path` is a valid NUL-terminated string and `stat` is a
     // properly sized, writable statvfs for the call to fill.
     let rc = unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) };
+    // The two fields are u32 on one platform and u64 on another, so a cast
+    // that is a no-op on this one is needed on the next.
+    #[allow(clippy::unnecessary_cast)]
     (rc == 0).then(|| stat.f_bavail as u64 * stat.f_frsize as u64)
 }
 

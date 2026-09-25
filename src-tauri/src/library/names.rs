@@ -68,9 +68,14 @@ fn plain(line: &str) -> String {
         i += 1;
     }
     out.split_whitespace()
-        .filter(|word| !word.starts_with("http://") && !word.starts_with("https://") && !(word.starts_with('<') && word.ends_with('>')))
+        .filter(|word| !is_link(word))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// A bare address or an autolink (`<…>`), which says nothing a file name wants.
+fn is_link(word: &str) -> bool {
+    word.starts_with("http://") || word.starts_with("https://") || (word.starts_with('<') && word.ends_with('>'))
 }
 
 fn is_picture_line(line: &str) -> bool {

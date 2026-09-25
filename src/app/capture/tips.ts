@@ -151,7 +151,7 @@ export function starters({
   book?: string | null;
   asking?: boolean;
 }): Starters {
-  const say = (command: string) => (keyword ? `Hey Ghost, ${command.charAt(0).toLowerCase()}${command.slice(1)}` : command);
+  const say = (command: string) => (keyword ? `Hey Ghost, ${lowerFirst(command)}` : command);
   const chapter: Tip | null = book ? { say: say(`Add a chapter to ${book}`), does: 'and then its name, to put a page in that book' } : null;
   const send: Tip[] = noteTitle
     ? [{ say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' }, chapter ?? { say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' }]

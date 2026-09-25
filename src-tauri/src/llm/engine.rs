@@ -314,7 +314,7 @@ fn serve(inbox: Receiver<Message>, loaded: Arc<AtomicBool>) {
         let (backend, model) = match loading {
             Ok(pair) => pair,
             Err(message) => {
-                fail(job, &mut report, Failure::Error(message), Counts::default());
+                fail(*job, &mut report, Failure::Error(message), Counts::default());
                 continue;
             }
         };
@@ -353,7 +353,7 @@ fn serve(inbox: Receiver<Message>, loaded: Arc<AtomicBool>) {
                     report.send(&mut job.progress, Phase::Done, counts, Some(output.text.clone()));
                     let _ = job.reply.send(Ok(output));
                 }
-                Err(failure) => fail(job, &mut report, failure, counts),
+                Err(failure) => fail(*job, &mut report, failure, counts),
             }
         }
         loaded.store(false, Ordering::Relaxed);
@@ -361,7 +361,7 @@ fn serve(inbox: Receiver<Message>, loaded: Arc<AtomicBool>) {
     }
 }
 
-fn fail(mut job: Box<Job>, report: &mut Reporter, failure: Failure, counts: Counts) {
+fn fail(mut job: Job, report: &mut Reporter, failure: Failure, counts: Counts) {
     let phase = if failure == Failure::Cancelled { Phase::Cancelled } else { Phase::Error };
     report.message = Some(failure.to_string());
     report.send(&mut job.progress, phase, counts, None);
