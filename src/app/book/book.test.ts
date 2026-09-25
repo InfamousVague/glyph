@@ -76,6 +76,12 @@ describe('changing the index', () => {
     expect(withChapter(BOOK, '  ')).toBe(BOOK);
   });
 
+  it('adds a chapter after the last when the one named is not in the index, in the list and not after it', () => {
+    const next = withChapter(BOOK, 'Rivers', 'Nope');
+    expect(next).toContain('- [[Birds]]\n- [[Rivers]]');
+    expect(chaptersOf(next).map((c) => c.title).pop()).toBe('Rivers');
+  });
+
   it('starts an index in a book with none, after its words', () => {
     const empty = bookNoteBody('Trip');
     const one = withChapter(empty, 'Packing');
@@ -215,6 +221,11 @@ describe('what counts as a chapter', () => {
   it('still reads an index of bullets, as the app writes one, and skips a bullet that only mentions a note', () => {
     const plain = bookNoteBody('Trip', ['Packing', 'Route']) + '- We decided in [[Planning]].\n';
     expect(chaptersOf(plain).map((c) => c.title)).toEqual(['Packing', 'Route']);
+  });
+
+  it('adds a chapter a numbered index counts when the one named is not in it', () => {
+    const next = withChapter(HELLO, 'New chapter', 'Nope');
+    expect(chaptersOf(next).map((c) => c.title)).toContain('New chapter');
   });
 
   it('adds a chapter to a numbered index as the next number, so it counts', () => {

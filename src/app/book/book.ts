@@ -95,7 +95,9 @@ export function withChapter(body: string, title: string, after: string | null = 
   const lines = body.split('\n');
   const chapters = chaptersOf(body);
   if (chapters.some((c) => sameTitle(c.title, clean))) return body;
-  const place = after ? chapters.find((c) => sameTitle(c.title, after)) : chapters[chapters.length - 1];
+  // After the one named where it is in the index, else after the last: a name the index does not have is not a
+  // reason to start a second list under the first, which a numbered index would not count.
+  const place = (after ? chapters.find((c) => sameTitle(c.title, after)) : undefined) ?? chapters[chapters.length - 1];
   if (place) {
     const indent = place.depth === 1 ? '  ' : '';
     // In the index's own style: a numbered index goes on numbering, or the new chapter would be a bullet it skips.
