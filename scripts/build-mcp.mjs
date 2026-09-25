@@ -22,7 +22,7 @@ async function bundle(entry, name, target) {
     format: 'esm',
     target,
     banner: { js: "#!/usr/bin/env node\nimport { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
-    // The sign-in page's typeface rides inside the hosted bundle as a data URL (mcp/hosted.ts).
+    // The sign-in page's typeface rides inside the hosted bundle as a data URL (mcp/loginPage.ts).
     loader: { '.woff2': 'dataurl' },
     legalComments: 'none',
     logLevel: 'warning',

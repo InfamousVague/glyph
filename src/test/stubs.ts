@@ -2,7 +2,7 @@
  * What jsdom does not have, stood in for by a test that needs it - one call each, opted into rather than installed
  * for every file.
  *
- * Opt-in on purpose. A missing browser API is itself an answer some code reads: NotePeek.tsx and CanvasView.tsx take a
+ * Opt-in on purpose. A missing browser API is itself an answer some code reads: NotePeek.tsx and canvas/Near.tsx take a
  * page with no IntersectionObserver as a page that cannot watch the screen, and draw every card at once, and their
  * tests rely on exactly that. A stub in setup.ts would change what every one of those files tests. So nothing here
  * runs until a test asks, and there is deliberately no IntersectionObserver.

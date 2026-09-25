@@ -36,7 +36,7 @@ export function setLinkTitles(titles: readonly string[]): void {
   linkTitles = titles;
 }
 
-/** "Item link ask Sam end link": a link to a line of this note by its name (`[[#^ask-sam]]`, editor/boards.ts). */
+/** "Item link ask Sam end link": a link to a line of this note by its name (`[[#^ask-sam]]`, editor/boards/anchors.ts). */
 const ITEM_LINK_SAID = /\bitem\s?link[,:]?\s+(.+?)[.,]?\s+(?:end|and)\s+link\b/gi;
 
 /** "Link Glyph to attack dot fm end link", "link attack dot fm end link": a link to a page. */

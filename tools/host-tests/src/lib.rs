@@ -10,12 +10,14 @@
 //! Kevin's box (2026-09-15), even though neither module has a `tauri::` type in
 //! it and neither links llama.cpp.
 //!
-//! `store.rs`, `library/mod.rs`, and `llm/command.rs` stay free of Tauri types;
-//! the active 1.6.0 persistence contract lives in `library/mod.rs`. Those modules
-//! contain no `tauri::` type, on purpose: the capture process runs them with no
-//! webview around. That promise is what makes this harness possible, and
-//! running it is what keeps the promise honest - if someone adds a `tauri::`
-//! type or a llama.cpp call to either file, this crate stops compiling.
+//! `store.rs`, `library/mod.rs`, and `llm/command.rs` stay free of Tauri types,
+//! as do `note.rs` and `fsx.rs`, which they share and which are compiled in
+//! beside them; the active 1.6.0 persistence contract lives in
+//! `library/mod.rs`. Those modules contain no `tauri::` type, on purpose: the
+//! capture process runs them with no webview around. That promise is what
+//! makes this harness possible, and running it is what keeps the promise
+//! honest - if someone adds a `tauri::` type or a llama.cpp call to any of
+//! those files, this crate stops compiling.
 //!
 //! `#[path]` points at the REAL files in src-tauri/src. Nothing is copied, so
 //! there is no second version to drift.

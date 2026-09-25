@@ -109,7 +109,7 @@ const BEND = 28;
 const BLUR = 2.4;
 const NEAR = 2;
 /**
- * The lane's own fade, in px, for a lane of `height` (editor/boards.ts `laneFoot` sets it,
+ * The lane's own fade, in px, for a lane of `height` (editor/boards/height.ts `laneFoot` sets it,
  * `.cm-boardStack[data-more]` wears it). Derived from the lip rather than written beside it: the fade must START
  * below where the band reaches full strength, or it is back to rubbing out the bend it was meant to sit under. It
  * was `1.2em`, which is about 20px in a board's type and about 26px at the largest text size - the width of the

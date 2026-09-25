@@ -224,7 +224,8 @@ export async function resume(deps: Deps = live): Promise<void> {
 
 /**
  * The account deleted from the service, and everything it kept there: the notes, settings, recordings and pictures
- * synced to it, the links shared from it, its devices and its recovery codes (server/src/accounts.rs `delete_account`).
+ * synced to it, the links shared from it, its devices and its recovery codes (server/src/accounts/account.rs
+ * `delete_account`, and store/accounts.rs for the rows).
  * Needs the password, as a phone left unlocked shouldn't be able to lose its owner's account. Then signed out here,
  * as the account is gone. The notes on this device stay; they are the person's own files.
  */

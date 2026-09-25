@@ -19,7 +19,7 @@ import { host } from './manifest.ts';
  * - **Reads are paced**, because Notion allows about three requests a second,
  *   and an answer stays fresh long enough that scrolling a long list doesn't
  *   re-read it. The note coming back to the front reads what it shows again
- *   (editor/links.ts), which is how a change made in Notion shows up.
+ *   (editor/markReads.ts), which is how a change made in Notion shows up.
  * - **The last answers are kept** (`glyph-notion-tasks`), so a note opened
  *   offline or before the read finishes shows the status it last had, with
  *   when it was read on the card.

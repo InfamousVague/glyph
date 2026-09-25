@@ -7,7 +7,7 @@ import { GUIDE_PAGES } from './pages.ts';
  * Matt: "if the app is relaunched we can assume they hit the button on the
  * side too early, so reload with a warning about it being too soon". The
  * guide is shown once, on the first launch, and closed with Skip or from its
- * last page (App.tsx `markGuideSeen`). A launch before that, with the guide
+ * last page (shell/useGuide.ts). A launch before that, with the guide
  * started and left on a page before the side-key page, is someone who held
  * the key on page one: the app comes up on the guide again with one line at
  * the top of it (Guide.tsx says so in a line of its own) and does not start a recording. From the
@@ -56,7 +56,7 @@ export function isReadingPage(index: number): boolean {
 
 /**
  * A launch that came too soon: the guide has not been finished (`seen` is
- * App.tsx's `glyph-guide-seen`), it was started before, and it was left on a
+ * shell/useGuide.ts's `glyph-guide-seen`), it was started before, and it was left on a
  * reading page. The guide should open again with its line, and a side-key
  * launch should not record.
  */

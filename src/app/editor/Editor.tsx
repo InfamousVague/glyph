@@ -125,7 +125,7 @@ interface EditorProps {
    * recorder writing a note as it is heard. Read once, when the editor is made.
    */
   arrivals?: boolean;
-  /** What the person types arrives from smoke too, and a backspace leaves into it (editor/wispArrivals.ts `typing`). */
+  /** What the person types arrives from smoke too, and a backspace leaves into it (editor/wispMotion.ts `typing`). */
   wispTyping?: boolean;
   /**
    * The voice runs through the last lines as ripples (editor/wispRipples.ts): the recorder's page, with the mic

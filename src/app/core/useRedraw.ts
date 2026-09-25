@@ -7,7 +7,7 @@ import { useReducer } from 'react';
  * Some components draw from a truth that lives elsewhere - CodeMirror's state
  * (the find bar's match count, the styles the context menu shows lit), a
  * module's cache (a mark's details from its plugin, a browser picture arriving
- * from storage, a gist the runner just wrote, a card's drawing just kept) -
+ * from storage, a card's drawing just kept) -
  * and are only told that it moved.
  * Copying that truth into React state would give it two owners that can
  * disagree; the component reads the real one on every render instead, and all

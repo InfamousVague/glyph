@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 /**
- * Ships glyph-api, the server half of voice-note formatting, to attack.fm.
+ * Ships glyph-api to attack.fm: Notion sign-in, the door to Claude's hosted
+ * MCP server (server/src/main.rs), and the voice-note formatting route it
+ * began as.
  *
- * The phone transcribes and formats on its own; this service is the optional
+ * The phone transcribes and formats on its own; that route was the optional
  * second pass, where a model on the box points at the title, the dates, the
- * action items and the lists in a transcript (see server/src/main.rs). It is a
+ * action items and the lists in a transcript (server/src/format.rs), and
+ * nothing in the app asks for it any more. The service is a
  * Rust binary cross-compiled here with cargo-zigbuild, because the box has no
  * cargo - the same recipe PrettyCardboard's redeploy uses - and it runs as
  * `glyph-api.service` on 127.0.0.1:8796 behind Caddy's `/glyph/api/*` route.
@@ -19,17 +22,19 @@
  *             ssh session (see `ship` for why one, and how the token travels).
  *   install   the `glyph` system user if missing, the token file, a backup of
  *             the running binary, the new binary, the unit; then restarts
- *             glyph-api and NOTHING ELSE. If it does not answer its health
- *             check on loopback, the backup goes straight back in.
+ *             glyph-api, and glyph-mcp only when its file or unit changed
+ *             (see `--mcp-only` below), and NOTHING ELSE. If glyph-api does
+ *             not answer its health check on loopback, the backup goes
+ *             straight back in.
  *   verify    through the public URL, from here: health answers, the model
  *             is reachable, and a request without the token is refused.
  *
- * THE TOKEN. `VITE_GLYPH_API_TOKEN` in .env is the single source: Vite bakes
- * it into the app at build time, and this script writes the same value to
- * /opt/glyph-api/glyph-api.env on the box (root-owned, 0600) on every run, so
- * rotating it is "change .env, run this, rebuild the app". It ships inside the
- * public APK, which makes it a speed bump rather than a secret - the rate
- * limit and the single model slot in the server are the real protection.
+ * THE TOKEN. `VITE_GLYPH_API_TOKEN` in .env is the single source: this script
+ * writes it to /opt/glyph-api/glyph-api.env on the box (root-owned, 0600) on
+ * every run, so rotating it is "change .env, run this". It guards the format
+ * route alone, and the app no longer carries it (nothing in the page reads it;
+ * deploy-ota.mjs still blanks it for a public build). The rate limit and the
+ * single model slot in the server are the route's real protection.
  *
  * It still stays out of every argument list and every file on this Mac: it
  * travels on ssh's STDIN, because an argument is visible to `ps` for as long

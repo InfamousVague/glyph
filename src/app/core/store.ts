@@ -12,8 +12,8 @@ import type { Segment } from '../capture/markdown.ts';
  * chosen: on Android the voice capture runs in its own process with no webview
  * alive, and it has to be able to write a note. A store that lived in the page
  * could not be written to by a process the page is not running in. So the
- * SQLite database is the truth, `src-tauri/src/store.rs` owns it, and this
- * module is a typed remote control.
+ * library of Markdown files is the truth, `src-tauri/src/library/` owns it
+ * (docs/LIBRARY.md), and this module is a typed remote control.
  *
  * The localStorage half is not a toy. `npm run dev` in a browser is where most
  * of the editor work actually happens - a Vite reload is milliseconds and an
@@ -46,7 +46,7 @@ export interface Note {
    * note fetched by id; the list answers null. Native generation 10.
    */
   formatted?: string | null;
-  /** The page's hash (format/formatter.ts) of the body `formatted` was written from. */
+  /** The page's hash (format/bodyHash.ts) of the body `formatted` was written from. */
   formattedFor?: number | null;
   /** The model that wrote it, by its id in core/ai.ts. */
   formattedModel?: string | null;
@@ -233,7 +233,7 @@ export async function undoCommandMutation(mutationId: string): Promise<CommandUn
 
 /**
  * Star or unstar a note. Not an edit: the note keeps its place by when it was
- * last written (see store.rs `set_starred`). Answers with the note, or null if
+ * last written (see library/mod.rs `set_starred`). Answers with the note, or null if
  * it has gone.
  */
 export async function setNoteStarred(id: string, starred: boolean): Promise<Note | null> {

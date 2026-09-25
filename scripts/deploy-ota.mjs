@@ -212,7 +212,8 @@ ok(`release ${base}-${release}`);
 
 step(`Building the web app${isPublic ? dim(' (public: no formatting token)') : ''}`);
 // A real environment variable beats .env in Vite, so an empty one keeps the
-// token out of a public build; annotate.ts then formats locally.
+// token out of a public build. Nothing in the page reads it any more (the
+// phone formats on its own), so this is belt and braces.
 run('npm', ['run', 'build'], {
   cwd: ROOT,
   env: { ...process.env, GLYPH_RELEASE: String(release), ...(isPublic ? { VITE_GLYPH_API_TOKEN: '' } : {}) },

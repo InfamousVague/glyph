@@ -1,6 +1,6 @@
 /*
  * The instructions drawer (ClaudeGuide.tsx): a card over Settings › Claude. On a phone it rises from the bottom
- * and takes the width; on a wide window it floats in the middle. The notes card's materials (notes/NotesDrawer
+ * and takes the width; on a wide window it floats in the middle. The notes card's materials (notes/FloatingCard
  * .module.css) - a hairline, the big radius, the blurred paper - with a faint scrim under it, because this one is for
  * reading and a tap anywhere else should plainly close it.
  */

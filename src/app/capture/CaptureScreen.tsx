@@ -714,7 +714,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
     if ((read.kind === 'run' || read.kind === 'ask') && continued && !locked) {
       // "Hey Ghost, fix the spelling", said into a note: the words are an instruction, not the note's, and the note
-      // opens with the run on it (App.tsx, editor/NoteScreen.tsx). The recording of the instruction goes.
+      // opens with the run on it (shell/useCaptureRoute.ts, editor/NoteScreen.tsx). The recording of the instruction goes.
       await discardRecording(writer.noteId).catch(() => undefined);
       await writer.undoDraft();
       endCapture(locked);

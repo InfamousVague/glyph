@@ -627,7 +627,7 @@ body:has(.app-headerPane) .app-statusScrim {
 :where(svg.lucide-bookmark, svg.lucide-play, svg.lucide-puzzle, svg.lucide-square, svg.lucide-thermometer),
 :where(svg.lucide-pause, svg.lucide-layout-grid, svg.lucide-ellipsis-vertical),
 /*
- * The board draws its own icons rather than importing them (editor/boards.ts), so none of the rules above could ever
+ * The board draws its own icons rather than importing them (editor/boards/icons.ts), so none of the rules above could ever
  * reach them and the hourglass over an empty "in progress" column stood out as the one hollow shape among filled
  * ones. Its `fill="none"` is an attribute, which loses to this rule, as the note above explains.
  */
@@ -668,7 +668,7 @@ body:has(.app-headerPane) .app-statusScrim {
  * notes from the workspace"): with the sidebar docked, a third column, shown and hidden by the tab row's mirrored
  * sidebar icon (App.tsx `asideShown`), the same way the sidebar is a first column. Both hidden, the note takes the
  * window; either alone, the note takes the rest. With the sidebar a floating card (the default), the aside is the
- * same card at the right (notes/NotesDrawer.module.css, `AsideCard`), on a desktop and a phone alike.
+ * same card at the right (notes/FloatingCard.module.css, `AsideCard`), on a desktop and a phone alike.
  */
 .app-split[data-aside='shown'] {
   grid-template-columns: clamp(300px, 30vw, 380px) minmax(0, 1fr) clamp(240px, 22vw, 320px);

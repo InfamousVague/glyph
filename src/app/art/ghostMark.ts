@@ -1,7 +1,7 @@
 /**
  * Ghost.md's mark (Matt, 2026-09-22, from ghost.md.svg): a note with a folded corner as a ghost, waving, a wisp rising
  * from its head. Its shapes in the drawing's own space, for a page that draws it inline (the MCP's sign-in page,
- * mcp/hosted.ts). The app icons are made from design/app-icon.svg (`npx tauri icon design/icon.json`), and a page's
+ * mcp/loginPage.ts). The app icons are made from design/app-icon.svg (`npx tauri icon design/icon.json`), and a page's
  * tab icon is public/favicon.svg; all three are the same shapes.
  *
  * `ink` shapes are the lines and eyes, drawn in the page's ink; the others are the note's paper inside them, drawn in

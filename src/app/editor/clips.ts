@@ -12,7 +12,7 @@ import { clipLength, clipsIn, playsOn, type Clip } from '../core/clips.ts';
  *
  * The player is the note's recording, played between the clip's two times: one `<audio>` per clip, made on the first
  * tap, since a WebView asks the recordings scheme for byte ranges and seeks within the file it already has
- * (src-tauri/src/capture_commands.rs). Only one plays at a time. Without a tape to play - a note read in a browser,
+ * (src-tauri/src/recordings.rs). Only one plays at a time. Without a tape to play - a note read in a browser,
  * or a recording since removed - there is no player at all: the clip is a quiet mark saying a memo was left here, and
  * nothing to press.
  */

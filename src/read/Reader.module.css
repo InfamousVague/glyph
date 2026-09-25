@@ -150,7 +150,7 @@
   padding-block-end: var(--glacier-space-8);
 }
 
-/* The chapters either side under a chapter (book/BookView.tsx `BookFoot`): the page is the column, so no gutter of its own. */
+/* The chapters either side under a chapter (book/BookNav.tsx `BookFoot`): the page is the column, so no gutter of its own. */
 .page > [data-book-foot] {
   margin-inline: 0;
 }
