@@ -10,11 +10,9 @@ import { KINDS, type KindWords, type RunKind } from '../ai/kinds.ts';
  * machine as every other kind (ai/runs.ts); the note's cog lists them
  * (editor/NoteSettings.tsx).
  *
- * They are the first three kinds of run, and their words are the kinds'
- * (ai/kinds.ts): this module kept a second copy of the labels and hints, and
- * a `done` word for each that nothing read after the robot's own view went,
- * until the two were one list. What stays here is the name for the three, the
- * set the older prompts and budgets serve.
+ * They are the first three kinds of run, and their words are the kinds' own
+ * (ai/kinds.ts). This module names the three as a set: the set the older
+ * prompts and budgets serve.
  */
 
 export type Mode = Extract<RunKind, 'format' | 'summarize' | 'enhance'>;

@@ -8,10 +8,9 @@
  * leaves the reading out rather than guessing. The source is injectable, so a
  * test can plug the phone in.
  *
- * Written first for the guide's heads-up page, whose drawn phone asked to be
- * plugged in and thanked the person when they did (guide/charging.ts); that
- * page went, and the card had grown a second watcher of its own, without the
- * catch for a battery that will not be read. This is the one that was tested.
+ * A source that refuses to be read (a permissions policy can) is unknown the
+ * same way. This was guide/charging.ts, written for the guide's heads-up
+ * page, which has gone.
  */
 
 export interface BatteryState {

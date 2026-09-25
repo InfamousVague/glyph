@@ -8,11 +8,7 @@
  * and "the body the model read" can name different texts inside the same
  * second. A hash of the text itself cannot.
  *
- * This file was format/formatter.ts, named for the hook that watched a mode's
- * text stream into the robot's own view; the hook went with that view (the
- * model's lines land in the note itself now, ai/useLanding.ts), and the
- * tidy-up of a model's answer that lived beside it went to the preparation
- * it belongs to (format/pipeline.ts).
+ * Named for what it holds; it was format/formatter.ts.
  */
 
 /**

@@ -11,12 +11,12 @@ import styles from './AiCard.module.css';
  * totally without a server; a better, consistent AI card that renders when
  * it's thinking, and it should render things like real phone hardware
  * usage". So one card, opened from the strip under a note's header while a
- * run is on (ai/AiStrip.tsx): the model and its size on disk, what it is doing and how fast,
- * the little reader while nothing has arrived yet, and the phone underneath
- * it - the cores it runs on, the memory it holds, the battery it draws on,
- * and, from native generation 14, the engine's own readings every tick:
- * its memory, its share of the cores, the heat. "On this phone" is the point,
- * and the card says so.
+ * run is on (ai/AiStrip.tsx): the model and its size on disk, what it is
+ * doing and how fast, the little reader while nothing has arrived yet, and
+ * the phone underneath it - the cores it runs on, the memory it holds, the
+ * battery it draws on, and, from native generation 14, the engine's own
+ * readings every tick: its memory, its share of the cores, the heat. "On
+ * this phone" is the point, and the card says so.
  *
  * Three sources, by what is there. The engine's readings come with each
  * progress report (`hardware`); the page reads cores, memory class and the
