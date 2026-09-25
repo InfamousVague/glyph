@@ -1,4 +1,7 @@
-# glyph-api: annotates Glyph voice notes for attack.fm/glyph/api/*.
+# glyph-api: Ghost.md's accounts, end-to-end encrypted sync, shared links, live
+# typing's relay and Notion sign-in, for attack.fm/glyph/api/* - and the voice
+# note annotation route it began as, which the app no longer calls
+# (server/src/main.rs lists every route and every variable it reads).
 #
 # Installed by scripts/deploy-server.mjs, which rewrites this file on every
 # deploy - edit it here, not on the box.

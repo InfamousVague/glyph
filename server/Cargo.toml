@@ -12,14 +12,16 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
 tower-http = { version = "0.6", features = ["cors"] }
 # rustls rather than native-tls: the binary is cross-compiled with zig and has
-# to run on a box whose OpenSSL this Mac never sees. It only ever speaks plain
-# HTTP to a loopback Ollama today, but a TLS stack that links against nothing
+# to run on a box whose OpenSSL this Mac never sees. It speaks HTTPS to
+# api.notion.com for Notion sign-in (src/notion.rs) and plain HTTP to the
+# loopback Ollama and MCP server, and a TLS stack that links against nothing
 # is the one that cannot break on an apt upgrade later.
 # `stream` for src/mcp_proxy.rs, which passes the hosted MCP server's answers on as they come.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# Notion sign-in (src/notion.rs): the PKCE check on claim, and base64url for it.
+# SHA-256 for Notion sign-in's PKCE check (src/notion.rs) and for the recovery codes' login halves
+# (src/accounts/credentials.rs); base64url for every token, key, nonce and id.
 sha2 = "0.10"
 base64 = "0.22"
 # Accounts and sync (src/accounts.rs, src/sync.rs, docs/SYNC.md), as AttackFM's registry does them: one SQLite file
