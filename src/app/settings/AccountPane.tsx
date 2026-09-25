@@ -66,7 +66,7 @@ function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said
   return (
     <>
       {said ? <SettingsCallout>{said}</SettingsCallout> : null}
-      {offline ? <SettingsCallout>“Nothing leaves the phone” is on in Developer, so nothing syncs until it is off.</SettingsCallout> : null}
+      {offline ? <SettingsCallout>“Local only” is on in Formatting, so nothing syncs until it is off.</SettingsCallout> : null}
       <Ghost scene="signed-out" align="center" />
       <PaneSection
         title={mode === 'up' ? 'New account' : mode === 'recover' ? 'Recover' : 'Sign in'}

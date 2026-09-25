@@ -52,3 +52,18 @@ describe('Delete account', () => {
     expect(host.textContent).toContain('Your account is deleted. The notes on this device are still here.');
   });
 });
+
+describe('Signed out', () => {
+  it('says where Local only is when it is holding the sync off', async () => {
+    const { setPreferences } = await import('../core/preferences.ts');
+    session = null;
+    setPreferences({ localOnly: true });
+    try {
+      const host = show(<AccountPane />);
+      // The switch is under Formatting: the page used to send people to a Developer page that has none.
+      expect(host.textContent).toContain('“Local only” is on in Formatting, so nothing syncs until it is off.');
+    } finally {
+      setPreferences({ localOnly: false });
+    }
+  });
+});
