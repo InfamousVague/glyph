@@ -62,8 +62,8 @@ import styles from './NoteScreen.module.css';
  *
  * The rest is composed here from pieces with one job each: the tools (editor/NoteTools.tsx) and the bookmark behind
  * one of them (editor/useBookmark.ts), the tape and its removal (editor/useNoteTape.ts), the AI in the note
- * (editor/useNoteAi.ts, with the room its strip takes in editor/useStripRoom.ts), pictures and the note's one line of problems
- * (editor/useNotePictures.ts), landing on an item a link pointed at (editor/useLandAt.ts), live sync
+ * (editor/useNoteAi.ts, with the room its strip takes in editor/useStripRoom.ts), pictures and the note's one line
+ * of problems (editor/useNotePictures.ts), landing on an item a link pointed at (editor/useLandAt.ts), live sync
  * (editor/useLiveNote.ts), and the ways plugins reach the note (editor/notePlugins.ts).
  */
 
