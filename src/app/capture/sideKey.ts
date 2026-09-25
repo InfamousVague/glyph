@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
+import { deviceMaker } from '../guide/assistant.ts';
 
 /**
  * Where the side key is, on the screen, so the recorder can send its waves
@@ -94,13 +95,7 @@ let phoneLookup: Promise<Phone> | null = null;
 /** The phone's model code, asked of Rust once (`ai_device`, generation 11); nothing in a browser. */
 function whichPhone(): Promise<Phone> {
   phoneLookup ??= (async () => {
-    const maker = (() => {
-      try {
-        return window.GlyphHost?.deviceMaker?.() ?? null;
-      } catch {
-        return null;
-      }
-    })();
+    const maker = deviceMaker() || null;
     if (!isTauri()) return { phone: null, maker };
     try {
       const device = await invoke<{ phone?: string | null }>('ai_device');

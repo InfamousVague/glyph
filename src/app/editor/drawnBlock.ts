@@ -57,3 +57,13 @@ export function openOnPress(view: EditorView, element: HTMLElement, at: number):
     view.focus();
   });
 }
+
+/**
+ * Whether a press landed on a drawn block that answers a press itself - a board (editor/boards.ts), whose card is
+ * picked up or opens its own menu, or a mermaid diagram (editor/mermaid.ts) - rather than on a line of text, which
+ * the note's own press-and-hold menu (editor/pressAndHold.ts) is about. A table and a canvas's frame are not asked
+ * about: a press on them is the note's.
+ */
+export function isDrawnBlock(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('.cm-board, .cm-boardWrap, .cm-mermaid') !== null;
+}

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { fireNativeHaptic } from '../core/haptics.ts';
+import { isDrawnBlock } from './drawnBlock.ts';
 
 /**
  * How the note's own menu is asked for (editor/ContextMenu.tsx): a press and hold on a phone, a right click on a
@@ -33,14 +34,6 @@ export interface Held {
   to: number;
 }
 
-/**
- * Whether a press landed on something drawn in place of the note's words - a board (editor/boards.ts) or a mermaid
- * diagram (editor/mermaid.ts). The note's own menu is about a line of text, and neither of those is one.
- */
-function drawnBlock(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest('.cm-board, .cm-boardWrap, .cm-mermaid') !== null;
-}
-
 /** Calls `onHold` whenever the menu is asked for in `view`. */
 export function usePressAndHold(view: EditorView | null, onHold: (held: Held) => void): void {
   const hold = useRef(onHold);
@@ -56,7 +49,7 @@ export function usePressAndHold(view: EditorView | null, onHold: (held: Held) =>
     };
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault();
-      if (drawnBlock(event.target)) return;
+      if (isDrawnBlock(event.target)) return;
       // The word the press selected has landed by the next frame.
       window.requestAnimationFrame(() => show(event.clientX, event.clientY));
     };
@@ -71,7 +64,7 @@ export function usePressAndHold(view: EditorView | null, onHold: (held: Held) =>
       if (event.pointerType === 'mouse' || !event.isPrimary) return;
       cancel();
       // A press on a drawn board or diagram belongs to it: it is picked up, or it opens the card's own menu.
-      if (drawnBlock(event.target)) return;
+      if (isDrawnBlock(event.target)) return;
       const { clientX: x, clientY: y } = event;
       press = {
         x,
