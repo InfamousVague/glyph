@@ -6,6 +6,7 @@ import { kindWords } from './kinds.ts';
 import { useRunLog, type RunRecord } from './log.ts';
 import { cancelRun, dismissRun, ended, useRun } from './runs.ts';
 import type { ReviewStage } from './useNoteReview.ts';
+import { useReportedHeight } from './useReportedHeight.ts';
 import { when } from '../notes/when.ts';
 import { cardPhase, marksSentence, progressOf, recordSentence, runSentence } from './words.ts';
 import styles from './AiStrip.module.css';
@@ -59,23 +60,7 @@ export function AiStrip({
 
   // The page makes room under the strip: its height, as it changes, and 0 once it is gone.
   const shown = run !== null || stage !== null || (marks !== undefined && marks.count > 0);
-  useEffect(() => {
-    if (!onHeight) return undefined;
-    const el = host.current;
-    if (!el) {
-      onHeight(0);
-      return undefined;
-    }
-    const tell = () => onHeight(el.offsetHeight);
-    tell();
-    if (typeof ResizeObserver === 'undefined') return () => onHeight(0);
-    const watched = new ResizeObserver(tell);
-    watched.observe(el, { box: 'border-box' });
-    return () => {
-      watched.disconnect();
-      onHeight(0);
-    };
-  }, [onHeight, shown]);
+  useReportedHeight(host, onHeight, shown);
 
   if (!shown) return null;
 

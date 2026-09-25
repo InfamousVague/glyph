@@ -5,6 +5,7 @@ import type { Availability } from './available.ts';
 import { KIND_ICONS } from './icons.ts';
 import { CHIP_KINDS, kindWords, type RunKind } from './kinds.ts';
 import type { RunScope } from './runs.ts';
+import { useReportedHeight } from './useReportedHeight.ts';
 import styles from './PromptBar.module.css';
 
 /**
@@ -72,23 +73,7 @@ export function PromptBar({
   }, [focusAsk]);
 
   // The page makes room under the bar: its height, as it changes, and 0 once it is gone.
-  useEffect(() => {
-    if (!onHeight) return undefined;
-    const el = host.current;
-    if (!el) {
-      onHeight(0);
-      return undefined;
-    }
-    const tell = () => onHeight(el.offsetHeight);
-    tell();
-    if (typeof ResizeObserver === 'undefined') return () => onHeight(0);
-    const watched = new ResizeObserver(tell);
-    watched.observe(el, { box: 'border-box' });
-    return () => {
-      watched.disconnect();
-      onHeight(0);
-    };
-  }, [onHeight, disabled]);
+  useReportedHeight(host, onHeight, !disabled);
 
   // A selection gone (the person tapped elsewhere): a choice waiting on it goes too.
   useEffect(() => {
