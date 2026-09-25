@@ -4,7 +4,7 @@ import { addWorkspace, fileNote, useWorkspaces, workspaceOf } from '../core/work
 import { SheetField, SheetGroup, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 
 /**
- * Where a note is filed, on its cog sheet: the workspaces to choose from with
+ * Where a note is filed, on its More sheet: the workspaces to choose from with
  * the note's own ticked, a name for a new one that files the note there as it
  * is made, and a way out of the one it is in. The first workspace is made
  * here as often as on the list: a note is where the thought of sorting comes.

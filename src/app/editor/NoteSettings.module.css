@@ -1,4 +1,9 @@
-/* A note's settings (NoteSettings.tsx): a sheet from the bottom over the dimmed note. */
+/*
+ * A note's More sheet (NoteSettings.tsx): a sheet from the bottom over the dimmed note. It is every bottom sheet's look
+ * too, whatever its name says: the shell (editor/Sheet.tsx) and the rows plugins build their pages from
+ * (plugins/kit.tsx) draw with it, and so do the sheets in notes/, book/, canvas/ and share/, so a class renamed here is
+ * renamed for all of them. Only `.viewChoice`, `.chosen` and `.back` are the More sheet's alone.
+ */
 .scrim {
   position: fixed;
   inset: 0;

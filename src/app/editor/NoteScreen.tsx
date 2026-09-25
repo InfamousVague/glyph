@@ -111,7 +111,7 @@ interface NoteScreenProps {
 export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask, review }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
-  // the cog's sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
+  // the More sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
   // is enough space on the screen").
   const wide = useWideScreen();
   const chooseView = (value: NoteView) => {
@@ -155,7 +155,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const { toast } = useToast();
   const { body, onChange, flush, title, blank } = useNoteSaving(note, rename);
   const { tape, recording, removeRecording, forgetRemoved } = useNoteTape(note, body, toast);
-  /** The cog's sheet: pin, archive, what the note is linked to, delete. */
+  /** The More sheet: how it is read, the AI, pin, archive, what the note is linked to, delete (NoteSettings.tsx). */
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Find and replace, open with its first words, or null when it's closed (FindBar.tsx). */
   const [finding, setFinding] = useState<string | null>(null);
@@ -307,7 +307,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             <NoteTape note={note} title={title} tape={tape} onSpeak={speakHere} onRemove={removeRecording} hasMemos={hasClips(body.current)} />
           </div>
         ) : null}
-        {/* What the note is linked to (a Notion board, a repo): a tap opens the cog sheet to change it. */}
+        {/* What the note is linked to (a Notion board, a repo): a tap opens the More sheet to change it. */}
         <LinkMarks noteId={note.id} onPress={() => setSettingsOpen(true)} />
         {/* A chapter's book, its place in it and the chapters either side (docs/BOOKS.md). */}
         {book && onOpenTitle ? <BookBar place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}
