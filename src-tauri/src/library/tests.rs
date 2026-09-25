@@ -448,6 +448,24 @@ fn a_note_moved_by_another_app_is_found_where_it_went() {
 }
 
 #[test]
+fn an_edit_elsewhere_that_kept_the_files_time_and_size_is_still_read() {
+    let root = temp("same-stat");
+    let mut library = Library::open_fs(&root).unwrap();
+    let saved = library.save_note("n", "- [ ] Ship it\n", "editor").unwrap();
+    let path = root.join(saved.path.as_deref().unwrap());
+    let modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+    // The same number of bytes, and the old modified time put back: what an
+    // editor that preserves times, or a clock too coarse to tick, leaves.
+    let edited = std::fs::read_to_string(&path).unwrap().replace("- [ ] Ship it", "- [x] Ship it");
+    std::fs::write(&path, edited).unwrap();
+    std::fs::File::options().write(true).open(&path).unwrap().set_modified(modified).unwrap();
+    let read = library.get_note("n").unwrap().unwrap();
+    assert_eq!(read.body, "- [x] Ship it\n", "the page is shown the file as it is, not the index's copy");
+    assert_eq!(read.revision, saved.revision + 1, "and an edit it did not make still moves the revision");
+    assert_eq!(library.list_notes().unwrap()[0].body, "- [x] Ship it\n", "the list agrees");
+}
+
+#[test]
 fn clearing_empties_the_library_and_it_carries_on() {
     let root = temp("clear");
     let mut library = Library::open_fs(&root).unwrap();
