@@ -9,8 +9,9 @@
 //! Test-only: main.rs declares it under `#[cfg(test)]`, and nothing here is compiled into the service.
 
 use crate::accounts::{Accounts, RECOVERY_CODES};
+use crate::format::{app_with, model};
+use crate::router;
 use crate::store::Store;
-use crate::{app_with, model, router};
 use axum::body::{to_bytes, Body};
 use axum::extract::connect_info::MockConnectInfo;
 use axum::http::{header, HeaderMap, Method, Request, StatusCode};

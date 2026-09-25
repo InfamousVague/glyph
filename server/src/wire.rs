@@ -20,8 +20,7 @@ use std::ops::RangeInclusive;
 /// A refusal, as every route words one: `{ "error": message }` under `status`.
 ///
 /// The app reads the words - some of them it matches on, most it shows as they are - so a route's message is part of
-/// its contract, and this is only the envelope. main.rs's test `refuses_a_missing_or_wrong_token_with_401` pins the
-/// shape.
+/// its contract, and this is only the envelope. The test below pins the shape, and each route's tests its words.
 pub fn error(status: StatusCode, message: &str) -> Response {
     (status, Json(json!({ "error": message }))).into_response()
 }

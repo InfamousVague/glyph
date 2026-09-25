@@ -7,6 +7,8 @@
 //! per run. It lives in the binary rather than in a script beside it because a
 //! benchmark that re-typed the prompt would measure a prompt the phone never
 //! gets, and the first edit to either would make the numbers quietly false.
+//! The endpoint's budget and Ollama address are the route's own constants
+//! (format.rs) for the same reason.
 //!
 //! Run it ON THE BOX. Latency here is almost all CPU (the Xeon E-2286G has no
 //! GPU) and contention with AttackFM's own calls on the same Ollama, and a
@@ -23,12 +25,11 @@
 //! what an answer costs when it is allowed to finish; on a shared runner that
 //! is four minutes of AttackFM's slot per call, so it is not the default.
 
-use crate::model;
+use super::model;
 use serde_json::json;
 use std::time::{Duration, Instant};
 
 const UNBOUNDED: Duration = Duration::from_secs(240);
-const ENDPOINT_BUDGET: Duration = Duration::from_secs(45);
 
 pub async fn run(args: &[String]) -> i32 {
     let [model_name, file, rest @ ..] = args else {
@@ -37,7 +38,7 @@ pub async fn run(args: &[String]) -> i32 {
     };
     let runs: usize = rest.iter().find_map(|r| r.parse().ok()).unwrap_or(3);
     let unbounded = rest.iter().any(|r| r == "--unbounded");
-    let (budget, admission) = if unbounded { (UNBOUNDED, UNBOUNDED) } else { (ENDPOINT_BUDGET, model::ADMISSION_WAIT) };
+    let (budget, admission) = if unbounded { (UNBOUNDED, UNBOUNDED) } else { (super::UPSTREAM_TIMEOUT, model::ADMISSION_WAIT) };
     let text = match std::fs::read_to_string(file) {
         Ok(text) => text,
         Err(e) => {
@@ -46,7 +47,7 @@ pub async fn run(args: &[String]) -> i32 {
         }
     };
     let words = text.split_whitespace().count();
-    let base = std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://127.0.0.1:11434".into());
+    let base = std::env::var("OLLAMA_URL").unwrap_or_else(|_| super::DEFAULT_OLLAMA.into());
     let ollama = model::Ollama::new(&base, model_name);
 
     let mut counted = Vec::new();
