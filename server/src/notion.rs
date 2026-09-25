@@ -138,7 +138,7 @@ fn well_formed(value: &str) -> bool {
 }
 
 /// The PKCE S256 transform: the challenge a verifier proves.
-pub fn challenge_of(verifier: &str) -> String {
+fn challenge_of(verifier: &str) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
 }
 

@@ -19,7 +19,7 @@ use axum::{
 use std::sync::Arc;
 
 /// Where the hosted MCP server listens: `GLYPH_MCP_UPSTREAM`, `http://127.0.0.1:18820` unless set.
-pub const DEFAULT_UPSTREAM: &str = "http://127.0.0.1:18820";
+const DEFAULT_UPSTREAM: &str = "http://127.0.0.1:18820";
 
 /// A request body larger than this is refused before it is read: a note is under 1.4 MB sealed, and a tool call
 /// carries at most one.
@@ -28,9 +28,10 @@ const MOST_BYTES: usize = 4 * 1024 * 1024;
 /// Headers that belong to one hop and are never carried across: RFC 9110 §7.6.1, plus the two the next hop sets itself.
 const HOP_BY_HOP: &[&str] = &["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "host", "content-length"];
 
+/// The hosted MCP server this route hands requests on to: its address, and the one client every request goes by.
 pub struct Upstream {
-    pub base: String,
-    pub client: reqwest::Client,
+    base: String,
+    client: reqwest::Client,
 }
 
 impl Upstream {
