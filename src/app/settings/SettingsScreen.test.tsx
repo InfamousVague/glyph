@@ -104,6 +104,17 @@ describe('Settings search', () => {
 });
 
 const display = () => host.querySelector('.settingsScreen__display')?.textContent ?? null;
+
+/** A quick sideways drag across the page by `dx` pixels, right for back and left for forward (core/swipe.ts). */
+function swipe(dx: number) {
+  const surface = host.querySelector<HTMLElement>('.settingsScreen')!;
+  const pointer = (type: string, clientX: number) =>
+    surface.dispatchEvent(Object.assign(new MouseEvent(type, { bubbles: true, clientX, clientY: 300, button: 0 }), { pointerId: 1, isPrimary: true }));
+  act(() => {
+    pointer('pointerdown', 200);
+    pointer('pointerup', 200 + dx);
+  });
+}
 const rowFor = (label: string) => [...host.querySelectorAll<HTMLButtonElement>('.settingsScreen__row')].find((row) => row.querySelector('.settingsScreen__rowLabel')?.textContent === label)!;
 
 describe('the Settings shell', () => {
@@ -136,12 +147,35 @@ describe('the Settings shell', () => {
   });
 
   it('drops back to the list when the page on screen leaves the sections', () => {
-    render();
+    const onClose = vi.fn();
+    render(onClose);
     act(() => rowFor('Animations').click());
     // Developer mode switched off from inside its own page takes the page away.
-    rerender(<SettingsScreen open onClose={() => {}} sections={sections.slice(0, 1)} />);
+    rerender(<SettingsScreen open onClose={onClose} sections={sections.slice(0, 1)} />);
     expect(display()).toBeNull();
     expect(labels()).toEqual(['Type']);
+    // Truly on the list, not on a page that is only missing for now: it does not come back with its section,
+    rerender(<SettingsScreen open onClose={onClose} sections={sections} />);
+    expect(display()).toBeNull();
+    // and back leaves Settings rather than stepping out of it.
+    act(() => {
+      goBack();
+    });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('steps out of a page on a swipe to the right, and back into it on one to the left', () => {
+    render();
+    act(() => rowFor('Animations').click());
+    swipe(120);
+    expect(display()).toBeNull();
+    swipe(-120);
+    expect(display()).toBe('Animations');
+    // A page opened from the list has nothing ahead of it: a swipe to the left there stays put.
+    swipe(120);
+    act(() => rowFor('Type').click());
+    swipe(-120);
+    expect(display()).toBe('Type');
   });
 
   it('shows the first page beside the list on a wide window, and back leaves at once', () => {

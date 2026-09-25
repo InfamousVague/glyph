@@ -11,17 +11,18 @@ import './settings.css';
 /**
  * The settings surface: a full-screen page that opens on the list of
  * sections and pushes into one. The shape is AttackFM's MobileSettings; the
- * words are Glyph's: `← Notes` in the top bar to leave, "Settings" as the
- * page's title over the clustered list, a section's own word over its pane,
- * and `← Settings` to come back out of one. Both titles are title-sized rather
- * than display-sized, so the rows start near the top (Matt: "add back button
- * at the top of settings and make settings header smaller … make settings in
- * top bar like the ← notes").
+ * words are Glyph's. The top bar reads `← Settings` over both: on the list it
+ * leaves for the notes, and says so to a screen reader, and over a section's
+ * pane it steps back out to the list. The section's own word is the title
+ * over its pane. Both are title-sized rather than display-sized, so the rows
+ * start near the top (Matt: "add back button at the top of settings and make
+ * settings header smaller … make settings in top bar like the ← notes").
  *
  * The page can also be left the way a person came: the phone's back gesture,
  * or a swipe to the right across it, steps out of a pane and then closes the
- * page; a swipe to the left goes forward again, back into the pane just left. One handler, registered while the page is open, answers by depth.
- * Every fresh open lands on the list, and the rows arrive one after another.
+ * page; a swipe to the left goes forward again, back into the pane just left.
+ * One handler, registered while the page is open, answers by depth. Every
+ * fresh open lands on the list, and the rows arrive one after another.
  */
 
 export interface SettingsSection {
