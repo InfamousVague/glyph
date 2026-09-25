@@ -35,6 +35,7 @@ import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
 import { LinkMarks } from '../plugins/LinkMarks.tsx';
 import { AiStrip } from '../ai/AiStrip.tsx';
+import { boardMadeWords } from './boardActions.ts';
 import { itemSend, lineOffers, noteEditing } from './notePlugins.ts';
 import { NoteTools } from './NoteTools.tsx';
 import { useAiBar, useAiRoom } from './aiBar.ts';
@@ -214,7 +215,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     if (!made) return;
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: made.doc }, userEvent: 'input.board' });
     fireNativeHaptic('success');
-    toast({ message: `${made.cards} ${made.cards === 1 ? 'item is' : 'items are'} now cards${made.done ? `, ${made.done} in Done` : ''}.` });
+    toast({ message: boardMadeWords(made, 'cards') });
   };
 
   // Two fingers pinch the note's text larger or smaller (editor/pinchZoom.ts).
