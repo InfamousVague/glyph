@@ -85,14 +85,19 @@ fn read(app: &AppHandle) -> Option<Account> {
 }
 
 fn write(app: &AppHandle, account: &Account) -> Result<(), String> {
-    let path = account_path(app)?;
+    write_account(&account_path(app)?, account)
+}
+
+/// The account as the file at `path`. Apart from `write` so a test can reach
+/// it with no app around it.
+fn write_account(path: &std::path::Path, account: &Account) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
     }
     let text = serde_json::to_string(account).map_err(|e| e.to_string())?;
     // Written beside and renamed over, so a crash never leaves half a token,
     // and born readable by this app's user only.
-    crate::fsx::write_private(&path, text.as_bytes()).map_err(|e| format!("cannot write the Notion account: {e}"))
+    crate::fsx::write_private(path, text.as_bytes()).map_err(|e| format!("cannot write the Notion account: {e}"))
 }
 
 /// The routes below /v1/ Glyph calls. Anything else is refused, so the page
@@ -232,5 +237,28 @@ mod tests {
         assert_eq!(account.workspace_name.as_deref(), Some("AttackFM"));
         assert_eq!(info(Some(&account)).workspace_name.as_deref(), Some("AttackFM"));
         assert!(!info(None).connected);
+    }
+
+    #[test]
+    fn an_account_is_kept_whole_and_private_or_not_at_all() {
+        let dir = std::env::temp_dir().join(format!("glyph-notion-{}", uuid::Uuid::new_v4()));
+        let path = dir.join(FILE);
+        let account = Account { access_token: "secret_x".into(), ..Account::default() };
+        write_account(&path, &account).unwrap();
+        assert_eq!(crate::fsx::read_json::<Account>(&path).map(|a| a.access_token).as_deref(), Some("secret_x"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600, "never readable by anyone else");
+        }
+        // A write that cannot land says so in one sentence and leaves nothing beside the file.
+        let blocked = dir.join("blocked.json");
+        std::fs::create_dir_all(blocked.join("inside")).unwrap();
+        let error = write_account(&blocked, &account).unwrap_err();
+        assert!(error.starts_with("cannot write the Notion account: "), "{error}");
+        let mut left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        left.sort();
+        assert_eq!(left, ["blocked.json", FILE]);
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
