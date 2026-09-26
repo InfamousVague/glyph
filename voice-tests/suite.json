@@ -1284,31 +1284,6 @@
       "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
-      "file": "057-say-no",
-      "group": "Commands",
-      "tests": "“No” cancels.",
-      "setup": "fixtures",
-      "prefs": {},
-      "lines": [
-        [
-          "Glyph, add eggs to groceries.",
-          1.5
-        ],
-        [
-          "No.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "note": "",
-        "notes": {
-          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n"
-        }
-      },
-      "id": "057",
-      "skip": "a spoken \"no\": nothing is asked since the live reader (DESIGN §126); Not this note or Discard takes words back"
-    },
-    {
       "file": "058-talk-on-without-answering",
       "group": "Commands",
       "tests": "A note named, then “Glyph, new note”: what follows is a note of its own.",
@@ -1522,72 +1497,6 @@
       },
       "id": "069",
       "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
-    },
-    {
-      "file": "070-move-a-card",
-      "group": "Commands",
-      "tests": "“Glyph, move <item> to <lane>”.",
-      "setup": "continue:Launch board",
-      "prefs": {},
-      "lines": [
-        [
-          "Glyph, move pricing page to done.",
-          1.5
-        ],
-        [
-          "Yes.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "notesMatch": {
-          "Launch board": [
-            "\\nDoing:[ \\t]*\\n",
-            "\\nDone: pick-date, pricing-page\\n",
-            "\\n- \\[x\\] Pricing page \\^pricing-page\\n"
-          ]
-        }
-      },
-      "id": "070",
-      "skip": "moving a card by voice: unreachable since PR #1; the live reader never changes a board (DESIGN §126)"
-    },
-    {
-      "file": "071-make-a-board",
-      "group": "Commands",
-      "tests": "“Glyph, make this a board”.",
-      "setup": "blank",
-      "prefs": {},
-      "lines": [
-        [
-          "Packing for the coast.",
-          1.0
-        ],
-        [
-          "Bullet point: sunscreen.",
-          0.9
-        ],
-        [
-          "Next point: towels.",
-          1.2
-        ],
-        [
-          "Glyph, make this a board.",
-          1.5
-        ],
-        [
-          "Yes.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "contains": [
-          "```board",
-          "- Sunscreen ^sunscreen",
-          "- Towels ^towels"
-        ]
-      },
-      "id": "071",
-      "skip": "making a board by voice: unreachable since PR #1; the live reader never changes a board (DESIGN §126)"
     },
     {
       "file": "074-stop-when-quiet",

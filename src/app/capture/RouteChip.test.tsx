@@ -12,22 +12,18 @@ const chip = (route: Exclude<RouteView, null>, itemWords = '') => {
 };
 
 describe('the chip', () => {
-  it('names the note it thinks is meant while the name is said, or what it is looking for', () => {
-    expect(chip({ phase: 'hearing', name: 'work', guess: 'Work', lead: 'New item for' })).toEqual({ text: 'New item for Work', phase: 'hearing' });
-    expect(chip({ phase: 'hearing', name: 'wor', guess: null, lead: 'Add to' })).toEqual({ text: 'Looking for “wor”', phase: 'hearing' });
+  it('says what name it is looking for while the name is said', () => {
+    expect(chip({ phase: 'hearing', name: 'wor' })).toEqual({ text: 'Looking for “wor”', phase: 'hearing' });
   });
 
   it('asks for what a named note should get, and shows it as it is said', () => {
-    expect(chip({ phase: 'waiting', title: 'Work', many: false, leave: false }).text).toBe('Say the item for Work');
-    expect(chip({ phase: 'waiting', title: 'Work', many: true, leave: false }).text).toBe('Say the items for Work');
-    expect(chip({ phase: 'waiting', title: 'Work', many: false, leave: true }).text).toBe('Say the note for Work');
-    expect(chip({ phase: 'waiting', title: 'Work', many: false, leave: false }, 'call Sam').text).toBe('Work: call Sam');
+    expect(chip({ phase: 'waiting', title: 'Work' }).text).toBe('Say the note for Work');
+    expect(chip({ phase: 'waiting', title: 'Work' }, 'call Sam').text).toBe('Work: call Sam');
   });
 
-  it('shows a command as it is said after the keyword, and when the model is working it out', () => {
+  it('shows a command as it is said after the keyword', () => {
     expect(chip({ phase: 'command', words: '' }).text).toBe('Hey Ghost, listening for a command');
     expect(chip({ phase: 'command', words: 'add eggs' }, 'Hey Ghost, to work').text).toBe('Hey Ghost: add eggs to work');
-    expect(chip({ phase: 'command', words: 'add eggs', thinking: true }).text).toBe('Hey Ghost: add eggs · working it out');
   });
 
   it('says what landed, where', () => {
@@ -35,7 +31,7 @@ describe('the chip', () => {
     expect(chip({ phase: 'added', title: 'Work', body: '', added: ['- Call Sam', '- Email Jo'] }).text).toBe('2 added to Work');
     expect(chip({ phase: 'moved', title: 'Work' })).toEqual({ text: 'Now on Work', phase: 'moved' });
     expect(chip({ phase: 'moved', title: 'New note' }).text).toBe('New note');
-    expect(chip({ phase: 'done', text: 'Table added' })).toEqual({ text: 'Table added', phase: 'moved' });
+    expect(chip({ phase: 'done', text: 'Added to the note you named' })).toEqual({ text: 'Added to the note you named', phase: 'moved' });
   });
 
   it('says what did not happen', () => {

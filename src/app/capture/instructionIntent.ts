@@ -103,7 +103,11 @@ export function inferInstruction(utterance: string): InferenceRun {
   };
 }
 
-/** Deterministic parser has absolute precedence; inference is fallback only. */
+/**
+ * Deterministic parser has absolute precedence; inference is fallback only. Only the evaluation corpus
+ * (instructionCorpus.test.ts) runs this now: the reader at Done reads through `classifyFinalTranscript`
+ * (finalInstruction.ts), and the pass that asked it while the microphone was live has gone (docs/DESIGN.md §127).
+ */
 export function interpretWakeCommand<N extends Candidate>(
   utterance: string,
   options: { notes: readonly N[]; targets?: readonly string[] },

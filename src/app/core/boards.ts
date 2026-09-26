@@ -28,7 +28,7 @@
  *   columns.ts   columns as data: cards moved, dropped, taken off, drawn in Done, paired with their items
  *   settle.ts    a tick carried to every fence, so the markdown agrees with the boxes
  *   make.ts      boards and cards made from a note's own lists
- *   lanes.ts     lanes found and filled by voice
+ *   lanes.ts     lanes found by name and filled, for "add … to Doing" said on a board's own Speak
  *
  * Every transform answers new text or new columns and never changes what it was given.
  */

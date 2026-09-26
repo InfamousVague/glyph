@@ -147,7 +147,7 @@ describe('the card after Done', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
     await screen.findByRole('region', { name: 'Add to Go' });
 
-    // Well past the twenty seconds a spoken question is given (take.ts TAKE_TIMING.confirmMs), and ticked through.
+    // A minute on, well past the twenty seconds a spoken question was once given, and ticked through.
     const clock = performance.now.bind(performance);
     const later = vi.spyOn(performance, 'now').mockImplementation(() => clock() + 60_000);
     try {

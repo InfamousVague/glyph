@@ -16,13 +16,7 @@ export function RouteChip({ route, itemWords }: { route: Exclude<RouteView, null
       {route.phase === 'hearing' ? (
         <>
           <span className={styles.routeDots} aria-hidden="true" />
-          {route.guess ? (
-            <>
-              {route.lead} <strong>{route.guess}</strong>
-            </>
-          ) : (
-            <>Looking for “{route.name}”</>
-          )}
+          Looking for “{route.name}”
         </>
       ) : route.phase === 'waiting' ? (
         itemWords ? (
@@ -32,7 +26,7 @@ export function RouteChip({ route, itemWords }: { route: Exclude<RouteView, null
         ) : (
           <>
             <span className={styles.routeDots} aria-hidden="true" />
-            {route.leave ? 'Say the note for' : route.many ? 'Say the items for' : 'Say the item for'} <strong>{route.title}</strong>
+            Say the note for <strong>{route.title}</strong>
           </>
         )
       ) : route.phase === 'plugin' ? (
@@ -51,7 +45,6 @@ export function RouteChip({ route, itemWords }: { route: Exclude<RouteView, null
           <span>
             <strong>Hey Ghost</strong>
             {route.words || partialCommand(itemWords) ? `: ${[route.words, partialCommand(itemWords)].filter(Boolean).join(' ')}` : ', listening for a command'}
-            {route.thinking ? <span className={styles.routeThinking}> · working it out</span> : null}
           </span>
         </>
       ) : route.phase === 'said' ? (

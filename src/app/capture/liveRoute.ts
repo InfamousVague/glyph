@@ -8,7 +8,6 @@ import { runsOf, semanticListKind } from './listAppend.ts';
 import { renderNote, type Segment } from './markdown.ts';
 import { FIND, findNote, nameWords, titleKind, type Found } from './noteFind.ts';
 import { placeTake, placingFor, type Placing } from './place.ts';
-import { TAKE_TIMING } from './take.ts';
 import type { RouteView } from './takeHost.ts';
 import type { Span } from './takeTypes.ts';
 
@@ -44,13 +43,13 @@ import type { Span } from './takeTypes.ts';
 /** The live reader's timings, in ms. */
 export const LIVE_TIMING = {
   /** A command held for its name: this long after its last phrase, and it gives up. */
-  holdMs: TAKE_TIMING.commandQuietMs,
+  holdMs: 4500,
   /** The most phrases a held command waits for its name. */
   holdPhrases: 3,
   /** A name that may still be growing: the next phrase, said this soon after it on the recording, is read with it. */
   growMs: 2500,
   /** A one-shot with nothing said for it: its phrases until a pause this long. */
-  itemsQuietMs: TAKE_TIMING.itemsQuietMs,
+  itemsQuietMs: 2500,
   /** And at most this many of them. */
   itemsPhrases: 3,
   /** A card up this long takes its default, Keep here. */
@@ -520,7 +519,7 @@ export class LiveRoute<N extends LiveNote> {
   /** The chip while a command is held: "Looking for “house”" once a name is heard, and until then the keyword's. */
   private heldChip(): LiveStep<N>[] {
     const name = this.held?.name;
-    const view: RouteView = name ? { phase: 'hearing', name, guess: null, lead: 'Add to' } : { phase: 'command', words: '' };
+    const view: RouteView = name ? { phase: 'hearing', name } : { phase: 'command', words: '' };
     return [{ kind: 'chip', view }, { kind: 'haptic', haptic: 'light' }];
   }
 
@@ -690,7 +689,7 @@ export class LiveRoute<N extends LiveNote> {
       steps.push({ kind: 'route', note, title, placing, move: reading.move, spot }, { kind: 'haptic', haptic: 'success' });
       steps.push({ kind: 'log', line: `${reading.move ? 'Moved this recording to' : 'Writing to'} ${candidate.title}` });
       steps.push(...this.payload(whole, payload, { task: reading.placing === 'task' }));
-      steps.push({ kind: 'chip', view: payload || reading.move ? { phase: 'moved', title, spot } : { phase: 'waiting', title, many: false, leave: true } });
+      steps.push({ kind: 'chip', view: payload || reading.move ? { phase: 'moved', title, spot } : { phase: 'waiting', title } });
       if (!reading.stopped && score < 1 && !reading.move) this.growing = { reading, score, command: whole, words: withoutFinalStop(commandWordsOf(whole.text)), into: { kind: 'route' }, note };
     } else {
       const id = this.nextId++;
@@ -701,7 +700,7 @@ export class LiveRoute<N extends LiveNote> {
         if (!reading.stopped && score < 1) this.growing = { reading, score, command: whole, words: withoutFinalStop(commandWordsOf(whole.text)), into: { kind: 'insert', id }, note };
       } else {
         this.opened = { id, note, title, count: 0, lastAt: now };
-        steps.push({ kind: 'chip', view: { phase: 'waiting', title, many: false, leave: true } });
+        steps.push({ kind: 'chip', view: { phase: 'waiting', title } });
       }
     }
     if (reading.trailing) steps.push(this.words({ ...whole, text: sentence(reading.trailing) }));
@@ -864,7 +863,7 @@ export class LiveRoute<N extends LiveNote> {
         steps.push({ kind: 'insert-words', id: growing.into.id, segments: payloadWords(segment, payload) });
       }
     }
-    steps.push({ kind: 'chip', view: payload ? { phase: 'moved', title, spot } : { phase: 'waiting', title, many: false, leave: true } });
+    steps.push({ kind: 'chip', view: payload ? { phase: 'moved', title, spot } : { phase: 'waiting', title } });
     return steps;
   }
 

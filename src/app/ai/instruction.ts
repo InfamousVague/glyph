@@ -1,5 +1,5 @@
 import { isBookBody } from '../book/book.ts';
-import { findKeyword, findMisheard, isStandaloneCommandLike, LEAD_INS, onlyFiller, type Plan } from '../capture/command.ts';
+import { findKeyword, findMisheard, isStandaloneCommandLike, LEAD_INS, onlyFiller, type FinalPlan } from '../capture/command.ts';
 import { classifyFinalTranscript } from '../capture/finalInstruction.ts';
 import { misheardShape } from '../capture/liveCommand.ts';
 import { FIND, findNote } from '../capture/noteFind.ts';
@@ -33,7 +33,7 @@ export type Read<N extends Candidate> =
   /** One of the runs, on the note on screen. */
   | { kind: 'run'; run: RunKind; instruction?: string }
   /** A command on a note by name, to be confirmed first. */
-  | { kind: 'command'; plan: Extract<Plan<N>, { kind: 'place' | 'create-list' }> }
+  | { kind: 'command'; plan: FinalPlan<N> }
   /** A command that could not be carried out, and why. */
   | { kind: 'reject'; reason: string }
   /** Free words about the note on screen. */
@@ -103,16 +103,12 @@ export async function readInstruction<N extends Candidate & { note?: { body: str
     });
     if (!clear) return { kind: 'words' };
     const decision = await classifyFinalTranscript(bare.words, notes);
-    if (decision.kind === 'offer' && (decision.plan.kind === 'place' || decision.plan.kind === 'create-list')) return { kind: 'command', plan: decision.plan };
-    return { kind: 'words' };
+    return decision.kind === 'offer' ? { kind: 'command', plan: decision.plan } : { kind: 'words' };
   }
   const run = runOf(bare.words);
   if (run) return { kind: 'run', run };
   const decision = await classifyFinalTranscript(bare.words, notes);
-  if (decision.kind === 'offer') {
-    if (decision.plan.kind === 'place' || decision.plan.kind === 'create-list') return { kind: 'command', plan: decision.plan };
-    return { kind: 'reject', reason: 'That command is not one the note can take. Nothing changed.' };
-  }
+  if (decision.kind === 'offer') return { kind: 'command', plan: decision.plan };
   // A command that named a note fails closed, with its reason; one the reader could make nothing of is an ask.
   const named = decision.kind === 'rejected' && /\bnote\b/i.test(decision.reason) && /called|matches|No unambiguous/i.test(decision.reason);
   if (named) return { kind: 'reject', reason: decision.reason };

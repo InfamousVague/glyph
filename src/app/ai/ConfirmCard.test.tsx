@@ -33,17 +33,11 @@ describe('the confirm card', () => {
   });
 
   it('heads each kind of command with what it will do, and names its button for it', () => {
-    const span = { startMs: 0, endMs: 0 };
     const note = makeNote('n', '# Groceries');
     const cases: [Offer<Note>, string, string, string | null][] = [
-      [{ kind: 'place', note, title: 'Groceries', text: 'eggs', placement: { target: 'dairy' }, added: ['- eggs'], into: 'paragraph', span } as unknown as Offer<Note>, 'Add to Groceries', 'Add', 'As a new paragraph, then to Dairy'],
-      [{ kind: 'change', note, title: 'Groceries', heading: 'Tick eggs', action: 'Tick', lines: ['- [x] eggs'], change: () => null, span }, 'Tick eggs in Groceries', 'Tick', null],
-      [{ kind: 'board', title: 'Launch', span }, 'Make this note a board', 'Make it', 'Its list items become cards'],
-      [{ kind: 'book', title: 'Field guide', pages: ['Trees', 'Birds'], span }, 'Make a book called Field guide', 'Make it', 'Its pages, in this order'],
-      [{ kind: 'book', title: 'Field guide', pages: [], span }, 'Make a book called Field guide', 'Make it', 'Empty, with its index ready'],
-      [{ kind: 'move', note, title: 'Groceries', span }, 'Move this recording to Groceries', 'Move', null],
-      [{ kind: 'new', title: 'comic books', lines: ['- Saga'], span }, `Create ${listTitle('comic books')}`, 'Create', 'As a new list'],
-      [{ kind: 'new', span }, 'Start a new note from here', 'Start', null],
+      [{ kind: 'place', note, title: 'Groceries', text: 'eggs', placement: { target: 'dairy' }, added: ['- eggs'], into: 'paragraph' } as unknown as Offer<Note>, 'Add to Groceries', 'Add', 'As a new paragraph, then to Dairy'],
+      [{ kind: 'new', title: 'comic books', lines: ['- Saga'] }, `Create ${listTitle('comic books')}`, 'Create', 'As a new list'],
+      [{ kind: 'new', title: 'comic books' }, `Create ${listTitle('comic books')}`, 'Create', null],
     ];
     for (const [offer, heading, action, detail] of cases) {
       unmount();
@@ -54,15 +48,14 @@ describe('the confirm card', () => {
     }
   });
 
-  it('confirms or cancels, and says a yes or a no will do when the recorder asks', () => {
+  it('confirms or cancels', () => {
     const onConfirm = vi.fn();
     const onCancel = vi.fn();
-    const offer = { kind: 'board', title: 'Launch', span: { startMs: 0, endMs: 0 } } as Offer<Note>;
-    const el = show(<ConfirmCard offer={offer} onConfirm={onConfirm} onCancel={onCancel} hint="Say yes or no." />);
-    press(button('Make it', el));
+    const offer: Offer<Note> = { kind: 'new', title: 'Packing' };
+    const el = show(<ConfirmCard offer={offer} onConfirm={onConfirm} onCancel={onCancel} />);
+    press(button('Create', el));
     press(button('Cancel', el));
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onCancel).toHaveBeenCalledTimes(1);
-    expect(el.textContent).toContain('Say yes or no.');
   });
 });

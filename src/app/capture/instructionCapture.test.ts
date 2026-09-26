@@ -8,13 +8,11 @@ type TestNote = { id: string; body: string };
 
 function harness() {
   const todo: TestNote = { id: 'todo', body: 'To-Do' };
-  const notes = [{ id: todo.id, title: 'To-Do', note: todo }];
   let offered: Offer<TestNote> | null = null;
   const addItems = vi.fn((note: TestNote, spoken: string, placement: Parameters<typeof placeWords>[2]) => {
     note.body = placeWords(note.body, spoken, placement).body;
   });
   const host = quietHost<TestNote>({
-    notes: () => notes,
     offer: (next) => {
       offered = next;
     },
@@ -36,11 +34,11 @@ describe('instruction-aware final capture utterances', () => {
     const read = await classifyFinalTranscript(take.segments.map((segment) => segment.text).join(' '), [{ id: 'todo', title: 'To-Do', note: todo }]);
     expect(read).toMatchObject({ kind: 'offer', plan: { kind: 'place' } });
     if (read.kind !== 'offer') throw new Error('expected offer');
-    take.offerFinal(read.plan, 5000);
+    take.offerFinal(read.plan);
     expect(take.segments).toEqual([]);
     expect(offered()).toMatchObject({ kind: 'place', title: 'To-Do', added: ['- [ ] Wash dishes', '- [ ] Take out trash', '- [ ] Fold clothes'] });
 
-    take.confirm(5100);
+    take.confirm();
     expect(addItems).toHaveBeenCalledOnce();
     expect(todo.body).toBe('To-Do\n\n- [ ] Wash dishes\n- [ ] Take out trash\n- [ ] Fold clothes\n');
   });

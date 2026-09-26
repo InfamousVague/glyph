@@ -35,8 +35,7 @@
   overflow-wrap: anywhere;
 }
 
-.detail,
-.hint {
+.detail {
   margin: 0;
   font-size: var(--glacier-font-size-sm);
   color: var(--app-ink-3);

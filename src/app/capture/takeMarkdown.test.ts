@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { quietHost } from '../../test/takeHost.ts';
-import { asBoardMarkdown, Take, takeMarkdown } from './take.ts';
+import { Take, takeMarkdown } from './take.ts';
 
 /**
  * A take as markdown (capture/take.ts `takeMarkdown`): the one way the page it is spoken onto and the note saved at
@@ -11,30 +11,19 @@ const said = (text: string, startMs: number) => ({ text, startMs, endMs: startMs
 
 describe('a take’s markdown', () => {
   it('lays the words out by their cues, with the phrase still being guessed after them and marked as pending', () => {
-    const shown = takeMarkdown({ segments: [said('Grocery run.', 0), said('Bullet point, eggs.', 1000)], asBoard: false }, { titled: true, partial: 'and milk' });
+    const shown = takeMarkdown({ segments: [said('Grocery run.', 0), said('Bullet point, eggs.', 1000)] }, { titled: true, partial: 'and milk' });
     expect(shown.markdown).toBe('# Grocery run\n\n- Eggs\n\nand milk');
     expect(shown.pendingFrom).toBe(shown.markdown.indexOf('and milk'));
   });
 
   it('keeps an opening sentence as a sentence when the words go on the end of a note that has a title', () => {
-    expect(takeMarkdown({ segments: [said('Grocery run.', 0)], asBoard: false }, { titled: false }).markdown).toBe('Grocery run.');
+    expect(takeMarkdown({ segments: [said('Grocery run.', 0)] }, { titled: false }).markdown).toBe('Grocery run.');
   });
 
-  it('applies links and the board, after which there is no telling where the guess starts', () => {
-    const linked = takeMarkdown({ segments: [said('Book the cabin.', 0)], asBoard: false }, { titled: false, partial: 'soon', link: (text) => text.replace('cabin', '[cabin](https://example.com)') });
+  it('applies links, after which there is no telling where the guess starts', () => {
+    const linked = takeMarkdown({ segments: [said('Book the cabin.', 0)] }, { titled: false, partial: 'soon', link: (text) => text.replace('cabin', '[cabin](https://example.com)') });
     expect(linked.markdown).toBe('Book the [cabin](https://example.com). soon');
     expect(linked.pendingFrom).toBeNull();
-
-    const list = [said('Bullet point, eggs.', 0), said('Bullet point, milk.', 1000)];
-    expect(takeMarkdown({ segments: list, asBoard: false }, { titled: false, board: () => 'a board' }).markdown).toBe('- Eggs\n- Milk');
-    const board = takeMarkdown({ segments: list, asBoard: true }, { titled: false, board: asBoardMarkdown });
-    expect(board.markdown).toBe(asBoardMarkdown('- Eggs\n- Milk'));
-    expect(board.markdown).not.toBe('- Eggs\n- Milk');
-    expect(board.pendingFrom).toBeNull();
-  });
-
-  it('leaves words with no list to make a board of as they are', () => {
-    expect(asBoardMarkdown('Just a sentence.')).toBe('Just a sentence.');
   });
 });
 

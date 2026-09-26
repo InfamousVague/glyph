@@ -1,5 +1,5 @@
 import { MARKER } from '../core/itemSyntax.ts';
-import { finalCommandWords, planCommand, withoutPayloadLead, type Placement, type Plan } from './command.ts';
+import { finalCommandWords, planCommand, withoutPayloadLead, type FinalPlan, type Placement, type Plan } from './command.ts';
 import { inferInstruction, type InferenceRun } from './instructionIntent.ts';
 import { findNote, nameWords } from './noteFind.ts';
 import type { Candidate } from './route.ts';
@@ -8,7 +8,7 @@ import { spokenListItems } from './spokenList.ts';
 
 export type FinalInstruction<N extends Candidate> =
   | { kind: 'ordinary'; notice: string | null }
-  | { kind: 'offer'; plan: Plan<N> }
+  | { kind: 'offer'; plan: FinalPlan<N> }
   | { kind: 'rejected'; reason: string };
 
 /**
@@ -60,7 +60,7 @@ function askedForList(words: string, title: string): boolean {
 }
 
 /** What a finished recording may do once confirmed: add to a note, or make a new list (with its items). */
-const permitted = <N extends Candidate>(plan: Plan<N>): boolean => plan.kind === 'place' || plan.kind === 'create-list';
+const permitted = <N extends Candidate>(plan: Plan<N>): plan is FinalPlan<N> => plan.kind === 'place' || plan.kind === 'create-list';
 
 /**
  * Read one stopped recording, once, from its complete transcript: the reader at Done, which the recorder asks only

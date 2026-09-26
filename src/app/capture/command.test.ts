@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bookNoteBody } from '../book/book.ts';
-import { actionable, cellsOf, finalCommandWords, findKeyword, findMisheard, findSoundAlike, onlyFiller, placedOn, planCommand, reply, withoutPayloadLead } from './command.ts';
+import { cellsOf, finalCommandWords, findKeyword, findMisheard, findSoundAlike, onlyFiller, planCommand, withoutPayloadLead } from './command.ts';
 
 const notes = [
   { id: 'b', title: 'AttackFM Bugbash' },
@@ -54,7 +54,7 @@ describe('hearing the keyword', () => {
   });
 
   it('takes a sound-alike word at the start only when a command follows', () => {
-    const reads = (words: string) => actionable(plan(words));
+    const reads = (words: string) => (plan(words)?.kind ?? 'no-note') !== 'no-note';
     expect(findSoundAlike('Life. Add eggs to work.', reads)).toEqual({ before: '', after: 'Add eggs to work.' });
     expect(findSoundAlike('Live, new notes.', reads)?.after).toBe('new notes.');
     expect(findSoundAlike('Head life. Put call Sam on the work list.', reads)?.after).toBe('Put call Sam on the work list.');
@@ -69,22 +69,6 @@ describe('hearing the keyword', () => {
   it('is not fooled by words that contain it or sound near it', () => {
     expect(findKeyword('The hieroglyphs were beautiful.')).toBeNull();
     expect(findKeyword('We climbed the cliff at dawn.')).toBeNull();
-  });
-});
-
-describe('a yes or a no', () => {
-  it('hears short replies either way', () => {
-    expect(reply('Yes.')).toBe('yes');
-    expect(reply('Yeah, do it')).toBe('yes');
-    expect(reply('Um, okay.')).toBe('yes');
-    expect(reply('No.')).toBe('no');
-    expect(reply('Cancel that')).toBe('no');
-    expect(reply('Never mind.')).toBe('no');
-  });
-
-  it('leaves sentences alone', () => {
-    expect(reply('No problem with the invoice from last week.')).toBeNull();
-    expect(reply('Buy milk.')).toBeNull();
   });
 });
 
@@ -179,10 +163,7 @@ describe('books by voice', () => {
     expect(read('add this to the field guide')).toEqual({ kind: 'chapter', note: guide, title: null });
     expect(read('move this to the field guide')).toEqual({ kind: 'chapter', note: guide, title: null });
     expect(read('switch to the field guide')).toEqual({ kind: 'chapter', note: guide, title: null });
-    const waiting = read('add a chapter to the field guide');
-    if (waiting?.kind !== 'await') throw new Error(`expected a wait, got ${JSON.stringify(waiting)}`);
-    expect(waiting).toMatchObject({ note: guide, how: 'leave' });
-    expect(placedOn(waiting, 'Rivers')).toEqual({ kind: 'chapter', note: guide, title: 'Rivers' });
+    expect(read('add a chapter to the field guide')).toMatchObject({ kind: 'await', note: guide, how: 'leave' });
   });
 });
 
@@ -209,7 +190,7 @@ describe('what is added, and what only introduced it', () => {
 });
 
 describe('the keyword misheard', () => {
-  const reads = (words: string) => actionable(plan(words));
+  const reads = (words: string) => (plan(words)?.kind ?? 'no-note') !== 'no-note';
 
   it('takes “hey, like” and “hey goes” at the start when a command follows, and not otherwise', () => {
     expect(findMisheard('Hey, like add eggs to work.', reads)).toEqual({ before: '', after: 'add eggs to work.' });

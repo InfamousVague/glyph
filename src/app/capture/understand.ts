@@ -1,26 +1,16 @@
-import { listModels, type ModelInfo } from '../core/ai.ts';
 import { matchNote, type Candidate } from './route.ts';
 import type { Plan } from './command.ts';
-import { interpretWakeCommand } from './instructionIntent.ts';
-import { literalMarkdown } from './instructionMutation.ts';
 
 /**
- * The second pass on a spoken command: a small language model on the phone reads what was said after "Glyph" when
- * the rules in capture/command.ts could not.
+ * A prompt that once asked a small language model on the phone to read what was said after "Glyph" when the rules in
+ * capture/command.ts could not, and the reader of its answers.
  *
  * Matt: "it feels like the model for doing the agentic tasks should be different than the language parsing model, we
  * might need two different AI passes, I can't even pass the tutorial". Speech is still read two ways, and they stay
  * separate: Whisper writes the words and the rules find the marks in them (fast, the same every time, nothing
- * guessed), and only a command, which is an action on another note, gets a model. It runs when the rules have no plan
- * for the words ("add oat milk to the shopping thing", a misheard name, a phrasing the rules never learned), never
- * on plain speech, and what it answers is checked like anything else: the note must be one of the person's notes,
- * matched by title the way the rules match a spoken name, and the recorder still asks "shall I?" before anything
- * changes. An answer that is not a command, or that names no note there is, is no answer.
- *
- * What asks the model now is `understandInstructionCommand`: the rules first, and only when they have nothing, the
- * on-device instruction model through `ai_infer_command` (capture/instructionIntent.ts), whose answer is checked field
- * by field and mapped back onto the plans the recorder already knows how to confirm. `commandModel` says whether the
- * phone has a model to ask at all; Qwen3.5 4B is preferred when it is on the phone, else 2B (`commandModelOf`).
+ * guessed), and only a command, which is an action on another note, gets a model. That model is asked once now, at
+ * Done, through `ai_infer_command` (capture/finalInstruction.ts and instructionIntent.ts `inferInstruction`), never
+ * while the microphone is live: the pass that asked it mid-take has gone (docs/DESIGN.md §127).
  *
  * `COMMAND_PROMPT` and `readCommandAnswer` are the pass before that one, which put this prompt to the model itself.
  * Nothing on the page asks with them any more. They stay because `src-tauri/src/llm/tests.rs` reads the prompt out of
@@ -138,65 +128,4 @@ export function readCommandAnswer<N extends Candidate>(output: string, notes: re
     return { kind: 'table', note, columns };
   }
   return null;
-}
-
-/**
- * Which model reads commands, best first. Measured on the Mac with `llm::tests::understands_spoken_commands`, 24
- * commands as speech recognition writes them: Qwen3.5 4B had 23 right at about 1.3 s each, 2B had 20 at 0.5 s, and
- * 0.8B had 6, so it is not offered. Every miss of the two was "none", which leaves the words in the note, never a
- * wrong note. The larger two are slow for a question a person is waiting on, so they come last.
- */
-const COMMAND_MODELS = ['qwen3.5-4b', 'qwen3.5-2b', 'gemma-4-e4b', 'qwen3.5-9b'];
-
-/** The best command model on the phone, or null with none downloaded. */
-export function commandModelOf(models: readonly ModelInfo[]): string | null {
-  const present = new Set(models.filter((model) => model.present).map((model) => model.id));
-  return COMMAND_MODELS.find((id) => present.has(id)) ?? null;
-}
-
-/**
- * The model the command pass runs on; null in a browser or with none downloaded. Looked up as each recording opens,
- * so a model downloaded or removed since is seen.
- */
-export function commandModel(): Promise<string | null> {
-  return listModels()
-    .then(commandModelOf)
-    .catch(() => null);
-}
-
-export interface Understanding<N extends Candidate> {
-  /** The plan, or null when the model had none, or there was no model. */
-  done: Promise<Plan<N> | null>;
-  cancel: () => void;
-}
-
-/**
- * What `words` would have Glyph do among `notes`: the rules' plan, or the on-device instruction model's when the rules
- * have none. The deterministic parser still wins inside `interpretWakeCommand`; inferred strings are escaped and mapped
- * back into the app's own placement rules, so a model cannot write markdown structure into a note.
- */
-export function understandInstructionCommand<N extends Candidate>(words: string, notes: readonly N[]): Understanding<N> {
-  const run = interpretWakeCommand(words, { notes });
-  return {
-    cancel: run.cancel,
-    done: run.done.then((read): Plan<N> | null => {
-      if (read.source === 'deterministic') return read.plan;
-      if (read.source !== 'inferred') return null;
-      if (read.intent.action === 'create') {
-        return read.intent.content === null ? { kind: 'create-list', title: read.intent.target } : null;
-      }
-      if (!('note' in read)) return null;
-      const placement = read.intent.placement;
-      return {
-        kind: 'place',
-        note: read.note,
-        text: literalMarkdown(read.intent.content),
-        how: placement === 'notes' ? 'paragraph' : placement === 'bugs' || placement === 'tasks' || placement === 'list' ? 'item' : 'leave',
-        task: placement === 'tasks',
-        many: false,
-        target: null,
-        ...(placement === 'bugs' ? { near: 'bugs' as const } : {}),
-      };
-    }),
-  };
 }

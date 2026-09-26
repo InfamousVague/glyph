@@ -1,5 +1,4 @@
 import { isBookBody } from '../book/book.ts';
-import { addToLane, lanesOf, matchLane, moveToLane, type Lane } from '../core/boards.ts';
 import { capitalise, escapeRegExp } from '../core/text.ts';
 import { findNote, nameWords, spokenName } from './noteFind.ts';
 import { parseRoute, type Candidate } from './route.ts';
@@ -8,8 +7,7 @@ import { spokenListItems } from './spokenList.ts';
 
 /**
  * "Glyph, add buy milk to HelloTrade": the keyword, and the plan a command's
- * words make, for the reader at Done (finalInstruction.ts) and for the older
- * phrase-at-a-time reader in take.ts.
+ * words make, for the reader at Done (finalInstruction.ts).
  *
  * Matt, after "add a note to hello trade" became a new note called "To the
  * hello trade": "have it listen for keywords and not do anything until it
@@ -22,8 +20,11 @@ import { spokenListItems } from './spokenList.ts';
  *   it is one: "add buy milk to hello trade", "add a list item to HelloTrade",
  *   "put call Sam on the work list", plus every phrasing route.ts knew, the
  *   note found by its words (noteFind.ts).
- * - A plan read at Done is shown on a card and waits for a tap. What the live
- *   reader (liveRoute.ts) carries out as it is said, it reads with its own
+ * - A plan read at Done is shown on a card and waits for a tap. Only two are
+ *   carried out, words for a note and a new list by name; the rest - a table,
+ *   a book or a chapter, a board, a move, a new note - are read so that the
+ *   reader can turn them down rather than take them for words to add. What the
+ *   live reader (liveRoute.ts) carries out as it is said, it reads with its own
  *   grammar (liveCommand.ts), which shares the keyword, its mishearings and the
  *   lead-ins with this.
  *
@@ -48,6 +49,10 @@ const KEYWORD =
  * "Glyph, …"; half came back as one of these. They are
  * ordinary words, so one only counts at the very start of a phrase, followed by a stop or a comma, and only when what
  * follows reads as a command (`findSoundAlike`); "We climbed the cliff at dawn" and "Life is short" stay words.
+ *
+ * Only the phrase-at-a-time reader that has gone (docs/DESIGN.md §127) used these: neither the live reader nor the
+ * reader at Done does, so they are kept here, tested, until it is decided whether the live reader's mishearings take
+ * them.
  */
 const SOUND_ALIKE = /^\s*(?:(?:hey|hi|ok(?:ay)?|so|a|add|head|hade|hate|take|tag)[,\s]+)?(?:life|live|lift|lip|cliff|clip|glide|slip)[,.;:!?]+\s*/i;
 
@@ -116,25 +121,6 @@ export function findSoundAlike(text: string, reads: (words: string) => boolean):
   return after && reads(after) ? { before: '', after } : null;
 }
 
-/** Whether a plan is something to do: a note to add to or move to, a new note, a table, or a note named and waiting. */
-export function actionable(plan: Plan | null): boolean {
-  return plan !== null && plan.kind !== 'no-note';
-}
-
-// ---- yes or no --------------------------------------------------------------------------------
-
-const YES = /^(?:yes|yeah|yep|yup|sure|ok(?:ay)?|confirm(?:ed)?|correct|right|do it|go ahead|go for it|add it|send it|move it|please(?: do)?|that's right|that is right|sounds good|perfect)\b/i;
-const NO = /^(?:no|nope|nah|cancel|never ?mind|stop|don't|do not|wrong|scratch that|forget it|not that)\b/i;
-
-/** A reply to "shall I?": yes, no, or neither. Short phrases only, so a sentence starting "No problem with the invoice" is a sentence. */
-export function reply(text: string): 'yes' | 'no' | null {
-  const said = text.trim().replace(/^(?:um+|uh+|er+|oh)[,\s]+/i, '').replace(/[.!?,]+$/, '').trim();
-  if (!said || said.split(/\s+/).length > 5) return null;
-  if (NO.test(said)) return 'no';
-  if (YES.test(said)) return 'yes';
-  return null;
-}
-
 // ---- the plan ---------------------------------------------------------------------------------
 
 export interface Placement {
@@ -164,11 +150,7 @@ export type Plan<N extends Candidate = Candidate> =
   | { kind: 'create-list'; title: string; items?: readonly string[] }
   /** A table asked for, in a named note or this one: read so the reader at Done can turn it down, since a recording makes none. */
   | { kind: 'table'; note: N | null; columns: string[] }
-  /** A card for a board's lane: "Glyph, add fix the login bug to Doing" (core/boards.ts). */
-  | { kind: 'lane'; note: N; lane: string; words: string; change: (body: string) => string | null }
-  /** A card moved to a lane: "Glyph, move the pricing page to Done". */
-  | { kind: 'card'; note: N; lane: string; words: string; change: (body: string) => string | null }
-  /** "Glyph, make this a board": the note being recorded is written as a board. */
+  /** "Glyph, make this a board": read so the reader at Done can turn it down (a board is made with More > Make a board). */
   | { kind: 'board' }
   /** "Make a book called Field guide with Trees, Birds and Rivers": a book note, its pages the notes named or chapters still to write (docs/BOOKS.md). */
   | { kind: 'book'; title: string; pages: string[] }
@@ -176,6 +158,9 @@ export type Plan<N extends Candidate = Candidate> =
   | { kind: 'chapter'; note: N; title: string | null }
   /** A note was named that there is no note for. */
   | { kind: 'no-note'; name: string };
+
+/** The plans the reader at Done carries out, once their card is tapped: words for a note, and a new list by name. */
+export type FinalPlan<N extends Candidate = Candidate> = Extract<Plan<N>, { kind: 'place' | 'create-list' }>;
 
 const LEAD = /^\s*(?:(?:please|can you|could you|would you|and|so|ok(?:ay)?|um+|uh+)[,\s]+)+/i;
 const MOVERS = /^\s*(?:switch|go|jump|change|move|carry on|continue)\b/i;
@@ -384,8 +369,6 @@ function placementOf(noun: RegExpExecArray | null): Placement {
 export interface PlanOptions<N extends Candidate & { note?: { body: string } }> {
   notes: readonly N[];
   targets?: readonly string[];
-  /** The note being recorded into, when it has a board: its lanes can be named (core/boards.ts). */
-  board?: N | null;
 }
 
 export function planCommand<N extends Candidate & { note?: { body: string } }>(words: string, options: PlanOptions<N>): Plan<N> | null {
@@ -417,8 +400,6 @@ export function withoutPayloadLead(text: string): string {
 
 /** "Make this a board", "turn the list into a kanban board". */
 const MAKE_BOARD = /^(?:make|turn|change)\s+(?:this|it|this\s+note|the\s+note|this\s+list|the\s+list)\s+(?:into\s+)?(?:a\s+)?(?:kanban\s+)?(?:board|kanban)[.!]?$/i;
-/** "Move the pricing page to Done", "drag call Sam into doing". */
-const MOVE_CARD = /^(?:move|drag|shift|put)\s+(.+?)\s+(?:to|into|in|onto|over\s+to)\s+(.+?)[.!?]*$/i;
 
 /** "Make a book called Field guide", "new book, Trip". Not "add a book to…": that is a book for a list. */
 const MAKE_BOOK = /^(?:make|create|start|begin|new)\s+(?:(?:a|an|another|one|the)\s+)?(?:new\s+)?book\b(.*)$/i;
@@ -447,8 +428,8 @@ function chapterFor<N extends Candidate & { note?: { body: string } }>(note: N, 
 
 /**
  * A plan read for a book (docs/BOOKS.md): words placed in it are a chapter, and moving this recording there makes
- * this note one. Every plan the rules make goes through it, and the model's too (take.ts), so "add Trees to the field
- * guide" lands the same whoever read it.
+ * this note one. Every plan the rules make goes through it, so "add Trees to the field guide" is a chapter, which the
+ * reader at Done turns down, and never words for the book's index.
  */
 export function forBook<N extends Candidate & { note?: { body: string } }>(plan: Plan<N>): Plan<N> {
   if (plan.kind === 'place' && isBook(plan.note)) return chapterFor(plan.note, plan.text);
@@ -456,32 +437,12 @@ export function forBook<N extends Candidate & { note?: { body: string } }>(plan:
   return plan;
 }
 
-/** The words a named note waited for, as the plan to carry out: a chapter when the note is a book. */
-export function placedOn<N extends Candidate & { note?: { body: string } }>(plan: Extract<Plan<N>, { kind: 'await' }>, text: string): Plan<N> {
-  return forBook({ ...plan, kind: 'place', text });
-}
-
-/** A lane of `board`'s note by spoken name, with the score it won by. */
-function laneNamed<N extends Candidate & { note?: { body: string } }>(name: string, board: N | null | undefined): { lane: Lane; score: number } | null {
-  const body = board?.note?.body;
-  if (!body) return null;
-  return matchLane(name.replace(/[.,;:!?"“”]+/g, ' ').trim(), lanesOf(body));
-}
-
-/** A change to a lane, found again by name in the body it is given, which is the fresh one when it runs. */
-function laneChange(lane: Lane, act: (body: string, lane: Lane) => string | null): (body: string) => string | null {
-  return (body) => {
-    const fresh = lanesOf(body).find((l) => l.name === lane.name && l.board === lane.board) ?? lanesOf(body).find((l) => l.name === lane.name);
-    return fresh ? act(body, fresh) : null;
-  };
-}
-
 function readCommand<N extends Candidate & { note?: { body: string } }>(words: string, options: PlanOptions<N>): Plan<N> | null {
   const plan = readWords(words, options);
   return plan ? forBook(plan) : null;
 }
 
-function readWords<N extends Candidate & { note?: { body: string } }>(words: string, { notes, targets = [], board = null }: PlanOptions<N>): Plan<N> | null {
+function readWords<N extends Candidate & { note?: { body: string } }>(words: string, { notes, targets = [] }: PlanOptions<N>): Plan<N> | null {
   const text = stripStopCue(words.replace(LEAD, '').trim());
   if (!text) return null;
   if (MAKE_BOARD.test(text)) return { kind: 'board' };
@@ -533,23 +494,6 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
     return name ? { kind: 'book', title: capitalise(name), pages } : null;
   }
 
-  // "Move the pricing page to Done": a card, when the note being recorded has a board with that lane and no note by
-  // that name is the better match.
-  const moving = board ? MOVE_CARD.exec(text) : null;
-  if (moving && board) {
-    const lane = laneNamed(moving[2] ?? '', board);
-    const note = noteNamed(moving[2] ?? '', notes);
-    const item = (moving[1] ?? '').replace(/^(?:the|my|our)\s+/i, '').trim();
-    if (lane && item && !/^(?:this|that|it|everything|these|those|them)$/i.test(item) && (!note || lane.score > note.score)) {
-      return {
-        kind: 'card',
-        note: board,
-        lane: lane.lane.name,
-        words: item,
-        change: laneChange(lane.lane, (body, fresh) => moveToLane(body, item, fresh)?.body ?? null),
-      };
-    }
-  }
   // The phrase is committed: a command that stops after a name has ended.
   const ended = /[.!?]\s*$/.test(text) ? text : `${text}.`;
   const find = (name: string) => noteNamed(name, notes)?.note ?? null;
@@ -594,7 +538,6 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
   if (verb) {
     const after = text.slice(verb[0].length);
     let best: { note: N; score: number; thing: string; rest: string } | null = null;
-    let bestLane: { lane: Lane; score: number; thing: string } | null = null;
     for (const split of after.matchAll(INTO)) {
       const thing = after.slice(0, split.index).trim();
       const tail = after.slice((split.index ?? 0) + split[0].length);
@@ -603,23 +546,6 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
       const target = targets.find((word) => new RegExp(String.raw`\s+(?:in|on|to|into)\s+${word}\s*$`, 'i').test(name)) ?? null;
       const found = noteNamed(target ? name.replace(new RegExp(String.raw`\s+(?:in|on|to|into)\s+${target}\s*$`, 'i'), '') : name, notes);
       if (found && (!best || found.score > best.score)) best = { ...found, thing, rest: rest.trim() };
-      const lane = board && !rest.trim() ? laneNamed(name, board) : null;
-      if (lane && thing && (!bestLane || lane.score > bestLane.score)) bestLane = { ...lane, thing };
-    }
-    // A lane of the board being recorded into, named better than any note: a card for it.
-    if (board && bestLane && (!best || bestLane.score > best.score) && !MOVERS.test(text)) {
-      const noun = OBJECT_NOUN.exec(bestLane.thing);
-      const said = (noun ? bestLane.thing.slice(noun[0].length) : bestLane.thing).trim();
-      const item = capitalise(said);
-      if (item && !/^(?:this|that|it|everything|these|those|them)$/i.test(item)) {
-        return {
-          kind: 'lane',
-          note: board,
-          lane: bestLane.lane.name,
-          words: item,
-          change: laneChange(bestLane.lane, (body, fresh) => addToLane(body, fresh, item)?.body ?? null),
-        };
-      }
     }
     if (best) {
       // A book named: the thing is a chapter, or this note ("put this in the field guide").
