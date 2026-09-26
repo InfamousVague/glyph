@@ -17,7 +17,7 @@ Before you say anything, the recorder's card shows two of these under "To ask th
 | Say | The run | What it does |
 |---|---|---|
 | "Hey Ghost, fix the spelling" | Fix spelling | Spelling, grammar and punctuation, and not a word more. The note comes back line for line. |
-| "Hey Ghost, summarize this" | Summarize | The point of the note and its tasks, in far fewer words, above the note. |
+| "Hey Ghost, summarise this" | Summarize | The point of the note and its tasks, in far fewer words, above the note. |
 | "Hey Ghost, make this a list" | Make a list | Tasks, a list or a table out of what is there. |
 | "Hey Ghost, tidy this up" | Format | Tidy and organise, keeping every word that matters. |
 | "Hey Ghost, flesh it out" | Enhance | Every thought finished and the note made fuller, without inventing. |

@@ -50,6 +50,8 @@ A spoken name can be misheard, so nothing changes until you tap. The card shows 
 
 The card's small print says “Or say “yes” or “no”.”, but by the time it shows, the microphone has stopped. Tap. The card waits as long as you take.
 
+Over the lock screen the card shows too, with the note's name and the lines that would land, so whoever is holding the phone can read them. An ask for the AI is not run over the lock screen, but a command is offered all the same.
+
 Afterwards a recording started from home takes you back there, and one started from a note opens the note the command changed. The sound of a new recording goes with the command, onto the tape of the note it changed.
 
 ## Undo
@@ -88,7 +90,7 @@ The Things to say card and the tips in a pause suggest more than a finished reco
 - “Hey Ghost, make this a board.”
 - “Hey Ghost, send that to Notion.”
 
-None of them is refused out loud, except a table for a note you do not have. In a new recording the words are kept as the note's words, “Hey Ghost” and all. In a note's own Speak, with the phone unlocked, they go to the AI as an ask about that note. A board's lane is never named either: “Hey Ghost, add fix the login to Doing” is read as naming a note called Doing, and goes the way any unknown name does. [[Where the docs and the code disagree]] lists the places that still promise them.
+None of them is refused out loud, except a table for a note you do not have. “Add a table to this note”, as [[How to format a note]] and the cheat sheet put it, is one of those: “this” is taken for a note's name, the recording ends with “No unambiguous note matches “this”. Nothing changed.”, and none of its words are kept. In a new recording the words are kept as the note's words, “Hey Ghost” and all. In a note's own Speak, with the phone unlocked, they go to the AI as an ask about that note. A board's lane is never named either: “Hey Ghost, add fix the login to Doing” is read as naming a note called Doing, and goes the way any unknown name does. [[Where the docs and the code disagree]] lists the places that still promise them.
 
 ## The setting
 

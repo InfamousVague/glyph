@@ -11,7 +11,7 @@ _How a voice becomes a note: the ways in, what the recorder shows while you talk
 | Android, any screen | Hold the side key, once Ghost.md is your digital assistant | A new note |
 | Android launcher | Long-press the Ghost.md icon and choose **Record a voice note** (**Record note** where the launcher is short of room) | A new note |
 
-Speak is also at the foot of the sidebar and the drawer, and in the command palette as **Speak a new note** and **Talk into this note**. On the Mac, ⌘K opens the palette. Setting up the side key has its own chapter, [[The side key, the Fold and the Mac]].
+Speak is also at the foot of the sidebar, and in the command palette as **Speak a new note** and **Talk into this note**. On the Mac, ⌘K opens the palette. Setting up the side key has its own chapter, [[The side key, the Fold and the Mac]].
 
 Every way in opens the same recorder, and each recording starts fresh.
 
@@ -85,7 +85,7 @@ The larger model is about 190 MB and comes down the first time it is needed; the
 | Android phone | Whisper, on the phone |
 | Mac | Whisper, on the Mac |
 | A browser tab | The browser's own speech recognition, where it has one. No sound is kept and there are no better words. Without one: “Voice notes need the Ghost.md app; this browser has no speech recognition.” |
-| iPhone | Nothing yet: “On-device transcription is not supported on iOS yet.” |
+| The iPhone build, not released yet | Nothing yet: “On-device transcription is not supported on iOS yet.” |
 
 Every engine listens for English.
 

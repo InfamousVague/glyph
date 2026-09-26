@@ -46,7 +46,7 @@ It does not reach a few things you turn on or tap yourself:
 | Claude, hosted | While connected, Ghost.md's server holds your notes' key in memory | The server, for Claude, and Claude |
 | Claude, on your own computer | The key stays on your computer | Claude |
 
-Two of those pass through Ghost.md's server on the way. **Signing in to Notion** needs a secret an app can't carry, so the server does that step and holds the sign-in in memory for up to ten minutes, until your device collects it. When Notion later asks for the sign-in to be renewed, the renewal passes through too, and is not kept. **The hosted Claude connector** keeps your key in memory only, never on disk, and forgets it when you disconnect, when you sign out everywhere, after a week unused, or when the server restarts. What Claude reads goes to Anthropic, under its own terms.
+Two of those pass through Ghost.md's server on the way. **Signing in to Notion** needs a secret an app can't carry, so the server does that step and holds the sign-in in memory for up to ten minutes, until your device collects it. When Notion later asks for the sign-in to be renewed, the renewal passes through too, and is not kept. **The hosted Claude connector** keeps your key in memory only, never on disk, for about a week after you sign in, used or not. It forgets it sooner when you disconnect, when you sign out everywhere, or when the server restarts. What Claude reads goes to Anthropic, under its own terms.
 
 **Updates and models** are plain downloads, from attack.fm, or for the models from Hugging Face when attack.fm can't be reached. Nothing about you is sent with them. The servers see your IP address.
 

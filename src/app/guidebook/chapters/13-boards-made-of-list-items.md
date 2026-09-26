@@ -25,7 +25,7 @@ Done: pick-weekend
 - [x] Pick the weekend ^pick-weekend
 ```
 
-In your own notes the items are an ordinary list, anywhere in the note. Here they sit in a block of code only to keep the guide's examples off your home page's To do list; the board reads them just the same. Tap the board between its cards and it steps aside for the fence's own lines, ready to type.
+In your own notes the items are an ordinary list, anywhere in the note. Here they sit in a block of code only to keep this book's examples off your home page's To do list; the board reads them just the same. Tap the board between its cards and it steps aside for the fence's own lines, ready to type.
 
 When Ghost.md names an item itself, it takes the first three words that carry meaning: "Add ability to auto-tag notes" becomes `add-ability-auto`, not `add-ability-to`. You can type your own, in lower case letters, numbers and hyphens. A name already in a note is never changed, since something may point at it.
 

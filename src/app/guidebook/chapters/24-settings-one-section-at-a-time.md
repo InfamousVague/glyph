@@ -83,7 +83,7 @@ Every mark you can type and every cue you can say, on one page to look things up
 - **The version**, large, and where this build stands under it.
 - **Updates**: the state of things, **Reload** when an update is downloaded, **Install** with a version number when an update needs a new app, and **Check for updates**. The web version says to reload the page, and a copy from the Play Store gets new apps from the store.
 - **Update alerts**, on Android: off until you switch them on, then a notification when a new version is out, even with Ghost.md closed.
-- **Help**: **Ghost.md Academy**, which teaches Markdown a mark at a time; **How to talk to Ghost.md**, the walkthrough, with the side key on Android; **Formatting cheat sheet**; **Add the example board**; **Add the example canvas**; **Add the “How Ghost.md works” canvas**; and **Add the sample note**, one note with every mark in it.
+- **Help**: **Ghost.md Academy**, which teaches Markdown a mark at a time; **How to talk to Ghost.md**, the welcome guide, with the side key on Android; **Formatting cheat sheet**; **Add Ghost.md: The Guide**, which adds this book and opens it, or opens the one you have; **Add the example board**; **Add the example canvas**; **Add the “How Ghost.md works” canvas**; and **Add the sample note**, one note with every mark in it.
 - **What's new**: every update, newest first, the one you are on marked "you're on this one". After an update, the new entries also show once, in a sheet.
 - **Privacy policy**, which opens ghostmarkdown.com/privacy.html.
 
@@ -100,7 +100,12 @@ Signed in, the settings about you are the same on every device. The ones about t
 
 ## Developer mode
 
-Seven taps on the version in About turn on developer settings.
+Seven quick taps on the version in About turn on developer settings. From the third tap a message counts down the taps that are left. Two pages then join the list, under About:
+
+- **Developer.** **Choose your model** opens that page of the welcome guide on its own, and **Welcome guide** opens it from the first page. **Window** reads off what the page is given: the top inset, the page's size, the screen and the engine that draws it. **Smoke bench** opens a page for timing the smoky edge's frames. **Developer settings** is the switch that hides both pages again.
+- **Test results** is the report of the tests this release ran ([[Tests, and the report that ships]]).
+
+The Developer page also has the two resets. **Reset local data** clears the notes, recordings, pictures, settings and the sign-in on this device, and keeps the downloaded models. **Reset everything** takes the models too. Each needs two taps, the first arming it for five seconds, and Ghost.md opens on the welcome guide afterwards. Developer settings stay on.
 
 ## Read next
 

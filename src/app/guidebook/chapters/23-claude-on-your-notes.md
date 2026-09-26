@@ -16,7 +16,7 @@ With Local only on, the page is hidden and this device stops syncing, so what Cl
 | --- | --- | --- |
 | To install | Nothing | One file, run with Node 20 or newer |
 | Your account key | Held in the memory of Ghost.md's server while Claude is connected | Stays on your computer |
-| Ends when | You disconnect in Claude, Claude signs out everywhere, a week goes by unused, or the server restarts | You sign out on that computer and remove the server from Claude |
+| Ends when | About a week after you sign in, used or not; sooner if you disconnect in Claude, Claude signs out everywhere, or the server restarts | You sign out on that computer and remove the server from Claude |
 
 ### Hosted
 
@@ -26,7 +26,7 @@ With Local only on, the page is hidden and this device stops syncing, so what Cl
 
 Your notes are end-to-end encrypted, so whatever reads them must hold your account key. The page works the key out in your browser, as a phone does at sign-in, and your password stays there. It hands the key to Ghost.md's server, which keeps it in memory only, never on disk, as a key it can use but not read out. While you are connected, the server can read your notes: that is what lets Claude. The page says so before it asks for the password.
 
-The key is forgotten when you disconnect the server in Claude, when you ask Claude to sign out everywhere, after a week without use, or when the server restarts, after which Claude asks you to sign in again. Changing your password does not end it. Disconnect to be sure.
+The connection lasts about a week from the moment you sign in, whether you use it or not, because the server holds a week-long sign-in it cannot renew. It ends sooner, and the key is forgotten, when you disconnect the server in Claude, when you ask Claude to sign out everywhere, or when the server restarts. After that Claude asks you to sign in again. Changing your password does not end it. Disconnect to be sure.
 
 ### On your own computer
 

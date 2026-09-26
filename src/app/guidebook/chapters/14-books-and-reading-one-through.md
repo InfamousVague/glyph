@@ -1,10 +1,10 @@
 # Books, and reading one through
 
-_A book is a note whose body is its index: links to its chapters, in order. This guide is one._
+_A book is a note whose body is its index: links to its chapters, in order. This book is one._
 
 ## A book is a note
 
-One line of front matter makes a note a book: `book: true`. Its `title:` names it, and the rest of the body is the index, a list of links to its chapters in the order they are read. This guide's own index, cut down to one part:
+One line of front matter makes a note a book: `book: true`. Its `title:` names it, and the rest of the body is the index, a list of links to its chapters in the order they are read. This book's own index, cut down to one part:
 
 ```markdown
 ---
@@ -26,7 +26,7 @@ In any other Markdown app it reads as a table of contents, and in one that knows
 - **The order is the list's order.** A chapter indented one level under another is part of it, numbered 2.1, 2.2. Deeper indentation reads as the same level.
 - **A chapter is an item that opens with its link.** `- [[Lists and to-dos]] — the short version` is a chapter. `- The to-dos are in [[Lists and to-dos]].` is the book's own words about one.
 - **A numbered index is its numbered list.** Beside `1.`, `2.`, a bullet list at the top level is about the book, not in it, and a chapter added to the index takes the next number.
-- **The book's own words stay.** What comes before the first chapter is shown over the index, and what comes after the last under it, as this guide's "Five things worth knowing" is. Headings between chapters, such as this guide's Parts, stay in the Markdown; the index numbers the chapters straight through.
+- **The book's own words stay.** What comes before the first chapter is shown over the index, and what comes after the last under it, as this book's "Five things worth knowing" is. Headings between chapters, such as this book's Parts, stay in the Markdown; the index numbers the chapters straight through.
 
 ## Making one
 

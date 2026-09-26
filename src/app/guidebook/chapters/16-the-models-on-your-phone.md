@@ -22,7 +22,7 @@ The first is fetched as soon as the app opens, so the first press of the side ke
 
 The second is fetched the first time it is needed, which is the first recording that Better words or the review goes over. While it comes down, the home page says "Getting the better voice model, 40 of 190 MB." Until it is on the phone, a note keeps the words it was heard with live. Both models are English-only.
 
-In a browser tab there are no speech models. Recording there uses the browser's own recogniser, which only Chrome has, and that recogniser is the browser's, not Ghost.md's.
+In a browser tab there are no speech models. Recording there uses the browser's own recogniser, where it has one (Chrome, Edge and Safari do), and that recogniser is the browser's, not Ghost.md's.
 
 ## The language models
 
@@ -83,7 +83,7 @@ Everywhere the app offers the AI, it asks the same question first: can it run he
 | Where | What the app says |
 |---|---|
 | A browser tab | The AI runs on the phone. Install Ghost.md on Android to use it. |
-| An iPhone | The AI is not on iOS yet. |
+| The iPhone build, not released yet | The AI is not on iOS yet. |
 | An app older than the AI | The AI needs the newest Ghost.md. Install it from attack.fm/glyph. |
 | No model downloaded yet | The AI needs a model on the phone. It runs here; nothing leaves the phone. |
 | No model, and Local only on | No model is on the phone, and Local only is on, so none can be downloaded. Turn it off in Settings to get one. |
@@ -99,7 +99,7 @@ The line moves through the run: "Loading Qwen3.5 4B.", then "Reading the note, 1
 | Reading | What it shows |
 |---|---|
 | Cores | How many of the phone's cores the model is running on: "6 of 8". Where the engine does not say, just the phone's count. |
-| CPU | How busy the processor is, counted per core, so 640% means six and a half cores are busy. |
+| CPU | How busy the processor is, counted per core, so 650% means six and a half cores are busy. |
 | Memory | The memory the app is using, out of the phone's total. |
 | Heat | The hottest temperature the phone reports, if it lets an app read one. |
 | Battery | The battery level, and whether it is charging. |

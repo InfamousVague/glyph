@@ -128,7 +128,7 @@ The tips in a pause still offer “Voice memo … end memo”, but in this versi
 
 ## What has no cue
 
-There is no spoken cue for a table, a picture, a diagram or a board. The guide's table of marks offers “Hey Ghost, add a table to this note” and “Hey Ghost, make this a board”, but a finished recording carries out neither; [[Commands after Hey Ghost]] says what happens to them. Type those afterwards.
+There is no spoken cue for a table, a picture, a diagram or a board. The cheat sheet's table of marks offers “Hey Ghost, add a table to this note” and “Hey Ghost, make this a board”, but a finished recording carries out neither; [[Commands after Hey Ghost]] says what happens to them. Type those afterwards.
 
 ## Read next
 

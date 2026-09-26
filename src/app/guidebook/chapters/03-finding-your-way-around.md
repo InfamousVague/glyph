@@ -4,7 +4,7 @@ _The five screens, what opens over them, and every way to reach a note: tabs, th
 
 ## Five screens
 
-Ghost.md has five screens. Everything else, from Settings to the guide, is a sheet or a card that opens over one of them.
+Ghost.md has five screens. Everything else, from Settings to the welcome guide, is a sheet or a card that opens over one of them. A sheet from the bottom closes with a tap above it, the back gesture, or a pull down on the grip along its top.
 
 | Screen | What it is for |
 |---|---|
@@ -43,6 +43,7 @@ Across the top of home, All notes and every note. Its first row is the controls:
 - **Tab groups** work as Chrome's do: a name and a colour over a run of tabs. The group's chip sits before its first tab. Tap it to fold the group shut and open it again. Right-click it, or press and hold, to Rename, choose its Colour, Ungroup, or Close group. The colours are the workspaces' seven: ink, ember, amber, moss, sea, violet and rose.
 - The open tabs and their groups are kept. They come back after a reload, and they appear on your other devices signed in to the same account. The app still opens on the home page, not on the last tab.
 - Moving between the pages of a book keeps to the book's one tab.
+- At most eight notes stay open. Opening a ninth closes the tab at the start of the row.
 
 ## Back and forward
 
@@ -52,7 +53,7 @@ The arrows beside the sidebar's icon go back to where you were, and forward agai
 
 A tree of your notes, shaped like Obsidian's file explorer. Its top row of tools: New note, New workspace, Search and commands, Show names only (or Show each note drawn small), Browse files ([[A note is a Markdown file]]), Fold every folder or Open every folder once there are folders, and, where the sidebar floats as a card, Close. Below them, your workspaces as folders that fold shut, each with a button to rename, recolour or remove it; then the notes filed in no workspace; then the **Archive** folder, which starts shut; then the **Trash**. At its foot, Speak and Settings. Names only, and which folders are shut, are kept on this device.
 
-Where it sits is Settings › Appearance › Sidebar. **Popover**, the choice it starts with, opens it as a card floating over the note when you tap the sidebar's icon. **Docked** puts it in a column beside the note on a wide window. On a phone it is always the card, which closes when you open a note.
+Where it sits is Settings › Appearance › Sidebar. **Popover**, the choice it starts with, opens it as a card floating over the note when you tap the sidebar's icon. **Docked** puts it in a column beside the note on a wide window. On a phone the sidebar always floats as a card, which closes when you open a note.
 
 ## The aside
 
@@ -76,15 +77,20 @@ All three are in a note's More sheet, the three dots in its tools: **Pin to the 
 
 The trash syncs: a note put in the trash on the phone is in the trash on the Mac. Until it is deleted for good, the note is untouched, with its recording and pictures ([[Pictures and voice memos]]).
 
+## Where a note opens, and how big
+
+- **A note opens where you left it.** Scroll down a note, leave it, and it opens on the same words next time, even if lines were added above them since. This device remembers the place in the two hundred notes you read last. A bookmark wins over it: a note with one opens at the bookmark ([[Tags, footnotes and the small marks]]).
+- **Pinch to change the size of the words.** Two fingers on a note make its text larger or smaller, from seven tenths of its size to twice it, on top of Settings › Type › Text size. The words under your fingers stay under them. The size is kept on this device, and every note opens at the size you last pinched.
+
 ## Find and replace
 
 Open it from a note's More sheet › Find and replace, or select some words, press and hold, and choose **Find**. A bar sits on top of the keyboard: the Find field, which match you are on out of how many, arrows to the previous and next, and **Replace**, which adds a second field with Replace and All. **Done**, or the back gesture, closes it and leaves the caret on the last match.
 
 ## The command palette
 
-One list of your notes by name and everything the app can do, searched as you type. Open it with the home page's Search, with ⌘K on a Mac, or with Search and commands in the sidebar or the notes card on a phone.
+One list of your notes by name and everything the app can do, searched as you type. Open it with the home page's Search, with ⌘K on a Mac, or with Search and commands in the sidebar.
 
-Its groups: **This note** (talk into it, show it formatted or with its marks, pin, archive, delete, file it in a workspace, put its tab in a group), **Notes** (New note, Speak a new note, Home, All notes), **Open tabs**, **Workspaces**, **Notes by name** (the forty notes changed last, less any already open; All notes' search finds the rest), **Look** (the themes), and **Ghost.md** (Settings, Cheat sheet, Ghost.md Academy, How to talk to Ghost.md). The back gesture closes it and leaves you where you were.
+Its groups: **This note** (talk into it, show it formatted or with its marks, pin, archive, delete, file it in a workspace, put its tab in a group), **Notes** (New note, Speak a new note, Home, All notes), **Open tabs**, **Workspaces**, **Notes by name** (with nothing typed, the forty notes changed last, less any already open; once you type, the notes whose names match, however long ago they changed), **Look** (the themes), and **Ghost.md** (Settings, Cheat sheet, Ghost.md Academy, How to talk to Ghost.md). The back gesture closes it and leaves you where you were.
 
 ## Read next
 

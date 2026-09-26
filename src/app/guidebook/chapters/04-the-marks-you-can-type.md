@@ -100,6 +100,26 @@ The first round button in a note's tools switches between them.
 
 The choice holds for every note. On a narrow screen, such as a folded phone, the note's More sheet has the switch as well, under Reading it › Show. In the command palette it is "Show it formatted" and "Show the marks".
 
+## The press-and-hold menu
+
+Press and hold in a note, or right-click on a Mac, for a band of actions. Some show only when they apply.
+
+| Action | What it does |
+|---|---|
+| Cut, Copy | The words selected. They show only when some are. |
+| Paste | What is on the clipboard, when there is something to paste |
+| Find | The words selected, looked for through the note ([[Finding your way around]]) |
+| Select all | The whole note |
+| Duplicate | The words selected, or the caret's line, again just after it |
+| Delete | The words selected, or the caret's line |
+| Move up, Move down | The lines the selection touches, or the caret's line, one line up or down |
+| Add to board, Board from list | On a list item: see [[Lists and to-dos]] |
+| Notion, GitHub | The line sent as a task or an issue, when the note is linked to one ([[Notion and GitHub]]) |
+| Style | The marks, below |
+| Add image | A picture, from the phone's picker ([[Pictures and voice memos]]) |
+
+On a board's fence, Duplicate, Delete and the moves take the whole board, and Copy board copies it with its items.
+
 ## Without typing a mark
 
 Press and hold on some words, or right-click on a Mac, and choose **Style**. The menu turns over to a band you can scroll sideways: Bold, Italic, Struck and Code; then each of Ghost.md's own marks and effects; then what a line can be, Heading, Quote, List, Numbered and To-do; then what can be put in, Link, Table and Rule. A style that applies is lit. Press it again to take it off, or press several in one go. The arrow goes back.

@@ -51,7 +51,7 @@ The Mac app needs macOS 13.1 or later. It is signed but not yet notarised, so th
 The first time you record, allow the microphone. What you say is turned into words on the Mac itself, and the models run there too. Sign in with the same account as your phone and your notes follow you. Settings › Recording is Android's, but those settings sync, so the Mac follows what the phone chose.
 
 - **Browse files**, in the notes list, opens the notes folder in Finder. On Android the same button opens the Files app, where Ghost.md lists its library.
-- **⌘K** opens the command palette: everything Ghost.md can do, searched. On a phone it is a row in the notes drawer.
+- **⌘K** opens the command palette: everything Ghost.md can do, searched. On a phone it is Search and commands in the sidebar.
 
 ## The web app
 

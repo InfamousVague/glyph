@@ -4,7 +4,7 @@ _What Ghost.md shows you when it first opens, the notes it can hand you to learn
 
 ## The welcome guide
 
-The first time Ghost.md opens, a short guide comes up over it. If the side key opened it, the guide waits for the next launch, since you are already talking. It has six pages, and a row of dots at the top says which one you are on. Next appears once you reach the foot of a page. Until then, after a moment, a button with an arrow offers to take you down. Back steps back, and so do the phone's back gesture and a swipe to the right. Skip closes the guide from any page, and on the last page it reads Close.
+The first time Ghost.md opens, the welcome guide comes up over it. If the side key opened it, the welcome guide waits for the next launch, since you are already talking. It has six pages, and a row of dots at the top says which one you are on. Next appears once you reach the foot of a page. Until then, after a moment, a button with an arrow offers to take you down. Back steps back, and so do the phone's back gesture and a swipe to the right. Skip closes it from any page, and on the last page it reads Close.
 
 | Page | What it says | What it asks |
 |---|---|---|
@@ -17,24 +17,25 @@ The first time Ghost.md opens, a short guide comes up over it. If the side key o
 
 Anywhere but Android, the fourth page says instead: "Start a voice note with Speak."
 
-The chosen model is not downloaded yet. It comes down the first time you ask the AI for something on a note, or straight away if you tap "get it now" under the list.
+The chosen model is not downloaded yet. Tap "get it now" under the list to fetch it, or fetch it later with Get beside it in Settings › Formatting › Model. Until then, asking the AI for something on a note only says "The AI needs a model on the phone." The page says the model downloads the first time you ask; it does not ([[The models on your phone]]).
 
-Hold the side key before you reach its page and the guide comes back with one line at the top: "Not yet, finish reading." Nothing records. From the side-key page on, a held key records as it always does.
+Hold the side key before you reach its page and the welcome guide comes back with one line at the top: "Not yet, finish reading." Nothing records. From the side-key page on, a held key records as it always does.
 
-Every choice can be changed later: the theme in Settings › Appearance › Page, the model in Settings › Formatting. The whole guide opens again from Settings › About › How to talk to Ghost.md, starting at its first page.
+Every choice can be changed later: the theme in Settings › Appearance › Page, the model in Settings › Formatting. The whole welcome guide opens again from Settings › About › How to talk to Ghost.md, starting at its first page.
 
 ## The notes it gives you
 
 A library with nothing in it gets one note the first time it opens: [[How to format a note]]. It is a short tutorial, one mark at a time: how to type it, how to say it, and an example, with a photograph of smoke to show a picture. Try each one, then delete it. A library that already has notes never gets it, so an update never drops a note on you.
 
-Settings › About has a row for it, and three more. Each makes a new note and opens it:
+Settings › About has a row for it, and four more:
 
+- **Add Ghost.md: The Guide** adds this book, 44 chapters and its index, and opens the index. Pressed again, it opens the book you have. Its chapters are then your newest notes, so the first six fill Recent until you write something else.
 - **Add the sample note** makes another [[How to format a note]], every mark in it.
 - **Add the example board** makes [[Launch week]]: a working board written in Markdown, with columns, cards and the list items they stand for.
 - **Add the example canvas** makes [[Cabin weekend, laid out]]: cards on a page with lines between them, one of everything a canvas can hold.
 - **Add the “How Ghost.md works” canvas** makes [[How Ghost.md works]]: eight cards, in order, from saying a note to where it can go. Two of them stand for the example board and the sample note.
 
-Each press makes another copy. The links above open these notes once they are in your library. Before then, a tap on one makes a new note with that name as its heading, which is what a link to a missing note does.
+Each of the other four makes a new note and opens it, and makes another copy on every press. The links above open these notes once they are in your library. Before then they are drawn dashed, and a tap on one makes a new, empty note with that name as its heading, which is what a link to a missing note does. So add the example board and the two canvases from About before you follow their links in this book. Added after a tap has made the empty note, the example board leaves you two notes called Launch week.
 
 ## Your first note
 

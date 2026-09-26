@@ -1,10 +1,10 @@
 # Pictures and voice memos
 
-_How a picture gets into a note and where it is kept, the recording behind a spoken note, and the voice memos cut from it._
+_How a picture gets into a note and where it is kept, the recording behind a spoken note, and the voice memos that play from it._
 
 ## Putting a picture in
 
-- **Add image.** Press and hold in a note, or right-click, and choose Add image. On Android it opens the phone's own picker, and in a browser tab a file chooser. The Mac and iPhone apps have no picker of their own yet: there, Add image says this build cannot add pictures, and pasting is the way in.
+- **Add image.** Press and hold in a note, or right-click, and choose Add image. On Android it opens the phone's own picker, and in a browser tab a file chooser. The Mac app has no picker of its own yet, and nor has the iPhone build, which is not released: there, Add image says this build cannot add pictures, and pasting is the way in.
 - **Paste.** Paste a picture with the keyboard, or with Paste in the press-and-hold menu where the menu offers it. Any text that came along in the same paste, such as a web page's address, is dropped: the picture is what was meant.
 - **Drop.** Dropping a picture works on a canvas, where it becomes a card ([[Canvases, cards and lines]]). A note does not take a dropped picture.
 
@@ -48,9 +48,11 @@ A note with no recording has no tape. Its tools have a microphone instead, Talk 
 
 ## Voice memos
 
-Some things are better kept as sound: a tune, a name nobody can spell, somebody else's voice, the way a sentence was said. While recording, say "voice memo" on its own (or "audio note", or "leave a voice clip"), then say what you want kept. It is not written down. The sound stays on the note's tape, and a clip is written into the note where you said it. End it with "end memo", or with a pause, the same long pause that starts a new paragraph.
+A voice memo is a stretch of a note's tape kept as sound: a tune, a name nobody can spell, somebody else's voice, the way a sentence was said. A memo already in a note plays where it sits.
 
-Said after "bullet point", the clip is a bullet with a player on it. Said mid-sentence, it is a small player in the words. It is written like this:
+In this version the recorder does not make new ones. Saying "voice memo", then talking, then "end memo" writes all of those words into the note like any others, and no clip is kept, though the tips in a pause still suggest it ([[Saying the marks]], and [[Where the docs and the code disagree]]).
+
+A clip on a bullet line is a bullet with a player on it. In the middle of a sentence it is a small player in the words. It is written like this:
 
 ```
 ![voice 0:12](tape:12000-24000@…)
