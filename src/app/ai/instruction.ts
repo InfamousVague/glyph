@@ -1,5 +1,8 @@
+import { isBookBody } from '../book/book.ts';
 import { findKeyword, findMisheard, isStandaloneCommandLike, LEAD_INS, onlyFiller, type Plan } from '../capture/command.ts';
 import { classifyFinalTranscript } from '../capture/finalInstruction.ts';
+import { misheardShape } from '../capture/liveCommand.ts';
+import { FIND, findNote } from '../capture/noteFind.ts';
 import type { Candidate } from '../capture/route.ts';
 import type { RunKind } from './kinds.ts';
 
@@ -43,24 +46,31 @@ const LEAD = /^\s*(?:(?:hey|hi|ok(?:ay)?|alright|all right|please|can you|could 
 
 /**
  * The words themselves: a keyword at the start and the lead-ins gone. Null when the keyword is inside, not first;
- * filler before it ("Um, hey Ghost") leaves it first, and a mishearing of it ("Hey, like, add…", "Hey goes, add…")
- * counts when a command follows (capture/command.ts `findMisheard`).
+ * filler before it ("Um, hey Ghost") leaves it first. A mishearing of it ("Hey, like, add…", "Hey goes, add…") is taken
+ * off when a command follows (capture/command.ts `findMisheard`), but it is `misheard`, not `keyed`: it may start a
+ * command for a note, which a card asks about, and never makes the words an ask or a run.
  */
-export function bareWords(text: string): { words: string; keyed: boolean } | null {
+export function bareWords(text: string): { words: string; keyed: boolean; misheard: boolean } | null {
   let words = text.trim().replace(/^[\s.,;:!?…"“]+/, '');
   let keyed = false;
+  let misheard = false;
   for (let pass = 0; pass < 3; pass += 1) {
     const before = words;
-    const keyword = findKeyword(words) ?? (keyed ? null : findMisheard(words, (after) => isStandaloneCommandLike(after.replace(LEAD_INS, ''))));
-    if (keyword) {
-      if (!onlyFiller(keyword.before)) return null;
-      words = keyword.after;
-      keyed = true;
+    const keyword = findKeyword(words);
+    const heard = keyword ?? (keyed || misheard ? null : findMisheard(words, (after) => isStandaloneCommandLike(after.replace(LEAD_INS, ''))));
+    if (heard) {
+      if (!onlyFiller(heard.before)) return null;
+      words = heard.after;
+      if (keyword) keyed = true;
+      else misheard = true;
     }
-    words = words.replace(LEAD, '').replace(LEAD_INS, '').trim();
+    words = words.replace(LEAD, '').trim();
+    // After the keyword, what a person says before the command goes too ("like, add…", "I want to add…"); without it,
+    // those are the words ("And carry on tomorrow" is no run).
+    if (keyed || misheard) words = words.replace(LEAD_INS, '').trim();
     if (words === before) break;
   }
-  return { words: words.replace(/[.!?]+$/, '').trim(), keyed };
+  return { words: words.replace(/[.!?]+$/, '').trim(), keyed, misheard };
 }
 
 /** The runs, said in words: each rule is the phrasings that mean one kind and nothing else. */
@@ -83,6 +93,19 @@ export function runOf(words: string): RunKind | null {
 export async function readInstruction<N extends Candidate & { note?: { body: string } }>(text: string, notes: readonly N[]): Promise<Read<N>> {
   const bare = bareWords(text);
   if (!bare || !bare.words) return { kind: 'words' };
+  if (bare.misheard && !bare.keyed) {
+    // "Hey, like, make sure the door is locked" is how people talk: after a mishearing of the keyword only a command
+    // for a note named clearly counts, as it does for the live reader (capture/liveCommand.ts `misheardShape`), which
+    // its card asks about; anything else is the note's words, never a run, an ask or a refusal.
+    const clear = misheardShape(bare.words, (reading) => {
+      const found = findNote(reading.name, notes);
+      return found.status === 'resolved' && found.score >= FIND.clear && !isBookBody(found.note.note?.body ?? '');
+    });
+    if (!clear) return { kind: 'words' };
+    const decision = await classifyFinalTranscript(bare.words, notes);
+    if (decision.kind === 'offer' && (decision.plan.kind === 'place' || decision.plan.kind === 'create-list')) return { kind: 'command', plan: decision.plan };
+    return { kind: 'words' };
+  }
   const run = runOf(bare.words);
   if (run) return { kind: 'run', run };
   const decision = await classifyFinalTranscript(bare.words, notes);

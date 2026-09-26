@@ -1,7 +1,7 @@
 import { lanesOf } from '../core/boards.ts';
 import { frontMatterEnd } from '../core/frontMatter.ts';
 import { listLead } from '../core/itemSyntax.ts';
-import type { Candidate } from './route.ts';
+import { dice, type Candidate } from './route.ts';
 
 /**
  * The note a spoken name means, read by its words: "house to do's", "the house list", "house chores" and "house" are
@@ -41,6 +41,8 @@ export const FIND = {
   within: 0.15,
   /** A title this near a name that matched nothing is offered beside it. */
   near: 0.4,
+  /** A note this sure is the one meant with no keyword said, or after a mishearing of it (liveCommand.ts `misheardShape`). */
+  clear: 0.85,
 } as const;
 
 /** Kind words that name a kind of list: a to-do list and a chore list are both lists of things to do. */
@@ -90,11 +92,18 @@ export function nameWords(text: string): NameWords {
   };
 }
 
-/** The kind a title says a note is: a to-do list, a plain list, or neither. */
+/**
+ * The kind of list a title says a note is, by the word it ends on: a to-do list ("House TODOs", "Chores", "Task list"),
+ * a plain list ("Groceries", "Packing list"), or neither. Only its last word, which is what a title names: "Task
+ * Management" is about tasks, not a list of them.
+ */
 export function titleKind(title: string): 'task' | 'bullet' | null {
-  const words = nameWords(title);
-  if (words.specific.length) return 'task';
-  if (words.generic.some((word) => word === 'list' || word === 'item') || words.distinctive.some((word) => /^(?:grocer(?:y|ie)|shopping)$/.test(word))) return 'bullet';
+  const { words } = nameWords(title);
+  const head = words.at(-1);
+  if (head === undefined) return null;
+  if (SPECIFIC.has(head)) return 'task';
+  if (head === 'list' || head === 'item') return words.slice(0, -1).some((word) => SPECIFIC.has(word)) ? 'task' : 'bullet';
+  if (/^(?:grocer(?:y|ie)|shopping)$/.test(head)) return 'bullet';
   return null;
 }
 
@@ -119,28 +128,6 @@ function joined(words: readonly string[], other: readonly string[]): string[] {
     }
   }
   return out;
-}
-
-function bigrams(text: string): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (let i = 0; i < text.length - 1; i += 1) {
-    const pair = text.slice(i, i + 2);
-    counts.set(pair, (counts.get(pair) ?? 0) + 1);
-  }
-  return counts;
-}
-
-/** Sørensen-Dice over letter pairs. */
-function dice(a: string, b: string): number {
-  const x = bigrams(a);
-  const y = bigrams(b);
-  let total = 0;
-  x.forEach((n) => (total += n));
-  y.forEach((n) => (total += n));
-  if (!total) return a === b ? 1 : 0;
-  let shared = 0;
-  x.forEach((n, pair) => (shared += Math.min(n, y.get(pair) ?? 0)));
-  return (2 * shared) / total;
 }
 
 /** Letter pairs, spaces gone, only between strings of about the same length. */

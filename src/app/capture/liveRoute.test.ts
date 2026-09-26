@@ -193,7 +193,7 @@ describe('a name heard in pieces', () => {
     expect(take.body('house')).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician\n');
   });
 
-  it('does not grow it with words the title only shares a stem with', () => {
+  it('does not grow it with words that add nothing of the title', () => {
     const { take, say, done } = record();
     say('Hey Ghost, add a note to house.');
     say('Household bills are due Friday.');
@@ -282,10 +282,13 @@ describe('names that are not sure', () => {
   it('takes a spoken answer from the card’s own titles', () => {
     const { take, say, done } = record();
     say('Hey Ghost, add call Sam to signing.');
+    const [first, second] = take.card!.candidates.map((c) => c.id);
     say('The second one.');
     done();
     expect(take.card).toBeNull();
-    expect(take.aim?.id).toBe(take.body('s2')?.includes('Call Sam') ? 's2' : 's1');
+    expect(take.aim?.id).toBe(second);
+    expect(take.body(second!)).toContain('Call Sam');
+    expect(take.body(first!)).toBe(library().find((n) => n.id === first)!.body);
   });
 
   it('keeps a missing name’s words here, and offers a card when a note noun was said', () => {
@@ -433,5 +436,259 @@ describe('Not this note, a to-do for here, and a new note', () => {
     const { take, say } = record();
     say('Hey Ghost, new note.');
     expect(lastChip(take)).toEqual({ phase: 'said', text: 'This is a new note already.' });
+  });
+});
+
+describe('what a card holds', () => {
+  const hello = (): MemoryNote[] => [
+    ...library(),
+    { id: 'b1', body: bookNoteBody('HelloTrade: The Book', ['Intro']) },
+    { id: 'b2', body: bookNoteBody('HelloTrade — The Book', ['From tap to fill']) },
+    { id: 'p', body: '# HelloTrade Frontend\n' },
+  ];
+
+  it('never offers a book, and a book chosen anyway keeps the words here', () => {
+    const { take, say, done } = record({ notes: hello() });
+    say('Hey Ghost, add a note to hello trade, chapter two needs work.');
+    expect(take.card?.candidates.map((c) => c.id)).toEqual(['p']);
+    take.answer({ kind: 'note', id: 'b1' });
+    done();
+    expect(take.body('b1')).toBe(bookNoteBody('HelloTrade: The Book', ['Intro']));
+    expect(take.chips).toContainEqual({ phase: 'said', text: '“HelloTrade: The Book” is a book, so the words stay here.' });
+    expect(take.result().made).toEqual(['# Chapter two needs work']);
+  });
+
+  it('keeps the words here when every title it could offer is a book', () => {
+    const { take, say, done } = record({ notes: hello() });
+    say('Hey Ghost, add a note to hello trade the book, check the glossary.');
+    expect(take.card).toBeNull();
+    done();
+    expect(take.result().made).toEqual(['# Check the glossary']);
+  });
+
+  it('puts its words in the order they were said, after a tap or its own default', () => {
+    const tapped = record();
+    tapped.say('Hey Ghost, add a note to signing.');
+    tapped.say('Check the form.');
+    tapped.say('And the date.');
+    tapped.take.answer({ kind: 'note', id: 's2' });
+    tapped.done();
+    expect(tapped.take.body('s2')).toBe('# Signing the order\n\nCheck the form. And the date.');
+
+    const kept = record();
+    kept.say('Kevin owns the release.');
+    kept.say('Hey Ghost, add call Jo to signing.');
+    kept.say('The budget review is Friday.');
+    kept.done();
+    expect(kept.take.result().made).toEqual(['# Kevin owns the release\n\nCall Jo. The budget review is Friday.']);
+  });
+
+  it('keeps every word of a long name that matched nothing on Keep here', () => {
+    const one = record();
+    one.say('Hey Ghost, add a note to moon base pack sunscreen and the tent.');
+    expect(one.take.card).toMatchObject({ form: 'missing' });
+    one.done();
+    expect(one.take.result().made).toEqual(['Moon base pack sunscreen and the tent.']);
+
+    const two = record();
+    two.say('Hey Ghost, add a paragraph to Groceries that says we are out of bread.');
+    two.done();
+    expect(two.take.body('groceries')).toBe('# Groceries\n\n- Eggs\n\nWe are out of bread.');
+  });
+
+  it('takes its default when another card comes up, so neither loses its words', () => {
+    const { take, say, done } = record();
+    say('Kevin owns the release.');
+    say('Hey Ghost, add call Jo to signing.');
+    say('Hey Ghost, add a note to the moon base, pack the tent.');
+    expect(take.card).toMatchObject({ form: 'missing' });
+    done();
+    expect(take.result().made).toEqual(['# Kevin owns the release\n\nCall Jo. Pack the tent.']);
+  });
+});
+
+describe('a mishearing of the keyword', () => {
+  const talk = (): MemoryNote[] => [...library(), { id: 'post', body: "# It's post\n" }, { id: 'questions', body: '# Questions\n' }, { id: 'fold', body: '# Galaxy Fold\n' }];
+
+  it.each([
+    'Hey, like, put the parcel in the post.',
+    'Okay, like, add some salt to the questions.',
+    'OK like move this to the Galaxy Fold.',
+    'Hey, like, I need to call my mum.',
+    'Okay, like, I have to get this finished by Friday.',
+    'Hey, go add some colour to the living room walls, it would look nice.',
+    'Hey, like, new note.',
+  ])('is how people talk, not a command: %s', (said) => {
+    const { take, say, done } = record({ notes: talk() });
+    say(said);
+    say('Then I went home.');
+    done();
+    expect(take.live.engaged).toBe(false);
+    expect(take.aim).toBeNull();
+    expect(take.result().made).toHaveLength(1);
+    expect(take.result().made[0]).toContain('Then I went home.');
+  });
+
+  it('is words on a note’s own Speak, never a to-do made of them', () => {
+    const daily = library().find((n) => n.id === 'daily')!;
+    const { take, say, done } = record({ own: daily });
+    say('Okay, like, I have to say it was a great run.');
+    done();
+    expect(take.body('daily')).toBe('# Daily Life\n\nWent for a walk.\n\nOkay, like, I have to say it was a great run.');
+  });
+
+  it('is the keyword before a command for a note named clearly', () => {
+    const { take, say, done } = record();
+    say('Hey, like, add call an electrician to house to-dos.');
+    done();
+    expect(take.body('house')).toContain('- [ ] Call an electrician\n');
+  });
+});
+
+describe('one command after another', () => {
+  it('carries out a second command said while the first waits for its name', () => {
+    const { take, say, done } = record();
+    say('Kevin owns the release.');
+    say('Hey Ghost, add to signing.');
+    say('Hey Ghost, add milk to groceries.');
+    done();
+    expect(take.body('groceries')).toBe('# Groceries\n\n- Eggs\n- Milk\n');
+    expect(take.result().made).toEqual(['# Kevin owns the release']);
+  });
+
+  it('sends what is said next to the note the second command named', () => {
+    const { take, say, done } = record();
+    say("Hey Ghost, add a note to house to do's.");
+    say('Hey Ghost, add a note to daily life.');
+    say('Went for a run.');
+    done();
+    expect(take.body('house')).toBe(HOUSE);
+    expect(take.body('daily')).toBe('# Daily Life\n\nWent for a walk.\n\nWent for a run.');
+  });
+
+  it('takes a keyworded ask the take opened with out of its words once the reader has done something', () => {
+    const one = record();
+    one.say('Hey Ghost, fix the spelling.');
+    one.say('Buy milk.');
+    one.say('Hey Ghost, add call Sam to House TODOs.');
+    one.done();
+    expect(one.take.asks).toEqual([{ run: 'fix', instruction: 'fix the spelling' }]);
+    expect(one.take.result().made).toEqual(['# Buy milk']);
+    expect(one.take.body('house')).toContain('- [ ] Call Sam\n');
+
+    const two = record();
+    two.say('Hey Ghost, make a list called packing.');
+    two.say('Tent.');
+    two.say('Hey Ghost, remind me to book the MOT.');
+    two.done();
+    expect(two.take.asks).toEqual([{ run: null, instruction: 'make a list called packing' }]);
+    expect(two.take.result().made).toEqual(['# Tent\n\n- [ ] Book the MOT']);
+  });
+});
+
+describe('the guards', () => {
+  it('with the setting off, routes only a name that is clear and a note that says it holds a list', () => {
+    const notes = [...library(), { id: 'hg', body: '# House and garden jobs\n\n- [ ] Mow\n' }, { id: 'trip', body: '# Weekend trip\n\nCabin.\n' }];
+    const weak = record({ keywordOn: false, notes });
+    weak.say('Add a note to garden, trim the hedge.');
+    weak.done();
+    expect(weak.take.live.engaged).toBe(false);
+    expect(weak.take.body('hg')).toBe('# House and garden jobs\n\n- [ ] Mow\n');
+
+    const plain = record({ keywordOn: false, notes });
+    plain.say('Add a note to weekend trip, book the ferry.');
+    plain.done();
+    expect(plain.take.live.engaged).toBe(false);
+    expect(plain.take.body('trip')).toBe('# Weekend trip\n\nCabin.\n');
+  });
+
+  it('never sends a name declined in this take to that note again', () => {
+    const { take, say, done, now } = record();
+    say("Hey Ghost, add a note to house to do's. Call Sam.");
+    take.decline(now());
+    say('Carry on.');
+    say("Hey Ghost, add a note to house to do's. Buy fuses.");
+    done();
+    expect(take.body('house')).toBe(HOUSE);
+  });
+
+  it('waits one phrase for an unsure name at the end of a phrase before its card, and grows it', () => {
+    const { take, say, done } = record();
+    say('Hey Ghost, add a note to signing');
+    expect(take.card).toBeNull();
+    say('the order. Check the form.');
+    done();
+    expect(take.chips).toContainEqual({ phase: 'hearing', name: 'signing', guess: null, lead: 'Add to' });
+    expect(take.aim?.id).toBe('s2');
+    expect(take.body('s2')).toBe('# Signing the order\n\nCheck the form.');
+  });
+
+  it('grows a name only within its window on the recording', () => {
+    const soon = record();
+    soon.say('Hey Ghost, add a note to house.', 1000);
+    soon.say('To-dos. Call an electrician.');
+    soon.done();
+    expect(soon.take.body('house')).toContain('- [ ] Call an electrician\n');
+
+    const late = record();
+    late.say('Hey Ghost, add a note to house.', 4000);
+    late.say('To-dos. Call an electrician.');
+    late.done();
+    expect(late.take.body('house')).toContain('- [ ] To-dos\n');
+  });
+
+  it('holds a command for its name for three phrases at most', () => {
+    const { take, say } = record();
+    say('Hey Ghost.');
+    say('Add a note to.');
+    expect(take.live.holding).toBe(true);
+    expect(take.card).toBeNull();
+    say('The.');
+    expect(take.live.holding).toBe(false);
+    expect(take.segments.map((segment) => segment.text)).toEqual(['Add a note to.', 'The.']);
+    expect(lastChip(take)).toEqual({ phase: 'said', text: 'No note was named, so the words stay here.' });
+  });
+
+  it('leaves out how a one-shot’s words were introduced', () => {
+    const { take, say, done } = record();
+    say('Kevin owns the release.');
+    say('Hey Ghost, add a note to House TODOs.');
+    say('The note is call Sam.');
+    done();
+    expect(take.body('house')).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+  });
+
+  it('marks what a one-shot took, so the better words leave it out of the take', () => {
+    const { take, say, done } = record();
+    say('Kevin owns the release.');
+    say('Hey Ghost, add to House TODOs.');
+    say('Call the electrician.');
+    say('Buy fuses.');
+    done();
+    expect(take.commandSpans).toEqual([
+      { startMs: 1000, endMs: 1900 },
+      { startMs: 2000, endMs: 2900 },
+      { startMs: 3000, endMs: 3900 },
+    ]);
+  });
+
+  it('marks the phrase a payload was read from, as well as the command', () => {
+    const { take, say, done } = record();
+    say("Hey Ghost, add a note to house to do's.");
+    say('The note is call Sam.');
+    done();
+    expect(take.commandSpans).toEqual([
+      { startMs: 0, endMs: 900 },
+      { startMs: 1000, endMs: 1900 },
+    ]);
+  });
+
+  it('refuses a one-shot’s Not this note once the recording has ended', () => {
+    const { take, say, done } = record();
+    say('Kevin owns the release.');
+    say('Hey Ghost, add call Sam to House TODOs.');
+    done();
+    const [id] = [...take.inserts.keys()];
+    expect(take.live.dropInsert(id!)).toEqual([]);
   });
 });

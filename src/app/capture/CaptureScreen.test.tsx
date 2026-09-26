@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createNote, getNote, listNotes, noteTitle, setNoteRecording, updateNote } from '../core/store.ts';
+import { setPreferences } from '../core/preferences.ts';
 import { stubResizeObserver } from '../../test/stubs.ts';
 import { bookNoteBody } from '../book/book.ts';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
@@ -25,7 +26,20 @@ const capture = vi.hoisted(() => ({
   reassigned: [] as [string, string, boolean][],
   /** The better words' jobs asked for at Done (refine.ts `enqueueRefine`). */
   refines: [] as Omit<RefineJob, 'tries'>[],
+  /** Held, the notes a command can name are not read until it is let go (core/store.ts `listNotes`). */
+  notesHeld: null as Promise<void> | null,
 }));
+
+vi.mock('../core/store.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../core/store.ts')>();
+  return {
+    ...actual,
+    listNotes: vi.fn(async (...args: Parameters<typeof actual.listNotes>) => {
+      if (capture.notesHeld) await capture.notesHeld;
+      return actual.listNotes(...args);
+    }),
+  };
+});
 
 vi.mock('./engine.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./engine.ts')>();
@@ -54,6 +68,7 @@ beforeEach(() => {
   capture.discarded = [];
   capture.reassigned = [];
   capture.refines = [];
+  capture.notesHeld = null;
   HTMLElement.prototype.scrollTo = () => undefined;
   capture.handlers = null;
   capture.session = {
@@ -563,10 +578,17 @@ describe('adding to a note as it is said', () => {
     await say("Hey Ghost, add a note to house to do's.", 0);
     await screen.findByRole('button', { name: 'Adding to “House TODOs”' });
     expect(screen.getByText(/Say the note for/).textContent).toMatch(/Say the note for House TODOs/);
+    // What is being said for it shows in the chip, not on the page, until it is committed.
+    act(() => capture.handlers!.onPartial('The note is call'));
+    expect(document.body.textContent).toContain('House TODOs: The note is call');
+    expect(page()).not.toContain('The note is call');
     await say('The note is call an electrician to fix the light sockets.', 1500);
     await waitFor(() => expect(page()).toContain('Call an electrician to fix the light sockets'));
-    expect(page()).toContain('Fix the gutter');
     expect(page()).not.toContain('The note is');
+    // Drawn into the list, the line under the gutter, not on the note's end.
+    const lines = [...document.querySelectorAll('.cm-line')].map((line) => line.textContent ?? '');
+    const gutter = lines.findIndex((line) => line.includes('Fix the gutter'));
+    expect(lines[gutter + 1]).toContain('Call an electrician to fix the light sockets');
     // Nothing is stored before Done.
     expect((await getNote('house'))?.body).toBe(HOUSE);
     expect(await listNotes()).toHaveLength(2);
@@ -791,6 +813,17 @@ describe('adding to a note as it is said', () => {
     await waitFor(() => expect(own).toHaveBeenCalledTimes(1));
     expect(own.mock.calls[0]?.[3]).toEqual({ kind: 'fix' });
     expect((await getNote('daily'))?.body).toBe('# Daily Life\n\nWent for a walk.\n\nWent for a run.');
+    cleanup();
+
+    await createNote('house', HOUSE);
+    const routed = await recording();
+    await say("Hey Ghost, add a note to house to do's. Call Sam.", 0);
+    await say('Hey Ghost, fix the spelling.', 1000);
+    await screen.findByText("That can't run in the middle of a recording, so it was left out.");
+    done();
+    await waitFor(() => expect(routed).toHaveBeenCalledTimes(1));
+    expect(routed.mock.calls[0]?.[3]).toBeUndefined();
+    expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
   });
 
   it('keeps the sound with the note switched to, on its tape, and hands the better words where the words went', async () => {
@@ -812,7 +845,11 @@ describe('adding to a note as it is said', () => {
       baseBody: HOUSE,
       savedBody: '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n',
       titled: false,
-      skip: [{ startMs: 0, endMs: 900 }],
+      // The command, and the phrase its words were read from: the better words put the live words there.
+      skip: [
+        { startMs: 0, endMs: 900 },
+        { startMs: 1500, endMs: 2400 },
+      ],
       placing: { kind: 'lists', task: true },
       live: [{ text: 'Call Sam.', startMs: 1500, endMs: 2400 }],
     });
@@ -829,5 +866,251 @@ describe('adding to a note as it is said', () => {
     await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
     expect((await getNote('canvas'))?.body).toBe(canvasNoteBody('House plans', { nodes: [], edges: [] }));
     expect((await getNote('book'))?.body).toBe(bookNoteBody('Field guide', ['Trees']));
+  });
+  it('runs no review for a take written into a note that was there, and does for a new one', async () => {
+    window.history.replaceState({}, '', '/?review');
+    try {
+      await createNote('house', HOUSE);
+      const routed = await recording();
+      await say("Hey Ghost, add a note to house to do's. Call Sam.", 0);
+      await screen.findByRole('button', { name: 'Adding to “House TODOs”' });
+      done();
+      await waitFor(() => expect(routed).toHaveBeenCalledTimes(1));
+      expect(routed.mock.calls[0]?.[0]).toMatchObject({ id: 'house' });
+      expect(routed.mock.calls[0]?.[2]).toBeUndefined();
+      cleanup();
+
+      const fresh = await recording();
+      await say('Buy milk.', 0);
+      done();
+      await waitFor(() => expect(fresh).toHaveBeenCalledTimes(1));
+      expect(fresh.mock.calls[0]?.[2]).toMatchObject({ noteId: fresh.mock.calls[0]?.[0].id });
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
+  });
+
+  it('keeps words in the order they were said when a card settles after later ones', async () => {
+    await createNote('s1', '# Signing in, and signing');
+    await createNote('s2', '# Signing the order');
+    const onFinish = await recording();
+    await say('Kevin owns the release.', 0);
+    await say('Hey Ghost, add call Jo to signing.', 1000);
+    await screen.findByRole('region', { name: 'Add to which note?' });
+    await say('The budget review is Friday.', 2000);
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(onFinish.mock.calls[0]?.[0].body).toBe('# Kevin owns the release\n\nCall Jo. The budget review is Friday.');
+  });
+
+  it('sends the words said since a card mid-take to the note chosen on it, out of the take', async () => {
+    await createNote('s1', '# Signing in, and signing');
+    await createNote('s2', '# Signing the order');
+    const onFinish = await recording();
+    await say('Kevin owns the release.', 0);
+    await say('Hey Ghost, add a note to signing;', 1000);
+    const card = await screen.findByRole('region', { name: 'Add to which note?' });
+    await say('Check the form.', 2000);
+    fireEvent.click(within(card).getByRole('button', { name: 'Signing the order' }));
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('s2'))?.body).toBe('# Signing the order\n\nCheck the form.');
+    expect(onFinish.mock.calls[0]?.[0].body).toBe('# Kevin owns the release');
+  });
+
+  it('takes a one-shot back into the take on its own Not this note', async () => {
+    await createNote('house', HOUSE);
+    const onFinish = await recording();
+    await say('Kevin owns the release.', 0);
+    await say('Hey Ghost, add call Sam to House TODOs.', 1000);
+    const landing = await screen.findByLabelText('Added to House TODOs');
+    fireEvent.click(within(landing).getByRole('button', { name: 'Not this note' }));
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('house'))?.body).toBe(HOUSE);
+    expect(onFinish.mock.calls[0]?.[0].body).toBe('# Kevin owns the release\n\nCall Sam.');
+  });
+
+  it('reads a phrase said before the notes were read once they are', async () => {
+    await createNote('house', HOUSE);
+    let letGo = () => undefined as void;
+    capture.notesHeld = new Promise<void>((resolve) => (letGo = resolve));
+    const onFinish = await recording();
+    await say("Hey Ghost, add a note to house to do's. Call Sam.", 0);
+    expect(screen.queryByRole('button', { name: 'Adding to “House TODOs”' })).toBeNull();
+    await act(async () => letGo());
+    await screen.findByRole('button', { name: 'Adding to “House TODOs”' });
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+  });
+
+  it('stores nothing on Discard after New note, the part before it included', async () => {
+    await createNote('daily', '# Daily Life\n\nWent for a walk.');
+    const onFinish = await recording({ noteId: 'daily' });
+    await screen.findByRole('button', { name: 'Adding to “Daily Life”' });
+    await say('Went for a run.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'New note' }));
+    await say('Call Sam.', 1000);
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
+    expect((await listNotes()).map((note) => note.body)).toEqual(['# Daily Life\n\nWent for a walk.']);
+  });
+
+  it('never writes a shared note over the lock screen', async () => {
+    (window as { GlyphHost?: unknown }).GlyphHost = { isLocked: () => true, endCapture: () => undefined, setCapturing: () => false };
+    setPreferences({ shares: { house: { id: 'shared-house', key: 'key', sent: '' } } });
+    try {
+      await createNote('house', HOUSE);
+      const onFinish = await recording();
+      await say("Hey Ghost, add a note to house to do's. Call Sam.", 0);
+      await screen.findByText('That note is shared, so the words stay here.');
+      done();
+      await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+      expect((await getNote('house'))?.body).toBe(HOUSE);
+      expect((await listNotes()).map((note) => note.body).sort()).toEqual(['# Call Sam', HOUSE]);
+    } finally {
+      setPreferences({ shares: {} });
+    }
+  });
+
+  it('offers no book on a card, and never writes into one', async () => {
+    await createNote('b1', bookNoteBody('HelloTrade: The Book', ['Intro']));
+    await createNote('b2', bookNoteBody('HelloTrade — The Book', ['From tap to fill']));
+    await createNote('guide', '# HelloTrade: Frontend Developer Guide\n');
+    const onFinish = await recording();
+    await say('Hey Ghost, add a note to hello trade the book, check the glossary.', 0);
+    await screen.findByText('“HelloTrade — The Book” is a book, so the words stay here.');
+    expect(screen.queryByRole('region', { name: 'Add to which note?' })).toBeNull();
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('b1'))?.body).toBe(bookNoteBody('HelloTrade: The Book', ['Intro']));
+    expect((await getNote('b2'))?.body).toBe(bookNoteBody('HelloTrade — The Book', ['From tap to fill']));
+    expect(onFinish.mock.calls[0]?.[0].body).toBe('# Check the glossary');
+  });
+
+  it('carries out a second command said while the first waits for its name', async () => {
+    await createNote('s1', '# Signing in, and signing');
+    await createNote('s2', '# Signing the order');
+    await createNote('groceries', '# Groceries\n\n- Eggs\n');
+    const onFinish = await recording();
+    await say('Kevin owns the release.', 0);
+    await say('Hey Ghost, add to signing.', 1000);
+    await say('Hey Ghost, add milk to groceries.', 2000);
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('groceries'))?.body).toBe('# Groceries\n\n- Eggs\n- Milk\n');
+    expect(onFinish.mock.calls[0]?.[0].body).toBe('# Kevin owns the release');
+  });
+
+  it('keeps how people talk as words, where a mishearing of the keyword starts it', async () => {
+    await createNote('post', "# It's post");
+    await createNote('daily', '# Daily Life\n\nWent for a walk.');
+    const fresh = await recording();
+    await say('Hey, like, put the parcel in the post.', 0);
+    await say('Then I went home.', 1000);
+    done();
+    await waitFor(() => expect(fresh).toHaveBeenCalledTimes(1));
+    expect((await getNote('post'))?.body).toBe("# It's post");
+    expect(fresh.mock.calls[0]?.[0].body).toBe('Hey, like, put the parcel in the post. Then I went home.');
+    cleanup();
+
+    const own = await recording({ noteId: 'daily' });
+    await screen.findByRole('button', { name: 'Adding to “Daily Life”' });
+    await say('Okay, like, make sure the door is locked.', 0);
+    done();
+    await waitFor(() => expect(own).toHaveBeenCalledTimes(1));
+    expect(own.mock.calls[0]?.[3]).toBeUndefined();
+    expect((await getNote('daily'))?.body).toBe('# Daily Life\n\nWent for a walk.\n\nOkay, like, make sure the door is locked.');
+  });
+
+  it('queues a keyworded ask the take opened with once a later command is carried out, and never saves it as words', async () => {
+    await createNote('house', HOUSE);
+    const onFinish = await recording();
+    await say('Hey Ghost, fix the spelling.', 0);
+    await say('Buy milk.', 1000);
+    await say('Hey Ghost, add call Sam to House TODOs.', 2000);
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+    const [saved, , , ask] = onFinish.mock.calls[0]!;
+    expect(saved.body).toBe('# Buy milk');
+    expect(ask).toEqual({ kind: 'fix' });
+  });
+
+  it('writes what is said after a second command into the note it named, not the first', async () => {
+    await createNote('house', HOUSE);
+    await createNote('daily', '# Daily Life\n\nWent for a walk.');
+    const onFinish = await recording();
+    await say("Hey Ghost, add a note to house to do's.", 0);
+    await say('Hey Ghost, add a note to daily life.', 1000);
+    await say('Went for a run.', 2000);
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('house'))?.body).toBe(HOUSE);
+    expect((await getNote('daily'))?.body).toBe('# Daily Life\n\nWent for a walk.\n\nWent for a run.');
+  });
+
+  it('keeps every word of a name that matched nothing on Keep here', async () => {
+    const onFinish = await recording();
+    await say('Hey Ghost, add a note to moon base pack sunscreen and the tent.', 0);
+    await screen.findByRole('region', { name: /^No note called/ });
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(onFinish.mock.calls[0]?.[0].body).toBe('Moon base pack sunscreen and the tent.');
+  });
+
+  it('hands the better words a card’s new note under its title', async () => {
+    capture.session!.keepsAudio = true;
+    capture.session!.stop = async () => ({ recordedMs: 3000, transcript: null });
+    const onFinish = await recording();
+    await say('Hey Ghost, add a note to the moon base.', 0);
+    const card = await screen.findByRole('region', { name: 'No note called “moon base”' });
+    fireEvent.click(within(card).getByRole('button', { name: 'New note “Moon base”' }));
+    await say('Call Sam.', 1000);
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(capture.refines[0]).toMatchObject({ baseBody: 'Moon base', savedBody: 'Moon base\n\nCall Sam.', titled: false });
+  });
+
+  it('keeps the better words of the take’s own note when a one-shot from it is undone', async () => {
+    await createNote('house', HOUSE);
+    capture.session!.keepsAudio = true;
+    capture.session!.stop = async () => ({ recordedMs: 3000, transcript: null });
+    const onFinish = await recording();
+    await say('Kevin owns the release.', 0);
+    await say('Hey Ghost, add call Sam to House TODOs.', 1000);
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    const landing = onFinish.mock.calls[0]?.[4];
+    expect(landing).toMatchObject({ blocks: [], others: [expect.any(String)] });
+    expect(landing?.fromMs).toBeUndefined();
+  });
+
+  it('says why nothing was added to a note named with nothing said for it, long enough to be read', async () => {
+    await createNote('house', HOUSE);
+    const onFinish = await recording();
+    await say("Hey Ghost, add a note to house to do's.", 0);
+    done();
+    await screen.findByText('Nothing was said for House TODOs, so nothing was added.');
+    expect(onFinish).not.toHaveBeenCalled();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false), { timeout: 3000 });
+    expect((await getNote('house'))?.body).toBe(HOUSE);
+  });
+  it('reads only what was said after New note at Done, and writes what came before it first', async () => {
+    await createNote('daily', '# Daily Life\n\nWent for a walk.');
+    await createNote('groceries', '# Groceries\n\n- Eggs\n');
+    const onFinish = await recording({ noteId: 'daily' });
+    await screen.findByRole('button', { name: 'Adding to “Daily Life”' });
+    await say('Kevin owns the release on Friday.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'New note' }));
+    await say('Add oat milk to groceries.', 1000);
+    done();
+    const card = await screen.findByRole('region', { name: 'Add to Groceries' });
+    expect(card.textContent).not.toMatch(/Kevin/);
+    expect((await getNote('daily'))?.body).toBe('# Daily Life\n\nWent for a walk.\n\nKevin owns the release on Friday.');
+    fireEvent.click(card.querySelector('button.app-pill')!);
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('groceries'))?.body).toBe('# Groceries\n\n- Eggs\n- Oat milk\n');
   });
 });

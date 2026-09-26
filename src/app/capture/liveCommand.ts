@@ -1,4 +1,5 @@
-import { findKeyword, findMisheard, LEAD_INS, onlyFiller, PAYLOAD_LEAD } from './command.ts';
+import { findKeyword, findMisheard, LEAD_INS, onlyFiller, withoutPayloadLead } from './command.ts';
+import { nameWords } from './noteFind.ts';
 
 /**
  * Hearing a command in one committed phrase, as it is said: the keyword, and the shapes of "words for a note you name".
@@ -62,7 +63,7 @@ export function withoutFinalStop(text: string): string {
 
 /** What introduced a payload ("The note is …"), taken off it. */
 export function payloadOf(text: string): string {
-  return text.replace(PAYLOAD_LEAD, '').trim();
+  return withoutPayloadLead(text).trim();
 }
 
 // ---- the readings ------------------------------------------------------------------------------
@@ -76,8 +77,13 @@ export interface Reading {
   payload: string;
   /** Words after the command that are the take's own again: what follows a full stop after a shape-4 name. */
   trailing: string;
-  /** What the noun said: a to-do, an item, or a note left where it fits. */
-  placing: 'task' | 'item' | 'leave';
+  /**
+   * Everything said after the verb (and a noun and preposition before the name), as said: what a name that finds no
+   * note gives back when the grammar cannot tell where it ends (liveRoute.ts `keptWords`).
+   */
+  tail: string;
+  /** What the noun said: a to-do, an item, a paragraph, or a note left where it fits. */
+  placing: 'task' | 'item' | 'paragraph' | 'leave';
   /** "…under Kitchen in Home jobs": the heading whose list the words go in. */
   heading: string | null;
   /** "Move this to …": the take goes there. */
@@ -155,7 +161,12 @@ export function nameable(name: string): 'name' | 'verb' | 'not' {
 
 /** A reading, with the fields a shape leaves alone. */
 function reading(shape: Reading['shape'], name: string, over: Partial<Reading> = {}): Reading {
-  return { shape, name: name.trim(), payload: '', trailing: '', placing: 'leave', heading: null, move: false, nameFirst: false, newNote: false, self: false, stopped: false, noun: false, split: false, verb: false, ...over };
+  return { shape, name: name.trim(), payload: '', trailing: '', tail: '', placing: 'leave', heading: null, move: false, nameFirst: false, newNote: false, self: false, stopped: false, noun: false, split: false, verb: false, ...over };
+}
+
+/** A reading for a name alone, with nothing said for it: "Not this note" offering the others for that name. */
+export function namedAs(name: string): Reading {
+  return reading(3, name);
 }
 
 function placingOf(noun: string): Reading['placing'] {
@@ -180,6 +191,8 @@ function namesIn(tail: string): { name: string; payload: string; stopped: boolea
 /** "a list item", "a task", "a note that says" at the front of what is added: the kind of thing, not the thing. */
 const THING_NOUN = new RegExp(String.raw`^${NOUN_OPEN}(${NOUN})(?:\s+(?:about|that\s+says|saying|which\s+says|called|:|,))?\s+`, 'i');
 const BARE_THING = /^(?:this|that|it|everything|these|those|them)$/i;
+/** "Add a paragraph to Groceries that says…": the kind of words, which go on the note's end, not the words. */
+const PARAGRAPH = /^(?:(?:a|an|another|one\s+more|new)\s+)?(?:(?:new|short|quick|little)\s+)?paragraph$/i;
 
 /**
  * Every reading of a command's words (the keyword and the lead-ins already gone, `commandWords`). Empty when the words
@@ -202,7 +215,7 @@ export function readRoute(text: string): Reading[] {
       if (kind === 'not') continue;
       // "Make a note to call the electrician": a thing to do, for the note being written to, unless a note is plainly called that.
       if (kind === 'verb' && shape === 1 && !found.split) out.push(reading('S', '', { self: true, payload: [found.name, found.payload].filter(Boolean).join(', '), placing: 'task', noun: true }));
-      out.push(reading(shape, found.name, { ...over, payload: found.payload, stopped: found.stopped, split: found.split, verb: kind === 'verb' }));
+      out.push(reading(shape, found.name, { ...over, payload: found.payload, tail: tail.trim(), stopped: found.stopped, split: found.split, verb: kind === 'verb' }));
     }
   };
 
@@ -217,7 +230,7 @@ export function readRoute(text: string): Reading[] {
     const thing = eight[1] ?? '';
     for (const found of namesIn(eight[3])) {
       if (found.split || nameable(found.name) !== 'name') continue;
-      out.push(reading(8, found.name, { heading: eight[2].trim(), payload: BARE_THING.test(thing) ? found.payload : [thing, found.payload].filter(Boolean).join(', '), stopped: found.stopped }));
+      out.push(reading(8, found.name, { heading: eight[2].trim(), payload: BARE_THING.test(thing) ? found.payload : [thing, found.payload].filter(Boolean).join(', '), tail: words.replace(SHAPE_4_VERB, ''), stopped: found.stopped }));
     }
   }
   const five = SHAPE_5.exec(words);
@@ -231,10 +244,12 @@ export function readRoute(text: string): Reading[] {
       const tail = after.slice((split.index ?? 0) + split[0].length).replace(/^(?:(?:the|my|our)\s+)/i, '');
       if (!thing || !tail) continue;
       const noun = THING_NOUN.exec(`${thing} `);
-      const said = noun ? `${thing} `.slice(noun[0].length).trim() : thing;
-      const placing = noun?.[1] ? placingOf(noun[1]) : 'leave';
-      // The name runs to a stop, where the take's words begin again, or to a comma or colon, where more of the thing is.
-      const stop = /^([^.,;:]+?)\s*(?:\.\s+(.+)|[,;:]\s*(.+))$/.exec(tail);
+      const paragraph = PARAGRAPH.test(thing);
+      const said = paragraph ? '' : noun ? `${thing} `.slice(noun[0].length).trim() : thing;
+      const placing = paragraph ? 'paragraph' : noun?.[1] ? placingOf(noun[1]) : 'leave';
+      // The name runs to a stop, where the take's words begin again, or to a comma, a colon or "that says", where more
+      // of the thing is.
+      const stop = /^([^.,;:]+?)\s*(?:\.\s+(.+)|(?:[,;:]|\s(?:that\s+says|which\s+says|that\s+reads|saying|to\s+say)\s)\s*(.+))$/.exec(tail);
       const name = stop ? stop[1]! : tail;
       const kind = nameable(name);
       if (kind === 'not') continue;
@@ -243,6 +258,7 @@ export function readRoute(text: string): Reading[] {
         reading(4, name, {
           payload: stop?.[3] ? [payload, stop[3]].filter(Boolean).join(', ') : payload,
           trailing: stop?.[2]?.trim() ?? '',
+          tail: after,
           placing,
           noun: Boolean(noun),
           stopped: Boolean(stop),
@@ -259,6 +275,23 @@ export function readRoute(text: string): Reading[] {
     }
   }
   return out;
+}
+
+/**
+ * Whether a command's words after a mishearing of the keyword ("Hey, like, …", "Hey goes …") are a command for a note
+ * by their shape: a note or an item said for it ("add a note to house to-dos"), a name that says what kind of note it
+ * is ("add call Sam to house to-dos"), "add this to …" with its words after a separator, a heading of a note, or "move
+ * this to …"; and `clear` says the name is a note named clearly. Never a to-do for here, "new note" or a plain "put the
+ * parcel in the post": those are how people talk, and "Hey, like, I need to call my mum" is words. Both readers ask
+ * this (liveRoute.ts, ai/instruction.ts), so a mishearing means the same to each.
+ */
+export function misheardShape(words: string, clear: (reading: Reading) => boolean): boolean {
+  return readRoute(words).some((r) => {
+    if (r.self || r.newNote || r.verb) return false;
+    const kind = nameWords(r.name);
+    const shaped = (r.noun && (r.shape === 1 || r.shape === 2)) || (r.shape === 3 && r.stopped) || r.shape === 5 || r.shape === 8 || (r.shape === 4 && kind.specific.length + kind.generic.length > 0);
+    return shaped && clear(r);
+  });
 }
 
 /** "For Groceries, eggs", "on the work list, add call Sam", "House TODOs: call Sam": the name said first. After the keyword only. */

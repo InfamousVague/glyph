@@ -1,6 +1,20 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { createNote, getNote, type Note } from '../core/store.ts';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createNote, deleteNote, getNote, listNotes, setNoteRecording, updateNote, type Note } from '../core/store.ts';
+import { placingFor } from './place.ts';
 import { TakeWriter, type NamedNote } from './takeWriter.ts';
+
+/** What happens to a note between `writeInto`'s read of it and its guarded write: someone typing, a sync, a delete. */
+const meanwhile = vi.hoisted(() => [] as (() => Promise<unknown>)[]);
+vi.mock('../core/store.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../core/store.ts')>();
+  return {
+    ...actual,
+    applyCommandMutation: async (request: Parameters<typeof actual.applyCommandMutation>[0]) => {
+      await meanwhile.shift()?.();
+      return actual.applyCommandMutation(request);
+    },
+  };
+});
 
 /**
  * The recorder's writes (capture/takeWriter.ts), against the page's own note store - its browser half, which jsdom's
@@ -19,7 +33,10 @@ function writerFor(words: () => string, candidates: NamedNote[] = []) {
   return { writer, shown };
 }
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  meanwhile.length = 0;
+});
 
 describe('a recording added to a note', () => {
   it('writes its words once under the note’s own text, however many drafts race', async () => {
@@ -159,3 +176,57 @@ describe('the chain', () => {
     expect(order).toEqual(['first', 'second']);
   });
 });
+
+describe('words written into a note a command named, once, at Done', () => {
+  const HOUSE = '# House TODOs\n\n- [ ] Fix the gutter\n';
+  const edit = (body: string) => async () => {
+    const now = await getNote('house');
+    await updateNote('house', body, now!.revision ?? 1);
+  };
+
+  it('goes onto the note as it is when written, and reads it again when it changed between the read and the write', async () => {
+    await createNote('house', HOUSE);
+    meanwhile.push(edit(`${HOUSE}- [ ] Clear the drains\n`));
+    const { writer } = writerFor(() => '');
+    const written = await writer.writeInto({ id: 'house' }, 'Call Sam.', placingFor(HOUSE), () => '# Call Sam');
+    expect(written).toMatchObject({ own: false, blocks: ['- [ ] Call Sam'], mutationId: expect.any(String) });
+    expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Clear the drains\n- [ ] Call Sam\n');
+  });
+
+  it('makes the words a note of their own when it changed twice, leaving both changes as they were', async () => {
+    await createNote('house', HOUSE);
+    meanwhile.push(edit(`${HOUSE}- [ ] One\n`), edit(`${HOUSE}- [ ] One\n- [ ] Two\n`));
+    const { writer } = writerFor(() => '');
+    const written = await writer.writeInto({ id: 'house' }, 'Call Sam.', placingFor(HOUSE), () => '# Call Sam');
+    expect(written).toMatchObject({ own: true, mutationId: null, saved: { body: '# Call Sam' } });
+    expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] One\n- [ ] Two\n');
+  });
+
+  it('makes the words a note of their own when the note was deleted meanwhile', async () => {
+    await createNote('house', HOUSE);
+    meanwhile.push(async () => deleteNote('house'));
+    const { writer } = writerFor(() => '');
+    const written = await writer.writeInto({ id: 'house' }, 'Call Sam.', placingFor(HOUSE), () => '# Call Sam');
+    expect(written.own).toBe(true);
+    expect((await listNotes()).map((note) => note.body)).toEqual(['# Call Sam']);
+  });
+
+  it('reads a note switched to again in the background, and keeps it only while the take is still aimed there', async () => {
+    const full = await createNote('house', HOUSE);
+    const other = await createNote('other', '# Other');
+    const candidate = { ...full, recordingMs: undefined, segments: undefined } as Note;
+    const { writer } = writerFor(() => '');
+    await setNoteRecording(full.id, 4000, [{ text: 'Fix the gutter.', startMs: 0, endMs: 900 }]);
+    writer.aim(candidate, placingFor(HOUSE), { routed: true });
+    writer.refresh('house');
+    await writer.refreshed();
+    expect(writer.target).toMatchObject({ id: 'house', recordingMs: 4000 });
+
+    writer.aim(candidate, placingFor(HOUSE), { routed: true });
+    writer.refresh('house');
+    writer.aim(other);
+    await writer.refreshed();
+    expect(writer.target?.id).toBe('other');
+  });
+});
+

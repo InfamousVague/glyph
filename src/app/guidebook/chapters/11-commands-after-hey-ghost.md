@@ -18,7 +18,7 @@ The name and the words can come in one breath, with a comma, a colon or a full s
 
 “Hey Ghost” opens a command. “Hi Ghost”, “OK Ghost” and “So Ghost” work too. “Ghost” on its own does not, because a note may begin “Ghost stories…”. The old word still works: “Glyph”, alone or after hey, hi, OK or so.
 
-Whisper sometimes writes the keyword as words of their own: “Hey, like, add…” (Glyph heard as “like”), “Hey goes add…” (Ghost). These count too, but only at the very start of a phrase and only when a command for a note follows, so “Hey, like, the weather” stays words. Filler before the keyword is fine: “Um, hey Ghost, add…”. So are lead-ins after it: “like”, “can you”, “I want to”, “let's”.
+Whisper sometimes writes the keyword as words of their own: “Hey, like, add…” (Glyph heard as “like”), “Hey goes add…” (Ghost). These count too, but only at the very start of a phrase, and only before a command for a note named clearly: “Hey, like, add a note to house to-dos, …”. So “Hey, like, the weather”, “Hey, like, put the parcel in the post” and “Hey, like, I need to call my mum” stay words, and “Okay, like” and “Hey, go” are never the keyword. Filler before the keyword is fine: “Um, hey Ghost, add…”. So are lead-ins after it: “like”, “can you”, “I want to”, “let's”.
 
 Words before the keyword in the same phrase are yours: “Kevin owns the release, hey Ghost, add call Sam to Work” keeps “Kevin owns the release.” in the note.
 
@@ -34,16 +34,17 @@ A name is found by its words, not its spelling. The words that say which note (�
 | A name that matches none, said with “a note” or near a title | A card: **No note called “…”**, with the near titles and **New note “…”** |
 | A name that matches none | The words stay where you are: “No note called “the moon base”, so the words stay here.” |
 
-A card never holds you up. Keep talking: what you say goes on the page. Tap a note, or say its title, “the first one”, “keep it here” or “new note”. After eight seconds, or when you tap Done, it keeps the words where you are.
+A card never holds you up. Keep talking: what you say goes on the page. Tap a note, or say its title, “the first one”, “keep it here” or “new note”. After eight seconds, or when you tap Done, it keeps the words where you are, in the order you said them. A long name that matched nothing keeps all of what you said: “add a note to moon base pack sunscreen and the tent” keeps “Moon base pack sunscreen and the tent.” A second command said while a card is up leaves the first card's words here, and is read on its own.
 
-A book is never written into: its name keeps the words where you are, and says why. Over the lock screen no card is shown, the top line says **Adding to the note you named**, and a shared note is never written to.
+A book is never written into, and no card offers one: its name keeps the words where you are, and says why. Over the lock screen no card is shown, the top line says **Adding to the note you named**, and a shared note is never written to.
 
 ## Where the words go
 
 Into the note's list, when it has one:
 
 - **The list that fits.** Each sentence you say is an item. In a note with several lists, it goes under the heading that shares its words: “call an electrician” goes under **Electrical**, not under **Kitchen** for sharing “fix”. The chip says where: “Now on Home jobs · under Electrical”.
-- **A to-do list for a to-do**, when you said “a to-do”, “a task” or “a reminder”, or the title says to-dos.
+- **A to-do list for a to-do**, when you said “a to-do”, “a task” or “a reminder”, or the title ends in one (House TODOs, Chores, Task list; not Task Management, which is about tasks).
+- **A paragraph**, asked for as one: “add a paragraph to Groceries that says we are out of bread” goes at the end.
 - **In the list's own style.** A numbered list gets the next numbers, a to-do list boxes, a `*` list `*`.
 - **A sentence that carries on the one before it**, starting “because”, “so”, “but” or “which”, goes under that item.
 - **A note with no list yet** starts one when its title says what it holds: House TODOs starts to-dos, Groceries bullets. Otherwise the words go at the end, as a paragraph.

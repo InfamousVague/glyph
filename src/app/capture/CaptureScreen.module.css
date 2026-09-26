@@ -361,6 +361,14 @@
   font-weight: var(--glacier-font-weight-bold);
 }
 
+/* The chip's words, cut with an ellipsis when a title is too long for it (the chip is a flex box, which cannot). */
+.routeText {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .route[data-phase='moved'] {
   border-color: var(--app-ink);
   background: var(--app-ink);

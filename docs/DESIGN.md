@@ -4949,7 +4949,7 @@ last on goes under it. The page, Done and the better words all write with `place
 not for storing:
 
 - Only committed phrases are read, and with "Commands start with hey Ghost" on (the default) only a phrase that opens
-  with the keyword, or a known mishearing of it followed by a command. Partials only draw.
+  with the keyword, or a known mishearing of it before a command for a note named clearly. Partials only draw.
 - At the start of a fresh recording the note named is where the take goes (`route`). Mid-take, or on a note's own
   Speak, "add … to X" sends those words to X and the take carries on (`insert`). "Move this to X" moves the take.
   "Remind me to …" is a to-do here. "New note" starts one.
@@ -4979,8 +4979,8 @@ filler before the keyword and its mishearings, and saves a keyed ask on a fresh 
 chip. A confirmed card opens its note with an Undo; Discard while it waits is its Cancel; its "Or say yes or no" is
 gone.
 
-**Changed on purpose.** A note whose title says it is a list (House TODOs, Groceries) takes what is said on its own
-Speak as items; any other note's own Speak still goes on its end byte for byte. What was said before New note is
+**Changed on purpose.** A note whose title says it is a list, by the word it ends on (House TODOs, Groceries, Task
+list; not Task Management), takes what is said on its own Speak as items; any other note's own Speak still goes on its end byte for byte. What was said before New note is
 written at Done, not at the tap, so Discard takes it back too. The tips teach only what a recording carries out. The
 voice suite plays the live reader; its tests of a spoken no, tables, a plugin, board changes and voice memos are kept
 and skipped with their reasons (docs/VOICE_TESTS.md).
@@ -4992,6 +4992,35 @@ to that rule, so the placement starts after `frontMatterEnd` and no second rule 
 command's words is written as its cue ("Check box: …"), which the renderer lays out as the item, so the tape's
 transcript shows the cue for that stretch. A table, book or board asked for mid-take is queued as an ask.
 
+**Put right in review.** A second look at the built branch, each fix held to a test that fails without it:
+
+- *The better words.* Every phrase the live reader changed or sent elsewhere is marked for them (a payload read after
+  a switch, a one-shot's phrases, the words a card moved), so the larger model's phrase there is replaced by the live
+  one, or by nothing: "The note is" no longer comes back into House TODOs, "milk, butter and bread" stays three items,
+  and a one-shot's items are not written into the take's own note too. A card's new note keeps its title under them.
+- *Mishearings.* "Okay, like", "hey, go", "hey, most" and "hey, post" are no longer the keyword, and a mishearing counts
+  only before a command for a note named clearly, by its shape (a note or item said, a name with a kind word, "add
+  this to X, …", a heading, "move this to"): "Hey, like, put the parcel in the post" and "Hey, like, I need to call my
+  mum" are words. The reader at Done asks the same (`misheardShape`), and after a mishearing makes only a card, never
+  a run, an ask or a refusal; the lead-ins a command starts with ("like", "I want to") come off only after the keyword.
+- *Cards.* None offers a book, and a book tapped anyway keeps the words here. What a card keeps lands in the order it
+  was said. Keep here keeps all of a long name that matched nothing ("moon base pack sunscreen and the tent"). A card
+  replaced by another takes Keep here first.
+- *One command after another.* A command held for its name gives up when the keyword is said again, and after three
+  phrases, which it never did. A note switched to that waits for its words stops waiting when another command comes.
+  A keyworded phrase the take opened with, left for the reader at Done, is taken out of the words and queued or left
+  out once the live reader does anything, since the reader at Done then never runs.
+- *Done.* What was said before a tapped New note is written first, and the reader at Done reads only what came after
+  it. "Nothing was said for House TODOs" stays up long enough to read, and names no note over the lock screen. An
+  Undo drops the better words only of words it took out of the open note. A note that was there already is not filed
+  into the workspace being looked at.
+- *One list chooser.* The reader at Done's list choice (listAppend.ts `runFor`) is now place.ts's, so a thing goes into
+  the same list whichever reader wrote it.
+- *Paragraphs.* "Add a paragraph to Groceries that says we are out of bread" ends the name at "that says" and goes at
+  the end, as a paragraph.
+- The voice suite's scripts that lost their "Yes." are marked `rerecord`, and its audio pass leaves them until they are
+  made again; 101 answers a card.
+
 **Questions for Matt.**
 
 1. The review after recording is off for a take routed into an existing note. Should it go for new notes and a note's
@@ -5000,6 +5029,13 @@ transcript shows the cue for that stretch. A table, book or board asked for mid-
 3. With the keyword on, "Add a note to House TODOs, …" said without it still gets the card at Done. Should it write
    live too? (Turning the setting off does that now.)
 4. Deploys: this is page code only, generation 19, over the air, whenever you choose.
+5. A one-shot's note is now among the notes the review is told were changed, so its model reads that note's whole
+   body. Keep that, or tell it only the lines added?
+6. A command's words go through the dictation cues as any words do, so "leave a note for the weekend trip that says we
+   need to book it by Thursday" writes the to-do "Book it by Thursday". Should words after "that says" stay as said?
+7. "Hey Ghost, remind me to book the MOT" alone in a new recording makes a note whose first line is the to-do, so the
+   list shows it as its title, marks and all; and a card's "New note “Moon base”" is titled with a plain first line,
+   not a heading. Should either be titled differently?
 
 **Tests.** noteFind.test.ts (Matt's titles), place.test.ts, liveCommand.test.ts, liveRoute.test.ts (through
 liveTake.ts, the recorder's bookkeeping in memory), landing.test.ts, a CaptureScreen describe "adding to a note as it

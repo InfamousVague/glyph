@@ -9,8 +9,8 @@ const notes = [
 
 describe('the words themselves', () => {
   it('drops the keyword at the start and the lead-ins, and says whether the keyword was said', () => {
-    expect(bareWords('Hey Ghost, please fix the spelling.')).toEqual({ words: 'fix the spelling', keyed: true });
-    expect(bareWords('okay um, summarise it')).toEqual({ words: 'summarise it', keyed: false });
+    expect(bareWords('Hey Ghost, please fix the spelling.')).toEqual({ words: 'fix the spelling', keyed: true, misheard: false });
+    expect(bareWords('okay um, summarise it')).toEqual({ words: 'summarise it', keyed: false, misheard: false });
     expect(bareWords('I told Sam, hey Ghost, add eggs')).toBeNull();
   });
 });
@@ -70,12 +70,24 @@ describe('the keyword as Whisper hears it', () => {
   const house = [...notes, { id: 'h', title: 'House TODOs', note: makeNote('h', '# House TODOs\n\n- [ ] Fix the gutter\n') }];
 
   it('takes filler before the keyword, and the mishearings of it when a command follows', () => {
-    expect(bareWords('Um, hey Ghost, add call Sam to house to-dos.')).toEqual({ words: 'add call Sam to house to-dos', keyed: true });
-    expect(bareWords("Hey, like add a note to house to do's")).toEqual({ words: "add a note to house to do's", keyed: true });
-    expect(bareWords('Hey goes add a note to house to-dos')).toEqual({ words: 'add a note to house to-dos', keyed: true });
+    expect(bareWords('Um, hey Ghost, add call Sam to house to-dos.')).toEqual({ words: 'add call Sam to house to-dos', keyed: true, misheard: false });
+    expect(bareWords("Hey, like add a note to house to do's")).toEqual({ words: "add a note to house to do's", keyed: false, misheard: true });
+    expect(bareWords('Hey goes add a note to house to-dos')).toEqual({ words: 'add a note to house to-dos', keyed: false, misheard: true });
     // Not followed by a command, they are words: "Hey, like, the weather" is a note.
-    expect(bareWords('Hey, like, the weather is lovely')).toMatchObject({ keyed: false });
-    expect(bareWords('Hey goes the dog')).toMatchObject({ keyed: false });
+    expect(bareWords('Hey, like, the weather is lovely')).toMatchObject({ keyed: false, misheard: false });
+    expect(bareWords('Hey goes the dog')).toMatchObject({ keyed: false, misheard: false });
+    // Without the keyword, what a sentence starts with is its own: "And carry on tomorrow" is no run.
+    expect(bareWords('And continue the story tomorrow.')).toEqual({ words: 'And continue the story tomorrow', keyed: false, misheard: false });
+  });
+
+  it.each([
+    'Okay, like, make sure the door is locked.',
+    'Hey, go add some colour to the living room walls, it would look nice.',
+    'Hey, like, make sure the door is locked.',
+    'Hey, like, fix the spelling on the sign.',
+    'Hey goes, add a bit more salt next time.',
+  ])('keeps how people talk as words, never an ask or a run: %s', async (said) => {
+    expect(await readInstruction(said, house)).toMatchObject({ kind: 'words' });
   });
 
   it.each([

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commandWords, hearKeyword, isOpener, nameable, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine } from './liveCommand.ts';
+import { commandWords, hearKeyword, isOpener, misheardShape, nameable, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine } from './liveCommand.ts';
 
 /** The first reading of each shape, as the grammar gives them: name, payload, and the flags a test is about. */
 const read = (text: string) => readRoute(commandWords(text)).map((r) => ({ shape: r.shape, name: r.name, payload: r.payload, stopped: r.stopped, split: r.split }));
@@ -18,6 +18,19 @@ describe('hearing the keyword in a phrase', () => {
     expect(hearKeyword('Hey, like, add a note to house to do’s, the note is call Sam.', always)).toMatchObject({ misheard: true, after: 'add a note to house to do’s, the note is call Sam.' });
     expect(hearKeyword('Hey goes add a note to house to-dos. Call an electrician.', always)).toMatchObject({ misheard: true });
     expect(hearKeyword('Hey, like, the weather is lovely.', never)).toBeNull();
+    expect(hearKeyword('Okay, like, add a note to house to-dos.', always)).toBeNull();
+    expect(hearKeyword('Hey, go add a note to house to-dos.', always)).toBeNull();
+  });
+
+  it('counts a mishearing only before a command for a note, by its shape, and a note named clearly', () => {
+    const clear = () => true;
+    for (const words of ['add a note to house to-dos, call Sam', 'add call Sam to house to-dos', 'add this to weekend trip: book the ferry', 'move this to daily life', 'new item for groceries, eggs']) {
+      expect(misheardShape(commandWords(words), clear), words).toBe(true);
+    }
+    for (const words of ['put the parcel in the post', 'add some salt to the questions', 'I need to call my mum', 'I have to get this finished by Friday', 'new note', 'remind me to book the MOT']) {
+      expect(misheardShape(commandWords(words), clear), words).toBe(false);
+    }
+    expect(misheardShape('add a note to house to-dos, call Sam', () => false)).toBe(false);
   });
 
   it('knows a phrase that is only the keyword’s lead, only filler, or Whisper’s line for a silence', () => {
@@ -58,6 +71,16 @@ describe('the shapes of a command for a note', () => {
     expect(readRoute('add call Sam to house to-dos. Next, the budget review is Friday').find((r) => r.shape === 4)).toMatchObject({ name: 'house to-dos', payload: 'call Sam', trailing: 'Next, the budget review is Friday' });
     expect(readRoute('add milk to groceries, eggs').find((r) => r.shape === 4)).toMatchObject({ name: 'groceries', payload: 'milk, eggs' });
     expect(readRoute('add milk to groceries and eggs')).toContainEqual(expect.objectContaining({ name: 'groceries', payload: 'milk, eggs', split: true }));
+  });
+
+  it('keeps what was said after the verb, for a name that finds nothing to give back', () => {
+    expect(readRoute('add a note to moon base pack sunscreen').find((r) => !r.split)).toMatchObject({ name: 'moon base pack sunscreen', tail: 'moon base pack sunscreen' });
+    expect(readRoute('add eggs to the moon base').find((r) => r.shape === 4)).toMatchObject({ name: 'moon base', payload: 'eggs', tail: 'eggs to the moon base' });
+  });
+
+  it('ends a thing’s name at “that says”, and reads a paragraph asked for as the kind of words, not the words', () => {
+    expect(readRoute('add a paragraph to Groceries that says we are out of bread').find((r) => r.shape === 4)).toMatchObject({ name: 'Groceries', payload: 'we are out of bread', placing: 'paragraph', stopped: true });
+    expect(readRoute('add milk to groceries saying it is urgent').find((r) => r.shape === 4)).toMatchObject({ name: 'groceries', payload: 'milk, it is urgent' });
   });
 
   it('reads the other openings', () => {

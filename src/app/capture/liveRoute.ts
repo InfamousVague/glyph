@@ -3,11 +3,12 @@ import type { RunKind } from '../ai/kinds.ts';
 import { isBookBody } from '../book/book.ts';
 import { capitalise } from '../core/text.ts';
 import { onlyFiller, PAYLOAD_LEAD } from './command.ts';
-import { commandWords, hearKeyword, isOpener, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine, withoutFinalStop, type Reading } from './liveCommand.ts';
+import { commandWords, hearKeyword, isOpener, misheardShape, namedAs, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine, withoutFinalStop, type Reading } from './liveCommand.ts';
 import { runsOf, semanticListKind } from './listAppend.ts';
 import { renderNote, type Segment } from './markdown.ts';
-import { findNote, nameWords, titleKind, type Found } from './noteFind.ts';
+import { FIND, findNote, nameWords, titleKind, type Found } from './noteFind.ts';
 import { placeTake, placingFor, type Placing } from './place.ts';
+import { TAKE_TIMING } from './take.ts';
 import type { RouteView } from './takeHost.ts';
 import type { Span } from './takeTypes.ts';
 
@@ -43,19 +44,24 @@ import type { Span } from './takeTypes.ts';
 /** The live reader's timings, in ms. */
 export const LIVE_TIMING = {
   /** A command held for its name: this long after its last phrase, and it gives up. */
-  holdMs: 4500,
+  holdMs: TAKE_TIMING.commandQuietMs,
   /** The most phrases a held command waits for its name. */
   holdPhrases: 3,
   /** A name that may still be growing: the next phrase, said this soon after it on the recording, is read with it. */
   growMs: 2500,
   /** A one-shot with nothing said for it: its phrases until a pause this long. */
-  itemsQuietMs: 2500,
+  itemsQuietMs: TAKE_TIMING.itemsQuietMs,
   /** And at most this many of them. */
   itemsPhrases: 3,
   /** A card up this long takes its default, Keep here. */
   cardMs: 8000,
-  /** A resolved name must score this well to route with no keyword said. */
-  bareScore: 0.85,
+  /** A resolved name must score this well to route with no keyword said, or after a mishearing of it. */
+  bareScore: FIND.clear,
+  /**
+   * A name that ran to the end of what was said, and is longer than this many words, is more than a title: Keep here
+   * gives back all of it ("add a note to moon base pack sunscreen and the tent").
+   */
+  nameWords: 4,
 } as const;
 
 export interface LiveNote {
@@ -140,6 +146,8 @@ interface Held {
   /** The keyword was said in the first of them, or they are only its lead ("Hey."), or only filler ("Okay."). */
   why: 'keyword' | 'lead' | 'filler' | 'unsure';
   lastAt: number;
+  /** The name heard so far, for the chip: "Looking for “house”". */
+  name?: string;
 }
 
 interface Pending<N extends LiveNote> {
@@ -183,6 +191,21 @@ const DONE_READER = Symbol('done-reader');
 /** A stretch of a segment. */
 const spanOf = (segment: Segment): Span => ({ startMs: segment.startMs, endMs: segment.endMs });
 
+/**
+ * A take's words in the order they were said. A card's words land when it settles, after what was said while it was
+ * up, so they can arrive out of order; the sort is stable, so the pieces of one phrase keep theirs. The same array
+ * when nothing moved.
+ */
+export function inOrder(segments: readonly Segment[]): Segment[] {
+  const ordered = segments.every((segment, i) => i === 0 || segments[i - 1]!.startMs <= segment.startMs);
+  return ordered ? (segments as Segment[]) : [...segments].sort((a, b) => a.startMs - b.startMs);
+}
+
+/** A take's words without `gone` (an `unword` step), each known by its stretch and its words. */
+export function withoutWords(segments: readonly Segment[], gone: readonly Segment[]): Segment[] {
+  return segments.filter((segment) => !gone.some((g) => g.startMs === segment.startMs && g.endMs === segment.endMs && g.text === segment.text));
+}
+
 /** Words as a sentence: first letter up, a stop at the end. */
 function sentence(text: string): string {
   const said = capitalise(text.trim());
@@ -206,6 +229,11 @@ export function payloadWords(whole: Segment, payload: string, { item = false, ta
   return (listed ?? [said]).map((piece) => ({ ...whole, text: `${cue}: ${piece}.` }));
 }
 
+/** What a command said of the words it sent, for where they go (place.ts `placingFor`): a to-do, or a paragraph. */
+function saidOf(reading: Reading): { task: boolean; paragraph: boolean } {
+  return { task: reading.placing === 'task', paragraph: reading.placing === 'paragraph' };
+}
+
 /** The first two lines of what would land, lead-ins gone, for a card to show. */
 function shown(payload: string): string {
   return payloadOf(payload).split(/(?<=[.!?])\s+/).slice(0, 2).join(' ');
@@ -221,6 +249,17 @@ function titleFor(name: string): string {
   );
 }
 
+/**
+ * What stays here when a name finds no note: the payload; or, when the name ran to the end of what was said and is
+ * longer than a title, everything said after the verb, since the grammar cannot tell where such a name ends ("add a
+ * note to moon base pack sunscreen and the tent" keeps "Moon base pack sunscreen and the tent.").
+ */
+function keptWords(reading: Reading, payload: string): string {
+  if (reading.stopped || reading.nameFirst || reading.split || !reading.tail) return payload;
+  // Ended as a sentence, as the phrase it was the end of was.
+  return reading.name.split(/\s+/).length > LIVE_TIMING.nameWords ? sentence(payloadOf(reading.tail)) : payload;
+}
+
 export class LiveRoute<N extends LiveNote> {
   private kept = false;
   private engagedYet = false;
@@ -232,6 +271,8 @@ export class LiveRoute<N extends LiveNote> {
   /** The note the take was routed to, sticky: `awaiting` while nothing has been said for it yet. */
   private routed: { id: string; title: string; awaiting: boolean; name: string } | null = null;
   private declined = new Set<string>();
+  /** Keyworded phrases at the take's start, left as words for the reader at Done (`late`). */
+  private doneReader: { segments: Segment[]; words: string }[] = [];
   private nextId = 1;
 
   /** The reader has done something: routed, inserted, placed, raised a card, kept a payload, queued an ask. */
@@ -266,6 +307,10 @@ export class LiveRoute<N extends LiveNote> {
 
   /** A committed phrase: what the recorder does with it. */
   phrase(said: Segment, ctx: LiveContext<N>, now: number): LiveStep<N>[] {
+    return this.late(this.heard(said, ctx, now), ctx);
+  }
+
+  private heard(said: Segment, ctx: LiveContext<N>, now: number): LiveStep<N>[] {
     const text = said.text.replace(/^[\s.,;:!?…]+/, '');
     if (!text) return [];
     const segment = { ...said, text };
@@ -286,30 +331,39 @@ export class LiveRoute<N extends LiveNote> {
     // well after it began.
     if (growing && segment.startMs - growing.command.endMs <= LIVE_TIMING.growMs) {
       const grown = this.grow(growing, segment, ctx, now);
-      if (grown) return grown;
+      if (grown) return [...steps, ...grown];
     }
-
-    // A command held for its name: read again, joined.
-    if (this.held) return this.readHeld(segment, ctx, now);
 
     const keyed = ctx.keywordOn && hearKeyword(text, (words) => this.readsAsRoute(words, ctx)) !== null;
-    // A note routed to, and nothing said for it yet: this is what it is for.
-    if (this.routed?.awaiting && !keyed) {
-      this.routed.awaiting = false;
-      return [...this.payload(segment, text), { kind: 'chip', view: null }];
+    // A command held for its name: read again, joined. Unless the keyword is said again: then the held command got no
+    // name, and this phrase is a command of its own ("Hey Ghost, add to signing." | "Hey Ghost, add milk to groceries.").
+    if (this.held) {
+      if (!keyed || this.held.why === 'lead' || this.held.why === 'filler') return [...steps, ...this.readHeld(segment, ctx, now)];
+      steps.push(...this.letGoHeld(ctx, now));
     }
-    // A one-shot with nothing said for it yet: its phrases, until a pause.
+
+    // A one-shot with nothing said for it yet: its phrases, until a pause. Each is marked, so the better words leave
+    // it out of the take's own note (refineText.ts).
     const opened = this.opened;
     if (opened && !keyed) {
       opened.count += 1;
       opened.lastAt = now;
-      steps.push({ kind: 'insert-words', id: opened.id, segments: opened.count === 1 ? payloadWords(segment, text) : [segment] });
+      steps.push({ kind: 'command', span: spanOf(segment) }, { kind: 'insert-words', id: opened.id, segments: opened.count === 1 ? payloadWords(segment, text) : [segment] });
       if (opened.count >= LIVE_TIMING.itemsPhrases) steps.push(...this.closeInsert());
       return steps;
     }
     if (opened) steps.push(...this.closeInsert());
-    if (this.pending) this.pending.after.push(segment);
-    return [...steps, ...this.read(segment, ctx, now)];
+    // A note routed to, and nothing said for it yet: this is what it is for.
+    if (this.routed?.awaiting && !keyed) {
+      this.routed.awaiting = false;
+      return [...steps, ...this.payload(segment, text), { kind: 'chip', view: null }];
+    }
+    const pending = this.pending;
+    const read = this.read(segment, ctx, now);
+    // What is said with a card up goes to the page as words, and is what a one-shot chosen on the card takes.
+    const word = read.length === 1 && read[0]!.kind === 'words' && read[0]!.segment === segment;
+    if (pending && this.pending === pending && word) pending.after.push(segment);
+    return [...steps, ...read];
   }
 
   /** The clock: holds give up, cards take their default, a one-shot closes after a pause. */
@@ -318,7 +372,7 @@ export class LiveRoute<N extends LiveNote> {
     if (this.held && now - this.held.lastAt > LIVE_TIMING.holdMs) steps.push(...this.letGoHeld(ctx, now));
     if (this.pending && now - this.pending.since > LIVE_TIMING.cardMs) steps.push(...this.settle({ kind: 'keep' }, ctx));
     if (this.opened && now - this.opened.lastAt > LIVE_TIMING.itemsQuietMs) steps.push(...this.closeInsert());
-    return steps;
+    return this.late(steps, ctx);
   }
 
   /** A card's button: a note, a new note, or Keep here. */
@@ -340,16 +394,17 @@ export class LiveRoute<N extends LiveNote> {
     const steps: LiveStep<N>[] = [{ kind: 'home' }, { kind: 'log', line: `Not added to ${routed.title}: the take went back to its own note` }];
     if (ctx.locked) return [...steps, { kind: 'chip', view: { phase: 'said', text: `Not added to ${routed.title}.` } }];
     const found = findNote(routed.name, ctx.notes.filter((c) => c.id !== routed.id));
-    const others = found.status === 'resolved' ? [found.note] : found.status === 'unsure' ? found.candidates : found.status === 'missing' ? found.near : [];
+    const others = (found.status === 'resolved' ? [found.note] : found.status === 'unsure' ? found.candidates : found.status === 'missing' ? found.near : []).filter((c) => this.refusal(c, ctx) === null);
     const card: LiveCard<N> = { id: this.nextId++, form: 'declined', heading: `Not added to ${routed.title}`, candidates: others.slice(0, 2), newTitle: titleFor(routed.name), payload: '' };
+    // Nothing is held for this card to give back: what was said since the command is the take's already.
     const command = { text: '', startMs: 0, endMs: 0 };
-    const reading = readRoute(`add to ${routed.name}`)[0] ?? readRoute('add to it')[0]!;
-    this.pending = { card, since: now, command, payload: '', reading: { ...reading, payload: '' }, atStart: false, after: [], declined: { id: routed.id, name: routed.name } };
+    this.pending = { card, since: now, command, payload: '', reading: namedAs(routed.name), atStart: false, after: [], declined: { id: routed.id, name: routed.name } };
     return [...steps, { kind: 'card', card }];
   }
 
-  /** A one-shot's own Not this note: its words back into the take. */
+  /** A one-shot's own Not this note: its words back into the take. Nothing once the recording has ended: Done is writing it. */
   dropInsert(id: number): LiveStep<N>[] {
+    if (this.closed) return [];
     if (this.opened?.id === id) this.opened = null;
     return [{ kind: 'insert-drop', id }];
   }
@@ -362,7 +417,7 @@ export class LiveRoute<N extends LiveNote> {
     if (this.opened) steps.push(...this.closeInsert());
     this.growing = null;
     this.closed = true;
-    return steps;
+    return this.late(steps, ctx);
   }
 
   /** The recording's last words, which only the stop's transcript had: read like any phrase, then closed again. */
@@ -379,24 +434,58 @@ export class LiveRoute<N extends LiveNote> {
     return payload ? { kind: 'words', segment, payload } : { kind: 'words', segment };
   }
 
-  /** A command's payload as the take's words (`payloadWords`). */
+  /**
+   * A command's payload as the take's words (`payloadWords`). The phrase it was read from is marked, so the better
+   * words put these in its place rather than the phrase as heard, "The note is" and all (refineText.ts).
+   */
   private payload(whole: Segment, payload: string, options: { item?: boolean; task?: boolean } = {}): LiveStep<N>[] {
-    return payloadWords(whole, payload, options).map((segment) => this.words(segment, true));
+    const words = payloadWords(whole, payload, options);
+    return words.length ? [{ kind: 'command', span: spanOf(whole) }, ...words.map((segment) => this.words(segment, true))] : [];
   }
 
   private engage(): void {
     this.engagedYet = true;
   }
 
-  /** Whether `words` read as a route or a to-do for this note: what a mishearing of the keyword must be followed by. */
+  /**
+   * Whether `words` after a mishearing of the keyword are a command for a note named clearly (liveCommand.ts
+   * `misheardShape`): a note it can write to, never the one being written to.
+   */
   private readsAsRoute(words: string, ctx: LiveContext<N>): boolean {
-    const said = commandWords(words);
-    const readings = readRoute(said);
-    if (readings.some((r) => r.self || r.newNote)) return true;
-    return readings.some((r) => {
-      const found = this.find(r, ctx);
-      return found.status === 'resolved' || found.status === 'current' || r.noun;
+    return misheardShape(commandWords(words), (reading) => {
+      const found = this.find(reading, ctx);
+      return found.status === 'resolved' && found.score >= LIVE_TIMING.bareScore && this.refusal(found.note, ctx) === null;
     });
+  }
+
+  /** Why a note is never written to from here, or null: it is a book, or it is shared and the phone is locked. */
+  private refusal(candidate: LiveCandidate<N>, ctx: LiveContext<N>): string | null {
+    if (isBookBody(candidate.note.body)) return `“${candidate.title}” is a book, so the words stay here.`;
+    if (ctx.locked && ctx.published?.(candidate.note.id)) return 'That note is shared, so the words stay here.';
+    return null;
+  }
+
+  /**
+   * Keyworded phrases at the take's start that were left as words for the reader at Done, once the live reader has
+   * done something: the reader at Done no longer runs (CaptureScreen.tsx `finish`), so each is taken out of the words
+   * and queued or left out, as one said mid-take is ("Hey Ghost, fix the spelling." | … | "Hey Ghost, add call Sam to
+   * House TODOs."). Before the phrase's own steps, so an ask said later is the one kept.
+   */
+  private late(steps: LiveStep<N>[], ctx: LiveContext<N>): LiveStep<N>[] {
+    if (!this.engagedYet || !this.doneReader.length) return steps;
+    const out: LiveStep<N>[] = [];
+    for (const { segments, words } of this.doneReader.splice(0)) {
+      out.push({ kind: 'unword', segments }, ...segments.map((segment): LiveStep<N> => ({ kind: 'command', span: spanOf(segment) })));
+      const done = this.notRoute(words, ctx, { atStart: false });
+      if (done !== DONE_READER) out.push(...done);
+    }
+    return [...out, ...steps];
+  }
+
+  /** Phrases the reader at Done is to read: words for now, remembered in case the live reader engages later (`late`). */
+  private leftForDone(segments: Segment[], words: string): LiveStep<N>[] {
+    this.doneReader.push({ segments, words });
+    return segments.map((segment) => this.words(segment));
   }
 
   private find(reading: Reading, ctx: LiveContext<N>): Found<LiveCandidate<N>> {
@@ -421,15 +510,18 @@ export class LiveRoute<N extends LiveNote> {
     // "The heating is fixed now, hey Ghost, add…": the words before it are the take's, a phrase of their own.
     const kept: LiveStep<N>[] = words ? [this.words({ ...segment, text: /[.!?…]$/.test(before) ? before : `${before}.` })] : [];
     const mark: LiveStep<N> = words ? { kind: 'keyword', span: spanOf(segment) } : { kind: 'command', span: spanOf(segment) };
-    const outcome = this.command(commandWords(heard.after), segment, ctx, now, { keyed: true, atStart: atStart && !words });
-    if (outcome === DONE_READER) return [this.words(segment)];
+    const said = commandWords(heard.after);
+    const outcome = this.command(said, segment, ctx, now, { keyed: true, atStart: atStart && !words });
+    if (outcome === DONE_READER) return this.leftForDone([segment], said);
     if (outcome === HELD) return [...kept, ...this.heldChip()];
     return [...kept, mark, ...outcome];
   }
 
-  /** The chip while a command is held for its name. */
+  /** The chip while a command is held: "Looking for “house”" once a name is heard, and until then the keyword's. */
   private heldChip(): LiveStep<N>[] {
-    return [{ kind: 'chip', view: { phase: 'command', words: '' } }, { kind: 'haptic', haptic: 'light' }];
+    const name = this.held?.name;
+    const view: RouteView = name ? { phase: 'hearing', name, guess: null, lead: 'Add to' } : { phase: 'command', words: '' };
+    return [{ kind: 'chip', view }, { kind: 'haptic', haptic: 'light' }];
   }
 
   /** A held command read again with the phrase just committed. */
@@ -445,8 +537,9 @@ export class LiveRoute<N extends LiveNote> {
     if (held.why === 'lead' || held.why === 'filler') {
       // "Hey." | "Ghost, add…", "Okay." | "Hey Ghost, add…": one command, or the held phrase given back.
       if (heard && onlyFiller(heard.before)) {
-        const outcome = this.command(commandWords(heard.after), whole, ctx, now, { keyed: true, atStart: true });
-        if (outcome === DONE_READER) return segments.map((s) => this.words(s));
+        const said = commandWords(heard.after);
+        const outcome = this.command(said, whole, ctx, now, { keyed: true, atStart: true });
+        if (outcome === DONE_READER) return this.leftForDone(segments, said);
         if (outcome === HELD) return this.heldChip();
         return [...spans, ...outcome];
       }
@@ -454,12 +547,14 @@ export class LiveRoute<N extends LiveNote> {
       return [this.words(held.segments[0]!), ...this.read(segment, ctx, now)];
     }
     const words = commandWords(heard ? heard.after : joined);
-    if (isOpener(words) && segments.length < LIVE_TIMING.holdPhrases && held.why === 'keyword') {
+    if (isOpener(words) && held.why === 'keyword') {
       this.held = { segments, why: held.why, lastAt: now };
-      return [{ kind: 'chip', view: { phase: 'command', words } }];
+      if (segments.length < LIVE_TIMING.holdPhrases) return [{ kind: 'chip', view: { phase: 'command', words } }];
+      // This many phrases and still no name: it gives up, as it does after a quiet.
+      return this.letGoHeld(ctx, now);
     }
     const outcome = this.command(words, whole, ctx, now, { keyed: true, atStart: !this.kept && !this.engagedYet, fromHold: true });
-    if (outcome === DONE_READER) return segments.map((s) => this.words(s));
+    if (outcome === DONE_READER) return this.leftForDone(segments, words);
     if (outcome === HELD) return this.heldChip();
     return [...spans, ...outcome];
   }
@@ -497,6 +592,8 @@ export class LiveRoute<N extends LiveNote> {
       this.held = { segments: [whole], why: 'keyword', lastAt: now };
       return HELD;
     }
+    // A command said while a note switched to waits for its words: they are not what comes next.
+    if (this.routed) this.routed.awaiting = false;
     const readings = [...readRoute(words), ...(keyed ? readNameFirst(words) : [])];
     const chosen = this.choose(readings, ctx);
     if (!chosen) return this.notRoute(words, ctx, { atStart });
@@ -506,7 +603,7 @@ export class LiveRoute<N extends LiveNote> {
     if (reading.self) return this.self(reading, whole, ctx);
     // An unsure name at the phrase's end, with nothing after it, may still be growing: one more phrase first.
     if (found.status === 'unsure' && !reading.stopped && !reading.payload && !fromHold) {
-      this.held = { segments: [whole], why: 'unsure', lastAt: now };
+      this.held = { segments: [whole], why: 'unsure', lastAt: now, name: reading.name };
       return HELD;
     }
     return this.act(reading, found, whole, ctx, now, { keyed, atStart });
@@ -562,22 +659,26 @@ export class LiveRoute<N extends LiveNote> {
     if (found.status === 'current') return this.here(reading, payload, whole, ctx, found.heading);
     if (found.status === 'resolved') return this.resolved(reading, found.note, found.score, payload, whole, ctx, now, { atStart });
     if (found.status === 'unsure') {
-      if (!keyed || ctx.locked) return this.keep(payload, whole, ctx.locked ? 'Not sure which note, so the words stay here.' : null);
-      return this.raise({ form: 'unsure', heading: 'Add to which note?', candidates: found.candidates.slice(0, 3), reading, payload, whole, atStart, now });
+      if (!keyed || ctx.locked) return this.keep(keptWords(reading, payload), whole, ctx.locked ? 'Not sure which note, so the words stay here.' : null);
+      // A card never offers a note the words can't go into: "hello trade the book" between two books is no choice.
+      const choices = found.candidates.filter((candidate) => this.refusal(candidate, ctx) === null);
+      if (!choices.length) return this.keep(payload, whole, this.refusal(found.candidates[0]!, ctx), reading.trailing);
+      return this.raise({ form: 'unsure', heading: 'Add to which note?', candidates: choices.slice(0, 3), reading, payload, whole, atStart, now }, ctx);
     }
-    if (keyed && !ctx.locked && (found.near.length || reading.noun)) {
-      return this.raise({ form: 'missing', heading: `No note called “${reading.name}”`, candidates: found.near.slice(0, 2), reading, payload, whole, atStart, now });
+    const near = found.near.filter((candidate) => this.refusal(candidate, ctx) === null);
+    if (keyed && !ctx.locked && (near.length || reading.noun)) {
+      return this.raise({ form: 'missing', heading: `No note called “${reading.name}”`, candidates: near.slice(0, 2), reading, payload, whole, atStart, now }, ctx);
     }
-    return this.keep(payload, whole, ctx.locked ? 'No note by that name, so the words stay here.' : `No note called “${reading.name}”, so the words stay here.`, reading.trailing);
+    return this.keep(keptWords(reading, payload), whole, ctx.locked ? 'No note by that name, so the words stay here.' : `No note called “${reading.name}”, so the words stay here.`, reading.trailing);
   }
 
   /** A clear note: the take goes there, or its words do, or, for the note already being written to, only how they go. */
   private resolved(reading: Reading, candidate: LiveCandidate<N>, score: number, payload: string, whole: Segment, ctx: LiveContext<N>, now: number, { atStart }: { atStart: boolean }): LiveStep<N>[] {
     const note = candidate.note;
-    if (isBookBody(note.body)) return this.keep(payload, whole, `“${candidate.title}” is a book, so the words stay here.`, reading.trailing);
-    if (ctx.locked && ctx.published?.(note.id)) return this.keep(payload, whole, 'That note is shared, so the words stay here.', reading.trailing);
+    const refused = this.refusal(candidate, ctx);
+    if (refused) return this.keep(payload, whole, refused, reading.trailing);
     if (ctx.aim?.id === note.id) return this.here(reading, payload, whole, ctx, reading.heading);
-    const placing = placingFor(note.body, { said: { task: reading.placing === 'task' }, heading: reading.heading, move: reading.move });
+    const placing = placingFor(note.body, { said: saidOf(reading), heading: reading.heading, move: reading.move });
     // Where the words go, by what they say when they were said: "under Electrical".
     const spot = payload ? (placeTake(note.body, renderNote(payloadWords(whole, payload), '', { titled: false }).markdown, placing).spot ?? spotOf(note.body, placing)) : spotOf(note.body, placing);
     const title = ctx.locked ? 'the note you named' : candidate.title;
@@ -646,12 +747,19 @@ export class LiveRoute<N extends LiveNote> {
     return steps;
   }
 
-  /** A card, holding the command phrase; later phrases go to the page as words. */
-  private raise({ form, heading, candidates, reading, payload, whole, atStart, now }: { form: LiveCard<N>['form']; heading: string; candidates: LiveCandidate<N>[]; reading: Reading; payload: string; whole: Segment; atStart: boolean; now: number }): LiveStep<N>[] {
+  /**
+   * A card, holding the command phrase; later phrases go to the page as words. One up already, for an earlier command,
+   * takes its default first, Keep here: a card is never dropped with its words.
+   */
+  private raise(
+    { form, heading, candidates, reading, payload, whole, atStart, now }: { form: LiveCard<N>['form']; heading: string; candidates: LiveCandidate<N>[]; reading: Reading; payload: string; whole: Segment; atStart: boolean; now: number },
+    ctx: LiveContext<N>,
+  ): LiveStep<N>[] {
+    const before = this.pending ? this.settle({ kind: 'keep' }, ctx) : [];
     this.engage();
     const card: LiveCard<N> = { id: this.nextId++, form, heading, candidates, newTitle: titleFor(reading.name), payload: shown(payload) };
     this.pending = { card, since: now, command: whole, payload, reading, atStart, after: [] };
-    return [{ kind: 'card', card }, { kind: 'haptic', haptic: 'selection' }];
+    return [...before, { kind: 'card', card }, { kind: 'haptic', haptic: 'selection' }];
   }
 
   /** A spoken answer to the card up now: one of its titles, "the first one", "keep it here", "new note". */
@@ -678,7 +786,7 @@ export class LiveRoute<N extends LiveNote> {
     const steps: LiveStep<N>[] = [{ kind: 'card', card: null }];
     if (choice.kind === 'keep') {
       if (pending.declined) return steps;
-      return [...steps, ...this.keep(pending.payload, pending.command, null, pending.reading.trailing)];
+      return [...steps, ...this.keep(keptWords(pending.reading, pending.payload), pending.command, null, pending.reading.trailing)];
     }
     if (choice.kind === 'new') {
       const title = pending.card.newTitle;
@@ -693,18 +801,22 @@ export class LiveRoute<N extends LiveNote> {
     }
     const candidate = [...pending.card.candidates, ...ctx.notes].find((c) => c.id === choice.id);
     if (!candidate) return steps;
+    const refused = this.refusal(candidate, ctx);
+    if (refused) return [...steps, ...(pending.declined ? [{ kind: 'chip', view: { phase: 'said', text: refused } } as const] : this.keep(pending.payload, pending.command, refused, pending.reading.trailing))];
     if (pending.atStart || pending.declined) {
-      const placing = placingFor(candidate.note.body, { said: { task: pending.reading.placing === 'task' }, heading: pending.reading.heading, move: pending.declined !== undefined });
+      const placing = placingFor(candidate.note.body, { said: saidOf(pending.reading), heading: pending.reading.heading, move: pending.declined !== undefined });
+      const spot = spotOf(candidate.note.body, placing);
       this.routed = { id: candidate.id, title: candidate.title, awaiting: false, name: pending.reading.name };
-      steps.push({ kind: 'route', note: candidate.note, title: candidate.title, placing, move: pending.declined !== undefined, spot: spotOf(candidate.note.body, placing) }, { kind: 'chip', view: { phase: 'moved', title: candidate.title } });
+      steps.push({ kind: 'route', note: candidate.note, title: candidate.title, placing, move: pending.declined !== undefined, spot }, { kind: 'chip', view: { phase: 'moved', title: candidate.title, spot } });
       if (pending.payload) steps.push(...this.payload(pending.command, pending.payload, { task: pending.reading.placing === 'task' }));
       else if (!pending.after.length && !pending.declined) this.routed.awaiting = true;
       return steps;
     }
-    const placing = placingFor(candidate.note.body, { said: { task: pending.reading.placing === 'task' }, heading: pending.reading.heading });
+    const placing = placingFor(candidate.note.body, { said: saidOf(pending.reading), heading: pending.reading.heading });
     const id = this.nextId++;
     const segments = pending.payload ? payloadWords(pending.command, pending.payload, { task: pending.reading.placing === 'task' }) : pending.after;
-    if (!pending.payload && pending.after.length) steps.push({ kind: 'unword', segments: pending.after });
+    // The words said since, sent there instead: out of the take, and out of its better words.
+    if (!pending.payload && pending.after.length) steps.push({ kind: 'unword', segments: pending.after }, ...pending.after.map((segment): LiveStep<N> => ({ kind: 'command', span: spanOf(segment) })));
     steps.push({ kind: 'insert', id, note: candidate.note, title: candidate.title, placing, segments }, { kind: 'insert-end', id }, { kind: 'haptic', haptic: 'success' });
     return steps;
   }
@@ -717,7 +829,7 @@ export class LiveRoute<N extends LiveNote> {
     let best: { reading: Reading; found: Found<LiveCandidate<N>> & { status: 'resolved' } } | null = null;
     for (const reading of readings) {
       const found = this.find(reading, ctx);
-      if (found.status !== 'resolved' || found.score <= growing.score) continue;
+      if (found.status !== 'resolved' || found.score <= growing.score || this.refusal(found.note, ctx) !== null) continue;
       const title = nameWords(found.note.title);
       const added = nameWords(reading.name.slice(growing.reading.name.length)).words;
       // Grown only by a title word the name lacked, never by one it had ("house" | "Household bills" is words).
@@ -727,16 +839,20 @@ export class LiveRoute<N extends LiveNote> {
     if (!best) return null;
     const payload = payloadOf(best.reading.payload);
     const steps: LiveStep<N>[] = [{ kind: 'command', span: spanOf(segment) }];
-    if (best.found.note.id !== growing.note.id) {
-      const placing = placingFor(best.found.note.note.body, { said: { task: best.reading.placing === 'task' } });
+    const note = best.found.note;
+    // Over the lock screen, as for any note named: no title said (`resolved`).
+    const title = ctx.locked ? 'the note you named' : note.title;
+    const placing = placingFor(note.note.body, { said: saidOf(best.reading) });
+    const spot = spotOf(note.note.body, placing);
+    if (note.id !== growing.note.id) {
       if (growing.into.kind === 'route') {
-        this.routed = { id: best.found.note.id, title: best.found.note.title, awaiting: !payload, name: best.reading.name };
-        steps.push({ kind: 'route', note: best.found.note.note, title: best.found.note.title, placing, move: false, spot: spotOf(best.found.note.note.body, placing) });
+        this.routed = { id: note.id, title, awaiting: !payload, name: best.reading.name };
+        steps.push({ kind: 'route', note: note.note, title, placing, move: false, spot });
       } else {
         steps.push({ kind: 'insert-drop', id: growing.into.id });
         const id = this.nextId++;
-        steps.push({ kind: 'insert', id, note: best.found.note.note, title: best.found.note.title, placing, segments: [] });
-        this.opened = { id, note: best.found.note.note, title: best.found.note.title, count: 0, lastAt: now };
+        steps.push({ kind: 'insert', id, note: note.note, title, placing, segments: [] });
+        this.opened = { id, note: note.note, title, count: 0, lastAt: now };
       }
     }
     if (payload) {
@@ -748,7 +864,7 @@ export class LiveRoute<N extends LiveNote> {
         steps.push({ kind: 'insert-words', id: growing.into.id, segments: payloadWords(segment, payload) });
       }
     }
-    steps.push({ kind: 'chip', view: payload ? { phase: 'moved', title: best.found.note.title } : { phase: 'waiting', title: best.found.note.title, many: false, leave: true } });
+    steps.push({ kind: 'chip', view: payload ? { phase: 'moved', title, spot } : { phase: 'waiting', title, many: false, leave: true } });
     return steps;
   }
 
@@ -784,7 +900,9 @@ export class LiveRoute<N extends LiveNote> {
     if (!chosen || chosen.found.status !== 'resolved' || chosen.found.score < LIVE_TIMING.bareScore) return [this.words(segment)];
     const note = chosen.found.note;
     const reading = endedAs(chosen.reading, segment.text);
-    const evidence = titleKind(note.title) !== null || nameWords(note.title).generic.length > 0 || runsOf(note.note.body.split('\n')).length > 0;
+    // A kind word in its title ("House TODOs", "Task Management"), or a list in it.
+    const kinds = nameWords(note.title);
+    const evidence = kinds.specific.length + kinds.generic.length > 0 || runsOf(note.note.body.split('\n')).length > 0;
     if (!evidence) return [this.words(segment)];
     return [{ kind: 'command', span: spanOf(segment) }, ...this.resolved(reading, note, chosen.found.score, payloadOf(reading.payload), segment, ctx, now, { atStart: true })];
   }

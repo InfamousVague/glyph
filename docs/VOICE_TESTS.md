@@ -45,8 +45,14 @@ reason (`skip` in `voice-tests/suite.json`):
 
 **Matt's cases.** 093 to 100 are the ways "add a note to house to do's, the note is call an electrician…" was said and
 came out wrong before §126: in two phrases, with ", the note is", as "house chores", after "Hey, like", after "Hey
-goes", with a pause inside the name, into a note with two lists, and as a one-shot mid-take. Their audio is still to
-be made: `python3 scripts/voice-tests/make_audio.py --voice <id> --take 093` and on.
+goes", with a pause inside the name, into a note with two lists, and as a one-shot mid-take. 101 answers a card
+(`choose`). Their audio is still to be made: `python3 scripts/voice-tests/make_audio.py --voice <id> --take 093` and
+on.
+
+**To record again.** These scripts changed with §126, most of them by losing the "Yes." that confirmed a command, and
+058 by gaining "Glyph, new note.", so their recordings still say the old lines. Each carries `rerecord` in
+`voice-tests/suite.json`, and the audio pass leaves it out until it is made again (then drop the field): 051, 052,
+053, 054, 055, 056, 058, 061, 062, 067 and 069.
 
 The older six-take walkthrough below is for playing into the phone by hand.
 

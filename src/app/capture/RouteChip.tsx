@@ -72,10 +72,11 @@ export function RouteChip({ route, itemWords }: { route: Exclude<RouteView, null
           {route.title === 'New note' ? (
             'New note'
           ) : (
-            <>
+            // Its own box, so a long title ends in an ellipsis inside the chip rather than at its edge.
+            <span className={styles.routeText}>
               Now on <strong>{route.title}</strong>
               {route.spot ? ` · ${route.spot}` : null}
-            </>
+            </span>
           )}
         </>
       ) : (

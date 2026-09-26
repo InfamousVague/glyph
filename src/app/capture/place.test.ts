@@ -8,6 +8,9 @@ const JOBS = '# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] R
 describe('the kind of place a note has for the words', () => {
   it('is the end of a note’s own Speak, byte for byte, unless its title says what it holds', () => {
     expect(placingFor('# Daily Life\n\n- Walked\n\nSome words.', { own: true })).toEqual(END);
+    // A title that is about tasks is not a list of them.
+    expect(placingFor('# Task Management\n\nHow I keep on top of work.', { own: true })).toEqual(END);
+    expect(placingFor('# Task list\n', { own: true })).toEqual({ kind: 'lists', task: true, heading: null, fresh: 'task' });
     expect(placingFor(HOUSE, { own: true })).toEqual({ kind: 'lists', task: true, heading: null, fresh: null });
     expect(placingFor('# Groceries\n\n- Eggs', { own: true })).toEqual({ kind: 'lists', task: false, heading: null, fresh: null });
   });
@@ -81,8 +84,10 @@ describe('writing the words in', () => {
     expect(placed.spot).toBe('under Electrical');
   });
 
-  it('puts it under a heading said for it', () => {
-    expect(placeTake(JOBS, 'Call Sam.', lists(JOBS, {}, 'kitchen')).body).toContain('- [ ] Fix tap\n- [ ] Call Sam\n\n## Electrical');
+  it('puts it under a heading said for it, whatever it would otherwise fit', () => {
+    // "Call Sam" shares nothing with either list, and would go to Kitchen, the first with something still to do.
+    expect(placeTake(JOBS, 'Call Sam.', lists(JOBS)).body).toContain('- [ ] Fix tap\n- [ ] Call Sam\n\n## Electrical');
+    expect(placeTake(JOBS, 'Call Sam.', lists(JOBS, {}, 'electrical')).body).toBe('# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n- [ ] Call Sam\n');
   });
 
   it('keeps related things said together in one list, and sends one that plainly fits another there', () => {

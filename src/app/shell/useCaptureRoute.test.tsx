@@ -85,6 +85,18 @@ describe('a capture that wrote into a note', () => {
     expect(workspaceOf('made')?.id).toBe(work.id);
   });
 
+  it('leaves a note that was there already where it was filed, and opens it with an ask said after it', async () => {
+    const work = addWorkspace('Work')!;
+    chooseWorkspace(work.id);
+    const note = await createNote('house', '# House TODOs\n\n- [ ] Fix the gutter\n');
+    show(<Probe from={into()} />);
+    await updateNote('house', '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n', note.revision ?? 1);
+    const landing = { noteId: 'house', title: 'House TODOs', blocks: ['- [ ] Call Sam'], others: [], made: [] };
+    await act(async () => route.finished(note, false, undefined, { kind: 'fix' }, landing));
+    expect(workspaceOf('house')).toBeNull();
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'house', body: '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n' }, ask: { kind: 'fix', key: expect.any(Number) }, landing: { noteId: 'house' } });
+  });
+
   it('shows nothing of it over a locked phone', async () => {
     const note = await createNote('house', '# House TODOs');
     show(<Probe from={into()} />);

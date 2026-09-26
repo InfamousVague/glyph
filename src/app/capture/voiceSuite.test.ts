@@ -36,7 +36,8 @@ const heardDir = process.env.GLYPH_VOICE ? join(process.env.GLYPH_VOICE_DIR ?? j
 describe.runIf(heardDir)('the voice suite, from the audio', () => {
   for (const test of suite.tests) {
     const file = heardDir ? join(heardDir, `${test.file}.json`) : '';
-    it.runIf(heardDir && existsSync(file) && !test.skip)(`${test.file}: ${test.tests}`, () => {
+    // A test whose script changed since its recording is left until the recording is made again (`rerecord`).
+    it.runIf(heardDir && existsSync(file) && !test.skip && !test.rerecord)(`${test.file}: ${test.tests}`, () => {
       const heard = JSON.parse(readFileSync(file, 'utf8')) as Heard;
       const outcome = runTest(test, suite.fixtures, heard);
       const wrong = problems(test, outcome, { heard: true });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LiveTake } from './liveTake.ts';
 import type { RefineJob } from './refine.ts';
 import { refinedBody, refinedSegments, withClips, withoutCommands } from './refineText.ts';
 
@@ -101,5 +102,38 @@ describe('the better words for a take the live reader read', () => {
 
   it('still lands an old job, with no placing, at the end', () => {
     expect(refinedBody(job({ baseBody: '# House TODOs\n\n- [ ] Fix the gutter\n', titled: false }), [seg('Call Sam.', 0, 1000)])).toBe('# House TODOs\n\n- [ ] Fix the gutter\n\nCall Sam.');
+  });
+});
+
+/**
+ * A take played through the live reader (capture/liveTake.ts), then its better words, as the model would hear the same
+ * phrases: what the live reader changed or sent elsewhere must not come back raw.
+ */
+describe('the better words of what the live reader changed', () => {
+  const HOUSE = '# House TODOs\n\n- [ ] Fix the gutter\n';
+  const play = (lines: string[], notes = [{ id: 'house', body: HOUSE }, { id: 'groceries', body: '# Groceries\n\n- Eggs\n' }]) => {
+    const take = new LiveTake(notes);
+    const heard = lines.map((text, i) => ({ text, startMs: i * 1000, endMs: i * 1000 + 900 }));
+    heard.forEach((segment, i) => take.phrase(segment, i * 1000));
+    take.close(lines.length * 1000);
+    return { take, heard };
+  };
+  const refined = (take: LiveTake, heard: { text: string; startMs: number; endMs: number }[], over: Partial<RefineJob>) =>
+    refinedBody(job({ titled: false, skip: take.commandSpans, keywordAt: take.keywordSpans, live: take.segments, placing: take.placing, ...over }), heard);
+
+  it('keeps "The note is" out of the to-do written after a switch', () => {
+    const { take, heard } = play(["Hey Ghost, add a note to house to do's.", 'The note is call an electrician to fix the light sockets.']);
+    expect(refined(take, heard, { baseBody: HOUSE })).toBe(`${HOUSE}- [ ] Call an electrician to fix the light sockets\n`);
+  });
+
+  it('keeps things said as a list as the items they were written as', () => {
+    const base = '# Groceries\n\n- Eggs\n';
+    const { take, heard } = play(['Hey Ghost, add a note to groceries.', 'Milk, butter and bread.']);
+    expect(refined(take, heard, { baseBody: base })).toBe('# Groceries\n\n- Eggs\n- Milk\n- Butter\n- Bread\n');
+  });
+
+  it('leaves what a one-shot sent to another note out of the take’s own', () => {
+    const { take, heard } = play(['Kevin owns the release.', 'Hey Ghost, add to House TODOs.', 'Call the electrician.', 'Buy fuses.', 'Ring the plumber.', 'Next, the budget review is Friday.']);
+    expect(refined(take, heard, { baseBody: '', titled: true })).toBe('# Kevin owns the release\n\nNext, the budget review is Friday.');
   });
 });

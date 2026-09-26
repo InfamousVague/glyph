@@ -1,7 +1,7 @@
 import { noteTitle } from '../core/noteTitle.ts';
 import { appendBody } from './appendBody.ts';
 import { listTitle } from './instructionMutation.ts';
-import { LiveRoute, type CardChoice, type LiveCard, type LiveStep } from './liveRoute.ts';
+import { inOrder, LiveRoute, withoutWords, type CardChoice, type LiveCard, type LiveStep } from './liveRoute.ts';
 import { renderNote, type Segment } from './markdown.ts';
 import { END, placeTake, placingFor, type Placing } from './place.ts';
 import type { RouteView } from './takeHost.ts';
@@ -99,13 +99,11 @@ export class LiveTake {
     for (const step of steps) {
       switch (step.kind) {
         case 'words':
-          this.segments = [...this.segments, step.segment];
+          this.segments = inOrder([...this.segments, step.segment]);
           break;
-        case 'unword': {
-          const gone = new Set(step.segments);
-          this.segments = this.segments.filter((segment) => !gone.has(segment) && !step.segments.some((s) => s.startMs === segment.startMs && s.text === segment.text));
+        case 'unword':
+          this.segments = withoutWords(this.segments, step.segments);
           break;
-        }
         case 'command':
           this.commandSpans.push(step.span);
           break;
@@ -144,7 +142,7 @@ export class LiveTake {
         case 'insert-drop': {
           const insert = this.inserts.get(step.id);
           this.inserts.delete(step.id);
-          if (insert) this.segments = [...this.segments, ...insert.segments].sort((a, b) => a.startMs - b.startMs);
+          if (insert) this.segments = inOrder([...this.segments, ...insert.segments]);
           break;
         }
         case 'new-note':

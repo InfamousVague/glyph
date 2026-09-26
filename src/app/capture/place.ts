@@ -1,9 +1,8 @@
 import { addToLane, lanesOf } from '../core/boards.ts';
-import { frontMatterEnd } from '../core/frontMatter.ts';
 import { listLead } from '../core/itemSyntax.ts';
 import { capitalise } from '../core/text.ts';
 import { appendBlock, appendBody } from './appendBody.ts';
-import { itemText, runsOf, semanticListKind, type Run } from './listAppend.ts';
+import { bestList, fitOf, itemText, listsOf, restingList, runsOf, semanticListKind, type Run } from './listAppend.ts';
 
 /**
  * Where a take's words go inside the note they are for, and the note as it reads with them there: what the recorder's
@@ -21,7 +20,7 @@ import { itemText, runsOf, semanticListKind, type Run } from './listAppend.ts';
  * the better words, handed the same note, words and placing, write the same text.
  */
 
-/** A lane of a board, by name, for "add … to Doing" said on the board's own Speak (core/boards.ts). */
+/** Where a take's words go in a note: its end, its lists, or a lane of its board. */
 export type Placing =
   | { kind: 'end' }
   | {
@@ -33,6 +32,7 @@ export type Placing =
       /** The note has no list yet: the one to start, or null for none (the words go at the end). */
       fresh: 'task' | 'bullet' | null;
     }
+  /** A lane of a board, by name, for "add … to Doing" said on the board's own Speak (core/boards.ts). */
   | { kind: 'lane'; lane: string };
 
 /** The end of the note, byte for byte what `appendBody` writes. */
@@ -119,77 +119,6 @@ export function itemsOf(markdown: string): { items: TakeItem[]; after: string[] 
   return { items: items.filter((item) => itemText(item.text)), after };
 }
 
-// ---- which list ---------------------------------------------------------------------------------
-
-/** Words that say nothing of which list: the small ones, and the verbs a thing to do starts with. */
-const QUIET = new Set(
-  'the and for with that this from into onto about have has was were are its our your their them then than just also need needs should will would could can call book buy email send pick make check clean take find sort look ring text order tell remember finish write read bring sure want'.split(
-    ' ',
-  ),
-);
-
-/** A text's stems: the first six letters of each word of four or more that says something. */
-function stems(text: string): Set<string> {
-  return new Set(
-    text
-      .toLowerCase()
-      .replace(/\]\([^)]*\)/g, ' ')
-      .split(/[^\p{L}\p{N}]+/u)
-      .filter((word) => word.length >= 4 && !QUIET.has(word))
-      .map((word) => word.slice(0, 6)),
-  );
-}
-
-/** For each line, the heading it sits under, fence-aware, never the note's own title (its first line, as a heading). */
-function headingsAbove(lines: readonly string[]): (string | null)[] {
-  const out: (string | null)[] = [];
-  const start = frontMatterEnd(lines);
-  let current: string | null = null;
-  let fence: string | null = null;
-  let titled = false;
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i] ?? '';
-    out.push(current);
-    if (i < start) continue;
-    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1] ?? null;
-    if (marker) {
-      if (!fence) fence = marker.charAt(0);
-      else if (marker.charAt(0) === fence) fence = null;
-      continue;
-    }
-    if (fence || !line.trim()) continue;
-    const heading = /^#{1,6}\s+(.+?)\s*#*\s*$/.exec(line);
-    if (heading && !titled && /^#\s/.test(line)) {
-      titled = true;
-      continue;
-    }
-    titled = true;
-    if (heading) current = heading[1]!;
-  }
-  return out;
-}
-
-/** A list's heading as its words go: the heading above it, or the "Label:" line just above it. */
-function headingOf(lines: readonly string[], run: Run, above: readonly (string | null)[]): string | null {
-  for (let i = run.first - 1; i >= 0; i -= 1) {
-    const line = (lines[i] ?? '').trim();
-    if (!line) continue;
-    if (/:\s*$/.test(line) && !listLead(line)) return line.replace(/:\s*$/, '');
-    break;
-  }
-  return above[run.first] ?? null;
-}
-
-/** How well `text` fits a list: its heading's stems count twice, its items' once. */
-function fit(text: string, heading: string | null, items: string): number {
-  const wanted = stems(text);
-  const titled = stems(heading ?? '');
-  const listed = stems(items);
-  let score = 0;
-  for (const stem of wanted) score += (titled.has(stem) ? 2 : 0) + (listed.has(stem) ? 1 : 0);
-  return score;
-}
-
 // ---- writing them in ------------------------------------------------------------------------------
 
 export interface Placed {
@@ -244,36 +173,20 @@ export function placeTake(base: string, markdown: string, placing: Placing): Pla
       blocks.push(block);
       spot = box === '- [ ] ' ? 'in a new to-do list' : 'in a new list';
     } else {
-      const above = headingsAbove(lines);
-      const lists = runs.map((run) => ({ run, heading: headingOf(lines, run, above), items: lines.slice(run.first, run.last + 1).join(' ') }));
-      const scoreOf = (text: string, index: number) => fit(text, lists[index]!.heading, lists[index]!.items);
-      const bestFor = (text: string) => {
-        let best = -1;
-        let top = 0;
-        lists.forEach((_, index) => {
-          const score = scoreOf(text, index);
-          if (score > top) {
-            top = score;
-            best = index;
-          }
-        });
-        return { index: best, score: top };
-      };
-      const named = placing.heading ? lists.findIndex((list) => list.heading !== null && fit(placing.heading!, list.heading, '') > 0) : -1;
+      const lists = listsOf(lines, runs);
+      const scoreOf = (text: string, index: number) => fitOf(text, lists[index]!);
+      const named = placing.heading ? lists.findIndex((list) => list.heading !== null && fitOf(placing.heading!, { heading: list.heading, items: '' }) > 0) : -1;
       const first = items[0]!.text;
-      let current = named >= 0 ? named : bestFor(first).index;
-      if (current < 0) {
-        // Nothing to go by: the first to-do list with something still to do, or the last list, where items always went.
-        const open = lists.findIndex((list) => list.run.style.task && lines.slice(list.run.first, list.run.last + 1).some((line) => listLead(line)?.done === false));
-        current = open >= 0 ? open : lists.length - 1;
-      }
+      let current = named >= 0 ? named : bestList(lists, first).index;
+      // Nothing to go by: the first to-do list with something still to do, or the last list, where items always went.
+      if (current < 0) current = restingList(lines, lists);
       const firstList = lists[current]!;
       spot = firstList.heading ? `under ${firstList.heading}` : firstList.run.style.task ? 'in its to-do list' : 'in its list';
       const into = new Map<number, TakeItem[]>();
       items.forEach((item, i) => {
         if (i > 0) {
           // Related things said together stay together; one that plainly fits another list goes there.
-          const other = bestFor(item.text);
+          const other = bestList(lists, item.text);
           if (other.index >= 0 && other.index !== current && other.score >= 2 && other.score > scoreOf(item.text, current)) current = other.index;
         }
         into.set(current, [...(into.get(current) ?? []), item]);

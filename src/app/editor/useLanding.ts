@@ -38,12 +38,16 @@ export function useLanding(
     if (!landing.blocks.length && !landing.others.length) return undefined;
     const undo = async () => {
       let missing = 0;
+      let removed = false;
       const open = editor.current;
       if (landing.blocks.length) {
         if (open) {
           const out = takeOut(open.state.doc.toString(), landing.blocks);
           missing = out.missing;
-          if (out.changes.length) open.dispatch({ changes: out.changes.map((change) => ({ ...change, insert: '' })), userEvent: 'delete' });
+          if (out.changes.length) {
+            open.dispatch({ changes: out.changes.map((change) => ({ ...change, insert: '' })), userEvent: 'delete' });
+            removed = true;
+          }
         } else {
           missing = landing.blocks.length;
         }
@@ -52,7 +56,8 @@ export function useLanding(
         const undone = await undoCommandMutation(mutationId).catch(() => null);
         if (undone?.status !== 'undone' && undone?.status !== 'already-undone') missing += 1;
       }
-      if (landing.fromMs !== undefined) dropRefine(noteId, landing.fromMs);
+      // Only for words taken out of this note: the better words of what stays in it still come.
+      if (removed && landing.fromMs !== undefined) dropRefine(noteId, landing.fromMs);
       // After the pressed toast has gone, which pressing its action does just after this returns.
       await Promise.resolve();
       if (missing) toast({ message: `${landing.title} has changed since, so it was left as it is.`, duration: 5000 });

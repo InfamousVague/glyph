@@ -1163,7 +1163,8 @@
           "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n"
         }
       },
-      "id": "051"
+      "id": "051",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "052-add-a-list-item",
@@ -1187,7 +1188,8 @@
           "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Coffee beans\n"
         }
       },
-      "id": "052"
+      "id": "052",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "053-add-several-tasks",
@@ -1215,7 +1217,8 @@
           "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Call the bank\n- [ ] Email the landlord\n"
         }
       },
-      "id": "053"
+      "id": "053",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "054-put-on-a-list",
@@ -1235,7 +1238,8 @@
           "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Call Sam\n"
         }
       },
-      "id": "054"
+      "id": "054",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "055-leave-a-note",
@@ -1255,7 +1259,8 @@
           "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\n- [ ] Book it by Thursday"
         }
       },
-      "id": "055"
+      "id": "055",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "056-words-before-the-keyword-stay",
@@ -1275,7 +1280,8 @@
           "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Call the plumber\n"
         }
       },
-      "id": "056"
+      "id": "056",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "057-say-no",
@@ -1328,7 +1334,8 @@
           "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Eggs\n"
         }
       },
-      "id": "058"
+      "id": "058",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "059-no-keyword-no-command",
@@ -1404,7 +1411,8 @@
           ]
         }
       },
-      "id": "061"
+      "id": "061",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "062-new-note",
@@ -1432,7 +1440,8 @@
           "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n"
         }
       },
-      "id": "062"
+      "id": "062",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "063-table-in-this-note",
@@ -1569,7 +1578,8 @@
           "Glyph": "# Glyph\n\nIdeas.\n\nTesting if this works."
         }
       },
-      "id": "067"
+      "id": "067",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "068-send-to-notion",
@@ -1607,7 +1617,8 @@
           ]
         }
       },
-      "id": "069"
+      "id": "069",
+      "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
       "file": "070-move-a-card",
@@ -2410,6 +2421,28 @@
         }
       },
       "id": "100"
+    },
+    {
+      "file": "101-a-card-answered",
+      "group": "Commands",
+      "tests": "A name that matches no note raises a card; “New note” on it makes the note, and what is said next goes into it.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add a note to the moon base.",
+          1.2
+        ],
+        [
+          "Pack the tent.",
+          1.5
+        ]
+      ],
+      "choose": "new",
+      "expect": {
+        "note": "Moon base\n\nPack the tent."
+      },
+      "id": "101"
     }
   ]
 }

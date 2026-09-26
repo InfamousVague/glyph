@@ -101,7 +101,10 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
   const finished = useCallback(
     async (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk, landing?: CaptureLanding) => {
       // A spoken note lands in the workspace the list is showing, unless it is filed already; so do the notes it made.
-      if (note) fileNewNote(note.id);
+      // A note that was there already and only had words put into it (`landing.blocks`) stays where it was filed, or
+      // unfiled.
+      const existed = note !== null && landing !== undefined && landing.blocks.length > 0 && !landing.made.includes(note.id);
+      if (note && !existed) fileNewNote(note.id);
       for (const made of landing?.made ?? []) fileNewNote(made);
       await refresh();
       // Words a recording put into a note that was already there (capture/liveRoute.ts), or a card after Done confirmed:

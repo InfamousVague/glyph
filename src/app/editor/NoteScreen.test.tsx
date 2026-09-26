@@ -28,9 +28,11 @@ await vi.hoisted(async () => {
 
 /** Every hold the screen put on a note's better words, and every let-go (capture/refine.ts `holdNote`). */
 const holds = vi.hoisted(() => [] as [string, boolean][]);
+/** Every recording's better words the screen took out of the queue (capture/refine.ts `dropRefine`). */
+const drops = vi.hoisted(() => [] as [string, number][]);
 vi.mock('../capture/refine.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../capture/refine.ts')>();
-  return { ...real, holdNote: (id: string, on: boolean) => void holds.push([id, on]) };
+  return { ...real, holdNote: (id: string, on: boolean) => void holds.push([id, on]), dropRefine: (id: string, fromMs: number) => void drops.push([id, fromMs]) };
 });
 
 vi.mock('../core/store.ts', async (importOriginal) => {
@@ -539,6 +541,29 @@ describe('a note a recording just wrote into', () => {
     act(() => buttonSaying(document, 'Undo')!.click());
     await settle();
     expect((await getNote('work'))?.body).toBe('# Work');
+  });
+
+  it('drops the recording’s better words only for words its Undo took out of this note', async () => {
+    drops.length = 0;
+    const note = await createNote('house', HOUSE);
+    show(screen(note, { landing: landing({ fromMs: 4000 }) }));
+    await settle();
+    act(() => buttonSaying(document, 'Undo')!.click());
+    await settle();
+    expect(drops).toEqual([['house', 4000]]);
+    unmount();
+
+    drops.length = 0;
+    await createNote('work', '# Work');
+    const written = await applyCommandMutation({ mutationId: 'm2', noteId: 'work', kind: 'append', beforeRevision: 1, beforeBody: '# Work', afterBody: '# Work\n\n- Call Sam', source: 'editor' });
+    expect(written.status).toBe('applied');
+    const own = await createNote('own', '# Kevin owns the release');
+    show(screen(own, { landing: landing({ noteId: 'own', title: 'Kevin owns the release', blocks: [], others: ['m2'], fromMs: 0 }) }));
+    await settle();
+    act(() => buttonSaying(document, 'Undo')!.click());
+    await settle();
+    expect((await getNote('work'))?.body).toBe('# Work');
+    expect(drops).toEqual([]);
   });
 
   it('holds the better words off the note while it is open', async () => {

@@ -196,7 +196,7 @@ function bigrams(text: string): Map<string, number> {
 }
 
 /** Sørensen-Dice over letter pairs, spaces ignored: "week end trip" and "weekend trip" score 1. */
-function dice(a: string, b: string): number {
+export function dice(a: string, b: string): number {
   const x = bigrams(a);
   const y = bigrams(b);
   let total = 0;

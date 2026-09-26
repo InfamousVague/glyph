@@ -57,6 +57,10 @@ describe('one spelling of to-do, and the kind words', () => {
     expect(titleKind('Groceries')).toBe('bullet');
     expect(titleKind('Packing list')).toBe('bullet');
     expect(titleKind('Daily Life')).toBeNull();
+    // By the word it ends on: about tasks is not a list of them.
+    expect(titleKind('Task Management')).toBeNull();
+    expect(titleKind('Task list')).toBe('task');
+    expect(titleKind('Home jobs')).toBe('task');
   });
 
   it('never lets a kind word decide, and lets a shared one back a match up', () => {
@@ -108,6 +112,10 @@ describe('finding the note in Matt’s library', () => {
     expect(tasks.status === 'missing' ? tasks.near.map((c) => c.title) : []).toContain('Task Management');
     expect(find('the moon base')).toEqual({ status: 'missing', near: [] });
     expect(find('groceries and eggs').status).toBe('missing');
+    // Beside a Groceries note too: letters alone never stretch a title over more words than it has.
+    const groceries = [...library, { id: 'gr', title: 'Groceries', note: { body: '# Groceries\n\n- Eggs\n' } }];
+    expect(findNote('groceries', groceries)).toMatchObject({ status: 'resolved', note: { id: 'gr' } });
+    expect(findNote('groceries and eggs', groceries).status).toBe('missing');
   });
 
   it('takes words run together or apart', () => {

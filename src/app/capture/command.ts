@@ -55,9 +55,10 @@ const SOUND_ALIKE = /^\s*(?:(?:hey|hi|ok(?:ay)?|so|a|add|head|hade|hate|take|tag
  * What Whisper writes for "hey Ghost" and "hey Glyph" as words of their own: "Hey, like, add a note to…" (Glyph heard
  * as "like", "life" or "live"), "Hey goes add…", "Hi coast, add…" (Ghost). Matt said "hey, like add a note to house to
  * do's" and it became a note of its words. These are ordinary words, so one counts only at the very start of a phrase,
- * and only when what follows reads as a command (`findMisheard`, and each reader's own guard).
+ * and only when what follows reads as a command (`findMisheard`, and each reader's own guard). Not "okay, like", nor
+ * "hey, go", "hey, most" or "hey, post", which are how people talk: "Okay, like, I have to say it was a great run."
  */
-const MISHEARD = /^\s*(?:(?:hey|hi|ok(?:ay)?)[,.\s]+(?:like|life|live)|(?:hey|hi)[,.\s]+(?:goes|go|coast|host|post|toast|most|gost))(?=$|[\s,.;:!?])[,.;:!?]*\s*/i;
+const MISHEARD = /^\s*(?:hey|hi)[,.\s]+(?:like|life|live|goes|coast|host|toast|gost)(?=$|[\s,.;:!?])[,.;:!?]*\s*/i;
 
 /** A mishearing of the keyword at the start of `text`, when `reads` says the rest is a command: the same shape as `findKeyword`. */
 export function findMisheard(text: string, reads: (words: string) => boolean): { before: string; after: string } | null {
@@ -248,15 +249,24 @@ function stripStopCue(text: string): string {
  */
 export function finalCommandWords(text: string): string | null {
   let words = stripStopCue(text.trim()).replace(/^[\s.,;:!?…"“]+/, '');
+  let keyed = false;
   for (let pass = 0; pass < 3; pass += 1) {
     const before = words;
     const keyword = findKeyword(words) ?? findMisheard(words, (after) => isStandaloneCommandLike(after.replace(LEAD_INS, '')));
-    if (keyword && onlyFiller(keyword.before)) words = keyword.after;
-    words = words.replace(LEAD_INS, '').trim();
+    if (keyword && onlyFiller(keyword.before)) {
+      words = keyword.after;
+      keyed = true;
+    }
+    // After the keyword, what a person says before a command goes too ("like, add…", "I want to add…"); without it,
+    // only the words that never start a sentence of their own, so "Just put the parcel in the post" stays one.
+    words = words.replace(keyed ? LEAD_INS : PLAIN_LEAD, '').trim();
     if (words === before) break;
   }
   return isStandaloneCommandLike(words) ? words : null;
 }
+
+/** What comes before a command said without the keyword that is not the command: "okay", "um", "can you". */
+const PLAIN_LEAD = /^\s*(?:(?:hey|hi|please|can you|could you|would you|will you|and|so|ok(?:ay)?|alright|all right|um+|uh+|er+|hmm+)[,.\s]+)+/i;
 
 /** Narrow gate for no-wake commands in a fresh main Speak capture. */
 export function isStandaloneCommandLike(text: string): boolean {

@@ -210,6 +210,11 @@ describe('the keyword misheard', () => {
     expect(findMisheard('Hey, like, the weather is lovely.', reads)).toBeNull();
     expect(findMisheard('Hey goes the saying.', reads)).toBeNull();
     expect(findMisheard('I said hey goes add eggs to work', reads)).toBeNull();
+    // How people talk, whatever follows: "okay, like", "hey, go", "hey, most", "hey, post".
+    expect(findMisheard('Okay, like, add some salt to work.', reads)).toBeNull();
+    expect(findMisheard('Hey, go add eggs to work.', reads)).toBeNull();
+    expect(findMisheard('Hey, post the eggs to work.', reads)).toBeNull();
+    expect(findMisheard('Hey most of it goes to work.', reads)).toBeNull();
   });
 
   it('reads a finished recording that opened with one, or with filler before the keyword', () => {
@@ -217,6 +222,10 @@ describe('the keyword misheard', () => {
     expect(finalCommandWords('Um, hey Ghost, add eggs to work.')).toBe('add eggs to work.');
     expect(finalCommandWords('Hey Ghost, I want to add eggs to work.')).toBe('add eggs to work.');
     expect(finalCommandWords('Hey Ghost, let’s add eggs to work.')).toBe('add eggs to work.');
+    // Without the keyword, only what never starts a sentence of its own goes: "Just put…" is a sentence.
+    expect(finalCommandWords('Just put the parcel in the post.')).toBeNull();
+    expect(finalCommandWords('Like, add some salt next time.')).toBeNull();
+    expect(finalCommandWords('Okay, add eggs to work.')).toBe('add eggs to work.');
     expect(onlyFiller('Um,')).toBe(true);
     expect(onlyFiller('Pick up the parcel.')).toBe(false);
   });

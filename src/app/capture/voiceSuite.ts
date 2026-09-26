@@ -2,7 +2,7 @@ import { noteTitle } from '../core/noteTitle.ts';
 import { BOX, BULLET, CHOICE, NUMBER } from '../core/itemSyntax.ts';
 import { LiveTake, type MemoryNote } from './liveTake.ts';
 import type { CardChoice, LiveCard } from './liveRoute.ts';
-import { renderNote, type Segment } from './markdown.ts';
+import type { Segment } from './markdown.ts';
 import { QuietWatch } from './quiet.ts';
 import { setLinkTitles } from './spoken/extras.ts';
 import { NUMBER_WORD, spokenNumber } from './spoken/numbers.ts';
@@ -37,6 +37,8 @@ export interface SuiteTest {
   choose?: string;
   /** Why the test is not run: what the recorder no longer does, and since when. */
   skip?: string;
+  /** Why its recording no longer says its script, so the audio pass leaves it until it is made again. */
+  rerecord?: string;
 }
 
 export interface Expectation {
@@ -149,7 +151,8 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
   take.close(stoppedAtMs ?? heard.audioMs);
 
   const { bodies } = take.result();
-  const ownNote = take.aim === null && take.pendingTitle === null ? renderNote(take.segments, '', { titled: true }).markdown : '';
+  // The take's own note: a new one, titled by its words, or one a card made by name ("New note “Moon base”").
+  const ownNote = take.aim === null ? take.page() : '';
   const byTitle: Record<string, string> = {};
   for (const [id, body] of bodies) byTitle[titles[notes.findIndex((note) => note.id === id)] ?? noteTitle(body)] = body;
   const lastWordsMs = heard.segments.length ? heard.segments[heard.segments.length - 1]!.endMs : 0;

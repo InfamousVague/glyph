@@ -33,7 +33,8 @@ export interface Run {
 
 /**
  * Every list in `lines`, in order, from the end of the note's front matter (core/frontMatter.ts): a key's value is
- * never a list to put words in.
+ * never a list to put words in. A block that rule counts as front matter holds keys alone, never a list line, so this
+ * is a guard for a looser rule later rather than one a note can reach today.
  */
 export function runsOf(lines: readonly string[]): Run[] {
   const runs: Run[] = [];
@@ -82,52 +83,118 @@ export function runsOf(lines: readonly string[]): Run[] {
   return runs;
 }
 
-const SMALL_WORDS = new Set('the and for with that this from into onto about have has was were are its our your their them then than just also need needs should will would could can'.split(' '));
+/** Words that say nothing of which list: the small ones, and the verbs a thing to do starts with. */
+const QUIET = new Set(
+  'the and for with that this from into onto about have has was were are its our your their them then than just also need needs should will would could can call book buy email send pick make check clean take find sort look ring text order tell remember finish write read bring sure want'.split(
+    ' ',
+  ),
+);
 
-/** A text's meaningful words, lowercased, a plural's s dropped. */
-function keywords(text: string): Set<string> {
+/** A text's stems: the first six letters of each word of four or more that says something. */
+function stems(text: string): Set<string> {
   return new Set(
     text
       .toLowerCase()
       .replace(/\]\([^)]*\)/g, ' ')
       .split(/[^\p{L}\p{N}]+/u)
-      .filter((word) => word.length >= 3 && !SMALL_WORDS.has(word))
-      .map((word) => (word.length > 3 && word.endsWith('s') ? word.slice(0, -1) : word)),
+      .filter((word) => word.length >= 4 && !QUIET.has(word))
+      .map((word) => word.slice(0, 6)),
   );
 }
 
+/** For each line, the heading it sits under, fence-aware, never the note's own title (its first line, as a heading). */
+function headingsAbove(lines: readonly string[]): (string | null)[] {
+  const out: (string | null)[] = [];
+  const start = frontMatterEnd(lines);
+  let current: string | null = null;
+  let fence: string | null = null;
+  let titled = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? '';
+    out.push(current);
+    if (i < start) continue;
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1] ?? null;
+    if (marker) {
+      if (!fence) fence = marker.charAt(0);
+      else if (marker.charAt(0) === fence) fence = null;
+      continue;
+    }
+    if (fence || !line.trim()) continue;
+    const heading = /^#{1,6}\s+(.+?)\s*#*\s*$/.exec(line);
+    if (heading && !titled && /^#\s/.test(line)) {
+      titled = true;
+      continue;
+    }
+    titled = true;
+    if (heading) current = heading[1]!;
+  }
+  return out;
+}
+
+/** A list's heading as its words go: the heading above it, or the "Label:" line just above it. */
+function headingOf(lines: readonly string[], run: Run, above: readonly (string | null)[]): string | null {
+  for (let i = run.first - 1; i >= 0; i -= 1) {
+    const line = (lines[i] ?? '').trim();
+    if (!line) continue;
+    if (/:\s*$/.test(line) && !listLead(line)) return line.replace(/:\s*$/, '');
+    break;
+  }
+  return above[run.first] ?? null;
+}
+
+/** A note's list, with the words that say what goes in it: its heading and its items. */
+export interface ListOf {
+  run: Run;
+  heading: string | null;
+  items: string;
+}
+
+/** The lists of `lines` (`runsOf`, or some of them), each with its heading and its items' words. */
+export function listsOf(lines: readonly string[], runs: readonly Run[]): ListOf[] {
+  const above = headingsAbove(lines);
+  return runs.map((run) => ({ run, heading: headingOf(lines, run, above), items: lines.slice(run.first, run.last + 1).join(' ') }));
+}
+
+/** How well `text` fits a list: the stems it shares with the list's heading count twice, with its items once. */
+export function fitOf(text: string, list: { heading: string | null; items: string }): number {
+  const wanted = stems(text);
+  const titled = stems(list.heading ?? '');
+  const listed = stems(list.items);
+  let score = 0;
+  for (const stem of wanted) score += (titled.has(stem) ? 2 : 0) + (listed.has(stem) ? 1 : 0);
+  return score;
+}
+
+/** The list `text` fits best, the first of any tied, and how well: -1 when it fits none of them. */
+export function bestList(lists: readonly ListOf[], text: string): { index: number; score: number } {
+  let index = -1;
+  let score = 0;
+  lists.forEach((list, i) => {
+    const fit = fitOf(text, list);
+    if (fit > score) {
+      score = fit;
+      index = i;
+    }
+  });
+  return { index, score };
+}
+
+/** Where words that fit no list go: the first to-do list with something still to do, or the last list. */
+export function restingList(lines: readonly string[], lists: readonly ListOf[]): number {
+  const open = lists.findIndex((list) => list.run.style.task && lines.slice(list.run.first, list.run.last + 1).some((line) => listLead(line)?.done === false));
+  return open >= 0 ? open : lists.length - 1;
+}
+
 /**
- * The list that `text` belongs in, when a note has more than one: the one
- * whose heading (or "Label:" line) and items share the most words with it,
- * the heading counting double. No overlap at all, or a tie, means the last
- * list, where a single-list note's items always went.
+ * The list that `text` belongs in, when a note has more than one: the one whose heading (or "Label:" line) and items
+ * share the most with it, the heading counting double (`bestList`); with nothing to go by, `restingList`. The same
+ * choice the live reader's words make (place.ts), so a command read at Done puts a thing where one said live would.
  */
 function runFor(lines: readonly string[], runs: readonly Run[], text: string | undefined): Run | null {
   if (!runs.length) return null;
-  const fallback = runs[runs.length - 1]!;
-  if (!text || runs.length === 1) return fallback;
-  const wanted = keywords(text);
-  let best = fallback;
-  let bestScore = 0;
-  runs.forEach((run, index) => {
-    const floor = index > 0 ? runs[index - 1]!.last + 1 : 0;
-    let label = '';
-    for (let i = run.first - 1; i >= floor; i -= 1) {
-      const line = (lines[i] ?? '').trim();
-      if (!line) continue;
-      if (/^#{1,6}\s/.test(line) || /:\s*$/.test(line)) label = line;
-      break;
-    }
-    const heading = keywords(label);
-    const items = keywords(lines.slice(run.first, run.last + 1).join(' '));
-    let score = 0;
-    for (const word of wanted) score += (heading.has(word) ? 2 : 0) + (items.has(word) ? 1 : 0);
-    if (score > bestScore) {
-      best = run;
-      bestScore = score;
-    }
-  });
-  return best;
+  const lists = listsOf(lines, runs);
+  const best = text && runs.length > 1 ? bestList(lists, text).index : -1;
+  return runs[best >= 0 ? best : restingList(lines, lists)]!;
 }
 
 export function styleOf(lead: ListLead): Run['style'] {

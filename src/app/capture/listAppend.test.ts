@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { appendToList, itemText, leaveNote, placeWords } from './listAppend.ts';
+import { placeTake, placingFor } from './place.ts';
 
 describe('adding spoken items to a note’s list', () => {
   it('goes on the end of the last list, in its own style', () => {
@@ -73,8 +74,22 @@ describe('leaving a spoken note in another note', () => {
   });
 });
 
+describe('the list a thing goes in, for both readers', () => {
+  const JOBS = '# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n';
+
+  it('is the list the live reader writes into (place.ts), fitting or not', () => {
+    for (const said of ['order a new kettle', 'call an electrician to fix the light sockets', 'rewire the porch light']) {
+      const done = placeWords(JOBS, said, { how: 'item', task: true, many: false, near: said });
+      const live = placeTake(JOBS, `${said}.`, placingFor(JOBS, { said: { task: true } }));
+      expect(done.body, said).toBe(live.body);
+    }
+  });
+});
+
 describe('a note’s front matter and a title that says what it holds', () => {
-  it('never takes a list from the front matter, and reads the title after it', () => {
+  // A block the app counts as front matter holds keys alone (core/frontMatter.ts), never a list line, so `runsOf`
+  // starting after it is a guard; what the front matter changes is the title read.
+  it('reads the title after the front matter, and writes after it', () => {
     const book = '---\nbook: true\ntitle: Todo\n---\n# Todo\n';
     expect(placeWords(book, 'call Sam', { how: 'leave', task: false, many: false }).body).toBe('---\nbook: true\ntitle: Todo\n---\n# Todo\n\n- [ ] Call Sam\n');
   });
