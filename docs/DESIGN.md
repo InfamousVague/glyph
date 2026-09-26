@@ -356,7 +356,7 @@ src/
       ratchet.ts              ported from AttackFM, with its test
     editor/
       Editor.tsx              the CodeMirror host component
-      Editor.module.css       every token rule from tokens.md §7
+      markdown.module.css     every token rule from tokens.md §7 (then Editor.module.css)
       glyphHighlight.ts       the inline HighlightStyle
       glyphLines.ts           the block ViewPlugin
       glyphTheme.ts           EditorView.theme over --glacier-* + the dark Compartment
@@ -599,12 +599,14 @@ Built at the token layer, in `src/app/ink.css`, imported after everything else:
   state is said with a word or a shape. Kit components restyle without being touched. The one exception, at Matt's call:
   a swipe's Delete is red (`--glacier-red-9`, the kit ramp `ink.css` leaves unmapped), word and armed band alike.
 - **Named tokens for app CSS**: `--app-paper`, `--app-paper-2`, `--app-paper-3`, `--app-rule`, `--app-ink` to
-  `--app-ink-4`, `--app-wash` (a translucent ink tint for highlights), `--app-dots` / `--app-dots-size`.
+  `--app-ink-4`, `--app-wash` (a translucent ink tint for highlights), `--app-dots` / `--app-dots-size` (since removed:
+  nothing drew them by 2026-09-25).
 - **`.app-inverse`** re-declares the whole mapping on the reversed scale, so any element - a chosen row, an armed
   swipe - prints in reverse, kit components inside it included. (An armed Archive is ink with paper words; an armed Delete
   is the red exception above.)
-- **`.app-pill`** is the one loud button (Speak, Next, Scan); everything else stays an `.app-word`. **`.app-dots`** is the
-  texture, used for empty space only: the guide's cover and the empty list.
+- **`.app-pill`** is the one loud button (Speak, Next, Scan); everything else stays an `.app-word`. **`.app-dots`** was the
+  texture, used for empty space only: the guide's cover and the empty list. Nothing used it by 2026-09-25, and it is
+  gone from ink.css.
 
 The accent picker is gone: there is nothing left for it to choose. `preferences.accent` still loads from old storage and
 is never applied. Two kit parts no token reaches are handled by structure rather than hashed class names: the segmented
@@ -696,7 +698,7 @@ at least when it is held again.
 Matt: write with a finger or a pen on a full-screen page, in the bottom part of the screen, and have
 the ink fade away - on the dot pattern.
 
-- **The page** (`ink/InkScreen.tsx`): dotted paper edge to edge (`.app-dots`). The note's words sit
+- **The page** (`ink/InkScreen.tsx`): dotted paper edge to edge (`.app-dots`, since removed). The note's words sit
   at the top in display type, bottom-aligned, fading out at the top, with a caret. The bottom of the
   screen - 42% by default, dragged anywhere from 25% to 72% by the grip on its top rule, remembered -
   is the writing band. Opened from a note's header ("Write by hand"); Done reads any ink still on
@@ -3791,8 +3793,9 @@ of room, 126px at this size, so a thumb can tap past the last line and the last 
 formatting bar. On the split layout there is no bar and no thumb, and the room is page nobody can reach: scrolled to
 the end, the last line sat 126px above the foot. Under `.app-split` it is `--glacier-space-8`, a paragraph's worth,
 which keeps the last line off the very edge; the phone keeps the tall room. The reader page, where nothing is typed
-at all, takes the smaller one everywhere. Written in Editor.module.css at three classes, since the theme's own rule
-is two. Seen in the pane at 1280 wide: 126px became 42px, the last line ending a paragraph above the foot.
+at all, takes the smaller one everywhere. Written in Editor.module.css (now editor/markdown.module.css) at three
+classes, since the theme's own rule is two. Seen in the pane at 1280 wide: 126px became 42px, the last line ending a
+paragraph above the foot.
 
 ## 85. The wisp's reach, a third shorter (2026-09-22)
 
@@ -3992,7 +3995,8 @@ on mobile, make it more subtle on mobile but keep the wisp effect".
 
 - **Desktop** means a screen with a fine pointer that hovers (art/wispMask.ts `wispHead`): the Mac app and a browser
   on a computer. The Fold counts as a phone however wide it opens. There, a view scrolled under its header wears no
-  smoke at the top. A strip 28px tall is laid just under the header's glass instead (app.css `.app-headerBlur`),
+  smoke at the top. A strip 28px tall is laid just under the header's glass instead (`.app-headerBlur`, then in
+  app.css, now in art/wisp.css),
   blurred and fading to nothing, so words going under the header go soft rather than being cut. It's the header's
   sibling, not a child: a child of an element with a backdrop filter blurs only that element's own contents, which
   under the header is nothing. That was the first try, and a line under it stayed crisp. `glyph-wisp-head` in
@@ -4049,8 +4053,8 @@ nothing there. With the home dock a row across the foot, the dead band was under
 `glyph-wisp-draw` set to mask.
 
 A desktop's edges are plain now, top and foot alike (§94's line, `wispHead`). The top is the blur strip, and the foot
-is a 28px fade at the very edge (app.css `[data-wisp-draw='fade']`), with no smoke at either end and no filter. A phone
-keeps the wisp at both.
+is a 28px fade at the very edge (`[data-wisp-draw='fade']`, then in app.css, now in art/wisp.css), with no smoke at
+either end and no filter. A phone keeps the wisp at both.
 
 ## 98. Settings is full screen everywhere (2026-09-23)
 
