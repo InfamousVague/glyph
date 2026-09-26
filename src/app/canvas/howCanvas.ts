@@ -1,6 +1,5 @@
 import { BOARD_TITLE } from '../core/boardNote.ts';
 import { SAMPLE_TITLE } from '../core/sampleNote.ts';
-import { bodyHash } from '../format/bodyHash.ts';
 import { canvasNoteBody, type Canvas } from './jsonCanvas.ts';
 
 /**
@@ -11,9 +10,8 @@ import { canvasNoteBody, type Canvas } from './jsonCanvas.ts';
  * it can be a board or a canvas, and none of it leaves the phone.
  *
  * Two of the cards are the example board and the sample note themselves, so tapping them opens the real thing.
- * Written in JSON Canvas as the first is (docs/CANVAS.md). It is the first chapter of Ghost.md: The Guide
- * (guide/theGuide/book.ts), so its words are held to the recorder too: the marks it names are cues the recorder
- * reads (howCanvas.test.ts), and the button it names is the microphone the home page draws.
+ * Written in JSON Canvas as the first is (docs/CANVAS.md). Its words are held to the recorder: the marks it names are
+ * cues the recorder reads (howCanvas.test.ts), and the button it names is the microphone the home page draws.
  */
 
 export const HOW_TITLE = 'How Ghost.md works';
@@ -97,20 +95,4 @@ export function howCanvas(): Canvas {
 
 export function howCanvasBody(): string {
   return canvasNoteBody(HOW_TITLE, howCanvas());
-}
-
-/**
- * The canvas as Ghost.md made it before its words were put right on 2026-09-25, by the hash of its body
- * (format/bodyHash.ts): it said "Tap Speak", and named list, done and table as marks to say, which the recorder
- * does not read as cues.
- */
-const PAST = 1810850569536138;
-
-/**
- * This canvas, for `body` when it is the canvas an earlier Ghost.md made and nobody has changed since; null for any
- * other, a canvas someone has moved a card on included. What Ghost.md: The Guide brings up to date before it opens on
- * it (guide/theGuide/book.ts).
- */
-export function renewedHowCanvas(body: string): string | null {
-  return bodyHash(body) === PAST ? howCanvasBody() : null;
 }

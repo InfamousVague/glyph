@@ -1,4 +1,4 @@
-import { Book, BookOpen, Compass, FileText, GraduationCap, LayoutGrid, ListChecks, ShieldCheck, Workflow } from '@glacier/icons';
+import { BookOpen, Compass, FileText, GraduationCap, LayoutGrid, ListChecks, ShieldCheck, Workflow } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { openLink } from '../core/linkPreview.ts';
@@ -25,8 +25,6 @@ const PRIVACY_URL = 'https://ghostmarkdown.com/privacy.html';
 interface AboutPaneProps {
   updates: Updates;
   onGuide: () => void;
-  /** Ghost.md: The Guide, made and opened (guide/theGuide/book.ts). */
-  onTheGuide: () => void;
   onSample: () => void;
   onBoard: () => void;
   onCanvas: () => void;
@@ -37,7 +35,7 @@ interface AboutPaneProps {
   onDeveloper: () => void;
 }
 
-export function AboutPane({ updates, onGuide, onTheGuide, onSample, onBoard, onCanvas, onHowCanvas, onAcademy, onCheatSheet, onDeveloper }: AboutPaneProps) {
+export function AboutPane({ updates, onGuide, onSample, onBoard, onCanvas, onHowCanvas, onAcademy, onCheatSheet, onDeveloper }: AboutPaneProps) {
   const { toast } = useToast();
   const knock = () => {
     const left = countKnock();
@@ -59,16 +57,6 @@ export function AboutPane({ updates, onGuide, onTheGuide, onSample, onBoard, onC
       </PaneSection>
       <UpdatesSection updates={updates} />
       <PaneSection title="Help">
-        {/*
-          First, as the one place everything is explained. Its chapters are notes like any other, so the home page
-          shows them as it shows any, their examples' to-dos among the rest: the hint says so before anyone presses.
-        */}
-        <SettingRow
-          icon={<Book size={20} />}
-          label="Ghost.md: The Guide"
-          hint="Every part of Ghost.md, a chapter at a time, as a book in your library. Each chapter is a note, and their to-dos show on the home page."
-          onPress={() => onTheGuide()}
-        />
         <SettingRow
           icon={<GraduationCap size={20} />}
           label="Ghost.md Academy"

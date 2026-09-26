@@ -3,8 +3,7 @@ import { renderNote } from '../capture/markdown.ts';
 import { BOARD_TITLE } from '../core/boardNote.ts';
 import { noteTitle } from '../core/store.ts';
 import { SAMPLE_TITLE } from '../core/sampleNote.ts';
-import { HOW_TITLE, howCanvas, howCanvasBody, renewedHowCanvas } from './howCanvas.ts';
-import { pastHowCanvasBody } from '../../test/pastExamples.ts';
+import { HOW_TITLE, howCanvas, howCanvasBody } from './howCanvas.ts';
 import { canvasOf, parseCanvas, serializeCanvas } from './jsonCanvas.ts';
 
 describe('the canvas that says how Ghost.md works', () => {
@@ -58,14 +57,5 @@ describe('what the canvas says to do', () => {
   it('names the button the home page draws, the microphone', () => {
     expect(text('speak')).toContain('**microphone**');
     expect(JSON.stringify(howCanvas())).not.toMatch(/Speak\*\*/);
-  });
-});
-
-describe('the canvas an earlier Ghost.md made', () => {
-  it('is this canvas when nobody has changed it, and left as it is once someone has', () => {
-    const past = pastHowCanvasBody();
-    expect(renewedHowCanvas(past)).toBe(howCanvasBody());
-    expect(renewedHowCanvas(past.replace('"x": 0,', '"x": 40,'))).toBeNull();
-    expect(renewedHowCanvas(howCanvasBody())).toBeNull();
   });
 });

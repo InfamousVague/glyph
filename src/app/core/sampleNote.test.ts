@@ -19,8 +19,7 @@ import { boardsIn, itemsIn, refsIn } from './boards.ts';
 import { shortcodesIn } from './emoji.ts';
 import { imageNames } from './images.ts';
 import { peekMarkdown } from '../notes/peek.ts';
-import { renewedSample, SAMPLE_TITLE, sampleNoteBody } from './sampleNote.ts';
-import { pastSampleBody } from '../../test/pastExamples.ts';
+import { SAMPLE_TITLE, sampleNoteBody } from './sampleNote.ts';
 import { noteTitle } from './store.ts';
 
 const FORMATS = BUILT_IN.flatMap((plugin) => plugin.formats ?? []);
@@ -148,22 +147,5 @@ describe('the sample note', () => {
     expect(imageNames(plain)).toEqual([]);
     expect(plain).not.toContain('picture');
     expect(found(plain)).not.toContain('Image');
-  });
-});
-
-describe('a sample an earlier Ghost.md made', () => {
-  it('is this sample when nobody has written in it, with its own picture or none', () => {
-    for (const said of ['Ghost', 'Hey Ghost'] as const) {
-      expect(renewedSample(pastSampleBody('f00d.jpg', said)), said).toBe(sampleNoteBody('f00d.jpg'));
-      expect(renewedSample(pastSampleBody(null, said)), said).toBe(sampleNoteBody(null));
-    }
-  });
-
-  it('is left as it is once someone has written in it, and so is this sample and any other note', () => {
-    const past = pastSampleBody('f00d.jpg', 'Hey Ghost');
-    expect(renewedSample(past.replace('- [ ] Book the cabin', '- [x] Book the cabin'))).toBeNull();
-    expect(renewedSample(`${past}\nMy own line.\n`)).toBeNull();
-    expect(renewedSample(sampleNoteBody('f00d.jpg'))).toBeNull();
-    expect(renewedSample('# How to format a note\n\nMine.\n')).toBeNull();
   });
 });

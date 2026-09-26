@@ -86,7 +86,7 @@ function settings(toCheatSheet = 0): HTMLDivElement {
   const noop = () => undefined;
   return show(
     <ToastProvider>
-      <SettingsSheet open onClose={noop} updates={updates} onGuide={noop} onTheGuide={noop} onSample={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} toCheatSheet={toCheatSheet} />
+      <SettingsSheet open onClose={noop} updates={updates} onGuide={noop} onSample={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} toCheatSheet={toCheatSheet} />
     </ToastProvider>,
   );
 }
