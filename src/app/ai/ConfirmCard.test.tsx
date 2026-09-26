@@ -44,7 +44,6 @@ describe('the confirm card', () => {
       [{ kind: 'move', note, title: 'Groceries', span }, 'Move this recording to Groceries', 'Move', null],
       [{ kind: 'new', title: 'comic books', lines: ['- Saga'], span }, `Create ${listTitle('comic books')}`, 'Create', 'As a new list'],
       [{ kind: 'new', span }, 'Start a new note from here', 'Start', null],
-      [{ kind: 'table', note, title: 'Groceries', columns: ['What'], rows: [['eggs']], markdown: '', span }, 'Add this table to Groceries', 'Add', '1 row, at the end of the note'],
     ];
     for (const [offer, heading, action, detail] of cases) {
       unmount();

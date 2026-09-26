@@ -1,6 +1,6 @@
 /*
  * The recorder (CaptureScreen.tsx, and the parts drawn from this sheet: LivePage.tsx, Opening.tsx, Tail.tsx,
- * RouteChip.tsx and the table card in CaptureCards.tsx): one small line, the words, two buttons. Nothing else competes
+ * RouteChip.tsx and the cards in CaptureCards.tsx): one small line, the words, two buttons. Nothing else competes
  * with the words for a glance.
  */
 .screen {
@@ -481,43 +481,6 @@
 .footer {
   position: relative;
   z-index: 1;
-}
-
-/* The table card's question: the one thing to answer, in the landing line's type. */
-.tableQuestion {
-  margin: 0;
-  font-size: var(--glacier-font-size-lg);
-  font-weight: var(--glacier-font-weight-semibold);
-  line-height: 1.25;
-  color: var(--app-ink);
-}
-
-.tableWrap {
-  overflow-x: auto;
-  margin-block: var(--glacier-space-1);
-}
-
-.table {
-  border-collapse: collapse;
-  font-size: var(--glacier-font-size-sm);
-  line-height: 1.3;
-}
-
-.table th,
-.table td {
-  padding: var(--glacier-space-1) var(--glacier-space-2);
-  border: 1px solid var(--glacier-border-subtle);
-  text-align: start;
-  vertical-align: top;
-}
-
-.table th {
-  font-weight: var(--glacier-font-weight-bold);
-  color: var(--app-ink);
-}
-
-.table td {
-  color: var(--app-ink-2);
 }
 
 /*

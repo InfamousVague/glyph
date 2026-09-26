@@ -15,9 +15,7 @@ import type { CaptureHandlers, CaptureSession } from './engine.ts';
  * items for its list; `?simulate=command` is Matt's case, "add a list item to"
  * with the item after a pause, answered yes, then one answered no, then the
  * keyword with no command after it; `?simulate=ask` stops at the question;
- * `?simulate=table` builds a table in AttackFM by answering its questions, and
- * `?simulate=tableask` stops at the table's yes; `?simulate=say&say=a|b` speaks
- * the phrases given, bar-separated. `?simulate=review&review`
+ * `?simulate=say&say=a|b` speaks the phrases given, bar-separated. `?simulate=review&review`
  * says a note with a misheard word and, on Done, runs the review with its
  * models simulated in the note it opens (ai/useNoteReview.ts, ai/reviewSimulation.ts).
  *
@@ -37,10 +35,8 @@ const SCRIPTS: Record<string, string[]> = {
   route: ['Oat milk, eggs and the good coffee.', 'Hey Ghost, move this to shopping list.', 'Yes.', 'And bin bags.'],
   leave: ['Quick thought before I forget.', 'Hey Ghost, leave a note on the page for attack FM that says the seek bar drifts on two devices.', 'Yes.', 'Hey Ghost, leave a note for attack FM.', 'Ship the APK on Friday.', 'Yes.'],
   item: ['Quick thought before I forget.', 'Hey Ghost, new item for attack FM.', 'Fix the login bug on Android.', 'Yes.', 'Hey Ghost, new tasks for attack FM.', 'Update the readme, ship the APK and tell Sam.', 'Yes.'],
-  table: ['Bug bash on Friday.', 'Hey Ghost, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it.", 'Yes.'],
   giveback: ['Pick up the parcel.', 'Hey Ghost, that was a long day.'],
   review: ['Bug bash on Friday.', 'Fix the seat bar on two devices.', 'Downloads get stuck on the discover list.'],
-  tableask: ['Bug bash on Friday.', 'Hey Ghost, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it."],
   ask: ['Quick thought before I forget.', 'Hey Ghost, add a list item to the attack FM.', 'Fix the seek bar.'],
   command: ['Quick thought before I forget.', 'Hey Ghost, add a list item to the attack FM.', 'Fix the seek bar.', 'Yes.', 'Hey Ghost add ship the APK to attack FM.', 'No.', 'Ghost is going to need a plugin store.'],
 };

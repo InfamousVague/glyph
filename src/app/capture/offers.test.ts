@@ -25,7 +25,6 @@ describe('a plan to put words in a note', () => {
   it('offers nothing for a plan still waiting, or a name that matched no note', () => {
     expect(offerFor({ kind: 'no-note', name: 'oven' }, span, onNewNote)).toBeNull();
     expect(offerFor({ kind: 'await', note: named('w', 'Work', '# Work'), ...leave }, span, onNewNote)).toBeNull();
-    expect(offerFor({ kind: 'table', note: null, columns: [] }, span, onNewNote)).toBeNull();
   });
 });
 

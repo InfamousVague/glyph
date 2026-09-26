@@ -1,13 +1,11 @@
 import { boardFrom } from '../core/boards.ts';
 import { clipLength } from '../core/clips.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
-import { appendBlock } from './appendBody.ts';
 import { actionable, findKeyword, findSoundAlike, forBook, isStandaloneCommandLike, placedOn, planCommand, reply, type Plan } from './command.ts';
 import { renderNote, type Segment } from './markdown.ts';
 import { describeOffer, offerFor, type Offer } from './offers.ts';
 import type { Span, TakeCandidate, TakeNote } from './takeTypes.ts';
-import { cellsOf, fitRow, saysDone, tableMarkdown } from './table.ts';
-import type { RouteView, TableDraft, TakeHost } from './takeHost.ts';
+import type { RouteView, TakeHost } from './takeHost.ts';
 import { endsMemo, MEMO_GAP_MS, startsMemo } from './voiceMemo.ts';
 
 // The confirm card (ai/ConfirmCard.tsx) reads offers from here, where the recorder's take makes them.
@@ -20,7 +18,7 @@ export type { Offer } from './offers.ts';
  * arrives by `listen`, which only shows it, and the stretches that were commands are marked for the better words to
  * leave out. A command the live reader did not carry out is read once, from the whole transcript, at Done
  * (ai/instruction.ts), and offered here with `offerFinal`; with the microphone stopped, its card waits for a tap. The
- * older reading of commands a phrase at a time - `phrase` and `tick`, with its yes and no, tables and voice memos - is
+ * older reading of commands a phrase at a time - `phrase` and `tick`, with its yes and no and voice memos - is
  * no longer driven by anything but this file's own tests; the voice suite plays the live reader (voiceSuite.ts).
  *
  * The rules it follows:
@@ -29,7 +27,7 @@ export type { Offer } from './offers.ts';
  *   keyword stay in the note; the words after it, across phrases, are the command and never land in the note unless
  *   no command comes of them.
  * - A command asks before it acts. "Yes" or "no" answer it, as a tap does; silence for a while is a no.
- * - A table is asked for a piece at a time; a voice memo keeps the sound instead of the words.
+ * - A voice memo keeps the sound instead of the words.
  */
 
 /** When a command gives up, in ms: the recorder's timings, one place. */
@@ -42,8 +40,6 @@ export const TAKE_TIMING = {
   itemsQuietMs: 2500,
   /** A note named with nothing said for it: this long, and it gives up. */
   awaitMs: 9000,
-  /** A table being said, and nothing for it: this long, and it is dropped. */
-  tableQuietMs: 45_000,
   /** A command asked about and not answered: this long, and it is not done. */
   confirmMs: 20_000,
 };
@@ -51,8 +47,6 @@ export const TAKE_TIMING = {
 export class Take<N extends TakeNote> {
   /** The words of the note, as committed phrases (commands taken out). */
   segments: Segment[] = [];
-  /** Tables made for this note: they follow its words. */
-  tables: string[] = [];
   /** The clips this take wrote. */
   clips: Segment[] = [];
   /** "Glyph, make this a board": the note is written as a board at the end. */
@@ -67,7 +61,6 @@ export class Take<N extends TakeNote> {
   private listening: { words: string; said: Segment[]; lastAt: number; asked?: string } | null = null;
   private awaiting: { plan: Extract<Plan<TakeCandidate<N>>, { kind: 'await' }>; words: string[]; lastAt: number } | null = null;
   private pending: { offer: Offer<N>; at: number } | null = null;
-  private tabling: TableDraft<N> | null = null;
   private memo: { startMs: number; endMs: number } | null = null;
   private understanding: { words: string; cancel: () => void } | null = null;
   private lastHeard = 0;
@@ -75,7 +68,7 @@ export class Take<N extends TakeNote> {
 
   /** A command being said, or waiting for its yes: this holds the recording open. */
   get commanding(): boolean {
-    return this.listening !== null || this.awaiting !== null || this.pending !== null || this.tabling !== null;
+    return this.listening !== null || this.awaiting !== null || this.pending !== null;
   }
 
   get offering(): Offer<N> | null {
@@ -84,7 +77,7 @@ export class Take<N extends TakeNote> {
 
   /** Whether a partial guess is part of a command, so it shows in the chip rather than the note. */
   partOfCommand(text: string): boolean {
-    if (this.listening !== null || this.awaiting !== null || this.tabling !== null) return true;
+    if (this.listening !== null || this.awaiting !== null) return true;
     return this.host.commandWord() && findKeyword(text) !== null;
   }
 
@@ -128,14 +121,13 @@ export class Take<N extends TakeNote> {
     if (words === null || (!heard && !found && !words)) return current?.phase === 'hearing' || current?.phase === 'command' ? null : current;
     const plugin = this.pluginFor(words);
     const plan = plugin ? null : this.plan(words);
-    if (!plan || plan.kind === 'no-note') {
+    if (!plan || plan.kind === 'no-note' || plan.kind === 'table') {
       if (!heard && !found && !plugin) return current?.phase === 'hearing' || current?.phase === 'command' ? null : current;
       return { phase: 'command', words: heard ? heard.words : '' };
     }
     if (plan.kind === 'new') return { phase: 'hearing', name: 'new note', guess: 'New note', lead: 'Start' };
     if (plan.kind === 'create-list') return { phase: 'hearing', name: plan.title, guess: plan.title, lead: 'Start' };
     if (plan.kind === 'board') return { phase: 'hearing', name: 'board', guess: 'this note', lead: 'Start' };
-    if (plan.kind === 'table') return { phase: 'hearing', name: 'table', guess: plan.note?.title ?? 'this note', lead: 'Table for' };
     if (plan.kind === 'book') return { phase: 'hearing', name: 'book', guess: plan.title, lead: 'New book' };
     if (plan.kind === 'chapter') {
       if (current?.phase === 'hearing' && current.guess === plan.note.title && current.lead === 'Chapter for') return current;
@@ -190,16 +182,6 @@ export class Take<N extends TakeNote> {
     } else if (held.kind === 'change') {
       this.touched.add(held.note.id);
       this.host.changeNote(held.note, held.change, held.title);
-    } else if (held.kind === 'table') {
-      if (held.note) {
-        this.touched.add(held.note.id);
-        this.host.addTable(held.note, held.title, held.markdown);
-      } else {
-        this.tables = [...this.tables, held.markdown];
-        this.host.changed();
-        this.host.route({ phase: 'done', text: 'Table added' });
-        this.host.haptic('success');
-      }
     } else if (held.kind === 'move') {
       this.host.moveTo(held.note);
     } else if (held.kind === 'new') {
@@ -308,17 +290,9 @@ export class Take<N extends TakeNote> {
     this.carryOut(plan, span, now);
   }
 
-  /** A plan, from the rules or the model: a table to build, a note to wait on, or something to confirm. */
+  /** A plan, from the rules or the model: a note to wait on, or something to confirm. */
   private carryOut(plan: Exclude<Plan<TakeCandidate<N>>, { kind: 'no-note' }>, span: Span, now: number): void {
     this.stopUnderstanding();
-    if (plan.kind === 'table') {
-      this.listening = null;
-      this.host.itemWords('');
-      this.setTable({ note: plan.note?.note ?? null, title: plan.note?.title ?? 'this note', columns: plan.columns, rows: [], lastAt: now });
-      this.host.route(null);
-      this.host.haptic('selection');
-      return;
-    }
     if (plan.kind === 'await') {
       this.listening = null;
       this.awaiting = { plan, words: [], lastAt: now };
@@ -339,38 +313,9 @@ export class Take<N extends TakeNote> {
   fork(): void {
     for (const segment of this.segments) this.commandSpans.push({ startMs: segment.startMs, endMs: segment.endMs });
     this.segments = [];
-    this.tables = [];
     this.clips = [];
     this.asBoard = false;
     this.host.changed();
-  }
-
-  // ---- tables -----------------------------------------------------------------------------------
-
-  private setTable(draft: TableDraft<N> | null): void {
-    this.tabling = draft;
-    this.host.table(draft ? { ...draft, columns: [...draft.columns], rows: draft.rows.map((row) => [...row]) } : null);
-  }
-
-  /** The rows are done: the table as it will look, and a yes. */
-  finishTable(now: number): void {
-    const draft = this.tabling;
-    if (!draft) return;
-    this.setTable(null);
-    this.host.itemWords('');
-    if (!draft.columns.length) {
-      this.host.route({ phase: 'said', text: 'No table: it had no columns.' });
-      return;
-    }
-    this.setPending({ kind: 'table', note: draft.note, title: draft.title, columns: draft.columns, rows: draft.rows, markdown: tableMarkdown(draft.columns, draft.rows), span: { startMs: 0, endMs: 0 } }, now);
-    this.host.haptic('selection');
-  }
-
-  cancelTable(why: string | null): void {
-    if (!this.tabling) return;
-    this.setTable(null);
-    this.host.itemWords('');
-    if (why) this.host.route({ phase: 'said', text: why });
   }
 
   // ---- voice memos -------------------------------------------------------------------------------
@@ -437,7 +382,7 @@ export class Take<N extends TakeNote> {
     const keywordOn = this.host.commandWord();
     // "Glyph", or a word base.en writes for it ("Life. Add eggs to work.") when a command follows and none is under way.
     const readsAsCommand = (words: string) => this.pluginFor(words) !== null || actionable(this.plan(words));
-    const underWay = this.tabling !== null || this.awaiting !== null || this.listening !== null;
+    const underWay = this.awaiting !== null || this.listening !== null;
     const found = keywordOn ? (findKeyword(text) ?? (underWay ? null : findSoundAlike(text, readsAsCommand))) : null;
 
     // A voice memo: what is said is kept as sound, not words, until "end memo" or a breath.
@@ -463,31 +408,6 @@ export class Take<N extends TakeNote> {
       this.host.itemWords('');
       this.host.route({ phase: 'said', text: 'Voice memo: talk, then say “end memo”.' });
       this.host.haptic('light');
-      return null;
-    }
-
-    // A table being asked for: every phrase is its next piece, until "done".
-    const draft = this.tabling;
-    if (draft) {
-      skip();
-      const said = (findKeyword(text)?.after ?? text).trim();
-      draft.lastAt = now;
-      this.host.itemWords('');
-      if (reply(said) === 'no' || /^(?:cancel|never ?mind|forget (?:it|the table)|no table)\b/i.test(said)) {
-        this.cancelTable('No table.');
-        return null;
-      }
-      if (!draft.columns.length) {
-        const labels = cellsOf(said);
-        if (labels.length) this.setTable({ ...draft, columns: labels });
-        return null;
-      }
-      if (saysDone(said)) {
-        this.finishTable(now);
-        return null;
-      }
-      const cells = cellsOf(said);
-      if (cells.length) this.setTable({ ...draft, rows: [...draft.rows, fitRow(cells, draft.columns.length)] });
       return null;
     }
 
@@ -604,7 +524,6 @@ export class Take<N extends TakeNote> {
 
   /** Called a few times a second: commands that have waited too long give up, or are asked about. */
   tick(now: number): void {
-    if (this.tabling && now - this.tabling.lastAt > TAKE_TIMING.tableQuietMs) this.cancelTable('No table: nothing was said for it for a while.');
     // The keyword said, words the rules can't read, and a pause: the command model reads them.
     const saying = this.listening;
     if (
@@ -642,15 +561,14 @@ export class Take<N extends TakeNote> {
   }
 
   /**
-   * Whether there is anything to save: words that lay out as something, a table, or a voice memo. Read from the
-   * laid-out note, as the recorder's Done reads it, so a cue said alone - held for a sentence that never comes - is
-   * nothing to save.
+   * Whether there is anything to save: words that lay out as something, or a voice memo. Read from the laid-out note,
+   * as the recorder's Done reads it, so a cue said alone - held for a sentence that never comes - is nothing to save.
    */
   get hasContent(): boolean {
-    return renderNote(this.segments).markdown.trim() !== '' || this.tables.length > 0 || this.clips.length > 0;
+    return renderNote(this.segments).markdown.trim() !== '' || this.clips.length > 0;
   }
 
-  /** The take's markdown: its words as the cues lay them out, with tables after them and links applied by `link`. */
+  /** The take's markdown: its words as the cues lay them out, with links applied by `link`. */
   markdown(options: TakeMarkdownOptions): string {
     return takeMarkdown(this, options).markdown;
   }
@@ -669,12 +587,12 @@ export interface TakeMarkdownOptions {
 
 /**
  * A take's markdown, from what it holds: its words as the cues lay them out, the phrase still being guessed after them,
- * its links, its tables after the words, and the whole as a board when it was asked to be one. What the page shows as
- * it is spoken and what is saved at Done are this, so they cannot disagree. `pendingFrom` is where the guessed phrase
- * starts, for drawing it lighter; a link or a board rewrites lines, so after either there is no telling, and it is null.
+ * its links, and the whole as a board when it was asked to be one. What the page shows as it is spoken and what is
+ * saved at Done are this, so they cannot disagree. `pendingFrom` is where the guessed phrase starts, for drawing it
+ * lighter; a link or a board rewrites lines, so after either there is no telling, and it is null.
  */
 export function takeMarkdown(
-  take: { readonly segments: readonly Segment[]; readonly tables: readonly string[]; readonly asBoard: boolean },
+  take: { readonly segments: readonly Segment[]; readonly asBoard: boolean },
   { titled, partial = '', link, board }: TakeMarkdownOptions,
 ): { markdown: string; pendingFrom: number | null } {
   const rendered = renderNote(take.segments, partial, { titled });
@@ -684,7 +602,6 @@ export function takeMarkdown(
     markdown = link(markdown);
     pendingFrom = null;
   }
-  if (take.tables.length) markdown = take.tables.reduce((body, table) => appendBlock(body, table), markdown).replace(/\n$/, '');
   if (take.asBoard && board) {
     markdown = board(markdown);
     pendingFrom = null;

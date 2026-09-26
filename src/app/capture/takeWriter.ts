@@ -36,7 +36,7 @@ export type NamedNote = Candidate & { note: Note };
 export interface TakeWriterHost {
   /** The take's markdown as it is saved: titled for a new note, not for words on the end of one. */
   markdown(titled: boolean): string;
-  /** Whether the take holds anything a draft would write: a phrase, a table or a voice memo. */
+  /** Whether the take holds anything a draft would write: a phrase or a voice memo. */
   hasWords(): boolean;
   /** The notes a command can name; each written note's copy there is replaced by what was stored. */
   candidates(): readonly NamedNote[];

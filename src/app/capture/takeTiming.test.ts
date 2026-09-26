@@ -22,12 +22,10 @@ function harness(over: Partial<TakeHost<Note>> = {}) {
   const routes: RouteView[] = [];
   const offers: (Offer<Note> | null)[] = [];
   const log: string[] = [];
-  const tables: unknown[] = [];
   const host = quietHost<Note>({
     notes: () => [{ id: work.id, title: work.title, note: work }],
     route: (view) => routes.push(view),
     offer: (offer) => offers.push(offer),
-    table: (draft) => tables.push(draft),
     log: (line) => log.push(line),
     clip: (span) => `![voice](tape:${span.startMs}-${span.endMs})`,
     ...over,
@@ -36,7 +34,7 @@ function harness(over: Partial<TakeHost<Note>> = {}) {
   /** A phrase said from `at` for 900 ms, committed 100 ms after it ends. */
   const say = (text: string, at: number) => take.phrase({ text, startMs: at, endMs: at + 900 }, at + 1000);
   const said = (phase: string) => routes.filter((view): view is Extract<RouteView, { text: string }> => view !== null && view.phase === phase && 'text' in view).map((view) => view.text);
-  return { take, say, routes, offers, log, tables, said };
+  return { take, say, routes, offers, log, said };
 }
 
 describe('after the keyword', () => {
@@ -125,17 +123,6 @@ describe('a question asked', () => {
     expect(said('said')).toEqual(['Not done.']);
     // Neither answer is the note's words.
     expect(take.segments).toEqual([]);
-  });
-});
-
-describe('a table being said', () => {
-  it('is dropped when nothing is said for it for a while', () => {
-    const { take, say, tables, said } = harness();
-    say('Hey Ghost, add a table.', 0);
-    expect(tables.at(-1)).toMatchObject({ note: null, title: 'this note', columns: [] });
-    take.tick(1000 + TAKE_TIMING.tableQuietMs + 1);
-    expect(tables.at(-1)).toBeNull();
-    expect(said('said')).toEqual(['No table: nothing was said for it for a while.']);
   });
 });
 

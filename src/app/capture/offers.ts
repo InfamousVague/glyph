@@ -27,7 +27,6 @@ export type Offer<N extends TakeNote> =
   | { kind: 'new'; title?: string; lines?: readonly string[]; span: Span }
   | { kind: 'board'; title: string; span: Span }
   | { kind: 'book'; title: string; pages: string[]; span: Span }
-  | { kind: 'table'; note: N | null; title: string; columns: string[]; rows: string[][]; markdown: string; span: Span }
   | { kind: 'plugin'; voice: VoiceCommand; parsed: unknown; title: string; action: string; span: Span };
 
 /** What a plan comes to: an offer to ask about, or a reason to say instead. */
@@ -43,8 +42,8 @@ export interface OfferContext {
 
 /**
  * The offer `plan` makes, a reason it cannot be made, or null when there is nothing to offer: a plan still waiting
- * (a note named with nothing said for it, a table to be asked for), a name that matched no note, or words that would
- * add nothing to the note they name.
+ * (a note named with nothing said for it), a table (which a recording never makes), a name that matched no note, or
+ * words that would add nothing to the note they name.
  */
 export function offerFor<N extends TakeNote>(plan: Plan<TakeCandidate<N>>, span: Span, context: OfferContext): Offered<N> | null {
   switch (plan.kind) {
@@ -119,11 +118,9 @@ export function describeOffer<N extends TakeNote>(offer: Offer<N>, outcome: 'don
             ? offer.title ? `create ${offer.title}` : 'start a new note'
             : offer.kind === 'board'
               ? 'make this note a board'
-              : offer.kind === 'table'
-                ? `add a table (${offer.columns.join(', ')}; ${offer.rows.length} rows) to ${offer.title}`
-                : offer.kind === 'book'
-                  ? `make a book called ${offer.title}${offer.pages.length ? ` with ${offer.pages.join(', ')}` : ''}`
-                  : lowerFirst(offer.title);
+              : offer.kind === 'book'
+                ? `make a book called ${offer.title}${offer.pages.length ? ` with ${offer.pages.join(', ')}` : ''}`
+                : lowerFirst(offer.title);
   if (outcome === 'done') return `Did: ${what}`;
   return outcome === 'declined' ? `Offered to ${what}; the person said no` : `Offered to ${what}; nobody answered, so it was not done`;
 }

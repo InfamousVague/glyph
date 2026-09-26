@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bookNoteBody } from '../book/book.ts';
-import { actionable, finalCommandWords, findKeyword, findMisheard, findSoundAlike, onlyFiller, placedOn, planCommand, reply, withoutPayloadLead } from './command.ts';
+import { actionable, cellsOf, finalCommandWords, findKeyword, findMisheard, findSoundAlike, onlyFiller, placedOn, planCommand, reply, withoutPayloadLead } from './command.ts';
 
 const notes = [
   { id: 'b', title: 'AttackFM Bugbash' },
@@ -144,6 +144,14 @@ describe('asking for a table', () => {
   it('says so for a note that is not there, and is not fooled by other tables', () => {
     expect(plan('add a table to the groceries note')).toEqual({ kind: 'no-note', name: 'groceries' });
     expect(plan('add a table of contents')).toBeNull();
+  });
+
+  it('hears the labels the way lists are said', () => {
+    expect(cellsOf('Bug, owner and status.')).toEqual(['Bug', 'Owner', 'Status']);
+    expect(cellsOf('seek bar drift, Matt, open')).toEqual(['Seek bar drift', 'Matt', 'Open']);
+    expect(cellsOf('name and email')).toEqual(['Name', 'Email']);
+    expect(cellsOf('Column one, bug, column two, owner.')).toEqual(['Bug', 'Owner']);
+    expect(cellsOf('')).toEqual([]);
   });
 });
 

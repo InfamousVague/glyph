@@ -3,7 +3,7 @@ import { addToLane, lanesOf, matchLane, moveToLane, type Lane } from '../core/bo
 import { capitalise, escapeRegExp } from '../core/text.ts';
 import { findNote, nameWords, spokenName } from './noteFind.ts';
 import { parseRoute, type Candidate } from './route.ts';
-import { cellsOf } from './table.ts';
+import { ONE_TO_TEN } from './spoken/numbers.ts';
 import { spokenListItems } from './spokenList.ts';
 
 /**
@@ -162,7 +162,7 @@ export type Plan<N extends Candidate = Candidate> =
   | { kind: 'new' }
   /** A standalone Speak request creates a separately titled list note, with the items said for it. */
   | { kind: 'create-list'; title: string; items?: readonly string[] }
-  /** A table, asked for a piece at a time (capture/table.ts): in a named note, or this one when none is named. */
+  /** A table asked for, in a named note or this one: read so the reader at Done can turn it down, since a recording makes none. */
   | { kind: 'table'; note: N | null; columns: string[] }
   /** A card for a board's lane: "Glyph, add fix the login bug to Doing" (core/boards.ts). */
   | { kind: 'lane'; note: N; lane: string; words: string; change: (body: string) => string | null }
@@ -282,8 +282,37 @@ function splitSpokenItems(text: string, allowBareWords = false): string[] {
   return allowBareWords && words.length >= 2 && words.length <= 8 && words.every((word) => /^[\p{L}\p{N}'-]+$/u.test(word)) ? words : [cleaned];
 }
 
-/** "…with columns bug, owner and status": the labels said up front, so the first question is skipped. */
+/** "…with columns bug, owner and status": the labels said with a table, read as its shape is (`TABLE`). */
 const TABLE_COLUMNS = /\s*,?\s*(?:with|using|that has|having)\s+(?:the\s+)?(?:columns?|column labels?|headings?|headers?|labels?)\s*(?:of|:|,)?\s*(.+)$/i;
+
+/** Words that name a column or row position, said before a cell: "column one, bug". */
+const POSITION = new RegExp(String.raw`^(?:(?:column|row|cell)\s+(?:\d+|${ONE_TO_TEN})|first|second|third|fourth|fifth|next|then|last)[,:\s]+`, 'i');
+/** A position said with nothing after it ("column two"): no cell at all. */
+const POSITION_ALONE = new RegExp(String.raw`^(?:column|row)\s+(?:\d+|${ONE_TO_TEN})$`, 'i');
+
+/**
+ * What was said, as cells: a table's column labels, or a book's pages. People say them the way they say a list, so
+ * commas (or semicolons) split it, with "and" before the last one; with no commas, "and" alone does. "Column one,
+ * bug, column two, owner" keeps only the cells.
+ */
+export function cellsOf(text: string): string[] {
+  // Whisper often writes the pauses between cells as full stops: "Item. Where. Packed."
+  const said = text
+    .trim()
+    .replace(/^[\s.,;:!?]+/, '')
+    .replace(/[.!?]+$/, '')
+    .replace(/\.\s+/g, ', ')
+    .trim();
+  if (!said) return [];
+  // "Bug, owner and status": the last of a comma list carries the "and".
+  const parts = /[,;]/.test(said)
+    ? said.split(/\s*[,;]\s*/).flatMap((part, i, all) => (i === all.length - 1 ? part.split(/\s+and\s+/i) : [part]))
+    : said.split(/\s+and\s+/i);
+  return parts
+    .map((part) => part.replace(/^(?:and|then)\s+/i, '').replace(POSITION, '').trim())
+    .filter((part) => part && !POSITION_ALONE.test(part))
+    .map((part) => capitalise(part));
+}
 
 /** A preposition that can end what is added and start the note's name. */
 const INTO = /(?:^|\s+)(?:to|in|into|onto|on|under|for)\s+/gi;

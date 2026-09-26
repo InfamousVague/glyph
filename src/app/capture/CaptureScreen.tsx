@@ -24,9 +24,8 @@ import { commandModel, understandInstructionCommand } from './understand.ts';
 import { bareWords, readInstruction } from '../ai/instruction.ts';
 import { ConfirmCard } from '../ai/ConfirmCard.tsx';
 import type { RunKind } from '../ai/kinds.ts';
-import { appendBlock } from './appendBody.ts';
 import { asBoardMarkdown, Take, takeMarkdown, type Offer } from './take.ts';
-import { hostThrough, type RouteView, type TableDraft, type TakeHost } from './takeHost.ts';
+import { hostThrough, type RouteView, type TakeHost } from './takeHost.ts';
 import { TakeWriter, type NamedNote } from './takeWriter.ts';
 import { bookNoteBody, chaptersOf, isBookBody } from '../book/book.ts';
 import { linkFor } from '../share/share.ts';
@@ -43,7 +42,7 @@ import { useSideKeySpot } from './sideKey.ts';
 import { LivePage } from './LivePage.tsx';
 import { Tail } from './Tail.tsx';
 import { counter } from './tape.ts';
-import { ListLanding, NoteChoiceCard, TableCard, TablePreview } from './CaptureCards.tsx';
+import { ListLanding, NoteChoiceCard } from './CaptureCards.tsx';
 import { findKeyword, findMisheard } from './command.ts';
 import type { CaptureLanding } from './landing.ts';
 import { inOrder, LiveRoute, withoutWords, type LiveCard, type LiveContext, type LiveStep } from './liveRoute.ts';
@@ -215,11 +214,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       live = false;
     };
   }, []);
-  /** "Glyph, add a table to …": the table being asked for, column labels first, then row by row. */
-  const [tableView, setTableView] = useState<TableDraft<Note> | null>(null);
   /** What a command will do once it is confirmed, by "yes" or a tap. */
   const [pending, setPendingView] = useState<Offer<Note> | null>(null);
-  const [tables, setTables] = useState<string[]>([]);
   const [asBoard, setAsBoard] = useState(false);
   /** The tape this take writes to: the continued note's, or a new one (core/clips.ts). Read once, when it is first needed. */
   const takeTape = useRef<string | null>(null);
@@ -285,10 +281,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const note = useMemo(
     () =>
       takeMarkdown(
-        { segments, tables, asBoard },
+        { segments, asBoard },
         { titled, partial: itemWords ? '' : partial, link: sentLinks.length ? (text) => applyLinks(text, sentLinks) : undefined, board: asBoardMarkdown },
       ),
-    [segments, partial, titled, itemWords, sentLinks, tables, asBoard],
+    [segments, partial, titled, itemWords, sentLinks, asBoard],
   );
 
   // The switched-on plugins' formattings can be said like bold ("spoiler … end spoiler"); read as the recorder opens,
@@ -319,7 +315,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         markdown: (asTitled) => take.markdown({ titled: asTitled, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown }),
         // Any phrase at all, where Done asks `take.hasContent`: a draft writes the take as it stands, and one that lays
         // out as nothing writes the note's own text back as it was (appendBody.ts), so the looser rule costs nothing.
-        hasWords: () => take.segments.length > 0 || take.tables.length > 0 || take.clips.length > 0,
+        hasWords: () => take.segments.length > 0 || take.clips.length > 0,
         candidates: () => candidates.current,
         targetChanged: setTarget,
       }),
@@ -587,19 +583,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** The words switched-on plugins let an item command end a note's name with ("…in Notion"). */
   const itemWordsOfPlugins = () => plugins.itemTargets().map((t) => t.word);
 
-  /** A confirmed table for another note: its own block at the end of that note. */
-  const addTable = async (note: Note, title: string, markdown: string) => {
-    try {
-      const body = await writer.updateNote(note.id, (current) => appendBlock(current, markdown));
-      if (body === null) return;
-      setRoute({ phase: 'done', text: `Table added to ${title}` });
-      fireNativeHaptic('success');
-    } catch (failure) {
-      console.warn('[glyph] table not added:', failure);
-      setRoute({ phase: 'said', text: `The table didn’t go into ${title}.` });
-    }
-  };
-
   /**
    * "Hey Ghost, make a book called Field guide": the book note is written beside this take, which carries on where it
    * was, and the book can be named by the next command (docs/BOOKS.md).
@@ -627,11 +610,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     return takeTape.current;
   }, [writer]);
 
-  /** The take's segments and tables, copied to what the screen draws. */
+  /** The take's segments, copied to what the screen draws. */
   const syncTake = () => {
     segmentsRef.current = take.segments;
     setSegments(take.segments);
-    setTables(take.tables);
     setAsBoard(take.asBoard);
   };
 
@@ -645,7 +627,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     understand: commandModelId.current ? (words) => understandInstructionCommand(words, candidates.current) : undefined,
     route: setRoute,
     offer: setPendingView,
-    table: setTableView,
     itemWords: setItemWords,
     haptic: (kind) => fireNativeHaptic(kind),
     changed: syncTake,
@@ -659,7 +640,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           fireNativeHaptic('success');
         }
       }),
-    addTable: (target, title, markdown) => void addTable(target, title, markdown),
     moveTo: (target) => void routeTo(target),
     // A finished recording's "new list" is created by `confirmPending`, not by carrying the capture on into it.
     newNote: (title) => void (finished.current ? undefined : startNewNote(title)),
@@ -917,8 +897,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     onFinish(null, final.locked);
   };
   cancelRef.current = cancelPending;
-  const finishTable = () => take.finishTable(performance.now());
-  const cancelTable = (why: string | null) => take.cancelTable(why);
 
   // ---- the counter ---------------------------------------------------------------
   useEffect(() => {
@@ -1100,7 +1078,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       commandLog.current.push(`Added “${written.blocks.map(withoutLead).join('”, “')}” to ${insert.title}${written.spot ? `, ${written.spot}` : ''}`);
     }
 
-    // Nothing that lays out as anything - no words, no table, no voice memo - leaves nothing behind for the take's
+    // Nothing that lays out as anything - no words, no voice memo - leaves nothing behind for the take's
     // own note. Asked of the laid-out words (take.hasContent), not the transcript: a cue said alone ("Bullet point.",
     // or Whisper echoing its prompt on silence) is held for a sentence that never comes, and saved from the transcript
     // it made an empty note.
@@ -1373,17 +1351,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         {!hasWords && phase !== 'failed' && route?.phase !== 'added' ? <p className={styles.pageHint}>{stopHint(fromAssistant, pressStops, quiet.current !== null)}</p> : null}
       </div>
 
-      {tableView ? (
-        <TableCard draft={tableView} heard={itemWords} onDone={finishTable} onCancel={() => cancelTable(null)} />
-      ) : choice && !locked ? (
+      {choice && !locked ? (
         <NoteChoiceCard card={choice} onChoose={(chosen) => applySteps(live.answer(choice.id, chosen, liveRef.current()))} />
       ) : pending ? (
-        <ConfirmCard
-          offer={pending}
-          onConfirm={confirmPending}
-          onCancel={() => cancelPending(null)}
-          table={pending.kind === 'table' ? <TablePreview columns={pending.columns} rows={pending.rows} /> : undefined}
-        />
+        <ConfirmCard offer={pending} onConfirm={confirmPending} onCancel={() => cancelPending(null)} />
       ) : route ? (
         <RouteChip route={route} itemWords={itemWords} />
       ) : !hasWords && phase === 'listening' ? (

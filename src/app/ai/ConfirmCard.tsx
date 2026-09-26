@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import type { Offer } from '../capture/take.ts';
 import { listTitle } from '../capture/instructionMutation.ts';
 import { withoutLead } from '../core/itemSyntax.ts';
@@ -16,15 +15,12 @@ export function ConfirmCard({
   onConfirm,
   onCancel,
   hint,
-  table,
 }: {
   offer: Offer<Note>;
   onConfirm: () => void;
   onCancel: () => void;
   /** The line under the words: the recorder says a "yes" or a "no" will do. */
   hint?: string;
-  /** A table's own preview, drawn by whoever has the rows. */
-  table?: ReactNode;
 }) {
   let heading: string;
   let action: string;
@@ -64,11 +60,6 @@ export function ConfirmCard({
       lines = [...(offer.lines ?? [])];
       if (offer.lines?.length) detail = 'As a new list';
       break;
-    case 'table':
-      heading = `Add this table to ${offer.title}`;
-      action = 'Add';
-      detail = `${offer.rows.length} ${offer.rows.length === 1 ? 'row' : 'rows'}, at the end of the note`;
-      break;
     default:
       heading = offer.title;
       action = offer.action;
@@ -81,7 +72,6 @@ export function ConfirmCard({
           {line}
         </p>
       ))}
-      {offer.kind === 'table' ? table : null}
       {detail ? <p className={styles.detail}>{detail}</p> : null}
       <div className={styles.actions}>
         <button type="button" className="app-word" onClick={onCancel}>
