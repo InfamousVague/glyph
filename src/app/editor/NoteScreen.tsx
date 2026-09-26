@@ -29,6 +29,7 @@ import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.t
 import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
+import type { CaptureLanding } from '../capture/landing.ts';
 import { keepAllChanges } from './aiChanges.ts';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
@@ -39,6 +40,7 @@ import { itemSend, lineOffers, noteEditing } from './notePlugins.ts';
 import { NoteTools } from './NoteTools.tsx';
 import { useBookmark } from './useBookmark.ts';
 import { useLandAt } from './useLandAt.ts';
+import { useLanding } from './useLanding.ts';
 import { useLiveNote } from './useLiveNote.ts';
 import { useNoteAi, type NoteAsk } from './useNoteAi.ts';
 import { useNotePictures } from './useNotePictures.ts';
@@ -105,9 +107,11 @@ interface NoteScreenProps {
   ask?: NoteAsk;
   /** The review after the recording that just made or grew this note (ai/useNoteReview.ts): run here, in the strip and the note. */
   review?: ReviewHandoff & { key: number };
+  /** What the recording that just ended wrote into this note, for its Undo (editor/useLanding.ts). */
+  landing?: CaptureLanding & { key: number };
 }
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask, review }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask, review, landing }: NoteScreenProps) {
   const prefs = usePreferences();
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the More sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
@@ -119,7 +123,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     fireNativeHaptic('selection');
   };
   const [view, setView] = useState<EditorView | null>(null);
-  const { toast } = useToast();
+  const { toast, dismiss } = useToast();
   // The live words, and their saving: everything below that reads or writes the note goes through these.
   const { body, onChange, flush, title, blank } = useNoteSaving(note, rename);
   /*
@@ -166,6 +170,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     fireNativeHaptic('selection');
   };
   useLiveNote(view, note.id);
+  // "Added to House TODOs", with an Undo that is an edit here; and no better words written under the open note.
+  useLanding(note.id, landing, view, { toast, dismiss });
   const pictures = useNotePictures(view);
   const { tape, recording, removeRecording, forgetRemoved } = useNoteTape(note, body, toast);
   /** The More sheet: how it is read, the AI, pin, archive, what the note is linked to, delete (NoteSettings.tsx). */

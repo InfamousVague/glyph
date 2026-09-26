@@ -7,6 +7,7 @@ import { readStored, writeStored } from '../core/stored.ts';
 import { getNote, setNoteRecording, updateNote } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import type { Segment } from './markdown.ts';
+import type { Placing } from './place.ts';
 import { refinedBody, refinedSegments } from './refineText.ts';
 
 /**
@@ -25,6 +26,10 @@ import { refinedBody, refinedSegments } from './refineText.ts';
  * same cores. The first pass downloads the larger model (190 MB); until it is
  * there, notes simply keep their live words. What the note reads as with the
  * better words - commands left out, voice memos put back - is refineText.ts.
+ *
+ * Nor over a note that is open (`holdNote`): the editor's saving must be the only writer of an open note
+ * (editor/useNoteSaving.ts), or its next keystroke's save conflicts and every save after it in that visit is dropped.
+ * A recording that opens its note at Done (docs/DESIGN.md §126) has its better words land after the note is left.
  */
 
 export interface RefineJob {
@@ -57,6 +62,17 @@ export interface RefineJob {
   clips?: Segment[];
   /** Phrases that were words and then "Glyph": the better words keep what came before the keyword. */
   keywordAt?: Array<{ startMs: number; endMs: number }>;
+  /**
+   * Where the take's words went in the note (place.ts): into its lists rather than on its end. Absent on jobs from
+   * before, and for the end, which is what those always meant.
+   */
+  placing?: Placing;
+  /**
+   * The take's own phrases as the live reader kept them, on the recording's timeline: a better phrase that ran a
+   * command and what it sent together is replaced by these, so it neither erases the item nor brings the command back.
+   * Absent on jobs from before, and on takes the live reader did nothing in.
+   */
+  live?: Segment[];
   tries: number;
 }
 
@@ -104,6 +120,8 @@ export const useRefining = refining.use;
 
 /** A screen that wants the cores is up - the recorder, or a review running its own pass: no queued pass starts. */
 let held = false;
+/** Notes open in the editor, whose passes wait until they are left: the editor is the one writer of an open note. */
+const heldNotes = new Set<string>();
 let running = false;
 let timer = 0;
 let onChanged: (() => void) | null = null;
@@ -127,6 +145,24 @@ function hold(on: boolean): void {
 /** The recorder is on screen (or not): no pass runs while it is. */
 export function setRecorderLive(live: boolean): void {
   hold(live);
+}
+
+/** A note open (or left): no pass writes it while it is, and the queue looks again a moment after it is left. */
+export function holdNote(id: string, on: boolean): void {
+  if (on) {
+    heldNotes.add(id);
+    return;
+  }
+  heldNotes.delete(id);
+  kick(1500);
+}
+
+/** A take's pass taken out of the queue: its words were undone, so its better words must not write them back. */
+export function dropRefine(id: string, fromMs: number): void {
+  const queue = readQueue();
+  if (!queue.some((j) => j.id === id && j.fromMs === fromMs)) return;
+  writeQueue(queue.filter((j) => !(j.id === id && j.fromMs === fromMs)));
+  syncPending();
 }
 
 /** Wire the runner to the app: called once, with what to do when a note's words changed. */
@@ -193,7 +229,8 @@ async function ensureRefineModel(): Promise<boolean> {
 async function runNext(): Promise<void> {
   if (running || held) return;
   const queue = readQueue();
-  const job = queue[0];
+  // The first whose note is not open: an open note's pass waits until it is left.
+  const job = queue.find((j) => !heldNotes.has(j.id));
   if (!job) return;
   if (!(await canRefine())) return;
   running = true;

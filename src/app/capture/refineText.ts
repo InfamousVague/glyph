@@ -1,6 +1,6 @@
-import { appendBody } from './appendBody.ts';
 import { findKeyword } from './command.ts';
 import { renderNote, type Segment } from './markdown.ts';
+import { END, placeTake } from './place.ts';
 import type { RefineJob } from './refine.ts';
 
 /**
@@ -10,9 +10,9 @@ import type { RefineJob } from './refine.ts';
  * The larger model hears the take's whole recording again, commands, voice memos and all, so what it answers is not
  * yet the note's words: the stretches that were commands are taken out, a phrase the live words cut at "hey Ghost" is
  * cut there again, and the voice memos - which it never heard as words - are put back where they were said. Then the
- * take is rendered again from the result, under the note's text from before it, exactly as the recorder rendered the
- * live words. By overlap rather than by match throughout, because the larger model hears the phrases at slightly
- * different times. Pure, so every rule is a test (refine.test.ts).
+ * take is rendered again from the result, into the note's text from before it where the recorder put the live words
+ * (place.ts: its end, or its lists). By overlap rather than by match throughout, because the larger model hears the
+ * phrases at slightly different times. Pure, so every rule is a test (refine.test.ts).
  */
 
 /**
@@ -22,7 +22,7 @@ import type { RefineJob } from './refine.ts';
  */
 export function refinedBody(job: RefineJob, refined: readonly Segment[]): string {
   const take = renderNote(withClips(job, withoutCommands(job, refined)), '', { titled: job.titled }).markdown;
-  return appendBody(job.baseBody, take);
+  return placeTake(job.baseBody, take, job.placing ?? END).body;
 }
 
 /** The better phrases with this take's voice memos back among them, in the order they were spoken. */
@@ -50,9 +50,23 @@ function covered(segment: Segment, spans: readonly { startMs: number; endMs: num
  * words cut at "Glyph" is cut there too. The larger model hears the phrases
  * at slightly different times, so it is by overlap, not by match.
  */
-export function withoutCommands(job: Pick<RefineJob, 'skip' | 'keywordAt'>, refined: readonly Segment[]): Segment[] {
+export function withoutCommands(job: Pick<RefineJob, 'skip' | 'keywordAt' | 'live'>, refined: readonly Segment[]): Segment[] {
   const skip = job.skip ?? [];
   const keywordAt = job.keywordAt ?? [];
+  const live = job.live;
+  if (live) {
+    // The live reader kept the take's phrases itself, a command's payload among them: a better phrase that touches a
+    // command is replaced by the live phrases inside it, so it neither erases what the command sent nor brings the
+    // command back.
+    const spans = [...skip, ...keywordAt];
+    return refined.flatMap((segment) => {
+      if (!spans.some((span) => Math.min(span.endMs, segment.endMs) > Math.max(span.startMs, segment.startMs))) return [segment];
+      return live.filter((phrase) => {
+        const middle = (phrase.startMs + phrase.endMs) / 2;
+        return middle >= segment.startMs && middle <= segment.endMs;
+      });
+    });
+  }
   return refined.flatMap((segment) => {
     if (skip.length && covered(segment, skip) >= 0.5) return [];
     if (keywordAt.length && covered(segment, keywordAt) > 0) {

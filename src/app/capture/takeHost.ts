@@ -29,7 +29,8 @@ export type RouteView =
   | { phase: 'command'; words: string; thinking?: boolean }
   | { phase: 'said'; text: string }
   | { phase: 'waiting'; title: string; many: boolean; leave: boolean }
-  | { phase: 'added'; title: string; body: string; added: string[] }
+  /** Words landed in another note's list; `insert` is the live reader's one-shot, which its Not this note takes out again. */
+  | { phase: 'added'; title: string; body: string; added: string[]; insert?: number }
   /** The words went to a note, and carry on there; `spot` says where in it ("under Electrical"). */
   | { phase: 'moved'; title: string; spot?: string | null }
   | { phase: 'missed'; title: string }

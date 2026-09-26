@@ -31,7 +31,7 @@ vi.mock('../core/events.ts', () => ({
 }));
 
 const { setPreferences } = await import('../core/preferences.ts');
-const { enqueueRefine, keepBetterPhrases, listenAgain, setRecorderLive, startRefining } = await import('./refine.ts');
+const { dropRefine, enqueueRefine, holdNote, keepBetterPhrases, listenAgain, setRecorderLive, startRefining } = await import('./refine.ts');
 
 const QUEUE_KEY = 'glyph-refine-queue';
 const queued = (): RefineJob[] => JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]') as RefineJob[];
@@ -235,5 +235,31 @@ describe('the review’s own pass', () => {
     const phrases = [...better, { text: 'Hey Ghost, add bread to work.', startMs: 2500, endMs: 3800 }];
     await keepBetterPhrases(job({ recordingMs: 4000, skip: [{ startMs: 2500, endMs: 3800 }] }), phrases);
     expect(calls('set_note_recording')[0]?.args).toEqual({ id: 'n1', recordingMs: 4000, segments: better });
+  });
+});
+
+describe('an open note', () => {
+  it('has its pass wait until it is left, while the next note’s runs', async () => {
+    notes.set('n2', { id: 'n2', body: '# Grocery run\n\nOat milk and legs.', revision: 1 });
+    holdNote('n1', true);
+    enqueueRefine(job());
+    enqueueRefine(job({ id: 'n2' }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls('capture_refine').map((call) => call.args.id)).toEqual(['n2']);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(calls('capture_refine')).toHaveLength(1);
+    holdNote('n1', false);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(calls('capture_refine').map((call) => call.args.id)).toEqual(['n2', 'n1']);
+  });
+
+  it('can have a take’s pass taken out, so undone words are never written back', async () => {
+    holdNote('n1', true);
+    enqueueRefine(job());
+    dropRefine('n1', 0);
+    holdNote('n1', false);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(calls('capture_refine')).toEqual([]);
+    expect(queued()).toEqual([]);
   });
 });

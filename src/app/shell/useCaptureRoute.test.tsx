@@ -72,6 +72,27 @@ describe('a capture ending', () => {
   });
 });
 
+describe('a capture that wrote into a note', () => {
+  it('opens that note with what went in, and files the notes it made', async () => {
+    const work = addWorkspace('Work')!;
+    chooseWorkspace(work.id);
+    const note = await createNote('house', '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+    await createNote('made', '# Eggs');
+    show(<Probe from={into()} />);
+    const landing = { noteId: 'house', title: 'House TODOs', blocks: ['- [ ] Call Sam'], others: [], made: ['made'] };
+    await act(async () => route.finished(note, false, undefined, undefined, landing));
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'house' }, landing: { ...landing, key: expect.any(Number) } });
+    expect(workspaceOf('made')?.id).toBe(work.id);
+  });
+
+  it('shows nothing of it over a locked phone', async () => {
+    const note = await createNote('house', '# House TODOs');
+    show(<Probe from={into()} />);
+    await act(async () => route.finished(note, true, undefined, undefined, { noteId: 'house', title: 'House TODOs', blocks: [], others: [], made: [] }));
+    expect(screen).toEqual({ name: 'list' });
+  });
+});
+
 describe('a capture starting', () => {
   it('waits for the deferred deletes, then mounts afresh', async () => {
     show(<Probe from={{ name: 'list' }} />);

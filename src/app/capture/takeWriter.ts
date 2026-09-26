@@ -1,5 +1,5 @@
-import { createNote, deleteNote, getNote, newNoteId, updateNote as updateStoredNote, type Note } from '../core/store.ts';
-import { appendBody } from './appendBody.ts';
+import { applyCommandMutation, createNote, deleteNote, getNote, newNoteId, updateNote as updateStoredNote, type Note } from '../core/store.ts';
+import { END, placeTake, type Placing } from './place.ts';
 import type { Candidate } from './route.ts';
 
 /**
@@ -23,6 +23,11 @@ import type { Candidate } from './route.ts';
  * of it is written yet, so the first note's text is never composed under the words in the second. The screen
  * (CaptureScreen.tsx) owns what is said and shown; this owns the ids, the base and the chain, and tells the screen
  * through its host when the note being recorded onto changed, so the page can show the change land.
+ *
+ * Where the words go in the note is its `placing` (place.ts): the end, for a new note and for a note's own Speak as it
+ * always was, or the lists of a note whose title says it holds them. A note the live reader switched the take to
+ * (liveRoute.ts) is written once, at Done, by `writeInto`: read fresh, the words placed into it, and stored through
+ * `apply_command`, which checks the body and the revision, so nothing typed or synced meanwhile is overwritten.
  */
 
 /** A note a command can name, with the note itself, kept current by every write here. */
@@ -56,6 +61,12 @@ export class TakeWriter {
   private draft: Note | null = null;
   /** Every write to a note, in turn: a command's change, the draft, the take carrying on elsewhere. */
   private chain: Promise<unknown> = Promise.resolve();
+  /** Where the words go in the note being written: the end, or its lists (place.ts). */
+  placing: Placing = END;
+  /** The note was switched to by a command, not opened from its own Speak: it is written by `writeInto` at Done. */
+  routed = false;
+  /** A switched-to note read fresh, for its tape and phrases, which the candidate it was found as lacks. */
+  private refreshing: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly host: TakeWriterHost) {}
 
@@ -74,13 +85,35 @@ export class TakeWriter {
    * there: the base is `note`'s, read when first needed, and nothing written to the note before is this take's draft
    * to take back.
    */
-  aim(note: Note | null): void {
+  aim(note: Note | null, placing: Placing = END, { routed = false }: { routed?: boolean } = {}): void {
     this.target = note;
     this.draft = null;
     this.base = null;
     this.drafted = false;
+    this.placing = placing;
+    this.routed = routed && note !== null;
     this.noteId = note?.id ?? newNoteId();
     this.host.targetChanged(note);
+  }
+
+  /**
+   * The note aimed at, read again from the store in the background: a candidate carries no tape or phrases, which the
+   * sound kept at Done lines up with. It replaces `target` only while the take is still aimed there. Synchronous to
+   * call, so a phrase committed straight after a switch lands in the new note; Done waits for it (`refreshed`).
+   */
+  refresh(id: string): void {
+    this.refreshing = this.refreshing.then(async () => {
+      const full = await getNote(id).catch(() => null);
+      if (full && this.target?.id === id) {
+        this.target = full;
+        this.host.targetChanged(full);
+      }
+    });
+  }
+
+  /** Every `refresh` asked for so far, done. */
+  refreshed(): Promise<unknown> {
+    return this.refreshing;
   }
 
   /**
@@ -90,6 +123,11 @@ export class TakeWriter {
   keepDraft(): void {
     this.drafted = false;
     this.base = null;
+  }
+
+  /** How the words go into the note being written changed: a heading said for them, or a to-do. */
+  setPlacing(placing: Placing): void {
+    this.placing = placing;
   }
 
   /** A command changed the note being recorded onto, outside `updateNote`: its new body is the base the words go under. */
@@ -112,14 +150,53 @@ export class TakeWriter {
     return done;
   }
 
-  /** The body to store: this capture's markdown, below the continued note's text if there is one. */
+  /** The body to store: this capture's markdown in the continued note's text, where its placing says, if there is one. */
   async compose(markdown: string): Promise<string> {
     const continued = this.target;
     if (!continued) return markdown;
     this.base ??= getNote(continued.id)
       .catch(() => null)
       .then((stored) => stored?.body ?? continued.body);
-    return appendBody(await this.base, markdown);
+    return placeTake(await this.base, markdown, this.placing).body;
+  }
+
+  /**
+   * The take's words into `note`, an existing note, once: read fresh, placed where `placing` says, and stored through
+   * `apply_command` (a compare-and-swap on the body and the revision). A conflict - the note changed between the read
+   * and the write - reads and places once more; a second, or a note deleted meanwhile, makes the words a note of their
+   * own (`fallback`, titled), so they are never lost and never overwrite anyone's edit.
+   */
+  writeInto(
+    note: { id: string },
+    markdown: string,
+    placing: Placing,
+    fallback: () => string,
+  ): Promise<{ saved: Note; before: string | null; blocks: string[]; spot: string | null; mutationId: string | null; own: boolean }> {
+    return this.queue(async () => {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const fresh = await getNote(note.id).catch(() => null);
+        if (!fresh) break;
+        const placed = placeTake(fresh.body, markdown, placing);
+        if (placed.body === fresh.body) return { saved: fresh, before: fresh.body, blocks: [], spot: placed.spot, mutationId: null, own: false };
+        const mutationId = newNoteId();
+        const result = await applyCommandMutation({
+          mutationId,
+          noteId: fresh.id,
+          kind: 'append',
+          beforeRevision: fresh.revision ?? 1,
+          beforeBody: fresh.body,
+          afterBody: placed.body,
+          source: fresh.source,
+        }).catch(() => null);
+        if (result?.status === 'applied') {
+          this.remember(result.note);
+          if (this.target?.id === result.note.id) this.target = result.note;
+          return { saved: result.note, before: fresh.body, blocks: placed.blocks, spot: placed.spot, mutationId, own: false };
+        }
+      }
+      const made = await createNote(newNoteId(), fallback(), 'capture');
+      return { saved: made, before: null, blocks: [], spot: null, mutationId: null, own: true };
+    });
   }
 
   /** Stores `body` as note `id`: a birth, or a revision-checked edit of a note this capture knows; never an upsert of a missing id. */
@@ -181,7 +258,7 @@ export class TakeWriter {
         this.host.targetChanged(updated);
         const known = this.named(id);
         if (known) known.note = updated;
-        const saved = await updateStoredNote(id, appendBody(next, this.host.markdown(false)), fresh.revision ?? 1);
+        const saved = await updateStoredNote(id, placeTake(next, this.host.markdown(false), this.placing).body, fresh.revision ?? 1);
         this.target = saved;
         if (known) known.note = saved;
         return next;

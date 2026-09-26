@@ -1,5 +1,6 @@
 import type { ReviewHandoff } from '../ai/review.ts';
 import type { SpokenAsk } from '../capture/CaptureScreen.tsx';
+import type { CaptureLanding } from '../capture/landing.ts';
 import type { Note } from '../core/store.ts';
 import { ALL_NOTES, notePlace, type Place } from '../notes/visited.ts';
 
@@ -31,6 +32,8 @@ export type Screen =
       ask?: SpokenAsk & { key: number };
       /** After Stop: the slower models check the take in the note itself (ai/useNoteReview.ts); `key` tells one review from the next. */
       review?: ReviewHandoff & { key: number };
+      /** What a recording just wrote into this note, for its Undo (capture/landing.ts); `key` tells one from the next. */
+      landing?: CaptureLanding & { key: number };
     }
   | {
       name: 'capture';

@@ -3,7 +3,8 @@ import { act, type ReactElement } from 'react';
 import { EditorView } from '@codemirror/view';
 import { ToastProvider } from '@glacier/react';
 import { button, buttonSaying, rerender, show, typeInto, unmount } from '../../test/render.tsx';
-import { createNote, getNote, setNoteRecording, updateNote, type Note } from '../core/store.ts';
+import { applyCommandMutation, createNote, getNote, setNoteRecording, updateNote, type Note } from '../core/store.ts';
+import type { CaptureLanding } from '../capture/landing.ts';
 import { goBack } from '../core/back.ts';
 import { setTapeId, tapeId } from '../core/clips.ts';
 import { setTopBarTools } from '../core/topBarTools.ts';
@@ -24,6 +25,13 @@ await vi.hoisted(async () => {
  * is decided at that moment; the write itself follows the one before it. The store is the real browser one
  * (core/store.ts), with its write watched.
  */
+
+/** Every hold the screen put on a note's better words, and every let-go (capture/refine.ts `holdNote`). */
+const holds = vi.hoisted(() => [] as [string, boolean][]);
+vi.mock('../capture/refine.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../capture/refine.ts')>();
+  return { ...real, holdNote: (id: string, on: boolean) => void holds.push([id, on]) };
+});
 
 vi.mock('../core/store.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../core/store.ts')>();
@@ -482,5 +490,62 @@ describe('the canvases framed in the note', () => {
     const next = lookups();
     rerender(screen(note, next));
     expect(next.bodyOfTitle).toHaveBeenCalledWith('Map');
+  });
+});
+
+describe('a note a recording just wrote into', () => {
+  const HOUSE = '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician\n';
+  const landing = (over: Partial<CaptureLanding> = {}) => ({ noteId: 'house', title: 'House TODOs', blocks: ['- [ ] Call an electrician'], others: [], made: [], key: 1, ...over });
+  /** The toast's text, and its Undo. */
+  const toastText = () => [...document.querySelectorAll('[role="status"], [role="alert"]')].map((toast) => toast.textContent).join(' ');
+
+  it('says what was added, and its Undo takes it out in the editor, saved like typing, with the next keystroke saved too', async () => {
+    const note = await createNote('house', HOUSE);
+    show(screen(note, { landing: landing() }));
+    await settle();
+    expect(toastText()).toContain('Added to House TODOs');
+    act(() => buttonSaying(document, 'Undo')!.click());
+    await settle();
+    expect(editor().state.doc.toString()).toBe('# House TODOs\n\n- [ ] Fix the gutter\n');
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n');
+    type('- [ ] Clear the drains');
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Clear the drains');
+  });
+
+  it('leaves a piece edited since as it is, and says so', async () => {
+    const note = await createNote('house', HOUSE);
+    show(screen(note, { landing: landing() }));
+    await settle();
+    const view = editor();
+    act(() => view.dispatch({ changes: { from: view.state.doc.length - 1, insert: ' tomorrow' } }));
+    act(() => buttonSaying(document, 'Undo')!.click());
+    await settle();
+    expect(editor().state.doc.toString()).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician tomorrow\n');
+    expect(toastText()).toContain('House TODOs has changed since, so it was left as it is.');
+  });
+
+  it('undoes what it wrote into other notes through the guarded undo', async () => {
+    await createNote('work', '# Work');
+    const written = await applyCommandMutation({ mutationId: 'm1', noteId: 'work', kind: 'append', beforeRevision: 1, beforeBody: '# Work', afterBody: '# Work\n\n- Call Sam', source: 'editor' });
+    expect(written.status).toBe('applied');
+    const note = await createNote('house', HOUSE);
+    show(screen(note, { landing: landing({ others: ['m1'] }) }));
+    await settle();
+    expect(toastText()).toContain('Added to House TODOs and one other note');
+    act(() => buttonSaying(document, 'Undo')!.click());
+    await settle();
+    expect((await getNote('work'))?.body).toBe('# Work');
+  });
+
+  it('holds the better words off the note while it is open', async () => {
+    const note = await createNote('house', HOUSE);
+    show(screen(note));
+    expect(holds).toContainEqual(['house', true]);
+    unmount();
+    expect(holds.at(-1)).toEqual(['house', false]);
   });
 });

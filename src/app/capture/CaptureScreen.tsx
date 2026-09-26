@@ -6,6 +6,7 @@ import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { answerHost, endCapture, isLocked, setCapturing } from '../core/host.ts';
 import { applyCommandMutation, createNote, getNote, listNotes, newNoteId, noteTitle, setNoteRecording, type Note } from '../core/store.ts';
+import { capitalise } from '../core/text.ts';
 import { preferences } from '../core/preferences.ts';
 import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { reviewAvailable, type ReviewHandoff } from '../ai/review.ts';
@@ -20,14 +21,16 @@ import { appendToList, placeWords } from './listAppend.ts';
 import { listTitle } from './instructionMutation.ts';
 import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandInstructionCommand } from './understand.ts';
-import { readInstruction } from '../ai/instruction.ts';
+import { bareWords, readInstruction } from '../ai/instruction.ts';
 import { ConfirmCard } from '../ai/ConfirmCard.tsx';
 import type { RunKind } from '../ai/kinds.ts';
 import { appendBlock } from './appendBody.ts';
 import { asBoardMarkdown, Take, takeMarkdown, type Offer } from './take.ts';
 import { hostThrough, type RouteView, type TableDraft, type TakeHost } from './takeHost.ts';
 import { TakeWriter, type NamedNote } from './takeWriter.ts';
-import { bookNoteBody, isBookBody } from '../book/book.ts';
+import { bookNoteBody, chaptersOf, isBookBody } from '../book/book.ts';
+import { linkFor } from '../share/share.ts';
+import { sameTitle } from '../editor/wikiLinks.ts';
 import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { withoutLead } from '../core/itemSyntax.ts';
 import { plugins } from '../plugins/registry.ts';
@@ -40,13 +43,17 @@ import { useSideKeySpot } from './sideKey.ts';
 import { LivePage } from './LivePage.tsx';
 import { Tail } from './Tail.tsx';
 import { counter } from './tape.ts';
-import { ListLanding, TableCard, TablePreview } from './CaptureCards.tsx';
+import { ListLanding, NoteChoiceCard, TableCard, TablePreview } from './CaptureCards.tsx';
+import { findKeyword } from './command.ts';
+import type { CaptureLanding } from './landing.ts';
+import { LiveRoute, type LiveCard, type LiveContext, type LiveStep } from './liveRoute.ts';
+import { END, placeTake, placingFor, type Placing } from './place.ts';
 import { lingerMs } from './chip.ts';
 import { RouteChip } from './RouteChip.tsx';
 import { diagnosticsLine, EMPTY_DIAGNOSTICS, soundsSilent, type Diagnostics } from './diagnostics.ts';
 import { commandCandidates } from './candidates.ts';
 import { withFinalWords } from './finalWords.ts';
-import { appendsTo, onTape } from './timeline.ts';
+import { appendsTo, onTape, shifted } from './timeline.ts';
 import { statusLine, stopHint, whereLine } from './screenText.ts';
 import { useCaptureSession } from './useCaptureSession.ts';
 import styles from './CaptureScreen.module.css';
@@ -66,18 +73,21 @@ import styles from './CaptureScreen.module.css';
  * it listens (useCaptureSession.ts): the first words of a voice note are usually
  * its subject.
  *
- * The note is written at Done, from the final transcript read once (PR #1):
- * a committed phrase only shows on the page, so a partial phrase can never
- * route a command or write a note. The sound is kept as it is recorded under
- * an id chosen at mount, so the phone killing the app mid-sentence loses no
- * audio; a cancel deletes it; Done, or a confirmed command, writes the note.
- * Every write to a note goes through one chain (takeWriter.ts).
+ * Each committed phrase is read by the live reader (liveRoute.ts) for one family of command, words for a note you
+ * name: "Hey Ghost, add a note to House TODOs" switches the page to that note and writes what is said into its list as
+ * it is said (Matt: "open the note, and start live writing to that note"); "add … to X" mid-take sends those words to X.
+ * A partial phrase never routes anything. Nothing is stored before Done: each note is then read fresh and written once,
+ * through `apply_command` for a note that already existed (takeWriter.ts `writeInto`). Anything else a recording asks
+ * for is read once, from the final transcript, at Done (ai/instruction.ts), when the live reader did nothing. The
+ * sound is kept as it is recorded, under the id of the note it goes with at the stop, so the phone killing the app
+ * mid-sentence loses no audio; a cancel deletes it. Every write to a note goes through one chain (takeWriter.ts).
  *
- * A recording from the Speak button or the side key is a new note; a note's own Speak adds to that note.
+ * A recording from the Speak button or the side key is a new note, or the note its first command named; a note's own
+ * Speak adds to that note.
  *
- * Done goes back to the list, whatever started the capture: the new note is at
- * the top, a tap away, and a locked phone has already stepped back behind its
- * lock screen without showing the note to whoever is holding it.
+ * Done opens the note the words went into when it already existed, with an Undo (editor/NoteScreen.tsx); otherwise it
+ * goes back to the list, the new note at the top, a tap away. A locked phone has already stepped back behind its lock
+ * screen without showing the note to whoever is holding it.
  *
  * The pieces are their own modules: the cards (CaptureCards.tsx), the chip (RouteChip.tsx), the lines of words that
  * are not the note (screenText.ts), the diagnostics line (diagnostics.ts), the last words of a stopped decode
@@ -97,7 +107,27 @@ interface CaptureScreenProps {
    * is set when the review after a recording should look at it (ai/review.ts); `ask` when the words were an
    * instruction about the note being continued, to run once it is open.
    */
-  onFinish: (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk) => void;
+  onFinish: (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk, landing?: CaptureLanding) => void;
+}
+
+/** What was said before "New note", for the note it was said for: written at Done with everything else. */
+interface Part {
+  note: Note | null;
+  /** The note it was written into had been switched to by a command, or was the note's own Speak. */
+  title: string | null;
+  placing: Placing;
+  markdown: string;
+  /** The same words titled, for a note of their own if the note they were for changed too much to write into. */
+  titled: string;
+  noteId: string;
+}
+
+/** A one-shot's words for another note ("hey Ghost, add call Sam to House TODOs"), written at Done. */
+interface Insert {
+  note: Note;
+  title: string;
+  placing: Placing;
+  segments: Segment[];
 }
 
 /** A spoken instruction about the note being continued ("hey Ghost, fix the spelling"): run on it once it is open (ai/instruction.ts). */
@@ -215,7 +245,31 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     ownTape: Note | null;
   } | null>(null);
 
-  const titled = target === null;
+  /** The live reader: each committed phrase read for a note named (liveRoute.ts). */
+  const [live] = useState(() => new LiveRoute<Note>());
+  /** Every committed phrase, commands and all, for the stop's last words to be told apart from (finalWords.ts). */
+  const committedRef = useRef<Segment[]>([]);
+  /** Phrases committed before the notes a command can name were read: read once they are. */
+  const queued = useRef<Segment[] | null>([]);
+  /** Where the words go in the note the page shows (place.ts), and the document it starts from after a switch. */
+  const [placing, setPlacingView] = useState<Placing>(END);
+  const [pageFrom, setPageFrom] = useState<string | undefined>(undefined);
+  /** A card asking which note (liveRoute.ts `LiveCard`). */
+  const [choice, setChoice] = useState<LiveCard<Note> | null>(null);
+  /** The take was switched to a note by a command, not opened from its own Speak. */
+  const [routed, setRouted] = useState(false);
+  /** "New note “House chores”" chosen on a card: the note the take goes to is made at Done, with this title. */
+  const [pendingTitle, setPendingTitleView] = useState<string | null>(null);
+  const pendingTitle$ = useRef<string | null>(null);
+  /** The note whose own Speak this is: where Not this note goes back to. */
+  const home = useRef<Note | null>(null);
+  const parts = useRef<Part[]>([]);
+  const inserts = useRef(new Map<number, Insert>());
+  /** A run or an ask said mid-take, for the note that opens after Done. */
+  const pendingAsk = useRef<SpokenAsk | null>(null);
+  /** The lines a confirmed card after Done put in its note, for the note's Undo. */
+  const confirmedLines = useRef<string[]>([]);
+  const titled = target === null && pendingTitle === null;
   /** While an item for another note is being said, its words show in the chip, not in this note. */
   const [itemWords, setItemWords] = useState('');
   /** Words of this take a plugin linked to something (a Notion task): links wherever the cues put them. */
@@ -265,21 +319,33 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       }),
   );
 
+  /**
+   * The live reader's steps, applied (`applySteps` below), what it is told of the take (`liveContext`), and "New note"
+   * (`sealAndFork`): through refs, so the handlers registered once reach the newest render's code.
+   */
+  const applyRef = useRef<(steps: readonly LiveStep<Note>[]) => void>(() => undefined);
+  const liveRef = useRef<() => LiveContext<Note>>(() => ({ notes: [], aim: null, own: false, keywordOn: true, locked: false }));
+  const sealAndForkRef = useRef<() => void>(() => undefined);
+  const cancelRef = useRef<(why: string | null) => void>(() => undefined);
+
   // ---- which note --------------------------------------------------------------------
   // A note's own Speak aims the recording at that note; otherwise it is a new one.
   useEffect(() => {
     let current = true;
     const chosen = aimedAt ? getNote(aimedAt).catch(() => null) : Promise.resolve<Note | null>(null);
     void chosen.then((found) => {
-      // Found after a draft was already written to a new note: stay with that one.
-      if (!current || !found || writer.savedDraft || finished.current) return;
-      writer.aim(found);
+      // Found after a draft was already written to a new note, or after a command switched the take: stay there.
+      if (!current || !found || writer.savedDraft || finished.current || live.engaged) return;
+      const own = placingFor(found.body, { own: true });
+      home.current = found;
+      writer.aim(found, own);
+      setPlacingView(own);
     });
     return () => {
       current = false;
     };
     // Decided once, as the capture opens: a new capture is a new mount.
-  }, [aimedAt, writer]);
+  }, [aimedAt, writer, live]);
 
   // The notes "add to …" can name (candidates.ts). Read once: a capture lasts minutes, and a
   // note made meanwhile is not one someone will name mid-sentence.
@@ -292,12 +358,16 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         // "Note link weekend trip end link" takes the note's own spelling.
         setLinkTitles(candidates.current.map((c) => c.title));
         setNotesRead(true);
+        // Phrases said while the notes were read: read now, in order.
+        const waiting = queued.current ?? [];
+        queued.current = null;
+        for (const segment of waiting) applyRef.current(live.phrase(segment, liveRef.current(), performance.now()));
       })
       .catch(() => undefined);
     return () => {
       current = false;
     };
-  }, []);
+  }, [live]);
 
   /**
    * The take carries on in `chosen`, or in a new note: what was said so far stays on the note it was said for,
@@ -326,7 +396,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const startNewNote = useCallback(
     async (title?: string) => {
       if (!title) {
-        await carryOn(null);
+        sealAndForkRef.current();
+        setRoute({ phase: 'moved', title: 'New note' });
         fireNativeHaptic('selection');
         return;
       }
@@ -406,16 +477,25 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           quiet.current?.words(performance.now());
           heard();
         }
-        // A partial is display only.  It cannot influence routing or a
-        // model prompt before Whisper has committed the final transcript.
-        setPartial(text);
+        // A partial is display only: it routes nothing. While a command is being said, or a note just named waits
+        // for its words, it shows in the chip rather than on the page.
+        const commanding = live.awaitingPayload || live.holding || (commandWordOn() && text !== '' && findKeyword(text) !== null);
+        setItemWords(commanding ? text : '');
+        setPartial(commanding ? '' : text);
       },
       onSegment: (raw) => {
         quiet.current?.words(performance.now());
         heard();
         heardRef.current.push(raw.text);
-        take.listen(raw);
+        committedRef.current.push(raw);
         setPartial('');
+        setItemWords('');
+        if (queued.current) {
+          queued.current.push(raw);
+          return;
+        }
+        // Applied at once, with nothing awaited: a phrase committed straight after a switch lands in the new note.
+        applyRef.current(live.phrase(raw, liveRef.current(), performance.now()));
       },
       onLevel: (level, rms) => {
         // Straight to a custom property: five updates a second is too many
@@ -445,6 +525,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // overwritten by the voice command.
       const placed = placeWords(note.body, spoken, { how, task, many, near, items });
       if (!placed.added.length) return;
+      confirmedLines.current = placed.added;
       const result = await applyCommandMutation({
         mutationId: newNoteId(),
         noteId: note.id,
@@ -562,7 +643,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     itemWords: setItemWords,
     haptic: (kind) => fireNativeHaptic(kind),
     changed: syncTake,
-    addItems: (target, spoken, placement) => void addItems(target, spoken, placement),
+    // On the writer's chain, so a confirmed card's note is read back after its words are in it (`confirmPending`).
+    addItems: (target, spoken, placement) => void writer.queue(() => addItems(target, spoken, placement)),
     changeNote: (target, change, title) =>
       void writer.updateNote(target.id, change).then((body) => {
         if (body === null) setRoute({ phase: 'said', text: `${title} didn’t change.` });
@@ -589,6 +671,182 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     },
   };
 
+  // ---- the live reader (liveRoute.ts) -------------------------------------------------
+
+  /** Whether a note is shared, or is a chapter of a shared book: over the lock screen, never written to. */
+  const published = (id: string): boolean => {
+    if (linkFor(id)) return true;
+    const title = candidates.current.find((c) => c.id === id)?.title;
+    return (
+      title !== undefined &&
+      candidates.current.some((book) => isBookBody(book.note.body) && linkFor(book.id) !== null && chaptersOf(book.note.body).some((chapter) => sameTitle(chapter.title, title)))
+    );
+  };
+
+  liveRef.current = () => ({
+    notes: candidates.current,
+    aim: writer.target,
+    own: home.current !== null,
+    keywordOn: commandWordOn(),
+    locked: isLocked(),
+    published,
+  });
+
+  const setPendingTitle = (title: string | null) => {
+    pendingTitle$.current = title;
+    setPendingTitleView(title);
+  };
+
+  /** The take goes to `note` from here, the words so far with it: the page starts from its text and they wisp in. */
+  const switchTo = (note: Note, into: Placing) => {
+    writer.aim(note, into, { routed: true });
+    writer.refresh(note.id);
+    takeTape.current = null;
+    setPendingTitle(null);
+    setRouted(true);
+    setPlacingView(into);
+    setPageFrom(isLocked() ? '' : note.body);
+    setMoves((n) => n + 1);
+  };
+
+  /** The take goes to a note made at Done with `title` ("New note “House chores”" on a card). */
+  const switchToNew = (title: string, task: boolean) => {
+    const into = placingFor(listTitle(title), { said: { task } });
+    writer.aim(null, into);
+    takeTape.current = null;
+    setPendingTitle(title);
+    setRouted(true);
+    setPlacingView(into);
+    setPageFrom(isLocked() ? '' : listTitle(title));
+    setMoves((n) => n + 1);
+  };
+
+  /** Not this note: back to the take's own note, a new one or the note whose Speak this is. Nothing was stored. */
+  const goHome = () => {
+    const own = home.current;
+    const into = own ? placingFor(own.body, { own: true }) : END;
+    writer.aim(own, into);
+    takeTape.current = null;
+    setPendingTitle(null);
+    setRouted(false);
+    setPlacingView(into);
+    setPageFrom(undefined);
+    setMoves((n) => n + 1);
+  };
+
+  /**
+   * "New note", said or tapped: what was said so far is kept for the note it was said for, written at Done with the
+   * rest, and the take starts afresh in a new note (take.fork). Discard now takes back the whole take, this part too.
+   */
+  sealAndForkRef.current = () => {
+    const board = asBoardMarkdown;
+    const aimedAt = writer.target;
+    const title = pendingTitle$.current;
+    const link = (text: string) => applyLinks(text, sentLinksRef.current);
+    parts.current.push({
+      note: aimedAt,
+      title,
+      placing: writer.placing,
+      markdown: take.markdown({ titled: !aimedAt && title === null, link, board }),
+      titled: take.markdown({ titled: true, link, board }),
+      noteId: writer.noteId,
+    });
+    take.fork();
+    home.current = null;
+    writer.aim(null);
+    takeTape.current = null;
+    setPendingTitle(null);
+    setRouted(false);
+    setPlacingView(END);
+    setPageFrom(undefined);
+    setMoves((n) => n + 1);
+  };
+
+  /** A one-shot's words landing in its note: the chip shows them under the list's last lines. */
+  const showInsert = (id: number) => {
+    const insert = inserts.current.get(id);
+    if (!insert?.segments.length) return;
+    const placed = placeTake(insert.note.body, renderNote(insert.segments, '', { titled: false }).markdown, insert.placing);
+    const added = placed.blocks.flatMap((block) => block.split('\n'));
+    setRoute(isLocked() ? { phase: 'done', text: 'Added to the note you named' } : { phase: 'added', title: insert.title, body: placed.body, added, insert: id });
+  };
+
+  /** What the live reader said to do with a phrase, done now, in order. Nothing here awaits. */
+  const applySteps = (steps: readonly LiveStep<Note>[]) => {
+    for (const step of steps) {
+      switch (step.kind) {
+        case 'words':
+          take.listen(step.segment);
+          break;
+        case 'unword': {
+          const gone = step.segments;
+          take.segments = take.segments.filter((segment) => !gone.some((g) => g.startMs === segment.startMs && g.endMs === segment.endMs));
+          syncTake();
+          break;
+        }
+        case 'command':
+          take.commandSpans.push(step.span);
+          break;
+        case 'keyword':
+          take.keywordSpans.push(step.span);
+          break;
+        case 'route':
+          switchTo(step.note, step.placing);
+          break;
+        case 'route-new':
+          switchToNew(step.title, step.task);
+          break;
+        case 'home':
+          goHome();
+          break;
+        case 'placing':
+          writer.setPlacing(step.placing);
+          setPlacingView(step.placing);
+          break;
+        case 'insert':
+          inserts.current.set(step.id, { note: step.note, title: step.title, placing: step.placing, segments: [...step.segments] });
+          break;
+        case 'insert-words':
+          inserts.current.get(step.id)?.segments.push(...step.segments);
+          break;
+        case 'insert-end':
+          showInsert(step.id);
+          break;
+        case 'insert-drop': {
+          const insert = inserts.current.get(step.id);
+          inserts.current.delete(step.id);
+          if (insert) {
+            take.segments = [...take.segments, ...insert.segments].sort((a, b) => a.startMs - b.startMs);
+            syncTake();
+          }
+          break;
+        }
+        case 'new-note':
+          sealAndForkRef.current();
+          break;
+        case 'card':
+          setChoice(step.card);
+          break;
+        case 'ask':
+          pendingAsk.current = step.run ? { kind: step.run } : { kind: 'ask', instruction: step.instruction };
+          break;
+        case 'chip':
+          setRoute(step.view);
+          break;
+        case 'haptic':
+          fireNativeHaptic(step.haptic);
+          break;
+        case 'log':
+          commandLog.current.push(step.line);
+          break;
+      }
+    }
+  };
+  applyRef.current = applySteps;
+
+  /** Not this note, from the top line: the take goes home, and the card offers the others. */
+  const notThisNote = () => applySteps(live.decline(liveRef.current(), performance.now()));
+
   const confirmPending = () => {
     take.confirm(performance.now());
     const final = finalCommand.current;
@@ -608,6 +866,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         void discardRecording(final.temporaryId).catch(() => undefined);
       }
       endCapture(final.locked);
+      // The note the card wrote to opens, with an Undo for the lines it put in.
+      const lines = final.create ? [] : confirmedLines.current;
+      if (saved && !final.locked) {
+        onFinish(saved, final.locked, undefined, undefined, { noteId: saved.id, title: noteTitle(saved.body), blocks: lines, others: [], made: final.create ? [saved.id] : [] });
+        return;
+      }
       onFinish(saved, final.locked);
     });
   };
@@ -639,6 +903,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     endCapture(final.locked);
     onFinish(null, final.locked);
   };
+  cancelRef.current = cancelPending;
   const finishTable = () => take.finishTable(performance.now());
   const cancelTable = (why: string | null) => take.cancelTable(why);
 
@@ -652,8 +917,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       // A command being said, or waiting for its yes, holds the recording open. Once the recording is over, the card of
       // the command read from it waits for a tap: the take's clock gives up on a question it could hear answered, and
       // with the microphone stopped a dropped card left Done, Discard and back all refusing a take already finished.
-      const commanding = take.commanding;
-      if (!finished.current) take.tick(now);
+      const commanding = take.commanding || live.holding;
+      if (!finished.current) {
+        take.tick(now);
+        applyRef.current(live.tick(now, liveRef.current()));
+      }
       if (!commanding && quiet.current?.due(now)) void finishRef.current();
       // A pause, once there are words: one tip, until words come again. Before the first word the card of things to
       // say is up instead (SayCard.tsx), and a tip picked under it would be spent unseen.
@@ -673,7 +941,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       }
     }, 250);
     return () => window.clearInterval(timer);
-  }, [phase, take, writer, session, counts]);
+  }, [phase, take, writer, session, counts, live]);
 
   // No draft timer: phrase commits are display-only.  The complete transcript
   // is saved exactly once after final instruction classification.
@@ -685,129 +953,256 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     setCapturing(false);
     setPhase('finishing');
     microphone.current?.stop();
-    // The tape is kept under the note's id, added to the end of the continued
-    // note's tape when there is one, so its words and its sound stay one timeline (timeline.ts).
+    // Every command held, every card up and every one-shot open is settled before anything is composed.
+    for (const segment of queued.current ?? []) take.listen(segment);
+    queued.current = null;
+    applyRef.current(live.close(liveRef.current(), performance.now()));
+    await writer.refreshed();
+    // The tape is kept under the id of the note the take is aimed at now, added to the end of that note's tape when
+    // there is one, so its words and its sound stay one timeline (timeline.ts).
     const continued = writer.target;
     const append = appendsTo(continued);
     const ownTape = continued && append ? continued : null;
+    const recordedAs = writer.noteId;
     let stopped: Stopped = { recordedMs: null, transcript: null };
     try {
-      stopped = (await session.current?.stop({ recordAs: writer.noteId, append })) ?? stopped;
+      stopped = (await session.current?.stop({ recordAs: recordedAs, append })) ?? stopped;
     } catch (failure) {
       setError(failureText(failure));
     }
 
-    const committed = take.segments;
-    // Native's stop-time result includes words whose phrase event was still in
-    // flight when `stop()` detached event listeners. It is the one transcript
-    // command classification may inspect; browser/simulated engines fall back
-    // to their committed phrases because they explicitly return null.
-    const transcript = stopped.transcript ?? committed.map((segment) => segment.text).join(' ').trim();
-    const spoken = withFinalWords(committed, stopped.transcript, session.current?.positionMs() ?? committed.at(-1)?.endMs ?? 0);
-    for (const segment of spoken.slice(committed.length)) {
-      // `listen` remains display-only, so completing the ordinary-note stream
-      // here cannot revive phrase-level routing or execution.
-      take.listen(segment);
+    // Native's stop-time result includes words whose phrase event was still in flight when `stop()` detached event
+    // listeners: compared with every phrase committed, commands and all, what it adds is read as one more phrase, so a
+    // command still being said at Done is still carried out, and last words are kept (finalWords.ts).
+    const committed = [...committedRef.current];
+    const heardAll = withFinalWords(committed, stopped.transcript, session.current?.positionMs() ?? committed.at(-1)?.endMs ?? 0);
+    for (const segment of heardAll.slice(committed.length)) {
+      committedRef.current.push(segment);
       heardRef.current.push(segment.text);
+      applyRef.current(live.final(segment, liveRef.current(), performance.now()));
     }
+    await writer.refreshed();
     const locked = isLocked();
+    /** The note the take is aimed at now: where its words are written, which a command only the stop heard may have changed. */
+    const aimed = writer.target;
 
-    // The one reader for a spoken instruction (ai/instruction.ts).
-    const read = await readInstruction(transcript, candidates.current);
-    if (read.kind === 'command') {
-      // The stopped audio is already retained under this capture id.  The
-      // mutation remains pending until this card is explicitly confirmed.
-      take.offerFinal(read.plan, performance.now());
-      const aimed = read.plan.kind === 'place' ? read.plan.note.note : null;
-      const create = read.plan.kind === 'create-list' ? { title: read.plan.title, items: read.plan.items ?? [] } : undefined;
-      finalCommand.current = { note: aimed, ...(create ? { create } : {}), locked, temporaryId: writer.noteId, recordedMs: stopped.recordedMs, ownTape };
-      setPhase('listening');
-      return;
+    // The reader at Done, when the live reader did nothing: a command said without the keyword, a run or an ask, a
+    // new list by name (ai/instruction.ts), read once from the whole transcript.
+    if (!live.engaged) {
+      const transcript = stopped.transcript ?? committed.map((segment) => segment.text).join(' ').trim();
+      const read = await readInstruction(transcript, candidates.current);
+      if (read.kind === 'command') {
+        // The stopped audio is already retained under this capture id. The mutation remains pending until this card is
+        // explicitly confirmed.
+        take.offerFinal(read.plan, performance.now());
+        const aimed = read.plan.kind === 'place' ? read.plan.note.note : null;
+        const create = read.plan.kind === 'create-list' ? { title: read.plan.title, items: read.plan.items ?? [] } : undefined;
+        finalCommand.current = { note: aimed, ...(create ? { create } : {}), locked, temporaryId: recordedAs, recordedMs: stopped.recordedMs, ownTape };
+        setPhase('listening');
+        return;
+      }
+      if (read.kind === 'reject') {
+        // Unsupported, destructive, ambiguous, and missing-target command shapes fail closed: do not create a note
+        // containing command prose.
+        setRoute({ phase: 'said', text: read.reason });
+        await letGo(recordedAs, stopped.recordedMs, ownTape);
+        await writer.undoDraft();
+        endCapture(locked);
+        onFinish(null, locked);
+        return;
+      }
+      if ((read.kind === 'run' || read.kind === 'ask') && continued && !locked) {
+        // "Hey Ghost, fix the spelling", said into a note: the words are an instruction, not the note's, and the note
+        // opens with the run on it (shell/useCaptureRoute.ts, editor/NoteScreen.tsx). The recording of the instruction
+        // goes, unless it went on the end of the note's own tape (`letGo`).
+        await letGo(recordedAs, stopped.recordedMs, ownTape);
+        await writer.undoDraft();
+        endCapture(locked);
+        onFinish(continued, locked, undefined, read.kind === 'run' ? { kind: read.run } : { kind: 'ask', instruction: read.instruction });
+        return;
+      }
+      if (read.kind === 'ask') {
+        // An ask a recording cannot carry out ("make a book called …"): its words are the note, without the keyword.
+        const [first, ...rest] = take.segments;
+        const bare = first ? bareWords(first.text) : null;
+        if (first && bare?.keyed) {
+          take.segments = [...(bare.words ? [{ ...first, text: `${capitalise(bare.words)}.` }] : []), ...rest];
+          hostImpl.current.changed();
+        }
+        const said = capitalise(read.instruction);
+        setRoute({ phase: 'said', text: `“${said.length > 30 ? `${said.slice(0, 30)}…` : said}” isn't something a recording can do, so the words are saved as a note.` });
+      }
+      if (read.kind === 'words' && read.notice) setRoute({ phase: 'said', text: read.notice });
     }
-    if (read.kind === 'reject') {
-      // Unsupported, destructive, ambiguous, and missing-target command
-      // shapes fail closed: do not create a note containing command prose.
-      setRoute({ phase: 'said', text: read.reason });
-      await letGo(writer.noteId, stopped.recordedMs, ownTape);
-      await writer.undoDraft();
-      endCapture(locked);
-      onFinish(null, locked);
-      return;
-    }
-    if ((read.kind === 'run' || read.kind === 'ask') && continued && !locked) {
-      // "Hey Ghost, fix the spelling", said into a note: the words are an instruction, not the note's, and the note
-      // opens with the run on it (shell/useCaptureRoute.ts, editor/NoteScreen.tsx). The recording of the instruction goes,
-      // unless it went on the end of the note's own tape (`letGo`).
-      await letGo(writer.noteId, stopped.recordedMs, ownTape);
-      await writer.undoDraft();
-      endCapture(locked);
-      onFinish(continued, locked, undefined, read.kind === 'run' ? { kind: read.run } : { kind: 'ask', instruction: read.instruction });
-      return;
-    }
-    if (read.kind === 'words' && read.notice) setRoute({ phase: 'said', text: read.notice });
 
     // A command's change still landing, or the take carrying on elsewhere: written before the note is.
     await writer.settled();
+    const link = (text: string) => applyLinks(text, sentLinksRef.current);
+    const named = pendingTitle$.current;
+    /** Notes this recording made, and writes to other notes, for the note that opens to know. */
+    const made: string[] = [];
+    const others: string[] = [];
+    let lastInsert: { note: Note; blocks: string[] } | null = null;
+    const changedMeanwhile = (title: string) => setRoute({ phase: 'said', text: `${title} changed as you spoke, so the words are a note of their own.` });
 
-    // Nothing that lays out as anything - no words, no table, no voice memo - leaves nothing behind. Asked of the
-    // laid-out words (take.hasContent), not the transcript: a cue said alone ("Bullet point.", or Whisper echoing its
-    // prompt on silence) is held for a sentence that never comes, and saved from the transcript it made an empty note.
+    // What was said before "New note", each for the note it was said for.
+    for (const part of parts.current) {
+      if (!part.markdown.trim()) continue;
+      if (part.note) {
+        const written = await writer.writeInto(part.note, part.markdown, part.placing, () => part.titled);
+        if (written.own) {
+          made.push(written.saved.id);
+          changedMeanwhile(noteTitle(part.note.body) || 'That note');
+        } else if (written.mutationId) others.push(written.mutationId);
+      } else {
+        const body = part.title ? placeTake(listTitle(part.title), part.markdown, part.placing).body : part.markdown;
+        made.push((await createNote(part.noteId, body, 'capture')).id);
+      }
+    }
+    // The one-shots: "add call Sam to House TODOs" said mid-take.
+    for (const insert of inserts.current.values()) {
+      const markdown = renderNote(insert.segments, '', { titled: false }).markdown;
+      if (!markdown.trim()) continue;
+      const written = await writer.writeInto(insert.note, markdown, insert.placing, () => renderNote(insert.segments).markdown);
+      if (written.own) {
+        made.push(written.saved.id);
+        changedMeanwhile(insert.title);
+        continue;
+      }
+      if (written.mutationId) others.push(written.mutationId);
+      lastInsert = { note: written.saved, blocks: written.blocks };
+      take.touched.add(written.saved.id);
+      commandLog.current.push(`Added “${written.blocks.map(withoutLead).join('”, “')}” to ${insert.title}${written.spot ? `, ${written.spot}` : ''}`);
+    }
+
+    // Nothing that lays out as anything - no words, no table, no voice memo - leaves nothing behind for the take's
+    // own note. Asked of the laid-out words (take.hasContent), not the transcript: a cue said alone ("Bullet point.",
+    // or Whisper echoing its prompt on silence) is held for a sentence that never comes, and saved from the transcript
+    // it made an empty note.
     if (!take.hasContent) {
-      // The stop has already kept the take's sound. On the end of a continued note's tape it stays, and the tape's new
-      // length is kept with the note's phrases as they were, so the next take's words still line up with their sound;
-      // a new note's goes with the note that is not made. A continued note's own file is never removed here: it is the
-      // whole of that note's tape.
+      // The stop has already kept the take's sound. On the end of a note's tape it stays, and the tape's new length is
+      // kept with the note's phrases as they were, so the next take's words still line up with their sound; a new
+      // note's goes with the note that is not made. A note's own file is never removed here: it is the whole of that
+      // note's tape.
       if (stopped.recordedMs !== null) {
         if (continued && append) {
           await setNoteRecording(continued.id, stopped.recordedMs, continued.segments ?? []).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
-        } else if (!continued) {
-          await discardRecording(writer.noteId).catch(() => undefined);
+        } else if (!continued || writer.routed) {
+          await discardRecording(recordedAs).catch(() => undefined);
         }
       }
+      if (writer.routed && aimed && !lastInsert && !made.length) setRoute({ phase: 'said', text: `Nothing was said for ${noteTitle(aimed.body) || 'that note'}, so nothing was added.` });
       await writer.undoDraft();
       endCapture(locked);
-      onFinish(null, locked);
+      const opened = lastInsert?.note ?? null;
+      if (opened && !locked) onFinish(opened, locked, undefined, undefined, { noteId: opened.id, title: noteTitle(opened.body), blocks: lastInsert!.blocks, others: others.slice(0, -1), made });
+      else if (made.length) onFinish((await getNote(made.at(-1)!).catch(() => null)) ?? null, locked);
+      else onFinish(null, locked);
       return;
     }
 
-    const markdown = take.markdown({ titled: !writer.target, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown });
-    const saved = await writer.queue(async () => writer.persist(writer.noteId, await writer.compose(markdown), 'capture'));
+    const markdown = take.markdown({ titled: !aimed && named === null, link, board: asBoardMarkdown });
+    let saved: Note;
+    /** The note's text the words were composed onto, for the better words: '' for a new note. */
+    let base = '';
+    let blocks: string[] = [];
+    /** The take went into a note that already existed, switched to by a command: it opens, with no review. */
+    let into = false;
+    if (writer.routed && aimed) {
+      const written = await writer.writeInto(aimed, markdown, writer.placing, () => take.markdown({ titled: true, link, board: asBoardMarkdown }));
+      saved = written.saved;
+      if (written.own) {
+        made.push(saved.id);
+        changedMeanwhile(noteTitle(aimed.body) || 'That note');
+      } else {
+        into = true;
+        base = written.before ?? aimed.body;
+        blocks = written.blocks;
+        commandLog.current.push(`Wrote to ${noteTitle(saved.body)}${written.spot ? `, ${written.spot}` : ''}`);
+      }
+    } else if (named !== null) {
+      // "New note “House chores”", chosen on a card: made now, titled, with the words where its title says.
+      const body = placeTake(listTitle(named), markdown, writer.placing).body;
+      const result = await applyCommandMutation({ mutationId: newNoteId(), noteId: writer.noteId, kind: 'create', beforeRevision: null, beforeBody: null, afterBody: body, source: 'capture' }).catch(() => null);
+      saved = result?.status === 'applied' ? result.note : await createNote(newNoteId(), body, 'capture');
+      made.push(saved.id);
+    } else {
+      saved = await writer.queue(async () => writer.persist(writer.noteId, await writer.compose(markdown), 'capture'));
+      base = aimed ? ((await writer.baseBody) ?? aimed.body) : '';
+    }
+
     let refineJob: ReviewHandoff['job'] = null;
     if (stopped.recordedMs !== null && session.current?.keepsAudio) {
-      // New phrases sit after the continued tape's, shifted by its length.
-      const tape = onTape(continued, take, spoken);
-      await setNoteRecording(saved.id, stopped.recordedMs, tape.segments).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
-      // The tape this take wrote to, so its voice memos know it again when the note is opened (core/clips.ts).
-      setTapeId(saved.id, tapeOfTake());
-      // The better words: the larger model over this take's recording, later,
-      // or now in the review after a recording when that runs.
-      const base = continued ? ((await writer.baseBody) ?? continued.body) : '';
-      refineJob = {
-        id: saved.id,
-        fromMs: tape.fromMs,
-        recordingMs: stopped.recordedMs,
-        baseBody: base,
-        savedBody: saved.body,
-        titled: !continued,
-        priorSegments: tape.prior,
-        promptTail: renderNote(tape.prior).plain.slice(-200),
-        skip: tape.skip,
-        // The voice memos this take left: the better words never heard them, and they go back where they were.
-        clips: tape.clips,
-        keywordAt: tape.keywordAt,
-      };
+      /** The note whose tape the take's sound goes on the end of, as it was before this take; null for a tape of its own. */
+      let tapeOf: Note | null = into || saved.id === aimed?.id ? aimed : null;
+      let recordedMs: number | null = stopped.recordedMs;
+      if (saved.id !== recordedAs) {
+        // The take ended up in another note than the one its sound was kept under: a command only the stop heard, or a
+        // note that changed too much to write into. Sound on the end of a note's own tape stays on it (`letGo`).
+        if (ownTape) {
+          await letGo(recordedAs, stopped.recordedMs, ownTape);
+          recordedMs = null;
+        } else {
+          if (!into) tapeOf = null;
+          recordedMs = await reassignRecording(recordedAs, saved.id, appendsTo(tapeOf)).catch(() => null);
+        }
+      }
+      if (recordedMs !== null) {
+        // New phrases sit after the continued tape's, shifted by its length.
+        const tape = onTape(tapeOf, take, take.segments);
+        const kept = await setNoteRecording(saved.id, recordedMs, tape.segments).catch((failure: unknown) => {
+          console.warn('[glyph] recording not kept:', failure);
+          return null;
+        });
+        if (kept) saved = kept;
+        // The tape this take wrote to, so its voice memos know it again when the note is opened (core/clips.ts).
+        setTapeId(saved.id, tapeOfTake());
+        // The better words: the larger model over this take's recording, later, or now in the review after a recording
+        // when that runs.
+        refineJob = {
+          id: saved.id,
+          fromMs: tape.fromMs,
+          recordingMs: recordedMs,
+          baseBody: base,
+          savedBody: saved.body,
+          titled: !tapeOf && !into && named === null && !aimed,
+          priorSegments: tape.prior,
+          promptTail: renderNote(tape.prior).plain.slice(-200),
+          skip: tape.skip,
+          // The voice memos this take left: the better words never heard them, and they go back where they were.
+          clips: tape.clips,
+          keywordAt: tape.keywordAt,
+          ...(writer.placing.kind !== 'end' ? { placing: writer.placing } : {}),
+          ...(live.engaged ? { live: shifted(take.segments, tape.fromMs) } : {}),
+        };
+      }
     }
     fireNativeHaptic('success');
     endCapture(locked);
+    const ask = pendingAsk.current ?? undefined;
+    // What the recording left in notes that were there already, and the notes it made, for the note that opens.
+    const landing: CaptureLanding | undefined =
+      into || others.length || made.length ? { noteId: saved.id, title: noteTitle(saved.body), blocks, others, made, ...(refineJob ? { fromMs: refineJob.fromMs } : {}) } : undefined;
+    // A take written into a note that already existed opens it with its Undo, and no review: the words are in it as
+    // they were said (Matt: "instead of doing the second pass over at the end"). The better words land after the note
+    // is left (capture/refine.ts `holdNote`).
+    if (into) {
+      if (refineJob) enqueueRefine(refineJob);
+      onFinish(saved, locked, undefined, ask, landing);
+      return;
+    }
     // The review after a recording: it runs the better words and the formatting when it is done.
     // Not over a locked phone, whose note is not shown to whoever is holding it.
     if (!locked && (await reviewAvailable())) {
-      onFinish(saved, locked, { noteId: saved.id, job: refineJob, heard: heardRef.current.join(' '), commands: [...commandLog.current], touched: [...take.touched] });
+      const review = { noteId: saved.id, job: refineJob, heard: heardRef.current.join(' '), commands: [...commandLog.current], touched: [...take.touched] };
+      if (landing || ask) onFinish(saved, locked, review, ask, landing);
+      else onFinish(saved, locked, review);
       return;
     }
     if (refineJob) enqueueRefine(refineJob);
-    onFinish(saved, locked);
-  }, [onFinish, take, writer, tapeOfTake, session, microphone, setPhase, setError]);
+    if (landing || ask) onFinish(saved, locked, undefined, ask, landing);
+    else onFinish(saved, locked);
+  }, [onFinish, take, writer, tapeOfTake, session, microphone, setPhase, setError, live]);
 
   // The side key held again: Done.
   useEffect(() => {
@@ -824,7 +1219,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   useEffect(() => answerHost('screenOff', () => void finishRef.current()), []);
 
   const cancel = useCallback(async () => {
-    if (finished.current) return;
+    // With the card after Done up, Discard is its Cancel: the take was finished, and its sound goes as a Cancel's does.
+    if (finished.current) {
+      if (finalCommand.current) cancelRef.current(null);
+      return;
+    }
+    // Nothing was stored mid-take, so there is nothing to take back: the holds and cards are settled and dropped.
+    live.close(liveRef.current(), performance.now());
     finished.current = true;
     setCapturing(false);
     session.current?.cancel();
@@ -833,7 +1234,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const locked = isLocked();
     endCapture(locked);
     onFinish(null, locked);
-  }, [onFinish, writer, session, microphone]);
+  }, [onFinish, writer, session, microphone, live]);
 
   // The phone's back gesture ends the take the way Done does: what was said
   // is kept, and a take with nothing in it leaves nothing behind.
@@ -864,7 +1265,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   // A capture that has heard a while and produced nothing is the one worth
   // explaining without being asked: the line that diagnosed the Fold.
   const silent = soundsSilent(engine, diagnostics);
-  const hasWords = note.markdown.length > 0;
+  // A note switched to shows its own text already: the card of things to say and the hint under an empty page are done.
+  const hasWords = note.markdown.length > 0 || routed;
 
   return (
     <div className={styles.screen} data-phase={phase} ref={screenRef}>
@@ -876,9 +1278,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           <>
             {/* Tapping the line shows what the pipeline has done, for diagnosing a silent capture. */}
             <button type="button" className={`app-word ${styles.where}`} onClick={() => setShowDiagnostics((on) => !on)}>
-              {whereLine(target, locked)}
+              {whereLine(target, locked, { routed, named: pendingTitle })}
             </button>
-            {target ? (
+            {routed ? (
+              <button type="button" className={`app-word ${styles.newNote}`} onClick={notThisNote}>
+                Not this note
+              </button>
+            ) : target ? (
               <button type="button" className={`app-word ${styles.newNote}`} onClick={() => void startNewNote()}>
                 New note
               </button>
@@ -897,7 +1303,16 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           </div>
         ) : null}
         {route?.phase === 'added' ? (
-          <ListLanding key={`landing-${route.added.join('|')}`} title={route.title} body={route.body} added={route.added} />
+          <ListLanding
+            key={`landing-${route.added.join('|')}`}
+            title={route.title}
+            body={route.body}
+            added={route.added}
+            onUndo={route.insert !== undefined ? () => {
+              applySteps(live.dropInsert(route.insert!));
+              setRoute({ phase: 'said', text: `Not added to ${route.title}.` });
+            } : undefined}
+          />
         ) : phase === 'failed' && !hasWords ? (
           <div className={styles.empty}>
             <Opening failed />
@@ -908,9 +1323,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           // screen the note being continued shows none of its text.
           <LivePage
             // The editor reads its placeholder once, so the page is remade when the recorder is up: "Say which note." after "Starting…".
-            key={`page-${target?.id ?? 'new'}-${moves}-${phase === 'starting' ? 'starting' : 'up'}`}
-            base={target && !locked ? target.body : ''}
+            key={`page-${target?.id ?? pendingTitle ?? 'new'}-${moves}-${phase === 'starting' ? 'starting' : 'up'}`}
+            base={locked ? '' : target ? target.body : pendingTitle !== null ? listTitle(pendingTitle) : ''}
             markdown={note.markdown}
+            placing={locked ? END : placing}
+            from={locked ? undefined : pageFrom}
             under={topRef}
             placeholder={phase === 'starting' ? 'Starting…' : 'Start talking.'}
           />
@@ -921,12 +1338,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
       {tableView ? (
         <TableCard draft={tableView} heard={itemWords} onDone={finishTable} onCancel={() => cancelTable(null)} />
+      ) : choice && !locked ? (
+        <NoteChoiceCard card={choice} onChoose={(chosen) => applySteps(live.answer(choice.id, chosen, liveRef.current()))} />
       ) : pending ? (
         <ConfirmCard
           offer={pending}
           onConfirm={confirmPending}
           onCancel={() => cancelPending(null)}
-          hint="Or say “yes” or “no”."
           table={pending.kind === 'table' ? <TablePreview columns={pending.columns} rows={pending.rows} /> : undefined}
         />
       ) : route ? (

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import type { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { Editor } from '../editor/Editor.tsx';
 import { commonEnds, wisp } from '../editor/wispArrivals.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { holdWispDrift, useWispEdge } from '../art/wispEdge.ts';
-import { appendBody } from './appendBody.ts';
+import { END, placeTake, type Placing } from './place.ts';
 import { onVoiceLevel } from './voiceLevel.ts';
 import styles from './CaptureScreen.module.css';
 
@@ -30,6 +30,10 @@ import styles from './CaptureScreen.module.css';
  * the wisp effect"; it was off a while, when the arriving letters were boxes
  * that shifted the line, and came back once they weren't). The page follows the newest words down unless the person
  * has scrolled up to read.
+ *
+ * Words for a note's list are written into the list, where they will be saved (place.ts `placeTake`, the same the
+ * recorder's Done writes with), so the page follows the words where they arrive rather than the bottom: Matt, "open
+ * the note, and start live writing to that note".
  */
 
 interface LivePageProps {
@@ -41,12 +45,16 @@ interface LivePageProps {
   placeholder: string;
   /** The recorder's top line, which the page runs under: the wisp sits below it, and the page pads by its height. */
   under?: RefObject<HTMLElement | null>;
+  /** Where the words go in the note: its end (the default), or its lists. */
+  placing?: Placing;
+  /** The document to start from, when the page was just switched to this note: the words then arrive through the wisp. */
+  from?: string;
 }
 
 /** Within this far of the bottom, the page keeps following the newest words. */
 const FOLLOW_PX = 160;
 
-export function LivePage({ base, markdown, placeholder, under }: LivePageProps) {
+export function LivePage({ base, markdown, placeholder, under, placing = END, from }: LivePageProps) {
   const { theme, wisp: ghosting, ripples: rippling } = usePreferences();
   const page = useRef<HTMLDivElement>(null);
   // The older text goes to smoke under the recorder's top line, like any page (art/wispEdge.ts): the line is a pane
@@ -61,30 +69,51 @@ export function LivePage({ base, markdown, placeholder, under }: LivePageProps) 
   // "show the voice recording ripples giving the text weird wisp ripples").
   const ripples = useMemo(() => ({ subscribe: onVoiceLevel }), []);
   // The document the editor starts with; everything after is written in as edits.
-  const [first] = useState(() => appendBody(base, markdown));
+  const [first] = useState(() => from ?? placeTake(base, markdown, placing).body);
+  /** Where the page last followed the words to, for telling whether the person has scrolled away to read. */
+  const followed = useRef<number | null>(null);
 
   useEffect(() => {
     if (!view) return;
-    const next = appendBody(base, markdown);
+    const next = placeTake(base, markdown, placing).body;
     const now = view.state.doc.toString();
     if (now === next) return;
     const { prefix, suffix } = commonEnds(now, next);
     const scroller = page.current;
-    const following = scroller ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < FOLLOW_PX : false;
     const removed = now.length - prefix - suffix;
+    const inside = placing.kind !== 'end';
+    // At the end, the bottom is where the words are; in a list, where they went in is, and the page follows that
+    // while the person has stayed within reach of where it last followed to.
+    const following = scroller
+      ? inside
+        ? followed.current === null || Math.abs(scroller.scrollTop - followed.current) < FOLLOW_PX
+        : scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < FOLLOW_PX
+      : false;
+    const at = next.length - suffix;
     view.dispatch({
-      changes: { from: prefix, to: now.length - suffix, insert: next.slice(prefix, next.length - suffix) },
+      changes: { from: prefix, to: now.length - suffix, insert: next.slice(prefix, at) },
       annotations: wisp.of({ kind: removed > 0 ? 'rewrite' : 'heard' }),
+      ...(inside && following ? { effects: EditorView.scrollIntoView(Math.min(at, next.length), { y: 'center' }) } : {}),
     });
-    if (following && scroller) {
+    if (inside) {
+      if (following && scroller) window.requestAnimationFrame(() => (followed.current = scroller.scrollTop));
+    } else if (following && scroller) {
       window.requestAnimationFrame(() => scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' }));
     }
-  }, [view, base, markdown]);
+  }, [view, base, markdown, placing]);
 
-  // Opened on a long note: start at its end, where the words will go.
+  // Opened on a long note: start at its end, where the words will go, or at the list they will go into.
   useEffect(() => {
     if (!view || !page.current) return;
-    page.current.scrollTop = page.current.scrollHeight;
+    if (placing.kind === 'end') {
+      page.current.scrollTop = page.current.scrollHeight;
+      return;
+    }
+    // Where a word said now would go in: the first place the note with one more item differs from it.
+    const { prefix } = commonEnds(base, placeTake(base, 'Here.', placing).body);
+    view.dispatch({ effects: EditorView.scrollIntoView(Math.min(prefix, view.state.doc.length), { y: 'center' }) });
+    // Only as the page opens: after that it follows the words.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
   return (

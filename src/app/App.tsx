@@ -441,6 +441,7 @@ function Shell() {
         at={screen.at}
         ask={screen.ask}
         review={screen.review}
+        landing={screen.landing}
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
         onOpenWithin={openTitleWithin}
@@ -629,7 +630,7 @@ function Shell() {
           fromAssistant={screen.fromAssistant}
           stopRequests={screen.stop}
           noteId={screen.noteId}
-          onFinish={(note, locked, review, ask) => void capture.finished(note, locked, review, ask)}
+          onFinish={(note, locked, review, ask, landing) => void capture.finished(note, locked, review, ask, landing)}
         />
       ) : screen.name === 'academy' ? (
         <AcademyScreen

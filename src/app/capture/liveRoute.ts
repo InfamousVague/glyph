@@ -5,9 +5,9 @@ import { capitalise } from '../core/text.ts';
 import { onlyFiller, PAYLOAD_LEAD } from './command.ts';
 import { commandWords, hearKeyword, isOpener, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine, withoutFinalStop, type Reading } from './liveCommand.ts';
 import { runsOf, semanticListKind } from './listAppend.ts';
-import type { Segment } from './markdown.ts';
+import { renderNote, type Segment } from './markdown.ts';
 import { findNote, nameWords, titleKind, type Found } from './noteFind.ts';
-import { placingFor, type Placing } from './place.ts';
+import { placeTake, placingFor, type Placing } from './place.ts';
 import type { RouteView } from './takeHost.ts';
 import type { Span } from './takeTypes.ts';
 
@@ -196,11 +196,13 @@ function sentence(text: string): string {
  * each on the command phrase's stretch of the recording.
  */
 export function payloadWords(whole: Segment, payload: string, { item = false, task = false }: { item?: boolean; task?: boolean } = {}): Segment[] {
-  const said = payloadOf(payload).replace(/[\s.!?…]+$/, '');
+  const words = payloadOf(payload).trim();
+  const said = words.replace(/[\s.!?…]+$/, '');
   if (!said) return [];
   const pieces = /,/.test(said) ? said.split(/\s*(?:,|\band\b)\s*/i).map((piece) => piece.trim()).filter(Boolean) : [];
   const listed = pieces.length >= 2 && pieces.every((piece) => piece.split(/\s+/).length <= 4) ? pieces : null;
-  if (!listed && !item) return [{ ...whole, text: sentence(said) }];
+  // As it was said: a phrase Whisper cut before its stop runs on into the next ("…fix the light" | "sockets.").
+  if (!listed && !item) return [{ ...whole, text: capitalise(words) }];
   const cue = task ? 'Check box' : 'Bullet point';
   return (listed ?? [said]).map((piece) => ({ ...whole, text: `${cue}: ${piece}.` }));
 }
@@ -427,7 +429,8 @@ export class LiveRoute<N extends LiveNote> {
     const held = this.held!;
     this.held = null;
     const segments = [...held.segments, segment];
-    const joined = segments.map((s) => withoutFinalStop(s.text)).join(' ');
+    // Joined, each phrase's own stop gone but the last one's, which ends the command as it ends the phrase.
+    const joined = segments.map((s, i) => (i < segments.length - 1 ? withoutFinalStop(s.text) : s.text)).join(' ');
     const whole = { text: joined, startMs: segments[0]!.startMs, endMs: segment.endMs };
     const spans: LiveStep<N>[] = segments.map((s) => ({ kind: 'command', span: spanOf(s) }));
     const heard = ctx.keywordOn ? hearKeyword(joined, (words) => this.readsAsRoute(words, ctx)) : null;
@@ -489,7 +492,8 @@ export class LiveRoute<N extends LiveNote> {
     const readings = [...readRoute(words), ...(keyed ? readNameFirst(words) : [])];
     const chosen = this.choose(readings, ctx);
     if (!chosen) return this.notRoute(words, ctx, { atStart });
-    const { reading, found } = chosen;
+    const { found } = chosen;
+    const reading = endedAs(chosen.reading, whole.text);
     if (reading.newNote) return this.newNote(ctx, { atStart });
     if (reading.self) return this.self(reading, whole, ctx);
     // An unsure name at the phrase's end, with nothing after it, may still be growing: one more phrase first.
@@ -566,7 +570,8 @@ export class LiveRoute<N extends LiveNote> {
     if (ctx.locked && ctx.published?.(note.id)) return this.keep(payload, whole, 'That note is shared, so the words stay here.', reading.trailing);
     if (ctx.aim?.id === note.id) return this.here(reading, payload, whole, ctx, reading.heading);
     const placing = placingFor(note.body, { said: { task: reading.placing === 'task' }, heading: reading.heading, move: reading.move });
-    const spot = spotOf(note.body, placing);
+    // Where the words go, by what they say when they were said: "under Electrical".
+    const spot = payload ? (placeTake(note.body, renderNote(payloadWords(whole, payload), '', { titled: false }).markdown, placing).spot ?? spotOf(note.body, placing)) : spotOf(note.body, placing);
     const title = ctx.locked ? 'the note you named' : candidate.title;
     this.engage();
     const steps: LiveStep<N>[] = [];
@@ -770,10 +775,23 @@ export class LiveRoute<N extends LiveNote> {
     const chosen = this.choose(readings, ctx);
     if (!chosen || chosen.found.status !== 'resolved' || chosen.found.score < LIVE_TIMING.bareScore) return [this.words(segment)];
     const note = chosen.found.note;
+    const reading = endedAs(chosen.reading, segment.text);
     const evidence = titleKind(note.title) !== null || nameWords(note.title).generic.length > 0 || runsOf(note.note.body.split('\n')).length > 0;
     if (!evidence) return [this.words(segment)];
-    return [{ kind: 'command', span: spanOf(segment) }, ...this.resolved(chosen.reading, note, chosen.found.score, payloadOf(chosen.reading.payload), segment, ctx, now, { atStart: true })];
+    return [{ kind: 'command', span: spanOf(segment) }, ...this.resolved(reading, note, chosen.found.score, payloadOf(reading.payload), segment, ctx, now, { atStart: true })];
   }
+}
+
+/**
+ * A reading with the phrase's own full stop given back to whatever ends it: the grammar reads without it (a phrase-final
+ * stop is never a separator), but the words that end the phrase end with it, so a sentence said next starts a new one.
+ */
+function endedAs(reading: Reading, phrase: string): Reading {
+  const end = /([.!?…])["”]?\s*$/.exec(phrase)?.[1] ?? '';
+  const open = (text: string) => text !== '' && !/[.!?…]["”]?$/.test(text);
+  if (!end) return reading;
+  if (reading.trailing) return open(reading.trailing) ? { ...reading, trailing: `${reading.trailing}${end}` } : reading;
+  return open(reading.payload) ? { ...reading, payload: `${reading.payload}${end}` } : reading;
 }
 
 /** The command's words of a phrase: after the keyword, the lead-ins gone. */

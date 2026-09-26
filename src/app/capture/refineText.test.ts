@@ -75,3 +75,31 @@ describe('voice memos in the better words', () => {
     expect(withClips({ clips: [] }, refined)).toEqual(refined);
   });
 });
+
+describe('the better words for a take the live reader read', () => {
+  const seg = (text: string, startMs: number, endMs: number) => ({ text, startMs, endMs });
+  const live = [seg('Kevin owns the release.', 0, 1500), seg('Check box: call the electrician.', 2000, 4000), seg('The budget is Friday.', 4200, 5500)];
+  const spans = { skip: [{ startMs: 2000, endMs: 4000 }], keywordAt: [], live };
+
+  it('keeps the live item where a better phrase ran the command and its item together, and never the command', () => {
+    const refined = [seg('Kevin owns the release.', 0, 1500), seg('Hey Ghost, add call the electrician to house to-dos.', 1900, 4100), seg('The budget is Friday.', 4200, 5500)];
+    expect(withoutCommands(spans, refined).map((s) => s.text)).toEqual(['Kevin owns the release.', 'Check box: call the electrician.', 'The budget is Friday.']);
+  });
+
+  it('drops a better phrase that is only the command, where no live phrase kept anything', () => {
+    const refined = [seg('Hey Ghost, move this to work.', 2000, 4000)];
+    expect(withoutCommands({ skip: [{ startMs: 2000, endMs: 4000 }], live: [] }, refined)).toEqual([]);
+  });
+
+  it('puts the better words into the list the live ones went into', () => {
+    const body = refinedBody(
+      job({ baseBody: '# House TODOs\n\n- [ ] Fix the gutter\n', titled: false, placing: { kind: 'lists', task: true, heading: null, fresh: null } }),
+      [seg('Call an electrician to fix the light sockets.', 0, 3000)],
+    );
+    expect(body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n');
+  });
+
+  it('still lands an old job, with no placing, at the end', () => {
+    expect(refinedBody(job({ baseBody: '# House TODOs\n\n- [ ] Fix the gutter\n', titled: false }), [seg('Call Sam.', 0, 1000)])).toBe('# House TODOs\n\n- [ ] Fix the gutter\n\nCall Sam.');
+  });
+});

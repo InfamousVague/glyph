@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { ReviewHandoff } from '../ai/review.ts';
 import type { SpokenAsk } from '../capture/CaptureScreen.tsx';
+import type { CaptureLanding } from '../capture/landing.ts';
 import { afterPendingDeletes } from '../capture/launch.ts';
 import { answerHost } from '../core/host.ts';
 import { fileNewNote } from '../core/workspaces.ts';
@@ -25,8 +26,11 @@ import { captureScreen, type Screen } from './screen.ts';
 export interface CaptureRoute {
   /** A capture, from the side key (`fromAssistant`) or a Speak button, into `noteId` when it was one note's. */
   start: (fromAssistant: boolean, noteId?: string) => Promise<void>;
-  /** A capture over: filed, and the app on whatever comes next - the note with its run or review, the note spoken into, or home. */
-  finished: (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk) => Promise<void>;
+  /**
+   * A capture over: filed, and the app on whatever comes next - the note with its run or review, the note the words
+   * went into (`landing`), the note spoken into, or home.
+   */
+  finished: (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk, landing?: CaptureLanding) => Promise<void>;
 }
 
 export interface CaptureRouteOptions {
@@ -95,10 +99,25 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
   );
 
   const finished = useCallback(
-    async (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk) => {
-      // A spoken note lands in the workspace the list is showing, unless it is filed already.
+    async (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk, landing?: CaptureLanding) => {
+      // A spoken note lands in the workspace the list is showing, unless it is filed already; so do the notes it made.
       if (note) fileNewNote(note.id);
+      for (const made of landing?.made ?? []) fileNewNote(made);
       await refresh();
+      // Words a recording put into a note that was already there (capture/liveRoute.ts), or a card after Done confirmed:
+      // that note opens, read fresh, with an Undo for what went in (editor/NoteScreen.tsx). Not over a locked phone.
+      if (note && landing && !locked) {
+        const fresh = await getNote(note.id).catch(() => null);
+        const key = Date.now();
+        setScreen({
+          name: 'note',
+          note: fresh ?? note,
+          landing: { ...landing, key },
+          ...(ask ? { ask: { ...ask, key } } : {}),
+          ...(review ? { review: { ...review, key } } : {}),
+        });
+        return;
+      }
       // An instruction spoken into a note: the note opens with the run on it (ai/instruction.ts, editor/NoteScreen.tsx).
       if (note && ask) {
         const fresh = await getNote(note.id).catch(() => null);

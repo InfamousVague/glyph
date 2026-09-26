@@ -559,3 +559,24 @@
     display: none;
   }
 }
+
+/* The choices on the card asking which note (CaptureCards.tsx NoteChoiceCard): a title may be long, so each wraps. */
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+  margin-top: var(--glacier-space-2);
+}
+
+.choices > button {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A one-shot's Not this note, above the lines it put in another note. */
+.landingUndo {
+  align-self: flex-end;
+}
