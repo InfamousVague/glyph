@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
 import { bookNotes, openTasks, pinnedNotes, recentNotes, tickedTasks } from './dashboard.ts';
+import { bookNoteBody } from '../book/book.ts';
+import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
 
 describe('the home page', () => {
   const notes = [
@@ -65,3 +67,23 @@ describe('the library', () => {
     expect(recentNotes(notes, 10).map((n) => n.id)).toEqual(['a']);
   });
 });
+
+describe('Ghost.md: The Guide on the home page', () => {
+  const guide = makeNote('guide', bookNoteBody(GUIDE_TITLE, ['Your first note', 'Boards made of list items']), { updatedAt: 50 });
+  const first = makeNote('first', '# Your first note\n\n- [ ] Book the cabin\n- [x] Call Sam', { updatedAt: 60 });
+  const boards = makeNote('boards', '# Boards made of list items\n\n- [ ] Pack the coffee', { updatedAt: 70 });
+  const mine = makeNote('mine', bookNoteBody('Field guide', ['Trees']), { updatedAt: 10 });
+  const trees = makeNote('trees', '# Trees\n\n- [ ] Find an oak', { updatedAt: 20 });
+  const own = makeNote('own', '# Groceries\n\n- [ ] Eggs', { updatedAt: 30 });
+  const notes = [guide, first, boards, mine, trees, own];
+
+  it('keeps its pages out of Recent, and a chapter of a book of one’s own in it', () => {
+    expect(recentNotes(notes, 6).map((n) => n.id)).toEqual(['own', 'trees']);
+  });
+
+  it('leaves its example to-dos out of the to-do list and the count of ticked ones', () => {
+    expect(openTasks(notes).map((t) => t.text)).toEqual(['Eggs', 'Find an oak']);
+    expect(tickedTasks(notes)).toBe(0);
+  });
+});
+

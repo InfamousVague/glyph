@@ -4905,3 +4905,9 @@ five seconds, or a device offline, can still leave two devices each making a boo
 never merges two with the same title. Two costs are not measured on the Fold yet: Read straight through mounts one
 read-only editor per chapter, 44 at once over 380 KB, and the gist runner owes a line to each chapter the home page
 and All notes show, up to thirty whole chapters sent to the smallest model after the guide is added.
+
+**On the home page** (home/dashboard.ts `guidePages`): the Guide's pages stay out of Recent and the to-do list, and
+their ticked examples out of the count. Added at once, its forty-four chapters were every Recent card, and the to-dos
+four chapters draw as examples ("Book the cabin", "Call the plumber") sat among the person's own. The book is read
+from its card in the Library. A chapter of a book of one's own is left as it was: only the Guide's are the manual's.
+
