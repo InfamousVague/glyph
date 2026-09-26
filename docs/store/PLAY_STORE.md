@@ -1,6 +1,6 @@
 # Ghost.md on Google Play
 
-The plan for listing the Android app, as of 2026-09-24. The app is ready for Play once the steps below are done. The
+The plan for listing the Android app, as of 2026-09-25. The app is ready for Play once the steps below are done. The
 code-side blockers found in the audit are fixed (DESIGN §113).
 
 ## Already done
@@ -15,6 +15,10 @@ code-side blockers found in the audit are fixed (DESIGN §113).
   linked at 16 KB. Checked on the built AAB: one `.so`, LOAD alignment 0x4000. Checked on the arm64 emulator: the app
   runs, and both whisper and llama pass their tests.
 - **targetSdk 36** (Play's floor from 31 August 2026). The Android TV entries Tauri's template added are gone.
+- **Deployed, 2026-09-25:** glyph-api with the delete endpoint, the landing's privacy and delete-account pages
+  (`node scripts/deploy-landing.mjs`), and an OTA with the Delete account button (1.7.2-11; 1.8.0-12 is live now).
+  Checked that day from outside: both pages answer at ghostmarkdown.com, and `/glyph/api/v1/account` answers 405 to a
+  GET, where a route that does not exist answers 404.
 
 Build the upload:
 
@@ -37,11 +41,7 @@ GLYPH_STORE=play npm run android:build -- --aab --target aarch64
    - Write a second signing file for it, and point `GLYPH_ANDROID_SIGNING` at that file for Play builds.
    - Enrol in Play App Signing, with a Google-generated app key.
    - Back up the keystore and its password.
-3. **Deploy what the app now calls:**
-   - glyph-api, for the delete endpoint.
-   - The landing pages (`node scripts/deploy-landing.mjs`).
-   - Then an OTA, so installed apps get the Delete account button.
-4. **Play Console: create the app** (Ghost.md, `com.mattssoftware.glyph`, free). Then fill in:
+3. **Play Console: create the app** (Ghost.md, `com.mattssoftware.glyph`, free). Then fill in:
    - **Store listing:** short and full description, the 512 icon, a 1024×500 feature graphic, phone screenshots and
      tablet screenshots (use the Fold opened out).
    - **Privacy policy:** `https://ghostmarkdown.com/privacy.html`.
@@ -52,7 +52,7 @@ GLYPH_STORE=play npm run android:build -- --aab --target aarch64
    - **Content rating:** notes, no public feed. Shared links are unlisted and read-only.
    - **Target audience:** 13 and over.
    - **Data safety:** the answers below.
-5. **Closed test, then production.** A personal developer account must run a closed test with 12 testers for 14 days
+4. **Closed test, then production.** A personal developer account must run a closed test with 12 testers for 14 days
    before production. An organisation account can skip this.
 
 ## Data safety answers

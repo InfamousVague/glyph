@@ -189,7 +189,7 @@ switches off the kit's delegated `pointerdown` tick, which fires at the start of
 buzzes all the way down a list — and installs its own tap tick on `pointerup` with a 10 px slop and
 a 700 ms ceiling.
 
-`src/app/ux/ratchet.ts` and the 28 ms floor in `fireFelt` are ported from AttackFM unchanged. The
+`src/app/ux/ratchet.ts` (AttackFM's path; the pacing here is `src/app/core/detentFeel.ts`, §45) and the 28 ms floor in `fireFelt` are ported from AttackFM unchanged. The
 Taptic Engine queues a flood and plays it back as mush; a floor is what keeps a fast typist from
 feeling porridge.
 
@@ -292,7 +292,7 @@ low-RAM device. Planning figures: base.en-q5_1 transcribes a 60 s note in roughl
 
 **The build risk is the cross-compile, not the code.** `tauri android build` sets no
 `CMAKE_TOOLCHAIN_FILE`, so ggml must be pointed at the NDK toolchain by hand through
-`src-tauri/.cargo/config.toml`, bindgen needs the NDK sysroot, and the resulting `.so` will need
+`src-tauri/.cargo/config.toml` (now `.cargo/config.toml` at the repository root), bindgen needs the NDK sysroot, and the resulting `.so` will need
 `libc++_shared.so` copied into `jniLibs`. This is milestone 1 for a reason: it is the only part of
 the plan that might not work, and everything else is useful whether or not it does. Fallbacks, in
 order: the `sherpa-onnx` crate, Android's on-device `SpeechRecognizer`, the OpenAI API as an opt-in
@@ -951,7 +951,7 @@ Escape does the same on a desktop.
 | Engine, catalogue, prompt framing, tests | `src-tauri/src/llm/` |
 | Commands and events | `src-tauri/src/ai_commands.rs` |
 | Formatted columns | `store.rs` (`set_formatted`), `commands.rs` (`set_note_formatted`) |
-| The prompt, the run, the view | `src/app/format/{prompt,formatter,FormattedView}.ts(x)` |
+| The prompt, the run, the view | `src/app/format/{prompt,formatter,FormattedView}.ts(x)` (formatter.ts is now `src/app/format/bodyHash.ts` and `src/app/format/pipeline.ts`; FormattedView.tsx went with §114) |
 | Models on the page | `src/app/core/ai.ts` |
 | Settings | `src/app/settings/{SettingsSheet,SettingsScreen,FormattingPane,panes,developerMode}.ts(x)`, `kit/` |
 | Back | `src/app/core/back.ts`, `MainActivity.kt` |
@@ -1149,7 +1149,7 @@ options".
 ## 29b. The update card, in foil (2026-09-14, 1.0.8)
 
 Matt: "the update banner is kind of ugly with the solid blue, can you update it to be like a white
-holographic design". The card (`notes/NotesList.module.css`) is now white in both themes - the
+holographic design". The card (`notes/NotesList.module.css`, now `src/app/notes/Notices.module.css`) is now white in both themes - the
 one white card on black paper is the point - with a foil sheen: a pastel spectrum (pink, mint,
 lemon, lavender, in oklch at chroma 0.08 so it reads as colour and not a tint) drifting slowly one
 way under a band of white light crossing the other, the way a holographic sticker catches a lamp.
@@ -1492,7 +1492,7 @@ already has (base.en live, small.en after), applied to the formatter.
   (`enqueueFormat`) and started from App (`startFormatting`), two lines.
 - **The view**: "Draft by Qwen3.5 2B. Revising with Qwen3.5 4B, 0:42." with Stop, which keeps the
   draft; then "Qwen3.5 4B, 1:20." with Redo, or "changed since" with Update.
-- **A project's pack** (`projects/projects.ts`) goes in with every pass as the
+- **A project's pack** (`projects/projects.ts`, now `src/app/plugins/github/repos.ts`) goes in with every pass as the
   system message's context, so it is part of the snapshotted prefix, and its version is folded into
   `formatted_for` (`noteHash`), so a re-read pack reads as an edit.
 - **Measured on the arm64 emulator** (2B only, so one pass): a two-line note drafted in 28 s into a
@@ -1525,7 +1525,7 @@ possible for context so we can also link notion boards to convert list items int
 formatted link". His choices: projects are GitHub repos; Notion is "Sign in with Notion"; list items
 become tasks by voice, by swipe and by sending a whole list.
 
-**Projects** (`projects/projects.ts`, the note's cog → Project). Paste a GitHub link (and a token for a
+**Projects** (`projects/projects.ts`, now `src/app/plugins/github/repos.ts`; the note's cog → Project). Paste a GitHub link (and a token for a
 private repo, kept on the phone). The page reads GitHub's API directly: the repo's description and
 default branch, its tree, and up to eight files that say what it is, ranked README,
 AGENTS.md, docs with "design" in the name, the manifest, other top-level docs, skipping vendored and
@@ -1554,7 +1554,8 @@ renamed over, 0600, removed by a reset) and makes the calls the page asks for, l
 Glyph uses (search, databases, data_sources, pages, blocks, users/me), refreshing once on a 401.
 
 **Notion, on the page** (`core/notion.ts`, `settings/NotionPane.tsx`, `editor/NoteSettings.tsx`,
-`notion/items.ts`, `editor/swipeItems.ts`, the recorder):
+`notion/items.ts`, `editor/swipeItems.ts`, the recorder; the first two are now in `src/app/plugins/notion/` and the
+items in `src/app/core/itemLinks.ts`, as the plugins entry below records):
 
 - Settings > Notion: signed in or not and to which workspace, Sign in / Sign out, and the boards shared.
   Signing in opens the browser; coming back to Glyph collects it by itself.
@@ -1610,7 +1611,7 @@ writing one is `docs/PLUGINS.md`.
   - `settings/NotionPane.tsx` → `plugins/notion/`.
   - The board picker and Send list (from NoteSettings and NoteScreen) → `plugins/notion/`.
   - The Notion voice commands (from route.ts and CaptureScreen) → `plugins/notion/voice.ts`.
-  - `projects/*` and the project picker → `plugins/projects/`, which gains a Settings page (repos read, Forget,
+  - `projects/*` and the project picker → `plugins/projects/` (since `src/app/plugins/github/`), which gains a Settings page (repos read, Forget,
     the token).
   - `notion/items.ts` → `core/itemLinks.ts`, since linking list items is generic.
   - The item command's `notion` flag is a generic `target` word that a plugin offers.
@@ -1995,7 +1996,7 @@ controls we can scroll through horizontally".
   every delimiter has, so nothing is hidden (§3.2). The look is drawn by two small view plugins, not the
   highlighter: `formatLooks.ts` puts a plugin's CSS on the words of a `style` look, and `wispFormat.ts` puts each
   letter of a `wisp` look in smoke. The registry checks the shape at start and refuses a delimiter like `**`.
-- **The Spoiler plugin** (`plugins/spoiler/`) is one formatting and nothing else: `||the key is under the
+- **The Spoiler plugin** (`plugins/spoiler/`, since folded into `src/app/plugins/marks/`) is one formatting and nothing else: `||the key is under the
   stone||`. Every letter between the pipes is bent, blurred and half-there, a dozen SVG filters shared round the
   letters and animated together at about thirty steps a second while any smoke is on screen, so the words can't
   be read; put the caret in them and they settle to plain text for editing, leave and they smoke over. Reduced
@@ -3199,7 +3200,7 @@ the answer being built is the same smoke as a mask (art/wispMask.ts) behind a sw
 was a way to see the two against each other with their cost on the same screen, rather than in numbers relayed
 from a hand-built rig through three sessions.
 
-- **Settings › Developer › Smoke bench** (settings/WispBench.tsx): a page over settings with one scrolling surface
+- **Settings › Developer › Smoke bench** (settings/WispBench.tsx, now `src/app/diag/WispBench.tsx`): a page over settings with one scrolling surface
   wearing the hook with `draw: 'filter'`, `draw: 'mask'`, or no hook at all - the app's own hook and its own
   switch, so what a surface wears here is exactly what a note would wear. A frame counter sits in the surface's
   header (the last 120 frames: median, p90, worst, written twice a second from the header, which is over the page

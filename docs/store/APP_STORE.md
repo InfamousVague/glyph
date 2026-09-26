@@ -37,15 +37,19 @@ Everything else Apple asks for is fixed or listed below (DESIGN §113).
    or a native picker. With the native picker comes `NSPhotoLibraryUsageDescription`.
 3. **A real device build.** Only a simulator build has been made (2026-09-11).
    - Build with release signing (team F6ZAL7ANAD).
-   - `ExportOptions.plist` needs `method = app-store-connect`.
-   - `project.yml` hardcodes version 0.1.0. Make the archive carry 1.7.x.
-   - Check that the built plist keeps both URL schemes: the deep-link plugin replaces `CFBundleURLTypes`.
+   - `src-tauri/gen/apple/ExportOptions.plist` needs `method = app-store-connect`.
+   - `src-tauri/gen/apple/project.yml` hardcodes version 0.1.0. Make the archive carry the app's version (1.8.0
+     today, `src-tauri/tauri.conf.json`).
+   - Check that the built plist keeps both URL schemes: the deep-link plugin replaces `CFBundleURLTypes`. The
+     generated `src-tauri/gen/apple/glyph_iOS/Info.plist` in the repository is an older snapshot and lists `glyph`
+     alone; `src-tauri/Info.ios.plist` names both.
 4. **App Store Connect: create the app** (`com.mattssoftware.glyph`, category Productivity). Then fill in:
    - the privacy policy URL, and infamousvaguerat@gmail.com as the contact;
    - App Privacy answers, which must match the manifest;
    - age rating 4+;
    - export compliance: exempt;
-   - screenshots for the 6.9" iPhone, and the 13" iPad while iPad is on (`TARGETED_DEVICE_FAMILY` 1,2). Or turn iPad off;
+   - screenshots for the 6.9" iPhone, and the 13" iPad while iPad is on (`TARGETED_DEVICE_FAMILY` 1,2, XcodeGen's
+     default, since `src-tauri/gen/apple/project.yml` does not set it). Or turn iPad off;
    - review notes: accounts are optional, and Claude connects through MCP.
 5. **TestFlight, then submit.**
 

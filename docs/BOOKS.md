@@ -44,42 +44,43 @@ What to know before the walk.
 
 ## In the app
 
-- **Making one.** The + offers a Book beside a Note and a Canvas (notes/NewSheet.tsx), and opens the New book
-  sheet (book/NewBookSheet.tsx): its name, and which notes are its pages - the library's titles under a search, a tap
-  puts one in and a second takes it out, the pages so far listed above in the order chosen, each movable a place or
-  left out. *Make the book* writes one note with that index and opens it; closing the sheet makes nothing. Rename it
-  later from its tab's menu or its settings, as a canvas is.
-- **The Library** on the home page (home/HomeScreen.tsx, `bookNotes` in home/dashboard.ts): a card per book - its
-  name, how many pages, the first few of them - between Pinned and Recent; a tap opens the index. A book is not
-  also a Recent card.
-- **The index view** (book/BookView.tsx) stands where the note's words would be, the Markdown a toggle away in the
-  header, as a canvas's JSON is. Each chapter is a row that opens the note; a chapter not written yet is drawn
-  waiting. Every row moves up or down a place, or comes out of the book - the note it names is never touched.
-  *Add a chapter* names a new one and opens it at once; *Add a note you have* ticks any number from the library's
-  titles, less the book's own and those already in it, and adds them in the order ticked.
-- **A chapter wears the book** (BookBar): under its header, the book's title with its place (2 of 5) and the
-  chapters either side; a tap on the book opens the index. Found by title (book/book.ts `bookOf`): the first book
-  in the library whose index names the note. A note can be in more than one book; the bar shows the first.
+- **Making one.** The + offers a Book beside a Note and a Canvas (`src/app/notes/NewSheet.tsx`), and opens the New
+  book sheet (`src/app/book/NewBookSheet.tsx`): its name, and which notes are its pages - the library's titles under a
+  search, a tap puts one in and a second takes it out, the pages so far listed above in the order chosen, each movable
+  a place or left out. *Make the book* writes one note with that index and opens it; closing the sheet makes nothing.
+  Rename it later from its tab's menu or its settings, as a canvas is.
+- **The Library** on the home page (`src/app/home/HomeScreen.tsx`, `bookNotes` in `src/app/home/dashboard.ts`): a card
+  per book - its name, how many pages, the first few of them - between Pinned and Recent; a tap opens the index. A
+  book is not also a Recent card.
+- **The index view** (`src/app/book/BookView.tsx`) stands where the note's words would be, the Markdown a toggle away
+  in the header, as a canvas's JSON is. Each chapter is a row that opens the note; a chapter not written yet is drawn
+  waiting. Every row moves up or down a place, or comes out of the book - the note it names is never touched. *Add a
+  chapter* names a new one and opens it at once; *Add a note you have* ticks any number from the library's titles,
+  less the book's own and those already in it, and adds them in the order ticked.
+- **A chapter wears the book** (BookBar): under its header, the book's title with its place (2 of 5) and the chapters
+  either side; a tap on the book opens the index. Found by title (`src/app/book/book.ts` `bookOf`): the first book in
+  the library whose index names the note. A note can be in more than one book; the bar shows the first.
 - **And under its last line** (BookFoot): Previous and Next as two wide buttons naming the chapters either side, so
   the end of a page goes on to the next without scrolling back up (Matt: "add the book navigation for next and prev
   buttons at the bottom of the page"). Only Next on the first chapter, only Previous on the last. On the reader page
   too, where it steps only between the chapters the share holds.
 - **One tab.** A page opened from inside a book - the index, the chapter bar, the right-hand aside, the read-through -
   takes the current tab's place rather than a tab of its own; a page that already has a tab is used and the book's
-  closes (notes/openTabs.ts `swapOpen`). A `[[link]]` in the words still opens a tab, as any link does.
+  closes (`src/app/notes/openTabs.ts` `swapOpen`). A `[[link]]` in the words still opens a tab, as any link does.
 - **Reading straight through** (*Read straight through* in the index): the chapters one after another as pages, each
   drawn as its note reads, with a rail down the side to jump between them; a canvas chapter says to open it, and one
   not written yet says so. *Index* goes back.
-- **It opens where it was left** (book/bookSpot.ts; Matt: "When opening a book re open to the same spot it was last
-  opened"). A book remembers whether it was last at its index, in a chapter, or reading straight through. Opening it
-  from outside - the home page's Library, the sidebar, the notes list, search, a `[[link]]` - goes back there. A
-  chapter opens in the book's place, at the line its note was left at (editor/notePlace.ts), and the read-through
-  opens at the chapter and line it was scrolled to. From inside the book it does not: the chapter bar's book button,
-  its tab, Back and Forward show the index as before, since otherwise there would be no way back to it from a chapter.
-  A chapter taken out of the book, or whose note is gone, is not a spot to go back to, and the book opens at its index.
+- **It opens where it was left** (`src/app/book/bookSpot.ts`; Matt: "When opening a book re open to the same spot it
+  was last opened"). A book remembers whether it was last at its index, in a chapter, or reading straight through.
+  Opening it from outside - the home page's Library, the sidebar, the notes list, search, a `[[link]]` - goes back
+  there. A chapter opens in the book's place, at the line its note was left at (`src/app/editor/notePlace.ts`), and
+  the read-through opens at the chapter and line it was scrolled to. From inside the book it does not: the chapter
+  bar's book button, its tab, Back and Forward show the index as before, since otherwise there would be no way back to
+  it from a chapter. A chapter taken out of the book, or whose note is gone, is not a spot to go back to, and the book
+  opens at its index.
 - **Reordering by drag.** The rows of the index and the pages in the New book sheet lift by their grip
-  (book/rowDrag.ts): at once with a mouse, after a short hold on touch, so a scroll is still a scroll. The arrows stay
-  for a place at a time.
+  (`src/app/book/rowDrag.ts`): at once with a mouse, after a short hold on touch, so a scroll is still a scroll. The
+  arrows stay for a place at a time.
 - **A book mark** on a note that is a chapter, in the list and on the home cards, so a page reads as a page.
 - **By voice:** the section below.
 - **Writing is writing the note.** Every change from the view is a change to the book note's body, saved the way
@@ -88,7 +89,14 @@ What to know before the walk.
 
 ## By voice
 
-Two commands, read by the rules in capture/command.ts and asked about before they act, as every command is:
+Two commands, read by the rules in `src/app/capture/command.ts` and asked about before they act, as every command is.
+They are built, but a recording made in the app no longer runs them. Since DESIGN §114 the recorder reads a command
+once, from the whole recording, when Done is pressed (`src/app/ai/instruction.ts`), and a finished recording may only
+add to a note or make a new list. "Make a book called …" and "add a chapter to …" are turned down there without a
+word: after "Hey Ghost", said into an open note, they open that note with an AI ask carrying the words; said as a
+fresh recording, or without the keyword, they are saved as a note's words (docs/instruction-voice-commands.md). The
+phrase-by-phrase reader that runs them, `src/app/capture/take.ts`, is what the voice test suite drives
+(docs/VOICE_TESTS.md). What follows is what that reader does.
 
 - **"Hey Ghost, make a book called Field guide"** makes the book note, empty with its index ready, beside the
   recording, which carries on where it was. Pages can follow the name: "…with Trees, Birds and the work note", each a
@@ -101,21 +109,24 @@ Two commands, read by the rules in capture/command.ts and asked about before the
   model's prompt need not know what a book is. "Add this to the field guide" and "move this to the field guide" make
   the note being recorded a chapter. A chapter the book has, the book itself, or a note with no name yet is said and
   not offered.
-- The card is the one a board's lane uses (*New chapter in Field guide*, *Add*); a book's card lists its pages. In a
-  pause the recorder suggests "add a chapter to …" naming a book you have, or how to make one.
+- The card is the one a board's lane uses (*New chapter in Field guide*, *Add*); a book's card lists its pages. The
+  recorder still suggests "add a chapter to …" naming a book you have, or how to make one, in a pause and on its
+  Things to say card, although a finished recording runs neither: it hands the words to the AI or keeps them as the
+  note's.
 
 ## Chapter numbers
 
 A chapter can carry its number in its title. Without a book, the numbers put the chapters in order.
 
-The standard is at the end of the title: "Ch." or "Chapter", then an Arabic or Roman number, after a middle dot, a
-dash, a comma or a colon, or in brackets.
+The standard is at the end of the title: "Ch.", "Chapter" or "§", then an Arabic or Roman number, after a middle dot,
+a bullet, a bar, a dash, a comma or a colon, in brackets, or after a space.
 
     The risks, and a glossary · Ch. 8
     The risks, and a glossary (Chapter 8)
     The risks, and a glossary · Chapter VIII
 
-A number in front is read too, since many chapters are already titled that way:
+A number in front is read too, since many chapters are already titled that way, before a middle dot, a bullet, a
+bar or a dash:
 
     08 · The risks, and a glossary
     Chapter 8: The risks, and a glossary
@@ -137,8 +148,12 @@ aren't drawn. It no longer lists the workspace's other notes.
 
 | file | what |
 | --- | --- |
-| `src/app/book/book.ts` | the shape: `isBookBody`, `bookNoteBody`, `chaptersOf`, `numbered`, `prefaceOf`, `withChapter`, `withoutChapter`, `withChapterMoved`, `bookOf` |
-| `src/app/book/BookView.tsx` | the index view, reading straight through, and `BookBar` for a chapter |
+| `src/app/book/book.ts` | the shape: `isBookBody`, `bookNoteBody`, `chaptersOf`, `numbered`, `bookWords` (the book's own words either side of the index), `withChapter`, `withChapterAt`, `withoutChapter`, `withChapterMoved`, `toggledTitle`; and a note's place: `bookOf`, `bookIndex`, `placeOf`, `bodyWithoutTitle` (a chapter's words as the read-through draws them) |
+| `src/app/book/BookView.tsx` | the index view and reading straight through |
+| `src/app/book/BookNav.tsx` | `BookBar` under a chapter's header and `BookFoot` under its last line |
+| `src/app/book/CanvasMark.tsx` | the canvas's mark after a chapter that is one |
+| `src/app/book/bookSpot.ts` | where a book was left: its index, a chapter, or the read-through |
+| `src/app/book/rows.module.css` | the rows the index and the New book sheet share |
 | `src/app/book/NewBookSheet.tsx` | the + sheet: a name and the pages, picked and ordered |
 | `src/app/book/rowDrag.ts` | `useRowDrag`: rows lifted by a grip, in the index and the sheet |
 | `src/app/aside/aside.ts` | the right-hand aside's content: a book's index on its pages, a numbered chapter's run with no book, else nothing |
@@ -146,7 +161,7 @@ aren't drawn. It no longer lists the workspace's other notes.
 | `src/app/capture/command.ts` | "make a book called …" and a chapter for a book named (`forBook`, `placedOn`) |
 | `src/app/capture/take.ts` | the chapter offer (the book's index with one more line) and the book offer |
 | `src/app/capture/CaptureScreen.tsx` | `makeBook`: the book note written beside the take |
-| `src/app/core/frontMatter.ts` | `frontMatterValue`, the one front-matter read the app makes |
+| `src/app/core/frontMatter.ts` | where a note's front matter ends, and `book:` and `title:` read and written (`frontMatterValue`, `withFrontMatterTitle`) |
 | `src/app/editor/NoteScreen.tsx` | a book note drawn as its index, with the Markdown a toggle away; a chapter's bar |
 | `src/app/notes/NewSheet.tsx`, `src/app/App.tsx` | the + makes one; a chapter's place is found for the screen |
 
@@ -156,8 +171,8 @@ Matt: "Add the ability for canvases to be in books as well." A canvas is a note 
 it was already a page a book could hold: offered by the New book sheet and the index's picker, opened as a canvas, and
 wearing the chapter's bar ("Cabin trip · 2 of 3", the pages either side). What the index lacked was saying so. A
 chapter that is a canvas, and a canvas offered in the index's picker, now wear the canvas's own mark after the title -
-the one the + sheet gives a canvas - and a reader hears "Route map, a canvas" (book/BookView.tsx, `bodyOf` from the
-note screen). A chapter with no note yet says nothing of what it will be.
+the one the + sheet gives a canvas - and a reader hears "Route map, a canvas" (`src/app/book/CanvasMark.tsx`, with
+`bodyOf` from the note screen). A chapter with no note yet says nothing of what it will be.
 
 A new chapter can start as a canvas: the index's "Add a chapter" form has "Add as a canvas" beside "Add and open",
 which puts the chapter in the index and makes an empty canvas by that name (App.tsx `openCanvasWithin`). The New book
