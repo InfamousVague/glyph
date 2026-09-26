@@ -300,6 +300,18 @@ describe('ending a recording', () => {
     expect(await listNotes()).toEqual([]);
   });
 
+  it('saves an ask a new recording cannot carry out as a note of its words, without the keyword, and says why', async () => {
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: null });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    await say('Hey Ghost, make a book called trips.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await listNotes()).map((note) => note.body)).toEqual(['# Make a book called trips']);
+    expect(screen.getByText(/isn't something a recording can do, so the words are saved as a note/)).toBeInTheDocument();
+  });
+
   it('refuses a command that names a note there is none of, and saves none of its words', async () => {
     await createNote('work', 'Work');
     capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Add to shopping, oat milk.' });
