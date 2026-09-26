@@ -81,11 +81,18 @@ describe('reading deploy-ota’s flags', () => {
     expect(read('--notes', '--apk')).toEqual(needs);
   });
 
+  const tooLong = {
+    stopped: 'exit 1',
+    said: ['\x1b[31mx\x1b[0m --notes is limited to 2000 bytes; the app refuses a longer manifest.'],
+  };
+
   it('refuses notes longer than the app will take in a manifest', () => {
     expect(read('--notes', 'a'.repeat(2000)).notes).toHaveLength(2000);
-    expect(read('--notes', 'a'.repeat(2001))).toEqual({
-      stopped: 'exit 1',
-      said: ['\x1b[31mx\x1b[0m --notes is limited to 2000 characters; the app refuses a longer manifest.'],
-    });
+    expect(read('--notes', 'a'.repeat(2001))).toEqual(tooLong);
+  });
+
+  it('counts the notes in bytes, as the app does, so curly quotes cannot slip a manifest past the deploy', () => {
+    expect(read('--notes', '’'.repeat(666)).notes).toHaveLength(666);
+    expect(read('--notes', '’'.repeat(667))).toEqual(tooLong);
   });
 });
