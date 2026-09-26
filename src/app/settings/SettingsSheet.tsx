@@ -51,6 +51,8 @@ interface SettingsSheetProps {
   updates: Updates;
   /** Open the walkthrough, on its first page or a given one (Guide's page indexes). */
   onGuide: (page?: number) => void;
+  /** Make Ghost.md: The Guide, the book of the whole app, and whichever of its chapters are missing (guide/theGuide/book.ts), and open it. */
+  onTheGuide: () => void;
   /** Make the sample note, the one with every mark in it (core/seed.ts), and open it. */
   onSample: () => void;
   /** Adds the example board (core/boardNote.ts). */
@@ -68,7 +70,7 @@ interface SettingsSheetProps {
   toCheatSheet?: number;
 }
 
-export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, updates, onGuide, onTheGuide, onSample, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
   const prefs = usePreferences();
   const faces = facesOf(prefs);
   const account = useAccount();
@@ -276,6 +278,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
         { name: 'Updates', words: 'update check upgrade install' },
         { name: 'Update alerts', words: 'notifications notify' },
         { name: "What's new", words: 'changelog releases' },
+        { name: 'Ghost.md: The Guide', words: 'help manual docs documentation book' },
         { name: 'Ghost.md Academy', words: 'learn tutorial lessons' },
         { name: 'How to talk to Ghost.md', words: 'voice commands cues' },
         { name: 'Add the sample note', words: 'example' },
@@ -288,6 +291,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
         <AboutPane
           updates={updates}
           onGuide={onGuide}
+          onTheGuide={onTheGuide}
           onSample={onSample}
           onBoard={onBoard}
           onCanvas={onCanvas}

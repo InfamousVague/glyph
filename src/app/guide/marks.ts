@@ -115,10 +115,19 @@ export interface MarkRow {
   icon: ComponentType<{ size?: number }>;
   /** How it is drawn, where a page needs the plugin's own CSS. */
   css?: string;
-  /** Said while recording, where there is a way to say it. */
+  /**
+   * Said while recording, where there is a way to say it: a cue (capture/markdown.ts), never a "Hey Ghost" command,
+   * since the recorder acts on only two of those at Done and neither makes a mark. guide/marks.test.ts says each
+   * phrase to the recorder and holds it to the mark it writes.
+   */
   say?: string;
   /** What the popover says, for the row that shows a note on a mark (editor/markNotes.ts). */
   note?: string;
+  /**
+   * The plugin mark this row belongs to, by name, for one of the app's own rows that only works while that mark is
+   * switched on: a hidden line is the Spoiler's (editor/wispFormat.ts), and with it off the line is a quote.
+   */
+  needs?: string;
 }
 
 export interface MarkGroup {
@@ -155,7 +164,7 @@ const OWN: MarkGroup[] = [
       { symbol: '- [x]', name: 'Done', typed: '- [x] Call Sam', words: 'Call Sam', looks: 'done', icon: SquareCheckBig, say: '“done task: …”' },
       { symbol: '- ( )', name: 'A choice', typed: 'Where do we stay?\n- ( ) Tent\n- (x) Cabin', words: 'Cabin', looks: 'choice', icon: CircleDot, say: '“option: tent”, “picked option: cabin”' },
       { symbol: '[ / ]', name: 'A counter', typed: '- Water [3/8]', words: '3/8', looks: 'counter', icon: Gauge, say: '“counter three of eight”' },
-      { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator, say: '“calculate: four fifty plus one twenty”' },
+      { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator, say: '“calculate: four hundred plus one hundred twenty”' },
       {
         symbol: '>',
         name: 'A quote',
@@ -165,7 +174,16 @@ const OWN: MarkGroup[] = [
         icon: MessageSquareQuote,
         say: '“quote”',
       },
-      { symbol: '>|', name: 'A hidden line', typed: '>| The answer is forty-two.', words: 'The answer is forty-two.', looks: 'spoilerLine', icon: EyeOff, say: '“hidden line: …”' },
+      {
+        symbol: '>|',
+        name: 'A hidden line',
+        typed: '>| The answer is forty-two.',
+        words: 'The answer is forty-two.',
+        looks: 'spoilerLine',
+        icon: EyeOff,
+        say: '“hidden line: …”',
+        needs: 'Spoiler',
+      },
       {
         symbol: '#',
         name: 'Progress',
@@ -226,7 +244,6 @@ const OWN: MarkGroup[] = [
         words: '',
         looks: 'table',
         icon: Table,
-        say: '“Hey Ghost, add a table to this note”',
       },
       { symbol: '![ ]( )', name: 'A picture', typed: '![A cassette](image/tape.jpg)', words: 'A cassette', looks: 'picture', icon: Image },
       { symbol: '```', name: 'A block of code', typed: '```js\nconst note = "hello";\n```', words: 'const note = "hello";', looks: 'fence', icon: SquareCode, say: '“code block in bash” … “end code block”' },
@@ -255,7 +272,6 @@ const OWN: MarkGroup[] = [
         words: 'ship-page',
         looks: 'board',
         icon: LayoutGrid,
-        say: '“Hey Ghost, make this a board”',
       },
     ],
   },
@@ -264,7 +280,10 @@ const OWN: MarkGroup[] = [
 /** Every group the page shows: the app's own marks, then the ones the switched-on plugins add. */
 export function markGroups(): MarkGroup[] {
   const formats = plugins.formats();
-  if (!formats.length) return OWN;
+  // A row that is part of a plugin's mark goes when the mark does.
+  const on = new Set(formats.map((format) => format.name));
+  const own = OWN.map((group) => ({ ...group, rows: group.rows.filter((row) => !row.needs || on.has(row.needs)) }));
+  if (!formats.length) return own;
   const rows = formats.map((format): MarkRow => {
     const words = format.name === 'Spoiler' ? 'the cabin key' : `${format.name.toLowerCase()} this`;
     // Heat bends the text above its words, not the words themselves (editor/textEffects.ts), so its example has a
@@ -301,5 +320,5 @@ export function markGroups(): MarkGroup[] {
     note: 'Sam said 400',
     say: '“… end unsure, note Sam said 400, end note”',
   };
-  return [...OWN, { title: 'Ghost.md’s own', lead: 'Marks the app adds, each from a plugin you can switch off.', rows: [...rows, tinted, noted] }];
+  return [...own, { title: 'Ghost.md’s own', lead: 'Marks the app adds, all from the Marks plugin, which Settings › Plugins can switch off.', rows: [...rows, tinted, noted] }];
 }

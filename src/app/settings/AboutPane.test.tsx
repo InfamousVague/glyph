@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Release } from '../core/changelog.ts';
 import type { Updates } from '../core/ota.ts';
-import { button, press, show, waitUntil } from '../../test/render.tsx';
+import { button, buttonSaying, press, show, waitUntil } from '../../test/render.tsx';
 
 // The kit asks the window's resolution as it loads, before any of the imports below reach it.
 await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
@@ -45,14 +45,25 @@ function updates(over: Partial<Updates> = {}): Updates {
   };
 }
 
-function about(given: Updates = updates(), onDeveloper = vi.fn()) {
+function about(given: Updates = updates(), onDeveloper = vi.fn(), onTheGuide = vi.fn()) {
   const noop = () => undefined;
   const host = show(
     <ToastProvider>
-      <AboutPane updates={given} onGuide={noop} onSample={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} onCheatSheet={noop} onDeveloper={onDeveloper} />
+      <AboutPane
+        updates={given}
+        onGuide={noop}
+        onTheGuide={onTheGuide}
+        onSample={noop}
+        onBoard={noop}
+        onCanvas={noop}
+        onHowCanvas={noop}
+        onAcademy={noop}
+        onCheatSheet={noop}
+        onDeveloper={onDeveloper}
+      />
     </ToastProvider>,
   );
-  return { host, onDeveloper };
+  return { host, onDeveloper, onTheGuide };
 }
 
 beforeEach(() => {
@@ -107,6 +118,20 @@ describe('the version on About', () => {
     press(version);
     expect(onDeveloper).not.toHaveBeenCalled();
     expect(localStorage.getItem('glyph-developer')).toBeNull();
+  });
+});
+
+describe('Help', () => {
+  it('opens with Ghost.md: The Guide, which a press makes and opens', () => {
+    const { host, onTheGuide } = about();
+    const labels = [...host.querySelectorAll('.setk-row__label')].map((label) => label.textContent);
+    // First in Help: straight before the Academy, which was first until the guide.
+    expect(labels.indexOf('Ghost.md: The Guide') + 1).toBe(labels.indexOf('Ghost.md Academy'));
+    const guide = buttonSaying(host, 'Ghost.md: The Guide');
+    // Its notes are ordinary notes, and the hint says what that means for the home page before anyone presses.
+    expect(guide?.textContent).toContain('their to-dos show on the home page');
+    press(guide);
+    expect(onTheGuide).toHaveBeenCalledOnce();
   });
 });
 

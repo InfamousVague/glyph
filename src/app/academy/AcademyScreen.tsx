@@ -1,8 +1,9 @@
 import { ArrowLeft, Check, GraduationCap, ListChecks, RotateCcw, Wand2 } from '@glacier/icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
-import { CHAPTERS, LESSONS, lessonsIn, readProgress, writeProgress, type Lesson } from './lessons.ts';
+import { usePlugins } from '../plugins/hooks.ts';
+import { CHAPTERS, lessonsIn, lessonsNow, readProgress, writeProgress, type Lesson } from './lessons.ts';
 import { Playground } from './Playground.tsx';
 import styles from './AcademyScreen.module.css';
 
@@ -20,22 +21,28 @@ import styles from './AcademyScreen.module.css';
  * Progress is kept (academy/lessons.ts), so the Academy opens at the first lesson not passed, and any lesson can be
  * taken again from the summary at the end. Nothing typed here is saved as a note: it is a page to play on.
  *
- * The chapters are the teaching order, and markdown basics is the first of them; Glyph's own marks are the next, and
- * until they are written the summary points at the cheat sheet, which has every one of them.
+ * The chapters are the teaching order: Markdown basics first, then the rest of what a note can hold, until every row
+ * of the cheat sheet has been taught (academy/lessons.ts). A lesson for a plugin's mark is on offer only while that
+ * mark is switched on, so the Academy never teaches what the note would not draw. The bars along the top are the
+ * chapter being taken, and the count beside the title is all of it.
  */
 
 export function AcademyScreen({ onDone, onCheatSheet }: { onDone: () => void; onCheatSheet: () => void }) {
+  // Drawn again when a plugin is switched, so its lessons come and go with its marks. The lessons themselves are the
+  // same objects every time, so the one in hand stays the one in hand.
+  usePlugins();
+  const lessons = lessonsNow();
   const [done, setDone] = useState<Set<string>>(readProgress);
   /**
    * The lesson in hand, held until Next is pressed. It cannot be worked out from what has been learned: passing a
    * lesson would then move the page on the instant the mark was typed, and the whole point is to stay and watch it
    * format. Empty is the summary at the end.
    */
-  const [at, setAt] = useState<string>(() => firstLeft(readProgress()));
+  const [at, setAt] = useState<string>(() => firstLeft(lessonsNow(), readProgress()));
   const [typed, setTyped] = useState('');
   const [hinting, setHinting] = useState(false);
 
-  const lesson = useMemo(() => LESSONS.find((one) => one.id === at) ?? null, [at]);
+  const lesson = lessons.find((one) => one.id === at) ?? null;
 
   useBack(true, onDone);
 
@@ -61,7 +68,8 @@ export function AcademyScreen({ onDone, onCheatSheet }: { onDone: () => void; on
     });
   }, [lesson, passed, done]);
 
-  const learned = LESSONS.filter((one) => done.has(one.id)).length;
+  const learned = lessons.filter((one) => done.has(one.id)).length;
+  const bars = lesson ? lessonsIn(lesson.chapter, lessons) : lessons;
 
   return (
     <div className={styles.screen}>
@@ -72,14 +80,14 @@ export function AcademyScreen({ onDone, onCheatSheet }: { onDone: () => void; on
         <h1 className={styles.heading}>
           <GraduationCap size={18} aria-hidden="true" /> Ghost.md Academy
         </h1>
-        <p className={styles.count} aria-label={`${learned} of ${LESSONS.length} learned`}>
-          {learned}/{LESSONS.length}
+        <p className={styles.count} aria-label={`${learned} of ${lessons.length} learned`}>
+          {learned}/{lessons.length}
         </p>
       </header>
 
-      {/* A bar for every lesson: faint to come, ink for learned, lit for the one being taken. */}
+      {/* A bar for every lesson of the chapter: faint to come, ink for learned, lit for the one being taken. */}
       <ol className={styles.bars} aria-hidden="true">
-        {LESSONS.map((one) => (
+        {bars.map((one) => (
           <li
             key={one.id}
             className={styles.bar}
@@ -93,22 +101,24 @@ export function AcademyScreen({ onDone, onCheatSheet }: { onDone: () => void; on
         {lesson ? (
           <LessonCard
             lesson={lesson}
+            chapter={lessonsIn(lesson.chapter, lessons)}
             typed={typed}
             onTyped={setTyped}
             passed={passed}
             hinting={hinting}
             onHint={() => setHinting(true)}
             onShowMe={() => setTyped(lesson.example)}
-            onNext={() => setAt(after(lesson.id))}
+            onNext={() => setAt(after(lessons, lesson.id))}
           />
         ) : (
           <Summary
+            lessons={lessons}
             done={done}
             onAgain={(id) => setAt(id)}
             onStartOver={() => {
               setDone(new Set());
               writeProgress(new Set());
-              setAt(LESSONS[0]?.id ?? '');
+              setAt(lessons[0]?.id ?? '');
             }}
             onCheatSheet={onCheatSheet}
           />
@@ -121,6 +131,7 @@ export function AcademyScreen({ onDone, onCheatSheet }: { onDone: () => void; on
 /** One lesson: what the mark does, a line using it, and the live page to write your own on. */
 function LessonCard({
   lesson,
+  chapter,
   typed,
   onTyped,
   passed,
@@ -130,6 +141,8 @@ function LessonCard({
   onNext,
 }: {
   lesson: Lesson;
+  /** The lessons of its chapter, for where it is among them. */
+  chapter: readonly Lesson[];
   typed: string;
   onTyped: (text: string) => void;
   passed: boolean;
@@ -138,11 +151,11 @@ function LessonCard({
   onShowMe: () => void;
   onNext: () => void;
 }) {
-  const at = LESSONS.indexOf(lesson) + 1;
+  const at = chapter.indexOf(lesson) + 1;
   return (
     <article className={styles.card}>
       <p className={styles.chapter}>
-        {lesson.chapter} · {at} of {LESSONS.length}
+        {lesson.chapter} · {at} of {chapter.length}
       </p>
       <h2 className={styles.title}>{lesson.title}</h2>
       <p className={styles.teach}>{lesson.teach}</p>
@@ -178,33 +191,35 @@ function LessonCard({
   );
 }
 
-/** The end: what was learned, anything to take again, and where the rest of the marks live. */
+/** The end: what was learned, anything to take again, and the cheat sheet to look them up in. */
 function Summary({
+  lessons,
   done,
   onAgain,
   onStartOver,
   onCheatSheet,
 }: {
+  lessons: readonly Lesson[];
   done: ReadonlySet<string>;
   onAgain: (id: string) => void;
   onStartOver: () => void;
   onCheatSheet: () => void;
 }) {
-  const all = done.size >= LESSONS.length;
+  const all = lessons.every((lesson) => done.has(lesson.id));
   return (
     <article className={styles.card}>
-      <h2 className={styles.title}>{all ? 'That is markdown.' : 'That is the end of the chapter.'}</h2>
+      <h2 className={styles.title}>{all ? 'That is every mark.' : 'That is the end of the Academy.'}</h2>
       <p className={styles.teach}>
         {all
-          ? 'Every mark in this chapter is one you can now write by hand, anywhere: in Ghost.md, and in any other app that knows markdown. Take any of them again below.'
+          ? 'Every mark a note can carry is one you can now write by hand. The Markdown ones read the same in any app that knows Markdown, and Ghost.md’s own read as plain words there. Take any of them again below.'
           : 'You can come back to the ones you skipped whenever you like. Take any lesson again below.'}
       </p>
 
-      {CHAPTERS.map((chapter) => (
+      {CHAPTERS.filter((chapter) => lessonsIn(chapter, lessons).length).map((chapter) => (
         <section key={chapter} className={styles.chapterBlock}>
           <h3 className={styles.chapterName}>{chapter}</h3>
           <ul className={styles.list}>
-            {lessonsIn(chapter).map((lesson) => (
+            {lessonsIn(chapter, lessons).map((lesson) => (
               <li key={lesson.id}>
                 <button type="button" className={styles.again} onClick={() => onAgain(lesson.id)}>
                   <span className={styles.againTick} {...(done.has(lesson.id) ? { 'data-done': '' } : {})} aria-hidden="true">
@@ -219,7 +234,7 @@ function Summary({
         </section>
       ))}
 
-      <p className={styles.teach}>Ghost.md has marks of its own as well - boards, spoilers, callouts, anchors. They all live in the cheat sheet until their chapter is written.</p>
+      <p className={styles.teach}>Every mark is in the cheat sheet as well, to look up while you write.</p>
       <div className={styles.foot}>
         <button type="button" className="app-word" onClick={onStartOver}>
           <RotateCcw size={16} aria-hidden="true" /> Start again
@@ -233,11 +248,11 @@ function Summary({
 }
 
 /** The first lesson still to learn, which is where the Academy opens; empty once they are all learned. */
-function firstLeft(done: ReadonlySet<string>): string {
-  return LESSONS.find((lesson) => !done.has(lesson.id))?.id ?? '';
+function firstLeft(lessons: readonly Lesson[], done: ReadonlySet<string>): string {
+  return lessons.find((lesson) => !done.has(lesson.id))?.id ?? '';
 }
 
 /** The lesson after this one, in the order they are taught; empty at the end, which is the summary. */
-function after(id: string): string {
-  return LESSONS[LESSONS.findIndex((lesson) => lesson.id === id) + 1]?.id ?? '';
+function after(lessons: readonly Lesson[], id: string): string {
+  return lessons[lessons.findIndex((lesson) => lesson.id === id) + 1]?.id ?? '';
 }

@@ -56,7 +56,7 @@ describe('the guide’s model page', () => {
 
   it('offers to get the chosen model now when it is not on the phone', () => {
     const el = show(<Model />);
-    expect(fine(el)).toBe('Qwen3.5 4B downloads the first time you ask the robot on a note, or get it now');
+    expect(fine(el)).toBe('Qwen3.5 4B is not on the phone yet. Get it later in Settings › Formatting, or get it now');
     press(buttonSaying(el, 'get it now'));
     expect(phone.fetch).toHaveBeenCalledWith('qwen3.5-4b');
   });
