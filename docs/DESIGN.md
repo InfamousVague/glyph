@@ -4729,3 +4729,66 @@ before. The cost is a few seconds of the spoken command left at the end of the n
 its last words. Recording each take under its own id and joining it on only when the words are saved would avoid that,
 but it changes capture_stop's contract and needs a native release.
 
+## 124. The stylesheets as one system (2026-09-25)
+
+The cleanup's third wave went through every stylesheet under src/ with one rule: nothing may draw differently. What
+came out of it is a small vocabulary the modules share, and a test that holds the sheets to it.
+
+**The cascade**, in the order both entries import it (src/main.tsx, src/read/main.tsx): the kit's fonts, Inter's
+optical sizes, the kit's tokens, the kit's component styles, then Ghost.md's own - app.css (the shell and the shared
+values), art/wisp.css (the page's edges under a header and at its foot, beside the art/ code that writes their
+variables), ink.css (the palette), typefaces.css (the note's and the code's faces) and editor/codeThemes.css (the code
+palettes). Every CSS module comes after all of them, so a module's rule beats a global one of the same weight.
+
+**What app.css names, so no module writes its own copy:**
+
+- `--app-gutter-start` and `--app-gutter-end`: the page's gutter with the notch, which every screen pads by. They are
+  worked out at the root, so a surface that sets its own `--app-gutter` (a note drawn small, a book's preface, the
+  reader, a mark's example) pads by `--app-gutter` itself.
+- `--app-ring`: the one round control, every ring in the bar, the note's tools and the home dock.
+- `--app-line`: the 1.5px weight of a line drawn on purpose, beside the kit's 1px hairline, which only separates.
+- `--app-glass-mix` and `--app-glass-blur`, the header's glass; `--app-float-blur` and `--app-float-shadow`, a card
+  that floats over the page.
+- `--app-pop`, `--app-turn` and `--app-settle`: the app's own movements (a card popping in, a glyph turning when its
+  button is pressed, a line settling). They are fixed durations and do not follow Settings > Animations > speed.
+- `--app-tracking-caps` and `--app-tracking-caps-close`: the spacing of small capitals, beside the display and title
+  tracking.
+
+**The app's own pieces**, which modules compose rather than copy (`composes: app-unseen from global`): `.app-word`,
+the quiet button; `.app-unseen`, words for a screen reader alone; `.app-eyebrow`, the spaced capitals over a group.
+`.app-pill` and `.app-inverse` stay in ink.css, being made of ink. Shared module pieces work the same way:
+settings/choiceCard.module.css (the theme, size and typeface cards), settings/swatch.module.css (the accent and
+workspace dots), guide/MarkExample.module.css `.room` (a read-only editor, also the Academy's), book/rows.module.css,
+and the home page's grid and empty page, which All notes composes. A composed file's rules come before the file that
+composes it, so the composing class can override them.
+
+**Rules the pass wrote down:**
+
+- A `var()` of a property every page declares at its root has no fallback: it could never be used, and 568 of them
+  read as values that were not the real ones (160ms beside a 150ms token). The scrollbar's pseudo-elements keep theirs,
+  since no computed style or test screenshot can see them.
+- The kit's space scale has no 7, 9, 11 or 14, and there is no bare `--glacier-danger`. A read of one draws its
+  fallback, or nothing: the Claude drawer's close button, All notes' search pill, its clear and its order words have
+  drawn at their content's size since they were written. They now say so, and giving them the size they asked for is a
+  change to how they look, left for its own decision.
+- The pills keep their 999px. Moved onto `--glacier-radius-full` (9999px) they are the same pills, but a corner is
+  drawn a shade differently in a pixel or two, so they were moved back (ink.css says so beside the rounding setting).
+- Every dark palette is written twice, for Dark and for System on a dark phone, which leaves `data-theme` off. The two
+  must match, and a test holds them to it. The one pair that has always differed is named there rather than changed:
+  under System an inverse surface takes the paper's hue lift, under Dark the page's own.
+
+**The test**, src/app/stylesheets.test.ts, reads every stylesheet as text, since the suite runs with CSS off: no
+custom property read that nothing declares, no `composes` of a class that is not there, and no dark twin drifted.
+
+**How the pass was proved to change nothing:** main and the branch were built side by side and every element's box
+and computed style, pseudo-elements included, compared view by view - home, a note down its length and formatted,
+the More sheet and its pages, the press-and-hold menu, the find bar, a board, the palette, All notes, the book and
+its read-through, both canvases, the sidebar and aside cards, the guide, the Academy, the recorder, every Settings
+pane, and hover and keyboard focus on the cards, swatches and bar buttons - in dark and light on a phone and a
+desktop, three runs of each build, with anything that moved between two runs of the same build set aside as noise.
+System dark and light, the three named themes, two sets of the Appearance and Type knobs, reduced motion and the
+Fold's width were compared on the same views with two runs of each build, WebKit on the glass and card views with
+three, and the browser pane on the main views in both themes. What differs is only what should: the build's own time and the test report's source line.
+
+Two files were renamed with it: editor/Editor.module.css is editor/markdown.module.css, the renderer's rule book
+named for what it draws, and the wisp's rules left app.css for art/wisp.css.
