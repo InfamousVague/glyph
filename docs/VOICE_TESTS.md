@@ -11,8 +11,9 @@ without a key).
 Two runs check it:
 
 - **From the scripts**, always, in `npm test` (`src/app/capture/voiceSuite.test.ts`): each line is one phrase with
-  its silence, replayed through the take (`src/app/capture/take.ts`) against the standard notes, with the Notion
-  plugin's two voice commands in the room. This is the rules.
+  its silence, replayed through the live reader (`src/app/capture/liveRoute.ts`) against the standard notes, on the
+  clock the phone would commit it at, and written as the recorder's Done writes (`src/app/capture/liveTake.ts`). This
+  is the rules.
 - **From the audio**, `npm run voice:suite`, which is `voice:hear` and then `voice:check`. `voice:hear` has Whisper on
   this Mac hear each recording through the phone's streaming path (`src-tauri/src/whisper/suite.rs`, a `cargo test`
   marked ignored), writing what it heard into a `.heard` folder beside the files. `voice:check` is the same Vitest
@@ -21,16 +22,31 @@ Two runs check it:
   recordings.
 
 A test's `prefs` can switch on "Stop when I go quiet" (`quietStop`) or switch off the keyword (`commandWord`). Those
-are the only two.
+are the only two. A test's `choose` answers a card that asks which note, as it comes up: a title to tap, `new` or
+`keep`; without it, the card takes its own default, Keep here.
 
-**What the suite drives, and what the app does.** The suite reads a recording a phrase at a time (`Take.phrase` and
-`tick`), which is how the recorder read commands until the instruction-aware commands of DESIGN §114. The recorder
-now only shows each phrase as it arrives (`Take.listen`) and reads a command once, from the whole recording, when
-Done is pressed (`src/app/ai/instruction.ts`, `src/app/capture/finalInstruction.ts`). So the suite's cue and mark
-tests are what the app writes, but its "Commands" group checks the phrase-by-phrase reader, which the app no longer
-runs. Tables, boards, books, moves, voice memos, the Notion commands and "yes" or "no" by voice are held to their
-scripts there, and are not reached from a recording in the app. docs/instruction-voice-commands.md is what a
-finished recording can do.
+**What the suite drives, and what the app does.** The suite plays what the recorder runs: each phrase through the live
+reader, which carries out "Glyph, add … to <note>" and its like as they are said (DESIGN §126), and the writes Done
+makes, each note once, the words placed where they fit (`src/app/capture/place.ts`). So its "Commands" group says a
+command and is done: there is no "Yes." to confirm it any more. A command the live reader does not carry out is read
+once, from the whole recording, at Done (`src/app/ai/instruction.ts`), which `src/app/capture/CaptureScreen.test.tsx`
+holds; docs/instruction-voice-commands.md is what each reader can do.
+
+**Retired tests.** A test of something the recorder no longer does is kept, with its recording, and skipped under its
+reason (`skip` in `voice-tests/suite.json`):
+
+| Test | Why it is skipped |
+|---|---|
+| 057 | A spoken "no": nothing is asked since the live reader; Not this note or Discard takes words back |
+| 063, 064, 065 | A table by voice: unreachable since PR #1; waiting on Matt |
+| 068 | A plugin by voice ("send that to Notion"): unreachable since PR #1 |
+| 070, 071 | Moving a card and making a board by voice: unreachable since PR #1 |
+| 072, 073 | A voice memo said aloud: `Take.listen` has not read the memo cue since PR #1; a follow-up |
+
+**Matt's cases.** 093 to 100 are the ways "add a note to house to do's, the note is call an electrician…" was said and
+came out wrong before §126: in two phrases, with ", the note is", as "house chores", after "Hey, like", after "Hey
+goes", with a pause inside the name, into a note with two lists, and as a one-shot mid-take. Their audio is still to
+be made: `python3 scripts/voice-tests/make_audio.py --voice <id> --take 093` and on.
 
 The older six-take walkthrough below is for playing into the phone by hand.
 
@@ -277,12 +293,13 @@ when it heard a pause after the opening word, so keep the 1.2 s breaks. Digits f
 
 ## Script 5: commands, one recording each
 
-**Tests:** a command read from a finished recording: "Hey Ghost" (or "Glyph"), adding to another note's list,
-adding a task to a note, adding a paragraph to a note, and making a new list with its items. Each is its own short
-recording: the command is read once, from the whole recording, when Done is pressed, and a card says what it will do
+**Tests:** a command carried out as it is said: "Hey Ghost" (or "Glyph"), adding to another note's list, adding a
+task to a note, adding a paragraph to a note, and making a new list with its items. Each is its own short recording.
+The first three switch the page to the note as they are said and write the words into it; Done writes it and opens
+it, with Undo. The last is read once, from the whole recording, when Done is pressed, and a card says what it will do
 before anything is written. Needs the Groceries and AttackFM bug bash notes from "Before you start".
 
-**Say**, pressing Done after each and tapping the card to confirm:
+**Say**, pressing Done after each:
 
 > Hey Ghost, add oat milk to the groceries note.
 
@@ -292,27 +309,25 @@ before anything is written. Needs the Groceries and AttackFM bug bash notes from
 
 > Hey Ghost, make a new list called firewood and add kindling, logs and matches.
 
+Then tap the card to confirm the last.
+
 **Expected:**
 
 - None of the commands lands anywhere as words: a recording that is a command is not a note.
-- Groceries gains `- Oat milk` at the end of its list. An item a command adds is capitalised, although the
+- Groceries gains `- Oat milk` at the end of its list, one item. An item a command adds is capitalised, although the
   items the list was made with are not.
 - Cabin weekend gains `- Buy ice` under `- Firewood from the farm shop`, before "The house rules": the task goes on
-  the end of the note's last list, in that list's own style, and that list is bullets, so it has no box.
-- AttackFM bug bash gains a line "The login is still broken on Android." (as an item if the note has a list,
-  else as a paragraph).
+  the end of the note's list, in that list's own style, and that list is bullets, so it has no box.
+- AttackFM bug bash gains "The login is still broken on Android." (as an item if the note has a list, else as a
+  paragraph).
 - A new note, Firewood, holds the three as a list.
 
-**Watch for:** the card naming the note and the words before anything changes, and nothing changing until it is
-tapped. The microphone has stopped by the time the card shows, so a spoken "yes" is not heard, whatever the card's
-hint says. A command naming a note that does not exist says so and changes nothing. Known to fail today: the rules
-split "oat milk" into two items, `- Oat` and `- Milk`, because a list note takes short bare words said one after
-another as several items (`src/app/capture/spokenList.ts`). That is a rule to fix, not a promise to correct.
+**Watch for:** the top line saying Adding to "Groceries" and the page switching to it as the command is said, the
+words arriving in its list, nothing stored until Done, and the note opening afterwards with "Added to Groceries" and
+Undo. A command naming a note that does not exist keeps the words in the recording's own note and says so.
 
-Tables, boards, books and moves by voice are not in this script, because a finished recording does not run them. It
-does not say so either: after "Hey Ghost", said into an open note, such a command opens that note with an AI ask
-carrying its words, and otherwise its words are saved as a note's (docs/instruction-voice-commands.md). The voice
-suite still checks the phrase-by-phrase rules for them.
+Tables, boards, books and moves of a card by voice are not in this script, because a recording does not run them
+(docs/instruction-voice-commands.md). The voice suite keeps their old tests, skipped with their reasons.
 
 ## Script 6: prose that must stay prose, then silence
 

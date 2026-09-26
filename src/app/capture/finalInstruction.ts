@@ -63,8 +63,9 @@ function askedForList(words: string, title: string): boolean {
 const permitted = <N extends Candidate>(plan: Plan<N>): boolean => plan.kind === 'place' || plan.kind === 'create-list';
 
 /**
- * Read one stopped recording. Live phrase commits never call this: an action
- * is possible only after Whisper has supplied the complete transcript.
+ * Read one stopped recording, once, from its complete transcript: the reader at Done, which the recorder asks only
+ * when the live reader (liveRoute.ts) carried out nothing as the words were said. The note named is found as the live
+ * reader finds it (noteFind.ts), for the rules' names and the model's alike.
  */
 export async function classifyFinalTranscript<N extends Candidate & { note?: { body: string } }>(
   transcript: string,

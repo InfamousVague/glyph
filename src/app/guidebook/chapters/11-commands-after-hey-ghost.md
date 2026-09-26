@@ -1,68 +1,75 @@
 # Commands after Hey Ghost
 
-_A recording can change another note instead of becoming one. What it can do in this version, how to say it, and why it always asks first._
+_A recording can write into another note as you talk: how to name the note, where the words go in it, and how to take them back._
 
-## A command is a recording of its own
+## Words for a note you name
 
-No microphone is ever left listening for Ghost.md's name. A command is only heard inside a recording you started, and it is read once, from the whole recording, after you tap Done. While you talk, your words show on the page like any others, and nothing is acted on.
+No microphone is ever left listening for Ghost.md's name. A command is only heard inside a recording you started. While you talk, each phrase is read as Whisper finishes it, for one kind of command: words for a note you name.
 
-So a command is a recording on its own: open the recorder, say the command, tap Done. Anything said after it is read as part of it.
+Say it at the start of a new recording, and the recorder switches to that note:
+
+> “Hey Ghost, add a note to House TODOs.” Then: “Call an electrician to fix the light sockets.”
+
+The line at the top says **Adding to “House TODOs”**, the page shows that note, and what you say is written into its to-do list as you say it. Nothing is stored until you tap Done. Then the note is written once, and opens, with “Added to House TODOs” and **Undo**.
+
+The name and the words can come in one breath, with a comma, a colon or a full stop between them: “Hey Ghost, add a note to house to-dos, call an electrician.” “The note is …”, “it says …” and their like are left out of what goes in.
 
 ## The keyword
 
 “Hey Ghost” opens a command. “Hi Ghost”, “OK Ghost” and “So Ghost” work too. “Ghost” on its own does not, because a note may begin “Ghost stories…”. The old word still works: “Glyph”, alone or after hey, hi, OK or so.
 
-The keyword has to come first. “Hey Ghost, um, can you add eggs to Groceries” is fine, since the lead-ins after it are dropped. Anything before it puts it inside a sentence: “Um, hey Ghost, add eggs to Groceries” and “Okay, um, hey Ghost, …” are kept as words. A command said inside a sentence, “I told Sam, add eggs to Groceries”, stays words too.
+Whisper sometimes writes the keyword as words of their own: “Hey, like, add…” (Glyph heard as “like”), “Hey goes add…” (Ghost). These count too, but only at the very start of a phrase and only when a command for a note follows, so “Hey, like, the weather” stays words. Filler before the keyword is fine: “Um, hey Ghost, add…”. So are lead-ins after it: “like”, “can you”, “I want to”, “let's”.
 
-## What a finished recording can do
-
-Two things: add to a note you name, and make a new list. In these examples Groceries already holds a list, and Chores and Work do not.
-
-| Say | The card | What lands |
-|---|---|---|
-| “Hey Ghost, add oat milk and rye bread to Groceries.” | Add to Groceries · Oat milk · Rye bread · In its list | Two items on the end of its list |
-| “Hey Ghost, new item for Groceries, oat milk.” | Add to Groceries · Oat milk · In its list | One item |
-| “Hey Ghost, add these to Groceries: eggs, butter and flour.” | Three lines, in its list | Three items |
-| “Hey Ghost, add a to-do call the bank to Chores.” | Add to Chores · Call the bank · In its list | `- [ ] Call the bank` |
-| “Hey Ghost, add to Work Sam called about the invoice.” | Add to Work · Sam called about the invoice. · As a new paragraph | A paragraph at the end |
-| “Hey Ghost, make a new list called comic books with Batman, Superman and Robin.” | Create Comic Books · three lines · As a new list | A new note, Comic Books, with three bullets |
-
-“Make a list called packing” makes the list with nothing in it yet.
-
-## Where the words go
-
-- **Into the note's list, in its own style.** A numbered list gets the next numbers, a to-do list gets boxes, a `*` list gets `*`. The list's style wins over what you said: “a to-do” added to a list of plain bullets lands as a bullet.
-- **When a note has several lists**, one short thing said plainly goes into the list whose heading and items share most words with it. Several things, or a thing said with its kind (“a list item …”), go on the end of the last list.
-- **A note with no list yet** takes what you say as a paragraph, unless it is called Groceries, Grocery, Shopping or List, which start bullets, or To do, Todo, Task or Tasks, which start to-dos.
-- **Say the kind of thing** to decide it yourself: “a list item”, “a bullet”, “a task” or “a to-do” before the words makes them one item of that kind.
+Words before the keyword in the same phrase are yours: “Kevin owns the release, hey Ghost, add call Sam to Work” keeps “Kevin owns the release.” in the note.
 
 ## Naming the note
 
-A name is matched loosely: “the”, “my” and a trailing “note” or “list” are dropped, and case and punctuation do not count. When the rules make nothing of a recording that opens like a command, or hear a name they cannot match, the language model on your phone reads the words once. It is only asked when it is already there: Ghost.md never downloads a model for a command.
+A name is found by its words, not its spelling. The words that say which note (“house”, “hello trade”) must all be in the title; the words that say what kind of note it is (to-do, task, chore, job, list, item, stuff, thing, note, page) never decide it. So “house to do's”, “house to-dos”, “the house list”, “house list items”, “house chores” and just “house” all find **House TODOs**. Every way Whisper writes to-do is one word: to do's, to-dos, todos, 2 dos.
 
-With a model on the phone, a name that matches no note, or more than one, is refused, and the recorder says why as it closes: “No note called “Camping”. Nothing changed.” No words from that recording are saved.
+| Said | What happens |
+|---|---|
+| A name that clearly means one note | The recorder goes there, or sends the words there |
+| “the list”, “this note”, “here”, or a heading of the note you are in | The note you are in, under that heading |
+| A name that could be two or three notes | A card: **Add to which note?** |
+| A name that matches none, said with “a note” or near a title | A card: **No note called “…”**, with the near titles and **New note “…”** |
+| A name that matches none | The words stay where you are: “No note called “the moon base”, so the words stay here.” |
 
-Without one, it depends on how the command was said. Where the rules themselves heard a name they cannot find, as in “new item for Camping, eggs” or “add a table to Camping”, it is refused the same way: “No unambiguous note matches “Camping”. Nothing changed.” Where they could not read the command at all, as in “add eggs to Camping”, a new recording keeps it as words, and a note's own Speak takes it as an ask about that note.
+A card never holds you up. Keep talking: what you say goes on the page. Tap a note, or say its title, “the first one”, “keep it here” or “new note”. After eight seconds, or when you tap Done, it keeps the words where you are.
 
-## Why it asks first
+A book is never written into: its name keeps the words where you are, and says why. Over the lock screen no card is shown, the top line says **Adding to the note you named**, and a shared note is never written to.
 
-A spoken name can be misheard, so nothing changes until you tap. The card shows the lines exactly as they will land, and where. **Cancel** leaves everything as it was. **Add**, or **Create** for a new list, writes what the card showed, and only if the note is still as it was when the card was drawn. If it changed in between, nothing is added: “Groceries changed after the preview, so nothing was added.”
+## Where the words go
 
-The card's small print says “Or say “yes” or “no”.”, but by the time it shows, the microphone has stopped. Tap. The card waits as long as you take.
+Into the note's list, when it has one:
 
-Over the lock screen the card shows too, with the note's name and the lines that would land, so whoever is holding the phone can read them. An ask for the AI is not run over the lock screen, but a command is offered all the same.
+- **The list that fits.** Each sentence you say is an item. In a note with several lists, it goes under the heading that shares its words: “call an electrician” goes under **Electrical**, not under **Kitchen** for sharing “fix”. The chip says where: “Now on Home jobs · under Electrical”.
+- **A to-do list for a to-do**, when you said “a to-do”, “a task” or “a reminder”, or the title says to-dos.
+- **In the list's own style.** A numbered list gets the next numbers, a to-do list boxes, a `*` list `*`.
+- **A sentence that carries on the one before it**, starting “because”, “so”, “but” or “which”, goes under that item.
+- **A note with no list yet** starts one when its title says what it holds: House TODOs starts to-dos, Groceries bullets. Otherwise the words go at the end, as a paragraph.
 
-Afterwards a recording started from home takes you back there, and one started from a note opens the note the command changed. The sound of a new recording goes with the command, onto the tape of the note it changed.
+“Milk, eggs and bread” is three items.
 
-## Undo
+## At the start, or in the middle
 
-A confirmed command is written with an undo that lasts ten minutes, and it works only while the note is still exactly as the command left it. The recorder has no Undo button of its own. Ghost.md offers it once, the next time Ghost.md starts within those ten minutes: “Voice command changed a note.”, or “Voice command created a note.”, with **Undo**. Any other time, edit the note.
+At the start of a new recording, the note you name is where the whole recording goes. In the middle of a recording, or into a note's own Speak, “Hey Ghost, add call Sam to House TODOs” sends just those words there, and the recording carries on where it was. “Hey Ghost, add a note to House TODOs.” on its own takes the next few things you say, until you pause.
 
-## One thing to watch
+“Hey Ghost, move this to Groceries” takes the recording, and what you have said so far, to that note. “Hey Ghost, new note” starts a fresh one; at the start of a recording, it says it is one already.
 
-Said on its own to a note that already has a list, or with a list word in the command such as the To do in “add oat milk to To do”, one item of two or more words is split into one item per word. “Hey Ghost, add oat milk to Groceries” offers **Oat** and **Milk**. The card shows it before anything is written, so tap Cancel and say “new item for Groceries, oat milk”, or “add a list item oat milk to Groceries”.
+For the note you are in: “Hey Ghost, remind me to book the MOT”, “make a note to call the electrician”, “add a to-do: call Sam”. Each is a to-do.
 
-A note with no list yet is the other way round: “oat milk and rye bread” lands there as one item, and only a list of three or more said with commas is split.
+## Taking it back
+
+- **Not this note**, in the top line after a switch: the recording goes back to its own note, and a small card offers the other notes the name could mean, or a new one by that name.
+- **Not this note** on the card that shows words landing in another note takes those words back.
+- **Discard** keeps nothing, anywhere: nothing was stored.
+- **Undo** in the note that opens after Done takes out exactly what went in, as an edit in that note. Anything you have changed since is left alone. Words sent to other notes are taken out of those too, if they are still as the recording left them.
+
+## Without the keyword
+
+**Commands start with “hey Ghost”** is in Settings › Recording, on by default. With it on, nothing is a command without the keyword, with one exception kept from before: a recording that opens plainly with “Add oat milk to Groceries” is read once at Done, and shows a card for you to confirm.
+
+With it off, the very start of a recording can name a note without the keyword, in the plainest shapes only: “Add a note to House TODOs, call Sam.” The name must clearly mean one note that holds lists. Anything else is words.
 
 ## Asks, said into a note
 
@@ -74,32 +81,14 @@ Said first into a note's own Speak, with the phone unlocked, a recording can be 
 - “Hey Ghost, tidy this up.”
 - “Hey Ghost, carry on.”
 
-The words are not written into the note, and the note opens with the AI working on it. On a note that already has a recording, their few seconds of sound stay at the end of its tape. [[Spoken asks and the review]] has the rest.
+The words are not written into the note, and the note opens with the AI working on it. Said in the middle of a recording, an ask runs on the note that opens after Done. Said in a recording that went to another note, it is left out, and the chip says so. [[Spoken asks and the review]] has the rest.
 
-Those five, and phrasings like them, are read with or without “Hey Ghost”. So a recording into a note that begins “Go on…”, “Continue…” or “Format…” is taken as the ask, not as words. Anything else after “Hey Ghost” that is not a command is an ask about the note: “Hey Ghost, shorten the second paragraph.” In a new recording, or over the lock screen, asks are not run: the words are kept like any others.
+## What a recording does not do
 
-## What the recorder suggests, and does not do yet
-
-The Things to say card and the tips in a pause suggest more than a finished recording carries out. In this version it carries out none of these:
-
-- “Hey Ghost, move this to Groceries.”
-- “Hey Ghost, new note.”
-- “Hey Ghost, make a book called Field guide.”
-- “Hey Ghost, add a chapter to Field guide.”
-- “Hey Ghost, add a table to Work.”
-- “Hey Ghost, make this a board.”
-- “Hey Ghost, send that to Notion.”
-
-None of them is refused out loud, except a table for a note you do not have. “Add a table to this note”, as [[How to format a note]] and the cheat sheet put it, is one of those: “this” is taken for a note's name, the recording ends with “No unambiguous note matches “this”. Nothing changed.”, and none of its words are kept. In a new recording the words are kept as the note's words, “Hey Ghost” and all. In a note's own Speak, with the phone unlocked, they go to the AI as an ask about that note. A board's lane is never named either: “Hey Ghost, add fix the login to Doing” is read as naming a note called Doing, and goes the way any unknown name does. [[Where the docs and the code disagree]] lists the places that still promise them.
-
-## The setting
-
-**Commands start with “hey Ghost”** is in Settings › Recording, on by default. Its line says: “Off, a command can be said without it, and still asks.” In this version the switch changes only how the recorder's suggestions are worded. A finished recording is read the same either way: one that opens with add, put, append, make, create, new, or “I need a new…”, is read as a command with or without the keyword, and an ask needs the keyword whichever way the switch is set. Every command asks first, always.
-
-So a note you dictate that happens to begin “Add salt to the water…” is checked as a command before it is kept as words, and it can be refused if it seems to name a note you do not have. Without a language model on the phone, the recorder keeps it and says “Command understanding was unavailable; saved this recording as a note.” Saying the title first avoids both.
+Tables, books, chapters and a board's cards are not made by voice in this version. Opening a new recording, “Hey Ghost, add a table to Work” or “make a book called …” is kept as the note's words, without the keyword, and the chip says a recording cannot do that. In the middle of a recording it is taken as an ask for the AI, and runs on the note that opens after Done. A voice memo said aloud (“Voice memo … end memo”) is words. [[Where the docs and the code disagree]] lists the places that still promise them.
 
 ## Read next
 
-- [[Spoken asks and the review]]
 - [[Lists and to-dos]]
-- [[Where the docs and the code disagree]]
+- [[Spoken asks and the review]]
+- [[Reading a command, writing it safely]]

@@ -42,12 +42,12 @@ On Android only.
 | Setting | Default | What it does |
 | --- | --- | --- |
 | Stop when I go quiet | Off | Saves the recording after four seconds of quiet, once you have started talking. The side key and Done still work. |
-| Commands start with “hey Ghost” | On | Whether the recorder's suggestions start with Hey Ghost. At this version it changes little else: see below. |
+| Commands start with “hey Ghost” | On | Whether a command needs Hey Ghost to be heard as you speak: see below. |
 | Review after recording | On | When you stop, a slower speech model listens again and the language model thinks the note through out loud, then shows what it would fix, for you to keep or commit. |
 | Where the side key is | Ghost.md's guess | A Height slider that moves the rings to sit beside your key. Once you have moved it, **Reset** beside Use Ghost.md's guess puts it back. |
 | Better words | On | After you finish, a larger model goes over the recording and fixes the words: a few seconds of the phone per minute of speech. |
 
-The Hey Ghost switch does less than its name says. At this version a recording is read for a command once, when you stop, and that reading does not look at the switch. An ask of the AI counts only after Hey Ghost, whichever way it is set. A command that names a note, such as "add eggs to Groceries", counts with or without Hey Ghost, and so do a run's own words at the start of a recording into a note, such as "fix the spelling". A command that names a note still asks before it acts.
+Its line says: “Say “Hey Ghost, add call Sam to House TODOs” and the words go into that note as you say them. Not this note, Discard or Undo takes them back. Off, “Add a note to House TODOs…” at the very start of a recording works without it.” On, a phrase is read as you speak only when it opens with Hey Ghost; a recording that opens plainly with "add eggs to Groceries" is still read once when you stop, and asks on a card. Off, the plainest shapes at the very start of a recording work without the keyword, and anything later still needs it. An ask of the AI counts only after Hey Ghost, whichever way it is set.
 
 ## Formatting
 

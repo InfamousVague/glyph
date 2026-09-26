@@ -42,7 +42,7 @@ The workspace chosen at the top decides which notes it reads. The archive is lef
 
 ## By voice
 
-While recording, “Bullet point”, “Check box”, “Remember to …” and a list said in one breath all make lists as you talk ([[Saying the marks]]). To add to another note's list without opening it, record a command: “Hey Ghost, add oat milk and rye bread to Groceries.” The list keeps its own style, bullets, numbers or boxes, and nothing is added until you tap Add ([[Commands after Hey Ghost]]).
+While recording, “Bullet point”, “Check box”, “Remember to …” and a list said in one breath all make lists as you talk ([[Saying the marks]]). To add to another note's list without opening it, say it: “Hey Ghost, add oat milk and rye bread to Groceries.” The words go into the list they fit, in its own style, bullets, numbers or boxes, as you say them, and the note opens with an Undo when you tap Done. In a note with several lists, a thing goes under the heading that shares its words; a to-do goes to a to-do list ([[Commands after Hey Ghost]]).
 
 ## Linked to Notion or GitHub
 

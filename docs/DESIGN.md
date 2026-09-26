@@ -4911,3 +4911,102 @@ their ticked examples out of the count. Added at once, its forty-four chapters w
 four chapters draw as examples ("Book the cabin", "Call the plumber") sat among the person's own. The book is read
 from its card in the Library. A chapter of a book of one's own is left as it was: only the Guide's are the manual's.
 
+## 126. Words go into the note you name, as you say them (2026-09-26)
+
+Matt: "whenever I put, hey, like add a note to house to do's, the note is call an electrician to fix the light
+sockets. It creates a new note instead of finding a note with a similar title, like house to do's, house list items,
+house chores. The AI should first step try to find a note that the person is talking about. And then when it's found
+that note, it should look through the note and see what different things I could be talking about adding to. Like if
+there's a list already or something like that. And then once we decide, then it should modify that note, open the
+note, and start live writing to that note instead of doing the second pass over at the end."
+
+**Why it made a new note.** Since PR #1 a recording was read once, at Done (§114). Matt's exact sentence, with its full
+stop, did reach House TODOs through command.ts, but offered "The note is call an electrician…" and split one to-do
+into a bullet per word. The new notes came from names under the letters-first matcher's 0.72 bar ("house chores" 0.5,
+"house list items" 0.4), from openers the gate did not take ("Hey, like", "Hey goes", "Um, hey Ghost", "I want to"),
+and from a name said alone: each ended as an ask, and a fresh recording saved an ask as a note of its words.
+
+**The flow now.** Say "Hey Ghost, add a note to house to do's." at the start of a recording, then "The note is call an
+electrician to fix the light sockets." The top line says Adding to "House TODOs", the page shows that note, and the
+to-do is drawn into its list as it is said, the page following it there. Tap Done: the note is read fresh, written
+once through `apply_command`, and opens with "Added to House TODOs" and Undo. There is no card and no review: the
+words went in as they were said, which is the second pass Matt asked to lose.
+
+**Finding the note** (capture/noteFind.ts). A name is read as distinctive words, which must all be in the title, and
+kind words (to-do, task, chore, job; list, item, stuff, thing, note, page), which never decide and only back a match
+up; to-do has one spelling on both sides. It answers resolved, current (the note being written to, or one of its
+headings or lanes), unsure (a card) or missing (with near titles). Against Matt's 76 titles with the Guide added,
+every way of saying House TODOs above resolves it; "task list", "hello trade the book" and "signing" are unsure.
+The Guide's chapters and canvases are no longer candidates (capture/candidates.ts). Both readers use it.
+
+**Where the words go** (capture/place.ts). The only list; the list under the heading that shares its words, by stems
+with verbs left out ("call an electrician" under Electrical, not under Kitchen for "fix"); a to-do list for a to-do,
+or when the title says to-dos; else the first open to-do list, or the last list. A note with no list starts one when
+its title says what it holds, and otherwise the words go on its end. Each sentence is an item, one that carries the
+last on goes under it. The page, Done and the better words all write with `placeTake`, so they agree.
+
+**Reading at each commit** (capture/liveRoute.ts, capture/liveCommand.ts). PR #1's boundary is reopened for reading,
+not for storing:
+
+- Only committed phrases are read, and with "Commands start with hey Ghost" on (the default) only a phrase that opens
+  with the keyword, or a known mishearing of it followed by a command. Partials only draw.
+- At the start of a fresh recording the note named is where the take goes (`route`). Mid-take, or on a note's own
+  Speak, "add … to X" sends those words to X and the take carries on (`insert`). "Move this to X" moves the take.
+  "Remind me to …" is a to-do here. "New note" starts one.
+- An unsure name, or a missing one near a title or said with a note noun, raises a card. No card blocks anything: it
+  takes Keep here after 8 s, and at once at Done, the side key, the screen going off, back and Discard.
+- A book is never switched to; over the lock screen no card is shown and no shared note is written.
+- A name that ran to the phrase's end can grow into the next phrase ("house" | "to-dos"), timed on the recording.
+
+**Storing at Done, kept.** Nothing is stored mid-take. So a wrong switch is seen and put right (Not this note, which
+sends the take home; Discard; Undo in the note) with nothing to take back from the store, and there are no drafts to
+sync, share or double. Done writes each note once: what was said before New note, then the one-shots, then the
+take's own note. A note that existed is read fresh and written through `apply_command` (takeWriter.ts `writeInto`),
+which checks body and revision; a second conflict makes the words a note of their own. The stop's last words are
+compared with every committed phrase, commands and all, and read by the live reader, so a command still being said
+at Done is still carried out, and its sound follows it (`reassignRecording`), unless it went on the end of a note's
+own tape (§123).
+
+**The note that opens** (editor/useLanding.ts). Undo is an edit in its editor: the pieces written in are taken out as
+they were written, saved like typing, and a piece edited since is left alone. Writes to other notes are undone
+through `undo_command`. The better words wait while any note is open (refine.ts `holdNote`): the editor must be the
+one writer of an open note. A refine job gains `placing` and `live`, so the better words land in the list, and a
+better phrase that ran a command and its item together is replaced by the live phrases inside it.
+
+**The reader at Done, fixed too.** It finds names with noteFind.ts, leaves "the note is" out, no longer lets a title's
+"to-dos" ask for a list or split one thing word by word, reads "add to house to-dos, call…" up to the comma, takes
+filler before the keyword and its mishearings, and saves a keyed ask on a fresh recording without the keyword, with a
+chip. A confirmed card opens its note with an Undo; Discard while it waits is its Cancel; its "Or say yes or no" is
+gone.
+
+**Changed on purpose.** A note whose title says it is a list (House TODOs, Groceries) takes what is said on its own
+Speak as items; any other note's own Speak still goes on its end byte for byte. What was said before New note is
+written at Done, not at the tap, so Discard takes it back too. The tips teach only what a recording carries out. The
+voice suite plays the live reader; its tests of a spoken no, tables, a plugin, board changes and voice memos are kept
+and skipped with their reasons (docs/VOICE_TESTS.md).
+
+**Where this differs from the plan it was built from.** A note's own Speak goes into its lists only when its title says
+it is a list, not whenever its last block is a list: dictation into a note that happens to end with a list stays
+prose. Front matter is read by the app's one rule (core/frontMatter.ts): a YAML list under a key is not front matter
+to that rule, so the placement starts after `frontMatterEnd` and no second rule was made. A list item made from a
+command's words is written as its cue ("Check box: …"), which the renderer lays out as the item, so the tape's
+transcript shows the cue for that stretch. A table, book or board asked for mid-take is queued as an ask.
+
+**Questions for Matt.**
+
+1. The review after recording is off for a take routed into an existing note. Should it go for new notes and a note's
+   own Speak too?
+2. Voice tables have been unreachable since PR #1. Bring them back in the live reader, or cut them?
+3. With the keyword on, "Add a note to House TODOs, …" said without it still gets the card at Done. Should it write
+   live too? (Turning the setting off does that now.)
+4. Deploys: this is page code only, generation 19, over the air, whenever you choose.
+
+**Tests.** noteFind.test.ts (Matt's titles), place.test.ts, liveCommand.test.ts, liveRoute.test.ts (through
+liveTake.ts, the recorder's bookkeeping in memory), landing.test.ts, a CaptureScreen describe "adding to a note as it
+is said" (Matt's case in two phrases fails at aff54fd), NoteScreen's Undo, useCaptureRoute's landing, refine's holds,
+and eight new voice suite scripts (093 to 100) whose audio is still to be made.
+
+**Not done.** A take killed mid-sentence still loses its words (a local journal read back at launch would fix it). The
+on-device model does not pick among titles; it has not been timed on the Fold beside Whisper. "Hey Ghost" is not in
+Whisper's prompt (an APK change). Voice memos said aloud, plugin commands by voice, and removing take.ts's
+phrase-at-a-time reader are follow-ups. Kevin wrote PR #1 and should see this section.

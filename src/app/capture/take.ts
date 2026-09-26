@@ -16,12 +16,12 @@ export type { Offer } from './offers.ts';
 /**
  * One recording's words and commands, as a state machine with no screen and no clock of its own.
  *
- * The recorder (CaptureScreen) hands it each committed phrase with `listen`, which only shows it: since PR #1 a phrase
- * can never route a command or write a note, and the command in a recording is read once, from the whole transcript,
- * at Done (ai/instruction.ts), then offered here with `offerFinal`; with the microphone stopped, its card waits for a
- * tap, and the recorder no longer ticks the take to time it out. The live reading of commands a phrase at a time -
- * `phrase` and `tick`, with its tables and voice memos - is what the voice test suite (voice-tests/,
- * capture/voiceSuite.ts) drives from recorded audio, checking the notes that result.
+ * The recorder (CaptureScreen) keeps the take's words here: each phrase the live reader (liveRoute.ts) says is words
+ * arrives by `listen`, which only shows it, and the stretches that were commands are marked for the better words to
+ * leave out. A command the live reader did not carry out is read once, from the whole transcript, at Done
+ * (ai/instruction.ts), and offered here with `offerFinal`; with the microphone stopped, its card waits for a tap. The
+ * older reading of commands a phrase at a time - `phrase` and `tick`, with its yes and no, tables and voice memos - is
+ * no longer driven by anything but this file's own tests; the voice suite plays the live reader (voiceSuite.ts).
  *
  * The rules it follows:
  *

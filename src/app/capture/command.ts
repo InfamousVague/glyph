@@ -7,25 +7,25 @@ import { cellsOf } from './table.ts';
 import { spokenListItems } from './spokenList.ts';
 
 /**
- * "Glyph, add buy milk to HelloTrade": commands while recording, which only
- * count after the keyword, and which ask before they act.
+ * "Glyph, add buy milk to HelloTrade": the keyword, and the plan a command's
+ * words make, for the reader at Done (finalInstruction.ts) and for the older
+ * phrase-at-a-time reader in take.ts.
  *
  * Matt, after "add a note to hello trade" became a new note called "To the
  * hello trade": "have it listen for keywords and not do anything until it
- * hears the keyword and confirms the action". Commands used to be read out of
- * every phrase, in a handful of exact phrasings, and a pause in the middle of
- * one split it into two phrases that were each just words. So:
+ * hears the keyword and confirms the action". So:
  *
- * - Nothing is a command until "Glyph" is heard (`findKeyword`). What comes
- *   before it in the phrase stays in the note; what comes after, across as many
- *   phrases as it takes, is the command and never lands in the note.
- * - The command is read more loosely than before (`planCommand`), since the
- *   keyword already says it is one: "add buy milk to hello trade", "add a list
- *   item to HelloTrade", "put call Sam on the work list", plus every phrasing
- *   route.ts knew. A command that names its note but not yet what to add waits
- *   for the next phrase.
- * - Then it asks: the recorder shows what it is about to do, and "yes" or "no"
- *   (`reply`), or a tap, decides. Nothing changes until then.
+ * - Nothing is a command until "Glyph" or "hey Ghost" is heard (`findKeyword`),
+ *   or a mishearing of it followed by a command (`findMisheard`). What comes
+ *   before it in the phrase stays in the note.
+ * - The command is read loosely (`planCommand`), since the keyword already says
+ *   it is one: "add buy milk to hello trade", "add a list item to HelloTrade",
+ *   "put call Sam on the work list", plus every phrasing route.ts knew, the
+ *   note found by its words (noteFind.ts).
+ * - A plan read at Done is shown on a card and waits for a tap. What the live
+ *   reader (liveRoute.ts) carries out as it is said, it reads with its own
+ *   grammar (liveCommand.ts), which shares the keyword, its mishearings and the
+ *   lead-ins with this.
  *
  * Pure, so every phrasing is a test.
  */

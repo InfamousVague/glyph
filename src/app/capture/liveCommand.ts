@@ -140,6 +140,10 @@ const SELF = [
 const NOT_NAMES =
   /^(?:call|fix|book|buy|get|ask|email|send|pick|make|check|clean|take|see|find|try|set|sort|look|do|go|pay|ring|text|order|tell|remember|finish|write|read)\b/i;
 
+/** A command for something other than words: a table, a board, a book or a chapter, which the live reader leaves alone. */
+const NOT_WORDS =
+  /^(?:(?:add|make|create|start|put|insert|draw|build|begin|new)\s+(?:(?:a|an|another|one|the)\s+)?(?:new\s+)?(?:table|board|kanban|book|chapter)s?\b|(?:make|turn|change)\s+(?:this|it|the\s+note|this\s+note|the\s+list|this\s+list)\s+(?:into\s+)?(?:a\s+)?(?:kanban\s+)?(?:board|kanban|table|book)\b)/i;
+
 /** Whether a name can be one: not "a table", not "the top", and not a thing to do (`NOT_NAMES`). */
 export function nameable(name: string): 'name' | 'verb' | 'not' {
   const said = name.trim();
@@ -184,6 +188,8 @@ const BARE_THING = /^(?:this|that|it|everything|these|those|them)$/i;
 export function readRoute(text: string): Reading[] {
   const words = withoutFinalStop(text);
   if (!words) return [];
+  // A table, a board, a book or a chapter is asked for, not words for a note: "add a table to this note" is no bullet.
+  if (NOT_WORDS.test(words)) return [];
   if (SHAPE_7.test(words)) return [reading(7, '', { newNote: true })];
   for (const { rule, task } of SELF) {
     const self = rule.exec(words);

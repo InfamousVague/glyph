@@ -37,7 +37,7 @@ Each run answers to more than one phrasing:
 
 A free ask only counts when the keyword opens the take. The strip then shows your own words in quotes: "“make it sound friendlier” with Qwen3.5 4B, 9.4 tokens a second, 0:12." The named phrasings above are read as runs even without the keyword, and only the start of the take is read. So a take into a note that begins "Continue", "Format" or even "Go on" is taken as that run, and none of it is written into the note.
 
-An ask is the whole take: say it on its own, then tap Done. Nothing else you say in that take is written into the note. Words that name another note, such as "Hey Ghost, add eggs to Groceries", are a command rather than an ask, and a card asks you to confirm them first: see [[Commands after Hey Ghost]].
+An ask said first is the whole take: say it on its own, then tap Done. Nothing else you say in that take is written into the note. An ask said in the middle of a recording runs on the note that opens after Done, and the chip says so. Words that name another note, such as "Hey Ghost, add eggs to Groceries", are a command rather than an ask: they go into that note as you say them. See [[Commands after Hey Ghost]].
 
 ## Where an ask runs
 
@@ -91,7 +91,7 @@ The review runs only:
 
 - in the app, not a browser tab, and one recent enough to let a model think out loud (an older app saves the note as it always did and never shows a review);
 - on an unlocked phone;
-- on a take saved as a note, not one read as a command or an ask.
+- on a take saved as a note, not one read as a command or an ask, and not one written into a note you named, which opens with its Undo instead.
 
 Listening again also needs Better words on and the larger speech model, which is fetched the first time it is needed unless Local only is on. Without them, the review has nothing to compare, and goes straight to the thinking.
 

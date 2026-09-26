@@ -8,8 +8,12 @@ import type { Segment } from './markdown.ts';
  * transcript, never as a phrase. When that transcript carries on from the phrases already committed, word for word,
  * what it adds is set after them as a phrase of its own, timed from the last one to the end of the recording: the note
  * keeps its last words and the tape's transcript keeps its timing. When it disagrees with them anywhere, the phrases
- * stand as they were heard, since they are what the tape and the better words are timed by. Whether the recording was a
- * command is read from the whole transcript either way (CaptureScreen.tsx `finish`).
+ * stand as they were heard, since they are what the tape and the better words are timed by.
+ *
+ * The recorder compares the transcript with every phrase committed, commands and all, not with the take's words,
+ * which leave the commands out and lose what went before "New note": so what the stop adds is only ever words said
+ * after the last committed phrase, and it is read by the live reader like any phrase, a command still being said at
+ * Done included (CaptureScreen.tsx `finish`).
  */
 
 /** A word, as it is compared: letters and digits, with an apostrophe inside one ("don't", "Sam’s"). */

@@ -80,7 +80,16 @@ describe('the shapes of a command for a note', () => {
   });
 
   it('reads nothing for a note where there is no note', () => {
-    for (const words of ['put the dates in a table', 'add a summary to the top', 'fix the spelling', 'make a list called packing']) {
+    for (const words of [
+      'put the dates in a table',
+      'add a summary to the top',
+      'fix the spelling',
+      'make a list called packing',
+      'add a table to this note',
+      'add a chapter to the field guide',
+      'make this a board',
+      'make a book called trips',
+    ]) {
       expect(readRoute(words).filter((r) => !r.verb), words).toEqual([]);
     }
     expect(nameable('a table')).toBe('not');

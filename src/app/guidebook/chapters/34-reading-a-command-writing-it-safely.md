@@ -1,44 +1,54 @@
 # Reading a command, writing it safely
 
-_The guards between a voice and a write: a recording is read once, at Done, and nothing it asks for is written until a tap says so._
+_The guards between a voice and a write: a phrase is read for one kind of command as it is said, nothing is stored until Done, and every write to a note that exists is checked against it._
 
 The rules are written down in `docs/instruction-voice-commands.md`. This chapter checks each one against the code, and says where the two part.
 
-## The boundary
+## Two readers, one boundary
 
-While a take is recording, nothing it hears can act. Partials only draw. Committed phrases go to `take.listen`, which adds them to the page and does nothing else ([[From microphone to Markdown]]). No phrase routes a command, writes a note or calls a model.
+A partial only draws. A committed phrase is read by the live reader, `src/app/capture/liveRoute.ts`, for one family of command: words for a note you name. Everything else a recording asks for is read once, from the complete transcript, at Done, by `readInstruction` in `src/app/ai/instruction.ts`, and only when the live reader did nothing.
 
-At Done, `capture_stop` returns the complete transcript. `CaptureScreen.tsx` hands it to `readInstruction` in `src/app/ai/instruction.ts`, once. That is the only place a recording is classified.
+The live reader switches the page; it stores nothing. `CaptureScreen.tsx` applies its steps to the take and the writer, and draws the words where they will go (`place.ts` `placeTake`, the function Done writes with). At Done each note is read fresh and written once. A note that already existed is written through `apply_command_mutation`, which checks its body and its revision.
 
-## The reader, in order
+## The live reader
 
-`bareWords` first takes off a leading keyword and the lead-ins people say ("Hey Ghost,", "okay", "can you", "um"). If the keyword comes after other words, the whole take is words: "Buy milk. Hey Ghost, add eggs to Groceries" is a note that says exactly that. Then, in order:
+`liveCommand.ts` is its grammar. `hearKeyword` finds the keyword anywhere in the phrase (`findKeyword`, `KEYWORD` in `capture/command.ts`), or a mishearing of it at the very start (`MISHEARD`: "hey, like", "hey goes"), which counts only when what follows reads as a route. `commandWords` takes off the lead-ins (`LEAD_INS`). A phrase-final full stop is never a separator: Whisper cuts a phrase about 300 ms into a quiet and nearly always ends it with a stop. `readRoute` returns every reading of the shapes: a verb, a noun and a name ("add a note to …"), "new item for …", "add to …", a thing then a name at every preposition, "move this to …", the name first after the keyword ("for Groceries, …"), "new note", a heading ("… under Kitchen in Home jobs"), and a to-do for here ("remind me to …").
 
-1. **A run, said in words** (`runOf`): "fix the spelling", "summarise it", "tidy this up", "make this a list", "carry on". A run needs no keyword. Three of them are the More sheet's own (Format, Summarize and Enhance); fix, shape and continue are reached only by saying them.
+`noteFind.ts` finds each name. Distinctive words must all be in the title, kind words (to-do, task, chore, job, list, item, …) only back a match up, and one spelling of to-do is used on both sides. It answers `resolved` (at 0.72 or more, clear of the next by 0.08), `current` (the note being written to, or one of its headings or lanes), `unsure` (0.6 or more) or `missing` (with titles near it). The Guide's chapters and canvases are never candidates (`capture/candidates.ts`).
+
+Then `LiveRoute`:
+
+| Found | At the start of a new recording | Mid-take, or a note's own Speak |
+|---|---|---|
+| Resolved | `route`: the take goes there, for good | `insert`: those words go there, the take carries on |
+| Resolved, with "move this to" | `route`, words so far and all | the same |
+| The note being written to | only how the words go changes | the same |
+| Unsure, after the keyword | a card | a card |
+| Missing, near a title or with a note noun | a card | a card |
+| Missing | the words stay here, the command goes | the same |
+
+A book is never switched to, and over the lock screen no card is raised and no shared note is written. A card lasts eight seconds and then keeps the words here; Done, the side key, the screen going off, back and Discard all settle it at once (`close`). A name that ran to the phrase's end and scored under 1 can grow into the next phrase ("house" | "to-dos"), timed on the recording.
+
+A keyworded phrase that is no route goes to the reader at Done when it opens the take ("Hey Ghost, fix the spelling"). Later, it is queued as an ask for the note that opens after Done, or left out of a take that went to another note.
+
+## The reader at Done, in order
+
+`bareWords` takes off a leading keyword, filler before it, a mishearing of it followed by a command, and the lead-ins. If the keyword comes after other words, the whole take is words. Then:
+
+1. **A run, said in words** (`runOf`): "fix the spelling", "summarise it", "tidy this up", "make this a list", "carry on".
 2. **A command**, read by `classifyFinalTranscript` in `capture/finalInstruction.ts`: the rules first, then at most one pass of the model.
 3. **An ask**: anything else, but only when the keyword opened the take.
 4. **Words**: everything left.
 
-What `finish` does with each:
-
 | Read | What happens |
 |---|---|
-| `command` | The take's words are cleared and the confirm card shows the plan. Nothing is written. |
-| `reject` | A note was named that no note, or more than one, matches. The reason goes on the chip as the recorder closes, the sound is let go, and no note is saved. |
-| `run` or `ask`, into a note, unlocked | The note opens with the run on it. The take's words are not saved, and the sound is let go. |
-| `words` | The take is saved as a note, if it lays out as anything, with a notice when the model could not be asked. |
+| `command` | The confirm card shows the plan. A tap writes it, and the note opens with an Undo. |
+| `reject` | A note was named that no note, or more than one, matches. The reason goes on the chip and no note is saved. |
+| `run` or `ask`, into a note, unlocked | The note opens with the run on it. |
+| `ask`, in a new recording | The words are saved as a note without the keyword, and the chip says the recording could not do it. |
+| `words` | The take is saved as a note, with a notice when the model could not be asked. |
 
-A `run` or an `ask` said into a new recording, or over the lock screen, falls through to words. The take, keyword and all, becomes the note.
-
-## Commands: the rules first
-
-`finalCommandWords` in `capture/command.ts` takes off the keyword and lead-ins again, and a trailing "end" or "stop". Then comes a narrow gate, `isStandaloneCommandLike`: what is left must begin with `make`, `create`, `new`, `add`, `put`, `append`, or "I need a new" and its like. Only the very start counts, so a command reported inside a sentence ("I told her, add…") stays words. The gate is the same with the keyword or without it.
-
-The keyword is one regular expression, `KEYWORD`. "Ghost" counts only after "hey", "hi", "OK" or "so", because a note can begin "Ghost stories". "Glyph" counts on its own, with the spellings Whisper writes for it: "glif", "gliff", "glyth" and more. `NAMED_BEFORE` and `NAMED_AFTER` keep "the Glyph note" a name. A second list, `SOUND_ALIKE` ("Life.", "Live,"), is read only by the live path below, so at Done a take that opens "Life. Add eggs…" is words.
-
-`planCommand` reads the words into a `Plan`. It tries "make this a board" first (`MAKE_BOARD`), then a new list by name (`CREATE_LIST`), then adding to a named list (`ADD_TO_LIST`), then a direct append to a title (`DIRECT_APPEND`, "add to the note labeled Go …"), then a book, a table, the phrasings `route.ts` knows, and last any verb, a preposition and the best-matching title. A board's lanes and cards are read only when a board is passed in, and the reader at Done passes none. Titles are matched by `resolveTarget` in `route.ts`: letter pairs (Sørensen–Dice), shared words and a name that opens a title, a threshold of 0.72, and a margin of 0.08 over the runner-up. Two close titles are ambiguous, and ambiguous is refused. A direct append looks instead for the one title whose words open what follows it.
-
-Only two kinds may leave a finished recording: `place`, words into a note, and `create-list`, a new list with its items. `permitted()` in `finalInstruction.ts` refuses every other kind: move, new note, table, book, chapter, lane, card, board, and a note named with nothing to add.
+`planCommand` reads the rules' plan; its names go through `noteFind.ts`. What was introduced by "the note is" is left out (`PAYLOAD_LEAD`), a title's own "to-dos" never asks for a list, and one thing is never split word by word. Only `place` and `create-list` may leave a finished recording (`permitted()`).
 
 ## Then the model, once
 
@@ -51,54 +61,46 @@ When the gate has passed and the rules either heard a name they cannot match (`n
 | Output held to `GRAMMAR`: `append`, `create` or `none` | `llm/command.rs`; the page cannot send a grammar |
 | The whole answer parsed, unknown fields denied, control characters and truncation refused | `parse` in `llm/command.rs` |
 | Checked again on the page, key by key | `validateInference` |
-| Titles resolved against real notes, never taken as ids | `resolveTarget` |
+| Titles found against real notes, never taken as ids | `findNote` in `noteFind.ts` |
 | Content escaped as literal Markdown | `literalMarkdown` in `instructionMutation.ts` |
 | An installed model only: no download, no remote AI | `ai_infer_command` |
 | Another run going means `unavailable`, not a queue | the `runs` check in `ai_infer_command` |
 
-The model is the chosen formatting model when it is on the phone, else Qwen3.5 2B. An `append` whose title matches no note, or two, is refused, and no note is saved. A model's `create`, or its `none`, is not carried out either, but its reason names no note, so the take goes on as though no command had been heard: an ask with the keyword, words without it. A list is told apart by the app, not the model: `listItems` splits the content with `spokenList.ts`, which knows a US state ends a place. When the model is unavailable, a name the rules heard but could not match is refused; anything else goes on to be an ask, or words with the notice "Command understanding was unavailable; saved this recording as a note."
+The live reader asks no model.
 
-The model cannot carry one command into the next. Every generation calls `clear_kv_cache()`, and the only state reused is a snapshot taken after the fixed prefix, before the words (`llm/prompt.rs` tests that boundary).
+## Written once, and checked
 
-## Nothing is written until the tap
+`TakeWriter.writeInto` reads the note fresh, places the words with `placeTake`, and calls `apply_command_mutation`. `commands.rs` checks the request whole first: plain ids, a known source, `append` or `create`, and an append must carry the revision and body it read. Then `Library::apply_command` in `library/mutations.rs`, under the library's lock, applies the change only while the note's revision **and** body are exactly what was read. A conflict reads and places once more; a second, or a deleted note, makes the words a note of their own. Each change is logged in the index's `command_mutations` table with enough to undo it, and undo is guarded the same way.
 
-`take.offerFinal` puts the plan on `ConfirmCard.tsx`, which shows the exact lines as they will land. `placeWords` in `listAppend.ts` builds both the preview and the result, so the preview is the result. The microphone has stopped, so only a tap answers. Cancel lets the sound go.
+The Undo in the note that opens (`editor/useLanding.ts`) is an edit in its editor, which takes out exactly the pieces written in. The note's own saving writes it like typing, so no second writer races the editor, and the better words wait while any note is open (`refine.ts` `holdNote`). Writes to other notes are undone through `undo_command_mutation`.
 
-Confirm calls `apply_command_mutation`. `commands.rs` checks the request whole first: plain ids, a known source, `append` or `create`, and an append must carry the revision and body it previewed. Then `Library::apply_command` in `library/mutations.rs`, under the library's lock, applies the change only while the note's revision **and** body are exactly the preview's. A later edit, typed or synced, is a conflict, and the chip says the note changed after the preview. Each change is logged in the index's `command_mutations` table with enough to undo it, and undo is guarded the same way.
+## The sound
 
-Ordinary writes are split into birth and edit; sync has its own path, `store_apply`, which writes a note as another device has it. `create_note` inserts only an unused id. `update_note` changes only the exact revision it was given. There is no upsert, so a queued write holding a deleted note's id gets a conflict and cannot bring the note back.
+`capture_stop` writes the take's audio at Done under the id of the note the take is aimed at by then, on the end of that note's tape when it has one. A command only the stop's transcript held, read after the stop, moves it with `capture_reassign_recording`, unless it went on the end of a note's own tape, where it stays (`letGo`, §123). A one-shot's note gets no sound.
 
-## The sound until the decision
+## The old live path
 
-`capture_stop` writes the take's audio at Done, before the reader has run. A command waiting on its card keeps that file under the capture's id. On confirm, `capture_reassign_recording` moves it, or appends it, to the note the command went to. On cancel or refusal it is discarded. The exception is §123's: a take on the end of a continued note's own tape stays there, whatever the ending, through `letGo`.
-
-## The live path, kept for the suite
-
-`take.ts` still holds the whole live reader: `phrase` and `tick` reading commands a phrase at a time, `guess` for the chip, tables asked for piece by piece, voice memos, spoken yes and no, and the model asked after a pause. The recorder uses none of that reading. It still calls `tick` on its clock, but with no phrase read there is nothing for it to time out, and nothing calls `guess` at all. `phrase` has one caller, `voiceSuite.ts`, which replays the 92 scripts in `voice-tests/suite.json` through it; only `voiceSuite.test.ts` imports that. The suite's host has no model, so the pass after a pause runs nowhere.
-
-So a voice memo said into a recording today is words. The cue `voiceMemo.ts` knows is read only in `phrase`.
+`take.ts` still holds the phrase-at-a-time reader from before PR #1: `phrase` and `tick`, spoken yes and no, tables, voice memos and plugins. Nothing drives it now but its own tests; the voice suite plays the live reader (`voiceSuite.ts`).
 
 ## Known gaps
 
-- `tips.ts` suggests commands a recording cannot carry out, on the card before the first word and in the pauses after: "Move this to …", "New note", "Add a table to …", "Make a book called …", "Add a chapter to …", the lane commands, and "Voice memo … end memo". Said with the keyword, most of these become an ask; without it, words.
-- A tip in a pause shows only after words have been heard, and a command counts only when it opens the take. A routing tip followed mid-take always ends as words.
-- The confirm card still says "Or say “yes” or “no”." The microphone is off by then.
-- Confirm does not wait for the change it asked for. The take's sound is moved onto the named note whatever the answer, so a change refused as a conflict still gives that note the take's sound.
-- The only Undo for a voice command is a toast at launch (`shell/useHousekeeping.ts`): the newest command of the last ten minutes whose result still stands, offered once.
-- `instructionCorpus.test.ts` runs its cases through `interpretWakeCommand` and `placeInstruction`, which the reader at Done does not use. The Done reader is held by `finalInstruction.test.ts`, `ai/instruction.test.ts` and `CaptureScreen.test.tsx`.
-- `docs/instruction-voice-commands.md` still describes an instruction typed into a note's bar (the bar is gone, DESIGN §122), an instruction's recording that is always discarded (changed by §123), autosaves during a take, a memo continuation, a same-note preview (`previewSameNoteInstruction`, now reached only by tests), refusals that save no command prose, and an unmount that cancels inference. None of these hold at HEAD: a refused shape whose reason names no note ends as an ask or as words, and the pass at Done is awaited, never cancelled. This is the list for that doc; [[Where the docs and the code disagree]] points back to it.
+- A take killed mid-sentence loses its words: nothing is stored before Done. Only its sound was ever kept that early, and not even that before the stop.
+- A voice memo said aloud is words: `Take.listen` never reads the cue, and the tip for it is still in `tips.ts`.
+- A table, a book, a chapter, a board's card and a plugin by voice are not carried out by either reader.
+- `instructionCorpus.test.ts` runs its cases through `interpretWakeCommand` and `placeInstruction`, which neither reader uses.
 
 ## The tests that pin it
 
 | Test | What it holds |
 |---|---|
-| `capture/finalInstruction.test.ts` | The Done reader: the "labeled Go" regression, lists, the model once, failing closed |
-| `ai/instruction.test.ts` | The order: runs, commands, asks, words |
-| `capture/CaptureScreen.test.tsx` | Done end to end, every `letGo` ending included |
-| `capture/instructionCorpus.test.ts`, `instructionCorpus.json` | Ten utterances, clean and messy, through the live helpers |
-| `capture/standaloneSpeak.test.ts` | Four separate Speak sessions through `planCommand`, `placeWords` and the guarded store |
-| `llm::command::tests` | The grammar's shapes, and refusal before inference |
-| `tools/host-tests` | `library/`, `store.rs`, `llm/command.rs` and `llm/prompt.rs`, compiled from the real files without Tauri |
+| `capture/liveCommand.test.ts`, `capture/liveRoute.test.ts` | The grammar, and the live reader's every rule, over notes in memory |
+| `capture/noteFind.test.ts` | Names against Matt's own titles |
+| `capture/place.test.ts` | Where the words go in a note |
+| `capture/CaptureScreen.test.tsx` | The recorder end to end: nothing stored before Done, one guarded write, the note handed back |
+| `capture/finalInstruction.test.ts`, `ai/instruction.test.ts` | The reader at Done |
+| `capture/voiceSuite.test.ts` | The voice suite's scripts through the live reader |
+| `editor/NoteScreen.test.tsx`, `capture/landing.test.ts` | The Undo, as an edit |
+| `llm::command::tests`, `tools/host-tests` | The model's grammar, and the library's guarded writes |
 
 ## Read next
 

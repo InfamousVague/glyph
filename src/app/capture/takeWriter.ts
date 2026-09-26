@@ -13,7 +13,7 @@ import type { Candidate } from './route.ts';
  *   second lost the first.
  * - A continued note's own text is read from the store once, when first needed, into a promise (`baseBody`), so two
  *   drafts racing both compose onto the text from BEFORE either of them wrote, and the take's words are always
- *   `appendBody(base, words)`: never the stored note, which may already hold a draft of them.
+ *   `placeTake(base, words, placing)` (place.ts): never the stored note, which may already hold a draft of them.
  * - A command that changes the note being recorded onto changes that base, and the words are composed onto the end of
  *   it again (`updateNote`). Applied to the stored note, which already held the words a draft had saved, they were
  *   composed on a second time at the next save (docs/DESIGN.md, the doubled words).

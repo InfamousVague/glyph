@@ -49,11 +49,11 @@ The loaded model stays in `CaptureState` for the life of the process, about 60 M
 
 `whisper/engine.rs` runs whisper.cpp greedy, with no carried context, and hands the prompt over as tokens. A window under a second is padded with silence rather than lost. Partials skip timestamps and the temperature fallback. Commits keep both, because commits are the words that stand.
 
-## A phrase only shows
+## A phrase is read, and shows
 
-Every committed phrase goes to `take.listen` in `take.ts`. It joins the take's segments and is drawn. It does not route, write a note or call a model. Partials are only drawn too.
+Every committed phrase goes to the live reader, `liveRoute.ts`, whose steps `CaptureScreen.tsx` applies at once, with nothing awaited. Most phrases are words, and go to `take.listen` in `take.ts`, which joins them to the take's segments and draws them. A phrase that names a note after "hey Ghost" switches the page to that note, or sends its words there ([[Reading a command, writing it safely]]). Nothing is stored, and no model is asked. Partials are only drawn: in the chip, while a command is being said.
 
-The page is `takeMarkdown`, which runs `renderNote` in `markdown.ts` over every phrase so far, on every event. What the page shows and what Done saves are the same function, so they cannot disagree.
+The page is `takeMarkdown`, which runs `renderNote` in `markdown.ts` over every phrase so far, on every event, and `LivePage.tsx` writes it into the note shown with `placeTake` (`place.ts`): on its end, or into the list it fits. What the page shows and what Done saves are the same functions, so they cannot disagree.
 
 `markdown.ts` is the driver. It groups phrases into paragraphs, splits sentences, and passes each through the rule families in `capture/spoken/`: `inline.ts` for marks said around words, `blocks.ts` for the cues that make a sentence a block, and `lists.ts`, `numbers.ts`, `codeBlocks.ts` and `extras.ts` for the rest. "Bold … end bold" is matched across a whole paragraph, because Whisper turns each pause into a full stop. A cue said alone, like "Heading." before a pause, is held for the next sentence (`STANDALONE_CUE` in `spoken/blocks.ts`). That also guards against Whisper echoing its prompt on silence: an echoed "Bullet point." waits for a sentence that never comes. [[Saying the marks]] lists the cues.
 
@@ -63,7 +63,7 @@ A paragraph breaks at "new paragraph", or at a pause. `PARAGRAPH_GAP_MS` is 1,50
 
 The note id is chosen as the recorder opens (`takeWriter.ts`): a fresh one for a new recording, or the note's own when you speak into it. The audio is kept under that id.
 
-In the code, Rust holds the recording in memory, as 16-bit PCM inside the streamer, about 1.9 MB a minute. It is written only at stop: `capture_stop` with `recordAs` writes `recordings/<id>.wav` under the app's data directory, on the end of the file when `append` is set. The headers of `CaptureScreen.tsx` and `takeWriter.ts` say the sound is kept from the first second. It is not yet. A process killed mid-recording loses the take, words and sound, because nothing of it is written before Done. The one exception is New note, on a note being spoken into: it writes the words so far into that note and carries on in a fresh one.
+In the code, Rust holds the recording in memory, as 16-bit PCM inside the streamer, about 1.9 MB a minute. It is written only at stop: `capture_stop` with `recordAs` writes `recordings/<id>.wav` under the app's data directory, on the end of the file when `append` is set, under the id of the note the take is aimed at by then. A process killed mid-recording loses the take, words and sound, because nothing of it is written before Done, New note included: what was said before it is kept for its note and written at Done.
 
 A take said into a note that already has a tape goes on the end of that note's file (`appendsTo` in `timeline.ts`). `onTape` shifts the take's phrases, command spans and voice memo marks by the tape's existing length, so words and sound share one timeline. `recordings.rs` confines every id to a plain name and serves the file through the `rec` scheme (`http://rec.localhost/<id>.wav` on Android) with byte ranges, so the player can seek. `tape.ts` is only the tape's geometry and its counter: two reels whose packs grow and shrink as square roots, drawn by `tapes/TapeArt.tsx`.
 
@@ -71,12 +71,13 @@ A take said into a note that already has a tape goes on the end of that note's f
 
 `finish` in `CaptureScreen.tsx` runs from Done, the back gesture, the side key held again, the screen going off, or the quiet stop. In order:
 
-1. The microphone stops, and `session.stop` calls `capture_stop`. Rust drains the last audio, commits it, and answers with the whole transcript.
-2. `withFinalWords` in `finalWords.ts` adds what that transcript says past the committed phrases as one more phrase, when it carries on from them word for word. Phrase events can still be in flight when the listeners go.
-3. `readInstruction` reads the transcript, once. The next chapter is about that.
-4. The words are written: `writer.persist` inside `writer.queue`, a `create_note` for a new note or a revision-checked `update_note` for a continued one.
+1. The live reader settles what it holds (`close`): a command waiting for its name, a card, a one-shot still open.
+2. The microphone stops, and `session.stop` calls `capture_stop`. Rust drains the last audio, commits it, and answers with the whole transcript.
+3. `withFinalWords` in `finalWords.ts` compares that transcript with every phrase committed, commands and all, and reads what it says past them as one more phrase, through the live reader. Phrase events can still be in flight when the listeners go.
+4. When the live reader did nothing, `readInstruction` reads the transcript, once. The next chapter is about both readers.
+5. The words are written, each note once: what was said before New note, then the one-shots for other notes, then the take's own note. A note that already existed and was named is written by `writer.writeInto`, read fresh and stored through `applyCommandMutation`; a new note by `writer.persist`, a `create_note`; a note's own Speak by a revision-checked `update_note`.
 
-Every write the recorder makes to a note's words joins one chain, `TakeWriter.queue`, which runs them in turn. A continued note's own text is read once into a promise (`baseBody`), so two writes never compose onto each other's words. The exceptions are a confirmed command's write, which calls `applyCommandMutation` directly and relies on its revision check, and the tape's length and phrases, which `setNoteRecording` stores.
+Every write the recorder makes to a note's words joins one chain, `TakeWriter.queue`, which runs them in turn. A continued note's own text is read once into a promise (`baseBody`), so two writes never compose onto each other's words. The tape's length and phrases are stored by `setNoteRecording`.
 
 A take with nothing in it leaves nothing. `take.hasContent` asks the laid-out note, not the transcript, so a cue said alone makes no note.
 

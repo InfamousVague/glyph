@@ -21,7 +21,7 @@ The microphone opens first. The voice model loads while it listens, and what it 
 
 Until you speak, the page shows:
 
-- **The top line.** **New note**, or **Adding to “Groceries”** on a note's own Speak. Over the lock screen it says **Adding to your last note** and names nothing. While the recorder gets ready it says **Starting**, and after Done, **Saving**.
+- **The top line.** **New note**, or **Adding to “Groceries”** on a note's own Speak or after “Hey Ghost, add a note to Groceries”. Over the lock screen it says **Adding to your last note**, or **Adding to the note you named**, and names nothing. While the recorder gets ready it says **Starting**, and after Done, **Saving**.
 - **The counter**, on the right: `0:00`, counting up.
 - **The ghost, listening**, and **Start talking.**
 - **How this recording ends**, in a line: **Tap Done to stop.**, **Hold the side key again to stop.**, or **Press the side key to stop.** With Stop when I go quiet on, it begins **Stop talking to finish**, then names Done or the side key.
@@ -31,7 +31,7 @@ Until you speak, the page shows:
 
 Words appear as they are heard, on the note's own page, set as they will read: a heading as a heading, a bullet as a bullet. The phrase still being guessed is written at the end as it is heard, and it can change while the recogniser makes up its mind. With **Ghostly typing** on (Settings › Animations), new letters come in out of smoke and replaced ones go back into it. Once the recogniser settles on a phrase, it takes its marks: “Bullet point, the heating” lands as a bullet. [[Saying the marks]] has every cue.
 
-On a note's own Speak, the note's text is above and the new words are written onto its end.
+On a note's own Speak, the note's text is above and the new words are written onto its end, or into its list when its title says it is one (House TODOs, Groceries). Name another note with “Hey Ghost” and the page switches to it, the words written into its list as you say them: [[Commands after Hey Ghost]].
 
 Once you have started, a pause of two and a half seconds brings one tip, such as: Say **“Check box”** to make a to-do. It goes when you talk again, and the next pause brings the next one.
 
@@ -43,7 +43,8 @@ Tap the top line to see which engine is listening and how much it has heard. The
 |---|---|
 | **Discard** | Stops and keeps nothing, words or sound. On a note's own Speak, the note is left as it was. |
 | **Done** | Stops and saves. |
-| **New note**, in the top line on a note's own Speak | What you have said so far is written into that note now. The rest of the recording goes into a fresh one. |
+| **New note**, in the top line on a note's own Speak | What you have said so far stays for that note, written at Done. The rest of the recording goes into a fresh one. |
+| **Not this note**, in the top line after “Hey Ghost” named a note | The recording goes back to its own note, and nothing is written to the one named. |
 
 The phone's back gesture saves, the way Done does.
 
@@ -63,6 +64,7 @@ The note is written at Done, from the whole recording. Nothing is saved while yo
 - A new recording becomes a new note, at the top of the home page. A short first sentence becomes its title.
 - A note's own Speak puts the words on the end of that note and the sound on the end of its recording, so its words and its sound stay one timeline.
 - A recording that lays out as nothing, no words at all or only a cue said on its own, leaves nothing behind.
+- A recording that wrote into a note you named opens that note, with **Undo**, and no review: the words went in as you said them.
 - With **Review after recording** on (Settings › Recording, on by default), the note opens and the review starts: [[Spoken asks and the review]]. Otherwise a new note leaves you on the home page, and a note's own Speak takes you back to that note.
 - On a locked phone, Ghost.md goes back behind the lock screen, and the note is not shown to whoever is holding the phone. The review never runs over the lock screen.
 
