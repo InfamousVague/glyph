@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { goBack } from '../core/back.ts';
-import { rerender, show } from '../../test/render.tsx';
+import { rerender, show, typeInto } from '../../test/render.tsx';
 import type { PaletteDoing, PaletteWorld } from './palette.ts';
 
 /**
@@ -41,5 +41,23 @@ describe('the command palette', () => {
     });
     expect(took).toBe(true);
     expect(palette()).toBeNull();
+  });
+
+  it('finds a note by name past the forty newest once something is typed, and opens empty again', () => {
+    // Forty-five newer notes on top, as adding Ghost.md: The Guide leaves a library.
+    const notes = [...Array.from({ length: 45 }, (_, i) => ({ id: `g${i}`, title: `Chapter ${i}` })), { id: 'mine', title: 'Groceries' }];
+    let open: () => void = () => undefined;
+    show(<CommandBar world={{ ...world, notes }} doing={doing} onReady={(opener) => (open = opener)} />);
+    act(() => open());
+    expect(document.body.textContent).not.toContain('Open Groceries');
+    const field = () => palette()!.querySelector('input')!;
+    act(() => typeInto(field(), 'groc'));
+    expect(document.body.textContent).toContain('Open Groceries');
+    act(() => {
+      goBack();
+    });
+    act(() => open());
+    expect(field().value).toBe('');
+    expect(document.body.textContent).not.toContain('Open Groceries');
   });
 });

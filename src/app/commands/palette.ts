@@ -87,7 +87,32 @@ export const MOST_NOTES = 40;
 
 const titleOf = (note: PaletteNote) => note.title || 'Untitled';
 
-export function paletteCommands(world: PaletteWorld, doing: PaletteDoing): PaletteCommand[] {
+/** What a note's row is found by, besides its label: its group and its keywords, as the kit reads them. */
+const NOTE_GROUP = 'Notes by name';
+const NOTE_KEYWORDS = 'note go to';
+
+/**
+ * The notes offered by name: with nothing typed, the forty changed last; with a query, the forty newest the query
+ * finds, in the whole library. A note matches as the kit's palette matches a row, every word of the query somewhere
+ * in "Open <title>", its group or its keywords, so this only chooses which forty the kit is given. Without it, a
+ * library that had just been handed forty-five new notes at once (Ghost.md: The Guide, guidebook/guidebook.ts) could
+ * not find any older note by name until that note was changed again.
+ */
+export function notesByName(notes: readonly PaletteNote[], query = ''): PaletteNote[] {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return notes.slice(0, MOST_NOTES);
+  const around = `${NOTE_GROUP} ${NOTE_KEYWORDS}`.toLowerCase();
+  const found: PaletteNote[] = [];
+  for (const note of notes) {
+    const label = `open ${titleOf(note)}`.toLowerCase();
+    if (words.every((word) => label.includes(word) || around.includes(word))) found.push(note);
+    if (found.length === MOST_NOTES) break;
+  }
+  return found;
+}
+
+/** The commands for the app as it stands. `query`, what is typed so far, decides only which notes are offered by name. */
+export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query = ''): PaletteCommand[] {
   const out: PaletteCommand[] = [];
   const add = (descriptor: CommandDescriptor, run: () => void) => out.push({ descriptor, run });
 
@@ -159,9 +184,9 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing): Palet
 
   // ---- every note ---------------------------------------------------------------------------
   const open = new Set(world.tabs.map((tab) => tab.id));
-  for (const each of world.notes.slice(0, MOST_NOTES)) {
+  for (const each of notesByName(world.notes, query)) {
     if (open.has(each.id) || each.id === note?.id) continue;
-    add({ id: `open:${each.id}`, label: `Open ${titleOf(each)}`, group: 'Notes by name', keywords: 'note go to' }, () => (doing.openNoteWhereLeft ?? doing.openNote)(each.id));
+    add({ id: `open:${each.id}`, label: `Open ${titleOf(each)}`, group: NOTE_GROUP, keywords: NOTE_KEYWORDS }, () => (doing.openNoteWhereLeft ?? doing.openNote)(each.id));
   }
 
   // ---- how it looks -------------------------------------------------------------------------
