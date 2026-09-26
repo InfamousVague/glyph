@@ -26,7 +26,8 @@ export function deployFlags(argv) {
   const notesFlag = argv.indexOf('--notes');
   const notes = notesFlag >= 0 ? String(argv[notesFlag + 1] ?? '').trim() : '';
   if (notesFlag >= 0 && (!notes || notes.startsWith('--'))) fail('--notes needs the text of what changed.');
-  if (notes.length > 2000) fail('--notes is limited to 2000 characters; the app refuses a longer manifest.');
+  // In UTF-8 bytes, as the app counts them (src-tauri/src/ota/manifest.rs `validate`): a curly quote is three.
+  if (Buffer.byteLength(notes, 'utf8') > 2000) fail('--notes is limited to 2000 bytes; the app refuses a longer manifest.');
 
   return {
     withApk: has('--apk'),

@@ -86,6 +86,9 @@ What to know before the walk.
 - **Writing is writing the note.** Every change from the view is a change to the book note's body, saved the way
   typing is, so the index behind the view and the view are one thing, and a book edited as Markdown in another app
   draws the same on the phone.
+- **The guide.** Settings › About › *Add Ghost.md: The Guide* adds the app's own manual as a book: 44 chapter notes
+  and their index, shipped as Markdown in `src/app/guidebook/` and read only when the row is pressed (DESIGN §125).
+  Pressed again, it opens the book already there.
 
 ## By voice
 

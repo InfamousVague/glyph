@@ -45,14 +45,14 @@ function updates(over: Partial<Updates> = {}): Updates {
   };
 }
 
-function about(given: Updates = updates(), onDeveloper = vi.fn()) {
+function about(given: Updates = updates(), onDeveloper = vi.fn(), onGuideBook = vi.fn()) {
   const noop = () => undefined;
   const host = show(
     <ToastProvider>
-      <AboutPane updates={given} onGuide={noop} onSample={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} onCheatSheet={noop} onDeveloper={onDeveloper} />
+      <AboutPane updates={given} onGuide={noop} onSample={noop} onGuideBook={onGuideBook} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} onCheatSheet={noop} onDeveloper={onDeveloper} />
     </ToastProvider>,
   );
-  return { host, onDeveloper };
+  return { host, onDeveloper, onGuideBook };
 }
 
 beforeEach(() => {
@@ -107,6 +107,16 @@ describe('the version on About', () => {
     press(version);
     expect(onDeveloper).not.toHaveBeenCalled();
     expect(localStorage.getItem('glyph-developer')).toBeNull();
+  });
+});
+
+describe('Help on About', () => {
+  it('has a row that adds Ghost.md: The Guide, counting its chapters, and pressing it calls the handler', () => {
+    const { host, onGuideBook } = about();
+    const row = [...host.querySelectorAll('button')].find((b) => b.querySelector('.setk-row__label')?.textContent === 'Add Ghost.md: The Guide');
+    expect(row?.textContent).toContain('a book of 44 short chapters');
+    press(row);
+    expect(onGuideBook).toHaveBeenCalledOnce();
   });
 });
 

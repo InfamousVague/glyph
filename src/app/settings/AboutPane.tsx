@@ -1,10 +1,11 @@
-import { BookOpen, Compass, FileText, GraduationCap, LayoutGrid, ListChecks, ShieldCheck, Workflow } from '@glacier/icons';
+import { BookOpen, BookOpenText, Compass, FileText, GraduationCap, LayoutGrid, ListChecks, ShieldCheck, Workflow } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { openLink } from '../core/linkPreview.ts';
 import { storeOf, type Updates } from '../core/ota.ts';
 import { isAndroid } from '../core/platform.ts';
 import { isTauri } from '../core/tauri.ts';
+import { GUIDE_CHAPTERS, GUIDE_TITLE } from '../guidebook/guidebook.ts';
 import { ReleasesSection, UpdatesSection } from './AboutUpdates.tsx';
 import { countKnock, KNOCKS_WANTED, setDeveloperMode } from './developerMode.ts';
 import { PaneHero, PaneSection, SettingRow, SettingsFootnote } from './kit/settingsKit.tsx';
@@ -26,6 +27,8 @@ interface AboutPaneProps {
   updates: Updates;
   onGuide: () => void;
   onSample: () => void;
+  /** Adds Ghost.md: The Guide, the book (guidebook/guidebook.ts), and opens its index. */
+  onGuideBook: () => void;
   onBoard: () => void;
   onCanvas: () => void;
   onHowCanvas: () => void;
@@ -35,7 +38,7 @@ interface AboutPaneProps {
   onDeveloper: () => void;
 }
 
-export function AboutPane({ updates, onGuide, onSample, onBoard, onCanvas, onHowCanvas, onAcademy, onCheatSheet, onDeveloper }: AboutPaneProps) {
+export function AboutPane({ updates, onGuide, onSample, onGuideBook, onBoard, onCanvas, onHowCanvas, onAcademy, onCheatSheet, onDeveloper }: AboutPaneProps) {
   const { toast } = useToast();
   const knock = () => {
     const left = countKnock();
@@ -74,6 +77,12 @@ export function AboutPane({ updates, onGuide, onSample, onBoard, onCanvas, onHow
           label="Formatting cheat sheet"
           hint="Every mark you can type, with what it looks like, in one page to look things up in."
           onPress={() => onCheatSheet()}
+        />
+        <SettingRow
+          icon={<BookOpenText size={20} />}
+          label={`Add ${GUIDE_TITLE}`}
+          hint={`The whole app as a book of ${GUIDE_CHAPTERS} short chapters: how to use it, then how it is made. Pressed again, it opens the book you have.`}
+          onPress={onGuideBook}
         />
         <SettingRow
           icon={<LayoutGrid size={20} />}

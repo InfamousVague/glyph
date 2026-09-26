@@ -58,7 +58,7 @@ const { ToastProvider } = await import('@glacier/react');
 const { SettingsSheet } = await import('./SettingsSheet.tsx');
 const { setPreferences, DEFAULT_PREFERENCES } = await import('../core/preferences.ts');
 const { setDeveloperMode } = await import('./developerMode.ts');
-const { findSetting } = await import('./settingsSearch.ts');
+const { findSetting, searchSettings } = await import('./settingsSearch.ts');
 
 /**
  * Settings as the app hands it over: which sections the list has on each kind of device, what their readings say,
@@ -86,7 +86,7 @@ function settings(toCheatSheet = 0): HTMLDivElement {
   const noop = () => undefined;
   return show(
     <ToastProvider>
-      <SettingsSheet open onClose={noop} updates={updates} onGuide={noop} onSample={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} toCheatSheet={toCheatSheet} />
+      <SettingsSheet open onClose={noop} updates={updates} onGuide={noop} onSample={noop} onGuideBook={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} toCheatSheet={toCheatSheet} />
     </ToastProvider>,
   );
 }
@@ -218,6 +218,16 @@ function missingFromTheirPages(): string[] {
 }
 
 describe('the search', () => {
+  it('finds the guide under About by the words a person would look for it by', () => {
+    settings();
+    const sections = handed;
+    unmount();
+    for (const words of ['guide', 'manual', 'help', 'book']) {
+      const hits = searchSettings(sections, words).filter((hit) => hit.section.id === 'about');
+      expect(hits.map((hit) => hit.setting), words).toContain('Add Ghost.md: The Guide');
+    }
+  });
+
   it('finds every setting it lists on its page, in a browser', () => {
     // A browser has no models to list, so Formatting's page is the one card saying it runs on the phone.
     expect(missingFromTheirPages()).toEqual(['Formatting: Local only', 'Formatting: Model']);

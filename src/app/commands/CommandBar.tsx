@@ -24,6 +24,12 @@ export interface CommandBarProps {
 
 export function CommandBar({ world, doing, onReady }: CommandBarProps) {
   const [open, setOpen] = useState(false);
+  // What is typed, held here so the notes offered by name can come from the whole library (palette.ts `notesByName`).
+  const [query, setQuery] = useState('');
+  const show = (next: boolean) => {
+    if (next) setQuery('');
+    setOpen(next);
+  };
   /*
    * The opener is handed over ONCE, on mount, through a ref.
    *
@@ -35,19 +41,24 @@ export function CommandBar({ world, doing, onReady }: CommandBarProps) {
   const ready = useRef(onReady);
   ready.current = onReady;
   useEffect(() => {
-    ready.current?.(() => setOpen(true));
+    ready.current?.(() => {
+      setQuery('');
+      setOpen(true);
+    });
   }, []);
   // Over everything else, so it closes first and the note behind it stays open.
   useBack(open, () => setOpen(false));
 
   // The list is rebuilt as the app changes under it: a note opened, a tab closed, a workspace chosen.
-  const commands = useMemo(() => paletteCommands(world, doing), [world, doing]);
+  const commands = useMemo(() => paletteCommands(world, doing, query), [world, doing, query]);
   const descriptors = useMemo(() => commands.map((command) => command.descriptor), [commands]);
 
   return (
     <CommandPalette
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={show}
+      query={query}
+      onQueryChange={setQuery}
       commands={descriptors}
       onRun={(id) => commands.find((command) => command.descriptor.id === id)?.run()}
       placeholder="What would you like to do?"

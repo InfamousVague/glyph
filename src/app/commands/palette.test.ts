@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MOST_NOTES, paletteCommands, type PaletteDoing, type PaletteWorld } from './palette.ts';
+import { MOST_NOTES, notesByName, paletteCommands, type PaletteDoing, type PaletteWorld } from './palette.ts';
 
 const doing = (): PaletteDoing => ({
   openNote: vi.fn(),
@@ -102,6 +102,25 @@ describe('what the palette offers', () => {
     expect(byName).not.toContain('open:n1');
     expect(byName.length).toBeLessThanOrEqual(MOST_NOTES);
     expect(byName).toContain('open:n2');
+  });
+
+  it('finds any note by name once something is typed, however long ago it changed', () => {
+    // Forty-five newer notes on top, as adding Ghost.md: The Guide leaves a library.
+    const guide = Array.from({ length: 45 }, (_, i) => ({ id: `g${i}`, title: `Chapter ${i}` }));
+    const notes = [...guide, { id: 'mine', title: 'Groceries' }];
+    const byName = (query: string) => ids(paletteCommands(world({ notes }), doing(), query)).filter((id) => id.startsWith('open:'));
+    expect(byName('')).not.toContain('open:mine');
+    expect(byName('groc')).toEqual(['open:mine']);
+    expect(byName('Open GROCERIES')).toEqual(['open:mine']);
+    expect(byName('groceries list')).toEqual([]);
+  });
+
+  it('matches a note the way the kit does, on its group and keywords too, and still offers forty at most', () => {
+    const many = Array.from({ length: MOST_NOTES + 10 }, (_, i) => ({ id: `n${i}`, title: `Note ${i}` }));
+    expect(notesByName(many, 'go to')).toHaveLength(MOST_NOTES);
+    expect(notesByName(many, 'by name').map((note) => note.id)[0]).toBe('n0');
+    expect(notesByName(many, '  ')).toEqual(many.slice(0, MOST_NOTES));
+    expect(notesByName([{ id: 'u', title: '' }], 'untitled')).toEqual([{ id: 'u', title: '' }]);
   });
 
   it('runs what it says it runs', () => {

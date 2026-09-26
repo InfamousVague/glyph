@@ -3,6 +3,7 @@ import { act, type ComponentProps } from 'react';
 import type { NoteScreen } from './editor/NoteScreen.tsx';
 import type { CaptureScreen } from './capture/CaptureScreen.tsx';
 import type { Guide } from './guide/Guide.tsx';
+import type { SettingsSheet } from './settings/SettingsSheet.tsx';
 import { createNote, getNote, type Note } from './core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from './core/preferences.ts';
 import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
@@ -26,9 +27,10 @@ await vi.hoisted(async () => (await import('../test/stubs.ts')).stubMatchMedia()
 type NoteProps = ComponentProps<typeof NoteScreen>;
 type CaptureProps = ComponentProps<typeof CaptureScreen>;
 type GuideProps = ComponentProps<typeof Guide>;
+type SettingsProps = ComponentProps<typeof SettingsSheet>;
 
 /** The props each stubbed screen was last drawn with, for the test to press what the screen would. */
-const seen = vi.hoisted(() => ({ note: null as NoteProps | null, capture: null as CaptureProps | null, guide: null as GuideProps | null }));
+const seen = vi.hoisted(() => ({ note: null as NoteProps | null, capture: null as CaptureProps | null, guide: null as GuideProps | null, settings: null as SettingsProps | null }));
 
 vi.mock('./editor/NoteScreen.tsx', () => ({
   NoteScreen: (props: NoteProps) => {
@@ -48,7 +50,22 @@ vi.mock('./guide/Guide.tsx', () => ({
     return <div data-screen="guide" data-index={props.index} data-too-soon={String(Boolean(props.tooSoon))} />;
   },
 }));
-vi.mock('./settings/SettingsSheet.tsx', () => ({ SettingsSheet: ({ open }: { open: boolean }) => (open ? <div data-screen="settings" /> : null) }));
+vi.mock('./settings/SettingsSheet.tsx', () => ({
+  SettingsSheet: (props: SettingsProps) => {
+    seen.settings = props;
+    return props.open ? <div data-screen="settings" /> : null;
+  },
+}));
+// A sync pass runs before the guide is added; the test sees when.
+vi.mock('./core/sync/engine.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./core/sync/engine.ts')>();
+  return { ...real, syncNow: vi.fn(real.syncNow) };
+});
+// The guide's chapters are chunks fetched on the press; a test can make that fetch fail.
+vi.mock('./guidebook/guidebook.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./guidebook/guidebook.ts')>();
+  return { ...real, addGuideBook: vi.fn(real.addGuideBook) };
+});
 vi.mock('./academy/AcademyScreen.tsx', () => ({ AcademyScreen: () => <main data-screen="academy" /> }));
 // Its rAF clock and its wink are its own test's business; here the app is simply open.
 vi.mock('./launch/LaunchScreen.tsx', () => ({ LaunchScreen: () => null }));
@@ -61,6 +78,8 @@ vi.mock('./share/share.ts', async (importOriginal) => ({
 }));
 
 const { App } = await import('./App.tsx');
+const { addGuideBook } = await import('./guidebook/guidebook.ts');
+const { syncNow } = await import('./core/sync/engine.ts');
 
 // The home page and the tab row watch their own sizes; jsdom lays nothing out, so nothing ever resizes.
 stubResizeObserver();
@@ -100,6 +119,7 @@ beforeEach(() => {
   seen.note = null;
   seen.capture = null;
   seen.guide = null;
+  seen.settings = null;
 });
 
 afterEach(() => {
@@ -372,5 +392,28 @@ describe('a shared link in the address', () => {
     expect(location.hash).toBe('');
     const { forkShared } = await import('./share/share.ts');
     expect(forkShared).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the notes Settings › About adds', () => {
+  it('says so when the guide does not load, and leaves the person where they were', async () => {
+    await seed(['a', '# Apples']);
+    await openApp();
+    // Offline, or the chunks replaced by a deploy under an open tab.
+    vi.mocked(addGuideBook).mockRejectedValueOnce(new TypeError('Failed to fetch dynamically imported module'));
+    act(() => seen.settings!.onGuideBook());
+    await waitUntil(() => expect(document.body.textContent).toContain('Ghost.md: The Guide did not load. Try again.'));
+    expect(screenNow()).toBeNull();
+    expect(tabs()).toEqual([]);
+  });
+
+  it('syncs before it looks for the book, so one added on another device is opened rather than made again', async () => {
+    await openApp();
+    vi.mocked(syncNow).mockClear();
+    vi.mocked(addGuideBook).mockClear();
+    vi.mocked(addGuideBook).mockResolvedValueOnce(await createNote('guide', '---\ntitle: "Ghost.md: The Guide"\nbook: true\n---\n# Ghost.md: The Guide\n'));
+    act(() => seen.settings!.onGuideBook());
+    await waitUntil(() => expect(noteShown()).toBe('guide'));
+    expect(vi.mocked(syncNow).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(addGuideBook).mock.invocationCallOrder[0]!);
   });
 });

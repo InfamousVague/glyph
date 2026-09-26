@@ -1,6 +1,6 @@
 import { forkShared, readShared } from './share/share.ts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { HapticsProvider, ToastProvider } from '@glacier/react';
+import { HapticsProvider, ToastProvider, useToast } from '@glacier/react';
 import { UpdateNotice } from './notes/Notices.tsx';
 import { HomeScreen } from './home/HomeScreen.tsx';
 import { AllNotesScreen } from './notes/AllNotesScreen.tsx';
@@ -31,10 +31,12 @@ import { preferences, setPreferences, themeChoice, usePreferences, type ThemePre
 import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { useUpdates } from './core/ota.ts';
 import { LaunchScreen } from './launch/LaunchScreen.tsx';
-import { useSyncStatus } from './core/sync/engine.ts';
+import { syncNow, useSyncStatus } from './core/sync/engine.ts';
 import { createNote, getNote, newNoteId, noteTitle, updateNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote } from './core/seed.ts';
+import { addGuideBook, GUIDE_TITLE } from './guidebook/guidebook.ts';
+import { outOfTrash, trash } from './core/trash.ts';
 import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, isBookBody } from './book/book.ts';
@@ -75,6 +77,9 @@ import { useVisibleNotes } from './shell/useVisibleNotes.ts';
  * flag switched off, on pointerUP, where a tap can be told from a drag.
  */
 
+/** How long the guide's row waits for a sync pass before it looks for a book already there (Settings › About). */
+const GUIDE_SYNC_WAIT_MS = 5000;
+
 export function App() {
   return (
     <HapticsProvider enabled={false} impl={hapticsImpl}>
@@ -87,6 +92,7 @@ export function App() {
 
 /** Everything under the providers, so it can raise toasts (Undo) itself. */
 function Shell() {
+  const { toast } = useToast();
   const { notes, loading, refresh } = useNotes();
   const actions = useNoteActions(refresh);
   // A desktop window wide enough keeps the notes in a sidebar beside the open note (core/useWideScreen.ts).
@@ -281,14 +287,22 @@ function Shell() {
     await showMade(make(title));
   };
 
-  // Settings > About: a sample note, a board, a canvas or the canvas that explains canvases (core/seed.ts), opened at once.
-  const openSample = (add: () => Promise<Note>) => () => {
+  // Settings > About: a sample note, a board, a canvas or the canvas that explains canvases (core/seed.ts), or the guide's
+  // index (guidebook/guidebook.ts), opened at once. The guide's chapters are chunks fetched on the press, which fails
+  // offline or once a deploy has replaced them under an open tab: then the person is told, and a second press makes
+  // only the chapters still missing.
+  const openSample = (add: () => Promise<Note>, failed = 'That note could not be added. Try again.') => () => {
     tabs.replaceNext(null);
     void (async () => {
       setSettings(false);
-      const note = await add();
-      await refresh();
-      setScreen({ name: 'note', note });
+      try {
+        const note = await add();
+        await refresh();
+        setScreen({ name: 'note', note });
+      } catch {
+        await refresh().catch(() => undefined);
+        toast({ message: failed });
+      }
     })();
   };
 
@@ -718,6 +732,13 @@ function Shell() {
           guide.show(typeof page === 'number' ? page : 0);
         }}
         onSample={openSample(addSampleNote)}
+        // The guide once: read against the library as it is now, less the trash, so a second press opens the first.
+        // Signed in, a sync pass first, so a book added on another device is here before that is asked; a slow network
+        // holds the press five seconds at most (syncNow never throws, and is at once when signed out).
+        onGuideBook={openSample(async () => {
+          await Promise.race([syncNow(), new Promise((done) => setTimeout(done, GUIDE_SYNC_WAIT_MS))]);
+          return addGuideBook(outOfTrash(await listNotes(), trash()));
+        }, `${GUIDE_TITLE} did not load. Try again.`)}
         onBoard={openSample(addBoardNote)}
         onCanvas={openSample(addCanvasNote)}
         onHowCanvas={openSample(addHowCanvas)}
