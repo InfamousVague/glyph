@@ -19,7 +19,7 @@ import { QuietWatch } from './quiet.ts';
 import type { Placement } from './command.ts';
 import { appendToList, placeWords } from './listAppend.ts';
 import { listTitle } from './instructionMutation.ts';
-import { clipMarkdown, freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
+import { freshTapeId, setTapeId, tapeId } from '../core/clips.ts';
 import { commandModel, understandInstructionCommand } from './understand.ts';
 import { bareWords, readInstruction } from '../ai/instruction.ts';
 import { ConfirmCard } from '../ai/ConfirmCard.tsx';
@@ -315,7 +315,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         markdown: (asTitled) => take.markdown({ titled: asTitled, link: (text) => applyLinks(text, sentLinksRef.current), board: asBoardMarkdown }),
         // Any phrase at all, where Done asks `take.hasContent`: a draft writes the take as it stands, and one that lays
         // out as nothing writes the note's own text back as it was (appendBody.ts), so the looser rule costs nothing.
-        hasWords: () => take.segments.length > 0 || take.clips.length > 0,
+        hasWords: () => take.segments.length > 0,
         candidates: () => candidates.current,
         targetChanged: setTarget,
       }),
@@ -646,11 +646,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     newBook: (title, pages) => void makeBook(title, pages),
     runPlugin: (voice, parsed) => voice.run(parsed, captureContext),
     describePlugin: (voice, parsed) => voice.describe(parsed, captureContext),
-    clip: (span) => {
-      // The tape a continued note already has comes first, so the clip points at the right sound in the whole recording.
-      const offset = writer.target?.recordingMs ?? 0;
-      return clipMarkdown({ startMs: span.startMs + offset, endMs: span.endMs + offset, tape: tapeOfTake() });
-    },
     log: (line) => commandLog.current.push(line),
     said: (text) => {
       lastSaid.current = { kind: 'take', text };
@@ -1078,7 +1073,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       commandLog.current.push(`Added “${written.blocks.map(withoutLead).join('”, “')}” to ${insert.title}${written.spot ? `, ${written.spot}` : ''}`);
     }
 
-    // Nothing that lays out as anything - no words, no voice memo - leaves nothing behind for the take's
+    // Nothing that lays out as anything leaves nothing behind for the take's
     // own note. Asked of the laid-out words (take.hasContent), not the transcript: a cue said alone ("Bullet point.",
     // or Whisper echoing its prompt on silence) is held for a sentence that never comes, and saved from the transcript
     // it made an empty note.
@@ -1169,7 +1164,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           return null;
         });
         if (kept) saved = kept;
-        // The tape this take wrote to, so its voice memos know it again when the note is opened (core/clips.ts).
+        // The tape this take wrote to, so the voice memos already in the note know it again when it is opened
+        // (core/clips.ts).
         setTapeId(saved.id, tapeOfTake());
         // The better words: the larger model over this take's recording, later, or now in the review after a recording
         // when that runs.
@@ -1183,8 +1179,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           priorSegments: tape.prior,
           promptTail: renderNote(tape.prior).plain.slice(-200),
           skip: tape.skip,
-          // The voice memos this take left: the better words never heard them, and they go back where they were.
-          clips: tape.clips,
           keywordAt: tape.keywordAt,
           ...(writer.placing.kind !== 'end' ? { placing: writer.placing } : {}),
           ...(live.engaged ? { live: shifted(take.segments, tape.fromMs) } : {}),

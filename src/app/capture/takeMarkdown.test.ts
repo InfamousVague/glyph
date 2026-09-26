@@ -39,14 +39,11 @@ describe('a take’s markdown', () => {
 });
 
 describe('what a take has to save', () => {
-  it('is words that come to something, or a voice memo', () => {
+  it('is words that come to something', () => {
     const take = new Take(quietHost());
     expect(take.hasContent).toBe(false);
     take.listen(said('Hello.', 0));
     expect(take.hasContent).toBe(true);
-    const clips = new Take(quietHost());
-    clips.clips = [said('![voice 0:01](tape:0-1000)', 0)];
-    expect(clips.hasContent).toBe(true);
   });
 
   it('is not a cue said on its own, which is held for a sentence that never comes', () => {

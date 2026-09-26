@@ -1,7 +1,7 @@
 import type { VoiceCommand } from '../plugins/types.ts';
 import type { Placement, Plan } from './command.ts';
 import type { Offer } from './offers.ts';
-import type { Span, TakeCandidate, TakeNote } from './takeTypes.ts';
+import type { TakeCandidate, TakeNote } from './takeTypes.ts';
 
 /**
  * What a take (capture/take.ts) asks of whoever runs it, and what it tells them.
@@ -66,8 +66,6 @@ export interface TakeHost<N extends TakeNote> {
   /** Yes to a plugin's command: what it keeps in the note, if anything. */
   runPlugin(voice: VoiceCommand, parsed: unknown): string | null;
   describePlugin(voice: VoiceCommand, parsed: unknown): { title: string; action: string };
-  /** A voice memo closed: the clip's markdown, for the stretch of this take's tape. */
-  clip(span: Span): string;
   /** A line for the review's check of commands. */
   log(line: string): void;
   /** What was last said, for plugin commands ("send that to Notion"). */

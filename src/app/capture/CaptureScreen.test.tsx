@@ -400,7 +400,6 @@ describe('the sound of a recording', () => {
       titled: false,
       priorSegments: [eggs],
       skip: [],
-      clips: [],
       keywordAt: [],
     });
   });

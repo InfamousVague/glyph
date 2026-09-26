@@ -5,9 +5,9 @@ import { appendsTo, onTape, shifted } from './timeline.ts';
 
 describe('a take’s stretches on its note’s tape', () => {
   it('move later by the tape the note already had, keeping what else they carry', () => {
-    const clip = { text: '![voice 0:05](tape:0-5000)', startMs: 0, endMs: 5000 };
-    expect(shifted([clip, { startMs: 6000, endMs: 7000 }], 12_000)).toEqual([
-      { text: '![voice 0:05](tape:0-5000)', startMs: 12_000, endMs: 17_000 },
+    const phrase = { text: 'Call Sam.', startMs: 0, endMs: 5000 };
+    expect(shifted([phrase, { startMs: 6000, endMs: 7000 }], 12_000)).toEqual([
+      { text: 'Call Sam.', startMs: 12_000, endMs: 17_000 },
       { startMs: 18_000, endMs: 19_000 },
     ]);
     expect(shifted([], 500)).toEqual([]);
@@ -28,7 +28,6 @@ describe('which tape a take goes on the end of', () => {
 describe('a take on its note’s tape', () => {
   const take = {
     commandSpans: [{ startMs: 0, endMs: 1800 }],
-    clips: [{ text: '![voice 0:02](tape:4000-6000)', startMs: 4000, endMs: 6000 }],
     keywordSpans: [{ startMs: 2000, endMs: 3500 }],
   };
   const spoken = [{ text: 'Call Sam.', startMs: 2000, endMs: 3500 }];
@@ -41,7 +40,6 @@ describe('a take on its note’s tape', () => {
       prior: before,
       segments: [before[0], { text: 'Call Sam.', startMs: 32_000, endMs: 33_500 }],
       skip: [{ startMs: 30_000, endMs: 31_800 }],
-      clips: [{ text: '![voice 0:02](tape:4000-6000)', startMs: 34_000, endMs: 36_000 }],
       keywordAt: [{ startMs: 32_000, endMs: 33_500 }],
     });
   });
@@ -53,7 +51,6 @@ describe('a take on its note’s tape', () => {
       expect(placed.prior).toEqual([]);
       expect(placed.segments).toEqual(spoken);
       expect(placed.skip).toEqual(take.commandSpans);
-      expect(placed.clips).toEqual(take.clips);
       expect(placed.keywordAt).toEqual(take.keywordSpans);
     }
   });

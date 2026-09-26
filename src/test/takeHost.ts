@@ -30,7 +30,6 @@ export function quietHost<N extends TakeNote>(overrides: Partial<TakeHost<N>> = 
     newBook: () => undefined,
     runPlugin: () => null,
     describePlugin: () => ({ title: '', action: '' }),
-    clip: () => '',
     log: () => undefined,
     said: () => undefined,
     ...overrides,

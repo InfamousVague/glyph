@@ -178,14 +178,14 @@ export function heardForm(text: string): string {
 
 /**
  * A line's block mark, as the recorder writes it: a heading, a list item with its box or choice (core/itemSyntax.ts),
- * a numbered step, a hidden line, a quote or callout, a table row, a sum, a rule.
+ * a numbered step, a hidden line, a quote or callout, a sum, a rule.
  */
-const BLOCK_LEAD = new RegExp(String.raw`^\s*(?:#{1,6} |${BULLET} (?:${BOX} |${CHOICE} )?|${NUMBER} |>\| ?|> (?:\[![A-Z]+\])?|\||= |---$)?`);
+const BLOCK_LEAD = new RegExp(String.raw`^\s*(?:#{1,6} |${BULLET} (?:${BOX} |${CHOICE} )?|${NUMBER} |>\| ?|> (?:\[![A-Z]+\])?|= |---$)?`);
 
 /** A line's shape: its block mark, and the inline marks in it, in order. */
 function shapeOf(line: string): string {
   const lead = BLOCK_LEAD.exec(line)?.[0] ?? '';
-  const marks = line.match(/\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||`|\[\[|\]\]|\[\d+\/\d+\]|#[a-z][\w/-]*|!\[voice|\| --- /g) ?? [];
+  const marks = line.match(/\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||`|\[\[|\]\]|\[\d+\/\d+\]|#[a-z][\w/-]*/g) ?? [];
   return `${lead.replace(/[xX]/, 'x')}${marks.join(' ')}`;
 }
 

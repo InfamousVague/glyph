@@ -25,7 +25,7 @@ import { refinedBody, refinedSegments } from './refineText.ts';
  * pass at a time, never while the recorder is on screen: both models want the
  * same cores. The first pass downloads the larger model (190 MB); until it is
  * there, notes simply keep their live words. What the note reads as with the
- * better words - commands left out, voice memos put back - is refineText.ts.
+ * better words - commands left out - is refineText.ts.
  *
  * Nor over a note that is open (`holdNote`): the editor's saving must be the only writer of an open note
  * (editor/useNoteSaving.ts), or its next keystroke's save conflicts and every save after it in that visit is dropped.
@@ -56,8 +56,9 @@ export interface RefineJob {
    */
   skip?: Array<{ startMs: number; endMs: number }>;
   /**
-   * The voice memos this take left (core/clips.ts), each already written as its mark, on the recording's timeline:
-   * the better words never heard them - their stretches are in `skip` - so they are put back where they were.
+   * The voice memos a take left (core/clips.ts), each already written as its mark, on the recording's timeline: the
+   * better words never heard them - their stretches are in `skip` - so they are put back where they were. A recording
+   * no longer makes a memo (docs/DESIGN.md §127), so a new job has none; one queued by a build that still did may.
    */
   clips?: Segment[];
   /** Phrases that were words and then "Glyph": the better words keep what came before the keyword. */

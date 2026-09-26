@@ -1,12 +1,10 @@
 import { boardFrom } from '../core/boards.ts';
-import { clipLength } from '../core/clips.ts';
 import type { VoiceCommand } from '../plugins/types.ts';
 import { actionable, findKeyword, findSoundAlike, forBook, isStandaloneCommandLike, placedOn, planCommand, reply, type Plan } from './command.ts';
 import { renderNote, type Segment } from './markdown.ts';
 import { describeOffer, offerFor, type Offer } from './offers.ts';
 import type { Span, TakeCandidate, TakeNote } from './takeTypes.ts';
 import type { RouteView, TakeHost } from './takeHost.ts';
-import { endsMemo, MEMO_GAP_MS, startsMemo } from './voiceMemo.ts';
 
 // The confirm card (ai/ConfirmCard.tsx) reads offers from here, where the recorder's take makes them.
 export type { Offer } from './offers.ts';
@@ -18,7 +16,7 @@ export type { Offer } from './offers.ts';
  * arrives by `listen`, which only shows it, and the stretches that were commands are marked for the better words to
  * leave out. A command the live reader did not carry out is read once, from the whole transcript, at Done
  * (ai/instruction.ts), and offered here with `offerFinal`; with the microphone stopped, its card waits for a tap. The
- * older reading of commands a phrase at a time - `phrase` and `tick`, with its yes and no and voice memos - is
+ * older reading of commands a phrase at a time - `phrase` and `tick`, with its yes and no - is
  * no longer driven by anything but this file's own tests; the voice suite plays the live reader (voiceSuite.ts).
  *
  * The rules it follows:
@@ -27,7 +25,6 @@ export type { Offer } from './offers.ts';
  *   keyword stay in the note; the words after it, across phrases, are the command and never land in the note unless
  *   no command comes of them.
  * - A command asks before it acts. "Yes" or "no" answer it, as a tap does; silence for a while is a no.
- * - A voice memo keeps the sound instead of the words.
  */
 
 /** When a command gives up, in ms: the recorder's timings, one place. */
@@ -47,8 +44,6 @@ export const TAKE_TIMING = {
 export class Take<N extends TakeNote> {
   /** The words of the note, as committed phrases (commands taken out). */
   segments: Segment[] = [];
-  /** The clips this take wrote. */
-  clips: Segment[] = [];
   /** "Glyph, make this a board": the note is written as a board at the end. */
   asBoard = false;
   /** Recording spans that were commands, for the better-words pass to leave out. */
@@ -61,7 +56,6 @@ export class Take<N extends TakeNote> {
   private listening: { words: string; said: Segment[]; lastAt: number; asked?: string } | null = null;
   private awaiting: { plan: Extract<Plan<TakeCandidate<N>>, { kind: 'await' }>; words: string[]; lastAt: number } | null = null;
   private pending: { offer: Offer<N>; at: number } | null = null;
-  private memo: { startMs: number; endMs: number } | null = null;
   private understanding: { words: string; cancel: () => void } | null = null;
   private lastHeard = 0;
   constructor(private readonly host: TakeHost<N>) {}
@@ -313,31 +307,8 @@ export class Take<N extends TakeNote> {
   fork(): void {
     for (const segment of this.segments) this.commandSpans.push({ startMs: segment.startMs, endMs: segment.endMs });
     this.segments = [];
-    this.clips = [];
     this.asBoard = false;
     this.host.changed();
-  }
-
-  // ---- voice memos -------------------------------------------------------------------------------
-
-  /** A voice memo closes: the sound it took is written where it was said. */
-  closeMemo(endMs: number): void {
-    const held = this.memo;
-    if (!held) return;
-    this.memo = null;
-    this.host.itemWords('');
-    if (endMs - held.startMs < 500) {
-      this.host.route({ phase: 'said', text: 'Nothing was said, so no voice memo was kept.' });
-      return;
-    }
-    const written: Segment = { text: this.host.clip({ startMs: held.startMs, endMs }), startMs: held.startMs, endMs };
-    this.clips = [...this.clips, written];
-    this.segments = [...this.segments, written].sort((a, b) => a.startMs - b.startMs);
-    this.host.changed();
-    const length = clipLength({ startMs: held.startMs, endMs });
-    this.host.log(`Kept a voice memo of ${length}`);
-    this.host.route({ phase: 'done', text: `Voice memo, ${length}` });
-    this.host.haptic('success');
   }
 
   // ---- a phrase --------------------------------------------------------------------------------------
@@ -384,32 +355,6 @@ export class Take<N extends TakeNote> {
     const readsAsCommand = (words: string) => this.pluginFor(words) !== null || actionable(this.plan(words));
     const underWay = this.awaiting !== null || this.listening !== null;
     const found = keywordOn ? (findKeyword(text) ?? (underWay ? null : findSoundAlike(text, readsAsCommand))) : null;
-
-    // A voice memo: what is said is kept as sound, not words, until "end memo" or a breath.
-    const leaving = this.memo;
-    if (leaving) {
-      const breath = segment.startMs - leaving.endMs > MEMO_GAP_MS;
-      if (!breath && !endsMemo(text)) {
-        skip();
-        leaving.endMs = segment.endMs;
-        this.host.itemWords('');
-        return null;
-      }
-      this.closeMemo(leaving.endMs);
-      if (!breath) {
-        // "End memo" is the cue, not the note's words.
-        skip();
-        return null;
-      }
-      // A breath ended it: this phrase is the note's again, and goes on below.
-    } else if (startsMemo(text)) {
-      skip();
-      this.memo = { startMs: segment.endMs, endMs: segment.endMs };
-      this.host.itemWords('');
-      this.host.route({ phase: 'said', text: 'Voice memo: talk, then say “end memo”.' });
-      this.host.haptic('light');
-      return null;
-    }
 
     // A command asked "shall I?": this phrase may be the answer.
     if (this.pending) {
@@ -554,18 +499,17 @@ export class Take<N extends TakeNote> {
     if (held && now - held.at > TAKE_TIMING.confirmMs) this.cancel('Not done. Say “yes” or tap to confirm a command.', now, 'dropped');
   }
 
-  /** The take is ending: a memo still open is closed, and a command that never came gives its words back. */
-  end(atMs: number): void {
-    if (this.memo) this.closeMemo(atMs);
+  /** The take is ending: a command that never came gives its words back. */
+  end(): void {
     if (this.listening) this.giveBack('No command there, so the words stay in the note.');
   }
 
   /**
-   * Whether there is anything to save: words that lay out as something, or a voice memo. Read from the laid-out note,
-   * as the recorder's Done reads it, so a cue said alone - held for a sentence that never comes - is nothing to save.
+   * Whether there is anything to save: words that lay out as something. Read from the laid-out note, as the recorder's
+   * Done reads it, so a cue said alone - held for a sentence that never comes - is nothing to save.
    */
   get hasContent(): boolean {
-    return renderNote(this.segments).markdown.trim() !== '' || this.clips.length > 0;
+    return renderNote(this.segments).markdown.trim() !== '';
   }
 
   /** The take's markdown: its words as the cues lay them out, with links applied by `link`. */

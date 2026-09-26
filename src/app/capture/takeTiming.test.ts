@@ -27,7 +27,6 @@ function harness(over: Partial<TakeHost<Note>> = {}) {
     route: (view) => routes.push(view),
     offer: (offer) => offers.push(offer),
     log: (line) => log.push(line),
-    clip: (span) => `![voice](tape:${span.startMs}-${span.endMs})`,
     ...over,
   });
   const take = new Take(host);
@@ -171,29 +170,6 @@ describe('the phone’s command model', () => {
     reader.answer(null);
     await vi.waitFor(() => expect(said('said')).toEqual(['No note called “shopping, oat milk”, so it stays here.']));
     expect(take.segments.map((s) => s.text)).toEqual(['add to shopping, oat milk.']);
-  });
-});
-
-describe('a voice memo', () => {
-  it('keeps the sound from the cue to "end memo", written where it was said', () => {
-    const clip = vi.fn((span: { startMs: number; endMs: number }) => `![voice](tape:${span.startMs}-${span.endMs})`);
-    const { take, say, said } = harness({ clip });
-    say('Before it.', 0);
-    say('Voice memo.', 1000);
-    say('La la la, the tune goes like this.', 2000);
-    say('End memo.', 3000);
-    expect(clip).toHaveBeenCalledWith({ startMs: 1900, endMs: 2900 });
-    expect(take.segments.map((s) => s.text)).toEqual(['Before it.', '![voice](tape:1900-2900)']);
-    expect(take.clips).toHaveLength(1);
-    expect(said('done')).toEqual(['Voice memo, 0:01']);
-  });
-
-  it('keeps nothing for a memo under half a second', () => {
-    const { take, said } = harness();
-    take.phrase({ text: 'Voice memo.', startMs: 0, endMs: 900 }, 1000);
-    take.phrase({ text: 'End memo.', startMs: 1000, endMs: 1300 }, 1400);
-    expect(take.clips).toEqual([]);
-    expect(said('said').at(-1)).toBe('Nothing was said, so no voice memo was kept.');
   });
 });
 

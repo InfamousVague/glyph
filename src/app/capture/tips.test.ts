@@ -11,6 +11,13 @@ describe('tips in a pause', () => {
     expect(said).toContain('Option');
   });
 
+  // Changed on purpose (docs/DESIGN.md §127): a recording no longer makes a voice memo, so no tip offers one. The clips
+  // already in notes still play.
+  it('offer no voice memo', () => {
+    const said = tips({ noteTitle: 'Groceries', continuing: true }).flatMap((tip) => [tip.say, tip.does]);
+    expect(said.some((line) => /\bmemo\b/i.test(line))).toBe(false);
+  });
+
   // Changed on purpose (docs/DESIGN.md §126): a recording no longer carries out a table, a book, a chapter or a
   // board's lane, so no tip teaches one.
   it('teach only the commands a recording carries out as they are said', () => {

@@ -48,7 +48,6 @@ const CUES: readonly Tip[] = [
   { say: 'Calculate', does: 'and then a sum, to see its answer' },
   { say: 'Hashtag', does: 'and a word to tag a line' },
   { say: 'Counter zero of eight', does: 'after an item to count it off' },
-  { say: 'Voice memo … end memo', does: 'to keep the sound instead of the words' },
   { say: 'Italic … end italic', does: 'around words to lean them' },
   { say: 'Strike … end strike', does: 'to cross words out' },
   { say: 'Code … end code', does: 'around a command' },
