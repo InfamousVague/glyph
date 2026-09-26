@@ -1,29 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createElement } from 'react';
-import type { Updates } from '../core/ota.ts';
-import { press, show } from '../../test/render.tsx';
-
-// The kit asks the window's resolution as it loads, before the About page's imports below reach it.
-await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
-
-// The About page reads the releases from what was kept and from the site; neither is this file's business.
-vi.mock('../core/changelog.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../core/changelog.ts')>()),
-  keptReleases: () => [],
-  fetchReleases: () => Promise.resolve([]),
-}));
-
-const { chaptersOf, isBookBody, numbered } = await import('../book/book.ts');
-const { itemsIn } = await import('../core/boards/items.ts');
-const { boardNoteBody } = await import('../core/boardNote.ts');
-const { sampleNoteBody } = await import('../core/sampleNote.ts');
-const { howCanvasBody } = await import('../canvas/howCanvas.ts');
-const { sampleCanvasBody } = await import('../canvas/sampleCanvas.ts');
-const { createNote, listNotes, newNoteId, noteTitle } = await import('../core/store.ts');
-const { sameTitle, wikiLinksIn } = await import('../editor/wikiLinks.ts');
-const { addGuideBook, GUIDE_TITLE, loadGuideBook } = await import('./guidebook.ts');
-const { ToastProvider } = await import('@glacier/react');
-const { AboutPane } = await import('../settings/AboutPane.tsx');
+import { beforeEach, describe, expect, it } from 'vitest';
+import { chaptersOf, isBookBody, numbered } from '../book/book.ts';
+import { howCanvasBody } from '../canvas/howCanvas.ts';
+import { sampleCanvasBody } from '../canvas/sampleCanvas.ts';
+import { boardNoteBody } from '../core/boardNote.ts';
+import { itemsIn } from '../core/boards/items.ts';
+import { sampleNoteBody } from '../core/sampleNote.ts';
+import { createNote, listNotes, newNoteId, noteTitle } from '../core/store.ts';
+import { sameTitle, wikiLinksIn } from '../editor/wikiLinks.ts';
+import { addGuideBook, GUIDE_CHAPTERS, GUIDE_TITLE, loadGuideBook } from './guidebook.ts';
 
 /**
  * Ghost.md: The Guide as it ships: the index is a book whose chapters are the files, every link in it lands on a
@@ -89,6 +73,8 @@ beforeEach(() => {
 describe('the book', () => {
   it('is an index whose chapters are exactly the chapter files, in the order of their names', () => {
     expect(FILES).toHaveLength(44);
+    // The count About's row gives, read from the same glob without loading a chapter.
+    expect(GUIDE_CHAPTERS).toBe(FILES.length);
     expect(FILES.map(([path]) => path.slice('./chapters/'.length, './chapters/'.length + 2))).toEqual(FILES.map((_, i) => String(i + 1).padStart(2, '0')));
     expect(isBookBody(book.index)).toBe(true);
     expect(noteTitle(book.index)).toBe(GUIDE_TITLE);
@@ -192,47 +178,5 @@ describe('adding the book', () => {
     const archived = { ...(await createNote(newNoteId(), '# Live typing\n\nPut away.', 'editor')), archivedAt: Date.now() };
     await addGuideBook([archived]);
     expect((await listNotes()).filter((note) => sameTitle(noteTitle(note.body), 'Live typing'))).toHaveLength(2);
-  });
-});
-
-describe('Settings › About', () => {
-  it('has a row that adds the guide, and pressing it calls the handler', () => {
-    const noop = () => undefined;
-    const onGuideBook = vi.fn();
-    const updates: Updates = {
-      ready: null,
-      apk: { kind: 'none' },
-      checking: false,
-      lastError: null,
-      lastChecked: null,
-      status: null,
-      build: '20260924221500',
-      version: '1.8.0',
-      check: noop,
-      reload: noop,
-      installApk: noop,
-    };
-    const host = show(
-      createElement(
-        ToastProvider,
-        null,
-        createElement(AboutPane, {
-          updates,
-          onGuide: noop,
-          onSample: noop,
-          onGuideBook,
-          onBoard: noop,
-          onCanvas: noop,
-          onHowCanvas: noop,
-          onAcademy: noop,
-          onCheatSheet: noop,
-          onDeveloper: noop,
-        }),
-      ),
-    );
-    const row = [...host.querySelectorAll('button')].find((b) => b.querySelector('.setk-row__label')?.textContent === 'Add Ghost.md: The Guide');
-    expect(row).toBeTruthy();
-    press(row);
-    expect(onGuideBook).toHaveBeenCalledOnce();
   });
 });

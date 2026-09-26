@@ -36,6 +36,9 @@ export interface GuideBook {
 /** Every chapter, each a lazy chunk of its own, keyed by its path; the numbers in the names are the order. */
 const CHAPTERS = import.meta.glob<string>('./chapters/*.md', { query: '?raw', import: 'default' });
 
+/** How many chapters the book has, known without loading one: the glob's map of loaders is in the bundle already. */
+export const GUIDE_CHAPTERS = Object.keys(CHAPTERS).length;
+
 /** The whole book, read now. Nothing of it is fetched before this is called. */
 export async function loadGuideBook(): Promise<GuideBook> {
   const loads = Object.entries(CHAPTERS)

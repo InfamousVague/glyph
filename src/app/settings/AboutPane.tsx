@@ -1,11 +1,11 @@
 import { BookOpen, BookOpenText, Compass, FileText, GraduationCap, LayoutGrid, ListChecks, ShieldCheck, Workflow } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import { fireNativeHaptic } from '../core/haptics.ts';
-import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
 import { openLink } from '../core/linkPreview.ts';
 import { storeOf, type Updates } from '../core/ota.ts';
 import { isAndroid } from '../core/platform.ts';
 import { isTauri } from '../core/tauri.ts';
+import { GUIDE_CHAPTERS, GUIDE_TITLE } from '../guidebook/guidebook.ts';
 import { ReleasesSection, UpdatesSection } from './AboutUpdates.tsx';
 import { countKnock, KNOCKS_WANTED, setDeveloperMode } from './developerMode.ts';
 import { PaneHero, PaneSection, SettingRow, SettingsFootnote } from './kit/settingsKit.tsx';
@@ -81,7 +81,7 @@ export function AboutPane({ updates, onGuide, onSample, onGuideBook, onBoard, on
         <SettingRow
           icon={<BookOpenText size={20} />}
           label={`Add ${GUIDE_TITLE}`}
-          hint="The whole app as a book of 44 short chapters: how to use it, then how it is made."
+          hint={`The whole app as a book of ${GUIDE_CHAPTERS} short chapters: how to use it, then how it is made. Pressed again, it opens the book you have.`}
           onPress={onGuideBook}
         />
         <SettingRow
