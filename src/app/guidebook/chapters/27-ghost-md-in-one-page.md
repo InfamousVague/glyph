@@ -43,7 +43,7 @@ The app's visible name is Ghost.md. The repo, the ids, the keys, the salts and t
 
 ## Things that surprise people
 
-- **There is no router.** `src/app/App.tsx` holds one piece of state for it, the `Screen` union in `src/app/shell/screen.ts`, which has five members. Settings, the guide, the palette and the rest are sheets over whichever screen is up.
+- **There is no router.** `src/app/App.tsx` holds one piece of state for it, the `Screen` union in `src/app/shell/screen.ts`, which has five members. Settings, the welcome guide, the palette and the rest are sheets over whichever screen is up.
 - **A note is a file, and the database is only a cache.** `src-tauri/src/library/mod.rs` keeps each note as a `.md` file with front matter. `.glyph/index.sqlite` makes the list instant and is rebuilt from the files whenever they disagree. A new note has no file at all until its first words.
 - **The trash, the workspaces and the open tabs are preferences.** `src/app/core/trash.ts` and `src/app/core/workspaces.ts` keep them in `src/app/core/preferences.ts`, because a column in the native store is a native change and an APK. A preference ships over the air, and `src/app/core/sync/prefs.ts` lists them among the settings that sync. Filing a note in a workspace also moves its file to `workspaces/<name>/` (`src/app/core/noteFolders.ts`).
 - **A recording's commands are read once, at Done, and a command may only add.** While the microphone is live a phrase is only shown (`src/app/capture/take.ts`). After the stop the whole transcript is read (`src/app/ai/instruction.ts`). A run said in words into a note, such as "fix the spelling", opens that note with the run on it. A command that names a note may only add to it or make a new list (`permitted` in `src/app/capture/finalInstruction.ts`), and it is offered on a card before anything is written. Rust refuses any other kind of command write: `into_mutation` in `src-tauri/src/commands.rs` takes `append` or `create` and nothing else.
@@ -54,7 +54,7 @@ The app's visible name is Ghost.md. The repo, the ids, the keys, the salts and t
 
 `docs/DESIGN.md` is a dated log, so its early sections describe an app that has moved on: §5 still keeps the notes in `glyph.sqlite`, which the first launch of 1.3.0 or later reads once through `src-tauri/src/store.rs` and renames `glyph.sqlite.moved` (`src-tauri/src/library/move_in.rs`).
 A few comments have drifted from the code beside them, such as `App.tsx`'s line that a back swipe at home leaves the app; `tookBack` in `src/app/core/back.ts` never lets it.
-Every disagreement found is in [[Where the docs and the code disagree]]. Believe the code.
+[[Where the docs and the code disagree]] collects the disagreements that cut across chapters, these two among them, and lists the chapters that end with their own doc's. Believe the code.
 
 ## Read next
 

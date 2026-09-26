@@ -19,7 +19,7 @@ A start that is called off, by React's development double start or a screen clos
 | Engine | Chosen when | Keeps audio | Final transcript |
 |---|---|---|---|
 | `whisper` | In the app | Yes, on native generation 6 or later | Yes, from `capture_stop`, on the same generations |
-| `browser` | A desktop browser with `webkitSpeechRecognition` | No | No |
+| `browser` | Any page outside Tauri. It needs a browser with `webkitSpeechRecognition`, and throws without one | No | No |
 | `simulated` | `?simulate` in the URL (`simulated.ts`) | A length only | No |
 
 `simulated.ts` speaks fixed scripts on a clock, partials first and then a committed phrase, which is the rhythm Whisper has. `?simulate=say&say=a|b` speaks any phrases given, so the screen can be tried with no microphone.

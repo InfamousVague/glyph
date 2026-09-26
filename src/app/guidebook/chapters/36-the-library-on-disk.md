@@ -24,7 +24,7 @@ Inside `Library/`, `.glyph/` holds `library.json` (the library's birth, and the 
 
 ## Saving a note
 
-`Library::save_note` writes the body under the note's front matter. `frontmatter.rs` is not a YAML library, on purpose: a library would parse the block and write it back in its own style, with keys reordered and comments gone. It keeps the block as lines, reads the few top-level keys Glyph knows, and rewrites only the lines of a key whose value changes. Unknown keys, nested maps, comments and the person's quoting come back byte for byte. A save always writes `id`, so every file Glyph saves has a block.
+`Library::save_note` writes the body under the note's front matter. `frontmatter.rs` is not a YAML library, on purpose: a library would parse the block and write it back in its own style, with keys reordered and comments gone. It keeps the block as lines, reads the few top-level keys Ghost.md knows, and rewrites only the lines of a key whose value changes. Unknown keys, nested maps, comments and the person's quoting come back byte for byte. A save always writes `id`, so every file Ghost.md saves has a block.
 
 The library writes five keys: `id`, `created` (ISO 8601, `dates.rs`), `source` (left out for a typed note, `capture` for a spoken one), `pinned: true` and `archived: <when>`. There is no `updated`: the file's own modified time is when the note last changed. The page keeps a block of its own at the top of the words, for the keys the library does not manage: a book's or a canvas's `title:`, a book's `book: true`, and the `authors:` of a note written with an AI (`src/app/core/frontMatter.ts`). That block is part of the body, so such a file opens with two blocks, the library's and then the page's.
 
@@ -34,7 +34,7 @@ A new note goes into `Inbox/`, named after its title. `names.rs` (`title_of`) ta
 
 ## Drafts until the first words
 
-A new note has no file until it has words. `save_note` with a blank body and no row keeps the note in memory as a draft: `get_note` finds it, and the list leaves it out. The first words write the file, with the draft's own created time. A note this process started as a draft, emptied again with nothing else set (no pin, archive or sidecar, and no front matter beyond `id`, `created` and `source`), goes back to being a draft, and its file is removed. Pinning, archiving or keeping a recording writes a draft's file without words. A file Glyph did not start this way is never removed for being empty.
+A new note has no file until it has words. `save_note` with a blank body and no row keeps the note in memory as a draft: `get_note` finds it, and the list leaves it out. The first words write the file, with the draft's own created time. A note this process started as a draft, emptied again with nothing else set (no pin, archive or sidecar, and no front matter beyond `id`, `created` and `source`), goes back to being a draft, and its file is removed. Pinning, archiving or keeping a recording writes a draft's file without words. A file Ghost.md did not start this way is never removed for being empty.
 
 ## Inbox and the workspace folders
 
@@ -46,7 +46,7 @@ A new note has no file until it has words. `save_note` with a blank body and no 
 
 ## Reading what another app changed
 
-`list_notes` calls `scan` first (`index.rs`), which walks the folder. A file whose modified time and size match its row is skipped. Anything else is read into the index again, and a row with no file is dropped. `get_note` reads the note's file and scans if the file has gone or its body differs from the row's. A file without an `id` gets one in the index at once, and in its front matter the next time Glyph saves it. Two files with the same `id`, such as a copy made in Finder, are told apart: the file the index already knew keeps the id, and the copy gets a new one.
+`list_notes` calls `scan` first (`index.rs`), which walks the folder. A file whose modified time and size match its row is skipped. Anything else is read into the index again, and a row with no file is dropped. `get_note` reads the note's file and scans if the file has gone or its body differs from the row's. A file without an `id` gets one in the index at once, and in its front matter the next time Ghost.md saves it. Two files with the same `id`, such as a copy made in Finder, are told apart: the file the index already knew keeps the id, and the copy gets a new one.
 
 **The known gap.** Another app can change a file and leave its size and modified time as they were: a same-length edit on a coarse clock, or an editor that sets the time back. Then `get_note` sees the body differ and asks `scan`, `scan` passes the file over, and the answer is the index's old copy. A write that follows carries on from that stale body. The fix, bad704c, made `get_note` re-read that file whatever its time and size. It was reverted in d909b9d because it changes what `update_note`, `apply_command` and `latest_command_undo` answer after such an edit (a refusal where today they carry on), and it waits to land on its own. On a phone no other app can reach the library, so this is a desktop problem.
 

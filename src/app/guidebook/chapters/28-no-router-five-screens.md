@@ -53,7 +53,7 @@ The home page is still named `list`, from the days when the home page was the no
 
 A place is somewhere a person goes. Places carry the tab row, they are what the back and forward arrows walk, and on a wide window they take a pane beside the sidebar. A capture and the Academy each take the whole window, and each has its own way out.
 
-Everything else is a sheet or a card over whichever screen is up, held beside `screen` in the Shell: Settings, the guide, the + sheet, the new book sheet, what's new, the notes drawer, the aside, the palette and the launch screen.
+Everything else is a sheet or a card over whichever screen is up, held beside `screen` in the Shell: Settings, the welcome guide, the + sheet, the new book sheet, what's new, the notes drawer, the aside, the palette and the launch screen.
 
 There is no router because a router would be a dependency, with its own edge cases, bought to hold one piece of state. Nothing needs an address either. The only ones the page reads are `#fork=` from a shared link and three development switches: `?capture`, `?simulate` (with `say=` beside it for phrases of your own) and `?review`.
 
@@ -72,7 +72,7 @@ The parts of the Shell that are machines of their own live in `shell/`, one hook
 | `useOpenTabs.ts` | The open tabs, at most eight (`MOST_TABS`), and their Chrome-style groups (`notes/openTabs.ts`, `notes/tabGroups.ts`) | A page opened from inside a book takes the current tab's place (`swapOpen`); a request nothing read once lingered and stole the next note's tab. Groups pruned against tabs not loaded yet were emptied on every start. |
 | `useTrail.ts` | Where the person has been, for the arrows (`notes/visited.ts`) | A "this move was me" flag, left set by a step that landed where the page already was, killed Back on the next note |
 | `useCaptureRoute.ts` | How a capture begins, and where the app lands after it | Every start waits for deferred deletes first (`capture/launch.ts`), or the recorder reads a note that is about to go. The side key during a capture is Stop, because Android never says when the key is let go. |
-| `useGuide.ts` | The walkthrough, and its too-soon guard | In 1.6 a side key held on the guide's first page opened the home page with neither the guide nor its "Not yet, finish reading." line |
+| `useGuide.ts` | The welcome guide, and its too-soon guard | In 1.6 a side key held on the welcome guide's first page opened the home page with neither the welcome guide nor its "Not yet, finish reading." line |
 | `useForkLinks.ts` | A shared link arriving, as `#fork=<link>` or `ghostmd://` (`share/appLinks.ts`) | Both wait for the notes to be read, and the hash leaves the address bar so a reload does not save the copy twice |
 | `useHousekeeping.ts` | The work that draws nothing | `settleBoot` runs first, before anything that might reload. A voice command's undo, offered again after a restart, once vanished under StrictMode's second run of the effect. |
 | `useRootStamp.ts` | `data-tabs` and `data-split` on `<html>` | Widths and heights kept in several stylesheets, each copy a chance to disagree |

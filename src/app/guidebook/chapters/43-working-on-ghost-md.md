@@ -47,7 +47,7 @@ _The standing rules of working on the code, each with its reason. Most of them w
 
 ## Docs
 
-- **DESIGN.md is history, and it is never renumbered.** A new section goes at the end, after the highest number, which is §123 at 1.8.0-12. Numbers repeat and some sections have none, so cite one as DESIGN §N with its title.
+- **DESIGN.md is history, and it is never renumbered.** A new section goes at the end, after the highest number: look at the file before you add one. Numbers repeat and some sections have none, so cite one as DESIGN §N with its title.
 - **A topic doc says what is true now, and DESIGN says why and when.** Rewrite a doc under `docs/` when the code it describes changes; for DESIGN, add a section rather than rewrite an old one. Where either disagrees with the code, believe the code and fix the doc ([[Where the docs and the code disagree]]).
 - **Append to a shared doc against the file as it is that second.** A whole-file write from an earlier copy once ate a section.
 

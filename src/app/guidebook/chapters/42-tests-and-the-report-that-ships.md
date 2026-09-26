@@ -48,7 +48,7 @@ Three end-to-end files run against a glyph-api on the same machine. Each is skip
 
 Know what a green suite proves. It drives the take a phrase at a time (`take.phrase` in `src/app/capture/take.ts`), the live reading of commands that the recorder no longer runs. So it holds the cues that `markdown.ts` lays out, and a command reader the app keeps dormant, with the tables, voice memos and boards that only that reader makes. What a recording does with a command at Done is held by other tests: `src/app/capture/instructionCorpus.json`, ten spoken commands with what each must come to, run with fixture answers standing in for the model, and the tests beside `finalInstruction.ts`, `instructionIntent.ts` and `instructionMutation.ts`. `docs/instruction-voice-commands.md` gives one command for the corpus and its neighbours.
 
-`src/app/guide/guide.test.ts` holds the guide's spoken examples (`src/app/guide/phrases.ts`) to the real rules. Each example is rendered and must still produce its mark, with no cue word left behind as text. A failure means a rule changed, and the guide changes with it.
+`src/app/guide/guide.test.ts` holds the welcome guide's spoken examples (`src/app/guide/phrases.ts`) to the real rules. Each example is rendered and must still produce its mark, with no cue word left behind as text. A failure means a rule changed, and the welcome guide changes with it.
 
 ## The report
 

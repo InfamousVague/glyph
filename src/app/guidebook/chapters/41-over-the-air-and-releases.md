@@ -71,7 +71,7 @@ Update alerts, on Android and off by default in Settings › About, come from a 
 | `--same-version` | Republish an APK whose version is not newer |
 | `--desktop` | The Mac app: universal, signed, not yet notarised, with `desktop.json` |
 | `--mcp` | Claude's connector as one file, at attack.fm/glyph/mcp/glyph-mcp.mjs |
-| `--notes "…"` | What changed: the What's new line and the alert's text, 2,000 characters at most |
+| `--notes "…"` | What changed: the What's new line and the alert's text, 2,000 bytes at most, counted as the phone counts them, so a curly quote is three |
 | `--release <n>` | The number by hand, after a rollback put an older manifest back |
 | `--skip-tests` | Ship without the tests; if the code changed after the report in the tree was made, the build's Test results page says its report is from other code |
 
