@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { takeOut } from './landing.ts';
+import { landingLine, takeOut } from './landing.ts';
 
 /** `doc` with the changes `takeOut` found made. */
 const undone = (doc: string, blocks: string[]) => {
@@ -26,5 +26,19 @@ describe('taking a recording’s words out of the note again', () => {
   it('leaves a piece edited since, or there twice, as it is', () => {
     expect(undone('- [ ] Call Sam tomorrow\n', ['- [ ] Call Sam'])).toEqual({ out: '- [ ] Call Sam tomorrow\n', missing: 1 });
     expect(undone('- [ ] Call Sam\n- [ ] Call Sam\n', ['- [ ] Call Sam'])).toEqual({ out: '- [ ] Call Sam\n- [ ] Call Sam\n', missing: 1 });
+  });
+});
+
+describe('what the note’s toast says', () => {
+  const landing = { noteId: 'n', title: 'House TODOs', blocks: ['- [ ] Call Sam'], others: [], made: [] };
+
+  it('names the note the words went into, and the others', () => {
+    expect(landingLine(landing)).toBe('Added to House TODOs');
+    expect(landingLine({ ...landing, others: ['m1'], into: ['Home jobs'] })).toBe('Added to House TODOs and Home jobs');
+    expect(landingLine({ ...landing, others: ['m1', 'm2'], into: ['Home jobs', 'Todo'] })).toBe('Added to House TODOs and 2 other notes');
+  });
+
+  it('names only the others for a note of the take’s own, which had nothing added to it', () => {
+    expect(landingLine({ ...landing, title: 'Buy milk', blocks: [], others: ['m1', 'm2'], into: ['House TODOs', 'Home jobs'] })).toBe('Added to House TODOs and Home jobs');
   });
 });

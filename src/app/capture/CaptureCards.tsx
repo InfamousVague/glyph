@@ -90,7 +90,7 @@ export function ListLanding({ title, body, added, onUndo }: { title: string; bod
       <p className={styles.contextTitle}>{title}</p>
       {linesAbove(body, added).map((line, i) => (
         <p key={`b${i}`} className={styles.contextLine}>
-          {withoutLead(line)}
+          {withoutLead(line).replace(/^#{1,6}\s+/, '')}
         </p>
       ))}
       {added.map((line, i) => (

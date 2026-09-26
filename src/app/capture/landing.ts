@@ -14,10 +14,20 @@ export interface CaptureLanding {
   blocks: string[];
   /** Writes to other notes (a one-shot "add … to X"), by their `apply_command` mutation ids, for Undo to reverse. */
   others: string[];
+  /** Those other notes' titles, for the toast to name. */
+  into?: string[];
   /** Notes the recording made, to be filed in the workspace the list is showing. */
   made: string[];
   /** Where the recording starts on the note's tape, for Undo to drop its better words (capture/refine.ts). */
   fromMs?: number;
+}
+
+/** What the note's toast says: the note the words went into, and the others; or, for a note of the take's own, the others. */
+export function landingLine({ title, blocks, others, into = [] }: CaptureLanding): string {
+  const names = [...new Set(into)];
+  if (!blocks.length && names.length) return `Added to ${names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(' and ')}`;
+  if (!others.length) return `Added to ${title}`;
+  return `Added to ${title} and ${others.length === 1 ? (names[0] ?? 'one other note') : `${others.length} other notes`}`;
 }
 
 /**

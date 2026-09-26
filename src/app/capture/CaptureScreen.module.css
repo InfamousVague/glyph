@@ -576,7 +576,7 @@
   white-space: nowrap;
 }
 
-/* A one-shot's Not this note, above the lines it put in another note. */
+/* A one-shot's Not this note, above the lines it put in another note, at the end of the line as the top line's is. */
 .landingUndo {
-  align-self: flex-end;
+  justify-self: end;
 }

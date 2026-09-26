@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { EditorView } from '@codemirror/view';
 import type { ToastOptions } from '@glacier/react';
-import { takeOut, type CaptureLanding } from '../capture/landing.ts';
+import { landingLine, takeOut, type CaptureLanding } from '../capture/landing.ts';
 import { dropRefine, holdNote } from '../capture/refine.ts';
 import { undoCommandMutation } from '../core/store.ts';
 
@@ -36,7 +36,6 @@ export function useLanding(
   useEffect(() => {
     if (!landing || landing.noteId !== noteId) return undefined;
     if (!landing.blocks.length && !landing.others.length) return undefined;
-    const also = landing.others.length ? ` and ${landing.others.length === 1 ? 'one other note' : `${landing.others.length} other notes`}` : '';
     const undo = async () => {
       let missing = 0;
       const open = editor.current;
@@ -58,7 +57,7 @@ export function useLanding(
       await Promise.resolve();
       if (missing) toast({ message: `${landing.title} has changed since, so it was left as it is.`, duration: 5000 });
     };
-    toast({ message: `Added to ${landing.title}${also}`, duration: 10_000, action: { label: 'Undo', onPress: () => void undo() } });
+    toast({ message: landingLine(landing), duration: 10_000, action: { label: 'Undo', onPress: () => void undo() } });
     // Leaving the note takes its toast with it: an Undo for words no longer on screen would undo them unseen.
     return () => dismiss();
     // One toast for each recording's landing, told apart by its key.

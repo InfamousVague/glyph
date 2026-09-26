@@ -1042,6 +1042,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     /** Notes this recording made, and writes to other notes, for the note that opens to know. */
     const made: string[] = [];
     const others: string[] = [];
+    /** The titles of the notes written to besides the one that opens, for its toast to name. */
+    const into$: string[] = [];
     let lastInsert: { note: Note; blocks: string[] } | null = null;
     const changedMeanwhile = (title: string) => setRoute({ phase: 'said', text: `${title} changed as you spoke, so the words are a note of their own.` });
 
@@ -1053,7 +1055,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         if (written.own) {
           made.push(written.saved.id);
           changedMeanwhile(noteTitle(part.note.body) || 'That note');
-        } else if (written.mutationId) others.push(written.mutationId);
+        } else if (written.mutationId) {
+          others.push(written.mutationId);
+          into$.push(noteTitle(written.saved.body));
+        }
       } else {
         const body = part.title ? placeTake(listTitle(part.title), part.markdown, part.placing).body : part.markdown;
         made.push((await createNote(part.noteId, body, 'capture')).id);
@@ -1069,7 +1074,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         changedMeanwhile(insert.title);
         continue;
       }
-      if (written.mutationId) others.push(written.mutationId);
+      if (written.mutationId) {
+        others.push(written.mutationId);
+        into$.push(insert.title);
+      }
       lastInsert = { note: written.saved, blocks: written.blocks };
       take.touched.add(written.saved.id);
       commandLog.current.push(`Added “${written.blocks.map(withoutLead).join('”, “')}” to ${insert.title}${written.spot ? `, ${written.spot}` : ''}`);
@@ -1095,7 +1103,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       await writer.undoDraft();
       endCapture(locked);
       const opened = lastInsert?.note ?? null;
-      if (opened && !locked) onFinish(opened, locked, undefined, undefined, { noteId: opened.id, title: noteTitle(opened.body), blocks: lastInsert!.blocks, others: others.slice(0, -1), made });
+      if (opened && !locked) onFinish(opened, locked, undefined, undefined, { noteId: opened.id, title: noteTitle(opened.body), blocks: lastInsert!.blocks, others: others.slice(0, -1), into: into$.slice(0, -1), made });
       else if (made.length) onFinish((await getNote(made.at(-1)!).catch(() => null)) ?? null, locked);
       else onFinish(null, locked);
       return;
@@ -1182,7 +1190,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const ask = pendingAsk.current ?? undefined;
     // What the recording left in notes that were there already, and the notes it made, for the note that opens.
     const landing: CaptureLanding | undefined =
-      into || others.length || made.length ? { noteId: saved.id, title: noteTitle(saved.body), blocks, others, made, ...(refineJob ? { fromMs: refineJob.fromMs } : {}) } : undefined;
+      into || others.length || made.length ? { noteId: saved.id, title: noteTitle(saved.body), blocks, others, into: into$, made, ...(refineJob ? { fromMs: refineJob.fromMs } : {}) } : undefined;
     // A take written into a note that already existed opens it with its Undo, and no review: the words are in it as
     // they were said (Matt: "instead of doing the second pass over at the end"). The better words land after the note
     // is left (capture/refine.ts `holdNote`).
