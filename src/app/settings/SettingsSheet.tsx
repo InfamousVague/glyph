@@ -16,6 +16,7 @@ import { FormattingPane } from './FormattingPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
 import { usePlugins } from '../plugins/hooks.ts';
 import { AboutPane } from './AboutPane.tsx';
+import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
 import { AnimationsPane } from './AnimationsPane.tsx';
 import { AppearancePane } from './AppearancePane.tsx';
 import { DeveloperPane } from './DeveloperPane.tsx';
@@ -53,6 +54,8 @@ interface SettingsSheetProps {
   onGuide: (page?: number) => void;
   /** Make the sample note, the one with every mark in it (core/seed.ts), and open it. */
   onSample: () => void;
+  /** Adds Ghost.md: The Guide (guidebook/guidebook.ts), once, and opens its index. */
+  onGuideBook: () => void;
   /** Adds the example board (core/boardNote.ts). */
   onBoard: () => void;
   /** Adds the example canvas (canvas/sampleCanvas.ts). */
@@ -68,7 +71,7 @@ interface SettingsSheetProps {
   toCheatSheet?: number;
 }
 
-export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGuideBook, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
   const prefs = usePreferences();
   const faces = facesOf(prefs);
   const account = useAccount();
@@ -278,6 +281,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
         { name: "What's new", words: 'changelog releases' },
         { name: 'Ghost.md Academy', words: 'learn tutorial lessons' },
         { name: 'How to talk to Ghost.md', words: 'voice commands cues' },
+        { name: `Add ${GUIDE_TITLE}`, words: 'guide manual help book' },
         { name: 'Add the sample note', words: 'example' },
         { name: 'Add the example board', words: 'kanban' },
         { name: 'Add the example canvas' },
@@ -289,6 +293,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoa
           updates={updates}
           onGuide={onGuide}
           onSample={onSample}
+          onGuideBook={onGuideBook}
           onBoard={onBoard}
           onCanvas={onCanvas}
           onHowCanvas={onHowCanvas}

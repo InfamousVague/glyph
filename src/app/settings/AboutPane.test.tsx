@@ -49,7 +49,7 @@ function about(given: Updates = updates(), onDeveloper = vi.fn()) {
   const noop = () => undefined;
   const host = show(
     <ToastProvider>
-      <AboutPane updates={given} onGuide={noop} onSample={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} onCheatSheet={noop} onDeveloper={onDeveloper} />
+      <AboutPane updates={given} onGuide={noop} onSample={noop} onGuideBook={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} onCheatSheet={noop} onDeveloper={onDeveloper} />
     </ToastProvider>,
   );
   return { host, onDeveloper };
