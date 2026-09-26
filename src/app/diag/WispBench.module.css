@@ -41,7 +41,7 @@
   inline-size: 2.25rem;
   block-size: 2.25rem;
   border: 0;
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: transparent;
   color: var(--glacier-text-muted);
   cursor: pointer;
@@ -177,7 +177,7 @@
   inset-inline-start: var(--glacier-space-3);
   inline-size: 0.5rem;
   block-size: 0.5rem;
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: currentColor;
 }
 

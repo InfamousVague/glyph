@@ -44,7 +44,7 @@
   margin-block-end: var(--glacier-space-3);
   padding: var(--glacier-space-2) var(--glacier-space-3);
   border: none;
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: color-mix(in oklch, currentColor 8%, var(--cs-ground));
   box-shadow: inset 0 0 0 1px color-mix(in oklch, currentColor 16%, transparent);
 }
@@ -99,7 +99,7 @@
   flex: none;
   padding: 0.35em 0.85em;
   border: var(--glacier-hairline) solid color-mix(in oklch, currentColor 18%, transparent);
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: none;
   color: var(--glacier-text-muted);
   font: inherit;

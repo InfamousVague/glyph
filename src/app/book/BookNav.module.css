@@ -22,7 +22,7 @@
   min-inline-size: 0;
   padding: 0.35em 0.5em;
   border: 0;
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: transparent;
   color: var(--glacier-text-muted);
   font: inherit;

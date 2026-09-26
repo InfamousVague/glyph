@@ -120,7 +120,7 @@
   gap: 0.4em;
   padding: 0.45em 0.9em;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: transparent;
   color: var(--glacier-text);
   font: inherit;
@@ -207,7 +207,7 @@
   inline-size: 1.2em;
   block-size: 1.2em;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
 }
 
 .pick[aria-pressed='true'] .pickMark {
@@ -255,7 +255,7 @@
   flex: none;
   padding: 0.3em 0.7em;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: transparent;
   color: var(--glacier-text-muted);
   font: inherit;

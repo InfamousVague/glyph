@@ -121,7 +121,7 @@
   margin: 0;
   padding: 0;
   border: none;
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: color-mix(in oklch, var(--app-ink) 8%, transparent);
   color: var(--app-ink-2);
   cursor: pointer;

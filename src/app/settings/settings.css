@@ -531,7 +531,7 @@
 .setk-hero__dot {
   inline-size: 0.5rem;
   block-size: 0.5rem;
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: var(--app-ink);
 }
 
@@ -676,7 +676,7 @@
   box-sizing: border-box;
   inline-size: 1.25rem;
   block-size: 1.25rem;
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   border: 2px solid var(--app-ink-3);
   transition:
     border-color var(--glacier-duration-fast) var(--glacier-ease-out),
@@ -696,7 +696,7 @@
 .setk-pick:focus-visible {
   outline: 2px solid var(--app-ink);
   outline-offset: 2px;
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
 }
 
 /* ── Type's sample: the size shown rather than described ──────────────────── */
@@ -738,7 +738,7 @@
   gap: var(--glacier-space-2);
   min-block-size: 2.4rem;
   padding-inline: var(--glacier-space-3);
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: var(--app-paper-2);
 }
 

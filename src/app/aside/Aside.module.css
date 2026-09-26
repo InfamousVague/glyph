@@ -71,7 +71,7 @@ span.headButton:hover {
   block-size: 2rem;
   margin-inline-start: auto;
   border: 0;
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: transparent;
   color: var(--glacier-text-muted);
   cursor: pointer;

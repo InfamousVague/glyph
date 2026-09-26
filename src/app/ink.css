@@ -468,6 +468,10 @@
  * One multiplier over the kit's whole radius scale (`--glacier-radius-scale`), stamped as `data-rounding`
  * (core/preferences.ts). `round` is the kit's own 1 and stamps nothing. A pill is untouched at every setting:
  * `--glacier-radius-full` is a flat 9999px, so Speak stays a pill even when every card is square.
+ *
+ * Most of the modules' pills write 999px instead, which the setting leaves alone too. It is the same pill, but not the
+ * same pixels: moved onto the token, a pill's corner is drawn a shade differently in a pixel or two (measured on the
+ * cheat sheet's search field, the same in every run), so they keep their number.
  */
 [data-rounding='square'] {
   --glacier-radius-scale: 0;

@@ -73,7 +73,7 @@
   letter-spacing: var(--app-tracking-caps-close);
   text-transform: uppercase;
   padding: 0.1em 0.6em;
-  border-radius: var(--glacier-radius-full);
+  border-radius: 999px;
   background: var(--app-ink);
   color: var(--app-paper);
 }
