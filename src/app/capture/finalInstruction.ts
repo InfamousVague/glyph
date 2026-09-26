@@ -1,7 +1,8 @@
 import { MARKER } from '../core/itemSyntax.ts';
-import { finalCommandWords, planCommand, type Placement, type Plan } from './command.ts';
+import { finalCommandWords, planCommand, withoutPayloadLead, type Placement, type Plan } from './command.ts';
 import { inferInstruction, type InferenceRun } from './instructionIntent.ts';
-import { resolveTarget, type Candidate } from './route.ts';
+import { findNote, nameWords } from './noteFind.ts';
+import type { Candidate } from './route.ts';
 import { literalMarkdown } from './instructionMutation.ts';
 import { spokenListItems } from './spokenList.ts';
 
@@ -10,8 +11,11 @@ export type FinalInstruction<N extends Candidate> =
   | { kind: 'offer'; plan: Plan<N> }
   | { kind: 'rejected'; reason: string };
 
-/** A spoken command that says it is about a list. */
-const LIST_WORDS = /\b(?:list|lists|items?|bullets?|bullet\s+points?|tasks?|to-?\s?dos?|check\s?list)\b/i;
+/**
+ * A spoken command that asks for several things: a list, or a plural kind ("items", "tasks", "to-dos", "bullet
+ * points"). Read with the note's own title taken out (`askedForList`): "House TODOs" is a name, not a request for items.
+ */
+const LIST_WORDS = /\b(?:lists?|items|bullets|bullet\s+points|tasks|todos|check\s?lists?)\b/i;
 /** A Markdown list line, its marker (core/itemSyntax.ts) and then words or a to-do's box: the note already keeps a list. */
 const LIST_LINE = new RegExp(String.raw`^\s*${MARKER}\s+\S`, 'm');
 /** The most words an item has when nobody said "list": longer pieces are a sentence with commas in it. */
@@ -26,13 +30,33 @@ const SENTENCE_START = /^(?:i|i'm|we|we're|you|he|she|it|it's|they|this|that|the
  * small model that leaves its placement empty cannot turn a list into a block
  * of text.
  */
-function listItems(words: string, content: string, body: string | undefined, asked: boolean): string[] | null {
-  const wanted = asked || LIST_WORDS.test(words);
+function listItems(words: string, content: string, note: { title: string; body?: string }, asked: boolean): string[] | null {
+  const body = note.body;
+  const wanted = asked || askedForList(words, note.title);
   if (!wanted && !LIST_LINE.test(body ?? '')) return null;
-  const items = spokenListItems(content);
+  // Told apart by commas, semicolons or "and", never word by word: "call an electrician to fix the light sockets" is
+  // one thing to do, and it was eight.
+  const items = /[,;]|\band\b/i.test(content) ? spokenListItems(content) : [];
   if (items.length < 2) return null;
   if (!wanted && items.some((item) => item.split(/\s+/).length > SHORT_ITEM_WORDS || SENTENCE_START.test(item))) return null;
   return items;
+}
+
+/**
+ * Whether the command asked for several things, with the note's title taken out of it first: "add to house to-dos,
+ * fix the gutter" is one to-do, where the title's "to-dos" once split it into "Fix", "The" and "Gutter".
+ */
+function askedForList(words: string, title: string): boolean {
+  const titled = new Set(nameWords(title).words);
+  const said = words
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/\b(?:to|two|2)[\s-]*do(?:s|es)\b/g, 'todos')
+    .replace(/\b(?:to|2)[\s-]*do\b/g, 'todo')
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word && !titled.has(nameWords(word).words[0] ?? word))
+    .join(' ');
+  return LIST_WORDS.test(said);
 }
 
 /** What a finished recording may do once confirmed: add to a note, or make a new list (with its items). */
@@ -60,7 +84,7 @@ export async function classifyFinalTranscript<N extends Candidate & { note?: { b
   if (deterministic && !unmatched) {
     if (deterministic.kind === 'place' && deterministic.how === 'leave') {
       // "Add to Movies Jaws, Alien and Heat": a list note takes several things as several items.
-      const items = listItems(words, deterministic.text, deterministic.note.note?.body, false);
+      const items = listItems(words, deterministic.text, { title: deterministic.note.title, body: deterministic.note.note?.body }, false);
       if (items) return { kind: 'offer', plan: { ...deterministic, how: 'item', many: true, items } };
     }
     return permitted(deterministic) ? { kind: 'offer', plan: deterministic } : { kind: 'rejected', reason: 'That command is not supported from a voice capture. Nothing changed.' };
@@ -74,14 +98,16 @@ export async function classifyFinalTranscript<N extends Candidate & { note?: { b
   }
   if (result.intent.action === 'none') return { kind: 'rejected', reason: unmatched ?? `That ${result.intent.reason} request was not changed.` };
   if (result.intent.action === 'create') return { kind: 'rejected', reason: unmatched ?? 'Creating a named note is not supported from a voice capture. Nothing changed.' };
-  const target = resolveTarget(result.intent.target, notes);
+  // The model's title as spoken, found as the rules find a name (noteFind.ts): "house chores" is House TODOs.
+  const target = findNote(result.intent.target, notes);
   if (target.status !== 'resolved') {
-    return { kind: 'rejected', reason: unmatched ?? (target.status === 'ambiguous' ? `“${result.intent.target}” matches more than one note. Nothing changed.` : `No note called “${result.intent.target}”. Nothing changed.`) };
+    return { kind: 'rejected', reason: unmatched ?? (target.status === 'unsure' ? `“${result.intent.target}” matches more than one note. Nothing changed.` : `No note called “${result.intent.target}”. Nothing changed.`) };
   }
   const area = result.intent.placement;
   // A list is told apart by the app, not the model: its items are literal
   // text, one bullet each, whether or not the model said "list".
-  const said = area !== 'notes' ? listItems(words, result.intent.content, target.note.note?.body, area === 'list' || area === 'tasks' || area === 'bugs') : null;
+  const content = withoutPayloadLead(result.intent.content);
+  const said = area !== 'notes' ? listItems(words, content, { title: target.note.title, body: target.note.note?.body }, area === 'list' || area === 'tasks' || area === 'bugs') : null;
   const listed = area === 'list' || area === 'tasks' || area === 'bugs' || said !== null;
   const items = (said ?? []).map(literalMarkdown);
   const placement: Placement = {
@@ -92,5 +118,5 @@ export async function classifyFinalTranscript<N extends Candidate & { note?: { b
     ...(area === 'bugs' ? { near: 'bugs' as const } : {}),
     ...(items.length > 1 ? { items } : {}),
   };
-  return { kind: 'offer', plan: { kind: 'place', note: target.note, text: literalMarkdown(result.intent.content), ...placement } };
+  return { kind: 'offer', plan: { kind: 'place', note: target.note, text: literalMarkdown(content), ...placement } };
 }

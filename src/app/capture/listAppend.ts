@@ -1,6 +1,9 @@
+import { frontMatterEnd } from '../core/frontMatter.ts';
+import { noteTitle } from '../core/noteTitle.ts';
 import { listLead, type ListLead } from '../core/itemSyntax.ts';
 import { capitalise } from '../core/text.ts';
 import { appendBlock } from './appendBody.ts';
+import { titleKind } from './noteFind.ts';
 import { enumeration } from './spoken/lists.ts';
 
 /**
@@ -15,7 +18,7 @@ import { enumeration } from './spoken/lists.ts';
  * command said "task" or "to-do". Pure, so every shape of note is a test.
  */
 
-interface Run {
+export interface Run {
   /** Index of the run's first and last line. */
   first: number;
   last: number;
@@ -28,10 +31,13 @@ interface Run {
   style: { kind: 'bullet'; mark: string; task: boolean } | { kind: 'number'; next: number; delimiter: string; task: boolean };
 }
 
-/** Every list in `lines`, in order. */
-function runsOf(lines: readonly string[]): Run[] {
+/**
+ * Every list in `lines`, in order, from the end of the note's front matter (core/frontMatter.ts): a key's value is
+ * never a list to put words in.
+ */
+export function runsOf(lines: readonly string[]): Run[] {
   const runs: Run[] = [];
-  let i = 0;
+  let i = frontMatterEnd(lines);
   let fence: string | null = null;
   while (i < lines.length) {
     const line = lines[i] ?? '';
@@ -124,16 +130,19 @@ function runFor(lines: readonly string[], runs: readonly Run[], text: string | u
   return best;
 }
 
-function styleOf(lead: ListLead): Run['style'] {
+export function styleOf(lead: ListLead): Run['style'] {
   const task = lead.done !== null;
   // A number's marker is its digits and then its `.` or `)`; a bullet's is the one character.
   if (/\d/.test(lead.marker)) return { kind: 'number', next: Number.parseInt(lead.marker, 10) + 1, delimiter: lead.marker.slice(-1), task };
   return { kind: 'bullet', mark: lead.marker, task };
 }
 
-/** One item's text as a list line: first letter up, no closing full stop. */
-function itemText(text: string): string {
-  const trimmed = text.trim().replace(/[\s.,;:]+$/, '');
+/**
+ * One item's text as a list line: first letter up, no closing full stop. A stop the model's words carried in escaped
+ * (instructionMutation.ts `literalMarkdown` writes `\.`) goes with its backslash, which alone would end the line.
+ */
+export function itemText(text: string): string {
+  const trimmed = text.trim().replace(/(?:\\?[\s.,;:])+$/, '');
   return capitalise(trimmed);
 }
 
@@ -188,15 +197,16 @@ function itemShaped(text: string): boolean {
   return words <= 30 && sentences <= 2;
 }
 
-/** Title-owned defaults when a list has no items yet. */
-function semanticListKind(body: string): 'task' | 'bullet' | null {
-  const title = (body.split('\n').find((line) => line.trim()) ?? '')
-    .replace(/^#{1,6}\s+/, '')
-    .trim()
-    .toLowerCase();
-  if (/^(?:to\s*-?\s*do|todo|tasks?)$/.test(title)) return 'task';
-  if (/^(?:groceries|grocery|shopping|list)$/.test(title)) return 'bullet';
-  return null;
+/**
+ * Title-owned defaults when a list has no items yet, from the note's title as the list reads it (after its front
+ * matter): a to-do title ("Todo", "House TODOs", "Chores") takes to-dos, a list title ("Groceries", "Packing list")
+ * bullets (noteFind.ts `titleKind`). Only a title of a few words: a note that opens with a sentence about shopping is
+ * not a shopping list.
+ */
+export function semanticListKind(body: string): 'task' | 'bullet' | null {
+  const title = noteTitle(body);
+  if (!title || title.split(/\s+/).length > 4) return null;
+  return titleKind(title);
 }
 
 /**

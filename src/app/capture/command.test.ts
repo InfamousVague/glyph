@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bookNoteBody } from '../book/book.ts';
-import { actionable, findKeyword, findSoundAlike, placedOn, planCommand, reply } from './command.ts';
+import { actionable, finalCommandWords, findKeyword, findMisheard, findSoundAlike, onlyFiller, placedOn, planCommand, reply, withoutPayloadLead } from './command.ts';
 
 const notes = [
   { id: 'b', title: 'AttackFM Bugbash' },
@@ -175,5 +175,49 @@ describe('books by voice', () => {
     if (waiting?.kind !== 'await') throw new Error(`expected a wait, got ${JSON.stringify(waiting)}`);
     expect(waiting).toMatchObject({ note: guide, how: 'leave' });
     expect(placedOn(waiting, 'Rivers')).toEqual({ kind: 'chapter', note: guide, title: 'Rivers' });
+  });
+});
+
+describe('what is added, and what only introduced it', () => {
+  const house = [{ id: 'house', title: 'House TODOs', note: { body: '# House TODOs\n\n- [ ] Fix the gutter\n' } }];
+
+  it('leaves “The note is” and its like out of what is added', () => {
+    for (const words of [
+      "add a note to house to do's. The note is call an electrician to fix the light sockets.",
+      "add a note to house to do's, the note says call an electrician to fix the light sockets",
+      'add a note to house to-dos: it says call an electrician to fix the light sockets',
+    ]) {
+      expect(planCommand(words, { notes: house }), words).toMatchObject({ kind: 'place', note: { id: 'house' }, text: 'call an electrician to fix the light sockets' });
+    }
+    expect(withoutPayloadLead('The note is: call Sam')).toBe('call Sam');
+    // Words that only look like one stay: a note about a note.
+    expect(withoutPayloadLead('The note from Sam is on the fridge')).toBe('The note from Sam is on the fridge');
+  });
+
+  it('finds a note named at the start of “add to …” by its words, up to a comma or the best few words', () => {
+    expect(planCommand('add to house to-dos, call an electrician', { notes: house })).toMatchObject({ kind: 'place', note: { id: 'house' }, text: 'call an electrician' });
+    expect(planCommand('add to my house chores call an electrician', { notes: house })).toMatchObject({ kind: 'place', note: { id: 'house' }, text: 'call an electrician' });
+  });
+});
+
+describe('the keyword misheard', () => {
+  const reads = (words: string) => actionable(plan(words));
+
+  it('takes “hey, like” and “hey goes” at the start when a command follows, and not otherwise', () => {
+    expect(findMisheard('Hey, like add eggs to work.', reads)).toEqual({ before: '', after: 'add eggs to work.' });
+    expect(findMisheard('Hey goes add eggs to work', reads)?.after).toBe('add eggs to work');
+    expect(findMisheard('Hi coast, new note.', reads)?.after).toBe('new note.');
+    expect(findMisheard('Hey, like, the weather is lovely.', reads)).toBeNull();
+    expect(findMisheard('Hey goes the saying.', reads)).toBeNull();
+    expect(findMisheard('I said hey goes add eggs to work', reads)).toBeNull();
+  });
+
+  it('reads a finished recording that opened with one, or with filler before the keyword', () => {
+    expect(finalCommandWords('Hey, like add eggs to work.')).toBe('add eggs to work.');
+    expect(finalCommandWords('Um, hey Ghost, add eggs to work.')).toBe('add eggs to work.');
+    expect(finalCommandWords('Hey Ghost, I want to add eggs to work.')).toBe('add eggs to work.');
+    expect(finalCommandWords('Hey Ghost, let’s add eggs to work.')).toBe('add eggs to work.');
+    expect(onlyFiller('Um,')).toBe(true);
+    expect(onlyFiller('Pick up the parcel.')).toBe(false);
   });
 });

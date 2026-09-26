@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appendToList, leaveNote } from './listAppend.ts';
+import { appendToList, itemText, leaveNote, placeWords } from './listAppend.ts';
 
 describe('adding spoken items to a note’s list', () => {
   it('goes on the end of the last list, in its own style', () => {
@@ -70,5 +70,24 @@ describe('leaving a spoken note in another note', () => {
     });
     const long = 'The seek bar goes out of step when two devices play. It starts after a pause. It gets worse over time. Nobody has found why yet.';
     expect(leaveNote('- [ ] One\n', long).into).toBe('paragraph');
+  });
+});
+
+describe('a note’s front matter and a title that says what it holds', () => {
+  it('never takes a list from the front matter, and reads the title after it', () => {
+    const book = '---\nbook: true\ntitle: Todo\n---\n# Todo\n';
+    expect(placeWords(book, 'call Sam', { how: 'leave', task: false, many: false }).body).toBe('---\nbook: true\ntitle: Todo\n---\n# Todo\n\n- [ ] Call Sam\n');
+  });
+
+  it('starts to-dos in a note whose title says to-dos, and bullets in one whose title says list', () => {
+    expect(placeWords('# House TODOs\n', 'call an electrician', { how: 'leave', task: false, many: false }).added).toEqual(['- [ ] Call an electrician']);
+    expect(placeWords('# Packing list\n', 'the tent', { how: 'leave', task: false, many: false }).added).toEqual(['- The tent']);
+    // A first line that is a sentence is not a title that says what the note holds.
+    expect(placeWords('Shopping for the weekend is below this line.', 'oat milk', { how: 'leave', task: false, many: false }).into).toBe('paragraph');
+  });
+
+  it('leaves no backslash where the model’s words ended in an escaped full stop', () => {
+    expect(itemText('fix the light\\-sockets\\.')).toBe('Fix the light\\-sockets');
+    expect(appendToList('- [ ] Gutter', ['call Sam\\.']).added).toEqual(['- [ ] Call Sam']);
   });
 });

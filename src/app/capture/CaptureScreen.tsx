@@ -44,6 +44,7 @@ import { ListLanding, TableCard, TablePreview } from './CaptureCards.tsx';
 import { lingerMs } from './chip.ts';
 import { RouteChip } from './RouteChip.tsx';
 import { diagnosticsLine, EMPTY_DIAGNOSTICS, soundsSilent, type Diagnostics } from './diagnostics.ts';
+import { commandCandidates } from './candidates.ts';
 import { withFinalWords } from './finalWords.ts';
 import { appendsTo, onTape } from './timeline.ts';
 import { statusLine, stopHint, whereLine } from './screenText.ts';
@@ -280,18 +281,14 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // Decided once, as the capture opens: a new capture is a new mount.
   }, [aimedAt, writer]);
 
-  // The notes "add to …" can name. Read once: a capture lasts minutes, and a
+  // The notes "add to …" can name (candidates.ts). Read once: a capture lasts minutes, and a
   // note made meanwhile is not one someone will name mid-sentence.
   useEffect(() => {
     let current = true;
     void listNotes()
       .then((all) => {
         if (!current) return;
-        candidates.current = all
-          .filter((n) => !n.archivedAt)
-          .sort((a, b) => b.updatedAt - a.updatedAt)
-          .map((note) => ({ id: note.id, title: noteTitle(note.body), note }))
-          .filter((c) => c.title);
+        candidates.current = commandCandidates(all);
         // "Note link weekend trip end link" takes the note's own spelling.
         setLinkTitles(candidates.current.map((c) => c.title));
         setNotesRead(true);

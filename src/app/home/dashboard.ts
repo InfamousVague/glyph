@@ -1,31 +1,13 @@
-import { bookIndex, isBookBody } from '../book/book.ts';
+import { isBookBody } from '../book/book.ts';
 import { itemOnLine, itemWords } from '../core/boards.ts';
 import { taskBox } from '../core/itemSyntax.ts';
-import { noteTitle, type Note } from '../core/store.ts';
-import { titleKey } from '../core/titleKey.ts';
-import { sameTitle } from '../editor/wikiLinks.ts';
-import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
+import type { Note } from '../core/store.ts';
+import { guidePages } from '../guidebook/guidebook.ts';
 
 /**
  * What the home page gathers from the notes (home/HomeScreen.tsx): the pinned ones, the ones touched last, and every
  * to-do not yet ticked, wherever it was written. Pure, so each rule is a test rather than a page to look at.
  */
-
-/**
- * The pages of Ghost.md: The Guide (guidebook/guidebook.ts), by id: the app's manual, read from its card in the
- * Library. Added at once, its forty-four chapters would fill Recent with the manual, and the to-dos its chapters draw
- * as examples would sit among the person's own, so the home page leaves both out, as it does a to-do in a code fence.
- * Only the Guide's: a chapter of a book of one's own is one's own note, and shows as any note does.
- */
-function guidePages(notes: readonly Note[]): Set<string> {
-  const index = bookIndex(notes);
-  const pages = new Set<string>();
-  for (const note of notes) {
-    const place = index.get(titleKey(noteTitle(note.body)));
-    if (place && sameTitle(place.title, GUIDE_TITLE)) pages.add(note.id);
-  }
-  return pages;
-}
 
 /** Pinned notes, newest first. The archive is never on the home page. */
 export function pinnedNotes(notes: readonly Note[]): Note[] {

@@ -1,7 +1,8 @@
 import { isBookBody } from '../book/book.ts';
 import { addToLane, lanesOf, matchLane, moveToLane, type Lane } from '../core/boards.ts';
 import { capitalise, escapeRegExp } from '../core/text.ts';
-import { matchNote, parseRoute, type Candidate } from './route.ts';
+import { findNote, nameWords, spokenName } from './noteFind.ts';
+import { parseRoute, type Candidate } from './route.ts';
 import { cellsOf } from './table.ts';
 import { spokenListItems } from './spokenList.ts';
 
@@ -49,6 +50,34 @@ const KEYWORD =
  * follows reads as a command (`findSoundAlike`); "We climbed the cliff at dawn" and "Life is short" stay words.
  */
 const SOUND_ALIKE = /^\s*(?:(?:hey|hi|ok(?:ay)?|so|a|add|head|hade|hate|take|tag)[,\s]+)?(?:life|live|lift|lip|cliff|clip|glide|slip)[,.;:!?]+\s*/i;
+
+/**
+ * What Whisper writes for "hey Ghost" and "hey Glyph" as words of their own: "Hey, like, add a note to…" (Glyph heard
+ * as "like", "life" or "live"), "Hey goes add…", "Hi coast, add…" (Ghost). Matt said "hey, like add a note to house to
+ * do's" and it became a note of its words. These are ordinary words, so one counts only at the very start of a phrase,
+ * and only when what follows reads as a command (`findMisheard`, and each reader's own guard).
+ */
+const MISHEARD = /^\s*(?:(?:hey|hi|ok(?:ay)?)[,.\s]+(?:like|life|live)|(?:hey|hi)[,.\s]+(?:goes|go|coast|host|post|toast|most|gost))(?=$|[\s,.;:!?])[,.;:!?]*\s*/i;
+
+/** A mishearing of the keyword at the start of `text`, when `reads` says the rest is a command: the same shape as `findKeyword`. */
+export function findMisheard(text: string, reads: (words: string) => boolean): { before: string; after: string } | null {
+  const found = MISHEARD.exec(text);
+  if (!found) return null;
+  const after = text.slice(found[0].length).trim();
+  return after && reads(after) ? { before: '', after } : null;
+}
+
+/**
+ * What a person says before the command itself, taken off for reading and never from the words kept: "um", "okay",
+ * "like", "please", "can you", and "I want to" or "let's" when "add" or "put" follows.
+ */
+export const LEAD_INS =
+  /^\s*(?:(?:um+|uh+|er+|hmm+|ok(?:ay)?|alright|all right|so|and|like|well|right|please|just|now|hey|hi)(?:[,.\s]+|$)|(?:can|could|would|will)\s+you(?:[,.\s]+|$)|(?:i\s+want\s+to|i['’]?d\s+like\s+to|i\s+need\s+to|let['’]?s|go\s+ahead\s+and)\s+(?=(?:add|put|append)\b))+/i;
+
+/** Whether `text` is only filler, which may come before the keyword and leave it the first thing said ("Um, hey Ghost"). */
+export function onlyFiller(text: string): boolean {
+  return text.replace(/[\s,.;:!?…"“]+/g, ' ').trim().replace(LEAD_INS, '').trim() === '';
+}
 
 /**
  * "…to the Glyph note": the word as a note's name, not the keyword. Matt has a
@@ -221,9 +250,9 @@ export function finalCommandWords(text: string): string | null {
   let words = stripStopCue(text.trim()).replace(/^[\s.,;:!?…"“]+/, '');
   for (let pass = 0; pass < 3; pass += 1) {
     const before = words;
-    const keyword = findKeyword(words);
-    if (keyword && !keyword.before.trim()) words = keyword.after;
-    words = words.replace(/^\s*(?:(?:hey|hi|please|can you|could you|would you|will you|and|so|ok(?:ay)?|alright|all right|um+|uh+|er+|hmm+)[,.\s]+)+/i, '').trim();
+    const keyword = findKeyword(words) ?? findMisheard(words, (after) => isStandaloneCommandLike(after.replace(LEAD_INS, '')));
+    if (keyword && onlyFiller(keyword.before)) words = keyword.after;
+    words = words.replace(LEAD_INS, '').trim();
     if (words === before) break;
   }
   return isStandaloneCommandLike(words) ? words : null;
@@ -249,17 +278,16 @@ const TABLE_COLUMNS = /\s*,?\s*(?:with|using|that has|having)\s+(?:the\s+)?(?:co
 /** A preposition that can end what is added and start the note's name. */
 const INTO = /(?:^|\s+)(?:to|in|into|onto|on|under|for)\s+/gi;
 
-/** The note a spoken name means, leniently: "the", "my" and a trailing "note" or "list" gone. */
-function noteNamed<N extends Candidate>(raw: string, notes: readonly N[]): { note: N; score: number } | null {
-  const name = raw
-    .replace(/[.,;:!?"“”]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/^(?:(?:the|my|our|a)\s+)+/i, '')
-    .replace(/\s+(?:note|notes|node|list|page)$/i, '')
-    .trim();
+/**
+ * The note a spoken name means, when one clearly does (noteFind.ts): "the house list" and "house chores" are House
+ * TODOs. Only a resolved note counts here; a name that is unsure, or means the note being written to, is no note.
+ */
+function noteNamed<N extends Candidate & { note?: { body: string } }>(raw: string, notes: readonly N[]): { note: N; score: number } | null {
+  // "Node" is how base.en writes "note" said quickly.
+  const name = spokenName(raw).replace(/\s+node$/i, '').trim();
   if (name.length < 2) return null;
-  return matchNote(name, notes);
+  const found = findNote(name, notes);
+  return found.status === 'resolved' ? { note: found.note, score: found.score } : null;
 }
 
 /** Match an actual title at the start of a spoken tail, case/punctuation-insensitively. */
@@ -274,6 +302,30 @@ function titledPrefix<N extends Candidate>(tail: string, notes: readonly N[]): {
     })
     .filter((value): value is { note: N; text: string } => value !== null);
   return found.length === 1 ? (found[0] ?? null) : null;
+}
+
+/**
+ * A spoken name at the start of a tail, found as any name is (noteFind.ts), and what follows it: up to a comma, colon
+ * or semicolon when there is one ("add to house to-dos, call an electrician"), otherwise the first few words that
+ * name a note clearly, the best of them ("add to house to-dos call an electrician").
+ */
+function namedPrefix<N extends Candidate & { note?: { body: string } }>(tail: string, notes: readonly N[]): { note: N; text: string } | null {
+  const stop = /^([^,:;]+?)\s*[,:;]\s*(.+)$/.exec(tail);
+  if (stop?.[1] && stop[2]?.trim()) {
+    const found = noteNamed(stop[1], notes);
+    return found ? { note: found.note, text: stop[2].trim() } : null;
+  }
+  const words = tail.trim().split(/\s+/);
+  // The whole tail a name as good as any part of it: it is the name ("add this to the field guide"), with nothing after.
+  const whole = noteNamed(tail, notes);
+  let best: { note: N; score: number; text: string } | null = null;
+  for (let k = 1; k <= Math.min(6, words.length - 1); k += 1) {
+    const found = noteNamed(words.slice(0, k).join(' '), notes);
+    // A kind word that scores the same belongs to the name: "house chores", not "house" and then "chores call…".
+    const kind = nameWords(words[k - 1] ?? '').distinctive.length === 0;
+    if (found && (!best || found.score > best.score || (found.score === best.score && kind))) best = { note: found.note, score: found.score, text: words.slice(k).join(' ') };
+  }
+  return best && (!whole || best.score > whole.score) ? { note: best.note, text: best.text } : null;
 }
 
 function placementOf(noun: RegExpExecArray | null): Placement {
@@ -299,11 +351,29 @@ export interface PlanOptions<N extends Candidate & { note?: { body: string } }> 
 
 export function planCommand<N extends Candidate & { note?: { body: string } }>(words: string, options: PlanOptions<N>): Plan<N> | null {
   const plan = readCommand(words, options);
-  // What is added is words, not the end of a spoken sentence. Spoken quote
-  // cues are user punctuation, not literal command prose.
+  // What is added is words, not the end of a spoken sentence, and not how it was introduced ("The note is …").
+  // Spoken quote cues are user punctuation, not literal command prose.
   return plan?.kind === 'place'
-    ? { ...plan, text: plan.text.replace(/\bquote\s+(.+?)\s+quote\b/gi, '"$1"').replace(/[\s.,;:!?]+$/, '') }
+    ? {
+        ...plan,
+        text: withoutPayloadLead(plan.text)
+          .replace(/\bquote\s+(.+?)\s+quote\b/gi, '"$1"')
+          .replace(/[\s.,;:!?]+$/, ''),
+      }
     : plan;
+}
+
+/**
+ * How a person introduces what a note should say, which is not what it says: "The note is call an electrician", "it
+ * says…", "the item is…". Matt's "add a note to house to do's, the note is call an electrician to fix the light
+ * sockets" put "The note is" in the list.
+ */
+export const PAYLOAD_LEAD =
+  /^\s*(?:(?:and\s+)?(?:the|my|this)\s+(?:note|item|task|to-?\s?do|reminder|line|entry)\s+(?:is|says|reads|should\s+say|will\s+say)|it\s+says|that\s+says|which\s+says|saying|to\s+say)(?:\s*[:,-]\s*|\s+)(?=\S)/i;
+
+/** `text` without the words that introduced it (`PAYLOAD_LEAD`). */
+export function withoutPayloadLead(text: string): string {
+  return text.replace(PAYLOAD_LEAD, '');
 }
 
 /** "Make this a board", "turn the list into a kanban board". */
@@ -396,7 +466,8 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
   if (directAppend?.[1]) {
     // 'labeled "Go" a list…': the quotes are the title's, not the words'.
     const named = /^["“]([^"”]+)["”]\s*(.*)$/.exec(directAppend[1]);
-    const found = titledPrefix(named ? `${named[1]} ${named[2]}` : directAppend[1], notes);
+    const tail = named ? `${named[1]} ${named[2]}` : directAppend[1];
+    const found = titledPrefix(tail, notes) ?? namedPrefix(tail, notes);
     if (found) return { kind: 'place', note: found.note, target: null, ...directPayload(found.text.replace(/^[\s,:;-]+/, '')) };
     // "Add this to the field guide": a whole title with nothing after it is this recording going there, which the
     // rules below read (a chapter, when the note is a book). Only a shape with words after the title fails closed

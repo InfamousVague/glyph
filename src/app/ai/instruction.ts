@@ -1,4 +1,4 @@
-import { findKeyword, type Plan } from '../capture/command.ts';
+import { findKeyword, findMisheard, isStandaloneCommandLike, LEAD_INS, onlyFiller, type Plan } from '../capture/command.ts';
 import { classifyFinalTranscript } from '../capture/finalInstruction.ts';
 import type { Candidate } from '../capture/route.ts';
 import type { RunKind } from './kinds.ts';
@@ -41,19 +41,23 @@ export type Read<N extends Candidate> =
 /** The lead-ins a person says before the thing itself. */
 const LEAD = /^\s*(?:(?:hey|hi|ok(?:ay)?|alright|all right|please|can you|could you|would you|will you|just|now|um+|uh+)[,.\s]+)+/i;
 
-/** The words themselves: a keyword at the start and the lead-ins gone. Null when the keyword is inside, not first. */
+/**
+ * The words themselves: a keyword at the start and the lead-ins gone. Null when the keyword is inside, not first;
+ * filler before it ("Um, hey Ghost") leaves it first, and a mishearing of it ("Hey, like, add…", "Hey goes, add…")
+ * counts when a command follows (capture/command.ts `findMisheard`).
+ */
 export function bareWords(text: string): { words: string; keyed: boolean } | null {
   let words = text.trim().replace(/^[\s.,;:!?…"“]+/, '');
   let keyed = false;
   for (let pass = 0; pass < 3; pass += 1) {
     const before = words;
-    const keyword = findKeyword(words);
+    const keyword = findKeyword(words) ?? (keyed ? null : findMisheard(words, (after) => isStandaloneCommandLike(after.replace(LEAD_INS, ''))));
     if (keyword) {
-      if (keyword.before.trim()) return null;
+      if (!onlyFiller(keyword.before)) return null;
       words = keyword.after;
       keyed = true;
     }
-    words = words.replace(LEAD, '').trim();
+    words = words.replace(LEAD, '').replace(LEAD_INS, '').trim();
     if (words === before) break;
   }
   return { words: words.replace(/[.!?]+$/, '').trim(), keyed };

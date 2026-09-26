@@ -65,3 +65,27 @@ describe('reading an instruction', () => {
     expect(await readInstruction('we should shorten the second paragraph', notes)).toEqual({ kind: 'words' });
   });
 });
+
+describe('the keyword as Whisper hears it', () => {
+  const house = [...notes, { id: 'h', title: 'House TODOs', note: makeNote('h', '# House TODOs\n\n- [ ] Fix the gutter\n') }];
+
+  it('takes filler before the keyword, and the mishearings of it when a command follows', () => {
+    expect(bareWords('Um, hey Ghost, add call Sam to house to-dos.')).toEqual({ words: 'add call Sam to house to-dos', keyed: true });
+    expect(bareWords("Hey, like add a note to house to do's")).toEqual({ words: "add a note to house to do's", keyed: true });
+    expect(bareWords('Hey goes add a note to house to-dos')).toEqual({ words: 'add a note to house to-dos', keyed: true });
+    // Not followed by a command, they are words: "Hey, like, the weather" is a note.
+    expect(bareWords('Hey, like, the weather is lovely')).toMatchObject({ keyed: false });
+    expect(bareWords('Hey goes the dog')).toMatchObject({ keyed: false });
+  });
+
+  it.each([
+    "Hey, like add a note to house to do's, the note is call an electrician to fix the light sockets.",
+    'Hey goes add a note to house to-dos. Call an electrician to fix the light sockets.',
+    'Okay, hey Ghost, I want to add call an electrician to fix the light sockets to house to-dos.',
+    'Hey Ghost, like, add a note to house chores. The note is call an electrician to fix the light sockets.',
+  ])('is Matt’s command on House TODOs, however it opened: %s', async (said) => {
+    const read = await readInstruction(said, house);
+    expect(read).toMatchObject({ kind: 'command', plan: { kind: 'place', note: { id: 'h' } } });
+    if (read.kind === 'command' && read.plan.kind === 'place') expect(read.plan.text).toMatch(/^call an electrician to fix the light sockets$/i);
+  });
+});

@@ -1,5 +1,6 @@
-import { isBookBody } from '../book/book.ts';
+import { bookIndex, isBookBody } from '../book/book.ts';
 import { createNote, newNoteId, noteTitle, type Note } from '../core/store.ts';
+import { titleKey } from '../core/titleKey.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 
 /**
@@ -19,6 +20,23 @@ import { sameTitle } from '../editor/wikiLinks.ts';
  */
 
 export const GUIDE_TITLE = 'Ghost.md: The Guide';
+
+/**
+ * The pages of Ghost.md: The Guide, by id: the app's manual, read from its card in the Library. Added at once, its
+ * forty-four chapters would fill Recent with the manual, and the to-dos its chapters draw as examples would sit among
+ * the person's own, so the home page leaves both out (home/dashboard.ts), as it does a to-do in a code fence; and a
+ * voice command never names one (capture/candidates.ts), so "the to-do list" is never the Guide's Lists and to-dos.
+ * Only the Guide's: a chapter of a book of one's own is one's own note, and shows as any note does.
+ */
+export function guidePages(notes: readonly Note[]): Set<string> {
+  const index = bookIndex(notes);
+  const pages = new Set<string>();
+  for (const note of notes) {
+    const place = index.get(titleKey(noteTitle(note.body)));
+    if (place && sameTitle(place.title, GUIDE_TITLE)) pages.add(note.id);
+  }
+  return pages;
+}
 
 /** A chapter as it ships: its title, read from its heading as the list reads it, and its Markdown. */
 export interface GuideChapter {

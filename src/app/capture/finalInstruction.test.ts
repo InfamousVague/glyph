@@ -138,6 +138,45 @@ describe('final transcript instruction scan', () => {
   });
 });
 
+/**
+ * Matt's sentence, and the ways it came out as a new note: said into a fresh recording with House TODOs in the
+ * library. The reader at Done must find the note, leave "The note is" out, and keep one thing to do as one to-do.
+ */
+describe('adding to House TODOs, read from the finished recording', () => {
+  const house = { id: 'house', title: 'House TODOs', note: { body: '# House TODOs\n\n- [ ] Fix the gutter\n' } };
+  const library = [house, { id: 'todo', title: 'Todo', note: { body: '# Todo' } }, { id: 'tm', title: 'Task Management', note: { body: '# Task Management' } }];
+  const placed = (plan: { text: string; how: 'leave' | 'item' | 'paragraph'; task: boolean; many: boolean; items?: readonly string[] }) =>
+    placeWords(house.note.body, plan.text, plan).added;
+
+  it.each([
+    "add a note to house to do's. The note is call an electrician to fix the light sockets.",
+    "add a note to house to do's, the note is call an electrician to fix the light sockets.",
+    'add a note to house chores, the note is call an electrician to fix the light sockets.',
+    'add a note to the house list items: call an electrician to fix the light sockets.',
+    'add call an electrician to fix the light sockets to house to-dos.',
+    'add to house to-dos, call an electrician to fix the light sockets.',
+  ])('finds House TODOs and adds one to-do: %s', async (words) => {
+    const decision = await classifyFinalTranscript(words, library, never());
+    if (decision.kind !== 'offer' || decision.plan.kind !== 'place') throw new Error(`expected an offer, got ${JSON.stringify(decision)}`);
+    expect(decision.plan.note.id).toBe('house');
+    expect(placed(decision.plan)).toEqual(['- [ ] Call an electrician to fix the light sockets']);
+  });
+
+  it('keeps a single item whole when the title says to-dos', async () => {
+    const decision = await classifyFinalTranscript('Add to House TODOs: fix the gutter.', library, never());
+    expect(decision).toMatchObject({ kind: 'offer', plan: { note: { id: 'house' }, text: 'fix the gutter' } });
+    if (decision.kind === 'offer' && decision.plan.kind === 'place') expect(placed(decision.plan)).toEqual(['- [ ] Fix the gutter']);
+  });
+
+  it('finds the model’s title as the rules would, and leaves no backslash on its words', async () => {
+    const run = vi.fn(() => inferred({ status: 'intent', model: 'local', intent: { action: 'append', target: 'house chores', content: 'The note is call an electrician to fix the light-sockets.', placement: null } }));
+    const decision = await classifyFinalTranscript('add a note for the house jobs thing about the electrician and the light sockets', library, run);
+    if (decision.kind !== 'offer' || decision.plan.kind !== 'place') throw new Error(`expected an offer, got ${JSON.stringify(decision)}`);
+    expect(decision.plan.note.id).toBe('house');
+    expect(placed(decision.plan)).toEqual(['- [ ] Call an electrician to fix the light\\-sockets']);
+  });
+});
+
 function never() {
   return vi.fn(() => inferred({ status: 'unavailable', reason: 'not called' }));
 }
