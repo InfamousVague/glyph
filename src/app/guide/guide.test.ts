@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readInstruction } from '../ai/instruction.ts';
 import { ASK, COMMAND, CUE_ALONE, PHRASES, renderExample } from './phrases.ts';
+import { LiveTake } from '../capture/liveTake.ts';
 
 /**
  * The guide may only teach what the speech rules do. Each example is rendered
@@ -38,7 +39,15 @@ describe('what the habits page says to say after “Hey Ghost”', () => {
   const groceries = { id: 'g1', title: 'Groceries', note: { body: '# Groceries\n\n- Eggs\n' } };
   const library = [groceries, { id: 'w1', title: 'Work', note: { body: '# Work\n' } }];
 
-  it('is a command the recorder acts on at Done, putting the words in the note it names', async () => {
+  it('is a command the recorder carries out as it is said, putting the words in the note it names', () => {
+    const take = new LiveTake(library.map((c) => ({ id: c.id, body: c.note.body })));
+    take.phrase({ text: `${COMMAND.say}.`, startMs: 0, endMs: 1500 }, 0);
+    take.close(2000);
+    expect(take.body('g1')).toBe(`# Groceries\n\n- Eggs\n- ${COMMAND.words.charAt(0).toUpperCase()}${COMMAND.words.slice(1)}\n`);
+    expect(take.result().made).toEqual([]);
+  });
+
+  it('is read the same by the reader at Done, putting the words in the note it names', async () => {
     const read = await readInstruction(COMMAND.say, library);
     expect(read.kind).toBe('command');
     if (read.kind !== 'command' || read.plan.kind !== 'place') throw new Error(`not a command to place words: ${read.kind}`);

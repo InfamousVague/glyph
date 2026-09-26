@@ -195,10 +195,10 @@ export function renderExample(example: Example): string {
 
 /**
  * What the habits page (guide/pages/Tips.tsx) teaches to say first, after "Hey Ghost": a command, which puts words in
- * a note by its name, and an ask, which runs the AI on the note whose mic it is said into. guide.test.ts runs both
- * through `readInstruction` (ai/instruction.ts), the one reader the recorder asks at Done, so a change to it that stops
- * either working fails a test rather than the page. Only two kinds of command act from there - words added to a note
- * by its name, and a new list by name - so those are what the guide teaches (capture/finalInstruction.ts `permitted`).
+ * a note by its name, and an ask, which runs the AI on the note whose mic it is said into. guide.test.ts holds the
+ * command to the live reader (capture/liveRoute.ts), which carries it out as it is said, and the ask to `readInstruction`
+ * (ai/instruction.ts), the reader the recorder asks at Done, so a change to either that stops it working fails a test
+ * rather than the page.
  */
 export const COMMAND = { say: 'Hey Ghost, add bread to Groceries', note: 'Groceries', words: 'bread' } as const;
 export const ASK = { say: 'Hey Ghost, fix the spelling', run: 'fix' } as const;

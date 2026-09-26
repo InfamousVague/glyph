@@ -21,9 +21,10 @@ import type { CaptureHandlers, CaptureSession } from './engine.ts';
  * says a note with a misheard word and, on Done, runs the review with its
  * models simulated in the note it opens (ai/useNoteReview.ts, ai/reviewSimulation.ts).
  *
- * The scripts that say commands were written for the live reading of commands a phrase at a time. Since PR #1 the
- * recorder only shows each phrase and reads the one command in the whole transcript at Done (CaptureScreen.tsx
- * `finish`), so what they show now is what that reading makes of them.
+ * The scripts that say commands were written for the old live reading of commands a phrase at a time, with a "yes" to
+ * confirm. The recorder's live reader (liveRoute.ts) carries out "hey Ghost, add … to <note>" as it is said, with no
+ * yes, and reads anything else once, from the whole transcript, at Done (CaptureScreen.tsx `finish`); a "Yes." in
+ * these scripts is words. `?simulate=say` is the way to try a command as it is said now.
  */
 const SCRIPTS: Record<string, string[]> = {
   note: [

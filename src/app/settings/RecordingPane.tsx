@@ -23,7 +23,7 @@ export function RecordingPane() {
         />
         <SettingRow
           label="Commands start with “hey Ghost”"
-          hint="Say “Hey Ghost, add buy milk to HelloTrade” and it asks before it does it. Off, a command can be said without it, and still asks."
+          hint="Say “Hey Ghost, add call Sam to House TODOs” and the words go into that note as you say them. Not this note, Discard or Undo takes them back. Off, “Add a note to House TODOs…” at the very start of a recording works without it."
           control={
             <Switch aria-label="Commands start with hey Ghost" checked={prefs.commandWord} onCheckedChange={(commandWord) => setPreferences({ commandWord })} />
           }

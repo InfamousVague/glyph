@@ -1,5 +1,3 @@
-import { isBookBody } from '../book/book.ts';
-import { lanesOf } from '../core/boards.ts';
 import { lowerFirst } from '../core/text.ts';
 
 /**
@@ -12,9 +10,12 @@ import { lowerFirst } from '../core/text.ts';
  * can be said is on the page while the microphone waits. Then, in a pause
  * (`tips`), one line at a time, never the same one twice in a row, gone when
  * talking resumes. The list follows the cues `markdown.ts` actually
- * understands and the commands `capture/command.ts` reads, so a tip is always
- * something that works. The routing tip names one of your own notes, which
- * teaches the command better than a made-up title.
+ * understands and the commands the live reader carries out as they are said
+ * (capture/liveRoute.ts), so a tip is always something that works: words for a
+ * note you name, moving the recording, a new note. The routing tip names one of
+ * your own notes, which teaches the command better than a made-up title. Tables,
+ * books and a board's lanes are not taught: a recording no longer carries them
+ * out (docs/DESIGN.md §126).
  *
  * The asks the AI takes (`ASKS`) are on the card alone, and only when the
  * recording is a note's own Speak: an ask is read from the whole take
@@ -81,35 +82,15 @@ export const ASKS: readonly Tip[] = [
 /**
  * The tips, in the order they come round. `noteTitle` is a recent note's
  * title for the routing tip; `continuing` says a note is already being added
- * to, which is when "new note" is worth knowing; `book` is one of the library's
- * books, for the chapter tip.
+ * to, which is when "new note" is worth knowing.
  */
-export function tips({
-  noteTitle,
-  continuing,
-  keyword = true,
-  lane = null,
-  book = null,
-}: {
-  noteTitle?: string | null;
-  continuing: boolean;
-  keyword?: boolean;
-  lane?: string | null;
-  /** A book in the library, for the chapter tip; with none, the tip is how to make one (docs/BOOKS.md). */
-  book?: string | null;
-}): Tip[] {
+export function tips({ noteTitle, continuing, keyword = true }: { noteTitle?: string | null; continuing: boolean; keyword?: boolean }): Tip[] {
   const say = (command: string) => (keyword ? `Hey Ghost, ${lowerFirst(command)}` : command);
   const route: Tip[] = [];
   if (noteTitle) route.push({ say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' });
   if (noteTitle) route.push({ say: say(`New item for ${noteTitle}`), does: 'and then the item, to add to its list' });
-  // On a note with a board, its lanes can be named (core/boards.ts).
-  if (lane) route.push({ say: say(`Add … to ${lane}`), does: 'to put a card in that lane' });
-  if (lane) route.push({ say: say(`Move … to ${lane}`), does: 'to move a card there' });
   if (continuing) route.push({ say: say('New note'), does: 'to start a fresh one' });
   if (noteTitle) route.push({ say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' });
-  if (noteTitle) route.push({ say: say(`Add a table to ${noteTitle}`), does: 'and it asks for the columns and rows' });
-  if (book) route.push({ say: say(`Add a chapter to ${book}`), does: 'and then its name, to put a page in that book' });
-  else route.push({ say: say('Make a book called …'), does: 'to start a book; name notes after “with” to be its pages' });
   // Routing first and then every few cues, since it is the least discoverable; a routing line the cues leave no slot
   // for (a note with a board names its lanes too) comes round after them rather than never.
   const out: Tip[] = [];
@@ -124,9 +105,7 @@ export function tips({
 /**
  * The tip for this pause (CaptureScreen.tsx shows it until words come again): the `turn`th of the tips, round and
  * round, then the switched-on plugins' own. The routing tip names the most recent note that is not the one being
- * written to; a continued note with a board names one of its lanes, the second when it has one, since the first is
- * usually the one things start in; the chapter tip names a book in the library. With the keyword on, the plugins' tips
- * are said after it, as every command is.
+ * written to. With the keyword on, the plugins' tips are said after it, as every command is.
  */
 export function tipInPause({
   notes,
@@ -150,9 +129,7 @@ export function tipInPause({
 }): Tip | null {
   const recent = notes.find((c) => c.id !== own)?.title ?? null;
   const theirs = pluginTips(recent).map((t) => (keyword ? { ...t, say: `Hey Ghost, ${lowerFirst(t.say)}` } : t));
-  const lane = target ? ((lanesOf(target.body)[1] ?? lanesOf(target.body)[0])?.name ?? null) : null;
-  const book = notes.find((c) => c.id !== own && isBookBody(c.note.body))?.title ?? null;
-  const list = [...tips({ noteTitle: recent, continuing: target !== null, keyword, lane, book }), ...theirs];
+  const list = [...tips({ noteTitle: recent, continuing: target !== null, keyword }), ...theirs];
   return list[turn % list.length] ?? null;
 }
 
@@ -171,28 +148,20 @@ const EACH = 2;
 
 /**
  * The card's suggestions, a couple of each kind (SayCard.tsx). The sending pair names a note of theirs when there is
- * one to name, and a book's chapter over moving the recording when the library has a book; with nothing to name, the
- * pair makes something new, so a first recording still sees that a recording can go somewhere. The asks are there
- * only when `asking`: the recording is a note's own Speak, not over the lock screen, which is the one case an ask said
- * first is run (CaptureScreen.tsx `finish`); a new recording is given none rather than a line that would end as a
+ * one to name: words for it, which go into it as they are said, and moving the recording there. With nothing to name,
+ * the one way to make something new, so a first recording still sees that a recording can go somewhere. The asks are
+ * there only when `asking`: the recording is a note's own Speak, not over the lock screen, which is the one case an ask
+ * said first is run (CaptureScreen.tsx `finish`); a new recording is given none rather than a line that would end as a
  * note of the command's words.
  */
-export function starters({
-  noteTitle,
-  keyword = true,
-  book = null,
-  asking = false,
-}: {
-  noteTitle?: string | null;
-  keyword?: boolean;
-  book?: string | null;
-  asking?: boolean;
-}): Starters {
+export function starters({ noteTitle, keyword = true, asking = false }: { noteTitle?: string | null; keyword?: boolean; asking?: boolean }): Starters {
   const say = (command: string) => (keyword ? `Hey Ghost, ${lowerFirst(command)}` : command);
-  const chapter: Tip | null = book ? { say: say(`Add a chapter to ${book}`), does: 'and then its name, to put a page in that book' } : null;
   const send: Tip[] = noteTitle
-    ? [{ say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' }, chapter ?? { say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' }]
-    : [{ say: say('Make a list called …'), does: 'and then its items, for a new note that is a list' }, chapter ?? { say: say('Make a book called …'), does: 'to start a book' }];
+    ? [
+        { say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' },
+        { say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' },
+      ]
+    : [{ say: say('Make a list called …'), does: 'and then its items, for a new note that is a list' }];
   return {
     shape: CUES.slice(0, EACH),
     send: send.slice(0, EACH),

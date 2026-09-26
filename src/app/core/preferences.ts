@@ -202,9 +202,10 @@ export interface Preferences {
   quietStop: boolean;
   /**
    * Commands while recording ("add buy milk to HelloTrade") only count after
-   * "Glyph" is said (capture/command.ts). On by default: Matt, after a command
-   * became a note, "not do anything until it hears the keyword". Every command
-   * asks before it acts, either way.
+   * "hey Ghost" is said (capture/liveRoute.ts). On by default: Matt, after a
+   * command became a note, "not do anything until it hears the keyword". Off,
+   * a few plain shapes ("add a note to House TODOs, …") are read at the very
+   * start of a recording without it.
    */
   commandWord: boolean;
   /**

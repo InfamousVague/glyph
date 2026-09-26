@@ -27,6 +27,11 @@ describe('the top line', () => {
     expect(whereLine(null, false)).toBe('New note');
     expect(whereLine({ body: '# Weekend trip\n\nBook the cabin.' }, false)).toBe('Adding to “Weekend trip”');
     expect(whereLine({ body: '# Weekend trip' }, true)).toBe('Adding to your last note');
+    // A note a command switched to, and one a card will make at Done.
+    expect(whereLine({ body: '# House TODOs' }, false, { routed: true })).toBe('Adding to “House TODOs”');
+    expect(whereLine({ body: '# House TODOs' }, true, { routed: true })).toBe('Adding to the note you named');
+    expect(whereLine(null, false, { named: 'Moon base' })).toBe('New note “Moon base”');
+    expect(whereLine(null, true, { named: 'Moon base' })).toBe('New note');
   });
 });
 

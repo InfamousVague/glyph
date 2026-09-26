@@ -10,7 +10,7 @@ import styles from '../Guide.module.css';
  * are on the marks page, beside each mark (guide/marks.ts `say`).
  *
  * One habit is not a cue: "Hey Ghost" first, for a command or an ask. Its two examples are guide/phrases.ts
- * `COMMAND` and `ASK`, which guide/guide.test.ts runs through the recorder's own readers (capture/command.ts,
+ * `COMMAND` and `ASK`, which guide/guide.test.ts runs through the recorder's own readers (capture/liveRoute.ts,
  * ai/instruction.ts), so the page never teaches a command the recorder would write down as words.
  */
 export function Tips() {
@@ -25,7 +25,7 @@ export function Tips() {
         <Step title="Talk normally." note="Ghost.md picks lists and to-dos out of normal speech. The cues change how your words are laid out, never the words." />
         <Step
           title="Start with “Hey Ghost” to give a command."
-          note={`“${COMMAND.say}” puts it in your ${COMMAND.note} note, and a card shows what will change before anything does. Said into a note’s own mic, “${ASK.say}” asks the AI.`}
+          note={`“${COMMAND.say}” puts it in your ${COMMAND.note} note as you say it, and the note opens when you’re done, with an Undo. Said into a note’s own mic, “${ASK.say}” asks the AI.`}
         />
         <Step title="Fix it after." note="A voice note lands at the top of your notes. Open it to fix anything. The markdown is all there." />
       </ol>

@@ -1260,9 +1260,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const own = target?.id ?? writer.noteId;
     const others = locked || !notesRead ? [] : candidates.current.filter((c) => c.id !== own);
     return starters({
-      noteTitle: others[0]?.title ?? null,
+      noteTitle: others.find((c) => !isBookBody(c.note.body))?.title ?? null,
       keyword: commandWordOn(),
-      book: others.find((c) => isBookBody(c.note.body))?.title ?? null,
       asking: target !== null && !locked,
     });
     // `candidates` is a ref and `writer.noteId` a field: `notesRead` says when the first was filled, `moves` when the second changed.
