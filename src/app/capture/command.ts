@@ -129,8 +129,6 @@ export interface Placement {
   task: boolean;
   /** "Items", "tasks": every phrase until a pause is one. */
   many: boolean;
-  /** A plugin's word after the note's name ("…in Notion"). */
-  target: string | null;
   /** Semantic list area named explicitly by the command. */
   near?: 'bugs';
   /** The items already told apart ("a list with…"), so a comma inside one ("Parkersburg, West Virginia") stays in it. */
@@ -353,22 +351,17 @@ function namedPrefix<N extends Candidate & { note?: { body: string } }>(tail: st
 }
 
 function placementOf(noun: RegExpExecArray | null): Placement {
-  if (noun?.[3]) return { how: 'item', task: true, many: /s$|es$/i.test(noun[3]), target: null };
+  if (noun?.[3]) return { how: 'item', task: true, many: /s$|es$/i.test(noun[3]) };
   // Group 2 is "items"/"bullets", group 5 is "bugs"/"issues": both are list
   // items. A bug request also carries its semantic area to list placement.
-  if (noun?.[5]) return { how: 'item', task: false, many: /s$|ies$/i.test(noun[5]), target: null, near: 'bugs' };
-  if (noun?.[2]) return { how: 'item', task: false, many: /s$|ies$/i.test(noun[2]), target: null };
-  return { how: 'leave', task: false, many: false, target: null };
+  if (noun?.[5]) return { how: 'item', task: false, many: /s$|ies$/i.test(noun[5]), near: 'bugs' };
+  if (noun?.[2]) return { how: 'item', task: false, many: /s$|ies$/i.test(noun[2]) };
+  return { how: 'leave', task: false, many: false };
 }
 
-/**
- * What the words after the keyword ask for, or null when they don't say yet.
- * `notes` are the notes that can be named; `targets` the words plugins offer
- * after a note's name.
- */
+/** What the words after the keyword ask for, or null when they don't say yet. `notes` are the notes that can be named. */
 export interface PlanOptions<N extends Candidate & { note?: { body: string } }> {
   notes: readonly N[];
-  targets?: readonly string[];
 }
 
 export function planCommand<N extends Candidate & { note?: { body: string } }>(words: string, options: PlanOptions<N>): Plan<N> | null {
@@ -423,7 +416,7 @@ function chapterFor<N extends Candidate & { note?: { body: string } }>(note: N, 
   const said = words.replace(/[\s.,;:!?]+$/, '').trim();
   if (SELF.test(said)) return { kind: 'chapter', note, title: null };
   const title = said.replace(CHAPTER_NOUN, '').replace(/^["“]|["”]$/g, '').trim();
-  return title ? { kind: 'chapter', note, title: capitalise(title) } : { kind: 'await', note, how: 'leave', task: false, many: false, target: null };
+  return title ? { kind: 'chapter', note, title: capitalise(title) } : { kind: 'await', note, how: 'leave', task: false, many: false };
 }
 
 /**
@@ -442,7 +435,7 @@ function readCommand<N extends Candidate & { note?: { body: string } }>(words: s
   return plan ? forBook(plan) : null;
 }
 
-function readWords<N extends Candidate & { note?: { body: string } }>(words: string, { notes, targets = [] }: PlanOptions<N>): Plan<N> | null {
+function readWords<N extends Candidate & { note?: { body: string } }>(words: string, { notes }: PlanOptions<N>): Plan<N> | null {
   const text = stripStopCue(words.replace(LEAD, '').trim());
   if (!text) return null;
   if (MAKE_BOARD.test(text)) return { kind: 'board' };
@@ -456,7 +449,7 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
     const found = noteNamed(addList[1], notes);
     if (found) {
       const items = splitSpokenItems(addList[2], true);
-      return { kind: 'place', note: found.note, text: items.join(', '), how: 'item', task: false, many: items.length > 1, target: null };
+      return { kind: 'place', note: found.note, text: items.join(', '), how: 'item', task: false, many: items.length > 1 };
     }
   }
   // "Add to my note labeled Go a list with…" also reads as "add to <my note labeled Go a> list with…": when that name
@@ -468,7 +461,7 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
     const named = /^["“]([^"”]+)["”]\s*(.*)$/.exec(directAppend[1]);
     const tail = named ? `${named[1]} ${named[2]}` : directAppend[1];
     const found = titledPrefix(tail, notes) ?? namedPrefix(tail, notes);
-    if (found) return { kind: 'place', note: found.note, target: null, ...directPayload(found.text.replace(/^[\s,:;-]+/, '')) };
+    if (found) return { kind: 'place', note: found.note, ...directPayload(found.text.replace(/^[\s,:;-]+/, '')) };
     // "Add this to the field guide": a whole title with nothing after it is this recording going there, which the
     // rules below read (a chapter, when the note is a book). Only a shape with words after the title fails closed
     // here, when no unique title is found.
@@ -516,18 +509,18 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
     return tail.replace(/[\s.!?]/g, '') ? null : { kind: 'table', note: null, columns };
   }
 
-  const route = parseRoute(ended, { targets });
+  const route = parseRoute(ended);
   if (route?.kind === 'new') return { kind: 'new' };
   if (route?.kind === 'item') {
     const note = find(route.name);
     if (!note) return { kind: 'no-note', name: route.name };
-    const placement: Placement = { how: 'item', task: route.task, many: route.many, target: route.target };
+    const placement: Placement = { how: 'item', task: route.task, many: route.many };
     return route.rest ? { kind: 'place', note, text: route.rest, ...placement } : { kind: 'await', note, ...placement };
   }
   if (route?.kind === 'leave') {
     const note = find(route.name);
     if (!note) return { kind: 'no-note', name: route.name };
-    const placement: Placement = { how: 'leave', task: false, many: false, target: null };
+    const placement: Placement = { how: 'leave', task: false, many: false };
     return route.rest ? { kind: 'place', note, text: route.rest, ...placement } : { kind: 'await', note, ...placement };
   }
 
@@ -543,8 +536,7 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
       const tail = after.slice((split.index ?? 0) + split[0].length);
       // The name runs to a stop or colon, and anything after that is the thing too ("…to work: call Sam").
       const [, name = tail, rest = ''] = /^([^.,;:!?]+)(?:[.,;:!?]\s*(.*))?$/.exec(tail) ?? [];
-      const target = targets.find((word) => new RegExp(String.raw`\s+(?:in|on|to|into)\s+${word}\s*$`, 'i').test(name)) ?? null;
-      const found = noteNamed(target ? name.replace(new RegExp(String.raw`\s+(?:in|on|to|into)\s+${target}\s*$`, 'i'), '') : name, notes);
+      const found = noteNamed(name, notes);
       if (found && (!best || found.score > best.score)) best = { ...found, thing, rest: rest.trim() };
     }
     if (best) {
@@ -565,8 +557,8 @@ function readWords<N extends Candidate & { note?: { body: string } }>(words: str
   if (route?.kind === 'note') {
     const note = find(route.name);
     if (!note) return { kind: 'no-note', name: route.name };
-    if (route.rest) return { kind: 'place', note, text: route.rest, how: 'leave', task: false, many: false, target: null };
-    return MOVERS.test(text) ? { kind: 'move', note } : { kind: 'await', note, how: 'leave', task: false, many: false, target: null };
+    if (route.rest) return { kind: 'place', note, text: route.rest, how: 'leave', task: false, many: false };
+    return MOVERS.test(text) ? { kind: 'move', note } : { kind: 'await', note, how: 'leave', task: false, many: false };
   }
   return null;
 }

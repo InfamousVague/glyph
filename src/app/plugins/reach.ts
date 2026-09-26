@@ -19,7 +19,7 @@ export function usesNetwork(manifest: PluginManifest): boolean {
   return manifest.permissions.some((p) => p.kind === 'network');
 }
 
-/** What a plugin may reach, in one line: "Your notes · The internet (api.notion.com) · Voice commands". */
+/** What a plugin may reach, in one line: "Your notes · The internet (api.notion.com) · Built-in app commands". */
 export function reachLine(manifest: PluginManifest): string {
   return manifest.permissions
     .map((p) => (p.kind === 'network' && manifest.hosts?.length ? `${PERMISSION_WORDS.network} (${manifest.hosts.join(', ')})` : PERMISSION_WORDS[p.kind]))

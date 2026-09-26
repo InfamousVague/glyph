@@ -16,7 +16,6 @@ export function quietHost<N extends TakeNote>(overrides: Partial<TakeHost<N>> = 
     changed: () => undefined,
     addItems: () => undefined,
     log: () => undefined,
-    said: () => undefined,
     ...overrides,
   };
 }

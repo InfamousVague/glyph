@@ -19,12 +19,6 @@ describe('a take’s markdown', () => {
   it('keeps an opening sentence as a sentence when the words go on the end of a note that has a title', () => {
     expect(takeMarkdown({ segments: [said('Grocery run.', 0)] }, { titled: false }).markdown).toBe('Grocery run.');
   });
-
-  it('applies links, after which there is no telling where the guess starts', () => {
-    const linked = takeMarkdown({ segments: [said('Book the cabin.', 0)] }, { titled: false, partial: 'soon', link: (text) => text.replace('cabin', '[cabin](https://example.com)') });
-    expect(linked.markdown).toBe('Book the [cabin](https://example.com). soon');
-    expect(linked.pendingFrom).toBeNull();
-  });
 });
 
 describe('what a take has to save', () => {

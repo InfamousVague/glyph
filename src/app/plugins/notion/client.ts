@@ -8,9 +8,10 @@ import { host } from './manifest.ts';
  * Notion, from the page: signing in, the boards a note can send its list to,
  * and the tasks on them.
  *
- * Matt: link Notion boards so list items become Notion tasks (by voice, by
- * swiping an item, or a whole list at once), and "add a note for the notion
- * task for <title>" to reference a task as a link.
+ * Matt: link Notion boards so list items become Notion tasks, by swiping an
+ * item or a whole list at once. (By voice too, once, and "add a note for the
+ * notion task for <title>" to reference a task as a link: both went with the
+ * recorder's older reader, docs/DESIGN.md §127.)
  *
  * - Signing in is "Sign in with Notion" through glyph-api (server/src/notion.rs):
  *   this page makes a random state and verifier, opens the browser at `start`
@@ -229,23 +230,6 @@ export async function createTask(board: Board, title: string): Promise<Task> {
     properties: { [board.titleProperty]: { title: [{ type: 'text', text: { content: title.slice(0, 2000) } }] } },
   });
   return { id: page.id, title, url: page.url };
-}
-
-/** The board's tasks whose titles contain `words`, for "add a note for the notion task for …". */
-export async function findTasks(board: Board, words: string): Promise<Task[]> {
-  const result = await notionRequest<{ results: Array<{ id: string; url: string; properties: Record<string, { type: string; title?: unknown }> }> }>(
-    'POST',
-    `databases/${board.id}/query`,
-    {
-      filter: words.trim() ? { property: board.titleProperty, title: { contains: words.trim().split(/\s+/)[0] } } : undefined,
-      page_size: 50,
-    },
-  );
-  return result.results.map((page) => ({
-    id: page.id,
-    url: page.url,
-    title: plain(Object.values(page.properties).find((p) => p.type === 'title')?.title) || 'Untitled',
-  }));
 }
 
 // ---- which note sends to which board -------------------------------------------------------

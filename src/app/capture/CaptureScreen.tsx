@@ -29,10 +29,8 @@ import { TakeWriter, type NamedNote } from './takeWriter.ts';
 import { chaptersOf, isBookBody } from '../book/book.ts';
 import { linkFor } from '../share/share.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
-import { applyLinks, type SentLink } from '../core/itemLinks.ts';
 import { withoutLead } from '../core/itemSyntax.ts';
 import { plugins } from '../plugins/registry.ts';
-import type { CaptureContext } from '../plugins/types.ts';
 import { starters, tipInPause, TIP_AFTER_MS, type Tip } from './tips.ts';
 import { SayCard } from './SayCard.tsx';
 import { SideKeyWaves } from './SideKeyWaves.tsx';
@@ -207,8 +205,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const heardRef = useRef<string[]>([]);
   /** What each command did, or didn't, in words: the review checks them. */
   const commandLog = useRef<string[]>([]);
-  /** The last thing said, for plugin commands like "send that to Notion": a phrase of this take, or items added to another note. */
-  const lastSaid = useRef<{ kind: 'take'; text: string } | { kind: 'items'; noteId: string; lines: string[] } | null>(null);
   /** When words were last heard, for the tips in a pause. */
   const lastHeard = useRef(performance.now());
   const [tip, setTip] = useState<Tip | null>(null);
@@ -258,18 +254,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const titled = target === null && pendingTitle === null;
   /** While an item for another note is being said, its words show in the chip, not in this note. */
   const [itemWords, setItemWords] = useState('');
-  /** Words of this take a plugin linked to something (a Notion task): links wherever the cues put them. */
-  const [sentLinks, setSentLinks] = useState<SentLink[]>([]);
-  const sentLinksRef = useRef<SentLink[]>([]);
   // The page as it is spoken: the take's markdown, from what React holds of it, with the phrase still being guessed.
-  const note = useMemo(
-    () =>
-      takeMarkdown(
-        { segments },
-        { titled, partial: itemWords ? '' : partial, link: sentLinks.length ? (text) => applyLinks(text, sentLinks) : undefined },
-      ),
-    [segments, partial, titled, itemWords, sentLinks],
-  );
+  const note = useMemo(() => takeMarkdown({ segments }, { titled, partial: itemWords ? '' : partial }), [segments, partial, titled, itemWords]);
 
   // The switched-on plugins' formattings can be said like bold ("spoiler … end spoiler"); read as the recorder opens,
   // before the first render lays the page out with them.
@@ -296,7 +282,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const [writer] = useState(
     () =>
       new TakeWriter({
-        markdown: (asTitled) => take.markdown({ titled: asTitled, link: (text) => applyLinks(text, sentLinksRef.current) }),
+        markdown: (asTitled) => take.markdown({ titled: asTitled }),
         // Any phrase at all, where Done asks `take.hasContent`: a draft writes the take as it stands, and one that lays
         // out as nothing writes the note's own text back as it was (appendBody.ts), so the looser rule costs nothing.
         hasWords: () => take.segments.length > 0,
@@ -426,11 +412,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const commandWordOn = () => preferences().commandWord;
 
   /**
-   * Items spoken for another note's list go straight into that note: its last
-   * list grows by them, in its own style, while this take carries on where it
-   * was. The chip and the landing preview show the lines arriving.
+   * Add, tapped on the card after Done: the words go into the note they were
+   * read for, its last list growing by them in its own style. The chip and the
+   * landing preview show the lines arriving.
    */
-  const addItems = async (note: Note, spoken: string, { how, task, many, target = null, near, items }: Placement) => {
+  const addItems = async (note: Note, spoken: string, { how, task, many, near, items }: Placement) => {
     try {
       // The offer was made from this exact note snapshot. Confirmation is a
       // compare-and-swap, so a later edit or delete wins instead of being
@@ -458,36 +444,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       if (writer.target?.id === saved.id) setRoute({ phase: 'done', text: `Added “${withoutLead(placed.added[0] ?? '')}”${placed.added.length > 1 ? ` and ${placed.added.length - 1} more` : ''}` });
       else setRoute({ phase: 'added', title: noteTitle(saved.body) || 'that note', body: saved.body, added: placed.added });
       fireNativeHaptic('success');
-      lastSaid.current = { kind: 'items', noteId: saved.id, lines: placed.added };
-      if (target) plugins.itemTargets().find((itemTarget) => itemTarget.word === target)?.afterAdd(saved.id, placed.added, captureContext);
     } catch (failure) {
       console.warn('[glyph] item not added:', failure);
       setRoute({ phase: 'missed', title: noteTitle(note.body) || 'that note' });
     }
-  };
-
-  // ---- plugins, by voice --------------------------------------------------------------
-
-  /** What a plugin's voice command may do to this take (plugins/types.ts). Refs and setters only, so any render's copy works. */
-  const captureContext: CaptureContext = {
-    noteId: () => writer.noteId,
-    lastSaid: () => lastSaid.current,
-    said: (text) => {
-      lastSaid.current = { kind: 'take', text };
-    },
-    status: ({ state, lead, title }) => setRoute({ phase: 'plugin', state, lead: lead ?? null, title }),
-    link: (text, url) => {
-      sentLinksRef.current = [...sentLinksRef.current, { text, url }];
-      setSentLinks(sentLinksRef.current);
-    },
-    append: (markdown) => {
-      const at = take.segments[take.segments.length - 1]?.endMs ?? 0;
-      take.segments = [...take.segments, { text: markdown, startMs: at, endMs: at }];
-      syncTake();
-    },
-    updateNote: async (id, change) => {
-      await writer.updateNote(id, change);
-    },
   };
 
   /** Which tape this take is part of: the one a continued note holds, or a fresh one for a new file. */
@@ -515,9 +475,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // A new list is made by `confirmPending` itself.
     addItems: (target, spoken, placement) => void writer.queue(() => addItems(target, spoken, placement)),
     log: (line) => commandLog.current.push(line),
-    said: (text) => {
-      lastSaid.current = { kind: 'take', text };
-    },
   };
 
   // ---- the live reader (liveRoute.ts) -------------------------------------------------
@@ -590,13 +547,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   sealAndForkRef.current = () => {
     const aimedAt = writer.target;
     const title = pendingTitleRef.current;
-    const link = (text: string) => applyLinks(text, sentLinksRef.current);
     parts.current.push({
       note: aimedAt,
       title,
       placing: writer.placing,
-      markdown: take.markdown({ titled: !aimedAt && title === null, link }),
-      titled: take.markdown({ titled: true, link }),
+      markdown: take.markdown({ titled: !aimedAt && title === null }),
+      titled: take.markdown({ titled: true }),
       noteId: writer.noteId,
     });
     take.fork();
@@ -837,7 +793,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
     // A command's change still landing, or the take carrying on elsewhere: written before the note is.
     await writer.settled();
-    const link = (text: string) => applyLinks(text, sentLinksRef.current);
     const named = pendingTitleRef.current;
     /** Notes this recording made, and writes to other notes, for the note that opens to know. */
     const made: string[] = [];
@@ -971,7 +926,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       return;
     }
 
-    const markdown = take.markdown({ titled: !aimed && named === null, link });
+    const markdown = take.markdown({ titled: !aimed && named === null });
     let saved: Note;
     /** The note's text the words were composed onto, for the better words: '' for a new note. */
     let base = '';
@@ -979,7 +934,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     /** The take went into a note that already existed, switched to by a command: it opens, with no review. */
     let into = false;
     if (writer.routed && aimed) {
-      const written = await writer.writeInto(aimed, markdown, writer.placing, () => take.markdown({ titled: true, link }));
+      const written = await writer.writeInto(aimed, markdown, writer.placing, () => take.markdown({ titled: true }));
       saved = written.saved;
       if (written.own) {
         made.push(saved.id);

@@ -39,12 +39,12 @@ describe('hearing "add to <note>"', () => {
 
 describe('hearing "new item for <note>"', () => {
   it('takes the note name and an item said in the same phrase', () => {
-    expect(parseRoute('New item for AttackFM, fix the login bug.')).toEqual({ kind: 'item', name: 'AttackFM', rest: 'fix the login bug.', task: false, many: false, target: null });
-    expect(parseRoute('Add a task to the backlog: dark mode.')).toEqual({ kind: 'item', name: 'backlog', rest: 'dark mode.', task: true, many: false, target: null });
+    expect(parseRoute('New item for AttackFM, fix the login bug.')).toEqual({ kind: 'item', name: 'AttackFM', rest: 'fix the login bug.', task: false, many: false });
+    expect(parseRoute('Add a task to the backlog: dark mode.')).toEqual({ kind: 'item', name: 'backlog', rest: 'dark mode.', task: true, many: false });
   });
 
   it('hears the command on its own, the item to follow', () => {
-    expect(parseRoute('New item for AttackFM.')).toEqual({ kind: 'item', name: 'AttackFM', rest: '', task: false, many: false, target: null });
+    expect(parseRoute('New item for AttackFM.')).toEqual({ kind: 'item', name: 'AttackFM', rest: '', task: false, many: false });
     expect(parseRoute('New to-dos for work.')).toMatchObject({ kind: 'item', name: 'work', task: true, many: true });
   });
 
@@ -58,20 +58,10 @@ describe('hearing "new item for <note>"', () => {
   });
 });
 
-describe('an item command with a plugin’s word after the name', () => {
-  it('takes the word off the name and says which it was', () => {
-    expect(parseRoute('New task for AttackFM in Notion, fix the login bug.', { targets: ['notion'] })).toEqual({
-      kind: 'item',
-      name: 'AttackFM',
-      rest: 'fix the login bug.',
-      task: true,
-      many: false,
-      target: 'notion',
-    });
-  });
-
-  it('leaves the word in the name when no plugin offers it', () => {
-    expect(parseRoute('New task for AttackFM in Notion, fix the login bug.')).toMatchObject({ name: 'AttackFM in Notion', target: null });
+describe('an item command with another word after the name', () => {
+  // Changed on purpose (docs/DESIGN.md §127): no plugin takes a word off a note's name any more ("…in Notion").
+  it('leaves the word in the name', () => {
+    expect(parseRoute('New task for AttackFM in Notion, fix the login bug.')).toMatchObject({ name: 'AttackFM in Notion' });
   });
 });
 

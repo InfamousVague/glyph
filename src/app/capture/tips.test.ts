@@ -111,16 +111,18 @@ describe('the tip for a pause', () => {
     expect(all({ target: { body: '# Launch\n\n```board\nTo do:\nDoing:\n```' } }).some((say) => /Doing/.test(say))).toBe(false);
   });
 
+  // No plugin gives a tip now (Notion's, which taught a command that had gone, went with it: docs/DESIGN.md §127);
+  // the seam stays, and is held here with one of a plugin's own making.
   it('adds the plugins’ own tips for the note it names, said after the keyword only when it is on', () => {
     const asked: (string | null)[] = [];
     const pluginTips = (recent: string | null) => {
       asked.push(recent);
-      return [{ say: 'Send that to Notion', does: 'to make it a task' }];
+      return [{ say: 'Ring the bell', does: 'to try a plugin’s tip' }];
     };
-    expect(all({ pluginTips })).toContain('Hey Ghost, send that to Notion');
+    expect(all({ pluginTips })).toContain('Hey Ghost, ring the bell');
     expect(asked[0]).toBe('Groceries');
     const plain = all({ pluginTips, keyword: false });
-    expect(plain).toContain('Send that to Notion');
+    expect(plain).toContain('Ring the bell');
     expect(plain).toContain('Add … to Groceries');
     expect(plain.some((say) => say.startsWith('Hey Ghost'))).toBe(false);
   });

@@ -118,7 +118,7 @@ export function readCommandAnswer<N extends Candidate>(output: string, notes: re
     const words = text(answer.text).replace(/[\s.,;:!?]+$/, '');
     if (!note || !words) return null;
     const task = answer.task === true;
-    return { kind: 'place', note, text: words, how: task || answer.item === true ? 'item' : 'leave', task, many: false, target: null };
+    return { kind: 'place', note, text: words, how: task || answer.item === true ? 'item' : 'leave', task, many: false };
   }
   if (action === 'table') {
     const named = text(answer.note);

@@ -6,7 +6,7 @@ import type { TakeNote } from './takeTypes.ts';
 /** What each plan read at Done comes to before its tap (capture/offers.ts): the card's offer, or nothing. */
 
 const named = (id: string, title: string, body: string) => ({ id, title, note: { id, body } as TakeNote });
-const leave: Placement = { how: 'leave', task: false, many: false, target: null };
+const leave: Placement = { how: 'leave', task: false, many: false };
 
 describe('a plan to put words in a note', () => {
   it('offers the lines as they would land in its list', () => {

@@ -26,7 +26,6 @@ export type RouteView =
   /** The words went to a note, and carry on there; `spot` says where in it ("under Electrical"). */
   | { phase: 'moved'; title: string; spot?: string | null }
   | { phase: 'missed'; title: string }
-  | { phase: 'plugin'; state: 'working' | 'done' | 'failed'; lead: string | null; title: string }
   | null;
 
 export type Haptic = 'light' | 'selection' | 'success' | 'warning';
@@ -42,8 +41,6 @@ export interface TakeHost<N extends TakeNote> {
   addItems(note: N, spoken: string, placement: Placement): void;
   /** A line for the review's check of commands. */
   log(line: string): void;
-  /** What was last said, for plugin commands ("send that to Notion"). */
-  said(text: string): void;
 }
 
 /**

@@ -3,7 +3,7 @@ import { show } from '../../test/render.tsx';
 import { RouteChip } from './RouteChip.tsx';
 import type { RouteView } from './takeHost.ts';
 
-/** What the recorder's chip says for each thing the take tells it (capture/RouteChip.tsx). */
+/** What the recorder's chip says for each thing the recorder tells it (capture/RouteChip.tsx). */
 
 const chip = (route: Exclude<RouteView, null>, itemWords = '') => {
   const host = show(<RouteChip route={route} itemWords={itemWords} />);
@@ -37,11 +37,5 @@ describe('the chip', () => {
   it('says what did not happen', () => {
     expect(chip({ phase: 'missed', title: 'Oven' })).toEqual({ text: 'No note called “Oven”, so it stays here', phase: 'missed' });
     expect(chip({ phase: 'said', text: 'Not done.' })).toEqual({ text: 'Not done.', phase: 'missed' });
-  });
-
-  it('follows a plugin’s command from working to its answer', () => {
-    expect(chip({ phase: 'plugin', state: 'working', lead: 'Sending to', title: 'Notion' })).toEqual({ text: 'Sending to Notion', phase: 'hearing' });
-    expect(chip({ phase: 'plugin', state: 'done', lead: null, title: 'Sent' })).toEqual({ text: 'Sent', phase: 'moved' });
-    expect(chip({ phase: 'plugin', state: 'failed', lead: 'Sending to', title: 'Notion said no' })).toEqual({ text: 'Notion said no', phase: 'missed' });
   });
 });

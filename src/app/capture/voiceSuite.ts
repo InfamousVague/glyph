@@ -18,8 +18,8 @@ import { NUMBER_WORD, spokenNumber } from './spoken/numbers.ts';
  * Test infrastructure beside the code it tests: only voiceSuite.test.ts imports it, so it is in no bundle the app
  * ships. It plays each phrase through the live reader (liveRoute.ts), on the clock the phone would commit it at, and
  * writes what it leaves as the recorder's Done does (liveTake.ts: `placeTake` into each note, the take's own note
- * rendered from its words). A test the recorder no longer carries out - a spoken "no", a plugin, a table, a board, a
- * voice memo said aloud - is kept with the reason it is skipped (`skip`), so its recording is not lost.
+ * rendered from its words). A test can be held back with the reason it is skipped (`skip`); none is now, since the
+ * scripts for what the recorder no longer does went with it (docs/DESIGN.md §127).
  */
 
 export interface SuiteTest {

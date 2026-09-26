@@ -1460,22 +1460,6 @@
       "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
-      "file": "068-send-to-notion",
-      "group": "Commands",
-      "tests": "“Send that to Notion” offers the Notion task (not run in the test).",
-      "setup": "fixtures",
-      "prefs": {},
-      "lines": [
-        [
-          "Book the cabin for June, Glyph, send that to Notion.",
-          1.5
-        ]
-      ],
-      "expect": {},
-      "id": "068",
-      "skip": "a plugin by voice: unreachable since PR #1; the live reader never runs one (DESIGN §126)"
-    },
-    {
       "file": "069-add-to-a-board-lane",
       "group": "Commands",
       "tests": "“Glyph, add … to <lane>” on a note with a board: a card in that lane.",

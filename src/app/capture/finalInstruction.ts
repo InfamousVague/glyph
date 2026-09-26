@@ -115,7 +115,6 @@ export async function classifyFinalTranscript<N extends Candidate & { note?: { b
     how: area === 'notes' ? 'paragraph' : listed ? 'item' : 'leave',
     task: area === 'tasks',
     many: items.length > 1,
-    target: null,
     ...(area === 'bugs' ? { near: 'bugs' as const } : {}),
     ...(items.length > 1 ? { items } : {}),
   };

@@ -110,7 +110,7 @@ export function inferInstruction(utterance: string): InferenceRun {
  */
 export function interpretWakeCommand<N extends Candidate>(
   utterance: string,
-  options: { notes: readonly N[]; targets?: readonly string[] },
+  options: { notes: readonly N[] },
   startInference: (words: string) => InferenceRun = inferInstruction,
 ): { done: Promise<InterpretedCommand<N>>; cancel: () => void } {
   const deterministic = planCommand(utterance, options);

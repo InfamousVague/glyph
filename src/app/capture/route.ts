@@ -1,4 +1,3 @@
-import { escapeRegExp } from '../core/text.ts';
 
 /**
  * "Add to Weekend trip": sending what is being said to a note by naming it.
@@ -40,11 +39,6 @@ export type RouteCommand =
       task: boolean;
       /** "items" or "tasks": every phrase until a pause is an item, not just the next one. */
       many: boolean;
-      /**
-       * "…in Notion": a plugin's word the note's name ended with (plugins/types.ts
-       * `ItemTarget`), whose plugin takes the items once they are in the list.
-       */
-      target: string | null;
     }
   /**
    * "Leave a note on the page for AttackFM that says …": the words go into
@@ -79,12 +73,6 @@ const NEW_NOTE = /^\s*(?:new|start\s+a\s+new|another)\s+(?:notes?|node)[.!]?\s*$
 const ITEM_COMMAND =
   /^\s*(?:(?:ok(?:ay)?|so|and)[,\s]+)?(?:(?:add|put|make)\s+(?:a|an|another|some)?\s*|(?:a\s+|an\s+)?(?:new|another)\s+)(items?|tasks?|to-?\s?dos?|entry|entries|points?|things?)\s+(?:for|to|on|in(?:to)?)\s+(?:the\s+|my\s+|our\s+)?([^.,;:!?]+?)(?:\s+(?:note|list))?(?:[.,;:!?]\s*(.*))?\s*$/i;
 
-/** "…in <word>" at the end of a note's name in an item command, for a plugin's `ItemTarget` word. */
-function targetSuffix(words: readonly string[]): RegExp | null {
-  const safe = words.map((word) => escapeRegExp(word)).filter(Boolean);
-  return safe.length ? new RegExp(String.raw`\s+(?:in|on|to|into)\s+(${safe.join('|')})\s*$`, 'i') : null;
-}
-
 /*
  * "Leave a note on the page for AttackFM that says the login is broken",
  * "add a note to shopping saying we're out of eggs", "write a line in work:
@@ -106,11 +94,8 @@ function tidyRest(text: string): string {
     .trim();
 }
 
-/**
- * The route command in `text`, if there is one. `targets` are the words plugins let an item command end a note's name
- * with ("…in Notion").
- */
-export function parseRoute(text: string, { targets = [] }: { targets?: readonly string[] } = {}): RouteCommand | null {
+/** The route command in `text`, if there is one. */
+export function parseRoute(text: string): RouteCommand | null {
   if (NEW_NOTE.test(text)) return { kind: 'new', rest: '' };
   const leave = LEAVE.exec(text);
   if (leave?.[1]) {
@@ -123,9 +108,7 @@ export function parseRoute(text: string, { targets = [] }: { targets?: readonly 
   }
   const item = ITEM_COMMAND.exec(text);
   if (item?.[1] && item[2]) {
-    const suffix = targetSuffix(targets);
-    const target = suffix?.exec(item[2])?.[1]?.toLowerCase() ?? null;
-    const name = cleanName(suffix ? item[2].replace(suffix, '') : item[2]);
+    const name = cleanName(item[2]);
     const noun = item[1].toLowerCase().replace(/\s+/g, '');
     // A phrase with no stop after the name ("new item for attack") may still
     // be growing: not yet, until it ends or the item follows.
@@ -137,7 +120,6 @@ export function parseRoute(text: string, { targets = [] }: { targets?: readonly 
         rest: tidyRest(item[3] ?? ''),
         task: /^(?:task|to-?do)/.test(noun),
         many: /s$/.test(noun),
-        target,
       };
     }
   }

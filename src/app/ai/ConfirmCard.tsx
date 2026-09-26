@@ -2,7 +2,6 @@ import type { Offer } from '../capture/take.ts';
 import { listTitle } from '../capture/instructionMutation.ts';
 import { withoutLead } from '../core/itemSyntax.ts';
 import type { Note } from '../core/store.ts';
-import { capitalise } from '../core/text.ts';
 import styles from './ConfirmCard.module.css';
 
 /**
@@ -21,7 +20,6 @@ export function ConfirmCard({ offer, onConfirm, onCancel }: { offer: Offer<Note>
     action = 'Add';
     lines = offer.added.map(withoutLead);
     detail = offer.into === 'list' ? 'In its list' : 'As a new paragraph';
-    if (offer.placement.target) detail += `, then to ${capitalise(offer.placement.target)}`;
   } else {
     heading = `Create ${listTitle(offer.title)}`;
     action = 'Create';

@@ -93,7 +93,6 @@ export class Take<N extends TakeNote> {
     const text = segment.text.replace(/^[\s.,;:!?…]+/, '');
     if (!text) return;
     this.segments = [...this.segments, { ...segment, text }];
-    this.host.said(text);
     this.host.changed();
   }
 
@@ -105,7 +104,7 @@ export class Take<N extends TakeNote> {
     return renderNote(this.segments).markdown.trim() !== '';
   }
 
-  /** The take's markdown: its words as the cues lay them out, with links applied by `link`. */
+  /** The take's markdown: its words as the cues lay them out. */
   markdown(options: TakeMarkdownOptions): string {
     return takeMarkdown(this, options).markdown;
   }
@@ -116,17 +115,14 @@ export interface TakeMarkdownOptions {
   titled: boolean;
   /** The phrase still being guessed, set after the words and marked as pending. */
   partial?: string;
-  /** Links a plugin made for words of the take (a Notion task): put wherever the cues put those words. */
-  link?: (markdown: string) => string;
 }
 
 /**
- * A take's markdown, from what it holds: its words as the cues lay them out, the phrase still being guessed after them,
- * and its links. What the page shows as it is spoken and what is saved at Done are this, so they cannot disagree.
- * `pendingFrom` is where the guessed phrase starts, for drawing it lighter; a link rewrites lines, so after one there
- * is no telling, and it is null.
+ * A take's markdown, from what it holds: its words as the cues lay them out, and the phrase still being guessed after
+ * them. What the page shows as it is spoken and what is saved at Done are this, so they cannot disagree. `pendingFrom`
+ * is where the guessed phrase starts, for drawing it lighter.
  */
-export function takeMarkdown(take: { readonly segments: readonly Segment[] }, { titled, partial = '', link }: TakeMarkdownOptions): { markdown: string; pendingFrom: number | null } {
+export function takeMarkdown(take: { readonly segments: readonly Segment[] }, { titled, partial = '' }: TakeMarkdownOptions): { markdown: string; pendingFrom: number | null } {
   const { markdown, pendingFrom } = renderNote(take.segments, partial, { titled });
-  return link ? { markdown: link(markdown), pendingFrom: null } : { markdown, pendingFrom };
+  return { markdown, pendingFrom };
 }

@@ -30,10 +30,9 @@ function memoryStore(initial: Record<string, boolean> = {}) {
 
 describe('the plugin registry', () => {
   const linked: GlyphPlugin = {
-    manifest: manifest('linked', { permissions: [{ kind: 'voice', why: '' }] }),
+    manifest: manifest('linked'),
     icon: Icon,
     formatContext: { for: (id) => (id === 'n1' ? 'Briefing one.' : null), version: (id) => (id === 'n1' ? 42 : 0) },
-    voice: [{ id: 'hello', parse: (text) => (text === 'hello' ? {} : null), describe: () => ({ title: 'Hello', action: 'Go' }), run: () => null }],
   };
   const optional: GlyphPlugin = {
     manifest: manifest('optional', { standard: false, storage: ['glyph-optional'] }),
@@ -44,7 +43,6 @@ describe('the plugin registry', () => {
   it('has standard plugins on and others off until switched', () => {
     const registry = createRegistry([linked, optional], memoryStore());
     expect(registry.enabled().map((p) => p.manifest.id)).toEqual(['linked']);
-    expect(registry.voiceCommands().map((c) => c.id)).toEqual(['hello']);
   });
 
   it('keeps a switch, tells listeners, and offers nothing from a plugin that is off', () => {
@@ -56,7 +54,6 @@ describe('the plugin registry', () => {
     registry.setEnabled('optional', true);
     expect(store.saved()).toEqual({ linked: false, optional: true });
     expect(heard).toHaveBeenCalledTimes(2);
-    expect(registry.voiceCommands()).toEqual([]);
     expect(registry.contextFor('n1')).toBe('Briefing two.');
   });
 
@@ -71,10 +68,10 @@ describe('the plugin registry', () => {
   });
 
   it('refuses a plugin whose extension points go past its manifest', () => {
-    const noisy: GlyphPlugin = { manifest: manifest('noisy'), icon: Icon, voice: linked.voice };
+    const noisy: GlyphPlugin = { manifest: manifest('noisy'), icon: Icon, suggest: () => [] };
     expect(() => createRegistry([noisy], memoryStore())).toThrow(PluginPermissionError);
     const editor: GlyphPlugin = {
-      manifest: manifest('editor', { permissions: [{ kind: 'voice', why: '' }] }),
+      manifest: manifest('editor', { permissions: [{ kind: 'network', why: '' }] }),
       icon: Icon,
       itemAction: { id: 'x', label: 'X', busyLabel: 'X…', available: () => true, run: async () => undefined },
     };
@@ -98,7 +95,6 @@ describe('the plugin registry', () => {
     ]);
     for (const plugin of BUILT_IN) {
       const kinds = plugin.manifest.permissions.map((p) => p.kind);
-      if (plugin.voice?.length || plugin.itemTargets?.length) expect(kinds).toContain('voice');
       if (plugin.manifest.native) expect(kinds).toContain('native');
       if (plugin.manifest.hosts?.length) expect(kinds).toContain('network');
     }

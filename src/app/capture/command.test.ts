@@ -9,7 +9,7 @@ const notes = [
   { id: 'p', title: 'Places to Go' },
   { id: 'w', title: 'Work' },
 ];
-const plan = (words: string, targets: string[] = []) => planCommand(words, { notes, targets });
+const plan = (words: string) => planCommand(words, { notes });
 const at = (id: string) => notes.find((n) => n.id === id)!;
 
 describe('hearing the keyword', () => {
@@ -74,7 +74,7 @@ describe('hearing the keyword', () => {
 
 describe('what a command asks for', () => {
   it('adds a thing to a note named after it, the way people say it', () => {
-    expect(plan('add buy milk to the hello trade.')).toEqual({ kind: 'place', note: at('h'), text: 'buy milk', how: 'leave', task: false, many: false, target: null });
+    expect(plan('add buy milk to the hello trade.')).toEqual({ kind: 'place', note: at('h'), text: 'buy milk', how: 'leave', task: false, many: false });
     expect(plan('put call Sam on the work list')).toMatchObject({ kind: 'place', note: at('w'), text: 'call Sam' });
     expect(plan('add to work: call Sam')).toMatchObject({ kind: 'place', note: at('w'), text: 'call Sam' });
   });
@@ -87,7 +87,7 @@ describe('what a command asks for', () => {
   });
 
   it('adds a list item when one is asked for, and waits for it when it is not said yet', () => {
-    expect(plan('add a list item to the hello trade')).toEqual({ kind: 'await', note: at('h'), how: 'item', task: false, many: false, target: null });
+    expect(plan('add a list item to the hello trade')).toEqual({ kind: 'await', note: at('h'), how: 'item', task: false, many: false });
     expect(plan('add a task buy stamps to work')).toMatchObject({ kind: 'place', note: at('w'), text: 'buy stamps', how: 'item', task: true });
     expect(plan('new item for hello trade, fix the login')).toMatchObject({ kind: 'place', note: at('h'), text: 'fix the login', how: 'item' });
   });
@@ -101,10 +101,6 @@ describe('what a command asks for', () => {
     expect(plan('switch to work')).toEqual({ kind: 'move', note: at('w') });
     expect(plan('move this to the hello trade note')).toEqual({ kind: 'move', note: at('h') });
     expect(plan('new note')).toEqual({ kind: 'new' });
-  });
-
-  it('carries a plugin’s word after the note’s name', () => {
-    expect(plan('new task for hello trade in Notion, ship it', ['notion'])).toMatchObject({ kind: 'place', note: at('h'), target: 'notion', how: 'item', task: true });
   });
 
   it('says so when the note named does not exist, and waits when nothing is a command yet', () => {

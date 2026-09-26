@@ -25,7 +25,7 @@ describe('Settings › Plugins', () => {
   });
 
   it('says what a plugin may reach in one line, and the reasons a press away', () => {
-    expect(reachLine(notion)).toBe('Your notes · The internet (api.notion.com, attack.fm) · Voice commands · Built-in app commands');
+    expect(reachLine(notion)).toBe('Your notes · The internet (api.notion.com, attack.fm) · Built-in app commands');
     expect(reachLine(claude)).toBe('Your notes · The internet (attack.fm)');
     const pane = show(<PluginsPane />);
     const card = cardOf(pane, 'Claude')!;
@@ -58,6 +58,6 @@ describe('Settings › Plugins', () => {
   });
 
   it('says the internet plainly for a plugin that names no hosts', () => {
-    expect(reachLine({ ...notion, hosts: [] })).toBe('Your notes · The internet · Voice commands · Built-in app commands');
+    expect(reachLine({ ...notion, hosts: [] })).toBe('Your notes · The internet · Built-in app commands');
   });
 });

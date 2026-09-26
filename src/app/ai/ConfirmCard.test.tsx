@@ -20,7 +20,7 @@ describe('the confirm card', () => {
       kind: 'place',
       title: 'Shopping',
       text: 'buy milk, ring Sam, bread',
-      placement: { how: 'item', task: false, many: true, target: null },
+      placement: { how: 'item', task: false, many: true },
       added: ['* [ ] Buy milk', '2. [ ] Ring Sam', '-  Bread'],
       into: 'list',
     } as unknown as Offer<Note>;
@@ -35,7 +35,7 @@ describe('the confirm card', () => {
   it('heads each kind of command with what it will do, and names its button for it', () => {
     const note = makeNote('n', '# Groceries');
     const cases: [Offer<Note>, string, string, string | null][] = [
-      [{ kind: 'place', note, title: 'Groceries', text: 'eggs', placement: { target: 'dairy' }, added: ['- eggs'], into: 'paragraph' } as unknown as Offer<Note>, 'Add to Groceries', 'Add', 'As a new paragraph, then to Dairy'],
+      [{ kind: 'place', note, title: 'Groceries', text: 'eggs', placement: { how: 'leave', task: false, many: false }, added: ['- eggs'], into: 'paragraph' }, 'Add to Groceries', 'Add', 'As a new paragraph'],
       [{ kind: 'new', title: 'comic books', lines: ['- Saga'] }, `Create ${listTitle('comic books')}`, 'Create', 'As a new list'],
       [{ kind: 'new', title: 'comic books' }, `Create ${listTitle('comic books')}`, 'Create', null],
     ];

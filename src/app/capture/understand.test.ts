@@ -16,7 +16,6 @@ describe('the command model’s answer', () => {
       how: 'item',
       task: false,
       many: false,
-      target: null,
     });
     expect(readCommandAnswer('{"action":"switch","note":"HelloTrade"}', notes)).toEqual({ kind: 'move', note: notes[1] });
     expect(readCommandAnswer('{"action":"new"}', notes)).toEqual({ kind: 'new' });

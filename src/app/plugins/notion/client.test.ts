@@ -202,24 +202,6 @@ describe('asking Notion', () => {
       body: { parent: { database_id: 'b1' }, properties: { Task: { title: [{ type: 'text', text: { content: 'x'.repeat(2000) } }] } } },
     });
   });
-
-  it('finds tasks by the first word said, and reads their titles back', async () => {
-    const { findTasks } = await client();
-    const bodies: unknown[] = [];
-    request = ({ request: asked }) => {
-      bodies.push(asked.body);
-      return {
-        status: 200,
-        body: { results: [{ id: 'p1', url: 'u1', properties: { Task: { type: 'title', title: [{ plain_text: 'Invoice run' }] } } }, { id: 'p2', url: 'u2', properties: { Due: { type: 'date' } } }] },
-      };
-    };
-    expect(await findTasks(board, '  invoice for March ')).toEqual([
-      { id: 'p1', url: 'u1', title: 'Invoice run' },
-      { id: 'p2', url: 'u2', title: 'Untitled' },
-    ]);
-    await findTasks(board, '   ');
-    expect(bodies).toEqual([{ filter: { property: 'Task', title: { contains: 'invoice' } }, page_size: 50 }, { page_size: 50 }]);
-  });
 });
 
 describe('which board a note sends to', () => {
