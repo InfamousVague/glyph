@@ -30,7 +30,8 @@ export type RouteView =
   | { phase: 'said'; text: string }
   | { phase: 'waiting'; title: string; many: boolean; leave: boolean }
   | { phase: 'added'; title: string; body: string; added: string[] }
-  | { phase: 'moved'; title: string }
+  /** The words went to a note, and carry on there; `spot` says where in it ("under Electrical"). */
+  | { phase: 'moved'; title: string; spot?: string | null }
   | { phase: 'missed'; title: string }
   | { phase: 'plugin'; state: 'working' | 'done' | 'failed'; lead: string | null; title: string }
   | null;

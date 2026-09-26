@@ -74,6 +74,7 @@ export function RouteChip({ route, itemWords }: { route: Exclude<RouteView, null
           ) : (
             <>
               Now on <strong>{route.title}</strong>
+              {route.spot ? ` · ${route.spot}` : null}
             </>
           )}
         </>
