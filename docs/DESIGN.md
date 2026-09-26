@@ -4742,7 +4742,10 @@ came out of it is a small vocabulary the modules share, and a test that holds th
 optical sizes, the kit's tokens, the kit's component styles, then Ghost.md's own - app.css (the shell and the shared
 values), art/wisp.css (the page's edges under a header and at its foot, beside the art/ code that writes their
 variables), ink.css (the palette), typefaces.css (the note's and the code's faces) and editor/codeThemes.css (the code
-palettes). Every CSS module comes after all of them, so a module's rule beats a global one of the same weight.
+palettes). Every CSS module comes after all of them, so a module's rule beats a global one of the same weight. The one
+global sheet that is not an entry's is settings/settings.css, imported by SettingsScreen.tsx and
+settings/kit/settingsKit.tsx: the build puts it among the modules, after some and before others, so nothing may
+count on where it falls.
 
 **What app.css names, so no module writes its own copy:**
 
@@ -4754,7 +4757,11 @@ palettes). Every CSS module comes after all of them, so a module's rule beats a 
 - `--app-glass-mix` and `--app-glass-blur`, the header's glass; `--app-float-blur` and `--app-float-shadow`, a card
   that floats over the page.
 - `--app-pop`, `--app-turn` and `--app-settle`: the app's own movements (a card popping in, a glyph turning when its
-  button is pressed, a line settling). They are fixed durations and do not follow Settings > Animations > speed.
+  button is pressed, a line settling). They are fixed durations and do not follow Settings > Animations > speed. Every
+  other duration is still a literal beside the one movement it times, and several lengths recur (160ms, 200ms, 260ms,
+  320ms and 900ms in four files each). They were left so on purpose: a shared length is not a shared movement, and a
+  name would tie together what is free to change apart. A movement gets a property when a second place has to keep
+  time with it, as these three do.
 - `--app-tracking-caps` and `--app-tracking-caps-close`: the spacing of small capitals, beside the display and title
   tracking.
 
@@ -4763,8 +4770,20 @@ the quiet button; `.app-unseen`, words for a screen reader alone; `.app-eyebrow`
 `.app-pill` and `.app-inverse` stay in ink.css, being made of ink. Shared module pieces work the same way:
 settings/choiceCard.module.css (the theme, size and typeface cards), settings/swatch.module.css (the accent and
 workspace dots), guide/MarkExample.module.css `.room` (a read-only editor, also the Academy's), book/rows.module.css,
-and the home page's grid and empty page, which All notes composes. A composed file's rules come before the file that
-composes it, so the composing class can override them.
+and the home page's grid and empty page, which All notes composes.
+
+**A composing class never overrides what it composes at the same weight.** postcss-modules writes a copy of the
+composed file's rules at the head of every file that composes it, and of identical rules only the last copy counts
+(the build's minifier keeps only that one). So the shared rules land just before the last file in the bundle to
+compose them, or where the shared file is itself imported if that is later, and every other composer comes before
+them: the choice card's rules come after the size and theme cards and before the typeface cards, and the swatch's after
+the workspace swatch and before the accent swatch. Importing the shared file first changes nothing, since each
+composer still carries its own copy. A composer that needs another value says it with a heavier selector
+(`.option.option`, or an attribute), or the shared class leaves that property to its composers. One class breaks the
+rule today, from before the pass: the canvas card's words (canvas/CanvasView.module.css `.words`) ask for no height
+cap, no margin and the card's ink over notes/NotePeek.module.css `.peek`, and get the peek's cap, its margin and its
+grey, since the peek's own sheet lands after the canvas's. The test names it; giving the card what it asks for changes
+how it looks, so that is left for its own decision.
 
 **Rules the pass wrote down:**
 
@@ -4782,7 +4801,10 @@ composes it, so the composing class can override them.
   under System an inverse surface takes the paper's hue lift, under Dark the page's own.
 
 **The test**, src/app/stylesheets.test.ts, reads every stylesheet as text, since the suite runs with CSS off: no
-custom property read that nothing declares, no `composes` of a class that is not there, and no dark twin drifted.
+custom property read that nothing declares; no `var()` without a fallback of a property that neither the root, nor the
+reading sheet, nor a short named list (set inline by the code, or by the composer of a shared class) declares; no
+`composes` of a class that is not there; no composing class setting what it composes at the same weight; and no dark
+twin drifted.
 
 **How the pass was proved to change nothing:** main and the branch were built side by side and every element's box
 and computed style, pseudo-elements included, compared view by view - home, a note down its length and formatted,
