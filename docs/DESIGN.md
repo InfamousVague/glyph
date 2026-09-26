@@ -4736,8 +4736,13 @@ Matt: "I would like a "Ghost.md: The Guide"". The app's manual is now a book the
 
 **What it is.** Forty-four chapters in eleven parts. Parts I to VI say what the app does and need no technical
 background; Parts VII to XI say how it is made, for someone who reads code. It was written from the source at a2a12e6
-and read against the code by a second pass. Where a doc and the code disagree, the chapters follow the code, and the
-last chapter, *Where the docs and the code disagree*, lists each place found.
+and read against the code by a second pass. Where a doc and the code disagree, the chapters follow the code. The
+last chapter, *Where the docs and the code disagree*, collects the disagreements that cut across chapters and points to
+the chapters that end with their own doc's.
+
+The book view draws no part headings (book/BookView.tsx shows a chapter's title and nothing else of its line, and
+`bookWords` drops a heading left before the first chapter), so the index's lede names the two halves by chapter
+number, 1 to 26 and 27 to 44. The parts stay in the Markdown, for anyone reading the file.
 
 **How it ships.** Everything is in `src/app/guidebook/`:
 
@@ -4760,6 +4765,8 @@ downloads them once, as it does every file in `ota.json`; the app reads none of 
 **Adding it.** App.tsx hands `addGuideBook` the notes as the store has them now, less the trash, rather than the list
 in hand, which can be a moment old (as `openTitle` does). Then:
 
+- Signed in, a sync pass runs first (`syncNow`, raced against five seconds), so a book another device has added is
+  here before the next step looks for it.
 - A book already there by the guide's title is answered as it is, so a second press opens the first book.
 - Each chapter is made only where no note has its title, since the index finds its chapters by title: a person's own
   note called *Live typing* stays, and is that chapter. An archived note counts as missing, as it does to a link.
@@ -4768,6 +4775,16 @@ in hand, which can be a moment old (as `openTitle` does). Then:
 
 The notes are written as typed ones (`source` left out), so they sync, share, change and delete like any other. Like
 the other notes About adds, they are not filed in the workspace the list is showing.
+
+A press that fails (the chunks cannot be fetched offline, or a deploy has replaced them under an open tab) says so in
+a toast, "Ghost.md: The Guide did not load. Try again.", and leaves the person where they were (App.tsx
+`openSample`). Chapters made before the failure stay, and the next press makes only the rest.
+
+**Forty-five newest notes.** Added, the guide's notes are the newest in the library. Recent then shows its first six
+chapters until something else is written; the book says so (*The first five minutes*). The command palette offered
+only the forty notes changed last by name, so every older note dropped out of it. It now offers those forty with
+nothing typed, and once something is typed the forty newest matches from the whole library, matched as the kit
+matches a row (`notesByName` in commands/palette.ts, with CommandBar.tsx holding the query).
 
 **Not seeded.** The sample note arrives by itself in an empty library; the guide does not. Forty-five notes would fill
 a new library's Recent and its notes list before its person had written anything, so the guide is asked for.
@@ -4782,12 +4799,18 @@ a new library's Recent and its notes list before its person had written anything
 - nothing reads as a secret (an IP address, `password:`, `token=`, SSHPASS, a long hex or base64 key), and the check
   knows one when it is shown one;
 - adding twice leaves one book, and a note that already has a chapter's title is kept as that chapter;
-- the About row is there and calls its handler.
+- `GUIDE_CHAPTERS`, the count About's row gives, is the number of chapter files.
+
+`settings/AboutPane.test.tsx` checks that the About row is there, counts 44 chapters and calls its handler.
+`App.test.tsx` checks that a failed load says so and opens nothing, and that the sync pass runs before the book is
+looked for.
 
 `settings/SettingsSheet.test.tsx` finds the row by guide, manual, help and book, and its standing check finds the row
 on the About page under the name the search gives it.
 
 **Not done.** A guide added at one version stays as it was: a later release's chapters reach only a library that adds
-the guide afresh, and adding it again while the book is there opens the old one. The book's own chapters on settings
-(*The first five minutes*, *Settings, one section at a time*) list About's rows as they were at a2a12e6, without this
-one.
+the guide afresh, and adding it again while the book is there opens the old one. A sync pass that takes longer than
+five seconds, or a device offline, can still leave two devices each making a book, since sync keeps notes by id and
+never merges two with the same title. Two costs are not measured on the Fold yet: Read straight through mounts one
+read-only editor per chapter, 44 at once over 380 KB, and the gist runner owes a line to each chapter the home page
+and All notes show, up to thirty whole chapters sent to the smallest model after the guide is added.
