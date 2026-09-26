@@ -1,7 +1,6 @@
 /*
- * The walkthrough, in the app's own terms: one page at a time, big type, words
- * for buttons, nothing boxed except the example output, which is code and is
- * set like code.
+ * The walkthrough (Guide.tsx and its pages, guide/pages/), in the app's own terms: one page at a time, big type, words
+ * for buttons, nothing boxed except the example output, which is code and is set like code.
  */
 .guide {
   position: fixed;
@@ -23,10 +22,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   /* The guide covers the whole screen, the app's tab bar included, so it clears the notch alone: --app-safe-top
      carries the bar's height as well, and padding by it would leave a bar's worth of nothing at the top. */
-  padding-block: calc(var(--app-inset-top, 0px) + var(--glacier-space-1)) var(--glacier-space-2);
+  padding-block: calc(var(--app-inset-top) + var(--glacier-space-1)) var(--glacier-space-2);
   /* Nearly the size of Back and Next below (Matt): the page's corners read as one set of controls. */
   font-size: calc(var(--app-action) * 0.88);
   letter-spacing: var(--app-tracking-title);
@@ -43,8 +42,8 @@
   inline-size: 7px;
   block-size: 7px;
   border-radius: 999px;
-  border: 1.5px solid var(--glacier-text-subtle);
-  transition: inline-size 240ms var(--glacier-ease-out, ease-out), background-color 240ms;
+  border: var(--app-line) solid var(--glacier-text-subtle);
+  transition: inline-size 240ms var(--glacier-ease-out), background-color 240ms;
 }
 
 .progressDot[data-done] {
@@ -71,10 +70,10 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   /* Starts under the bar, so content only meets its blur once scrolled. */
   padding-block: calc(var(--wisp-under, 3.5rem) + var(--glacier-space-4)) var(--glacier-space-24);
-  animation: enter var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
+  animation: enter var(--glacier-duration-normal) var(--glacier-ease-out);
 }
 
 @keyframes enter {
@@ -117,7 +116,7 @@
   gap: var(--glacier-space-2);
   padding: 0.3rem 0.9rem 0.3rem 0.3rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--app-ink, currentColor) 9%, transparent);
+  background: color-mix(in srgb, var(--app-ink) 9%, transparent);
   color: var(--glacier-text);
   font-size: var(--glacier-font-size-md);
   font-weight: var(--glacier-font-weight-semibold);
@@ -130,8 +129,8 @@
   inline-size: 1.9rem;
   block-size: 1.9rem;
   border-radius: 50%;
-  background: var(--app-ink, var(--glacier-text));
-  color: var(--app-paper, var(--glacier-bg));
+  background: var(--app-ink);
+  color: var(--app-paper);
   animation: wiggle 3.2s ease-in-out 1.2s infinite;
 }
 
@@ -199,7 +198,7 @@
   margin: var(--glacier-space-4) 0 0;
   font-size: var(--glacier-font-size-lg);
   font-weight: var(--glacier-font-weight-semibold);
-  color: var(--glacier-success-text, var(--glacier-accent-text));
+  color: var(--glacier-success-text);
 }
 
 .steps {
@@ -281,8 +280,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block: var(--glacier-space-8) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-3));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
+  padding-block: var(--glacier-space-8) calc(var(--app-safe-bottom) + var(--glacier-space-3));
   pointer-events: none;
 }
 
@@ -470,6 +469,6 @@
   line-height: 1.3;
   font-weight: var(--glacier-font-weight-medium);
   letter-spacing: -0.01em;
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
   text-shadow: 0 0 18px color-mix(in oklch, var(--app-ink) 30%, transparent);
 }

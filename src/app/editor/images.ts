@@ -2,7 +2,7 @@ import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extens
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
 import { failureText } from '../core/failure.ts';
 import { IMAGE_READY, IMAGE_REF, imageMarkdown, imageUrl, saveImageFile } from '../core/images.ts';
-import styles from './Editor.module.css';
+import styles from './markdown.module.css';
 
 /**
  * Pictures shown in the editor.

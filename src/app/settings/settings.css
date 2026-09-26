@@ -21,7 +21,7 @@
   --sheet-ground: var(--glacier-bg);
   background: var(--sheet-ground);
   color: var(--glacier-text);
-  animation: settingsEnter var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
+  animation: settingsEnter var(--glacier-duration-normal) var(--glacier-ease-out);
 }
 
 @keyframes settingsEnter {
@@ -62,14 +62,14 @@
 /* Two classes, so the list's own gutter further down (it's the whole page on a phone) can't win over the column's. */
 .settingsScreen__side > .settingsScreen__list,
 .settingsScreen__side > .settingsScreen__find {
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--glacier-space-4)) var(--glacier-space-4);
+  padding-inline: calc(var(--app-safe-left) + var(--glacier-space-4)) var(--glacier-space-4);
 }
 
 /* The page takes the pane's whole width, in the app's gutter; the left column already stands off the screen's edge. */
 .settingsScreen[data-layout='split'] .settingsScreen__pane {
   flex: 1;
   min-inline-size: 0;
-  padding-inline: var(--app-gutter) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-inline: var(--app-gutter) var(--app-gutter-end);
 }
 
 /* The section on show, in the left column: the row's own ground, a shade deeper. */
@@ -80,11 +80,11 @@
 /* A pane drilled into slides in from the right; coming back, the list slides
    in from the left, so the motion says which way the page went. */
 .settingsScreen[data-view='pane'] .settingsScreen__pane {
-  animation: settingsPush var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
+  animation: settingsPush var(--glacier-duration-normal) var(--glacier-ease-out);
 }
 
 .settingsScreen[data-view='list'][data-direction='out'] .settingsScreen__list {
-  animation: settingsPop var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
+  animation: settingsPop var(--glacier-duration-normal) var(--glacier-ease-out);
 }
 
 @keyframes settingsPush {
@@ -108,7 +108,7 @@
 .settingsScreen__pane .setk,
 .settingsScreen__pane .setk-callout,
 .settingsScreen__pane .setk-empty {
-  animation: settingsRise 360ms var(--glacier-ease-out, ease-out) both;
+  animation: settingsRise 360ms var(--glacier-ease-out) both;
   animation-delay: calc(40ms * var(--i, 0));
 }
 
@@ -152,14 +152,14 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--glacier-space-4);
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   /*
    * Settings is drawn over everything, the app's tab bar included, so it clears the notch alone (--app-safe-top
    * carries the bar's height too, and padding by it left an empty bar's worth above the first word). Less air above
    * and below than it had, with the screen's own name now in this row rather than under it (Matt: "move settings back
    * arrow next to settings label ... remove some of the space on the top").
    */
-  padding-block-start: calc(var(--app-inset-top, 0px) + var(--glacier-space-1));
+  padding-block-start: calc(var(--app-inset-top) + var(--glacier-space-1));
   padding-block-end: var(--glacier-space-1);
   font-size: var(--app-action);
 }
@@ -179,8 +179,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--glacier-space-4);
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block-end: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-16));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
+  padding-block-end: calc(var(--app-safe-bottom) + var(--glacier-space-16));
 }
 
 /* Nothing in a scroller may shrink to fit it: with more sections than fit,
@@ -217,7 +217,7 @@
 .setk__title {
   font-size: 0.72rem;
   font-weight: var(--glacier-font-weight-semibold);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--app-tracking-caps);
   text-transform: uppercase;
   color: var(--app-ink-3);
   padding-inline: var(--glacier-space-2);
@@ -243,7 +243,8 @@
   align-items: center;
   gap: var(--glacier-space-3);
   inline-size: 100%;
-  min-block-size: var(--glacier-space-14, 3.5rem);
+  /* A row a thumb's height. Not a kit step: the scale has no 14, and this read `--glacier-space-14` and drew its fallback. */
+  min-block-size: 3.5rem;
   padding: var(--glacier-space-3);
   border: none;
   background: transparent;
@@ -269,28 +270,25 @@
 /*
  * The chip each row wears: a small squircle in its section's colour, see-through, with the glyph in the same colour at
  * full strength (SettingsScreen.tsx `hueOf`). It used to be ink with the glyph in paper, one chip for every section.
+ * A section's page wears its colour too: each row's icon in the same chip as the list's.
  */
+.settingsScreen__rowIcon,
+.settingsScreen__pane .setk-row__icon {
+  inline-size: 1.85rem;
+  block-size: 1.85rem;
+  border-radius: 0.55rem;
+}
+
 .settingsScreen__rowIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
-  inline-size: 1.85rem;
-  block-size: 1.85rem;
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent);
-  color: var(--hue, var(--app-ink));
 }
 
-/* A section's page wears its colour too: each row's icon in the same chip as the list's, the hero's and the callouts'. */
 .settingsScreen__pane .setk-row__icon {
   display: inline-grid;
   place-items: center;
-  inline-size: 1.85rem;
-  block-size: 1.85rem;
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent);
-  color: var(--hue, var(--app-ink));
 }
 
 .settingsScreen__pane .setk-row__icon svg {
@@ -298,62 +296,45 @@
   block-size: 1.05rem;
 }
 
-.settingsScreen__pane .setk-hero__glyph,
-.settingsScreen__pane .setk-empty__icon {
+/* The colour, on the list's chips and on a page's: its rows', its hero's and its empty state's, and its callouts' glyph. */
+.settingsScreen__rowIcon,
+.settingsScreen__pane :is(.setk-row__icon, .setk-hero__glyph, .setk-empty__icon) {
   background: color-mix(in srgb, var(--hue, var(--app-ink)) 16%, transparent);
+}
+
+.settingsScreen__rowIcon,
+.settingsScreen__pane :is(.setk-row__icon, .setk-hero__glyph, .setk-empty__icon, .setk-callout__icon) {
   color: var(--hue, var(--app-ink));
 }
 
-.settingsScreen__pane .setk-callout__icon {
-  color: var(--hue, var(--app-ink));
+/*
+ * The colours: a shade deeper on the light page, so the glyph holds its contrast on paper; brighter on the dark one.
+ * Each section's pair on one line, and the dark one taken up wherever the page is dark: an explicit Dark, and System
+ * on a dark phone, which leaves `data-theme` off (core/preferences.ts) and so needs the media query's twin.
+ */
+[data-hue='blue']     { --hue: #0a6fe0; --hue-dark: #4ea1ff; }
+[data-hue='indigo']   { --hue: #5552d4; --hue-dark: #8583ff; }
+[data-hue='purple']   { --hue: #9a45c9; --hue-dark: #c77dff; }
+[data-hue='red']      { --hue: #dd3a30; --hue-dark: #ff6b61; }
+[data-hue='orange']   { --hue: #d97706; --hue-dark: #ffa53a; }
+[data-hue='teal']     { --hue: #1b92a8; --hue-dark: #5ccfe6; }
+[data-hue='graphite'] { --hue: #5f6368; --hue-dark: #aeb2b8; }
+[data-hue='coral']    { --hue: #c8643f; --hue-dark: #f0906b; }
+[data-hue='green']    { --hue: #2a9d4b; --hue-dark: #4cd571; }
+[data-hue='pink']     { --hue: #d9315a; --hue-dark: #ff6b8d; }
+[data-hue='yellow']   { --hue: #b58400; --hue-dark: #ffd43b; }
+[data-hue='grey']     { --hue: #7c7c82; --hue-dark: #a1a1a8; }
+[data-hue='brown']    { --hue: #93724e; --hue-dark: #c7a57f; }
+[data-hue='mint']     { --hue: #1f9e8f; --hue-dark: #5fe0cf; }
+
+:root[data-theme='dark'] [data-hue] {
+  --hue: var(--hue-dark);
 }
-
-/* The colours: a shade deeper on the light page, so the glyph holds its contrast on paper; brighter on the dark one. */
-[data-hue='blue'] { --hue: #0a6fe0; }
-[data-hue='indigo'] { --hue: #5552d4; }
-[data-hue='purple'] { --hue: #9a45c9; }
-[data-hue='red'] { --hue: #dd3a30; }
-[data-hue='orange'] { --hue: #d97706; }
-[data-hue='teal'] { --hue: #1b92a8; }
-[data-hue='graphite'] { --hue: #5f6368; }
-[data-hue='coral'] { --hue: #c8643f; }
-[data-hue='green'] { --hue: #2a9d4b; }
-[data-hue='pink'] { --hue: #d9315a; }
-[data-hue='yellow'] { --hue: #b58400; }
-[data-hue='grey'] { --hue: #7c7c82; }
-[data-hue='brown'] { --hue: #93724e; }
-[data-hue='mint'] { --hue: #1f9e8f; }
-
-:root[data-theme='dark'] [data-hue='blue'] { --hue: #4ea1ff; }
-:root[data-theme='dark'] [data-hue='indigo'] { --hue: #8583ff; }
-:root[data-theme='dark'] [data-hue='purple'] { --hue: #c77dff; }
-:root[data-theme='dark'] [data-hue='red'] { --hue: #ff6b61; }
-:root[data-theme='dark'] [data-hue='orange'] { --hue: #ffa53a; }
-:root[data-theme='dark'] [data-hue='teal'] { --hue: #5ccfe6; }
-:root[data-theme='dark'] [data-hue='graphite'] { --hue: #aeb2b8; }
-:root[data-theme='dark'] [data-hue='coral'] { --hue: #f0906b; }
-:root[data-theme='dark'] [data-hue='green'] { --hue: #4cd571; }
-:root[data-theme='dark'] [data-hue='pink'] { --hue: #ff6b8d; }
-:root[data-theme='dark'] [data-hue='yellow'] { --hue: #ffd43b; }
-:root[data-theme='dark'] [data-hue='grey'] { --hue: #a1a1a8; }
-:root[data-theme='dark'] [data-hue='brown'] { --hue: #c7a57f; }
-:root[data-theme='dark'] [data-hue='mint'] { --hue: #5fe0cf; }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) [data-hue='blue'] { --hue: #4ea1ff; }
-  :root:not([data-theme='light']) [data-hue='indigo'] { --hue: #8583ff; }
-  :root:not([data-theme='light']) [data-hue='purple'] { --hue: #c77dff; }
-  :root:not([data-theme='light']) [data-hue='red'] { --hue: #ff6b61; }
-  :root:not([data-theme='light']) [data-hue='orange'] { --hue: #ffa53a; }
-  :root:not([data-theme='light']) [data-hue='teal'] { --hue: #5ccfe6; }
-  :root:not([data-theme='light']) [data-hue='graphite'] { --hue: #aeb2b8; }
-  :root:not([data-theme='light']) [data-hue='coral'] { --hue: #f0906b; }
-  :root:not([data-theme='light']) [data-hue='green'] { --hue: #4cd571; }
-  :root:not([data-theme='light']) [data-hue='pink'] { --hue: #ff6b8d; }
-  :root:not([data-theme='light']) [data-hue='yellow'] { --hue: #ffd43b; }
-  :root:not([data-theme='light']) [data-hue='grey'] { --hue: #a1a1a8; }
-  :root:not([data-theme='light']) [data-hue='brown'] { --hue: #c7a57f; }
-  :root:not([data-theme='light']) [data-hue='mint'] { --hue: #5fe0cf; }
+  :root:not([data-theme='light']) [data-hue] {
+    --hue: var(--hue-dark);
+  }
 }
 
 /* Label over the live one-line reading of the section's state. */
@@ -448,7 +429,7 @@
 }
 
 .setk-row__why {
-  font-size: var(--glacier-font-size-xs, 0.75rem);
+  font-size: var(--glacier-font-size-xs);
   color: var(--app-ink-3);
   font-style: italic;
 }
@@ -670,7 +651,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--glacier-space-2) var(--glacier-space-4);
   padding: var(--glacier-space-3);
-  font-size: var(--glacier-font-size-md, 1rem);
+  font-size: var(--glacier-font-size-md);
   letter-spacing: 0.04em;
   user-select: all;
 }
@@ -747,7 +728,7 @@
  */
 .settingsScreen__find {
   flex: none;
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   padding-block: var(--glacier-space-1) var(--glacier-space-3);
 }
 
@@ -763,7 +744,7 @@
 
 .settingsScreen__findPill:focus-within {
   background: var(--app-paper-3);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--glacier-text) 30%, transparent);
+  box-shadow: inset 0 0 0 var(--app-line) color-mix(in srgb, var(--glacier-text) 30%, transparent);
 }
 
 .settingsScreen__findIcon,
@@ -812,7 +793,7 @@
 .settingsScreen__pane [data-found] {
   scroll-margin-block-start: var(--glacier-space-8);
   border-radius: var(--glacier-radius-lg);
-  animation: settingsFound 1.6s var(--glacier-ease-out, ease-out);
+  animation: settingsFound 1.6s var(--glacier-ease-out);
 }
 
 @keyframes settingsFound {

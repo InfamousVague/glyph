@@ -17,7 +17,7 @@
   min-block-size: var(--glacier-space-10);
   padding-inline: var(--glacier-space-3);
   border: var(--glacier-hairline) solid var(--glacier-border);
-  border-radius: var(--glacier-radius-md, 8px);
+  border-radius: var(--glacier-radius-md);
   background: var(--glacier-surface);
   color: var(--glacier-text);
   font: inherit;

@@ -6,10 +6,11 @@ import '@fontsource-variable/inter/opsz.css';
 import '@glacier/tokens/css/tokens.css';
 import '@glacier/react/styles.css';
 import '../app/app.css';
+import '../app/art/wisp.css';
 import '../app/ink.css';
-import '../app/editor/codeThemes.css';
 // The note's face: a shared note is drawn in the app's default, Maple Mono (typefaces.css).
 import '../app/typefaces.css';
+import '../app/editor/codeThemes.css';
 import { Reader } from './Reader.tsx';
 
 createRoot(document.getElementById('root')!).render(

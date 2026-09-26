@@ -3,5 +3,5 @@
   display: inline-flex;
   vertical-align: -0.1em;
   margin-inline-start: 0.4em;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }

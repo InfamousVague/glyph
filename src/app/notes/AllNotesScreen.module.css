@@ -5,20 +5,18 @@
  */
 
 .screen {
-  position: relative;
-  block-size: 100dvh;
-  background: var(--glacier-bg);
+  composes: screen from '../home/HomeScreen.module.css';
 }
 
 .scroll {
   block-size: 100%;
   /* Under the bar, which is a pane over this (app.css .app-headerPane; art/wispEdge.ts sets `--wisp-under`), and clear of it. */
-  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top, 0px)) + var(--glacier-space-4));
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top)) + var(--glacier-space-4));
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block-end: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-10));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
+  padding-block-end: calc(var(--app-safe-bottom) + var(--glacier-space-10));
 }
 
 /* The bar: the arrow home, the page's name for a screen reader, and the search taking the rest of the line. */
@@ -26,8 +24,8 @@
   display: flex;
   align-items: center;
   gap: var(--glacier-space-2);
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-2)) var(--glacier-space-2);
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
+  padding-block: calc(var(--app-safe-top) + var(--glacier-space-2)) var(--glacier-space-2);
 }
 
 .back {
@@ -39,9 +37,9 @@
   margin-inline-start: calc(-1 * var(--glacier-space-2));
   padding: 0;
   border: none;
-  border-radius: var(--glacier-radius-full, 999px);
+  border-radius: var(--glacier-radius-full);
   background: none;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -53,13 +51,8 @@
 
 /* The page's name for a screen reader alone: the bar shows where you are with its search. */
 .saidOnly {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
+  composes: app-unseen from global;
   margin: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 /*
@@ -72,17 +65,18 @@
   align-items: center;
   gap: var(--glacier-space-2);
   min-inline-size: 0;
-  min-block-size: var(--glacier-space-9);
+  /* As tall as the field in it. It asked for `--glacier-space-9`, which the kit's scale lacks, so this is what drew. */
+  min-block-size: auto;
   padding-inline: var(--glacier-space-3) var(--glacier-space-1);
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-full, 999px);
-  background: color-mix(in oklch, var(--app-ink, currentColor) 4%, transparent);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, var(--app-ink) 4%, transparent);
+  color: var(--app-ink-3);
 }
 
 .search:focus-within {
   border-color: var(--glacier-border-strong);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
 }
 
 .searchMark {
@@ -99,7 +93,7 @@
   background: transparent;
   font: inherit;
   font-size: var(--glacier-font-size-md);
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -113,7 +107,7 @@
 }
 
 .field::placeholder {
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 .clear {
@@ -121,14 +115,15 @@
   flex: none;
   display: grid;
   place-items: center;
-  inline-size: var(--glacier-space-7);
-  block-size: var(--glacier-space-7);
+  /* The glyph's own size: `--glacier-space-7`, asked for here, is not a step of the kit's scale, so none ever applied. */
+  inline-size: auto;
+  block-size: auto;
   margin: 0;
   padding: 0;
   border: none;
   border-radius: 999px;
-  background: color-mix(in oklch, var(--app-ink, currentColor) 8%, transparent);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  background: color-mix(in oklch, var(--app-ink) 8%, transparent);
+  color: var(--app-ink-2);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -155,7 +150,7 @@
   gap: var(--glacier-space-3);
   margin-block: var(--glacier-space-3) var(--glacier-space-3);
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
 }
 
 .sorts {
@@ -170,11 +165,12 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
-  min-block-size: var(--glacier-space-7);
+  /* The word's own height: `--glacier-space-7`, asked for here, is not a step of the kit's scale. */
+  min-block-size: auto;
   margin: 0;
   padding-inline: var(--glacier-space-3);
   border: var(--glacier-hairline) solid transparent;
-  border-radius: var(--glacier-radius-full, 999px);
+  border-radius: var(--glacier-radius-full);
   background: none;
   color: inherit;
   font: inherit;
@@ -188,8 +184,8 @@
 .sortWord[aria-checked='true'],
 .archiveWord[aria-pressed='true'] {
   border-color: var(--glacier-border-subtle);
-  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
-  color: var(--app-ink, var(--glacier-text));
+  background: color-mix(in oklch, var(--app-ink) 6%, transparent);
+  color: var(--app-ink);
 }
 
 .sortWord:focus-visible,
@@ -210,7 +206,7 @@
 .tally {
   margin: 0;
   font-variant-numeric: tabular-nums;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
   white-space: nowrap;
 }
 
@@ -220,35 +216,23 @@
  * standard phone portrait view we may only see one note per row while unfolded may see 3-4"). Under the app's 600px
  * line (core/useWideScreen.ts) it is one column; wider, as many as fit a card 12rem across - measured, two at 600px,
  * three at 750, four from about 870 and in a desktop window's 60rem column, so three or four on the Fold opened out.
+ * The same grid, not a copy of it.
  */
 .cards {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--glacier-space-3);
+  composes: cards from '../home/HomeScreen.module.css';
 }
 
-@media (min-width: 600px) {
-  .cards {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
-  }
-}
-
-/* The empty page, and the search that found nothing: the ghost (art/Ghost.tsx) and a line, as on the home page. */
+/*
+ * The empty page, and the search that found nothing: the ghost (art/Ghost.tsx) and a line, as on the home page, and
+ * drawn by the home page's own rules. Only the way they sit side by side is this page's, since each page measures its
+ * own column (`all-notes` here, `home-page` there).
+ */
 .empty {
-  padding-block: var(--glacier-space-6) var(--glacier-space-8);
+  composes: empty from '../home/HomeScreen.module.css';
 }
 
 .emptyArt {
-  display: block;
-  margin-block-end: var(--glacier-space-5);
-  color: var(--app-ink-3);
-}
-
-.empty > .emptyArt[data-size] {
-  inline-size: min(100%, 36rem, calc(38dvh * var(--ghost-ratio, 1)));
+  composes: emptyArt from '../home/HomeScreen.module.css';
 }
 
 @container all-notes (min-width: 44rem) {
@@ -275,20 +259,12 @@
   }
 }
 
+/* The line can hold a search's words or a workspace's name, so a long one breaks anywhere rather than running off. */
 .emptyLead {
-  margin: 0;
-  font-size: var(--glacier-font-size-3xl);
-  line-height: var(--glacier-leading-3xl);
-  letter-spacing: var(--app-tracking-title);
-  font-weight: var(--glacier-font-weight-semibold);
-  color: var(--glacier-text-subtle);
+  composes: emptyLead from '../home/HomeScreen.module.css';
   overflow-wrap: anywhere;
 }
 
 .emptyHint {
-  margin: var(--glacier-space-3) 0 0;
-  max-inline-size: 28ch;
-  font-size: var(--glacier-font-size-md);
-  line-height: var(--glacier-leading-md);
-  color: var(--glacier-text-muted);
+  composes: emptyHint from '../home/HomeScreen.module.css';
 }

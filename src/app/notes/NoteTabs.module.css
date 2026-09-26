@@ -39,7 +39,7 @@
    * the tab's border, the two curves - that meet and overlap by a pixel, and a see-through colour laid over itself
    * builds up, so every join drew brighter than the line. An opaque colour over itself is the same colour.
    */
-  --tab-line: color-mix(in oklch, var(--app-ink, currentColor) 22%, var(--app-paper, var(--glacier-bg)));
+  --tab-line: color-mix(in oklch, var(--app-ink) 22%, var(--app-paper));
   /* The size of the curve where the line bends up into the active tab. */
   --tab-flare: 7px;
   /* The whole height of the bar, so the tabs can be pushed to its foot (`.tabs`) while the tools stay at its top. */
@@ -104,7 +104,9 @@
   flex: none;
 }
 
-.sidebar {
+/* The sidebar's button and the two arrows: one ring each, the same as every other round control in the app. */
+.sidebar,
+.step {
   /* A target in a bar that otherwise passes clicks through to whatever is under it (app.css .app-tabBar). */
   pointer-events: auto;
   appearance: none;
@@ -114,40 +116,24 @@
   /* Bigger than they were built, smaller than they got (Matt: "make the tabs slightly bigger", then "the tabs are
      just a bit too big now go down in size a bit same with the buttons on the navbar"). The scale has no 7 or 9: an
      invalid token is not a smaller button, it is no rule at all, and the button falls back to its own glyph's size. */
-  /* The same size as the note header's rings (editor/NoteScreen.module.css .cog), so every round control in the app
-     is one size: a kit step multiplied rather than a number of its own. */
-  inline-size: calc(var(--glacier-space-10) * 0.88);
-  block-size: calc(var(--glacier-space-10) * 0.88);
+  /* The same size as the note header's rings (editor/NoteScreen.module.css .cog): `--app-ring` (app.css). */
+  inline-size: var(--app-ring);
+  block-size: var(--app-ring);
   padding: 0;
   border: none;
-  border-radius: var(--glacier-radius-md, 9px);
+  border-radius: var(--glacier-radius-md);
   background: none;
   color: var(--glacier-text-muted);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
-.step {
-  pointer-events: auto;
-  appearance: none;
-  flex: none;
-  display: grid;
-  place-items: center;
-  inline-size: calc(var(--glacier-space-10) * 0.88);
-  block-size: calc(var(--glacier-space-10) * 0.88);
-  padding: 0;
-  border: none;
-  border-radius: var(--glacier-radius-md, 9px);
-  background: none;
-  color: var(--glacier-text-muted);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
+.sidebar:hover,
+.sidebar:active,
 .step:hover,
 .step:active {
   color: var(--glacier-text);
-  background: var(--app-paper-2, var(--glacier-surface));
+  background: var(--app-paper-2);
 }
 
 /* Nowhere to go that way: still there, so the row never changes width, but plainly dead. */
@@ -158,15 +144,10 @@
   cursor: default;
 }
 
+.sidebar:focus-visible,
 .step:focus-visible {
   outline: 2px solid var(--glacier-focus-ring);
   outline-offset: 2px;
-}
-
-.sidebar:hover,
-.sidebar:active {
-  color: var(--glacier-text);
-  background: var(--app-paper-2, var(--glacier-surface));
 }
 
 /*
@@ -177,12 +158,7 @@
  */
 .sidebar[data-on] {
   color: var(--glacier-text);
-  box-shadow: inset 0 0 0 1.5px var(--glacier-text);
-}
-
-.sidebar:focus-visible {
-  outline: 2px solid var(--glacier-focus-ring);
-  outline-offset: 2px;
+  box-shadow: inset 0 0 0 var(--app-line) var(--glacier-text);
 }
 
 .tabs {
@@ -274,7 +250,7 @@
   pointer-events: auto;
   /* Dragged rather than dragged over: the row reorders under the finger (useTabDrag.ts), so a tab only needs to say
      that it is the one moving. */
-  transition: transform 140ms var(--glacier-ease-out, ease-out);
+  transition: transform 140ms var(--glacier-ease-out);
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -300,7 +276,7 @@
    */
   border: 1px solid transparent;
   border-block-end: 0;
-  border-radius: var(--glacier-radius-md, 0.625rem) var(--glacier-radius-md, 0.625rem) 0 0;
+  border-radius: var(--glacier-radius-md) var(--glacier-radius-md) 0 0;
   background: none;
   color: var(--glacier-text-muted);
   /* A tab is held to move it and held to open its menu (useTabDrag.ts), and a phone answers a hold on words by
@@ -316,15 +292,15 @@
 }
 
 .tab:not([data-active]):hover {
-  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
-  color: var(--app-ink, var(--glacier-text));
+  background: color-mix(in oklch, var(--app-ink) 6%, transparent);
+  color: var(--app-ink);
 }
 
 .tab[data-active] {
   position: relative;
   /* Glass, not paper: the bar's own ground shows through, as it does round every other tab. Its outline is `.glide`. */
   background: none;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 /*
@@ -387,7 +363,7 @@
   box-sizing: border-box;
   border: 1px solid var(--tab-line);
   border-block-end: 0;
-  border-radius: var(--glacier-radius-md, 0.625rem) var(--glacier-radius-md, 0.625rem) 0 0;
+  border-radius: var(--glacier-radius-md) var(--glacier-radius-md) 0 0;
   pointer-events: none;
 }
 
@@ -524,14 +500,14 @@
   border: none;
   border-radius: var(--glacier-radius-sm);
   background: none;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
 .newTab:hover {
-  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
-  color: var(--app-ink, var(--glacier-text));
+  background: color-mix(in oklch, var(--app-ink) 6%, transparent);
+  color: var(--app-ink);
 }
 
 .newTab:focus-visible {
@@ -560,8 +536,8 @@
    */
   transform-origin: center;
   transition:
-    transform var(--glacier-duration-normal, 250ms) var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
-    opacity var(--glacier-duration-normal, 250ms) var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+    transform var(--glacier-duration-normal) var(--glacier-ease-out),
+    opacity var(--glacier-duration-normal) var(--glacier-ease-out);
 }
 
 .tab[data-active] .groupLine {
@@ -629,7 +605,7 @@
   border: 1px solid var(--app-space, var(--app-ink-3));
   border-radius: var(--glacier-radius-sm);
   background: transparent;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   font: inherit;
   font-size: var(--glacier-font-size-sm);
 }

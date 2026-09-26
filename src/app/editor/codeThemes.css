@@ -1,8 +1,12 @@
 /*
  * The code themes (codeThemes.ts): the custom properties a fenced block's tokens are drawn with
- * (Editor.module.css). Ink first, as the base, so a missing attribute falls back to the page's own ink. Light themes
- * apply on the light page; dark themes are stamped after, under the same rules ink.css uses to decide the page is
+ * (markdown.module.css). Ink first, as the base, so a missing attribute falls back to the page's own ink. Light themes
+ * apply on the light page; dark themes are stamped after, under the same selectors ink.css uses to decide the page is
  * dark, so they win there.
+ *
+ * Every dark palette is written twice, for an explicit Dark and for System on a dark phone, which leaves `data-theme`
+ * off (core/preferences.ts) and so needs the media query. The two must match line for line; src/app/stylesheets.test.ts
+ * holds them to it.
  */
 
 :root {
@@ -157,7 +161,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme])[data-code-dark='pastel'] {
+  :root:not([data-theme='light'])[data-code-dark='pastel'] {
     --code-fg: var(--glacier-text);
     --code-keyword: oklch(0.82 0.1 330);
     --code-string: oklch(0.86 0.09 155);
@@ -173,7 +177,7 @@
     --code-name-weight: inherit;
   }
 
-  :root:not([data-theme])[data-code-dark='ink'] {
+  :root:not([data-theme='light'])[data-code-dark='ink'] {
     --code-fg: var(--glacier-text);
     --code-keyword: var(--glacier-text);
     --code-string: var(--glacier-text-muted);
@@ -189,7 +193,7 @@
     --code-name-weight: var(--glacier-font-weight-medium);
   }
 
-  :root:not([data-theme])[data-code-dark='one-dark'] {
+  :root:not([data-theme='light'])[data-code-dark='one-dark'] {
     --code-fg: #abb2bf;
     --code-keyword: #c678dd;
     --code-string: #98c379;
@@ -205,7 +209,7 @@
     --code-name-weight: inherit;
   }
 
-  :root:not([data-theme])[data-code-dark='dracula'] {
+  :root:not([data-theme='light'])[data-code-dark='dracula'] {
     --code-fg: #f8f8f2;
     --code-keyword: #ff79c6;
     --code-string: #f1fa8c;
@@ -221,7 +225,7 @@
     --code-name-weight: inherit;
   }
 
-  :root:not([data-theme])[data-code-dark='nord'] {
+  :root:not([data-theme='light'])[data-code-dark='nord'] {
     --code-fg: #d8dee9;
     --code-keyword: #81a1c1;
     --code-string: #a3be8c;

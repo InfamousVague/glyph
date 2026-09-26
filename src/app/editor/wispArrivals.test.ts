@@ -169,7 +169,7 @@ describe('words drawn arriving', () => {
 
 describe('the smoke of text that went', () => {
   it('is drawn in the look the text had, where it stood', () => {
-    // The box of a to-do is set in the monospace face and the accent colour (Editor.module.css `.taskMarker`); its
+    // The box of a to-do is set in the monospace face and the accent colour (markdown.module.css `.taskMarker`); its
     // smoke, drawn as a widget of the line, took the note's prose face until it was given the same classes.
     const box = EditorView.decorations.of(Decoration.set([Decoration.mark({ class: 'probe-box' }).range(2, 5)]));
     const view = new EditorView({ doc: '- [x] milk', extensions: [box, wispArrivals({ typing: true })] });

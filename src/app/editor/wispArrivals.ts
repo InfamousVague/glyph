@@ -230,7 +230,7 @@ const wispPlugin = ViewPlugin.fromClass(
      *
      * A ghost is CodeMirror's widget, a child of the line rather than of the span the letters were in, so it took the
      * note's prose face and plain ink whatever they had been. A to-do's `x` is set in the monospace face and the accent
-     * colour (editor/glyphLines.ts, Editor.module.css), and its smoke, a narrower prose `x` on the same left edge, read
+     * colour (editor/glyphLines.ts, markdown.module.css), and its smoke, a narrower prose `x` on the same left edge, read
      * as the letter hopping left before it faded (Matt: "it jumps to the left then fades away instead of fading in
      * place"). Bold, code and a heading's letters smoke as themselves for the same reason.
      */

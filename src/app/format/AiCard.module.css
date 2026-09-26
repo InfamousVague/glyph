@@ -10,9 +10,9 @@
   margin: var(--glacier-space-2) var(--app-gutter) var(--glacier-space-3);
   padding: var(--glacier-space-4);
   border-radius: var(--glacier-radius-lg);
-  background: var(--app-paper-2, var(--glacier-surface-raised));
-  border: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
-  animation: card-in 240ms var(--glacier-ease-out, ease-out) both;
+  background: var(--app-paper-2);
+  border: var(--glacier-hairline) solid var(--app-rule);
+  animation: card-in 240ms var(--glacier-ease-out) both;
 }
 
 @keyframes card-in {
@@ -25,7 +25,7 @@
 .reader {
   flex: none;
   inline-size: 4.5rem;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 /* The reader is drawn for a whole screen (Thinking.module.css); here it is a corner of one. */
@@ -58,31 +58,31 @@
 
 .model {
   font-weight: var(--glacier-font-weight-semibold);
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .size {
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 /* The point of it, said once, in a small pill of ink. */
 .local {
   font-size: var(--glacier-font-size-xs);
   font-weight: var(--glacier-font-weight-semibold);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--app-tracking-caps-close);
   text-transform: uppercase;
   padding: 0.1em 0.6em;
   border-radius: 999px;
-  background: var(--app-ink, var(--glacier-text));
-  color: var(--app-paper, var(--glacier-surface));
+  background: var(--app-ink);
+  color: var(--app-paper);
 }
 
 .line {
   margin: 0;
   font-size: var(--glacier-font-size-sm);
   line-height: var(--glacier-leading-sm);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
   animation: breathe 1.8s ease-in-out infinite;
 }
 
@@ -110,14 +110,14 @@
 }
 
 .meterLabel {
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .meterValue {
   margin: 0;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   font-variant-numeric: tabular-nums;
   text-align: end;
 }
@@ -127,14 +127,14 @@
   margin: 2px 0 0;
   block-size: 2px;
   border-radius: 1px;
-  background: color-mix(in oklch, var(--app-ink, currentColor) 14%, transparent);
+  background: color-mix(in oklch, var(--app-ink) 14%, transparent);
   overflow: hidden;
 }
 
 .bar > span {
   display: block;
   block-size: 100%;
-  background: var(--app-ink, var(--glacier-text));
+  background: var(--app-ink);
   transition: inline-size 300ms ease-out;
 }
 
@@ -145,7 +145,7 @@
   gap: var(--glacier-space-1) var(--glacier-space-4);
   margin: 0;
   font-size: var(--glacier-font-size-xs);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 @media (prefers-reduced-motion: reduce) {

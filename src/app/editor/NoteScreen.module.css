@@ -1,3 +1,10 @@
+/*
+ * The note screen (NoteScreen.tsx), and the note's tools wherever they are drawn (NoteTools.tsx): the header pane of
+ * glass over the page, the round tool buttons, the page under it with the note's type scale redefined for a pinch's
+ * zoom, the AI strip's holder, the ghost on a blank note and the byline. The fold of a phone opening (the crease)
+ * moves the body alone.
+ */
+
 .screen {
   position: relative;
   display: flex;
@@ -51,11 +58,6 @@
 }
 
 /*
- * The header hugs the notch and draws nothing of its own: no bar, no rule.
- * `--app-safe-top` is zero everywhere but a phone, so the same rule gives a
- * desktop window an ordinary strip.
- */
-/*
  * The header is a pane of frosted glass over the page rather than a strip
  * above it (app.css .app-headerPane): the page runs under it, blurred through
  * it, with the gentle wisp just below its edge. The page pads itself by the
@@ -67,8 +69,8 @@
   flex-direction: column;
   align-items: stretch;
   gap: var(--glacier-space-2);
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-1)) var(--glacier-space-2);
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
+  padding-block: calc(var(--app-safe-top) + var(--glacier-space-1)) var(--glacier-space-2);
   font-size: var(--glacier-font-size-md);
 }
 
@@ -81,7 +83,7 @@
  * pane's foot. The page keeps that room as its own instead, so the note's first line stays where it was.
  */
 .header:empty {
-  padding-block: var(--app-safe-top, 0px) 0;
+  padding-block: var(--app-safe-top) 0;
 }
 
 .header:empty ~ .page {
@@ -96,7 +98,6 @@
   gap: var(--glacier-space-4);
 }
 
-
 /*
  * The note arrives: the header, then the tape, then the body, each a beat
  * after the last, rising a few pixels as they fade in. On the parts, not
@@ -105,7 +106,7 @@
 .header,
 .tapeRow,
 .body {
-  animation: noteRise 320ms var(--glacier-ease-out, ease-out) both;
+  animation: noteRise 320ms var(--glacier-ease-out) both;
 }
 
 .tapeRow {
@@ -149,13 +150,12 @@
   place-items: center;
   /*
    * A notch smaller than the kit's step, the four of them together (Matt: "Make the bookmark, more button, speak and
-   * book a little bit smaller"). A step multiplied rather than a new number, as every size in app.css is. The same
-   * expression as the sidebar button and the two arrows (notes/NoteTabs.module.css .sidebar, .step), which is what
-   * these now sit beside: the note's tools were moved into the app's bar, so the row is one set of controls and has
-   * to read as one.
+   * book a little bit smaller"): the app's ring (app.css `--app-ring`), the same as the sidebar button and the two
+   * arrows (notes/NoteTabs.module.css .sidebar, .step), which is what these now sit beside. The note's tools were moved
+   * into the app's bar, so the row is one set of controls and has to read as one.
    */
-  inline-size: calc(var(--glacier-space-10) * 0.88);
-  block-size: calc(var(--glacier-space-10) * 0.88);
+  inline-size: var(--app-ring);
+  block-size: var(--app-ring);
   padding: 0;
   /*
    * No ring (Matt: "Remove the borders around the buttons in the top bar make sure they match the size of the back
@@ -164,7 +164,7 @@
    * alone that made them look the larger pair. The corner is the arrows' own, for the ground a hover paints.
    */
   border: none;
-  border-radius: var(--glacier-radius-md, 9px);
+  border-radius: var(--glacier-radius-md);
   background: none;
   color: var(--glacier-text);
   /*
@@ -179,7 +179,7 @@
 }
 
 .cog svg {
-  transition: transform 420ms cubic-bezier(0.3, 1.4, 0.5, 1);
+  transition: transform var(--app-turn);
 }
 
 .cog:active svg {
@@ -223,7 +223,7 @@
   margin: 0;
   padding: var(--glacier-space-1) var(--app-gutter) 0;
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 /*
@@ -234,7 +234,7 @@
 .body {
   flex: 1;
   min-block-size: 0;
-  padding-block-end: var(--app-safe-bottom, 0px);
+  padding-block-end: var(--app-safe-bottom);
 }
 
 /*

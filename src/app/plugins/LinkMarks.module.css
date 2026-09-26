@@ -15,19 +15,19 @@
   border: none;
   background: none;
   font: inherit;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
   text-align: start;
   -webkit-tap-highlight-color: transparent;
 }
 
 button.row {
   cursor: pointer;
-  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   padding-block: 0 var(--glacier-space-2);
 }
 
 button.row:active {
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .mark {
@@ -48,7 +48,7 @@ button.row:active {
   align-items: center;
   padding: 0.45em 0.65em;
   border: 1px solid color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent);
-  border-radius: var(--glacier-radius-full, 999px);
+  border-radius: var(--glacier-radius-full);
   color: var(--app-space, var(--app-ink-2));
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-medium);
@@ -66,8 +66,8 @@ button.row:active {
   inline-size: 1.5em;
   block-size: 1.5em;
   flex: none;
-  border: 1.5px solid currentColor;
-  border-radius: var(--glacier-radius-full, 999px);
+  border: var(--app-line) solid currentColor;
+  border-radius: var(--glacier-radius-full);
   font-size: 0.85em;
 }
 

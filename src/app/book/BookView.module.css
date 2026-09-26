@@ -8,7 +8,7 @@
    it was held to 44rem, a column of index down the left of a wide window. */
 .book {
   padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8);
-  font-size: var(--app-body, 1rem);
+  font-size: var(--app-body);
   line-height: 1.5;
 }
 
@@ -66,7 +66,7 @@
   min-inline-size: 0;
   padding: 0.35em 0.2em;
   border: 0;
-  border-radius: var(--glacier-radius-sm, 6px);
+  border-radius: var(--glacier-radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -152,14 +152,14 @@
   min-inline-size: 0;
   padding: 0.45em 0.7em;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-md, 10px);
+  border-radius: var(--glacier-radius-md);
   background: color-mix(in srgb, var(--glacier-text) 4%, transparent);
   color: var(--glacier-text);
   font: inherit;
 }
 
 .field:focus {
-  outline: 2px solid var(--glacier-accent-solid, var(--glacier-text));
+  outline: 2px solid var(--glacier-accent-solid);
   outline-offset: 1px;
 }
 
@@ -171,7 +171,7 @@
   max-block-size: 16rem;
   overflow-y: auto;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-md, 10px);
+  border-radius: var(--glacier-radius-md);
 }
 
 .pick {
@@ -223,7 +223,7 @@
 
 /* Lifted, it wears the rows' lifted look (rows.module.css) with the index's round corners. */
 .row[data-lifted] {
-  border-radius: var(--glacier-radius-sm, 6px);
+  border-radius: var(--glacier-radius-sm);
 }
 
 .row[data-lifted] .grip {
@@ -289,7 +289,7 @@
 .readTitle {
   margin: 0 0 var(--glacier-space-3);
   font-size: 1.3em;
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: -0.01em;
 }
 
@@ -300,7 +300,7 @@
   padding: 0.1em 0.2em;
   margin-inline-start: -0.2em;
   border: 0;
-  border-radius: var(--glacier-radius-sm, 6px);
+  border-radius: var(--glacier-radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;

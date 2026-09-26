@@ -43,7 +43,7 @@
   display: inline-grid;
   place-items: center;
   block-size: 2em;
-  color: var(--glacier-text-subtle, var(--glacier-text-muted));
+  color: var(--glacier-text-subtle);
   cursor: grab;
   touch-action: none;
 }

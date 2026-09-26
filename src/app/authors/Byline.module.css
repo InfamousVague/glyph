@@ -19,11 +19,11 @@
   inline-size: 1.5em;
   block-size: 1.5em;
   border-radius: 999px;
-  border: 1px solid var(--glacier-border-strong, var(--glacier-border-subtle));
+  border: 1px solid var(--glacier-border-strong);
   background: var(--glacier-bg);
   color: var(--glacier-text);
   font-size: 0.85em;
-  font-weight: var(--glacier-font-weight-semibold, 600);
+  font-weight: var(--glacier-font-weight-semibold);
 }
 
 /* Each after the first tucks under the one before, as a group of faces does. */

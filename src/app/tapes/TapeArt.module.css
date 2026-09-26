@@ -1,4 +1,7 @@
-/* Flat vector in two inks; no gradients, no shadows. See TapeArt.tsx. */
+/*
+ * The cassette on a spoken note's tape (TapeArt.tsx, drawn by NoteTape.tsx): flat vector in the page's two inks, paper
+ * on ink, with no gradients and no shadows, so it turns with the theme like the words beside it.
+ */
 .tape {
   display: block;
   inline-size: 100%;
@@ -7,16 +10,16 @@
 }
 
 .shell {
-  fill: var(--app-ink, #141414);
+  fill: var(--app-ink);
 }
 
 .onShell {
-  fill: var(--app-paper, #fff);
+  fill: var(--app-paper);
 }
 
 .outline {
   fill: none;
-  stroke: var(--app-paper, #fff);
+  stroke: var(--app-paper);
   stroke-width: 1.2;
   stroke-linejoin: round;
   stroke-opacity: 0.55;
@@ -24,53 +27,53 @@
 
 /* Wound tape, seen through the window: a flat tone of paper on the ink, with a hard edge. */
 .pack {
-  fill: color-mix(in oklch, var(--app-paper, #fff) 20%, var(--app-ink, #141414));
-  stroke: var(--app-paper, #fff);
+  fill: color-mix(in oklch, var(--app-paper) 20%, var(--app-ink));
+  stroke: var(--app-paper);
   stroke-width: 1;
 }
 
 .tapeLine {
   fill: none;
-  stroke: var(--app-paper, #fff);
+  stroke: var(--app-paper);
   stroke-width: 1.4;
   stroke-linejoin: round;
 }
 
 .hub {
-  fill: var(--app-paper, #fff);
+  fill: var(--app-paper);
 }
 
 .hubHole {
-  fill: var(--app-ink, #141414);
+  fill: var(--app-ink);
 }
 
 .paper {
-  fill: var(--app-paper, #fff);
+  fill: var(--app-paper);
 }
 
 .ink {
-  fill: var(--app-ink, #141414);
+  fill: var(--app-ink);
 }
 
 .rule {
-  stroke: var(--app-ink, #141414);
+  stroke: var(--app-ink);
   stroke-width: 0.8;
 }
 
 .sideMark {
-  fill: var(--app-paper, #fff);
-  font: 800 11px/1 var(--glacier-font-sans, system-ui, sans-serif);
+  fill: var(--app-paper);
+  font: 800 11px/1 var(--glacier-font-sans);
 }
 
 .title {
-  fill: var(--app-ink, #141414);
-  font: 800 13px/1 var(--glacier-font-sans, system-ui, sans-serif);
+  fill: var(--app-ink);
+  font: 800 13px/1 var(--glacier-font-sans);
   letter-spacing: 0.06em;
 }
 
 .small {
-  fill: var(--app-ink, #141414);
-  font: 600 7px/1 var(--glacier-font-sans, system-ui, sans-serif);
+  fill: var(--app-ink);
+  font: 600 7px/1 var(--glacier-font-sans);
   letter-spacing: 0.14em;
   font-variant-numeric: tabular-nums;
 }

@@ -10,7 +10,7 @@
   gap: var(--glacier-space-3);
   background: var(--glacier-bg);
   color: var(--glacier-text);
-  transition: opacity 260ms var(--glacier-ease-out, ease-out);
+  transition: opacity 260ms var(--glacier-ease-out);
 }
 
 .launch[data-leaving] {
@@ -22,7 +22,7 @@
   inline-size: 128px;
   block-size: 128px;
   overflow: visible;
-  animation: rise 420ms var(--glacier-ease-out, ease-out) both;
+  animation: rise 420ms var(--glacier-ease-out) both;
 }
 
 /* The ring the bar runs on: the same line, barely there. */
@@ -57,7 +57,7 @@
 .chase[data-finishing] .bar,
 .chase[data-finishing] .track {
   opacity: 0;
-  transition: opacity 200ms var(--glacier-ease-out, ease-out);
+  transition: opacity 200ms var(--glacier-ease-out);
 }
 
 /* The wink: one eye shut and open again, held shut a moment in the middle (eyes.ts WINK_MS). */
@@ -86,10 +86,10 @@
 
 .name {
   margin: var(--glacier-space-2) 0 var(--glacier-space-3);
-  font-size: var(--glacier-font-size-2xl, 1.6rem);
-  letter-spacing: var(--app-tracking-title, -0.02em);
-  font-weight: var(--glacier-font-weight-bold, 700);
-  animation: rise 420ms 60ms var(--glacier-ease-out, ease-out) both;
+  font-size: var(--glacier-font-size-2xl);
+  letter-spacing: var(--app-tracking-title);
+  font-weight: var(--glacier-font-weight-bold);
+  animation: rise 420ms 60ms var(--glacier-ease-out) both;
 }
 
 .lines {
@@ -99,7 +99,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: var(--glacier-font-size-sm, 0.875rem);
+  font-size: var(--glacier-font-size-sm);
   color: var(--glacier-text-muted);
 }
 
@@ -107,7 +107,7 @@
   display: flex;
   align-items: center;
   gap: 0.55em;
-  animation: rise 320ms var(--glacier-ease-out, ease-out) both;
+  animation: rise 320ms var(--glacier-ease-out) both;
 }
 
 .line[data-state='done'] {

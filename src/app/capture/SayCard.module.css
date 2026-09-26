@@ -10,10 +10,10 @@
   gap: var(--glacier-space-3);
   margin: 0 0 var(--glacier-space-3);
   padding: var(--glacier-space-3) var(--glacier-space-4);
-  border: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
+  border: var(--glacier-hairline) solid var(--app-rule);
   border-radius: var(--glacier-radius-lg);
-  background: var(--app-paper-2, var(--glacier-surface));
-  animation: say-in 420ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+  background: var(--app-paper-2);
+  animation: say-in var(--app-pop) both;
 }
 
 @keyframes say-in {
@@ -24,12 +24,7 @@
 }
 
 .title {
-  margin: 0;
-  font-size: var(--glacier-font-size-xs);
-  font-weight: var(--glacier-font-weight-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  composes: app-eyebrow from global;
 }
 
 .group {
@@ -44,7 +39,7 @@
   margin: 0;
   font-size: var(--glacier-font-size-xs);
   font-weight: var(--glacier-font-weight-semibold);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 .lines {
@@ -58,12 +53,12 @@
 .line {
   font-size: var(--glacier-font-size-sm);
   line-height: 1.35;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
   overflow-wrap: anywhere;
 }
 
 .say {
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   font-weight: var(--glacier-font-weight-semibold);
 }
 

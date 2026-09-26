@@ -41,7 +41,7 @@ import { localUndo, undoSlot } from './undoSlot.ts';
 import { wispRipples, type RippleSource } from './wispRipples.ts';
 import { aiChanges, type AiChange } from './aiChanges.ts';
 import { plugins } from '../plugins/registry.ts';
-import styles from './Editor.module.css';
+import styles from './markdown.module.css';
 
 /**
  * The editing surface: one CodeMirror view, held outside React.
@@ -72,9 +72,10 @@ import styles from './Editor.module.css';
  * object is also a sign the notes changed (below), so a caller keeps the same
  * one while its lookups are the same.
  *
- * Editor.module.css is named for this host but is the markdown renderer's
- * rule book: the classes glyphHighlight.ts, glyphLines.ts and the widgets hand
- * to CodeMirror, and read by ten other files. Only `.editor` is the host's own.
+ * markdown.module.css is the markdown renderer's rule book: the classes
+ * glyphHighlight.ts, glyphLines.ts and the widgets hand to CodeMirror, and
+ * read by ten other files. Only `.editor` is this host's own, and it lives
+ * there because the renderer's line rules are written under it.
  */
 
 interface EditorProps {

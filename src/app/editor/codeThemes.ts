@@ -7,7 +7,7 @@
  * itself (Matt, of One Dark's blue-grey block on the black page: "the background doesn't match the theme, nor do the
  * colours match the pastels we would use"). Every theme draws its block from the page, not a background of its own.
  *
- * Each theme is a set of custom properties on the root (`--code-*`), read by Editor.module.css. A light and a dark
+ * Each theme is a set of custom properties on the root (`--code-*`), read by markdown.module.css. A light and a dark
  * theme are both stamped (`data-code-light`, `data-code-dark`, core/preferences.ts) and codeThemes.css picks between
  * them the way ink.css picks the page, so "System" switches code colours with the phone and no script runs.
  */

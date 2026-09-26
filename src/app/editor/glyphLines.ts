@@ -2,7 +2,7 @@ import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, ViewPlugin, type DecorationSet, type EditorView, type ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { BOX, MARKER } from '../core/itemSyntax.ts';
-import styles from './Editor.module.css';
+import styles from './markdown.module.css';
 
 /**
  * The block half of the renderer: the things an inline span cannot reach.
@@ -75,7 +75,7 @@ function markerWidth(view: EditorView, marker: string): number {
     insetBlockStart: '0',
     pointerEvents: 'none',
   });
-  // A to-do's box is set in the monospace face (Editor.module.css `.taskMarker`), so `[ ]` and `[x]` are one width.
+  // A to-do's box is set in the monospace face (markdown.module.css `.taskMarker`), so `[ ]` and `[x]` are one width.
   const box = BOX_IN.exec(marker);
   if (box) {
     const drawn = document.createElement('span');

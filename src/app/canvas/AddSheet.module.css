@@ -16,7 +16,7 @@
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
   border-radius: var(--glacier-radius-md);
   background: transparent;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   font: inherit;
 }
 
@@ -47,7 +47,7 @@
 }
 
 .addRow:hover {
-  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
+  background: color-mix(in oklch, var(--app-ink) 6%, transparent);
 }
 
 .addNone {

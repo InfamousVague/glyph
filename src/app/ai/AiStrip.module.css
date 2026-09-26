@@ -6,13 +6,13 @@
 
 .strip {
   position: relative;
-  margin: 0 var(--app-gutter-end, var(--app-gutter)) 0 var(--app-gutter-start, var(--app-gutter));
-  border-radius: var(--glacier-radius-md, 9px);
-  background: var(--app-paper-2, var(--glacier-surface-raised));
-  border: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
-  box-shadow: 0 6px 18px -12px color-mix(in srgb, var(--app-ink, black) 40%, transparent);
+  margin: 0 var(--app-gutter-end) 0 var(--app-gutter-start);
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper-2);
+  border: var(--glacier-hairline) solid var(--app-rule);
+  box-shadow: 0 6px 18px -12px color-mix(in srgb, var(--app-ink) 40%, transparent);
   overflow: hidden;
-  animation: strip-in 220ms var(--glacier-ease-out, ease-out) both;
+  animation: strip-in 220ms var(--glacier-ease-out) both;
 }
 
 @keyframes strip-in {
@@ -45,7 +45,7 @@
   font: inherit;
   font-size: var(--glacier-font-size-sm);
   line-height: var(--glacier-leading-sm);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
   text-align: start;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -53,7 +53,7 @@
 
 .icon {
   flex: none;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .icon[data-spin] {
@@ -87,7 +87,7 @@
 
 .chevron {
   flex: none;
-  color: var(--app-ink-4, var(--glacier-text-subtle));
+  color: var(--app-ink-4);
 }
 
 /* Stop and Undo: an icon and its word, in ink. */
@@ -100,19 +100,19 @@
   margin: 0;
   padding: var(--glacier-space-1) var(--glacier-space-2);
   border: none;
-  border-radius: var(--glacier-radius-sm, 6px);
+  border-radius: var(--glacier-radius-sm);
   background: none;
   font: inherit;
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-semibold);
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
 .action:active,
 .dismiss:active {
-  background: var(--app-paper-3, var(--glacier-surface-sunken));
+  background: var(--app-paper-3);
 }
 
 .dismiss {
@@ -125,9 +125,9 @@
   margin: 0;
   padding: 0;
   border: none;
-  border-radius: var(--glacier-radius-sm, 6px);
+  border-radius: var(--glacier-radius-sm);
   background: none;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -136,7 +136,7 @@
 .bar {
   position: relative;
   block-size: 2px;
-  background: color-mix(in oklch, var(--app-ink, currentColor) 12%, transparent);
+  background: color-mix(in oklch, var(--app-ink) 12%, transparent);
   overflow: hidden;
 }
 
@@ -144,7 +144,7 @@
   display: block;
   block-size: 100%;
   inline-size: 0;
-  background: var(--app-ink, var(--glacier-text));
+  background: var(--app-ink);
   transition: inline-size 300ms ease-out;
 }
 
@@ -164,7 +164,7 @@
 }
 
 .strip[data-phase='done'] .bar > span {
-  background: var(--app-ink-3, var(--glacier-text-muted));
+  background: var(--app-ink-3);
 }
 
 .strip[data-phase='failed'] .bar,
@@ -179,10 +179,10 @@
   padding: var(--glacier-space-2) var(--glacier-space-3);
   max-block-size: 9rem;
   overflow-y: auto;
-  border-radius: var(--glacier-radius-sm, 6px);
-  background: var(--app-paper-3, var(--glacier-surface-sunken));
-  font: var(--glacier-font-size-xs) / 1.45 var(--glacier-font-mono, ui-monospace, monospace);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  border-radius: var(--glacier-radius-sm);
+  background: var(--app-paper-3);
+  font: var(--glacier-font-size-xs) / 1.45 var(--glacier-font-mono);
+  color: var(--app-ink-2);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -194,7 +194,7 @@ span.line {
 
 /* The card under the line, and the log under the card. */
 .card {
-  border-block-start: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
+  border-block-start: var(--glacier-hairline) solid var(--app-rule);
 }
 
 /* The AI card draws its own margins for a page; here it is inside a strip. */
@@ -208,7 +208,7 @@ span.line {
   margin: 0;
   padding: var(--glacier-space-3);
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 .log {
@@ -226,18 +226,18 @@ span.line {
   gap: var(--glacier-space-2);
   font-size: var(--glacier-font-size-sm);
   line-height: var(--glacier-leading-sm);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
 }
 
 .entryIcon {
   flex: none;
   align-self: center;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .entry[data-outcome='failed'] .entryIcon,
 .entry[data-outcome='stopped'] .entryIcon {
-  color: var(--app-ink-4, var(--glacier-text-subtle));
+  color: var(--app-ink-4);
 }
 
 .entryWords {
@@ -246,7 +246,7 @@ span.line {
 }
 
 .entryWhen {
-  color: var(--app-ink-4, var(--glacier-text-subtle));
+  color: var(--app-ink-4);
 }
 
 .entryUndo {
@@ -254,7 +254,7 @@ span.line {
   padding: 0;
   font-size: inherit;
   font-weight: var(--glacier-font-weight-semibold);
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {

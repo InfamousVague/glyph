@@ -7,8 +7,8 @@
   display: grid;
   gap: var(--glacier-space-3);
   padding: var(--glacier-space-4);
-  border-radius: var(--glacier-radius-lg, 0.75rem);
-  background: var(--app-paper, var(--glacier-surface));
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper);
   box-shadow: inset 0 0 0 1px color-mix(in oklch, currentColor 10%, transparent);
 }
 
@@ -21,9 +21,9 @@
 /* Which half is which, quietly: the field is the thing to look at, not its name. */
 .label {
   font-size: var(--glacier-font-size-xs);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--app-tracking-caps);
   text-transform: uppercase;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 /*
@@ -36,10 +36,10 @@
   margin: 0;
   padding: var(--glacier-space-3);
   border: none;
-  border-radius: var(--glacier-radius-md, 0.5rem);
+  border-radius: var(--glacier-radius-md);
   background: color-mix(in oklch, currentColor 5%, transparent);
-  color: var(--app-ink, var(--glacier-text));
-  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  color: var(--app-ink);
+  font-family: var(--glacier-font-mono);
   font-size: var(--glacier-font-size-sm);
   line-height: var(--glacier-leading-md);
   tab-size: 2;
@@ -48,47 +48,28 @@
 }
 
 .field:focus-visible {
-  outline: 2px solid var(--glacier-accent-solid, currentColor);
+  outline: 2px solid var(--glacier-accent-solid);
   outline-offset: 1px;
 }
 
 .field::placeholder {
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
-/* The note's own editor lives here; the rule above it is the line between typing and reading. */
+/*
+ * The note's own editor lives here; the rule above it is the line between typing and reading. The editor brings its
+ * own look, and what is here is only the room it sits in, the same room a mark's example has (guide/MarkExample
+ * .module.css `.room`).
+ */
 .shown {
+  composes: room from '../guide/MarkExample.module.css';
   min-block-size: 3em;
   padding-block-start: var(--glacier-space-3);
-  border-block-start: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle, color-mix(in oklch, currentColor 14%, transparent));
-}
-
-/* The editor brings its own look; what is here is only the room it sits in (guide/MarkExample.module.css). */
-.shown :global(.cm-editor) {
-  background: none;
-}
-
-.shown :global(.cm-scroller) {
-  overflow: visible;
-  font-family: inherit;
-}
-
-.shown :global(.cm-content) {
-  padding: 0;
-  caret-color: transparent;
-}
-
-.shown :global(.cm-line) {
-  padding-inline: 0;
-}
-
-.shown :global(.cm-cursor),
-.shown :global(.cm-gutters) {
-  display: none;
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
 }
 
 .waiting {
   margin: 0;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
   font-size: var(--glacier-font-size-sm);
 }

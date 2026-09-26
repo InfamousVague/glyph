@@ -3,14 +3,23 @@
  * settings kit's own cards for everything else. Red and green are the only
  * colours in Settings, and only here, where they are the whole message.
  */
-.verdict {
+
+/*
+ * The two, named once. At the root rather than on one of this pane's elements: the verdict is the only element of its
+ * own that holds the rest, and a failed file, a failure and the tests' icons are drawn inside the settings kit's cards,
+ * outside it. Nothing else reads them.
+ */
+:root {
   --test-red: oklch(0.62 0.21 25);
   --test-green: oklch(0.62 0.15 150);
+}
+
+.verdict {
   display: grid;
   gap: var(--glacier-space-3);
   padding: var(--glacier-space-4);
   border-radius: var(--glacier-radius-lg);
-  border: 1.5px solid var(--test-red);
+  border: var(--app-line) solid var(--test-red);
   background: color-mix(in oklch, var(--test-red) 9%, transparent);
 }
 
@@ -47,21 +56,21 @@
 
 .tallies dt {
   font-size: var(--glacier-font-size-xs);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--app-tracking-caps-close);
   text-transform: uppercase;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
 }
 
 .tallies dd {
   margin: 0;
-  font-size: var(--glacier-font-size-xl, 1.5rem);
+  font-size: var(--glacier-font-size-xl);
   font-weight: var(--glacier-font-weight-bold);
   font-variant-numeric: tabular-nums;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .tallies [data-alarm] dd {
-  color: var(--test-red, oklch(0.62 0.21 25));
+  color: var(--test-red);
 }
 
 .tools {
@@ -71,7 +80,7 @@
 }
 
 .command {
-  font-family: var(--glacier-font-mono, ui-monospace, Menlo, monospace);
+  font-family: var(--glacier-font-mono);
   font-size: var(--glacier-font-size-xs);
   overflow-wrap: anywhere;
 }
@@ -84,7 +93,7 @@
 
 /* A file's tests: a disclosure row, then the tests. */
 .file {
-  border-block-start: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle);
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
 }
 
 .fileHead {
@@ -104,13 +113,13 @@
 .fileName {
   min-inline-size: 0;
   overflow-wrap: anywhere;
-  font-family: var(--glacier-font-mono, ui-monospace, Menlo, monospace);
+  font-family: var(--glacier-font-mono);
   font-size: var(--glacier-font-size-xs);
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .fileHead[data-failed] .fileName {
-  color: oklch(0.62 0.21 25);
+  color: var(--test-red);
   font-weight: var(--glacier-font-weight-bold);
 }
 
@@ -128,11 +137,11 @@
   align-items: baseline;
   column-gap: var(--glacier-space-2);
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
 }
 
 .test[data-status='failed'] {
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .testName {
@@ -143,7 +152,7 @@
 .meta {
   font-size: var(--glacier-font-size-xs);
   font-variant-numeric: tabular-nums;
-  color: var(--app-ink-3, var(--glacier-text-muted));
+  color: var(--app-ink-3);
   white-space: nowrap;
 }
 
@@ -153,24 +162,24 @@
   overflow: auto;
   margin: var(--glacier-space-1) 0 var(--glacier-space-2);
   padding: var(--glacier-space-2) var(--glacier-space-3);
-  border-radius: var(--glacier-radius-md, 8px);
-  background: color-mix(in oklch, oklch(0.62 0.21 25) 8%, transparent);
-  font-family: var(--glacier-font-mono, ui-monospace, Menlo, monospace);
+  border-radius: var(--glacier-radius-md);
+  background: color-mix(in oklch, var(--test-red) 8%, transparent);
+  font-family: var(--glacier-font-mono);
   font-size: var(--glacier-font-size-xs);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .iconPassed {
-  color: oklch(0.62 0.15 150);
+  color: var(--test-green);
 }
 
 .iconFailed {
-  color: oklch(0.62 0.21 25);
+  color: var(--test-red);
 }
 
 .iconSkipped {
-  color: var(--app-ink-4, var(--glacier-text-subtle));
+  color: var(--app-ink-4);
 }

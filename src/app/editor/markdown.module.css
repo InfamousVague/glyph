@@ -1,5 +1,7 @@
 /*
- * Every rule the markdown renderer needs, in Glacier tokens only.
+ * Every rule the markdown renderer needs, in Glacier tokens only: the classes glyphHighlight.ts, glyphLines.ts,
+ * images.ts and the editor's widgets hand to CodeMirror, and `.editor`, the host's own (Editor.tsx), which the line
+ * rules are written under. Named for what it draws rather than for its host; it was Editor.module.css.
  *
  * Two families live here and they must not be confused. The `.h1`-`.mark`
  * classes are INLINE: they are handed to `HighlightStyle` and land on spans
@@ -105,7 +107,7 @@
   font-family: var(--glacier-font-mono);
   color: var(--glacier-accent-text);
   /* The mono font's own features and no spacing, so its ligatures show (typefaces.css). */
-  font-feature-settings: var(--app-mono-features, 'calt', 'liga');
+  font-feature-settings: var(--app-mono-features);
   letter-spacing: 0;
 }
 
@@ -364,7 +366,7 @@
  */
 .editor :global(.cm-line).lineCode {
   font-family: var(--glacier-font-mono);
-  font-feature-settings: var(--app-mono-features, 'calt', 'liga');
+  font-feature-settings: var(--app-mono-features);
   letter-spacing: 0;
   font-size: calc(var(--app-body) * 0.82);
   background: var(--code-bg);
@@ -415,14 +417,14 @@
   display: block;
   max-inline-size: 100%;
   max-block-size: 60vh;
-  border-radius: var(--glacier-radius-md, 8px);
-  background: var(--app-paper-2, var(--glacier-surface));
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper-2);
 }
 
 .figure[data-waiting]::before {
   content: '';
   display: block;
   min-block-size: 3rem;
-  border-radius: var(--glacier-radius-md, 8px);
-  background: var(--app-paper-2, var(--glacier-surface));
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper-2);
 }

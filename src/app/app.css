@@ -1,6 +1,18 @@
 /*
- * App-level layout. Component look comes from Glacier; this file only arranges
- * the shell for a phone. Every value is a Glacier token or a safe-area inset.
+ * The shell, and the app's own vocabulary. Component look comes from Glacier and colour from ink.css; this file
+ * arranges the phone's shell and names the values the modules share, so none of them writes its own copy:
+ *
+ * - the root's custom properties: the notch and home-indicator insets, the tab bar's heights, the gutter at each edge,
+ *   the type scale and its tracking, the one round control (`--app-ring`), the weight of a drawn line (`--app-line`),
+ *   the header's glass and the app's own movements (`--app-pop`, `--app-turn`, `--app-settle`);
+ * - the app's own pieces, which modules wear or compose: `.app-word`, the quiet button; `.app-unseen`, words for a
+ *   screen reader alone; `.app-eyebrow`, the small spaced capitals over a group (`.app-pill` and `.app-inverse` are
+ *   ink.css's, being made of ink);
+ * - the page itself, the Mac's title bar, the tab bar, the drag strip, the status bar's scrim, the scrollbar under a
+ *   header, the header's glass pane, the icon wash and the split window's columns.
+ *
+ * The page's edges under a header - the wisp and the desktop's blur strip - are art/wisp.css. In the cascade this
+ * comes after the kit's tokens and styles and before ink.css (src/main.tsx), and every CSS module after all of them.
  */
 
 *,
@@ -34,15 +46,22 @@
    */
   --app-tab-h: calc(var(--glacier-font-size-sm) * 2.04 + 2px + var(--glacier-space-1) * 2.6);
   /*
-   * And how tall the row above it draws: the round controls it holds (notes/NoteTabs.module.css `.sidebar` and
-   * `.step`, editor/NoteScreen.module.css `.cog`), which are all one expression off the kit's space scale.
+   * The app's one round control: every ring a thumb aims at is this across - the bar's sidebar button and arrows
+   * (notes/NoteTabs.module.css `.sidebar`, `.step`), the note's tools (editor/NoteScreen.module.css `.cog`) and the
+   * home page's dock (home/HomeScreen.module.css `.round`, `.speak`). A kit step multiplied, a notch under the step
+   * itself (Matt: "Make the bookmark, more button, speak and book a little bit smaller"), so Appearance > Spacing
+   * moves every ring together.
+   */
+  --app-ring: calc(var(--glacier-space-10) * 0.88);
+  /*
+   * And how tall the row above it draws: the round controls it holds, which are all `--app-ring`.
    *
    * Derived for the same reason as the tab's: `3.5rem` stood for this row from when it held a 40px button, and the
    * scale it is built on moves. Appearance > Spacing scales the space tokens, so these rings draw 27.4px at the
    * tightest setting and 56.9px at the roomiest - 0.9px past the 56px the bar had set aside - and everything under
    * them was pushed into the hairline. Both halves of the bar are their contents now, so neither can outgrow it.
    */
-  --app-tab-top: calc(var(--glacier-space-10) * 0.88);
+  --app-tab-top: var(--app-ring);
   /*
    * And the air under the bar's last row. Nothing on a phone, where the bar is glass with no edge to sit against; on
    * a desktop it is the same as the air over the first row, set below with the hairline it clears.
@@ -59,10 +78,13 @@
   --app-safe-left: env(safe-area-inset-left, 0px);
   --app-safe-right: env(safe-area-inset-right, 0px);
   /*
-   * The page's gutter at each edge, notch included: what the bar pads by, and what anything reaching past the bar's
-   * padding has to give back (notes/NoteTabs.module.css `.tabs`). Named once so the two cannot drift apart.
+   * The page's gutter at each edge, notch included: what every screen and the bar pad by, and what anything reaching
+   * past the bar's padding has to give back (notes/NoteTabs.module.css `.tabs`). Named once so none of them can drift.
+   *
+   * Worked out here, at the root, from the root's `--app-gutter`. A surface that sets its own `--app-gutter` (a note
+   * drawn small, a book's preface, the reader's column, a mark's example) pads by `--app-gutter` itself, never by these.
    */
-  --app-gutter-start: calc(var(--app-safe-left, 0px) + var(--app-gutter));
+  --app-gutter-start: calc(var(--app-safe-left) + var(--app-gutter));
   /*
    * The top bar's own left inset, which is NOT the page's gutter (Matt: "Sidebar toggle sits too far in from the
    * left the padding on the left is too much", and of the row below it, "There is not enough padding on the left of
@@ -74,8 +96,8 @@
    * Kept under the wisp's reach: the smoke at the row's start is drawn over the first 20px of the row's own box
    * (art/wispSides.ts), so an inset larger than that would bend empty padding and read as a plain dark gradient.
    */
-  --app-bar-start: calc(var(--app-safe-left, 0px) + var(--glacier-space-3));
-  --app-gutter-end: calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  --app-bar-start: calc(var(--app-safe-left) + var(--glacier-space-3));
+  --app-gutter-end: calc(var(--app-safe-right) + var(--app-gutter));
 
   /*
    * THE TYPE SCALE. Glyph is typography first: the words are the interface,
@@ -112,8 +134,29 @@
   /* Large type needs less air between letters than the kit's reading sizes. */
   --app-tracking-display: -0.045em;
   --app-tracking-title: -0.025em;
+  /* And small capitals need more: the spaced label over a group (`.app-eyebrow`), and a step closer for one set a size
+     up or packed tighter. */
+  --app-tracking-caps: 0.08em;
+  --app-tracking-caps-close: 0.06em;
   /* The page edge. Wide, because big type crowded against a bezel looks cheap. */
   --app-gutter: var(--glacier-space-5);
+
+  /*
+   * The weight of a line the app draws on purpose - a ring round a round button, the outline on the thing chosen, a
+   * card's edge that says something - where the kit's hairline (1px) only separates.
+   */
+  --app-line: 1.5px;
+
+  /*
+   * The app's own movements, each a duration and a curve kept together because they are one gesture wherever it is
+   * used: a card or a chip popping in (the confirm card, Things to say, the recorder's chip once the words have
+   * moved); a round button's glyph turning when it is pressed (the home dock, the note's tools); and a line settling
+   * into place (the update and Academy cards, the recorder's landing). Fixed, as they always were: unlike the kit's
+   * durations they do not follow Settings > Animations > speed.
+   */
+  --app-pop: 420ms cubic-bezier(0.3, 1.5, 0.5, 1);
+  --app-turn: 420ms cubic-bezier(0.3, 1.4, 0.5, 1);
+  --app-settle: 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 [data-text-size='larger'] {
@@ -166,6 +209,34 @@ html {
   outline: 2px solid var(--glacier-focus-ring);
   outline-offset: 2px;
   border-radius: var(--glacier-radius-sm);
+}
+
+/*
+ * Words for a screen reader alone: kept in the page, one pixel square and clipped to nothing, so they are read and
+ * never seen - a screen's name where it shows none, a word inside a round button, the input under a choice card.
+ * Modules take it with `composes: app-unseen from global` and add their own margin where they want one.
+ */
+.app-unseen {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * The small spaced capitals over a group or a card - "Things to say", a sheet's "Reading it", a command's heading -
+ * in the third ink, quieter than anything they head. Modules compose it (`composes: app-eyebrow from global`) and add
+ * their own margin or layout.
+ */
+.app-eyebrow {
+  margin: 0;
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: var(--app-tracking-caps);
+  text-transform: uppercase;
+  color: var(--app-ink-3);
 }
 
 html,
@@ -283,9 +354,9 @@ body {
    * but the tabs and such are fully opaque"): the same mix and blur as the screen's own header pane, so the cards
    * scrolled under the bar show through it as they do under the title strip above it, which is the pane alone.
    */
-  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  backdrop-filter: blur(18px) saturate(1.1);
+  background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
+  -webkit-backdrop-filter: var(--app-glass-blur);
+  backdrop-filter: var(--app-glass-blur);
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
   /*
    * From the window's top edge, not from under the status bar (Matt, of the Fold: "the very top bar where the time
@@ -380,6 +451,10 @@ body:has(.app-headerPane) .app-statusScrim {
  * runs the whole height so its words can pass under the glass, and so did its scrollbar, under the blur, from the
  * window's top edge. Only where there is a pointer: styling a scrollbar gives up the platform's own, and on a phone
  * the thin one that shows only while scrolling is the right one. A slim rounded thumb in the page's ink, on no track.
+ *
+ * The one place a `var()` of a root property keeps its fallback, and a radius stays a number: a scrollbar is drawn by
+ * the engine, in pseudo-elements no computed style can be read from and no screenshot in a test shows, so nothing
+ * here is changed without a real look at it.
  */
 @media (hover: hover) and (pointer: fine) {
   [data-under-header]::-webkit-scrollbar {
@@ -407,11 +482,6 @@ body:has(.app-headerPane) .app-statusScrim {
 }
 
 /*
- * The wisp edge (art/wispEdge.ts): a view scrolled off its top goes to smoke
- * where it slips behind its header, and fades out into it. The app's standard
- * soft top; worn only while scrolled.
- */
-/*
  * A header pane over a wisp-edged scroller (art/wispEdge.ts): dark glass in
  * the dark and light glass on paper, the page's own colour at two thirds
  * over a blur of whatever runs under it (Matt: "it's not like a dark glass,
@@ -419,15 +489,28 @@ body:has(.app-headerPane) .app-statusScrim {
  * grey, so at the top of the page, with nothing under it, it is the page and
  * nothing shows; once the page runs under it the blur reads as glass. The
  * wisp sits a little way below its edge.
+ *
+ * The recipe is named once, `--app-glass-mix` and `--app-glass-blur`, for the three things that are this glass: the
+ * pane, the tab bar across a split window, and the smoke bench's header (diag/WispBench.module.css). The mix is only
+ * the percentage, so each surface still mixes its own `--glacier-bg` where it is drawn.
  */
+:root {
+  --app-glass-mix: 66%;
+  --app-glass-blur: blur(18px) saturate(1.1);
+  /* And a card that floats over the page - the notes and aside card (notes/FloatingCard.module.css), the Claude
+     drawer on a wide window (plugins/claude/claude.module.css) - blurs what is under it more, and casts a shadow. */
+  --app-float-blur: blur(20px);
+  --app-float-shadow: 0 16px 40px rgb(0 0 0 / 34%);
+}
+
 .app-headerPane {
   position: absolute;
   inset-inline: 0;
   inset-block-start: 0;
   z-index: 3;
-  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  backdrop-filter: blur(18px) saturate(1.1);
+  background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
+  -webkit-backdrop-filter: var(--app-glass-blur);
+  backdrop-filter: var(--app-glass-blur);
 }
 
 /*
@@ -435,166 +518,12 @@ body:has(.app-headerPane) .app-statusScrim {
  * tint starts where the bar ends: two tints laid on each other would make the note's side of the divider darker than
  * the sidebar's. The blur is still the pane's over its whole height - blur laid on blur looks the same as blur.
  */
-/*
- * On a desktop, the edge under a header is a strip of blur that fades to nothing, where a phone has the wisp
- * (art/wispMask.ts `wispHead`; Matt: "on desktop use a simple blur gradient under the headers"). The header's glass
- * carries on a little way past its edge, softer the further down, so the page under it goes soft rather than cut.
- * A sibling laid under the header by art/wispEdge.ts, shown while the view under it is scrolled, as the wisp was: as
- * a child of the header it would blur only the header's own contents. A backdrop blur on a strip this
- * thin is cheap on every engine; it is the `filter: url()` over a whole page that WebKit could not afford.
- */
-.app-headerBlur {
-  position: absolute;
-  z-index: 3;
-  block-size: 28px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 160ms ease-out;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--glacier-bg) 55%, transparent), transparent);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
-  mask-image: linear-gradient(to bottom, #000, transparent);
-}
-
-.app-headerBlur[data-on] {
-  opacity: 1;
-}
-
 :root[data-split] .app-headerPane {
   background: linear-gradient(
     to bottom,
-    transparent var(--app-safe-top, 0px),
-    color-mix(in srgb, var(--glacier-bg) 66%, transparent) var(--app-safe-top, 0px)
+    transparent var(--app-safe-top),
+    color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent) var(--app-safe-top)
   );
-}
-
-/*
- * A view whose top is smoking, whose foot is, or both, and a mask that dissolves whichever end is going
- * (`--wisp-top-fade` above, `--wisp-foot-fade` below; both 0 while that end isn't). Under a solid header the header
- * hides the top, so only the foot fades.
- *
- * Each end has its own filter (art/WispEdgeFilter.tsx), and a view wears only the ends it asked for. They were one
- * filter, so a view wearing it just for its foot also drew any header band another view had switched on - on a
- * desktop, the note beside a scrolled sidebar smoked along its top.
- */
-[data-wisp-edge] {
-  filter: url(#wispEdge);
-}
-
-[data-wisp-foot] {
-  filter: url(#wispEdgeFoot);
-}
-
-/* Both ends: one after the other. They never overlap, so the order is only which is drawn first. */
-[data-wisp-edge][data-wisp-foot] {
-  filter: url(#wispEdge) url(#wispEdgeFoot);
-}
-
-[data-wisp-edge],
-[data-wisp-foot] {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--wisp-top-fade, 19px),
-    #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-foot-fade, 0px)),
-    transparent calc(100% - var(--wisp-foot-inset, 0px))
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--wisp-top-fade, 19px),
-    #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-foot-fade, 0px)),
-    transparent calc(100% - var(--wisp-foot-inset, 0px))
-  );
-}
-
-/*
- * While the foot is smoking, the last stretch of the view dissolves into the paper below it - a short stretch, under
- * the smoke rather than instead of it: the band's lip sits above it (art/wispEdge.ts `placeFoot`), so the words are
- * bent while they can still be seen. At 30px the fade covered the lip and all that showed was the fade.
- */
-[data-wisp-foot] {
-  /* Longer again, with the taller smoke over it (Matt: "Add a bit of combined black gradient or gradient opacity mask a
-     bit too"): the words dim as they smoke rather than smoking at full strength into a cut. */
-  --wisp-foot-fade: 32px;
-}
-
-/* A view smoking at its foot alone is crisp at its top: nothing is going under the header yet. */
-[data-wisp-foot]:not([data-wisp-edge]) {
-  --wisp-top-fade: 0px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-wisp-edge],
-  [data-wisp-foot] {
-    filter: none;
-  }
-}
-
-/*
- * A desktop's plain foot (art/wispEdge.ts, `fade`): no smoke, only the last stretch of the page going to the ground,
- * right at the window's edge, so the page reaches the bottom of the screen.
- */
-[data-wisp-draw='fade'][data-wisp-foot] {
-  filter: none;
-  --wisp-foot-fade: 28px;
-}
-
-/*
- * And its plain top, on a view with no header to hang the blur strip from (Settings' page, scrolled): no filter either.
- * The filter's region is only placed by views that draw with it, so one worn here had whatever size another view last
- * gave it, and everything past that edge went undrawn: on a desktop, a scrolled Settings page lost its right-hand side.
- */
-[data-wisp-draw='fade'][data-wisp-edge] {
-  filter: none;
-}
-
-/*
- * The same smoke as a mask (art/wispMask.ts), for the engine that cannot afford the filter: no filter at all, and the
- * band is an image of the torn edge laid along the lip - drawn once, moved by the drift, composited by the GPU.
- * Two or three mask layers, added: the ramp that shows the words whole past the band and dissolves the foot's last
- * stretch, the top's band tiled along the lip, and the foot's band, turned over, along the view's bottom edge (or
- * the dock's top, `--wisp-foot-inset`). `--wisp-lip` is where the top band's lip sits, set by the hook; the image
- * carries `--wisp-mask-above` of smoke over its lip, enough to reach the top of any header, and `--wisp-noise-x/y`
- * are the drift.
- */
-[data-wisp-draw='mask'][data-wisp-edge],
-[data-wisp-draw='mask'][data-wisp-foot] {
-  filter: none;
-  --wisp-tear-top: calc(var(--wisp-lip, 0px) + 76px);
-  --wisp-tear-foot: 104px;
-  --wisp-top-band-y: calc(var(--wisp-lip, 0px) - var(--wisp-mask-above, 160px) + var(--wisp-noise-y, 0px));
-  --wisp-foot-band-y: calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-mask-height, 256px) + var(--wisp-mask-above, 160px) - var(--wisp-noise-y, 0px));
-  -webkit-mask-composite: source-over;
-  mask-composite: add;
-}
-
-[data-wisp-draw='mask'][data-wisp-edge]:not([data-wisp-foot]) {
-  -webkit-mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top)), var(--wisp-mask-top);
-  mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top)), var(--wisp-mask-top);
-  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y);
-  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y);
-  -webkit-mask-repeat: no-repeat, repeat-x;
-  mask-repeat: no-repeat, repeat-x;
-}
-
-[data-wisp-draw='mask'][data-wisp-foot]:not([data-wisp-edge]) {
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-foot);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-foot);
-  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
-  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
-  -webkit-mask-repeat: no-repeat, repeat-x;
-  mask-repeat: no-repeat, repeat-x;
-}
-
-[data-wisp-draw='mask'][data-wisp-edge][data-wisp-foot] {
-  -webkit-mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top), #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-top), var(--wisp-mask-foot);
-  mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top), #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-top), var(--wisp-mask-foot);
-  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y), var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
-  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y), var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
-  -webkit-mask-repeat: no-repeat, repeat-x, repeat-x;
-  mask-repeat: no-repeat, repeat-x, repeat-x;
 }
 
 /*
@@ -624,7 +553,7 @@ body:has(.app-headerPane) .app-statusScrim {
   fill: none;
 }
 
-:where(svg.lucide-bookmark, svg.lucide-play, svg.lucide-puzzle, svg.lucide-square, svg.lucide-thermometer),
+:where(svg.lucide-bookmark, svg.lucide-play, svg.lucide-puzzle, svg.lucide-square),
 :where(svg.lucide-pause, svg.lucide-layout-grid, svg.lucide-ellipsis-vertical),
 /*
  * The board draws its own icons rather than importing them (editor/boards/icons.ts), so none of the rules above could ever

@@ -24,7 +24,7 @@
   --canvas-x: 0px;
   --canvas-y: 0px;
   --canvas-scale: 1;
-  --canvas-dot: color-mix(in oklch, var(--app-ink, currentColor) clamp(0%, calc((var(--canvas-scale) - 0.3) * 40%), 18%), transparent);
+  --canvas-dot: color-mix(in oklch, var(--app-ink) clamp(0%, calc((var(--canvas-scale) - 0.3) * 40%), 18%), transparent);
   background-color: var(--glacier-bg);
   background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1.6px);
   background-size: calc(24px * var(--canvas-scale)) calc(24px * var(--canvas-scale));
@@ -54,7 +54,7 @@
   gap: var(--glacier-space-1);
   padding: var(--glacier-space-3);
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-lg, 16px);
+  border-radius: var(--glacier-radius-lg);
   background: var(--glacier-bg);
   color: inherit;
   overflow: hidden;
@@ -74,7 +74,7 @@
 
 /* Open to be written in: the editor is live again, and the card says so with a ring in the page's own ink. */
 .card[data-editing] {
-  outline: 2px solid var(--app-ink, var(--glacier-text));
+  outline: 2px solid var(--app-ink);
   outline-offset: 2px;
   cursor: text;
 }
@@ -100,8 +100,8 @@
   block-size: 22px;
   cursor: nwse-resize;
   touch-action: none;
-  background: linear-gradient(135deg, transparent 50%, color-mix(in oklch, var(--app-ink, currentColor) 35%, transparent) 50%);
-  border-end-end-radius: var(--glacier-radius-lg, 16px);
+  background: linear-gradient(135deg, transparent 50%, color-mix(in oklch, var(--app-ink) 35%, transparent) 50%);
+  border-end-end-radius: var(--glacier-radius-lg);
 }
 
 /* A group open to be named: its name is a field where the label was, with the cross beside it. */
@@ -121,7 +121,7 @@
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
   border-radius: 999px;
   background: var(--glacier-bg);
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   font: inherit;
   font-size: var(--glacier-font-size-sm);
 }
@@ -171,8 +171,8 @@
   padding: 0;
   border: none;
   border-radius: 999px;
-  background: color-mix(in oklch, var(--app-ink, currentColor) 10%, transparent);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  background: color-mix(in oklch, var(--app-ink) 10%, transparent);
+  color: var(--app-ink-2);
   font: inherit;
   font-size: var(--glacier-font-size-md);
   line-height: 1;
@@ -180,8 +180,8 @@
 }
 
 .remove:hover {
-  color: var(--app-ink, var(--glacier-text));
-  background: color-mix(in oklch, var(--app-ink, currentColor) 18%, transparent);
+  color: var(--app-ink);
+  background: color-mix(in oklch, var(--app-ink) 18%, transparent);
 }
 
 /*
@@ -247,7 +247,7 @@
   position: absolute;
   box-sizing: border-box;
   border: var(--glacier-hairline) dashed color-mix(in oklch, var(--app-space, var(--app-ink)) 35%, transparent);
-  border-radius: calc(var(--glacier-radius-lg, 16px) + 4px);
+  border-radius: calc(var(--glacier-radius-lg) + 4px);
   background: color-mix(in oklch, var(--app-space, var(--app-ink)) 4%, transparent);
 }
 
@@ -278,7 +278,7 @@
 }
 
 .edge {
-  color: var(--app-space, var(--app-ink-3, var(--glacier-text-muted)));
+  color: var(--app-space, var(--app-ink-3));
 }
 
 .lineHit {
@@ -291,7 +291,7 @@
 
 /* Picked: the line and its heads in the page's own ink, a step heavier. */
 .edge[data-picked] {
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
 }
 
 .edge[data-picked] .line {
@@ -305,7 +305,7 @@
 }
 
 .card[data-line-from] {
-  outline: 2px solid var(--app-ink, var(--glacier-text));
+  outline: 2px solid var(--app-ink);
   outline-offset: 2px;
 }
 
@@ -333,7 +333,7 @@
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: var(--app-ink, var(--glacier-text));
+  color: var(--app-ink);
   font: inherit;
   font-size: var(--glacier-font-size-sm);
 }
@@ -361,7 +361,7 @@
   stroke-width: 6px;
   paint-order: stroke;
   font-size: 13px;
-  font-weight: var(--glacier-font-weight-medium, 500);
+  font-weight: var(--glacier-font-weight-medium);
   text-anchor: middle;
   dominant-baseline: middle;
 }
@@ -392,14 +392,14 @@
   border: none;
   border-radius: 999px;
   background: none;
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
 .tool:hover {
-  color: var(--app-ink, var(--glacier-text));
-  background: color-mix(in oklch, var(--app-ink, currentColor) 8%, transparent);
+  color: var(--app-ink);
+  background: color-mix(in oklch, var(--app-ink) 8%, transparent);
 }
 
 .tool:focus-visible {
@@ -411,7 +411,7 @@
 .hint {
   padding-inline: var(--glacier-space-2) var(--glacier-space-3);
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-2, var(--glacier-text-muted));
+  color: var(--app-ink-2);
   white-space: nowrap;
 }
 
@@ -431,7 +431,7 @@
 /* The Line tool while a line is being drawn: ink, so the page says what the next tap will do. */
 .tool[data-on] {
   color: var(--glacier-bg);
-  background: var(--app-ink, var(--glacier-text));
+  background: var(--app-ink);
 }
 
 /* A canvas with no cards: the ghost joining three empty cards, in the middle, and the one way to start. */

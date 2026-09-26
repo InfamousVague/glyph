@@ -18,7 +18,7 @@
 .scrim {
   position: absolute;
   inset: 0;
-  background: var(--app-scrim, rgb(0 0 0 / 40%));
+  background: var(--app-scrim);
   animation: scrimIn 180ms ease-out;
 }
 
@@ -28,17 +28,17 @@
   flex-direction: column;
   inline-size: 100%;
   max-inline-size: 34rem;
-  max-block-size: calc(100dvh - var(--app-safe-top, 0px) - var(--glacier-space-8));
-  padding-block-end: var(--app-safe-bottom, 0px);
+  max-block-size: calc(100dvh - var(--app-safe-top) - var(--glacier-space-8));
+  padding-block-end: var(--app-safe-bottom);
   border: 1px solid var(--glacier-border-subtle);
   border-block-end: 0;
-  border-radius: var(--glacier-radius-lg, 16px) var(--glacier-radius-lg, 16px) 0 0;
+  border-radius: var(--glacier-radius-lg) var(--glacier-radius-lg) 0 0;
   background: color-mix(in srgb, var(--glacier-bg) 92%, var(--glacier-text) 3%);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: var(--app-float-blur);
+  backdrop-filter: var(--app-float-blur);
   box-shadow: 0 -12px 40px rgb(0 0 0 / 28%);
   outline: none;
-  animation: riseIn 220ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+  animation: riseIn 220ms var(--glacier-ease-out);
 }
 
 /* A wide window: the card floats, and grows out of the middle rather than rising. */
@@ -52,9 +52,9 @@
     max-block-size: min(46rem, calc(100dvh - var(--glacier-space-12)));
     padding-block-end: 0;
     border-block-end: 1px solid var(--glacier-border-subtle);
-    border-radius: var(--glacier-radius-lg, 16px);
-    box-shadow: 0 16px 40px rgb(0 0 0 / 34%);
-    animation: floatIn 180ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+    border-radius: var(--glacier-radius-lg);
+    box-shadow: var(--app-float-shadow);
+    animation: floatIn 180ms var(--glacier-ease-out);
   }
 }
 
@@ -97,15 +97,17 @@
   margin: 0;
   font-size: var(--glacier-font-size-lg);
   font-weight: var(--glacier-font-weight-bold);
-  letter-spacing: var(--app-tracking-title, -0.025em);
+  letter-spacing: var(--app-tracking-title);
   color: var(--glacier-text);
 }
 
 .close {
   display: grid;
   place-items: center;
-  inline-size: var(--glacier-space-9);
-  block-size: var(--glacier-space-9);
+  /* Its glyph's own size, which is what it has always drawn at: it asked for `--glacier-space-9`, a step the kit's
+     scale does not have, and a var() of nothing is no size at all. */
+  inline-size: auto;
+  block-size: auto;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -231,7 +233,7 @@
   gap: var(--glacier-space-2);
   padding: var(--glacier-space-2) var(--glacier-space-2) var(--glacier-space-2) var(--glacier-space-3);
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-md, 10px);
+  border-radius: var(--glacier-radius-md);
   background: var(--app-paper-2);
 }
 

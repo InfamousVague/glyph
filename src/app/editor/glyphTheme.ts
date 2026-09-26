@@ -7,7 +7,7 @@ const SELECTION_PAPER = ['oklch(0.995 0 0)', 'oklch(0.11 0 0)'] as const;
 /**
  * CodeMirror's own styling layer, expressed entirely in Glacier tokens.
  *
- * Everything that can live in `Editor.module.css` does; this file exists only
+ * Everything that can live in `markdown.module.css` does; this file exists only
  * for the handful of selectors CodeMirror generates and owns (`.cm-scroller`,
  * `.cm-content`, `.cm-line`, `.cm-cursor`), which no stylesheet of ours can
  * reach first because the editor's base theme is injected at a precedence a
@@ -62,7 +62,7 @@ export const glyphTheme = (dark: boolean) =>
        * `.lineItem` / `.lineQuote` rules that need to change the same property.
        * The visible symptom was a list's dash and a quote's bar sitting flat
        * against the left edge of the screen. All line padding lives in
-       * Editor.module.css, where the base rule and the per-block rules can be
+       * markdown.module.css, where the base rule and the per-block rules can be
        * written at specificities that order correctly against each other.
        */
       // A full-bleed editor has nothing to draw a ring around.

@@ -15,6 +15,8 @@ import '@glacier/tokens/css/tokens.css';
 // unstyles every component.
 import '@glacier/react/styles.css';
 import './app/app.css';
+// The page's edges under a header and at its foot, where app.css had them (art/wispEdge.ts writes what they read).
+import './app/art/wisp.css';
 // Last: the ink palette, which maps every token above onto paper and ink.
 import './app/ink.css';
 import './app/typefaces.css';

@@ -116,7 +116,7 @@ Extensions: `StrikethroughMark: t.processingInstruction`, `"Strikethrough/...": 
 ```ts
 import {HighlightStyle} from "@codemirror/language";
 import {tags} from "@lezer/highlight";
-import styles from "./Editor.module.css";      // Glacier: CSS Modules over --glacier-* tokens only
+import styles from "./markdown.module.css";    // Glacier: CSS Modules over --glacier-* tokens only (then Editor.module.css)
 
 export const glyphHighlight = HighlightStyle.define([
   {tag: tags.heading1, class: styles.h1}, {tag: tags.heading2, class: styles.h2}, {tag: tags.heading3, class: styles.h3},

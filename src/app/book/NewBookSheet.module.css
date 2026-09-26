@@ -20,7 +20,7 @@
   margin: 0;
   padding: 0;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-md, 10px);
+  border-radius: var(--glacier-radius-md);
 }
 
 .page {
@@ -62,7 +62,7 @@
   max-block-size: 14rem;
   overflow-y: auto;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-md, 10px);
+  border-radius: var(--glacier-radius-md);
 }
 
 .pick {
@@ -109,7 +109,7 @@
 .none {
   padding: 0.6em 0.8em;
   color: var(--glacier-text-muted);
-  font-size: var(--glacier-font-size-sm, 0.875rem);
+  font-size: var(--glacier-font-size-sm);
 }
 
 /* The grip a page is dragged by, and the look it is lifted with (rows.module.css). */

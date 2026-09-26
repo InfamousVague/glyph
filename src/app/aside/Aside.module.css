@@ -10,8 +10,8 @@
   min-block-size: 0;
   block-size: 100%;
   overflow-y: auto;
-  padding: calc(var(--app-safe-top, 0px) + var(--glacier-space-3)) var(--glacier-space-3) var(--glacier-space-6);
-  font-size: var(--glacier-font-size-sm, 0.875rem);
+  padding: calc(var(--app-safe-top) + var(--glacier-space-3)) var(--glacier-space-3) var(--glacier-space-6);
+  font-size: var(--glacier-font-size-sm);
 }
 
 /* In the floating card there is no bar over it, as the drawer's tree has none (notes/NoteTree.module.css). */
@@ -36,7 +36,7 @@
   padding: 0.3em 0.4em;
   margin-inline-start: -0.4em;
   border: 0;
-  border-radius: var(--glacier-radius-sm, 6px);
+  border-radius: var(--glacier-radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -61,7 +61,7 @@ span.headButton:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
 }
 
 .close {
@@ -97,7 +97,7 @@ span.headButton:hover {
   inline-size: 100%;
   padding: 0.45em 0.6em;
   border: 0;
-  border-radius: var(--glacier-radius-sm, 6px);
+  border-radius: var(--glacier-radius-sm);
   background: transparent;
   color: var(--glacier-text);
   font: inherit;
@@ -111,7 +111,7 @@ span.headButton:hover {
 
 /* The open chapter: a ring, as the sidebar marks the open note. */
 .row[data-current] {
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--app-ink, currentColor) 55%, transparent);
+  box-shadow: inset 0 0 0 var(--app-line) color-mix(in oklch, var(--app-ink) 55%, transparent);
 }
 
 .number {
@@ -130,7 +130,7 @@ span.headButton:hover {
 }
 
 .title[data-untitled] {
-  color: var(--glacier-text-subtle, var(--glacier-text-muted));
+  color: var(--glacier-text-subtle);
 }
 
 .empty {

@@ -1,0 +1,168 @@
+/*
+ * The page's edges where it goes under a header or off its foot - on a phone, smoke; on a desktop, a plain fade and a
+ * strip of blur under the header - and the CSS half of a contract whose other half is in this directory:
+ *
+ * - art/wispEdge.ts marks a view (`data-wisp-edge`, `data-wisp-foot`, `data-wisp-draw`, `data-under-header`), lays the
+ *   blur strip (`.app-headerBlur`) under a header, and writes the view's own `--wisp-under`, `--wisp-lip`,
+ *   `--wisp-top-fade`, `--wisp-foot-inset` and the drift, `--wisp-noise-x` and `--wisp-noise-y`;
+ * - art/wispMask.ts writes the mask's images and sizes on the root once (`--wisp-mask-top`, `--wisp-mask-foot`,
+ *   `--wisp-mask-above`, `--wisp-mask-height`), for the engine that cannot afford the filter;
+ * - art/WispEdgeFilter.tsx is the filter itself (`#wispEdge`, `#wispEdgeFoot`).
+ *
+ * Imported right after app.css (src/main.tsx, src/read/main.tsx), which keeps these rules where they were in the
+ * cascade: after the kit and before every module, so a module's own mask or filter on a view still wins as it did.
+ */
+
+/*
+ * On a desktop, the edge under a header is a strip of blur that fades to nothing, where a phone has the wisp
+ * (art/wispMask.ts `wispHead`; Matt: "on desktop use a simple blur gradient under the headers"). The header's glass
+ * carries on a little way past its edge, softer the further down, so the page under it goes soft rather than cut.
+ * A sibling laid under the header by art/wispEdge.ts, shown while the view under it is scrolled, as the wisp was: as
+ * a child of the header it would blur only the header's own contents. A backdrop blur on a strip this
+ * thin is cheap on every engine; it is the `filter: url()` over a whole page that WebKit could not afford.
+ */
+.app-headerBlur {
+  position: absolute;
+  z-index: 3;
+  block-size: 28px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--glacier-bg) 55%, transparent), transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
+  mask-image: linear-gradient(to bottom, #000, transparent);
+}
+
+.app-headerBlur[data-on] {
+  opacity: 1;
+}
+
+/*
+ * A view whose top is smoking, whose foot is, or both, and a mask that dissolves whichever end is going
+ * (`--wisp-top-fade` above, `--wisp-foot-fade` below; both 0 while that end isn't). Under a solid header the header
+ * hides the top, so only the foot fades.
+ *
+ * Each end has its own filter (art/WispEdgeFilter.tsx), and a view wears only the ends it asked for. They were one
+ * filter, so a view wearing it just for its foot also drew any header band another view had switched on - on a
+ * desktop, the note beside a scrolled sidebar smoked along its top.
+ */
+[data-wisp-edge] {
+  filter: url(#wispEdge);
+}
+
+[data-wisp-foot] {
+  filter: url(#wispEdgeFoot);
+}
+
+/* Both ends: one after the other. They never overlap, so the order is only which is drawn first. */
+[data-wisp-edge][data-wisp-foot] {
+  filter: url(#wispEdge) url(#wispEdgeFoot);
+}
+
+[data-wisp-edge],
+[data-wisp-foot] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--wisp-top-fade, 19px),
+    #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-foot-fade, 0px)),
+    transparent calc(100% - var(--wisp-foot-inset, 0px))
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--wisp-top-fade, 19px),
+    #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-foot-fade, 0px)),
+    transparent calc(100% - var(--wisp-foot-inset, 0px))
+  );
+}
+
+/*
+ * While the foot is smoking, the last stretch of the view dissolves into the paper below it - a short stretch, under
+ * the smoke rather than instead of it: the band's lip sits above it (art/wispEdge.ts `placeFoot`), so the words are
+ * bent while they can still be seen. At 30px the fade covered the lip and all that showed was the fade.
+ */
+[data-wisp-foot] {
+  /* Longer again, with the taller smoke over it (Matt: "Add a bit of combined black gradient or gradient opacity mask a
+     bit too"): the words dim as they smoke rather than smoking at full strength into a cut. */
+  --wisp-foot-fade: 32px;
+}
+
+/* A view smoking at its foot alone is crisp at its top: nothing is going under the header yet. */
+[data-wisp-foot]:not([data-wisp-edge]) {
+  --wisp-top-fade: 0px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-wisp-edge],
+  [data-wisp-foot] {
+    filter: none;
+  }
+}
+
+/*
+ * A desktop's plain foot (art/wispEdge.ts, `fade`): no smoke, only the last stretch of the page going to the ground,
+ * right at the window's edge, so the page reaches the bottom of the screen.
+ */
+[data-wisp-draw='fade'][data-wisp-foot] {
+  filter: none;
+  --wisp-foot-fade: 28px;
+}
+
+/*
+ * And its plain top, on a view with no header to hang the blur strip from (Settings' page, scrolled): no filter either.
+ * The filter's region is only placed by views that draw with it, so one worn here had whatever size another view last
+ * gave it, and everything past that edge went undrawn: on a desktop, a scrolled Settings page lost its right-hand side.
+ */
+[data-wisp-draw='fade'][data-wisp-edge] {
+  filter: none;
+}
+
+/*
+ * The same smoke as a mask (art/wispMask.ts), for the engine that cannot afford the filter: no filter at all, and the
+ * band is an image of the torn edge laid along the lip - drawn once, moved by the drift, composited by the GPU.
+ * Two or three mask layers, added: the ramp that shows the words whole past the band and dissolves the foot's last
+ * stretch, the top's band tiled along the lip, and the foot's band, turned over, along the view's bottom edge (or
+ * the dock's top, `--wisp-foot-inset`). `--wisp-lip` is where the top band's lip sits, set by the hook; the image
+ * carries `--wisp-mask-above` of smoke over its lip, enough to reach the top of any header, and `--wisp-noise-x/y`
+ * are the drift.
+ */
+[data-wisp-draw='mask'][data-wisp-edge],
+[data-wisp-draw='mask'][data-wisp-foot] {
+  filter: none;
+  --wisp-tear-top: calc(var(--wisp-lip, 0px) + 76px);
+  --wisp-tear-foot: 104px;
+  --wisp-top-band-y: calc(var(--wisp-lip, 0px) - var(--wisp-mask-above, 160px) + var(--wisp-noise-y, 0px));
+  --wisp-foot-band-y: calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-mask-height, 256px) + var(--wisp-mask-above, 160px) - var(--wisp-noise-y, 0px));
+  -webkit-mask-composite: source-over;
+  mask-composite: add;
+}
+
+[data-wisp-draw='mask'][data-wisp-edge]:not([data-wisp-foot]) {
+  -webkit-mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top)), var(--wisp-mask-top);
+  mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top)), var(--wisp-mask-top);
+  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y);
+  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y);
+  -webkit-mask-repeat: no-repeat, repeat-x;
+  mask-repeat: no-repeat, repeat-x;
+}
+
+[data-wisp-draw='mask'][data-wisp-foot]:not([data-wisp-edge]) {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-foot);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-foot);
+  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  -webkit-mask-repeat: no-repeat, repeat-x;
+  mask-repeat: no-repeat, repeat-x;
+}
+
+[data-wisp-draw='mask'][data-wisp-edge][data-wisp-foot] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top), #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-top), var(--wisp-mask-foot);
+  mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top), #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-top), var(--wisp-mask-foot);
+  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y), var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y), var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  -webkit-mask-repeat: no-repeat, repeat-x, repeat-x;
+  mask-repeat: no-repeat, repeat-x, repeat-x;
+}

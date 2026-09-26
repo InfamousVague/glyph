@@ -14,7 +14,7 @@ import { glyphHighlight } from './glyphHighlight.ts';
 // `import.meta.url` is the page's own under jsdom, not a file; Vitest gives the file's directory as `dirname`.
 const here = import.meta.dirname;
 const source = readFileSync(join(here, 'glyphHighlight.ts'), 'utf8');
-const sheet = readFileSync(join(here, 'Editor.module.css'), 'utf8');
+const sheet = readFileSync(join(here, 'markdown.module.css'), 'utf8');
 
 /** Where the stylesheet's own rule for `.name` starts, a rule of that class alone at the top level; -1 for none. */
 function ruleAt(name: string): number {

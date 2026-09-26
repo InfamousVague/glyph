@@ -12,8 +12,8 @@
   z-index: 58;
   display: flex;
   flex-direction: column;
-  padding-block-start: var(--app-safe-top, 0px);
-  padding-block-end: var(--app-safe-bottom, 0px);
+  padding-block-start: var(--app-safe-top);
+  padding-block-end: var(--app-safe-bottom);
   background: var(--glacier-bg);
   color: var(--glacier-text);
   outline: none;
@@ -30,8 +30,8 @@
 .title {
   flex: 1;
   margin: 0;
-  font-size: var(--glacier-font-size-md, 1rem);
-  font-weight: 600;
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: -0.01em;
 }
 
@@ -66,7 +66,7 @@
   margin: 0;
   max-inline-size: 62ch;
   color: var(--glacier-text-muted);
-  font-size: var(--glacier-font-size-sm, 0.875rem);
+  font-size: var(--glacier-font-size-sm);
   line-height: 1.5;
 }
 
@@ -107,11 +107,14 @@
   block-size: 24rem;
   overflow: hidden;
   border: 1px solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-lg, 16px);
+  border-radius: var(--glacier-radius-lg);
   background: var(--glacier-bg);
 }
 
-/* The header the surface's page runs under: the app's own glass (app.css `.app-headerPane`). */
+/*
+ * The header the surface's page runs under: the app's own glass (app.css `.app-headerPane`), by its recipe rather than
+ * its class, since the class is also what hides the status scrim and what the split layout re-tints.
+ */
 .head {
   position: absolute;
   inset-inline: 0;
@@ -122,18 +125,18 @@
   justify-content: space-between;
   block-size: 3rem;
   padding-inline: var(--glacier-space-4);
-  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  backdrop-filter: blur(18px) saturate(1.1);
-  font-size: var(--glacier-font-size-sm, 0.875rem);
-  font-weight: 600;
+  background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
+  -webkit-backdrop-filter: var(--app-glass-blur);
+  backdrop-filter: var(--app-glass-blur);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
 }
 
 /* The counter lives in the header, where it is over the surface and not in it: writing it must not repaint the page. */
 .counter {
-  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  font-family: var(--glacier-font-mono);
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: var(--glacier-font-weight-medium);
   font-variant-numeric: tabular-nums;
   color: var(--glacier-text-muted);
 }
@@ -156,7 +159,7 @@
 .prose h3 {
   margin: 1.6em 0 0.5em;
   font-size: 1.05rem;
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: -0.01em;
 }
 
@@ -186,7 +189,7 @@
 
 .meta {
   margin: 0;
-  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  font-family: var(--glacier-font-mono);
   font-size: 0.75rem;
   color: var(--glacier-text-muted);
 }
@@ -194,7 +197,7 @@
 .table {
   inline-size: 100%;
   border-collapse: collapse;
-  font-size: var(--glacier-font-size-sm, 0.875rem);
+  font-size: var(--glacier-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -207,7 +210,7 @@
 }
 
 .table th {
-  font-weight: 600;
+  font-weight: var(--glacier-font-weight-semibold);
   color: var(--glacier-text-muted);
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -217,17 +220,20 @@
 .table td.num,
 .table th.num {
   text-align: end;
-  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  font-family: var(--glacier-font-mono);
 }
 
-/* A frame past 100ms is the one to look at. */
+/*
+ * A frame past 100ms is the one to look at. A raw red: this read `--glacier-danger`, which the kit has never had (its
+ * danger family is all suffixed names, and ink.css maps those to ink), so its fallback is what always drew.
+ */
 .table td.slow {
-  color: var(--glacier-danger, #c0392b);
-  font-weight: 600;
+  color: #c0392b;
+  font-weight: var(--glacier-font-weight-semibold);
 }
 
 .wearing {
-  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  font-family: var(--glacier-font-mono);
   font-size: 0.75rem;
   color: var(--glacier-text-muted);
   overflow-wrap: anywhere;
@@ -237,7 +243,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--glacier-accent-solid, var(--glacier-text));
+  color: var(--glacier-accent-solid);
   font: inherit;
   text-decoration: underline;
   text-underline-offset: 0.15em;
@@ -250,6 +256,6 @@
 
 .progress {
   margin: 0;
-  font-size: var(--glacier-font-size-sm, 0.875rem);
+  font-size: var(--glacier-font-size-sm);
   color: var(--glacier-text-muted);
 }
