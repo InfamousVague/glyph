@@ -32,7 +32,6 @@ const expectWords = (expect) => {
   for (const [name, parts] of Object.entries(expect.notesLack ?? {})) lines.push(`"${name}" no longer contains: ${parts.join(' | ')}`);
   if (expect.contains) lines.push(`This note contains: ${expect.contains.map((c) => JSON.stringify(c)).join(', ')}`);
   if (expect.lacks) lines.push(`This note does not contain: ${expect.lacks.map((c) => JSON.stringify(c)).join(', ')}`);
-  if (expect.offers) lines.push(`Glyph offers: ${expect.offers.join(', ')} (answer nothing; the test only checks the offer)`);
   if (expect.newNote === false) lines.push('No new note is made.');
   if (expect.stopsWithinMs) lines.push(`The recording stops by itself within ${expect.stopsWithinMs / 1000} s of the last word.`);
   return lines.join('\n');
@@ -83,7 +82,7 @@ for (const test of suite.tests) {
     .map(([key, value]) => `${key} ${value ? 'on' : 'off'}`)
     .join(', ');
   parts.push(`${test.file}.mp3
-  Tests: ${test.tests}
+  Tests: ${test.tests}${test.skip ? `\n  Skipped: ${test.skip}. Kept so its recording is not lost; not needed now.` : ''}${test.choose ? `\n  When a card asks which note: ${test.choose}` : ''}
   Before: ${setupWords(test.setup)}${prefs ? `\n  Settings: ${prefs === 'quietStop on' ? 'Recording > Stop when I go quiet ON' : prefs}` : ''}
   Lines (silence after each):
 ${test.lines.map(([line, pause]) => `      ${line}   [${pause}s]`).join('\n')}

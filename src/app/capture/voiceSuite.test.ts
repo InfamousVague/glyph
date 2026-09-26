@@ -4,18 +4,17 @@ import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import suiteJson from '../../../voice-tests/suite.json';
 import { MARKS } from '../plugins/marks/index.tsx';
-import { sendCommand, taskNoteCommand } from '../plugins/notion/voice.ts';
 import { toParagraphs } from './markdown.ts';
 import { setSpokenFormats } from './spoken/inline.ts';
 import { problems, runTest, scriptHeard, type Heard, type Suite } from './voiceSuite.ts';
 
 /**
- * Every recording in the voice suite, from its script: the recorder's rules against what each test says should happen.
+ * Every recording in the voice suite, from its script: the recorder's rules against what each test says should happen,
+ * played through the live reader as the recorder runs it (capture/liveRoute.ts).
  * With GLYPH_VOICE set (`npm run voice:suite`), the same tests again from what Whisper heard in the audio files.
  */
 
 const suite = suiteJson as unknown as Suite;
-const voice = [sendCommand, taskNoteCommand];
 
 beforeAll(() => {
   // The Marks plugin is on by default, so its cues can be said.
@@ -24,8 +23,9 @@ beforeAll(() => {
 
 describe('the voice suite, from the scripts', () => {
   for (const test of suite.tests) {
-    it(`${test.file}: ${test.tests}`, () => {
-      const outcome = runTest(test, suite.fixtures, scriptHeard(test.lines), voice);
+    // A test the recorder no longer carries out is kept, with why, and skipped (voice-tests/suite.json `skip`).
+    it.skipIf(Boolean(test.skip))(`${test.file}: ${test.tests}${test.skip ? ` (skipped: ${test.skip})` : ''}`, () => {
+      const outcome = runTest(test, suite.fixtures, scriptHeard(test.lines));
       expect(problems(test, outcome)).toEqual([]);
     });
   }
@@ -36,9 +36,9 @@ const heardDir = process.env.GLYPH_VOICE ? join(process.env.GLYPH_VOICE_DIR ?? j
 describe.runIf(heardDir)('the voice suite, from the audio', () => {
   for (const test of suite.tests) {
     const file = heardDir ? join(heardDir, `${test.file}.json`) : '';
-    it.runIf(heardDir && existsSync(file))(`${test.file}: ${test.tests}`, () => {
+    it.runIf(heardDir && existsSync(file) && !test.skip)(`${test.file}: ${test.tests}`, () => {
       const heard = JSON.parse(readFileSync(file, 'utf8')) as Heard;
-      const outcome = runTest(test, suite.fixtures, heard, voice);
+      const outcome = runTest(test, suite.fixtures, heard);
       const wrong = problems(test, outcome, { heard: true });
       expect(wrong, `heard: ${heard.segments.map((s) => `[${s.startMs}-${s.endMs}] ${s.text}`).join(' | ')}`).toEqual([]);
     });

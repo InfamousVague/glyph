@@ -46,7 +46,7 @@ export const LIVE_TIMING = {
   holdMs: 4500,
   /** The most phrases a held command waits for its name. */
   holdPhrases: 3,
-  /** A name that may still be growing: the next phrase this soon is read with it. */
+  /** A name that may still be growing: the next phrase, said this soon after it on the recording, is read with it. */
   growMs: 2500,
   /** A one-shot with nothing said for it: its phrases until a pause this long. */
   itemsQuietMs: 2500,
@@ -171,7 +171,6 @@ interface Growing<N extends LiveNote> {
   command: Segment;
   /** The command's words as heard, the stop gone, to be read again with the next phrase. */
   words: string;
-  at: number;
   /** Where the name went: the route, or the one-shot. */
   into: { kind: 'route' } | { kind: 'insert'; id: number };
   note: N;
@@ -275,7 +274,9 @@ export class LiveRoute<N extends LiveNote> {
     // A name that may still be growing: this phrase, read with it.
     const growing = this.growing;
     this.growing = null;
-    if (growing && now - growing.at <= LIVE_TIMING.growMs) {
+    // Measured on the recording, from the end of the command to the start of this phrase: a long phrase is committed
+    // well after it began.
+    if (growing && segment.startMs - growing.command.endMs <= LIVE_TIMING.growMs) {
       const grown = this.grow(growing, segment, ctx, now);
       if (grown) return grown;
     }
@@ -309,7 +310,6 @@ export class LiveRoute<N extends LiveNote> {
     if (this.held && now - this.held.lastAt > LIVE_TIMING.holdMs) steps.push(...this.letGoHeld(ctx, now));
     if (this.pending && now - this.pending.since > LIVE_TIMING.cardMs) steps.push(...this.settle({ kind: 'keep' }, ctx));
     if (this.opened && now - this.opened.lastAt > LIVE_TIMING.itemsQuietMs) steps.push(...this.closeInsert());
-    if (this.growing && now - this.growing.at > LIVE_TIMING.growMs) this.growing = null;
     return steps;
   }
 
@@ -582,14 +582,14 @@ export class LiveRoute<N extends LiveNote> {
       steps.push({ kind: 'log', line: `${reading.move ? 'Moved this recording to' : 'Writing to'} ${candidate.title}` });
       steps.push(...this.payload(whole, payload, { task: reading.placing === 'task' }));
       steps.push({ kind: 'chip', view: payload || reading.move ? { phase: 'moved', title, spot } : { phase: 'waiting', title, many: false, leave: true } });
-      if (!reading.stopped && score < 1 && !reading.move) this.growing = { reading, score, command: whole, words: withoutFinalStop(commandWordsOf(whole.text)), at: now, into: { kind: 'route' }, note };
+      if (!reading.stopped && score < 1 && !reading.move) this.growing = { reading, score, command: whole, words: withoutFinalStop(commandWordsOf(whole.text)), into: { kind: 'route' }, note };
     } else {
       const id = this.nextId++;
       steps.push({ kind: 'insert', id, note, title, placing, segments: payloadWords(whole, payload, { task: reading.placing === 'task' }) }, { kind: 'haptic', haptic: 'success' });
       steps.push({ kind: 'log', line: `Added to ${candidate.title}${spot ? `, ${spot}` : ''}` });
       if (payload) {
         steps.push({ kind: 'insert-end', id });
-        if (!reading.stopped && score < 1) this.growing = { reading, score, command: whole, words: withoutFinalStop(commandWordsOf(whole.text)), at: now, into: { kind: 'insert', id }, note };
+        if (!reading.stopped && score < 1) this.growing = { reading, score, command: whole, words: withoutFinalStop(commandWordsOf(whole.text)), into: { kind: 'insert', id }, note };
       } else {
         this.opened = { id, note, title, count: 0, lastAt: now };
         steps.push({ kind: 'chip', view: { phase: 'waiting', title, many: false, leave: true } });

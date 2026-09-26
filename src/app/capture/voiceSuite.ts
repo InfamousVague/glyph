@@ -1,31 +1,25 @@
-import { bookNoteBody } from '../book/book.ts';
-import { clipMarkdown } from '../core/clips.ts';
-import { BOX, BULLET, CHOICE, NUMBER } from '../core/itemSyntax.ts';
 import { noteTitle } from '../core/noteTitle.ts';
-import { capitalise } from '../core/text.ts';
-import type { VoiceCommand } from '../plugins/types.ts';
-import { appendBlock, appendBody } from './appendBody.ts';
-import { placeWords } from './listAppend.ts';
-import type { Segment } from './markdown.ts';
-import type { TakeCandidate, TakeNote } from './takeTypes.ts';
+import { BOX, BULLET, CHOICE, NUMBER } from '../core/itemSyntax.ts';
+import { LiveTake, type MemoryNote } from './liveTake.ts';
+import type { CardChoice, LiveCard } from './liveRoute.ts';
+import { renderNote, type Segment } from './markdown.ts';
 import { QuietWatch } from './quiet.ts';
 import { setLinkTitles } from './spoken/extras.ts';
 import { NUMBER_WORD, spokenNumber } from './spoken/numbers.ts';
-import { asBoardMarkdown, Take } from './take.ts';
 
 /**
- * The voice test suite (voice-tests/suite.json): a recording per feature, replayed through the recorder's own logic
- * (capture/take.ts) and checked against the notes it should leave.
+ * The voice test suite (voice-tests/suite.json): a recording per feature, replayed through what the recorder runs and
+ * checked against the notes it should leave.
  *
  * Two ways in. From the script, each line is one committed phrase with the silence written after it, which checks
  * the rules. From the audio (`npm run voice:suite`), Whisper on this machine hears the recording exactly as the phone
  * would (src-tauri/src/whisper/suite.rs writes what it heard), which checks the rules against real speech.
  *
  * Test infrastructure beside the code it tests: only voiceSuite.test.ts imports it, so it is in no bundle the app
- * ships. It drives the take a phrase at a time (`phrase`, `tick`), the live reading of commands the recorder itself has
- * left dormant since PR #1, which is how the command rules and their timing are still held to their scripts. Its host
- * is the recorder's in miniature, over an in-memory store; where the two differ - the suite's new note by name is
- * `# Named`, the recorder's a title line (listTitle) - it is the suite's expectations that were written against it.
+ * ships. It plays each phrase through the live reader (liveRoute.ts), on the clock the phone would commit it at, and
+ * writes what it leaves as the recorder's Done does (liveTake.ts: `placeTake` into each note, the take's own note
+ * rendered from its words). A test the recorder no longer carries out - a spoken "no", a plugin, a table, a board, a
+ * voice memo said aloud - is kept with the reason it is skipped (`skip`), so its recording is not lost.
  */
 
 export interface SuiteTest {
@@ -39,6 +33,10 @@ export interface SuiteTest {
   /** Each line, and the seconds of silence after it. */
   lines: [string, number][];
   expect: Expectation;
+  /** A card asking which note, answered as it comes up: a title to tap, "new" for a new note by the name, or "keep". */
+  choose?: string;
+  /** Why the test is not run: what the recorder no longer does, and since when. */
+  skip?: string;
 }
 
 export interface Expectation {
@@ -53,8 +51,6 @@ export interface Expectation {
   notesContain?: Record<string, string[]>;
   notesMatch?: Record<string, string[]>;
   notesLack?: Record<string, string[]>;
-  /** Offers made, as "plugin:<id>" or a plan kind. */
-  offers?: string[];
   newNote?: boolean;
   /** The recording stops by itself this soon after the last words. */
   stopsWithinMs?: number;
@@ -96,16 +92,11 @@ export function scriptHeard(lines: readonly [string, number][]): Heard {
   return { segments, audioMs: speech };
 }
 
-interface StoredNote extends TakeNote {
-  title: string;
-}
-
 export interface Outcome {
   /** The recording's own note when it made one, else null. */
   note: string | null;
   /** Every note by title, after the recording. */
   notes: Record<string, string>;
-  offers: string[];
   newNote: boolean;
   stoppedAtMs: number | null;
   lastWordsMs: number;
@@ -117,86 +108,24 @@ const COMMIT_LAG_MS = 400;
 const TICK_MS = 250;
 const QUIET_STOP_MS = 4000;
 
-/** One recording, played through the take with the suite's notes, and what came of it. */
-export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard: Heard, voiceCommands: readonly VoiceCommand[] = []): Outcome {
-  const store = new Map<string, StoredNote>();
-  const withFixtures = test.setup !== 'blank';
-  if (withFixtures) {
-    let n = 0;
-    for (const [title, body] of Object.entries(fixtures)) store.set(`fixture-${n++}`, { id: `fixture-${n - 1}`, title, body });
-  }
-  // The recorder gives spoken note links the titles it knows, as CaptureScreen does.
-  setLinkTitles(withFixtures ? Object.keys(fixtures) : []);
-  const byTitle = (title: string) => [...store.values()].find((note) => note.title === title) ?? null;
-  let target: StoredNote | null = test.setup.startsWith('continue:') ? byTitle(test.setup.slice('continue:'.length)) : null;
-  let newNote = false;
-  const offers: string[] = [];
-  const log: string[] = [];
-  const candidates = (): TakeCandidate<StoredNote>[] => [...store.values()].map((note) => ({ id: note.id, title: noteTitle(note.body) || note.title, note }));
-  const change = (id: string, next: (body: string) => string | null) => {
-    const note = store.get(id);
-    if (!note) return;
-    const body = next(note.body);
-    if (body !== null) store.set(id, { ...note, body });
-    if (target?.id === id && body !== null) target = { ...target, body };
-  };
-  /** The words so far onto the note being recorded, as the recorder's draft saves them, before the take carries on elsewhere. */
-  const flush = () => {
-    const current = target;
-    if (!current) return;
-    const markdown = take.markdown({ titled: false, board: asBoardMarkdown });
-    if (take.hasContent) change(current.id, (body) => appendBody(body, markdown));
-    take.fork();
-  };
-  let made = 0;
+/** A test's `choose`, as the card's answer. */
+function answerFor(choose: string, card: LiveCard<MemoryNote>): CardChoice {
+  if (choose === 'keep') return { kind: 'keep' };
+  if (choose === 'new') return { kind: 'new' };
+  const note = card.candidates.find((candidate) => candidate.title.toLowerCase() === choose.toLowerCase());
+  return note ? { kind: 'note', id: note.id } : { kind: 'keep' };
+}
 
-  const take: Take<StoredNote> = new Take<StoredNote>({
-    notes: candidates,
-    target: () => target,
-    commandWord: () => test.prefs.commandWord ?? true,
-    instructionCommands: () => false,
-    voiceCommands: () => voiceCommands,
-    itemTargets: () => [],
-    route: () => undefined,
-    offer: (offer) => {
-      if (offer) offers.push(offer.kind === 'plugin' ? `plugin:${offer.voice.id.split('-')[0] ?? offer.voice.id}` : offer.kind);
-    },
-    table: () => undefined,
-    itemWords: () => undefined,
-    haptic: () => undefined,
-    changed: () => undefined,
-    addItems: (note, spoken, placement) =>
-      change(note.id, (body) => {
-        const placed = placeWords(body, spoken, placement);
-        return placed.added.length ? placed.body : null;
-      }),
-    changeNote: (note, next) => change(note.id, next),
-    addTable: (note, _title, markdown) => change(note.id, (body) => appendBlock(body, markdown)),
-    moveTo: (note) => {
-      target = store.get(note.id) ?? note;
-    },
-    newNote: (title) => {
-      flush();
-      if (title) {
-        const named = capitalise(title);
-        const id = `made-${made++}`;
-        store.set(id, { id, title: named, body: `# ${named}` });
-        target = store.get(id)!;
-        return;
-      }
-      target = null;
-      newNote = true;
-    },
-    newBook: (title, pages) => {
-      const id = `made-${made++}`;
-      store.set(id, { id, title, body: bookNoteBody(title, pages) });
-    },
-    runPlugin: () => null,
-    describePlugin: (voice) => ({ title: voice.id, action: 'Go' }),
-    clip: (span) => clipMarkdown({ startMs: span.startMs, endMs: span.endMs, tape: 'suite' }),
-    log: (line) => log.push(line),
-    said: () => undefined,
-  });
+/** One recording, played through the live reader with the suite's notes, and what came of it. */
+export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard: Heard): Outcome {
+  const withFixtures = test.setup !== 'blank';
+  const titles = withFixtures ? Object.keys(fixtures) : [];
+  const notes: MemoryNote[] = titles.map((title, n) => ({ id: `fixture-${n}`, body: fixtures[title]! }));
+  // The recorder gives spoken note links the titles it knows, as CaptureScreen does.
+  setLinkTitles(titles);
+  const continuing = test.setup.startsWith('continue:') ? test.setup.slice('continue:'.length) : null;
+  const own = continuing ? (notes[titles.indexOf(continuing)] ?? null) : null;
+  const take = new LiveTake(notes, { keywordOn: test.prefs.commandWord ?? true, own });
 
   const quiet = test.prefs.quietStop ? new QuietWatch(QUIET_STOP_MS) : null;
   const commits = heard.segments.map((segment) => ({ at: segment.endMs + COMMIT_LAG_MS, segment }));
@@ -208,28 +137,23 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
       const { segment } = commits[next++]!;
       quiet?.words(now);
       take.phrase(segment, now);
+      if (take.card && test.choose) take.answer(answerFor(test.choose, take.card));
     }
-    const commanding = take.commanding;
+    const commanding = take.live.holding;
     take.tick(now);
     if (!commanding && quiet?.due(now)) {
       stoppedAtMs = now;
       break;
     }
   }
+  take.close(stoppedAtMs ?? heard.audioMs);
 
-  take.end(stoppedAtMs ?? heard.audioMs);
-  const titled = target === null;
-  const markdown = take.markdown({ titled, board: asBoardMarkdown });
-  let note: string | null = null;
-  if (take.hasContent) {
-    if (target) change(target.id, (body) => appendBody(body, markdown));
-    else note = markdown;
-  }
-
-  const notes: Record<string, string> = {};
-  for (const stored of store.values()) notes[stored.title] = stored.body;
+  const { bodies } = take.result();
+  const ownNote = take.aim === null && take.pendingTitle === null ? renderNote(take.segments, '', { titled: true }).markdown : '';
+  const byTitle: Record<string, string> = {};
+  for (const [id, body] of bodies) byTitle[titles[notes.findIndex((note) => note.id === id)] ?? noteTitle(body)] = body;
   const lastWordsMs = heard.segments.length ? heard.segments[heard.segments.length - 1]!.endMs : 0;
-  return { note, notes, offers, newNote, stoppedAtMs, lastWordsMs, log };
+  return { note: ownNote.trim() ? ownNote : null, notes: byTitle, newNote: take.parts.length > 0, stoppedAtMs, lastWordsMs, log: take.log };
 }
 
 /** A run of number words, "and" allowed between them, as Whisper may spell a number out. */
@@ -331,7 +255,6 @@ export function problems(test: SuiteTest, outcome: Outcome, { heard = false }: {
   for (const [title, parts] of Object.entries(expect.notesLack ?? {})) {
     for (const part of parts) if ((outcome.notes[title] ?? '').includes(part)) out.push(`"${title}" still has ${show(part)}`);
   }
-  for (const offer of expect.offers ?? []) if (!outcome.offers.includes(offer)) out.push(`no ${offer} offer (offers: ${outcome.offers.join(', ') || 'none'})`);
   if (expect.newNote === false && outcome.note !== null) out.push(`a new note was made: ${show(own)}`);
   if (expect.stopsWithinMs !== undefined) {
     if (outcome.stoppedAtMs === null) out.push('the recording never stopped by itself');
