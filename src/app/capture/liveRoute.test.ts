@@ -48,7 +48,10 @@ describe('Matt’s sentence, as Whisper commits it', () => {
     expect(take.aim?.id).toBe('house');
     expect(lastChip(take)).toEqual({ phase: 'waiting', title: 'House TODOs', many: false, leave: true });
     expect(take.live.awaitingPayload).toBe(true);
+    // What is being said now is for the chip, until it is committed.
+    expect(take.live.hearingCommand).toBe(true);
     say('The note is call an electrician to fix the light sockets.');
+    expect(take.live.hearingCommand).toBe(false);
     // The page shows it arriving in the list as it is said; nothing is a new note.
     expect(take.page()).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n');
     done();
@@ -252,6 +255,9 @@ describe('names that are not sure', () => {
     say('Check the order form.', 1000);
     expect(take.card).toMatchObject({ form: 'unsure', heading: 'Add to which note?' });
     expect(take.card?.candidates.map((c) => c.title).sort()).toEqual(['Signing in, and signing', 'Signing the order']);
+    // A card holds the recording open, but what is said meanwhile goes to the page.
+    expect(take.live.holding).toBe(true);
+    expect(take.live.hearingCommand).toBe(false);
     take.answer({ kind: 'note', id: 's2' });
     done();
     expect(take.aim?.id).toBe('s2');

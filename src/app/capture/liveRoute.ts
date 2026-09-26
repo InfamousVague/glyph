@@ -249,6 +249,14 @@ export class LiveRoute<N extends LiveNote> {
     return this.routed?.awaiting === true;
   }
 
+  /**
+   * A command is being said, waiting for its name, or a one-shot is taking its words: the phrase still being heard is
+   * the command's, for the chip, not the page's. A card up is not: what is said meanwhile goes to the page.
+   */
+  get hearingCommand(): boolean {
+    return this.held !== null || this.opened !== null || this.routed?.awaiting === true;
+  }
+
   /** The card up now, if one is. */
   get card(): LiveCard<N> | null {
     return this.pending?.card ?? null;

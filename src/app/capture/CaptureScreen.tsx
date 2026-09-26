@@ -479,7 +479,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         }
         // A partial is display only: it routes nothing. While a command is being said, or a note just named waits
         // for its words, it shows in the chip rather than on the page.
-        const commanding = live.awaitingPayload || live.holding || (commandWordOn() && text !== '' && findKeyword(text) !== null);
+        const commanding = live.hearingCommand || (commandWordOn() && text !== '' && findKeyword(text) !== null);
         setItemWords(commanding ? text : '');
         setPartial(commanding ? '' : text);
       },
