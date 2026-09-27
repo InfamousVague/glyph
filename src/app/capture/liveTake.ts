@@ -54,6 +54,8 @@ export class LiveTake {
   log: string[] = [];
   commandSpans: Span[] = [];
   keywordSpans: Span[] = [];
+  /** The one-shots closed (`insert-end`), in order: the recorder shows each one's lines then. */
+  ended: number[] = [];
   routed = false;
 
   constructor(
@@ -93,6 +95,17 @@ export class LiveTake {
 
   close(now: number): void {
     this.apply(this.live.close(this.ctx(), now));
+  }
+
+  /** A take-back's Undo, tapped. */
+  undo(id: number): void {
+    this.apply(this.live.undoTakeBack(id));
+  }
+
+  /** "New note", tapped: as the recorder's `startNewNote` does it, the reader told first. */
+  forked(): void {
+    this.apply(this.live.forked());
+    this.apply([{ kind: 'new-note' }]);
   }
 
   apply(steps: readonly LiveStep<MemoryNote>[]): void {
@@ -139,6 +152,14 @@ export class LiveTake {
           if (insert) insert.segments.push(...step.segments);
           break;
         }
+        case 'insert-unword': {
+          const insert = this.inserts.get(step.id);
+          if (insert) insert.segments = withoutWords(insert.segments, step.segments);
+          break;
+        }
+        case 'insert-end':
+          this.ended.push(step.id);
+          break;
         case 'insert-drop': {
           const insert = this.inserts.get(step.id);
           this.inserts.delete(step.id);

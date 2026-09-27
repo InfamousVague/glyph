@@ -16,6 +16,9 @@ import type { CaptureHandlers, CaptureSession } from './engine.ts';
  * to" with the item after a pause, then a one-shot, then a sentence that opens
  * with the app's name; `?simulate=ask` stops with the item said;
  * `?simulate=giveback` says the keyword and names no note;
+ * `?simulate=takeback` says a sentence, changes a word in it, corrects one,
+ * scratches one and sends it after a breath, and sends one in one breath, to
+ * shopping list;
  * `?simulate=say&say=a|b` speaks the phrases given, bar-separated.
  * `?simulate=review&review` says a note with a misheard word and, on Done, runs
  * the review with its models simulated in the note it opens
@@ -37,6 +40,18 @@ const SCRIPTS: Record<string, string[]> = {
   leave: ['Quick thought before I forget.', 'Hey Ghost, leave a note on the page for attack FM that says the seek bar drifts on two devices.', 'Hey Ghost, leave a note for attack FM.', 'Ship the APK on Friday.'],
   item: ['Quick thought before I forget.', 'Hey Ghost, new item for attack FM.', 'Fix the login bug on Android.', 'Hey Ghost, new tasks for attack FM.', 'Update the readme, ship the APK and tell Sam.'],
   giveback: ['Pick up the parcel.', 'Hey Ghost, that was a long day.'],
+  takeback: [
+    'Weekend trip.',
+    'The meeting is at three.',
+    'No wait, four.',
+    'We need snacks and water.',
+    'Actually, we need snacks and a charger.',
+    'Bin bags and oat milk.',
+    'Scratch that.',
+    'Add it to shopping list instead.',
+    'Call Sam about the dog.',
+    'Scratch that, add it to shopping list instead.',
+  ],
   review: ['Bug bash on Friday.', 'Fix the seat bar on two devices.', 'Downloads get stuck on the discover list.'],
   ask: ['Quick thought before I forget.', 'Hey Ghost, add a list item to the attack FM.', 'Fix the seek bar.'],
   command: ['Quick thought before I forget.', 'Hey Ghost, add a list item to the attack FM.', 'Fix the seek bar.', 'Hey Ghost add ship the APK to attack FM.', 'Ghost is going to need a plugin store.'],

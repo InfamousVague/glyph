@@ -124,6 +124,11 @@ function sentencesOf(paragraph: string): Sentence[] {
   return out;
 }
 
+/** The sentences of a phrase, by the same boundary: for the live reader, which takes back the last one said (takeBack.ts). */
+export function splitSentences(text: string): string[] {
+  return sentencesOf(text).map((sentence) => sentence.text);
+}
+
 // ---- the whole note -------------------------------------------------------------
 
 export interface RenderOptions {

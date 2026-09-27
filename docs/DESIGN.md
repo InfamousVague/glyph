@@ -5423,3 +5423,90 @@ tape's id and gives a removed one a new id; a phrase of words and then the keywo
 plugin's formatting is laid out when said; the Things to say card's new list is read, with its items, by the reader
 at Done; and voice test 102 says "New item for groceries" as the tip teaches it. Still with no test: the quiet stop
 held open while a command waits for its note's name.
+
+## 130. Scratch that: taking back what was just said (2026-09-27)
+
+Matt: "Id like sentences to be able to redact." Asked what that means: redacting is what happens "when the user says
+something like 'actually …' or 'scratch that, add it to the <note> instead'".
+
+**The flow.** Say "The meeting is at three." then "Scratch that." and the sentence goes back into smoke; the chip says
+Took back “The meeting is at three” with Undo for four seconds. Say "Actually, the meeting is at four." instead and
+the first is replaced by the second; say "No wait, four." and only the word changes. Say "Scratch that, add it to
+Groceries instead.", or "Scratch that." and then "Add it to Groceries.", and the sentence leaves this note and lands
+in Groceries at Done, as a one-shot does; once the Undo goes, Groceries' lines show with Not this note. Undo makes it
+as if the phrase had been plain words: the sentence comes back and the opener is written after it.
+
+**What counts** (capture/takeBack.ts). Safe openers are an order, and need a pause after them: scratch that, strike
+that, take that back, forget that, delete that, never mind, cancel that, ignore that, and no wait alone; "Take that
+back to the shop" is words. Risky ones are how people talk: "actually", "I mean", "sorry,", "no," and "no wait" before
+words count only before a correction, which is the sentence said again with a change (`corrects`: the words they
+share, from both sides: two of them, or all of the previous, or one word changed in place, or the same words but for
+one of a kind), a change of one word of a kind (`swapWord`: a number, a day, a month, a name), or a send of "it" or
+"that"; after "Hey Ghost" a whole sentence counts, unless a command follows, which is then the command ("Hey Ghost,
+actually, add a note to House TODOs"). So "Actually, I think we should go", "No wait, that's fine" and "Call Sam" |
+"Actually, Sam is away" stay sentences. An opener stands at the start of a phrase, after a stop in any case, or after
+a comma when only a drop, a send or a change follows: Whisper's "the meeting is at three, scratch that" reads. A send
+says "it" or "that", never "this", which is the take's own word: "move this to X" still moves the recording.
+
+**What is taken back.** The last thing the live reader placed in this take, by the phrase it came from: the last
+sentence on the page, three items said in one breath, or the last phrase given to a note named. A second "scratch
+that" takes the one before. A command with nothing said for it yet is what a safe take-back cancels; a risky one there
+is the command's words. Words sealed by "New note" are out of reach. A phrase with words before the opener is read as
+two, the head first, a phrase of its own, so "We need eggs. Scratch that." takes back the eggs and "Hey Ghost, add
+call Sam to Work. Actually, call Sarah." corrects the item in Work.
+
+**Where it leaves.** The page, through the wisp. The take, so Done never writes it. The tape's transcript, whose
+phrases are the take's (the sound stays: the tape is never touched). The better words: the stretch is marked at
+settle and the job always carries the live phrases once a take-back ran (`changedWords`), so a drop is replaced by
+nothing and a replacement by itself (refineText.ts unchanged). The reader at Done reads the take's phrases filtered
+by the same rule, never the raw transcript. Never `committed` or `heard`: the stop's last words and the review
+compare like with like, and the log says what went. A take-back never engages the reader, so a command left for the
+reader at Done is not reclaimed by it.
+
+**Nothing lost silently.** Every take-back shows what went, with Undo, and quiet stop waits for it. The spans are
+pushed only when it settles (five seconds on the reader's clock, a second after the chip goes; the next take-back;
+New note; a switch; Done), since `commandSpans` cannot be undone. A send that finds no note keeps the words and says
+so; one that is not sure asks on the card with the words on the page, and Keep here puts them back where they were,
+a one-shot's into it. The take-back's own words never land anywhere. One settled at Done is named in the note's
+toast and the review.
+
+**Where this differs from the plan it was built from.** A send's card leaves the words on the page while it asks,
+rather than taking them off: a note chosen takes them, as every card takes what was said since it, and Keep here
+puts a one-shot's back into it. A send said in a breath of its own after "Scratch that." asks on that card when its
+name is not sure, puts the words back and says so when it was said with the keyword and finds nothing, and is words
+when said without it and finding nothing: "Put it in the oven" after a scratch is not a send that failed. `corrects`
+also takes the same words but for one of a kind ("it's on Tuesday" | "it's on Thursday"), which the shared-words
+rule alone refused. A replacement's chip says Replaced “…” with “…”, since the new sentence is on the page and Took
+back would read as a refusal.
+
+**Revised after the review of the built branch (the same day).** A safe opener's one-word rest that changes a word
+("Scratch that, Sarah") is written once, not also as a phrase of its own. The keyword is the opener's only when it
+stands right before it: before a command in the head ("Hey Ghost, add call Sam to Work. Actually, we should go for
+a walk.") it was the command's, and the new sentence is words, as on main. "Hey Ghost, actually, add a note to House
+TODOs" is that command, said as people say it: `command` takes a risky opener off a command's words when a command
+follows (`commandAfterOpener`), and nothing is taken back; with nothing said before, a keyed "actually, …" is words
+as heard, keyword kept, so the page and the better words agree. Whisper cutting a send's opener from its name
+("Scratch that, add it to" | "Groceries instead.") is read as the one send: the opener waits for the name, never
+written, and a phrase that is no name leaves the drop a plain drop. Anything placed after a bare drop ends its wait
+for a send, so "add it to X" after another sentence never sends the dropped one; the keyword alone between them does
+not. "Put that in the list" keeps its "the", so it means this note on a fresh take too, and lands the sentence as an
+item. A one-word rest after a stop has its first letter put down, so "Scratch that. Tomorrow." swaps no name. A
+tapped New note leaves the take past its start, as the spoken cue does (both gave a one-shot for a route said next
+on main). Several plain phrases on one stretch, a head and a rest that stayed words, are each their own, so the next
+scratch takes the last alone. A take-back in an open one-shot puts its count back, so an enumeration said next is
+its items. Undo writes a keyworded phrase without its keyword and marks the stretch `keyword`, as `read` marks one,
+so the better words leave "hey Ghost" out; a correction goes back beside the item it corrected, in its one-shot. The
+chip quotes a phrase left for the reader at Done without its keyword. The partial: an opener after words in the
+phrase goes to the chip and the words stay on the page, and so does a send while a drop waits for one. Shared
+rather than copied: the resolved and current sends (`sendTaken`), a send's refusals (`sendRefused`), its card
+(`askSend`), the hold dropped before a take-back (`dropHold`); `withoutWords` and the record agree on what one
+phrase is (`same`); the number words are spoken/numbers.ts's. Left as the plan had it, and pinned: "The meeting is
+at three" | "Actually, the meeting is important" is a correction (the frame is said again); "Bullet point: eggs" |
+"Actually, eggs are in the fridge" too.
+
+**Tests.** takeBack.test.ts (the grammar), liveRoute.test.ts "taking back what was just said" (the record's order
+and its choke points, the spans at settle and at once, each outcome, Undo), CaptureScreen.test.tsx (the page, the
+chip, Undo, the partial split at the opener, New note tapped, a one-shot emptied, the tape and the job at Done, the
+reader at Done, a take-back only the stop heard), refineText.test.ts (a take-back's spans with live phrases, the
+larger model's merged phrase, the Undo of a keyed one), chip and RouteChip tests, landing.test.ts, tips.test.ts,
+liveCommand.test.ts ("instead"), voice tests 103 to 111, `?simulate=takeback`.

@@ -37,6 +37,7 @@ const CUES: readonly Tip[] = [
   { say: 'Heading', does: 'and then its words to start a section' },
   { say: 'Check box', does: 'to make a to-do' },
   { say: 'New paragraph', does: 'to break the text' },
+  { say: 'Scratch that', does: 'to take back the last thing you said' },
   { say: 'Title', does: 'first to name the note' },
   { say: 'Bold … end bold', does: 'around words to make them stand out' },
   { say: 'Quote', does: 'for something someone said' },

@@ -26,6 +26,12 @@ export type RouteView =
   /** The words went to a note, and carry on there; `spot` says where in it ("under Electrical"). */
   | { phase: 'moved'; title: string; spot?: string | null }
   | { phase: 'missed'; title: string }
+  /**
+   * The last thing said, taken back (liveRoute.ts `takeBack`): what went, where it went instead or what it became
+   * (sent to a note, put in this note's list, one word changed, or replaced by the sentence said again), and the
+   * take-back's id for its Undo; none when there is nothing to put back (a command cancelled).
+   */
+  | { phase: 'tookBack'; said: string; outcome: 'gone' | { sent: string } | { placed: string } | { changed: string } | { replaced: string }; undo?: number }
   | null;
 
 export type Haptic = 'light' | 'selection' | 'success' | 'warning';

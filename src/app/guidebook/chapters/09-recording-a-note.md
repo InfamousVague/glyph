@@ -35,6 +35,8 @@ On a note's own Speak, the note's text is above and the new words are written on
 
 Once you have started, a pause of two and a half seconds brings one tip, such as: Say **“Check box”** to make a to-do. It goes when you talk again, and the next pause brings the next one.
 
+Said something wrong? “Scratch that” takes back the last thing you said, and “actually, …” replaces it: [[Commands after Hey Ghost]].
+
 Tap the top line to see which engine is listening and how much it has heard. The line shows by itself when a recording has heard a while and made nothing of it, or has had an error.
 
 ## The buttons

@@ -20,14 +20,19 @@ export interface CaptureLanding {
   made: string[];
   /** Where the recording starts on the note's tape, for Undo to drop its better words (capture/refine.ts). */
   fromMs?: number;
+  /** What the recording took back at Done, unseen (liveRoute.ts `tookBackAtDone`): for the toast to name, since its Undo could not be tapped. */
+  tookBack?: string[];
 }
 
-/** What the note's toast says: the note the words went into, and the others; or, for a note of the take's own, the others. */
-export function landingLine({ title, blocks, others, into = [] }: CaptureLanding): string {
+/**
+ * What the note's toast says: the note the words went into, and the others; or, for a note of the take's own, the
+ * others. And what a take-back settled at Done took out, so nothing goes unsaid.
+ */
+export function landingLine({ title, blocks, others, into = [], tookBack = [] }: CaptureLanding): string {
   const names = [...new Set(into)];
-  if (!blocks.length && names.length) return `Added to ${names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(' and ')}`;
-  if (!others.length) return `Added to ${title}`;
-  return `Added to ${title} and ${others.length === 1 ? (names[0] ?? 'one other note') : `${others.length} other notes`}`;
+  const added = !blocks.length && names.length ? `Added to ${names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(' and ')}` : !others.length ? `Added to ${title}` : `Added to ${title} and ${others.length === 1 ? (names[0] ?? 'one other note') : `${others.length} other notes`}`;
+  if (!tookBack.length) return added;
+  return `${added}. Took back “${tookBack[0]}”${tookBack.length > 1 ? ` and ${tookBack.length - 1} more` : ''}`;
 }
 
 /**

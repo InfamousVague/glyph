@@ -67,6 +67,12 @@ This one is not carried out as you speak. It is read once, when you tap Done, an
 
 ## Taking it back
 
+- **Scratch that** takes back the last thing you said. Strike that, take that back, forget that, delete that, never mind and cancel that do the same, said with a pause after them. Say it twice to take back the one before. It takes back everything from one breath: “milk, eggs and bread” goes as three. Said for a note you named, the item said next still goes to that note while it is taking items, a couple of seconds. After that it is this note's.
+- **Actually, …** and then the sentence again with the change: “The meeting is at three.” “Actually, the meeting is at four.” The first goes and the second is written in its place. It counts only when the new sentence shares words with the old one, so “Actually, I think we should go” is a new sentence. “I mean”, “sorry,” and “No,” work the same way. After “Hey Ghost” any of them is a correction, unless a command follows: “Hey Ghost, actually, add a note to House TODOs” is that command.
+- **No wait, four** changes one word: a number, a day, a month or a name, when the sentence before has exactly one of that kind. “The meeting is at three, no wait, four” works in one breath too.
+- **Scratch that, add it to Groceries instead** takes the last thing you said out of this note and puts it in that one. In two breaths works too: “Scratch that.” then “Add it to Groceries.”, and the name may come in a breath of its own. “Actually, put that in House TODOs” and “no wait, that goes in Groceries” work as well, and “put that in the list” moves it into this note's list. The note is found as any name is, and the same card asks when it is not sure. Keep here puts the words back where they were.
+- Each shows what went, **Took back “…”**, **Replaced “…” with “…”** or **Changed “three” to “four”**, with **Undo** for a few seconds. Undo puts the words back and writes what you said as words. The take-back itself is never written, and the recording keeps its sound. Words sent to another note show that note's lines with **Not this note** after the Undo goes.
+- It reaches this recording only: the last thing on the page, or the last thing given to a note you named. Words already left in a note by New note are not taken back. Said while a command waits for its words, it takes back the command instead.
 - **Not this note**, in the top line after a switch: the recording goes back to its own note, and a small card offers the other notes the name could mean, or a new one by that name.
 - **Not this note** on the card that shows words landing in another note takes those words back.
 - **Discard** keeps nothing, anywhere: nothing was stored.
@@ -77,6 +83,8 @@ This one is not carried out as you speak. It is read once, when you tap Done, an
 **Commands start with “hey Ghost”** is in Settings › Recording, on by default. With it on, nothing is a command without the keyword, with one exception kept from before: a recording that opens plainly with “Add oat milk to Groceries” is read once at Done, and shows a card for you to confirm.
 
 With it off, the very start of a recording can name a note without the keyword, in the plainest shapes only: “Add a note to House TODOs, call Sam.” The name must clearly mean one note that holds lists. Anything else is words.
+
+A take-back is a cue, not a command: “scratch that” works with the keyword on.
 
 ## Asks, said into a note
 
