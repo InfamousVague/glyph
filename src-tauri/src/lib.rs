@@ -6,6 +6,11 @@
 // Building blocks every other module shares, each written once. See each header.
 // The poison-tolerant lock, Tauri-free so whisper/ and llm/ can use it.
 mod lock;
+// What the page's engine doors and the JNI write-up door must agree on: whether a
+// capture runs, the one small.en at a time, the abort background jobs watch. iOS
+// has no whisper, no llama and no recorder, so nothing there reaches most of it.
+#[cfg_attr(target_os = "ios", allow(dead_code))]
+mod guards;
 // Whole-file writes, JSON with a fallback, removals where gone is done. Tauri-free too.
 mod fsx;
 // Where the app keeps things, and the four directory names Kotlin shares.
