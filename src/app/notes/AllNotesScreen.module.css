@@ -147,7 +147,8 @@
 .controls {
   display: flex;
   /* With the Tapes word beside the order words, the line no longer fits a phone held upright (measured at 412px: the
-     tally and Archived ran off the edge and the page gained a sideways scroll), so it wraps, Archived last. */
+     tally and Archived ran off the edge and the page gained a sideways scroll), so it wraps: the order words and
+     Tapes on one line, the tally and Archived together on the next (`.counts` below). */
   flex-wrap: wrap;
   align-items: center;
   gap: var(--glacier-space-1) var(--glacier-space-3);
@@ -200,17 +201,27 @@
   outline-offset: 2px;
 }
 
-.archiveWord {
-  margin-inline-start: auto;
-}
-
 /* The cassette on the Tapes word, and the box on the Archived one, each a touch over the word's own size. */
 .tapesMark,
 .archiveMark {
   font-size: 1.05em;
 }
 
-/* How many, in the middle of the line, in figures that line up as they change. */
+/*
+ * How many, and the archive's word: one group that takes the rest of the line, the tally at its start and Archived at
+ * its end, so on a wide line they sit where they always did and on a phone, where the Tapes word makes the line
+ * wrap, the two go down together as a line of their own rather than the tally staying up beside Tapes with Archived
+ * standing alone below it (measured at 412px).
+ */
+.counts {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+}
+
+/* How many, in figures that line up as they change. */
 .tally {
   margin: 0;
   font-variant-numeric: tabular-nums;

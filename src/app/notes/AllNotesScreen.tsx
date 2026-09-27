@@ -141,15 +141,18 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtF
                 Tapes · {withTape}
               </button>
             ) : null}
-            <p className={styles.tally} aria-live="polite">
-              {searched ? `${shown.length} of ${outOf}` : shown.length === 1 ? '1 note' : `${shown.length} notes`}
-            </p>
-            {inArchive ? (
-              <button type="button" className={styles.archiveWord} aria-pressed={archived} onClick={() => setArchived((was) => !was)}>
-                <ArchiveBox className={styles.archiveMark} />
-                Archived · {inArchive}
-              </button>
-            ) : null}
+            {/* How many, and the archive's word: one group taking the rest of the line, so on a phone the two wrap together (AllNotesScreen.module.css .counts). */}
+            <div className={styles.counts}>
+              <p className={styles.tally} aria-live="polite">
+                {searched ? `${shown.length} of ${outOf}` : shown.length === 1 ? '1 note' : `${shown.length} notes`}
+              </p>
+              {inArchive ? (
+                <button type="button" className={styles.archiveWord} aria-pressed={archived} onClick={() => setArchived((was) => !was)}>
+                  <ArchiveBox className={styles.archiveMark} />
+                  Archived · {inArchive}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {!loading && !searched && live === 0 && !archived ? (
