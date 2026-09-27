@@ -46,6 +46,7 @@ import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
+import { tagNewNotesIfWanted } from './core/location.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { isPlace, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
@@ -237,11 +238,12 @@ function Shell() {
    * a book's index takes the book's. A shared link's copy and a Settings sample have ends of their own (`forkFromLink`,
    * `openSample`).
    */
-  const showMade = async (body: string) => {
+  const showMade = async (body: string): Promise<Note> => {
     const note = await createNote(newNoteId(), body, 'editor');
     fileNewNote(note.id);
     await refresh();
     setScreen({ name: 'note', note });
+    return note;
   };
 
   // A copy of something shared with this person, from its link (share/share.ts): saved into the library, then opened.
@@ -335,9 +337,13 @@ function Shell() {
   // The library holds it as a draft with no file until its first words
   // (docs/LIBRARY.md), so a note opened and left leaves nothing behind.
   // Made while the list shows one workspace, it belongs there (core/workspaces.ts).
-  const newNote = () => {
+  // And it starts with where the person is, when Settings says so (core/location.ts): the tag waits for the note's
+  // first words, so a note opened and left still leaves nothing behind. Only a note the person makes here: a canvas, a
+  // book, the Guide, a sample, a shared link's copy and a note made for a title are the app's, and are not tagged.
+  const newNote = async () => {
     tabs.replaceNext(null);
-    return showMade('');
+    const note = await showMade('');
+    void tagNewNotesIfWanted([note.id], { reviewing: false });
   };
 
   /*

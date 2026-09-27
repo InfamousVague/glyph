@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, useState } from 'react';
-import { createNote, updateNote } from '../core/store.ts';
-import { reloadPreferences } from '../core/preferences.ts';
+import { createNote, getNote, updateNote } from '../core/store.ts';
+import { autoTagRefusal, pendingTag } from '../core/location.ts';
+import { reloadPreferences, setPreferences } from '../core/preferences.ts';
 import { addWorkspace, chooseWorkspace, workspaceOf } from '../core/workspaces.ts';
 import { show } from '../../test/render.tsx';
 import { useCaptureRoute, type CaptureRoute } from './useCaptureRoute.ts';
@@ -131,5 +132,104 @@ describe('the side key with the app open', () => {
     await act(async () => window.__glyph!.capture!());
     expect(sayTooSoon).toHaveBeenCalledTimes(1);
     expect(screen).toEqual({ name: 'list' });
+  });
+});
+
+describe('where a capture’s new notes were made', () => {
+  /** The device answers a fix, or refuses (jsdom has no geolocation). */
+  const fixAt = (lat: number, lon: number, code?: number) => {
+    const calls: PositionOptions[] = [];
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback, fail: PositionErrorCallback, options: PositionOptions) => {
+          calls.push(options);
+          if (code) fail({ code, message: '' } as GeolocationPositionError);
+          else ok({ coords: { latitude: lat, longitude: lon, accuracy: 15 }, timestamp: 1 } as GeolocationPosition);
+        },
+      },
+    });
+    return calls;
+  };
+  /** Lets the fix, the write and the ask for a name land. */
+  const settle = () =>
+    act(async () => {
+      for (let i = 0; i < 12; i += 1) await Promise.resolve();
+    });
+
+  beforeEach(() => {
+    // The name would be asked of Nominatim: not in a test.
+    setPreferences({ placeNames: false });
+  });
+  afterEach(() => Reflect.deleteProperty(navigator, 'geolocation'));
+
+  it('tags the note a take made and the notes it made, after the screen has changed, and not a note it only wrote into', async () => {
+    const calls = fixAt(51.50741, -0.12776);
+    const house = await createNote('house', '# House TODOs\n\n- [ ] Fix the gutter\n');
+    await createNote('made', '# Eggs\n');
+    show(<Probe from={into()} />);
+    const landing = { noteId: 'house', title: 'House TODOs', blocks: ['- [ ] Call Sam'], others: [], made: ['made'] };
+    await updateNote('house', '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n', house.revision ?? 1);
+    await act(async () => route.finished(house, false, undefined, undefined, landing));
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'house' } });
+    await settle();
+    expect(calls).toHaveLength(1);
+    expect((await getNote('made'))?.body).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Eggs\n');
+    expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+    // A new note of the take's own, with nothing else made: tagged once the list is showing.
+    const said = await createNote('said', '# Said\n');
+    await act(async () => route.finished(said, false));
+    await settle();
+    expect((await getNote('said'))?.body).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Said\n');
+  });
+
+  it('keeps the tag aside while a review with a job is live for the note, and never asks at start', async () => {
+    const calls = fixAt(51.5074, -0.1278);
+    const note = await createNote('n', '# Said\n');
+    show(<Probe from={into()} />);
+    const job = { id: 'n', fromMs: 0, recordingMs: 4000, baseBody: '', savedBody: '# Said', titled: true, priorSegments: [], promptTail: '' };
+    await act(async () => route.finished(note, false, { noteId: 'n', job, heard: 'said', commands: [], touched: [] }));
+    await settle();
+    expect(calls).toHaveLength(1);
+    expect((await getNote('n'))?.body).toBe('# Said\n');
+    expect(pendingTag('n')).toEqual({ lat: 51.5074, lon: -0.1278, place: null, rough: false });
+    // Starting a capture asks nothing of the device.
+    await act(async () => route.start(false));
+    await settle();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('asks nothing with the switch off, under Local only, or over a locked phone whose permission is not held', async () => {
+    const calls = fixAt(51.5074, -0.1278);
+    const note = await createNote('n', '# Said\n');
+    setPreferences({ tagNewNotes: false });
+    show(<Probe from={into()} />);
+    await act(async () => route.finished(note, false));
+    await settle();
+    setPreferences({ tagNewNotes: true, localOnly: true });
+    await act(async () => route.finished(note, false));
+    await settle();
+    expect(calls).toHaveLength(0);
+    expect((await getNote('n'))?.body).toBe('# Said\n');
+    // Locked: the fix is taken quietly, which in a browser (no bridge to ask) is a fix without a dialog.
+    setPreferences({ localOnly: false });
+    await act(async () => route.finished(note, true));
+    await settle();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('remembers a refusal, so the device is asked once and the note is left untagged', async () => {
+    const calls = fixAt(0, 0, 1);
+    const one = await createNote('one', '# One\n');
+    const two = await createNote('two', '# Two\n');
+    show(<Probe from={into()} />);
+    await act(async () => route.finished(one, false));
+    await settle();
+    await act(async () => route.finished(two, false));
+    await settle();
+    expect(calls).toHaveLength(1);
+    expect(autoTagRefusal()).toBe('refused');
+    expect((await getNote('one'))?.body).toBe('# One\n');
+    expect((await getNote('two'))?.body).toBe('# Two\n');
   });
 });

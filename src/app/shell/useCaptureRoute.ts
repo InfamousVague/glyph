@@ -4,6 +4,7 @@ import type { SpokenAsk } from '../capture/CaptureScreen.tsx';
 import type { CaptureLanding } from '../capture/landing.ts';
 import { afterPendingDeletes } from '../capture/launch.ts';
 import { answerHost } from '../core/host.ts';
+import { tagNewNotesIfWanted } from '../core/location.ts';
 import { fileNewNote } from '../core/workspaces.ts';
 import { getNote, type Note } from '../core/store.ts';
 import { captureScreen, type Screen } from './screen.ts';
@@ -21,6 +22,12 @@ import { captureScreen, type Screen } from './screen.ts';
  * Every one of them waits for the deferred deletes first (notes/useNoteActions.ts): the recorder reads its targets as
  * it mounts - a note to continue, the titles a command could mean - and a note deleted a moment ago must not be one of
  * them (capture/launch.ts).
+ *
+ * And where a capture ends is where its new notes are tagged with where the phone was (core/location.ts), when
+ * Settings says so: after the screen has changed, so the capture screen has unmounted and let the queue go and the
+ * fix never holds the screen; never at `start`, since a location prompt raised while the recorder's microphone
+ * prompt is pending overwrites it (the generated chrome client has one listener for both). A note the recording only
+ * wrote into is not new and is left as it is; over a locked phone the fix is taken only where the permission is held.
  */
 
 export interface CaptureRoute {
@@ -98,15 +105,9 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
     [start, setScreen],
   );
 
-  const finished = useCallback(
-    async (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk, landing?: CaptureLanding) => {
-      // A spoken note lands in the workspace the list is showing, unless it is filed already; so do the notes it made.
-      // A note that was there already and only had words put into it (`landing.blocks`) stays where it was filed, or
-      // unfiled.
-      const existed = note !== null && landing !== undefined && landing.blocks.length > 0 && !landing.made.includes(note.id);
-      if (note && !existed) fileNewNote(note.id);
-      for (const made of landing?.made ?? []) fileNewNote(made);
-      await refresh();
+  /** Where the app goes when a capture is over: the note with its run or review, the note the words went into, or home. */
+  const land = useCallback(
+    async (note: Note | null, locked: boolean, review: ReviewHandoff | undefined, ask: SpokenAsk | undefined, landing: CaptureLanding | undefined) => {
       // Words a recording put into a note that was already there (capture/liveRoute.ts), or a card after Done confirmed:
       // that note opens, read fresh, with an Undo for what went in (editor/NoteScreen.tsx). Not over a locked phone.
       if (note && landing && !locked) {
@@ -149,7 +150,25 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
       }
       setScreen({ name: 'list' });
     },
-    [refresh, setScreen],
+    [setScreen],
+  );
+
+  const finished = useCallback(
+    async (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk, landing?: CaptureLanding) => {
+      // A spoken note lands in the workspace the list is showing, unless it is filed already; so do the notes it made.
+      // A note that was there already and only had words put into it (`landing.blocks`) stays where it was filed, or
+      // unfiled.
+      const existed = note !== null && landing !== undefined && landing.blocks.length > 0 && !landing.made.includes(note.id);
+      if (note && !existed) fileNewNote(note.id);
+      for (const made of landing?.made ?? []) fileNewNote(made);
+      await refresh();
+      await land(note, locked, review, ask, landing);
+      // The notes this take made, tagged with where the phone was, once the screen has changed (see the header). A
+      // review live for the note keeps the tag waiting, as a queued pass does (core/location.ts, section 3).
+      const made = [...(note && !existed ? [note.id] : []), ...(landing?.made ?? [])];
+      void tagNewNotesIfWanted([...new Set(made)], { reviewing: review?.job != null }, { quiet: locked });
+    },
+    [refresh, land],
   );
 
   return { start, finished };
