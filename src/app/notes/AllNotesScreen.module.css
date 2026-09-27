@@ -146,8 +146,11 @@
  */
 .controls {
   display: flex;
+  /* With the Tapes word beside the order words, the line no longer fits a phone held upright (measured at 412px: the
+     tally and Archived ran off the edge and the page gained a sideways scroll), so it wraps, Archived last. */
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--glacier-space-3);
+  gap: var(--glacier-space-1) var(--glacier-space-3);
   margin-block: var(--glacier-space-3) var(--glacier-space-3);
   font-size: var(--glacier-font-size-sm);
   color: var(--app-ink-2);
