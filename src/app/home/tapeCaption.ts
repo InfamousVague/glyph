@@ -1,12 +1,14 @@
 import { kindWords } from '../ai/kinds.ts';
 import type { SummariesState } from '../ai/summaries.ts';
 import { summaryLine } from '../ai/summaryText.ts';
+import { LONG_NOTE_MS } from '../core/preferences.ts';
 import type { Note } from '../core/store.ts';
 
 /**
- * The one line under a cassette's title on the home page's shelf (home/TapeShelf.tsx): the first true thing in an
- * order, from a meeting being recorded down to the note's gist (docs/DESIGN.md §127 section 1, "The caption"). Pure,
- * beside the shelf that draws it, so each state and its place in the order is a test rather than a queue to stand up.
+ * The caption under a tape card's title on the home page's shelf (home/TapeShelf.tsx): the first true thing in an
+ * order, from a meeting being recorded down to the note's gist (docs/DESIGN.md §127 section 1, "The caption"), and
+ * whether the card offers "Summarize" under it (§132). Pure, beside the shelf that draws it, so each state and its
+ * place in the order is a test rather than a queue to stand up.
  */
 
 /** A tape this long or longer says "Keep Ghost.md open" on a phone while the page works on it: the page's queues only run while the app is up. */
@@ -22,6 +24,8 @@ export interface CaptionSources {
   summaries: SummariesState;
   /** On a phone the page's queues stop when the app is left, so a long job asks for the app to stay open. */
   phone: boolean;
+  /** Whether a summariser can run here: the page's queue is a no-op off Tauri, and the web shows what synced. */
+  canSummarize: boolean;
 }
 
 export type Caption =
@@ -51,4 +55,25 @@ export function captionOf(note: Note, sources: CaptionSources, gist: string | un
   if (line) return { kind: 'line', text: line };
   if (gist) return { kind: 'line', text: gist };
   return null;
+}
+
+/**
+ * Whether a tape card offers "Summarize" (docs/DESIGN.md §132 section 8): only where a summariser can run, for a tape
+ * of `LONG_NOTE_MS` or more (the setting's own line: a forty-second note is not offered a write-up) with no summary
+ * yet, while nothing is happening to the note - not recording, not the better words, and in none of the queue's four
+ * sets, each of which has a caption of its own.
+ */
+export function canOfferSummary(note: Note, sources: CaptionSources): boolean {
+  const { summaries } = sources;
+  return (
+    sources.canSummarize &&
+    (note.recordingMs ?? 0) >= LONG_NOTE_MS &&
+    summaryLine(note.body) === null &&
+    sources.recording !== note.id &&
+    !sources.refining.has(note.id) &&
+    !summaries.pending.has(note.id) &&
+    !summaries.native.has(note.id) &&
+    !summaries.needsModel.has(note.id) &&
+    !summaries.failed.has(note.id)
+  );
 }

@@ -128,12 +128,19 @@ describe('the home page', () => {
     expect(shelved()).toEqual(['Kitchen take']);
   });
 
-  it('shows eight tapes and sends the rest to All notes with its Tapes toggle on', () => {
+  it('shows eight tapes, counts every tape in the heading, and its See all opens All notes with its Tapes toggle on', () => {
     const onAllNotes = vi.fn();
     show(page(Array.from({ length: 11 }, (_, i) => recorded(`t${i}`, `Take ${i}`, i + 1)), { onAllNotes }));
     expect(shelved()).toHaveLength(8);
-    act(() => button('and 3 more in All notes').click());
+    expect(document.querySelector('#home-tapes')?.textContent).toContain('· 11');
+    act(() => button('See all', document.querySelector('section[aria-labelledby="home-tapes"]')!).click());
     expect(onAllNotes).toHaveBeenCalledWith({ tapes: true });
+    expect(document.body.textContent).not.toContain('more in All notes');
+    unmount();
+    // Eight or fewer: no count and no See all, since the shelf is all of them.
+    show(page(Array.from({ length: 8 }, (_, i) => recorded(`t${i}`, `Take ${i}`, i + 1)), { onAllNotes }));
+    expect(document.querySelector('#home-tapes')?.textContent).toBe('Tapes');
+    expect(document.querySelector('section[aria-labelledby="home-tapes"] [class*=groupWord]')).toBeNull();
   });
 
   it('gives the shelf’s notes their gists, so a voice note gets its line under the cassette', () => {

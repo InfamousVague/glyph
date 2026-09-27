@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
-import { bookNotes, isTape, openTasks, pinnedNotes, recentNotes, tapedNotes, tickedTasks } from './dashboard.ts';
+import { bookNotes, isTape, openTasks, pinnedNotes, recentNotes, summaryKindOf, tapedNotes, tickedTasks } from './dashboard.ts';
 import { bookNoteBody } from '../book/book.ts';
 import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
 
@@ -98,6 +98,13 @@ describe('the shelf of tapes', () => {
     expect(isTape(meeting, { m: 40 })).toBe(true);
     expect(isTape(meeting, none)).toBe(false);
     expect(tapedNotes([meeting, recorded('r', 30)], { m: 40 }).map((n) => n.id)).toEqual(['m', 'r']);
+  });
+
+  it('asks the queue for a meeting’s write-up for a meeting, and a recording’s for anything else', () => {
+    const meeting = makeNote('m', '# Meeting', { source: 'editor', recordingMs: 3_600_000 });
+    expect(summaryKindOf(meeting, { m: 40 })).toBe('meeting');
+    expect(summaryKindOf(meeting, none)).toBe('recording');
+    expect(summaryKindOf(recorded('r', 30), { m: 40 })).toBe('recording');
   });
 
   it('keeps a pinned tape on the shelf as well as in Pinned, since pinning is a deliberate act', () => {

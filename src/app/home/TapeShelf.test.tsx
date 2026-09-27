@@ -31,7 +31,7 @@ vi.mock('../ai/summaries.ts', () => ({
 vi.mock('../ai/summaryText.ts', () => ({ summaryLine: (body: string) => sources.lines.get(body) ?? null }));
 vi.mock('../core/platform.ts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../core/platform.ts')>()), isMobile: true }));
 const { TapeShelf } = await import('./TapeShelf.tsx');
-const { captionOf } = await import('./tapeCaption.ts');
+const { canOfferSummary, captionOf } = await import('./tapeCaption.ts');
 
 afterEach(() => {
   unmount();
@@ -44,8 +44,17 @@ afterEach(() => {
 
 const tape = (id: string, recordingMs: number, over: Partial<Note> = {}) =>
   makeNote(id, `# ${id}`, { source: 'capture', recordingMs, createdAt: Date.UTC(2026, 8, 26, 12), updatedAt: Date.UTC(2026, 8, 26, 12), ...over });
-const shelf = (notes: Note[], over: { more?: number; gists?: Record<string, string>; onOpen?: (id: string) => void; onMore?: () => void; onGetModel?: () => void } = {}) =>
-  show(<TapeShelf notes={notes} more={over.more ?? 0} gists={over.gists ?? {}} onOpen={over.onOpen ?? (() => undefined)} onMore={over.onMore ?? (() => undefined)} onGetModel={over.onGetModel ?? (() => undefined)} />);
+const shelf = (notes: Note[], over: { gists?: Record<string, string>; onOpen?: (id: string) => void; onGetModel?: () => void; onSummarize?: (note: Note) => void; canSummarize?: boolean } = {}) =>
+  show(
+    <TapeShelf
+      notes={notes}
+      gists={over.gists ?? {}}
+      onOpen={over.onOpen ?? (() => undefined)}
+      onGetModel={over.onGetModel ?? (() => undefined)}
+      onSummarize={over.onSummarize ?? (() => undefined)}
+      canSummarize={over.canSummarize ?? false}
+    />,
+  );
 const captions = (host: HTMLElement) => [...host.querySelectorAll('li > p')].map((p) => p.textContent);
 const cassettes = (host: HTMLElement) => [...host.querySelectorAll<HTMLButtonElement>('li > button')];
 /** The frames, run by hand on a clock of the test's own, which the cassettes read as well (as tapes/tapes.test.tsx runs them). */
@@ -63,15 +72,16 @@ const frames = () => {
 const reels = (host: HTMLElement) => cassettes(host).map((b) => [...b.querySelectorAll('svg > g:not([mask])')].map((g) => g.getAttribute('transform')));
 
 describe('the shelf', () => {
-  it('draws a bare cassette a tape, its title, counter and date under it, and opens the note from it', () => {
+  it('draws a bare cassette a tape as a card, its title under it and the counter and date in its foot, and opens the note from it', () => {
     const onOpen = vi.fn();
     const host = shelf([tape('Trip', 760_000), tape('blank', 40_000, { body: '' })], { onOpen });
     const [trip, blank] = cassettes(host);
     // The words are under the cassette in real type, not printed on its label.
     expect([...trip!.querySelectorAll('svg text')].map((t) => t.textContent)).toEqual(['A']);
     expect(trip!.querySelector('[class*=title]')?.textContent).toBe('Trip');
-    // The counter, then the day and the month in the device's own order.
-    expect(trip!.querySelector('[class*=meta]')?.textContent).toMatch(/^12:40 · (\d{1,2} [A-Z][a-z]{2}|[A-Z][a-z]{2} \d{1,2})$/);
+    // The counter, then the day and the month in the device's own order, in the card's foot, outside the button.
+    expect(host.querySelector('li [class*=foot]')?.textContent).toMatch(/^12:40 · (\d{1,2} [A-Z][a-z]{2}|[A-Z][a-z]{2} \d{1,2})$/);
+    expect(trip!.querySelector('[class*=foot]')).toBeNull();
     expect(trip!.getAttribute('aria-label')).toMatch(/^Trip, 12:40, /);
     expect(trip!.getAttribute('aria-label')).not.toContain('summarized');
     expect(blank!.querySelector('[class*=title]')?.textContent).toBe('Untitled');
@@ -93,13 +103,31 @@ describe('the shelf', () => {
     expect(hour).toBeGreaterThan(beside!);
   });
 
-  it('says how many more there are at the row’s end, and that word opens All notes', () => {
-    const onMore = vi.fn();
-    const host = shelf([tape('a', 1000)], { more: 3, onMore });
-    act(() => button('and 3 more in All notes', host).click());
-    expect(onMore).toHaveBeenCalledTimes(1);
+  it('offers Summarize under a tape of three minutes or more with no summary, where a summariser can run, and asks for that note', () => {
+    const onSummarize = vi.fn();
+    const long = tape('long', 200_000);
+    const host = shelf([long, tape('short', 40_000)], { onSummarize, canSummarize: true });
+    expect([...host.querySelectorAll('li')].map((li) => li.querySelector('[class*=offer]')?.textContent ?? null)).toEqual(['Summarize', null]);
+    act(() => button('Summarize', host).click());
+    expect(onSummarize).toHaveBeenCalledWith(long);
     unmount();
-    expect(shelf([tape('a', 1000)]).textContent).not.toContain('more in All notes');
+    // Off Tauri the queue is a no-op and the page shows what synced: no offer.
+    expect(shelf([tape('long', 200_000)]).querySelector('[class*=offer]')).toBeNull();
+  });
+
+  it('offers no Summarize once the tape has a summary, or while anything is happening to it', () => {
+    const note = tape('n', 200_000, { body: '# n\n## Summary\nDone.' });
+    sources.lines.set(note.body, 'Done.');
+    expect(shelf([note], { canSummarize: true }).querySelector('[class*=offer]')).toBeNull();
+    unmount();
+    for (const set of [sources.refining, sources.pending, sources.native, sources.failed, sources.needsModel]) {
+      set.add('n');
+      expect(shelf([tape('n', 200_000)], { canSummarize: true }).querySelector('[class*=offer]')).toBeNull();
+      unmount();
+      set.clear();
+    }
+    sources.recording = 'n';
+    expect(shelf([tape('n', 200_000)], { canSummarize: true }).querySelector('[class*=offer]')).toBeNull();
   });
 
   it('says the note is summarized to a screen reader once it has a summary', () => {
@@ -115,13 +143,13 @@ describe('the shelf', () => {
 
 describe('the caption', () => {
   const none = { pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() };
-  const quiet = { recording: null, refining: new Set<string>(), summaries: none, phone: false };
+  const quiet = { recording: null, refining: new Set<string>(), summaries: none, phone: false, canSummarize: false };
   const note = tape('n', 60_000);
   const long = tape('n', 1_200_000);
   const set = (...ids: string[]) => new Set(ids);
 
   it('is the first true thing in its order: recording, listening again, writing up, summarizing, needs a model, didn’t come, the summary, the gist', () => {
-    const everything = { recording: 'n', refining: set('n'), summaries: { pending: set('n'), native: set('n'), failed: set('n'), needsModel: set('n') }, phone: false };
+    const everything = { recording: 'n', refining: set('n'), summaries: { pending: set('n'), native: set('n'), failed: set('n'), needsModel: set('n') }, phone: false, canSummarize: false };
     sources.lines.set(note.body, 'The first line.');
     expect(captionOf(note, everything, 'a gist')).toEqual({ kind: 'recording' });
     expect(captionOf(note, { ...everything, recording: null }, 'a gist')).toEqual({ kind: 'working', word: 'Listening again', keepOpen: false });
@@ -192,5 +220,27 @@ describe('the caption', () => {
   it('is the gist when there is nothing else to say, and an empty line when there is not even that', () => {
     const host = shelf([tape('a', 1000), tape('b', 1000)], { gists: { a: 'Packing for the trip' } });
     expect(captions(host)).toEqual(['Packing for the trip', '']);
+  });
+});
+
+describe('the offer', () => {
+  const none = { pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() };
+  const can = { recording: null, refining: new Set<string>(), summaries: none, phone: false, canSummarize: true };
+  const set = (...ids: string[]) => new Set(ids);
+
+  it('stands for a tape of three minutes or more, with no summary, where a summariser can run and nothing is happening to the note', () => {
+    expect(canOfferSummary(tape('n', 180_000), can)).toBe(true);
+    expect(canOfferSummary(tape('n', 179_999), can)).toBe(false);
+    expect(canOfferSummary(tape('n', 180_000), { ...can, canSummarize: false })).toBe(false);
+    expect(canOfferSummary(tape('n', 180_000, { recordingMs: null }), can)).toBe(false);
+    const summarized = tape('n', 180_000, { body: '# n\n## Summary\nDone.' });
+    sources.lines.set(summarized.body, 'Done.');
+    expect(canOfferSummary(summarized, can)).toBe(false);
+    // Each state with a caption of its own: no offer beside it.
+    expect(canOfferSummary(tape('n', 180_000), { ...can, recording: 'n' })).toBe(false);
+    expect(canOfferSummary(tape('n', 180_000), { ...can, refining: set('n') })).toBe(false);
+    for (const key of ['pending', 'native', 'failed', 'needsModel'] as const) {
+      expect(canOfferSummary(tape('n', 180_000), { ...can, summaries: { ...none, [key]: set('n') } })).toBe(false);
+    }
   });
 });

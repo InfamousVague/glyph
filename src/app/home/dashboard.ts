@@ -1,6 +1,7 @@
 import { isBookBody } from '../book/book.ts';
 import { itemOnLine, itemWords } from '../core/boards.ts';
 import { taskBox } from '../core/itemSyntax.ts';
+import type { SummaryKind } from '../ai/summaries.ts';
 import type { Note } from '../core/store.ts';
 import { guidePages } from '../guidebook/guidebook.ts';
 import { hasTape } from '../notes/allNotes.ts';
@@ -32,6 +33,15 @@ export type Meetings = Readonly<Record<string, number>>;
  */
 export function isTape(note: Note, meetings: Meetings): boolean {
   return !note.archivedAt && hasTape(note) && (note.source === 'capture' || note.id in meetings);
+}
+
+/**
+ * Which write-up the queue is asked for from the home page's Summarize (home/TapeShelf.tsx, ai/summaries.ts): a
+ * meeting's for a note in the meetings map, a recording's otherwise. The kind is the prompt's, so the page asks for
+ * the tape's real one rather than calling every tape a recording.
+ */
+export function summaryKindOf(note: Note, meetings: Meetings): SummaryKind {
+  return note.id in meetings ? 'meeting' : 'recording';
 }
 
 /**

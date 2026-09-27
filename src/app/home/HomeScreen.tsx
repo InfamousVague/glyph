@@ -17,7 +17,9 @@ import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { AcademyCard, RefiningNotice, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
-import { bookNotes, openTasks, pinnedNotes, recentNotes, tapedNotes, tickedTasks, type OpenTask } from './dashboard.ts';
+import { isTauri } from '../core/tauri.ts';
+import { enqueueSummary } from '../ai/summaries.ts';
+import { bookNotes, openTasks, pinnedNotes, recentNotes, summaryKindOf, tapedNotes, tickedTasks, type OpenTask } from './dashboard.ts';
 import { TapeShelf } from './TapeShelf.tsx';
 import { bookIndex, placeOf } from '../book/book.ts';
 import styles from './HomeScreen.module.css';
@@ -59,7 +61,7 @@ interface HomeScreenProps {
    * palette has handed back its opener, and then the dock has no Search button rather than one that does nothing.
    */
   onSearch?: () => void;
-  /** Every note, as a grid of cards (notes/AllNotesScreen.tsx); with `tapes`, only the notes with a recording, from the shelf's "and N more". */
+  /** Every note, as a grid of cards (notes/AllNotesScreen.tsx); with `tapes`, only the notes with a recording, from the Tapes heading's "See all". */
   onAllNotes: (options?: { tapes: boolean }) => void;
   /** A to-do ticked from here: its note's line rewritten with the box ticked. */
   onTick: (task: OpenTask) => void;
@@ -256,15 +258,23 @@ export function HomeScreen({
                 <h2 id="home-tapes" className={styles.group}>
                   <Cassette className={styles.groupMark} />
                   <span className={styles.groupName}>Tapes</span>
+                  {taped.length > shelf.length ? <span className={styles.count}>· {taped.length}</span> : null}
                 </h2>
+                {/* Only past the shelf's eight: the count and the way to the rest, All notes with its Tapes toggle on. */}
+                {taped.length > shelf.length ? (
+                  <button type="button" className={`app-word ${styles.groupWord}`} onClick={() => onAllNotes({ tapes: true })}>
+                    See all
+                  </button>
+                ) : null}
               </div>
               <TapeShelf
                 notes={shelf}
-                more={taped.length - shelf.length}
                 gists={gists}
                 onOpen={onOpen}
-                onMore={() => onAllNotes({ tapes: true })}
                 onGetModel={onGetModel ?? onSettings}
+                // The queue is asked for the tape's real kind: a meeting's write-up for a meeting, a recording's otherwise.
+                onSummarize={(note) => enqueueSummary(note.id, summaryKindOf(note, meetings))}
+                canSummarize={isTauri()}
               />
             </section>
           ) : null}
