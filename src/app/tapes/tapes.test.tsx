@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createNote, setNoteRecording, type Note } from '../core/store.ts';
 import type { Segment } from '../capture/markdown.ts';
+import { PACK_MAX_R, packRadii } from '../capture/tape.ts';
 import { makeNote } from '../../test/notes.ts';
 import { stubMatchMedia } from '../../test/stubs.ts';
 import { button, show } from '../../test/render.tsx';
@@ -98,6 +99,21 @@ describe('the tape at the top of a note', () => {
     expect(strip({ recordingMs: 0 }).innerHTML).toBe('');
   });
 
+  it('winds an hour-long tape over its whole length in playback, rather than sitting full from the fifth minute', () => {
+    function Strip() {
+      tape = useTape(makeNote('t', '# Trip', { recordingMs: 3_600_000, segments: phrases }));
+      return <NoteTape note={makeNote('t', '# Trip')} title="Trip" tape={tape} onSpeak={() => undefined} onRemove={() => undefined} hasMemos={false} />;
+    }
+    const host = show(<Strip />);
+    const takeup = () => Number(host.querySelectorAll('circle')[1]!.getAttribute('r'));
+    // Still, the whole recording is on the right reel.
+    expect(takeup()).toBeCloseTo(PACK_MAX_R);
+    // Five minutes in, a five-minute tape would be full; an hour's is a twelfth wound.
+    act(() => tape.seek(300_000));
+    expect(takeup()).toBeCloseTo(packRadii(300_000, 3_600_000).takeup);
+    expect(takeup()).toBeLessThan(PACK_MAX_R / 2);
+  });
+
   it('says how long the recording is, and plays and pauses it', () => {
     const host = strip();
     expect(host.textContent).toContain('0:00 / 1:05');
@@ -131,12 +147,17 @@ describe('the tape at the top of a note', () => {
 });
 
 describe('the cassette', () => {
-  /** The frames, run by hand on a clock of the test's own. */
+  /**
+   * The frames, run by hand on a clock of the test's own. The cassette reads the clock once as it mounts and then
+   * from each frame, and both read this one, so a loaded machine cannot stretch or shrink a frame: with the real
+   * clock, a slow mount ate the first frame's 16ms and a comparison of two cassettes' turns failed under the full suite.
+   */
   const frames = () => {
     const queued: FrameRequestCallback[] = [];
+    let clock = performance.now();
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => queued.push(cb));
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
-    let clock = performance.now();
     return (count: number) => {
       for (let i = 0; i < count; i += 1) act(() => queued.shift()?.((clock += 16)));
     };
@@ -175,6 +196,22 @@ describe('the cassette', () => {
     const fiveMinutes = takeup(show(<TapeArt positionMs={300_000} />));
     const anHour = takeup(show(<TapeArt positionMs={300_000} lengthMs={3_600_000} />));
     expect(anHour).toBeLessThan(fiveMinutes);
+    // Left unsaid, the tape is the five-minute one, and five minutes fills it.
+    expect(fiveMinutes).toBe(packRadii(300_000).takeup);
+    expect(fiveMinutes).toBeCloseTo(PACK_MAX_R);
+  });
+
+  it('turns the reels over the radii its length gives: the nearly empty take-up of an hour turns faster than a full one', () => {
+    /** How far the take-up reel has turned, in degrees, from its transform. */
+    const turned = (host: HTMLElement) => Math.abs(Number(/rotate\((-?[\d.]+)/.exec(host.querySelectorAll('svg > g:not([mask])')[1]?.getAttribute('transform') ?? '')?.[1] ?? 0));
+    const hour = frames();
+    const anHour = show(<TapeArt positionMs={300_000} lengthMs={3_600_000} playing />);
+    hour(10);
+    const fiveMinutes = frames();
+    const full = show(<TapeArt positionMs={300_000} playing />);
+    fiveMinutes(10);
+    expect(turned(full)).toBeGreaterThan(0);
+    expect(turned(anHour)).toBeGreaterThan(turned(full) * 1.5);
   });
 
   it('does not turn for someone who asked for less motion', () => {

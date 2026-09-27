@@ -47,7 +47,8 @@ export function TapeArt({ positionMs, lengthMs = TAPE_MS, playing = false, title
   at.current = { positionMs, lengthMs };
   const packs = packRadii(positionMs, lengthMs);
   // The label's mask, one per cassette: eight on one page sharing `tape-label-mask` would all wear the first one's.
-  const maskId = `${useId()}-label`;
+  // Letters and digits only, as art/WispText.tsx does, since the id goes into `url(#…)` and React has punctuated it.
+  const maskId = `${useId().replace(/[^a-zA-Z0-9]/g, '')}-label`;
 
   useEffect(() => {
     if (!playing || prefersStill()) return undefined;
