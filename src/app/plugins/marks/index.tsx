@@ -19,8 +19,9 @@ import type { GlyphPlugin, InlineFormat, PluginManifest } from '../types.ts';
  *
  * The redaction went once, as "the same as spoiler", and is back at Matt's
  * asking ("add redact formatting"): a bar of ink where the spoiler is smoke,
- * and a look only. The words stay in the note, so a share, an export or any
- * other app shows them; the bar is for the screen.
+ * and a look only. The words stay in the note and in the file a share gives,
+ * so an export or any other app has them; the bar is for the screen, and it
+ * stays wherever there is no caret to lift it, the reader page included.
  */
 
 export const manifest: PluginManifest = {
@@ -104,15 +105,18 @@ export const MARKS: readonly InlineFormat[] = [
   },
   {
     // The bar and the words are the same ink, so nothing shows through it on either side of the page; the fill colour
-    // as well as `color`, so a link or code inside the bar takes the ink too rather than its own colour. Square
-    // ended: the bar is drawn in pieces where other marks sit inside it, and rounded pieces left notches of paper at
-    // their joins; the shadow's spread closes the hairline between them. Lifted while the caret is in the words
-    // (editor/formatLooks.ts `clearAtCaret`), so they can be read and edited.
+    // as well as `color`, so a link or code inside the bar takes the ink too rather than its own colour. An emoji
+    // takes neither, being drawn in its own colours, so the span is printed flat in the ink by a filter (app/ink.css
+    // `--app-ink-flat`): a party popper under the bar is bar. Square ended: the bar is drawn in pieces where other
+    // marks sit inside it, and rounded pieces left notches of paper at their joins; the shadow's spread closes the
+    // hairline between them. Lifted while the caret is in the words (editor/formatLooks.ts `clearAtCaret`), so they
+    // can be read and edited; until then nothing under it is drawn, not a highlight's wash and not a link's short
+    // address (editor/links.ts).
     name: 'Redact',
     delimiter: '@@',
     look: {
       kind: 'style',
-      css: 'background: var(--glacier-text); color: var(--glacier-text); -webkit-text-fill-color: var(--glacier-text); box-shadow: 0 0 0 0.08em var(--glacier-text);',
+      css: 'background: var(--glacier-text); color: var(--glacier-text); -webkit-text-fill-color: var(--glacier-text); box-shadow: 0 0 0 0.08em var(--glacier-text); filter: var(--app-ink-flat);',
       clearAtCaret: true,
     },
     cue: 'redact',

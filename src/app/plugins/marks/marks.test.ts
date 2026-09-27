@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseWhole } from '../../../test/syntaxTree.ts';
 import { glyphMarkdown } from '../../editor/language.ts';
 import { formatLooks, styledRanges, type StyleLook } from '../../editor/formatLooks.ts';
+import { shortLinks } from '../../editor/links.ts';
 import { noteView } from '../../editor/viewMode.ts';
 import { BUILT_IN } from '../registry.ts';
 import { isMarkColour, MARK_COLOURS, MARKS, marksPlugin, washFor } from './index.tsx';
@@ -104,6 +105,8 @@ describe('the redaction', () => {
     expect(rule('color')).toBe(rule('background'));
     expect(rule('-webkit-text-fill-color')).toBe(rule('background'));
     expect(rule('box-shadow')).toContain('var(--glacier-text)');
+    // An emoji takes neither the colour nor the fill, so the span is printed flat in the ink (app/ink.css).
+    expect(rule('filter')).toBe('var(--app-ink-flat)');
     expect(look.clearAtCaret).toBe(true);
   });
 
@@ -127,6 +130,27 @@ describe('the redaction', () => {
     await vi.waitFor(() => expect(bar(on)).toBeNull());
     on.dispatch({ selection: { anchor: 0 } });
     await vi.waitFor(() => expect(bar(on)?.textContent).toBe('4417'));
+  });
+
+  it('is drawn inside a highlight, a bar on the wash, and hides a highlight inside it', () => {
+    // The review found the inner look skipped: the words sat in the wash, readable, in both views and both themes.
+    const on = open('==a highlight with @@a bar@@ inside==');
+    const bars = [...on.contentDOM.querySelectorAll<HTMLElement>('.cm-formatLook')].filter((mark) => mark.getAttribute('style')?.includes('var(--glacier-text)'));
+    expect(bars.map((mark) => mark.textContent)).toEqual(['a bar']);
+    expect(bars[0]?.parentElement?.closest('.cm-formatLook')?.getAttribute('style')).toContain('var(--app-mark');
+    // A wash inside a bar would show the words through the ink, so under a bar nothing is drawn.
+    const doc = '@@a ==wash== in a bar@@';
+    const words = styledRanges(EditorState.create({ doc, extensions: [glyphMarkdown(formats)] }), looks, { from: 0, to: doc.length }).map((r) => doc.slice(r.from, r.to));
+    expect(words).toEqual(['a ==wash== in a bar']);
+  });
+
+  it('keeps a link’s address under the bar, where one outside it is shortened beside its words', () => {
+    // A short address is a widget (editor/links.ts), which sits beside the bar's span, not in it: "example.com" showed
+    // in plain ink between two pieces of bar.
+    const doc = '@@see [the plan](https://example.com/the/plan)@@ and [the rest](https://example.org/the/rest)';
+    view = parseWhole(new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(formats), formatLooks(formats), shortLinks({ still: true })] }), parent: document.body }));
+    expect([...view.contentDOM.querySelectorAll('.cm-shortLink')].map((short) => short.textContent)).toEqual(['example.org/the/rest']);
+    expect(view.contentDOM.textContent).toContain('(https://example.com/the/plan)');
   });
 });
 

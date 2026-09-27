@@ -6,6 +6,7 @@ import { AFTER_MARK } from '../core/itemSyntax.ts';
 import { hasMarkDetails } from '../core/markDetails.ts';
 import { shortUrl } from '../core/shortUrl.ts';
 import { capitalise } from '../core/text.ts';
+import { coveringLooks, underCover } from './formatLooks.ts';
 import { selectedLines } from './lines.ts';
 import { detailsArrived, markReads } from './markReads.ts';
 
@@ -126,6 +127,7 @@ function decorate(view: EditorView): DecorationSet {
   const editable = view.state.facet(EditorView.editable);
   // The lines the selection touches show their links whole, while the note is being written.
   const active = editable && view.hasFocus ? selectedLines(view.state) : new Set<number>();
+  const covering = view.state.facet(coveringLooks);
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
       from,
@@ -146,6 +148,9 @@ function decorate(view: EditorView): DecorationSet {
           return;
         }
         if (node.name !== 'URL') return;
+        // Under a look that hides its words (formatLooks.ts `coveringLooks`, a redaction's bar) the address stays as
+        // it is, under the bar: a widget is not text for the bar to cover, and drew the short address beside it.
+        if (underCover(node.node, covering)) return;
         const url = view.state.sliceDoc(node.from, node.to);
         if (shortUrl(url).length >= url.length - 1) return;
         if (active.has(view.state.doc.lineAt(node.from).number)) return;

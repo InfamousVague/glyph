@@ -304,4 +304,41 @@ describe('the stylesheets', () => {
     expect(twins).toBeGreaterThan(6);
     expect(drifted).toEqual([]);
   });
+
+  /*
+   * A redaction's bar prints its span flat in the ink, `--app-ink-flat: brightness(0) invert(var(--app-ink-level))`
+   * (plugins/marks/index.tsx, ink.css), and the level has to be the ink's own grey or the bar is not the ink. Each
+   * scale writes its level beside its `--app-gray-12`; this works the level out from that lightness (oklch to linear
+   * is the cube, the chroma being zero, then the sRGB curve) and, for each named theme, from the kit's ink, which is
+   * tinted and takes the nearest grey. A retuned ink fails here rather than leaving the bar a shade off.
+   */
+  it('write each scale’s ink level as the sRGB grey of its own ink, for the redaction’s flat bar', () => {
+    const level = (lightness: number) => {
+      const linear = lightness ** 3;
+      return (linear <= 0.0031308 ? 12.92 * linear : 1.055 * linear ** (1 / 2.4) - 0.055).toFixed(3);
+    };
+    const ink = text.get(join(app, 'ink.css')) ?? '';
+    const rules = flatRules(ink);
+    const wrong: string[] = [];
+    let scales = 0;
+    for (const rule of rules) {
+      const own = declarationsOf(rule.body);
+      const gray = /^oklch\(([\d.]+) 0 0\)$/.exec(own.get('--app-gray-12') ?? '');
+      const written = own.get('--app-ink-level');
+      if (gray) {
+        scales++;
+        if (written !== level(Number(gray[1]))) wrong.push(`${rule.context}${rule.selector}: ${written ?? 'no level'}, and the ink is ${level(Number(gray[1]))}`);
+      } else if (written && !rule.selector.includes('data-theme-preset')) wrong.push(`${rule.context}${rule.selector}: a level with no scale of its own`);
+    }
+    for (const [, preset = '', lightness = ''] of tokens.matchAll(/\[data-theme-preset='(\w+)'\]\s*\{[^}]*--glacier-gray-12:\s*oklch\(([\d.]+) /g)) {
+      scales++;
+      const rule = rules.find((one) => selectorsOf(one).includes(`:root:root[data-theme-preset='${preset}']`));
+      const written = rule ? declarationsOf(rule.body).get('--app-ink-level') : undefined;
+      if (written !== level(Number(lightness))) wrong.push(`${preset}: ${written ?? 'no level'}, and the kit's ink is ${level(Number(lightness))}`);
+    }
+    expect(wrong).toEqual([]);
+    // The page, Dark and its System twin, the inverse surface on each of the three, and the three named themes: a
+    // new scale or a new theme is a level to write.
+    expect(scales).toBe(9);
+  });
 });

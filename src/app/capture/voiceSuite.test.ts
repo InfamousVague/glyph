@@ -98,6 +98,9 @@ describe('comparing what was heard', () => {
     expect(sameShape('- [ ] Buy ice', '- [ ] By ice')).toBe(true);
     expect(sameShape('- [ ] Buy ice', '- Buy ice')).toBe(false);
     expect(sameShape('The deadline is **Friday**.', 'The deadline is Friday.')).toBe(false);
+    // A redaction's at signs are part of a line's shape too (plugins/marks, back 2026-09-26).
+    expect(sameShape('the gate code is @@4417@@', 'the gate code is 4417')).toBe(false);
+    expect(sameShape('the gate code is @@4417@@', 'the gate code is @@4417@@')).toBe(true);
     expect(sameShape('# Weekend trip\n\nWe leave.', '# We can trip\n\nWe leave.')).toBe(true);
     expect(sameShape('# Weekend trip\n\nWe leave.', '# Something else entirely\n\nWe leave.')).toBe(false);
     expect(sameShape('One line.', 'One line.\n\nAnother.')).toBe(false);

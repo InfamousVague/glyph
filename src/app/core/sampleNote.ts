@@ -68,7 +68,7 @@ One caret each side raises part of a word, and one tilde lowers it: the 2^nd^ of
 
 ## Ghost.md's own marks
 
-Two of the same sign each side: ==highlight==, %%an aside%%, ??unsure?? (with a reason in brackets after it: ??the deposit??(ask Sam)), @@redact@@, ^^shout^^, and ++added++. A redaction is a bar of ink over its words, lifted while the caret is in them; the words are still in the note, so a share shows them. A colour's name in brackets after a highlight changes its colour: ==the cabin key==(green). Say "highlight", then "end highlight"; the others work the same way.
+Two of the same sign each side: ==highlight==, %%an aside%%, ??unsure?? (with a reason in brackets after it: ??the deposit??(ask Sam)), @@redact@@, ^^shout^^, and ++added++. A redaction is a bar of ink over its words, lifted while the caret is in them; the words are still in the note, and in the file a share gives, and where there is no caret to lift it, on a shared note's page or a card, the bar stays. A colour's name in brackets after a highlight changes its colour: ==the cabin key==(green). Say "highlight", then "end highlight"; the others work the same way.
 
 ## Effects
 

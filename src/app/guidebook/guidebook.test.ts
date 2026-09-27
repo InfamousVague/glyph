@@ -7,13 +7,14 @@ import { itemsIn } from '../core/boards/items.ts';
 import { sampleNoteBody } from '../core/sampleNote.ts';
 import { createNote, listNotes, newNoteId, noteTitle } from '../core/store.ts';
 import { sameTitle, wikiLinksIn } from '../editor/wikiLinks.ts';
+import { MARKS } from '../plugins/marks/index.tsx';
 import { addGuideBook, GUIDE_CHAPTERS, GUIDE_TITLE, loadGuideBook } from './guidebook.ts';
 
 /**
  * Ghost.md: The Guide as it ships: the index is a book whose chapters are the files, every link in it lands on a
  * page that will be there, no page shares a name with the notes Settings already adds, nothing in it reads like a
- * secret, and adding it twice leaves one book. Its words are the book's own (guidebook/chapters); this holds the
- * shape they have to keep.
+ * secret, adding it twice leaves one book, and the Marks plugin's marks are all taught, typed and said and counted.
+ * Its words are the book's own (guidebook/chapters); this holds the shape they have to keep.
  */
 
 /** The chapter files as they are on disk, in the order of their names. */
@@ -145,6 +146,54 @@ describe('the book', () => {
     expect(hits).toHaveLength(5);
     expect(keyLike('Authorization: Bearer sk-ant-api03-Zx9Qb7LmT2vWc4Yh')).toBe('Zx9Qb7LmT2vWc4Yh');
     expect(keyLike('src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/MainActivity.kt')).toBeNull();
+  });
+
+  /*
+   * The Marks plugin's marks against the chapters that teach them, read from the registry, so a mark added or cut is
+   * a chapter to change: the redaction came back (docs/DESIGN.md §131) with every chapter to hand and nothing to say
+   * whether they had all been changed.
+   */
+  it('teaches every mark the Marks plugin has: typed in its table, shown at work, said around its words, and counted', () => {
+    const chapter = (number: string) => FILES.find(([path]) => path.startsWith(`./chapters/${number}-`))?.[1] ?? '';
+    const rows = (body: string) => body.split('\n').filter((line) => line.startsWith('| '));
+    const words = ['none', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen'];
+    const own = MARKS.filter((mark) => mark.look.kind !== 'effect');
+    const effects = MARKS.filter((mark) => mark.look.kind === 'effect');
+    expect(own.length + effects.length).toBe(MARKS.length);
+
+    // The marks chapter: a row for each of its own, the mark typed in it, the line that shows them at work, and its count.
+    const marks = chapter('04');
+    const atWork = marks.split('\n').find((line) => line.startsWith('Here they are at work:')) ?? '';
+    for (const mark of own) {
+      const typed = mark.delimiter.replace(/\|/g, '\\|');
+      expect(rows(marks).some((row) => row.startsWith(`| ${mark.name} |`) && row.includes(`\`${typed}`)), `${mark.name} in the table`).toBe(true);
+      expect(atWork, `${mark.name} at work`).toContain(mark.delimiter);
+    }
+    expect(marks).toContain(`## Ghost.md's own ${words[own.length]}`);
+    expect(marks).toContain(`the ${words[own.length]} marks it adds of its own`);
+
+    // The effects chapter: each effect typed, and said.
+    for (const mark of effects) {
+      const row = rows(chapter('05')).find((line) => line.startsWith(`| ${mark.name} |`));
+      expect(row, `${mark.name} in the effects table`).toContain(`\`${mark.delimiter}`);
+      expect(row).toContain(`"${mark.cue} … end ${mark.cue}"`);
+    }
+
+    // The cues chapter: every mark said around its words, the spoiler in a sentence of its own under the table.
+    const saying = chapter('10');
+    for (const mark of MARKS) {
+      expect(mark.cue, mark.name).toBeTruthy();
+      if (mark.name === 'Spoiler') expect(saying.toLowerCase()).toContain(`“${mark.cue} … end ${mark.cue}”`);
+      else expect(rows(saying).some((row) => row.includes(`“${mark.cue} … end ${mark.cue}”`) && row.includes(`\`${mark.delimiter}…${mark.delimiter}\``)), `${mark.name} said`).toBe(true);
+    }
+
+    // The two chapters that count them, by the plugin.
+    const count = words[MARKS.length]!;
+    const seam = rows(chapter('32')).find((row) => row.startsWith('| `marks` |')) ?? '';
+    expect(seam).toContain(`${count[0]!.toUpperCase()}${count.slice(1)} inline formats`);
+    for (const mark of own) expect(seam).toContain(mark.name.toLowerCase());
+    expect(seam).toContain(`${words[effects.length]} effects`);
+    expect(chapter('30')).toContain(`the Marks plugin's ${count} formats`);
   });
 });
 

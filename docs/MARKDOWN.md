@@ -45,10 +45,12 @@ Ghost.md's own marks are on top of that, each from the Marks plugin and switched
 `==highlight==`, `%%aside%%`, `??unsure??`, `@@redact@@`, `^^shout^^`, `++added++`, five effects, and a note on any
 of them in brackets — `??four hundred??(Sam said 400)`.
 
-A redaction is a solid bar of the page's ink over its words, lifted while the caret is in them so they can be read and
-edited; in the Formatted view the at signs are hidden and the bar stays. It is a look only: the words stay in the
-note, so a share, an export or any other app shows them between their `@@`. (Cut once as "the same as spoiler", and
-back at Matt's asking, 2026-09-26: the bar where the spoiler is smoke.)
+A redaction is a solid bar of the page's ink over its words, and everything under it prints in that ink, an emoji
+included (`app/ink.css --app-ink-flat`, a filter, since an emoji keeps its colours under `color`). It lifts while the
+caret is in the words so they can be read and edited, and stays where there is no caret to lift it: in the Formatted
+view, where the at signs are hidden too, on the reader page and on a note's card. It is a look only: the words stay in
+the note, so the file a share or an export gives, and any other app, has them between their `@@`. (Cut once as "the
+same as spoiler", and back at Matt's asking, 2026-09-26: the bar where the spoiler is smoke.)
 
 **Effects** are moving looks on words, and each is written as its emoji twice either side. The emoji is the effect's
 name, so a note read anywhere else still says what was meant.
