@@ -1,6 +1,8 @@
+import { meetingStateNow } from '../capture/meetingLive.ts';
 import { plugins } from '../plugins/registry.ts';
 import { accountState } from './account/account.ts';
 import { failureText } from './failure.ts';
+import { cancelWriteUpsOnHost } from './host.ts';
 import { hasNativeGeneration } from './nativeGeneration.ts';
 import { storedKeys, writeStored } from './stored.ts';
 import { signOutHere, syncSettled } from './sync/engine.ts';
@@ -37,10 +39,19 @@ import { invoke, isTauri } from './tauri.ts';
  * against the emptied store; and a native reset that failed partway threw
  * before the sign-out, leaving the page signed in beside the bookkeeping and
  * an empty store, and the next sync sent a deletion for every note it knew.
+ *
+ * A meeting being recorded is refused outright (docs/DESIGN.md §127 section
+ * 3): the service has the microphone and a file growing under it, and a wipe
+ * under a recording is a recording of nothing. The write-ups queued on the
+ * phone are cancelled before Rust removes their files (`cancelWriteUps`,
+ * since only the activity can reach the phone's work queue).
  */
 
 /** The binary generation that has `reset_local_data`. */
 const RESET_GENERATION = 11;
+
+/** Said when a reset is asked for while a meeting is being recorded. */
+export const STOP_THE_MEETING = 'Stop the meeting first.';
 
 /**
  * What a reset leaves behind: developer mode, and the two smoke overrides a
@@ -103,10 +114,13 @@ function deleteImages(): Promise<void> {
 export async function resetLocalData({ models }: { models: boolean }): Promise<void> {
   if (isTauri()) {
     if (!(await hasNativeGeneration(RESET_GENERATION))) throw new Error('Resetting needs the newest Ghost.md. Install it from Settings > Updates.');
+    if (meetingStateNow()?.recording) throw new Error(STOP_THE_MEETING);
   }
   await forgetAccount();
-  if (isTauri()) await invoke<void>('reset_local_data', { models });
-  else await deleteImages();
+  if (isTauri()) {
+    cancelWriteUpsOnHost();
+    await invoke<void>('reset_local_data', { models });
+  } else await deleteImages();
   clearPageData();
   window.location.reload();
 }

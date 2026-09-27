@@ -20,7 +20,7 @@ export interface CaptionSources {
   recording: string | null;
   /** Notes whose better words are queued or running (capture/refine.ts). */
   refining: ReadonlySet<string>;
-  /** The summary queue's four sets (ai/summaries.ts). */
+  /** The summary queue's five sets (ai/summaries.ts). */
   summaries: SummariesState;
   /** On a phone the page's queues stop when the app is left, so a long job asks for the app to stay open. */
   phone: boolean;
@@ -33,6 +33,8 @@ export type Caption =
   | { kind: 'recording' }
   /** The better words or a summary on their way, with the working spinner; `keepOpen` adds "Keep Ghost.md open". */
   | { kind: 'working'; word: string; keepOpen: boolean }
+  /** The phone's write-up waits for the phone to charge: "Waiting to charge" with the word to write it up now (§127 section 4). */
+  | { kind: 'waiting' }
   /** The job waits for a language model that is not on the phone: "Needs a model" with the word to get one. */
   | { kind: 'needsModel' }
   /** The queue gave up: "The summary didn't come" with Try again. */
@@ -49,6 +51,7 @@ export function captionOf(note: Note, sources: CaptionSources, gist: string | un
   if (sources.refining.has(note.id)) return { kind: 'working', word: 'Listening again', keepOpen };
   if (summaries.native.has(note.id)) return { kind: 'working', word: 'Writing up', keepOpen: false };
   if (summaries.pending.has(note.id)) return { kind: 'working', word: kindWords('summarize').doing, keepOpen };
+  if (summaries.waiting.has(note.id)) return { kind: 'waiting' };
   if (summaries.needsModel.has(note.id)) return { kind: 'needsModel' };
   if (summaries.failed.has(note.id)) return { kind: 'failed' };
   const line = summaryLine(note.body);
@@ -60,7 +63,7 @@ export function captionOf(note: Note, sources: CaptionSources, gist: string | un
 /**
  * Whether a tape card offers "Summarize" (docs/DESIGN.md §132 section 8): only where a summariser can run, for a tape
  * of `LONG_NOTE_MS` or more (the setting's own line: a forty-second note is not offered a write-up) with no summary
- * yet, while nothing is happening to the note - not recording, not the better words, and in none of the queue's four
+ * yet, while nothing is happening to the note - not recording, not the better words, and in none of the queue's five
  * sets, each of which has a caption of its own.
  */
 export function canOfferSummary(note: Note, sources: CaptionSources): boolean {
@@ -73,6 +76,7 @@ export function canOfferSummary(note: Note, sources: CaptionSources): boolean {
     !sources.refining.has(note.id) &&
     !summaries.pending.has(note.id) &&
     !summaries.native.has(note.id) &&
+    !summaries.waiting.has(note.id) &&
     !summaries.needsModel.has(note.id) &&
     !summaries.failed.has(note.id)
   );

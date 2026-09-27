@@ -17,6 +17,9 @@ import { ALL_NOTES, noteIdOf, type Place } from './notes/visited.ts';
 import { readSidebarShown, useSidebar, writeSidebarShown } from './core/useWideScreen.ts';
 import { SettingsSheet } from './settings/SettingsSheet.tsx';
 import { CaptureScreen } from './capture/CaptureScreen.tsx';
+import { MeetingScreen } from './capture/MeetingScreen.tsx';
+import { canRecordMeeting } from './capture/meeting.ts';
+import { meetingStateNow } from './capture/meetingLive.ts';
 import { AcademyScreen } from './academy/AcademyScreen.tsx';
 import { CommandBar } from './commands/CommandBar.tsx';
 import type { PaletteDoing } from './commands/palette.ts';
@@ -47,9 +50,10 @@ import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
-import { isPlace, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
+import { isPlace, isRecording, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
-import { useForkLinks } from './shell/useForkLinks.ts';
+import { useAppLinks } from './shell/useAppLinks.ts';
+import { landNativeResult } from './ai/summaries.ts';
 import { useGuide } from './shell/useGuide.ts';
 import { useHousekeeping } from './shell/useHousekeeping.ts';
 import { useOpenTabs } from './shell/useOpenTabs.ts';
@@ -60,8 +64,8 @@ import { useVisibleNotes } from './shell/useVisibleNotes.ts';
 /**
  * The whole app: which screen is up, and everything drawn over it.
  *
- * There is no router. Ghost.md has five screens - the home page, the All notes grid, a note, a capture and the
- * Academy (shell/screen.ts) - and a router would be a dependency and a set of edge cases bought to express one piece
+ * There is no router. Ghost.md has six screens - the home page, the All notes grid, a note, a capture, a meeting being
+ * recorded and the Academy (shell/screen.ts) - and a router would be a dependency and a set of edge cases bought to express one piece
  * of state. Everything else is a sheet or a card over whichever screen is up: Settings, the guide, the + sheet, the
  * new book sheet, what's new, the notes drawer, the aside and the palette. The phone's back gesture is a stack of
  * handlers instead of a history (core/back.ts): whatever is on top says what leaving it means, and the home page, at
@@ -125,7 +129,20 @@ function Shell() {
       setSettings(false);
       guide.hide();
     },
+    say: (message) => toast({ message }),
   });
+  // Where a meeting can be recorded (capture/meeting.ts): the Mac, and Android with the service. Asked once.
+  const [canMeet, setCanMeet] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void canRecordMeeting().then((can) => {
+      if (alive) setCanMeet(can);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const newMeeting = () => void capture.meeting(false);
 
   // New builds, looked for after launch and on return; applied on reload.
   const updates = useUpdates();
@@ -251,7 +268,14 @@ function Shell() {
     await refresh();
     setScreen({ name: 'note', note: made });
   };
-  useForkLinks(loading, forkFromLink);
+  // The notification that a meeting was written up, tapped (docs/DESIGN.md §127 section 5): a result still waiting is
+  // put into the note first, so the tap opens a note with its summary, then the note opens where it was left.
+  const openNoteFromLink = async (id: string) => {
+    await landNativeResult(id).catch(() => undefined);
+    await refresh();
+    openNoteWhereLeft(id);
+  };
+  useAppLinks(loading, { fork: forkFromLink, openNote: openNoteFromLink });
 
   /**
    * A `[[link]]` tapped: the note by that title, or a new note that starts with it as its heading, so a link is a
@@ -503,6 +527,9 @@ function Shell() {
       notes={shownNotes}
       loading={loading}
       onOpen={(id, at) => {
+        // The tape being recorded opens the meeting screen, not the note: there is nothing in it yet but its title.
+        const live = meetingStateNow();
+        if (live?.recording && live.noteId === id && capture.showMeeting(false)) return;
         if (!at) return openNoteWhereLeft(id);
         const note = notes.find((n) => n.id === id);
         if (note) setScreen({ name: 'note', note, at });
@@ -646,8 +673,12 @@ function Shell() {
           fromAssistant={screen.fromAssistant}
           stopRequests={screen.stop}
           noteId={screen.noteId}
+          meeting={screen.meeting}
+          onMeeting={canMeet ? newMeeting : undefined}
           onFinish={(note, locked, review, ask, landing) => void capture.finished(note, locked, review, ask, landing)}
         />
+      ) : screen.name === 'meeting' ? (
+        <MeetingScreen key={screen.key} noteId={screen.noteId} fromAssistant={screen.fromAssistant} onLeave={capture.leftMeeting} />
       ) : screen.name === 'academy' ? (
         <AcademyScreen
           onDone={() => setScreen({ name: 'list' })}
@@ -699,10 +730,18 @@ function Shell() {
       {asideShown && !asideDocked && asideBody ? (
         <AsideCard content={asideBody} onOpen={openNoteWithin} onOpenTitle={openTitleWithin} onClose={toggleAside} />
       ) : null}
-      <NewSheet open={newSheet} onClose={() => setNewSheet(false)} onNote={() => void newNote()} onCanvas={() => void newCanvas()} onBook={newBook} onFromLink={forkFromLink} />
+      <NewSheet
+        open={newSheet}
+        onClose={() => setNewSheet(false)}
+        onNote={() => void newNote()}
+        onCanvas={() => void newCanvas()}
+        onBook={newBook}
+        onMeeting={canMeet ? newMeeting : undefined}
+        onFromLink={forkFromLink}
+      />
       <NewBookSheet open={bookSheet} onClose={() => setBookSheet(false)} titles={pageTitles()} isCanvas={(title) => isCanvasBody(bodyOfTitle(title) ?? '')} onCreate={(title, pages) => void createBook(title, pages)} />
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
-      <WhatsNewSheet sources={updates.status?.sources} hold={guide.open || screen.name === 'capture'} />
+      <WhatsNewSheet sources={updates.status?.sources} hold={guide.open || isRecording(screen)} />
       {launching ? <LaunchScreen loading={loading} notes={notes.filter((n) => !n.archivedAt).length} updates={updates} sync={syncStatus} onDone={() => setLaunching(false)} /> : null}
       <SceneBench script={sceneBench} onClose={() => setSceneBench(null)} />
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
@@ -774,7 +813,7 @@ function Shell() {
         aside and comes back when the capture ends, so they carry on where
         they were.
       */}
-      {guide.open && screen.name !== 'capture' ? (
+      {guide.open && !isRecording(screen) ? (
         <Guide
           index={guide.page}
           tooSoon={guide.tooSoon}

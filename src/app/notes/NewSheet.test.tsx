@@ -73,3 +73,19 @@ describe('the + sheet', () => {
     expect(buttonSaying(sheet()!, 'From a shared link')).toBeTruthy();
   });
 });
+
+describe('a meeting from the + sheet', () => {
+  it('is offered only where one can be recorded, with the cassette, and starts one as the sheet closes', () => {
+    const onClose = vi.fn();
+    const onMeeting = vi.fn();
+    show(<NewSheet open onClose={onClose} onNote={noop} onCanvas={noop} onBook={noop} />);
+    expect(buttonSaying(sheet()!, 'Record a meeting')).toBeUndefined();
+    rerender(<NewSheet open onClose={onClose} onNote={noop} onCanvas={noop} onBook={noop} onMeeting={onMeeting} />);
+    const row = buttonSaying(sheet()!, 'Record a meeting. The screen can go off. It is written up afterwards.')!;
+    expect(row.textContent).toContain('Meeting');
+    expect(row.querySelector('svg')).not.toBeNull();
+    act(() => row.click());
+    expect(onMeeting).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

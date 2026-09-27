@@ -11,9 +11,10 @@ import styles from './SayCard.module.css';
  * said, where to send it, and what to ask the AI to do with it. The one-line tips that come in a pause teach the same
  * things one at a time once talking has begun; this is the whole of it at once, for the moment before, when a person
  * is deciding what to say. It goes the moment words arrive, and it takes no taps: the recorder is listening, and
- * saying a line is the way to use it.
+ * saying a line is the way to use it. One word at its foot, where a meeting can be recorded (capture/meeting.ts):
+ * "Meeting instead", for the day Speak was pressed for a meeting from habit (docs/DESIGN.md §127 section 3).
  */
-export function SayCard({ starters }: { starters: Starters }) {
+export function SayCard({ starters, onMeeting }: { starters: Starters; onMeeting?: () => void }) {
   const groups: { id: keyof Starters; heading: string; Icon: typeof Bot; tips: Tip[] }[] = [
     { id: 'shape', heading: 'To shape it', Icon: ListTree, tips: starters.shape },
     { id: 'send', heading: 'To send it somewhere', Icon: Send, tips: starters.send },
@@ -39,6 +40,13 @@ export function SayCard({ starters }: { starters: Starters }) {
             </ul>
           </div>
         ))}
+      {onMeeting ? (
+        <p className={styles.foot}>
+          <button type="button" className={`app-word ${styles.footWord}`} onClick={onMeeting}>
+            Meeting instead
+          </button>
+        </p>
+      ) : null}
     </section>
   );
 }

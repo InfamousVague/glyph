@@ -14,7 +14,7 @@ import { useTape, type Tape } from './useTape.ts';
 const queue = vi.hoisted(() => ({ pending: new Set<string>(), needsModel: new Set<string>(), failed: new Set<string>(), refining: new Set<string>() }));
 vi.mock('../ai/summaries.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../ai/summaries.ts')>()),
-  useSummaries: () => ({ pending: queue.pending, native: new Set<string>(), failed: queue.failed, needsModel: queue.needsModel }),
+  useSummaries: () => ({ pending: queue.pending, native: new Set<string>(), waiting: new Set<string>(), failed: queue.failed, needsModel: queue.needsModel }),
 }));
 vi.mock('../capture/refine.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../capture/refine.ts')>()),

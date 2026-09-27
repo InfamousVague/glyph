@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { renderNote, toParagraphs, type Segment } from './markdown.ts';
+import { renderNote, renderTranscript, toParagraphs, transcriptOf, withoutTranscript, withTranscript, type Segment } from './markdown.ts';
 import { spokenAddress, spokenSlug } from './spoken/extras.ts';
 import { setSpokenFormats, spokenInlineMarkup } from './spoken/inline.ts';
 import { enumeration } from './spoken/lists.ts';
@@ -581,5 +583,41 @@ describe('spoken addresses and names', () => {
   it('makes a line name of what was said', () => {
     expect(spokenSlug('Ship Page')).toBe('ship-page');
     expect(spokenSlug('  the 2nd, draft ')).toBe('the-2nd-draft');
+  });
+});
+
+describe('a meeting’s transcript', () => {
+  /** The cases the Rust twin reads too (src-tauri/src/transcript.rs), so the two cannot drift. */
+  const fixture = JSON.parse(readFileSync(join(process.cwd(), 'src/app/capture/paragraphs.fixture.json'), 'utf8')) as { name: string; segments: Segment[]; paragraphs: string[] }[];
+
+  it('cuts the paragraphs as the fixture says, in every case the fixture has', () => {
+    expect(fixture.length).toBeGreaterThanOrEqual(4);
+    for (const { name, segments, paragraphs } of fixture) expect(toParagraphs(segments), name).toEqual(paragraphs);
+  });
+
+  it('is the paragraphs under their heading, no cues and no title, with the phrase still being guessed on the end', () => {
+    const segments = spoken('we settled the date.', 'Sam owns the press list.');
+    expect(renderTranscript(segments)).toBe('## Transcript\n\nWe settled the date. Sam owns the press list.');
+    expect(renderTranscript(segments, ' and the ')).toBe('## Transcript\n\nWe settled the date. Sam owns the press list. and the');
+    expect(renderTranscript([], 'first words')).toBe('## Transcript\n\nfirst words');
+    expect(renderTranscript([])).toBe('## Transcript\n\n');
+    // A meeting is recorded, not read: a heading cue is words.
+    expect(renderTranscript(spoken('heading the launch'))).toBe('## Transcript\n\nHeading the launch');
+  });
+
+  it('is found in a body by its heading, put in place of the one there or on the end, and taken off again', () => {
+    const transcript = '## Transcript\n\nWe settled the date.';
+    const titled = '# Meeting, 26 Sep 14:05\n';
+    expect(transcriptOf(titled)).toBeNull();
+    expect(withTranscript(titled, transcript)).toBe(`# Meeting, 26 Sep 14:05\n\n${transcript}`);
+    expect(withTranscript('', transcript)).toBe(transcript);
+    const body = withTranscript('# Meeting, 26 Sep 14:05\n\n## Summary\nOne line.\n\n- A point.\n', transcript);
+    expect(transcriptOf(body)).toBe(transcript);
+    expect(withoutTranscript(body)).toBe('# Meeting, 26 Sep 14:05\n\n## Summary\nOne line.\n\n- A point.');
+    // Replaced whole, whatever stands above it, and the trailing newline the editor's landing leaves is not an edit.
+    expect(withTranscript(`${body}\n`, '## Transcript\n\nMore was said.')).toBe('# Meeting, 26 Sep 14:05\n\n## Summary\nOne line.\n\n- A point.\n\n## Transcript\n\nMore was said.');
+    // Only the heading on a line of its own: a line that mentions it is words.
+    expect(transcriptOf('# Notes\n\nSee ## Transcript below.')).toBeNull();
+    expect(withoutTranscript('# Notes\n\nWords.\n')).toBe('# Notes\n\nWords.');
   });
 });

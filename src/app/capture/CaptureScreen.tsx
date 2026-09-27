@@ -5,14 +5,16 @@ import { useBack } from '../core/back.ts';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { answerHost, endCapture, isLocked, setCapturing } from '../core/host.ts';
+import { isAndroid } from '../core/platform.ts';
 import { applyCommandMutation, createNote, getNote, listNotes, newNoteId, noteTitle, setNoteRecording, type Note } from '../core/store.ts';
 import { capitalise } from '../core/text.ts';
-import { LONG_NOTE_MS, preferences } from '../core/preferences.ts';
+import { LONG_NOTE_MS, preferences, setPreferences } from '../core/preferences.ts';
 import { enqueueRefine, setRecorderLive } from './refine.ts';
 import { enqueueSummary } from '../ai/summaries.ts';
 import { reviewAvailable, type ReviewHandoff } from '../ai/review.ts';
 import { discardRecording, reassignRecording, type Stopped } from './engine.ts';
-import { renderNote, type Segment } from './markdown.ts';
+import { renderNote, renderTranscript, type Segment } from './markdown.ts';
+import { meetingBody, meetingTitle } from './meeting.ts';
 import { setLinkTitles } from './spoken/extras.ts';
 import { setSpokenFormats } from './spoken/inline.ts';
 import { Opening } from './Opening.tsx';
@@ -90,6 +92,14 @@ import styles from './CaptureScreen.module.css';
  * model's window, so it goes back to the list with its better words to come from the queue, its summary too when
  * Settings says so (ai/summaries.ts), and the Done line says why (docs/DESIGN.md §127 section 2).
  *
+ * A MEETING in this recorder (`meeting`, the Mac; §127 section 3) is recorded, not read: no live reader, no reader at
+ * Done, no "hey Ghost", no quiet stop, no review, no title from the first sentence, and no card of things to say. The
+ * page shows the transcript as paragraphs under the date title (capture/meeting.ts, capture/markdown.ts
+ * `renderTranscript`), and Done writes that note, records it as a meeting, and queues its better words and its
+ * summary, with the line that says to keep the app open while they come. The card's "Meeting instead", before the
+ * first word, turns this recorder into that on the Mac; on a phone with the service it lets the microphone go and
+ * hands over (`onMeeting`), since the service's `AudioRecord` and this page's cannot both hold it.
+ *
  * The pieces are their own modules: the cards (CaptureCards.tsx), the chip (RouteChip.tsx), the lines of words that
  * are not the note (screenText.ts), the diagnostics line (diagnostics.ts), the last words of a stopped decode
  * (finalWords.ts) and where the take sits on its note's tape (timeline.ts). This screen ties them to the live reader
@@ -103,6 +113,14 @@ interface CaptureScreenProps {
   stopRequests?: number;
   /** Talking into this note (its Speak): the words go on its end. */
   noteId?: string;
+  /** A meeting from the start: recorded, not read (the Mac; capture/meeting.ts). */
+  meeting?: boolean;
+  /**
+   * Where a meeting can be recorded (capture/meeting.ts): the card offers "Meeting instead" before the first word. On
+   * a phone it is called once this page has let the microphone go, and the caller starts the service; on the Mac the
+   * recorder turns into a meeting itself and this is not called.
+   */
+  onMeeting?: () => void;
   /**
    * The take is over. `note` is the saved note, or null when the capture was cancelled or nothing was said. `review`
    * is set when the review after a recording should look at it (ai/review.ts); `ask` when the words were an
@@ -160,9 +178,16 @@ async function letGo(recordedAs: string, recordedMs: number | null, ownTape: Not
   await setNoteRecording(ownTape.id, recordedMs, ownTape.segments ?? []).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
 }
 
-export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, onFinish }: CaptureScreenProps) {
+export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, meeting: meetingFromStart = false, onMeeting, onFinish }: CaptureScreenProps) {
   /** The note this capture is being added to, if it continues one, as the page shows it (`writer.target` is the truth). */
   const [target, setTarget] = useState<Note | null>(null);
+  /** A meeting: from the start, or turned into one from the card before the first word (the Mac). */
+  const [meeting, setMeeting] = useState(meetingFromStart);
+  const meetingRef = useRef(meetingFromStart);
+  meetingRef.current = meeting;
+  /** When the meeting began, and the date title it is made with. */
+  const meetingStartedAt = useRef(Date.now());
+  const meetingTitled = useRef(meetingTitle(meetingStartedAt.current));
   const [segments, setSegments] = useState<Segment[]>([]);
   const [partial, setPartial] = useState('');
   /** Milliseconds on the recording, copied from the session a few times a second. */
@@ -188,8 +213,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     watched.observe(top);
     return () => watched.disconnect();
   }, []);
-  /** Set when "Stop when I go quiet" is on: watches for the end of talking. */
-  const quiet = useRef(preferences().quietStop ? new QuietWatch(QUIET_STOP_MS) : null);
+  /** Set when "Stop when I go quiet" is on: watches for the end of talking. Never for a meeting, whose pauses are the room's. */
+  const quiet = useRef(preferences().quietStop && !meetingFromStart ? new QuietWatch(QUIET_STOP_MS) : null);
   /** Whether this phone stops a recording when the side key is pressed (generation 12). */
   const [pressStops, setPressStops] = useState(false);
   const spot = useSideKeySpot();
@@ -261,7 +286,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** While an item for another note is being said, its words show in the chip, not in this note. */
   const [itemWords, setItemWords] = useState('');
   // The page as it is spoken: the take's markdown, from what React holds of it, with the phrase still being guessed.
-  const note = useMemo(() => takeMarkdown({ segments }, { titled, partial }), [segments, partial, titled]);
+  // A meeting's page is its transcript, paragraphs under the heading, with no cues read into it.
+  const note = useMemo(
+    () => (meeting ? { markdown: renderTranscript(segments, partial), pendingFrom: null } : takeMarkdown({ segments }, { titled, partial })),
+    [segments, partial, titled, meeting],
+  );
 
   // The switched-on plugins' formattings can be said like bold ("spoiler … end spoiler"); read as the recorder opens,
   // before the first render lays the page out with them.
@@ -383,6 +412,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           quiet.current?.words(performance.now());
           heard();
         }
+        // A meeting is recorded, not read: the guess goes on the page as it is.
+        if (meetingRef.current) {
+          setPartial(text);
+          return;
+        }
         // A partial is display only: it routes nothing. While a command is being said, or a note just named waits
         // for its words, it shows in the chip rather than on the page; "scratch that" being said never flashes onto
         // it, wherever it starts in the phrase (the words before it stay on the page), and nor does the send a bare
@@ -399,6 +433,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         committedRef.current.push(raw);
         setPartial('');
         setItemWords('');
+        // A meeting's phrases go straight to the take, unread: no command, no keyword, no take-back.
+        if (meetingRef.current) {
+          take.listen(raw);
+          syncTake();
+          return;
+        }
         if (queued.current) {
           queued.current.push(raw);
           return;
@@ -744,8 +784,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       if (!finished.current) applyRef.current(live.tick(now, liveRef.current()));
       if (!commanding && quiet.current?.due(now)) void finishRef.current();
       // A pause, once there are words: one tip, until words come again. Before the first word the card of things to
-      // say is up instead (SayCard.tsx), and a tip picked under it would be spent unseen.
-      if (heardRef.current.length && now - lastHeard.current > TIP_AFTER_MS) {
+      // say is up instead (SayCard.tsx), and a tip picked under it would be spent unseen. A meeting takes no cues.
+      if (!meetingRef.current && heardRef.current.length && now - lastHeard.current > TIP_AFTER_MS) {
         setTip(
           (showing) =>
             showing ??
@@ -767,6 +807,47 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   // is saved exactly once after final instruction classification.
 
   // ---- ending ----------------------------------------------------------------------
+  /**
+   * A meeting's Done (the Mac; capture/meeting.ts): the transcript's phrases, the stop's last words among them, into a
+   * note titled with the date, its recording kept under it, its place in `prefs.meetings`, and its better words and
+   * summary queued behind the recorder. Nothing said is nothing kept.
+   */
+  const finishMeeting = useCallback(
+    async (heardAll: readonly Segment[], stopped: Stopped) => {
+      const locked = isLocked();
+      const recordedAs = writer.noteId;
+      const segments = heardAll.filter((segment) => segment.text.trim());
+      if (!segments.length) {
+        if (stopped.recordedMs !== null) await discardRecording(recordedAs).catch(() => undefined);
+        await writer.undoDraft();
+        endCapture(locked);
+        onFinish(null, locked);
+        return;
+      }
+      const title = meetingTitled.current;
+      let saved = await writer.queue(() => writer.persist(recordedAs, meetingBody(title, segments), 'capture'));
+      if (stopped.recordedMs !== null && session.current?.keepsAudio) {
+        const kept = await setNoteRecording(saved.id, stopped.recordedMs, [...segments]).catch((failure: unknown) => {
+          console.warn('[glyph] recording not kept:', failure);
+          return null;
+        });
+        if (kept) saved = kept;
+        setTapeId(saved.id, tapeOfTake());
+        enqueueRefine({ id: saved.id, fromMs: 0, recordingMs: stopped.recordedMs, baseBody: '', savedBody: saved.body, titled: false, priorSegments: [], promptTail: '', meeting: true });
+      }
+      setPreferences({ meetings: { ...preferences().meetings, [saved.id]: meetingStartedAt.current } });
+      if (preferences().summaries !== 'off') enqueueSummary(saved.id, 'meeting');
+      fireNativeHaptic('success');
+      endCapture(locked);
+      if (!locked) {
+        setRoute({ phase: 'said', text: 'Keep Ghost.md open while it is written up.' });
+        await new Promise<void>((resolve) => window.setTimeout(resolve, SAID_MS));
+      }
+      onFinish(saved, locked);
+    },
+    [onFinish, writer, session, tapeOfTake],
+  );
+
   const finish = useCallback(async () => {
     if (finished.current) return;
     finished.current = true;
@@ -796,6 +877,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // command still being said at Done is still carried out, and last words are kept (finalWords.ts).
     const committed = [...committedRef.current];
     const heardAll = withFinalWords(committed, stopped.transcript, session.current?.positionMs() ?? committed.at(-1)?.endMs ?? 0);
+    // A meeting: nothing is read from it. Its note is the date title over the transcript, kept as a meeting with its
+    // better words and its summary to come, and the line says to keep the app open while they do.
+    if (meetingRef.current) {
+      await finishMeeting(heardAll, stopped);
+      return;
+    }
     for (const segment of heardAll.slice(committed.length)) {
       committedRef.current.push(segment);
       heardRef.current.push(segment.text);
@@ -1068,7 +1155,30 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
     if (landing || ask) onFinish(saved, locked, undefined, ask, landing);
     else onFinish(saved, locked);
-  }, [onFinish, take, writer, tapeOfTake, session, microphone, setPhase, setError, live]);
+  }, [onFinish, take, writer, tapeOfTake, session, microphone, setPhase, setError, live, finishMeeting]);
+
+  /**
+   * "Meeting instead", from the card before the first word. On the Mac this recorder becomes the meeting: the quiet
+   * stop goes, and what is heard from here is transcript. On a phone the service records it, and its `AudioRecord`
+   * cannot open while this page holds the microphone, so the take is let go first and the caller then starts it.
+   */
+  const meetingInstead = useCallback(() => {
+    if (!isAndroid) {
+      quiet.current = null;
+      setMeeting(true);
+      fireNativeHaptic('selection');
+      return;
+    }
+    if (finished.current) return;
+    finished.current = true;
+    setCapturing(false);
+    session.current?.cancel();
+    microphone.current?.stop();
+    void discardRecording(writer.noteId).catch(() => undefined);
+    void writer.undoDraft();
+    endCapture(false);
+    onMeeting?.();
+  }, [onMeeting, session, microphone, writer]);
 
   // The side key held again: Done.
   useEffect(() => {
@@ -1131,7 +1241,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   // explaining without being asked: the line that diagnosed the Fold.
   const silent = soundsSilent(engine, diagnostics);
   // A note switched to shows its own text already: the card of things to say and the hint under an empty page are done.
-  const hasWords = note.markdown.length > 0 || routed;
+  // A meeting's page carries its heading before a word is said, so its words are its phrases.
+  const hasWords = meeting ? segments.length > 0 || partial !== '' : note.markdown.length > 0 || routed;
+  // "Meeting instead" is offered before the first word, where a meeting can be recorded, and not for a note's own
+  // Speak or over the lock screen, where a fresh recording of a meeting is not what the key asked for.
+  const offerMeeting = onMeeting !== undefined && !aimedAt && !(fromAssistant && locked) && !meeting;
 
   return (
     <div className={styles.screen} data-phase={phase} ref={screenRef}>
@@ -1143,9 +1257,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           <>
             {/* Tapping the line shows what the pipeline has done, for diagnosing a silent capture. */}
             <button type="button" className={`app-word ${styles.where}`} onClick={() => setShowDiagnostics((on) => !on)}>
-              {whereLine(target, locked, { routed, named: pendingTitle })}
+              {whereLine(target, locked, { routed, named: pendingTitle, meeting })}
             </button>
-            {routed ? (
+            {meeting ? null : routed ? (
               <button type="button" className={`app-word ${styles.newNote}`} onClick={notThisNote}>
                 Not this note
               </button>
@@ -1184,8 +1298,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           // screen the note being continued shows none of its text.
           <LivePage
             // The editor reads its placeholder once, so the page is remade when the recorder is up: "Say which note." after "Starting…".
-            key={`page-${target?.id ?? pendingTitle ?? 'new'}-${moves}-${phase === 'starting' ? 'starting' : 'up'}`}
-            base={locked ? '' : target ? target.body : pendingTitle !== null ? listTitle(pendingTitle) : ''}
+            key={`page-${target?.id ?? pendingTitle ?? 'new'}-${moves}-${meeting ? 'meeting' : 'take'}-${phase === 'starting' ? 'starting' : 'up'}`}
+            base={meeting ? `# ${meetingTitled.current}\n` : locked ? '' : target ? target.body : pendingTitle !== null ? listTitle(pendingTitle) : ''}
             markdown={note.markdown}
             placing={locked ? END : placing}
             from={locked ? undefined : pageFrom}
@@ -1208,10 +1322,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           // A take-back's Undo, withheld once Done is writing, as a one-shot's Not this note is.
           onUndo={route.phase === 'tookBack' && route.undo !== undefined && phase !== 'finishing' && !finished.current ? () => applySteps(live.undoTakeBack(route.undo!)) : undefined}
         />
-      ) : !hasWords && phase === 'listening' ? (
+      ) : !hasWords && phase === 'listening' && !meeting ? (
         // Before the first word: the whole of what can be said, as a card (SayCard.tsx); once talking has begun, one tip at a time in a pause.
-        <SayCard starters={say} />
-      ) : tip && phase === 'listening' ? (
+        <SayCard starters={say} onMeeting={offerMeeting ? meetingInstead : undefined} />
+      ) : tip && phase === 'listening' && !meeting ? (
         <p key={tip.say} className={styles.tip}>
           Say <strong>“{tip.say}”</strong> {tip.does}.
         </p>

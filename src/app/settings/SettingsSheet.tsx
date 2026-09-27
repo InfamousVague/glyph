@@ -111,6 +111,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       settings: account.session
         ? [
             { name: 'Sync now', words: 'devices' },
+            { name: 'Sync meeting recordings', words: 'audio meeting privacy' },
             { name: 'Live typing (trial)', words: 'realtime collaborate' },
             { name: 'Password and recovery codes', words: 'change' },
             { name: 'Sign out', words: 'log out logout' },
@@ -185,6 +186,14 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
               { name: 'Better words', words: 'refine clean up transcript' },
               { name: 'Summaries', words: 'summary meeting write-up minutes' },
               ...(isAndroid ? [{ name: 'Where the side key is', words: 'button height position hardware' }] : []),
+              // Meetings, on a phone with the service (native generation 20); the search lists them on an older binary too, where they open the page.
+              ...(isAndroid
+                ? [
+                    { name: 'Write up', words: 'meeting battery charging' },
+                    { name: 'Tell me when a meeting is written up', words: 'notification alert written up' },
+                  ]
+                : []),
+              { name: 'Your tapes', words: 'tapes storage audio remove space' },
             ],
             icon: <Mic size={16} />,
             content: <RecordingPane />,

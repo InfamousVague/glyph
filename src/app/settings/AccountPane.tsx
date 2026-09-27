@@ -1,12 +1,14 @@
 import { Ghost } from '../art/Ghost.tsx';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { KeyRound, LogOut, RefreshCw, ShieldCheck, Trash2 } from '@glacier/icons';
 import { Input, Switch } from '@glacier/react';
 import { changePassword, handleProblem, newRecoveryCodes, passwordProblem, recover, signIn, signUp, useAccount } from '../core/account/account.ts';
 import { failureText } from '../core/failure.ts';
 import { setLiveEnabled, useLiveEnabled } from '../core/live/enabled.ts';
-import { preferences } from '../core/preferences.ts';
-import { deleteAccountHere, signOutHere, syncNow, syncedWhen, useSyncStatus } from '../core/sync/engine.ts';
+import { preferences, setPreferences, usePreferences } from '../core/preferences.ts';
+import { listNotes } from '../core/store.ts';
+import { deleteAccountHere, signOutHere, syncNow, syncedWhen, unsentLine, useSyncStatus } from '../core/sync/engine.ts';
+import { stayedHere } from '../core/sync/notes.ts';
 import { SharedLinks } from './SharedLinks.tsx';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from './kit/settingsKit.tsx';
 
@@ -14,6 +16,11 @@ import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, Settings
  * Account: a Glyph account keeps notes, their recordings and pictures, and settings the same on every device
  * (docs/SYNC.md). Everything is sealed on the device before it is sent, so the page says so plainly, and says the one
  * consequence that follows: a password and every recovery code lost is an account nobody can open, us included.
+ *
+ * Two things a sync leaves on this device are said here as well (docs/DESIGN.md §127 section 6): a meeting's audio,
+ * which stays where it was made unless "Sync meeting recordings" is on, and a recording too big for the service,
+ * counted under Sync as "3 recordings stayed on this phone". And the notes the last sync could not send, with why,
+ * since one bad note no longer stops the rest.
  */
 
 type Mode = 'in' | 'up' | 'recover';
@@ -204,6 +211,20 @@ export function AccountPane() {
   const account = useAccount();
   const status = useSyncStatus();
   const live = useLiveEnabled();
+  const prefs = usePreferences();
+  // How many recordings stayed on this phone, by the notes as they are and the two rules: counted as the page opens.
+  const [stayed, setStayed] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    void listNotes()
+      .then((notes) => {
+        if (alive) setStayed(stayedHere(notes, prefs));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [prefs]);
   const [codes, setCodes] = useState<string[] | null>(null);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -233,6 +254,11 @@ export function AccountPane() {
           {status.conflicts === 1 ? 'A note was' : `${status.conflicts} notes were`} changed on two devices at once. Both versions are kept as separate notes.
         </SettingsCallout>
       ) : null}
+      {status.unsent ? (
+        <SettingsCallout>
+          {unsentLine(status.unsent)}. {status.unsentReason ?? 'They are sent again next time.'}
+        </SettingsCallout>
+      ) : null}
       {deleting ? (
         <DeleteAccountForm
           onDeleted={() => {
@@ -250,8 +276,16 @@ export function AccountPane() {
           onDone={() => setEditing(false)}
         />
       ) : (
-        <PaneSection title="Sync" footer="Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.">
+        <PaneSection
+          title="Sync"
+          footer={`Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.${stayed ? ` ${stayed === 1 ? '1 recording' : `${stayed} recordings`} stayed on this phone.` : ''}`}
+        >
           <SettingRow icon={<RefreshCw size={20} />} label="Sync now" onPress={() => void syncNow()} disabled={status.phase === 'syncing'} />
+          <SettingRow
+            label="Sync meeting recordings"
+            hint="A meeting is other people's voices. Off, the words sync and the audio stays on the device it was made on."
+            control={<Switch aria-label="Sync meeting recordings" checked={prefs.syncMeetingRecordings} onCheckedChange={(syncMeetingRecordings) => setPreferences({ syncMeetingRecordings })} />}
+          />
           {/* Live sync (docs/LIVE.md), on by hand while it is being tried: off, nothing of it is loaded at all. */}
           <SettingRow
             label="Live typing (trial)"

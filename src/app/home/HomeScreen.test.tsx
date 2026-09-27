@@ -20,10 +20,13 @@ import { stubMatchMedia, stubResizeObserver } from '../../test/stubs.ts';
 // A card's small drawing is the editor (notes/NotePeek.tsx), which is nothing the page decides.
 vi.mock('../notes/NotePeek.tsx', () => ({ NotePeek: () => null }));
 // The summary queue's sets, which the digest and the shelf's captions read: a test fills one and draws.
-const queues = vi.hoisted(() => ({ pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() }));
+const queues = vi.hoisted(() => ({ pending: new Set<string>(), native: new Set<string>(), waiting: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() }));
+// The meeting being recorded now (home/useMeetingLive.ts), which the phone's service knows and a test says.
+const meeting = vi.hoisted(() => ({ live: null as string | null }));
+vi.mock('./useMeetingLive.ts', () => ({ useMeetingLive: () => meeting.live }));
 // What the queue is asked for from a tape's Summarize, and whether this is Tauri, where a summariser can run: off by default, as jsdom is.
 const summarize = vi.hoisted(() => ({ enqueue: vi.fn(), tauri: false }));
-vi.mock('../ai/summaries.ts', () => ({ useSummaries: () => queues, retrySummary: () => undefined, enqueueSummary: summarize.enqueue }));
+vi.mock('../ai/summaries.ts', () => ({ useSummaries: () => queues, retrySummary: () => undefined, writeUpNow: () => undefined, enqueueSummary: summarize.enqueue }));
 vi.mock('../core/tauri.ts', () => ({ isTauri: () => summarize.tauri, invoke: () => Promise.reject(new Error('no Tauri in this test')) }));
 // The digest's glide asks whether motion is reduced; jsdom has no matchMedia.
 stubMatchMedia();
@@ -72,6 +75,7 @@ afterEach(() => {
   for (const set of Object.values(queues)) set.clear();
   summarize.enqueue.mockClear();
   summarize.tauri = false;
+  meeting.live = null;
 });
 
 describe('the home page', () => {
@@ -89,6 +93,15 @@ describe('the home page', () => {
     expect(document.querySelector('#home-tapes svg')).not.toBeNull();
     // A page of a book says which on its card.
     expect(document.querySelector('[title="Page 1 of Trip"]')?.textContent).toBe('Trip');
+  });
+
+  it('shelves the meeting being recorded first, as a tape with no recording yet, and keeps it out of Recent', () => {
+    meeting.live = 'm';
+    show(page([recorded('t', 'Directions', 4), makeNote('m', '# Standup', { source: 'capture', createdAt: 1, updatedAt: 1 }), makeNote('r', '# Route', { updatedAt: 2 })]));
+    expect(shelved()).toEqual(['Standup', 'Directions']);
+    expect(cards('home-recent')).toEqual(['Route']);
+    // Its caption says so, and its reels turn: the one cassette on the shelf that is not still.
+    expect([...document.querySelectorAll('ol[aria-label="Tapes"] li > p')].map((p) => p.textContent)).toEqual(['Recording', '']);
   });
 
   it('draws one mark on every heading, each at the heading’s own size and none at a width of its own', () => {

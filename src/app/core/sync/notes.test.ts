@@ -3,9 +3,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { fakeService } from '../../../test/fakeService.ts';
 import { makeNote } from '../../../test/notes.ts';
 import { syncDevice, type SyncDevice } from '../../../test/syncDevice.ts';
+import { withSummary } from '../../ai/summaryText.ts';
 import { markShared } from '../live/shared.ts';
 import type { Note } from '../store.ts';
-import { fileId, mark } from './notes.ts';
+import { fileId, mark, RECORDING_SYNC_LIMIT, recordingBytes, recordingStaysHere, stayedHere } from './notes.ts';
 
 /*
  * The note sync pass (notes.ts) between two devices on the service in memory: the rules a person would feel break -
@@ -38,7 +39,7 @@ describe('a note on two devices', () => {
     const note = makeNote('a', '# Groceries\n\nmilk', { createdAt: 1, updatedAt: 1 });
     phone.notes.set('a', note);
     await phone.sync();
-    expect(await mac.sync()).toEqual({ changed: 1, conflicts: 0 });
+    expect(await mac.sync()).toEqual({ changed: 1, conflicts: 0, unsent: 0, reason: null });
     expect(mac.notes.get('a')).toEqual(note);
 
     mac.notes.set('a', edited(note, '# Groceries\n\nmilk\neggs', 2));
@@ -51,7 +52,7 @@ describe('a note on two devices', () => {
     const { phone } = await pair();
     phone.notes.set('a', makeNote('a', 'words'));
     await phone.sync();
-    expect(await phone.sync()).toEqual({ changed: 0, conflicts: 0 });
+    expect(await phone.sync()).toEqual({ changed: 0, conflicts: 0, unsent: 0, reason: null });
   });
 
   it('keeps both versions when both devices changed the words, the other device’s keeping the id', async () => {
@@ -223,5 +224,170 @@ describe('a recording', () => {
     expect(api.calls).toContain('PUT notes/a');
     expect(api.calls.some((call) => call.startsWith(`PUT recordings/${id}`))).toBe(false);
     expect(mark(phone.notes.get('a')!)).toBe(phone.state.notes.a?.mark);
+  });
+});
+
+describe('a recording that stays on this device', () => {
+  const tape = new Uint8Array([82, 73, 70, 70, 1, 2, 3]);
+
+  it('is one over the service’s limit, decided from its length without reading a byte: the note goes with its phrases and no digest', async () => {
+    const { api, phone, mac } = await pair();
+    const forty = 40 * 60_000;
+    expect(recordingBytes(forty)).toBeGreaterThan(RECORDING_SYNC_LIMIT);
+    expect(recordingStaysHere({ id: 'a', recordingMs: forty }, {}, false)).toBe(true);
+    expect(recordingStaysHere({ id: 'a', recordingMs: 30 * 60_000 }, {}, false)).toBe(false);
+    const note = makeNote('a', 'a long one', { createdAt: 1, updatedAt: 1, recordingMs: forty, segments: [{ text: 'a long one', startMs: 0, endMs: 900 }] });
+    phone.notes.set('a', note);
+    let reads = 0;
+    const get = phone.tapes.get.bind(phone.tapes);
+    phone.tapes.get = (name: string) => {
+      reads += 1;
+      return get(name);
+    };
+    phone.tapes.set('a', tape);
+    await phone.sync();
+    expect(reads).toBe(0);
+    expect(api.calls.some((call) => call.startsWith('PUT recordings/'))).toBe(false);
+    await mac.sync();
+    expect(mac.notes.get('a')).toMatchObject({ recordingMs: forty, segments: note.segments });
+    expect(mac.tapes.has('a')).toBe(false);
+  });
+
+  it('is a meeting’s while meeting recordings stay on the phone, and goes once the setting says so', async () => {
+    const { api, phone, mac } = await pair();
+    phone.notes.set('m', makeNote('m', '# Meeting, 26 Sep 14:05', { createdAt: 1, updatedAt: 1, recordingMs: 60_000 }));
+    phone.tapes.set('m', tape);
+    await phone.sync({ meetings: { m: 1 }, syncMeetingRecordings: false });
+    expect(api.files.has(fileId('recording', 'm')!)).toBe(false);
+    await mac.sync();
+    expect(mac.notes.get('m')?.recordingMs).toBe(60_000);
+    expect(mac.tapes.has('m')).toBe(false);
+    // Switched on: the next pass sends it, though the words did not change.
+    await phone.sync({ meetings: { m: 1 }, syncMeetingRecordings: true });
+    expect(api.files.has(fileId('recording', 'm')!)).toBe(true);
+    await mac.sync();
+    expect(mac.tapes.get('m')).toEqual(tape);
+    // A recording that is not a meeting's goes as it always did, setting or no setting.
+    expect(stayedHere([makeNote('m', '', { recordingMs: 60_000 }), makeNote('r', '', { recordingMs: 60_000 }), makeNote('big', '', { recordingMs: 40 * 60_000 })], { meetings: { m: 1 }, syncMeetingRecordings: false })).toBe(2);
+  });
+
+  it('is hashed once per length, not on every push: a ticked to-do no longer costs an hour’s audio read three times', async () => {
+    const { phone } = await pair();
+    const note = makeNote('a', 'spoken', { createdAt: 1, updatedAt: 1, recordingMs: 1_200 });
+    phone.notes.set('a', note);
+    let reads = 0;
+    const get = phone.tapes.get.bind(phone.tapes);
+    phone.tapes.get = (name: string) => {
+      reads += 1;
+      return get(name);
+    };
+    phone.tapes.set('a', tape);
+    await phone.sync();
+    expect(reads).toBe(1);
+    expect(phone.state.files[fileId('recording', 'a')!]).toMatchObject({ forMs: 1_200, sha: expect.any(String) });
+    phone.notes.set('a', edited(note, 'spoken, and edited', 2));
+    await phone.sync();
+    expect(reads).toBe(1);
+    // The tape changed only when its length did: an Add to it.
+    phone.notes.set('a', { ...note, body: 'spoken, and edited', updatedAt: 3, recordingMs: 2_400 });
+    phone.tapes.set('a', new Uint8Array([...tape, 4, 5]));
+    await phone.sync();
+    expect(reads).toBe(2);
+    expect(phone.state.files[fileId('recording', 'a')!]).toMatchObject({ forMs: 2_400 });
+  });
+
+  it('takes the phone’s own digest where there is one, reading the bytes only to send them, and remembers a tape that was not there', async () => {
+    const { api } = await pair();
+    const asked: string[] = [];
+    let answer: string | null | undefined = 'abcd'.repeat(8);
+    const phone = syncDevice(api, {
+      digest: async (name) => {
+        asked.push(name);
+        return answer;
+      },
+    });
+    const note = makeNote('a', 'spoken', { createdAt: 1, updatedAt: 1, recordingMs: 1_200 });
+    phone.notes.set('a', note);
+    let reads = 0;
+    const get = phone.tapes.get.bind(phone.tapes);
+    phone.tapes.get = (name: string) => {
+      reads += 1;
+      return get(name);
+    };
+    phone.tapes.set('a', tape);
+    await phone.sync();
+    expect(asked).toEqual(['a']);
+    expect(reads).toBe(1);
+    expect(api.files.has(fileId('recording', 'a')!)).toBe(true);
+    // Hashed at this length: not asked again, not read again.
+    phone.notes.set('a', edited(note, 'spoken, and edited', 2));
+    await phone.sync();
+    expect(asked).toEqual(['a']);
+    expect(reads).toBe(1);
+    // A tape the phone says is not there is remembered at this length, and not asked about on every push.
+    answer = null;
+    phone.notes.set('b', makeNote('b', 'gone', { createdAt: 1, updatedAt: 1, recordingMs: 900 }));
+    await phone.sync();
+    await phone.sync();
+    expect(asked).toEqual(['a', 'b']);
+    expect(phone.state.files[fileId('recording', 'b')!]).toEqual({ rev: 0, forMs: 900 });
+    // A binary that cannot say: the bytes are read and hashed here, as before.
+    answer = undefined;
+    phone.notes.set('c', makeNote('c', 'here', { createdAt: 1, updatedAt: 1, recordingMs: 900 }));
+    phone.tapes.set('c', tape);
+    await phone.sync();
+    expect(api.files.has(fileId('recording', 'c')!)).toBe(true);
+  });
+});
+
+describe('one note that cannot be sent', () => {
+  it('is counted with why, and the others still go; it is sent again next time', async () => {
+    const { api } = await pair();
+    let failing = true;
+    const fetcher: typeof fetch = async (input, init) => {
+      if (failing && init?.method === 'PUT' && String(input).endsWith('/notes/b')) return new Response(JSON.stringify({ error: 'That note is too big.' }), { status: 413, headers: { 'Content-Type': 'application/json' } });
+      return api.fetcher(input, init);
+    };
+    const phone = syncDevice(api, { fetcher });
+    for (const id of ['a', 'b', 'c']) phone.notes.set(id, makeNote(id, `words ${id}`, { createdAt: 1, updatedAt: 1 }));
+    expect(await phone.sync()).toMatchObject({ unsent: 1, reason: 'That note is too big.' });
+    // The refused one never reached the service; the ones after it did.
+    expect(api.calls.filter((call) => call.startsWith('PUT notes/'))).toEqual(['PUT notes/a', 'PUT notes/c']);
+    failing = false;
+    expect(await phone.sync()).toMatchObject({ unsent: 0, reason: null });
+    expect(api.calls.filter((call) => call.startsWith('PUT notes/')).at(-1)).toBe('PUT notes/b');
+  });
+
+  it('is not a lapsed session, which still ends the pass', async () => {
+    const { api } = await pair();
+    const fetcher: typeof fetch = async (input, init) => {
+      if (init?.method === 'PUT' && String(input).includes('/notes/')) return new Response(JSON.stringify({ error: 'Sign in again.' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+      return api.fetcher(input, init);
+    };
+    const phone = syncDevice(api, { fetcher });
+    phone.notes.set('a', makeNote('a', 'words', { createdAt: 1, updatedAt: 1 }));
+    await expect(phone.sync()).rejects.toMatchObject({ status: 401 });
+  });
+});
+
+describe('a summary on both devices', () => {
+  it('keeps one note, this device’s section on the other’s words, and no copy', async () => {
+    const { phone, mac } = await pair();
+    const note = makeNote('a', '# Plan\n\nwords', { createdAt: 1, updatedAt: 1 });
+    phone.notes.set('a', note);
+    await phone.sync();
+    await mac.sync();
+    const mine = '## Summary\nThe phone’s line.\n\n- One.';
+    const theirs = '## Summary\nThe Mac’s line.\n\n- Two.';
+    phone.notes.set('a', edited(note, withSummary(note.body, mine), 2));
+    mac.notes.set('a', edited(note, withSummary(note.body, theirs), 3));
+    await phone.sync();
+    expect(await mac.sync()).toMatchObject({ conflicts: 0, changed: 1 });
+    expect(mac.notes.size).toBe(1);
+    expect(mac.notes.get('a')?.body).toBe(withSummary(note.body, theirs));
+    // The merged note is what the Mac sends next, so the phone comes to hold it too.
+    await phone.sync();
+    expect(phone.notes.get('a')?.body).toBe(withSummary(note.body, theirs));
+    expect(phone.notes.size).toBe(1);
   });
 });

@@ -7,8 +7,11 @@ import { forgetNote } from '../core/workspaces.ts';
 import { forgetResults } from '../format/results.ts';
 import { forgetRuns } from '../ai/log.ts';
 import { forgetMarks } from '../ai/marks.ts';
-import { dropSummary } from '../ai/summaries.ts';
+import { dropSummary, enqueueSummary, summaryNative } from '../ai/summaries.ts';
 import { forgetSummary } from '../ai/summaryKeep.ts';
+import { summaryLine } from '../ai/summaryText.ts';
+import { cancelWriteUpOnHost, writeUpOnHost } from '../core/host.ts';
+import { preferences } from '../core/preferences.ts';
 import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.ts';
 
 /**
@@ -28,6 +31,10 @@ import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.t
  *
  * Archive and pin are real at once - they are flags, not edits, and undoing
  * one is just setting it back.
+ *
+ * A meeting's write-up runs on the phone with the app closed (docs/DESIGN.md §127 section 4): a meeting put in the
+ * trash has its write-up cancelled and its job dropped, and one taken out again with no summary yet is queued for
+ * the phone once more, where the phone has a write-up to run.
  */
 
 const UNDO_MS = 5000;
@@ -124,6 +131,11 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
   const remove = useCallback(
     (note: Note) => {
       trashNote(note.id);
+      // A meeting being written up on the phone: the write-up stops, and its job goes; restored, it is asked again.
+      if (summaryNative(note.id)) {
+        cancelWriteUpOnHost(note.id);
+        dropSummary(note.id);
+      }
       fireNativeHaptic('warning');
       toast({
         message: `Moved ${label(note)} to the Trash.`,
@@ -143,6 +155,10 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
   const restore = useCallback(
     (note: Note) => {
       restoreNote(note.id);
+      // A meeting with no summary yet, back from the trash: written up by the phone again, where the phone can.
+      if (note.id in preferences().meetings && summaryLine(note.body) === null && writeUpOnHost(note.id, false)) {
+        enqueueSummary(note.id, 'meeting', { native: true });
+      }
       fireNativeHaptic('success');
       toast({ message: `${capitalise(label(note))} is back in your notes.`, duration: UNDO_MS });
     },

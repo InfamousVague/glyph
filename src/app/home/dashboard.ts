@@ -48,21 +48,24 @@ export function summaryKindOf(note: Note, meetings: Meetings): SummaryKind {
  * The shelf of tapes on the home page (home/TapeShelf.tsx; Matt: "display them in a cassette shelf on the home
  * page"): every tape, the Guide's pages out, the last recorded first. By `createdAt`, which is how a shelf of tapes
  * reads: a summary or the better words landing later bumps `updatedAt` and must not move a tape along the row. A
- * pinned tape is here as well as in Pinned, since pinning is a deliberate act.
+ * pinned tape is here as well as in Pinned, since pinning is a deliberate act. The meeting being recorded now
+ * (`live`, home/useMeetingLive.ts) is first: its note has no recording yet, and is a tape while it is being made.
  */
-export function tapedNotes(notes: readonly Note[], meetings: Meetings): Note[] {
+export function tapedNotes(notes: readonly Note[], meetings: Meetings, live: string | null = null): Note[] {
   const guide = guidePages(notes);
-  return notes.filter((n) => isTape(n, meetings) && !guide.has(n.id)).sort((a, b) => b.createdAt - a.createdAt);
+  const recording = live !== null ? notes.find((n) => n.id === live && !n.archivedAt) : undefined;
+  const shelf = notes.filter((n) => n.id !== live && isTape(n, meetings) && !guide.has(n.id)).sort((a, b) => b.createdAt - a.createdAt);
+  return recording ? [recording, ...shelf] : shelf;
 }
 
 /**
  * The notes touched last: pinned ones, books and tapes left to their own rows so nothing shows twice, and the Guide's
- * pages out. What the shelf takes is exactly what this leaves out (`isTape`).
+ * pages out. What the shelf takes is exactly what this leaves out (`isTape`, and the meeting being recorded).
  */
-export function recentNotes(notes: readonly Note[], count: number, meetings: Meetings): Note[] {
+export function recentNotes(notes: readonly Note[], count: number, meetings: Meetings, live: string | null = null): Note[] {
   const guide = guidePages(notes);
   return notes
-    .filter((n) => !n.starred && !n.archivedAt && !isBookBody(n.body) && !guide.has(n.id) && !isTape(n, meetings))
+    .filter((n) => n.id !== live && !n.starred && !n.archivedAt && !isBookBody(n.body) && !guide.has(n.id) && !isTape(n, meetings))
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, count);
 }
@@ -147,7 +150,7 @@ export function tapesWaiting(tapes: readonly Note[], sources: { refining: Readon
   const { refining, summaries } = sources;
   const waiting: Waiting = { working: 0, needsModel: 0, failed: 0 };
   for (const { id } of tapes) {
-    if (refining.has(id) || summaries.native.has(id) || summaries.pending.has(id)) waiting.working += 1;
+    if (refining.has(id) || summaries.native.has(id) || summaries.waiting.has(id) || summaries.pending.has(id)) waiting.working += 1;
     else if (summaries.needsModel.has(id)) waiting.needsModel += 1;
     else if (summaries.failed.has(id)) waiting.failed += 1;
   }

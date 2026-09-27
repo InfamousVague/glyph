@@ -1,0 +1,74 @@
+/* The meeting screen (MeetingScreen.tsx): the recorder's frame, with a cassette where the words would be. */
+
+.screen {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  block-size: 100dvh;
+  background: var(--glacier-bg);
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--glacier-space-4);
+  min-block-size: var(--glacier-space-10);
+  padding-block: calc(var(--app-safe-top) + var(--glacier-space-3)) var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2);
+}
+
+.where {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.counter {
+  flex: none;
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--glacier-space-4);
+  text-align: center;
+}
+
+.tape {
+  inline-size: min(100%, 22rem);
+  block-size: auto;
+}
+
+.line {
+  max-inline-size: 28rem;
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.5;
+  color: var(--app-ink-3);
+}
+
+.word {
+  font-size: inherit;
+}
+
+.footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: var(--glacier-space-2) calc(var(--app-safe-bottom) + var(--glacier-space-4));
+}
+
+.done {
+  position: relative;
+}

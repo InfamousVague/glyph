@@ -27,12 +27,12 @@ An answer to the claim slower than 1.5 seconds boots the embedded frontend. A do
 
 A bundle can only run on a binary that has the commands it calls. Two numbers in `ota.rs` say which.
 
-- **`NATIVE_GENERATION`** is what this binary provides: 19 at 1.8.0. Its doc comment lists what each generation brought, from signed manifests (2) through the library of Markdown files (15) and sync (16) to revision-checked note writes and guarded commands (19). A generation never goes backwards.
-- **`BUNDLE_REQUIRES`** is what the page built from this tree needs. `vite.config.ts` reads it out of `ota.rs` (`scripts/lib/otaRs.mjs`, which stops the build if it is no longer a literal) and stamps it into `ota.json` as `native`. It is 19 at 1.8.0 as well, so a phone on an older APK is answered `needs-native` and offered the new APK instead of the update. A compile-time test keeps it at or under `NATIVE_GENERATION`.
+- **`NATIVE_GENERATION`** is what this binary provides: 20 at 1.9.0. Its doc comment lists what each generation brought, from signed manifests (2) through the library of Markdown files (15) and sync (16) and revision-checked note writes and guarded commands (19) to meetings on Android (20: the foreground service that records one with the screen off, the write-up with the app closed, and its notification). A generation never goes backwards.
+- **`BUNDLE_REQUIRES`** is what the page built from this tree needs. `vite.config.ts` reads it out of `ota.rs` (`scripts/lib/otaRs.mjs`, which stops the build if it is no longer a literal) and stamps it into `ota.json` as `native`. It went to 19 at 1.8.0, when every note write came to need the revision-checked commands, and stayed at 19 when the binary went to 20: a phone on a generation-19 APK still takes the page over the air and runs it without Meeting, since every meeting call is gated with `hasNativeGeneration(20)`. A phone older than 19 is answered `needs-native` and offered the new APK instead of the update. A compile-time test keeps it at or under `NATIVE_GENERATION`.
 
 Never stamp `NATIVE_GENERATION` into `ota.json`. That is how AttackFM, where this system was learned, once locked every older binary out of every later update. The deploy writes `NATIVE_GENERATION` into `apk.json`, where it belongs: it is what the APK provides.
 
-Most features leave `BUNDLE_REQUIRES` alone. Each gates itself on its own threshold through `hasNativeGeneration` (`src/app/core/nativeGeneration.ts`), such as `FILES_GENERATION = 18` in `src/app/core/libraryFiles.ts`, and hides on an older binary rather than calling a command it lacks.
+Most features leave `BUNDLE_REQUIRES` alone. Each gates itself on its own threshold through `hasNativeGeneration` (`src/app/core/nativeGeneration.ts`), such as `FILES_GENERATION = 18` in `src/app/core/libraryFiles.ts` and `MEETING_GENERATION = 20` in `src/app/capture/meeting.ts`, and hides on an older binary rather than calling a command it lacks.
 
 ## Trust is a key, not a domain
 

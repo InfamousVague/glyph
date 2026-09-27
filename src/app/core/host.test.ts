@@ -1,5 +1,23 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { answerHost, endCapture, isLocked, setCapturing, takeCaptureLaunch } from './host.ts';
+import {
+  answerHost,
+  cancelWriteUpOnHost,
+  cancelWriteUpsOnHost,
+  canNotify,
+  discardMeetingOnHost,
+  endCapture,
+  forgetDiscardedOnHost,
+  isLocked,
+  meetingStateJson,
+  NO_MEETING_SERVICE,
+  requestNotifications,
+  setCapturing,
+  startMeetingOnHost,
+  stopMeetingOnHost,
+  takeCaptureLaunch,
+  takeHostLink,
+  writeUpOnHost,
+} from './host.ts';
 
 /*
  * The page's line to the Android activity (host.ts). `window.__glyph` is one object every module answers on, and
@@ -97,5 +115,94 @@ describe('what the page asks the activity', () => {
     expect(told).toEqual([true, false]);
     endCapture(true);
     expect(left).toBe(true);
+  });
+});
+
+describe('what the page asks the activity about meetings', () => {
+  it('answers safely with no host, or a host from before the service existed, or one that throws', () => {
+    const quiet = () => {
+      expect(startMeetingOnHost('m1', 'Meeting, 26 Sep 14:05')).toBe(NO_MEETING_SERVICE);
+      expect(() => stopMeetingOnHost()).not.toThrow();
+      expect(() => discardMeetingOnHost()).not.toThrow();
+      expect(meetingStateJson()).toBeNull();
+      expect(requestNotifications()).toBe('blocked');
+      expect(canNotify()).toBe(false);
+      expect(writeUpOnHost('m1', true)).toBe(false);
+      expect(() => cancelWriteUpOnHost('m1')).not.toThrow();
+      expect(() => cancelWriteUpsOnHost()).not.toThrow();
+      expect(() => forgetDiscardedOnHost('m1')).not.toThrow();
+      expect(takeHostLink()).toBe('');
+    };
+    quiet();
+    window.GlyphHost = { isLocked: () => false } as unknown as Window['GlyphHost'];
+    quiet();
+    const old = () => {
+      throw new Error('old build');
+    };
+    window.GlyphHost = {
+      startMeeting: old,
+      stopMeeting: old,
+      discardMeeting: old,
+      meetingState: old,
+      requestNotifications: old,
+      canNotify: old,
+      writeUp: old,
+      cancelWriteUp: old,
+      cancelWriteUps: old,
+      forgetDiscarded: old,
+      takeLink: old,
+    } as unknown as Window['GlyphHost'];
+    quiet();
+  });
+
+  it('reaches a host that has the service, and reads its answers as the page’s own words', () => {
+    const calls: unknown[][] = [];
+    const record =
+      (name: string, answer?: unknown) =>
+      (...args: unknown[]) => {
+        calls.push([name, ...args]);
+        return answer;
+      };
+    window.GlyphHost = {
+      startMeeting: record('startMeeting', 'started'),
+      stopMeeting: record('stopMeeting'),
+      discardMeeting: record('discardMeeting'),
+      meetingState: record('meetingState', '{"recording":false}'),
+      requestNotifications: record('requestNotifications', 'asked'),
+      canNotify: record('canNotify', true),
+      writeUp: record('writeUp', 'queued'),
+      cancelWriteUp: record('cancelWriteUp'),
+      cancelWriteUps: record('cancelWriteUps'),
+      forgetDiscarded: record('forgetDiscarded'),
+      takeLink: record('takeLink', 'ghostmd://note/m1'),
+    } as unknown as Window['GlyphHost'];
+    expect(startMeetingOnHost('m1', 'Meeting, 26 Sep 14:05')).toBe('started');
+    stopMeetingOnHost();
+    discardMeetingOnHost();
+    expect(meetingStateJson()).toBe('{"recording":false}');
+    expect(requestNotifications()).toBe('asked');
+    expect(canNotify()).toBe(true);
+    expect(writeUpOnHost('m1', false)).toBe(true);
+    cancelWriteUpOnHost('m1');
+    cancelWriteUpsOnHost();
+    forgetDiscardedOnHost('m1');
+    expect(takeHostLink()).toBe('ghostmd://note/m1');
+    expect(calls).toEqual([
+      ['startMeeting', 'm1', 'Meeting, 26 Sep 14:05'],
+      ['stopMeeting'],
+      ['discardMeeting'],
+      ['meetingState'],
+      ['requestNotifications'],
+      ['canNotify'],
+      ['writeUp', 'm1', false],
+      ['cancelWriteUp', 'm1'],
+      ['cancelWriteUps'],
+      ['forgetDiscarded', 'm1'],
+      ['takeLink'],
+    ]);
+    // An answer this build does not know is read as the safe one.
+    window.GlyphHost = { requestNotifications: () => 'maybe', writeUp: () => 'busy' } as unknown as Window['GlyphHost'];
+    expect(requestNotifications()).toBe('blocked');
+    expect(writeUpOnHost('m1', true)).toBe(false);
   });
 });

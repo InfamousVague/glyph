@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Book, Link2, SquarePen, Workflow } from '@glacier/icons';
+import { Cassette } from '../art/Icons.tsx';
 import { failureText } from '../core/failure.ts';
 import { SheetField, SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import { Sheet } from '../editor/Sheet.tsx';
@@ -11,8 +12,9 @@ import { Sheet } from '../editor/Sheet.tsx';
  * the sidebar's - so a + means the same thing wherever it is. A tap on the scrim, the back gesture or a drag down
  * closes it and makes nothing.
  *
- * And a copy of something shared with you (share/share.ts, docs/SHARING.md): "From a shared link" takes a link to a
- * shared note or book and saves it into this library as your own copy.
+ * And a meeting (docs/DESIGN.md §127 section 3), only where one can be recorded (capture/meeting.ts): the Mac, and an
+ * Android phone with the service. And a copy of something shared with you (share/share.ts, docs/SHARING.md): "From a
+ * shared link" takes a link to a shared note or book and saves it into this library as your own copy.
  */
 export interface NewSheetProps {
   open: boolean;
@@ -20,11 +22,13 @@ export interface NewSheetProps {
   onNote: () => void;
   onCanvas: () => void;
   onBook: () => void;
+  /** Records a meeting; given only where one can be recorded here. */
+  onMeeting?: () => void;
   /** Saves a copy of a shared note or book from its link; answers nothing, or throws what went wrong. */
   onFromLink?: (link: string) => Promise<void>;
 }
 
-export function NewSheet({ open, onClose, onNote, onCanvas, onBook, onFromLink }: NewSheetProps) {
+export function NewSheet({ open, onClose, onNote, onCanvas, onBook, onMeeting, onFromLink }: NewSheetProps) {
   /** The shared link being pasted, while its field is open; null when it is not. */
   const [link, setLink] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -65,6 +69,7 @@ export function NewSheet({ open, onClose, onNote, onCanvas, onBook, onFromLink }
         <SheetRow icon={SquarePen} label="Note" hint="A page of markdown, typed or said." onPress={pick(onNote)} />
         <SheetRow icon={Workflow} label="Canvas" hint="Cards on a page with lines between them." onPress={pick(onCanvas)} />
         <SheetRow icon={Book} label="Book" hint="Notes in an order, with an index." onPress={pick(onBook)} />
+        {onMeeting ? <SheetRow icon={Cassette} label="Meeting" hint="Record a meeting. The screen can go off. It is written up afterwards." onPress={pick(onMeeting)} /> : null}
         {onFromLink && link === null ? (
           <SheetRow icon={Link2} label="From a shared link" hint="A copy of a note or book someone shared with you." onPress={() => setLink('')} />
         ) : null}

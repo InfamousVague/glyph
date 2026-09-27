@@ -36,7 +36,7 @@ vi.mock('../account/account.ts', () => ({
 /** Every notes pass the engine ran, with what it was given. */
 const passes: SyncContext[] = [];
 /** How a notes pass goes: at once and changing nothing, unless a test says otherwise. */
-let notesPass: (ctx: SyncContext) => Promise<Outcome> = async () => ({ changed: 0, conflicts: 0 });
+let notesPass: (ctx: SyncContext) => Promise<Outcome> = async () => ({ changed: 0, conflicts: 0, unsent: 0, reason: null });
 vi.mock('./notes.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./notes.ts')>()),
   syncNotes: (ctx: SyncContext) => {
@@ -79,7 +79,7 @@ function heldPass(): { release: (outcome?: Outcome) => void } {
   let release: (outcome?: Outcome) => void = () => undefined;
   notesPass = () =>
     new Promise<Outcome>((resolve) => {
-      release = (outcome = { changed: 0, conflicts: 0 }) => resolve(outcome);
+      release = (outcome = { changed: 0, conflicts: 0, unsent: 0, reason: null }) => resolve(outcome);
     });
   return { release: (outcome) => release(outcome) };
 }
@@ -100,7 +100,7 @@ beforeEach(async () => {
   generation = 16;
   passes.length = 0;
   invoked.length = 0;
-  notesPass = async () => ({ changed: 0, conflicts: 0 });
+  notesPass = async () => ({ changed: 0, conflicts: 0, unsent: 0, reason: null });
   prefsPass = async () => false;
   resume.mockClear();
   signOut.mockClear();
@@ -125,7 +125,7 @@ describe('a pass', () => {
     let order = '';
     notesPass = async () => {
       order += 'notes ';
-      return { changed: 0, conflicts: 2 };
+      return { changed: 0, conflicts: 2, unsent: 0, reason: null };
     };
     prefsPass = async () => {
       order += 'prefs';
@@ -133,8 +133,24 @@ describe('a pass', () => {
     };
     await act(() => engine.syncNow());
     expect(order).toBe('notes prefs');
-    expect(status).toEqual({ phase: 'idle', lastAt: 50_000, message: null, conflicts: 2 });
+    expect(status).toEqual({ phase: 'idle', lastAt: 50_000, message: null, conflicts: 2, unsent: 0, unsentReason: null });
     expect(passes[0]).toMatchObject({ token: 't1', key });
+  });
+
+  it('says how many notes it could not send and why, and hands the pass which notes are meetings and whether their audio goes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(50_000);
+    prefs.setPreferences({ meetings: { m1: 40 }, syncMeetingRecordings: true });
+    notesPass = async () => ({ changed: 0, conflicts: 0, unsent: 2, reason: 'The recording is too big for the service.' });
+    await act(() => engine.syncNow());
+    expect(status).toMatchObject({ phase: 'idle', unsent: 2, unsentReason: 'The recording is too big for the service.' });
+    expect(engine.syncSummary('matt', status!)).toBe('matt · 2 notes not synced');
+    expect(passes[0]).toMatchObject({ meetings: { m1: 40 }, syncMeetingRecordings: true });
+    // The next pass that sends everything clears the count.
+    notesPass = async () => ({ changed: 0, conflicts: 0, unsent: 0, reason: null });
+    await act(() => engine.syncNow());
+    expect(status).toMatchObject({ unsent: 0, unsentReason: null });
+    expect(engine.syncSummary('matt', status!)).toBe('matt · synced just now');
   });
 
   it('says it is syncing while it runs', async () => {
@@ -155,7 +171,7 @@ describe('a pass', () => {
     window.addEventListener(store.NOTES_CHANGED, onChanged);
     await act(() => engine.syncNow());
     expect(told).toBe(0);
-    notesPass = async () => ({ changed: 1, conflicts: 0 });
+    notesPass = async () => ({ changed: 1, conflicts: 0, unsent: 0, reason: null });
     await act(() => engine.syncNow());
     expect(told).toBe(1);
     window.removeEventListener(store.NOTES_CHANGED, onChanged);
@@ -164,7 +180,7 @@ describe('a pass', () => {
   it('keeps what it learned under the account, and starts the next pass from it', async () => {
     notesPass = async (ctx) => {
       ctx.save({ ...ctx.state, cursor: ctx.state.cursor + 5 });
-      return { changed: 0, conflicts: 0 };
+      return { changed: 0, conflicts: 0, unsent: 0, reason: null };
     };
     await act(() => engine.syncNow());
     expect(JSON.parse(localStorage.getItem('glyph-sync-7-notes') ?? 'null')).toMatchObject({ cursor: 5 });
@@ -227,7 +243,7 @@ describe('one pass at a time', () => {
     // Every request during a pass is answered with the pass that ends after the queued one.
     expect(second).toBe(first);
     expect(third).toBe(first);
-    notesPass = async () => ({ changed: 0, conflicts: 0 });
+    notesPass = async () => ({ changed: 0, conflicts: 0, unsent: 0, reason: null });
     held.release();
     await act(() => first);
     expect(passes).toHaveLength(2);
@@ -245,7 +261,7 @@ describe('one pass at a time', () => {
     });
     await flush();
     expect(settled).toBe(false);
-    notesPass = async () => ({ changed: 0, conflicts: 0 });
+    notesPass = async () => ({ changed: 0, conflicts: 0, unsent: 0, reason: null });
     held.release();
     await act(() => waiting);
     expect(settled).toBe(true);
@@ -338,7 +354,7 @@ describe('this device and the account', () => {
     notesPass = async (ctx) => {
       const { mark } = await import('./notes.ts');
       ctx.save({ ...ctx.state, notes: { a: { rev: 3, mark: mark(note) } } });
-      return { changed: 0, conflicts: 0 };
+      return { changed: 0, conflicts: 0, unsent: 0, reason: null };
     };
     await act(() => engine.syncNow());
     expect(engine.hasUnsyncedChanges(note)).toBe(false);
@@ -358,7 +374,7 @@ describe('this device and the account', () => {
     expect(localStorage.getItem('glyph-sync-7-notes')).toBeNull();
     expect(localStorage.getItem('glyph-sync-7-prefs')).toBeNull();
     expect(localStorage.getItem('glyph-sync-8-notes')).not.toBeNull();
-    expect(status).toEqual({ phase: 'off', lastAt: null, message: null, conflicts: 0 });
+    expect(status).toEqual({ phase: 'off', lastAt: null, message: null, conflicts: 0, unsent: 0, unsentReason: null });
     expect(await store.getNote('kept')).not.toBeNull();
   });
 
@@ -394,11 +410,12 @@ describe('what the Account page says', () => {
   });
 
   it('gives the Account row the handle and where sync stands', () => {
-    const idle = { phase: 'idle' as const, lastAt: null, message: null, conflicts: 0 };
+    const idle = { phase: 'idle' as const, lastAt: null, message: null, conflicts: 0, unsent: 0, unsentReason: null };
     expect(engine.syncSummary(null, idle)).toBe('Not signed in');
     expect(engine.syncSummary('matt', idle)).toBe('matt');
     expect(engine.syncSummary('matt', { ...idle, phase: 'syncing' })).toBe('matt · syncing');
     expect(engine.syncSummary('matt', { ...idle, phase: 'error' })).toBe('matt · not synced');
     expect(engine.syncSummary('matt', { ...idle, lastAt: Date.now() })).toBe('matt · synced just now');
+    expect(engine.syncSummary('matt', { ...idle, lastAt: Date.now(), unsent: 1 })).toBe('matt · 1 note not synced');
   });
 });
