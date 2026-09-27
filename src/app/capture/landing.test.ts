@@ -41,4 +41,10 @@ describe('what the note’s toast says', () => {
   it('names only the others for a note of the take’s own, which had nothing added to it', () => {
     expect(landingLine({ ...landing, title: 'Buy milk', blocks: [], others: ['m1', 'm2'], into: ['House TODOs', 'Home jobs'] })).toBe('Added to House TODOs and Home jobs');
   });
+
+  it('names what the recording took back at Done, unseen', () => {
+    expect(landingLine({ ...landing, tookBack: ['Call Sam'] })).toBe('Added to House TODOs. Took back “Call Sam”');
+    expect(landingLine({ ...landing, tookBack: ['Call Sam', 'Buy fuses'] })).toBe('Added to House TODOs. Took back “Call Sam” and 1 more');
+    expect(landingLine({ ...landing, tookBack: [] })).toBe('Added to House TODOs');
+  });
 });

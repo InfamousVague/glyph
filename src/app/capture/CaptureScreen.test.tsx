@@ -595,6 +595,52 @@ describe('the sound of a recording', () => {
     expect(await getNote('groceries')).toMatchObject({ recordingMs: 33_000, segments: [eggs] });
   });
 
+  it('keeps a phrase taken back out of the tape’s words and marks its stretch for the better words, the sound kept', async () => {
+    await taped();
+    keeping(36_000, null);
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={onFinish} />);
+    await screen.findByRole('button', { name: 'Adding to “Groceries”' });
+    await say('For the soup.', 1000);
+    await say('Oat milk too.', 2500);
+    await say('Scratch that.', 4000);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+
+    const stored = await getNote('groceries');
+    expect(stored?.body).toBe('# Groceries\n\n- Eggs\n- For the soup');
+    expect(stored?.recordingMs).toBe(36_000);
+    expect(stored?.segments).toEqual([eggs, { text: 'For the soup.', startMs: 31_000, endMs: 31_900 }]);
+    expect(capture.refines).toHaveLength(1);
+    expect(capture.refines[0]).toMatchObject({
+      id: 'groceries',
+      fromMs: 30_000,
+      // The phrase that went, and the take-back itself: replaced by the live phrases inside them, which is none.
+      skip: [
+        { startMs: 32_500, endMs: 33_400 },
+        { startMs: 34_000, endMs: 34_900 },
+      ],
+      live: [{ text: 'For the soup.', startMs: 31_000, endMs: 31_900 }],
+    });
+  });
+
+  it('reads a take-back only the stop heard, and names it in the note’s toast', async () => {
+    await createNote('house', '# House TODOs\n\n- [ ] Fix the gutter\n');
+    keeping(4000, "Hey Ghost, add a note to house to do's. Call Sam. Buy fuses. Scratch that.");
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    await say("Hey Ghost, add a note to house to do's.", 0);
+    await say('Call Sam.', 1000);
+    await say('Buy fuses.', 2000);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+    const [saved, , , , landing] = onFinish.mock.calls[0]!;
+    expect(saved).toMatchObject({ id: 'house', segments: [{ text: 'Call Sam.', startMs: 1000, endMs: 1900 }] });
+    expect(landing).toMatchObject({ noteId: 'house', blocks: ['- [ ] Call Sam'], tookBack: ['Buy fuses'] });
+  });
+
   it('moves a new recording’s sound to the note a confirmed command went to, as before', async () => {
     await createNote('go', 'Go');
     const stop = keeping(3000, 'add to the note labeled Go pack sunscreen');
@@ -994,6 +1040,72 @@ describe('adding to a note as it is said', () => {
     await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
     expect((await getNote('house'))?.body).toBe(HOUSE);
     expect(onFinish.mock.calls[0]?.[0].body).toBe('# Kevin owns the release\n\nCall Sam.');
+  });
+
+  /**
+   * Matt: "Id like sentences to be able to redact" (docs/DESIGN.md §130). The last thing said goes back into smoke,
+   * the chip says what went with Undo, and "scratch that" never flashes onto the page while it is said.
+   */
+  it('takes the last sentence back into smoke, with Undo in the chip that puts it back and writes the words', async () => {
+    const onFinish = await recording();
+    await say('Eggs.', 0);
+    await say('Call Sam.', 1000);
+    await waitFor(() => expect(page()).toContain('Call Sam'));
+    act(() => capture.handlers!.onPartial('Scratch'));
+    expect(page()).not.toContain('Scratch');
+    await say('Scratch that.', 2000);
+    await waitFor(() => expect(page()).not.toContain('Call Sam'));
+    expect(page()).not.toContain('Scratch');
+    expect(screen.getByText(/Took back “Call Sam”/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(page()).toContain('Call Sam'));
+    expect(page()).toContain('Scratch that.');
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(onFinish.mock.calls[0]?.[0].body).toBe('# Eggs\n\nCall Sam. Scratch that.');
+  });
+
+  it('says there is nothing to take back after New note is tapped', async () => {
+    await createNote('daily', '# Daily Life\n\nWent for a walk.');
+    await recording({ noteId: 'daily' });
+    await screen.findByRole('button', { name: 'Adding to “Daily Life”' });
+    await say('Went for a run.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'New note' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Adding to “Daily Life”' })).toBeNull());
+    await say('Scratch that.', 1000);
+    await screen.findByText('Nothing to take back.');
+  });
+
+  it('sends the sentence taken back to the note named, written at Done, and says what it took back at Done', async () => {
+    await createNote('groceries', '# Groceries\n\n- Eggs');
+    const onFinish = await recording();
+    await say('Kevin owns the release.', 0);
+    await say('Oat milk.', 1000);
+    await say('Scratch that, add it to groceries instead.', 2000);
+    await waitFor(() => expect(page()).not.toContain('Oat milk'));
+    expect(screen.getByText(/Sent “Oat milk” to/)).toBeInTheDocument();
+    expect((await getNote('groceries'))?.body).toBe('# Groceries\n\n- Eggs');
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('groceries'))?.body).toBe('# Groceries\n\n- Eggs\n- Oat milk');
+    const [saved, , , , landing] = onFinish.mock.calls[0]!;
+    expect(saved.body).toBe('# Kevin owns the release');
+    expect(landing).toMatchObject({ noteId: saved.id, others: [expect.any(String)], into: ['Groceries'], tookBack: ['Oat milk'] });
+  });
+
+  it('still reads a command left for the reader at Done, over the phrases as the take kept them', async () => {
+    const onFinish = await recording();
+    await say('Hey Ghost, make a list called packing with sunscreen and towels.', 0);
+    await say('Bin bags.', 1000);
+    await say('Scratch that.', 2000);
+    done();
+    const card = await screen.findByRole('region', { name: 'Create Packing' });
+    expect(card.textContent).toContain('sunscreen');
+    expect(card.textContent).not.toContain('Bin bags');
+    fireEvent.click(within(card).getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await listNotes()).map((note) => note.body)).toEqual(['Packing\n\n- Sunscreen\n- Towels\n']);
   });
 
   it('reads a phrase said before the notes were read once they are', async () => {

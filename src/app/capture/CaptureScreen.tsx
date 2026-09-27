@@ -43,6 +43,8 @@ import { findKeyword, findMisheard } from './command.ts';
 import type { CaptureLanding } from './landing.ts';
 import { inOrder, LiveRoute, withoutWords, type LiveCard, type LiveContext, type LiveStep } from './liveRoute.ts';
 import { END, placeTake, placingFor, type Placing } from './place.ts';
+import { withoutCommands } from './refineText.ts';
+import { opensTakeBack } from './takeBack.ts';
 import { lingerMs } from './chip.ts';
 import { RouteChip } from './RouteChip.tsx';
 import { diagnosticsLine, EMPTY_DIAGNOSTICS, soundsSilent, type Diagnostics } from './diagnostics.ts';
@@ -343,6 +345,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
   /** "New note", tapped: a fresh one from here, the words so far kept for the note they were said for (`sealAndFork`). */
   const startNewNote = () => {
+    // The reader first, so the tap and the spoken cue leave it in one state: a take-back open settles.
+    applyRef.current(live.forked());
     sealAndForkRef.current();
     setRoute({ phase: 'moved', title: 'New note' });
     fireNativeHaptic('selection');
@@ -376,8 +380,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           heard();
         }
         // A partial is display only: it routes nothing. While a command is being said, or a note just named waits
-        // for its words, it shows in the chip rather than on the page.
-        const commanding = live.hearingCommand || (commandWordOn() && text !== '' && (findKeyword(text) !== null || findMisheard(text, () => true) !== null));
+        // for its words, it shows in the chip rather than on the page; "scratch that" being said never flashes onto it.
+        const commanding = live.hearingCommand || opensTakeBack(text) || (commandWordOn() && text !== '' && (findKeyword(text) !== null || findMisheard(text, () => true) !== null));
         setItemWords(commanding ? text : '');
         setPartial(commanding ? '' : text);
       },
@@ -618,6 +622,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         case 'insert-words':
           inserts.current.get(step.id)?.segments.push(...step.segments);
           break;
+        case 'insert-unword': {
+          const insert = inserts.current.get(step.id);
+          if (insert) insert.segments = withoutWords(insert.segments, step.segments);
+          break;
+        }
         case 'insert-end':
           showInsert(step.id);
           break;
@@ -825,7 +834,16 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // after it, which is the take being finished.
     if (!live.engaged) {
       const since = heardAll.slice(forkedAt.current);
-      const transcript = forkedAt.current === 0 ? (stopped.transcript ?? committed.map((segment) => segment.text).join(' ').trim()) : since.map((segment) => segment.text).join(' ').trim();
+      // Something was taken back: the phrases as the take kept them, by the rule the better words use (a dropped
+      // stretch cut, a replacement on the same stretch kept), never the raw transcript with the taken-back words in it.
+      const transcript = live.changedWords
+        ? withoutCommands({ skip: take.commandSpans, keywordAt: take.keywordSpans, live: take.segments }, since)
+            .map((segment) => segment.text)
+            .join(' ')
+            .trim()
+        : forkedAt.current === 0
+          ? (stopped.transcript ?? committed.map((segment) => segment.text).join(' ').trim())
+          : since.map((segment) => segment.text).join(' ').trim();
       const read = await readInstruction(transcript, candidates.current);
       if (read.kind === 'command') {
         // The stopped audio is already retained under this capture id. The mutation remains pending until this card is
@@ -998,7 +1016,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           skip: tape.skip,
           keywordAt: tape.keywordAt,
           ...(writer.placing.kind !== 'end' ? { placing: writer.placing } : {}),
-          ...(live.engaged ? { live: shifted(take.segments, tape.fromMs) } : {}),
+          // The take's own phrases whenever they are not the transcript's: a command carried out, or a take-back.
+          ...(live.changedWords ? { live: shifted(take.segments, tape.fromMs) } : {}),
         };
       }
     }
@@ -1007,8 +1026,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const ask = pendingAsk.current ?? undefined;
     // What the recording left in notes that were there already, and the notes it made, for the note that opens.
     // Its Undo drops the better words only for words it takes out of the note that opens: a take written into it.
+    const tookBack = live.tookBackAtDone;
     const landing: CaptureLanding | undefined =
-      into || others.length || made.length ? { noteId: saved.id, title: noteTitle(saved.body), blocks, others, into: intoTitles, made, ...(refineJob && into ? { fromMs: refineJob.fromMs } : {}) } : undefined;
+      into || others.length || made.length
+        ? { noteId: saved.id, title: noteTitle(saved.body), blocks, others, into: intoTitles, made, ...(refineJob && into ? { fromMs: refineJob.fromMs } : {}), ...(tookBack.length ? { tookBack: [...tookBack] } : {}) }
+        : undefined;
     // A take written into a note that already existed opens it with its Undo, and no review: the words are in it as
     // they were said (Matt: "instead of doing the second pass over at the end"). The better words land after the note
     // is left (capture/refine.ts `holdNote`).
@@ -1162,7 +1184,12 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       ) : pending ? (
         <ConfirmCard offer={pending} onConfirm={confirmPending} onCancel={cancelPending} />
       ) : route ? (
-        <RouteChip route={route} itemWords={itemWords} />
+        <RouteChip
+          route={route}
+          itemWords={itemWords}
+          // A take-back's Undo, withheld once Done is writing, as a one-shot's Not this note is.
+          onUndo={route.phase === 'tookBack' && route.undo !== undefined && phase !== 'finishing' && !finished.current ? () => applySteps(live.undoTakeBack(route.undo!)) : undefined}
+        />
       ) : !hasWords && phase === 'listening' ? (
         // Before the first word: the whole of what can be said, as a card (SayCard.tsx); once talking has begun, one tip at a time in a pause.
         <SayCard starters={say} />

@@ -132,6 +132,21 @@ describe('the better words of what the live reader changed', () => {
     expect(refined(take, heard, { baseBody: base })).toBe('# Groceries\n\n- Eggs\n- Milk\n- Butter\n- Bread\n');
   });
 
+  it('leaves what was taken back out, keeps what replaced it, and never brings “scratch that” back', () => {
+    const dropped = play(['Pick up the parcel.', 'Call Sam.', 'Scratch that.']);
+    expect(refined(dropped.take, dropped.heard, { baseBody: '', titled: true })).toBe('# Pick up the parcel');
+    // The larger model heard the drop and the sentence after it as one phrase.
+    const merged = [{ text: 'Scratch that. We need eggs and milk.', startMs: 1900, endMs: 4000 }];
+    const after = play(['Pick up the parcel.', 'Call Sam.', 'Scratch that.', 'We need eggs and milk.']);
+    expect(refinedBody(job({ titled: true, skip: after.take.commandSpans, keywordAt: after.take.keywordSpans, live: after.take.segments }), [after.heard[0]!, ...merged])).toBe('# Pick up the parcel\n\nWe need eggs and milk.');
+
+    const replaced = play(['Pick up the parcel.', 'The meeting is at three.', 'Actually, the meeting is at four.']);
+    expect(refined(replaced.take, replaced.heard, { baseBody: '', titled: true })).toBe('# Pick up the parcel\n\nThe meeting is at four.');
+
+    const changed = play(['Pick up the parcel.', 'The meeting is at three.', 'No wait, four.']);
+    expect(refined(changed.take, changed.heard, { baseBody: '', titled: true })).toBe('# Pick up the parcel\n\nThe meeting is at four.');
+  });
+
   it('leaves what a one-shot sent to another note out of the take’s own', () => {
     const { take, heard } = play(['Kevin owns the release.', 'Hey Ghost, add to House TODOs.', 'Call the electrician.', 'Buy fuses.', 'Ring the plumber.', 'Next, the budget review is Friday.']);
     expect(refined(take, heard, { baseBody: '', titled: true })).toBe('# Kevin owns the release\n\nNext, the budget review is Friday.');

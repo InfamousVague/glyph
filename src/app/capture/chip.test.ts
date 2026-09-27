@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chipPhase, lingerMs, partialCommand } from './chip.ts';
+import { LIVE_TIMING } from './liveRoute.ts';
 
 /** The recorder's chip (capture/chip.ts): which of its three looks it takes, and how long a settled one stays. */
 
@@ -15,6 +16,10 @@ describe('the chip’s look', () => {
     expect(chipPhase({ phase: 'missed', title: 'Oven' })).toBe('missed');
     expect(chipPhase({ phase: 'moved', title: 'Work' })).toBe('moved');
   });
+
+  it('has its own look for the last thing said, taken back', () => {
+    expect(chipPhase({ phase: 'tookBack', said: 'Call Sam', outcome: 'gone', undo: 3 })).toBe('tookBack');
+  });
 });
 
 describe('how long a chip stays', () => {
@@ -24,6 +29,12 @@ describe('how long a chip stays', () => {
     expect(lingerMs({ phase: 'done', text: 'Added to the note you named' })).toBe(2200);
     expect(lingerMs({ phase: 'moved', title: 'Work' })).toBe(2200);
     expect(lingerMs({ phase: 'missed', title: 'Oven' })).toBe(2200);
+  });
+
+  it('keeps a take-back and its Undo for four seconds, inside the reader’s own window for it', () => {
+    const chip = { phase: 'tookBack', said: 'Call Sam', outcome: 'gone', undo: 3 } as const;
+    expect(lingerMs(chip)).toBe(4000);
+    expect(lingerMs(chip)!).toBeLessThan(LIVE_TIMING.takeBackMs);
   });
 
   it('keeps one still under way until the recorder says more', () => {
