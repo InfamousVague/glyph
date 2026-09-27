@@ -418,14 +418,9 @@ pub fn run(data_dir: &Path, id: &str, options: &Options) -> Answer {
         Some(progress) => progress,
         None => Progress::queued(id, &options.title.clone().unwrap_or_else(|| note_title(&dirs.library, id))),
     };
-    if guards::capturing() {
-        return hold(&mut progress, &path, "capturing", None);
-    }
-    let Some(_write_up) = guards::try_write_up() else {
-        return hold(&mut progress, &path, "busy", None);
-    };
 
-    // The phase, settled before anything runs (DESIGN §127 section 4's rule for a terminal file).
+    // The phase, settled before anything runs (DESIGN §127 section 4's rule for a terminal file),
+    // and before the holds below, so a `done` file looked at during a capture is still done.
     // A `needsModel` file looked at again without `fresh` says so a second time (`again`), and
     // Kotlin posts nothing; Try again after a download is a fresh look, and the answer is new.
     let was_needs_model = progress.phase == Phase::NeedsModel && !options.fresh;
@@ -448,6 +443,12 @@ pub fn run(data_dir: &Path, id: &str, options: &Options) -> Answer {
     if let Err(e) = progress.save(&path, fresh) {
         return Answer::Retry(e);
     }
+    if guards::capturing() {
+        return hold(&mut progress, &path, "capturing", None);
+    }
+    let Some(_write_up) = guards::try_write_up() else {
+        return hold(&mut progress, &path, "busy", None);
+    };
 
     let config = Config::read(&dirs.jobs);
     if !options.now && config.write_up == "charging" && !options.charging && options.battery_percent < WRITE_UP_BATTERY {
@@ -842,6 +843,11 @@ mod tests {
         assert_eq!(body_of(&root), "# Meeting, 26 Sep 14:05\n\n## Transcript\n", "the note is never wordless on disk");
         assert_eq!(run(&root, "n1", &now()), Answer::AlreadyDone, "nothing to post twice");
         assert!(lock(&guards::RUNNING_JOB).is_none(), "the run cleared itself");
+        // A done file looked at during a capture is still done, never put to waiting.
+        guards::set_capturing(true);
+        assert_eq!(run(&root, "n1", &now()), Answer::AlreadyDone);
+        guards::set_capturing(false);
+        assert_eq!(progress_of(&root).phase, Phase::Done);
     }
 
     #[test]
