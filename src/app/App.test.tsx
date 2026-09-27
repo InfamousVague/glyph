@@ -76,7 +76,7 @@ vi.mock('./notes/NotePeek.tsx', () => ({ NotePeek: () => null }));
 const needsModel = vi.hoisted(() => new Set<string>());
 vi.mock('./ai/summaries.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ai/summaries.ts')>()),
-  useSummaries: () => ({ pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel }),
+  useSummaries: () => ({ pending: new Set<string>(), native: new Set<string>(), waiting: new Set<string>(), failed: new Set<string>(), needsModel }),
   retrySummary: () => undefined,
 }));
 vi.mock('./share/share.ts', async (importOriginal) => ({

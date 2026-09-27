@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { LoaderCircle } from '@glacier/icons';
 import { kindWords } from '../ai/kinds.ts';
-import { retrySummary, useSummaries } from '../ai/summaries.ts';
+import { retrySummary, useSummaries, writeUpNow } from '../ai/summaries.ts';
 import { summaryLine } from '../ai/summaryText.ts';
 import { useRefining } from '../capture/refine.ts';
 import { TAPE_MS, counter } from '../capture/tape.ts';
@@ -23,8 +23,9 @@ import styles from './TapeShelf.module.css';
  * of thing: the cassette drawn bare (tapes/TapeArt.tsx) at the card's inner width, its title under it in two lines
  * of real type (at the old shelf's 11rem one line held about twenty-two characters), then the caption with three
  * lines' room for a summary's prose line - the first true thing in the order home/tapeCaption.ts keeps: a meeting
- * being recorded, the better words or a summary on their way, a model that is missing, a summary that did not come,
- * the summary's first line, or the gist - then, when the tape could be written up and nothing is doing it,
+ * being recorded, the better words or a summary on their way, a write-up waiting for the phone to charge, a model
+ * that is missing, a summary that did not come, the summary's first line, or the gist - then, when the tape could be
+ * written up and nothing is doing it,
  * "Summarize" (Matt asked for summaries and quick actions; the strip's own verb, so the tape has one verb on the
  * shelf and in the note), and last the note card's foot, "12:40 · 26 Sep". A tap on the cassette or the title opens
  * the note; the reels are still, since the tape is the player and lives in the note (§26). The longest tape on the
@@ -114,6 +115,15 @@ function CaptionLine({ caption, id, onGetModel }: { caption: Caption | null; id:
         <p className={styles.caption} role="status">
           <LoaderCircle size={14} strokeWidth={2.2} className={styles.working} aria-hidden="true" />
           {caption.keepOpen ? `${caption.word}. Keep Ghost.md open.` : caption.word}
+        </p>
+      );
+    case 'waiting':
+      return (
+        <p className={styles.caption} role="status">
+          Waiting to charge{' '}
+          <button type="button" className={`app-word ${styles.word}`} onClick={() => writeUpNow(id)}>
+            Write up now
+          </button>
         </p>
       );
     case 'needsModel':

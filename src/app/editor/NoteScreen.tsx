@@ -24,13 +24,14 @@ import { Byline } from '../authors/Byline.tsx';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { useUnfold } from '../core/unfold.ts';
-import type { Note } from '../core/store.ts';
+import { getNote, type Note } from '../core/store.ts';
 import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.ts';
 import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
-import { enqueueSummary } from '../ai/summaries.ts';
+import { enqueueSummary, onRecordingChanged } from '../ai/summaries.ts';
 import { keptText, summaryBehind, summaryUnchanged } from '../ai/summaryKeep.ts';
+import { summaryKindOf } from '../home/dashboard.ts';
 import { summarySection } from '../ai/summaryText.ts';
 import type { CaptureLanding } from '../capture/landing.ts';
 import { keepAllChanges } from './aiChanges.ts';
@@ -127,9 +128,33 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     fireNativeHaptic('selection');
   };
   const [view, setView] = useState<EditorView | null>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  viewRef.current = view;
   const { toast, dismiss } = useToast();
-  // The live words, and their saving: everything below that reads or writes the note goes through these.
-  const { body, onChange, flush, title, blank } = useNoteSaving(note, rename);
+  // The live words, and their saving: everything below that reads or writes the note goes through these. Words that
+  // arrive from outside the editor - a meeting's transcript from the phone's write-up - are put into it whole.
+  const { body, onChange, flush, title, blank, adopt } = useNoteSaving(note, rename, {
+    onExternalChange: (next) => {
+      const editor = viewRef.current;
+      if (!editor) return;
+      const now = editor.state.doc.toString();
+      if (now !== next) editor.dispatch({ changes: { from: 0, to: now.length, insert: next } });
+    },
+  });
+  // The phone's write-up changed this note (ai/summaries.ts `onRecordingChanged`): its transcript is read and shown,
+  // when nothing typed here is waiting to be saved; else the next save picks it up.
+  useEffect(
+    () =>
+      onRecordingChanged((id) => {
+        if (id !== note.id) return;
+        void getNote(note.id)
+          .then((fresh) => {
+            if (fresh) adopt(fresh);
+          })
+          .catch(() => undefined);
+      }),
+    [note.id, adopt],
+  );
   /*
    * A note that is a canvas (docs/CANVAS.md) is drawn as one where its words would be. Its JSON is there behind the
    * header's view switch (Matt: "the raw JSON in the editor"), but as the note's own switch rather than the
@@ -347,7 +372,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
                   ? {
                       ask: (replace) => {
                         flush();
-                        enqueueSummary(note.id, 'recording', { replace });
+                        // The tape's real kind: a meeting's write-up for a meeting, a recording's otherwise.
+                        enqueueSummary(note.id, summaryKindOf(note, prefs.meetings), { replace });
                       },
                       edited: () => {
                         const section = summarySection(body.current, keptText(note.id));

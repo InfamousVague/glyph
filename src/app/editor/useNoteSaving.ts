@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { transcriptOf, withoutTranscript, withTranscript } from '../capture/markdown.ts';
 import { withFrontMatterTitle } from '../core/frontMatter.ts';
-import { noteTitle, updateNote, type Note } from '../core/store.ts';
+import { getNote, noteTitle, updateNote, type Note } from '../core/store.ts';
 
 /**
  * Saving the open note, which is the part of the note screen with teeth (editor/NoteScreen.tsx).
@@ -19,6 +20,14 @@ import { noteTitle, updateNote, type Note } from '../core/store.ts';
  * screen: a `saveNote` from elsewhere is flushed away by the next keystroke. So what must change the open note asks
  * the screen instead - a rename from the note's tab arrives as `rename` and is written here, through `onChange`, on
  * the same debounce as typing (App.tsx keeps the other half of this rule).
+ *
+ * One writer outside the page is allowed in: the phone's own write-up of a meeting, which appends the transcript to
+ * the note from Rust while the note may be open (docs/DESIGN.md §127 section 4). A save that then conflicts is read
+ * again, and when the stored note differs from what was being saved by that transcript alone (capture/markdown.ts
+ * `withoutTranscript`), the save is REBASED: the transcript is put onto the words as they are, the revision taken,
+ * the save made again, and the editor handed the result (`onExternalChange`). Any other conflict stops the saving as
+ * it always has. And a note the write-up changed while nothing here was unsaved is simply adopted (`adopt`), so the
+ * transcript is seen arriving rather than found at the next visit.
  */
 
 /** A rename asked for from the note's tab (notes/NoteTabs.tsx); `asked` rises with each asking. */
@@ -39,20 +48,41 @@ export interface NoteSaving {
   title: string;
   /** No words at all yet: the page shows the ghost with its pen (art/Ghost.tsx). */
   blank: boolean;
+  /**
+   * The note as the store has it now, taken as the editor's words and revision, when nothing here is unsaved: true
+   * when it was taken, and the editor was handed the words (`onExternalChange`). False with an edit still to save,
+   * which the next save's rebase looks after.
+   */
+  adopt: (stored: Note) => boolean;
+}
+
+export interface NoteSavingOptions {
+  /** The words changed under the editor - a transcript arrived - and the editor is to show them. */
+  onExternalChange?: (body: string) => void;
 }
 
 const SAVE_DEBOUNCE_MS = 400;
 
-export function useNoteSaving(note: Note, rename?: NoteRename | null): NoteSaving {
+export function useNoteSaving(note: Note, rename?: NoteRename | null, { onExternalChange }: NoteSavingOptions = {}): NoteSaving {
   const [title, setTitle] = useState(() => noteTitle(note.body));
   // The live document, held in a ref rather than state: it changes on every keystroke and nothing in the screen's
   // render depends on it, so putting it in state would re-render the screen once per character for nothing.
   const body = useRef(note.body);
   const saved = useRef(note.body);
+  /** The body the store last took from here: what a conflict is measured against. */
+  const written = useRef(note.body);
   const revision = useRef(note.revision ?? 1);
   const writes = useRef<Promise<void>>(Promise.resolve());
   const writable = useRef(true);
   const timer = useRef<number | null>(null);
+  const external = useRef(onExternalChange);
+  external.current = onExternalChange;
+
+  /** The editor shown words that came from outside it, and the header title with them. */
+  const handOver = useCallback((next: string) => {
+    setTitle(noteTitle(next));
+    external.current?.(next);
+  }, []);
 
   const flush = useCallback(() => {
     if (timer.current !== null) {
@@ -67,14 +97,38 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null): NoteSavin
       try {
         const stored = await updateNote(note.id, pending, revision.current);
         revision.current = stored.revision ?? revision.current + 1;
+        written.current = pending;
       } catch (failure) {
-        // The row was deleted or another writer won. Most importantly, this
-        // editor has no insertion API and therefore cannot bring Delete back.
+        // Another writer won, or the row was deleted. The one writer allowed is the phone's write-up, which appends
+        // the transcript: when that is the whole difference between the store and what was last written from here,
+        // the save is made again over it (the header says why).
+        const stored = await getNote(note.id).catch(() => null);
+        const transcript = stored ? transcriptOf(stored.body) : null;
+        if (stored && transcript !== null && transcript !== transcriptOf(written.current) && withoutTranscript(stored.body) === withoutTranscript(written.current)) {
+          const rebased = withTranscript(pending, transcript);
+          revision.current = stored.revision ?? revision.current;
+          saved.current = rebased;
+          // Typed on since: the words in hand keep the transcript's place for the next save; else they are these.
+          if (body.current === pending) {
+            body.current = rebased;
+            handOver(rebased);
+          } else body.current = withTranscript(body.current, transcript);
+          try {
+            const again = await updateNote(note.id, rebased, revision.current);
+            revision.current = again.revision ?? revision.current + 1;
+            written.current = rebased;
+          } catch (second) {
+            writable.current = false;
+            console.warn('[glyph] editor save stopped:', second);
+          }
+          return;
+        }
+        // Most importantly, this editor has no insertion API and therefore cannot bring Delete back.
         writable.current = false;
         console.warn('[glyph] editor save stopped:', failure);
       }
     });
-  }, [note.id]);
+  }, [note.id, handOver]);
 
   const [blank, setBlank] = useState(() => !note.body.trim());
   const onChange = useCallback(
@@ -91,6 +145,21 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null): NoteSavin
       timer.current = window.setTimeout(flush, SAVE_DEBOUNCE_MS);
     },
     [flush],
+  );
+
+  const adopt = useCallback(
+    (stored: Note): boolean => {
+      if (!writable.current || body.current !== saved.current) return false;
+      revision.current = stored.revision ?? revision.current;
+      written.current = stored.body;
+      if (stored.body === body.current) return true;
+      body.current = stored.body;
+      saved.current = stored.body;
+      setBlank(!stored.body.trim());
+      handOver(stored.body);
+      return true;
+    },
+    [handOver],
   );
 
   // A rename asked for from this note's tab, written the way the canvas itself writes (see the header).
@@ -115,5 +184,5 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null): NoteSavin
     };
   }, [flush]);
 
-  return { body, onChange, flush, title, blank };
+  return { body, onChange, flush, title, blank, adopt };
 }

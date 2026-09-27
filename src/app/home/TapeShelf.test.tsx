@@ -17,16 +17,19 @@ const sources = vi.hoisted(() => ({
   refining: new Set<string>(),
   pending: new Set<string>(),
   native: new Set<string>(),
+  waiting: new Set<string>(),
   failed: new Set<string>(),
   needsModel: new Set<string>(),
   lines: new Map<string, string>(),
   retried: [] as string[],
+  writtenUp: [] as string[],
 }));
 vi.mock('./useMeetingLive.ts', () => ({ useMeetingLive: () => sources.recording }));
 vi.mock('../capture/refine.ts', () => ({ useRefining: () => ({ pending: sources.refining, download: null }) }));
 vi.mock('../ai/summaries.ts', () => ({
-  useSummaries: () => ({ pending: sources.pending, native: sources.native, failed: sources.failed, needsModel: sources.needsModel }),
+  useSummaries: () => ({ pending: sources.pending, native: sources.native, waiting: sources.waiting, failed: sources.failed, needsModel: sources.needsModel }),
   retrySummary: (id: string) => sources.retried.push(id),
+  writeUpNow: (id: string) => sources.writtenUp.push(id),
 }));
 vi.mock('../ai/summaryText.ts', () => ({ summaryLine: (body: string) => sources.lines.get(body) ?? null }));
 vi.mock('../core/platform.ts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../core/platform.ts')>()), isMobile: true }));
@@ -37,9 +40,10 @@ afterEach(() => {
   unmount();
   vi.restoreAllMocks();
   sources.recording = null;
-  for (const set of [sources.refining, sources.pending, sources.native, sources.failed, sources.needsModel]) set.clear();
+  for (const set of [sources.refining, sources.pending, sources.native, sources.waiting, sources.failed, sources.needsModel]) set.clear();
   sources.lines.clear();
   sources.retried.length = 0;
+  sources.writtenUp.length = 0;
 });
 
 const tape = (id: string, recordingMs: number, over: Partial<Note> = {}) =>
@@ -120,7 +124,7 @@ describe('the shelf', () => {
     sources.lines.set(note.body, 'Done.');
     expect(shelf([note], { canSummarize: true }).querySelector('[class*=offer]')).toBeNull();
     unmount();
-    for (const set of [sources.refining, sources.pending, sources.native, sources.failed, sources.needsModel]) {
+    for (const set of [sources.refining, sources.pending, sources.native, sources.waiting, sources.failed, sources.needsModel]) {
       set.add('n');
       expect(shelf([tape('n', 200_000)], { canSummarize: true }).querySelector('[class*=offer]')).toBeNull();
       unmount();
@@ -142,22 +146,23 @@ describe('the shelf', () => {
 });
 
 describe('the caption', () => {
-  const none = { pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() };
+  const none = { pending: new Set<string>(), native: new Set<string>(), waiting: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() };
   const quiet = { recording: null, refining: new Set<string>(), summaries: none, phone: false, canSummarize: false };
   const note = tape('n', 60_000);
   const long = tape('n', 1_200_000);
   const set = (...ids: string[]) => new Set(ids);
 
-  it('is the first true thing in its order: recording, listening again, writing up, summarizing, needs a model, didn’t come, the summary, the gist', () => {
-    const everything = { recording: 'n', refining: set('n'), summaries: { pending: set('n'), native: set('n'), failed: set('n'), needsModel: set('n') }, phone: false, canSummarize: false };
+  it('is the first true thing in its order: recording, listening again, writing up, summarizing, waiting to charge, needs a model, didn’t come, the summary, the gist', () => {
+    const everything = { recording: 'n', refining: set('n'), summaries: { pending: set('n'), native: set('n'), waiting: set('n'), failed: set('n'), needsModel: set('n') }, phone: false, canSummarize: false };
     sources.lines.set(note.body, 'The first line.');
     expect(captionOf(note, everything, 'a gist')).toEqual({ kind: 'recording' });
     expect(captionOf(note, { ...everything, recording: null }, 'a gist')).toEqual({ kind: 'working', word: 'Listening again', keepOpen: false });
     expect(captionOf(note, { ...everything, recording: null, refining: set() }, 'a gist')).toEqual({ kind: 'working', word: 'Writing up', keepOpen: false });
     const noNative = { ...everything.summaries, native: set() };
     expect(captionOf(note, { ...quiet, summaries: noNative }, 'a gist')).toEqual({ kind: 'working', word: 'Summarizing', keepOpen: false });
-    expect(captionOf(note, { ...quiet, summaries: { ...noNative, pending: set() } }, 'a gist')).toEqual({ kind: 'needsModel' });
-    expect(captionOf(note, { ...quiet, summaries: { ...noNative, pending: set(), needsModel: set() } }, 'a gist')).toEqual({ kind: 'failed' });
+    expect(captionOf(note, { ...quiet, summaries: { ...noNative, pending: set() } }, 'a gist')).toEqual({ kind: 'waiting' });
+    expect(captionOf(note, { ...quiet, summaries: { ...noNative, pending: set(), waiting: set() } }, 'a gist')).toEqual({ kind: 'needsModel' });
+    expect(captionOf(note, { ...quiet, summaries: { ...noNative, pending: set(), waiting: set(), needsModel: set() } }, 'a gist')).toEqual({ kind: 'failed' });
     expect(captionOf(note, quiet, 'a gist')).toEqual({ kind: 'line', text: 'The first line.' });
     sources.lines.clear();
     expect(captionOf(note, quiet, 'a gist')).toEqual({ kind: 'line', text: 'a gist' });
@@ -208,6 +213,16 @@ describe('the caption', () => {
     expect(sources.retried).toEqual(['a']);
   });
 
+  it('says the write-up is waiting to charge, with Write up now, which asks the phone to run it from the front', () => {
+    sources.waiting.add('a');
+    const host = shelf([tape('a', 1000)]);
+    expect(captions(host)).toEqual(['Waiting to charge Write up now']);
+    // No spinner: nothing is happening to it until the phone charges, or the word is tapped.
+    expect(host.querySelector('[class*=working]')).toBeNull();
+    act(() => button('Write up now', host).click());
+    expect(sources.writtenUp).toEqual(['a']);
+  });
+
   it('offers Get a model while the job waits for one, which opens Settings', () => {
     sources.needsModel.add('a');
     const onGetModel = vi.fn();
@@ -224,7 +239,7 @@ describe('the caption', () => {
 });
 
 describe('the offer', () => {
-  const none = { pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() };
+  const none = { pending: new Set<string>(), native: new Set<string>(), waiting: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() };
   const can = { recording: null, refining: new Set<string>(), summaries: none, phone: false, canSummarize: true };
   const set = (...ids: string[]) => new Set(ids);
 
@@ -239,7 +254,7 @@ describe('the offer', () => {
     // Each state with a caption of its own: no offer beside it.
     expect(canOfferSummary(tape('n', 180_000), { ...can, recording: 'n' })).toBe(false);
     expect(canOfferSummary(tape('n', 180_000), { ...can, refining: set('n') })).toBe(false);
-    for (const key of ['pending', 'native', 'failed', 'needsModel'] as const) {
+    for (const key of ['pending', 'native', 'waiting', 'failed', 'needsModel'] as const) {
       expect(canOfferSummary(tape('n', 180_000), { ...can, summaries: { ...none, [key]: set('n') } })).toBe(false);
     }
   });
