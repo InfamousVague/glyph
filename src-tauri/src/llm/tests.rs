@@ -74,13 +74,23 @@ fn repo_dir() -> PathBuf {
 
 /// A prompt from any page file under `src/app/`, by the name of its `String.raw` constant.
 fn page_prompt_in(file: &str, name: &str) -> String {
+    page_prompt_if(file, name).unwrap_or_else(|| panic!("{name} is a String.raw literal in {file}"))
+}
+
+/// `page_prompt_in`, for a literal another branch may not have written yet: `None`, said as SKIPPED, when the file
+/// does not declare it that way.
+fn page_prompt_if(file: &str, name: &str) -> Option<String> {
     let source = std::fs::read_to_string(repo_dir().join("src/app").join(file))
         .unwrap_or_else(|_| panic!("{file} is in the repository"));
     // The declaration, not the docblock's mention of `String.raw` above it.
     let opener = format!("{name} = String.raw`");
-    let start = source.find(&opener).unwrap_or_else(|| panic!("{name} is a String.raw literal")) + opener.len();
+    let Some(at) = source.find(&opener) else {
+        eprintln!("SKIPPED: {name} is not a String.raw literal in src/app/{file} yet");
+        return None;
+    };
+    let start = at + opener.len();
     let end = start + source[start..].find('`').expect("the literal closes");
-    source[start..end].trim().to_string()
+    Some(source[start..end].trim().to_string())
 }
 
 /// A spoken note as the recorder writes it: cues applied, no other shape.
@@ -316,6 +326,64 @@ fn keeps_a_table_token_on_its_own_line() {
     assert!(text.lines().any(|l| l.trim() == "![table-1](table)"), "the token is on its own line:\n{}", output.text);
     assert!(!text.contains("|--") && !text.contains("| --"), "no table of its own:\n{}", output.text);
     eprintln!("{}", output.text);
+}
+
+/// The write-up's compiled-in prompts (write_up.rs) are the page's, word for word: a fresh install whose page has
+/// not written `jobs/config.json` yet must write the same summary the page would ask for. No model needed.
+#[test]
+fn the_write_ups_compiled_in_prompts_are_the_pages() {
+    use crate::write_up::{fill, prompts, thousands};
+    assert_eq!(prompts::SUMMARY, page_prompt("RECORDING_SUMMARY_PROMPT"));
+    assert_eq!(prompts::NOTES, page_prompt("RECORDING_NOTES_PROMPT"));
+    if let Some(piece) = page_prompt_if("format/prompt.ts", "PIECE_CONTEXT") {
+        assert_eq!(prompts::PIECE, piece);
+        assert_eq!(fill(&piece, &[("n", "2"), ("m", "5")]), "Part 2 of 5 of one recording.");
+    }
+    if let Some(parts) = page_prompt_if("format/prompt.ts", "NOTES_CONTEXT") {
+        assert_eq!(prompts::PARTS, parts);
+        assert!(fill(&parts, &[("words", &thousands(41_230))]).contains("41,230"));
+    }
+    assert_eq!(thousands(41_230), "41,230");
+}
+
+/// The recording's summary (RECORDING_SUMMARY_PROMPT) over a meeting with two other speakers: only the recorder's
+/// own actions ("I need to write the release notes") get a box, and Priya's and Tom's never do.
+#[test]
+fn recording_summary_boxes_only_the_recorders_own_actions() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let budget = crate::write_up::summary_budget(MEETING.len());
+    let (result, _) = run(&path, request("meeting", &page_prompt("RECORDING_SUMMARY_PROMPT"), MEETING, budget), Arc::default(), |_| {});
+    let output = result.expect("a generation");
+    let text = output.text.trim();
+    eprintln!("{text}");
+    assert!(text.starts_with('#'), "starts with a heading:\n{text}");
+    let boxed: Vec<&str> = text.lines().filter(|l| l.trim_start().starts_with("- [ ]")).collect();
+    assert!(!boxed.is_empty(), "the recorder's own actions are boxed:\n{text}");
+    let lower = |l: &&str| l.to_lowercase();
+    assert!(boxed.iter().map(lower).any(|l| l.contains("release notes") || l.contains("demo room") || l.contains("keys")), "the I lines:\n{text}");
+    for line in boxed.iter().map(lower) {
+        assert!(!line.contains("priya") && !line.contains("tom"), "another person's action is never boxed:\n{text}");
+    }
+}
+
+/// The notes on one piece (RECORDING_NOTES_PROMPT): items and nothing else.
+#[test]
+fn recording_notes_are_items_only() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let prompt = format!("{}\n\n{MEETING}", crate::write_up::fill(crate::write_up::prompts::PIECE, &[("n", "1"), ("m", "3")]));
+    let budget = crate::write_up::notes_budget(MEETING.len());
+    let (result, _) = run(&path, request("notes", &page_prompt("RECORDING_NOTES_PROMPT"), &prompt, budget), Arc::default(), |_| {});
+    let output = result.expect("a generation");
+    let text = output.text.trim();
+    eprintln!("{text}");
+    let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    assert!(!lines.is_empty());
+    for line in &lines {
+        assert!(line.starts_with("- "), "an item, nothing else:\n{text}");
+    }
+    assert!(lines.len() <= 12, "at most twelve:\n{text}");
 }
 
 /// The review prompt the page sends after a recording (src/app/review/prompt.ts).

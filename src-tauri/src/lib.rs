@@ -98,6 +98,21 @@ mod ota;
 #[cfg(target_os = "android")]
 mod update_alerts;
 
+// A meeting's write-up with the app closed: the recording finished, transcribed
+// span by span, the transcript into the note, the summary from the model.
+// Tauri-free, like the engines it drives; not on iOS, which has neither. Only
+// the JNI door reaches it, so on the Mac it is built and tested and called by
+// nothing, as `unsupported` is on the phone.
+#[cfg(not(target_os = "ios"))]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+mod write_up;
+// The webview's door to the write-ups and the tapes: the job config, the
+// result, every job's state, a digest, a removal.
+mod recording_commands;
+// The JNI door the meeting service and its WorkManager job call: finish, run, cancel.
+#[cfg(target_os = "android")]
+mod recording_jobs;
+
 // The window fixes one platform needs: iOS's key window, macOS's traffic lights.
 mod platform;
 
@@ -190,6 +205,11 @@ pub fn run() {
             ai_commands::ai_infer_command,
             ai_commands::ai_cancel,
             ai_commands::ai_unload,
+            recording_commands::ai_keep_job_config,
+            recording_commands::recording_result_take,
+            recording_commands::recording_job_state,
+            recording_commands::recording_digest,
+            recording_commands::recording_delete,
             reset::reset_local_data,
             ota::ota_claim_boot,
             ota::ota_boot_ok,
