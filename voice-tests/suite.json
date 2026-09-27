@@ -2442,6 +2442,48 @@
         ]
       },
       "id": "110"
+    },
+    {
+      "file": "111-scratch-that-add-it-to-split",
+      "group": "Taking it back",
+      "tests": "The send whose name Whisper cut from its opener: “Scratch that, add it to” then “Groceries instead.”",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Pick up the parcel.",
+          1
+        ],
+        [
+          "Oat milk.",
+          1
+        ],
+        [
+          "Scratch that, add it to",
+          0.6
+        ],
+        [
+          "Groceries instead.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "parcel"
+        ],
+        "lacks": [
+          "Oat milk",
+          "Scratch",
+          "Add it",
+          "Groceries instead"
+        ],
+        "notesContain": {
+          "Groceries": [
+            "- Oat milk"
+          ]
+        }
+      },
+      "id": "111"
     }
   ]
 }

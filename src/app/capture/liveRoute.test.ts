@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { bookNoteBody } from '../book/book.ts';
 import { LiveTake, type LiveTakeOptions, type MemoryNote } from './liveTake.ts';
 import { LIVE_TIMING } from './liveRoute.ts';
+import { withoutCommands } from './refineText.ts';
 import type { RouteView } from './takeHost.ts';
 
 const HOUSE = '# House TODOs\n\n- [ ] Fix the gutter\n';
@@ -780,7 +781,8 @@ describe('taking back what was just said', () => {
     changed.say('The meeting is at three.');
     changed.say('Actually, the meeting is at four.');
     expect(words(changed.take)).toEqual(['Pick up the parcel.', 'The meeting is at four.']);
-    expect(tookBack(changed.take)?.said).toBe('The meeting is at three');
+    expect(tookBack(changed.take)).toEqual({ phase: 'tookBack', said: 'The meeting is at three', outcome: { replaced: 'The meeting is at four' }, undo: expect.any(Number) });
+    expect(changed.take.log).toContain('Replaced “The meeting is at three” with “The meeting is at four”');
 
     const fresh = record();
     fresh.say('The heating is fixed.');
@@ -831,6 +833,14 @@ describe('taking back what was just said', () => {
     expect(take.page()).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sarah about the invoice\n');
     done();
     expect(take.body('house')).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sarah about the invoice\n');
+
+    // On a plain page too, where nothing else would make the sentence an item.
+    const plain = record();
+    plain.say('Check box, call Sam.');
+    expect(plain.take.page()).toBe('- [ ] Call Sam');
+    plain.say('Actually, call Sarah.');
+    expect(plain.take.page()).toBe('- [ ] Call Sarah');
+    expect(tookBack(plain.take)?.outcome).toEqual({ replaced: 'call Sarah' });
   });
 
   it('sends the sentence to the note named instead, in one breath or two, and shows its lines once the Undo goes', () => {
@@ -841,7 +851,10 @@ describe('taking back what was just said', () => {
     expect(words(one.take)).toEqual(['Pick up the parcel.']);
     expect(tookBack(one.take)).toEqual({ phase: 'tookBack', said: 'Oat milk', outcome: { sent: 'Groceries' }, undo: expect.any(Number) });
     expect(one.take.log).toContain('Took back “Oat milk” and sent it to Groceries');
+    // Its lines with Not this note only once the Undo has gone: the one-shot closes when the take-back settles.
+    expect(one.take.ended).toEqual([]);
     one.wait(5500);
+    expect(one.take.ended).toHaveLength(1);
     expect(one.take.chips.at(-1)).toEqual({ phase: 'tookBack', said: 'Oat milk', outcome: { sent: 'Groceries' }, undo: expect.any(Number) });
     one.done();
     expect(one.take.body('groceries')).toBe('# Groceries\n\n- Eggs\n- Oat milk\n');
@@ -1170,5 +1183,451 @@ describe('taking back what was just said', () => {
       { startMs: 1000, endMs: 1900 },
       { startMs: 2000, endMs: 2900 },
     ]);
+  });
+  it('takes back the last thing said by time, not by when it landed, and only what the record holds', () => {
+    // A card's payload that landed late is not the last thing said.
+    const late = record();
+    late.say('Hey Ghost, add call Sam to signing.');
+    late.say('Buy milk.');
+    late.take.answer({ kind: 'keep' });
+    late.say('Scratch that.');
+    expect(tookBack(late.take)?.said).toBe('Buy milk');
+    expect(words(late.take)).toEqual(['Call Sam.']);
+
+    // Words taken back under a mid-take card do not go with the note chosen.
+    const under = record();
+    under.say('Pick up the parcel.');
+    under.say('Hey Ghost, add a note to signing;');
+    under.say('Check the form.');
+    under.say('Check the date.');
+    under.say('Scratch that.');
+    under.take.answer({ kind: 'note', id: 's2' });
+    under.done();
+    expect(under.take.body('s2')).toBe('# Signing the order\n\nCheck the form.');
+
+    // Not this note on a one-shot brings its words home, where the next scratch finds them.
+    const home = record();
+    home.say('Kevin owns the release.');
+    home.say('Hey Ghost, add call Sam to House TODOs.');
+    const id = home.take.inserts.keys().next().value as number;
+    home.take.apply(home.take.live.dropInsert(id));
+    expect(words(home.take)).toEqual(['Kevin owns the release.', 'Call Sam.']);
+    home.say('Scratch that.');
+    expect(words(home.take)).toEqual(['Kevin owns the release.']);
+
+    // Words a card sent to a note can be taken back out of it.
+    const sent = record();
+    sent.say('Pick up the parcel.');
+    sent.say('Hey Ghost, add a note to signing;');
+    sent.say('Check the form.');
+    sent.take.answer({ kind: 'note', id: 's2' });
+    sent.say('Scratch that.');
+    expect(tookBack(sent.take)?.said).toBe('Check the form');
+    sent.done();
+    expect(sent.take.body('s2')).toBe('# Signing the order\n');
+    expect(words(sent.take)).toEqual(['Pick up the parcel.']);
+
+    // A replacement under a mid-take card goes with the note chosen.
+    const replaced = record();
+    replaced.say('Pick up the parcel.');
+    replaced.say('Hey Ghost, add a note to signing;');
+    replaced.say('The meeting is at three.');
+    replaced.say('Actually, the meeting is at four.');
+    replaced.take.answer({ kind: 'note', id: 's2' });
+    replaced.done();
+    expect(replaced.take.body('s2')).toBe('# Signing the order\n\nThe meeting is at four.');
+    expect(words(replaced.take)).toEqual(['Pick up the parcel.']);
+  });
+
+  it('marks the stretches only as each take-back settles, and at once where there is no Undo', () => {
+    // The next take-back settles the one before.
+    const twice = record();
+    twice.say('Pick up the parcel.');
+    twice.say('Call the plumber.');
+    twice.say('Ring the bank.');
+    twice.say('Scratch that.');
+    twice.say('Scratch that.');
+    expect(twice.take.commandSpans).toEqual([
+      { startMs: 2000, endMs: 2900 },
+      { startMs: 3000, endMs: 3900 },
+    ]);
+    twice.wait(5500);
+    expect(twice.take.commandSpans).toHaveLength(4);
+    expect(twice.take.commandSpans).toEqual(expect.arrayContaining([{ startMs: 1000, endMs: 1900 }, { startMs: 4000, endMs: 4900 }]));
+
+    // A send in the next breath restarts the window.
+    const split = record();
+    split.say('Oat milk.');
+    split.say('Scratch that.');
+    split.wait(3000);
+    split.say('Add it to groceries instead.');
+    split.wait(3000);
+    expect(split.take.live.holding).toBe(true);
+    expect(split.take.commandSpans).toEqual([]);
+    split.wait(3000);
+    expect(split.take.commandSpans).toHaveLength(3);
+
+    // Nothing to take back still marks the phrase, and the filler before it, and neither is written at Done.
+    const nothing = record();
+    nothing.say('Okay.');
+    nothing.say('Scratch that.');
+    expect(nothing.take.commandSpans).toEqual([
+      { startMs: 0, endMs: 900 },
+      { startMs: 1000, endMs: 1900 },
+    ]);
+    expect(nothing.take.live.changedWords).toBe(true);
+    expect(nothing.take.live.engaged).toBe(false);
+    nothing.done();
+    expect(nothing.take.result().made).toEqual([]);
+
+    // A send's card, and a cancel, mark the phrase at once: the card, or the command said again, is the moment.
+    const card = record();
+    card.say('Check the form.');
+    card.say('Scratch that, add it to signing.');
+    expect(card.take.card).not.toBeNull();
+    expect(card.take.commandSpans).toEqual([{ startMs: 1000, endMs: 1900 }]);
+    const cancel = record();
+    cancel.say('Hey Ghost, add a note to.');
+    cancel.say('Scratch that.');
+    expect(cancel.take.commandSpans).toEqual([
+      { startMs: 0, endMs: 900 },
+      { startMs: 1000, endMs: 1900 },
+    ]);
+
+    // Not this note settles an open take-back.
+    const declined = record();
+    declined.say("Hey Ghost, add a note to house to do's.");
+    declined.say('Call Sam.');
+    declined.say('Buy fuses.');
+    declined.say('Scratch that.');
+    expect(declined.take.commandSpans).toHaveLength(2);
+    declined.take.decline(declined.now());
+    expect(declined.take.commandSpans).toHaveLength(4);
+    expect(declined.take.commandSpans).toEqual(expect.arrayContaining([{ startMs: 2000, endMs: 2900 }, { startMs: 3000, endMs: 3900 }]));
+  });
+
+  it('follows a bare drop only with a send in the next breath, and reads the rest after a cancel or nothing', () => {
+    const after = record();
+    after.say('The meeting is at three.');
+    after.say('Actually, the meeting is at four.');
+    after.say('Add it to groceries instead.');
+    expect(words(after.take)).toEqual(['The meeting is at four.', 'Add it to groceries instead.']);
+    expect(tookBack(after.take)?.outcome).toEqual({ replaced: 'The meeting is at four' });
+
+    // A sentence between the drop and the send is what "it" means now.
+    const between = record();
+    between.say('Oat milk.');
+    between.say('Scratch that.');
+    between.say('Call the plumber.');
+    between.say('Add it to groceries.');
+    expect(words(between.take)).toEqual(['Call the plumber.', 'Add it to groceries.']);
+    between.done();
+    expect(between.take.body('groceries')).toBe('# Groceries\n\n- Eggs\n');
+
+    // The keyword alone between them is not: "Hey Ghost." | "Add it to groceries." is the send.
+    const held = record();
+    held.say('Oat milk.');
+    held.say('Scratch that.');
+    held.say('Hey Ghost.');
+    held.say('Add it to groceries.');
+    expect(tookBack(held.take)?.outcome).toEqual({ sent: 'Groceries' });
+    expect(held.take.live.hearingCommand).toBe(false);
+    expect(words(held.take)).toEqual([]);
+
+    const none = record();
+    none.say('Scratch that, call the plumber.');
+    expect(words(none.take)).toEqual(['Call the plumber.']);
+    const cancelled = record();
+    cancelled.say('Hey Ghost, add a note to.');
+    cancelled.say('Scratch that, call the plumber.');
+    expect(words(cancelled.take)).toEqual(['Call the plumber.']);
+  });
+
+  it('restarts a one-shot’s clock and its count, and cuts the chip at forty', () => {
+    const item = record();
+    item.say('Kevin owns the release.');
+    item.say('Hey Ghost, new item for groceries.');
+    item.say('Oat milk.');
+    item.wait(1000);
+    item.say('Scratch that.');
+    item.wait(1000);
+    // Said as the first thing for the note again, an enumeration is its items.
+    item.say('Milk, bread and butter.');
+    item.done();
+    expect(item.take.body('groceries')).toBe('# Groceries\n\n- Eggs\n- Milk\n- Bread\n- Butter\n');
+    expect(words(item.take)).toEqual(['Kevin owns the release.']);
+
+    const long = record();
+    long.say('This is a rather long sentence that goes on well past forty characters.');
+    long.say('Scratch that.');
+    expect(tookBack(long.take)?.said).toBe('This is a rather long sentence that goes…');
+  });
+
+  it('after the keyword, a whole sentence is the correction and a command is the command', () => {
+    const hold = record();
+    hold.say('The heating is fixed.');
+    hold.say('Hey Ghost.');
+    hold.say('Actually, we should call the plumber.');
+    expect(words(hold.take)).toEqual(['We should call the plumber.']);
+    expect(tookBack(hold.take)?.outcome).toEqual({ replaced: 'We should call the plumber' });
+
+    // "Hey Ghost, actually, add a note to House TODOs" is that command, said as people say it: nothing is taken back.
+    const command = record();
+    command.say('Pick up the parcel.');
+    command.say("Hey Ghost, actually, add a note to house to do's.");
+    command.say('Call the plumber.');
+    expect(words(command.take)).toEqual(['Pick up the parcel.']);
+    expect(tookBack(command.take)).toBeUndefined();
+    command.done();
+    expect(command.take.body('house')).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call the plumber\n');
+
+    const milk = record();
+    milk.say('Pick up the parcel.');
+    milk.say('Hey Ghost, actually, add milk to groceries.');
+    expect(words(milk.take)).toEqual(['Pick up the parcel.']);
+    milk.done();
+    expect(milk.take.body('groceries')).toBe('# Groceries\n\n- Eggs\n- Milk\n');
+
+    const held = record();
+    held.say('Pick up the parcel.');
+    held.say('Hey Ghost.');
+    held.say('Actually, add milk to groceries.');
+    expect(words(held.take)).toEqual(['Pick up the parcel.']);
+    held.done();
+    expect(held.take.body('groceries')).toBe('# Groceries\n\n- Eggs\n- Milk\n');
+
+    // With nothing said before, a keyed risky opener is words as heard, so the page and the better words agree.
+    const first = record();
+    first.say('Hey Ghost, actually, the meeting is at four.');
+    expect(words(first.take)).toEqual(['Hey Ghost, actually, the meeting is at four.']);
+    expect(first.take.live.changedWords).toBe(false);
+    expect(first.take.keywordSpans).toEqual([]);
+  });
+
+  it('keeps the keyword before a command head as the command’s: a new sentence after it is words', () => {
+    const { take, say, done } = record();
+    say('Kevin owns the release.');
+    say('Hey Ghost, add call Sam to house. Actually, we should go for a walk.');
+    expect(words(take)).toEqual(['Kevin owns the release.', 'Actually, we should go for a walk.']);
+    expect(tookBack(take)).toBeUndefined();
+    done();
+    expect(take.body('house')).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+  });
+
+  it('changes one word after a safe opener once, never twice, and never as a name after a stop', () => {
+    const once = record();
+    once.say('Call Sam.');
+    once.say('Scratch that, Sarah.');
+    expect(words(once.take)).toEqual(['Call Sarah.']);
+    expect(tookBack(once.take)).toEqual({ phase: 'tookBack', said: 'Sam', outcome: { changed: 'Sarah' }, undo: expect.any(Number) });
+
+    const shot = record();
+    shot.say('Kevin owns the release.');
+    shot.say('Hey Ghost, add call Sam to house.');
+    shot.say('Scratch that, Sarah.');
+    expect(words(shot.take)).toEqual(['Kevin owns the release.']);
+    shot.done();
+    expect(shot.take.body('house')).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sarah\n');
+
+    // After a stop Whisper capitalises whatever comes next: "Tomorrow" is words, not a name to swap in.
+    const stop = record();
+    stop.say('Call Sam about the invoice.');
+    stop.say('Scratch that. Tomorrow.');
+    expect(words(stop.take)).toEqual(['Tomorrow.']);
+  });
+
+  it('puts a one-shot’s words back into it when the send’s card keeps them, or Done settles it, and sends them from it', () => {
+    for (const answer of ['keep', 'done'] as const) {
+      const { take, say, done } = record();
+      say('Kevin owns the release.');
+      say('Hey Ghost, new item for groceries.');
+      say('Oat milk.');
+      say('Scratch that, add it to signing.');
+      expect(take.card, answer).toMatchObject({ form: 'unsure', payload: 'Oat milk' });
+      expect(words(take), answer).toEqual(['Kevin owns the release.', 'Oat milk.']);
+      if (answer === 'keep') take.answer({ kind: 'keep' });
+      done();
+      expect(lastChip(take), answer).toEqual({ phase: 'said', text: '“Oat milk” stays where it was.' });
+      expect(words(take), answer).toEqual(['Kevin owns the release.']);
+      expect(take.body('groceries'), answer).toBe('# Groceries\n\n- Eggs\n- Oat milk\n');
+      expect(take.result().made, answer).toEqual(['# Kevin owns the release']);
+    }
+
+    const chosen = record();
+    chosen.say('Kevin owns the release.');
+    chosen.say('Hey Ghost, new item for groceries.');
+    chosen.say('Oat milk.');
+    chosen.say('Scratch that, add it to signing.');
+    chosen.take.answer({ kind: 'note', id: 's2' });
+    chosen.done();
+    expect(chosen.take.body('groceries')).toBe('# Groceries\n\n- Eggs\n');
+    expect(chosen.take.body('s2')).toBe('# Signing the order\n\nOat milk.');
+    expect(chosen.take.result().made).toEqual(['# Kevin owns the release']);
+  });
+
+  it('asks on the card for a send in the next breath that is not sure, and puts the words back for a keyworded name that finds nothing', () => {
+    const unsure = record();
+    unsure.say('Pick up the parcel.');
+    unsure.say('Oat milk.');
+    unsure.say('Scratch that.');
+    unsure.say('Add it to signing.');
+    expect(unsure.take.card).toMatchObject({ form: 'unsure', heading: 'Add to which note?', payload: 'Oat milk' });
+    expect(words(unsure.take)).toEqual(['Pick up the parcel.', 'Oat milk.']);
+    expect(unsure.take.commandSpans).toEqual(expect.arrayContaining([{ startMs: 2000, endMs: 2900 }, { startMs: 3000, endMs: 3900 }]));
+    unsure.take.answer({ kind: 'note', id: 's2' });
+    expect(words(unsure.take)).toEqual(['Pick up the parcel.']);
+    unsure.done();
+    expect(unsure.take.body('s2')).toBe('# Signing the order\n\nOat milk.');
+
+    const keyed = record();
+    keyed.say('Pick up the parcel.');
+    keyed.say('Oat milk.');
+    keyed.say('Scratch that.');
+    keyed.say('Hey Ghost, add it to signing.');
+    expect(keyed.take.card).toMatchObject({ form: 'unsure', payload: 'Oat milk' });
+    expect(keyed.take.live.hearingCommand).toBe(false);
+    keyed.take.answer({ kind: 'keep' });
+    expect(words(keyed.take)).toEqual(['Pick up the parcel.', 'Oat milk.']);
+    expect(lastChip(keyed.take)).toEqual({ phase: 'said', text: '“Oat milk” stays here.' });
+
+    const missing = record();
+    missing.say('Oat milk.');
+    missing.say('Scratch that.');
+    missing.say('Hey Ghost, add it to the moon base.');
+    expect(missing.take.card).toBeNull();
+    expect(words(missing.take)).toEqual(['Oat milk.']);
+    expect(lastChip(missing.take)).toEqual({ phase: 'said', text: 'No note called “moon base”, so the words stay here.' });
+    expect(missing.take.live.holding).toBe(false);
+  });
+
+  it('waits for the name Whisper cut from a send’s opener, and writes neither', () => {
+    const { take, say, done } = record();
+    say('Pick up the parcel.');
+    say('Oat milk.');
+    say('Scratch that, add it to');
+    expect(words(take)).toEqual(['Pick up the parcel.']);
+    expect(take.live.holding).toBe(true);
+    say('Groceries instead.');
+    expect(words(take)).toEqual(['Pick up the parcel.']);
+    expect(tookBack(take)?.outcome).toEqual({ sent: 'Groceries' });
+    done();
+    expect(take.body('groceries')).toBe('# Groceries\n\n- Eggs\n- Oat milk\n');
+    expect(take.result().made).toEqual(['# Pick up the parcel']);
+
+    // No name comes: a plain drop, the opener never written.
+    const plain = record();
+    plain.say('Oat milk.');
+    plain.say('Scratch that, add it to');
+    plain.say('Call the plumber.');
+    expect(words(plain.take)).toEqual(['Call the plumber.']);
+    plain.done();
+    expect(plain.take.result().made).toEqual(['# Call the plumber']);
+  });
+
+  it('puts the sentence in a list of a fresh take when the send names “the list”', () => {
+    const { take, say, done } = record();
+    say('Pick up the parcel.');
+    say('Oat milk.');
+    say('Scratch that, put that in the list.');
+    expect(take.card).toBeNull();
+    expect(tookBack(take)).toEqual({ phase: 'tookBack', said: 'Oat milk', outcome: { placed: 'in a list' }, undo: expect.any(Number) });
+    expect(take.page()).toBe('# Pick up the parcel\n\n- Oat milk');
+    done();
+    expect(take.result().made).toEqual(['# Pick up the parcel\n\n- Oat milk']);
+  });
+
+  it('is past its start after New note is tapped, as after the spoken cue', () => {
+    for (const how of ['said', 'tapped'] as const) {
+      const { take, say } = record();
+      say('Went for a run.');
+      if (how === 'said') say('Hey Ghost, new note.');
+      else take.forked();
+      say("Hey Ghost, add a note to house to do's.");
+      expect(take.aim, how).toBeNull();
+      expect(take.routed, how).toBe(false);
+      expect(take.inserts.size, how).toBe(1);
+    }
+  });
+
+  it('leaves a new sentence after a risky opener as words, which a later scratch takes back alone', () => {
+    const { take, say } = record();
+    say('Pick up the parcel.');
+    say('We need eggs. Actually, I think we should go.');
+    expect(words(take)).toEqual(['Pick up the parcel.', 'We need eggs.', 'Actually, I think we should go.']);
+    say('Scratch that.');
+    expect(words(take)).toEqual(['Pick up the parcel.', 'We need eggs.']);
+    expect(tookBack(take)?.said).toBe('Actually, I think we should go');
+  });
+
+  it('on Undo, writes a keyworded phrase without its keyword and marks its stretch, and a correction back into its one-shot', () => {
+    const send = record();
+    send.say('Pick up the parcel.');
+    send.say('Oat milk.');
+    send.say('Scratch that.');
+    send.say('Hey Ghost, put that in groceries.');
+    send.take.undo(tookBack(send.take)!.undo!);
+    expect(words(send.take)).toEqual(['Pick up the parcel.', 'Oat milk.', 'Scratch that.', 'Put that in groceries.']);
+    expect(send.take.keywordSpans).toEqual([{ startMs: 3000, endMs: 3900 }]);
+    expect(send.take.commandSpans).toEqual([]);
+
+    const keyed = record();
+    keyed.say('Call Sam.');
+    keyed.say('Hey Ghost, scratch that.');
+    keyed.take.undo(tookBack(keyed.take)!.undo!);
+    expect(words(keyed.take)).toEqual(['Call Sam.', 'Scratch that.']);
+    const heard = [
+      { text: 'Call Sam.', startMs: 0, endMs: 900 },
+      { text: 'Hey Ghost, scratch that.', startMs: 1000, endMs: 1900 },
+    ];
+    expect(withoutCommands({ skip: keyed.take.commandSpans, keywordAt: keyed.take.keywordSpans, live: keyed.take.segments }, heard).map((s) => s.text)).toEqual(['Call Sam.', 'Scratch that.']);
+
+    const head = record();
+    head.say('The heating is fixed, hey Ghost, scratch that.');
+    head.take.undo(tookBack(head.take)!.undo!);
+    expect(words(head.take)).toEqual(['The heating is fixed.', 'Scratch that.']);
+    const whole = [{ text: 'The heating is fixed, hey Ghost, scratch that.', startMs: 0, endMs: 900 }];
+    expect(withoutCommands({ skip: head.take.commandSpans, keywordAt: head.take.keywordSpans, live: head.take.segments }, whole).map((s) => s.text)).toEqual(['The heating is fixed.', 'Scratch that.']);
+
+    const shot = record();
+    shot.say('Kevin owns the release.');
+    shot.say('Hey Ghost, new item for groceries.');
+    shot.say('Oat milk.');
+    shot.say('Actually, almond milk.');
+    shot.take.undo(tookBack(shot.take)!.undo!);
+    expect(words(shot.take)).toEqual(['Kevin owns the release.']);
+    shot.done();
+    expect(shot.take.body('groceries')).toBe('# Groceries\n\n- Eggs\n- Oat milk\n- Actually, almond milk\n');
+    expect(shot.take.result().made).toEqual(['# Kevin owns the release']);
+  });
+
+  it('on Undo, puts a phrase left for the reader at Done back for it, writes a split send as words, and stays off the transcript', () => {
+    const left = record();
+    left.say('Hey Ghost, fix the spelling.');
+    left.say('Scratch that.');
+    expect(tookBack(left.take)?.said).toBe('fix the spelling');
+    left.take.undo(tookBack(left.take)!.undo!);
+    expect(words(left.take)).toEqual(['Hey Ghost, fix the spelling.', 'Scratch that.']);
+    left.say('Hey Ghost, add call Sam to House TODOs.');
+    // The reader engaged, so the phrase left for the reader at Done is reclaimed off the page.
+    expect(words(left.take)).toEqual(['Scratch that.']);
+
+    const split = record();
+    split.say('Oat milk.');
+    split.say('Scratch that.', 1500);
+    split.say('Add it to groceries instead.');
+    split.take.undo(tookBack(split.take)!.undo!);
+    expect(words(split.take)).toEqual(['Oat milk.', 'Scratch that.', 'Add it to groceries instead.']);
+    split.done();
+    expect(split.take.body('groceries')).toBe('# Groceries\n\n- Eggs\n');
+
+    const after = record();
+    after.say('Call Sam.');
+    after.say('Scratch that.');
+    const id = tookBack(after.take)!.undo!;
+    after.take.undo(id);
+    expect(after.take.live.changedWords).toBe(true);
+    after.done();
+    after.take.undo(id);
+    expect(lastChip(after.take)).toEqual({ phase: 'said', text: 'Too late to put that back.' });
   });
 });

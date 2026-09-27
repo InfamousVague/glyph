@@ -147,6 +147,20 @@ describe('the better words of what the live reader changed', () => {
     expect(refined(changed.take, changed.heard, { baseBody: '', titled: true })).toBe('# Pick up the parcel\n\nThe meeting is at four.');
   });
 
+  it('after Undo, keeps the sentence and the opener as words, and leaves the keyword out', () => {
+    const take = new LiveTake([{ id: 'groceries', body: '# Groceries\n\n- Eggs\n' }]);
+    const heard = [
+      { text: 'Call Sam.', startMs: 0, endMs: 900 },
+      { text: 'Hey Ghost, scratch that.', startMs: 1000, endMs: 1900 },
+    ];
+    heard.forEach((segment, i) => take.phrase(segment, i * 1000));
+    const chip = take.chips.at(-1);
+    take.undo(chip?.phase === 'tookBack' ? chip.undo! : -1);
+    take.close(2000);
+    expect(take.segments.map((s) => s.text)).toEqual(['Call Sam.', 'Scratch that.']);
+    expect(refined(take, heard, { baseBody: '', titled: true })).toBe('# Call Sam\n\nScratch that.');
+  });
+
   it('leaves what a one-shot sent to another note out of the take’s own', () => {
     const { take, heard } = play(['Kevin owns the release.', 'Hey Ghost, add to House TODOs.', 'Call the electrician.', 'Buy fuses.', 'Ring the plumber.', 'Next, the budget review is Friday.']);
     expect(refined(take, heard, { baseBody: '', titled: true })).toBe('# Kevin owns the release\n\nNext, the budget review is Friday.');

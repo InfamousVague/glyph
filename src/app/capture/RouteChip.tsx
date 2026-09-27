@@ -30,6 +30,10 @@ export function RouteChip({ route, itemWords, onUndo }: { route: Exclude<RouteVi
               <>
                 Put “{route.said}” {route.outcome.placed}
               </>
+            ) : 'replaced' in route.outcome ? (
+              <>
+                Replaced “{route.said}” with “{route.outcome.replaced}”
+              </>
             ) : (
               <>
                 Changed “{route.said}” to “{route.outcome.changed}”

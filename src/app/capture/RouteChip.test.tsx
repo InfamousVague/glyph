@@ -39,6 +39,7 @@ describe('the chip', () => {
     expect(chip({ phase: 'tookBack', said: 'Oat milk', outcome: { sent: 'Groceries' }, undo: 3 }).text).toBe('Sent “Oat milk” to Groceries');
     expect(chip({ phase: 'tookBack', said: 'Buy fuses', outcome: { placed: 'in its list' }, undo: 3 }).text).toBe('Put “Buy fuses” in its list');
     expect(chip({ phase: 'tookBack', said: 'three', outcome: { changed: 'four' }, undo: 3 }).text).toBe('Changed “three” to “four”');
+    expect(chip({ phase: 'tookBack', said: 'The meeting is at three', outcome: { replaced: 'The meeting is at four' }, undo: 3 }).text).toBe('Replaced “The meeting is at three” with “The meeting is at four”');
     const undo = vi.fn();
     const drawn = chip({ phase: 'tookBack', said: 'Call Sam', outcome: 'gone', undo: 3 }, '', undo);
     expect(drawn.text).toBe('Took back “Call Sam”Undo');

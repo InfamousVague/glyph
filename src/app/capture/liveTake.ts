@@ -54,6 +54,8 @@ export class LiveTake {
   log: string[] = [];
   commandSpans: Span[] = [];
   keywordSpans: Span[] = [];
+  /** The one-shots closed (`insert-end`), in order: the recorder shows each one's lines then. */
+  ended: number[] = [];
   routed = false;
 
   constructor(
@@ -155,6 +157,9 @@ export class LiveTake {
           if (insert) insert.segments = withoutWords(insert.segments, step.segments);
           break;
         }
+        case 'insert-end':
+          this.ended.push(step.id);
+          break;
         case 'insert-drop': {
           const insert = this.inserts.get(step.id);
           this.inserts.delete(step.id);

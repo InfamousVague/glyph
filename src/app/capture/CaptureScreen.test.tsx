@@ -1053,6 +1053,10 @@ describe('adding to a note as it is said', () => {
     await waitFor(() => expect(page()).toContain('Call Sam'));
     act(() => capture.handlers!.onPartial('Scratch'));
     expect(page()).not.toContain('Scratch');
+    // Nor when the opener comes after words, which stay on the page while it is said.
+    act(() => capture.handlers!.onPartial('The meeting is at three, scratch tha'));
+    expect(page()).toContain('The meeting is at three');
+    expect(page()).not.toContain('scratch');
     await say('Scratch that.', 2000);
     await waitFor(() => expect(page()).not.toContain('Call Sam'));
     expect(page()).not.toContain('Scratch');
@@ -1092,6 +1096,19 @@ describe('adding to a note as it is said', () => {
     const [saved, , , , landing] = onFinish.mock.calls[0]!;
     expect(saved.body).toBe('# Kevin owns the release');
     expect(landing).toMatchObject({ noteId: saved.id, others: [expect.any(String)], into: ['Groceries'], tookBack: ['Oat milk'] });
+  });
+
+  it('empties a one-shot of the enumeration taken back, so Done leaves the note as it was', async () => {
+    await createNote('groceries', '# Groceries\n\n- Eggs');
+    const onFinish = await recording();
+    await say('Kevin owns the release.', 0);
+    await say('Hey Ghost, add milk, bread and butter to groceries.', 1000);
+    await say('Scratch that.', 2000);
+    expect(screen.getByText(/Took back “milk, bread, butter”/)).toBeInTheDocument();
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('groceries'))?.body).toBe('# Groceries\n\n- Eggs');
+    expect(onFinish.mock.calls[0]?.[0].body).toBe('# Kevin owns the release');
   });
 
   it('still reads a command left for the reader at Done, over the phrases as the take kept them', async () => {

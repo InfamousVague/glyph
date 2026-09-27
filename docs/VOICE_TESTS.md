@@ -43,10 +43,10 @@ goes", with a pause inside the name, into a note with two lists, and as a one-sh
 (`choose`). Their audio is still to be made: `python3 scripts/voice-tests/make_audio.py --voice <id> --take 093` and
 on.
 
-**Taking it back.** 103 to 110 are the take-backs (DESIGN §130): "scratch that" once and twice, "actually, …" before
+**Taking it back.** 103 to 111 are the take-backs (DESIGN §130): "scratch that" once and twice, "actually, …" before
 the sentence again and before a new one, "scratch that, add it to groceries instead" in one breath and in two, an
-item said for a note named and then scratched, and "no wait, four". Their audio is to be made with Matt's cases;
-next is 111.
+item said for a note named and then scratched, "no wait, four", and the send whose name Whisper cut from its opener
+("Scratch that, add it to" | "Groceries instead."). Their audio is to be made with Matt's cases; next is 112.
 
 **To record again.** These scripts changed with §126, most of them by losing the "Yes." that confirmed a command, and
 058 by gaining "Glyph, new note.", so their recordings still say the old lines. Each carries `rerecord` in

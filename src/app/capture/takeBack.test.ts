@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contentWords, corrects, opensTakeBack, quoted, readSend, readTakeBack, swapWord } from './takeBack.ts';
+import { commandAfterOpener, contentWords, corrects, opensSend, opensTakeBack, quoted, readSend, readTakeBack, swapWord, takeBackAt } from './takeBack.ts';
 
 /** The grammar of taking back what was just said (capture/takeBack.ts): which phrases are one, and what each holds. */
 
@@ -13,7 +13,11 @@ describe('a safe opener', () => {
 
   it('takes its rest after a pause, a colon or “and”, as said', () => {
     expect(readTakeBack('Scratch that, call the plumber.')).toMatchObject({ opener: 'Scratch that', rest: 'call the plumber.', said: 'Scratch that, call the plumber.' });
-    expect(readTakeBack('Scratch that. Call the plumber.')).toMatchObject({ rest: 'Call the plumber.' });
+    // After a stop Whisper capitalises whatever comes next, so the first letter comes down: "Tomorrow" is no name.
+    expect(readTakeBack('Scratch that. Call the plumber.')).toMatchObject({ rest: 'call the plumber.' });
+    expect(readTakeBack('Scratch that. Tomorrow.')).toMatchObject({ rest: 'tomorrow.' });
+    expect(readTakeBack('Scratch that. TODOs first.')).toMatchObject({ rest: 'TODOs first.' });
+    expect(readTakeBack('Scratch that, Sarah.')).toMatchObject({ rest: 'Sarah.' });
     expect(readTakeBack('Scratch that: call the plumber.')).toMatchObject({ rest: 'call the plumber.' });
     expect(readTakeBack('Scratch that and call the plumber.')).toMatchObject({ rest: 'call the plumber.' });
     // Lead-ins after the opener stay: they may be written.
@@ -82,9 +86,11 @@ describe('where an opener stands', () => {
 
   it('after the keyword said after the head, which is marked as words then the keyword', () => {
     expect(readTakeBack('The heating is fixed, hey Ghost, scratch that.')).toMatchObject({ head: 'The heating is fixed', headBeforeKeyword: true, keyed: true, said: 'scratch that.' });
-    // The keyword before a command head stays in the head, so the head is read as the command it was.
-    expect(readTakeBack('Hey Ghost, add call Sam to Work. Actually, call Sarah.')).toMatchObject({ head: 'Hey Ghost, add call Sam to Work.', headBeforeKeyword: false, keyed: true, rest: 'call Sarah.' });
-    expect(readTakeBack('Hey Ghost, add a note to house, scratch that.')).toMatchObject({ head: 'Hey Ghost, add a note to house', afterComma: true, keyed: true });
+    // The keyword before a command head stays in the head, so the head is read as the command it was, and the opener
+    // after it is not keyed: the keyword was the command's, not the opener's.
+    expect(readTakeBack('Hey Ghost, add call Sam to Work. Actually, call Sarah.')).toMatchObject({ head: 'Hey Ghost, add call Sam to Work.', headBeforeKeyword: false, keyed: false, rest: 'call Sarah.' });
+    expect(readTakeBack('Hey Ghost, add call Sam to Work. Actually, we should go for a walk.')).toMatchObject({ keyed: false, risky: true });
+    expect(readTakeBack('Hey Ghost, add a note to house, scratch that.')).toMatchObject({ head: 'Hey Ghost, add a note to house', afterComma: true, keyed: false });
   });
 
   it('after a comma inside a sentence, for a drop, a send or a change of one word, and not for a fragment', () => {
@@ -110,6 +116,8 @@ describe('a send', () => {
     ['Scratch that, add it to Groceries instead.', 'Groceries'],
     ['Scratch that, add it to Groceries.', 'Groceries'],
     ['Scratch that, put that in the house list.', 'house list'],
+    ['Scratch that, put that in the list.', 'the list'],
+    ['Scratch that, put that in my note.', 'my note'],
     ['Scratch that, that goes in Groceries.', 'Groceries'],
     ['Scratch that, it belongs in House TODOs.', 'House TODOs'],
     ['Scratch that, move it to House TODOs instead.', 'House TODOs'],
@@ -132,6 +140,7 @@ describe('a send', () => {
 
   it('is read over a whole phrase said in a breath of its own', () => {
     expect(readSend('Add it to Groceries instead.')).toBe('Groceries');
+    expect(readSend('Put that in the list.')).toBe('the list');
     expect(readSend('Hey Ghost, put that in house to-dos.')).toBe('house to-dos');
     expect(readSend('Okay, that goes in Groceries.')).toBe('Groceries');
     expect(readSend('Add milk to Groceries.')).toBeNull();
@@ -161,6 +170,10 @@ describe('a sentence said again with a change', () => {
     ['Eggs', 'milk'],
     ['Call Sam', 'ring Sarah'],
     ["It's on Tuesday", "it's for Sam"],
+    // One word of two shared is a new sentence about the same thing.
+    ['Call Sam', 'Sam is away'],
+    ['Ring the bank', 'the bank is shut'],
+    ['It is', 'so'],
   ])('is a new sentence: %s → %s', (before, after) => {
     expect(corrects(before, after)).toBe(false);
   });
@@ -200,10 +213,25 @@ describe('a change of one word', () => {
 });
 
 describe('what a person would quote', () => {
-  it('leaves the cue prefix and the stop off', () => {
+  it('leaves the cue prefix, the keyword and the stop off', () => {
     expect(quoted('Check box: call Sam.')).toBe('call Sam');
     expect(quoted('Bullet point: eggs.')).toBe('eggs');
     expect(quoted('The meeting is at three.')).toBe('The meeting is at three');
+    expect(quoted('Hey Ghost, fix the spelling.')).toBe('fix the spelling');
+    expect(quoted('The heating is fixed, hey Ghost, fix the spelling.')).toBe('The heating is fixed, hey Ghost, fix the spelling');
+  });
+});
+
+describe('a command said with a risky opener', () => {
+  it('is the command, the opener off, and words otherwise', () => {
+    expect(commandAfterOpener('actually, add a note to House TODOs')).toBe('add a note to House TODOs');
+    expect(commandAfterOpener('Actually add milk to groceries.')).toBe('add milk to groceries.');
+    expect(commandAfterOpener('I mean, new item for groceries')).toBe('new item for groceries');
+    expect(commandAfterOpener('sorry, add it to')).toBe('add it to');
+    expect(commandAfterOpener('no wait, move this to groceries')).toBe('move this to groceries');
+    expect(commandAfterOpener('actually, we should call the plumber')).toBe('actually, we should call the plumber');
+    expect(commandAfterOpener('actually')).toBe('actually');
+    expect(commandAfterOpener('add a note to House TODOs')).toBe('add a note to House TODOs');
   });
 });
 
@@ -214,5 +242,25 @@ describe('a partial starting a take-back', () => {
 
   it.each(['no', 'No', 'wait', 'take', 'take that', 'forget', 'delete', 'never', 'cancel', 'ignore', 'Actually', 'I mean', 'The meeting', 'scr', ''])('is for the page: %s', (partial) => {
     expect(opensTakeBack(partial)).toBe(false);
+  });
+
+  it('is found after a stop or a comma inside the partial, the words before it left for the page', () => {
+    expect(takeBackAt('Scratch tha')).toBe(0);
+    expect(takeBackAt('The meeting is at three, no w')).toBe(25);
+    expect(takeBackAt('We need eggs. Call Sam. Scratch that')).toBe(24);
+    expect(takeBackAt('The meeting is at three, no')).toBe(-1);
+    expect(takeBackAt('The meeting is at three')).toBe(-1);
+    expect(takeBackAt('')).toBe(-1);
+  });
+
+  it('knows a send that is starting, keyword and lead-ins off', () => {
+    expect(opensSend('Add it to')).toBe(true);
+    expect(opensSend('Hey Ghost, put that in gro')).toBe(true);
+    expect(opensSend('That goes')).toBe(true);
+    expect(opensSend("It's in")).toBe(true);
+    expect(opensSend('Add milk to')).toBe(false);
+    expect(opensSend('Addition')).toBe(false);
+    expect(opensSend('That')).toBe(false);
+    expect(opensSend('')).toBe(false);
   });
 });

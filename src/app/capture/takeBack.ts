@@ -1,7 +1,8 @@
 import { capitalise } from '../core/text.ts';
 import { findKeyword, onlyFiller } from './command.ts';
-import { commandWords, nameable, withoutFinalStop } from './liveCommand.ts';
+import { commandWords, isOpener, nameable, readNameFirst, readRoute, withoutFinalStop } from './liveCommand.ts';
 import { splitSentences } from './markdown.ts';
+import { NUMBER_WORD } from './spoken/numbers.ts';
 
 /**
  * Taking back the last thing said, as one committed phrase says it: the grammar of "scratch that", "actually, …",
@@ -20,7 +21,10 @@ import { splitSentences } from './markdown.ts';
  * (one word of a kind changed: a number, a day, a month, a name); the live reader asks, since only it knows what came
  * before. An opener stands at the start of a phrase, after a stop in any case, or after a comma inside a sentence when
  * only a drop, a send or a change follows, since Whisper writes "the meeting is at three, scratch that" for a beat
- * under 300 ms. Pure, so every phrasing is a test.
+ * under 300 ms. The keyword is the opener's only when it stands right before it: before a command in the head it was
+ * the command's. A rest after a stop has its first letter put down, since Whisper capitalises whatever follows a stop.
+ * A send names its note as a command does, keeping "the" before "list", "note" or "page", which mean the note being
+ * written to. Pure, so every phrasing is a test.
  */
 
 export interface TakeBack {
@@ -54,7 +58,7 @@ interface Opener {
   bareOnly?: boolean;
 }
 
-/** No letter or digit follows: "actually" is not "actualize", "no" is not "nobody". */
+/** No letter or digit follows: "actually" is not "actualise", "no" is not "nobody". */
 const END = String.raw`(?![\p{L}\p{N}])`;
 
 /** The openers, each matched at one position (`y`), in the order they are tried. */
@@ -80,19 +84,28 @@ const SEPARATOR = /^(?:[,.:;!?…]+\s*|\s+and\s+|\s*$)/i;
 /** A stop, or nothing: "No wait." is bare. */
 const BARE = /^[.!?…]*\s*$/;
 
-/** "Check box:" and "Bullet point:", which a command's payload and the block cues write, taken off what a person would quote. */
+/**
+ * "Check box:" and "Bullet point:", which a command's payload (liveRoute.ts `payloadWords`) and the block cues
+ * (spoken/blocks.ts) write, taken off what a person would quote.
+ */
 const CUE_PREFIX = /^(?:check(?:ed)?\s?box|bullet\s?point|checklist(?:\s+item)?|check\s+item)[:,.]?\s*/i;
 
 /** "It" and "that" are the thing taken back; "this" is the take's own word ("move this to X" moves the recording). */
-const SEND_VERB = /^(?:add|put|send|move|stick|file|save|drop)\s+(?:that|it|those|them|these)\s+(?:to|in|into|on|onto|under|for)\s+(?:(?:the|my|our)\s+)?(.+)$/i;
-const SEND_GOES = /^(?:that|it|this)(?:['’]s|\s+(?:goes|belongs|should\s+go|should\s+be|is|was))\s+(?:in|into|on|to|for|under)\s+(?:(?:the|my|our)\s+)?(.+)$/i;
+const SEND_VERB = /^(?:add|put|send|move|stick|file|save|drop)\s+(?:that|it|those|them|these)\s+(?:to|in|into|on|onto|under|for)\s+(?:(the|my|our)\s+)?(.+)$/i;
+const SEND_GOES = /^(?:that|it|this)(?:['’]s|\s+(?:goes|belongs|should\s+go|should\s+be|is|was))\s+(?:in|into|on|to|for|under)\s+(?:(the|my|our)\s+)?(.+)$/i;
+/** A send that is starting, for a partial: the verb and its "it" or "that". */
+const SEND_START = /^(?:(?:add|put|send|move|stick|file|save|drop)\s+(?:that|it|those|them|these)|(?:that|it|this)(?:['’]s|\s+(?:goes|belongs|should)))(?![\p{L}\p{N}])/iu;
+/** "The list", "my note": the note being written to, whatever it is called (noteFind.ts `HERE`), so the article stays. */
+const HERE_NOUN = /^(?:list|note|page)$/i;
+/** A risky opener at the front of a command's words, for the reader to take off: "actually, add a note to House TODOs" is the command. */
+const RISKY_START = /^(?:actually|i\s+mean|or\s+rather|sorry\s*,|(?:no,?\s+)*no\s*,|no,?\s+wait|wait,?\s+no)[,:]?\s+/i;
 
 /** Words that carry nothing of a sentence, for telling one said again from a new one. */
 const STOP = new Set(
   'the a an and or but so to of in on at for is are was were be it its this that i we you he she they my our your with from by as not do did does have has had will would should can could'.split(' '),
 );
 
-const NUMBER_WORDS = new Set('one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety hundred thousand half quarter'.split(' '));
+const NUMBER_WORDS = new Set([...NUMBER_WORD.split('|'), 'half', 'quarter']);
 const WEEKDAYS = new Set('monday tuesday wednesday thursday friday saturday sunday'.split(' '));
 const MONTHS = new Set('january february march april may june july august september october november december'.split(' '));
 const NUMBER = /^\d+(?:[:.]\d+)?(?:\s?[ap]m)?$/i;
@@ -118,8 +131,9 @@ function sendOf(text: string): string | null {
     .trim();
   if (!words) return null;
   const found = SEND_VERB.exec(words) ?? SEND_GOES.exec(words);
-  const name = found?.[1]?.trim();
-  if (!name) return null;
+  const named = found?.[2]?.trim();
+  if (!named) return null;
+  const name = found?.[1] && HERE_NOUN.test(named) ? `${found[1]} ${named}` : named;
   // A name runs to the end: with more after it, this is more than a send.
   if (/[,;:]|\.\s/.test(name)) return null;
   return nameable(name) === 'name' ? name : null;
@@ -142,7 +156,9 @@ function openerAt(text: string, at: number): { opener: string; end: number; safe
     }
     if (safe) {
       const sep = SEPARATOR.exec(after);
-      if (sep) return { opener, end, safe, rest: after.slice(sep[0].length).trim() };
+      // After a stop Whisper capitalises whatever comes next, so the rest's first letter is put down: "Scratch that.
+      // Tomorrow." is never a name to swap in; a name after a comma ("scratch that, Sarah") keeps its capital.
+      if (sep) return { opener, end, safe, rest: /^[.!?…]/.test(sep[0]) ? uncapitalise(after.slice(sep[0].length).trim()) : after.slice(sep[0].length).trim() };
       // "scratch that add it to groceries": a send needs no pause, and never occurs in prose.
       return sendOf(after.trim()) ? { opener, end, safe, rest: after.trim() } : null;
     }
@@ -152,6 +168,11 @@ function openerAt(text: string, at: number): { opener: string; end: number; safe
     return { opener, end, safe, rest: withoutFinalStop(rest) === '' ? '' : rest };
   }
   return null;
+}
+
+/** The first letter down, unless the word is all capitals ("TODOs"), which is how it is written. */
+function uncapitalise(text: string): string {
+  return /^\p{Lu}(?!\p{Lu})/u.test(text) ? `${text.charAt(0).toLowerCase()}${text.slice(1)}` : text;
 }
 
 /**
@@ -170,7 +191,9 @@ export function readTakeBack(raw: string): TakeBack | null {
   const beforeKeyword = heard && !onlyFiller(heard.before) ? heard.before : '';
 
   const make = (at: number, found: NonNullable<ReturnType<typeof openerAt>>, head: string, afterComma: boolean): TakeBack => {
-    const keyed = heard !== null && keyAt < at;
+    // Keyed only when the keyword stood right before the opener: before a command in the head ("Hey Ghost, add call
+    // Sam to Work. Actually, …") the keyword was the command's, and the opener is read as it is without one.
+    const keyed = heard !== null && at === keyStart;
     return {
       head,
       headBeforeKeyword: keyed && beforeKeyword !== '',
@@ -242,19 +265,22 @@ export function contentWords(text: string): string[] {
 
 /**
  * Whether `replacement` is `previous` said again with a change, by the content words they share: at least half of
- * the longer one, so the frame is shared from both sides and a one-word item is not "corrected" by a long new sentence.
- * Or the same words but for one of a kind ("it's on Tuesday" | "it's on Thursday"), where the frame is only stop words.
+ * the longer one, so the frame is shared from both sides and a one-word item is not "corrected" by a long new sentence;
+ * and either two of them, or all of the previous ("eggs" | "eggs and milk"), or the same words but for one in the
+ * same place ("oat milk" | "almond milk", "it's on Tuesday" | "it's on Thursday"). One word of two shared is a new
+ * sentence about the same thing: "Call Sam" | "Sam is away".
  */
 export function corrects(previous: string, replacement: string): boolean {
   const before = contentWords(previous);
   const after = contentWords(replacement);
   if (!after.length) return false;
+  const changed = before.length === after.length ? before.map((word, i) => i).filter((i) => before[i] !== after[i]) : [];
+  const kind = changed.length === 1 ? kindOf(before[changed[0]!]!) : null;
+  if (kind !== null && kind === kindOf(after[changed[0]!]!)) return true;
   const had = new Set(before);
   const shared = [...new Set(after)].filter((word) => had.has(word)).length;
-  if (shared * 2 >= Math.max(had.size, new Set(after).size)) return true;
-  if (before.length !== after.length) return false;
-  const changed = before.map((word, i) => i).filter((i) => before[i] !== after[i]);
-  return changed.length === 1 && kindOf(before[changed[0]!]!) !== null && kindOf(before[changed[0]!]!) === kindOf(after[changed[0]!]!);
+  if (shared * 2 < Math.max(had.size, new Set(after).size)) return false;
+  return shared >= 2 || shared === had.size || changed.length === 1;
 }
 
 /**
@@ -281,9 +307,21 @@ export function swapWord(previous: string, fragment: string): { text: string; fr
   return { text: `${previous.slice(0, at)}${to}${previous.slice(at + from.length)}`, from, to };
 }
 
-/** A segment's words as a person would quote them: "Check box:" and "Bullet point:" off, a final stop off. */
+/** A segment's words as a person would quote them: "Check box:" and "Bullet point:" off, a keyword it opened with off, a final stop off. */
 export function quoted(text: string): string {
-  return withoutFinalStop(text.replace(CUE_PREFIX, '')).trim();
+  const heard = findKeyword(text);
+  const words = heard && onlyFiller(heard.before) ? commandWords(heard.after) : text;
+  return withoutFinalStop(words.replace(CUE_PREFIX, '')).trim();
+}
+
+/**
+ * A command's words with a risky opener off their front, when a command follows it: "actually, add a note to House
+ * TODOs" after the keyword is the command, said as people say it, not a correction. As said otherwise.
+ */
+export function commandAfterOpener(words: string): string {
+  const plain = words.replace(RISKY_START, '').trim();
+  if (plain === '' || plain === words) return words;
+  return isOpener(plain) || readRoute(plain).length > 0 || readNameFirst(plain).length > 0 ? plain : words;
 }
 
 /** The cue an item was written with ("Check box: ", "Bullet point: "), or '': a replacement inherits it, so the list shape holds. */
@@ -323,4 +361,23 @@ export function opensTakeBack(partial: string): boolean {
     const first = opener.split(' ')[0]!;
     return ordinary ? said.length > ordinary.length + 1 : said.length >= first.length;
   });
+}
+
+/**
+ * Where a safe opener starts in a partial: at its start, or after a stop or a comma inside it ("The meeting is at
+ * three, scratch tha"), so the words before it stay on the page and the opener never lands there. -1 for none.
+ */
+export function takeBackAt(partial: string): number {
+  if (opensTakeBack(partial)) return 0;
+  for (const boundary of partial.matchAll(/(?:[.!?…]["”]?|,)\s+/g)) {
+    const at = boundary.index + boundary[0].length;
+    if (opensTakeBack(partial.slice(at))) return at;
+  }
+  return -1;
+}
+
+/** A partial that is starting a send ("add it to", "that goes in"), keyword and lead-ins off: for the chip while a drop waits for one. */
+export function opensSend(partial: string): boolean {
+  const heard = findKeyword(partial);
+  return SEND_START.test(commandWords(heard ? heard.after : partial));
 }

@@ -44,7 +44,7 @@ import type { CaptureLanding } from './landing.ts';
 import { inOrder, LiveRoute, withoutWords, type LiveCard, type LiveContext, type LiveStep } from './liveRoute.ts';
 import { END, placeTake, placingFor, type Placing } from './place.ts';
 import { withoutCommands } from './refineText.ts';
-import { opensTakeBack } from './takeBack.ts';
+import { opensSend, takeBackAt } from './takeBack.ts';
 import { lingerMs } from './chip.ts';
 import { RouteChip } from './RouteChip.tsx';
 import { diagnosticsLine, EMPTY_DIAGNOSTICS, soundsSilent, type Diagnostics } from './diagnostics.ts';
@@ -257,7 +257,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** While an item for another note is being said, its words show in the chip, not in this note. */
   const [itemWords, setItemWords] = useState('');
   // The page as it is spoken: the take's markdown, from what React holds of it, with the phrase still being guessed.
-  const note = useMemo(() => takeMarkdown({ segments }, { titled, partial: itemWords ? '' : partial }), [segments, partial, titled, itemWords]);
+  const note = useMemo(() => takeMarkdown({ segments }, { titled, partial }), [segments, partial, titled]);
 
   // The switched-on plugins' formattings can be said like bold ("spoiler … end spoiler"); read as the recorder opens,
   // before the first render lays the page out with them.
@@ -380,10 +380,13 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           heard();
         }
         // A partial is display only: it routes nothing. While a command is being said, or a note just named waits
-        // for its words, it shows in the chip rather than on the page; "scratch that" being said never flashes onto it.
-        const commanding = live.hearingCommand || opensTakeBack(text) || (commandWordOn() && text !== '' && (findKeyword(text) !== null || findMisheard(text, () => true) !== null));
-        setItemWords(commanding ? text : '');
-        setPartial(commanding ? '' : text);
+        // for its words, it shows in the chip rather than on the page; "scratch that" being said never flashes onto
+        // it, wherever it starts in the phrase (the words before it stay on the page), and nor does the send a bare
+        // drop is waiting for.
+        const takeBack = takeBackAt(text);
+        const commanding = live.hearingCommand || takeBack === 0 || (live.sendOpen && opensSend(text)) || (commandWordOn() && text !== '' && (findKeyword(text) !== null || findMisheard(text, () => true) !== null));
+        setItemWords(commanding ? text : takeBack > 0 ? text.slice(takeBack) : '');
+        setPartial(commanding ? '' : takeBack > 0 ? text.slice(0, takeBack).trim() : text);
       },
       onSegment: (raw) => {
         quiet.current?.words(performance.now());
