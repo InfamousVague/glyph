@@ -8,7 +8,8 @@ import { getNote, setNoteRecording, updateNote } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import { keptText, summaryUnchanged } from '../ai/summaryKeep.ts';
 import { summarySection, withSummary } from '../ai/summaryText.ts';
-import type { Segment } from './markdown.ts';
+import { renderTranscript, withTranscript, type Segment } from './markdown.ts';
+import { writeUpRunning } from './meetingLive.ts';
 import type { Placing } from './place.ts';
 import { refinedBody, refinedSegments } from './refineText.ts';
 
@@ -43,6 +44,12 @@ import { refinedBody, refinedSegments } from './refineText.ts';
  *
  * A job is marked `started` before its pass runs, and a job found `started` at launch counts that as one try, so a
  * pass that kills the app cannot kill it at every launch: three tries and the job is dropped.
+ *
+ * A meeting's job (`meeting`, the Mac's recorder; docs/DESIGN.md §127 section 3) renders its better phrases as the
+ * transcript the note was written with (capture/markdown.ts `renderTranscript`), in place of the transcript it has,
+ * with the summary above it left as it stands. A meeting recorded by the phone's service never has a job here: its
+ * phrases are the write-up's own. And no pass starts while that write-up is running (capture/meetingLive.ts
+ * `writeUpRunning`), since both want the same speech model; Rust's own guard is the hard one, and this the polite one.
  */
 
 export interface RefineJob {
@@ -90,6 +97,8 @@ export interface RefineJob {
   tries: number;
   /** Set as the pass starts and cleared as it ends however it ends: found set at launch, the pass killed the app. */
   started?: boolean;
+  /** A meeting's take (capture/meeting.ts): rendered as a transcript, never as a dictated note. Set from `prefs.meetings` as it is queued. */
+  meeting?: boolean;
 }
 
 /** The binary generation that has `capture_refine`. */
@@ -166,7 +175,9 @@ export function onRefineHold(listener: (on: boolean) => void): () => void {
 export function enqueueRefine(job: Omit<RefineJob, 'tries'>): void {
   if (!isTauri() || !preferences().refine) return;
   const queue = readQueue().filter((j) => j.id !== job.id || j.fromMs !== job.fromMs);
-  queue.push({ ...job, tries: 0 });
+  // A meeting is known by its preference, whichever site queued the job.
+  const meeting = job.meeting ?? job.id in preferences().meetings;
+  queue.push({ ...job, tries: 0, ...(meeting ? { meeting: true } : {}) });
   writeQueue(queue);
   syncPending();
   kick();
@@ -276,6 +287,11 @@ async function runNext(): Promise<void> {
   const job = queue.find((j) => !heldNotes.has(j.id));
   if (!job) return;
   if (!(await canRefine())) return;
+  // A meeting's write-up has the speech model: this pass looks again once it has let go.
+  if (writeUpRunning()) {
+    kick(RETRY_MS);
+    return;
+  }
   running = true;
   let next = 500;
   try {
@@ -330,7 +346,8 @@ async function apply(job: RefineJob, refined: Segment[]): Promise<void> {
   // The editor's landing puts a newline after the note's last line; that is not an edit.
   const asSaved = (ours ? withSummary(job.savedBody, section.text, { kept }) : job.savedBody).trimEnd();
   if (note.body.trimEnd() === asSaved) {
-    const better = refinedBody(job, refined);
+    // A meeting's better phrases are its transcript again, under whatever stands above it (the title, its summary).
+    const better = job.meeting ? withTranscript(note.body, renderTranscript(refined)) : refinedBody(job, refined);
     await updateNote(job.id, ours && !summarySection(better, kept) ? withSummary(better, section.text, { kept }) : better, note.revision ?? 1).catch(() => null);
   }
   await setNoteRecording(job.id, job.recordingMs, refinedSegments(job, refined)).catch(() => null);

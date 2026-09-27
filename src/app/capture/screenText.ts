@@ -37,8 +37,14 @@ export function statusLine({
 /**
  * Where the words are going: a new note, one named on a card and made at Done (`named`), or the note being written
  * to - named, except over the lock screen, where a note a command switched to (`routed`) is only "the note you named".
+ * A meeting (capture/meeting.ts) is recorded, not read, and its line says only that.
  */
-export function whereLine(target: { body: string } | null, locked: boolean, { routed = false, named = null }: { routed?: boolean; named?: string | null } = {}): string {
+export function whereLine(
+  target: { body: string } | null,
+  locked: boolean,
+  { routed = false, named = null, meeting = false }: { routed?: boolean; named?: string | null; meeting?: boolean } = {},
+): string {
+  if (meeting) return 'Meeting';
   if (!target) return named !== null && !locked ? `New note “${named}”` : 'New note';
   if (locked) return routed ? 'Adding to the note you named' : 'Adding to your last note';
   return `Adding to “${noteTitle(target.body)}”`;

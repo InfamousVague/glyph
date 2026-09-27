@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createNote, getNote, listNotes, noteTitle, setNoteRecording, updateNote } from '../core/store.ts';
 import { setTapeId, tapeId } from '../core/clips.ts';
-import { setPreferences } from '../core/preferences.ts';
+import { preferences, setPreferences } from '../core/preferences.ts';
+import { dateTitled } from '../ai/summaryText.ts';
 import { stubResizeObserver } from '../../test/stubs.ts';
 import { bookNoteBody } from '../book/book.ts';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
@@ -29,6 +30,15 @@ const capture = vi.hoisted(() => ({
   refines: [] as Omit<RefineJob, 'tries'>[],
   /** Held, the notes a command can name are not read until it is let go (core/store.ts `listNotes`). */
   notesHeld: null as Promise<void> | null,
+}));
+
+// Where the recorder runs: a phone's "Meeting instead" hands the microphone to the service, the Mac's turns the recorder into the meeting.
+const platform = vi.hoisted(() => ({ android: false }));
+vi.mock('../core/platform.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/platform.ts')>()),
+  get isAndroid() {
+    return platform.android;
+  },
 }));
 
 vi.mock('../core/store.ts', async (importOriginal) => {
@@ -72,6 +82,7 @@ vi.mock('../ai/summaries.ts', async (importOriginal) => ({
 
 beforeEach(() => {
   localStorage.clear();
+  platform.android = false;
   capture.discarded = [];
   capture.reassigned = [];
   capture.refines = [];
@@ -1359,5 +1370,109 @@ describe('adding to a note as it is said', () => {
     fireEvent.click(card.querySelector('button.app-pill')!);
     await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
     expect((await getNote('groceries'))?.body).toBe('# Groceries\n\n- Eggs\n- Oat milk\n');
+  });
+});
+
+describe('a meeting', () => {
+  /** The stop keeps the audio, as the Mac's engine does. */
+  const keepingAudio = (recordedMs: number) => {
+    capture.session!.keepsAudio = true;
+    capture.session!.stop = async () => ({ recordedMs, transcript: null });
+  };
+
+  it('is recorded, not read: the top line says Meeting, no card of things to say, the phrases are the transcript, and Done writes the date-titled note as a meeting with its better words and summary to come', async () => {
+    keepingAudio(200_000);
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} meeting onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    expect(screen.getByRole('button', { name: 'Meeting' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Things to say')).toBeNull();
+    // A cue is words here, and a command is words.
+    await say('we settled the date.', 1000);
+    await say('heading the launch.', 2400);
+    await say('hey Ghost, add call Sam to House TODOs.', 4000);
+    expect(screen.queryByLabelText('Things to say')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await screen.findByText('Keep Ghost.md open while it is written up.');
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1), { timeout: 4000 });
+    const saved = onFinish.mock.calls[0]![0]!;
+    expect(dateTitled(saved.body)).toBe(true);
+    expect(saved.body).toMatch(/^# Meeting, .+\n\n## Transcript\n\nWe settled the date\. Heading the launch\. Hey Ghost, add call Sam to House TODOs\.$/);
+    expect(saved.source).toBe('capture');
+    expect(saved.recordingMs).toBe(200_000);
+    expect(preferences().meetings[saved.id]).toEqual(expect.any(Number));
+    expect(tapeId(saved.id)).not.toBeNull();
+    expect(capture.refines).toHaveLength(1);
+    expect(capture.refines[0]).toMatchObject({ id: saved.id, fromMs: 0, recordingMs: 200_000, meeting: true, titled: false });
+    expect(summaries.asked).toEqual([[saved.id, 'meeting']]);
+    // No review, however short: a meeting is nobody's dictation.
+    expect(onFinish.mock.calls[0]?.[2]).toBeUndefined();
+    // Nothing was written to any other note.
+    expect((await listNotes()).map((n) => n.id)).toEqual([saved.id]);
+  });
+
+  it('queues no summary with summaries off, and leaves nothing behind when nothing was said', async () => {
+    setPreferences({ summaries: 'off' });
+    try {
+      keepingAudio(200_000);
+      let onFinish = vi.fn();
+      render(<CaptureScreen fromAssistant={false} meeting onFinish={onFinish} />);
+      await waitFor(() => expect(capture.handlers).not.toBeNull());
+      await say('Words.', 1000);
+      fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+      await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1), { timeout: 4000 });
+      expect(summaries.asked).toEqual([]);
+      expect(capture.refines).toHaveLength(1);
+      cleanup();
+      keepingAudio(3000);
+      onFinish = vi.fn();
+      render(<CaptureScreen fromAssistant={false} meeting onFinish={onFinish} />);
+      await waitFor(() => expect(capture.handlers).not.toBeNull());
+      fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+      await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
+      expect(capture.discarded).toHaveLength(1);
+      expect((await listNotes()).filter((n) => !dateTitled(n.body) || n.body.includes('Words.'))).toHaveLength(1);
+    } finally {
+      setPreferences({ summaries: 'meetings' });
+    }
+  });
+
+  it('is offered on the card as "Meeting instead" where a meeting can be recorded, not on a note’s own Speak, and on the Mac turns this recorder into the meeting', async () => {
+    await createNote('groceries', 'Groceries');
+    const onMeeting = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={vi.fn()} onMeeting={onMeeting} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    const card = await screen.findByLabelText('Things to say');
+    fireEvent.click(within(card).getByRole('button', { name: 'Meeting instead' }));
+    expect(onMeeting).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Meeting' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Things to say')).toBeNull();
+    cleanup();
+    render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={vi.fn()} onMeeting={onMeeting} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    const own = await screen.findByLabelText('Things to say');
+    expect(within(own).queryByRole('button', { name: 'Meeting instead' })).toBeNull();
+    cleanup();
+    render(<CaptureScreen fromAssistant={false} onFinish={vi.fn()} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    const none = await screen.findByLabelText('Things to say');
+    expect(within(none).queryByRole('button', { name: 'Meeting instead' })).toBeNull();
+  });
+
+  it('on a phone lets the microphone go first - the take cancelled, its sound discarded - and hands over to the service', async () => {
+    platform.android = true;
+    const cancel = vi.fn();
+    capture.session!.cancel = cancel;
+    const onMeeting = vi.fn();
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} onMeeting={onMeeting} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    const card = await screen.findByLabelText('Things to say');
+    fireEvent.click(within(card).getByRole('button', { name: 'Meeting instead' }));
+    await waitFor(() => expect(onMeeting).toHaveBeenCalledTimes(1));
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(capture.discarded).toHaveLength(1);
+    expect(onFinish).not.toHaveBeenCalled();
+    await waitFor(async () => expect(await listNotes()).toEqual([]));
   });
 });
