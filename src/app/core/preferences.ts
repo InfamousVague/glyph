@@ -163,6 +163,21 @@ export function facesOf(prefs: Pick<Preferences, 'typeface' | 'noteFace'>): { ui
 /** How quickly things move (Settings > Animations; Matt: "add controls to animation speeds"). */
 export type MotionSpeed = 'relaxed' | 'normal' | 'brisk';
 
+/**
+ * Which recordings are summarised on their own (docs/DESIGN.md §127 section 2; Matt: "letting the audio be
+ * transcribed then summarized by AI so I get summarized recording notes automatically"): meetings, meetings and long
+ * voice notes, or none. The tape strip's Summarize word works whatever this says.
+ */
+export type Summaries = 'meetings' | 'long' | 'off';
+export const SUMMARIES: readonly Summaries[] = ['meetings', 'long', 'off'];
+
+/** A voice note longer than this is a long one: summarised on its own when `summaries` says so, and past the review. One line to change, and the sentence in the setting's hint with it. */
+export const LONG_NOTE_MS = 180_000;
+
+export function isSummaries(value: unknown): value is Summaries {
+  return typeof value === 'string' && (SUMMARIES as readonly string[]).includes(value);
+}
+
 /** How much longer (above 1) or shorter (below 1) every animation runs at a speed. */
 const MOTION_SCALE: Record<MotionSpeed, number> = { relaxed: 1.6, normal: 1, brisk: 0.6 };
 
@@ -211,9 +226,12 @@ export interface Preferences {
   /**
    * After Stop, the review (review/): the slower speech model listens again and
    * the language model, thinking out loud, checks the note; the person keeps
-   * or commits what it finds. On by default: Matt asked for it.
+   * or commits what it finds. On by default: Matt asked for it. Only for takes
+   * under `LONG_NOTE_MS`, whose transcript fits the model's window.
    */
   review: boolean;
+  /** Which recordings are summarised on their own (`Summaries`; ai/summaries.ts). Meetings by default. */
+  summaries: Summaries;
   /**
    * Nothing leaves the phone and nothing arrives: no update checks, no model
    * downloads, and plugins that use the network are off. Glyph runs from what
@@ -302,6 +320,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   quietStop: false,
   commandWord: true,
   review: true,
+  summaries: 'meetings',
   localOnly: false,
   formatModel: 'qwen3.5-4b',
   codeLight: 'pastel',
@@ -379,6 +398,7 @@ function settle(raw: unknown): Preferences {
   }
   loaded.shares = shares;
   if (!(loaded.motionSpeed in MOTION_SCALE)) loaded.motionSpeed = DEFAULT_PREFERENCES.motionSpeed;
+  if (!isSummaries(loaded.summaries)) loaded.summaries = DEFAULT_PREFERENCES.summaries;
   // An accent or a rounding this build does not have - one from an older store, where the accent was a colour the
   // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.
   if (!isAccent(loaded.accent)) loaded.accent = DEFAULT_PREFERENCES.accent;

@@ -1,5 +1,5 @@
 import { forkShared, readShared } from './share/share.ts';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HapticsProvider, ToastProvider, useToast } from '@glacier/react';
 import { UpdateNotice } from './notes/Notices.tsx';
 import { HomeScreen } from './home/HomeScreen.tsx';
@@ -99,7 +99,10 @@ function Shell() {
   const actions = useNoteActions(refresh);
   // A desktop window wide enough keeps the notes in a sidebar beside the open note (core/useWideScreen.ts).
   const sidebar = useSidebar();
-  useHousekeeping({ notes, loading, refresh, sidebar });
+  // The "Summarized" toast's Open (shell/useHousekeeping.ts) opens the note where it was left; that opener is made
+  // further down, once the notes and the tabs are known, so the hook is handed the way to reach it.
+  const openFromToast = useRef<(id: string) => void>(() => undefined);
+  useHousekeeping({ notes, loading, refresh, sidebar, open: (id) => openFromToast.current(id) });
   const [screen, setScreen] = useState<Screen>({ name: 'list' });
   const [settings, setSettings] = useState(false);
   /** Settings asked to open at the cheat sheet, from the Academy: the moment it was asked for, or 0. */
@@ -175,6 +178,7 @@ function Shell() {
     const note = notes.find((n) => n.id === id);
     openNote(note ? whereLeft(note, shownNotes, shown).id : id);
   };
+  openFromToast.current = openNoteWhereLeft;
   /** `id` opened in the current note's tab. */
   const openNoteWithin = (id: string) => {
     tabs.replaceNext(shown && shown !== id ? shown : null);

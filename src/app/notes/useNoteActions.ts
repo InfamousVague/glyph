@@ -7,6 +7,8 @@ import { forgetNote } from '../core/workspaces.ts';
 import { forgetResults } from '../format/results.ts';
 import { forgetRuns } from '../ai/log.ts';
 import { forgetMarks } from '../ai/marks.ts';
+import { dropSummary } from '../ai/summaries.ts';
+import { forgetSummary } from '../ai/summaryKeep.ts';
 import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.ts';
 
 /**
@@ -32,15 +34,17 @@ const UNDO_MS = 5000;
 
 /**
  * What the app kept about a note beside the note itself, let go once the note is deleted for good: its filing
- * (core/workspaces.ts), its kept summaries and gist (format/results.ts), the runs it has seen (ai/log.ts) and the
- * changes marked in it (ai/marks.ts). Its place in the trash goes with it too, which the caller does, once for all of
- * them when the whole trash is emptied.
+ * (core/workspaces.ts), its gist (format/results.ts), the runs it has seen (ai/log.ts), the changes marked in it
+ * (ai/marks.ts), the summary it was written (ai/summaryKeep.ts) and the job to write one (ai/summaries.ts). Its
+ * place in the trash goes with it too, which the caller does, once for all of them when the whole trash is emptied.
  */
 function forgetKept(id: string): void {
   forgetNote(id);
   forgetResults(id);
   forgetRuns(id);
   forgetMarks(id);
+  forgetSummary(id);
+  dropSummary(id);
 }
 
 function label(note: Note): string {

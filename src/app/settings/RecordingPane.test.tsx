@@ -8,9 +8,16 @@ await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedi
 // The side key's rings watch their box; jsdom has no observer.
 stubResizeObserver();
 
-// In the app, where there is a side key to place, or in a browser, where there is none.
+// On Android, where there is a side key to place, on the Mac, or in a browser, where there is none.
 let native = true;
+let android = true;
 vi.mock('../core/tauri.ts', () => ({ isTauri: () => native, invoke: () => Promise.reject(new Error('no binary in a test')) }));
+vi.mock('../core/platform.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/platform.ts')>()),
+  get isAndroid() {
+    return android;
+  },
+}));
 
 const { RecordingPane } = await import('./RecordingPane.tsx');
 const { savedHeight, saveHeight } = await import('../capture/sideKey.ts');
@@ -23,6 +30,7 @@ const { preferences, setPreferences, DEFAULT_PREFERENCES } = await import('../co
 
 beforeEach(() => {
   native = true;
+  android = true;
   localStorage.clear();
   setPreferences(DEFAULT_PREFERENCES);
 });
@@ -52,8 +60,28 @@ describe('the Recording page', () => {
     expect(host.textContent).not.toContain('Use Ghost.md’s guess');
   });
 
-  it('has no side key to place in a browser', () => {
+  it('has no side key to place in a browser, nor on the Mac, where the first section is not the key’s', () => {
     native = false;
+    android = false;
     expect(show(<RecordingPane />).textContent).not.toContain('Where the side key is');
+    native = true;
+    const mac = show(<RecordingPane />);
+    expect(mac.textContent).not.toContain('Where the side key is');
+    expect(mac.textContent).not.toContain('The side key');
+    expect(mac.textContent).toContain('While recording');
+    expect(mac.textContent).toContain('Summaries');
+  });
+
+  it('offers the summaries three ways, meetings by default, and writes the choice the queue reads', () => {
+    const host = show(<RecordingPane />);
+    expect(preferences().summaries).toBe('meetings');
+    expect(host.textContent).toContain('A long voice note is one over three minutes.');
+    // Each choice is a label round a hidden radio input, as the kit draws a segmented control.
+    const choose = (value: string) => act(() => host.querySelector<HTMLInputElement>(`input[type="radio"][value="${value}"]`)!.click());
+    expect(host.textContent).toContain('Meetings and long voice notes');
+    choose('long');
+    expect(preferences().summaries).toBe('long');
+    choose('off');
+    expect(preferences().summaries).toBe('off');
   });
 });

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useToast } from '@glacier/react';
+import { startSummaries } from '../ai/summaries.ts';
 import { startRefining } from '../capture/refine.ts';
 import { installBack } from '../core/back.ts';
 import { installTapHaptics } from '../core/haptics.ts';
@@ -25,10 +26,14 @@ export interface HousekeepingOptions {
   refresh: () => Promise<void>;
   /** Whether the window holds the sidebar beside the note (core/useWideScreen.ts `useSidebar`). */
   sidebar: boolean;
+  /** Opens a note where it was left, for the toast that says a recording was summarized. */
+  open: (id: string) => void;
 }
 
-export function useHousekeeping({ notes, loading, refresh, sidebar }: HousekeepingOptions): void {
+export function useHousekeeping({ notes, loading, refresh, sidebar, open }: HousekeepingOptions): void {
   const { toast } = useToast();
+  const openRef = useRef(open);
+  openRef.current = open;
 
   useEffect(() => {
     // First, before anything that might reload: this frontend mounted, so the
@@ -72,6 +77,16 @@ export function useHousekeeping({ notes, loading, refresh, sidebar }: Housekeepi
   // The better words after a recording, worked out in the background; the list
   // is refreshed when a note's words change.
   useEffect(() => startRefining(() => void refresh()), [refresh]);
+  // The summary of a recording, written up after its better words (ai/summaries.ts, docs/DESIGN.md §127 section 2):
+  // the list is refreshed when one lands, and a toast says so with the way to the note, for ten seconds.
+  useEffect(
+    () =>
+      startSummaries(
+        () => void refresh(),
+        ({ id, title }) => toast({ message: `Summarized “${title}”`, duration: 10_000, action: { label: 'Open', onPress: () => openRef.current(id) } }),
+      ),
+    [refresh, toast],
+  );
   // Sync, for a device signed in to an account (docs/SYNC.md); nothing happens without one.
   useEffect(() => startSync(), []);
 

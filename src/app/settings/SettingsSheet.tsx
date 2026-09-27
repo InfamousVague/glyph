@@ -5,7 +5,7 @@ import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
 import { gb, modelName, modelSpec, useModels } from '../core/ai.ts';
 import { hapticsAvailable, useHapticsPref } from '../core/haptics.ts';
-import { isAndroid } from '../core/platform.ts';
+import { isAndroid, isMobile } from '../core/platform.ts';
 import type { Updates } from '../core/ota.ts';
 import { facesOf, usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
@@ -40,8 +40,10 @@ import { reportSummary } from '../diag/testReport.ts';
  * the plugins (each switched-on plugin's own page, then Plugins to switch
  * them); help and the app itself (the Cheat sheet, and About, which holds the
  * updates and what's new); and the hidden pages (Developer, Test results).
- * Recording only on Android, where there is a side key, Feel only where there
- * is a motor, the hidden pages only once unlocked. Each pane is a file of its
+ * Recording on Android, where there is a side key, and on the Mac, which
+ * records through Speak and runs the better words and the summaries
+ * (docs/DESIGN.md §127 section 2); Feel only where there is a motor, the
+ * hidden pages only once unlocked. Each pane is a file of its
  * own; the words for a preference's values are words.ts, shared with the
  * panes, so a reading here says what the pane's control says.
  */
@@ -170,7 +172,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
         .join(' · '),
       group: 0,
     },
-    ...(isAndroid
+    ...(isAndroid || (isTauri() && !isMobile)
       ? [
           {
             id: 'recording',
@@ -181,7 +183,8 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
               { name: 'Commands start with “hey Ghost”', words: 'wake word voice cues' },
               { name: 'Review after recording', words: 'check transcript' },
               { name: 'Better words', words: 'refine clean up transcript' },
-              { name: 'Where the side key is', words: 'button height position hardware' },
+              { name: 'Summaries', words: 'summary meeting write-up minutes' },
+              ...(isAndroid ? [{ name: 'Where the side key is', words: 'button height position hardware' }] : []),
             ],
             icon: <Mic size={16} />,
             content: <RecordingPane />,

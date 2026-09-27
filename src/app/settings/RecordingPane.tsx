@@ -1,21 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Slider, Switch } from '@glacier/react';
+import { SegmentedControl, Slider, Switch } from '@glacier/react';
 import { defaultHeight, saveHeight, savedHeight, useSideKeySpot } from '../capture/sideKey.ts';
 import { SideKeyWaves } from '../capture/SideKeyWaves.tsx';
-import { setPreferences, usePreferences } from '../core/preferences.ts';
-import { isTauri } from '../core/tauri.ts';
+import { isAndroid } from '../core/platform.ts';
+import { setPreferences, usePreferences, type Summaries } from '../core/preferences.ts';
 import { PaneSection, RowAction, SettingRow } from './kit/settingsKit.tsx';
 
 /**
- * Recording: how a take ends, whether a command needs its word first, what happens to the words afterwards, and - in
- * the app, where there is a side key - where that key is. Listed only on Android (SettingsSheet.tsx), the one phone
- * with a key to record from.
+ * Recording: how a take ends, whether a command needs its word first, what happens to the words afterwards, and - on
+ * Android, where there is a side key - where that key is. Listed on Android and on the Mac (SettingsSheet.tsx): the
+ * Mac records through Speak, runs the better words and the summaries, and its rows had no home there before
+ * (docs/DESIGN.md §127 section 2). The side key's own section is Android's alone.
  */
+
+/** Which recordings are summarised on their own (core/preferences.ts `Summaries`), in the choice's order. */
+const SUMMARY_CHOICES: { value: Summaries; label: string }[] = [
+  { value: 'meetings', label: 'Meetings' },
+  { value: 'long', label: 'Meetings and long voice notes' },
+  { value: 'off', label: 'Off' },
+];
+
 export function RecordingPane() {
   const prefs = usePreferences();
   return (
     <>
-      <PaneSection title="The side key">
+      <PaneSection title={isAndroid ? 'The side key' : 'While recording'}>
         <SettingRow
           label="Stop when I go quiet"
           hint="Saves the recording after four seconds of quiet, once you've started talking. You can still press the side key or tap Done."
@@ -30,16 +39,24 @@ export function RecordingPane() {
         />
         <SettingRow
           label="Review after recording"
-          hint="When you stop, a slower speech model listens again and the language model thinks the note through out loud, then shows what it would fix for you to keep or commit."
+          hint="When you stop, a slower speech model listens again and the language model thinks the note through out loud, then shows what it would fix for you to keep or commit. For recordings under three minutes."
           control={<Switch aria-label="Review after recording" checked={prefs.review} onCheckedChange={(review) => setPreferences({ review })} />}
         />
       </PaneSection>
-      {isTauri() ? <SideKeyPlace /> : null}
+      {isAndroid ? <SideKeyPlace /> : null}
       <PaneSection title="After recording">
         <SettingRow
           label="Better words"
           hint="After you finish, a larger model goes over the recording and fixes the words. A few seconds of the phone per minute of speech."
           control={<Switch aria-label="Better words after recording" checked={prefs.refine} onCheckedChange={(refine) => setPreferences({ refine })} />}
+        />
+        <SettingRow
+          label="Summaries"
+          hint="The language model on the phone writes a summary under the title. What was said, what was decided, and your to-dos. A long voice note is one over three minutes. A few minutes of the phone for a long recording."
+          layout="stacked"
+          control={
+            <SegmentedControl aria-label="Summaries" fullWidth size="sm" options={SUMMARY_CHOICES} value={prefs.summaries} onValueChange={(value) => setPreferences({ summaries: value as Summaries })} />
+          }
         />
       </PaneSection>
     </>
