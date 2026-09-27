@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { LoaderCircle } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
+import { counter } from '../capture/tape.ts';
 import { chaptersOf, isBookBody, type BookPlace } from '../book/book.ts';
 import { activeGist } from '../format/gist.ts';
 import { hasMarks } from '../ai/marks.ts';
@@ -20,6 +21,10 @@ import styles from './NoteCard.module.css';
  * One card for the home page's rows and the All notes grid (home/HomeScreen.tsx, notes/AllNotesScreen.tsx), so a
  * note looks the same wherever it is picked up. The grid draws it `dense`: a step smaller, for a page of many, with
  * its own marks for pinned and archived, since there the cards are not sorted under headings that say so.
+ *
+ * A note with a tape wears the tape's counter in its foot, "12:40 · Yesterday", in figures and with no icon. A note
+ * the recorder made is a cassette on the home page's shelf (home/TapeShelf.tsx); a note that was written and then
+ * talked into keeps its card, and the counter is how it is told from a typed one (docs/DESIGN.md §127).
  */
 
 export interface NoteCardProps {
@@ -39,6 +44,7 @@ export function NoteCard({ note, index, onOpen, gist, place, dense = false }: No
   const title = noteTitle(note.body);
   const book = isBookBody(note.body);
   const chapters = book ? chaptersOf(note.body) : [];
+  const tapeMs = note.recordingMs ?? 0;
   return (
     <li key={note.id} className={styles.item} data-dense={dense || undefined} style={{ '--i': Math.min(index, 8) } as CSSProperties}>
       <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
@@ -89,7 +95,14 @@ export function NoteCard({ note, index, onOpen, gist, place, dense = false }: No
             <NotePeek body={note.body} className={styles.peek} />
           </>
         )}
-        <span className={styles.when}>{when(note.updatedAt)}</span>
+        <span className={styles.when}>
+          {tapeMs > 0 ? (
+            <>
+              <span className={styles.tapeLength}>{counter(tapeMs)}</span> ·{' '}
+            </>
+          ) : null}
+          {when(note.updatedAt)}
+        </span>
       </button>
     </li>
   );

@@ -127,6 +127,15 @@
   color: var(--glacier-text-subtle);
 }
 
+/*
+ * The tape's counter before the date, on a note with a recording: figures that line up, no icon. On the home page
+ * this is only ever a typed note that was spoken into (the recorder's own notes are cassettes on the shelf), and the
+ * counter is what tells it from a typed one; in the All notes grid every note with a tape wears it.
+ */
+.tapeLength {
+  font-variant-numeric: tabular-nums;
+}
+
 /* A book's card: how many pages, then the first few as its index, in the card's own quiet type. */
 .bookMeta {
   font-size: var(--glacier-font-size-sm);
