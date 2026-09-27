@@ -4,14 +4,14 @@ import type { Span } from './takeTypes.ts';
 /**
  * A take's place on the tape of the note it is kept with.
  *
- * A take's phrases, commands and voice memos are timed from the start of the take. Its sound is kept under the note's
- * id (capture_stop `recordAs`), on the end of the note's own tape when the note still has one (`appendsTo`), so
- * everything stored against the tape - its phrases, the clips' marks, the better words' job - is on that longer
- * timeline, later by the length the tape already had (`onTape`). One that forgot the shift would play the wrong
- * sound, and the better words would listen to the wrong stretch. Pure, so each rule is a test.
+ * A take's phrases and commands are timed from the start of the take. Its sound is kept under the note's id
+ * (capture_stop `recordAs`), on the end of the note's own tape when the note still has one (`appendsTo`), so everything
+ * stored against the tape - its phrases, the better words' job - is on that longer timeline, later by the length the
+ * tape already had (`onTape`). One that forgot the shift would play the wrong sound, and the better words would listen
+ * to the wrong stretch. Pure, so each rule is a test.
  */
 
-/** `spans` moved `by` ms later, keeping whatever else each one carries (a clip's mark, a phrase's words). */
+/** `spans` moved `by` ms later, keeping whatever else each one carries (a phrase's words). */
 export function shifted<T extends Span>(spans: readonly T[], by: number): T[] {
   return spans.map((span) => ({ ...span, startMs: span.startMs + by, endMs: span.endMs + by }));
 }
@@ -41,16 +41,14 @@ export interface OnTape {
   segments: Segment[];
   /** The stretches that were commands, for the better words to leave out. */
   skip: Span[];
-  /** The voice memos this take left, as their marks. */
-  clips: Segment[];
   /** Phrases that were words and then "Glyph", for the better words to keep only what came before it. */
   keywordAt: Span[];
 }
 
-/** The take's phrases (`spoken`, with any the stopped decode added), commands and clips, moved onto the tape of `continued`. */
+/** The take's phrases (`spoken`, with any the stopped decode added) and commands, moved onto the tape of `continued`. */
 export function onTape(
   continued: TapedNote | null,
-  take: { readonly commandSpans: readonly Span[]; readonly clips: readonly Segment[]; readonly keywordSpans: readonly Span[] },
+  take: { readonly commandSpans: readonly Span[]; readonly keywordSpans: readonly Span[] },
   spoken: readonly Segment[],
 ): OnTape {
   const fromMs = continued?.recordingMs ?? 0;
@@ -60,7 +58,6 @@ export function onTape(
     prior,
     segments: [...prior, ...shifted(spoken, fromMs)],
     skip: shifted(take.commandSpans, fromMs),
-    clips: shifted(take.clips, fromMs),
     keywordAt: shifted(take.keywordSpans, fromMs),
   };
 }

@@ -6,11 +6,10 @@ import { itemSender } from '../sendItems.ts';
 import type { GlyphPlugin, NoteEditing } from '../types.ts';
 import { BoardPicker } from './BoardPicker.tsx';
 import { notionDetails } from './details.ts';
-import { boardFor, boardLinks, createTask, notionAvailable, notionReadyNow, type Board } from './client.ts';
+import { boardFor, createTask, notionAvailable, notionReadyNow, type Board } from './client.ts';
 import { manifest } from './manifest.ts';
 import { NotionMark } from './marks.tsx';
 import { NotionPane } from './NotionPane.tsx';
-import { notionItems, sendCommand, taskNoteCommand } from './voice.ts';
 
 /**
  * The Notion plugin, standard in Glyph: a note linked to a board sends its list
@@ -18,8 +17,7 @@ import { notionItems, sendCommand, taskNoteCommand } from './voice.ts';
  *
  * - On a note's cog: "Notion board" under Linked to (BoardPicker), and "Send
  *   list to Notion" once one is linked.
- * - In the note: swipe a list item left to send it.
- * - While recording: the commands in voice.ts.
+ * - In the note: swipe a list item left to send it, or tap the quiet "Notion" after it.
  * - In Settings: signing in, and the boards Notion shared (NotionPane).
  */
 
@@ -109,7 +107,4 @@ export const notionPlugin: GlyphPlugin = {
     }));
   },
   marks: notionDetails,
-  voice: [sendCommand, taskNoteCommand],
-  itemTargets: [notionItems],
-  tips: () => (Object.keys(boardLinks()).length ? [{ say: 'Send that to Notion', does: 'to make what you just said a task' }] : []),
 };

@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
  * Every class the recorder's components ask of a stylesheet is one that stylesheet has.
  *
  * A CSS module answers undefined for a class it does not define, and the element is drawn with no class at all - no
- * error, no warning, and in the tests (which run with CSS off) no difference. That is how the table card lost its card
+ * error, no warning, and in the tests (which run with CSS off) no difference. That is how the table card (cut since) lost its card
  * when the confirm card's rules moved to ai/ (20618bb): it went on asking the recorder's stylesheet for `confirm`.
  * So the check is on the text: each `styles.name` in a component here against the `.name` rules of the module it
  * imported as `styles`.

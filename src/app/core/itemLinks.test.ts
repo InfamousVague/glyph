@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyLinks, itemAt, itemWords, linkedLine, markOf, registerMarkName, unmarked, unsentItems, withMark } from './itemLinks.ts';
+import { itemAt, itemWords, linkedLine, markOf, registerMarkName, unmarked, unsentItems, withMark } from './itemLinks.ts';
 
 describe('list items for Notion', () => {
   const body = [
@@ -50,27 +50,11 @@ describe('list items for Notion', () => {
     expect(itemAt('- [ ] Call Sam [notion](https://n.so/a)', 4)).toBeNull();
   });
 
-  it('is what the voice path writes too, line by line', () => {
-    // plugins/notion/voice.ts: body.replace(line, linkedLine(line, url)).
+  it('links one line of a note, leaving the rest as it was', () => {
+    // plugins/sendItems.ts links each sent item's line this way.
     const noteBody = '# Trip\n\n- [ ] Book the cabin\n- [ ] Pack snacks\n';
     const line = '- [ ] Book the cabin';
     expect(noteBody.replace(line, linkedLine(line, 'https://n.so/a'))).toBe('# Trip\n\n- [ ] Book the cabin [notion](https://n.so/a)\n- [ ] Pack snacks\n');
-  });
-});
-
-describe('links for things sent while talking', () => {
-  it('marks the words where the cues put them', () => {
-    const markdown = '# Trip\n\n- [ ] Book the cabin\n- Pack snacks\n\nWe leave Friday.';
-    expect(applyLinks(markdown, [{ text: 'Book the cabin.', url: 'https://n.so/a' }])).toBe(
-      '# Trip\n\n- [ ] Book the cabin [notion](https://n.so/a)\n- Pack snacks\n\nWe leave Friday.',
-    );
-    expect(applyLinks(markdown, [{ text: 'leave Friday', url: 'https://n.so/b' }])).toContain('We leave Friday [notion](https://n.so/b).');
-  });
-
-  it('does nothing when the words are not there or already linked', () => {
-    expect(applyLinks('- x [notion](https://n.so/a)', [{ text: 'x', url: 'https://n.so/a' }])).toBe('- x [notion](https://n.so/a)');
-    expect(applyLinks('- [x](https://n.so/a)', [{ text: 'x', url: 'https://n.so/a' }])).toBe('- [x](https://n.so/a)');
-    expect(applyLinks('Hello', [{ text: 'bye', url: 'https://n.so/c' }])).toBe('Hello');
   });
 });
 
@@ -110,7 +94,6 @@ describe('an item a board names', () => {
   it('puts a mark back before the anchor', () => {
     expect(withMark('- [ ] Ship it ^ship-it', `[notion](${url})`)).toBe(`- [ ] Ship it [notion](${url}) ^ship-it`);
     expect(withMark('- [ ] Ship it', `[notion](${url})`)).toBe(`- [ ] Ship it [notion](${url})`);
-    expect(applyLinks('- [ ] Ship it ^ship-it', [{ text: 'Ship it', url }])).toBe(`- [ ] Ship it [notion](${url}) ^ship-it`);
   });
 });
 

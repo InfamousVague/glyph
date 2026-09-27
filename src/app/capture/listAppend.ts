@@ -310,8 +310,8 @@ export interface Placing {
 /**
  * Spoken words put into a note the way a command asked: "leave" where they fit
  * (`leaveNote`), "item" as list items, split on commas or "and" when there are
- * several. What the recorder shows before asking, and what it does after a yes,
- * are both this, so the preview is the result.
+ * several. What the recorder shows before asking, and what it does after the
+ * tap, are both this, so the preview is the result.
  */
 export function placeWords(body: string, spoken: string, { how, task, many, near, items: told }: Placing): { body: string; added: string[]; into: 'list' | 'paragraph' } {
   const semantic = semanticListKind(body);

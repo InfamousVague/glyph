@@ -7,12 +7,13 @@ import type { RefineJob } from './refine.ts';
  * The better words, as the note will read with them: the pure half of the pass after a recording (capture/refine.ts
  * runs it).
  *
- * The larger model hears the take's whole recording again, commands, voice memos and all, so what it answers is not
- * yet the note's words: the stretches that were commands are taken out, a phrase the live words cut at "hey Ghost" is
- * cut there again, and the voice memos - which it never heard as words - are put back where they were said. Then the
- * take is rendered again from the result, into the note's text from before it where the recorder put the live words
- * (place.ts: its end, or its lists). By overlap rather than by match throughout, because the larger model hears the
- * phrases at slightly different times. Pure, so every rule is a test (refine.test.ts).
+ * The larger model hears the take's whole recording again, commands and all, so what it answers is not yet the note's
+ * words: the stretches that were commands are taken out, a phrase the live words cut at "hey Ghost" is cut there
+ * again, and the voice memos of a job queued before a recording stopped making them (refine.ts `clips`) - which it
+ * never heard as words - are put back where they were said. Then the take is rendered again from the result, into the
+ * note's text from before it where the recorder put the live words (place.ts: its end, or its lists). By overlap rather
+ * than by match throughout, because the larger model hears the phrases at slightly different times. Pure, so every rule
+ * is a test (refine.test.ts).
  */
 
 /**

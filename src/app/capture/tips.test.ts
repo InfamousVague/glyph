@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bareWords, runOf } from '../ai/instruction.ts';
+import { bareWords, readInstruction, runOf } from '../ai/instruction.ts';
 import { bookNoteBody } from '../book/book.ts';
 import { LiveTake } from './liveTake.ts';
 import { ASKS, starters, tipInPause, tips, type Tip } from './tips.ts';
@@ -11,8 +11,16 @@ describe('tips in a pause', () => {
     expect(said).toContain('Option');
   });
 
-  // Changed on purpose (docs/DESIGN.md §126): a recording no longer carries out a table, a book, a chapter or a
-  // board's lane, so no tip teaches one.
+  // Changed on purpose (docs/DESIGN.md §127): a recording no longer makes a voice memo, so no tip offers one. The clips
+  // already in notes still play.
+  it('offer no voice memo', () => {
+    const said = tips({ noteTitle: 'Groceries', continuing: true }).flatMap((tip) => [tip.say, tip.does]);
+    expect(said.some((line) => /\bmemo\b/i.test(line))).toBe(false);
+  });
+
+  // Changed on purpose (docs/DESIGN.md §126, §127): a recording no longer carries out a table, a book or a chapter, so
+  // no tip teaches one. A board's lane is carried out on its own Speak but not taught yet, until Matt says whether a
+  // tip for it should come back (§127, question 5).
   it('teach only the commands a recording carries out as they are said', () => {
     const said = tips({ noteTitle: 'Groceries', continuing: true }).map((tip) => tip.say);
     for (const line of ['Hey Ghost, add … to Groceries', 'Hey Ghost, new item for Groceries', 'Hey Ghost, new note', 'Hey Ghost, move this to Groceries']) expect(said).toContain(line);
@@ -31,9 +39,18 @@ describe('the card before the first word', () => {
 
   it('still sends somewhere with no note to name, drops the keyword when it is off, and offers no ask where none can run', () => {
     const card = starters({ noteTitle: null, keyword: false });
-    expect(card.send.map((tip) => tip.say)).toEqual(['Make a list called …']);
+    expect(card.send.map((tip) => tip.say)).toEqual(['Make a list called … with …']);
     expect(card.ask).toEqual([]);
     expect(starters({ noteTitle: null, keyword: false, asking: true }).ask[0]?.say).toBe('Fix the spelling');
+  });
+
+  // Its items said the natural way, in a sentence after the name, would be the reader's title: the tip teaches "with".
+  it('makes a new list with its items, as the reader at Done reads it, with the keyword on or off', async () => {
+    for (const keyword of [true, false]) {
+      const [tip] = starters({ noteTitle: null, keyword }).send;
+      const said = `${tip!.say.replace('…', 'packing').replace('…', 'toothbrush, socks and charger')}.`;
+      await expect(readInstruction(said, []), said).resolves.toEqual({ kind: 'command', plan: { kind: 'create-list', title: 'packing', items: ['toothbrush', 'socks', 'charger'] } });
+    }
   });
 
   it('never suggests an ask the reader would not take: each one, spoken first with the keyword, is read as its run', () => {
@@ -104,16 +121,18 @@ describe('the tip for a pause', () => {
     expect(all({ target: { body: '# Launch\n\n```board\nTo do:\nDoing:\n```' } }).some((say) => /Doing/.test(say))).toBe(false);
   });
 
+  // No plugin gives a tip now (Notion's, which taught a command that had gone, went with it: docs/DESIGN.md §127);
+  // the seam stays, and is held here with one of a plugin's own making.
   it('adds the plugins’ own tips for the note it names, said after the keyword only when it is on', () => {
     const asked: (string | null)[] = [];
     const pluginTips = (recent: string | null) => {
       asked.push(recent);
-      return [{ say: 'Send that to Notion', does: 'to make it a task' }];
+      return [{ say: 'Ring the bell', does: 'to try a plugin’s tip' }];
     };
-    expect(all({ pluginTips })).toContain('Hey Ghost, send that to Notion');
+    expect(all({ pluginTips })).toContain('Hey Ghost, ring the bell');
     expect(asked[0]).toBe('Groceries');
     const plain = all({ pluginTips, keyword: false });
-    expect(plain).toContain('Send that to Notion');
+    expect(plain).toContain('Ring the bell');
     expect(plain).toContain('Add … to Groceries');
     expect(plain.some((say) => say.startsWith('Hey Ghost'))).toBe(false);
   });

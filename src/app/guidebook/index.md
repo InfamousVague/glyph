@@ -23,7 +23,7 @@ Each chapter takes a few minutes. Tap Read straight through to go from the first
 
 9. [[Recording a note]]
 10. [[Saying the marks]]
-11. [[Commands after Hey Ghost]] — why every command asks first
+11. [[Commands after Hey Ghost]] — words for a note you name, written as you say them
 12. [[Lists and to-dos]]
 
 ## Part III · Notes that are something else
@@ -87,7 +87,7 @@ Each chapter takes a few minutes. Tap Read straight through to go from the first
 
 ## Five things worth knowing before you start
 
-- **A spoken command is read once, from the whole recording, after you tap Done.** Nothing heard mid-sentence can change a note, and a card shows exactly what will be written before anything is. Besides the asks for the AI, a finished recording carries out two commands: adding to a note you name, and making a new list ([[Commands after Hey Ghost]]).
+- **A spoken command writes as you say it, and nothing is stored until Done.** “Hey Ghost, add … to House TODOs” puts the words into that note as you talk, and at Done the note is written once and opens with an Undo. A command that opens a recording and is not carried out as you speak, such as “add eggs to Groceries” without the keyword or “Hey Ghost, make a new list called Packing”, is read once after you tap Done, and a card shows exactly what will be written before anything is ([[Commands after Hey Ghost]]).
 - **The side key starts a note over the lock screen**, because Ghost.md takes the phone's digital-assistant role, and at Done a locked phone goes back behind its lock without showing the note to whoever is holding it ([[The side key, the Fold and the Mac]]).
 - **Your password never leaves the phone as itself.** It becomes two keys and only one is sent. Notes, pictures, recordings, settings and live keystrokes are sealed on the device before they go, and a share link carries its own key after the #, which a browser never sends, so the server keeps only what it cannot read ([[Accounts, sync and the key you hold]]).
 - **The AI signs its work.** A finished run adds "Ghost" to the note's authors, and every change it made stays marked in the note until you keep it, revert it or type over it ([[Asking the AI to work on a note]]).
@@ -95,4 +95,4 @@ Each chapter takes a few minutes. Tap Read straight through to go from the first
 
 ## How this was made
 
-This book describes Ghost.md 1.8.0-12. It was written from the app's own source (commit `a2a12e6`), and every chapter was then read against the code by a second pass. Where a doc and the code disagree, the code wins: the chapters say what the code does. [[Where the docs and the code disagree]] collects the disagreements that cut across chapters, and points to the chapters that end with their own doc's.
+This book was written for Ghost.md 1.8.0-12, from the app's own source (commit `a2a12e6`), and every chapter was then read against the code by a second pass. Its voice chapters were brought up to the live reader (DESIGN §126) and to what the recorder kept after DESIGN §127. Where a doc and the code disagree, the code wins: the chapters say what the code does. [[Where the docs and the code disagree]] collects the disagreements that cut across chapters, and points to the chapters that end with their own doc's.

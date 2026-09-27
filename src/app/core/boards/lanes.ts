@@ -6,18 +6,20 @@ import { anchorFor, isItemLine, itemOnLine, itemWords, itemsIn, setItemDone, wit
 import { newCard } from './make.ts';
 
 /**
- * Lanes, by voice: a board's columns found by the name a person says, and a card added to one or moved into one.
+ * Lanes: a board's columns found by name, and a card added to one or moved into one, in the note's own markdown.
  *
- * A lane is weighed the way the recorder weighs a note's name (capture/route.ts `similarity`, and the same bar to
- * clear), so a lane and a note called the same are judged fairly against each other. Moving by voice does what a drag
- * would: the item named if it has no anchor, its box ticked going into Done and cleared coming out.
+ * "Hey Ghost, add call Sam to Doing", said on the board's own Speak, puts a card in Doing as it is said: the live
+ * reader names the lane (capture/liveRoute.ts) and the recorder's placing adds to it (capture/place.ts, with
+ * `lanesOf` and `addToLane`). Matt: "add voice commands and cues for adding to swimlanes on the board".
+ *
+ * `matchLane` and `moveToLane` weighed a lane by the name a person says and moved a card into it as a drag would, for
+ * the phrase-at-a-time reader's "move fix login to the Done column". That reader has gone (docs/DESIGN.md §127), and
+ * nothing in the app calls them now; they are kept, tested, until it is decided whether moving a card by voice comes
+ * back. A lane is weighed the way a note's name is (capture/route.ts `similarity`, and the same bar to clear), and a
+ * card moved has its box ticked going into Done and cleared coming out.
  */
 
-/**
- * A board's columns as a voice command names them (Matt: "add voice commands and cues for adding to swimlanes on the
- * board"). The recorder reads "Glyph, add call Sam to Doing" and "move fix login to the Done column"
- * (capture/command.ts); these find the lane and make the change, in the note's own markdown.
- */
+/** A board's column, found by name in the note's markdown. */
 export interface Lane {
   name: string;
   /** The line the lane's board opens on, counting from 1. */

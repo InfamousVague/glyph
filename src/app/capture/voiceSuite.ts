@@ -18,8 +18,8 @@ import { NUMBER_WORD, spokenNumber } from './spoken/numbers.ts';
  * Test infrastructure beside the code it tests: only voiceSuite.test.ts imports it, so it is in no bundle the app
  * ships. It plays each phrase through the live reader (liveRoute.ts), on the clock the phone would commit it at, and
  * writes what it leaves as the recorder's Done does (liveTake.ts: `placeTake` into each note, the take's own note
- * rendered from its words). A test the recorder no longer carries out - a spoken "no", a plugin, a table, a board, a
- * voice memo said aloud - is kept with the reason it is skipped (`skip`), so its recording is not lost.
+ * rendered from its words). A test can be held back with the reason it is skipped (`skip`); none is now, since the
+ * scripts for what the recorder no longer does went with it (docs/DESIGN.md §127).
  */
 
 export interface SuiteTest {
@@ -178,14 +178,14 @@ export function heardForm(text: string): string {
 
 /**
  * A line's block mark, as the recorder writes it: a heading, a list item with its box or choice (core/itemSyntax.ts),
- * a numbered step, a hidden line, a quote or callout, a table row, a sum, a rule.
+ * a numbered step, a hidden line, a quote or callout, a sum, a rule.
  */
-const BLOCK_LEAD = new RegExp(String.raw`^\s*(?:#{1,6} |${BULLET} (?:${BOX} |${CHOICE} )?|${NUMBER} |>\| ?|> (?:\[![A-Z]+\])?|\||= |---$)?`);
+const BLOCK_LEAD = new RegExp(String.raw`^\s*(?:#{1,6} |${BULLET} (?:${BOX} |${CHOICE} )?|${NUMBER} |>\| ?|> (?:\[![A-Z]+\])?|= |---$)?`);
 
 /** A line's shape: its block mark, and the inline marks in it, in order. */
 function shapeOf(line: string): string {
   const lead = BLOCK_LEAD.exec(line)?.[0] ?? '';
-  const marks = line.match(/\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||`|\[\[|\]\]|\[\d+\/\d+\]|#[a-z][\w/-]*|!\[voice|\| --- /g) ?? [];
+  const marks = line.match(/\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||`|\[\[|\]\]|\[\d+\/\d+\]|#[a-z][\w/-]*/g) ?? [];
   return `${lead.replace(/[xX]/, 'x')}${marks.join(' ')}`;
 }
 

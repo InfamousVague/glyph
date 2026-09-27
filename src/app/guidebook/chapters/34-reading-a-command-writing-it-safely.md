@@ -80,15 +80,10 @@ The Undo in the note that opens (`editor/useLanding.ts`) is an edit in its edito
 
 `capture_stop` writes the take's audio at Done under the id of the note the take is aimed at by then, on the end of that note's tape when it has one. A command only the stop's transcript held, read after the stop, moves it with `capture_reassign_recording`, unless it went on the end of a note's own tape, where it stays (`letGo`, §123). A one-shot's note gets no sound.
 
-## The old live path
-
-`take.ts` still holds the phrase-at-a-time reader from before PR #1: `phrase` and `tick`, spoken yes and no, tables, voice memos and plugins. Nothing drives it now but its own tests; the voice suite plays the live reader (`voiceSuite.ts`).
-
 ## Known gaps
 
 - A take killed mid-sentence loses its words: nothing is stored before Done. Only its sound was ever kept that early, and not even that before the stop.
-- A voice memo said aloud is words: `Take.listen` never reads the cue, and the tip for it is still in `tips.ts`.
-- A table, a book, a chapter, a board's card and a plugin by voice are not carried out by either reader.
+- A table, a book, a chapter, a board made or a card moved are not carried out by either reader, and neither is a voice memo said aloud (DESIGN §127). Words for a lane of the board being written to are: the live reader names the lane like a heading, and `place.ts` adds the card.
 - `instructionCorpus.test.ts` runs its cases through `interpretWakeCommand` and `placeInstruction`, which neither reader uses.
 
 ## The tests that pin it

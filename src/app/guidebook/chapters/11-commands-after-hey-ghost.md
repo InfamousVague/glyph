@@ -59,6 +59,12 @@ At the start of a new recording, the note you name is where the whole recording 
 
 For the note you are in: “Hey Ghost, remind me to book the MOT”, “make a note to call the electrician”, “add a to-do: call Sam”. Each is a to-do.
 
+## A new list by name
+
+Said first in a recording, “Hey Ghost, make a new list called Packing with toothbrush, socks and charger” makes a note of its own: the title, and a list of what came after “with”. “… called Packing, and add toothbrush, socks and charger” and “… called Packing. Add these: toothbrush, socks and charger” work too. Said with nothing after the name, it makes a note that is only its title. Items said as a sentence of their own, with no “with” or “add” before them, are read as part of the name.
+
+This one is not carried out as you speak. It is read once, when you tap Done, and only when nothing was carried out while you spoke. A card shows **Create Packing** with the items under it, and nothing is written until you tap **Create**. The new note opens. **Cancel** keeps nothing. Said in the middle of a recording, it is taken as an ask for the AI instead, and runs on the note that opens after Done.
+
 ## Taking it back
 
 - **Not this note**, in the top line after a switch: the recording goes back to its own note, and a small card offers the other notes the name could mean, or a new one by that name.
@@ -86,7 +92,7 @@ The words are not written into the note, and the note opens with the AI working 
 
 ## What a recording does not do
 
-Tables, books, chapters and a board's cards are not made by voice in this version. Opening a new recording, “Hey Ghost, add a table to Work” or “make a book called …” is kept as the note's words, without the keyword, and the chip says a recording cannot do that. In the middle of a recording it is taken as an ask for the AI, and runs on the note that opens after Done. A voice memo said aloud (“Voice memo … end memo”) is words. [[Where the docs and the code disagree]] lists the places that still promise them.
+The recorder itself makes no table, book or chapter, makes no board and moves no card, and keeps no voice memo. The AI can still shape a note into a table: that is the Make a list ask, above. Opening a new recording, “Hey Ghost, add a table to Groceries” or “make a book called …” is kept as the note's words, without the keyword, and the chip says a recording cannot do that. In the middle of a recording it is taken as an ask for the AI, and runs on the note that opens after Done. A table asked for in a note that does not exist, such as “add a table to Work” opening a recording with no note called Work, is refused with its reason, and nothing is kept. “Voice memo … end memo” is written down as words. On a board's own Speak, a lane is named like a heading: “Hey Ghost, add call Sam to Doing” puts a card in Doing as you say it ([[Boards made of list items]]).
 
 ## Read next
 

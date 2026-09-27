@@ -28,6 +28,11 @@ import type { Candidate } from './route.ts';
  * always was, or the lists of a note whose title says it holds them. A note the live reader switched the take to
  * (liveRoute.ts) is written once, at Done, by `writeInto`: read fresh, the words placed into it, and stored through
  * `apply_command`, which checks the body and the revision, so nothing typed or synced meanwhile is overwritten.
+ *
+ * Nothing writes a draft mid-take since the take's phrase reader went (docs/DESIGN.md §127): `flushDraft`, `keepDraft`
+ * and `updateNote` are kept, unused, until it is decided whether a take kept safe from a kill (§126) wants them. With
+ * no draft ever written, `savedDraft` is always false and `undoDraft`, which the recorder still calls, does nothing;
+ * the host's `markdown` and `hasWords` serve only the drafts and `updateNote`.
  */
 
 /** A note a command can name, with the note itself, kept current by every write here. */
@@ -36,7 +41,7 @@ export type NamedNote = Candidate & { note: Note };
 export interface TakeWriterHost {
   /** The take's markdown as it is saved: titled for a new note, not for words on the end of one. */
   markdown(titled: boolean): string;
-  /** Whether the take holds anything a draft would write: a phrase, a table or a voice memo. */
+  /** Whether the take holds anything a draft would write: a phrase. */
   hasWords(): boolean;
   /** The notes a command can name; each written note's copy there is replaced by what was stored. */
   candidates(): readonly NamedNote[];

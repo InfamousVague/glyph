@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bookNoteBody } from '../book/book.ts';
-import { actionable, finalCommandWords, findKeyword, findMisheard, findSoundAlike, onlyFiller, placedOn, planCommand, reply, withoutPayloadLead } from './command.ts';
+import { cellsOf, finalCommandWords, findKeyword, findMisheard, findSoundAlike, onlyFiller, planCommand, withoutPayloadLead } from './command.ts';
 
 const notes = [
   { id: 'b', title: 'AttackFM Bugbash' },
@@ -9,7 +9,7 @@ const notes = [
   { id: 'p', title: 'Places to Go' },
   { id: 'w', title: 'Work' },
 ];
-const plan = (words: string, targets: string[] = []) => planCommand(words, { notes, targets });
+const plan = (words: string) => planCommand(words, { notes });
 const at = (id: string) => notes.find((n) => n.id === id)!;
 
 describe('hearing the keyword', () => {
@@ -54,7 +54,7 @@ describe('hearing the keyword', () => {
   });
 
   it('takes a sound-alike word at the start only when a command follows', () => {
-    const reads = (words: string) => actionable(plan(words));
+    const reads = (words: string) => (plan(words)?.kind ?? 'no-note') !== 'no-note';
     expect(findSoundAlike('Life. Add eggs to work.', reads)).toEqual({ before: '', after: 'Add eggs to work.' });
     expect(findSoundAlike('Live, new notes.', reads)?.after).toBe('new notes.');
     expect(findSoundAlike('Head life. Put call Sam on the work list.', reads)?.after).toBe('Put call Sam on the work list.');
@@ -72,25 +72,9 @@ describe('hearing the keyword', () => {
   });
 });
 
-describe('a yes or a no', () => {
-  it('hears short replies either way', () => {
-    expect(reply('Yes.')).toBe('yes');
-    expect(reply('Yeah, do it')).toBe('yes');
-    expect(reply('Um, okay.')).toBe('yes');
-    expect(reply('No.')).toBe('no');
-    expect(reply('Cancel that')).toBe('no');
-    expect(reply('Never mind.')).toBe('no');
-  });
-
-  it('leaves sentences alone', () => {
-    expect(reply('No problem with the invoice from last week.')).toBeNull();
-    expect(reply('Buy milk.')).toBeNull();
-  });
-});
-
 describe('what a command asks for', () => {
   it('adds a thing to a note named after it, the way people say it', () => {
-    expect(plan('add buy milk to the hello trade.')).toEqual({ kind: 'place', note: at('h'), text: 'buy milk', how: 'leave', task: false, many: false, target: null });
+    expect(plan('add buy milk to the hello trade.')).toEqual({ kind: 'place', note: at('h'), text: 'buy milk', how: 'leave', task: false, many: false });
     expect(plan('put call Sam on the work list')).toMatchObject({ kind: 'place', note: at('w'), text: 'call Sam' });
     expect(plan('add to work: call Sam')).toMatchObject({ kind: 'place', note: at('w'), text: 'call Sam' });
   });
@@ -103,7 +87,7 @@ describe('what a command asks for', () => {
   });
 
   it('adds a list item when one is asked for, and waits for it when it is not said yet', () => {
-    expect(plan('add a list item to the hello trade')).toEqual({ kind: 'await', note: at('h'), how: 'item', task: false, many: false, target: null });
+    expect(plan('add a list item to the hello trade')).toEqual({ kind: 'await', note: at('h'), how: 'item', task: false, many: false });
     expect(plan('add a task buy stamps to work')).toMatchObject({ kind: 'place', note: at('w'), text: 'buy stamps', how: 'item', task: true });
     expect(plan('new item for hello trade, fix the login')).toMatchObject({ kind: 'place', note: at('h'), text: 'fix the login', how: 'item' });
   });
@@ -117,10 +101,6 @@ describe('what a command asks for', () => {
     expect(plan('switch to work')).toEqual({ kind: 'move', note: at('w') });
     expect(plan('move this to the hello trade note')).toEqual({ kind: 'move', note: at('h') });
     expect(plan('new note')).toEqual({ kind: 'new' });
-  });
-
-  it('carries a plugin’s word after the note’s name', () => {
-    expect(plan('new task for hello trade in Notion, ship it', ['notion'])).toMatchObject({ kind: 'place', note: at('h'), target: 'notion', how: 'item', task: true });
   });
 
   it('says so when the note named does not exist, and waits when nothing is a command yet', () => {
@@ -144,6 +124,14 @@ describe('asking for a table', () => {
   it('says so for a note that is not there, and is not fooled by other tables', () => {
     expect(plan('add a table to the groceries note')).toEqual({ kind: 'no-note', name: 'groceries' });
     expect(plan('add a table of contents')).toBeNull();
+  });
+
+  it('hears the labels the way lists are said', () => {
+    expect(cellsOf('Bug, owner and status.')).toEqual(['Bug', 'Owner', 'Status']);
+    expect(cellsOf('seek bar drift, Matt, open')).toEqual(['Seek bar drift', 'Matt', 'Open']);
+    expect(cellsOf('name and email')).toEqual(['Name', 'Email']);
+    expect(cellsOf('Column one, bug, column two, owner.')).toEqual(['Bug', 'Owner']);
+    expect(cellsOf('')).toEqual([]);
   });
 });
 
@@ -171,10 +159,7 @@ describe('books by voice', () => {
     expect(read('add this to the field guide')).toEqual({ kind: 'chapter', note: guide, title: null });
     expect(read('move this to the field guide')).toEqual({ kind: 'chapter', note: guide, title: null });
     expect(read('switch to the field guide')).toEqual({ kind: 'chapter', note: guide, title: null });
-    const waiting = read('add a chapter to the field guide');
-    if (waiting?.kind !== 'await') throw new Error(`expected a wait, got ${JSON.stringify(waiting)}`);
-    expect(waiting).toMatchObject({ note: guide, how: 'leave' });
-    expect(placedOn(waiting, 'Rivers')).toEqual({ kind: 'chapter', note: guide, title: 'Rivers' });
+    expect(read('add a chapter to the field guide')).toMatchObject({ kind: 'await', note: guide, how: 'leave' });
   });
 });
 
@@ -201,7 +186,7 @@ describe('what is added, and what only introduced it', () => {
 });
 
 describe('the keyword misheard', () => {
-  const reads = (words: string) => actionable(plan(words));
+  const reads = (words: string) => (plan(words)?.kind ?? 'no-note') !== 'no-note';
 
   it('takes “hey, like” and “hey goes” at the start when a command follows, and not otherwise', () => {
     expect(findMisheard('Hey, like add eggs to work.', reads)).toEqual({ before: '', after: 'add eggs to work.' });

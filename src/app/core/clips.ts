@@ -11,7 +11,9 @@ import { readStored, writeStored } from './stored.ts';
  *
  * The times are milliseconds into the note's recording, the same clock the phrases carry (capture/markdown.ts
  * `Segment`), so a clip keeps pointing at the right sound as long as the tape does. A take appended to the tape is
- * added at the end, which is why the recorder writes the times it heard rather than counting from the note's start.
+ * added at the end, so a clip's times are the tape's, never counted from the note's start. The recorder no longer
+ * makes a clip (docs/DESIGN.md §127): the clips already in notes are read and played here, and `clipMarkdown` is the
+ * format they are written in.
  *
  * A clip also says WHICH tape it means: `tape:12000-19500@k3f9x2`. A note's recording can be removed and another
  * recorded, and the new file starts its own timeline, so times alone would point at whatever sound happens to be

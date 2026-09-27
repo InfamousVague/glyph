@@ -1,5 +1,6 @@
 import { MARKER } from '../core/itemSyntax.ts';
-import { finalCommandWords, planCommand, withoutPayloadLead, type Placement, type Plan } from './command.ts';
+import { isBookBody } from '../book/book.ts';
+import { finalCommandWords, planCommand, withoutPayloadLead, type FinalPlan, type Placement, type Plan } from './command.ts';
 import { inferInstruction, type InferenceRun } from './instructionIntent.ts';
 import { findNote, nameWords } from './noteFind.ts';
 import type { Candidate } from './route.ts';
@@ -8,7 +9,7 @@ import { spokenListItems } from './spokenList.ts';
 
 export type FinalInstruction<N extends Candidate> =
   | { kind: 'ordinary'; notice: string | null }
-  | { kind: 'offer'; plan: Plan<N> }
+  | { kind: 'offer'; plan: FinalPlan<N> }
   | { kind: 'rejected'; reason: string };
 
 /**
@@ -59,8 +60,11 @@ function askedForList(words: string, title: string): boolean {
   return LIST_WORDS.test(said);
 }
 
+/** Why a command the reader read, but a recording does not carry out, was turned down. */
+const UNSUPPORTED = 'That command is not supported from a voice capture. Nothing changed.';
+
 /** What a finished recording may do once confirmed: add to a note, or make a new list (with its items). */
-const permitted = <N extends Candidate>(plan: Plan<N>): boolean => plan.kind === 'place' || plan.kind === 'create-list';
+const permitted = <N extends Candidate>(plan: Plan<N>): plan is FinalPlan<N> => plan.kind === 'place' || plan.kind === 'create-list';
 
 /**
  * Read one stopped recording, once, from its complete transcript: the reader at Done, which the recorder asks only
@@ -88,7 +92,7 @@ export async function classifyFinalTranscript<N extends Candidate & { note?: { b
       const items = listItems(words, deterministic.text, { title: deterministic.note.title, body: deterministic.note.note?.body }, false);
       if (items) return { kind: 'offer', plan: { ...deterministic, how: 'item', many: true, items } };
     }
-    return permitted(deterministic) ? { kind: 'offer', plan: deterministic } : { kind: 'rejected', reason: 'That command is not supported from a voice capture. Nothing changed.' };
+    return permitted(deterministic) ? { kind: 'offer', plan: deterministic } : { kind: 'rejected', reason: UNSUPPORTED };
   }
 
   // One constrained on-device pass, with this capture's complete transcript
@@ -104,6 +108,9 @@ export async function classifyFinalTranscript<N extends Candidate & { note?: { b
   if (target.status !== 'resolved') {
     return { kind: 'rejected', reason: unmatched ?? (target.status === 'unsure' ? `“${result.intent.target}” matches more than one note. Nothing changed.` : `No note called “${result.intent.target}”. Nothing changed.`) };
   }
+  // A book is never written into by voice (docs/BOOKS.md): the model's note is held to that as the rules' is (command.ts
+  // `forBook`), and turned down the same way.
+  if (target.note.note !== undefined && isBookBody(target.note.note.body)) return { kind: 'rejected', reason: UNSUPPORTED };
   const area = result.intent.placement;
   // A list is told apart by the app, not the model: its items are literal
   // text, one bullet each, whether or not the model said "list".
@@ -115,7 +122,6 @@ export async function classifyFinalTranscript<N extends Candidate & { note?: { b
     how: area === 'notes' ? 'paragraph' : listed ? 'item' : 'leave',
     task: area === 'tasks',
     many: items.length > 1,
-    target: null,
     ...(area === 'bugs' ? { near: 'bugs' as const } : {}),
     ...(items.length > 1 ? { items } : {}),
   };

@@ -1,7 +1,7 @@
 /*
- * The recorder (CaptureScreen.tsx, and the parts drawn from this sheet: LivePage.tsx, Opening.tsx, Tail.tsx,
- * RouteChip.tsx and the table card in CaptureCards.tsx): one small line, the words, two buttons. Nothing else competes
- * with the words for a glance.
+ * The recorder (CaptureScreen.tsx, and the parts drawn from this sheet: LivePage.tsx, Opening.tsx, RouteChip.tsx and
+ * the cards in CaptureCards.tsx): one small line, the words, two buttons. Nothing else competes with the words for a
+ * glance.
  */
 .screen {
   position: relative;
@@ -73,89 +73,14 @@
   gap: var(--glacier-space-4);
 }
 
-.lead,
-.tail {
-  margin: 0;
-  font-weight: var(--glacier-font-weight-bold);
-  letter-spacing: var(--app-tracking-display);
-  color: var(--app-ink);
-  overflow-wrap: anywhere;
-}
-
 .lead {
+  margin: 0;
   font-size: var(--app-display);
+  font-weight: var(--glacier-font-weight-bold);
   line-height: 0.95;
+  letter-spacing: var(--app-tracking-display);
   color: var(--app-ink-4);
-}
-
-/*
- * The note laid out as it is said: each line hangs off its dimmed mark in a
- * gutter, headings set larger, blank lines as gaps, the guessed tail lighter.
- */
-.tail {
-  display: grid;
-  gap: var(--glacier-space-1);
-  font-size: clamp(1.6rem, 7vw, 2.5rem);
-  line-height: 1.12;
-}
-
-.line {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 0.35em;
-  margin: 0;
-  align-items: baseline;
-}
-
-.line[data-kind='heading'] {
-  font-size: 1.25em;
-  line-height: 1.02;
-  margin-block-start: var(--glacier-space-2);
-}
-
-.line[data-kind='quote'] .words {
-  color: var(--app-ink-2);
-}
-
-.line[data-pending] .words,
-.line[data-pending] .gutter {
-  color: var(--app-ink-3);
-}
-
-/* The mark that made the line, kept but quiet, in a column the words hang off. */
-.gutter {
-  min-inline-size: 1.1em;
-  color: var(--app-ink-4);
-  font-weight: var(--glacier-font-weight-regular);
-  letter-spacing: 0;
-  white-space: nowrap;
-}
-
-.line[data-kind='task'] .gutter {
-  font-size: 0.72em;
-}
-
-.words {
-  min-inline-size: 0;
-  white-space: pre-wrap;
-}
-
-.mark {
-  color: var(--app-ink-4);
-  font-weight: var(--glacier-font-weight-regular);
-}
-
-.pending {
-  color: var(--app-ink-3);
-}
-
-.gap {
-  block-size: var(--glacier-space-3);
-}
-
-.more {
-  margin: 0;
-  color: var(--app-ink-4);
+  overflow-wrap: anywhere;
 }
 
 /* ---- the pictures --------------------------------------------------------------- */
@@ -316,22 +241,6 @@
   }
 }
 
-/* The words as they were, sliding off toward the note they are leaving for. */
-.ghost {
-  position: absolute;
-  inset-inline: 0;
-  inset-block-end: var(--glacier-space-4);
-  pointer-events: none;
-  animation: ghost-out 520ms cubic-bezier(0.5, 0, 0.75, 0) both;
-}
-
-@keyframes ghost-out {
-  to {
-    opacity: 0;
-    transform: translate(18%, -30%) scale(0.92);
-  }
-}
-
 /*
  * The routing chip, just above the buttons: outlined with a pulse while a note
  * is being named, filled with a tick once the words have moved, dashed when
@@ -400,11 +309,6 @@
   }
 }
 
-/* The command model reading a command the rules couldn't: said quietly after the words. */
-.routeThinking {
-  color: var(--app-ink-3);
-}
-
 /* Three dots breathing while the name is still being said. */
 .routeDots {
   inline-size: 1.4em;
@@ -458,14 +362,9 @@
 @media (prefers-reduced-motion: reduce) {
   .landing,
   .landed,
-  .ghost,
   .route,
   .tip {
     animation: none;
-  }
-
-  .ghost {
-    display: none;
   }
 
   .routeDots {
@@ -481,43 +380,6 @@
 .footer {
   position: relative;
   z-index: 1;
-}
-
-/* The table card's question: the one thing to answer, in the landing line's type. */
-.tableQuestion {
-  margin: 0;
-  font-size: var(--glacier-font-size-lg);
-  font-weight: var(--glacier-font-weight-semibold);
-  line-height: 1.25;
-  color: var(--app-ink);
-}
-
-.tableWrap {
-  overflow-x: auto;
-  margin-block: var(--glacier-space-1);
-}
-
-.table {
-  border-collapse: collapse;
-  font-size: var(--glacier-font-size-sm);
-  line-height: 1.3;
-}
-
-.table th,
-.table td {
-  padding: var(--glacier-space-1) var(--glacier-space-2);
-  border: 1px solid var(--glacier-border-subtle);
-  text-align: start;
-  vertical-align: top;
-}
-
-.table th {
-  font-weight: var(--glacier-font-weight-bold);
-  color: var(--app-ink);
-}
-
-.table td {
-  color: var(--app-ink-2);
 }
 
 /*

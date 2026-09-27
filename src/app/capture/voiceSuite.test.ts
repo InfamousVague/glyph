@@ -23,7 +23,7 @@ beforeAll(() => {
 
 describe('the voice suite, from the scripts', () => {
   for (const test of suite.tests) {
-    // A test the recorder no longer carries out is kept, with why, and skipped (voice-tests/suite.json `skip`).
+    // A test held back is skipped, with why (voice-tests/suite.json `skip`).
     it.skipIf(Boolean(test.skip))(`${test.file}: ${test.tests}${test.skip ? ` (skipped: ${test.skip})` : ''}`, () => {
       const outcome = runTest(test, suite.fixtures, scriptHeard(test.lines));
       expect(problems(test, outcome)).toEqual([]);

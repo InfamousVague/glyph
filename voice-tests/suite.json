@@ -1284,31 +1284,6 @@
       "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
-      "file": "057-say-no",
-      "group": "Commands",
-      "tests": "“No” cancels.",
-      "setup": "fixtures",
-      "prefs": {},
-      "lines": [
-        [
-          "Glyph, add eggs to groceries.",
-          1.5
-        ],
-        [
-          "No.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "note": "",
-        "notes": {
-          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n"
-        }
-      },
-      "id": "057",
-      "skip": "a spoken \"no\": nothing is asked since the live reader (DESIGN §126); Not this note or Discard takes words back"
-    },
-    {
       "file": "058-talk-on-without-answering",
       "group": "Commands",
       "tests": "A note named, then “Glyph, new note”: what follows is a note of its own.",
@@ -1444,103 +1419,6 @@
       "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
-      "file": "063-table-in-this-note",
-      "group": "Commands",
-      "tests": "“Glyph, add a table”: columns, rows, done, yes.",
-      "setup": "fixtures",
-      "prefs": {},
-      "lines": [
-        [
-          "Here is what we packed for the trip.",
-          1.0
-        ],
-        [
-          "Glyph, add a table.",
-          1.5
-        ],
-        [
-          "Item, where, packed.",
-          1.2
-        ],
-        [
-          "Tent, garage, yes.",
-          1.2
-        ],
-        [
-          "Stove, loft, no.",
-          1.2
-        ],
-        [
-          "Done.",
-          1.5
-        ],
-        [
-          "Yes.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "note": "Here is what we packed for the trip.\n\n| Item | Where | Packed |\n| --- | --- | --- |\n| Tent | Garage | Yes |\n| Stove | Loft | No |"
-      },
-      "id": "063",
-      "skip": "a table by voice: unreachable since PR #1; waiting on Matt"
-    },
-    {
-      "file": "064-table-in-another-note",
-      "group": "Commands",
-      "tests": "A table for another note, columns said up front.",
-      "setup": "fixtures",
-      "prefs": {},
-      "lines": [
-        [
-          "Glyph, add a table to the AttackFM bug bash note with columns bug, owner and status.",
-          1.5
-        ],
-        [
-          "Login fails, Sam, open.",
-          1.2
-        ],
-        [
-          "Done.",
-          1.5
-        ],
-        [
-          "Yes.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "note": "",
-        "notes": {
-          "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n\n| Bug | Owner | Status |\n| --- | --- | --- |\n| Login fails | Sam | Open |\n"
-        }
-      },
-      "id": "064",
-      "skip": "a table by voice: unreachable since PR #1; waiting on Matt"
-    },
-    {
-      "file": "065-table-cancelled",
-      "group": "Commands",
-      "tests": "“Never mind” drops the table.",
-      "setup": "fixtures",
-      "prefs": {},
-      "lines": [
-        [
-          "Glyph, add a table.",
-          1.5
-        ],
-        [
-          "Never mind.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "note": ""
-      },
-      "id": "065",
-      "skip": "a table by voice: unreachable since PR #1; waiting on Matt"
-    },
-    {
       "file": "066-glyph-as-a-note-name",
       "group": "Commands",
       "tests": "“The Glyph note” is a name, not the keyword.",
@@ -1582,22 +1460,6 @@
       "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
     },
     {
-      "file": "068-send-to-notion",
-      "group": "Commands",
-      "tests": "“Send that to Notion” offers the Notion task (not run in the test).",
-      "setup": "fixtures",
-      "prefs": {},
-      "lines": [
-        [
-          "Book the cabin for June, Glyph, send that to Notion.",
-          1.5
-        ]
-      ],
-      "expect": {},
-      "id": "068",
-      "skip": "a plugin by voice: unreachable since PR #1; the live reader never runs one (DESIGN §126)"
-    },
-    {
       "file": "069-add-to-a-board-lane",
       "group": "Commands",
       "tests": "“Glyph, add … to <lane>” on a note with a board: a card in that lane.",
@@ -1619,147 +1481,6 @@
       },
       "id": "069",
       "rerecord": "Its script changed with DESIGN §126 (no “Yes.” to confirm a command); its recording still says the old lines."
-    },
-    {
-      "file": "070-move-a-card",
-      "group": "Commands",
-      "tests": "“Glyph, move <item> to <lane>”.",
-      "setup": "continue:Launch board",
-      "prefs": {},
-      "lines": [
-        [
-          "Glyph, move pricing page to done.",
-          1.5
-        ],
-        [
-          "Yes.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "notesMatch": {
-          "Launch board": [
-            "\\nDoing:[ \\t]*\\n",
-            "\\nDone: pick-date, pricing-page\\n",
-            "\\n- \\[x\\] Pricing page \\^pricing-page\\n"
-          ]
-        }
-      },
-      "id": "070",
-      "skip": "moving a card by voice: unreachable since PR #1; the live reader never changes a board (DESIGN §126)"
-    },
-    {
-      "file": "071-make-a-board",
-      "group": "Commands",
-      "tests": "“Glyph, make this a board”.",
-      "setup": "blank",
-      "prefs": {},
-      "lines": [
-        [
-          "Packing for the coast.",
-          1.0
-        ],
-        [
-          "Bullet point: sunscreen.",
-          0.9
-        ],
-        [
-          "Next point: towels.",
-          1.2
-        ],
-        [
-          "Glyph, make this a board.",
-          1.5
-        ],
-        [
-          "Yes.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "contains": [
-          "```board",
-          "- Sunscreen ^sunscreen",
-          "- Towels ^towels"
-        ]
-      },
-      "id": "071",
-      "skip": "making a board by voice: unreachable since PR #1; the live reader never changes a board (DESIGN §126)"
-    },
-    {
-      "file": "072-voice-memo",
-      "group": "Recording",
-      "tests": "“Voice memo … end memo” keeps the sound.",
-      "setup": "blank",
-      "prefs": {},
-      "lines": [
-        [
-          "The song from the party went like this.",
-          1.0
-        ],
-        [
-          "Voice memo.",
-          1.0
-        ],
-        [
-          "La la la, la la, la la la la.",
-          1.0
-        ],
-        [
-          "End memo.",
-          1.0
-        ],
-        [
-          "Remember that tune for the wedding.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "contains": [
-          "The song from the party went like this.",
-          "](tape:",
-          "Remember that tune for the wedding."
-        ],
-        "lacks": [
-          "La la",
-          "End memo",
-          "Voice memo"
-        ]
-      },
-      "id": "072",
-      "skip": "a voice memo said aloud: unreachable since PR #1 (Take.listen never reads the memo cue); a follow-up"
-    },
-    {
-      "file": "073-voice-memo-ended-by-a-pause",
-      "group": "Recording",
-      "tests": "A long pause ends a voice memo.",
-      "setup": "blank",
-      "prefs": {},
-      "lines": [
-        [
-          "Voice memo.",
-          1.0
-        ],
-        [
-          "La la la, la la la.",
-          2.8
-        ],
-        [
-          "That was the tune from the party.",
-          1.5
-        ]
-      ],
-      "expect": {
-        "contains": [
-          "](tape:",
-          "That was the tune from the party."
-        ],
-        "lacks": [
-          "La la"
-        ]
-      },
-      "id": "073",
-      "skip": "a voice memo said aloud: unreachable since PR #1 (Take.listen never reads the memo cue); a follow-up"
     },
     {
       "file": "074-stop-when-quiet",
@@ -1784,7 +1505,7 @@
     {
       "file": "075-continue-the-last-note",
       "group": "Recording",
-      "tests": "Memo mode: a new take continues the last note; a title becomes a heading.",
+      "tests": "A note’s own Speak: the take goes on the end of the note; a title becomes a heading.",
       "setup": "continue:Weekend trip",
       "prefs": {},
       "lines": [
@@ -2443,6 +2164,30 @@
         "note": "Moon base\n\nPack the tent."
       },
       "id": "101"
+    },
+    {
+      "file": "102-new-item-for",
+      "group": "Commands",
+      "tests": "“New item for <note>”, as the tip teaches it, and then the item: it goes into that note’s list.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Hey Ghost, new item for groceries.",
+          1
+        ],
+        [
+          "Oat milk.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n"
+        }
+      },
+      "id": "102"
     }
   ]
 }

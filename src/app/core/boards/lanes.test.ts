@@ -7,7 +7,8 @@ import {
 } from '../boards.ts';
 
 /**
- * Lanes by voice: a lane found by the name said, a to-do added to it, an item moved into it.
+ * Lanes: a lane found by the name said, a to-do added to it ("add … to Doing" on a board's own Speak), and an item
+ * moved into it, which nothing in the app asks for now (docs/DESIGN.md §127).
  *
  * core/boards/lanes.ts, reached as every caller reaches it: through the room’s door, core/boards.ts.
  */

@@ -54,7 +54,7 @@ export interface RenderedNote {
  * The engine commits a segment on a much shorter pause, which is a breath rather than a paragraph; treating every
  * commit as a paragraph break would turn a note into a column of one-line fragments. A little over two seconds is long
  * enough that a speaker thinking mid-sentence does not trigger it. capture/voiceSuite.ts `scriptHeard` times the
- * suite's phrases by the same arithmetic, and voiceMemo.ts closes a memo on the same gap.
+ * suite's phrases by the same arithmetic.
  */
 export const PARAGRAPH_GAP_MS = 1500;
 

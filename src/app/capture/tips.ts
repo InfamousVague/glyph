@@ -14,8 +14,9 @@ import { lowerFirst } from '../core/text.ts';
  * (capture/liveRoute.ts), so a tip is always something that works: words for a
  * note you name, moving the recording, a new note. The routing tip names one of
  * your own notes, which teaches the command better than a made-up title. Tables,
- * books and a board's lanes are not taught: a recording no longer carries them
- * out (docs/DESIGN.md §126).
+ * books and voice memos are not taught: a recording does not make them
+ * (docs/DESIGN.md §127). Nor, yet, is "add … to Doing" said on a board's own
+ * Speak, which the live reader does carry out into that lane.
  *
  * The asks the AI takes (`ASKS`) are on the card alone, and only when the
  * recording is a note's own Speak: an ask is read from the whole take
@@ -48,7 +49,6 @@ const CUES: readonly Tip[] = [
   { say: 'Calculate', does: 'and then a sum, to see its answer' },
   { say: 'Hashtag', does: 'and a word to tag a line' },
   { say: 'Counter zero of eight', does: 'after an item to count it off' },
-  { say: 'Voice memo … end memo', does: 'to keep the sound instead of the words' },
   { say: 'Italic … end italic', does: 'around words to lean them' },
   { say: 'Strike … end strike', does: 'to cross words out' },
   { say: 'Code … end code', does: 'around a command' },
@@ -74,7 +74,7 @@ const CUES: readonly Tip[] = [
 export const ASKS: readonly Tip[] = [
   { say: 'Fix the spelling', does: 'and the note is checked as it opens, every change marked' },
   { say: 'Summarize this', does: 'for the point of the note in far fewer words' },
-  { say: 'Make this a list', does: 'to shape what was said into tasks, a list or a table' },
+  { say: 'Make this a list', does: 'to shape the note into tasks, a list or a table' },
   { say: 'Tidy this up', does: 'to format the note, keeping every word that matters' },
   { say: 'Carry on', does: 'and the AI writes on from the last line in the note’s own voice' },
 ];
@@ -92,7 +92,7 @@ export function tips({ noteTitle, continuing, keyword = true }: { noteTitle?: st
   if (continuing) route.push({ say: say('New note'), does: 'to start a fresh one' });
   if (noteTitle) route.push({ say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' });
   // Routing first and then every few cues, since it is the least discoverable; a routing line the cues leave no slot
-  // for (a note with a board names its lanes too) comes round after them rather than never.
+  // for comes round after them rather than never.
   const out: Tip[] = [];
   CUES.forEach((cue, i) => {
     if (i % 3 === 0 && route[i / 3]) out.push(route[i / 3]!);
@@ -161,7 +161,7 @@ export function starters({ noteTitle, keyword = true, asking = false }: { noteTi
         { say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' },
         { say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' },
       ]
-    : [{ say: say('Make a list called …'), does: 'and then its items, for a new note that is a list' }];
+    : [{ say: say('Make a list called … with …'), does: 'for a new list: its name, and after “with” its items' }];
   return {
     shape: CUES.slice(0, EACH),
     send: send.slice(0, EACH),

@@ -109,6 +109,36 @@ describe('final transcript instruction scan', () => {
     });
   });
 
+  it.each(['Hey Ghost, make this a board.', 'Hey Ghost, make this list a kanban board.'])('turns a board down without asking the model: %s', async (words) => {
+    const run = vi.fn(() => inferred({ status: 'intent', model: 'local', intent: { action: 'append', target: 'Go', content: 'a board', placement: null } }));
+    await expect(classifyFinalTranscript(words, notes, run)).resolves.toEqual({ kind: 'rejected', reason: 'That command is not supported from a voice capture. Nothing changed.' });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  describe('a book is never written into', () => {
+    const guide = { id: 'guide', title: 'Field guide', note: { body: '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n- [[Birds]]\n' } };
+    const library = [guide, ...notes];
+    const unsupported = { kind: 'rejected', reason: 'That command is not supported from a voice capture. Nothing changed.' };
+
+    it.each([
+      'Hey Ghost, new item for the field guide, Trees.',
+      'Hey Ghost, add to the field guide Rivers and lakes.',
+      'Hey Ghost, add Trees to the field guide.',
+      'Hey Ghost, add this to the field guide.',
+      'Hey Ghost, put a list item on the field guide: Trees.',
+    ])('turns the rules’ reading down: %s', async (words) => {
+      const run = never();
+      await expect(classifyFinalTranscript(words, library, run)).resolves.toEqual(unsupported);
+      expect(run).not.toHaveBeenCalled();
+    });
+
+    it('turns the model’s reading down too', async () => {
+      const run = vi.fn(() => inferred({ status: 'intent', model: 'local', intent: { action: 'append', target: 'field guide', content: 'Rivers', placement: 'notes' } }));
+      await expect(classifyFinalTranscript('add a thought about rivers somewhere in that guide book of mine', library, run)).resolves.toEqual(unsupported);
+      expect(run).toHaveBeenCalledOnce();
+    });
+  });
+
   describe('lists the model or the rules left as plain words', () => {
     const movies = [{ id: 'movies', title: 'Movies', note: { body: 'Movies\n\n- Jaws\n- Alien\n' } }];
     const films = ['The Matrix', 'Heat', 'Back to the Future'];

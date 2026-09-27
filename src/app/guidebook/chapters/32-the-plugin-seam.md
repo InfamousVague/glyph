@@ -10,7 +10,7 @@ Four ship, in `BUILT_IN`, all standard:
 
 | id | What it adds | Extension points it uses |
 |---|---|---|
-| `notion` | List items as tasks on Notion boards | `settings`, `noteLinks`, `noteActions`, `itemAction`, `suggest`, `marks`, `voice`, `itemTargets`, `tips` |
+| `notion` | List items as tasks on Notion boards | `settings`, `noteLinks`, `noteActions`, `itemAction`, `suggest`, `marks` |
 | `github` | Items as issues, and the repo as a briefing for the formatter | `settings`, `noteLinks`, `noteActions`, `itemAction`, `suggest`, `marks`, `formatContext` |
 | `marks` | Eleven inline formats: spoiler, highlight, aside, unsure, shout, added, and five effects | `formats` |
 | `claude` | A page for the Claude connector | `settings` |
@@ -25,13 +25,13 @@ Each permission comes with a `why`, which the person reads.
 
 | kind | Settings calls it | What needs it |
 |---|---|---|
-| `notes` | Your notes | `noteActions`, `itemAction`, `itemTargets`, `suggest` |
+| `notes` | Your notes | `noteActions`, `itemAction`, `suggest` |
 | `network` | The internet | `openUrl`; and Local only holds the plugin off |
 | `ai` | The model on your phone | Asserted by code that runs it |
-| `voice` | Voice commands | `voice`, `itemTargets` |
+| `voice` | Voice commands | Nothing: no extension point takes a voice command, and no plugin declares it |
 | `native` | Built-in app commands | `invoke` |
 
-The words are `PERMISSION_WORDS` in `plugins/reach.ts`, and `reachLine` makes a card's one line: Notion's reads "Your notes · The internet (api.notion.com, attack.fm) · Voice commands · Built-in app commands".
+The words are `PERMISSION_WORDS` in `plugins/reach.ts`, and `reachLine` makes a card's one line: Notion's reads "Your notes · The internet (api.notion.com, attack.fm) · Built-in app commands".
 
 ## The host
 
@@ -52,7 +52,7 @@ Notion and GitHub keep the manifest in `manifest.ts` and export `host` beside it
 `createRegistry(plugins, store)` is made once, as `plugins`, from `BUILT_IN`. As it is made it:
 
 - refuses two plugins with one id;
-- runs `checkExtensions`: voice commands and item targets need `voice`; note actions, the swipe, item targets and suggestions need `notes`; a format needs a capitalised name of letters and digits, and a delimiter of one to three of the same character Markdown does not use, or an emoji twice;
+- runs `checkExtensions`: note actions, the swipe and suggestions need `notes`; a format needs a capitalised name of letters and digits, and a delimiter of one to three of the same character Markdown does not use, or an emoji twice;
 - registers each id as a mark name (`registerMarkName` in `core/itemLinks.ts`), so `[notion](…)` at the end of an item is Notion's;
 - hands each plugin's `marks` to `core/markDetails.ts`, behind a check that answers nothing while the plugin is off, so its pills draw plain.
 
@@ -65,7 +65,7 @@ The app's questions, and who asks them:
 | `noteLinks()`, `noteActions()` | The More sheet, `editor/NoteSettings.tsx` |
 | `linksOf(noteId)` | `useNoteLinks`, for the marks at a note's top |
 | `itemAction(noteId)`, `suggestions(noteId, body)` | `editor/notePlugins.ts`: the swipe, the press-and-hold send, the quiet word after a line |
-| `voiceCommands()`, `itemTargets()`, `tips()` | The recorder, `capture/CaptureScreen.tsx` |
+| `tips()` | The recorder, `capture/CaptureScreen.tsx`, for a pause; no built-in plugin gives one |
 | `contextFor(noteId)` | The formatter, `format/pipeline.ts`, and the review, `ai/useNoteReview.ts` |
 | `contextVersion(noteId)` | The formatter, `format/pipeline.ts` |
 | `formats()` | The editor, the cheat sheet (`guide/marks.ts`) and the recorder's spoken cues |
@@ -99,7 +99,7 @@ Say it sends items to an issue tracker, and its id is `tracker`.
 2. Write its modules so they reach the phone only through `host`. One that calls core code directly asserts first, `host.require('network')`.
 3. Link items the one way: send them through `itemSender('tracker')`, whose `send(items, to, editing, make)` writes each link with `linkedLine(line, url, 'tracker')` from `core/itemLinks.ts`. The id is the mark's name, so `[tracker](…)` is known the moment the registry loads.
 4. Read the issues back with `detailsCache`, and export its `MarkDetailsProvider` as `marks`, so the pills show where each stands.
-5. Write `index.tsx`: a `GlyphPlugin` with the manifest, an `icon` from `@glacier/icons`, and the points it uses. A `noteLinks` row with its `Picker` and `linked`, an `itemAction` for the swipe, `suggest` for the quiet word, `settings: { Pane, summary, hue }` for its page. Voice commands would need `voice` in the manifest.
+5. Write `index.tsx`: a `GlyphPlugin` with the manifest, an `icon` from `@glacier/icons`, and the points it uses. A `noteLinks` row with its `Picker` and `linked`, an `itemAction` for the swipe, `suggest` for the quiet word, `settings: { Pane, summary, hue }` for its page. A plugin adds no voice commands: the recorder asks plugins only for their tips and their formats' cues.
 6. Add it to `BUILT_IN` in `plugins/registry.ts`, and to the list in `plugins/registry.test.ts` that checks each built-in plugin against its manifest.
 7. If it needs a command in the binary, add it to the Rust shell, raise `NATIVE_GENERATION` in `src-tauri/src/ota.rs`, and list the command under `native.commands`, with the manifest's `native.generation` set to the new number. Ask `nativeReady()` before offering it, as Notion's `unavailable()` does through `notionAvailable()`, so an older binary says it needs an update.
 8. Run `npx vitest run src/app/plugins`, and lint the files you touched by path.

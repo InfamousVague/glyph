@@ -8,13 +8,13 @@ import { markDetailsChanged, provideMarkDetails } from '../core/markDetails.ts';
 import { onPreferences, preferences } from '../core/preferences.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 import { usesNetwork } from './reach.ts';
-import type { InlineFormat, GlyphPlugin, ItemAction, ItemTarget, NoteAction, NoteLink, Permission, Tip, VoiceCommand, Suggestion } from './types.ts';
+import type { InlineFormat, GlyphPlugin, ItemAction, NoteAction, NoteLink, Permission, Tip, Suggestion } from './types.ts';
 
 /**
  * The plugins in this build, which are switched on, and everything they offer.
  *
  * The app asks here and never names a plugin: the note's cog asks for
- * `noteLinks()`, the recorder for `voiceCommands()`, the formatter for
+ * `noteLinks()`, the recorder for `tips()` and `formats()`, the formatter for
  * `contextFor(noteId)`, Settings for `usePlugins()` (hooks.ts, where React
  * reads the registry). A switched-off plugin
  * offers nothing anywhere, at once; its data stays where it was, so switching
@@ -37,8 +37,6 @@ export interface Registry {
   linksOf(noteId: string): NoteLinked[];
   noteActions(): NoteAction[];
   itemAction(noteId: string): ItemAction | null;
-  voiceCommands(): VoiceCommand[];
-  itemTargets(): ItemTarget[];
   tips(recentTitle: string | null): Tip[];
   contextFor(noteId: string): string | null;
   contextVersion(noteId: string): number;
@@ -82,10 +80,10 @@ const EFFECT_DELIMITER = /^(\p{Extended_Pictographic}\uFE0F?)\1$/u;
 
 /**
  * The extension points a plugin uses must match what its manifest asks for:
- * commands heard while recording need `voice`, and anything that changes a
- * note (an action, the swipe, items sent on from a voice command) needs
- * `notes`. Its formattings must be ones the parser can carry. Checked when the
- * registry is made, so a plugin that overreaches never loads.
+ * anything that changes a note (an action, the swipe, the words it offers on a
+ * note's lines) needs `notes`. Its formattings must be ones the parser can
+ * carry. Checked when the registry is made, so a plugin that overreaches never
+ * loads.
  */
 function checkExtensions(plugin: GlyphPlugin): void {
   const has = (kind: Permission) => plugin.manifest.permissions.some((p) => p.kind === kind);
@@ -95,8 +93,7 @@ function checkExtensions(plugin: GlyphPlugin): void {
       throw new Error(`The “${plugin.manifest.id}” plugin's “${format.name}” formatting needs a delimiter of one to three of the same character that Markdown doesn't already use, or an emoji twice, not “${format.delimiter}”.`);
     }
   }
-  if ((plugin.voice?.length || plugin.itemTargets?.length) && !has('voice')) throw new PluginPermissionError(plugin.manifest, 'the “voice” permission its commands need');
-  if ((plugin.noteActions?.length || plugin.itemAction || plugin.itemTargets?.length || plugin.suggest) && !has('notes')) {
+  if ((plugin.noteActions?.length || plugin.itemAction || plugin.suggest) && !has('notes')) {
     throw new PluginPermissionError(plugin.manifest, 'the “notes” permission its note actions need');
   }
 }
@@ -161,8 +158,6 @@ export function createRegistry(plugins: readonly GlyphPlugin[], store: SwitchSto
         }),
     noteActions: () => enabled().flatMap((p) => p.noteActions ?? []),
     itemAction: (noteId) => enabled().map((p) => p.itemAction).find((action) => action?.available(noteId)) ?? null,
-    voiceCommands: () => enabled().flatMap((p) => p.voice ?? []),
-    itemTargets: () => enabled().flatMap((p) => p.itemTargets ?? []),
     tips: (recentTitle) => enabled().flatMap((p) => p.tips?.(recentTitle) ?? []),
     contextFor(noteId) {
       const parts = enabled()

@@ -41,7 +41,7 @@ An ask said first is the whole take: say it on its own, then tap Done. Nothing e
 
 ## Where an ask runs
 
-An ask only runs when you talk into a note that already exists, on an unlocked phone. A new recording, or one started over the lock screen, never runs an ask, and the recorder does not suggest one there. A locked phone never shows a note to whoever is holding it.
+An ask said first runs only when you talk into a note that already exists, on an unlocked phone; said first in a new recording, its words are kept as the note. An ask said in the middle of a recording runs on the note that opens after Done, and that includes the new note a new recording makes. Over the lock screen an ask never runs, and nor does one said after the recording went to another note: the chip says it was left out. The card of things to say before the first word suggests asks only on a note's own Speak. A locked phone never shows a note to whoever is holding it.
 
 If the AI cannot run (because no model is on the phone yet, say), the note still opens, and a message gives the reason in the same sentence as in [[The models on your phone]].
 
@@ -55,7 +55,7 @@ Settings › Recording › Better words (on Android) is on by default. After you
 
 - It waits while the recorder is on screen, because both models need the same cores.
 - It only replaces the note's words if the note still reads exactly as Done saved it. If you have edited the note since, your edit wins.
-- It leaves out the commands you said, and puts voice memos back where they were.
+- It leaves out the commands you said.
 - If the app closed before it got to a recording, it runs the next time the app opens.
 - The first time it runs, it downloads the larger model, about 190 MB. Until that model is on the phone, or while Local only is on, notes keep the words they were heard with live.
 

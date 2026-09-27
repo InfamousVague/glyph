@@ -13,7 +13,7 @@ import type { GlyphPlugin } from './types.ts';
  * A card leads with the plugin as a thing - its icon, its name, one line on what it does - and its switch, then
  * the way to its own page when it has one and is on, then what it may reach, said in one line with the reasons a
  * press away rather than a row per permission, which was most of the old page. A plugin switched off offers nothing
- * anywhere (its page here, its rows on a note's cog, its swipe, its voice commands, its context for the formatter)
+ * anywhere (its page here, its rows on a note's cog, its swipe, its tips in a pause, its context for the formatter)
  * and keeps its data, so switching it on again brings it back as it was.
  *
  * Local only (Settings > Formatting) holds every plugin that uses the internet off, whatever its switch says

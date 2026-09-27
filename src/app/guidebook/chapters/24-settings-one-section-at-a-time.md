@@ -47,7 +47,7 @@ On Android only.
 | Where the side key is | Ghost.md's guess | A Height slider that moves the rings to sit beside your key. Once you have moved it, **Reset** beside Use Ghost.md's guess puts it back. |
 | Better words | On | After you finish, a larger model goes over the recording and fixes the words: a few seconds of the phone per minute of speech. |
 
-Its line says: “Say “Hey Ghost, add call Sam to House TODOs” and the words go into that note as you say them. Not this note, Discard or Undo takes them back. Off, “Add a note to House TODOs…” at the very start of a recording works without it.” On, a phrase is read as you speak only when it opens with Hey Ghost; a recording that opens plainly with "add eggs to Groceries" is still read once when you stop, and asks on a card. Off, the plainest shapes at the very start of a recording work without the keyword, and anything later still needs it. An ask of the AI counts only after Hey Ghost, whichever way it is set.
+Its line says: “Say “Hey Ghost, add call Sam to House TODOs” and the words go into that note as you say them. Not this note, Discard or Undo takes them back. Off, “Add a note to House TODOs…” at the very start of a recording works without it.” On, a phrase is read as you speak only when it opens with Hey Ghost; a recording that opens plainly with "add eggs to Groceries" is still read once when you stop, and asks on a card. Off, the plainest shapes at the very start of a recording work without the keyword, and anything later still needs it. A free ask of the AI counts only after Hey Ghost, whichever way it is set; the named runs, such as “Fix the spelling” said first into a note, need no keyword ([[Spoken asks and the review]]).
 
 ## Formatting
 

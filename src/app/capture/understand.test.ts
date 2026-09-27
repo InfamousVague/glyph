@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commandMessage, commandModelOf, readCommandAnswer } from './understand.ts';
+import { commandMessage, readCommandAnswer } from './understand.ts';
 
 const notes = [
   { id: 'g', title: 'Groceries' },
@@ -16,7 +16,6 @@ describe('the command model’s answer', () => {
       how: 'item',
       task: false,
       many: false,
-      target: null,
     });
     expect(readCommandAnswer('{"action":"switch","note":"HelloTrade"}', notes)).toEqual({ kind: 'move', note: notes[1] });
     expect(readCommandAnswer('{"action":"new"}', notes)).toEqual({ kind: 'new' });
@@ -57,17 +56,9 @@ describe('the command model’s answer', () => {
   });
 });
 
-describe('the question and the model', () => {
+describe('the question', () => {
   it('lists the titles, then what was said', () => {
     expect(commandMessage(' add eggs to groceries ', ['Groceries', 'HelloTrade'])).toBe('Notes:\n- Groceries\n- HelloTrade\n\nCommand: add eggs to groceries');
     expect(commandMessage('new note', [])).toContain('(none)');
-  });
-
-  it('runs on 4B when it is there, else 2B, the big ones last', () => {
-    const model = (id: string, present: boolean) => ({ id, bytes: 1, present, file: '', path: '' });
-    expect(commandModelOf([model('qwen3.5-9b', true), model('qwen3.5-4b', true), model('qwen3.5-2b', true)])).toBe('qwen3.5-4b');
-    expect(commandModelOf([model('qwen3.5-9b', true), model('qwen3.5-4b', false), model('qwen3.5-2b', true)])).toBe('qwen3.5-2b');
-    expect(commandModelOf([model('qwen3.5-9b', true), model('gemma-4-e4b', true)])).toBe('gemma-4-e4b');
-    expect(commandModelOf([model('qwen3.5-4b', false)])).toBeNull();
   });
 });

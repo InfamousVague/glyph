@@ -32,7 +32,10 @@ export type Permission =
   | 'network'
   /** Runs the phone's language model. */
   | 'ai'
-  /** Hears commands while a note is being recorded. */
+  /**
+   * Hears commands while a note is being recorded. No extension point takes a plugin's voice commands any more
+   * (docs/DESIGN.md §127), so no plugin declares it; the kind is kept until it is decided whether one will again.
+   */
   | 'voice'
   /** Calls commands built into the app binary (listed under `native`). */
   | 'native';
@@ -136,45 +139,6 @@ export interface ItemAction {
   run(text: string, editing: NoteEditing): Promise<void>;
 }
 
-/** What the recorder offers a voice command while it runs. */
-export interface CaptureContext {
-  /** The note this take is writing into. */
-  noteId(): string;
-  /** The last thing said: a phrase of this take, or items just put in another note. */
-  lastSaid(): { kind: 'take'; text: string } | { kind: 'items'; noteId: string; lines: string[] } | null;
-  /** Makes `text` the last thing said. */
-  said(text: string): void;
-  /** The chip above the recorder: working ("Sending to Board"), done ("In Notion on Board"), or failed (a sentence). */
-  status(status: { state: 'working' | 'done' | 'failed'; lead?: string; title: string }): void;
-  /** Makes the words `text` of this take a link to `url`, wherever the spoken cues put them. */
-  link(text: string, url: string): void;
-  /** Adds a line of markdown to the end of this take. */
-  append(markdown: string): void;
-  /** Changes another note's body, keeping the take in step when it is writing to that note. */
-  updateNote(noteId: string, change: (body: string) => string): Promise<void>;
-}
-
-/** A command heard while recording, tried before Glyph's own. */
-export interface VoiceCommand<Parsed = unknown> {
-  id: string;
-  /** The command in a finished phrase, or null. */
-  parse(text: string): Parsed | null;
-  /** What it will do, for the recorder to ask before it does it: "Send “Book the cabin” to Notion". */
-  describe(parsed: Parsed, ctx: CaptureContext): { title: string; action: string };
-  /** Acts on it, once confirmed. Answers the words of the phrase to keep in the take, or null to keep none. */
-  run(parsed: Parsed, ctx: CaptureContext): string | null;
-}
-
-/**
- * "New item for AttackFM in Notion": a word an item command can end its note's
- * name with, and what happens to the items once they are in that note's list.
- */
-export interface ItemTarget {
-  /** The word, lowercase: "notion". */
-  word: string;
-  afterAdd(noteId: string, lines: string[], ctx: CaptureContext): void;
-}
-
 /** Something to say, suggested in a pause while recording. */
 export interface Tip {
   say: string;
@@ -270,8 +234,7 @@ export interface GlyphPlugin {
   noteLinks?: readonly NoteLink[];
   noteActions?: readonly NoteAction[];
   itemAction?: ItemAction;
-  voice?: readonly VoiceCommand[];
-  itemTargets?: readonly ItemTarget[];
+  /** Things to say in a pause while recording, for the note the routing tip names (capture/tips.ts `tipInPause`). */
   tips?: (recentTitle: string | null) => Tip[];
   formatContext?: FormatContext;
   /** The words offered on the lines of a note as it stands (pure: read on every change). */

@@ -77,7 +77,9 @@ An item linked to Notion or GitHub carries a mark as well, always between its wo
 
 ## By voice
 
-Boards are not changed by voice at present. The recorder reads a command once, when you stop, and the only commands it carries out itself are adding to a note and making a new list, each asked about first. "Hey Ghost, move the coffee to Done" moves no card, and "Hey Ghost, make this a board" makes no board. Said into a note's own Speak, words like these are either refused, with the reason, or passed to the AI as a spoken ask about that note, and anything it writes lands as marked changes you can undo ([[Spoken asks and the review]]). [[Commands after Hey Ghost]] has what the recorder does carry out.
+On a board's own Speak, a lane is named like a heading of the note: "Hey Ghost, add call Sam to Doing" puts a to-do under the board's items and its card at the top of Doing as you say it. Nothing is stored until Done, when the card is written into the board with the rest of what you said.
+
+A card is moved by dragging it, and a board is made with More › **Make a board**: "Hey Ghost, move the coffee to Done" moves no card, and "Hey Ghost, make this a board" makes no board. Said into a note's own Speak, words like these go to the AI as a spoken ask about that note, and anything it writes lands as marked changes you can undo ([[Spoken asks and the review]]). Said as a new recording, they are kept as its words. [[Commands after Hey Ghost]] has what the recorder carries out.
 
 ## Read next
 

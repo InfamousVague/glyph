@@ -23,9 +23,8 @@
  * So "not linked yet" is a to-do or bullet with no mark and no link in its
  * words, and linking a whole list twice links nothing the second time.
  * Ticked to-dos are left alone: a done thing is not a task to make. Plugins
- * use these for what they link items to (the Notion plugin's tasks), and the
- * recorder for words of a take linked while it is being said. Pure, so every
- * shape of line is a test.
+ * use these for what they link items to (the Notion plugin's tasks). Pure, so
+ * every shape of line is a test.
  */
 
 import { COUNTER_IN_WORDS, ITEM_TAIL, MARK_NAME, MARK_URL, listLead, withoutBookmark } from './itemSyntax.ts';
@@ -166,50 +165,4 @@ export function linkedLine(lineText: string, url: string, name = 'notion'): stri
   // The lead ends in its own space, so an item with no words takes the mark straight after it.
   const mark = `[${name}](${url})`;
   return `${found.lead}${withAnchorBack(words ? `${words} ${mark}` : mark, anchor)}`;
-}
-
-export interface SentLink {
-  text: string;
-  url: string;
-  /** What the words were sent to: "notion" unless said otherwise. */
-  name?: string;
-}
-
-const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-
-/**
- * `markdown` with each sent thing marked, wherever its words landed: a to-do
- * or a bullet gets the mark at its end; words in a sentence get it right
- * after them. For a take whose phrases were sent while it is still being
- * said, so the words keep the shape the spoken cues gave them and only gain
- * the mark. The first line holding the words (ignoring case and punctuation)
- * is the one; words already linked are left alone.
- */
-export function applyLinks(markdown: string, links: readonly SentLink[]): string {
-  if (!links.length) return markdown;
-  const lines = markdown.split('\n');
-  for (const link of links) {
-    const wanted = squash(link.text);
-    if (!wanted) continue;
-    const mark = `[${link.name ?? 'notion'}](${link.url})`;
-    for (let i = 0; i < lines.length; i += 1) {
-      const line = lines[i] ?? '';
-      if (line.includes(`](${link.url})`)) break;
-      const found = item(line);
-      const marker = found?.lead ?? '';
-      const whole = found?.rest ?? line;
-      const { body: words, anchor } = found ? anchorOff(whole) : { body: whole, anchor: '' };
-      if (squash(found ? said(words) : words) === wanted) {
-        lines[i] = `${marker}${withAnchorBack(`${words.trim().replace(/[.,;:!?]+$/, '')} ${mark}`, anchor)}`;
-        break;
-      }
-      const at = words.toLowerCase().indexOf(link.text.toLowerCase().replace(/[.,;:!?]+$/, ''));
-      if (at >= 0 && !/\]\(/.test(words)) {
-        const end = at + link.text.replace(/[.,;:!?]+$/, '').length;
-        lines[i] = `${marker}${words.slice(0, end)} ${mark}${words.slice(end)}`;
-        break;
-      }
-    }
-  }
-  return lines.join('\n');
 }

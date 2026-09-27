@@ -65,7 +65,7 @@ The note id is chosen as the recorder opens (`takeWriter.ts`): a fresh one for a
 
 In the code, Rust holds the recording in memory, as 16-bit PCM inside the streamer, about 1.9 MB a minute. It is written only at stop: `capture_stop` with `recordAs` writes `recordings/<id>.wav` under the app's data directory, on the end of the file when `append` is set, under the id of the note the take is aimed at by then. A process killed mid-recording loses the take, words and sound, because nothing of it is written before Done, New note included: what was said before it is kept for its note and written at Done.
 
-A take said into a note that already has a tape goes on the end of that note's file (`appendsTo` in `timeline.ts`). `onTape` shifts the take's phrases, command spans and voice memo marks by the tape's existing length, so words and sound share one timeline. `recordings.rs` confines every id to a plain name and serves the file through the `rec` scheme (`http://rec.localhost/<id>.wav` on Android) with byte ranges, so the player can seek. `tape.ts` is only the tape's geometry and its counter: two reels whose packs grow and shrink as square roots, drawn by `tapes/TapeArt.tsx`.
+A take said into a note that already has a tape goes on the end of that note's file (`appendsTo` in `timeline.ts`). `onTape` shifts the take's phrases and command spans by the tape's existing length, so words and sound share one timeline. `recordings.rs` confines every id to a plain name and serves the file through the `rec` scheme (`http://rec.localhost/<id>.wav` on Android) with byte ranges, so the player can seek. `tape.ts` is only the tape's geometry and its counter: two reels whose packs grow and shrink as square roots, drawn by `tapes/TapeArt.tsx`.
 
 ## Done
 

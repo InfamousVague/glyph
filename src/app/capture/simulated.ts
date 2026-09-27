@@ -7,24 +7,23 @@ import type { CaptureHandlers, CaptureSession } from './engine.ts';
  * stop answers with a length, so a note's tape can be built against it. Development and test tooling: nothing on the
  * phone reaches it without the query.
  *
- * `?simulate` speaks a note; `?simulate=route` speaks one that sends itself to
- * another note partway ("Glyph, move this to shopping list", yes) and then
+ * `?simulate` speaks a note; `?simulate=route` speaks one that moves itself to
+ * another note partway ("hey Ghost, move this to shopping list") and then
  * pauses, so routing and the tips in a pause can be watched without a
  * microphone; `?simulate=leave` leaves a note in AttackFM, said in one phrase
- * and then in two; `?simulate=item` speaks "Glyph, new item for attack FM" and
- * items for its list; `?simulate=command` is Matt's case, "add a list item to"
- * with the item after a pause, answered yes, then one answered no, then the
- * keyword with no command after it; `?simulate=ask` stops at the question;
- * `?simulate=table` builds a table in AttackFM by answering its questions, and
- * `?simulate=tableask` stops at the table's yes; `?simulate=say&say=a|b` speaks
- * the phrases given, bar-separated. `?simulate=review&review`
- * says a note with a misheard word and, on Done, runs the review with its
- * models simulated in the note it opens (ai/useNoteReview.ts, ai/reviewSimulation.ts).
+ * and then in two; `?simulate=item` speaks "hey Ghost, new item for attack FM"
+ * and items for its list; `?simulate=command` is Matt's case, "add a list item
+ * to" with the item after a pause, then a one-shot, then a sentence that opens
+ * with the app's name; `?simulate=ask` stops with the item said;
+ * `?simulate=giveback` says the keyword and names no note;
+ * `?simulate=say&say=a|b` speaks the phrases given, bar-separated.
+ * `?simulate=review&review` says a note with a misheard word and, on Done, runs
+ * the review with its models simulated in the note it opens
+ * (ai/useNoteReview.ts, ai/reviewSimulation.ts).
  *
- * The scripts that say commands were written for the old live reading of commands a phrase at a time, with a "yes" to
- * confirm. The recorder's live reader (liveRoute.ts) carries out "hey Ghost, add … to <note>" as it is said, with no
- * yes, and reads anything else once, from the whole transcript, at Done (CaptureScreen.tsx `finish`); a "Yes." in
- * these scripts is words. `?simulate=say` is the way to try a command as it is said now.
+ * Each command in them is read as the recorder reads one: the live reader (liveRoute.ts) carries out "hey Ghost,
+ * add … to <note>" as it is said, and anything else is read once, from the whole transcript, at Done
+ * (CaptureScreen.tsx `finish`). Nothing asks for a yes.
  */
 const SCRIPTS: Record<string, string[]> = {
   note: [
@@ -34,15 +33,13 @@ const SCRIPTS: Record<string, string[]> = {
     'Remember to ask Sam about the dog.',
     'Separately the car needs an oil change before we leave.',
   ],
-  route: ['Oat milk, eggs and the good coffee.', 'Hey Ghost, move this to shopping list.', 'Yes.', 'And bin bags.'],
-  leave: ['Quick thought before I forget.', 'Hey Ghost, leave a note on the page for attack FM that says the seek bar drifts on two devices.', 'Yes.', 'Hey Ghost, leave a note for attack FM.', 'Ship the APK on Friday.', 'Yes.'],
-  item: ['Quick thought before I forget.', 'Hey Ghost, new item for attack FM.', 'Fix the login bug on Android.', 'Yes.', 'Hey Ghost, new tasks for attack FM.', 'Update the readme, ship the APK and tell Sam.', 'Yes.'],
-  table: ['Bug bash on Friday.', 'Hey Ghost, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it.", 'Yes.'],
+  route: ['Oat milk, eggs and the good coffee.', 'Hey Ghost, move this to shopping list.', 'And bin bags.'],
+  leave: ['Quick thought before I forget.', 'Hey Ghost, leave a note on the page for attack FM that says the seek bar drifts on two devices.', 'Hey Ghost, leave a note for attack FM.', 'Ship the APK on Friday.'],
+  item: ['Quick thought before I forget.', 'Hey Ghost, new item for attack FM.', 'Fix the login bug on Android.', 'Hey Ghost, new tasks for attack FM.', 'Update the readme, ship the APK and tell Sam.'],
   giveback: ['Pick up the parcel.', 'Hey Ghost, that was a long day.'],
   review: ['Bug bash on Friday.', 'Fix the seat bar on two devices.', 'Downloads get stuck on the discover list.'],
-  tableask: ['Bug bash on Friday.', 'Hey Ghost, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it."],
   ask: ['Quick thought before I forget.', 'Hey Ghost, add a list item to the attack FM.', 'Fix the seek bar.'],
-  command: ['Quick thought before I forget.', 'Hey Ghost, add a list item to the attack FM.', 'Fix the seek bar.', 'Yes.', 'Hey Ghost add ship the APK to attack FM.', 'No.', 'Ghost is going to need a plugin store.'],
+  command: ['Quick thought before I forget.', 'Hey Ghost, add a list item to the attack FM.', 'Fix the seek bar.', 'Hey Ghost add ship the APK to attack FM.', 'Ghost is going to need a plugin store.'],
 };
 
 export function simulated(handlers: CaptureHandlers): CaptureSession {

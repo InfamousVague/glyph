@@ -46,7 +46,7 @@ describe('Matt’s sentence, as Whisper commits it', () => {
     const { take, say, done } = record();
     say("Hey Ghost, add a note to house to do's.");
     expect(take.aim?.id).toBe('house');
-    expect(lastChip(take)).toEqual({ phase: 'waiting', title: 'House TODOs', many: false, leave: true });
+    expect(lastChip(take)).toEqual({ phase: 'waiting', title: 'House TODOs' });
     expect(take.live.awaitingPayload).toBe(true);
     // What is being said now is for the chip, until it is committed.
     expect(take.live.hearingCommand).toBe(true);
@@ -618,7 +618,7 @@ describe('the guards', () => {
     expect(take.card).toBeNull();
     say('the order. Check the form.');
     done();
-    expect(take.chips).toContainEqual({ phase: 'hearing', name: 'signing', guess: null, lead: 'Add to' });
+    expect(take.chips).toContainEqual({ phase: 'hearing', name: 'signing' });
     expect(take.aim?.id).toBe('s2');
     expect(take.body('s2')).toBe('# Signing the order\n\nCheck the form.');
   });

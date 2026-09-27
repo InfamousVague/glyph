@@ -54,14 +54,13 @@ This is `src/app/plugins/notion/manifest.ts`, with its reasons shortened:
 export const manifest: PluginManifest = {
   id: 'notion',                    // its switch and its storage live under this
   name: 'Notion',
-  description: 'Turns list items into tasks on your Notion boards: swipe an item, say it, or send a whole list.',
+  description: 'Turns list items into tasks on your Notion boards: swipe an item, or send a whole list.',
   version: '1.0.0',
   author: 'Ghost.md',
   standard: true,                  // on until switched off
   permissions: [                   // each with the reason the person reads
     { kind: 'notes', why: '…' },   // notes · network · ai · voice · native
     { kind: 'network', why: '…' },
-    { kind: 'voice', why: '…' },
     { kind: 'native', why: '…' },
   ],
   hosts: ['api.notion.com', 'attack.fm'],  // shown with the network permission
@@ -77,10 +76,9 @@ The manifest is enforced, not decorative:
   permission with `host.require` first: the GitHub plugin before its `fetch` (`src/app/plugins/github/repos.ts`,
   `src/app/plugins/github/issues.ts`) and before the model writes its briefing, and Notion's client before each
   request.
-- **The registry** refuses to load a plugin whose extension points outrun its permissions. Voice commands and item
-  targets need `voice`. Note actions, the item swipe, item targets and suggestions need `notes`. It also refuses a
-  formatting whose name is not a capitalised word of letters and digits, or whose delimiter is not one to three of
-  one character Markdown doesn't use, or an emoji twice.
+- **The registry** refuses to load a plugin whose extension points outrun its permissions. Note actions, the item
+  swipe and suggestions need `notes`. It also refuses a formatting whose name is not a capitalised word of letters
+  and digits, or whose delimiter is not one to three of one character Markdown doesn't use, or an emoji twice.
 - **Settings › Plugins** shows each permission with its reason, and the hosts, straight from the manifest
   (`src/app/plugins/reach.ts` has the words).
 
@@ -97,9 +95,7 @@ All optional, all in `src/app/plugins/types.ts`:
 | `noteLinks` | Rows under **Linked to** on a note's More sheet; each opens the plugin's `Picker` inside the sheet. What a note is linked to is also worn at its top (`src/app/plugins/LinkMarks.tsx`) | `hint(noteId)`, `unavailable()`, `Picker`, `linked(noteId)` |
 | `noteActions` | Rows under the links (Send list to Notion) | `visible`, `hint`, `enabled`, `run(editing)` |
 | `itemAction` | Swiping a list item left in a note | `label`, `busyLabel`, `available(noteId)`, `run(text, editing)` |
-| `voice` | Commands heard while recording, tried before Ghost.md's own | `parse(text)`, `describe(parsed, ctx)`, `run(parsed, ctx)` |
-| `itemTargets` | A word that can end an item command's note name ("new task for AttackFM **in Notion**") | `word`, `afterAdd(noteId, lines, ctx)` |
-| `tips` | Suggestions in a pause while recording | `(recentTitle) => Tip[]` |
+| `tips` | Suggestions in a pause while recording (none of the built-in plugins gives one) | `(recentTitle) => Tip[]` |
 | `formatContext` | Background the model is handed with a note when the AI runs on it (`src/app/format/pipeline.ts`) and in the review after a recording | `for(noteId)`, `version(noteId)` |
 | `suggest` | A quiet word at the end of a line the plugin could act on, tapped to do it (the "Notion" after an unsent to-do) | `(noteId, body) => Suggestion[]`, each `line`, `label`, `busyLabel`, `run(editing)` |
 | `marks` | Read-back for the links a plugin writes: a pill on the item, a card on tap, and the actions (`done`, `reopen`) that make a tick sync both ways | `peek`, `want`, `open`, `reads?`, `actions?` |
@@ -108,12 +104,11 @@ All optional, all in `src/app/plugins/types.ts`:
 `NoteEditing` (for note actions, the swipe and suggestions) changes the note on screen through its editor, so each
 change is one undo step and saves like typing.
 
-**Voice commands, today.** Since the recorder reads a command only from the finished recording (DESIGN §114,
-`src/app/ai/instruction.ts`), `voice` and `itemTargets` are heard only by the phrase-by-phrase reader in
-`src/app/capture/take.ts`, which the voice test suite drives (docs/VOICE_TESTS.md). A recording made in the app does
-not run them. "Hey Ghost, send that to Notion", said into an open note, opens that note with an AI ask carrying those
-words; said as a fresh recording, or without the keyword, it is saved as a note's words. `tips` and a format's `cue`
-still reach the recorder.
+**No voice commands.** A plugin adds nothing a recording carries out: the live reader and the reader at Done ask no
+plugin, and the `voice` and `itemTargets` extension points went with the phrase-by-phrase reader that heard them
+(DESIGN §127). "Hey Ghost, send that to Notion", said while recording, is read as words for a note called Notion,
+and with no such note the chip says so. `tips` and a format's `cue` still reach the recorder. The `voice` permission
+kind is still in `src/app/plugins/types.ts`, declared by no plugin.
 
 **Local only.** While the person has Local only on (Settings › Formatting), every plugin whose manifest
 declares the `network` permission is off, whatever its switch says, and the registry tells its listeners
@@ -128,14 +123,6 @@ form), and a run of the model keeps the mark's link by construction (`src/app/fo
 survive is made the link again. A plugin should not invent its own way of marking a line: the pill, the suggestion and
 the model's handling all key off this one shape. Sending itself follows `src/app/plugins/sendItems.ts`: the same words
 are never made twice, a made thing always gets its link, and a failure stops the run.
-
-`CaptureContext` (for voice commands) can:
-
-- read the take's note and the last thing said
-- set the status chip
-- link words of the take to a URL
-- append a line
-- update another note while keeping the take in step
 
 A context's `version` must change whenever `for` would say something new; the note is then formatted again. When
 exactly one plugin gives a context, its version is used as it is, so notes formatted before plugins existed stay
