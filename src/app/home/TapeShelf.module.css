@@ -7,8 +7,8 @@
  * to scroll above them, while the shelf sits in the page's own scroller, and React's wheel listeners are passive, so
  * a turn of the wheel over the row moved it a card sideways and scrolled the page down at once. Shift with the wheel,
  * a trackpad's sideways swipe and a finger all still move the row, and the heading's "See all" is the mouse's way to
- * the rest. Measured in Chromium at the Fold's cover screen's 412px, not yet on the Fold: one card whole and the next
- * three-quarters showing (§132 "Measured").
+ * the rest. Measured in Chromium at the Fold's cover screen's 412px, not yet on the Fold: a card 208 × 270px, the row
+ * 284px (the shelf of cassettes was 196), one card whole and 164px of the next showing (§132 "Measured").
  */
 
 /*

@@ -400,8 +400,9 @@
 /*
  * The digest (HomeScreen.tsx, dashboard.ts `digest`): "5 to-dos open · Working on 2 tapes · 3 notes touched today",
  * one line under the date in the second ink, wrapping on a phone. Each phrase that goes somewhere is a word to tap,
- * at the line's own size and height rather than a whole tap target's; the middle dots between them are drawn, not
- * typed, so a wrapped line never begins with one.
+ * at the line's own size and height rather than a whole tap target's; the middle dots between them are drawn after
+ * each phrase but the last, not typed, so a wrapped line ends with one and never begins with one (measured at 412px:
+ * three phrases wrap, and a dot at the head of the second line read as a bullet).
  */
 .digest {
   list-style: none;
@@ -421,7 +422,7 @@
   gap: var(--glacier-space-2);
 }
 
-.digest li + li::before {
+.digest li:not(:last-child)::after {
   content: '·';
   color: var(--app-ink-3);
 }
@@ -466,6 +467,8 @@
  * The To do card: every open to-do in one card on the note card's ground (notes/NoteCard.module.css .card), written
  * out since this one is a column of rows and not a button. Second on the page, with the pinned cards' beats before
  * it. The rows were eight hairlined lines at the page's foot; here they are rows in a card, with air and no rules.
+ * Measured in Chromium (docs/DESIGN.md §132): five two-line rows make a card 283px tall at 412px, 201px in two
+ * columns at the opened Fold's 1432px pane, and the whole card is on the cover screen's first screen under a pinned card.
  */
 .todo {
   padding: var(--glacier-space-4);

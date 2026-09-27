@@ -5827,3 +5827,121 @@ script would arrive unrecorded. Whisper is not primed with "redact": the cue voc
 (src-tauri/src/whisper/text.rs), a native release, and no plugin cue is in it today. An effect inside a bar is still
 drawn: editor/textEffects.ts walks the tree on its own and reads no `coveringLooks`, so its motion goes on under the
 ink; what of it shows through a flat-printed span is unmeasured.
+
+## 132. Room to breathe: the home page as headed groups, a digest, and one family of marks (2026-09-27)
+
+Matt: "The library and tapes headers on the home page are different sizes, id like you to redo the home dashboard
+UI/UX to make it easier to digest everything with cards and quick actions and summaries and better labeling. Right
+now it's just very data dense with no solid organization and use of white space"
+
+Built on branch home/redesign against HEAD 3c30964 (1.8.0-18), in four slices and a browser pass, each committed
+alone: the headings and their marks; the To do card; the tape card and the offer; the digest; the measurements.
+
+**The mismatch, at its cause.** Pin and Cassette on the headings were art/Icons.tsx `icon()` strokes, a 1em box
+drawn at `font-size: 1.15em` of a 13.4px heading, so ~15.4px with a 1.5px stroke, and the cassette's reels (r 2.75
+of 24) closed to dots at that size, which is why it read filled. Book was @glacier/icons' lucide proxy given only a
+className: lucide writes width=24 height=24 stroke-width=2 attributes and ignores the em, so it drew 24px and thin
+beside them. Recent and To do had no mark at all. Now every heading mark is Icons.tsx's line at 1em of the heading's
+own size (19.4px at 412, 22.5 on the opened Fold, a ~2px stroke, the dock's weight): Pin (tilted, as §29g left it),
+TickBox, Cassette with its reels redrawn at r 3 so they stay open, Book drawn in the app's line, Clock, and Grid on
+the foot's All notes. The kit's Book and LayoutGrid left HomeScreen.tsx. The test that keeps it: every h2 svg on the
+page is sized 1em and carries no width attribute (HomeScreen.test.tsx).
+
+**The page, top to bottom.** The date as the page's one title (xl), a digest line under it, the pills and the
+notices as they were; then Pinned, To do, Tapes, Library, Recent, and All notes at the foot. Pinned stays first
+(Matt, §29g: "put pinned notes in a category above the rest of the notes in lists"); To do comes up from the foot to
+second, since it is what is waiting and its tick is the page's one in-place action; Tapes keep §127's place above
+the Library; Recent runs last into All notes, which is its own See all. Nothing is shown twice and dashboard.ts's
+grouping rules are untouched. Constants: `RECENT = 4` (was 6), `TASKS = 5` (was 8), `TASKS_OPEN = 40`, `SHELF = 8`.
+
+**One scale.** Head xl, headings lg semibold in sentence case with title tracking (the spaced capitals went from
+this page: `.group`, `.app-eyebrow` and the shelf's `.meta` were three competing caps styles), card titles md on
+every card (the grid's dense size, so home and All notes share one; NoteCard.module.css `.title`), lines sm and xs
+in the third ink. A count after a heading is md regular tabular in the third ink: "To do · 14"; Tapes counts only
+when there are more than the shelf holds. The mark sits in the second ink so the word leads.
+
+**The digest.** One line under the date, only the phrases that are true, separated by middle dots, each a word
+that glides to its group: "5 to-dos open · Working on 2 tapes · 3 notes touched today"; "1 tape needs a model"
+opens Settings › Formatting; "Nothing waiting on you" when none of the waiting phrases are true. Pure and tested in
+dashboard.ts (`digest`, `touchedToday`, `startOfToday`, `tapesWaiting`); no fetch, the queues' sets and the to-dos
+were already on the page. No full stops: a row of fragments, like "All notes · 41". The dot is drawn after each
+phrase but the last (`li:not(:last-child)::after`), not before each but the first: at 412px three phrases wrap, and
+a dot at the head of the second line read as a bullet. The glide is `scrollIntoView` on the group's section, with
+`scroll-margin-block-start` of the safe top so the heading lands under the glass bar, and `auto` behaviour under
+reduced motion.
+
+**Air, on the kit's scale.** space-8 between groups (space-10 in the 60rem column), space-3 from a heading row to
+its cards, space-4 between cards on the home page (All notes keeps space-3 through its compose; the home page's
+`.section .cards` rule is heavier and not composed), the To do rows without hairlines, the tape row's gap space-4,
+the foot space-8 above. The date leaves space-2 for the digest, and the digest space-5, as the pills and notices do.
+Rhythm around cards, never a band at the foot (§84, §97): the page still runs under the dock to the screen's
+bottom, and the scroller's foot padding is still counted from the dock's four buttons.
+
+**The To do card.** Five rows in one card (were eight hairlined rows), each the box, the words, and "{note} ·
+{when touched}" under them; "Show all 14" in the heading row opens it in place to forty, then "and N more in your
+notes"; "Show fewer" folds it, and so does choosing another workspace. Two columns from 44rem. All ticked, the card
+holds the all-ticked ghost at its small size. The card takes one arrive beat after the pinned cards; the Library
+and Recent count it in theirs.
+
+**The tape card.** The shelf's cassette became a 13rem card on the note card's ground: the drawn cassette at the
+card's inner width, a two-line title at md, the caption with three lines' room for the summary's prose line (§127's
+caption order unchanged; the clamp is on the prose line alone, since a legacy `-webkit-box` makes block items of a
+state's spinner and its word), the offer word, and the note card's foot "12:40 · 26 Sep" last, so a row of tapes
+and a row of notes read as one kind of thing. The cards stretch to one height so their feet line up. "See all"
+moved from the row's end to the heading, where a mouse can reach it, with "· N" beside the word, both only past
+the shelf's eight. The offer, "Summarize" (the strip's own verb, kindWords('summarize').label), shows only on Tauri
+for a tape of LONG_NOTE_MS or more with no summary and nothing queued (tapeCaption.ts `canOfferSummary`), and asks
+the queue for the tape's real kind (dashboard.ts `summaryKindOf`: a meeting's for a note in the meetings map).
+
+**Quick actions.** Tick in place; Show all; See all; the digest's phrases; Summarize, Get a model and Try again on
+a tape; the dock, unchanged. Nothing on a card at rest (§29g). A per-card menu on hold or right-click was designed
+and not built: nothing at rest would say it exists, and a long press inside a scroller is a gesture Android fights.
+If Matt wants pin, archive and delete on the page, the discoverable form is an always-drawn "More for {title}"
+word at the title's right opening a sheet with the palette's "This note" words; the palette has them today.
+
+**Measured** (Chromium 2×, Playwright from the npx cache against `vite preview` of the branch's build, the §132
+seed of twelve notes with three tapes; light and dark identical to the pixel; the Fold itself not yet):
+- 412 × 915: date at y 93, 33px tall at 23.4px; the digest one line (two with three phrases); Pinned heading at
+  y 178; pinned card 197px; To do card (five two-line rows) 283px at y 501–784, so the fold lands after the fifth
+  row and the whole card is on the first screen; tape card 208 × 270px, the row 284px (was 196); one card whole
+  and 164px of the next showing; first screen holds: the date, the digest, Pinned and its card, To do with all
+  five rows, and the Tapes heading (y 819) with the row's top edge.
+- 375 × 812: the same column 331 wide; pinned card 196px, To do card 282px (y 498–780); 127px of the second tape
+  card showing; the Tapes heading lands at y 815, three pixels under the fold, so the first screen holds the head,
+  Pinned and To do.
+- 768 × 1024 (sidebar docked; the list column is 300px, not the 380 the design guessed, so the pane is 468 and the
+  column 420): 2 card columns of 200px; To do rows in one column (card 293px); tape cards 276px, two whole, none
+  peeking with three tapes.
+- 1280 × 900 (sidebar docked, pane 900, column 847): 4 card columns of 196px; To do rows in two columns (card
+  196px); tape cards 283px, three whole; the first screen holds the head, Pinned and To do (y 601–855).
+- 1812 × 1000 (sidebar docked, pane 1432, the 60rem column at 960 with 236px each side): 4 card columns of 224px;
+  To do in two columns (card 201px); tape cards 287px, the seed's three whole (a fourth would be whole too, a
+  fifth would peek); first screen holds: the head, Pinned (card 294px), To do, and the Tapes heading (y 939) with
+  the row's top. Without the sidebar the same column sits at x 426.
+- The five marks at 412: each 19.4px square (the pin's tilted box 23.1); the stroke 1.9px; the cassette's holes
+  2.9px across, and 0.65px between the two reels' strokes at the middle, which reads as two rings and not one.
+- The other passes at 412: a "Work" workspace chosen shows the pills under the digest and filters it ("2 to-dos
+  open · 1 note touched today", To do · 2 with no Show all); `design` pending in the queue reads "7 to-dos open ·
+  Working on 1 tape · 5 notes touched today" and the card's caption "Summarizing. Keep Ghost.md open." with its
+  spinner; the Academy card sits between the digest and Pinned.
+
+**Tests.** HomeScreen.test.tsx: the order Pinned, To do, Tapes, Library, Recent; every heading's mark 1em with no
+width attribute; four Recent cards from six; five to-dos, Show all 8 → eight and Show fewer → five, Show all 45 →
+forty and "and 5 more in your notes", no Show all under five; "Shop · Just now" on a row; eight tapes with "· 11"
+and See all → `onAllNotes({ tapes: true })`, and neither at eight; the digest's phrases and the quiet one, nothing
+while loading or on an empty page; a phrase glides to its section and the model phrase opens Settings.
+TapeShelf.test.tsx: the foot outside the button; Summarize for a 200 s idle tape on `canSummarize`, not for 40 s,
+not off Tauri, not once summarised nor in any queue state; `canOfferSummary` in each state. dashboard.test.ts:
+`summaryKindOf`, `startOfToday`, `touchedToday` (midnight counts, a millisecond before does not, the archive and the
+Guide's pages never), `tapesWaiting` (once per note, working before needing a model before failed), `digest`
+(order, singular and plural, the quiet phrase). App.test.tsx: the path to the grid via See all. stylesheets.test.ts
+runs as is: every read a declared token, leading tokens only as line-height or in a calc, no composer overriding.
+
+**Left undone.** The Fold's own measurements; §127 section 9 still "To come"; a per-card menu (above); sublines
+under headings ("1 hr 41 min in all."), kind labels on cards and a to-do count in a card's foot, all considered and
+left out as the density Matt asked to remove; a Pinned cap (All notes has no Pinned toggle to land on); Recent at
+eight on a wide screen (eight editors for two rows); a fifth tape card peeking on the opened Fold was not seen,
+since the seed has three tapes.
+
+Cites: §21, §26, §29g, §29i, §31, "The card is the note, small" and "A home page, and the notes list gone"
+(2026-09-18), §64/§67, §71, §72, §84/§97, §92/§110, §94, §115, §118, §121, §124, §125, §127.
