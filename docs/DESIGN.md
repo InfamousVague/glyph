@@ -5332,3 +5332,59 @@ tape's id and gives a removed one a new id; a phrase of words and then the keywo
 plugin's formatting is laid out when said; the Things to say card's new list is read, with its items, by the reader
 at Done; and voice test 102 says "New item for groceries" as the tip teaches it. Still with no test: the quiet stop
 held open while a command waits for its note's name.
+
+## 131. The redaction, back as the twelfth mark (2026-09-26)
+
+Matt: "Id like sentences to be able to redact". Asked what that meant, he gave two things: the spoken take-back
+while recording, which is §130, and "also add redact formatting", which is this.
+
+**What it is.** `@@the gate code@@` is the Marks plugin's twelfth mark, Redact, between Unsure and Shout where it
+sat before it was cut (ce0193d built it with the plugin; bc10ca2 took it out at 1.4.2-4, "remove redacted its the
+same as spoiler"). A solid bar of the page's ink over the words, lifted while the caret is in them so they can be
+read and edited (`clearAtCaret`, the FormatLook flag kept for it since the cut), and a look only: the words stay in
+the note between their at signs, so a share, an export, the reader page and any other app show them. In the
+Formatted view the at signs go and the bar stays. Said "redact … end redact", and heard as "redacted" too, since
+Whisper writes the past tense as often as not. Style › Redact, the cheat sheet row and the Academy's lesson come from
+the same entry; the Academy's lesson and the sample note's line are the two places with words of their own.
+
+**The bar, measured.** A note with a redaction in a sentence, in a heading, in a quote, and around a link, code and
+bold, on a light page and a dark one, in the marks view and the Formatted view, with the caret out and in
+(scratchpad/redact/*.png). Three things the old CSS did not do:
+
+1. In a heading the old bar was the body's height, with the heading's letters showing above it. The look's span was
+   outside the highlighter's: formatLooks comes before syntaxHighlighting in Editor.tsx, and the tree highlighter
+   is `Prec.high`, so the `.h2` span sat inside a box sized by the line's font. formatLooks is `Prec.highest` now.
+   CodeMirror nests the decorations of higher precedence inside, so every style look's span sits inside the
+   highlighter's and takes the size of the words it is on: a redaction in a heading is a bar as tall as the
+   heading, and a highlight in one is a wash as tall as the heading, which it was not before either.
+2. Inside the highlighter's spans the bar is drawn in pieces, one per run the highlighter makes (a link's brackets,
+   its words, the backticks, the stars), and rounded pieces left a notch of paper at every join. The bar is
+   square-ended now, and the shadow's spread (0.08em) closes the hairline between pieces; measured, the pieces on
+   one line share their top and their height (24px on an 18px line).
+3. `-webkit-text-fill-color` as well as `color`. A link's or code's own colour is set on the span its words sit in,
+   and the fill colour is what the glyphs take, so a link's words inside the bar are ink on ink. The editor theme's
+   selection rule already sets the fill for the same reason.
+
+**What shows, on purpose.** A link inside a redaction keeps its short address: links.ts draws it as a widget, and a
+widget is not text for a mark to cover, so `@@see [the plan](https://example.com)@@` is a bar, "example.com", a bar.
+A selection that touches the words lifts the bar as the caret does, so selecting redacted words shows them. Both
+are the mark's words being edited, not a leak; it is a look. The home page's live previews draw the bar too, since
+they draw with the note's own looks.
+
+**Taught.** The sample note's marks line and its EVERYTHING; the Guide's marks chapter (seven of its own, the row,
+the at-work line, and "a look, not a lock"); the cues chapter's row; chapters 30 and 32's counts; docs/MARKDOWN.md and
+docs/PLUGINS.md; the plugin's header, twelve.
+
+**Tests.** marks.test.ts: back between `@@`, said "redact", after Unsure and before the effects; the bar is one token
+for background, colour and fill, and lifts at the caret; drawn over the words alone with the at signs outside it;
+kept in the Formatted view with the at signs hidden; gone while the caret is in the words and back when it leaves.
+The lifting test that made up a lifting highlight uses the real mark again. The sample note holds a Redact; the
+Academy's lesson passes a bar and refuses one at sign and an unclosed bar; "redacted Sam Ortiz end redact" writes
+`@@Sam Ortiz@@` and "the file was redacted before it went out" stays words; the voice suite's line shape reads `@@`.
+The guide's table, its said-to-the-recorder test, the Academy's one-lesson-per-row test and the cheat sheet cover
+the new row from the registry without a line added.
+
+**Not done.** No voice suite script says it: the suite's audio is recorded off the phone (docs/VOICE_TESTS.md), so a
+script would arrive unrecorded. Whisper is not primed with "redact": the cue vocabulary is Rust
+(src-tauri/src/whisper/text.rs), a native release, and no plugin cue is in it today. A link's short address inside a
+bar shows, as above.
