@@ -1,8 +1,12 @@
 import { EditorState } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { parseWhole } from '../../../test/syntaxTree.ts';
 import { glyphMarkdown } from '../../editor/language.ts';
-import { styledRanges } from '../../editor/formatLooks.ts';
+import { formatLooks, styledRanges, type StyleLook } from '../../editor/formatLooks.ts';
+import { shortLinks } from '../../editor/links.ts';
+import { noteView } from '../../editor/viewMode.ts';
 import { BUILT_IN } from '../registry.ts';
 import { isMarkColour, MARK_COLOURS, MARKS, marksPlugin, washFor } from './index.tsx';
 
@@ -14,6 +18,11 @@ function nodes(doc: string): string[] {
   syntaxTree(state).iterate({ enter: (node) => void names.push(node.name) });
   return names;
 }
+
+/** The plugin's style looks as the editor keeps them (editor/formatLooks.ts `formatLooks`). */
+const looks = new Map<string, StyleLook>(
+  formats.flatMap((f) => (f.look.kind === 'style' ? [[f.name, { length: f.delimiter.length, css: f.look.css, clearAtCaret: f.look.clearAtCaret, tint: f.tint }]] : [])),
+);
 
 describe("Ghost.md's own marks", () => {
   it('are one plugin, with one switch, each mark carrying its own icon', () => {
@@ -46,13 +55,8 @@ describe("Ghost.md's own marks", () => {
     expect(nodes('+ an item\n+ another')).not.toContain('Added');
   });
 
-  it('a mark whose look lifts at the caret keeps the rest lit', () => {
-    // No mark lifts today (the redaction did, and is gone), so one is made up here to hold the behaviour still.
-    const doc = 'name: ==Sam Ortiz== and ??keep??';
-    const looks = new Map([
-      ['Highlight', { length: 2, css: 'background: red', clearAtCaret: true }],
-      ['Unsure', { length: 2, css: 'text-decoration: underline dotted' }],
-    ]);
+  it('lifts a redaction while the caret is in it, and keeps the rest lit', () => {
+    const doc = 'name: @@Sam Ortiz@@ and ==keep==';
     const inside = EditorState.create({ doc, extensions: [glyphMarkdown(formats)], selection: { anchor: 10 } });
     const words = (state: EditorState, atCaret: boolean) =>
       styledRanges(state, looks, { from: 0, to: doc.length }, atCaret).map((r) => doc.slice(r.from, r.to));
@@ -60,11 +64,93 @@ describe("Ghost.md's own marks", () => {
     expect(words(inside, false)).toEqual(['Sam Ortiz', 'keep']);
     const outside = EditorState.create({ doc, extensions: [glyphMarkdown(formats)], selection: { anchor: 0 } });
     expect(words(outside, true)).toEqual(['Sam Ortiz', 'keep']);
+    // Only the redaction lifts: the other looks stay while the caret is in their words.
+    expect([...looks.entries()].filter(([, look]) => look.clearAtCaret).map(([name]) => name)).toEqual(['Redact']);
+  });
+});
+
+describe('the redaction', () => {
+  const redact = MARKS.find((mark) => mark.name === 'Redact')!;
+  let view: EditorView | null = null;
+
+  afterEach(() => {
+    view?.destroy();
+    view = null;
   });
 
-  it('has no redaction any more: @@ is plain words (Matt: "remove redacted its the same as spoiler")', () => {
-    expect(formats.map((format) => format.name)).not.toContain('Redact');
-    expect(nodes('a @@bar@@ of ink')).not.toContain('Redact');
+  /** A note with a redaction, in the editor, drawn as the note screen draws it: the marks and their looks, in `shown`. */
+  function open(doc: string, shown: 'mixed' | 'formatted' = 'mixed'): EditorView {
+    view = parseWhole(new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(formats), formatLooks(formats), noteView(shown)] }), parent: document.body }));
+    return view;
+  }
+  const bar = (on: EditorView) => on.contentDOM.querySelector<HTMLElement>('.cm-formatLook');
+
+  it('is back, between two at signs, said as "redact … end redact" (Matt: "add redact formatting")', () => {
+    expect(redact.delimiter).toBe('@@');
+    expect(redact.cue).toBe('redact');
+    expect(nodes('a @@bar@@ of ink')).toContain('Redact');
+    // With the ink-and-paper marks, before the effects: the Style page and the guide show them in this order.
+    const names = MARKS.map((mark) => mark.name);
+    expect(names.indexOf('Redact')).toBe(names.indexOf('Unsure') + 1);
+    expect(names.indexOf('Redact')).toBeLessThan(names.indexOf('Heat'));
+  });
+
+  it('is a bar of the page’s ink, the words the same ink, so nothing shows through on either side of the page', () => {
+    const look = redact.look;
+    expect(look.kind).toBe('style');
+    if (look.kind !== 'style') return;
+    const rule = (name: string) => new RegExp(`(?:^|;)\\s*${name}:\\s*([^;]+);`).exec(look.css)?.[1];
+    // The bar, the words and their fill are one token, and it is the page's own ink, so a dark page draws a light bar.
+    expect(rule('background')).toBe('var(--glacier-text)');
+    expect(rule('color')).toBe(rule('background'));
+    expect(rule('-webkit-text-fill-color')).toBe(rule('background'));
+    expect(rule('box-shadow')).toContain('var(--glacier-text)');
+    // An emoji takes neither the colour nor the fill, so the span is printed flat in the ink (app/ink.css).
+    expect(rule('filter')).toBe('var(--app-ink-flat)');
+    expect(look.clearAtCaret).toBe(true);
+  });
+
+  it('draws the bar over the words alone, with the at signs outside it as dimmed marks', () => {
+    const on = open('the gate code is @@4417@@ today');
+    expect(bar(on)?.textContent).toBe('4417');
+    expect(bar(on)?.getAttribute('style')).toContain('background: var(--glacier-text)');
+    expect(on.contentDOM.textContent).toBe('the gate code is @@4417@@ today');
+  });
+
+  it('keeps the bar in the Formatted view, where the at signs are hidden', () => {
+    const on = open('the gate code is @@4417@@ today', 'formatted');
+    expect(on.contentDOM.querySelector('.cm-line')?.textContent).toBe('the gate code is 4417 today');
+    expect(bar(on)?.textContent).toBe('4417');
+  });
+
+  it('lifts while the caret is in the words, and comes back when it leaves', async () => {
+    const on = open('the gate code is @@4417@@ today');
+    on.focus();
+    on.dispatch({ selection: { anchor: 'the gate code is @@44'.length } });
+    await vi.waitFor(() => expect(bar(on)).toBeNull());
+    on.dispatch({ selection: { anchor: 0 } });
+    await vi.waitFor(() => expect(bar(on)?.textContent).toBe('4417'));
+  });
+
+  it('is drawn inside a highlight, a bar on the wash, and hides a highlight inside it', () => {
+    // The review found the inner look skipped: the words sat in the wash, readable, in both views and both themes.
+    const on = open('==a highlight with @@a bar@@ inside==');
+    const bars = [...on.contentDOM.querySelectorAll<HTMLElement>('.cm-formatLook')].filter((mark) => mark.getAttribute('style')?.includes('var(--glacier-text)'));
+    expect(bars.map((mark) => mark.textContent)).toEqual(['a bar']);
+    expect(bars[0]?.parentElement?.closest('.cm-formatLook')?.getAttribute('style')).toContain('var(--app-mark');
+    // A wash inside a bar would show the words through the ink, so under a bar nothing is drawn.
+    const doc = '@@a ==wash== in a bar@@';
+    const words = styledRanges(EditorState.create({ doc, extensions: [glyphMarkdown(formats)] }), looks, { from: 0, to: doc.length }).map((r) => doc.slice(r.from, r.to));
+    expect(words).toEqual(['a ==wash== in a bar']);
+  });
+
+  it('keeps a link’s address under the bar, where one outside it is shortened beside its words', () => {
+    // A short address is a widget (editor/links.ts), which sits beside the bar's span, not in it: "example.com" showed
+    // in plain ink between two pieces of bar.
+    const doc = '@@see [the plan](https://example.com/the/plan)@@ and [the rest](https://example.org/the/rest)';
+    view = parseWhole(new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(formats), formatLooks(formats), shortLinks({ still: true })] }), parent: document.body }));
+    expect([...view.contentDOM.querySelectorAll('.cm-shortLink')].map((short) => short.textContent)).toEqual(['example.org/the/rest']);
+    expect(view.contentDOM.textContent).toContain('(https://example.com/the/plan)');
   });
 });
 

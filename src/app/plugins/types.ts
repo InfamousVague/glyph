@@ -219,7 +219,9 @@ export type FormatLook =
   | { kind: 'effect'; effect: TextEffectName }
   /**
    * A style on the text, as CSS: `{ kind: 'style', css: 'text-decoration: underline' }`. With `clearAtCaret` the
-   * style lifts while the caret is in the words (a redaction's bar), so they can still be edited.
+   * style hides the words (a redaction's bar): it lifts while the caret is in them, so they can still be edited, and
+   * until then nothing under it is drawn, not another look's and not a link's short address (editor/formatLooks.ts
+   * `coveringLooks`).
    */
   | { kind: 'style'; css: string; clearAtCaret?: boolean };
 

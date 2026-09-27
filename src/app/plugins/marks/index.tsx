@@ -1,10 +1,10 @@
-import { CircleQuestionMark, EyeOff, Flame, Ghost, Highlighter, Megaphone, MessageSquareDashed, Plus, Snowflake, Sparkles, Waves } from '@glacier/icons';
+import { CircleQuestionMark, Eraser, EyeOff, Flame, Ghost, Highlighter, Megaphone, MessageSquareDashed, Plus, Snowflake, Sparkles, Waves } from '@glacier/icons';
 import type { GlyphPlugin, InlineFormat, PluginManifest } from '../types.ts';
 
 /**
  * Marks: the formatting Glyph adds to Markdown, all of it in one plugin
  * (Matt: "move all the additional formatting to one single plugin instead of
- * one of each like shout redact unsure etc"). Eleven marks, one switch in
+ * one of each like shout redact unsure etc"). Twelve marks, one switch in
  * Settings > Plugins, and each carries its own icon for the Style page
  * (editor/ContextMenu.tsx) and its own words for the guide's table
  * (guide/marks.ts).
@@ -16,12 +16,18 @@ import type { GlyphPlugin, InlineFormat, PluginManifest } from '../types.ts';
  * (editor/formatLooks.ts), in ink and paper only. Each is said as well as
  * typed: "highlight … end highlight" while recording (capture/markdown.ts).
  * Switched off, every one of them is plain text again.
+ *
+ * The redaction went once, as "the same as spoiler", and is back at Matt's
+ * asking ("add redact formatting"): a bar of ink where the spoiler is smoke,
+ * and a look only. The words stay in the note and in the file a share gives,
+ * so an export or any other app has them; the bar is for the screen, and it
+ * stays wherever there is no caret to lift it, the reader page included.
  */
 
 export const manifest: PluginManifest = {
   id: 'marks',
   name: 'Marks',
-  description: 'Ghost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a shout, an addition, and five effects: heat, frost, a wave, a shimmer and a haunting. Typed or said.',
+  description: 'Ghost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a shout, an addition, and five effects: heat, frost, a wave, a shimmer and a haunting. Typed or said.',
   version: '1.0.0',
   author: 'Ghost.md',
   standard: true,
@@ -96,6 +102,26 @@ export const MARKS: readonly InlineFormat[] = [
     cue: 'unsure',
     about: 'A dotted line under a fact to check later. Add “(why)” after it and tapping the words shows that note.',
     icon: CircleQuestionMark,
+  },
+  {
+    // The bar and the words are the same ink, so nothing shows through it on either side of the page; the fill colour
+    // as well as `color`, so a link or code inside the bar takes the ink too rather than its own colour. An emoji
+    // takes neither, being drawn in its own colours, so the span is printed flat in the ink by a filter (app/ink.css
+    // `--app-ink-flat`): a party popper under the bar is bar. Square ended: the bar is drawn in pieces where other
+    // marks sit inside it, and rounded pieces left notches of paper at their joins; the shadow's spread closes the
+    // hairline between them. Lifted while the caret is in the words (editor/formatLooks.ts `clearAtCaret`), so they
+    // can be read and edited; until then nothing under it is drawn, not a highlight's wash and not a link's short
+    // address (editor/links.ts).
+    name: 'Redact',
+    delimiter: '@@',
+    look: {
+      kind: 'style',
+      css: 'background: var(--glacier-text); color: var(--glacier-text); -webkit-text-fill-color: var(--glacier-text); box-shadow: 0 0 0 0.08em var(--glacier-text); filter: var(--app-ink-flat);',
+      clearAtCaret: true,
+    },
+    cue: 'redact',
+    about: 'A solid bar of ink over the words, lifted while the caret is in them. A look only: a share still has the words.',
+    icon: Eraser,
   },
   {
     name: 'Shout',

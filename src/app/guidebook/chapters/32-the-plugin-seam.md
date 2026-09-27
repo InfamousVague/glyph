@@ -12,7 +12,7 @@ Four ship, in `BUILT_IN`, all standard:
 |---|---|---|
 | `notion` | List items as tasks on Notion boards | `settings`, `noteLinks`, `noteActions`, `itemAction`, `suggest`, `marks` |
 | `github` | Items as issues, and the repo as a briefing for the formatter | `settings`, `noteLinks`, `noteActions`, `itemAction`, `suggest`, `marks`, `formatContext` |
-| `marks` | Eleven inline formats: spoiler, highlight, aside, unsure, shout, added, and five effects | `formats` |
+| `marks` | Twelve inline formats: spoiler, highlight, aside, unsure, redact, shout, added, and five effects | `formats` |
 | `claude` | A page for the Claude connector | `settings` |
 
 The Claude plugin runs nothing in the app. Claude reaches the account from outside, through the sync service, so the plugin is its page; its switch shows or hides that page and does not connect or disconnect anything.
@@ -109,11 +109,11 @@ Nothing else in the app changes. The More sheet, the swipe, the recorder, the fo
 ## What docs/PLUGINS.md still says
 
 - Two standard plugins, Notion and "Projects" in `src/app/plugins/projects/`. Four ship, and there is no `projects/` folder: the repo briefing is the GitHub plugin's `formatContext` (`plugins/github/repos.ts`).
-- "The seven built in" formats, "the Spoiler plugin". The Marks plugin has eleven, the spoiler one of them.
+- "The seven built in" formats, "the Spoiler plugin". The Marks plugin has twelve, the spoiler one of them.
 - Its tree has no `hooks.ts`, `reach.ts`, `LinkMarks.tsx`, `sendItems.ts` or `detailsCache.ts`, and gives every plugin a `manifest.ts`.
 - `settings` is `{ Pane, summary() }`; the code adds `hue`. A `noteLinks` row also answers `linked(noteId)`, and suggestions need `notes` too.
 - Its example manifest's author is "Glyph"; the built-in ones say "Ghost.md".
-- It, like much of the code, calls the note's sheet "the cog". The button is three dots now, "More for this note". And in the code, `InlineFormat`'s comment in `plugins/types.ts` says a format is typed, not spoken; every one of the Marks plugin's eleven has a `cue`, and the recorder hears it.
+- It, like much of the code, calls the note's sheet "the cog". The button is three dots now, "More for this note". And in the code, `InlineFormat`'s comment in `plugins/types.ts` says a format is typed, not spoken; every one of the Marks plugin's twelve has a `cue`, and the recorder hears it.
 
 ## Read next
 

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { provideMarkDetails, type MarkDetailsProvider } from '../core/markDetails.ts';
+import type { InlineFormat } from '../plugins/types.ts';
 import { drawnBoards } from './boards.ts';
+import { formatLooks } from './formatLooks.ts';
 import { glyphMarkdown } from './language.ts';
 import { shortLinks } from './links.ts';
 
@@ -92,5 +94,23 @@ describe('reading the tasks on a board', () => {
     expect(doc.indexOf('```board')).toBeGreaterThan(view.viewport.to);
     expect(wanted).toEqual([]);
     view.destroy();
+  });
+});
+
+describe('an address under a look that hides its words', () => {
+  it('stays as it is, under the bar, where one outside it is shortened beside its words', () => {
+    // The short address is a widget, which sits beside a mark's span rather than in it, so under a redaction's bar it
+    // showed in plain ink between two pieces of bar. The looks that hide their words are named by formatLooks.ts
+    // (`coveringLooks`), and an address under one is left whole.
+    const bar: InlineFormat = { name: 'Bar', delimiter: '@@', look: { kind: 'style', css: 'background: black;', clearAtCaret: true } };
+    const doc = '@@see [the plan](https://example.com/the/plan)@@ and [the rest](https://example.org/the/rest)';
+    const view = new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown([bar]), formatLooks([bar]), shortLinks()] }), parent: document.createElement('div') });
+    expect([...view.contentDOM.querySelectorAll('.cm-shortLink')].map((short) => short.textContent)).toEqual(['example.org/the/rest']);
+    expect(view.contentDOM.textContent).toContain('(https://example.com/the/plan)');
+    view.destroy();
+    // With no look that hides its words, every address is shortened, as before.
+    const plain = new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown([bar]), shortLinks()] }), parent: document.createElement('div') });
+    expect(plain.contentDOM.querySelectorAll('.cm-shortLink')).toHaveLength(2);
+    plain.destroy();
   });
 });

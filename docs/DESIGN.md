@@ -5510,3 +5510,93 @@ chip, Undo, the partial split at the opener, New note tapped, a one-shot emptied
 reader at Done, a take-back only the stop heard), refineText.test.ts (a take-back's spans with live phrases, the
 larger model's merged phrase, the Undo of a keyed one), chip and RouteChip tests, landing.test.ts, tips.test.ts,
 liveCommand.test.ts ("instead"), voice tests 103 to 111, `?simulate=takeback`.
+
+## 131. The redaction, back as the twelfth mark (2026-09-26)
+
+Matt: "Id like sentences to be able to redact". Asked what that meant, he gave two things: the spoken take-back
+while recording, which is §130, and "also add redact formatting", which is this.
+
+**What it is.** `@@the gate code@@` is the Marks plugin's twelfth mark, Redact, between Unsure and Shout where it
+sat before it was cut (ce0193d built it with the plugin; bc10ca2 took it out at 1.4.2-4, "remove redacted its the
+same as spoiler"). A solid bar of the page's ink over the words, lifted while the caret is in them so they can be
+read and edited (`clearAtCaret`, the FormatLook flag kept for it since the cut), and a look only: the words stay in
+the note between their at signs, so the file a share or an export gives, and any other app, has them. The bar stays
+wherever there is no caret to lift it: in the Formatted view, where the at signs go too, on the reader page, whose
+editor is read-only, and on a note's card, as the spoiler's smoke does in both. (The copy first said a share shows the
+words; the review read the reader page, where formatLooks lifts only while `editable && hasFocus`, and the four
+places that said it say this now.) Said "redact … end redact", and heard as "redacted" too, since
+Whisper writes the past tense as often as not. Style › Redact, the cheat sheet row and the Academy's lesson come from
+the same entry; the Academy's lesson and the sample note's line are the two places with words of their own.
+
+**The bar, measured.** A note with a redaction in a sentence, in a heading, in a quote, and around a link, code and
+bold, on a light page and a dark one, in the marks view and the Formatted view, with the caret out and in. Three
+things the old CSS did not do:
+
+1. In a heading the old bar was the body's height, with the heading's letters showing above it. The look's span was
+   outside the highlighter's: formatLooks comes before syntaxHighlighting in Editor.tsx, and the tree highlighter
+   is `Prec.high`, so the `.h2` span sat inside a box sized by the line's font. formatLooks is `Prec.highest` now.
+   CodeMirror nests the decorations of higher precedence inside, so every style look's span sits inside the
+   highlighter's and takes the size of the words it is on: a redaction in a heading is a bar as tall as the
+   heading, and a highlight in one is a wash as tall as the heading, which it was not before either.
+2. Inside the highlighter's spans the bar is drawn in pieces, one per run the highlighter makes (a link's brackets,
+   its words, the backticks, the stars), and rounded pieces left a notch of paper at every join. The bar is
+   square-ended now, and the shadow's spread (0.08em) closes the hairline between pieces; measured, the pieces on
+   one line share their top and their height (24px on an 18px line).
+3. `-webkit-text-fill-color` as well as `color`. A link's or code's own colour is set on the span its words sit in,
+   and the fill colour is what the glyphs take, so a link's words inside the bar are ink on ink. The editor theme's
+   selection rule already sets the fill for the same reason.
+
+**What the review of it found, and what changed.** Three ways the words showed, each closed:
+
+1. A redaction inside another look was not drawn at all. `styledRanges` stopped its walk at every styled node, so
+   `==a highlight with @@a bar@@ inside==` showed the words in the wash, in both views and both themes. The walk goes
+   on now, and a look inside a look is drawn inside it, the inner span nested in the outer's (same range set, in
+   document order, which is the order a `RangeSetBuilder` wants). One exception: nothing inside a bar is drawn, or a
+   highlight in a bar would wash the ink and show the words through it (`@@a ==wash== in a bar@@` is a bar). Lifted,
+   the bar shows what is under it as it is, a highlight's wash included.
+2. An emoji painted through the bar: a colour emoji takes neither `color` nor the fill colour, so the Heat effect's
+   own flames and any 🎉 sat on the ink in full colour. The span is printed flat in the ink by a filter,
+   `--app-ink-flat: brightness(0) invert(var(--app-ink-level))` (ink.css): brightness takes every pixel to black,
+   invert lifts black to a grey, and the level is the ink's own grey in sRGB, written beside each scale, 0.052 on
+   paper and 0.954 on a dark page, the inverse surfaces' beside theirs, and the kit's under a named theme (0.182 for
+   dawn, 0.915 for boreal and ember), the nearest grey to a tinted ink. The scale is grey throughout, so on it the
+   flat bar is the ink to the rounding. stylesheets.test.ts works each level out from its scale's `--app-gray-12`,
+   so a retuned ink fails a test rather than leaving the bar a shade off.
+3. A link's short address showed between two pieces of bar: links.ts draws it as a widget, and a widget sits beside
+   the mark's span, not in it, so `@@see [the plan](https://example.com)@@` was a bar, "example.com", a bar. The
+   looks that hide their words are named in a facet now (formatLooks.ts `coveringLooks`, the `clearAtCaret` ones),
+   and links.ts leaves an address under one whole, as text under the bar; the widget comes back when the bar goes,
+   since the caret's line shows its links whole anyway.
+
+A selection that touches the words lifts the bar as the caret does, so selecting redacted words shows them: the
+mark's words being edited, not a leak. The home page's live previews draw the bar too, since they draw with the
+note's own looks, and with no caret it stays.
+
+**Taught.** The sample note's marks line and its EVERYTHING; the Guide's marks chapter (seven of its own, the row,
+the at-work line, and "a look, not a lock"); the cues chapter's row; chapters 30 and 32's counts; docs/MARKDOWN.md and
+docs/PLUGINS.md; the plugin's header, twelve. Every one of them says what the review found true: the file has the
+words, the bar stays where there is no caret, and nothing under it shows, an emoji included.
+
+**Tests.** marks.test.ts: back between `@@`, said "redact", after Unsure and before the effects; the bar is one token
+for background, colour and fill, and lifts at the caret; drawn over the words alone with the at signs outside it;
+kept in the Formatted view with the at signs hidden; gone while the caret is in the words and back when it leaves.
+The lifting test that made up a lifting highlight uses the real mark again. The sample note holds a Redact; the
+Academy's lesson passes a bar and refuses one at sign and an unclosed bar; "redacted Sam Ortiz end redact" writes
+`@@Sam Ortiz@@` and "the file was redacted before it went out" stays words; the voice suite's line shape reads `@@`
+(voiceSuite.test.ts: `@@` around the words is a different shape from none). The cheat sheet's table, its
+said-to-the-recorder test and the Academy's one-lesson-per-row test cover the new row from the registry without a
+line added, and guidebook.test.ts reads the registry too now: every mark of its own in chapter 04's table and its
+at-work line and the count in its heading, every effect in chapter 05's table with its cue, every cue in chapter 10's
+table, and the plugin's count in chapters 30 and 32; a mark added or cut is a chapter to change. From the review:
+formatLooks.test.ts, a look inside a look and none under a bar until it lifts, and the facet's names; marks.test.ts,
+a bar inside a highlight nested in the wash's span, a highlight inside a bar not drawn, the filter on the look, and a
+link's address under a bar left whole beside one outside it shortened; links.test.ts the same under a made-up
+covering look; stylesheets.test.ts, each scale's ink level as the sRGB grey of its own gray-12, and the kit's for the
+three named themes. docs/MARKDOWN.md and docs/PLUGINS.md are pinned by nothing, as no file under docs/ is: no test
+reads them, and this section says so rather than saying they are covered.
+
+**Not done.** No voice suite script says it: the suite's audio is recorded off the phone (docs/VOICE_TESTS.md), so a
+script would arrive unrecorded. Whisper is not primed with "redact": the cue vocabulary is Rust
+(src-tauri/src/whisper/text.rs), a native release, and no plugin cue is in it today. An effect inside a bar is still
+drawn: editor/textEffects.ts walks the tree on its own and reads no `coveringLooks`, so its motion goes on under the
+ink; what of it shows through a flat-printed span is unmeasured.

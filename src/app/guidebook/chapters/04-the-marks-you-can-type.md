@@ -1,6 +1,6 @@
 # The marks you can type
 
-_The Markdown Ghost.md reads and draws, the six marks it adds of its own, and the two ways to look at a note._
+_The Markdown Ghost.md reads and draws, the seven marks it adds of its own, and the two ways to look at a note._
 
 A note is words with a few marks around them. Ghost.md draws each mark as you type it and leaves the mark on the page, dimmed, so you can always see what a line is doing. The standard marks read the same in GitHub, Obsidian or a plain text editor. Ghost.md's own read there as the plain characters they are, and anything Ghost.md does not draw still reads as words.
 
@@ -70,7 +70,7 @@ A diagram uses Mermaid, with every kind of diagram it knows. It is loaded the fi
 - **A line of dashes or equals signs under a paragraph** does not make the paragraph a heading, as it does in some Markdown. On a phone that rule turned the line above into a heading every time a list was started under it. Here `#` is the only way to a heading, a lone `-` is an empty list item, and `---` is a rule.
 - **HTML** is kept as text and never runs. A note is words. A `<!-- comment -->` is words too.
 
-## Ghost.md's own six
+## Ghost.md's own seven
 
 These come from the **Marks** plugin, which is on unless you switch it off in Settings › Plugins.
 
@@ -80,10 +80,13 @@ These come from the **Marks** plugin, which is on unless you switch it off in Se
 | Highlight | `==the cabin key==` | A wash of blue behind the words |
 | Aside | `%%a note to yourself%%` | Smaller, quieter, leaning |
 | Unsure | `??four hundred??` | A dotted line under a fact to check |
+| Redact | `@@the gate code@@` | A solid bar of ink, until you put the caret in it |
 | Shout | `^^the gate sticks^^` | Spaced small capitals |
 | Added | `++and the dog++` | A line under what was added |
 
-Here they are at work: ||the key is under the third stone||, ==the cabin key==, %%a note to yourself%%, ??four hundred??, ^^the gate sticks^^, and ++and the dog++.
+Here they are at work: ||the key is under the third stone||, ==the cabin key==, %%a note to yourself%%, ??four hundred??, @@the gate code@@, ^^the gate sticks^^, and ++and the dog++.
+
+**A redaction is a look, not a lock.** The bar is the page's own ink, and everything under it is printed in that ink, an emoji included, so nothing shows through it on a light page or a dark one. It lifts while the caret is in the words so you can read and change them, and it stays wherever there is no caret to lift it: in the Formatted view, where the at signs go too, on a shared note's page, and on a note's card. The words are still in the note: the file a share or an export gives has them as they are, between their `@@`, and so does any other app that opens it. For a name or a number you would rather not have on the screen, not for a secret. The spoiler is the same idea in smoke, and it is the one to reach for when the words should take a moment to come back.
 
 **A highlight in a colour.** Put a colour's name in brackets straight after it: `==the cabin key==(green)`. The names are blue, red, amber, green, teal, purple and gray, spelled that way because it is the colour's name in the app's design kit. A name Ghost.md does not know leaves the plain highlight, and the brackets become a note.
 
