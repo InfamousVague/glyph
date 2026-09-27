@@ -39,8 +39,6 @@ export interface TakeHost<N extends TakeNote> {
   changed(): void;
   /** Add, tapped on a place offer: the words into that note. */
   addItems(note: N, spoken: string, placement: Placement): void;
-  /** A line for the review's check of commands. */
-  log(line: string): void;
 }
 
 /**

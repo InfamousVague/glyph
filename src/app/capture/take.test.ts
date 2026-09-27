@@ -1,18 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { quietHost } from '../../test/takeHost.ts';
-import { describeOffer, type Offer } from './offers.ts';
 import type { TakeNote } from './takeTypes.ts';
 import { Take } from './take.ts';
 
-/** The take (capture/take.ts): what the review is told a command did, and the take carrying on in another note. */
-
-describe('what a command did, in words', () => {
-  it('says each added line by its words, whatever list it went into (core/itemSyntax.ts)', () => {
-    // A starred or numbered to-do was said with its box: "add “[ ] Buy milk”".
-    const offer = { kind: 'place', title: 'Shopping', added: ['* [ ] Buy milk', '2. [ ] Ring Sam', '-  Bread'], into: 'list' } as unknown as Offer<TakeNote>;
-    expect(describeOffer(offer, 'done')).toBe('Did: add “Buy milk”, “Ring Sam”, “Bread” to Shopping’s list');
-  });
-});
+/** The take (capture/take.ts): carrying on in another note. */
 
 describe('carrying on in another note', () => {
   it('starts the take afresh, and marks what it had said as commands for the better words to leave out', () => {

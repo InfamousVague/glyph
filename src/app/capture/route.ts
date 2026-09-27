@@ -1,4 +1,3 @@
-
 /**
  * "Add to Weekend trip": sending what is being said to a note by naming it.
  *

@@ -2164,6 +2164,30 @@
         "note": "Moon base\n\nPack the tent."
       },
       "id": "101"
+    },
+    {
+      "file": "102-new-item-for",
+      "group": "Commands",
+      "tests": "“New item for <note>”, as the tip teaches it, and then the item: it goes into that note’s list.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Hey Ghost, new item for groceries.",
+          1
+        ],
+        [
+          "Oat milk.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n"
+        }
+      },
+      "id": "102"
     }
   ]
 }

@@ -162,11 +162,12 @@ from a list of ideas.
 
 ## Saying every mark
 
-Every mark above has words for it while recording (`src/app/capture/markdown.ts`, with its rule families in
-`src/app/capture/spoken/`), and the guide's marks page shows them beside each row (`src/app/guide/MarksTable.tsx`,
-from each row's `say` in `src/app/guide/marks.ts`). The cheat sheet in Settings draws the marks without them. Words
-that are also everyday words need both halves ("… end link") or a pause either side ("…, new line, …"), so a sentence
-that only mentions them stays a sentence; the voice suite (`voice-tests/suite.json`) holds one of those.
+Every mark above but tables, pictures, diagrams, HTML, comments and front matter has words for it while recording
+(`src/app/capture/markdown.ts`, with its rule families in `src/app/capture/spoken/`), and the guide's marks page shows
+them beside each row (`src/app/guide/MarksTable.tsx`, from each row's `say` in `src/app/guide/marks.ts`). The cheat
+sheet in Settings draws the marks without them. Words that are also everyday words need both halves ("… end link") or
+a pause either side ("…, new line, …"), so a sentence that only mentions them stays a sentence; the voice suite
+(`voice-tests/suite.json`) holds one of those.
 
 | Mark | Said |
 | --- | --- |
@@ -186,7 +187,9 @@ that only mentions them stays a sentence; the voice suite (`voice-tests/suite.js
 | two spaces and a break | …, new line, … |
 | `>\|`, `= sum`, `[3/8]`, `- ( )`, `#tag`, callouts, headings, lists, quotes, `---` | as the guide's marks page says |
 
-Progress under a heading needs nothing said. A picture has no words: it needs a file, not a sentence.
+Progress under a heading needs nothing said. A picture has no words: it needs a file, not a sentence. Nor has a table:
+a recording makes none (docs/DESIGN.md §127), so it is typed with pipes or added from Style › Table. A diagram, HTML,
+a comment and front matter are typed.
 
 ## Where the code is
 

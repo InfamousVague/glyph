@@ -15,8 +15,8 @@ import styles from '../Guide.module.css';
  * Off Android there is no side key to give away, so the page says how to start a voice note instead.
  *
  * It used to end on a step about saying where things go, which told the person to turn off Memo mode in Settings; Memo
- * mode went on 2026-09-22, and a command is now the whole of a take, said first after "Hey Ghost". That step is the
- * habits page's now (guide/pages/Tips.tsx), where every platform reads it, and this page is the key alone.
+ * mode went on 2026-09-22, and a command is said after "Hey Ghost", at the start of a take or in the middle. That step
+ * is the habits page's now (guide/pages/Tips.tsx), where every platform reads it, and this page is the key alone.
  */
 export function SideKey() {
   const [held, setHeld] = useState<boolean | null>(() => isAssistantNow());

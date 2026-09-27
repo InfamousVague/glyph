@@ -1,6 +1,6 @@
 import { renderNote, type Segment } from './markdown.ts';
 import type { FinalPlan } from './command.ts';
-import { describeOffer, offerFor, type Offer } from './offers.ts';
+import { offerFor, type Offer } from './offers.ts';
 import type { Span, TakeCandidate, TakeNote } from './takeTypes.ts';
 import type { TakeHost } from './takeHost.ts';
 
@@ -49,24 +49,21 @@ export class Take<N extends TakeNote> {
     this.host.haptic('selection');
   }
 
-  /** Add or Create, tapped: the command does what it showed. A new list is made by the recorder once this is done. */
+  /**
+   * Add or Create, tapped: the command does what it showed. A new list is made by the recorder once this is done. No
+   * review follows the card, so nothing is logged for one.
+   */
   confirm(): void {
     const held = this.pending;
     if (!held) return;
     this.setPending(null);
-    this.host.log(describeOffer(held, 'done'));
-    if (held.kind === 'place') {
-      this.touched.add(held.note.id);
-      this.host.addItems(held.note, held.text, held.placement);
-    } else {
-      this.host.route({ phase: 'moved', title: held.title });
-    }
+    if (held.kind === 'place') this.host.addItems(held.note, held.text, held.placement);
+    else this.host.route({ phase: 'moved', title: held.title });
   }
 
-  /** Cancel, tapped: nothing happens, and the review's check of commands is told the person said no. */
+  /** Cancel, tapped: nothing happens. */
   cancel(): void {
     if (!this.pending) return;
-    this.host.log(describeOffer(this.pending, 'declined'));
     this.setPending(null);
   }
 

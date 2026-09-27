@@ -16,7 +16,7 @@ const suite = JSON.parse(readFileSync(join(ROOT, 'voice-tests/suite.json'), 'utf
 const out = process.argv[2] ?? join(homedir(), 'Desktop', 'Glyph voice tests.txt');
 
 const setupWords = (setup) => {
-  if (setup === 'blank') return 'Start a new note (tap Speak on the list, memo mode off).';
+  if (setup === 'blank') return 'Start a new note (tap Speak on the list).';
   if (setup === 'fixtures') return 'Start a new note. The standard notes below must exist.';
   const [, name] = setup.split(':');
   return `Continue the note "${name}" (open it and tap its microphone). The standard notes below must exist.`;

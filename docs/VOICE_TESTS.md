@@ -150,6 +150,7 @@ For the drive we need:
 - [ ] Call Sam about the keys
 - [ ] Fill the car up
 - [ ] Pack the first aid kit
+- [ ] Buy ice
 
 > The deposit comes back in full if the place is clean.
 
@@ -158,7 +159,6 @@ For the drive we need:
 ---
 
 - Firewood from the farm shop
-- Buy ice
 
 ## The house rules
 
@@ -315,8 +315,8 @@ Then tap the card to confirm the last.
 - None of the commands lands anywhere as words: a recording that is a command is not a note.
 - Groceries gains `- Oat milk` at the end of its list, one item. An item a command adds is capitalised, although the
   items the list was made with are not.
-- Cabin weekend gains `- Buy ice` under `- Firewood from the farm shop`, before "The house rules": the task goes on
-  the end of the note's list, in that list's own style, and that list is bullets, so it has no box.
+- Cabin weekend gains `- [ ] Buy ice` at the end of "Before we go", and the chip says "under Before we go": a task
+  goes to the note's to-do list, in that list's own style, not to the bullets after the divider.
 - AttackFM bug bash gains "The login is still broken on Android." (as an item if the note has a list, else as a
   paragraph).
 - A new note, Firewood, holds the three as a list.

@@ -51,8 +51,8 @@ export interface RefineJob {
   promptTail: string;
   /**
    * Stretches of the recording that were commands ("Glyph, add buy milk to
-   * HelloTrade", and the yes after it), on the recording's timeline: the better
-   * words leave them out, as the live words did. Absent on jobs from before.
+   * HelloTrade"), on the recording's timeline: the better words leave them
+   * out, as the live words did. Absent on jobs from before.
    */
   skip?: Array<{ startMs: number; endMs: number }>;
   /**

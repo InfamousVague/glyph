@@ -5077,8 +5077,10 @@ Done a table, a book, a chapter, a board or a move is still turned down and beco
   target, Notion's pause tip and its voice permission, and "say it" in its description. Voice test 068.
 
 The confirm card after Done has two offers now, words into a note and a new list by name, and the take's offers are
-typed as the plans the reader at Done carries out (`FinalPlan`). The chip keeps the views the live reader shows. The
-voice suite is 92 scripts, all run.
+typed as the plans the reader at Done carries out (`FinalPlan`). No review follows that card, so the take no longer
+logs what it did for one (`describeOffer` and the take host's `log` went). A book the model names at Done is turned
+down as the rules' is (`forBook`), so no path offers words for a book's index. The chip keeps the views the live
+reader shows. The voice suite is 93 scripts, all run.
 
 **What stayed.** The live reader, all of it, and "Hey Ghost, add call Sam to Doing" said on a board's own Speak, which
 puts a card in Doing as it is said (liveRoute.ts into place.ts's lane placing, voice test 069). The reader at Done,
@@ -5088,8 +5090,11 @@ list, links and pills. Voice memos already in notes, drawn and played, with the 
 
 **Taught true.** The Guide's chapters on memos, the marks, commands, boards, books, the better words, Notion, the one
 page, formats, the plugin seam, the microphone, the command guards and the tests; the index's five things; and the
-disagreements chapter, whose voice entries are all resolved. docs/BOARDS.md, BOOKS.md, PLUGINS.md, VOICE_TESTS.md,
-instruction-voice-commands.md and docs/README.md. Settings › Plugins shows Notion's reach without "Voice commands".
+disagreements chapter, whose voice entries are all resolved. docs/BOARDS.md, BOOKS.md, MARKDOWN.md, PLUGINS.md,
+VOICE_TESTS.md, instruction-voice-commands.md and docs/README.md. Settings › Plugins shows Notion's reach without
+"Voice commands", and the Guide's Notion chapter says the same. The new list by name, which the reader at Done carries
+out, is taught in the commands chapter and the lists chapter. The Things to say card teaches it with "with": items
+said as a sentence of their own after the name are read as part of the name.
 The historical sections of this file are left as they were.
 
 **Kept for Matt to decide.** Not cut, because each is a choice rather than a dead branch:
@@ -5098,8 +5103,10 @@ The historical sections of this file are left as they were.
    `MAKE_BOARD`, `forBook`, `chapterFor`), only so the reader at Done can turn them down; without them "add a table
    to Work" would offer to add "a table" to Work. Fold them into one refusal, as liveCommand.ts's `NOT_WORDS` is?
 2. `matchLane` and `moveToLane` (core/boards/lanes.ts), the keyword's sound-alikes (`findSoundAlike`), the mid-take
-   drafts in takeWriter.ts (`flushDraft`, `keepDraft`, `updateNote`), `clipMarkdown`, and a refine job's `clips`,
-   which a job queued by an older build may still carry: each is now unused or test-only. Keep or cut?
+   drafts in takeWriter.ts (`flushDraft`, `keepDraft`, `updateNote`, and with them `savedDraft`, always false now,
+   `undoDraft`, which the recorder still calls and which does nothing, and the writer host's `markdown` and
+   `hasWords`), `clipMarkdown`, and a refine job's `clips`, which a job queued by an older build may still carry: each
+   is now unused or test-only. Keep or cut?
 3. The plugin `tips` point and the `voice` permission kind stay, with no plugin using either.
 4. `interpretWakeCommand` stays for the evaluation corpus, whose create cases the reader at Done would refuse. Move the
    corpus onto `classifyFinalTranscript` and accept that?
@@ -5108,12 +5115,23 @@ The historical sections of this file are left as they were.
    note titled like "Notion setup" the words go there. Guard the word?
 7. Mid-take, "make a book called …" or "add a table to …" is queued as an ask for the AI. Leave it out instead?
 8. After a routed command, "No." is written as an item. It was the old reader's answer.
+9. The update changes the Guide in the app, not the copy anyone already added to their notes: `addGuideBook` answers
+   a Guide that is there as it is. A copy added at 1.8.0-12 to -14 still says the Notion card lists voice commands
+   and a pause offers "Voice memo … end memo". Accept that, or rewrite the chapters still exactly as a release shipped
+   them?
 
 **Native follow-ups.** Page code only, generation 19, over the air. Two things in Rust describe what went, for the
 next native release: `CUE_VOCABULARY`'s `MORE_CUES` in src-tauri/src/whisper/text.rs still primes Whisper with
 "Voice memo, end memo", and llm/tests.rs `understands_spoken_commands` measures `COMMAND_PROMPT`, table cases and
 all, where it could measure `COMMAND_SYSTEM`, which `ai_infer_command` sends. `REVIEW_PROMPT` still says spoken cues
-make tables; changing it changes the review, and llm/tests.rs reads it by name.
+make tables, and that voice commands start with "Ghost.md", where the keyword is "Hey Ghost" or "Glyph". It is page
+code, but changing it changes the review, and llm/tests.rs reads it by name, so both go with the next measurement.
 
 **Tests.** The cut features' tests went with them. New: no tip offers a voice memo, `cellsOf` is held in
-command.test.ts, and no plugin word comes off a note's name in route.test.ts.
+command.test.ts, and no plugin word comes off a note's name in route.test.ts. After the review of the cut: the reader
+at Done turns a book down by the rules and by the model, and a board without asking the model; Create on the card
+makes the list with its items and opens it; Add keeps "Parkersburg, West Virginia" one item; Done keeps a continued
+tape's id and gives a removed one a new id; a phrase of words and then the keyword reaches the better words' job; a
+plugin's formatting is laid out when said; the Things to say card's new list is read, with its items, by the reader
+at Done; and voice test 102 says "New item for groceries" as the tip teaches it. Still with no test: the quiet stop
+held open while a command waits for its note's name.

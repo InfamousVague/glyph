@@ -74,7 +74,7 @@ const CUES: readonly Tip[] = [
 export const ASKS: readonly Tip[] = [
   { say: 'Fix the spelling', does: 'and the note is checked as it opens, every change marked' },
   { say: 'Summarize this', does: 'for the point of the note in far fewer words' },
-  { say: 'Make this a list', does: 'to shape what was said into tasks, a list or a table' },
+  { say: 'Make this a list', does: 'to shape the note into tasks, a list or a table' },
   { say: 'Tidy this up', does: 'to format the note, keeping every word that matters' },
   { say: 'Carry on', does: 'and the AI writes on from the last line in the note’s own voice' },
 ];
@@ -92,7 +92,7 @@ export function tips({ noteTitle, continuing, keyword = true }: { noteTitle?: st
   if (continuing) route.push({ say: say('New note'), does: 'to start a fresh one' });
   if (noteTitle) route.push({ say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' });
   // Routing first and then every few cues, since it is the least discoverable; a routing line the cues leave no slot
-  // for (a note with a board names its lanes too) comes round after them rather than never.
+  // for comes round after them rather than never.
   const out: Tip[] = [];
   CUES.forEach((cue, i) => {
     if (i % 3 === 0 && route[i / 3]) out.push(route[i / 3]!);
@@ -161,7 +161,7 @@ export function starters({ noteTitle, keyword = true, asking = false }: { noteTi
         { say: say(`Add … to ${noteTitle}`), does: 'to put it there, into its list if it has one' },
         { say: say(`Move this to ${noteTitle}`), does: 'to send this recording there' },
       ]
-    : [{ say: say('Make a list called …'), does: 'and then its items, for a new note that is a list' }];
+    : [{ say: say('Make a list called … with …'), does: 'for a new list: its name, and after “with” its items' }];
   return {
     shape: CUES.slice(0, EACH),
     send: send.slice(0, EACH),

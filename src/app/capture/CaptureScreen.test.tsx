@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createNote, getNote, listNotes, noteTitle, setNoteRecording, updateNote } from '../core/store.ts';
+import { setTapeId, tapeId } from '../core/clips.ts';
 import { setPreferences } from '../core/preferences.ts';
 import { stubResizeObserver } from '../../test/stubs.ts';
 import { bookNoteBody } from '../book/book.ts';
@@ -189,6 +190,37 @@ describe('the card after Done', () => {
     expect(saved).toMatchObject({ id: 'go', body: expect.stringContaining('Pack sunscreen') });
     expect(landing).toMatchObject({ noteId: 'go', title: 'Go', blocks: [expect.stringContaining('Pack sunscreen')], made: [] });
   });
+
+  it('keeps each place the card showed as one item when it is confirmed', async () => {
+    await createNote('go', '# Go\n');
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Add to my note labeled Go a list with Parkersburg West Virginia and Marietta Ohio.' });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    const card = await screen.findByRole('region', { name: 'Add to Go' });
+    fireEvent.click(within(card).getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('go'))?.body).toBe('# Go\n\n- Parkersburg, West Virginia\n- Marietta, Ohio\n');
+  });
+
+  it('makes the new list a confirmed card offered, with its items, and opens it', async () => {
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Make a new list called comic books with Batman and Superman.' });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    const card = await screen.findByRole('region', { name: 'Create Comic Books' });
+    expect(await listNotes()).toEqual([]);
+    fireEvent.click(within(card).getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    const notes = await listNotes();
+    expect(notes.map((note) => note.body)).toEqual(['Comic Books\n\n- Batman\n- Superman\n']);
+    const [saved, locked, , , landing] = onFinish.mock.calls[0]!;
+    expect(saved).toMatchObject({ id: notes[0]!.id });
+    expect(locked).toBe(false);
+    expect(landing).toMatchObject({ noteId: notes[0]!.id, title: 'Comic Books', blocks: [], made: [notes[0]!.id] });
+  });
 });
 
 describe('things to say', () => {
@@ -294,6 +326,17 @@ describe('ending a recording', () => {
     expect(await listNotes()).toEqual([]);
   });
 
+  it('lays out a switched-on plugin’s formatting when it is said, as bold is', async () => {
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: 'The gate code is spoiler four four one seven end spoiler.' });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    await say('The gate code is spoiler four four one seven end spoiler.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await listNotes()).map((note) => note.body)).toEqual([expect.stringContaining('||four four one seven||')]);
+  });
+
   it('leaves nothing behind on Done when nothing was said', async () => {
     capture.session!.stop = async () => ({ recordedMs: null, transcript: null });
     const onFinish = vi.fn();
@@ -379,6 +422,7 @@ describe('the sound of a recording', () => {
 
   it('goes on the end of a continued note’s tape, and the take’s phrases after the ones it had', async () => {
     await taped();
+    setTapeId('groceries', 'earlier');
     const stop = keeping(33_000, 'Oat milk too.');
     const onFinish = vi.fn();
     render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={onFinish} />);
@@ -402,11 +446,30 @@ describe('the sound of a recording', () => {
       skip: [],
       keywordAt: [],
     });
+    // The same tape, so the voice memos already in the note play against it still (core/clips.ts).
+    expect(tapeId('groceries')).toBe('earlier');
+  });
+
+  it('marks a phrase of words and then the keyword for the better words, on the tape’s timeline', async () => {
+    await taped();
+    await createNote('work', '# Work\n\n- Email Jo');
+    keeping(33_000, null);
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={onFinish} />);
+    await screen.findByRole('button', { name: 'Adding to “Groceries”' });
+    await say('The heating is fixed, hey Ghost, add call Sam to Work.', 1000);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+
+    expect((await getNote('work'))?.body).toContain('- Call Sam');
+    expect(capture.refines).toHaveLength(1);
+    expect(capture.refines[0]).toMatchObject({ id: 'groceries', fromMs: 30_000, keywordAt: [{ startMs: 31_000, endMs: 31_900 }] });
   });
 
   it('starts the file afresh on a note whose recording was removed, rather than playing after the removed sound', async () => {
     await createNote('groceries', '# Groceries\n\n- Eggs');
     await setNoteRecording('groceries', 0, []);
+    setTapeId('groceries', 'removed');
     const stop = keeping(2000, 'Oat milk too.');
     const onFinish = vi.fn();
     render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={onFinish} />);
@@ -418,6 +481,9 @@ describe('the sound of a recording', () => {
     expect(stop).toHaveBeenCalledWith({ recordAs: 'groceries', append: false });
     expect((await getNote('groceries'))?.segments).toEqual([{ text: 'Oat milk too.', startMs: 1000, endMs: 1900 }]);
     expect(capture.refines[0]).toMatchObject({ fromMs: 0, recordingMs: 2000, priorSegments: [] });
+    // A new tape, so a voice memo left from the removed one does not play against this sound.
+    expect(tapeId('groceries')).not.toBe('removed');
+    expect(tapeId('groceries')).not.toBeNull();
   });
 
   it('is the new note’s after New note, with what was said before it left out of the better words', async () => {

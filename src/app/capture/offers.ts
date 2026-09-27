@@ -1,4 +1,3 @@
-import { withoutLead } from '../core/itemSyntax.ts';
 import type { FinalPlan, Placement } from './command.ts';
 import { placeWords } from './listAppend.ts';
 import type { TakeCandidate, TakeNote } from './takeTypes.ts';
@@ -9,7 +8,6 @@ import type { TakeCandidate, TakeNote } from './takeTypes.ts';
  * The reader at Done (ai/instruction.ts) carries out two commands, and each asks first: words for a note by name, and
  * a new list by name. A plan becomes an offer here - the note it names and the lines as they would land, or the list
  * and its items - which is what the confirm card draws (ai/ConfirmCard.tsx) and what the take carries out on a tap.
- * `describeOffer` puts an offer and what came of it in one sentence, for the review's check of what commands did.
  *
  * Pure, so every plan's offer is a test.
  */
@@ -26,13 +24,4 @@ export function offerFor<N extends TakeNote>(plan: FinalPlan<TakeCandidate<N>>):
   const preview = placeWords(note.body, plan.text, plan);
   if (!preview.added.length) return null;
   return { kind: 'place', note, title: plan.note.title, text: plan.text, placement: plan, added: preview.added, into: preview.into };
-}
-
-/** What a command offered, in words, and what came of it: for the review's check of commands. */
-export function describeOffer<N extends TakeNote>(offer: Offer<N>, outcome: 'done' | 'declined'): string {
-  const what =
-    offer.kind === 'place'
-      ? `add “${offer.added.map(withoutLead).join('”, “')}” to ${offer.title}${offer.into === 'list' ? '’s list' : ' as a paragraph'}`
-      : `create ${offer.title}`;
-  return outcome === 'done' ? `Did: ${what}` : `Offered to ${what}; the person said no`;
 }

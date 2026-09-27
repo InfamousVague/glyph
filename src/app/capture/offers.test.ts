@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Placement } from './command.ts';
-import { describeOffer, offerFor } from './offers.ts';
+import { offerFor } from './offers.ts';
 import type { TakeNote } from './takeTypes.ts';
 
 /** What each plan read at Done comes to before its tap (capture/offers.ts): the card's offer, or nothing. */
@@ -24,13 +24,5 @@ describe('a plan for a new list', () => {
   it('offers the list with its items when some were said, and without lines when none were', () => {
     expect(offerFor({ kind: 'create-list', title: 'Comic books', items: ['Batman', 'Superman'] })).toEqual({ kind: 'new', title: 'Comic books', lines: ['Batman', 'Superman'] });
     expect(offerFor({ kind: 'create-list', title: 'Comic books', items: [] })).toEqual({ kind: 'new', title: 'Comic books' });
-  });
-});
-
-describe('what came of an offer, in words', () => {
-  it('says what it did, or that the person said no', () => {
-    const offer = offerFor({ kind: 'create-list', title: 'Comic books' })!;
-    expect(describeOffer(offer, 'done')).toBe('Did: create Comic books');
-    expect(describeOffer(offer, 'declined')).toBe('Offered to create Comic books; the person said no');
   });
 });

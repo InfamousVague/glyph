@@ -41,7 +41,7 @@ Three end-to-end files run against a glyph-api on the same machine. Each is skip
 
 ## Speech
 
-`voice-tests/suite.json` is one short recording per feature, 92 of them, each with the notes it must leave. `npm run voice:text` writes it out as a script to record from, and `docs/VOICE_TESTS.md` is the manual.
+`voice-tests/suite.json` is one short recording per feature, 93 of them, each with the notes it must leave. `npm run voice:text` writes it out as a script to record from, and `docs/VOICE_TESTS.md` is the manual.
 
 - **From the scripts**, in every `npm test`: `src/app/capture/voiceSuite.test.ts` replays each line as one phrase with its silence after it, through the recorder's own logic (`src/app/capture/voiceSuite.ts`).
 - **From the audio**, with `npm run voice:suite`: first the ignored Rust test `whisper::suite` hears each recording through the phone's streaming path and writes what it heard, then the same checks run on those words.

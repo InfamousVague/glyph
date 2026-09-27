@@ -30,7 +30,9 @@ import type { Candidate } from './route.ts';
  * `apply_command`, which checks the body and the revision, so nothing typed or synced meanwhile is overwritten.
  *
  * Nothing writes a draft mid-take since the take's phrase reader went (docs/DESIGN.md §127): `flushDraft`, `keepDraft`
- * and `updateNote` are kept, unused, until it is decided whether a take kept safe from a kill (§126) wants them.
+ * and `updateNote` are kept, unused, until it is decided whether a take kept safe from a kill (§126) wants them. With
+ * no draft ever written, `savedDraft` is always false and `undoDraft`, which the recorder still calls, does nothing;
+ * the host's `markdown` and `hasWords` serve only the drafts and `updateNote`.
  */
 
 /** A note a command can name, with the note itself, kept current by every write here. */

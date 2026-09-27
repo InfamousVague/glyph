@@ -17,7 +17,7 @@ Each card says in one line what the plugin may reach, and **Why** opens the reas
 
 | Plugin | What it may reach |
 | --- | --- |
-| Notion | Your notes · The internet (api.notion.com, attack.fm) · Voice commands · Built-in app commands |
+| Notion | Your notes · The internet (api.notion.com, attack.fm) · Built-in app commands |
 | GitHub | Your notes · The internet (api.github.com) · The model on your phone |
 | Marks | Nothing. Its line is empty. |
 | Claude | Your notes · The internet (attack.fm) |

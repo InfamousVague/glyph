@@ -15,7 +15,6 @@ export function quietHost<N extends TakeNote>(overrides: Partial<TakeHost<N>> = 
     haptic: () => undefined,
     changed: () => undefined,
     addItems: () => undefined,
-    log: () => undefined,
     ...overrides,
   };
 }

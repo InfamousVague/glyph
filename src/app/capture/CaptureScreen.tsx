@@ -283,8 +283,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     () =>
       new TakeWriter({
         markdown: (asTitled) => take.markdown({ titled: asTitled }),
-        // Any phrase at all, where Done asks `take.hasContent`: a draft writes the take as it stands, and one that lays
-        // out as nothing writes the note's own text back as it was (appendBody.ts), so the looser rule costs nothing.
+        // For the mid-take drafts, which nothing writes now (takeWriter.ts, docs/DESIGN.md §127): any phrase at all,
+        // where Done asks `take.hasContent`.
         hasWords: () => take.segments.length > 0,
         candidates: () => candidates.current,
         targetChanged: setTarget,
@@ -474,7 +474,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     // On the writer's chain, so a confirmed card's note is read back after its words are in it (`confirmPending`).
     // A new list is made by `confirmPending` itself.
     addItems: (target, spoken, placement) => void writer.queue(() => addItems(target, spoken, placement)),
-    log: (line) => commandLog.current.push(line),
   };
 
   // ---- the live reader (liveRoute.ts) -------------------------------------------------
