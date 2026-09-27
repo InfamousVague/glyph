@@ -69,9 +69,11 @@ interface SettingsSheetProps {
    * not taught yet. The moment it was asked for, so asking twice opens it twice; 0 for not asked.
    */
   toCheatSheet?: number;
+  /** Asked from outside to open at Formatting: the home page's shelf sends people there for a language model (home/TapeShelf.tsx). The same shape as `toCheatSheet`. */
+  toFormatting?: number;
 }
 
-export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGuideBook, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGuideBook, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0, toFormatting = 0 }: SettingsSheetProps) {
   const prefs = usePreferences();
   const faces = facesOf(prefs);
   const account = useAccount();
@@ -85,6 +87,10 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
   useEffect(() => {
     if (toCheatSheet) setGoTo({ id: 'cheatsheet', nonce: toCheatSheet });
   }, [toCheatSheet]);
+  // Opened from the shelf's "Get a model": the sheet comes up on Formatting, where the model is fetched.
+  useEffect(() => {
+    if (toFormatting) setGoTo({ id: 'formatting', nonce: toFormatting });
+  }, [toFormatting]);
 
   const chosenModel = modelSpec(prefs.formatModel);
   const modelHere = models.find((m) => m.id === prefs.formatModel)?.present ?? false;

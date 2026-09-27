@@ -102,6 +102,8 @@ function Shell() {
   const [settings, setSettings] = useState(false);
   /** Settings asked to open at the cheat sheet, from the Academy: the moment it was asked for, or 0. */
   const [toCheatSheet, setToCheatSheet] = useState(0);
+  // The shelf's "Get a model" (home/TapeShelf.tsx): Settings open at Formatting, where a language model is fetched.
+  const [toFormatting, setToFormatting] = useState(0);
 
   // Whether the side key launched the app, asked of the host once (core/host.ts).
   const [launchedByKey] = useState(takeCaptureLaunch);
@@ -500,6 +502,10 @@ function Shell() {
       onNew={() => setNewSheet(true)}
       onCapture={speak}
       onSettings={() => setSettings(true)}
+      onGetModel={() => {
+        setSettings(true);
+        setToFormatting(Date.now());
+      }}
       onSearch={openCommands ?? undefined}
       onAllNotes={showAllNotes}
       onTick={(task) => void tickTask(task)}
@@ -750,6 +756,7 @@ function Shell() {
           setScreen({ name: 'academy' });
         }}
         toCheatSheet={toCheatSheet}
+        toFormatting={toFormatting}
       />
       {/*
         Not over a capture. The side key can arrive while the guide is open -

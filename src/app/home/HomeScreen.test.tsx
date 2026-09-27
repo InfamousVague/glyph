@@ -5,13 +5,16 @@ import type { Updates } from '../core/ota.ts';
 import { reloadPreferences } from '../core/preferences.ts';
 import { addWorkspace, chooseWorkspace } from '../core/workspaces.ts';
 import type { Note } from '../core/store.ts';
+import { bodyHash } from '../format/bodyHash.ts';
+import { keepGist } from '../format/results.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, rerender, show, unmount } from '../../test/render.tsx';
 import { stubResizeObserver } from '../../test/stubs.ts';
 
 /**
- * The home page as a person reads it: the groups in their order, the empty page, the to-dos ticked off in place and
- * the ghost when the last one goes, and the dock. What each group holds is home/dashboard.ts's, tested there.
+ * The home page as a person reads it: the groups in their order, the empty page, the shelf of tapes and its way to
+ * the rest of them, the to-dos ticked off in place and the ghost when the last one goes, and the dock. What each
+ * group holds is home/dashboard.ts's, tested there; the shelf's own words are home/TapeShelf.test.tsx's.
  */
 
 // A card's small drawing is the editor (notes/NotePeek.tsx), which is nothing the page decides.
@@ -41,6 +44,12 @@ const page = (notes: Note[], over: Partial<Props> = {}) => (
 );
 const headings = () => [...document.querySelectorAll('h2')].map((h) => h.textContent?.replace(/\d+$/, '').trim());
 const tasks = () => [...document.querySelectorAll('button[aria-label^="Tick off "]')].map((b) => b.getAttribute('aria-label')!.slice('Tick off '.length));
+/** The cassettes on the shelf, by the title each says to a screen reader, in the row's order. */
+const shelved = () => [...document.querySelectorAll('ol[aria-label="Tapes"] li > button[aria-label]')].map((b) => b.getAttribute('aria-label')?.split(',')[0]);
+/** The cards under one heading, by title. */
+const cards = (group: string) => [...document.querySelectorAll(`section[aria-labelledby="${group}"] ol li [class*=title]`)].map((el) => el.textContent);
+const recorded = (id: string, title: string, createdAt: number, over: Partial<Note> = {}) =>
+  makeNote(id, `# ${title}`, { source: 'capture', recordingMs: 40_000, createdAt, updatedAt: createdAt, ...over });
 
 beforeEach(() => {
   localStorage.clear();
@@ -49,17 +58,58 @@ beforeEach(() => {
 afterEach(() => unmount());
 
 describe('the home page', () => {
-  it('lays its groups out in their order: Pinned, Library, Recent, To do', () => {
+  it('lays its groups out in their order: Pinned, Tapes, Library, Recent, To do', () => {
     show(
       page([
         makeNote('p', '# Packing\n\n- [ ] Tent', { starred: true, updatedAt: 3 }),
+        recorded('t', 'Directions', 4),
         makeNote('b', bookNoteBody('Trip', ['Packing']), { updatedAt: 2 }),
         makeNote('r', '# Route', { updatedAt: 1 }),
       ]),
     );
-    expect(headings()).toEqual(['Pinned', 'Library', 'Recent', 'To do']);
+    expect(headings()).toEqual(['Pinned', 'Tapes', 'Library', 'Recent', 'To do']);
     // A page of a book says which on its card.
     expect(document.querySelector('[title="Page 1 of Trip"]')?.textContent).toBe('Trip');
+  });
+
+  it('shelves what the recorder made, last recorded first, nothing twice, and leaves a typed note spoken into in Recent with its counter', () => {
+    show(
+      page([
+        recorded('old', 'Old take', 1, { updatedAt: 9 }),
+        recorded('new', 'New take', 3),
+        recorded('pinned', 'Pinned take', 2, { starred: true }),
+        makeNote('typed', '# Typed then spoken', { recordingMs: 760_000, createdAt: 4, updatedAt: 4 }),
+        recorded('gone', 'Archived take', 5, { archivedAt: 6 }),
+      ]),
+    );
+    expect(headings()).toEqual(['Pinned', 'Tapes', 'Recent']);
+    // By when each was recorded, not when it was last touched.
+    expect(shelved()).toEqual(['New take', 'Pinned take', 'Old take']);
+    // Pinned keeps its card and the cassette is drawn as well, since pinning is a deliberate act.
+    expect(cards('home-pinned')).toEqual(['Pinned take']);
+    expect(cards('home-recent')).toEqual(['Typed then spoken']);
+    expect(document.querySelector('section[aria-labelledby="home-recent"] [class*=tapeLength]')?.textContent).toBe('12:40');
+    expect(document.body.textContent).not.toContain('more in All notes');
+  });
+
+  it('shows eight tapes and sends the rest to All notes with its Tapes toggle on', () => {
+    const onAllNotes = vi.fn();
+    show(page(Array.from({ length: 11 }, (_, i) => recorded(`t${i}`, `Take ${i}`, i + 1)), { onAllNotes }));
+    expect(shelved()).toHaveLength(8);
+    act(() => button('and 3 more in All notes').click());
+    expect(onAllNotes).toHaveBeenCalledWith({ tapes: true });
+  });
+
+  it('gives the shelf’s notes their gists, so a voice note gets its line under the cassette', () => {
+    const note = recorded('t', 'Beach', 1);
+    keepGist('t', { text: 'A walk along the shore at dusk', for: bodyHash(note.body), model: 'm', len: note.body.length, head: '# Beach' });
+    show(page([note]));
+    expect(document.querySelector('ol[aria-label="Tapes"] li > p')?.textContent).toBe('A walk along the shore at dusk');
+  });
+
+  it('has no shelf while nothing has been recorded', () => {
+    show(page([makeNote('a', '# Plain'), makeNote('t', '# Typed then spoken', { recordingMs: 5_000 })]));
+    expect(headings()).toEqual(['Recent']);
   });
 
   it('is a blank page with nothing written, and says which workspace is empty when one is chosen', () => {

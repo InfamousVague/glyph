@@ -9,14 +9,15 @@ import { useGlideToTop } from '../core/glideToTop.ts';
 import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
-import { Cog, Magnifier, Pin, Plus } from '../art/Icons.tsx';
+import { Cassette, Cog, Magnifier, Pin, Plus } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
 import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { AcademyCard, RefiningNotice, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
-import { bookNotes, openTasks, pinnedNotes, recentNotes, tickedTasks, type OpenTask } from './dashboard.ts';
+import { bookNotes, openTasks, pinnedNotes, recentNotes, tapedNotes, tickedTasks, type OpenTask } from './dashboard.ts';
+import { TapeShelf } from './TapeShelf.tsx';
 import { bookIndex, placeOf } from '../book/book.ts';
 import styles from './HomeScreen.module.css';
 
@@ -25,10 +26,11 @@ import styles from './HomeScreen.module.css';
  * the phone's start page included). The top bar's Glyph mark brings you here from anywhere.
  *
  * What a person comes back to Glyph for, in the order they want it: anything waiting on them (an update, the
- * Academy's invitation, the voice model), the notes they pinned, their books, the ones they were in last, and every
- * to-do not yet ticked, gathered from all of their notes - ticked here without opening the note. The page does not
- * list every note; "All notes" at its foot opens the page that does, as a grid of the same cards
- * (notes/AllNotesScreen.tsx).
+ * Academy's invitation, the voice model), the notes they pinned, the tapes the recorder made on a shelf of cassettes
+ * (home/TapeShelf.tsx; Matt: "display them in a cassette shelf on the home page"), their books, the ones they were in
+ * last, and every to-do not yet ticked, gathered from all of their notes - ticked here without opening the note. The
+ * page does not list every note; "All notes" at its foot opens the page that does, as a grid of the same cards
+ * (notes/AllNotesScreen.tsx), and the shelf's "and N more" opens it showing only the tapes.
  *
  * It took the place of the notes list, and kept what the list had that was not the list: the glass bar and scroller,
  * the workspace pills choosing what it shows, and the dock, so starting a note is where it always was.
@@ -41,6 +43,8 @@ interface HomeScreenProps {
   onNew: () => void;
   onCapture: () => void;
   onSettings: () => void;
+  /** Settings open at Formatting, where a language model is fetched: the shelf's "Get a model". Plain Settings when absent. */
+  onGetModel?: () => void;
   /**
    * The command palette (commands/CommandBar.tsx): search the notes and everything Glyph can do. Absent until the
    * palette has handed back its opener, and then the dock has no Search button rather than one that does nothing.
@@ -58,8 +62,9 @@ interface HomeScreenProps {
   onHideAcademy?: () => void;
 }
 
-/** How many of the notes touched last are shown, and how many to-dos before the rest are counted instead. */
+/** How many of the notes touched last are shown, how many tapes are on the shelf, and how many to-dos before the rest are counted instead. */
 const RECENT = 6;
+const SHELF = 8;
 const TASKS = 8;
 
 export function HomeScreen({
@@ -69,6 +74,7 @@ export function HomeScreen({
   onNew,
   onCapture,
   onSettings,
+  onGetModel,
   onSearch,
   onAllNotes,
   onTick,
@@ -96,13 +102,17 @@ export function HomeScreen({
   const { meetings } = usePreferences();
   const pinned = useMemo(() => pinnedNotes(shown), [shown]);
   const recent = useMemo(() => recentNotes(shown, RECENT, meetings), [shown, meetings]);
+  // The tapes, the last recorded first; the shelf holds eight and says how many more there are (home/TapeShelf.tsx).
+  const taped = useMemo(() => tapedNotes(shown, meetings), [shown, meetings]);
+  const shelf = useMemo(() => taped.slice(0, SHELF), [taped]);
   const books = useMemo(() => bookNotes(shown), [shown]);
   /** Every page's book, for the cards' marks (book/book.ts). */
   const inBooks = useMemo(() => bookIndex(shown), [shown]);
   const tasks = useMemo(() => openTasks(shown), [shown]);
   // One quiet line under each card's title, what the note is about, written by a model on the phone (format/gist.ts).
-  // Only the notes with a card on the page: the runner asks about what is on screen, not about every note there is.
-  const carded = useMemo(() => [...pinned, ...recent], [pinned, recent]);
+  // Only the notes with a card or a cassette on the page: the runner asks about what is on screen, not about every
+  // note there is. The shelf's notes are here too, or a 40-second voice note would never get a line.
+  const carded = useMemo(() => [...pinned, ...shelf, ...recent], [pinned, shelf, recent]);
   const gists = useGists(carded);
   const titleOf = useMemo(() => new Map(notes.map((n) => [n.id, noteTitle(n.body) || 'Untitled'])), [notes]);
   // A tick lands on the page at once; the note catches up when it has been written.
@@ -153,13 +163,31 @@ export function HomeScreen({
             </section>
           ) : null}
 
+          {/* The tapes, as cassettes on a shelf (docs/DESIGN.md §127). No group while there are none. */}
+          {shelf.length ? (
+            <section aria-labelledby="home-tapes">
+              <h2 id="home-tapes" className={styles.group}>
+                <Cassette className={styles.groupIconStill} />
+                Tapes
+              </h2>
+              <TapeShelf
+                notes={shelf}
+                more={taped.length - shelf.length}
+                gists={gists}
+                onOpen={onOpen}
+                onMore={() => onAllNotes({ tapes: true })}
+                onGetModel={onGetModel ?? onSettings}
+              />
+            </section>
+          ) : null}
+
           {books.length ? (
             <section aria-labelledby="home-library">
               <h2 id="home-library" className={styles.group}>
                 <Book className={styles.groupIconStill} />
                 Library
               </h2>
-              <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length))}</ol>
+              <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length + shelf.length))}</ol>
             </section>
           ) : null}
 
@@ -168,7 +196,7 @@ export function HomeScreen({
               <h2 id="home-recent" className={styles.group}>
                 Recent
               </h2>
-              <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length + books.length))}</ol>
+              <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length + shelf.length + books.length))}</ol>
             </section>
           ) : null}
 

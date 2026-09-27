@@ -86,10 +86,10 @@
 }
 
 /*
- * The heading over a group on the page - Pinned, Library, Recent, To do.
+ * The heading over a group on the page - Pinned, Tapes, Library, Recent, To do.
  * Spaced capitals a step below the titles, in the second ink, with the pin on
- * the Pinned one and the book on the Library: the one mark for the whole
- * group, so no card needs its own.
+ * the Pinned one, the cassette on Tapes and the book on the Library: the one
+ * mark for the whole group, so no card needs its own.
  */
 .group {
   display: flex;
@@ -458,7 +458,7 @@
   color: var(--glacier-text-muted);
 }
 
-/* The Library's mark stands straight; the pin above it leans. */
+/* The Tapes' and the Library's marks stand straight; the pin above them leans. */
 .groupIconStill {
   font-size: 1.15em;
 }
