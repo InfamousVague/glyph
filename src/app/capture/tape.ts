@@ -10,7 +10,12 @@
  * Geometry is in the SVG's own units (viewBox 0 0 320 204).
  */
 
-/** How much recording fills the tape. A voice note is short; five minutes shows growth from the first seconds. */
+/**
+ * How much recording fills the tape when nobody says otherwise. A voice note is short; five minutes shows growth from
+ * the first seconds. A longer tape is given its own length (`lengthMs` below): the note's own once it runs past five
+ * minutes, so playback winds across the whole reel, and on the home page's shelf the longest tape there, so a
+ * three-minute note beside an hour's meeting is a thin ring beside a full reel (docs/DESIGN.md §127).
+ */
 export const TAPE_MS = 300_000;
 export const HUB_R = 15;
 /** The smallest a pack gets: a thin ring of leader tape around the hub. */
@@ -29,9 +34,9 @@ export interface Packs {
   takeup: number;
 }
 
-/** Pack radii for a recorded length. The tape's area is conserved, so the radii move as square roots. */
-export function packRadii(positionMs: number): Packs {
-  const f = Math.min(1, Math.max(0, positionMs / TAPE_MS));
+/** Pack radii for a recorded length on a tape `lengthMs` long. The tape's area is conserved, so the radii move as square roots. */
+export function packRadii(positionMs: number, lengthMs = TAPE_MS): Packs {
+  const f = Math.min(1, Math.max(0, positionMs / Math.max(1, lengthMs)));
   const span = PACK_MAX_R ** 2 - PACK_MIN_R ** 2;
   return {
     supply: Math.sqrt(PACK_MAX_R ** 2 - f * span),
@@ -39,9 +44,9 @@ export function packRadii(positionMs: number): Packs {
   };
 }
 
-/** Degrees each reel turns in `ms` of tape passing, at the radii for `positionMs`. */
-export function reelTurn(positionMs: number, ms: number): Packs {
-  const packs = packRadii(positionMs);
+/** Degrees each reel turns in `ms` of tape passing, at the radii for `positionMs` on a tape `lengthMs` long. */
+export function reelTurn(positionMs: number, ms: number, lengthMs = TAPE_MS): Packs {
+  const packs = packRadii(positionMs, lengthMs);
   const deg = (r: number) => ((ms * TAPE_SPEED) / r) * (180 / Math.PI);
   return { supply: deg(packs.supply), takeup: deg(packs.takeup) };
 }

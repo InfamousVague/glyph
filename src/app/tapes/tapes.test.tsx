@@ -153,6 +153,30 @@ describe('the cassette', () => {
     expect(reels(host)).not.toEqual(turned);
   });
 
+  it('draws its label bare, with the A mark and no words, and gives each cassette its own label mask', () => {
+    const host = show(
+      <>
+        <TapeArt positionMs={30_000} title="Trip" side="26 SEP" counter="0:30" />
+        <TapeArt positionMs={30_000} bare title="Trip" side="26 SEP" counter="0:30" />
+      </>,
+    );
+    const [worded, bare] = [...host.querySelectorAll('svg')];
+    expect([...worded!.querySelectorAll('text')].map((t) => t.textContent)).toEqual(['A', 'Trip', '26 SEP', '0:30']);
+    expect([...bare!.querySelectorAll('text')].map((t) => t.textContent)).toEqual(['A']);
+    // Eight cassettes on one page shared `tape-label-mask`, and every one wore the first one's.
+    const masks = [...host.querySelectorAll('mask')].map((m) => m.id);
+    expect(new Set(masks).size).toBe(2);
+    expect(worded!.querySelector('g[mask]')?.getAttribute('mask')).toBe(`url(#${masks[0]})`);
+    expect(bare!.querySelector('g[mask]')?.getAttribute('mask')).toBe(`url(#${masks[1]})`);
+  });
+
+  it('winds a longer tape over its own length, so an hour is not full from the fifth minute', () => {
+    const takeup = (host: HTMLElement) => Number(host.querySelectorAll('circle')[1]!.getAttribute('r'));
+    const fiveMinutes = takeup(show(<TapeArt positionMs={300_000} />));
+    const anHour = takeup(show(<TapeArt positionMs={300_000} lengthMs={3_600_000} />));
+    expect(anHour).toBeLessThan(fiveMinutes);
+  });
+
   it('does not turn for someone who asked for less motion', () => {
     stubMatchMedia(true);
     const run = frames();

@@ -1,6 +1,6 @@
 import { Mic, Pause, Play, Trash2 } from '@glacier/icons';
 import { useEffect, useRef, useState } from 'react';
-import { counter } from '../capture/tape.ts';
+import { TAPE_MS, counter } from '../capture/tape.ts';
 import { prefersStill } from '../core/motion.ts';
 import type { Note } from '../core/store.ts';
 import { TapeArt } from './TapeArt.tsx';
@@ -60,6 +60,8 @@ export function NoteTape({ note, title: typed, tape, onSpeak, onRemove, hasMemos
       <button type="button" className={styles.cassette} onClick={tape.toggle} aria-label={tape.playing ? 'Pause the recording' : 'Play the recording'}>
         <TapeArt
           positionMs={moved ? tape.at : tape.length}
+          // A tape longer than five minutes winds across its whole length in playback, rather than sitting full from the fifth minute on.
+          lengthMs={Math.max(TAPE_MS, tape.length)}
           playing={tape.playing}
           title={label}
           side={DATE.format(note.createdAt).toUpperCase()}
