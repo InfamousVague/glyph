@@ -29,7 +29,11 @@ import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.t
 import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
+import { enqueueSummary } from '../ai/summaries.ts';
+import { summaryBehind, summaryUnchanged } from '../ai/summaryKeep.ts';
+import { summarySection } from '../ai/summaryText.ts';
 import type { CaptureLanding } from '../capture/landing.ts';
+import { isTauri } from '../core/tauri.ts';
 import { keepAllChanges } from './aiChanges.ts';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
@@ -330,7 +334,31 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
                 onError={tape.audio.onError}
               />
             ) : null}
-            <NoteTape note={note} title={title} tape={tape} onSpeak={speakHere} onRemove={removeRecording} hasMemos={hasClips(body.current)} />
+            <NoteTape
+              note={note}
+              title={title}
+              tape={tape}
+              onSpeak={speakHere}
+              onRemove={removeRecording}
+              hasMemos={hasClips(body.current)}
+              // The recording's summary (ai/summaries.ts): queued from here, and landed in this editor as a run. Not
+              // in a browser, which has no model and shows what synced.
+              summary={
+                isTauri()
+                  ? {
+                      ask: (replace) => {
+                        flush();
+                        enqueueSummary(note.id, 'recording', { replace });
+                      },
+                      edited: () => {
+                        const section = summarySection(body.current);
+                        return section !== null && !summaryUnchanged(note.id, section.text);
+                      },
+                      behind: summaryBehind(note.id, tape.length),
+                    }
+                  : null
+              }
+            />
           </div>
         ) : null}
         {/* What the note is linked to (a Notion board, a repo): a tap opens the More sheet to change it. */}

@@ -8,6 +8,7 @@ import { loadMarks, saveMarks } from '../ai/marks.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
 import { ended, useRun } from '../ai/runs.ts';
 import { startNoteRun } from '../ai/start.ts';
+import { openForSummaries, type SummaryAsk, type SummaryStarted } from '../ai/summaries.ts';
 import { useLanding } from '../ai/useLanding.ts';
 import { useNoteReview } from '../ai/useNoteReview.ts';
 import { accountState } from '../core/account/account.ts';
@@ -26,6 +27,10 @@ import { aiEdit, keepAllAiChanges, restoreAiChanges, type AiChange } from './aiC
  * finds them where they were, as long as the note still reads the same. The review after a recording runs here too:
  * listening again and comparing as a stage in the strip, the thinking as a run, the findings landing as tracked
  * changes (ai/useNoteReview.ts).
+ *
+ * The recording's summary lands here too (docs/DESIGN.md §127 section 2): while the note is open its summary is
+ * handed to this screen by the queue (ai/summaries.ts `openForSummaries`) and run in the editor, the one writer of an
+ * open note, rather than written plain behind it.
  */
 
 /** A spoken instruction about this note, to run on it as it opens (App.tsx, ai/instruction.ts); `key` tells one from the next. */
@@ -78,6 +83,21 @@ export function useNoteAi({ note, view, flush, body, wisp, ask, review, toast }:
   };
 
   const reviewStage = useNoteReview(review, view, { wisp, say: (message) => toast({ message, duration: 7000 }) });
+
+  // The recording's summary, when the queue's turn for this note comes while it is open: a run in this editor.
+  const summarize = (ask: SummaryAsk): SummaryStarted => {
+    if (!view) return { ok: false, reason: 'The note is not open.' };
+    flush();
+    const started = startNoteRun(view, note.id, 'summarize', availability.availability, { recording: ask });
+    if (started.ok) fireNativeHaptic('selection');
+    return started;
+  };
+  const summarizeRef = useRef(summarize);
+  summarizeRef.current = summarize;
+  useEffect(() => {
+    openForSummaries(note.id, (ask) => summarizeRef.current(ask));
+    return () => openForSummaries(note.id, null);
+  }, [note.id]);
 
   // A spoken instruction the note opened with: run once the editor and the AI are ready.
   const askDone = useRef<number | null>(null);

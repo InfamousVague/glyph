@@ -52,7 +52,7 @@
   color: var(--app-ink-3);
 }
 
-/* What to do with the audio, under Play: two quiet words, each with its mark; three while Remove is asking. */
+/* What to do with the audio, under Play: three quiet words, each with its mark; one more while Remove or Summarize is asking. */
 .edits {
   display: flex;
   flex-wrap: wrap;
@@ -83,10 +83,31 @@
   padding-inline: var(--glacier-space-4);
 }
 
-/* Remove, while it is asking: the word itself says what goes. */
+/* Remove, while it is asking, and Replace: the word itself says what goes. */
 .edit[data-asking] {
   color: var(--glacier-text);
   font-weight: var(--glacier-font-weight-bold);
+}
+
+.edit:disabled {
+  cursor: default;
+}
+
+/* Summarize's mark while the summary is on its way: the working spinner, as a card wears it. */
+.working {
+  animation: tapeWorking 1s linear infinite;
+}
+
+@keyframes tapeWorking {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .working {
+    animation: none;
+  }
 }
 
 /* What Remove would take with it: one quiet line under the controls. */
