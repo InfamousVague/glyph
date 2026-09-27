@@ -199,7 +199,8 @@ const PARAGRAPH = /^(?:(?:a|an|another|one\s+more|new)\s+)?(?:(?:new|short|quick
  * are not a command for a note: "fix the spelling", "put the dates in a table", "add a summary to the top".
  */
 export function readRoute(text: string): Reading[] {
-  const words = withoutFinalStop(text);
+  // "Add it to Groceries instead": the word after the name is not the name's (a take-back's send, takeBack.ts).
+  const words = withoutFinalStop(text).replace(/\s+instead$/i, '');
   if (!words) return [];
   // A table, a board, a book or a chapter is asked for, not words for a note: "add a table to this note" is no bullet.
   if (NOT_WORDS.test(words)) return [];

@@ -78,6 +78,13 @@ describe('the shapes of a command for a note', () => {
     expect(readRoute('add eggs to the moon base').find((r) => r.shape === 4)).toMatchObject({ name: 'moon base', payload: 'eggs', tail: 'eggs to the moon base' });
   });
 
+  // A take-back's send, said in a breath of its own after "scratch that" (takeBack.ts): "instead" is not the name's.
+  it('leaves “instead” off the end of a name', () => {
+    expect(readRoute('add it to Groceries instead.').find((r) => r.shape === 4)).toMatchObject({ name: 'Groceries', payload: '' });
+    expect(readRoute('put that in house to-dos instead').find((r) => r.shape === 4)).toMatchObject({ name: 'house to-dos', payload: '' });
+    expect(readRoute('add milk to groceries instead').find((r) => r.shape === 4)).toMatchObject({ name: 'groceries', payload: 'milk' });
+  });
+
   it('ends a thing’s name at “that says”, and reads a paragraph asked for as the kind of words, not the words', () => {
     expect(readRoute('add a paragraph to Groceries that says we are out of bread').find((r) => r.shape === 4)).toMatchObject({ name: 'Groceries', payload: 'we are out of bread', placing: 'paragraph', stopped: true });
     expect(readRoute('add milk to groceries saying it is urgent').find((r) => r.shape === 4)).toMatchObject({ name: 'groceries', payload: 'milk, it is urgent' });
