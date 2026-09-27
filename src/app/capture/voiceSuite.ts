@@ -185,7 +185,7 @@ const BLOCK_LEAD = new RegExp(String.raw`^\s*(?:#{1,6} |${BULLET} (?:${BOX} |${C
 /** A line's shape: its block mark, and the inline marks in it, in order. */
 function shapeOf(line: string): string {
   const lead = BLOCK_LEAD.exec(line)?.[0] ?? '';
-  const marks = line.match(/\*\*|~~|==|%%|\?\?|\^\^|\+\+|\|\||`|\[\[|\]\]|\[\d+\/\d+\]|#[a-z][\w/-]*/g) ?? [];
+  const marks = line.match(/\*\*|~~|==|%%|\?\?|@@|\^\^|\+\+|\|\||`|\[\[|\]\]|\[\d+\/\d+\]|#[a-z][\w/-]*/g) ?? [];
   return `${lead.replace(/[xX]/, 'x')}${marks.join(' ')}`;
 }
 

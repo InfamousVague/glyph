@@ -30,8 +30,8 @@ export function setSpokenFormats(formats: readonly SpokenFormat[]): void {
 
 const escapeWord = (word: string) => word.trim().replace(/\s+/g, '\\s+');
 
-/** How a cue word is heard as well as how it is spelled: "aside" comes back as "a side". */
-const SAID_AS: Record<string, string> = { aside: 'a\\s?side', unsure: '(?:un|en|in)sure|onshore' };
+/** How a cue word is heard as well as how it is spelled: "aside" comes back as "a side", "redact" as "redacted". */
+const SAID_AS: Record<string, string> = { aside: 'a\\s?side', unsure: '(?:un|en|in)sure|onshore', redact: 'redact(?:ed)?' };
 
 function inlineMarkup(formats: readonly SpokenFormat[]): RegExp {
   const words = ['bold\\s+italics?', 'bold', 'italics?', 'emphasis', 'strike(?:through)?', 'crossed\\s+out', 'code', 'super\\s?script', 'sub\\s?script', 'maths?', ...formats.map((format) => SAID_AS[format.word.trim().toLowerCase()] ?? escapeWord(format.word))];

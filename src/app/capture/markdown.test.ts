@@ -476,10 +476,14 @@ describe('spoken marks heard loosely', () => {
       { word: 'spoiler', delimiter: '||' },
       { word: 'aside', delimiter: '%%' },
       { word: 'unsure', delimiter: '??' },
+      { word: 'redact', delimiter: '@@' },
     ];
     expect(spokenInlineMarkup('The gate code is spoiler four four one seven end spoiler.', formats)).toBe('The gate code is ||four four one seven||.');
     expect(spokenInlineMarkup('A side I still prefer the other place end aside.', formats)).toBe('%%I still prefer the other place%%.');
     expect(spokenInlineMarkup('The stove is ensure gas end ensure.', formats)).toBe('The stove is ??gas??.');
+    // "Redact" is heard as "redacted" as often as not, and either end can be either.
+    expect(spokenInlineMarkup('The name on the lease is redacted Sam Ortiz end redact.', formats)).toBe('The name on the lease is @@Sam Ortiz@@.');
+    expect(spokenInlineMarkup('The file was redacted before it went out.', formats)).toBe('The file was redacted before it went out.');
     expect(spokenInlineMarkup('bold one end italic', formats)).toBe('bold one end italic');
   });
 
