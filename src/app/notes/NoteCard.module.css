@@ -141,6 +141,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Where it was written, after the date, in the foot's own type: a long name gives way rather than wrapping the foot. */
+.when {
+  display: flex;
+  min-inline-size: 0;
+  white-space: nowrap;
+}
+
+.place {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
 /* A book's card: how many pages, then the first few as its index, in the card's own quiet type. */
 .bookMeta {
   font-size: var(--glacier-font-size-sm);

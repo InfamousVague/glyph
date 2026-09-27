@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { LoaderCircle } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
+import { geoTagOf } from '../core/geotag.ts';
 import { counter } from '../capture/tape.ts';
 import { hasTape } from './allNotes.ts';
 import { chaptersOf, isBookBody, type BookPlace } from '../book/book.ts';
@@ -26,6 +27,11 @@ import styles from './NoteCard.module.css';
  * A note with a tape wears the tape's counter in its foot, "12:40 · Yesterday", in figures and with no icon. A note
  * the recorder made is a cassette on the home page's shelf (home/TapeShelf.tsx); a note that was written and then
  * talked into keeps its card, and the counter is how it is told from a typed one (docs/DESIGN.md §127).
+ *
+ * Where the note was written (core/geotag.ts) is the foot's third fragment, "12:40 · 26 Sep · Trafalgar Square": the
+ * foot is "when", and "where" belongs beside it, with no mark of its own (a line on every tagged card is the kind
+ * label §132 left out). Only the place's name, never the coordinates, so no page of cards lists a position for anyone
+ * looking over a shoulder; and only from the note's own words, never from a tag still waiting to be written.
  */
 
 export interface NoteCardProps {
@@ -45,6 +51,7 @@ export function NoteCard({ note, index, onOpen, gist, place, dense = false }: No
   const title = noteTitle(note.body);
   const book = isBookBody(note.body);
   const chapters = book ? chaptersOf(note.body) : [];
+  const where = geoTagOf(note.body)?.place ?? null;
   return (
     <li key={note.id} className={styles.item} data-dense={dense || undefined} style={{ '--i': Math.min(index, 8) } as CSSProperties}>
       <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
@@ -102,6 +109,11 @@ export function NoteCard({ note, index, onOpen, gist, place, dense = false }: No
             </>
           ) : null}
           {when(note.updatedAt)}
+          {where ? (
+            <>
+              {' '}· <span className={styles.place}>{where}</span>
+            </>
+          ) : null}
         </span>
       </button>
     </li>

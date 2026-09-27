@@ -18,6 +18,9 @@ const shares = vi.hoisted(() => {
   const told = () => listeners.forEach((listener) => listener());
   return {
     links,
+    /** The notes whose share carries where it was written, and the notes with a place to carry. */
+    withPlace: new Set<string>(),
+    placed: new Set<string>(),
     fail: null as Error | null,
     told,
     onShares: (listener: () => void) => {
@@ -40,16 +43,25 @@ vi.mock('./share.ts', () => ({
     shares.links.delete(id);
     shares.told();
   }),
+  sharesPlace: (note: { id: string }) => shares.placed.has(note.id),
+  sharingPlace: (id: string) => shares.withPlace.has(id),
+  shareWithPlace: vi.fn(async (id: string, on: boolean) => {
+    if (on) shares.withPlace.add(id);
+    else shares.withPlace.delete(id);
+    shares.told();
+  }),
 }));
 
 const { ShareRows } = await import('./ShareRows.tsx');
-const { shareNote, stopSharing } = await import('./share.ts');
+const { shareNote, shareWithPlace, stopSharing } = await import('./share.ts');
 
 const copied: string[] = [];
 beforeEach(() => {
   localStorage.clear();
   account.session = { user: 'matt' };
   shares.links.clear();
+  shares.withPlace.clear();
+  shares.placed.clear();
   shares.fail = null;
   copied.length = 0;
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => void copied.push(text) } });
@@ -96,5 +108,33 @@ describe('a note’s sharing', () => {
     show(<ShareRows noteId="a" />);
     await act(async () => row('Copy the link')!.click());
     expect(said()).toBe('https://attack.fm/glyph/read.html#kept');
+  });
+});
+
+describe('where a shared note was written', () => {
+  it('offers to share it only where the note has a place, ticked once chosen, and says which way the link reads', async () => {
+    await createNote('a', '---\nlocation: 51.5074,-0.1278\n---\n# Trip');
+    shares.placed.add('a');
+    show(<ShareRows noteId="a" />);
+    await act(async () => row('Share a read-only link')!.click());
+    await act(async () => Promise.resolve());
+    expect(row('Copy the link')?.textContent).toContain('Where it was written stays out of the link.');
+    const share = row('Share where it was written')!;
+    expect(share.getAttribute('aria-pressed')).toBe('false');
+    await act(async () => share.click());
+    expect(shareWithPlace).toHaveBeenCalledWith('a', true);
+    expect(row('Share where it was written')?.getAttribute('aria-pressed')).toBe('true');
+    expect(row('Copy the link')?.textContent).toContain('The link carries where it was written.');
+    await act(async () => row('Share where it was written')!.click());
+    expect(shareWithPlace).toHaveBeenLastCalledWith('a', false);
+  });
+
+  it('has no such row for a note with nothing to carry', async () => {
+    await createNote('b', '# Plain');
+    show(<ShareRows noteId="b" />);
+    await act(async () => row('Share a read-only link')!.click());
+    await act(async () => Promise.resolve());
+    expect(row('Share where it was written')).toBeUndefined();
+    expect(row('Copy the link')?.textContent).not.toContain('stays out');
   });
 });

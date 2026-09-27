@@ -1,21 +1,41 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Copy, Link2, Share2, X } from '@glacier/icons';
+import { Locate } from '../art/Icons.tsx';
 import { useAccount } from '../core/account/account.ts';
 import { failureText } from '../core/failure.ts';
 import { listNotes } from '../core/store.ts';
-import { linkFor, onShares, shareNote, stopSharing } from './share.ts';
+import { linkFor, onShares, shareNote, sharesPlace, shareWithPlace, sharingPlace, stopSharing } from './share.ts';
 import styles from '../editor/NoteSettings.module.css';
 
 /**
  * A note's sharing, in its cog (editor/NoteSettings.tsx): share it by a read-only link, copy or send the link, stop
  * sharing (share/share.ts). Signed out, the one line says where to sign in, since a share is kept with an account.
+ *
+ * A shared note that says where it was written (or a book with such a chapter) gets one more row, "Share where it was
+ * written", with the kit's tick: the link leaves the location out until it is ticked (share.ts's header says why).
  */
 export function ShareRows({ noteId }: { noteId: string }) {
   const { session } = useAccount();
   const link = useSyncExternalStore(onShares, () => linkFor(noteId), () => null);
+  const withPlace = useSyncExternalStore(onShares, () => sharingPlace(noteId), () => false);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   useEffect(() => setSaid(null), [noteId]);
+  // Whether the pages have a place to share: read once the note is shared, from the library as the share reads it.
+  const [placed, setPlaced] = useState(false);
+  useEffect(() => {
+    if (!link) return undefined;
+    let live = true;
+    void listNotes()
+      .then((notes) => {
+        const note = notes.find((n) => n.id === noteId);
+        if (live) setPlaced(Boolean(note) && sharesPlace(note!, notes));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [noteId, link]);
 
   const run = async (work: () => Promise<void>) => {
     setBusy(true);
@@ -80,9 +100,23 @@ export function ShareRows({ noteId }: { noteId: string }) {
               </span>
               <span className={styles.label}>
                 Copy the link
-                <span className={styles.hint}>Shared, read-only. Your edits reach readers a few seconds after you save.</span>
+                <span className={styles.hint}>
+                  Shared, read-only. Your edits reach readers a few seconds after you save.{placed ? (withPlace ? ' The link carries where it was written.' : ' Where it was written stays out of the link.') : ''}
+                </span>
               </span>
             </button>
+            {placed ? (
+              <button type="button" className={styles.row} disabled={busy} aria-pressed={withPlace} onClick={() => void run(() => shareWithPlace(noteId, !withPlace))}>
+                <span className={styles.icon} aria-hidden="true">
+                  <Locate />
+                </span>
+                <span className={styles.label}>
+                  Share where it was written
+                  <span className={styles.hint}>The place and the map, on the shared page.</span>
+                </span>
+                {withPlace ? <span className={styles.tick} aria-hidden="true" /> : null}
+              </button>
+            ) : null}
             {canSend ? (
               <button type="button" className={styles.row} onClick={() => void navigator.share({ url: link }).catch(() => undefined)}>
                 <span className={styles.icon} aria-hidden="true">

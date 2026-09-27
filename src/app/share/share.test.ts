@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
 import { noteTitle } from '../core/store.ts';
 import { bookNoteBody, chaptersOf } from '../book/book.ts';
-import { forkShared, newShareId, newShareKey, openShare, readShareLink, sealShare, shareLink, sharedAsFile, sharedOf, withPictures, type Shared } from './share.ts';
+import { forkShared, newShareId, newShareKey, openShare, readShareLink, sealShare, shareLink, sharedAsFile, sharedOf, sharesPlace, withPictures, type Shared } from './share.ts';
 import { crc32, zipFiles } from './zip.ts';
 
 describe('a share sealed by its link', () => {
@@ -152,5 +152,27 @@ describe('the pictures a share carries', () => {
       },
     );
     expect(kept).toEqual([A, B]);
+  });
+});
+
+describe('where a shared page was written', () => {
+  const tagged = (id: string, body: string) => makeNote(id, `---\nlocation: 51.5074,-0.1278\nplace: "London"\n---\n${body}`);
+  const book = makeNote('b', bookNoteBody('Cabin trip', ['Packing', 'Route']));
+  const notes = [book, tagged('p', '# Packing\n\n- [ ] Tent'), makeNote('r', '# Route\n\nNorth.')];
+
+  it('stays out of a share unless the note says to carry it, for a note and for a book’s chapters alike', () => {
+    expect(sharedOf(notes[1]!, notes).pages[0]!.body).toBe('# Packing\n\n- [ ] Tent');
+    expect(sharedOf(notes[1]!, notes, { place: true }).pages[0]!.body).toBe('---\nlocation: 51.5074,-0.1278\nplace: "London"\n---\n# Packing\n\n- [ ] Tent');
+    expect(sharedOf(book, notes).pages.map((p) => p.body)).toEqual([book.body, '# Packing\n\n- [ ] Tent', '# Route\n\nNorth.']);
+    expect(sharedOf(book, notes, { place: true }).pages[1]!.body).toContain('location: 51.5074,-0.1278');
+    // The other keys stay whichever way.
+    const titled = makeNote('t', '---\ntitle: "Map"\nlocation: 1.0000,2.0000\n---\n{"nodes":[],"edges":[]}');
+    expect(sharedOf(titled, [titled]).pages[0]!.body).toBe('---\ntitle: "Map"\n---\n{"nodes":[],"edges":[]}');
+  });
+
+  it('is offered only where a page has one', () => {
+    expect(sharesPlace(notes[1]!, notes)).toBe(true);
+    expect(sharesPlace(book, notes)).toBe(true);
+    expect(sharesPlace(notes[2]!, notes)).toBe(false);
   });
 });
