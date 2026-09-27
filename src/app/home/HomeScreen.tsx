@@ -46,8 +46,8 @@ interface HomeScreenProps {
    * palette has handed back its opener, and then the dock has no Search button rather than one that does nothing.
    */
   onSearch?: () => void;
-  /** Every note, as a grid of cards (notes/AllNotesScreen.tsx). */
-  onAllNotes: () => void;
+  /** Every note, as a grid of cards (notes/AllNotesScreen.tsx); with `tapes`, only the notes with a recording, from the shelf's "and N more". */
+  onAllNotes: (options?: { tapes: boolean }) => void;
   /** A to-do ticked from here: its note's line rewritten with the box ticked. */
   onTick: (task: OpenTask) => void;
   voiceModel: VoiceModelState;
@@ -209,7 +209,7 @@ export function HomeScreen({
           ) : null}
 
           {/* The way to every note: the grid page (notes/AllNotesScreen.tsx), with how many wait there. */}
-          <button type="button" className={`app-word ${styles.allNotes}`} onClick={onAllNotes}>
+          <button type="button" className={`app-word ${styles.allNotes}`} onClick={() => onAllNotes()}>
             <LayoutGrid size={16} strokeWidth={2.1} className={styles.allNotesMark} aria-hidden="true" />
             All notes · {notes.filter((n) => !n.archivedAt).length}
           </button>

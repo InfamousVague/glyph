@@ -25,6 +25,17 @@ export interface Browse {
   sort: AllNotesSort;
   /** Whether the archived notes are shown too. They are marked on their cards when they are. */
   archived: boolean;
+  /**
+   * Only the notes with a tape: every note with a recording, typed ones included, so nothing with a tape is
+   * unreachable. The home page's shelf shows eight (docs/DESIGN.md §127); "and N more" opens the page with this on,
+   * which with a hundred recordings is the way to the ninety-second.
+   */
+  tapes: boolean;
+}
+
+/** Whether a note has a recording on it, whatever made it. */
+export function hasTape(note: Note): boolean {
+  return (note.recordingMs ?? 0) > 0;
 }
 
 /** Words that count as having no title, so a note with none sorts after the named ones. */
@@ -48,7 +59,7 @@ function sortKey(note: Note): string {
 
 /** The notes the page shows, in the order it shows them. */
 export function browseNotes(notes: readonly Note[], browse: Browse): Note[] {
-  const shown = notes.filter((n) => (browse.archived || !n.archivedAt) && matches(n, browse.query));
+  const shown = notes.filter((n) => (browse.archived || !n.archivedAt) && (!browse.tapes || hasTape(n)) && matches(n, browse.query));
   if (browse.sort === 'title') {
     return shown.sort((a, b) => {
       const blankA = untitled(a);
@@ -63,6 +74,11 @@ export function browseNotes(notes: readonly Note[], browse: Browse): Note[] {
 /** How many notes are in the archive, for the toggle that shows them. */
 export function archivedCount(notes: readonly Note[]): number {
   return notes.filter((n) => Boolean(n.archivedAt)).length;
+}
+
+/** How many of the notes have a tape, for the toggle that shows only them: given the notes less the archive unless it is shown. */
+export function tapeCount(notes: readonly Note[]): number {
+  return notes.filter(hasTape).length;
 }
 
 /** The order chosen last time, kept on the device (core/reset.ts clears it). */

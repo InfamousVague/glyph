@@ -7,13 +7,13 @@ import { useGlideToTop } from '../core/glideToTop.ts';
 import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
-import { ArchiveBox } from '../art/Icons.tsx';
+import { ArchiveBox, Cassette } from '../art/Icons.tsx';
 import { bookIndex, placeOf } from '../book/book.ts';
 import { useGists } from '../format/gist.ts';
 import { NoteCard } from './NoteCard.tsx';
 import { WorkspaceBar } from './WorkspaceBar.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
-import { archivedCount, browseNotes, readSort, SORTS, writeSort, type AllNotesSort } from './allNotes.ts';
+import { archivedCount, browseNotes, readSort, SORTS, tapeCount, writeSort, type AllNotesSort } from './allNotes.ts';
 import styles from './AllNotesScreen.module.css';
 
 /**
@@ -24,10 +24,11 @@ import styles from './AllNotesScreen.module.css';
  * for looking through what there is, it was a column of small rows over the page. This is a page of its own: the cards
  * the home page draws (notes/NoteCard.tsx), in its grid - one to a row on a phone, three or four on the Fold opened out,
  * four in a desktop window - with a search over the notes' words in the bar, the workspace pills choosing which notes, the order
- * (last touched, or by name), and the archive shown when asked for. A tap on a card opens the note; the arrow, the
- * phone's back gesture and the tab row's house all go home.
+ * (last touched, or by name), the archive shown when asked for, and only the notes with a tape when the Tapes word is
+ * on (docs/DESIGN.md §127: the home page's shelf shows eight, and its "and N more" opens this page with Tapes on). A
+ * tap on a card opens the note; the arrow, the phone's back gesture and the tab row's house all go home.
  *
- * The rules - what the search finds, the order, the archive - are notes/allNotes.ts, which the tests read.
+ * The rules - what the search finds, the order, the archive, the tapes - are notes/allNotes.ts, which the tests read.
  */
 
 interface AllNotesScreenProps {
@@ -36,12 +37,14 @@ interface AllNotesScreenProps {
   onOpen: (id: string) => void;
   /** Home. */
   onBack: () => void;
+  /** Opened with the Tapes word already on, from the shelf's "and N more". */
+  tapes?: boolean;
 }
 
 /** How many of the cards on the page have their gist written (format/gist.ts): the first screens of them, not every note there is. */
 const GISTED = 24;
 
-export function AllNotesScreen({ notes, loading, onOpen, onBack }: AllNotesScreenProps) {
+export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtFirst = false }: AllNotesScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   const field = useRef<HTMLInputElement>(null);
@@ -52,12 +55,15 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack }: AllNotesScree
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<AllNotesSort>(readSort);
   const [archived, setArchived] = useState(false);
+  const [tapes, setTapes] = useState(tapesAtFirst);
   const workspace = spaces.current?.id ?? null;
-  // Another workspace, order or archive chosen: the page glides back to its top rather than jumping there.
-  useGlideToTop(scroller, `${workspace ?? 'all'}|${sort}|${archived ? 'archive' : ''}`);
+  // Another workspace, order, archive or tapes chosen: the page glides back to its top rather than jumping there.
+  useGlideToTop(scroller, `${workspace ?? 'all'}|${sort}|${archived ? 'archive' : ''}|${tapes ? 'tapes' : ''}`);
   const inSpace = useMemo(() => inWorkspace(notes, workspace), [notes, workspace]);
-  const shown = useMemo(() => browseNotes(inSpace, { query, sort, archived }), [inSpace, query, sort, archived]);
+  const shown = useMemo(() => browseNotes(inSpace, { query, sort, archived, tapes }), [inSpace, query, sort, archived, tapes]);
   const inArchive = useMemo(() => archivedCount(inSpace), [inSpace]);
+  // How many notes have a tape, among the notes the page can show: the archive's count only while the archive is shown.
+  const withTape = useMemo(() => tapeCount(archived ? inSpace : inSpace.filter((n) => !n.archivedAt)), [inSpace, archived]);
   /** Every page's book, for the cards' marks (book/book.ts). */
   const inBooks = useMemo(() => bookIndex(notes), [notes]);
   const gisted = useMemo(() => shown.slice(0, GISTED), [shown]);
@@ -67,6 +73,8 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack }: AllNotesScree
 
   const live = inSpace.filter((n) => !n.archivedAt).length;
   const searched = query.trim() !== '';
+  /** What a search is counted out of: the tapes when only they are shown, else the notes, and the archive with them when it is. */
+  const outOf = tapes ? withTape : live + (archived ? inArchive : 0);
 
   return (
     <div className={styles.screen}>
@@ -110,7 +118,7 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack }: AllNotesScree
       <div ref={scroller} className={styles.scroll}>
         <div className={styles.page}>
           <WorkspaceBar onManage={setManage} />
-          {/* The order, and the archive: one line of words over the cards. */}
+          {/* The order, the tapes, and the archive: one line of words over the cards. */}
           <div className={styles.controls}>
             <div className={styles.sorts} role="radiogroup" aria-label="Order">
               {SORTS.map((each) => (
@@ -126,8 +134,15 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack }: AllNotesScree
                 </button>
               ))}
             </div>
+            {/* Only the notes with a tape, in the archive toggle's shape; not offered while there are none. */}
+            {withTape ? (
+              <button type="button" className={styles.tapesWord} aria-pressed={tapes} onClick={() => setTapes((was) => !was)}>
+                <Cassette className={styles.tapesMark} />
+                Tapes · {withTape}
+              </button>
+            ) : null}
             <p className={styles.tally} aria-live="polite">
-              {searched ? `${shown.length} of ${live + (archived ? inArchive : 0)}` : shown.length === 1 ? '1 note' : `${shown.length} notes`}
+              {searched ? `${shown.length} of ${outOf}` : shown.length === 1 ? '1 note' : `${shown.length} notes`}
             </p>
             {inArchive ? (
               <button type="button" className={styles.archiveWord} aria-pressed={archived} onClick={() => setArchived((was) => !was)}>

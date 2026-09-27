@@ -15,7 +15,8 @@ afterEach(() => {
   localStorage.clear();
 });
 
-const showNotes = (notes: Note[], onOpen = () => {}, onBack = () => {}) => show(<AllNotesScreen notes={notes} loading={false} onOpen={onOpen} onBack={onBack} />);
+const showNotes = (notes: Note[], onOpen = () => {}, onBack = () => {}, tapes = false) =>
+  show(<AllNotesScreen notes={notes} loading={false} onOpen={onOpen} onBack={onBack} tapes={tapes} />);
 
 const cardTitles = (page: HTMLElement) => [...page.querySelectorAll('ol[aria-label="Notes"] li')].map((li) => li.querySelector('[class*=title]')?.textContent);
 const field = (page: HTMLElement) => page.querySelector<HTMLInputElement>('input[type="search"]')!;
@@ -65,6 +66,33 @@ describe('the All notes page', () => {
     act(() => word.click());
     expect(cardTitles(page)).toEqual(['Kept', 'Gone']);
     expect(page.querySelector('[aria-label="Archived"]')).not.toBeNull();
+  });
+
+  it('shows only the notes with a tape while its Tapes word is on, typed ones included, and opens with it on when asked', () => {
+    const notes = [
+      makeNote('s', '# Spoken', { source: 'capture', recordingMs: 40_000, updatedAt: 3 }),
+      makeNote('t', '# Typed then spoken', { recordingMs: 12_000, updatedAt: 2 }),
+      makeNote('p', '# Plain', { updatedAt: 1 }),
+    ];
+    const page = showNotes(notes);
+    expect(cardTitles(page)).toEqual(['Spoken', 'Typed then spoken', 'Plain']);
+    const word = [...page.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')].find((b) => b.textContent?.includes('Tapes'))!;
+    expect(word.textContent).toContain('Tapes · 2');
+    expect(word.getAttribute('aria-pressed')).toBe('false');
+    act(() => word.click());
+    expect(cardTitles(page)).toEqual(['Spoken', 'Typed then spoken']);
+    expect(page.textContent).toContain('2 notes');
+    type(page, 'typed');
+    expect(page.textContent).toContain('1 of 2');
+    unmount();
+    // From the shelf's "and N more": the page opens with the word already on.
+    const opened = showNotes(notes, () => {}, () => {}, true);
+    expect(cardTitles(opened)).toEqual(['Spoken', 'Typed then spoken']);
+    expect(opened.querySelector('button[aria-pressed="true"]')?.textContent).toContain('Tapes · 2');
+    unmount();
+    // No Tapes word at all where nothing has a recording.
+    const none = showNotes([makeNote('p', '# Plain')]);
+    expect([...none.querySelectorAll('button[aria-pressed]')].map((b) => b.textContent)).toEqual([]);
   });
 
   it('marks a pinned card, and draws a book as its index', () => {

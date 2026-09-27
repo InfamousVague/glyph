@@ -158,8 +158,9 @@
   gap: var(--glacier-space-1);
 }
 
-/* An order word: a pill of nothing until chosen, then the ink wash with the ink's own colour. */
+/* An order word: a pill of nothing until chosen, then the ink wash with the ink's own colour. The Tapes and Archived toggles share it. */
 .sortWord,
+.tapesWord,
 .archiveWord {
   appearance: none;
   display: inline-flex;
@@ -182,6 +183,7 @@
 }
 
 .sortWord[aria-checked='true'],
+.tapesWord[aria-pressed='true'],
 .archiveWord[aria-pressed='true'] {
   border-color: var(--glacier-border-subtle);
   background: color-mix(in oklch, var(--app-ink) 6%, transparent);
@@ -189,6 +191,7 @@
 }
 
 .sortWord:focus-visible,
+.tapesWord:focus-visible,
 .archiveWord:focus-visible {
   outline: 2px solid var(--glacier-focus-ring);
   outline-offset: 2px;
@@ -198,6 +201,8 @@
   margin-inline-start: auto;
 }
 
+/* The cassette on the Tapes word, and the box on the Archived one, each a touch over the word's own size. */
+.tapesMark,
 .archiveMark {
   font-size: 1.05em;
 }

@@ -21,8 +21,11 @@ import { ALL_NOTES, notePlace, type Place } from '../notes/visited.ts';
 export type Screen =
   /** The home page (home/HomeScreen.tsx), which the app opens on and every way out comes back to. */
   | { name: 'list' }
-  /** Every note as a grid of cards (notes/AllNotesScreen.tsx), from the home page's "All notes". */
-  | { name: 'notes' }
+  /**
+   * Every note as a grid of cards (notes/AllNotesScreen.tsx), from the home page's "All notes". Opened with `tapes`
+   * from the shelf's "and N more", it shows only the notes with a recording (docs/DESIGN.md §127).
+   */
+  | { name: 'notes'; tapes?: boolean }
   | {
       name: 'note';
       note: Note;

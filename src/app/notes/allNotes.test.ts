@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
-import { archivedCount, browseNotes, matches, readSort, writeSort } from './allNotes.ts';
+import { archivedCount, browseNotes, hasTape, matches, readSort, tapeCount, writeSort } from './allNotes.ts';
 
 afterEach(() => localStorage.clear());
 
@@ -27,28 +27,50 @@ describe('the order and the archive', () => {
   ];
 
   it('puts the last touched first, and keeps the archive out unless asked', () => {
-    expect(browseNotes(notes, { query: '', sort: 'newest', archived: false }).map((n) => n.id)).toEqual(['new', 'blank', 'old']);
-    expect(browseNotes(notes, { query: '', sort: 'newest', archived: true }).map((n) => n.id)).toEqual(['gone', 'new', 'blank', 'old']);
+    expect(browseNotes(notes, { query: '', sort: 'newest', archived: false, tapes: false }).map((n) => n.id)).toEqual(['new', 'blank', 'old']);
+    expect(browseNotes(notes, { query: '', sort: 'newest', archived: true, tapes: false }).map((n) => n.id)).toEqual(['gone', 'new', 'blank', 'old']);
   });
 
   it('orders by name whatever the case, with a nameless note after every name', () => {
-    expect(browseNotes(notes, { query: '', sort: 'title', archived: true }).map((n) => n.id)).toEqual(['new', 'gone', 'old', 'blank']);
+    expect(browseNotes(notes, { query: '', sort: 'title', archived: true, tapes: false }).map((n) => n.id)).toEqual(['new', 'gone', 'old', 'blank']);
   });
 
   it('narrows to the search first', () => {
-    expect(browseNotes(notes, { query: 'mango', sort: 'newest', archived: false })).toEqual([]);
-    expect(browseNotes(notes, { query: 'mango', sort: 'newest', archived: true }).map((n) => n.id)).toEqual(['gone']);
+    expect(browseNotes(notes, { query: 'mango', sort: 'newest', archived: false, tapes: false })).toEqual([]);
+    expect(browseNotes(notes, { query: 'mango', sort: 'newest', archived: true, tapes: false }).map((n) => n.id)).toEqual(['gone']);
   });
 
   it('does not reorder the notes it was given', () => {
     const ids = notes.map((n) => n.id);
-    browseNotes(notes, { query: '', sort: 'title', archived: true });
+    browseNotes(notes, { query: '', sort: 'title', archived: true, tapes: false });
     expect(notes.map((n) => n.id)).toEqual(ids);
   });
 
   it('counts the archive', () => {
     expect(archivedCount(notes)).toBe(1);
     expect(archivedCount([])).toBe(0);
+  });
+});
+
+describe('the tapes', () => {
+  const notes = [
+    makeNote('spoken', '# Spoken', { source: 'capture', recordingMs: 40_000, updatedAt: 4 }),
+    makeNote('typed', '# Typed then spoken', { source: 'editor', recordingMs: 12_000, updatedAt: 3 }),
+    makeNote('plain', '# Plain', { updatedAt: 2 }),
+    makeNote('removed', '# Removed', { source: 'capture', recordingMs: null, updatedAt: 1 }),
+    makeNote('gone', '# Gone', { source: 'capture', recordingMs: 9_000, updatedAt: 5, archivedAt: 6 }),
+  ];
+
+  it('shows only the notes with a recording when asked, typed ones included, and the archive still only when asked', () => {
+    expect(browseNotes(notes, { query: '', sort: 'newest', archived: false, tapes: true }).map((n) => n.id)).toEqual(['spoken', 'typed']);
+    expect(browseNotes(notes, { query: '', sort: 'newest', archived: true, tapes: true }).map((n) => n.id)).toEqual(['gone', 'spoken', 'typed']);
+    expect(browseNotes(notes, { query: 'typed', sort: 'newest', archived: false, tapes: true }).map((n) => n.id)).toEqual(['typed']);
+  });
+
+  it('knows a tape by its recording, and counts them', () => {
+    expect(notes.map(hasTape)).toEqual([true, true, false, false, true]);
+    expect(tapeCount(notes)).toBe(3);
+    expect(tapeCount(notes.filter((n) => !n.archivedAt))).toBe(2);
   });
 });
 

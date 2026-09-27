@@ -476,11 +476,13 @@ function Shell() {
    * no good UI it just opens in the sidebar, I'd like a grid view of all the notes"). A note opened from it takes a tab
    * as one opened from anywhere does; its arrow and the phone's back gesture come back home.
    */
-  const showAllNotes = () => {
+  const showAllNotes = (options?: { tapes: boolean }) => {
     setDrawer(false);
-    setScreen({ name: 'notes' });
+    setScreen({ name: 'notes', ...(options?.tapes ? { tapes: true } : {}) });
   };
-  const allNotes = <AllNotesScreen notes={shownNotes} loading={loading} onOpen={openNoteWhereLeft} onBack={() => void backToList()} />;
+  const allNotes = (
+    <AllNotesScreen notes={shownNotes} loading={loading} onOpen={openNoteWhereLeft} onBack={() => void backToList()} tapes={screen.name === 'notes' && screen.tapes === true} />
+  );
   /*
    * The home page (home/HomeScreen.tsx): the start page on every screen (Matt: "Add a 'home' button to take us to a
    * dashboard like page"). It took the notes list's place on a phone and the empty "No note open" pane beside the

@@ -106,6 +106,14 @@ export function Pin({ className }: IconProps) {
   return icon(className, 'M8.5 3h7M10 3l-.9 5.6L6 12.4h12l-3.1-3.8L14 3M12 12.4V21');
 }
 
+/**
+ * A cassette: the shell of the tape on the home page's shelf (tapes/TapeArt.tsx) in the icon's own line weight, with
+ * its two reels. On the Tapes heading the way the pin sits on Pinned, and on All notes' Tapes toggle (docs/DESIGN.md §127).
+ */
+export function Cassette({ className }: IconProps) {
+  return icon(className, 'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM10.75 12a2.75 2.75 0 1 1-5.5 0 2.75 2.75 0 0 1 5.5 0zM18.75 12a2.75 2.75 0 1 1-5.5 0 2.75 2.75 0 0 1 5.5 0z');
+}
+
 /** An archive box: a lid, the box, and the handle slot. */
 export function ArchiveBox({ className }: IconProps) {
   return icon(className, 'M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5M10 12.5h4');
