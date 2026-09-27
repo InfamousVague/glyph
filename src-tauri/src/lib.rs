@@ -13,7 +13,7 @@ mod lock;
 mod guards;
 // Whole-file writes, JSON with a fallback, removals where gone is done. Tauri-free too.
 mod fsx;
-// Where the app keeps things, and the four directory names Kotlin shares.
+// Where the app keeps things, and the six directory names Kotlin shares.
 mod paths;
 // What iOS does not have, and the one sentence each such command answers with there.
 #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
@@ -32,6 +32,13 @@ pub mod note;
 pub mod library;
 // The database the notes lived in before 1.3.0, read once to move them into the library.
 pub mod store;
+// A recording's phrases as the paragraphs of its transcript, and the section they
+// live in: the twin of the page's `toParagraphs`, for the write-up that runs with
+// the app closed. Tauri-free, and in tools/host-tests.
+pub mod transcript;
+// The files a meeting's write-up is kept in under `jobs/`: its config, its
+// progress, its result. Tauri-free, read by the commands and the JNI door alike.
+pub mod jobs;
 
 // The webview's door to the notes: one library call per command, and the
 // delete that takes a note's pictures and recording with it.

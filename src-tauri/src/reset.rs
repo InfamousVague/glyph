@@ -2,9 +2,11 @@
 //!
 //! `reset_local_data({ models })` removes every note from the library (the
 //! files, what is kept beside them, and the index), the recordings and
-//! pictures, the Notion sign-in, and - only when asked - the models directory,
-//! whisper's and the formatter's alike. The page clears what it keeps itself
-//! (preferences, the guide's seen flag, the refine queue) and reloads.
+//! pictures, the meetings' write-ups (`jobs/`), the Notion sign-in, and - only
+//! when asked - the models directory, whisper's and the formatter's alike. The
+//! page clears what it keeps itself (preferences, the guide's seen flag, the
+//! refine queue) and reloads; on Android it cancels the write-ups' WorkManager
+//! chain first (`GlyphHost.cancelWriteUps`), which Rust cannot reach.
 //!
 //! Directories are removed whole and not recreated: every writer in the crate
 //! creates its directory before it writes (`images::adopt`,
@@ -28,6 +30,7 @@ use crate::paths;
 struct Kept {
     recordings: Option<PathBuf>,
     images: Option<PathBuf>,
+    jobs: Option<PathBuf>,
     notion: Option<PathBuf>,
     models: Option<PathBuf>,
 }
@@ -44,6 +47,7 @@ pub fn reset_local_data(app: AppHandle, store: State<'_, NotesStore>, models: bo
     let kept = Kept {
         recordings: paths::recordings_dir(&app).ok(),
         images: paths::images_dir(&app).ok(),
+        jobs: paths::jobs_dir(&app).ok(),
         notion: crate::notion::account_path(&app).ok(),
         models: paths::models_dir(&app).ok(),
     };
@@ -51,12 +55,13 @@ pub fn reset_local_data(app: AppHandle, store: State<'_, NotesStore>, models: bo
 }
 
 /// The reset itself, in the order it has always run: the notes, then the
-/// recordings and pictures, then the Notion sign-in, then - if asked - the
-/// models. The first failure stops it and is the answer.
+/// recordings, pictures and write-ups, then the Notion sign-in, then - if
+/// asked - the models. The first failure stops it and is the answer.
 fn reset(notes: &NotesStore, kept: &Kept, models: bool) -> Result<(), String> {
     notes.lock().clear().map_err(|e| e.to_string())?;
     remove_dir(kept.recordings.as_deref(), "recordings")?;
     remove_dir(kept.images.as_deref(), "pictures")?;
+    remove_dir(kept.jobs.as_deref(), "jobs")?;
     // The Notion sign-in: a reset leaves no account behind.
     if let Some(path) = &kept.notion {
         crate::fsx::remove_file_if_present(path).map_err(|e| format!("could not forget the Notion account: {e}"))?;
@@ -79,7 +84,7 @@ mod tests {
         let root = TempDir::new("reset");
         let mut library = Library::open_fs(&root.join("Library")).unwrap();
         library.save_note("n1", "# Kept until now\n\n![](image/a.jpg)\n", "capture").unwrap();
-        for file in ["recordings/n1.wav", "images/a.jpg", "models/ggml-base.en-q5_1.bin"] {
+        for file in ["recordings/n1.wav", "images/a.jpg", "jobs/n1.progress", "models/ggml-base.en-q5_1.bin"] {
             std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
             std::fs::write(root.join(file), b"bytes").unwrap();
         }
@@ -87,6 +92,7 @@ mod tests {
         let kept = Kept {
             recordings: Some(root.join("recordings")),
             images: Some(root.join("images")),
+            jobs: Some(root.join("jobs")),
             notion: Some(root.join("notion.json")),
             models: Some(root.join("models")),
         };
@@ -100,6 +106,7 @@ mod tests {
         assert!(notes.lock().list_notes().unwrap().is_empty());
         assert!(!root.join("Library/Inbox/Kept until now.md").exists());
         assert!(!root.join("recordings").exists() && !root.join("images").exists(), "removed whole, not emptied");
+        assert!(!root.join("jobs").exists(), "the write-ups go with the recordings");
         assert!(!root.join("notion.json").exists(), "no account is left signed in");
         assert!(root.join("models/ggml-base.en-q5_1.bin").exists(), "a 60 MB download is not thrown away unasked");
         reset(&notes, &kept, false).unwrap();

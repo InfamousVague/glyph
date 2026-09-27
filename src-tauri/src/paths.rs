@@ -25,12 +25,13 @@
 //! present - and NOT a relative path, which would answer for whatever file
 //! happens to sit in the process's working directory).
 //!
-//! FOUR NAMES ARE SHARED WITH KOTLIN, which resolves them from its own
-//! `Context` and has no way to ask this module: `Library`, `ota`, `picked`
-//! and `updates`. Each constant names its twin, each twin names this file,
-//! and a test reads the Kotlin sources, so renaming one side alone fails the
-//! build's tests instead of quietly breaking the Files app, update alerts, the
-//! picker or APK install on a phone.
+//! SIX NAMES ARE SHARED WITH KOTLIN, which resolves them from its own
+//! `Context` and has no way to ask this module: `Library`, `recordings`,
+//! `jobs`, `ota`, `picked` and `updates`. Each constant names its twin, each
+//! twin names this file, and a test reads the Kotlin sources, so renaming one
+//! side alone fails the build's tests instead of quietly breaking the Files
+//! app, a meeting's recording or its write-up, update alerts, the picker or
+//! APK install on a phone.
 
 use std::fmt::Display;
 use std::path::PathBuf;
@@ -42,7 +43,9 @@ use tauri::{Manager, Runtime};
 /// which serves this folder to the Files app.
 pub const LIBRARY: &str = "Library";
 
-/// A spoken note's kept audio, `<id>.wav`.
+/// A spoken note's kept audio, `<id>.wav`. KOTLIN TWIN:
+/// `capture/MeetingService.kt`, `File(dataDir, "recordings")`, where the
+/// meeting service writes the WAV it records as it goes.
 pub const RECORDINGS: &str = "recordings";
 
 /// Pictures in notes, `<uuid>.<jpg|png|webp>`.
@@ -51,6 +54,12 @@ pub const IMAGES: &str = "images";
 /// Model files and their `.part` downloads, whisper's and the formatter's in
 /// one directory, so a file name must be unique across both catalogues.
 pub const MODELS: &str = "models";
+
+/// A meeting's write-up: `config.json`, `<id>.progress` and `<id>.json`
+/// (jobs.rs). KOTLIN TWIN: `recordings/RecordingWorker.kt`,
+/// `File(context.dataDir, "jobs")`, which lists the `.progress` files at
+/// launch to enqueue the unfinished ones, and never writes there.
+pub const JOBS: &str = "jobs";
 
 /// Downloaded frontends and the OTA state files. KOTLIN TWIN:
 /// `updates/UpdateCheckWorker.kt`, `File(context.dataDir, "ota")`, whose path
@@ -100,6 +109,11 @@ pub fn models_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> 
     Ok(data_dir(app)?.join(MODELS))
 }
 
+/// `<app_data_dir>/jobs`.
+pub fn jobs_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
+    Ok(data_dir(app)?.join(JOBS))
+}
+
 /// `<app_data_dir>/ota`.
 pub fn ota_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
     Ok(data_dir(app)?.join(OTA))
@@ -133,20 +147,31 @@ mod tests {
 
     /// The names Kotlin resolves on its own. Matched against the source as it
     /// is written, `File(<root>, "<name>")`, so a rename on either side fails
-    /// here rather than on a phone.
+    /// here rather than on a phone. The meeting files (generation 20) are built
+    /// on their own branch: until they are in this tree their lines print
+    /// SKIPPED and pass, and once they are they bite like the others.
     #[test]
     fn the_kotlin_twins_name_the_same_directories() {
         let kotlin = |file: &str| {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("gen/android/app/src/main/java/com/mattssoftware/glyph").join(file);
-            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+            std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))
         };
-        for (file, twin) in [
-            ("files/LibraryDocuments.kt", format!("File(context!!.dataDir, \"{LIBRARY}\")")),
-            ("updates/UpdateCheckWorker.kt", format!("File(context.dataDir, \"{OTA}\")")),
-            ("MainActivity.kt", format!("File(cacheDir, \"{PICKED}\")")),
-            ("MainActivity.kt", format!("File(cacheDir, \"{UPDATES}\")")),
+        for (file, twin, arriving) in [
+            ("files/LibraryDocuments.kt", format!("File(context!!.dataDir, \"{LIBRARY}\")"), false),
+            ("updates/UpdateCheckWorker.kt", format!("File(context.dataDir, \"{OTA}\")"), false),
+            ("MainActivity.kt", format!("File(cacheDir, \"{PICKED}\")"), false),
+            ("MainActivity.kt", format!("File(cacheDir, \"{UPDATES}\")"), false),
+            ("capture/MeetingService.kt", format!("File(dataDir, \"{RECORDINGS}\")"), true),
+            ("recordings/RecordingWorker.kt", format!("File(context.dataDir, \"{JOBS}\")"), true),
         ] {
-            let source = kotlin(file);
+            let source = match kotlin(file) {
+                Ok(source) => source,
+                Err(_) if arriving => {
+                    eprintln!("SKIPPED: gen/android/app/src/main/java/com/mattssoftware/glyph/{file} is not in this tree yet");
+                    continue;
+                }
+                Err(e) => panic!("{e}"),
+            };
             assert!(source.contains(&twin), "{file} no longer says {twin}");
             assert!(source.contains("paths.rs"), "{file} should name src-tauri/src/paths.rs beside its twin");
         }

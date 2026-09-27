@@ -241,7 +241,8 @@ pub fn update_note(
 }
 
 /// Removes a note, answering `true` when a row actually went and `false` when
-/// it had already gone - and its kept recording with it.
+/// it had already gone - and its kept recording with it, and a meeting's
+/// write-up files (`jobs/<id>.progress`, `jobs/<id>.json`).
 ///
 /// The recording goes whether or not the row was still there: a file whose note
 /// is gone is a recording nothing can play, and nothing else would ever remove
@@ -256,12 +257,14 @@ pub fn delete_note(
 ) -> std::result::Result<bool, String> {
     let images = crate::paths::images_dir(&app).ok();
     let recordings = crate::paths::recordings_dir(&app).ok();
-    delete_with_files(&store, images.as_deref(), recordings.as_deref(), &id)
+    let jobs = crate::paths::jobs_dir(&app).ok();
+    delete_with_files(&store, images.as_deref(), recordings.as_deref(), jobs.as_deref(), &id)
 }
 
-/// `delete_note`'s work, given where pictures and recordings are kept (or
-/// `None` where the platform gave no directory, which leaves the files alone).
-fn delete_with_files(notes: &NotesStore, images: Option<&Path>, recordings: Option<&Path>, id: &str) -> std::result::Result<bool, String> {
+/// `delete_note`'s work, given where pictures, recordings and write-ups are
+/// kept (or `None` where the platform gave no directory, which leaves the
+/// files alone).
+fn delete_with_files(notes: &NotesStore, images: Option<&Path>, recordings: Option<&Path>, jobs: Option<&Path>, id: &str) -> std::result::Result<bool, String> {
     let mut library = notes.lock();
     // The body is read before the row goes: it is the only list of the
     // pictures the note had. They go after it, so a failed delete never
@@ -276,6 +279,13 @@ fn delete_with_files(notes: &NotesStore, images: Option<&Path>, recordings: Opti
     drop(library);
     if let Some(file) = recordings.and_then(|dir| recording_file(dir, id)) {
         let _ = std::fs::remove_file(file);
+    }
+    // A write-up for a note that is gone has nothing to write into; its
+    // progress goes under the lock every writer of it takes (jobs.rs).
+    if let Some(jobs) = jobs.filter(|_| crate::fsx::plain_id(id)) {
+        let _one = crate::lock::lock(&crate::guards::PROGRESS_FILE);
+        let _ = std::fs::remove_file(crate::jobs::progress_path(jobs, id));
+        let _ = std::fs::remove_file(crate::jobs::result_path(jobs, id));
     }
     Ok(removed)
 }
@@ -366,7 +376,7 @@ mod tests {
         fn new() -> Phone {
             let root = TempDir::new("commands");
             let notes = NotesStore(Mutex::new(Library::open_fs(&root.join("Library")).unwrap()));
-            for dir in ["images", "recordings"] {
+            for dir in ["images", "recordings", "jobs"] {
                 std::fs::create_dir_all(root.join(dir)).unwrap();
             }
             Phone { notes, root }
@@ -377,14 +387,14 @@ mod tests {
         }
 
         fn delete(&self, id: &str) -> Result<bool, String> {
-            delete_with_files(&self.notes, Some(&self.file("images")), Some(&self.file("recordings")), id)
+            delete_with_files(&self.notes, Some(&self.file("images")), Some(&self.file("recordings")), Some(&self.file("jobs")), id)
         }
     }
 
     #[test]
     fn a_deleted_note_takes_its_pictures_and_recording_but_not_another_notes_picture() {
         let phone = Phone::new();
-        for name in ["images/mine.jpg", "images/shared.png", "images/theirs.jpg", "recordings/n1.wav", "recordings/n2.wav"] {
+        for name in ["images/mine.jpg", "images/shared.png", "images/theirs.jpg", "recordings/n1.wav", "recordings/n2.wav", "jobs/n1.progress", "jobs/n1.json", "jobs/n2.progress"] {
             std::fs::write(phone.file(name), b"bytes").unwrap();
         }
         {
@@ -396,7 +406,8 @@ mod tests {
         assert!(!phone.file("images/mine.jpg").exists(), "a picture only it showed goes with it");
         assert!(phone.file("images/shared.png").exists(), "one another note still shows is kept");
         assert!(!phone.file("recordings/n1.wav").exists(), "its recording goes too");
-        assert!(phone.file("recordings/n2.wav").exists() && phone.file("images/theirs.jpg").exists());
+        assert!(!phone.file("jobs/n1.progress").exists() && !phone.file("jobs/n1.json").exists(), "and its write-up");
+        assert!(phone.file("recordings/n2.wav").exists() && phone.file("images/theirs.jpg").exists() && phone.file("jobs/n2.progress").exists());
         assert_eq!(phone.notes.lock().get_note("n1").unwrap(), None);
         assert!(phone.notes.lock().get_note("n2").unwrap().is_some());
     }
@@ -423,7 +434,7 @@ mod tests {
         let phone = Phone::new();
         std::fs::write(phone.file("images/mine.jpg"), b"bytes").unwrap();
         phone.notes.lock().save_note("n1", "![](image/mine.jpg)\n", "editor").unwrap();
-        assert_eq!(delete_with_files(&phone.notes, None, None, "n1"), Ok(true));
+        assert_eq!(delete_with_files(&phone.notes, None, None, None, "n1"), Ok(true));
         assert!(phone.file("images/mine.jpg").exists(), "no directory given, nothing removed from one");
     }
 
