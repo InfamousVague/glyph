@@ -384,16 +384,54 @@
 
 /*
  * Today, where the page begins: the page's one title, at xl, since a page with no title had nowhere for the eye to
- * start. It was one small line in the second ink. The head's pieces each leave space-5 under themselves (the pills'
- * and the notices' own margins), so the first heading sits space-5 under whatever came last.
+ * start. It was one small line in the second ink. The digest sits close under it; then the head's pieces each leave
+ * space-5 under themselves (the digest, the pills' and the notices' own margins), so the first heading sits space-5
+ * under whatever came last.
  */
 .today {
-  margin: 0 0 var(--glacier-space-5);
+  margin: 0 0 var(--glacier-space-2);
   font-size: var(--glacier-font-size-xl);
   line-height: var(--glacier-leading-xl);
   font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: var(--app-tracking-title);
   color: var(--app-ink);
+}
+
+/*
+ * The digest (HomeScreen.tsx, dashboard.ts `digest`): "5 to-dos open · Working on 2 tapes · 3 notes touched today",
+ * one line under the date in the second ink, wrapping on a phone. Each phrase that goes somewhere is a word to tap,
+ * at the line's own size and height rather than a whole tap target's; the middle dots between them are drawn, not
+ * typed, so a wrapped line never begins with one.
+ */
+.digest {
+  list-style: none;
+  margin: 0 0 var(--glacier-space-5);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-2);
+}
+
+.digest li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+}
+
+.digest li + li::before {
+  content: '·';
+  color: var(--app-ink-3);
+}
+
+.digestWord {
+  min-block-size: auto;
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 /*

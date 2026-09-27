@@ -9,7 +9,7 @@ import { bodyHash } from '../format/bodyHash.ts';
 import { keepGist } from '../format/results.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, rerender, show, unmount } from '../../test/render.tsx';
-import { stubResizeObserver } from '../../test/stubs.ts';
+import { stubMatchMedia, stubResizeObserver } from '../../test/stubs.ts';
 
 /**
  * The home page as a person reads it: the groups in their order, the empty page, the shelf of tapes and its way to
@@ -19,6 +19,11 @@ import { stubResizeObserver } from '../../test/stubs.ts';
 
 // A card's small drawing is the editor (notes/NotePeek.tsx), which is nothing the page decides.
 vi.mock('../notes/NotePeek.tsx', () => ({ NotePeek: () => null }));
+// The summary queue's sets, which the digest and the shelf's captions read: a test fills one and draws.
+const queues = vi.hoisted(() => ({ pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() }));
+vi.mock('../ai/summaries.ts', () => ({ useSummaries: () => queues, retrySummary: () => undefined, enqueueSummary: () => undefined }));
+// The digest's glide asks whether motion is reduced; jsdom has no matchMedia.
+stubMatchMedia();
 const { HomeScreen } = await import('./HomeScreen.tsx');
 
 // The page's wisp watches the bar's size; jsdom lays nothing out, so nothing ever resizes.
@@ -52,11 +57,17 @@ const cards = (group: string) => [...document.querySelectorAll(`section[aria-lab
 const recorded = (id: string, title: string, createdAt: number, over: Partial<Note> = {}) =>
   makeNote(id, `# ${title}`, { source: 'capture', recordingMs: 40_000, createdAt, updatedAt: createdAt, ...over });
 
+/** The digest's phrases, in their order. */
+const digestLine = () => [...document.querySelectorAll('ul[aria-label="Today"] li')].map((li) => li.textContent);
+
 beforeEach(() => {
   localStorage.clear();
   reloadPreferences();
 });
-afterEach(() => unmount());
+afterEach(() => {
+  unmount();
+  for (const set of Object.values(queues)) set.clear();
+});
 
 describe('the home page', () => {
   it('lays its groups out in their order: Pinned, To do, Tapes, Library, Recent', () => {
@@ -230,6 +241,45 @@ describe('the home page', () => {
     expect(onOpen).toHaveBeenLastCalledWith('a', 'milk');
     act(() => button('All notes · 1').click());
     expect(onAllNotes).toHaveBeenCalledTimes(1);
+  });
+
+  it('says under the date what is waiting, each phrase that is true in its order', () => {
+    queues.pending.add('p');
+    queues.failed.add('f');
+    show(page([makeNote('a', '# Shop\n\n- [ ] Milk\n- [ ] Eggs', { updatedAt: Date.now() }), recorded('p', 'Pending take', 2), recorded('f', 'Failed take', 1)]));
+    expect(digestLine()).toEqual(['2 to-dos open', 'Working on 1 tape', '1 summary didn’t come', '1 note touched today']);
+    unmount();
+    show(page([makeNote('a', '# Plain', { updatedAt: 1 })]));
+    expect(digestLine()).toEqual(['Nothing waiting on you']);
+    // The ghost speaks on an empty page, and nothing is said while the notes are still being read.
+    unmount();
+    show(page([]));
+    expect(document.querySelector('ul[aria-label="Today"]')).toBeNull();
+    unmount();
+    show(page([makeNote('a', '# Plain')], { loading: true }));
+    expect(document.querySelector('ul[aria-label="Today"]')).toBeNull();
+  });
+
+  it('glides to a phrase’s group when it is tapped, and opens Settings at Formatting for a missing model', () => {
+    const glided: Element[] = [];
+    const scrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      glided.push(this);
+    };
+    try {
+      const onGetModel = vi.fn();
+      queues.needsModel.add('t');
+      show(page([makeNote('a', '# Shop\n\n- [ ] Milk\n- [ ] Eggs', { updatedAt: Date.now() }), recorded('t', 'Take', 2)], { onGetModel }));
+      act(() => button('2 to-dos open').click());
+      expect(glided).toEqual([document.querySelector('section[aria-labelledby="home-tasks"]')]);
+      act(() => button('1 note touched today').click());
+      expect(glided[1]).toBe(document.querySelector('section[aria-labelledby="home-recent"]'));
+      act(() => button('1 tape needs a model').click());
+      expect(onGetModel).toHaveBeenCalledTimes(1);
+      expect(glided).toHaveLength(2);
+    } finally {
+      Element.prototype.scrollIntoView = scrollIntoView;
+    }
   });
 
   it('keeps writing, speaking and Settings in its dock, and Search only once the palette can open', () => {

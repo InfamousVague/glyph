@@ -1,15 +1,15 @@
 import { isBookBody } from '../book/book.ts';
 import { itemOnLine, itemWords } from '../core/boards.ts';
 import { taskBox } from '../core/itemSyntax.ts';
-import type { SummaryKind } from '../ai/summaries.ts';
+import type { SummariesState, SummaryKind } from '../ai/summaries.ts';
 import type { Note } from '../core/store.ts';
 import { guidePages } from '../guidebook/guidebook.ts';
 import { hasTape } from '../notes/allNotes.ts';
 
 /**
  * What the home page gathers from the notes (home/HomeScreen.tsx): the pinned ones, the tapes on the shelf, the ones
- * touched last, and every to-do not yet ticked, wherever it was written. Pure, so each rule is a test rather than a
- * page to look at.
+ * touched last, every to-do not yet ticked, wherever it was written, and the digest line under the date that says
+ * what is waiting (docs/DESIGN.md §132). Pure, so each rule is a test rather than a page to look at.
  */
 
 /** Pinned notes, newest first. The archive is never on the home page. */
@@ -108,6 +108,71 @@ export function openTasks(notes: readonly Note[]): OpenTask[] {
     });
   }
   return tasks;
+}
+
+/** Midnight at the start of the local day `now` is in. */
+export function startOfToday(now = Date.now()): number {
+  const day = new Date(now);
+  day.setHours(0, 0, 0, 0);
+  return day.getTime();
+}
+
+/** How many of the notes were touched since the local day began, out of the archive and the Guide: the digest's "N notes touched today". */
+export function touchedToday(notes: readonly Note[], now = Date.now()): number {
+  const since = startOfToday(now);
+  const guide = guidePages(notes);
+  return notes.filter((n) => !n.archivedAt && !guide.has(n.id) && n.updatedAt >= since).length;
+}
+
+/** What is waiting on the tapes, from the queues the shelf already reads (home/tapeCaption.ts). */
+export interface Waiting {
+  /** The better words or a summary on their way, on the page or natively. */
+  working: number;
+  /** Jobs that wait for a language model not on the phone. */
+  needsModel: number;
+  /** Summaries the queue gave up on. */
+  failed: number;
+}
+
+/**
+ * The tapes something is happening to, counted once each in the caption's own order: working before needing a model
+ * before failed, so a tape that is both is counted where its caption says it is.
+ */
+export function tapesWaiting(tapes: readonly Note[], sources: { refining: ReadonlySet<string>; summaries: SummariesState }): Waiting {
+  const { refining, summaries } = sources;
+  const waiting: Waiting = { working: 0, needsModel: 0, failed: 0 };
+  for (const { id } of tapes) {
+    if (refining.has(id) || summaries.native.has(id) || summaries.pending.has(id)) waiting.working += 1;
+    else if (summaries.needsModel.has(id)) waiting.needsModel += 1;
+    else if (summaries.failed.has(id)) waiting.failed += 1;
+  }
+  return waiting;
+}
+
+/** Where a digest phrase goes: a group on the page, or Settings › Formatting for a missing model. */
+export type DigestGo = 'tasks' | 'tapes' | 'model' | 'recent';
+
+export interface DigestPhrase {
+  text: string;
+  /** Null for a phrase that is only said. */
+  go: DigestGo | null;
+}
+
+/**
+ * The digest's phrases in order, each with where it goes, so the copy is a test and not a page to read: only the
+ * phrases that are true, and "Nothing waiting on you" first when none of the waiting ones are. No full stops: the
+ * digest is a row of fragments, like "All notes · 41".
+ */
+export function digest(facts: { open: number; waiting: Waiting; touched: number }): DigestPhrase[] {
+  const { open, waiting, touched } = facts;
+  const phrases: DigestPhrase[] = [];
+  if (open) phrases.push({ text: `${open} to-do${open === 1 ? '' : 's'} open`, go: 'tasks' });
+  if (waiting.working) phrases.push({ text: `Working on ${waiting.working} tape${waiting.working === 1 ? '' : 's'}`, go: 'tapes' });
+  if (waiting.needsModel) phrases.push({ text: waiting.needsModel === 1 ? '1 tape needs a model' : `${waiting.needsModel} tapes need a model`, go: 'model' });
+  if (waiting.failed) phrases.push({ text: waiting.failed === 1 ? '1 summary didn’t come' : `${waiting.failed} summaries didn’t come`, go: 'tapes' });
+  if (!phrases.length) phrases.push({ text: 'Nothing waiting on you', go: null });
+  if (touched) phrases.push({ text: `${touched} note${touched === 1 ? '' : 's'} touched today`, go: 'recent' });
+  return phrases;
 }
 
 /**

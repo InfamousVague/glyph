@@ -18,8 +18,22 @@ import { AcademyCard, RefiningNotice, UpdateNotice, VoiceModelStatus } from '../
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
 import { isTauri } from '../core/tauri.ts';
-import { enqueueSummary } from '../ai/summaries.ts';
-import { bookNotes, openTasks, pinnedNotes, recentNotes, summaryKindOf, tapedNotes, tickedTasks, type OpenTask } from './dashboard.ts';
+import { enqueueSummary, useSummaries } from '../ai/summaries.ts';
+import { useRefining } from '../capture/refine.ts';
+import {
+  bookNotes,
+  digest,
+  openTasks,
+  pinnedNotes,
+  recentNotes,
+  summaryKindOf,
+  tapedNotes,
+  tapesWaiting,
+  tickedTasks,
+  touchedToday,
+  type DigestGo,
+  type OpenTask,
+} from './dashboard.ts';
 import { TapeShelf } from './TapeShelf.tsx';
 import { bookIndex, placeOf } from '../book/book.ts';
 import styles from './HomeScreen.module.css';
@@ -151,6 +165,24 @@ export function HomeScreen({
   const todoBeats = open.length || allDone ? 1 : 0;
 
   const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  // The digest under the date: what is waiting, from what the page already holds (dashboard.ts `digest`). The tapes'
+  // queues are the shelf's own sources, read here as well; two subscribers to one store is fine.
+  const summaries = useSummaries();
+  const refining = useRefining().pending;
+  const waiting = useMemo(() => tapesWaiting(taped, { refining, summaries }), [taped, refining, summaries]);
+  const touched = useMemo(() => touchedToday(shown), [shown]);
+  const phrases = useMemo(() => digest({ open: open.length, waiting, touched }), [open.length, waiting, touched]);
+  const hasNotes = shown.some((n) => !n.archivedAt);
+  /** A phrase tapped: the page glides to its group, or Settings opens at Formatting for a missing model. A group that is not on the page: nothing. */
+  const glide = (go: DigestGo) => {
+    if (go === 'model') return (onGetModel ?? onSettings)();
+    const id = { tasks: 'home-tasks', tapes: 'home-tapes', recent: 'home-recent' }[go];
+    // Optional-chained: jsdom has no scrollIntoView.
+    document
+      .getElementById(id)
+      ?.closest('section')
+      ?.scrollIntoView?.({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  };
 
   /** A note's card (notes/NoteCard.tsx), at its place in the run of cards down the page. */
   const card = (note: Note, i: number) => (
@@ -166,13 +198,29 @@ export function HomeScreen({
       <div ref={scroller} className={styles.scroll}>
         <div className={styles.page}>
           <p className={styles.today}>{today}</p>
+          {/* The digest: a row of fragments, each a word that goes to its group. Nothing while loading, and the ghost speaks on an empty page. */}
+          {!loading && hasNotes ? (
+            <ul className={styles.digest} aria-label="Today">
+              {phrases.map(({ text, go }) => (
+                <li key={text}>
+                  {go ? (
+                    <button type="button" className={`app-word ${styles.digestWord}`} onClick={() => glide(go)}>
+                      {text}
+                    </button>
+                  ) : (
+                    <span>{text}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <WorkspaceBar onManage={setManage} />
           <UpdateNotice updates={updates} />
           <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
           {showAcademy && onAcademy ? <AcademyCard onOpen={onAcademy} onHide={onHideAcademy} /> : null}
           <RefiningNotice />
 
-          {!loading && shown.filter((n) => !n.archivedAt).length === 0 ? (
+          {!loading && !hasNotes ? (
             <div className={styles.empty}>
               <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
               <p className={styles.emptyLead}>{spaces.current ? `Nothing in ${spaces.current.name} yet.` : 'A blank page.'}</p>
