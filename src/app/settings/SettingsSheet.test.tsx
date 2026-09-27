@@ -82,11 +82,11 @@ const updates: Updates = {
   installApk: () => undefined,
 };
 
-function settings(toCheatSheet = 0): HTMLDivElement {
+function settings(toCheatSheet = 0, toFormatting = 0): HTMLDivElement {
   const noop = () => undefined;
   return show(
     <ToastProvider>
-      <SettingsSheet open onClose={noop} updates={updates} onGuide={noop} onSample={noop} onGuideBook={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} toCheatSheet={toCheatSheet} />
+      <SettingsSheet open onClose={noop} updates={updates} onGuide={noop} onSample={noop} onGuideBook={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} toCheatSheet={toCheatSheet} toFormatting={toFormatting} />
     </ToastProvider>,
   );
 }
@@ -150,6 +150,11 @@ describe('the list of sections', () => {
   it('opens on the cheat sheet when the Academy asks for it', () => {
     const host = settings(Date.now());
     expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Cheat sheet');
+  });
+
+  it('opens on Formatting when the shelf’s Get a model asks for it', () => {
+    const host = settings(0, Date.now());
+    expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Formatting');
   });
 });
 

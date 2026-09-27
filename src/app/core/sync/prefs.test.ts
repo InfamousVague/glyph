@@ -87,6 +87,17 @@ describe('settings kept the same on every device', () => {
     expect(desk.prefs).toMatchObject({ theme: 'ember', formatModel: DEFAULT_PREFERENCES.formatModel, localOnly: false });
   });
 
+  it('carry which notes are in the trash and which are meetings, so the shelf on a second device knows them', async () => {
+    const service = await fakeService(ACCOUNT);
+    const phone = device(service);
+    phone.set({ trash: { t: 7 }, meetings: { m: 40 } });
+    await phone.sync();
+    const desk = device(service);
+    await desk.sync();
+    expect(desk.prefs.trash).toEqual({ t: 7 });
+    expect(desk.prefs.meetings).toEqual({ m: 40 });
+  });
+
   it('ignore what a newer build wrote that this one does not know', async () => {
     const service = await fakeService(ACCOUNT);
     const token = service.signedIn();

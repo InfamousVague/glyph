@@ -4,7 +4,7 @@ import type { NoteScreen } from './editor/NoteScreen.tsx';
 import type { CaptureScreen } from './capture/CaptureScreen.tsx';
 import type { Guide } from './guide/Guide.tsx';
 import type { SettingsSheet } from './settings/SettingsSheet.tsx';
-import { createNote, getNote, type Note } from './core/store.ts';
+import { createNote, getNote, setNoteRecording, type Note } from './core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from './core/preferences.ts';
 import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
 import { stubResizeObserver } from '../test/stubs.ts';
@@ -71,6 +71,12 @@ vi.mock('./academy/AcademyScreen.tsx', () => ({ AcademyScreen: () => <main data-
 vi.mock('./launch/LaunchScreen.tsx', () => ({ LaunchScreen: () => null }));
 // A card's small drawing is a CodeMirror editor (notes/NotePeek.tsx), one per card: nothing the Shell decides.
 vi.mock('./notes/NotePeek.tsx', () => ({ NotePeek: () => null }));
+// The summary queue is §127 section 2's to fill; here a tape can be made to wait for a model, for the shelf's Get a model.
+const needsModel = vi.hoisted(() => new Set<string>());
+vi.mock('./ai/summaries.ts', () => ({
+  useSummaries: () => ({ pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel }),
+  retrySummary: () => undefined,
+}));
 vi.mock('./share/share.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./share/share.ts')>()),
   readShared: vi.fn(async () => ({ v: 1, kind: 'note', title: 'Shared', pages: [{ title: 'Shared', body: '# Shared\n\nFrom a friend.' }], at: 1 })),
@@ -125,6 +131,7 @@ beforeEach(() => {
 afterEach(() => {
   unmount();
   vi.useRealTimers();
+  needsModel.clear();
   delete window.__glyph;
 });
 
@@ -381,6 +388,36 @@ describe('a capture ending', () => {
     await act(async () => seen.capture!.onFinish(made, false));
     expect(screenNow()).toBeNull();
     await waitUntil(() => expect(card('Said aloud')).toBeTruthy());
+  });
+});
+
+describe('the shelf of tapes', () => {
+  /** Recordings the recorder made, `take1` the newest. */
+  async function record(count: number): Promise<void> {
+    for (let i = count; i >= 1; i -= 1) {
+      await createNote(`take${i}`, `# Take ${i}`, 'capture');
+      await setNoteRecording(`take${i}`, 40_000, []);
+    }
+  }
+
+  it('sends "and N more" to All notes with only the tapes showing', async () => {
+    await record(9);
+    await openApp();
+    await waitUntil(() => expect(button('and 1 more in All notes')).toBeTruthy());
+    act(() => button('and 1 more in All notes').click());
+    await waitUntil(() => expect(document.querySelector('ol[aria-label="Notes"]')).not.toBeNull());
+    expect(document.querySelector('button[aria-pressed="true"]')?.textContent).toContain('Tapes · 9');
+  });
+
+  it('opens Settings at Formatting from Get a model', async () => {
+    needsModel.add('take1');
+    await record(1);
+    await openApp();
+    await waitUntil(() => expect(button('Get a model')).toBeTruthy());
+    expect(seen.settings?.open).toBe(false);
+    act(() => button('Get a model').click());
+    expect(seen.settings?.open).toBe(true);
+    expect(seen.settings?.toFormatting).toBeGreaterThan(0);
   });
 });
 
