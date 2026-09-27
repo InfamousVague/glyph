@@ -2,9 +2,10 @@
 
 What to enter in each form, in the order the Console's dashboard lists them for a new app. Every answer says where it
 comes from: the privacy policy (`landing/privacy.html`, live at https://ghostmarkdown.com/privacy.html), the plan
-(`docs/store/PLAY_STORE.md`), the Android manifest, or the code. Read against the app at 1.8.0-20, the 1.9.0 work in
-flight, and Play's help pages as they read on 2026-09-27. Where the Console words a question differently on the day,
-its wording wins and the answer stays the same.
+(`docs/store/PLAY_STORE.md`), the Android manifest, or the code. Read against the app at 1.8.0-20, the meetings work
+on the `meetings/kotlin` branch, and Play's help pages as they read on 2026-09-27 (the data safety page, the testing
+requirements page, the graphic assets page, the create-app page and the foreground service page). Where the Console
+words a question differently on the day, its wording wins and the answer stays the same.
 
 Nothing here is a secret. No password, key or token appears in this file, and none should be added to it. A test
 account, if you choose to give reviewers one, is made on the day and typed into the Console alone.
@@ -25,13 +26,13 @@ Play Console › All apps › Create app.
 
 ## Select an app category and provide contact details
 
-Grow › Store presence › Store settings.
+Store presence › Store settings, under Grow in the left menu.
 
 | Field | Enter |
 |---|---|
 | App or game | App |
 | Category | Productivity |
-| Tags | Up to five from Play's fixed list. Take the nearest to notes, note-taking, voice recorder, productivity and Markdown, in that order, and skip any that is not offered. |
+| Tags | Up to five from Play's fixed list, which the Console shows and its help pages do not print. Take the nearest to notes, note-taking, voice recorder, productivity and Markdown, in that order, and skip any that is not offered. |
 | Contact email | infamousvaguerat@gmail.com. It is shown on the listing and is the address on the privacy page. |
 | Contact phone | Leave empty. |
 | Website | https://ghostmarkdown.com |
@@ -66,7 +67,7 @@ word about the digital assistant role before a reviewer asks. Under the first an
 fine: if the review comes back with a question about the assistant role or the AI, the same paragraph is the reply.
 
 ```
-Ghost.md works in full without an account: notes, voice notes, transcription and the AI on the device, boards, books and canvases. An account is optional. It adds sync between devices, live typing and read-only share links, and can be made in Settings > Account with any handle and password. Delete account is in the same place. The app registers as a digital assistant (a VoiceInteractionService) only so that holding the side key starts a voice note. It listens to nothing in the background, and the microphone is open only while the recorder is on screen. The AI features run on the device with a model downloaded from Settings > Formatting. Without one the app says so and everything else works.
+Ghost.md works in full without an account: notes, voice notes, transcription and the AI on the device, boards, books and canvases. An account is optional. It adds sync between devices, live typing and read-only share links, and can be made in Settings > Account with any handle and password. Delete account is in the same place. The app registers as a digital assistant (a VoiceInteractionService) only so that holding the side key starts a voice note. It listens to nothing in the background, and the microphone is open only while the recorder is on screen or a meeting the person started is being recorded, with a notification showing the whole time. The AI features run on the device with a model downloaded from Settings > Formatting. Without one the app says so and everything else works.
 ```
 
 ### Ads
@@ -97,13 +98,12 @@ Redo the questionnaire if a later release lets people write to each other.
 | Question | Answer |
 |---|---|
 | Target age groups | 13 to 15, 16 to 17, and 18 and over. No group under 13. |
-| Could the app unintentionally appeal to children (asked once an under-18 group is ticked) | No. |
-| Could the store listing appeal to children | No. |
+| Whether the app could unintentionally appeal to children, if the Console asks it | No. |
+| Whether the store listing could unintentionally appeal to children, if the Console asks it | No. |
 | Ads that could appeal to children | Not asked, since there are no ads. |
 
 Why 13 and over: it is the plan's answer, and the privacy page says the app is not directed at children under 13 and
-knowingly collects nothing from them. 18 and over alone is also true and skips the appeal questions. Both are honest;
-13 and over is the plan.
+knowingly collects nothing from them. 18 and over alone is also true. Both are honest; 13 and over is the plan.
 
 ### News apps
 
@@ -131,7 +131,7 @@ The opening questions:
 | The form asks whether | Answer |
 |---|---|
 | the app collects or shares any of the listed data types | Yes |
-| all collected data is encrypted in transit | Yes. HTTPS to the sync service, attack.fm and ghostmarkdown.com, and the manifest turns cleartext traffic off. |
+| all collected data is encrypted in transit | Yes. Everything is HTTPS: the sync service and the model and update downloads at attack.fm, the site at ghostmarkdown.com, and Hugging Face when attack.fm cannot be reached. A release build sets `usesCleartextTraffic` to false (`build.gradle.kts`). |
 | there is a way for users to request that their data is deleted | Yes |
 
 Account creation and deletion:
@@ -179,7 +179,7 @@ Security practices, the form's last section:
 
 | Question | Answer |
 |---|---|
-| Independent security review | No |
+| Independent security review | No. It is an optional badge for apps checked by a lab against the MASVS standard, and none has been. |
 | Commits to the Play Families policy | Not asked of an app that is not for children. If it is, No. |
 
 ### Government apps
@@ -210,23 +210,29 @@ Not asked. The app declares no `READ_MEDIA_IMAGES` or `READ_MEDIA_VIDEO`; pictur
 
 ### Foreground service permissions (1.9.0 only)
 
-1.8.0 has no foreground service, so the form does not appear for it. The 1.9.0 meeting service (`MeetingService.kt`,
-on the `meetings/kotlin` branch as it stands on 2026-09-27) records with the **microphone** type, writes the meeting
-up under **media processing** on Android 15 and later, and under **special use** on Android 14, where that type does
-not exist. It also holds a partial wake lock. Once that bundle is uploaded the Console asks, per type, what the
-service does, what the person sees, and for a link to a video that shows it. Read the built service before pasting:
-the meeting sections of docs/DESIGN.md §127 were still headed "To come" when this was written, so check the word the
-app uses for starting a meeting and what happens when the system stops the service.
+1.8.0 has no foreground service, so the form does not appear for it. The 1.9.0 meeting service (`MeetingService.kt`
+on the `meetings/kotlin` branch, commit 909b491 as read on 2026-09-27) records under the **microphone** type, then
+writes the meeting up under **media processing** on Android 15 and later and under **special use** on Android 14,
+where that type does not exist. WorkManager's own foreground service carries the same two write-up types for the
+retry path, and both services name the special use as "Writing up a meeting recording on the device" in the
+manifest. The service also holds a partial wake lock.
 
-| Type | Description to paste |
-|---|---|
-| Microphone | Records a meeting the person started by hand in the app. The screen can go off and the app can be left; the recording carries on, and a notification shows the whole time, with the way to stop it. The microphone is open for that recording and nothing else. |
-| Media processing | After the meeting is stopped, the recording is transcribed and summarised on the device, in the same service, with progress in the same notification. Nothing leaves the phone. |
-| Special use | The same write-up of a meeting recording on Android 14, where the media processing type does not exist. |
+Play asks per type, not per service, once a bundle declaring the types is uploaded. For each type the form wants: a
+description of what the feature does, what happens to the person if the system defers or stops it, a use case
+picked from Play's list (or written in when none fits), and a link to a video showing it. Read the built service
+before pasting: docs/DESIGN.md §127 sections 3, 4 and 5 were still headed "To come" when this was written, and the
+page's way of starting a meeting is not on main, so check the word the app uses for it.
 
-The video: a screen recording on the phone, two minutes is enough, showing a meeting started, the screen going off,
-the notification, the meeting stopped, and the summary arriving under the title. An unlisted YouTube link is what the
-form takes. Only you can record it.
+| Type | Description to paste | If the system stops it |
+|---|---|---|
+| Microphone | Records a meeting the person started by hand in the app. The screen can go off and the app can be left; the recording carries on, and a notification shows the whole time, reading Recording with the elapsed time and offering Stop and Discard. After two hours it asks whether to keep going. The microphone is open for that recording and nothing else. | The recording ends where it stopped. The tape and its words are kept, and the note says so. |
+| Media processing | After the meeting is stopped, the recording is transcribed and summarised on the device, in the same service, with progress in the same notification: Writing up, then Listening to the recording with a percentage, then the summary. Nothing leaves the phone. When it is done a notification reads Written up with the note's title and the first line of the summary; on the lock screen it says only that a recording was written up. | The write-up resumes when the app is next opened, or from Write up now on the Tapes shelf. |
+| Special use | The same write-up of a meeting recording on Android 14, where the media processing type does not exist. | As above. |
+
+The use case from Play's list: for the microphone, the nearest to voice recording or background audio recording; for
+the other two, media transcoding or processing. The video: a screen recording on the phone, two minutes is enough,
+showing a meeting started, the screen going off, the notification, the meeting stopped, and the summary arriving
+under the title. An unlisted YouTube link is what the form takes. Only you can record it.
 
 ## The permissions the manifest declares
 
@@ -248,7 +254,7 @@ the recorder, and the recognition service beside them, which the assistant role 
 
 ## The release form
 
-Release › Testing › Closed testing, or Release › Production › Create new release.
+Test and release › Testing › Closed testing, or Test and release › Production › Create new release.
 
 | Field | Enter |
 |---|---|
