@@ -1,109 +1,106 @@
 # Play Console, step by step
 
-The order the Play Console asks for things, and which file in this folder (and which picture in the pack) each step
-takes. The pictures live outside the repo, in the pack folder this was delivered with; the markdown is here. Tick
-the boxes as you go.
+The order the Console asks for things, and which file in this folder to paste or upload at each step. The words are
+in the Markdown files beside this one, in the repo. The pictures are not in the repo: they are in
+`/private/tmp/claude-501/-Users-matt-Development-Apps-glyph/d8404dd2-3ec4-4534-82c0-8df83377f14d/scratchpad/store/play/`,
+under the same names this file uses. Copy that folder somewhere safe before the scratchpad is cleared.
 
-Before the Console: the three things only Matt can do are in docs/store/PLAY_STORE.md: the developer account
-(personal or organisation), the upload key, and what to tell the people who installed the APK.
+What is already done in the code is in docs/store/PLAY_STORE.md: the Play build, delete account, the privacy and
+delete-account pages, targetSdk 36, 16 KB pages.
 
-## 1. The account and the app
+## Before the Console
 
-- [ ] Sign in to the Play Console with the developer account. A personal account made after 13 November 2023 will
-      have to run the closed test in step 8 before production.
-- [ ] Create app: name `Ghost.md`, default language **English (United Kingdom)**, App, Free. Accept the developer
-      programme policies and the US export laws declaration.
+- [ ] **Decide** personal or organisation account, and what to tell APK users (FORM_ANSWERS.md, last section).
+- [ ] **Make the upload key** and enrol in Play App Signing (PLAY_STORE.md step 2). Back up the keystore.
+- [ ] **Build the bundle**: `GLYPH_STORE=play npm run android:build -- --aab --target aarch64`, signed with that key.
+      Confirm the build is the one the copy describes: with Meeting in the + sheet, or edit LISTING.md and
+      RELEASE_NOTES.md as they say.
+- [ ] **Check the pack has no secrets**: `grep -ril "token\|password\|sshpass" docs/store/play/` should find only the
+      words in FORM_ANSWERS.md's table headings. The seed library in the pictures is invented.
 
-## 2. Set up your app (the dashboard's list, in its order)
+## 1. Create app
 
-- [ ] **Privacy policy:** `https://ghostmarkdown.com/privacy.html` (FORMS.md › Privacy policy).
-- [ ] **App access:** "All or some functionality is restricted", the instruction set from FORMS.md › App access,
-      and a test account made for the purpose. Do not type a real password anywhere but the Console.
-- [ ] **Ads:** No (FORMS.md › Ads).
-- [ ] **Content rating:** the questionnaire, answers in FORMS.md › Content rating. Expect "rated for everyone".
-- [ ] **Target audience and content:** 13 and over, not appealing to children (FORMS.md › Target audience).
-- [ ] **News apps:** No.
-- [ ] **COVID-19 contact tracing and status apps:** No.
-- [ ] **Data safety:** the tables in FORMS.md › Data safety. Two types collected, nothing shared, encrypted in
-      transit, deletion offered, the account deletion URL `https://ghostmarkdown.com/delete-account.html`.
-- [ ] **Government apps:** No.
-- [ ] **Financial features:** none.
-- [ ] **Health:** none.
-- [ ] **Advertising ID:** No.
-- [ ] **Foreground service permissions:** only if the uploaded bundle is 1.9.0 with the meeting service. Then
-      FORMS.md › Foreground service permissions, with a video link.
+Play Console › All apps › Create app. Answers: FORM_ANSWERS.md › Create app.
+
+## 2. Dashboard › Set up your app
+
+Each row opens a form. In the order the Console lists them:
+
+- [ ] **Set privacy policy**: `https://ghostmarkdown.com/privacy.html`
+- [ ] **App access**: FORM_ANSWERS.md › App access (choose the first option; paste the note into the instructions box).
+- [ ] **Ads**: No.
+- [ ] **Content rating**: start the questionnaire, email infamousvaguerat@gmail.com, category and answers in
+      FORM_ANSWERS.md › Content ratings.
+- [ ] **Target audience**: FORM_ANSWERS.md › Target audience and content.
+- [ ] **News apps**: No.
+- [ ] **COVID-19 apps**: No.
+- [ ] **Data safety**: FORM_ANSWERS.md › Data safety, row by row.
+- [ ] **Government apps**: No.
+- [ ] **Financial features**: none.
+- [ ] **Health**: none.
+- [ ] **Advertising ID**: No.
+- [ ] **Foreground service permissions** (appears after a 1.9.0 bundle is uploaded): FORM_ANSWERS.md › Foreground
+      service permissions, one entry per type, with the video link Matt records.
 
 ## 3. Store settings
 
-- [ ] App category Productivity, tags, contact email `infamousvaguerat@gmail.com`, website
-      `https://ghostmarkdown.com`, external marketing off (FORMS.md › Store settings).
+Grow › Store presence › Store settings. FORM_ANSWERS.md › Store settings: category Productivity, tags, contact email,
+website.
 
 ## 4. Main store listing
 
-- [ ] App name: LISTING.md › App name.
-- [ ] Short description: LISTING.md › Short description (80 characters).
-- [ ] Full description: LISTING.md › Full description. Leave the MEETINGS block out unless the upload is 1.9.0.
-- [ ] App icon: upload `app-icon.png` (512 × 512).
-- [ ] Feature graphic: upload `feature-graphic.png` (1,024 × 500).
-- [ ] Phone screenshots: upload `phone-screenshot-01.png` to `phone-screenshot-08.png`, in that order. The first
-      two are what search results show.
-- [ ] 7-inch tablet screenshots: upload `tablet-7-inch-screenshot-01.png` to `-03.png`.
-- [ ] 10-inch tablet screenshots: upload `tablet-10-inch-screenshot-01.png` to `-03.png`.
-- [ ] Video: none.
-- [ ] Save. The Console shows a preview; check the short description does not wrap awkwardly under the name.
+Grow › Store presence › Main store listing.
 
-## 5. App signing and the bundle
+| Field | Paste or upload |
+|---|---|
+| App name | LISTING.md › App name |
+| Short description | LISTING.md › Short description |
+| Full description | LISTING.md › Full description |
+| App icon (512 × 512 PNG) | `app-icon-512.png` |
+| Feature graphic (1024 × 500) | `feature-graphic-1024x500.jpg` |
+| Phone screenshots (2 to 8) | `phone-screenshots/01-home.png` to `08-a-meeting-written-up.png`, in that order. 1242 × 2208, 9:16. The two `spare-*.png` files are extras to swap in, not to add: Play takes eight. |
+| 7-inch tablet screenshots | `tablet-7in-screenshots/01-home.png` to `04-plugins.png`. 2184 × 1968, the Fold opened out. |
+| 10-inch tablet screenshots | `tablet-10in-screenshots/01-home.png` to `04-the-academy.png`. 2560 × 1600. |
+| Video | None. |
 
-- [ ] Make the upload key (PLAY_STORE.md step 2), point `GLYPH_ANDROID_SIGNING` at its signing file, and back
-      the keystore up.
-- [ ] Build: `GLYPH_STORE=play npm run android:build -- --aab --target aarch64`. The bundle is at
-      `src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`.
-- [ ] On the first upload, choose Play App Signing with a Google-generated app signing key. The upload key's
-      certificate is registered from that first bundle.
+Every screenshot is a 24-bit PNG with no alpha channel, which Play requires; the feature graphic is a JPEG for the
+same reason. Save, then check the preview on the right of the page reads as the phone does.
 
-## 6. Closed testing release
+## 5. Testing, then production
 
-- [ ] Testing › Closed testing › Create track (or use the default "Alpha"), then Create release.
-- [ ] Upload the bundle. Release name: the version, e.g. `1.9.0 (1)`.
-- [ ] Release notes: LISTING.md › Release notes, in en-GB.
-- [ ] Testers: a list of email addresses, or a Google Group. For a personal account, at least 12 people, opted in
-      for 14 days without a break. Share the opt-in link the Console gives.
-- [ ] Review the release and roll it out to the track. The first review can take a few days.
+- [ ] **Closed testing** (a personal account must: 12 testers, 14 days): Test and release › Testing › Closed testing ›
+      Create track › Create release. Upload the bundle, paste RELEASE_NOTES.md into the release notes box, choose
+      countries, review, roll out. Add the testers' emails as a list. Wait the 14 days, then apply for production
+      access from the dashboard.
+- [ ] **Production**: Test and release › Production › Create new release. The same bundle, the same notes.
+- [ ] **Pre-launch report**: read it under Test and release › Pre-launch report once the bundle has been processed;
+      it runs the app on test devices and lists crashes and accessibility notes.
+- [ ] **Send for review**: Publishing overview › Send changes for review. A first review takes days rather than
+      hours; the assistant role and the AI features are the two things a reviewer is most likely to ask about, and
+      the App access note answers both.
 
-## 7. While the test runs
+## 6. After the first release
 
-- [ ] Answer the reviewers if they write. The review notes in FORMS.md say what the assistant role and the
-      over-the-air bundle are for.
-- [ ] Read the pre-launch report the Console makes from the bundle (crashes, accessibility, screenshots from its
-      own devices).
-- [ ] Decide what to tell the APK installs (PLAY_STORE.md › Decisions).
+- [ ] Point ghostmarkdown.com's Android button at the Play listing, or keep the APK beside it (Matt's decision 2).
+- [ ] Each later release: a new bundle with a higher version code, RELEASE_NOTES.md gains a section, and the store
+      listing only changes when the app does.
 
-## 8. Production
+## The pack, file by file
 
-- [ ] Personal account: after 14 days with 12 testers, Dashboard › Apply for production access, and answer the
-      three-part form (about the test, the app, and readiness). An organisation account skips this.
-- [ ] Production › Create release: promote the tested bundle, or upload the same one. Release notes again.
-- [ ] Countries: all, or the list wanted.
-- [ ] Roll out. Production review runs again.
+| File | What it is |
+|---|---|
+| CHECKLIST.md | This page |
+| LISTING.md | Title, short and full description, captions |
+| RELEASE_NOTES.md | The What's new box |
+| FORM_ANSWERS.md | Every Console question with its answer |
+| FEATURES.md | The map of the app's features the copy was written from, and which six lead |
+| app-icon-512.png | The app icon, 512 × 512 |
+| feature-graphic-1024x500.jpg | The feature graphic |
+| phone-screenshots/ | Eight phone screenshots and two spares |
+| tablet-7in-screenshots/ | Four, at the Fold's inner screen size |
+| tablet-10in-screenshots/ | Four, at 2560 × 1600 |
+| FORMS.md, REQUIREMENTS.md, SCREENSHOTS.md | A parallel run of the same task wrote these (commit 5adab6d). They overlap FORM_ANSWERS.md and FEATURES.md; where two answers differ, the Console's own help page and the privacy policy decide. |
 
-## 9. After the listing is live
-
-- [ ] Open the listing on a phone and check the screenshots and the description read as intended.
-- [ ] Update docs/store/PLAY_STORE.md: the date it went live, the version, and the answers given where they
-      differed from this pack.
-- [ ] For every later release: bump `package.json` and `src-tauri/tauri.conf.json`, build with `GLYPH_STORE=play`,
-      write 500 characters of release notes, and redo the content rating only if the app gains a way for people to
-      write to each other.
-
-## The words check
-
-Before pasting, this folder was read for the banned list: em and en dashes, exclamation marks, emoji, "seamless",
-"effortless", "elevate", "unlock", "unleash", "supercharge", "game-changer", "powerful", "intuitive", "robust",
-"cutting-edge", "next-level", "leverage", "empower", "streamline", "revolutionise", "journey", "dive in", "look no
-further", "whether you're", "Imagine", "In today's", "With Ghost.md,", "Download now", "best", "ultimate". The grep:
-
-```
-grep -rnE "—|–|!|seamless|effortless|elevat|unlock|unleash|supercharge|game-chang|powerful|intuitive|robust|cutting-edge|next-level|leverag|empower|streamlin|revolutioni|journey|dive in|look no further|whether you|Imagine|In today|With Ghost\.md,|Download now|\bbest\b|ultimate" docs/store/play/
-```
-
-It should print nothing but this list's own lines.
+The pictures were taken over the web build (`npx vite build` of the `store/play-assets` worktree) in headless
+Chromium at the phone's pixel density, over an invented library. The review scene is the app's own bench script
+(`?scene=heat`), which plays the review as it runs on a phone.

@@ -1,108 +1,78 @@
-# The store listing
+# Store listing copy
 
-The copy for Play Console › Grow › Store presence › Main store listing, in English (United Kingdom). Each block
-below is pasted as it is, without the heading above it. The counts are the Console's limits, and each block's own
-count is given under it. Nothing here says anything the app does not do; the one paragraph that describes 1.9.0 is
-marked, and goes in only when 1.9.0 is the build uploaded.
+Paste each block into the Play Console field it is named for (Grow › Store presence › Main store listing). Limits are
+Play's. British spelling throughout, except where a word is the app's own button (Summarize).
 
-## App name
+## App name (30 characters)
 
-Limit 30 characters.
+```
+Ghost.md: voice Markdown notes
+```
+
+Exactly 30. If the Console counts it long, use the name alone:
 
 ```
 Ghost.md
 ```
 
-8 characters. If a descriptor is wanted for search, `Ghost.md: notes you say` is 23 characters and still true. The
-metadata policy leaves no room for "free", "new" or a claim in the name.
-
-## Short description
-
-Limit 80 characters. It shows under the name in search results and at the top of the listing.
+## Short description (80 characters)
 
 ```
-Notes you type or say. Plain Markdown, kept on your phone and transcribed on it.
+Notes you say or type. Plain Markdown files, an AI that stays on your phone.
 ```
 
-80 characters. Two others of the same length or shorter, should the first read wrong on the page:
+76 characters. Two more, should the first read wrong on the day:
 
 ```
-Say a note and it lands as Markdown. Everything runs on your phone.
+Speak or type a note. Plain Markdown, written up by AI on the phone itself.
 ```
 
-66 characters.
-
 ```
-Voice notes that arrive as Markdown, transcribed and summarised on the phone.
+Say a note and it lands as Markdown. Files you own, AI that stays on the phone.
 ```
 
-76 characters.
-
-## Full description
-
-Limit 4,000 characters. Play shows plain text: the blank lines are kept, and nothing else is styled, so the section
-names are lines of their own in capitals, the way the Play listing of a plain-text app reads.
+## Full description (4000 characters)
 
 ```
-Ghost.md is a notes app for people who think out loud. Say a note and it lands on the page as plain Markdown, with the headings, lists and to-dos already in place. Type when you would rather type. Every note is a Markdown file on your phone, and nothing you say or write leaves it unless you choose.
+Ghost.md is a notes app for people who think out loud. Talk, and a Markdown note takes shape on the page as you speak. Type instead when you would rather, on the phone or on a Mac. Every note is one plain .md file that any other app can open.
 
-SAY IT, AND IT IS MARKDOWN
-Tap Speak and talk. The words appear as you say them, laid out as they will read. Say "heading" and you get a heading. Say "check box, call the plumber" and you get a to-do. Say "we need snacks, water and a charger" and you get a list. Stop for a couple of seconds and you get a paragraph. The cue words come out, and your words stay as you said them. When you pause, a tip shows you one more cue, so you learn them as you go.
-
-Once Ghost.md is your phone's assistant, holding the side key starts a note, even from the lock screen.
+SAY THE MARKS
+Say "heading, the budget" and you get a heading. "Bullet point" starts a list, "remember to" makes a to-do, "done task" ticks one. Say "bold" and "end bold" round a phrase, "quote" before a line, "hashtag" before a word. "Scratch that" takes back the last thing you said, and "actually, the meeting is at four" swaps the sentence for the new one. The cues are taken out and your words stay as you said them, laid out around them.
 
 HEY GHOST
-Name a note and the words go there. Say "Hey Ghost, add a note to House TODOs", then "call an electrician about the light sockets", and the recorder switches to that note and writes the to-do into its list as you speak. Say "scratch that" and the last thing you said is taken back. Say "actually" and the sentence again, and the first one is replaced. Nothing is written until you tap Done, and Undo takes it all back.
+Name a note and the words go into it as you talk. "Hey Ghost, add a note to House TODOs. Call an electrician." puts a to-do under the heading it fits, and the note opens with Undo when you tap Done. Nothing listens for the name in the background. Hey Ghost is heard inside a recording you started, and nowhere else.
 
-Nothing listens for "Hey Ghost" in the background. The microphone is open only while you record.
+THE AI STAYS ON THE PHONE
+After a recording, a larger speech model listens again and a language model reads the note through, then marks what it would change, in the note, for you to keep or revert. Ask for Format, Summarize or Enhance from a note's menu, or say "Hey Ghost, tidy this up" into it. Every change stays marked until you accept it, and the AI signs the notes it writes in. The models download once and run on the phone's own cores, so they work in aeroplane mode. Nothing you say or write is sent anywhere to be heard or rewritten.
 
-EVERY RECORDING IS KEPT
-A spoken note keeps its tape. Play it back from the top of the note, and add to it later. Afterwards a larger model goes over the recording on the phone and puts in better words where the fast one misheard, unless you have edited the note since.
+MEETINGS AND TAPES
+Put the phone on the table and record a meeting. The screen can go off and you can leave. Afterwards it is written up on the phone, with a summary under the title: what was said, what was decided, and your to-dos. A notification tells you when it is done. Every spoken note keeps its tape. The Tapes shelf on the home page keeps them in a row, and each one plays back in its note.
 
-SUMMARIES, WRITTEN ON THE PHONE
-Ask for a summary from the tape and the language model on your phone writes a short section under the title: what was said, what was decided, and your to-dos as a list you can tick. It is never rewritten behind your back. Your recordings sit on a shelf on the home page, each with its summary under it.
+MARKDOWN, WITH A FEW MARKS OF ITS OWN
+Headings, lists, to-dos, tables, code, diagrams, footnotes and links between notes, drawn as you type and left on the page. Then seven marks of Ghost.md's own: a spoiler in smoke, a highlight, an aside, a doubt, a redaction bar, a shout and an addition. And five effects that move: heat, frost, a wave, a shimmer and a haunting, each written as an emoji twice, so the note still reads anywhere. A list can become a board, with cards you drag between columns. Notes can be gathered into a book with an index. A canvas puts cards on a page with lines between them, saved as JSON Canvas.
 
-MEETINGS
-Start a meeting, put the phone down and let the screen go off. When it ends, the phone transcribes it and writes it up in the background, and a notification tells you the summary is ready. The audio stays on the phone.
+YOURS, AND PRIVATE
+No account is needed. Your notes are Markdown files on your phone, and the Files app can see the folder. Sign in and they sync to your Mac and to the web, sealed on the device before they leave: the server holds your notes and cannot read them, and your password never leaves the phone as itself. Share a note or a book as a read-only link whose key rides in the link after the #, where a browser never sends it. No ads, no analytics, no tracking.
 
-EVERYTHING RUNS ON YOUR PHONE
-Whisper turns your voice into words on the device. A language model, downloaded once when you ask for it, does the formatting, the summaries and the review. Nothing you say or write is sent anywhere to be heard or rewritten. No ads, no analytics, no tracking.
+AND THE REST
+Hold the side key to start a note, from the lock screen too, once Ghost.md is your phone's assistant. On a folding phone the note unfolds with the hinge, and the sidebar can dock beside it. Send list items to Notion or GitHub and tick them off from either side. Let Claude read and write your notes through its connector. Ghost.md Academy teaches the marks one at a time, and the Guide is a book of 44 chapters you can add to your library.
 
-PLAIN MARKDOWN FILES
-A note is a .md file, in a folder you can open in the Files app. Headings, bold, lists, tables, code, links between notes, tags and footnotes, and Ghost.md's own marks for a highlight, an aside or a redaction. Pictures sit under a line of their own. A board is a list whose items have names. A book is a note whose list is its chapters. A canvas is a JSON Canvas file, the same one Obsidian opens.
-
-THE DAY ON ONE PAGE
-The home page opens on today: what is waiting in To do, ticked in place; your recordings on their shelf; your books; and the notes you touched last. Workspaces sort notes into groups, with a colour each.
-
-SYNC, IF YOU WANT IT
-An account is optional. With one, your notes are the same on your phone, on your Mac and in a browser. They are sealed on your device before they leave, with a key only your devices and your recovery codes can open. Share a note or a book by a read-only link: the key rides in the link, and the server cannot read what it holds. Delete your account in the app at any time, and everything it kept goes with it.
-
-ALSO
-Notion, for the tasks you send there. GitHub, for issues that tick in both places. Claude, connected to your notes through MCP. A Mac app and a web version at ghostmarkdown.com. The Guide, a manual of forty-four chapters kept as a book inside the app.
-
-Ghost.md is made by one person, and the privacy policy is short: ghostmarkdown.com/privacy.html
+Made by one person, for a phone held in one hand.
 ```
 
-About 3,600 characters. The MEETINGS block is 1.9.0's: paste it only when 1.9.0 is the upload, and leave it out for
-a 1.8.0 build.
+About 3,560 characters. One condition: MEETINGS AND TAPES describes 1.9.0 (docs/DESIGN.md §127, sections 3 to 5).
+If the AAB uploaded is not a build with Meeting in the + sheet, cut the first four sentences of that section and
+keep the last two, which are true today.
 
-## Release notes ("What's new")
+## Screenshot captions
 
-Limit 500 characters per language. For the first Play release, on 1.9.0:
+Play shows no captions, so none are needed. Should a caption field ever appear, these are the eight in order:
 
-```
-Ghost.md's first release on Google Play.
-
-Meetings: record with the screen off, and get the write-up as a notification when it ends.
-Your recordings on the home page as a shelf of tapes, each with a summary under it.
-Say "scratch that" while recording to take back the last thing you said.
-Delete your account from Settings › Account.
-```
-
-About 330 characters. For a 1.8.0 build, drop the Meetings line.
-
-## The words the listing does not use
-
-Held to docs/DESIGN.md §21 and Matt's own rule: no dashes, no exclamation marks, no emoji, no words that sell, no
-questions asked of the reader, no closing line telling anyone to download anything, and nothing about other apps.
-The grep that checks it is at the end of [CHECKLIST.md](CHECKLIST.md).
+1. Home: today, your to-dos, the tapes, your books.
+2. Say the marks and the note takes shape.
+3. Hey Ghost puts the words in the note you name.
+4. After a recording, the phone reads it through.
+5. Seven marks of its own, and five that move.
+6. A list is a board when you want one.
+7. Cards on a canvas, lines between them.
+8. A meeting, written up under its title.
