@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
-import { bookNotes, openTasks, pinnedNotes, recentNotes, tickedTasks } from './dashboard.ts';
+import { bookNotes, isTape, openTasks, pinnedNotes, recentNotes, tapedNotes, tickedTasks } from './dashboard.ts';
 import { bookNoteBody } from '../book/book.ts';
 import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
 
@@ -14,8 +14,8 @@ describe('the home page', () => {
 
   it('pins and lists recent notes without showing one twice or anything archived', () => {
     expect(pinnedNotes(notes).map((n) => n.id)).toEqual(['b']);
-    expect(recentNotes(notes, 5).map((n) => n.id)).toEqual(['c', 'a']);
-    expect(recentNotes(notes, 1).map((n) => n.id)).toEqual(['c']);
+    expect(recentNotes(notes, 5, {}).map((n) => n.id)).toEqual(['c', 'a']);
+    expect(recentNotes(notes, 1, {}).map((n) => n.id)).toEqual(['c']);
   });
 
   it('gathers every unticked to-do, the note touched last first', () => {
@@ -64,7 +64,61 @@ describe('the library', () => {
       makeNote('d', '---\ntitle: "Trip"\nbook: true\n---\n', { updatedAt: 7 }),
     ];
     expect(bookNotes(notes).map((n) => n.id)).toEqual(['d', 'b']);
-    expect(recentNotes(notes, 10).map((n) => n.id)).toEqual(['a']);
+    expect(recentNotes(notes, 10, {}).map((n) => n.id)).toEqual(['a']);
+  });
+});
+
+describe('the shelf of tapes', () => {
+  const recorded = (id: string, createdAt: number, over: Partial<ReturnType<typeof makeNote>> = {}) =>
+    makeNote(id, `# ${id}`, { source: 'capture', recordingMs: 40_000, createdAt, updatedAt: createdAt, ...over });
+  const none = {};
+
+  it('is what the recorder made, the last recorded first, whatever was touched since', () => {
+    const notes = [recorded('old', 10, { updatedAt: 90 }), recorded('new', 30), recorded('mid', 20)];
+    expect(tapedNotes(notes, none).map((n) => n.id)).toEqual(['new', 'mid', 'old']);
+  });
+
+  it('leaves out the archive, the Guide, a typed note spoken into, and a recording whose tape was removed', () => {
+    const guide = makeNote('guide', bookNoteBody(GUIDE_TITLE, ['Your first note']), { updatedAt: 50 });
+    const notes = [
+      recorded('kept', 5),
+      recorded('gone', 6, { archivedAt: 7 }),
+      guide,
+      makeNote('first', '# Your first note', { source: 'capture', recordingMs: 9_000, createdAt: 8, updatedAt: 8 }),
+      makeNote('typed', '# Typed then spoken', { source: 'editor', recordingMs: 12_000, createdAt: 9, updatedAt: 9 }),
+      recorded('removed', 4, { recordingMs: null }),
+      recorded('silent', 3, { recordingMs: 0 }),
+    ];
+    expect(tapedNotes(notes, none).map((n) => n.id)).toEqual(['kept']);
+    expect(isTape(notes[4]!, none)).toBe(false);
+  });
+
+  it('counts a meeting as a tape whatever its source, by the meetings preference', () => {
+    const meeting = makeNote('m', '# Meeting, 26 Sep 14:05', { source: 'editor', recordingMs: 3_600_000, createdAt: 40, updatedAt: 40 });
+    expect(isTape(meeting, { m: 40 })).toBe(true);
+    expect(isTape(meeting, none)).toBe(false);
+    expect(tapedNotes([meeting, recorded('r', 30)], { m: 40 }).map((n) => n.id)).toEqual(['m', 'r']);
+  });
+
+  it('keeps a pinned tape on the shelf as well as in Pinned, since pinning is a deliberate act', () => {
+    const pinned = recorded('p', 10, { starred: true });
+    expect(tapedNotes([pinned], none).map((n) => n.id)).toEqual(['p']);
+    expect(pinnedNotes([pinned]).map((n) => n.id)).toEqual(['p']);
+  });
+
+  it('leaves out of Recent exactly what the shelf takes, so a typed note with a tape stays in Recent', () => {
+    const notes = [
+      recorded('tape', 50),
+      makeNote('typed', '# Typed then spoken', { source: 'editor', recordingMs: 12_000, createdAt: 40, updatedAt: 40 }),
+      makeNote('plain', '# Plain', { updatedAt: 30 }),
+      makeNote('meeting', '# Meeting', { source: 'editor', recordingMs: 900_000, createdAt: 20, updatedAt: 60 }),
+    ];
+    expect(recentNotes(notes, 10, none).map((n) => n.id)).toEqual(['meeting', 'typed', 'plain']);
+    expect(recentNotes(notes, 10, { meeting: 20 }).map((n) => n.id)).toEqual(['typed', 'plain']);
+    const shelf = tapedNotes(notes, { meeting: 20 }).map((n) => n.id);
+    const recent = recentNotes(notes, 10, { meeting: 20 }).map((n) => n.id);
+    expect(shelf.filter((id) => recent.includes(id))).toEqual([]);
+    expect([...shelf, ...recent].sort()).toEqual(['meeting', 'plain', 'tape', 'typed']);
   });
 });
 
@@ -78,7 +132,7 @@ describe('Ghost.md: The Guide on the home page', () => {
   const notes = [guide, first, boards, mine, trees, own];
 
   it('keeps its pages out of Recent, and a chapter of a book of one’s own in it', () => {
-    expect(recentNotes(notes, 6).map((n) => n.id)).toEqual(['own', 'trees']);
+    expect(recentNotes(notes, 6, {}).map((n) => n.id)).toEqual(['own', 'trees']);
   });
 
   it('leaves its example to-dos out of the to-do list and the count of ticked ones', () => {

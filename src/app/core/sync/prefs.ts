@@ -39,6 +39,8 @@ const SYNCED_PREFS = [
   'workspaces',
   // What is in the trash: thrown away on one device, in the trash on every one.
   'trash',
+  // Which notes are meetings: recorded on one device, a meeting on every one (docs/DESIGN.md §127).
+  'meetings',
   // The notes shared by a link, with their keys: listed, followed and stopped from any device (share/share.ts).
   'shares',
 ] as const satisfies readonly (keyof Preferences)[];

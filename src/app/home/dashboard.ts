@@ -5,8 +5,9 @@ import type { Note } from '../core/store.ts';
 import { guidePages } from '../guidebook/guidebook.ts';
 
 /**
- * What the home page gathers from the notes (home/HomeScreen.tsx): the pinned ones, the ones touched last, and every
- * to-do not yet ticked, wherever it was written. Pure, so each rule is a test rather than a page to look at.
+ * What the home page gathers from the notes (home/HomeScreen.tsx): the pinned ones, the tapes on the shelf, the ones
+ * touched last, and every to-do not yet ticked, wherever it was written. Pure, so each rule is a test rather than a
+ * page to look at.
  */
 
 /** Pinned notes, newest first. The archive is never on the home page. */
@@ -19,11 +20,37 @@ export function bookNotes(notes: readonly Note[]): Note[] {
   return notes.filter((n) => !n.archivedAt && isBookBody(n.body)).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** The notes touched last, pinned ones and books left to their own rows so nothing shows twice, and the Guide's pages out. */
-export function recentNotes(notes: readonly Note[], count: number): Note[] {
+/** The meetings, by note id, from the preferences (core/preferences.ts `meetings`): which notes are meetings. */
+export type Meetings = Readonly<Record<string, number>>;
+
+/**
+ * A tape: a note with a recording that the recorder made (`source: 'capture'`), or a meeting (docs/DESIGN.md §127).
+ * A note that was written and then talked into is a note, not a tape: it keeps its card in Recent, with the tape's
+ * counter in its foot (notes/NoteCard.tsx). The one predicate for the shelf and for Recent, so nothing shows twice.
+ */
+export function isTape(note: Note, meetings: Meetings): boolean {
+  return !note.archivedAt && (note.recordingMs ?? 0) > 0 && (note.source === 'capture' || note.id in meetings);
+}
+
+/**
+ * The shelf of tapes on the home page (home/TapeShelf.tsx; Matt: "display them in a cassette shelf on the home
+ * page"): every tape, the Guide's pages out, the last recorded first. By `createdAt`, which is how a shelf of tapes
+ * reads: a summary or the better words landing later bumps `updatedAt` and must not move a tape along the row. A
+ * pinned tape is here as well as in Pinned, since pinning is a deliberate act.
+ */
+export function tapedNotes(notes: readonly Note[], meetings: Meetings): Note[] {
+  const guide = guidePages(notes);
+  return notes.filter((n) => isTape(n, meetings) && !guide.has(n.id)).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/**
+ * The notes touched last: pinned ones, books and tapes left to their own rows so nothing shows twice, and the Guide's
+ * pages out. What the shelf takes is exactly what this leaves out (`isTape`).
+ */
+export function recentNotes(notes: readonly Note[], count: number, meetings: Meetings): Note[] {
   const guide = guidePages(notes);
   return notes
-    .filter((n) => !n.starred && !n.archivedAt && !isBookBody(n.body) && !guide.has(n.id))
+    .filter((n) => !n.starred && !n.archivedAt && !isBookBody(n.body) && !guide.has(n.id) && !isTape(n, meetings))
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, count);
 }

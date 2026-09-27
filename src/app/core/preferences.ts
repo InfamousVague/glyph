@@ -254,6 +254,13 @@ export interface Preferences {
    */
   trash: Record<string, number>;
   /**
+   * The notes that are meetings, by id, and when each was started (docs/DESIGN.md §127). A meeting is a recording
+   * made with the dictation features off and written up afterwards; the shelf on the home page, sync and the summary
+   * queue all need to know which notes those are, on every device, so it travels as the trash does. Empty until a
+   * meeting can be recorded (§127 section 3): this build only carries the shape.
+   */
+  meetings: Record<string, number>;
+  /**
    * The notes shared by a read-only link (share/share.ts), by note id: each share's id, its key, and what was last
    * sent. Synced, so every device lists every share, keeps it up to date and can stop it. The key is end-to-end
    * encrypted with the rest of the settings: the server that holds the share never sees it.
@@ -305,6 +312,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   tabGroups: { list: [], of: {} },
   workspaces: { list: [], notes: {} },
   trash: {},
+  meetings: {},
   shares: {},
   wisp: true,
   wispEdge: true,
@@ -352,6 +360,12 @@ function settle(raw: unknown): Preferences {
     for (const [id, at] of Object.entries(loaded.trash)) if (typeof at === 'number' && Number.isFinite(at)) thrown[id] = at;
   }
   loaded.trash = thrown;
+  // The meetings likewise: only ids with the time each started.
+  const met: Record<string, number> = {};
+  if (loaded.meetings && typeof loaded.meetings === 'object') {
+    for (const [id, at] of Object.entries(loaded.meetings)) if (typeof at === 'number' && Number.isFinite(at)) met[id] = at;
+  }
+  loaded.meetings = met;
   // Shares from another build, or a half-written store: only entries with an id and a key a link can carry.
   const shares: Preferences['shares'] = {};
   const LINK_PART = /^[A-Za-z0-9_-]{16,64}$/;

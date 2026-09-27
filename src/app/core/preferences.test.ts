@@ -130,6 +130,12 @@ describe('a store written by another build, or half written', () => {
     expect(launchWith({ trash: 'none' }).trash).toEqual({});
   });
 
+  it('keeps the meetings only as note ids with the time each started', () => {
+    expect(launchWith({ meetings: { a: 10, b: 'yesterday', c: null } }).meetings).toEqual({ a: 10 });
+    expect(launchWith({ meetings: 'none' }).meetings).toEqual({});
+    expect(launchWith({}).meetings).toEqual({});
+  });
+
   it('keeps a share only when its id and key are ones a link could carry', () => {
     const id = 'A'.repeat(22);
     const key = 'b_'.repeat(20);

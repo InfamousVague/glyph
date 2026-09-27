@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Book, LayoutGrid, Mic } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
+import { usePreferences } from '../core/preferences.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
 import type { Updates } from '../core/ota.ts';
 import { useGlideToTop } from '../core/glideToTop.ts';
@@ -91,8 +92,10 @@ export function HomeScreen({
   // works out are what the gist runner is given: a fresh array every time a to-do is ticked would put its work off.
   const workspace = spaces.current?.id ?? null;
   const shown = useMemo(() => inWorkspace(notes, workspace), [notes, workspace]);
+  // Which notes are meetings (core/preferences.ts): a meeting is a tape whatever made it, so Recent leaves it to the shelf.
+  const { meetings } = usePreferences();
   const pinned = useMemo(() => pinnedNotes(shown), [shown]);
-  const recent = useMemo(() => recentNotes(shown, RECENT), [shown]);
+  const recent = useMemo(() => recentNotes(shown, RECENT, meetings), [shown, meetings]);
   const books = useMemo(() => bookNotes(shown), [shown]);
   /** Every page's book, for the cards' marks (book/book.ts). */
   const inBooks = useMemo(() => bookIndex(shown), [shown]);
