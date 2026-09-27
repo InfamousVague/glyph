@@ -6,6 +6,7 @@ import { preferences } from '../core/preferences.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 import { getNote, setNoteRecording, updateNote } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
+import { summarySection, withoutSummary, withSummary } from '../ai/summaryText.ts';
 import type { Segment } from './markdown.ts';
 import type { Placing } from './place.ts';
 import { refinedBody, refinedSegments } from './refineText.ts';
@@ -30,6 +31,16 @@ import { refinedBody, refinedSegments } from './refineText.ts';
  * Nor over a note that is open (`holdNote`): the editor's saving must be the only writer of an open note
  * (editor/useNoteSaving.ts), or its next keystroke's save conflicts and every save after it in that visit is dropped.
  * A recording that opens its note at Done (docs/DESIGN.md §126) has its better words land after the note is left.
+ *
+ * The summary queue (ai/summaries.ts) and the gist runner (format/gist.ts) follow this queue's hold (`onRefineHold`):
+ * the recorder wins the cores, so a run of theirs in flight is cancelled the moment it comes up, and their queues
+ * look again once it has gone. Told this way round, by a subscription, because the summary queue reads this module
+ * (`refineHeld`, `refinePending`) and a module that imported it back would be a cycle. A summary that landed between
+ * Done and the better words does not stop the better words: the compare reads both bodies with the app's own section
+ * taken off, and the section is carried into the better words (§127 section 2).
+ *
+ * A job is marked `started` before its pass runs, and a job found `started` at launch counts that as one try, so a
+ * pass that kills the app cannot kill it at every launch: three tries and the job is dropped.
  */
 
 export interface RefineJob {
@@ -75,6 +86,8 @@ export interface RefineJob {
    */
   live?: Segment[];
   tries: number;
+  /** Set as the pass starts and cleared as it ends however it ends: found set at launch, the pass killed the app. */
+  started?: boolean;
 }
 
 /** The binary generation that has `capture_refine`. */
@@ -126,6 +139,26 @@ const heldNotes = new Set<string>();
 let running = false;
 let timer = 0;
 let onChanged: (() => void) | null = null;
+/** Who follows the hold: the summary queue and the gist runner, which stop their runs while it is on. */
+const holdListeners = new Set<(on: boolean) => void>();
+
+/** Whether the recorder or a review is up: no background run of any kind starts while one is. */
+export function refineHeld(): boolean {
+  return held;
+}
+
+/** Whether a note's better words are still to come: a pass for it is queued or running. */
+export function refinePending(id: string): boolean {
+  return readQueue().some((j) => j.id === id);
+}
+
+/** Called with `true` as the recorder or a review comes up and `false` as it goes; answers the way to stop listening. */
+export function onRefineHold(listener: (on: boolean) => void): () => void {
+  holdListeners.add(listener);
+  return () => {
+    holdListeners.delete(listener);
+  };
+}
 
 /** Ask for a pass over a finished take. Runs when the recorder has gone and the phone is free. */
 export function enqueueRefine(job: Omit<RefineJob, 'tries'>): void {
@@ -139,7 +172,9 @@ export function enqueueRefine(job: Omit<RefineJob, 'tries'>): void {
 
 /** No queued pass starts while `on`; let go, the queue looks again a moment later. One flag for both screens that hold it. */
 function hold(on: boolean): void {
+  if (held === on) return;
   held = on;
+  holdListeners.forEach((listener) => listener(on));
   if (!on) kick(1500);
 }
 
@@ -169,6 +204,11 @@ export function dropRefine(id: string, fromMs: number): void {
 /** Wire the runner to the app: called once, with what to do when a note's words changed. */
 export function startRefining(changed: () => void): () => void {
   onChanged = changed;
+  // A job found started was running when the app stopped: that pass counts as a try, and its third drops the job.
+  const queue = readQueue();
+  if (queue.some((j) => j.started)) {
+    writeQueue(queue.filter((j) => !j.started || j.tries + 1 < MAX_TRIES).map((j) => (j.started ? { ...j, started: false, tries: j.tries + 1 } : j)));
+  }
   syncPending();
   const onVisible = () => {
     if (document.visibilityState === 'visible') kick(2000);
@@ -241,6 +281,7 @@ async function runNext(): Promise<void> {
       next = RETRY_MS * 3;
       return;
     }
+    mark(job, true);
     const refined = await invoke<Segment[]>('capture_refine', { id: job.id, fromMs: job.fromMs, promptTail: job.promptTail });
     await apply(job, refined);
     finish(job);
@@ -258,17 +299,32 @@ async function runNext(): Promise<void> {
       }
     }
   } finally {
+    mark(job, false);
     running = false;
     if (readQueue().length) kick(next);
   }
 }
 
-/** The better words go in only if the note still reads as Done left it; the better phrases go in either way. */
+/** The job's `started` flag, written through to the queue while the job is still in it. */
+function mark(job: RefineJob, started: boolean): void {
+  const queue = readQueue();
+  if (!queue.some((j) => j.id === job.id && j.fromMs === job.fromMs && Boolean(j.started) !== started)) return;
+  writeQueue(queue.map((j) => (j.id === job.id && j.fromMs === job.fromMs ? { ...j, started } : j)));
+}
+
+/**
+ * The better words go in only if the note still reads as Done left it - the app's own summary section aside, which
+ * may have landed since and is carried into the better words as it stands; the better phrases go in either way.
+ */
 async function apply(job: RefineJob, refined: Segment[]): Promise<void> {
   if (!refined.length) return;
   const note = await getNote(job.id);
   if (!note) return;
-  if (note.body === job.savedBody) await updateNote(job.id, refinedBody(job, refined), note.revision ?? 1).catch(() => null);
+  if (withoutSummary(note.body) === withoutSummary(job.savedBody)) {
+    const section = summarySection(note.body);
+    const better = refinedBody(job, refined);
+    await updateNote(job.id, section ? withSummary(withoutSummary(better), section.text) : better, note.revision ?? 1).catch(() => null);
+  }
   await setNoteRecording(job.id, job.recordingMs, refinedSegments(job, refined)).catch(() => null);
 }
 

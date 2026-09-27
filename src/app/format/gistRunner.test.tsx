@@ -19,13 +19,29 @@ import { generate, listModels } from '../core/ai.ts';
 import { makeNote } from '../../test/notes.ts';
 import { rerender, show } from '../../test/render.tsx';
 import { bodyHash } from './bodyHash.ts';
-import { gistFor, runGists, useGists } from './gist.ts';
+import { gistFor, pauseGists, runGists, useGists } from './gist.ts';
 import { readGist } from './results.ts';
 
 describe('the gist runner', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.mocked(generate).mockClear();
+    pauseGists(false);
+  });
+
+  it('writes nothing while the recorder holds the cores, and carries on once it has gone', async () => {
+    const notes = [makeNote('p1', 'plans for the weekend\n- cabin\n', { updatedAt: 3 })];
+    function Home() {
+      useGists(notes);
+      return null;
+    }
+    show(<Home />);
+    pauseGists(true);
+    await runGists();
+    expect(generate).not.toHaveBeenCalled();
+    pauseGists(false);
+    await runGists();
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it('hands the home page a gist the moment it lands, with the notes as they were', async () => {

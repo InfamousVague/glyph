@@ -31,7 +31,7 @@ vi.mock('../core/events.ts', () => ({
 }));
 
 const { setPreferences } = await import('../core/preferences.ts');
-const { dropRefine, enqueueRefine, holdNote, keepBetterPhrases, listenAgain, setRecorderLive, startRefining } = await import('./refine.ts');
+const { dropRefine, enqueueRefine, holdNote, keepBetterPhrases, listenAgain, onRefineHold, refineHeld, refinePending, setRecorderLive, startRefining } = await import('./refine.ts');
 
 const QUEUE_KEY = 'glyph-refine-queue';
 const queued = (): RefineJob[] => JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]') as RefineJob[];
@@ -139,6 +139,46 @@ describe('the better words', () => {
 });
 
 describe('when the pass runs', () => {
+  it('replaces the words of a note whose only change since Done is the summary the app wrote, and keeps that summary', async () => {
+    const section = '## Summary\nThe run, in a line.\n\n- [ ] Oat milk.';
+    notes.set('n1', { id: 'n1', body: `# Grocery run\n\n${section}\n\nOat milk and legs.`, revision: 2 });
+    enqueueRefine(job());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(notes.get('n1')?.body).toBe(`# Grocery run\n\n${section}\n\nOat milk and eggs.`);
+  });
+
+  it('marks a job started while its pass runs, and counts one found started at launch as a try', async () => {
+    let release: () => void = () => undefined;
+    answers.set('capture_refine', () => new Promise<Segment[]>((resolve) => (release = () => resolve(better))));
+    enqueueRefine(job());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(queued()[0]?.started).toBe(true);
+    expect(refinePending('n1')).toBe(true);
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(queued()).toEqual([]);
+    expect(refinePending('n1')).toBe(false);
+    // Left started by a pass that killed the app: the next launch counts it, and drops a job on its third.
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([{ ...job(), tries: 0, started: true }, { ...job({ id: 'n2' }), tries: 2, started: true }]));
+    stop?.();
+    stop = startRefining(changed);
+    expect(queued().map((j) => [j.id, j.tries, j.started])).toEqual([['n1', 1, false]]);
+  });
+
+  it('tells who follows the hold when the recorder or a review comes and goes', () => {
+    const heard: boolean[] = [];
+    const off = onRefineHold((on) => heard.push(on));
+    setRecorderLive(true);
+    expect(refineHeld()).toBe(true);
+    setRecorderLive(true);
+    setRecorderLive(false);
+    expect(refineHeld()).toBe(false);
+    off();
+    setRecorderLive(true);
+    setRecorderLive(false);
+    expect(heard).toEqual([true, false]);
+  });
+
   it('never while the recorder is on screen, and soon after it goes', async () => {
     setRecorderLive(true);
     enqueueRefine(job());
