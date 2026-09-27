@@ -347,6 +347,9 @@ function end(entry: Entry, phase: 'done' | 'stopped' | 'failed', message: string
   if (entry === active) {
     active = null;
     pump();
+    // The ended state was published while this was still the active run: said again now nothing is, so a listener
+    // asking whether the model is on any note (`useAnyRunning`) hears the answer change.
+    if (!active) listeners.forEach((l) => l(state));
   }
 }
 
@@ -386,4 +389,11 @@ const none = () => null;
 /** A note's latest run as the screen sees it, redrawn on every report. */
 export function useRun(noteId: string): RunState | null {
   return useSyncExternalStore(subscribeChanges, () => latest.get(noteId) ?? null, none);
+}
+
+const no = () => false;
+
+/** Whether the model is on any note, live: for a surface that must not start a run of its own beside a real one. */
+export function useAnyRunning(): boolean {
+  return useSyncExternalStore(subscribeChanges, anyRunning, no);
 }

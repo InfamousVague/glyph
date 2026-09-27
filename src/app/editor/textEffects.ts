@@ -91,6 +91,13 @@ const TUNED_PX = 16;
 const scaleFor = (fontPx: number) => Math.max(0.5, fontPx / TUNED_PX);
 
 /**
+ * Heat's noise at TUNED_PX: the frequencies it breathes between (across, then down) and the bend in pixels, scaled
+ * with the type they are on. One constant, shared with the scene's haze on the phone at work (scene/AtWork.tsx), so
+ * a retune of the editor's heat reaches it.
+ */
+export const HEAT_NOISE = { low: [0.02, 0.085], high: [0.028, 0.12], bend: 5.5 } as const;
+
+/**
  * Heat's haze, over the text above the heated words: it wobbles and softens as if seen through the air over a fire,
  * the haze the onboarding's "AI" burned behind (Matt: "the heated effect that gives the wavey blur like we used on the
  * "AI" text on with the fire on the original onboarding flow"). The same filter: fractal noise stretched tall (a lower
@@ -107,8 +114,8 @@ const scaleFor = (fontPx: number) => Math.max(0.5, fontPx / TUNED_PX);
  */
 function heat(filter: SVGFilterElement, fontPx: number, still: boolean, strength = 1): void {
   const k = scaleFor(fontPx);
-  const low = `${(0.02 / k).toFixed(4)} ${(0.085 / k).toFixed(4)}`;
-  const high = `${(0.028 / k).toFixed(4)} ${(0.12 / k).toFixed(4)}`;
+  const low = `${(HEAT_NOISE.low[0] / k).toFixed(4)} ${(HEAT_NOISE.low[1] / k).toFixed(4)}`;
+  const high = `${(HEAT_NOISE.high[0] / k).toFixed(4)} ${(HEAT_NOISE.high[1] / k).toFixed(4)}`;
   const moving = still
     ? []
     : [
@@ -117,7 +124,7 @@ function heat(filter: SVGFilterElement, fontPx: number, still: boolean, strength
       ];
   filter.append(
     svgElement('feTurbulence', { type: 'fractalNoise', baseFrequency: low, numOctaves: 2, seed: 7, result: 'noise' }, ...moving),
-    svgElement('feDisplacementMap', { in: 'SourceGraphic', in2: 'noise', scale: (5.5 * k * strength).toFixed(2), xChannelSelector: 'R', yChannelSelector: 'G', result: 'bent' }),
+    svgElement('feDisplacementMap', { in: 'SourceGraphic', in2: 'noise', scale: (HEAT_NOISE.bend * k * strength).toFixed(2), xChannelSelector: 'R', yChannelSelector: 'G', result: 'bent' }),
     svgElement('feGaussianBlur', { in: 'bent', stdDeviation: (0.6 * k * strength).toFixed(2) }),
   );
 }

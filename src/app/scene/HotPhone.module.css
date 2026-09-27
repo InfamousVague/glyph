@@ -1,0 +1,81 @@
+/*
+ * The phone at work (HotPhone.tsx): the case, the die and its hatch, the rings, the pins and the column above, in
+ * the two inks. The fills and strokes are on the elements themselves; here is only what moves between states - the
+ * hatch warming, the rings blooming, the column rising, the mark fading in - and that nothing moves under reduced
+ * motion. `--glow-step` (0 to 5) is set on the drawing, `--ring` (1 to 5) on each ring, so ring n is there once the
+ * glow reaches it.
+ */
+
+.phone {
+  display: block;
+  block-size: 100%;
+  max-inline-size: 100%;
+  overflow: visible;
+  color: var(--app-ink);
+}
+
+.ring {
+  opacity: clamp(0, calc(var(--glow-step, 0) - var(--ring, 1) + 1), 1);
+  transition: opacity 600ms var(--glacier-ease-out);
+}
+
+/* The heat off the top: nothing while cold, half while a model loads or listens, whole while it reads and writes. */
+.column {
+  opacity: 0;
+  transition: opacity 600ms var(--glacier-ease-out);
+}
+
+.phone[data-warmth='warm'] .column {
+  opacity: 0.5;
+}
+
+.phone[data-warmth='hot'] .column {
+  opacity: 1;
+}
+
+/* The hatch: a cold die is a quarter there, a hot one all ink. */
+.core {
+  opacity: 0.25;
+  transition: opacity 600ms var(--glacier-ease-out);
+}
+
+.phone[data-warmth='warm'] .core {
+  opacity: 0.55;
+}
+
+.phone[data-warmth='hot'] .core {
+  opacity: 1;
+}
+
+/* The working step's mark, swapped with the step (art/WispText.module.css's fade). */
+.mark {
+  animation: fadeIn 200ms ease-out both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.phone[data-still] .ring,
+.phone[data-still] .column,
+.phone[data-still] .core {
+  transition: none;
+}
+
+.phone[data-still] .mark {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring,
+  .column,
+  .core {
+    transition: none;
+  }
+
+  .mark {
+    animation: none;
+  }
+}

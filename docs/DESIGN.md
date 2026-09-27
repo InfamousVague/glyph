@@ -5244,6 +5244,97 @@ To come.
 
 To come.
 
+## 128. The phone at work: the review, full screen (2026-09-26)
+
+Matt: "make the analyzing steps of the AI full screen high contrast SVG iconography with cool effects like a
+piping hot phone CPU scrolling through the thoughts and transcriptions of the AI etc. review the layout and
+images and steps on the real fold device".
+
+After Done on a recording the note opens and the review runs in it (§114, ai/useNoteReview.ts), and until now
+that was the strip under the header. Now a scene covers the screen while it runs (scene/AtWork.tsx): a phone
+drawn in the two inks, its case in the faint third ink and the CPU die at its centre in full ink, the working
+step's mark drawn large on its screen, the die's hatch warming and a column of stipple thinning up off the phone
+while a model works, five rings of dots blooming out of the die and its pins lighting from the phone's real busy
+figure and temperature (the engine's sample with every report, llm/hardware.rs), and behind the phone the
+transcript's phrases, then the note's lines, then the model's thought and each thing it finds as it writes it,
+scrolling through the phone with a slight heat shimmer (the second §119's filter at the words' own share, so
+they read; stepped with each report rather than animated by SMIL, so the model keeps its cores). Six step lines
+in the order things really happen (listening again, loading the model, reading the note, thinking it through,
+writing what it found, done), a title in the strip's own words, four counters (Heat, CPU, Pace, Since Done), a
+hidden live line for a screen reader, and two words: Stop, the strip's own control, and "Back to the note",
+which drops to the strip. Back does the same, armed one commit after the note's own handler so the first swipe
+takes the scene and not the note. The scene is a child of the note screen and never navigates: leaving the note
+mid-review drops the findings, so nothing here does.
+
+Decisions. Warmth is state and glow is measured: the hatch, the column and the shimmer say a model is working
+(the speech model pegs four cores before any sample exists, and the Mac never gets one); the rings, the pins and
+the readings come only from the phone, and a phone that hides its thermal zones (§29g) reads "No reading" and
+lights by busy alone, over the engine's threads so full load reaches the outer ring. The list is drawn whole so
+the steps can be seen coming; comparing is one frame, so it is the listen step's tick and detail; a listen with
+nothing to compare against is skipped, not ticked. The careful model's words never stream, so the phrases
+advance with its percent, a placement; reading walks the transcript again and then the note's lines. The
+review's answer is JSON, so while it writes the pane shows each finding's "what" as the model's words, the open
+one typing in, and never the JSON; what lands is what readFindings can place. Since Done is wall time from the
+moment the scene opened, beside the run's own "in 1:12". The scene begins to leave the moment the run ends, so
+the marks and the toast are seen arriving. Reduced motion keeps the state and drops the shimmer and the rises.
+The shimmer wears only with Settings › Animations' smoke at the edges on, the switch that already means "SVG
+turbulence costs frames here". No preference: every review shows it, one tap sends it behind. Typed runs from
+the More sheet keep the strip. Not for a take said into an existing note (§123). On the Mac and on a binary
+before generation 14 there are no readings: the die warms, the rings stay dark, Heat and CPU say "No reading".
+
+For later. The scene is for one run. The summaries of §127 section 2 run long recordings in pieces; that branch
+adds its opener, a grace after done before the scene leaves, and "part n of m". The `stage` prop is the shape the
+better-words queue would hand it once refine.ts hears `capture://refine-progress`. The 'working' ghost
+(docs/GHOSTS.md 9) stays unplaced: one picture a screen, and this screen's is the phone.
+
+The bench. Settings › Developer › The phone at work plays it from a script (scene/scripted.ts) with a heat
+reading, without one, and without any readings; the script is installed round startRun alone and cleared on
+close, and the rows are off while the model is on a note. `?scene=heat|cold|none` in a browser does the same at
+launch, and answers nothing under Tauri.
+
+Tests: steps.test.ts, feed.test.ts, AtWork.test.tsx (first frame, opens, follows, a stage wins, leaves, stops,
+back order, no timers left, still, the smoke switch, hidden), HotPhone.test.tsx, scripted.test.ts,
+SceneBench.test.tsx, runs.test.ts (useAnyRunning), NoteScreen.test.tsx. Page code, over the air, generation 19.
+
+Revised after the review of the built page (the same day), which measured the picture rather than reading it.
+The current line is kept 72% down the pane, under the die's pins, not 60%: 60% was the die itself, and the head
+line, the pen line and each finding as it was written were cut through by it on the cover screen; the lines
+already read pass up behind the die and the mark, which hide them, and the one being read or written never is.
+The thought is split at sentence ends only and left to wrap, with a sentence past thirty words cut at a clause
+end: cutting every fourteen words, which the transcript keeps as a placement, left centred stubs ("and the",
+"sentence.") that read as broken text, and Qwen's real thoughts run longer than the script's. The note's lines
+scroll through as words, their Markdown marks off the front. The rings are drawn in the third ink like the case,
+so over the words they read as heat off the die and not as speckle on the text; the die, its pins and the mark
+keep the contrast. The streaming modes snap the pane rather than gliding it (a glide never caught the next line:
+the pen line rode at 76 to 93% of the pane, in the mask's fade). The mask's solid band starts at 18%, under the
+column of stipple. A step's mark sits on the first line of its words when the detail wraps. The settle dims the
+words to the third ink with the die, and holds 900 ms rather than 400, so the six ticks and the cooled die can be
+seen before the fade. On the inner screen the pane stays centred under the phone (only the side reads from the
+left), and the title has two lines' room with its words at the foot, so the steps and the counters no longer
+move half a line between "is thinking it through." and "is writing what it found."; a wide window that is short
+(the cover screen turned landscape) scrolls the scene rather than clipping Stop and Back to the note off its
+foot. While the document is hidden the scene does not leave: an end off screen is settled and left on return,
+so the findings are still seen landing. The one leave that fires on nothing having happened (the eight-second
+open grace) asks again as it fires, after one play in the browser pane left mid-run at eight seconds and was
+never reproduced: the cleanup should have cleared it and no path to a survivor was found. The bench's body says
+"Played. Play again to watch it once more." once the scene has left it. The feed is keyed on the run's words and
+the prompt's progress, not the whole run, so a report that moves only the clock never splits the transcript
+again. Shared rather than copied: `megabytes`, `heatShare` and `cpuShare` in core/ai.ts (the AI card's meters
+use them too), `HEAT_NOISE` in editor/textEffects.ts (a retune of the editor's heat reaches the haze), and
+`paceNumber` in ai/words.ts.
+
+Known and left. The scene covers the tab bar (it is full screen): the ways out are Back to the note, the back
+gesture and Escape, and the tab row is under it until then. A take that also wrote into an existing note through
+a command, confirmed after Done, opens that note with both a landing and a review: the scene covers the landing
+preview of the lines arriving for the review's length, and Back to the note reveals them landed. Nothing here
+is wrong by the design, and neither is built round until Matt has seen the scene on the Fold.
+
+Not done. Nothing measured on the Fold yet: the Pace tile with the scene up against sent behind, smoke on and
+off, is the number that decides; if it fails, the shimmer stays behind the smoke switch as it is, then HAZE_HZ
+comes down, then the rings' transitions. Whether the Fold shows a thermal zone is still unconfirmed. Play again
+on the Fold after backgrounding the app during a play is the case that would reproduce the eight-second leave,
+if anything does. Discard and Done are the recorder's and are gone before the scene starts.
+
 ## 129. Only what a recording can reach stays (2026-09-26)
 
 Matt, told that voice tables had been unreachable since PR #1 (§126, question 2): "Cut it, let's refine things to

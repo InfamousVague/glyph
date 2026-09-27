@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, createElement } from 'react';
 import type { Output, Progress, RunOptions } from '../core/ai.ts';
 
 /**
@@ -56,7 +57,8 @@ vi.mock('../core/ai.ts', async (importOriginal) => {
   };
 });
 
-const { allLines, cancelRun, dismissRun, forgetAllRuns, isRunning, runFor, splitLines, startRun, subscribeRuns } = await import('./runs.ts');
+const { allLines, anyRunning, cancelRun, dismissRun, forgetAllRuns, isRunning, runFor, splitLines, startRun, subscribeRuns, useAnyRunning } = await import('./runs.ts');
+const { show } = await import('../../test/render.tsx');
 const { runsOf } = await import('./log.ts');
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -206,5 +208,29 @@ describe('a run', () => {
     await handle.done;
     dismissRun('d');
     expect(runFor('d')).toBeNull();
+  });
+
+  it('tells a screen whether the model is on any note, as a run starts and as it ends', async () => {
+    function Busy() {
+      return createElement('span', { 'data-busy': useAnyRunning() || undefined });
+    }
+    const el = show(createElement(Busy));
+    const busy = () => el.querySelector('[data-busy]') !== null;
+    expect(anyRunning()).toBe(false);
+    expect(busy()).toBe(false);
+    let handle!: ReturnType<typeof startRun>;
+    await act(async () => {
+      handle = startRun(request('any'));
+    });
+    await act(tick);
+    expect(anyRunning()).toBe(true);
+    expect(busy()).toBe(true);
+    await act(async () => {
+      fakes[0]!.finish('x\n');
+      await handle.done;
+    });
+    // The ended state is said again once nothing is active, so the answer changes the moment the run ends.
+    expect(anyRunning()).toBe(false);
+    expect(busy()).toBe(false);
   });
 });

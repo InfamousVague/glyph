@@ -1,22 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Gauge, Terminal } from '@glacier/icons';
+import { Gauge, Smartphone, Terminal } from '@glacier/icons';
 import { Switch } from '@glacier/react';
+import { useAnyRunning } from '../ai/runs.ts';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { resetLocalData } from '../core/reset.ts';
+import { SceneBench } from '../diag/SceneBench.tsx';
 import { WispBench } from '../diag/WispBench.tsx';
 import { windowFacts } from '../diag/windowFacts.ts';
 import { GUIDE_MODEL_PAGE } from '../guide/pages.ts';
+import type { SceneScript } from '../scene/scripted.ts';
 import { setDeveloperMode, useDeveloperMode } from './developerMode.ts';
 import { PaneSection, RowAction, SettingRow } from './kit/settingsKit.tsx';
 
 /**
  * The developer page, present only while developer mode is on (seven presses on the version in About): the welcome
- * guide again, what the window is, the smoke bench, the switch that hides the page, and the two resets.
+ * guide again, what the window is, the smoke bench, the scene after Done played from a script, the switch that hides
+ * the page, and the two resets.
  */
 export function DeveloperPane({ onGuide }: { onGuide: (page?: number) => void }) {
   const on = useDeveloperMode();
   const [bench, setBench] = useState(false);
+  const [scene, setScene] = useState<SceneScript | null>(null);
+  // The bench's run would queue behind a real one and then play against the real engine: not while the model is on a note.
+  const busy = useAnyRunning();
+  const busyReason = 'The model is on a note. Try again when it is done.';
   return (
     <>
       <PaneSection title="Set-up">
@@ -33,6 +41,25 @@ export function DeveloperPane({ onGuide }: { onGuide: (page?: number) => void })
         />
       </PaneSection>
       <WispBench open={bench} onClose={() => setBench(false)} />
+      <PaneSection title="The phone at work" description="The scene after Done, played from a script. The models are pretend, the screen is this one, and the words are the note's.">
+        <SettingRow
+          icon={<Smartphone size={20} />}
+          label="Play the scene"
+          hint="Listening again, then the run: loading, reading, thinking, writing, done. With a heat reading."
+          onPress={() => setScene('heat')}
+          disabled={busy}
+          disabledReason={busy ? busyReason : undefined}
+        />
+        <SettingRow label="Play it without a heat reading" hint="As on a phone that hides its thermal zones." onPress={() => setScene('cold')} disabled={busy} disabledReason={busy ? busyReason : undefined} />
+        <SettingRow
+          label="Play it without any readings"
+          hint="As on the Mac, or a binary before generation 14: the die warms, the rings and pins stay dark, Heat and CPU say No reading."
+          onPress={() => setScene('none')}
+          disabled={busy}
+          disabledReason={busy ? busyReason : undefined}
+        />
+      </PaneSection>
+      <SceneBench script={scene} onClose={() => setScene(null)} />
       <PaneSection title="Developer mode">
         <SettingRow
           icon={<Terminal size={20} />}

@@ -31,6 +31,8 @@ import { preferences, setPreferences, themeChoice, usePreferences, type ThemePre
 import { WispEdgeFilter } from './art/WispEdgeFilter.tsx';
 import { useUpdates } from './core/ota.ts';
 import { LaunchScreen } from './launch/LaunchScreen.tsx';
+import { SceneBench } from './diag/SceneBench.tsx';
+import { sceneQuery } from './scene/scripted.ts';
 import { syncNow, useSyncStatus } from './core/sync/engine.ts';
 import { createNote, getNote, newNoteId, noteTitle, updateNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
@@ -127,6 +129,8 @@ function Shell() {
   // The screen opening shows, until the notes are read and the update check has answered (launch/LaunchScreen.tsx).
   const syncStatus = useSyncStatus();
   const [launching, setLaunching] = useState(true);
+  // `?scene=heat|cold|none` in a browser: the phone-at-work scene played from a script at launch (diag/SceneBench.tsx).
+  const [sceneBench, setSceneBench] = useState(sceneQuery);
 
   // Fetched when the app opens and again whenever it returns to the screen,
   // so the first held side key starts listening instead of downloading.
@@ -696,6 +700,7 @@ function Shell() {
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
       <WhatsNewSheet sources={updates.status?.sources} hold={guide.open || screen.name === 'capture'} />
       {launching ? <LaunchScreen loading={loading} notes={notes.filter((n) => !n.archivedAt).length} updates={updates} sync={syncStatus} onDone={() => setLaunching(false)} /> : null}
+      <SceneBench script={sceneBench} onClose={() => setSceneBench(null)} />
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
       <NotesDrawer
         open={drawer}

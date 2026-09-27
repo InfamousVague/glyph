@@ -1,4 +1,4 @@
-import { gb, modelName, modelSpec, type Hardware, type Phase } from '../core/ai.ts';
+import { cpuShare, gb, heatShare, modelName, modelSpec, type Hardware, type Phase } from '../core/ai.ts';
 import { clock, pace } from '../ai/words.ts';
 import { useDeviceFacts } from './deviceFacts.ts';
 import { Thinking } from './Thinking.tsx';
@@ -42,7 +42,7 @@ export function AiCard({ model, phase, doing, promptTokens, promptTokensDone, ou
   const spec = modelSpec(model);
   const cores = hardware?.cores ?? facts.cores;
   const threads = hardware?.threads ?? null;
-  const cpuShare = hardware && cores ? Math.min(1, hardware.cpuPercent / (100 * cores)) : null;
+  const busy = hardware && cores ? cpuShare(hardware.cpuPercent, cores) : null;
   const memoryTotal = hardware?.totalBytes ?? (facts.memoryGb ? facts.memoryGb * 1e9 : null);
   const memoryUsed = hardware?.rssBytes ?? null;
 
@@ -71,7 +71,7 @@ export function AiCard({ model, phase, doing, promptTokens, promptTokensDone, ou
             <Meter label="Cores" value={threads ? `${threads} of ${cores}` : `${cores}`} share={threads ? threads / cores : null} />
           ) : null}
           {/* Loading is one report with no tick behind it, so its CPU figure would be stale: not shown until the model reads. */}
-          {cpuShare !== null && hardware && phase !== 'loading' ? <Meter label="CPU" value={`${Math.round(hardware.cpuPercent)}%`} share={cpuShare} /> : null}
+          {busy !== null && hardware && phase !== 'loading' ? <Meter label="CPU" value={`${Math.round(hardware.cpuPercent)}%`} share={busy} /> : null}
           {memoryTotal ? (
             <Meter
               label="Memory"
@@ -79,7 +79,7 @@ export function AiCard({ model, phase, doing, promptTokens, promptTokensDone, ou
               share={memoryUsed ? Math.min(1, memoryUsed / memoryTotal) : null}
             />
           ) : null}
-          {hardware?.tempC != null ? <Meter label="Heat" value={`${Math.round(hardware.tempC)} °C`} share={Math.min(1, Math.max(0, (hardware.tempC - 20) / 40))} /> : null}
+          {hardware?.tempC != null ? <Meter label="Heat" value={`${Math.round(hardware.tempC)} °C`} share={heatShare(hardware.tempC)} /> : null}
           {facts.battery ? (
             <Meter label="Battery" value={`${Math.round(facts.battery.level * 100)}%${facts.battery.charging ? ', charging' : ''}`} share={facts.battery.level} />
           ) : null}

@@ -3,6 +3,7 @@ import { GraduationCap, X } from '@glacier/icons';
 import { WorkingGears } from '../art/WorkingGears.tsx';
 import { useRefining } from '../capture/refine.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
+import { megabytes } from '../core/ai.ts';
 import type { Updates } from '../core/ota.ts';
 import styles from './Notices.module.css';
 
@@ -10,11 +11,6 @@ import styles from './Notices.module.css';
  * What is waiting on the person, shown where they land (home/HomeScreen.tsx) and in the sidebar (notes/NoteTree.tsx):
  * an update, the Academy's invitation, and the voice model while it is not ready yet.
  */
-
-/** A download's size as its line says it: whole megabytes, as a phone's own download lines count them. */
-function megabytes(bytes: number): number {
-  return Math.round(bytes / 1e6);
-}
 
 /**
  * A blue card when there is something newer to run: the one piece of colour on
@@ -161,7 +157,10 @@ export function VoiceModelStatus({ state, onRetry }: { state: VoiceModelState; o
   );
 }
 
-/** The better voice model coming down in the background (capture/refine.ts), while it does. */
+/**
+ * The better voice model coming down in the background (capture/refine.ts), while it does. The scene over the note
+ * says the same sentence as its title (scene/steps.ts `downloadWords`): change both together.
+ */
 export function RefiningNotice() {
   const refining = useRefining();
   if (!refining.download) return null;

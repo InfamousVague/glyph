@@ -35,6 +35,7 @@ import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
 import { LinkMarks } from '../plugins/LinkMarks.tsx';
 import { AiStrip } from '../ai/AiStrip.tsx';
+import { AtWork } from '../scene/AtWork.tsx';
 import { boardMadeWords } from './boardActions.ts';
 import { itemSend, lineOffers, noteEditing } from './notePlugins.ts';
 import { NoteTools } from './NoteTools.tsx';
@@ -299,6 +300,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       <div className={styles.stripHolder}>
         <AiStrip noteId={note.id} onUndo={ai.undoRun} onHeight={onStripHeight} marks={ai.marks && view ? { count: ai.marks, keepAll: () => keepAllChanges(view) } : undefined} stage={ai.reviewStage} />
       </div>
+      {/* The models at work on a recording: full screen over the note until they are done, or sent behind (scene/AtWork.tsx). */}
+      <AtWork noteId={note.id} opening={review?.key ?? null} heard={review?.heard ?? ''} body={note.body} hasJob={Boolean(review?.job)} stage={ai.reviewStage} />
       {pictures.problem ? (
         <p className={styles.problem} role="alert">
           {pictures.problem}
