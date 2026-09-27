@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { EditorView } from '@codemirror/view';
 import { ToastProvider } from '@glacier/react';
-import { button, buttonSaying, rerender, show, typeInto, unmount } from '../../test/render.tsx';
+import { button, buttonSaying, press, rerender, show, typeInto, unmount } from '../../test/render.tsx';
 import { applyCommandMutation, createNote, getNote, setNoteRecording, updateNote, type Note } from '../core/store.ts';
 import type { CaptureLanding } from '../capture/landing.ts';
 import { goBack } from '../core/back.ts';
@@ -572,5 +572,40 @@ describe('a note a recording just wrote into', () => {
     expect(holds).toContainEqual(['house', true]);
     unmount();
     expect(holds.at(-1)).toEqual(['house', false]);
+  });
+});
+
+describe('the review’s scene', () => {
+  const review = { key: 1, noteId: 'n1', job: null, heard: 'Groceries for the week. Milk, eggs and coffee.', commands: [], touched: [] };
+  const scene = () => document.querySelector<HTMLElement>('[aria-label="The models at work on this note"]');
+
+  it('mounts the scene in the first render with a review key, and a back gesture closes it before the note', async () => {
+    const note = await createNote('n1', '# Groceries');
+    const onBack = vi.fn();
+    show(screen(note, { onBack, review }));
+    expect(scene()).not.toBeNull();
+    expect(scene()?.textContent).toContain('Checking what was heard.');
+    expect(document.querySelector('.cm-editor')).not.toBeNull();
+    act(() => {
+      goBack();
+    });
+    expect(scene()).toBeNull();
+    expect(onBack).not.toHaveBeenCalled();
+    // The note is still there under it, its editor and its strip's place in the screen.
+    expect(document.querySelector('.cm-editor')).not.toBeNull();
+    act(() => {
+      goBack();
+    });
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it('goes behind the note on Back to the note, leaving the note as it was', async () => {
+    const note = await createNote('n1', '# Groceries');
+    const onBack = vi.fn();
+    show(screen(note, { onBack, review }));
+    press(button('Back to the note', scene()!));
+    expect(scene()).toBeNull();
+    expect(onBack).not.toHaveBeenCalled();
+    expect(document.querySelector('.cm-editor')).not.toBeNull();
   });
 });
