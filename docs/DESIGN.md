@@ -5047,7 +5047,7 @@ on-device model does not pick among titles; it has not been timed on the Fold be
 Whisper's prompt (an APK change). Voice memos said aloud, plugin commands by voice, and removing take.ts's
 phrase-at-a-time reader are follow-ups. Kevin wrote PR #1 and should see this section.
 
-## 127. Tapes on the home page, summaries, and meetings (2026-09-26)
+## 127. Tapes on the home page, summaries, and meetings (2026-09-26, revised after review)
 
 Matt: "Id like to expand on the voice notes, display them in a cassette shelf on the home page and add summaries to
 them, I'm going to start recording meetings and stuff and letting the audio be transcribed then summarized by AI so I
@@ -5109,9 +5109,13 @@ note (`onOpen(id)`, the same `openNoteWhereLeft` a card uses). `bare` draws the 
 words: at the shelf's 11rem the label's 13px title would be 7px and its small print 4px, unreadable, and on the cover
 screen the whole row is 412px wide. The words go **under** the cassette in real type:
 
-- Line one, the title (`noteTitle(body) || 'Untitled'`), `--glacier-font-size-sm`, one line, clipped by CSS. Beside
-  it, in the caps style of `.small`, the counter and the date: "12:40 · 26 Sep".
-- Line two, the caption (below).
+- Line one, the title (`noteTitle(body) || 'Untitled'`), `--glacier-font-size-sm`, one line, clipped by CSS, the
+  whole of the column. It was first built with the counter and the date beside it, as the draft said: measured in
+  the built page at 412px the pair took 81 to 101 of the column's 176px and the title read as nine characters
+  ("Standup n…", "Call with …"), which is not a title to find a tape by, so the counter and the date went under it.
+- Line two, in the caps style of `.small`, the counter and the date: "12:40 · 26 Sep" (`tapes/tapeDate.ts`, the
+  one formatter NoteTape's label uses as well).
+- Line three, the caption (below).
 
 `tapeLabel` stays NoteTape's. Reels still; a tap does not play. The tape is the player and lives in the note (§26).
 `aria-label` = "{title}, {counter}, {date}" plus ", summarized" when it has a summary.
@@ -5123,10 +5127,15 @@ screen the whole row is 412px wide. The words go **under** the cassette in real 
   in playback instead of saturating at five minutes. This is what makes tape.ts's header sentence ("nobody has to
   read a number to see how long a note is") true past five minutes.
 - The mask id `tape-label-mask` becomes per instance (`useId()`): eight cassettes on one page share it today.
-- Arrival beat: each cassette takes `--i` as the cards do (capped at 8).
-- Measured on the Fold's cover screen before the OTA: the title line readable, two and a bit cassettes showing.
+- Arrival beat: each cassette takes `--i` as the cards do (capped at 8). The groups under the shelf count it as
+  three beats (`SHELF_BEATS`), the cassettes the cover screen shows, not eight: counted whole, Recent's first card
+  came on beat 8, 320ms after Home was pressed, under a heading with nothing yet beneath it.
+- To be measured on the Fold's cover screen before the OTA: the title line readable, two and a bit cassettes
+  showing. In Chromium at 412x915, not yet the Fold: three cassettes on screen and two whole, the title 176px wide
+  and seven of the eight seeded titles whole ("Call with Sam about the l…" the one clipped), the row 196px tall with
+  every caption empty, and the "and N more" word level with the reels (both middles at 505px).
 
-**The caption**, one line under the title, the first of these that is true:
+**The caption**, under the counter, the first of these that is true:
 
 1. "Recording" with the reels turning, while this note's meeting is being recorded (section 3; the shelf polls
    `GlyphHost.meetingState()` once a second while visible, only on a binary that has it).
@@ -5145,6 +5154,15 @@ screen the whole row is 412px wide. The words go **under** the cassette in real 
 8. The summary's first sentence (`summaryLine(body)`), in the gist's style (`.gist`).
 9. Else the gist, if the note has one; else nothing.
 
+The caption's words flow as prose and wrap when they must, a word to tap after them and under them when it does not
+fit beside. Clipped to one line, as first built, "Listening again. Keep Ghost.md open." (240px at the column's 176)
+and "The summary didn't come" beside Try again drew as "Listening again. Keep …" and "The summary …", and rule 5's
+sentence never reached the screen. Measured at 412px the two Keep-open states take two lines, Try again goes under
+its words, and "Needs a model Get a model" fits on one. An empty caption keeps a line's height
+(`min-block-size: calc(size * leading)`: the kit's leading tokens are unitless, and read as a length one is no
+length at all, which stylesheets.test.ts now holds), so the page under the shelf does not move when a gist or a
+summary lands.
+
 `useGists` is given the shelf's notes as well as the cards' (`carded = [...pinned, ...shelf, ...recent]`,
 HomeScreen.tsx), or a 40-second voice note would never get a line. A landed summary changes the body past the gist's
 5% rule, so one gist run follows each summary; that is fine and said here.
@@ -5159,26 +5177,40 @@ today: `ai/summaries.ts` (`useSummaries`, `retrySummary`), `ai/summaryText.ts` (
 more in All notes" (`.more`, as To do says it), which opens the grid with its new **Tapes** toggle on.
 `notes/AllNotesScreen.tsx` gets a Tapes toggle beside the order words, in the archive toggle's shape; `browseNotes`
 gains `{ tapes: boolean }` (every note with `recordingMs > 0`, typed ones included, so nothing with a tape is
-unreachable). Test in allNotes.test.ts. With a hundred recordings this is the way to the ninety-second.
+unreachable). Test in allNotes.test.ts. With a hundred recordings this is the way to the ninety-second. The
+controls line on All notes wraps on a phone: with the Tapes word the line no longer fit 412px, so the tally and
+Archived go down together as a line of their own under the order words and Tapes (`.counts`), where on a wide line
+they sit as they always did.
 
 **Widths.** A row that scrolls sideways at every width, bleeding to the screen's edges under the gutters (negative
 inline margins to `--app-gutter-start/end`, padding back in), `scroll-snap-type: x proximity`, each cassette `11rem`
-wide with `--glacier-space-3` between, the two text lines under each in the same column. `prefers-reduced-motion`
-changes nothing (the reels are still already, except a meeting's, which then stay still too).
+wide with `--glacier-space-3` between, the three text lines under each in the same column. `prefers-reduced-motion`
+changes nothing (the reels are still already, except a meeting's, which then stay still too). The mouse wheel is left
+alone over the row, unlike over the tab row and the pills (`core/scrollSideways.ts`): those sit in bars with nothing
+to scroll above them, while the shelf sits in the page's own scroller, and React's wheel listeners are passive, so a
+turn of the wheel over the row moved it a cassette sideways and scrolled the page down at once (synthetic wheel
+events in the built page). Shift with the wheel, a trackpad's sideways swipe and a finger all still move the row, and
+"and N more" is the mouse's way to the rest.
 
 **Empty.** No group when there are no tapes. No loading state.
 
 **Files.** `home/dashboard.ts` (`isTape`, `tapedNotes`, `recentNotes`), `home/TapeShelf.tsx` +
-`TapeShelf.module.css`, `home/HomeScreen.tsx` (the section, `SHELF`, gists for the shelf), `capture/tape.ts`
-(`lengthMs`), `tapes/TapeArt.tsx` (`bare`, `lengthMs`, `useId`), `tapes/NoteTape.tsx` (`lengthMs`),
-`notes/NoteCard.tsx` (+ `.tapeLength`), `notes/AllNotesScreen.tsx` + `notes/allNotes.ts` (Tapes toggle),
-`art/Icons.tsx` (`Cassette`), `core/preferences.ts` (`meetings: Record<string, number>`, synced like `trash`, empty
-until section 3 writes it). Tests: dashboard.test.ts (order by `createdAt`; archive, Guide and typed-with-tape out;
-`recentNotes` leaves out only what the shelf takes; a typed note with a tape stays in Recent), tape.test.ts
-(`packRadii` with `lengthMs`), HomeScreen.test.tsx (heading order; "and N more" opens the grid with Tapes on; the
-shelf's notes are gisted), TapeShelf.test.tsx (each caption state in order, Try again re-queues, Get a model opens
-Settings), NoteCard test (the counter in the foot), allNotes.test.ts (`tapes`). Page code, over the air, generation
-19.
+`TapeShelf.module.css`, `home/HomeScreen.tsx` (the section, `SHELF`, `SHELF_BEATS`, gists for the shelf),
+`capture/tape.ts` (`lengthMs`), `tapes/TapeArt.tsx` (`bare`, `lengthMs`, `useId`), `tapes/NoteTape.tsx`
+(`lengthMs`), `tapes/tapeDate.ts` (the day and the month, for the label and the shelf), `notes/NoteCard.tsx`
+(+ `.tapeLength`), `notes/AllNotesScreen.tsx` + `notes/allNotes.ts` (Tapes toggle; `hasTape`, the one way "has a
+recording" is written, which `isTape` and the card read), `art/Icons.tsx` (`Cassette`), `core/preferences.ts`
+(`meetings: Record<string, number>`, synced like `trash`, empty until section 3 writes it). Tests: dashboard.test.ts
+(order by `createdAt`; archive, Guide and typed-with-tape out; `recentNotes` leaves out only what the shelf takes; a
+typed note with a tape stays in Recent), tape.test.ts (`packRadii` with `lengthMs`), tapes.test.tsx (an hour's tape
+winds across its whole length, at the strip and at the cassette, and its reels turn over its own radii),
+HomeScreen.test.tsx (heading order and the cassette mark; the workspace filter; "and N more" opens the grid with
+Tapes on; the shelf's notes are gisted), TapeShelf.test.tsx (each caption state in order and the ten-minute line,
+"Keep Ghost.md open." in those words, the reels turn only for a meeting, the five-minute floor, Try again re-queues,
+Get a model opens Settings), SettingsSheet.test.tsx (Get a model lands on Formatting), App.test.tsx ("and N more"
+reaches the grid with Tapes on; Get a model opens Settings at Formatting), core/sync/prefs.test.ts (`meetings`
+travels), stylesheets.test.ts (no leading token read as a length), NoteCard test (the counter in the foot),
+allNotes.test.ts (`tapes`). Page code, over the air, generation 19.
 
 ### 2. The summary
 
