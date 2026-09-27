@@ -1,8 +1,11 @@
+import { syntaxHighlighting } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it } from 'vitest';
+import { parseWhole } from '../../test/syntaxTree.ts';
 import type { InlineFormat } from '../plugins/types.ts';
 import { formatLooks, styledRanges, type StyleLook } from './formatLooks.ts';
+import { glyphHighlight } from './glyphHighlight.ts';
 import { glyphMarkdown } from './language.ts';
 
 // A plugin formatting drawn as a style (editor/formatLooks.ts): its words carry its CSS, and a name in brackets after
@@ -49,5 +52,19 @@ describe('a formatting drawn as a style', () => {
     expect(marks.map((mark) => mark.textContent)).toEqual(['hello']);
     expect(marks[0]?.getAttribute('style')).toContain('color: red');
     expect(formatLooks([{ name: 'Spoiler', delimiter: '||', look: { kind: 'wisp' } }])).toEqual([]);
+  });
+
+  it('sits inside the highlighter’s span, so its box is the size of the words it is on (a heading’s, in a heading)', () => {
+    view = new EditorView({
+      state: EditorState.create({ doc: '## a ~~~big~~~ heading', extensions: [glyphMarkdown([glow]), syntaxHighlighting(glyphHighlight), formatLooks([glow])] }),
+      parent: document.body,
+    });
+    view = parseWhole(view);
+    const mark = view.contentDOM.querySelector<HTMLElement>('.cm-formatLook');
+    expect(mark?.textContent).toBe('big');
+    // The heading's own span wraps the look's, not the other way round: outside it, the bar was the body's height.
+    const line = mark?.closest('.cm-line');
+    expect(mark?.parentElement).not.toBe(line);
+    expect(mark?.parentElement?.textContent).toBe('big');
   });
 });

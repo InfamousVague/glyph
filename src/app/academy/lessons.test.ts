@@ -86,6 +86,7 @@ describe('Ghost.md Academy’s lessons', () => {
     expect(passes('aside', 'swim %%if warm%%')).toBe(true);
     expect(passes('unsure', 'about ??six miles??')).toBe(true);
     expect(passes('markNote', 'about ??six miles??(from the map)')).toBe(true);
+    expect(passes('redact', 'the gate code is @@4417@@')).toBe(true);
     expect(passes('shout', '^^do not^^ feed the ducks')).toBe(true);
     expect(passes('added', 'bring ++a towel++')).toBe(true);
     expect(passes('heat', '🔥🔥a hot day🔥🔥')).toBe(true);
@@ -146,6 +147,9 @@ describe('Ghost.md Academy’s lessons', () => {
     // A colour is not a note, and a mark with nothing after it is not one either.
     expect(passes('markNote', 'the ==gate code==(amber)')).toBe(false);
     expect(passes('markNote', 'about ??six miles??')).toBe(false);
+    // One at sign is an address, and a bar needs its other end.
+    expect(passes('redact', 'write to sam@ortiz.example')).toBe(false);
+    expect(passes('redact', 'the gate code is @@4417')).toBe(false);
     // One caret either side raises; two shout.
     expect(passes('shout', 'the 2^nd^ of June')).toBe(false);
     expect(passes('added', '1 + 1')).toBe(false);

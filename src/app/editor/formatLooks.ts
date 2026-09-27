@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language';
-import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
+import { Prec, RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { InlineFormat } from '../plugins/types.ts';
 
@@ -14,6 +14,13 @@ import type { InlineFormat } from '../plugins/types.ts';
  * at the caret (a redaction's bar, so the words under it can be edited); a
  * plugin's CSS is trusted the way its settings pane is, and it reaches only
  * its own words.
+ *
+ * The look's span sits inside the highlighter's, so it takes the size of the
+ * words it is on: a redaction in a heading is a bar as tall as the heading,
+ * where an outer span was a bar the body's height with the heading's letters
+ * showing over it (measured, docs/DESIGN.md §131). CodeMirror nests the
+ * decorations of higher precedence inside, and the tree highlighter's are
+ * `Prec.high`, so these are `Prec.highest`.
  */
 
 interface Styled {
@@ -83,19 +90,21 @@ export function formatLooks(formats: readonly InlineFormat[]): Extension {
     for (const styled of styledRanges(view.state, looks, { from: first.from, to: last.to }, atCaret)) builder.add(styled.from, styled.to, markFor(styled.css));
     return builder.finish();
   };
-  return ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet;
+  return Prec.highest(
+    ViewPlugin.fromClass(
+      class {
+        decorations: DecorationSet;
 
-      constructor(readonly view: EditorView) {
-        this.decorations = build(view);
-      }
+        constructor(readonly view: EditorView) {
+          this.decorations = build(view);
+        }
 
-      update(update: ViewUpdate) {
-        const moved = lifts && (update.selectionSet || update.focusChanged);
-        if (moved || update.docChanged || update.viewportChanged || syntaxTree(update.state) !== syntaxTree(update.startState)) this.decorations = build(update.view);
-      }
-    },
-    { decorations: (plugin) => plugin.decorations },
+        update(update: ViewUpdate) {
+          const moved = lifts && (update.selectionSet || update.focusChanged);
+          if (moved || update.docChanged || update.viewportChanged || syntaxTree(update.state) !== syntaxTree(update.startState)) this.decorations = build(update.view);
+        }
+      },
+      { decorations: (plugin) => plugin.decorations },
+    ),
   );
 }

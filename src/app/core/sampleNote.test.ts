@@ -54,6 +54,7 @@ const EVERYTHING = [
   'Highlight',
   'Aside',
   'Unsure',
+  'Redact',
   'Shout',
   'Added',
   // The five effects (plugins/marks/index.tsx, editor/textEffects.ts).
