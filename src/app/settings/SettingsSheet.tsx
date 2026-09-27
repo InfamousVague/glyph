@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, CircleUser, FlaskConical, Info, Mic, Puzzle, Sparkles, SunMoon, Terminal, Type, Vibrate, Waves } from '@glacier/icons';
+import { BookOpen, CircleUser, FlaskConical, Info, MapPin, Mic, Puzzle, Sparkles, SunMoon, Terminal, Type, Vibrate, Waves } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
@@ -14,6 +14,7 @@ import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { markGroups } from '../guide/marks.ts';
 import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
 import { FormattingPane } from './FormattingPane.tsx';
+import { LocationPane } from './LocationPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
 import { usePlugins } from '../plugins/hooks.ts';
 import { AboutPane } from './AboutPane.tsx';
@@ -35,7 +36,7 @@ import { reportSummary } from '../diag/testReport.ts';
  * stores the panes edit, so a row can never disagree with its pane.
  *
  * Six clusters, in the list's order: who you are (Account); how it looks
- * (Type, Appearance); how it works (Recording, Formatting, Feel, and
+ * (Type, Appearance); how it works (Recording, Location, Formatting, Feel, and
  * Animations, which sits with them though it is listed after the plugins);
  * the plugins (each switched-on plugin's own page, then Plugins to switch
  * them); help and the app itself (the Cheat sheet, and About, which holds the
@@ -193,6 +194,21 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
           },
         ]
       : []),
+    {
+      // Where a note was written (core/location.ts): the map, the place name, and tagging new notes.
+      id: 'location',
+      label: 'Location',
+      words: 'map place where geotag gps',
+      settings: [
+        { name: 'Map on a tagged note', words: 'openstreetmap tiles' },
+        { name: 'Place names', words: 'nominatim address geocode' },
+        { name: 'Tag new notes with my location', words: 'automatic gps position geotag' },
+      ],
+      icon: <MapPin size={16} />,
+      content: <LocationPane />,
+      summary: [prefs.tagNewNotes && !prefs.localOnly ? 'Tags new notes' : null, prefs.localOnly || !prefs.mapTiles ? 'No map' : 'Map on tagged notes'].filter(Boolean).join(' · '),
+      group: 1,
+    },
     {
       id: 'formatting',
       label: 'Formatting',

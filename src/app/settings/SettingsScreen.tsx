@@ -62,6 +62,7 @@ const HUES: Record<string, string> = {
   type: 'indigo',
   theme: 'purple',
   recording: 'red',
+  location: 'coral',
   formatting: 'orange',
   feel: 'teal',
   plugins: 'green',

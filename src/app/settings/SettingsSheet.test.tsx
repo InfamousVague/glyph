@@ -112,14 +112,14 @@ afterEach(() => {
 describe('the list of sections', () => {
   it('in a browser, has neither Recording nor Feel nor the hidden pages', () => {
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Type', 'Appearance', 'Formatting', 'Notion', 'GitHub', 'Claude', 'Plugins', 'Animations', 'Cheat sheet', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Type', 'Appearance', 'Location', 'Formatting', 'Notion', 'GitHub', 'Claude', 'Plugins', 'Animations', 'Cheat sheet', 'About']);
   });
 
   it('on an Android phone, has Recording for its side key and Feel for its motor', () => {
     native = true;
     android = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Type', 'Appearance', 'Recording', 'Formatting', 'Feel', 'Notion', 'GitHub', 'Claude', 'Plugins', 'Animations', 'Cheat sheet', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Type', 'Appearance', 'Recording', 'Location', 'Formatting', 'Feel', 'Notion', 'GitHub', 'Claude', 'Plugins', 'Animations', 'Cheat sheet', 'About']);
   });
 
   it('on the Mac, has Recording too, for the better words and the summaries, without the side key', () => {
@@ -251,5 +251,25 @@ describe('the search', () => {
     android = true;
     setDeveloperMode(true);
     expect(missingFromTheirPages()).toEqual([]);
+  });
+});
+
+describe('the Location section', () => {
+  it('is found by the words a person would look for it by, and says what it does under its name', () => {
+    setPreferences({ tagNewNotes: true, mapTiles: true, localOnly: false });
+    settings();
+    const sections = handed;
+    unmount();
+    for (const words of ['gps', 'map', 'geotag', 'where']) {
+      expect(searchSettings(sections, words).some((hit) => hit.section.id === 'location'), words).toBe(true);
+    }
+    expect(sections.find((section) => section.id === 'location')?.summary).toBe('Tags new notes · Map on tagged notes');
+    setPreferences({ tagNewNotes: false, mapTiles: false });
+    settings();
+    expect(handed.find((section) => section.id === 'location')?.summary).toBe('No map');
+    unmount();
+    setPreferences({ tagNewNotes: true, mapTiles: true, localOnly: true });
+    settings();
+    expect(handed.find((section) => section.id === 'location')?.summary).toBe('No map');
   });
 });

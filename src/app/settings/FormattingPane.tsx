@@ -40,8 +40,8 @@ export function FormattingPane() {
           label="Local only"
           hint={
             prefs.localOnly
-              ? 'On. No update checks, no downloads, and plugins that use the network are off. Ghost.md runs from what is on the phone.'
-              : 'Turn off update checks, downloads, and every plugin that uses the network. Ghost.md then runs from what is on the phone.'
+              ? 'On. No update checks, no downloads, and plugins that use the network are off, and so are the map, the place name and the location fix on a tagged note. Ghost.md runs from what is on the phone.'
+              : 'Turn off update checks, downloads, and every plugin that uses the network, and the map, the place name and the location fix on a tagged note. Ghost.md then runs from what is on the phone.'
           }
           control={<Switch aria-label="Local only" checked={prefs.localOnly} onCheckedChange={(localOnly) => setPreferences({ localOnly })} />}
         />
