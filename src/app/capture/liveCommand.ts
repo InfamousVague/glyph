@@ -1,5 +1,5 @@
 import { findKeyword, findMisheard, LEAD_INS, onlyFiller, withoutPayloadLead } from './command.ts';
-import { nameWords } from './noteFind.ts';
+import { FIND, headingsOf, nameScore, nameWords, titleKind } from './noteFind.ts';
 
 /**
  * Hearing a command in one committed phrase, as it is said: the keyword, and the shapes of "words for a note you name".
@@ -9,6 +9,11 @@ import { nameWords } from './noteFind.ts';
  * Whisper commits a phrase after a short quiet, so a phrase is not a sentence: nearly every one ends with Whisper's own
  * full stop, whether or not the speaker stopped there. A phrase-final stop is therefore never a separator. A stop, a
  * comma, a colon or "that says" inside the phrase is.
+ *
+ * A command needs no keyword (docs/DESIGN.md §136; Matt: "Remove the function which expects hey ghost before
+ * commands"). Without one, or after a mishearing of it, a phrase is a command only through one gate, `bareCommand`:
+ * the plainest shapes, a note named clearly, the evidence that a note was meant, and its words in the same breath.
+ * Both readers ask it, so a mishearing means the same to each.
  */
 
 // ---- the keyword --------------------------------------------------------------------------------
@@ -88,6 +93,12 @@ export interface Reading {
   heading: string | null;
   /** "Move this to …": the take goes there. */
   move: boolean;
+  /**
+   * "Move this to …" or "switch this to …" as said: the move said plainly, which a phrase with no keyword must be. "Go
+   * to work", "carry on in the garage" and "move it to …" are `move` but not this: bare, they are words ("it" is a
+   * send's word, takeBack.ts).
+   */
+  plainMove: boolean;
   /** "For Groceries, …", "House TODOs: …": the name came first. */
   nameFirst: boolean;
   /** "New note". */
@@ -124,7 +135,7 @@ const SHAPE_2 = new RegExp(String.raw`^(?:(?:a|an)\s+)?(?:new|another)\s+(${NOUN
 const SHAPE_3 = new RegExp(String.raw`^${VERB}\s+(?:(?:this|these|the\s+following)\s+)?${PREP}\s+${OWNER}${LABEL}(.+)$`, 'i');
 const SHAPE_4_VERB = new RegExp(String.raw`^${VERB}\s+`, 'i');
 const PREP_SPLIT = new RegExp(String.raw`\s+${PREP}\s+`, 'gi');
-const SHAPE_5 = new RegExp(String.raw`^(?:move|switch|carry\s+on|continue|go|jump)\s+(?:(?:this|it|everything|these)\s+)?(?:over\s+)?(?:back\s+)?(?:to|into|onto|on|in)\s+${OWNER}${LABEL}([^,:;.]+)$`, 'i');
+const SHAPE_5 = new RegExp(String.raw`^(move|switch|carry\s+on|continue|go|jump)\s+(?:(this|it|everything|these)\s+)?(?:over\s+)?(?:back\s+)?(?:to|into|onto|on|in)\s+${OWNER}${LABEL}([^,:;.]+)$`, 'i');
 const SHAPE_6 = [
   new RegExp(String.raw`^for\s+${OWNER}([^,:;.]+?)\s*,\s*(.+)$`, 'i'),
   new RegExp(String.raw`^on\s+${OWNER}([^,:;.]+?)\s*,?\s+(?:add|put)\s+(.+)$`, 'i'),
@@ -161,7 +172,7 @@ export function nameable(name: string): 'name' | 'verb' | 'not' {
 
 /** A reading, with the fields a shape leaves alone. */
 function reading(shape: Reading['shape'], name: string, over: Partial<Reading> = {}): Reading {
-  return { shape, name: name.trim(), payload: '', trailing: '', tail: '', placing: 'leave', heading: null, move: false, nameFirst: false, newNote: false, self: false, stopped: false, noun: false, split: false, verb: false, ...over };
+  return { shape, name: name.trim(), payload: '', trailing: '', tail: '', placing: 'leave', heading: null, move: false, plainMove: false, nameFirst: false, newNote: false, self: false, stopped: false, noun: false, split: false, verb: false, ...over };
 }
 
 /** A reading for a name alone, with nothing said for it: "Not this note" offering the others for that name. */
@@ -235,7 +246,10 @@ export function readRoute(text: string): Reading[] {
     }
   }
   const five = SHAPE_5.exec(words);
-  if (five?.[1] && nameable(five[1]) === 'name') out.push(reading(5, five[1], { move: true }));
+  if (five?.[1] && five[3] && nameable(five[3]) === 'name') {
+    const plainMove = /^(?:move|switch)$/i.test(five[1]) && five[2] !== undefined && five[2].toLowerCase() !== 'it';
+    out.push(reading(5, five[3], { move: true, plainMove }));
+  }
 
   // "Add call Sam to House TODOs": at every preposition, the thing before it and the name after.
   if (SHAPE_4_VERB.test(words) && !one && !three) {
@@ -278,21 +292,59 @@ export function readRoute(text: string): Reading[] {
   return out;
 }
 
+// ---- the gate a phrase passes with no keyword ---------------------------------------------------
+
 /**
- * Whether a command's words after a mishearing of the keyword ("Hey, like, …", "Hey goes …") are a command for a note
- * by their shape: a note or an item said for it ("add a note to house to-dos"), a name that says what kind of note it
- * is ("add call Sam to house to-dos"), "add this to …" with its words after a separator, a heading of a note, or "move
- * this to …"; and `clear` says the name is a note named clearly. Never a to-do for here, "new note" or a plain "put the
- * parcel in the post": those are how people talk, and "Hey, like, I need to call my mum" is words. Both readers ask
- * this (liveRoute.ts, ai/instruction.ts), so a mishearing means the same to each.
+ * The shapes a command has to have with no keyword said, or a mishearing of it, by its words alone (docs/DESIGN.md
+ * §136): a note or an item said for it, the name run to a separator or the phrase's end and never to a split the
+ * grammar chose ("add a note to house to-dos, call Sam"; "another item on the agenda is the budget" is meeting talk);
+ * "put this in X, …" stopped at a separator; "add X to Y" and "add X under H in Y"; and "move this to X" said plainly.
+ * Never a to-do for here ("remind me to …" is prose in a voice note), "new note", a name said first, a name that
+ * starts with a verb, or "go to X": "Go to work" moved a whole recording once.
+ */
+export function bareShape(r: Reading): boolean {
+  if (r.self || r.newNote || r.verb || r.nameFirst) return false;
+  if (r.shape === 1 || r.shape === 2) return r.noun && !r.split;
+  if (r.shape === 3) return r.stopped;
+  if (r.shape === 5) return r.plainMove;
+  return r.shape === 4 || r.shape === 8;
+}
+
+/**
+ * What the note named has to be for a bare phrase: for "put this in X", "add X to Y" and a heading, the name or the
+ * title says what kind of list it is (a kind word in the name, or a title that ends in one: House TODOs, Groceries,
+ * Packing list), and the heading is one the note has. "A note" and "an item" said are their own evidence, and so is
+ * "move this". Nearly every note has one bullet, so a list in the body is no evidence: "send this to Sam, the deposit
+ * is due" beside a note called Sam is a sentence.
+ */
+export function bareEvidence(r: Reading, note: { title: string; body: string }): boolean {
+  if (r.shape === 3 || r.shape === 4 || r.shape === 8) {
+    const kind = nameWords(r.name);
+    if (kind.specific.length + kind.generic.length === 0 && titleKind(note.title) === null) return false;
+  }
+  if (r.shape === 8) return r.heading !== null && headingsOf(note.body).some((h) => nameScore(nameWords(r.heading!), nameWords(h)) >= FIND.resolved);
+  return true;
+}
+
+/**
+ * The gate a phrase passes with no trustworthy keyword: the shape (`bareShape`), a note named clearly (`FIND.clear`),
+ * the evidence (`bareEvidence`), and its words in the same phrase unless the take is at its start, where a route may
+ * wait for them in the open, or it moves the take. A bare command with nothing said for it opened a one-shot that took
+ * the next three phrases of dictation, which is why the words must come in the same breath mid-take. Both readers ask
+ * this (liveRoute.ts `clear`, ai/instruction.ts), and the live reader's mishearing path, so a mishearing means the
+ * same to each.
+ */
+export function bareCommand(r: Reading, note: { title: string; body: string }, score: number, { atStart }: { atStart: boolean }): boolean {
+  return bareShape(r) && score >= FIND.clear && bareEvidence(r, note) && (atStart || r.payload !== '' || r.plainMove);
+}
+
+/**
+ * Whether a command's words after a mishearing of the keyword ("Hey, like, …", "Hey goes …") are a command for a note:
+ * the gate every bare phrase passes (`bareShape`), and the caller's `clear`, which is `bareCommand` with its own find.
+ * "Hey, like, I need to call my mum" and "Hey, like, put the parcel in the post" are words.
  */
 export function misheardShape(words: string, clear: (reading: Reading) => boolean): boolean {
-  return readRoute(words).some((r) => {
-    if (r.self || r.newNote || r.verb) return false;
-    const kind = nameWords(r.name);
-    const shaped = (r.noun && (r.shape === 1 || r.shape === 2)) || (r.shape === 3 && r.stopped) || r.shape === 5 || r.shape === 8 || (r.shape === 4 && kind.specific.length + kind.generic.length > 0);
-    return shaped && clear(r);
-  });
+  return readRoute(words).some((r) => bareShape(r) && clear(r));
 }
 
 /** "For Groceries, eggs", "on the work list, add call Sam", "House TODOs: call Sam": the name said first. After the keyword only. */

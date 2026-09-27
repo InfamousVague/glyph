@@ -32,7 +32,28 @@ describe('a run said in words', () => {
     expect(runOf('add eggs to groceries')).toBeNull();
     expect(runOf('add a heading about the budget')).toBeNull();
   });
+
+  // The rules are anchored at the front, so without the keyword a run is the whole phrase and its object, and nothing more (docs/DESIGN.md §136).
+  it('is the whole phrase, with `whole`, so a sentence that opens with a run’s words is not the run', () => {
+    for (const said of ['fix the spelling', 'tidy it up', 'carry on', 'summarise it for me', 'summarize this', 'make this a list', 'tidy this up', 'flesh it out please']) {
+      expect(runOf(said, { whole: true }), said).not.toBeNull();
+    }
+    for (const said of SENTENCES) {
+      expect(runOf(said, { whole: true }), said).toBeNull();
+      expect(runOf(said), said).not.toBeNull();
+    }
+  });
 });
+
+/** Sentences that open with a run's words: each was a run on main, and rewrote the note it was said into. */
+const SENTENCES = [
+  'Fix the spelling of Kowalski on the sign before Friday',
+  'Tidy up the garage before the weekend',
+  'Organise a meeting with the team',
+  'Continue the discussion with Sam tomorrow',
+  'Summarise the call with Jo',
+  'Keep going with the fence on Saturday',
+];
 
 describe('reading an instruction', () => {
   it('is a run for a run’s words, with the keyword or without', async () => {
@@ -51,11 +72,27 @@ describe('reading an instruction', () => {
     expect(made).toMatchObject({ kind: 'command', plan: { kind: 'create-list', title: 'comic books', items: ['Batman', 'Superman'] } });
   });
 
-  it('refuses a command that named a note there is no note for, with its reason', async () => {
-    const read = await readInstruction('add to the camping list eggs and milk', notes);
-    expect(read.kind).toBe('reject');
+  it('refuses a command that named a note there is no note for after the keyword, and without it saves the words with the reason', async () => {
+    const keyed = await readInstruction('hey ghost, add to the camping list eggs and milk', notes);
+    expect(keyed).toEqual({ kind: 'reject', reason: 'No unambiguous note matches “camping”. Nothing changed.' });
+    // Without the keyword, the person never said it was a command: the words are the note's, and the chip says why.
+    const bare = await readInstruction('add to the camping list eggs and milk', notes);
+    expect(bare).toEqual({ kind: 'words', notice: 'No unambiguous note matches “camping”, so the words are saved as a note.' });
+    // The name as the rules at Done read it, which is what their card would have said.
+    expect(await readInstruction('Add to shopping, oat milk.', notes)).toEqual({ kind: 'words', notice: 'No unambiguous note matches “shopping, oat milk”, so the words are saved as a note.' });
+    expect(await readInstruction('Hey Ghost, add to shopping, oat milk.', notes)).toMatchObject({ kind: 'reject' });
     // A name the rules cannot read at all is an ask after the keyword, not a refusal.
     expect(await readInstruction('hey ghost, add eggs to the camping list', notes)).toEqual({ kind: 'ask', instruction: 'add eggs to the camping list' });
+  });
+
+  it('reads a run without the keyword only as the whole phrase; with it, a sentence that opens with one is the run', async () => {
+    for (const said of SENTENCES) {
+      expect(await readInstruction(`${said}.`, notes), said).toEqual({ kind: 'words' });
+      expect((await readInstruction(`Hey Ghost, ${said.charAt(0).toLowerCase()}${said.slice(1)}.`, notes)).kind, said).toBe('run');
+    }
+    for (const said of ['Fix the spelling.', 'Tidy it up.', 'Carry on.', 'Summarise it for me.']) {
+      expect((await readInstruction(said, notes)).kind, said).toBe('run');
+    }
   });
 
   it('is an ask about the note only after the keyword; without it, the words are the note’s', async () => {
@@ -86,8 +123,11 @@ describe('the keyword as Whisper hears it', () => {
     'Hey, like, make sure the door is locked.',
     'Hey, like, fix the spelling on the sign.',
     'Hey goes, add a bit more salt next time.',
+    // The gate is the bare gate, shared with the live reader: a note called Sam with a bullet is no evidence.
+    'Hey, like, put this in Sam, the deposit is due.',
   ])('keeps how people talk as words, never an ask or a run: %s', async (said) => {
-    expect(await readInstruction(said, house)).toMatchObject({ kind: 'words' });
+    const sam = [...house, { id: 's', title: 'Sam', note: makeNote('s', '# Sam\n\n- Owes me a tenner\n') }];
+    expect(await readInstruction(said, sam)).toMatchObject({ kind: 'words' });
   });
 
   it.each([

@@ -11,18 +11,16 @@ describe('tips in a pause', () => {
     expect(said).toContain('Option');
   });
 
-  // A take-back is a cue, not a command (docs/DESIGN.md §130): said with the keyword on or off, and taught early.
+  // A take-back is a cue, not a command (docs/DESIGN.md §130): said without any keyword, and taught early.
   it('teach taking back the last thing said, and it works as taught', () => {
     const tip = tips({ noteTitle: 'Groceries', continuing: true }).find((candidate) => candidate.say === 'Scratch that');
     expect(tip).toEqual({ say: 'Scratch that', does: 'to take back the last thing you said' });
-    for (const keywordOn of [true, false]) {
-      const take = new LiveTake([], { keywordOn });
-      take.phrase({ text: 'Pick up the parcel.', startMs: 0, endMs: 900 }, 0);
-      take.phrase({ text: 'Call Sam.', startMs: 1000, endMs: 1900 }, 1000);
-      take.phrase({ text: `${tip!.say}.`, startMs: 2000, endMs: 2900 }, 2000);
-      take.close(3000);
-      expect(take.result().made, String(keywordOn)).toEqual(['# Pick up the parcel']);
-    }
+    const take = new LiveTake([]);
+    take.phrase({ text: 'Pick up the parcel.', startMs: 0, endMs: 900 }, 0);
+    take.phrase({ text: 'Call Sam.', startMs: 1000, endMs: 1900 }, 1000);
+    take.phrase({ text: `${tip!.say}.`, startMs: 2000, endMs: 2900 }, 2000);
+    take.close(3000);
+    expect(take.result().made).toEqual(['# Pick up the parcel']);
   });
 
   // Changed on purpose (docs/DESIGN.md §127): a recording no longer makes a voice memo, so no tip offers one. The clips

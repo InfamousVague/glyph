@@ -29,7 +29,8 @@ export interface SuiteTest {
   tests: string;
   /** "blank", "fixtures", or "continue:<title>". */
   setup: string;
-  prefs: { quietStop?: boolean; commandWord?: boolean };
+  /** "Stop when I go quiet": the one preference a script can switch on. */
+  prefs: { quietStop?: boolean };
   /** Each line, and the seconds of silence after it. */
   lines: [string, number][];
   expect: Expectation;
@@ -127,7 +128,7 @@ export function runTest(test: SuiteTest, fixtures: Record<string, string>, heard
   setLinkTitles(titles);
   const continuing = test.setup.startsWith('continue:') ? test.setup.slice('continue:'.length) : null;
   const own = continuing ? (notes[titles.indexOf(continuing)] ?? null) : null;
-  const take = new LiveTake(notes, { keywordOn: test.prefs.commandWord ?? true, own });
+  const take = new LiveTake(notes, { own });
 
   const quiet = test.prefs.quietStop ? new QuietWatch(QUIET_STOP_MS) : null;
   const commits = heard.segments.map((segment) => ({ at: segment.endMs + COMMIT_LAG_MS, segment }));

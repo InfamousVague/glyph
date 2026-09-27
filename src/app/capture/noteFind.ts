@@ -41,8 +41,12 @@ export const FIND = {
   within: 0.15,
   /** A title this near a name that matched nothing is offered beside it. */
   near: 0.4,
-  /** A note this sure is the one meant with no keyword said, or after a mishearing of it (liveCommand.ts `misheardShape`). */
-  clear: 0.85,
+  /**
+   * A note this sure is the one meant with no keyword said, or after a mishearing of it (liveCommand.ts `bareCommand`):
+   * the whole of the title's distinctive words. A name that is only the start of a title scores 0.85 (`covered`),
+   * which is not clear: "bank" is not Bank statements, "weekend" is not Weekend trip.
+   */
+  clear: 0.9,
 } as const;
 
 /** Kind words that name a kind of list: a to-do list and a chore list are both lists of things to do. */

@@ -1421,7 +1421,7 @@
     {
       "file": "066-glyph-as-a-note-name",
       "group": "Commands",
-      "tests": "“The Glyph note” is a name, not the keyword.",
+      "tests": "“The Glyph note” is a name, said without the keyword: a command into that note.",
       "setup": "fixtures",
       "prefs": {},
       "lines": [
@@ -1431,9 +1431,9 @@
         ]
       ],
       "expect": {
-        "match": "^Add a note to the [Gg]lyph note saying testing if this works\\.$",
+        "note": "",
         "notes": {
-          "Glyph": "# Glyph\n\nIdeas.\n"
+          "Glyph": "# Glyph\n\nIdeas.\n\nTesting if this works."
         }
       },
       "id": "066"

@@ -299,6 +299,21 @@ describe('a note’s own Speak', () => {
     expect((await listNotes()).map((note) => note.body)).toEqual(['# Groceries\n\n- Eggs']);
   });
 
+  // Without the keyword a run is the whole phrase and nothing more (docs/DESIGN.md §136): a sentence that opens with
+  // one is the note's words, where it let the recording go and rewrote the note.
+  it('appends a sentence that opens with a run’s words, said without the keyword, and runs nothing', async () => {
+    await createNote('daily', '# Daily Life\n\nWent for a walk.');
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: null });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} noteId="daily" onFinish={onFinish} />);
+    await screen.findByRole('button', { name: 'Adding to “Daily Life”' });
+    await say('Fix the spelling of Kowalski on the sign.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(onFinish.mock.calls[0]?.[3]).toBeUndefined();
+    expect((await getNote('daily'))?.body).toBe('# Daily Life\n\nWent for a walk.\n\nFix the spelling of Kowalski on the sign.');
+  });
+
   // Changed on purpose (docs/DESIGN.md §126): nothing is stored mid-take, so what was said before New note is written
   // at Done with the rest, and Discard would take it back too.
   it('carries on in a new note from New note, leaving what was said so far where it was said', async () => {
@@ -377,7 +392,10 @@ describe('ending a recording', () => {
     expect(screen.getByText(/isn't something a recording can do, so the words are saved as a note/)).toBeInTheDocument();
   });
 
-  it('refuses a command that names a note there is none of, and saves none of its words', async () => {
+  // Changed on purpose (docs/DESIGN.md §136): a person who did not say the keyword did not say it was a command, so
+  // the words are saved as the note, with the reason on the chip, where nothing was saved. (After the keyword the
+  // live reader keeps the words with its own chip, "No note called “shopping”, so the words stay here", as it did.)
+  it('saves a bare command that names no note as its words, with the reason', async () => {
     await createNote('work', 'Work');
     capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Add to shopping, oat milk.' });
     const onFinish = vi.fn();
@@ -385,8 +403,10 @@ describe('ending a recording', () => {
     await waitFor(() => expect(capture.handlers).not.toBeNull());
     await say('Add to shopping, oat milk.', 0);
     fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
-    await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
-    expect((await listNotes()).map((note) => note.body)).toEqual(['Work']);
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(onFinish.mock.calls[0]?.[0]).toMatchObject({ body: '# Add to shopping, oat milk' });
+    expect((await listNotes()).map((note) => note.body).sort()).toEqual(['# Add to shopping, oat milk', 'Work']);
+    expect(screen.getByText(/No unambiguous note matches “shopping, oat milk”, so the words are saved as a note\./)).toBeInTheDocument();
   });
 });
 
@@ -618,8 +638,10 @@ describe('the sound of a recording', () => {
     expect(await getNote('groceries')).toMatchObject({ body: '# Groceries\n\n- Eggs', recordingMs: 33_000, segments: [eggs] });
   });
 
+  // A table for a note there is none of: the one command the live reader leaves alone that the reader at Done
+  // refuses (a bare "add to the camping list eggs and milk" is the note's words now, §136).
   it('stays on a continued note’s tape when what was said into it is a command that is refused', async () => {
-    const { onFinish } = await intoGroceries('add to the camping list eggs and milk');
+    const { onFinish } = await intoGroceries('Hey Ghost, add a table to the camping list.');
     await waitFor(() => expect(onFinish).toHaveBeenCalledWith(null, false));
     expect(capture.discarded).toEqual([]);
     expect(await getNote('groceries')).toMatchObject({ recordingMs: 33_000, segments: [eggs] });
@@ -1351,13 +1373,29 @@ describe('adding to a note as it is said', () => {
     await screen.findByRole('button', { name: 'Adding to “Daily Life”' });
     await say('Kevin owns the release on Friday.', 0);
     fireEvent.click(screen.getByRole('button', { name: 'New note' }));
-    await say('Add oat milk to groceries.', 1000);
+    // A new list by name is the reader at Done's ("add oat milk to groceries" would be carried out as it is said, §136).
+    await say('Make a new list called packing with tent and stove.', 1000);
     done();
-    const card = await screen.findByRole('region', { name: 'Add to Groceries' });
+    const card = await screen.findByRole('region', { name: 'Create Packing' });
     expect(card.textContent).not.toMatch(/Kevin/);
     expect((await getNote('daily'))?.body).toBe('# Daily Life\n\nWent for a walk.\n\nKevin owns the release on Friday.');
-    fireEvent.click(card.querySelector('button.app-pill')!);
+    fireEvent.click(within(card).getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
-    expect((await getNote('groceries'))?.body).toBe('# Groceries\n\n- Eggs\n- Oat milk\n');
+    expect((await listNotes()).map((note) => note.body)).toContainEqual(expect.stringMatching(/^Packing\n\n- Tent\n- Stove/));
+  });
+
+  // A command needs no keyword (docs/DESIGN.md §136): said plainly at the start, it is carried out as it is said.
+  it('switches to House TODOs for a command said without the keyword, writes the item live, and makes no note', async () => {
+    await createNote('house', HOUSE);
+    const onFinish = await recording();
+    await say('Add call Sam to House TODOs.', 0);
+    await screen.findByRole('button', { name: 'Adding to “House TODOs”' });
+    await waitFor(() => expect(page()).toContain('Call Sam'));
+    expect((await getNote('house'))?.body).toBe(HOUSE);
+    done();
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('region', { name: /^Add to/ })).toBeNull();
+    expect((await listNotes()).map((note) => note.body)).toEqual(['# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n']);
+    expect(onFinish.mock.calls[0]?.[0]).toMatchObject({ id: 'house' });
   });
 });

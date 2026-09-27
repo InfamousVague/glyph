@@ -5,7 +5,7 @@ import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
 import { makeNote } from '../../test/notes.ts';
 import { GUIDE_CHAPTER_TITLES, LIBRARY_TITLES } from '../../test/libraryTitles.ts';
 import { commandCandidates } from './candidates.ts';
-import { findNote, headingsOf, nameScore, nameWords, titleKind } from './noteFind.ts';
+import { FIND, findNote, headingsOf, nameScore, nameWords, titleKind } from './noteFind.ts';
 
 /**
  * Matt's library as the recorder reads it: his 76 titles (the two canvases among them as the canvases they are), the
@@ -69,6 +69,20 @@ describe('one spelling of to-do, and the kind words', () => {
     expect(nameScore(nameWords('house chores'), house)).toBeCloseTo(0.9);
     expect(nameScore(nameWords('house list'), house)).toBeGreaterThan(nameScore(nameWords('house'), house));
     expect(nameScore(nameWords('tasks'), nameWords('Task Management'))).toBe(0);
+  });
+
+  // A name that is only the start of a title is a fair pick after the keyword, and not clear without it (docs/DESIGN.md §136).
+  it('is clear only for the whole of a title’s distinctive words, never for its first word alone', () => {
+    const score = (said: string, title: string) => nameScore(nameWords(said), nameWords(title));
+    expect(FIND.clear).toBe(0.9);
+    expect(score('bank', 'Bank statements')).toBe(0.85);
+    expect(score('weekend', 'Weekend trip')).toBe(0.85);
+    expect(score('car', 'Car insurance')).toBe(0.85);
+    expect(score('garden jobs', 'House and garden jobs')).toBe(0.85);
+    expect(score('the weekend list', 'Weekend trip')).toBe(0.85);
+    expect(score('house', 'House TODOs')).toBe(0.9);
+    expect(score('the work list', 'Work')).toBe(0.9);
+    expect(score('weekend trip', 'Weekend trip')).toBe(1);
   });
 });
 

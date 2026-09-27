@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commandWords, hearKeyword, isOpener, misheardShape, nameable, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine } from './liveCommand.ts';
+import { bareEvidence, bareShape, commandWords, hearKeyword, isOpener, misheardShape, nameable, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine } from './liveCommand.ts';
 
 /** The first reading of each shape, as the grammar gives them: name, payload, and the flags a test is about. */
 const read = (text: string) => readRoute(commandWords(text)).map((r) => ({ shape: r.shape, name: r.name, payload: r.payload, stopped: r.stopped, split: r.split }));
@@ -27,10 +27,68 @@ describe('hearing the keyword in a phrase', () => {
     for (const words of ['add a note to house to-dos, call Sam', 'add call Sam to house to-dos', 'add this to weekend trip: book the ferry', 'move this to daily life', 'new item for groceries, eggs']) {
       expect(misheardShape(commandWords(words), clear), words).toBe(true);
     }
-    for (const words of ['put the parcel in the post', 'add some salt to the questions', 'I need to call my mum', 'I have to get this finished by Friday', 'new note', 'remind me to book the MOT']) {
+    for (const words of ['I need to call my mum', 'I have to get this finished by Friday', 'new note', 'remind me to book the MOT', 'go to work', 'for groceries, eggs']) {
       expect(misheardShape(commandWords(words), clear), words).toBe(false);
     }
     expect(misheardShape('add a note to house to-dos, call Sam', () => false)).toBe(false);
+  });
+});
+
+/**
+ * The gate a phrase passes with no keyword (docs/DESIGN.md §136), by its words alone and then by the note it names.
+ * Each sentence that stays out was a mis-fire the review of the design found.
+ */
+describe('the shapes a bare command may have', () => {
+  const shapes = (text: string) => readRoute(commandWords(text)).filter(bareShape);
+  const names = (text: string) => shapes(text).map((r) => r.name);
+
+  it('takes a note or an item said for a note, a stopped “put this in”, “add X to Y”, a heading, and “move this”', () => {
+    expect(names('add a note to house to-dos, call Sam')).toEqual(['house to-dos']);
+    expect(names('new item for groceries, eggs')).toEqual(['groceries']);
+    expect(names('put this in the house list, call Sam')).toEqual(['house list']);
+    expect(names('add call Sam to house to-dos')).toContain('house to-dos');
+    expect(names('add fix the tap under kitchen in home jobs')).toContain('home jobs');
+    expect(names('move this to the garage')).toEqual(['garage']);
+    expect(names('switch everything to work')).toEqual(['work']);
+  });
+
+  it('never takes a name from a split the grammar chose, a to-do for here, a name said first, or an unstopped “put this in”', () => {
+    // "Another item on the agenda is the budget": the only name is the whole tail, never "agenda" with "is the budget" after it.
+    const agenda = readRoute(commandWords('another item on the agenda is the budget'));
+    expect(agenda.find((r) => r.name === 'agenda')).toMatchObject({ shape: 2, split: true, payload: 'is the budget' });
+    expect(names('another item on the agenda is the budget')).toEqual(['agenda is the budget']);
+    expect(names('add a note to house to-dos call Sam')).toEqual(['house to-dos call Sam']);
+    for (const words of ['remind me to book the MOT', 'make a note to call the electrician', 'new note', 'for groceries, eggs', 'put this in weekend trip', 'add a note to call log', 'go to work', 'continue in the garage', 'move it to the garage', 'carry on in work']) {
+      expect(names(words), words).toEqual([]);
+    }
+  });
+
+  it('marks a move said plainly: “move this” or “switch this”, never “go to” or “move it”', () => {
+    const plain = (text: string) => readRoute(text).find((r) => r.shape === 5)?.plainMove;
+    expect(plain('go to work')).toBe(false);
+    expect(plain('move this to work')).toBe(true);
+    expect(plain('move it to work')).toBe(false);
+    expect(plain('switch everything to work')).toBe(true);
+    expect(plain('switch to weekend trip')).toBe(false);
+    expect(plain('carry on in the garage')).toBe(false);
+  });
+
+  it('wants the name or the title to say what kind of list it is for “put this in”, “add X to Y” and a heading, and the heading to exist', () => {
+    const one = (text: string) => shapes(text)[0]!;
+    const sam = { title: 'Sam', body: '# Sam\n\n- Owes me a tenner\n' };
+    const groceries = { title: 'Groceries', body: '# Groceries\n\n- Eggs\n' };
+    const work = { title: 'Work', body: '# Work\n\nNotes.\n' };
+    const jobs = { title: 'Home jobs', body: '# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n' };
+    expect(bareEvidence(one('send this to Sam, the deposit is due'), sam)).toBe(false);
+    expect(bareEvidence(one('put this in the house list, call Sam'), work)).toBe(true);
+    expect(bareEvidence(one('add oat milk to groceries'), groceries)).toBe(true);
+    expect(bareEvidence(one('add call the plumber to work'), work)).toBe(false);
+    expect(bareEvidence(one('add call the plumber to the work list'), work)).toBe(true);
+    expect(bareEvidence(one('add fix the tap under kitchen in home jobs'), jobs)).toBe(true);
+    expect(bareEvidence(one('add the key under the mat in home jobs'), jobs)).toBe(false);
+    // "A note" said is its own evidence, whatever the title.
+    expect(bareEvidence(one('add a note to work, call Sam'), work)).toBe(true);
+    expect(bareEvidence(one('move this to work'), work)).toBe(true);
   });
 
   it('knows a phrase that is only the keyword’s lead, only filler, or Whisper’s line for a silence', () => {

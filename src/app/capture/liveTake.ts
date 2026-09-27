@@ -30,7 +30,6 @@ interface Written {
 }
 
 export interface LiveTakeOptions {
-  keywordOn?: boolean;
   /** The note whose own Speak this is. */
   own?: MemoryNote | null;
   locked?: boolean;
@@ -71,7 +70,6 @@ export class LiveTake {
       notes: this.notes.map((note) => ({ id: note.id, title: noteTitle(note.body), note })).filter((c) => c.title),
       aim: this.aim,
       own: Boolean(this.options.own),
-      keywordOn: this.options.keywordOn ?? true,
       locked: this.options.locked ?? false,
       published: this.options.published,
     };
