@@ -1,0 +1,384 @@
+/*
+ * The phone at work (AtWork.tsx): a scene over the note while the models work on a recording. Paper and the two
+ * inks, nothing else. One column on a phone - the title, the picture, the steps, the counters, the foot, the words -
+ * with the picture taking what is left so nothing scrolls; two columns on a wide screen (a folding phone opened
+ * out), the picture on the left and the words on the right, with the gap on the hinge.
+ *
+ * Layers, as the tree has them: the tab bar 5, the strip holder 4, the status scrim 40, the drag bar 41, the floating
+ * card 45, the find bar 50, settings 55, the benches 58, sheets and menus 60, launch 90, the kit's toasts 200
+ * (docs/research/kit-surface.md), so the landing toast shows over the fading scene. It covers the tab bar, so it
+ * pads by the status bar's inset (Guide.module.css's rule) and the safe edges.
+ */
+
+.scene {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
+  grid-template-areas:
+    'head'
+    'picture'
+    'steps'
+    'counters'
+    'foot'
+    'words';
+  row-gap: var(--glacier-space-3);
+  padding: calc(var(--app-inset-top) + var(--glacier-space-4)) var(--app-gutter-end) calc(var(--app-safe-bottom) + var(--glacier-space-3)) var(--app-gutter-start);
+  overflow: hidden;
+  background: var(--app-paper);
+  color: var(--app-ink);
+  transition: opacity 260ms var(--glacier-ease-out);
+}
+
+/* The bench's: in its host, under the bench's bar, with no status bar to pad for. */
+.scene[data-inline] {
+  position: absolute;
+  padding-block: var(--glacier-space-4) var(--glacier-space-3);
+}
+
+.scene[data-leaving] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The haze's filter, kept in the page and drawn nowhere. */
+.defs {
+  position: absolute;
+}
+
+.head {
+  grid-area: head;
+  display: grid;
+  gap: var(--glacier-space-1);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--app-h4);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: var(--app-tracking-title);
+  line-height: 1.2;
+  color: var(--app-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail {
+  margin: 0;
+  min-block-size: 1.4em;
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.4;
+  color: var(--app-ink-2);
+}
+
+.unseen {
+  composes: app-unseen from global;
+  margin: 0;
+}
+
+/*
+ * The picture: the pane of words filling the box, the phone centred over it. The phone's box is the drawing's own
+ * ratio, 240 by 544, its column of stipple inside it, so the heat never reaches the title.
+ */
+.picture {
+  grid-area: picture;
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  inline-size: 100%;
+  block-size: 100%;
+  max-block-size: min(46dvh, 460px);
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+/*
+ * Absolute, in the picture's own box, so its height is the picture's: as a grid item its 100% resolved against an
+ * auto row and the drawing took the pane's width instead (measured 367 by 832 in a 418 px box). Its width follows
+ * the drawing's ratio, and the auto margins centre it.
+ */
+.picture > svg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  margin: auto;
+  block-size: 100%;
+  inline-size: auto;
+}
+
+/* The pane: the words behind the phone, fading in at the top and out at the bottom. */
+.pane {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  scroll-behavior: smooth;
+  mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+}
+
+/*
+ * Room above and below, so the first lines can sit where the current line is kept, about 60% down. In shares of the
+ * width, which is what a percentage padding is; on a phone the pane is about as wide as it is tall.
+ */
+.list {
+  display: grid;
+  gap: 0.3em;
+  margin: 0;
+  padding: 60% var(--glacier-space-1) 35%;
+  list-style: none;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.line {
+  color: var(--app-ink-3);
+}
+
+.line[data-place='before'] {
+  color: var(--app-ink-2);
+}
+
+.line[data-place='current'] {
+  color: var(--app-ink);
+}
+
+.line[data-strong] {
+  font-weight: var(--glacier-font-weight-bold);
+  color: var(--app-ink);
+}
+
+/* A line arriving while the model streams rises in (LaunchScreen's keyframes); the read modes only move the head. */
+.list[data-streaming] .line {
+  animation: rise 320ms var(--glacier-ease-out) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* On a phone the side is nothing but its children, each in its own row. */
+.side {
+  display: contents;
+}
+
+.steps {
+  grid-area: steps;
+  display: grid;
+  gap: 0.45em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.3;
+}
+
+.step {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55em;
+  color: var(--app-ink-3);
+}
+
+.step[data-state='working'] {
+  color: var(--app-ink);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.step[data-state='done'] {
+  color: var(--app-ink-2);
+}
+
+.stepMark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  align-self: center;
+  inline-size: 1.1em;
+  block-size: 1.1em;
+}
+
+/* The loader turns while the model loads: the one thing that moves while it does. */
+.stepMark[data-turn] svg {
+  animation: turn 900ms linear infinite;
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.stepDetail {
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--app-ink-3);
+}
+
+/* The counters: four tiles of one height, a label over a value over a bar, a unit, or nothing. */
+.counters {
+  grid-area: counters;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--glacier-space-2);
+  margin: 0;
+}
+
+.tile {
+  display: grid;
+  grid-template-rows: auto auto 1em;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.tileLabel {
+  composes: app-eyebrow from global;
+  white-space: nowrap;
+}
+
+.tileValue {
+  margin: 0;
+  min-block-size: 1.15em;
+  font-size: var(--app-h3);
+  font-weight: var(--glacier-font-weight-semibold);
+  line-height: 1.15;
+  color: var(--app-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* "No reading" is words, not a number: smaller, the same height, so the row never reflows. */
+.tileValue[data-words] {
+  font-size: var(--glacier-font-size-sm);
+  min-block-size: calc(var(--app-h3) * 1.15);
+  display: flex;
+  align-items: flex-end;
+  color: var(--app-ink-2);
+}
+
+/* The bar under a share (format/AiCard.module.css's meter). */
+.tileBar {
+  align-self: center;
+  margin: 0;
+  block-size: 2px;
+  border-radius: 1px;
+  background: color-mix(in oklch, var(--app-ink) 14%, transparent);
+  overflow: hidden;
+}
+
+.tileBar > span {
+  display: block;
+  block-size: 100%;
+  background: var(--app-ink);
+  transition: inline-size 300ms ease-out;
+}
+
+.tileUnit {
+  margin: 0;
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1;
+  color: var(--app-ink-3);
+}
+
+.foot {
+  grid-area: foot;
+  margin: 0;
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1.4;
+  text-align: center;
+  color: var(--app-ink-3);
+}
+
+.words {
+  grid-area: words;
+  display: flex;
+  justify-content: center;
+  gap: var(--glacier-space-6);
+}
+
+.word {
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink);
+}
+
+/*
+ * A wide screen (the Fold opened out): the picture on the left, everything said on the right, the hinge in the gap.
+ * The picture spans both rows and the grid centres the group; the title sits at the end of its row and the rest at
+ * the start of theirs, so the two halves meet at the middle of the picture.
+ */
+.scene[data-wide] {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    'picture head'
+    'picture side';
+  column-gap: var(--glacier-space-10);
+  row-gap: var(--glacier-space-4);
+  align-content: center;
+}
+
+.scene[data-wide] .head {
+  align-self: end;
+}
+
+.scene[data-wide] .picture {
+  block-size: min(64dvh, 560px);
+  max-block-size: none;
+}
+
+.scene[data-wide] .side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  gap: var(--glacier-space-4);
+  min-inline-size: 0;
+}
+
+.scene[data-wide] .foot,
+.scene[data-wide] .list {
+  text-align: start;
+}
+
+.scene[data-wide] .words {
+  justify-content: flex-start;
+}
+
+/* Reduced motion, chosen on the phone or read at opening: nothing moves but state. */
+.scene[data-still],
+.scene[data-still] .pane {
+  scroll-behavior: auto;
+  transition: none;
+}
+
+.scene[data-still] .list[data-streaming] .line,
+.scene[data-still] .stepMark[data-turn] svg {
+  animation: none;
+}
+
+.scene[data-still] .tileBar > span {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene,
+  .pane {
+    scroll-behavior: auto;
+    transition: none;
+  }
+
+  .list[data-streaming] .line,
+  .stepMark[data-turn] svg {
+    animation: none;
+  }
+
+  .tileBar > span {
+    transition: none;
+  }
+}
