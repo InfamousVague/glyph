@@ -23,7 +23,7 @@ afterEach(() => {
 
 const updates = (over: Partial<Updates> = {}): Updates =>
   ({ ready: null, apk: { kind: 'none' }, checking: false, lastError: null, lastChecked: null, status: null, build: 'b', version: 'v', check: vi.fn(), reload: vi.fn(), installApk: vi.fn(), ...over }) as Updates;
-const sync = { phase: 'off' as const, lastAt: null, message: null, conflicts: 0 };
+const sync = { phase: 'off' as const, lastAt: null, message: null, conflicts: 0, unsent: 0, unsentReason: null };
 
 const text = () => host!.textContent ?? '';
 

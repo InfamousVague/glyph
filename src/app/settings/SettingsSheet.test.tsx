@@ -127,7 +127,7 @@ describe('the list of sections', () => {
     const host = settings();
     expect(labels(host)).toContain('Recording');
     const recording = handed.find((section) => section.id === 'recording');
-    expect(recording?.settings?.map((s) => s.name)).toEqual(['Stop when I go quiet', 'Commands start with “hey Ghost”', 'Review after recording', 'Better words', 'Summaries']);
+    expect(recording?.settings?.map((s) => s.name)).toEqual(['Stop when I go quiet', 'Commands start with “hey Ghost”', 'Review after recording', 'Better words', 'Summaries', 'Your tapes']);
   });
 
   it('grows Developer and Test results once developer mode is on', () => {
@@ -202,6 +202,7 @@ describe('the readings', () => {
 const ELSEWHERE: Record<string, string> = {
   // Signed out, the page is the ways in, and the signed-in rows are not drawn. The ways in are checked.
   'account/Sync now': 'signed in only',
+  'account/Sync meeting recordings': 'signed in only',
   'account/Live typing (trial)': 'signed in only',
   'account/Password and recovery codes': 'signed in only',
   'account/Sign out': 'signed in only',
@@ -211,6 +212,9 @@ const ELSEWHERE: Record<string, string> = {
   'account/I have an account': 'the mode the page opens in',
   // Android's own switch, drawn only where the activity has alerts to switch.
   'about/Update alerts': 'only where the activity has alerts',
+  // Meetings' rows, drawn only on a phone whose binary has the service (native generation 20); the test's binary answers no generation.
+  'recording/Write up': 'only with the meeting service',
+  'recording/Tell me when a meeting is written up': 'only with the meeting service',
 };
 
 /** Every setting the search lists that its section's page, drawn as the sheet hands it over, does not name. */

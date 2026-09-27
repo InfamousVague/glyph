@@ -1,17 +1,42 @@
 import { useEffect, useState } from 'react';
 import { SegmentedControl, Slider, Switch } from '@glacier/react';
+import { MEETING_GENERATION } from '../capture/meeting.ts';
+import { canNotifyNow, useCanNotify } from '../capture/meetingLive.ts';
 import { defaultHeight, saveHeight, savedHeight, useSideKeySpot } from '../capture/sideKey.ts';
 import { SideKeyWaves } from '../capture/SideKeyWaves.tsx';
+import { failureText } from '../core/failure.ts';
+import { fireNativeHaptic } from '../core/haptics.ts';
+import { requestNotifications } from '../core/host.ts';
+import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { isAndroid } from '../core/platform.ts';
-import { setPreferences, usePreferences, type Summaries } from '../core/preferences.ts';
+import { setPreferences, usePreferences, type Summaries, type WriteUp } from '../core/preferences.ts';
+import { deleteRecordings } from '../core/recordings.ts';
+import { listNotes, type Note } from '../core/store.ts';
+import { isTauri } from '../core/tauri.ts';
 import { PaneSection, RowAction, SettingRow } from './kit/settingsKit.tsx';
+import { oldTapes, tapeBytes, tapeSize } from './tapes.ts';
 
 /**
  * Recording: how a take ends, whether a command needs its word first, what happens to the words afterwards, and - on
  * Android, where there is a side key - where that key is. Listed on Android and on the Mac (SettingsSheet.tsx): the
  * Mac records through Speak, runs the better words and the summaries, and its rows had no home there before
  * (docs/DESIGN.md §127 section 2). The side key's own section is Android's alone.
+ *
+ * Meetings (§127 section 4), on an Android phone with the service that records them (native generation 20): when a
+ * meeting is written up with the app closed, and whether the phone may say when it is. And Tapes (§127 section 6),
+ * on Android and the Mac: how much room the recordings take, said from their lengths (an hour is about 115 MB),
+ * and the way to give the room back for the old ones, keeping every word and phrase. That asks twice, as emptying
+ * the trash does, and only where the binary can remove a file (generation 20).
  */
+
+/** When a meeting is written up (core/preferences.ts `WriteUp`), in the choice's order. */
+const WRITE_UP_CHOICES: { value: WriteUp; label: string }[] = [
+  { value: 'charging', label: 'When charging or above half' },
+  { value: 'now', label: 'Straight away' },
+];
+
+/** How long the remove stays armed after its first tap. */
+const ARMED_MS = 5000;
 
 /** Which recordings are summarised on their own (core/preferences.ts `Summaries`), in the choice's order. */
 const SUMMARY_CHOICES: { value: Summaries; label: string }[] = [
@@ -22,6 +47,7 @@ const SUMMARY_CHOICES: { value: Summaries; label: string }[] = [
 
 export function RecordingPane() {
   const prefs = usePreferences();
+  const meetings = useMeetingGeneration();
   return (
     <>
       <PaneSection title={isAndroid ? 'The side key' : 'While recording'}>
@@ -59,7 +85,120 @@ export function RecordingPane() {
           }
         />
       </PaneSection>
+      {isAndroid && meetings ? <Meetings writeUp={prefs.writeUp} /> : null}
+      {isTauri() ? <Tapes canRemove={meetings} /> : null}
     </>
+  );
+}
+
+/** Whether this binary has the meeting service and the recordings' commands (capture/meeting.ts). */
+function useMeetingGeneration(): boolean {
+  const [has, setHas] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void hasNativeGeneration(MEETING_GENERATION).then((answer) => {
+      if (live) setHas(answer);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return has;
+}
+
+/**
+ * Meetings: when the phone writes one up with the app closed, and whether it may say when it has. The notification
+ * is the meeting's own permission (never the update alerts'), read fresh as the page opens and again once the
+ * prompt is answered, since the person can turn it off in the phone's settings while the app is closed.
+ */
+function Meetings({ writeUp }: { writeUp: WriteUp }) {
+  const canNotify = useCanNotify();
+  const [blocked, setBlocked] = useState(false);
+  useEffect(() => void canNotifyNow(), []);
+  const allow = () => {
+    if (requestNotifications() === 'blocked') setBlocked(true);
+    canNotifyNow();
+  };
+  return (
+    <PaneSection title="Meetings">
+      <SettingRow
+        label="Write up"
+        hint="A meeting is written up when the phone is charging or above half. Straight away uses more of the battery."
+        layout="stacked"
+        control={<SegmentedControl aria-label="Write up" fullWidth size="sm" options={WRITE_UP_CHOICES} value={writeUp} onValueChange={(value) => setPreferences({ writeUp: value as WriteUp })} />}
+      />
+      <SettingRow
+        label="Tell me when a meeting is written up"
+        hint={blocked && !canNotify ? 'Notifications are off for Ghost.md in the phone’s settings.' : 'A notification, with the first line of the summary once the phone is unlocked.'}
+        value={canNotify ? 'On' : undefined}
+        control={canNotify ? undefined : <RowAction onPress={allow}>Allow</RowAction>}
+      />
+    </PaneSection>
+  );
+}
+
+/**
+ * Tapes: the room the recordings take on this device, from their lengths, and the way to give back the room the old
+ * ones take. The audio goes; the words and the phrases stay, so the note reads and the transcript plays as text.
+ */
+function Tapes({ canRemove }: { canRemove: boolean }) {
+  const [notes, setNotes] = useState<Note[] | null>(null);
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void listNotes()
+      .then((all) => {
+        if (live) setNotes(all);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!armed) return undefined;
+    const id = window.setTimeout(() => setArmed(false), ARMED_MS);
+    return () => window.clearTimeout(id);
+  }, [armed]);
+  const taped = (notes ?? []).filter((note) => (note.recordingMs ?? 0) > 0);
+  const bytes = tapeBytes(taped);
+  const old = oldTapes(notes ?? [], Date.now());
+  const press = async () => {
+    if (!armed) {
+      setArmed(true);
+      fireNativeHaptic('warning');
+      return;
+    }
+    setBusy(true);
+    setArmed(false);
+    try {
+      const done = await deleteRecordings(old.map((note) => note.id));
+      setSaid(done.removed.length === 0 ? 'Nothing to remove.' : `Removed the audio of ${done.removed.length === 1 ? 'one tape' : `${done.removed.length} tapes`}. The words stay.`);
+      setNotes((was) => (was ?? []).map((note) => (done.removed.includes(note.id) ? { ...note, recordingMs: 0 } : note)));
+    } catch (failure) {
+      setSaid(failureText(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const size = notes === null ? 'Your tapes are being counted.' : taped.length === 0 ? 'No tapes on this device.' : `Your tapes take about ${tapeSize(bytes)} on this device.`;
+  return (
+    <PaneSection title="Tapes">
+      <SettingRow
+        label="Your tapes"
+        hint={said ?? size}
+        layout="stacked"
+        control={
+          canRemove ? (
+            <RowAction onPress={() => void press()} disabled={busy || old.length === 0}>
+              {busy ? 'Removing' : armed ? 'Tap again to remove the audio' : 'Remove audio older than a month'}
+            </RowAction>
+          ) : undefined
+        }
+      />
+    </PaneSection>
   );
 }
 
