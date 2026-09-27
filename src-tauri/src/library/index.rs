@@ -55,10 +55,20 @@ const INDEX_SCHEMA: &str = "
 
 /// Opens the index in `glyph`, dropping and rebuilding its tables when they
 /// are of another `INDEX_VERSION`.
+///
+/// The version check and the rebuild run under one process-wide lock. Two
+/// handles are opened in one process now (the app's `NotesStore`, and a
+/// meeting's write-up on its own thread with no Tauri around it), and after a
+/// version bump both would find the old number: without the lock the second
+/// could `DROP TABLE` the rows the first had just rebuilt and filled, and an
+/// hour's meeting would be indexed by neither until the next scan. With it,
+/// the second reads the new version and drops nothing.
 pub(super) fn open(glyph: &Path) -> Result<Connection> {
+    static OPENING: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let index = Connection::open(glyph.join("index.sqlite"))?;
     let _: String = index.query_row("PRAGMA journal_mode=WAL", [], |row| row.get(0))?;
     index.busy_timeout(std::time::Duration::from_secs(5))?;
+    let _one_at_a_time = crate::lock::lock(&OPENING);
     let version: i64 = index.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if version != INDEX_VERSION {
         index.execute_batch("DROP TABLE IF EXISTS notes; DROP TABLE IF EXISTS command_mutations;")?;

@@ -43,6 +43,11 @@ pub mod note;
 #[path = "../../../src-tauri/src/fsx.rs"]
 pub mod fsx;
 
+// The poison-tolerant lock, Tauri-free: `library/index.rs` opens the index
+// under it, so two handles in one process cannot race a rebuild.
+#[path = "../../../src-tauri/src/lock.rs"]
+pub mod lock;
+
 #[cfg(test)]
 #[path = "../../../src-tauri/src/test_support/temp.rs"]
 pub mod test_support;

@@ -149,6 +149,39 @@ fn the_index_is_only_a_cache() {
     assert!(!library.image_in_use("other.jpg").unwrap());
 }
 
+/// Two handles are opened in one process now: the app's, and a meeting's
+/// write-up on its own thread. After a version bump both find the old number
+/// at once; `index::open` takes a process-wide lock round the rebuild so the
+/// second cannot drop what the first has just filled.
+#[test]
+fn two_handles_opened_at_once_on_an_older_index_both_open() {
+    let root = TempDir::new("library-two-handles");
+    {
+        let mut library = Library::open_fs(&root).unwrap();
+        library.save_note("k", "# Kept\n", "editor").unwrap();
+    }
+    let index = rusqlite::Connection::open(root.join(".glyph/index.sqlite")).unwrap();
+    index.execute_batch("PRAGMA user_version = 1;").unwrap();
+    drop(index);
+    let openers: Vec<_> = (0..2)
+        .map(|_| {
+            let root = root.to_path_buf();
+            std::thread::spawn(move || {
+                let mut library = Library::open_fs(&root).unwrap();
+                library.list_notes().unwrap().len()
+            })
+        })
+        .collect();
+    for opener in openers {
+        assert_eq!(opener.join().unwrap(), 1, "each handle sees the note");
+    }
+    let index = rusqlite::Connection::open(root.join(".glyph/index.sqlite")).unwrap();
+    let version: i64 = index.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+    assert_eq!(version, 2);
+    let rows: i64 = index.query_row("SELECT count(*) FROM notes", [], |row| row.get(0)).unwrap();
+    assert_eq!(rows, 1, "the rows the first rebuild filled are still there");
+}
+
 #[test]
 fn moving_in_writes_every_old_note_out_and_is_safe_to_repeat() {
     let root = TempDir::new("library-move");
