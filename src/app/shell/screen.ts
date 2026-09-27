@@ -8,14 +8,15 @@ import { ALL_NOTES, notePlace, type Place } from '../notes/visited.ts';
  * Which screen is up: the one piece of state the app would have bought a router to hold (App.tsx says why it did
  * not).
  *
- * Five screens, each a member of one union: the home page, the All notes grid, a note, a capture and the Academy.
- * Everything else a person sees - Settings, the guide, the + sheet, the sidebar's card, the aside, the palette - is a
- * sheet or a card over whichever of these is up, and is held beside it in the Shell rather than in here.
+ * Six screens, each a member of one union: the home page, the All notes grid, a note, a capture, a meeting being
+ * recorded by the phone's service, and the Academy. Everything else a person sees - Settings, the guide, the + sheet,
+ * the sidebar's card, the aside, the palette - is a sheet or a card over whichever of these is up, and is held beside
+ * it in the Shell rather than in here.
  *
- * Three of the five are places (notes/visited.ts): the home page, the grid and a note are where a person goes, so they
- * are where the tab row is drawn, where the arrows walk, and where a wide window splits into panes. A capture and the
- * Academy are things a person is doing, each the whole screen with its own way out. The two questions below are
- * asked of every render, so they live beside the union and not in the Shell's body.
+ * Three of the six are places (notes/visited.ts): the home page, the grid and a note are where a person goes, so they
+ * are where the tab row is drawn, where the arrows walk, and where a wide window splits into panes. A capture, a
+ * meeting and the Academy are things a person is doing, each the whole screen with its own way out. The questions
+ * below are asked of every render, so they live beside the union and not in the Shell's body.
  */
 
 export type Screen =
@@ -47,13 +48,36 @@ export type Screen =
       stop: number;
       /** Talking into this note, from its Speak: the words go here, and the capture comes back here. */
       noteId?: string;
+      /** A meeting in the page recorder (the Mac; docs/DESIGN.md §127 section 3): recorded, not read, and written up after. */
+      meeting?: true;
+    }
+  /**
+   * A meeting being recorded by the phone's own service (capture/MeetingScreen.tsx; §127 section 3): the cassette
+   * turning, Done and Discard, and no note words, since the side key can open it over the lock screen.
+   */
+  | {
+      name: 'meeting';
+      noteId: string;
+      fromAssistant: boolean;
+      /** Each opening is a fresh mount, keyed, as a capture's is. */
+      key: number;
     }
   /** Glyph Academy: markdown taught a mark at a time, open from Settings whenever it is wanted (academy/). */
   | { name: 'academy' };
 
-/** A capture, fresh: from the side key (`fromAssistant`) or a Speak button, into `noteId` when it was one note's. */
-export function captureScreen(fromAssistant: boolean, noteId?: string): Screen {
-  return { name: 'capture', key: Date.now(), fromAssistant, stop: 0, ...(noteId ? { noteId } : {}) };
+/** A capture, fresh: from the side key (`fromAssistant`) or a Speak button, into `noteId` when it was one note's; a meeting on the Mac with `meeting`. */
+export function captureScreen(fromAssistant: boolean, noteId?: string, { meeting = false }: { meeting?: boolean } = {}): Screen {
+  return { name: 'capture', key: Date.now(), fromAssistant, stop: 0, ...(noteId ? { noteId } : {}), ...(meeting ? { meeting: true } : {}) };
+}
+
+/** The meeting screen for the note the service is recording into, from the side key (`fromAssistant`) or the page. */
+export function meetingScreen(noteId: string, fromAssistant: boolean): Screen {
+  return { name: 'meeting', noteId, fromAssistant, key: Date.now() };
+}
+
+/** Whether a screen is the whole window with a microphone behind it: a capture or a meeting, over which nothing else is drawn. */
+export function isRecording(screen: Screen): boolean {
+  return screen.name === 'capture' || screen.name === 'meeting';
 }
 
 /** Where on the trail a screen is: the home page, the grid, or a note. A capture or the Academy is none. */
