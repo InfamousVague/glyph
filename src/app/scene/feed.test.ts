@@ -57,8 +57,24 @@ describe('phrases', () => {
     expect(phrasesOf('Thinking Process:\n\nFirst, the words. Is "seat bar" right? Probably not.')).toEqual(['Thinking Process: First, the words.', 'Is "seat bar" right?', 'Probably not.']);
   });
 
-  it('drop the note’s blank lines', () => {
-    expect(noteLines(body)).toEqual(['# Groceries', '- Milk, eggs and coffee', '- [ ] Call the plumber about the seat bar', 'Then the garden.']);
+  it('leave a thought’s sentence whole, and cut only one past thirty words, at a clause end', () => {
+    const twenty = 'The slower model heard "seek bar" where the fast one heard "seat bar", a seek bar is the scrubber in a player, so seek is right.';
+    expect(thoughtLines(twenty)).toEqual([twenty]);
+    // Past thirty words the sentence is cut at its semicolons and colons, never every fourteen words.
+    const long = 'The slower model heard "seek bar" where the fast one heard "seat bar"; a seek bar is the scrubber in a player, so "seek" is right, and the task says the same words: the two agree once the spelling is put right.';
+    expect(thoughtLines(long)).toEqual([
+      'The slower model heard "seek bar" where the fast one heard "seat bar";',
+      'a seek bar is the scrubber in a player, so "seek" is right, and the task says the same words:',
+      'the two agree once the spelling is put right.',
+    ]);
+    // With no clause end, a long sentence is one line and left to wrap.
+    const plain = Array.from({ length: 40 }, (_, i) => `word${i + 1}`).join(' ');
+    expect(thoughtLines(plain)).toEqual([plain]);
+  });
+
+  it('drop the note’s blank lines and its Markdown marks', () => {
+    expect(noteLines(body)).toEqual(['Groceries', 'Milk, eggs and coffee', 'Call the plumber about the seat bar', 'Then the garden.']);
+    expect(noteLines('## Two\n> quoted\n1. first\n* [x] done\n- - nested')).toEqual(['Two', 'quoted', 'first', 'done', 'nested']);
   });
 });
 
@@ -82,7 +98,7 @@ describe('the feed', () => {
     const feed = reading(0);
     expect(feed.mode).toBe('reading');
     expect(feed.lines.length).toBe(8);
-    expect(feed.lines[4]).toEqual({ at: 4, text: '# Groceries' });
+    expect(feed.lines[4]).toEqual({ at: 4, text: 'Groceries' });
     expect(feed.current).toBe(0);
     expect(reading(500).current).toBe(4);
     expect(reading(1000).current).toBe(7);

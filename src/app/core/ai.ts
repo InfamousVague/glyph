@@ -51,6 +51,11 @@ export function gb(bytes: number): string {
   return `${(bytes / 1e9).toFixed(1)} GB`;
 }
 
+/** A download's size as its line says it: whole megabytes, as a phone's own download lines count them. */
+export function megabytes(bytes: number): number {
+  return Math.round(bytes / 1e6);
+}
+
 // ---- what is on the phone ---------------------------------------------------------------
 
 /** One catalogue entry with whether this phone has it. Mirrors Rust's ModelInfo. */
@@ -173,6 +178,18 @@ export interface Hardware {
   threads: number;
   cores: number;
   tempC?: number | null;
+}
+
+const share = (value: number) => Math.min(1, Math.max(0, value));
+
+/** The heat as a share of a bar: 20 °C is its foot and 60 °C its top (the AI card's meter, and the scene's rings). */
+export function heatShare(tempC: number): number {
+  return share((tempC - 20) / 40);
+}
+
+/** The busy figure as a share of every core: 640% of eight is four fifths. */
+export function cpuShare(cpuPercent: number, cores: number): number {
+  return cores > 0 ? share(cpuPercent / (100 * cores)) : 0;
 }
 
 /** Mirrors Rust's Progress. */

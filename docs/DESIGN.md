@@ -5296,10 +5296,44 @@ Tests: steps.test.ts, feed.test.ts, AtWork.test.tsx (first frame, opens, follows
 back order, no timers left, still, the smoke switch, hidden), HotPhone.test.tsx, scripted.test.ts,
 SceneBench.test.tsx, runs.test.ts (useAnyRunning), NoteScreen.test.tsx. Page code, over the air, generation 19.
 
+Revised after the review of the built page (the same day), which measured the picture rather than reading it.
+The current line is kept 72% down the pane, under the die's pins, not 60%: 60% was the die itself, and the head
+line, the pen line and each finding as it was written were cut through by it on the cover screen; the lines
+already read pass up behind the die and the mark, which hide them, and the one being read or written never is.
+The thought is split at sentence ends only and left to wrap, with a sentence past thirty words cut at a clause
+end: cutting every fourteen words, which the transcript keeps as a placement, left centred stubs ("and the",
+"sentence.") that read as broken text, and Qwen's real thoughts run longer than the script's. The note's lines
+scroll through as words, their Markdown marks off the front. The rings are drawn in the third ink like the case,
+so over the words they read as heat off the die and not as speckle on the text; the die, its pins and the mark
+keep the contrast. The streaming modes snap the pane rather than gliding it (a glide never caught the next line:
+the pen line rode at 76 to 93% of the pane, in the mask's fade). The mask's solid band starts at 18%, under the
+column of stipple. A step's mark sits on the first line of its words when the detail wraps. The settle dims the
+words to the third ink with the die, and holds 900 ms rather than 400, so the six ticks and the cooled die can be
+seen before the fade. On the inner screen the pane stays centred under the phone (only the side reads from the
+left), and the title has two lines' room with its words at the foot, so the steps and the counters no longer
+move half a line between "is thinking it through." and "is writing what it found."; a wide window that is short
+(the cover screen turned landscape) scrolls the scene rather than clipping Stop and Back to the note off its
+foot. While the document is hidden the scene does not leave: an end off screen is settled and left on return,
+so the findings are still seen landing. The one leave that fires on nothing having happened (the eight-second
+open grace) asks again as it fires, after one play in the browser pane left mid-run at eight seconds and was
+never reproduced: the cleanup should have cleared it and no path to a survivor was found. The bench's body says
+"Played. Play again to watch it once more." once the scene has left it. The feed is keyed on the run's words and
+the prompt's progress, not the whole run, so a report that moves only the clock never splits the transcript
+again. Shared rather than copied: `megabytes`, `heatShare` and `cpuShare` in core/ai.ts (the AI card's meters
+use them too), `HEAT_NOISE` in editor/textEffects.ts (a retune of the editor's heat reaches the haze), and
+`paceNumber` in ai/words.ts.
+
+Known and left. The scene covers the tab bar (it is full screen): the ways out are Back to the note, the back
+gesture and Escape, and the tab row is under it until then. A take that also wrote into an existing note through
+a command, confirmed after Done, opens that note with both a landing and a review: the scene covers the landing
+preview of the lines arriving for the review's length, and Back to the note reveals them landed. Nothing here
+is wrong by the design, and neither is built round until Matt has seen the scene on the Fold.
+
 Not done. Nothing measured on the Fold yet: the Pace tile with the scene up against sent behind, smoke on and
 off, is the number that decides; if it fails, the shimmer stays behind the smoke switch as it is, then HAZE_HZ
-comes down, then the rings' transitions. Whether the Fold shows a thermal zone is still unconfirmed. Discard and
-Done are the recorder's and are gone before the scene starts.
+comes down, then the rings' transitions. Whether the Fold shows a thermal zone is still unconfirmed. Play again
+on the Fold after backgrounding the app during a play is the case that would reproduce the eight-second leave,
+if anything does. Discard and Done are the recorder's and are gone before the scene starts.
 
 ## 129. Only what a recording can reach stays (2026-09-26)
 

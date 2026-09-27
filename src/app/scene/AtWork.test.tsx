@@ -217,6 +217,8 @@ describe('following the run', () => {
     expect(working()).toBeNull();
     expect(scene()?.querySelectorAll('[data-state="done"]').length).toBe(6);
     expect(scene()?.dataset.warmth).toBe('cold');
+    // The settle: the words go to the quiet ink with the die.
+    expect(scene()?.hasAttribute('data-ended')).toBe(true);
     expect(scene()?.querySelectorAll('[data-lit]').length).toBe(0);
     expect(scene()?.hasAttribute('data-leaving')).toBe(false);
     expect(scene()?.querySelector('[aria-live="polite"]')?.textContent).toBe('Reviewed by Qwen3.5 4B in 1:12.');
@@ -236,8 +238,34 @@ describe('following the run', () => {
     expect(runFor('n')?.phase).toBe('stopped');
     show(atWork({ opening: 2, stage: listening(20) }));
     expect(title()).toBe('Listening again, 20%.');
-    await later(HOLD_MS + LEAVE_MS + GRACE_MS + 1000);
+    // In steps, so React commits between the timers: a leave chain a missing guard started would be flushed and seen.
+    await later(GRACE_MS);
+    await later(HOLD_MS);
+    await later(LEAVE_MS + 1000);
     expect(scene()).not.toBeNull();
+    expect(title()).toBe('Listening again, 20%.');
+  });
+
+  it('waits while the document is hidden, and settles and leaves once it is seen again', async () => {
+    show(atWork({ stage: comparing }));
+    rerender(atWork({ stage: null }));
+    const { handle, fake } = await start();
+    hide(true);
+    await act(async () => {
+      fake.finish('[]\n');
+      await handle.done;
+    });
+    await later(HOLD_MS);
+    await later(LEAVE_MS + 1000);
+    expect(scene()).not.toBeNull();
+    expect(scene()?.hasAttribute('data-leaving')).toBe(false);
+    hide(false);
+    expect(title()).toBe('Reviewed by Qwen3.5 4B in 1:12.');
+    await later(HOLD_MS);
+    expect(scene()?.hasAttribute('data-leaving')).toBe(true);
+    await later(LEAVE_MS);
+    expect(scene()).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('cancels a pending leave when a new run appears', async () => {
@@ -292,8 +320,13 @@ describe('the words', () => {
     expect(scene()?.querySelector('button')?.textContent).toBe('Back to the note');
   });
 
-  it('shows Stop only while a run is live, never for a stage', () => {
+  it('shows Stop only while a run is live, never for a stage, even with an earlier ask’s run live under it', async () => {
     show(atWork({ stage: listening(10) }));
+    expect([...scene()!.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Back to the note']);
+    // CaptureScreen hands the review and an ask together; the ask's run is live while the stage is up, and has no Stop here.
+    await start('ask');
+    rerender(atWork({ stage: listening(20) }));
+    expect(runFor('n')?.phase).toBe('loading');
     expect([...scene()!.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Back to the note']);
   });
 
@@ -332,8 +365,25 @@ describe('motion and the haze', () => {
     stubMatchMedia(true);
     show(atWork({ stage: listening(10) }));
     expect(scene()?.hasAttribute('data-still')).toBe(true);
+    // The phone is told too: no fade on its mark, no transitions.
+    expect(scene()?.querySelector('svg[data-warmth]')?.hasAttribute('data-still')).toBe(true);
     expect(scene()?.querySelector('filter')).toBeNull();
     expect(list()?.style.filter).toBe('');
+  });
+
+  it('bends the words by the warmth: half while a model listens or loads, whole while it reads and writes, none after', async () => {
+    show(atWork({ stage: listening(10) }));
+    const bend = () => scene()?.querySelector('feDisplacementMap')?.getAttribute('scale');
+    expect(bend()).toBe('0.72');
+    rerender(atWork({ stage: null }));
+    const { handle, fake } = await start();
+    await act(async () => fake.report({ phase: 'prefill', promptTokens: 1040, promptTokensDone: 312 }));
+    expect(bend()).toBe('1.44');
+    await act(async () => {
+      fake.finish('[]\n');
+      await handle.done;
+    });
+    expect(bend()).toBe('0.00');
   });
 
   it('wears the haze only with the smoke at the edges on', () => {
@@ -374,6 +424,21 @@ describe('motion and the haze', () => {
     expect(writes).toHaveBeenCalledTimes(2);
     expect(list()?.style.filter).toBe('');
     hide(false);
+  });
+
+  it('holds the feed and the picture while hidden, and reads them again on return', () => {
+    show(atWork({ stage: listening(10) }));
+    const head = () => scene()?.querySelector('[data-place="current"]')?.getAttribute('data-at');
+    expect(head()).toBe('0');
+    expect(scene()?.dataset.warmth).toBe('warm');
+    hide(true);
+    // The stage clears off screen: the head would move to the last phrase and the die would cool, but nothing is redrawn.
+    rerender(atWork({ stage: null }));
+    expect(head()).toBe('0');
+    expect(scene()?.dataset.warmth).toBe('warm');
+    hide(false);
+    expect(head()).toBe('2');
+    expect(scene()?.dataset.warmth).toBe('cold');
   });
 
   it('pauses the clock while hidden and jumps to the truth on return', () => {

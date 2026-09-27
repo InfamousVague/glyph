@@ -74,6 +74,8 @@ export function SceneBench({ script, onClose }: SceneBenchProps) {
         </button>
       </div>
       <div className={styles.body}>
+        {/* Under the scene, so it shows once the scene has left: an empty body said nothing about where the play had gone. */}
+        <p className={styles.played}>Played. Play again to watch it once more.</p>
         <AtWork inline noteId={BENCH_NOTE} opening={key} heard={SCRIPT_HEARD} body={SCRIPT_BODY} hasJob stage={stage} />
       </div>
     </div>,

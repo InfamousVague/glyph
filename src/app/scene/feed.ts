@@ -44,9 +44,12 @@ export interface Feed {
   mode: FeedMode;
 }
 
+/** The part of a run the feed reads: its words, its phase and its prompt's progress, so a screen can key a memo on those alone. */
+export type FeedRun = Pick<RunState, 'kind' | 'phase' | 'thought' | 'lines' | 'partial' | 'promptTokens' | 'promptTokensDone' | 'outputTokens' | 'maxTokens'>;
+
 export interface FeedInput {
   stage: ReviewStage | null;
-  run: RunState | null;
+  run: FeedRun | null;
   /** Every phrase the fast model heard, in order, as the recorder handed them over. */
   heard: string;
   /** The note as the prompt read it. */
@@ -55,49 +58,75 @@ export interface FeedInput {
 
 /** About how many words a phrase gets when the speaker never stopped. */
 const WORDS_A_PHRASE = 14;
+/** A thought's sentence past this many words is cut at a clause end, so no one line is a paragraph. */
+const WORDS_A_THOUGHT_LINE = 30;
 /** A phrase this short is joined to the next: "1." or "Words." alone is not a line. */
 const SHORT_PHRASE = 3;
 
+const wordsIn = (piece: string): number => piece.split(/\s+/).length;
+
 /**
- * Text as phrases: split at sentence ends (a stop, a question mark or an exclamation, then a space, but not after a
- * bare number, so "1. Words" holds together) and at line breaks, and, where a stretch has none, about every fourteen
- * words. A phrase of a word or two is joined to the one after it.
+ * Text as sentences: split at sentence ends (a stop, a question mark or an exclamation, then a space, but not after a
+ * bare number, so "1. Words" holds together) and at line breaks.
  */
-export function phrasesOf(text: string): string[] {
-  const pieces = text
+function sentencesOf(text: string): string[] {
+  return text
     .split(/(?<=[^\d\s][.?!]["”’)]?)\s+|\n+/)
     .map((piece) => piece.trim())
-    .filter(Boolean)
-    .flatMap((piece) => {
+    .filter(Boolean);
+}
+
+/** A phrase of a word or two joined to the one after it. */
+function joinShort(pieces: string[]): string[] {
+  const joined: string[] = [];
+  for (const piece of pieces) {
+    const last = joined.at(-1);
+    if (last !== undefined && wordsIn(last) < SHORT_PHRASE) joined[joined.length - 1] = `${last} ${piece}`;
+    else joined.push(piece);
+  }
+  return joined;
+}
+
+/**
+ * Text as phrases: sentences, and, where a stretch has no end, about every fourteen words - a placement for the
+ * transcript, whose head walks it at the listen's share. A phrase of a word or two is joined to the one after it.
+ */
+export function phrasesOf(text: string): string[] {
+  return joinShort(
+    sentencesOf(text).flatMap((piece) => {
       const words = piece.split(/\s+/);
       if (words.length <= WORDS_A_PHRASE) return [piece];
       const runs: string[] = [];
       for (let i = 0; i < words.length; i += WORDS_A_PHRASE) runs.push(words.slice(i, i + WORDS_A_PHRASE).join(' '));
       // A tail of a word or two rides with the run before it.
       const tail = runs.at(-1);
-      if (runs.length > 1 && tail && tail.split(/\s+/).length < SHORT_PHRASE) runs.splice(-2, 2, `${runs.at(-2)} ${tail}`);
+      if (runs.length > 1 && tail && wordsIn(tail) < SHORT_PHRASE) runs.splice(-2, 2, `${runs.at(-2)} ${tail}`);
       return runs;
-    });
-  const joined: string[] = [];
-  for (const piece of pieces) {
-    const last = joined.at(-1);
-    if (last !== undefined && last.split(/\s+/).length < SHORT_PHRASE) joined[joined.length - 1] = `${last} ${piece}`;
-    else joined.push(piece);
-  }
-  return joined;
+    }),
+  );
 }
 
-/** The note's lines, blanks dropped. */
+/** A line's Markdown marks: a heading's hashes, a list's dash and its checkbox, a number, a quote's chevron. */
+const MARKS = /^(?:#{1,6}\s+|>\s*|(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)+/;
+
+/**
+ * The note's lines as words, blanks dropped and the Markdown marks off the front: the pane is for what the model reads,
+ * not how it is marked (the review saw "# Planning call" and "- [ ] Fix the seat bar" scrolling through the phone).
+ */
 export function noteLines(body: string): string[] {
   return body
     .split('\n')
-    .map((line) => line.trim())
+    .map((line) => line.trim().replace(MARKS, ''))
     .filter(Boolean);
 }
 
-/** A thought wrapped into lines: by sentence, since a reasoning model writes long paragraphs; the last is the tail under its pen. */
+/**
+ * A thought wrapped into lines: by sentence, since a reasoning model writes long paragraphs, and left to wrap from
+ * there; only a sentence past thirty words is cut, at a clause end. Never every fourteen words, which the review saw
+ * leave stubs like "and the" as lines of their own. The last line is the tail under the pen.
+ */
 export function thoughtLines(thought: string): string[] {
-  return phrasesOf(thought);
+  return joinShort(sentencesOf(thought).flatMap((piece) => (wordsIn(piece) <= WORDS_A_THOUGHT_LINE ? [piece] : piece.split(/(?<=[;:])\s+/))));
 }
 
 const WHAT = /"what"\s*:\s*"((?:[^"\\]|\\.)*)"/g;

@@ -14,8 +14,13 @@ export function clock(ms: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
+/** Tokens a second as a number: a tenth under ten, whole above. */
+export function paceNumber(perSecond: number): string {
+  return perSecond.toFixed(perSecond < 10 ? 1 : 0);
+}
+
 export function pace(perSecond: number): string {
-  return `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} tokens a second`;
+  return `${paceNumber(perSecond)} tokens a second`;
 }
 
 export function runSentence(run: RunState): string {
@@ -50,7 +55,7 @@ export function runSentence(run: RunState): string {
  * of the most it may write (a run usually finishes well short of that, so the
  * bar is a floor, not a promise), and a run that has ended is full.
  */
-export function progressOf(run: RunState): number | null {
+export function progressOf(run: Pick<RunState, 'phase' | 'promptTokens' | 'promptTokensDone' | 'outputTokens' | 'maxTokens'>): number | null {
   if (run.phase === 'prefill') return run.promptTokens ? Math.min(1, run.promptTokensDone / run.promptTokens) : null;
   if (run.phase === 'generating') return run.maxTokens ? Math.min(1, run.outputTokens / run.maxTokens) : null;
   if (run.phase === 'done') return 1;

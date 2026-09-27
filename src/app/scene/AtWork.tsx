@@ -2,15 +2,17 @@ import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState 
 import { Check, Hourglass } from '@glacier/icons';
 import { cancelRun, ended, runFor, useRun, type RunState } from '../ai/runs.ts';
 import type { ReviewStage } from '../ai/useNoteReview.ts';
-import { clock } from '../ai/words.ts';
+import { clock, paceNumber } from '../ai/words.ts';
 import { withinWispBudget } from '../art/wispEdge.ts';
 import { useRefining } from '../capture/refine.ts';
+import { cpuShare, heatShare } from '../core/ai.ts';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { prefersStill } from '../core/motion.ts';
 import { usePreferences } from '../core/preferences.ts';
 import { useWideScreen } from '../core/useWideScreen.ts';
-import { feedOf, paneWindow, type Feed } from './feed.ts';
+import { HEAT_NOISE } from '../editor/textEffects.ts';
+import { feedOf, paneWindow, type Feed, type FeedRun } from './feed.ts';
 import { HotPhone } from './HotPhone.tsx';
 import { STEP_ICONS } from './icons.ts';
 import {
@@ -112,25 +114,28 @@ function pastLoading(run: RunState): boolean {
   return ended(run) && (run.promptTokensDone > 0 || run.outputTokens > 0);
 }
 
-const clamp = (value: number) => Math.min(1, Math.max(0, value));
-
-/** Tokens a second as the tile shows it: a tenth under ten, whole above. */
-function paceOf(perSecond: number): string {
-  return perSecond.toFixed(perSecond < 10 ? 1 : 0);
-}
-
 /*
- * The haze's numbers: the heat filter's (editor/textEffects.ts `heat`) for 14 px type, the words' own share of the
- * bend, and the noise breathing between its low and high frequencies on `baseFrequency` alone - the seed stays 7, so
- * no letter jumps.
+ * The haze's numbers: the heat filter's (editor/textEffects.ts `HEAT_NOISE`) for 14 px type, the words' own share of
+ * the bend, and the noise breathing between its low and high frequencies on `baseFrequency` alone - the seed stays 7,
+ * so no letter jumps.
  */
 const K = 14 / 16;
-const LOW = [0.02 / K, 0.085 / K] as const;
-const HIGH = [0.028 / K, 0.12 / K] as const;
+const LOW = [HEAT_NOISE.low[0] / K, HEAT_NOISE.low[1] / K] as const;
+const HIGH = [HEAT_NOISE.high[0] / K, HEAT_NOISE.high[1] / K] as const;
 const LOW_FREQUENCY = `${LOW[0].toFixed(4)} ${LOW[1].toFixed(4)}`;
-const BEND = 5.5 * K * HAZE_OWN;
+const BEND = HEAT_NOISE.bend * K * HAZE_OWN;
 const BREATH_MS = 2500;
 const SHARE: Record<Warmth, number> = { cold: 0, warm: 0.5, hot: 1 };
+
+/*
+ * Where the current line is kept, as a share of the pane's height: under the die and its pins (the die's bottom pins
+ * end at 0.66 of the drawing), in clear paper. The lines already read or thought pass up behind the die and the mark,
+ * which hide them; the one being read or written never is. (It was 0.6, which is the die itself, and the review found
+ * the head line and each finding cut through by it on the cover screen.) `.list`'s top padding in AtWork.module.css
+ * is the same share, so the first line can sit there too.
+ */
+const ANCHOR = 0.72;
+const NO_LINES: string[] = [];
 
 /** One counter tile: a label, a value (or a blank of the same height), and a bar, a unit, or nothing under it. */
 function Tile({ label, value, share, unit }: { label: string; value: string; share?: number | null; unit?: string }) {
@@ -180,12 +185,27 @@ export function AtWork({ noteId, opening, heard, body, hasJob, stage, inline = f
 
   const input: SceneInput = { stage, download: stage ? refining.download : null, run: live, hasJob, compared: current.compared, ended: current.ended && !live };
 
+  // The part of the run the feed reads, keyed on those fields alone: a report that moves only the clock or the readings
+  // (every 120 ms while the model loads) must not split the transcript and the thought again.
+  const kind = live?.kind ?? null;
+  const phase = live?.phase ?? null;
+  const thought = live?.thought ?? '';
+  const runLines = live?.lines ?? NO_LINES;
+  const partial = live?.partial ?? '';
+  const promptTokens = live?.promptTokens ?? 0;
+  const promptTokensDone = live?.promptTokensDone ?? 0;
+  const outputTokens = live?.outputTokens ?? 0;
+  const maxTokens = live?.maxTokens ?? 0;
+  const feedRun = useMemo<FeedRun | null>(
+    () => (kind === null || phase === null ? null : { kind, phase, thought, lines: runLines, partial, promptTokens, promptTokensDone, outputTokens, maxTokens }),
+    [kind, phase, thought, runLines, partial, promptTokens, promptTokensDone, outputTokens, maxTokens],
+  );
   const heldFeed = useRef<Feed | null>(null);
   // Split again only when the run's words or the stage change, never on the note's own redraws; and not while hidden.
   const feed = useMemo(() => {
     if (hidden && heldFeed.current) return heldFeed.current;
-    return feedOf({ stage, run: live, heard, body });
-  }, [stage, live, heard, body, hidden]);
+    return feedOf({ stage, run: feedRun, heard, body });
+  }, [stage, feedRun, heard, body, hidden]);
   heldFeed.current = feed;
   const lines = useMemo(() => paneWindow(feed), [feed]);
   const currentAt = feed.current !== null ? (feed.lines[feed.current]?.at ?? null) : null;
@@ -215,27 +235,35 @@ export function AtWork({ noteId, opening, heard, body, hasJob, stage, inline = f
   };
 
   // Leaving: after an end the settle plays, then the fade, then nothing; or the review is taken as over when no run
-  // comes after the stage clears; or, having seen nothing at all, the scene leaves quietly.
+  // comes after the stage clears; or, having seen nothing at all, the scene leaves quietly. Not while the document is
+  // hidden: what ended off screen is settled and left on return, so the findings are still seen landing.
   const liveId = live?.id ?? null;
   const liveEnded = live ? ended(live) : false;
   const staged = stage !== null;
   const { sawStage, ended: over } = current;
+  // What the scene has seen, for a timer to ask at the moment it fires.
+  const seenSoFar = useRef({ staged, liveId, sawStage });
+  seenSoFar.current = { staged, liveId, sawStage };
   useEffect(() => {
-    if (!shown || staged) return undefined;
+    if (!shown || staged || hidden) return undefined;
     const timers: number[] = [];
     const later = (fn: () => void, ms: number) => timers.push(window.setTimeout(fn, ms));
-    const leave = (hold: number) =>
+    const leave = (hold: number, unless?: () => boolean) =>
       later(() => {
+        if (unless?.()) return;
         setSeen((was) => ({ ...was, leaving: true }));
         later(() => setSeen((was) => ({ ...was, shown: false, leaving: false })), LEAVE_MS);
       }, hold);
     if (liveEnded || (over && !liveId)) leave(HOLD_MS);
     else if (!liveId) {
       if (sawStage) later(() => setSeen((was) => ({ ...was, ended: true })), GRACE_MS);
-      else leave(Math.max(0, openedAt + OPEN_GRACE_MS - Date.now()));
+      // The one leave that fires on nothing having happened, so it asks again as it fires. Seen once in the browser
+      // pane and never again: a play after one that had run hidden left at eight seconds, mid-run. The cleanup below
+      // clears this timer the moment a stage or a run is seen, and no path to a survivor was found; this makes sure.
+      else leave(Math.max(0, openedAt + OPEN_GRACE_MS - Date.now()), () => seenSoFar.current.staged || seenSoFar.current.liveId !== null || seenSoFar.current.sawStage);
     }
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [shown, staged, liveId, liveEnded, over, sawStage, openedAt, key]);
+  }, [shown, staged, hidden, liveId, liveEnded, over, sawStage, openedAt, key]);
 
   // Since Done: wall time from the opening, a second at a time, paused while hidden and true again on return.
   const [now, setNow] = useState(Date.now);
@@ -283,13 +311,13 @@ export function AtWork({ noteId, opening, heard, body, hasJob, stage, inline = f
     el.setAttribute('baseFrequency', `${(LOW[0] + (HIGH[0] - LOW[0]) * breath).toFixed(4)} ${(LOW[1] + (HIGH[1] - LOW[1]) * breath).toFixed(4)}`);
   }, [reported, percent, hazeOn]);
 
-  // The current line kept about 60% down the pane.
+  // The current line kept at the anchor, under the die.
   useLayoutEffect(() => {
     const host = pane.current;
     if (!host || currentAt === null) return;
     const el = host.querySelector<HTMLElement>(`[data-at="${currentAt}"]`);
     if (!el) return;
-    host.scrollTop = Math.max(0, el.offsetTop - host.clientHeight * 0.6);
+    host.scrollTop = Math.max(0, el.offsetTop - host.clientHeight * ANCHOR);
   }, [currentAt, shown]);
 
   if (!shown) return null;
@@ -308,6 +336,7 @@ export function AtWork({ noteId, opening, heard, body, hasJob, stage, inline = f
       className={styles.scene}
       aria-label="The models at work on this note"
       data-leaving={current.leaving || undefined}
+      data-ended={liveEnded || over || undefined}
       data-wide={wide || undefined}
       data-inline={inline || undefined}
       data-still={still || undefined}
@@ -325,15 +354,18 @@ export function AtWork({ noteId, opening, heard, body, hasJob, stage, inline = f
 
       <div className={styles.head}>
         <h2 className={styles.title}>
-          {titlePieces(title).map((piece, i) =>
-            piece.number ? (
-              <span key={i} aria-hidden="true">
-                {piece.text}
-              </span>
-            ) : (
-              <Fragment key={i}>{piece.text}</Fragment>
-            ),
-          )}
+          {/* One block inside the heading, so the wide layout can hold it to the foot of a two-line box. */}
+          <span className={styles.titleText}>
+            {titlePieces(title).map((piece, i) =>
+              piece.number ? (
+                <span key={i} aria-hidden="true">
+                  {piece.text}
+                </span>
+              ) : (
+                <Fragment key={i}>{piece.text}</Fragment>
+              ),
+            )}
+          </span>
         </h2>
         <p className={styles.detail}>{detail}</p>
         <p className={styles.unseen} aria-live="polite">
@@ -374,9 +406,9 @@ export function AtWork({ noteId, opening, heard, body, hasJob, stage, inline = f
         </ol>
 
         <dl className={styles.counters} aria-label="The phone's readings">
-          <Tile label="Heat" value={!past ? '' : tempC !== null ? `${Math.round(tempC)} °C` : 'No reading'} share={tempC !== null ? clamp((tempC - 20) / 40) : null} />
-          <Tile label="CPU" value={!past ? '' : hardware ? `${Math.round(hardware.cpuPercent)}%` : 'No reading'} share={hardware && hardware.cores ? clamp(hardware.cpuPercent / (100 * hardware.cores)) : null} />
-          <Tile label="Pace" value={live && past ? paceOf(live.tokensPerSecond) : ''} unit="a second" />
+          <Tile label="Heat" value={!past ? '' : tempC !== null ? `${Math.round(tempC)} °C` : 'No reading'} share={tempC !== null ? heatShare(tempC) : null} />
+          <Tile label="CPU" value={!past ? '' : hardware ? `${Math.round(hardware.cpuPercent)}%` : 'No reading'} share={hardware && hardware.cores ? cpuShare(hardware.cpuPercent, hardware.cores) : null} />
+          <Tile label="Pace" value={live && past ? paceNumber(live.tokensPerSecond) : ''} unit="a second" />
           <Tile label="Since Done" value={clock(Math.max(0, now - openedAt))} />
         </dl>
 

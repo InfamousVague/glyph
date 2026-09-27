@@ -64,6 +64,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+.titleText {
+  display: block;
+}
+
 .detail {
   margin: 0;
   min-block-size: 1.4em;
@@ -108,25 +112,42 @@
   inline-size: auto;
 }
 
-/* The pane: the words behind the phone, fading in at the top and out at the bottom. */
+/*
+ * The pane: the words behind the phone, fading in at the top and out at the bottom. The solid band starts under the
+ * column of stipple above the phone (its dots reach a tenth of the drawing), so the first line is not read through
+ * the dots. A size container, so the list's padding can be a share of the pane's height and not its width.
+ */
 .pane {
   position: absolute;
   inset: 0;
   overflow: hidden;
   scroll-behavior: smooth;
-  mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  container-type: size;
+  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 88%, transparent);
 }
 
 /*
- * Room above and below, so the first lines can sit where the current line is kept, about 60% down. In shares of the
- * width, which is what a percentage padding is; on a phone the pane is about as wide as it is tall.
+ * The head being read moves in steps, and glides to each; a line being written arrives at the report's cadence, and
+ * a glide never caught up with the next one (measured: the pen line rode at 76 to 93% of the pane under smooth, in
+ * the mask's fade, and at 60 to 65% under auto), so the streaming modes snap.
+ */
+.scene[data-mode='thought'] .pane,
+.scene[data-mode='findings'] .pane,
+.scene[data-mode='prose'] .pane {
+  scroll-behavior: auto;
+}
+
+/*
+ * Room above and below, so the first line can sit where the current line is kept (AtWork.tsx ANCHOR, 72% down the
+ * pane, under the die's pins) and the last can be scrolled up to it. In container query units of the pane's height:
+ * the first use of them in the app; the phone's WebView and the Mac's WebKit both have them.
  */
 .list {
   display: grid;
   gap: 0.3em;
   margin: 0;
-  padding: 60% var(--glacier-space-1) 35%;
+  padding: 72cqb var(--glacier-space-1) 24cqb;
   list-style: none;
   font-size: 14px;
   line-height: 1.35;
@@ -136,6 +157,7 @@
 
 .line {
   color: var(--app-ink-3);
+  transition: color 600ms var(--glacier-ease-out);
 }
 
 .line[data-place='before'] {
@@ -149,6 +171,13 @@
 .line[data-strong] {
   font-weight: var(--glacier-font-weight-bold);
   color: var(--app-ink);
+}
+
+/* The settle: with the die cooled and the rings gone back in, the words go to the quiet ink too. */
+.scene[data-ended] .line,
+.scene[data-ended] .line[data-place],
+.scene[data-ended] .line[data-strong] {
+  color: var(--app-ink-3);
 }
 
 /* A line arriving while the model streams rises in (LaunchScreen's keyframes); the read modes only move the head. */
@@ -195,11 +224,13 @@
   color: var(--app-ink-2);
 }
 
+/* On the first line of its words, so a detail that wraps (the listen step's, at 412 wide) leaves the mark where it was. */
 .stepMark {
   display: inline-grid;
   place-items: center;
   flex: none;
-  align-self: center;
+  align-self: flex-start;
+  margin-block-start: 0.1em;
   inline-size: 1.1em;
   block-size: 1.1em;
 }
@@ -327,6 +358,17 @@
   align-self: end;
 }
 
+/*
+ * Two lines' room for the title, its words at the foot of it, so a title that wraps ("is writing what it found.") and
+ * one that does not ("is thinking it through.") leave the steps and the counters where they were: the group is
+ * centred, and without this it moved half a line between phases.
+ */
+.scene[data-wide] .title {
+  display: grid;
+  align-content: end;
+  min-block-size: 2.4em;
+}
+
 .scene[data-wide] .picture {
   block-size: min(64dvh, 560px);
   max-block-size: none;
@@ -341,13 +383,24 @@
   min-inline-size: 0;
 }
 
-.scene[data-wide] .foot,
-.scene[data-wide] .list {
+/* The side reads from the left; the pane stays centred under the phone, as on the cover screen. */
+.scene[data-wide] .foot {
   text-align: start;
 }
 
 .scene[data-wide] .words {
   justify-content: flex-start;
+}
+
+/*
+ * A wide window that is short (the cover screen turned landscape, a small window on the Mac): the side's rows do not
+ * fit beside the picture, so the scene scrolls rather than clipping the words off its foot.
+ */
+@media (max-height: 520px) {
+  .scene[data-wide] {
+    align-content: start;
+    overflow-y: auto;
+  }
 }
 
 /* Reduced motion, chosen on the phone or read at opening: nothing moves but state. */
@@ -362,7 +415,8 @@
   animation: none;
 }
 
-.scene[data-still] .tileBar > span {
+.scene[data-still] .tileBar > span,
+.scene[data-still] .line {
   transition: none;
 }
 
@@ -378,7 +432,8 @@
     animation: none;
   }
 
-  .tileBar > span {
+  .tileBar > span,
+  .line {
     transition: none;
   }
 }

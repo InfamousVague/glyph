@@ -50,20 +50,24 @@ describe('the phone', () => {
     expect(svg.dataset.warmth).toBe('hot');
   });
 
-  it('draws the working step’s mark large, and swaps it with the step', () => {
+  it('draws the working step’s mark large, and swaps it with the step as a new node, so its fade plays again', () => {
     const el = show(phone({ step: 'listen' }));
-    expect(el.querySelector('[data-mark]')?.getAttribute('data-mark')).toBe('listen');
+    const before = el.querySelector('[data-mark]');
+    expect(before?.getAttribute('data-mark')).toBe('listen');
     expect(el.querySelector('[data-mark] svg')).not.toBeNull();
     rerender(phone({ step: 'think' }));
-    expect(el.querySelector('[data-mark]')?.getAttribute('data-mark')).toBe('think');
+    const after = el.querySelector('[data-mark]');
+    expect(after?.getAttribute('data-mark')).toBe('think');
+    expect(after).not.toBe(before);
     rerender(phone({ step: null }));
     expect(el.querySelector('[data-mark]')).toBeNull();
   });
 
-  it('draws the case in the third ink and the die in full ink over paper', () => {
+  it('draws the case and the rings in the third ink and the die in full ink over paper', () => {
     const el = show(phone());
     expect(el.querySelector('[data-part="case"]')?.getAttribute('stroke')).toBe('var(--app-ink-3)');
     expect(el.querySelector('[data-part="case"]')?.getAttribute('fill')).toBe('none');
+    expect(el.querySelector('[data-part="rings"]')?.getAttribute('fill')).toBe('var(--app-ink-3)');
     const die = el.querySelector('[data-part="die"]');
     expect(die?.getAttribute('fill')).toBe('var(--app-paper)');
     expect(die?.getAttribute('stroke')).toBe('currentColor');

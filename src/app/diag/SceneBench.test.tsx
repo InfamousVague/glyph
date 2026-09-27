@@ -29,7 +29,7 @@ vi.mock('../core/ai.ts', async (importOriginal) => {
 });
 
 const { BENCH_NOTE, SceneBench } = await import('./SceneBench.tsx');
-const { forgetAllRuns, runFor, startRun } = await import('../ai/runs.ts');
+const { cancelRun, forgetAllRuns, runFor, startRun } = await import('../ai/runs.ts');
 const { HOLD_MS, LEAVE_MS } = await import('../scene/steps.ts');
 
 /**
@@ -98,6 +98,26 @@ describe('the scene bench', () => {
     await later(HOLD_MS + LEAVE_MS + 10);
     expect(scene()).toBeNull();
     expect(dialog()).not.toBeNull();
+    // The body says where the play went, rather than standing empty under the bar.
+    expect(dialog()?.textContent).toContain('Played. Play again to watch it once more.');
+  });
+
+  it('takes the script out the moment its run has started, so the next run reaches the engine', async () => {
+    show(<SceneBench script="heat" onClose={() => undefined} />);
+    await later(STAGES_MS + 1000);
+    expect(runFor(BENCH_NOTE)?.phase).toBe('loading');
+    // A real run started while the bench is open waits behind the bench's; when that is stopped, it goes to the engine.
+    await act(async () => {
+      startRun({ noteId: 'real', kind: 'format', model: 'qwen3.5-4b', system: 's', prompt: 'p', maxTokens: 100 });
+    });
+    expect(runFor('real')?.phase).toBe('queued');
+    expect(fakes.length).toBe(0);
+    await act(async () => {
+      await cancelRun(BENCH_NOTE);
+    });
+    await later(20);
+    expect(fakes.length).toBe(1);
+    expect(runFor('real')?.phase).toBe('loading');
   });
 
   it('plays again on the word', async () => {
@@ -123,11 +143,26 @@ describe('the scene bench', () => {
     await later(20);
     expect(dialog()).toBeNull();
     expect(runFor(BENCH_NOTE)).toBeNull();
+    // Its stage timers and the script's sleeps stopped with it.
+    expect(vi.getTimerCount()).toBe(0);
     await act(async () => {
       startRun({ noteId: 'real', kind: 'format', model: 'qwen3.5-4b', system: 's', prompt: 'p', maxTokens: 100 });
     });
     expect(fakes.length).toBe(1);
     expect(runFor('real')?.phase).toBe('loading');
+  });
+
+  it('stops its stage timers on close, so a play cut short never starts its run', async () => {
+    const onClose = vi.fn();
+    show(<SceneBench script="none" onClose={onClose} />);
+    await later(500);
+    expect(title()).toBe('Listening again, 20%.');
+    press(button('Close'));
+    rerender(<SceneBench script={null} onClose={onClose} />);
+    await later(20);
+    expect(vi.getTimerCount()).toBe(0);
+    await later(STAGES_MS + 1000);
+    expect(runFor(BENCH_NOTE)).toBeNull();
   });
 
   it('closes on the back gesture', async () => {

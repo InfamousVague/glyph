@@ -1,4 +1,4 @@
-import { gb, modelName, modelSpec } from '../core/ai.ts';
+import { gb, heatShare, megabytes, modelName, modelSpec } from '../core/ai.ts';
 import { kindWords } from '../ai/kinds.ts';
 import { ended, type RunState } from '../ai/runs.ts';
 import type { ReviewStage } from '../ai/useNoteReview.ts';
@@ -55,8 +55,12 @@ export interface SceneInput {
   ended: boolean;
 }
 
-/** After an end, the scene holds the settle this long before it starts to leave. */
-export const HOLD_MS = 400;
+/**
+ * After an end, the scene holds the settle this long before it starts to leave: the die cools, the rings go back in
+ * and the words dim over 600 ms, so the hold is long enough for that to be seen (400 was not; the review watched the
+ * six ticks for under half a second).
+ */
+export const HOLD_MS = 900;
 /** How long the fade out takes. */
 export const LEAVE_MS = 260;
 /** How long the scene waits for a run after the stage clears before it takes the review as over. */
@@ -100,11 +104,7 @@ function answering(run: RunState): boolean {
   return run.lines.length > 0 || run.partial.length > 0;
 }
 
-function megabytes(bytes: number): number {
-  return Math.round(bytes / 1e6);
-}
-
-/** The download's words, as notes/Notices.tsx says them. */
+/** The download's words, as notes/Notices.tsx `RefiningNotice` says them: change both together. */
 export function downloadWords(download: { received: number; total: number }): string {
   return `Getting the better voice model, ${megabytes(download.received)} of ${megabytes(download.total)} MB.`;
 }
@@ -233,7 +233,7 @@ export function glowOf(run: RunState | null): number {
   const { cpuPercent, threads, cores, tempC } = run.hardware;
   const over = threads || Math.min(6, Math.max(2, cores)) || 1;
   const busy = clamp(cpuPercent / (100 * over));
-  const heat = tempC != null ? clamp((tempC - 20) / 40) : null;
+  const heat = tempC != null ? heatShare(tempC) : null;
   return heat === null ? busy : 0.5 * busy + 0.5 * heat;
 }
 

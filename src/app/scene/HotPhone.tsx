@@ -11,8 +11,9 @@ import styles from './HotPhone.module.css';
  * The case is the dotwork's faint line (the third ink), so the words read
  * through it and the contrast sits on the CPU: a die in full ink at the
  * phone's heart, its core a hatch that warms as a model works (state), rings
- * of dots blooming out of it and its pins lighting from the phone's real busy
- * figure and temperature (measured, scene/steps.ts `glowOf`), and above the
+ * of dots in the case's faint ink blooming out of it and its pins lighting
+ * from the phone's real busy figure and temperature (measured, scene/steps.ts
+ * `glowOf`), and above the
  * phone a column of stipple thinning upward, the heat off it in the rings'
  * own language. On the phone's screen, above the die, the working step's
  * icon drawn large: the same lucide family as the strip's (ai/icons.ts), so
@@ -100,8 +101,13 @@ function HotPhoneDrawing({ warmth, glowStep, litPins, pins, step, still }: HotPh
         </clipPath>
       </defs>
 
-      {/* The rings, measured: each is there once the glow reaches it. Kept inside the case. */}
-      <g clipPath={`url(#${clip})`} fill="currentColor" data-part="rings">
+      {/*
+       * The rings, measured: each is there once the glow reaches it. Kept inside the case, and in the faint third ink
+       * like the case, so over the words they read as heat off the die and not as speckle on the text (the review saw
+       * full-ink dots across the lines at the outer rings, in both themes). The die, its pins and the mark keep the
+       * contrast.
+       */}
+      <g clipPath={`url(#${clip})`} fill="var(--app-ink-3)" data-part="rings">
         {RINGS.map((band, n) => (
           <g key={n} className={styles.ring} style={{ '--ring': String(n + 1) } as CSSProperties} data-ring={n + 1}>
             {ring(n + 1, band.r, band.dots, band.dot)}
@@ -121,7 +127,7 @@ function HotPhoneDrawing({ warmth, glowStep, litPins, pins, step, still }: HotPh
       <rect x="6" y="6" width="228" height="468" rx="34" fill="none" stroke="var(--app-ink-3)" strokeWidth="4" data-part="case" />
       <rect x="100" y="22" width="40" height="4" rx="2" fill="var(--app-ink-3)" />
 
-      {/* The working step, drawn large on the screen. */}
+      {/* The working step, drawn large on the screen; keyed by the step, so a new step is a new node and its fade plays again. */}
       {Mark ? (
         <g key={step} className={styles.mark} data-mark={step}>
           <rect x="84" y="104" width="72" height="72" rx="12" fill="var(--app-paper)" stroke="currentColor" strokeWidth="3" />

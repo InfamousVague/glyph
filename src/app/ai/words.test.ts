@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunState } from './runs.ts';
-import { clock, progressOf, recordSentence, runSentence } from './words.ts';
+import { clock, paceNumber, progressOf, recordSentence, runSentence } from './words.ts';
 
 const run = (patch: Partial<RunState>): RunState => ({
   id: 'r',
@@ -38,6 +38,8 @@ describe('what the strip says', () => {
     expect(runSentence(run({}))).toBe('Formatting with Qwen3.5 4B, 31 tokens a second, 0:12.');
     expect(runSentence(run({ lines: ['a', 'b'], tokensPerSecond: 7.25 }))).toBe('Formatting with Qwen3.5 4B, 7.3 tokens a second, 0:12, 2 lines.');
     expect(runSentence(run({ lines: ['a'] }))).toContain(', 1 line.');
+    // The pace's number alone, for a tile: a tenth under ten, whole above.
+    expect([paceNumber(7.25), paceNumber(9.96), paceNumber(31.4)]).toEqual(['7.3', '10.0', '31']);
   });
 
   it('says what an ask was asked, since the verb alone says nothing', () => {
