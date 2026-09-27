@@ -13,7 +13,7 @@ import { RECORDING_NOTES_PROMPT, RECORDING_SUMMARY_PROMPT, recordingNotesBudget,
 import { modelFor, presentIds } from './available.ts';
 import { anyRunning, type RunHandle } from './runs.ts';
 import { keepSummary, readSummary } from './summaryKeep.ts';
-import { carryTicked, shapeSummary, summarySection, transcriptPieces, withSummary } from './summaryText.ts';
+import { carryTicked, shapeSummary, SUMMARY_HEADING, summarySection, transcriptPieces, withSummary } from './summaryText.ts';
 
 /**
  * The summary queue: a recording written up on the phone, in the background, into a section under the note's title
@@ -35,18 +35,23 @@ import { carryTicked, shapeSummary, summarySection, transcriptPieces, withSummar
  * The holds, in order: the recorder or a review up (`refineHeld`); the note's better words still to come
  * (`refinePending`, before the run and again before the write); a note's own run going (`anyRunning`, three seconds);
  * a note in the trash, which gets no write-up and whose job waits; a sync in flight. The recorder wins the cores:
- * when it comes up, a run in flight is cancelled and its job left queued, uncounted. A job is marked `started`
- * before it runs, and one found `started` at launch counts that as one try, so a run that kills the app cannot kill
- * it at every launch; three tries and it is `failed`, for the shelf's Try again. No model on the phone: the job
- * waits, looks again in a minute, and the shelf says "Needs a model".
+ * when it comes up, a run in flight is cancelled and its job left queued, uncounted, and the hold is read again
+ * after every wait and before every generation, so one that arrives mid-job starts nothing more. That cut is the
+ * queue's own and is told from a stop by the person (the strip's Stop, the scene's, a run of their own on the note):
+ * a job the person stopped is theirs to ask for again, and is dropped. A job is marked `started` before it runs,
+ * and one found `started` at launch counts that as one try, so a run that kills the app cannot kill it at every
+ * launch; three tries and it is `failed`, for the shelf's Try again. No model on the phone: the job waits, looks
+ * again in a minute, and the shelf says "Needs a model".
  *
  * Two writers. A closed note is written plain by `withSummary`, through `generate()`, since a background write can
  * make no marks. An open note lands through its editor, the one writer of an open note (§126): the note screen
  * registers a starter (`openForSummaries`), the queue hands it the words, and the summary is a run of ai/runs.ts
- * whose lines land as tracked changes with Keep and Revert. Both place and shape the section by ai/summaryText.ts's
- * rules. On success the list is refreshed and, with the page visible, a toast says "Summarized" with Open
- * (shell/useHousekeeping.ts); not for a native job, whose notification already said it (sections 4 and 5,
- * generation 20: a native job waits here for its result, which nothing delivers yet).
+ * whose lines land as tracked changes with Keep and Revert. A note opened while its generation ran is handed the
+ * finished answer instead, and the editor lands it at once: the plain write never lands under an open editor, whose
+ * next save would conflict and every save of that visit after it be dropped (editor/useNoteSaving.ts). Both place
+ * and shape the section by ai/summaryText.ts's rules. On success the list is refreshed and, with the page visible,
+ * a toast says "Summarized" with Open (shell/useHousekeeping.ts); not for a native job, whose notification already
+ * said it (sections 4 and 5, generation 20: a native job waits here for its result, which nothing delivers yet).
  *
  * Only in Tauri: a browser has no summariser, and shows what synced.
  */
@@ -95,13 +100,16 @@ export interface SummaryAsk {
   maxTokens: number;
   /** Replace the section the note has even if it was edited. */
   replace: boolean;
+  /** The model's finished answer, when the queue already has it: landed as it is, the model not asked again. */
+  text?: string;
 }
 
-export type SummaryStarted = { ok: true; handle: RunHandle } | { ok: false; reason: 'edited' | 'nothing' | string };
+/** A run in the editor to follow, or the section landed at once from an answer already in hand, or why not. */
+export type SummaryStarted = { ok: true; handle: RunHandle } | { ok: true; landed: string } | { ok: false; reason: 'edited' | 'nothing' | string };
 
-/** The line before a piece's words, and before the joined notes. */
+/** The line before a piece's words, and before the joined notes: the summary's length is measured against the recording, not the notes. */
 export const PIECE_CONTEXT = (n: number, m: number) => `Part ${n} of ${m} of one recording.`;
-export const NOTES_CONTEXT = 'These are notes on the parts of one recording, in order.';
+export const NOTES_CONTEXT = (words: number) => `These are notes on the parts of one recording, in order. The recording itself was about ${words.toLocaleString('en')} words: the summary's length is measured against that, not against these notes.`;
 
 const QUEUE_KEY = 'glyph-summary-queue';
 const MAX_TRIES = 3;
@@ -145,6 +153,11 @@ function publish(): void {
 
 export const useSummaries = summaries.use;
 
+/** The state as it is now, for callers outside React and for tests. */
+export function summariesNow(): SummariesState {
+  return summaries.get();
+}
+
 // ---- running -------------------------------------------------------------------------------
 
 let running = false;
@@ -155,6 +168,8 @@ let onSummarized: ((done: { id: string; title: string }) => void) | null = null;
 /** The generation or run in flight, so the recorder can cancel it. */
 let activeRun: Run | null = null;
 let activeHandle: RunHandle | null = null;
+/** The run in flight was cut by the queue itself, for the recorder. A stop from anywhere else is the person's. */
+let cut = false;
 /** The notes open in an editor, each with the way to run a summary in it. */
 const starters = new Map<string, SummaryStarter>();
 
@@ -199,6 +214,7 @@ export function pauseSummaries(on: boolean): void {
   if (paused === on) return;
   paused = on;
   if (on) {
+    if (activeRun || activeHandle) cut = true;
     activeRun?.cancel();
     activeHandle?.cancel();
   } else kick(1500);
@@ -258,6 +274,7 @@ function owed(): boolean {
  */
 async function runNext(): Promise<void> {
   if (running || paused || !isTauri() || typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+  // The hold read at its source: the same answer as `paused`, which follows it and is what the cancel needs.
   if (refineHeld()) return;
   const queue = readQueue();
   // The first that is not failed, not native, not in the trash and not waiting for its better words.
@@ -284,6 +301,7 @@ async function runNext(): Promise<void> {
     }
     if (needsModel.delete(job.id)) publish();
     patch(job.id, { started: true });
+    cut = false;
     const outcome = await summarize(job, model);
     if (outcome === 'written') {
       finish(job);
@@ -313,7 +331,8 @@ type Outcome = 'written' | 'left' | 'wait';
 /**
  * One job: the tape's words, in pieces when they are many, through the model, and the section into the note - by
  * its editor when the note is open, plain when it is closed. 'left' is a section the person edited that an automatic
- * job must not touch, or a note with nothing to summarise; 'wait' is a write that did not go through this pass.
+ * job must not touch, a note with nothing to summarise, or a run the person stopped; 'wait' is a write that did not
+ * go through this pass, or a run the recorder cut.
  */
 async function summarize(job: SummaryJob, model: string): Promise<Outcome> {
   const note = await getNote(job.id);
@@ -334,17 +353,19 @@ async function summarize(job: SummaryJob, model: string): Promise<Outcome> {
       patch(job.id, { pieces: [...notes] });
     }
     words = notes.join('\n\n');
-    context = NOTES_CONTEXT;
+    context = NOTES_CONTEXT(plain.split(/\s+/).filter(Boolean).length);
   }
+  const ask: SummaryAsk = { words, context, model, maxTokens: budget, replace: Boolean(job.replace) };
   const starter = starters.get(job.id);
-  if (starter) return throughEditor(job, starter, { words, context, model, maxTokens: budget, replace: Boolean(job.replace) });
+  if (starter) return throughEditor(job, starter, job.text === undefined ? ask : { ...ask, text: job.text });
   const text = job.text ?? (await run({ model, system: RECORDING_SUMMARY_PROMPT, prompt: context ? `${context}\n\n${words}` : words, maxTokens: budget }));
   patch(job.id, { text });
-  return write(job, text, model, note.recordingMs ?? 0);
+  return write(job, text, ask, note.recordingMs ?? 0);
 }
 
-/** One generation, cancellable by the recorder. */
+/** One generation, cancellable by the recorder, and not started once it is up. */
 async function run(options: { model: string; system: string; prompt: string; maxTokens: number }): Promise<string> {
+  if (paused) throw new Error('cancelled');
   activeRun = generate({ ...options, temperature: TEMPERATURE, onProgress: () => undefined });
   try {
     return (await activeRun.done).text;
@@ -353,54 +374,76 @@ async function run(options: { model: string; system: string; prompt: string; max
   }
 }
 
-/** The summary as a run in the note's editor: the lines land there, and what landed is what is kept. */
+/**
+ * The summary as a run in the note's editor: the lines land there, and the section as it landed is what is kept -
+ * the run's text less the blank line it may open with. An answer the queue already had is landed at once. A run cut
+ * by the recorder leaves its job waiting, to land over whatever half of the section landed (`replace`, since that
+ * half is the app's own); a run the person stopped is left.
+ */
 async function throughEditor(job: SummaryJob, starter: SummaryStarter, ask: SummaryAsk): Promise<Outcome> {
+  if (paused) throw new Error('cancelled');
   const started = starter(ask);
   if (!started.ok) {
     if (started.reason === 'edited' || started.reason === 'nothing') return 'left';
     throw new Error(started.reason);
   }
-  activeHandle = started.handle;
-  const state = await started.handle.done;
-  activeHandle = null;
-  if (state.phase === 'stopped') return 'wait';
-  if (state.phase !== 'done') throw new Error(state.message ?? 'the summary did not come');
+  let landed: string;
+  if ('landed' in started) landed = started.landed;
+  else {
+    activeHandle = started.handle;
+    const state = await started.handle.done;
+    activeHandle = null;
+    if (state.phase === 'stopped') {
+      if (!cut) return 'left';
+      patch(job.id, { replace: true });
+      return 'wait';
+    }
+    if (state.phase !== 'done') throw new Error(state.message ?? 'the summary did not come');
+    landed = summarySection(state.text ?? '')?.text ?? '';
+  }
   const fresh = await getNote(job.id).catch(() => null);
-  keepSummary(job.id, { text: state.text ?? '', model: ask.model, at: Date.now(), forMs: fresh?.recordingMs ?? 0 });
+  keepSummary(job.id, { text: landed, model: ask.model, at: Date.now(), forMs: fresh?.recordingMs ?? 0 });
   said(job, fresh?.body ?? '');
   return 'written';
 }
 
 /**
  * The section into a closed note, plain: read fresh, the better words checked again, placed and shaped by
- * ai/summaryText.ts, with the ticked to-dos of the section it replaces carried in. A conflict is read again and
- * applied once more, then given up for this pass; the text is kept on the job, so the next kick writes it without
- * asking the model again. Sync runs before the read and after the write, so the window in which another device's
- * edit could cross it is seconds.
+ * ai/summaryText.ts, with the ticked to-dos of the section it replaces carried in. A note opened meanwhile is handed
+ * the answer for its editor to land instead. A conflict is read again and applied once more, then given up for this
+ * pass; the text is kept on the job, so the next kick writes it without asking the model again. Any other failure
+ * of the write counts as a try. Sync runs before the read and after the write, so the window in which another
+ * device's edit could cross it is seconds.
  */
-async function write(job: SummaryJob, text: string, model: string, recordingMs: number): Promise<Outcome> {
+async function write(job: SummaryJob, text: string, ask: SummaryAsk, recordingMs: number): Promise<Outcome> {
   const shaped = shapeSummary(text);
-  if (!shaped.section) return 'left';
+  // Nothing under the heading (a label alone, say) is nothing to write.
+  if (!shaped.section || shaped.section === SUMMARY_HEADING) return 'left';
   await syncNow().catch(() => undefined);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const note = await getNote(job.id);
     if (!note) return 'left';
     if (refinePending(job.id)) return 'wait';
-    const current = summarySection(note.body);
+    // The note was opened while the model wrote: its editor is the one writer now, and lands the answer itself.
+    const starter = starters.get(job.id);
+    if (starter) return throughEditor(job, starter, { ...ask, text });
+    const kept = readSummary(job.id);
+    const current = summarySection(note.body, kept?.text ?? null);
     let section = shaped.section;
     if (current) {
-      const kept = readSummary(job.id);
       // Never remade behind the person's back: a section that is not the app's is left as it is.
       if (!(kept && kept.text === current.text) && !job.replace) return 'left';
       section = carryTicked(current.text, section);
     }
-    const next = withSummary(note.body, section, { title: shaped.title });
+    const next = withSummary(note.body, section, { title: shaped.title, kept: kept?.text ?? null });
     try {
       await updateNote(job.id, next, note.revision ?? 1);
-    } catch {
-      continue;
+    } catch (error) {
+      // Another writer won: read again. Anything else is the write failing, and a try.
+      if (/changed|deleted/i.test(failureText(error))) continue;
+      throw error;
     }
-    keepSummary(job.id, { text: section, model, at: Date.now(), forMs: note.recordingMs ?? recordingMs });
+    keepSummary(job.id, { text: section, model: ask.model, at: Date.now(), forMs: note.recordingMs ?? recordingMs });
     await syncNow().catch(() => undefined);
     said(job, next);
     return 'written';

@@ -40,6 +40,22 @@ vi.mock('../core/store.ts', async (importOriginal) => {
   return { ...real, updateNote: vi.fn(real.updateNote) };
 });
 
+/** Whether the AI can run here (ai/available.ts): a browser's answer unless a test says a model is on the phone. */
+const ai = vi.hoisted(() => ({ ok: false }));
+vi.mock('../ai/available.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../ai/available.ts')>();
+  return {
+    ...real,
+    useAvailability: () => ({
+      availability: ai.ok ? { ok: true, model: 'qwen3.5-4b', chosen: 'qwen3.5-4b' } : { ok: false, reason: 'The AI runs on the phone. Install Ghost.md on Android to use it.', get: null, waiting: false },
+      models: [],
+      download: null,
+      problem: null,
+      fetch: async () => undefined,
+    }),
+  };
+});
+
 const { NoteScreen } = await import('./NoteScreen.tsx');
 
 const saves = vi.mocked(updateNote);
@@ -95,6 +111,7 @@ beforeEach(() => {
 afterEach(() => {
   unmount();
   setTopBarTools(null);
+  ai.ok = false;
   vi.useRealTimers();
   Reflect.deleteProperty(document, 'visibilityState');
 });
@@ -431,6 +448,16 @@ describe('a spoken note’s recording', () => {
     expect(document.querySelector('section[aria-label="Recording"]')).not.toBeNull();
     expect(document.querySelector('[aria-label="Talk into this note"]')).toBeNull();
     expect(button('Record more into this note')).toBeTruthy();
+  });
+
+  it('has the tape’s Summarize word only where the AI can run', async () => {
+    const note = await spoken();
+    show(screen(note));
+    expect(document.querySelector('[aria-label="Summarize the recording"]')).toBeNull();
+    unmount();
+    ai.ok = true;
+    show(screen(note));
+    expect(button('Summarize the recording')).toBeTruthy();
   });
 
   it('gives the page to the transcript while it plays, and the view switch waits till it stops', async () => {

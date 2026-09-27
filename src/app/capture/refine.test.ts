@@ -31,6 +31,8 @@ vi.mock('../core/events.ts', () => ({
 }));
 
 const { setPreferences } = await import('../core/preferences.ts');
+const { keepSummary } = await import('../ai/summaryKeep.ts');
+const { refinedBody } = await import('./refineText.ts');
 const { dropRefine, enqueueRefine, holdNote, keepBetterPhrases, listenAgain, onRefineHold, refineHeld, refinePending, setRecorderLive, startRefining } = await import('./refine.ts');
 
 const QUEUE_KEY = 'glyph-refine-queue';
@@ -141,10 +143,46 @@ describe('the better words', () => {
 describe('when the pass runs', () => {
   it('replaces the words of a note whose only change since Done is the summary the app wrote, and keeps that summary', async () => {
     const section = '## Summary\nThe run, in a line.\n\n- [ ] Oat milk.';
+    keepSummary('n1', { text: section, model: 'm', at: 1, forMs: 2400 });
     notes.set('n1', { id: 'n1', body: `# Grocery run\n\n${section}\n\nOat milk and legs.`, revision: 2 });
     enqueueRefine(job());
     await vi.advanceTimersByTimeAsync(0);
     expect(notes.get('n1')?.body).toBe(`# Grocery run\n\n${section}\n\nOat milk and eggs.`);
+    // The same where the title ran straight into its words, and where the editor landed it with a newline after.
+    for (const [saved, body] of [
+      ['# Grocery run\nOat milk and legs.', `# Grocery run\n\n${section}\n\nOat milk and legs.`],
+      ['# Grocery run\n\nOat milk and legs.', `# Grocery run\n\n${section}\n\nOat milk and legs.\n`],
+    ]) {
+      notes.set('n1', { id: 'n1', body: body!, revision: 3 });
+      enqueueRefine(job({ savedBody: saved }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(notes.get('n1')?.body).toBe(`# Grocery run\n\n${section}\n\nOat milk and eggs.`);
+    }
+  });
+
+  it('leaves a `## Summary` the person typed where it is, and stops for one of the app’s the person edited', async () => {
+    // Typed before the take: in what Done saved, and in the better words already, so nothing is moved under the title.
+    const typedInto = job({ baseBody: '## Summary\nMy own first line.\nMy own second line.', titled: true });
+    const live: Segment[] = [
+      { text: 'Grocery run.', startMs: 0, endMs: 900 },
+      { text: 'Oat milk and legs.', startMs: 1200, endMs: 2400 },
+    ];
+    const saved = refinedBody({ ...typedInto, tries: 0 }, live);
+    expect(saved.startsWith('## Summary\nMy own first line.\nMy own second line.')).toBe(true);
+    notes.set('n1', { id: 'n1', body: saved, revision: 2 });
+    enqueueRefine({ ...typedInto, savedBody: saved });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(notes.get('n1')?.body).toBe(refinedBody({ ...typedInto, tries: 0 }, better));
+    expect(notes.get('n1')?.body.startsWith('## Summary\nMy own first line.\nMy own second line.')).toBe(true);
+    expect(notes.get('n1')?.body).toContain('Oat milk and eggs.');
+    // The app's section, edited since: the person's, and their edit wins over the better words.
+    keepSummary('n1', { text: '## Summary\nThe run, in a line.', model: 'm', at: 1, forMs: 2400 });
+    const edited = '# Grocery run\n\n## Summary\nMy words now.\n\nOat milk and legs.';
+    notes.set('n1', { id: 'n1', body: edited, revision: 3 });
+    enqueueRefine(job());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(notes.get('n1')?.body).toBe(edited);
+    expect(queued()).toEqual([]);
   });
 
   it('marks a job started while its pass runs, and counts one found started at launch as a try', async () => {

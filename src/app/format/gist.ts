@@ -159,6 +159,8 @@ async function pump(): Promise<void> {
   try {
     const model = smallestOf(presentIds(await listModels()));
     if (!model) return;
+    // The recorder may have come up while the catalogue was read: nothing starts under it.
+    if (paused) return;
     // Links go in as tokens, as for every run, and the line never has them.
     const { text } = protectLinks(body);
     activeRun = generate({ model, system: GIST_PROMPT, prompt: text, maxTokens: 40, temperature: TEMPERATURE, onProgress: () => undefined });

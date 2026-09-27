@@ -67,6 +67,8 @@ export interface NoteAi {
   onAiMarks: (changes: readonly AiChange[]) => void;
   /** Undo for a run in the strip's log; false when it cannot be undone. */
   undoRun: (record: RunRecord) => boolean;
+  /** Whether the AI can run here, or is still being looked for: the tape's Summarize word is there only then. */
+  canSummarize: boolean;
 }
 
 export function useNoteAi({ note, view, flush, body, wisp, ask, review, toast }: NoteAiOptions): NoteAi {
@@ -165,5 +167,5 @@ export function useNoteAi({ note, view, flush, body, wisp, ask, review, toast }:
     return true;
   };
 
-  return { runAi, runningKind, reviewStage, marks, onAiMarks, undoRun };
+  return { runAi, runningKind, reviewStage, marks, onAiMarks, undoRun, canSummarize: availability.availability.ok || availability.availability.waiting };
 }

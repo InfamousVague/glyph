@@ -1,13 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EditorState } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 import type { Output, RunOptions } from '../core/ai.ts';
 import type { Segment } from '../capture/markdown.ts';
+import { aiChanges } from '../editor/aiChanges.ts';
 import type { SummaryJob } from './summaries.ts';
 
 /**
  * The summary queue (ai/summaries.ts): what it writes and where, the holds it waits behind, what the recorder does to
- * a run in flight, how a job fails and is tried again, the pieces of a long recording, and the hand-off to an open
- * note's editor. The model is a fake that answers when the test says so, the bridge a stand-in for the note store,
- * the better-words queue a pair of flags, and the clock a fake one.
+ * a run in flight and what a person's Stop does, how a job fails and is tried again, the pieces of a long recording,
+ * and the hand-off to an open note's editor - including a note opened while the model wrote. The model is a fake
+ * that answers when the test says so, the bridge a stand-in for the note store, the better-words queue a pair of
+ * flags, and the clock a fake one.
  */
 
 let native = true;
@@ -78,15 +82,18 @@ const hold = (on: boolean) => {
   refine.held = on;
   refine.listeners.forEach((l) => l(on));
 };
-const synced = vi.hoisted(() => ({ now: vi.fn(async () => undefined) }));
-vi.mock('../core/sync/engine.ts', () => ({ syncNow: synced.now, syncSettled: async () => undefined }));
+const synced = vi.hoisted(() => ({ now: vi.fn(async () => undefined), settled: vi.fn(async () => undefined) }));
+vi.mock('../core/sync/engine.ts', () => ({ syncNow: synced.now, syncSettled: () => synced.settled() }));
 
 const { setPreferences, DEFAULT_PREFERENCES } = await import('../core/preferences.ts');
-const { dropSummary, enqueueSummary, NOTES_CONTEXT, openForSummaries, PIECE_CONTEXT, pauseSummaries, retrySummary, startSummaries, summaryPending } = await import('./summaries.ts');
-const { readSummary, keepSummary } = await import('./summaryKeep.ts');
-const { startRun, forgetAllRuns } = await import('./runs.ts');
+const { dropSummary, enqueueSummary, NOTES_CONTEXT, openForSummaries, PIECE_CONTEXT, pauseSummaries, retrySummary, startSummaries, summariesNow, summaryPending } = await import('./summaries.ts');
+const { readSummary, keepSummary, summaryUnchanged } = await import('./summaryKeep.ts');
+const { allLines, cancelRun, forgetAllRuns, runFor, startRun } = await import('./runs.ts');
+const { startNoteRun } = await import('./start.ts');
+const { Lander } = await import('./land.ts');
+const { renderNote } = await import('../capture/markdown.ts');
 const { RECORDING_NOTES_PROMPT, RECORDING_SUMMARY_PROMPT } = await import('../format/prompt.ts');
-const { ONE_PASS_CHARS } = await import('./summaryText.ts');
+const { ONE_PASS_CHARS, summarySection } = await import('./summaryText.ts');
 
 const QUEUE_KEY = 'glyph-summary-queue';
 const queued = (): SummaryJob[] => JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]') as SummaryJob[];
@@ -115,6 +122,8 @@ beforeEach(() => {
   fakes.length = 0;
   refine.held = false;
   refine.pending.clear();
+  synced.now.mockClear();
+  synced.settled.mockClear();
   visible('visible');
   notes.set('n1', { id: 'n1', body: '# March launch\n\nThat is the March launch settled. Sam owns the press list.', revision: 1, recordingMs: 4000, segments: phrases });
   changed = vi.fn();
@@ -222,14 +231,104 @@ describe('a summary of a closed note', () => {
     enqueueSummary('n1', 'recording');
     await tick(0);
     expect(fakes).toEqual([]);
-    const { useSummaries } = await import('./summaries.ts');
-    void useSummaries;
+    expect(summariesNow().needsModel.has('n1')).toBe(true);
     present = ['qwen3.5-2b'];
     await tick(59_999);
     expect(fakes).toEqual([]);
     await tick(1);
     expect(fakes).toHaveLength(1);
     expect(fakes[0]!.options.model).toBe('qwen3.5-2b');
+    expect(summariesNow().needsModel.has('n1')).toBe(false);
+  });
+
+  it('publishes what the shelf and the strip read: pending while queued and running, failed after three tries, cleared on finish and drop', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    enqueueSummary('n1', 'recording');
+    expect(summariesNow().pending.has('n1')).toBe(true);
+    await tick(0);
+    expect(summariesNow().pending.has('n1')).toBe(true);
+    for (let n = 1; n <= 3; n += 1) {
+      await tick(n === 1 ? 0 : 20_000);
+      fakes[n - 1]!.fail('the model fell over');
+      await tick(0);
+    }
+    expect(summariesNow().failed.has('n1')).toBe(true);
+    expect(summariesNow().pending.has('n1')).toBe(false);
+    retrySummary('n1');
+    expect(summariesNow().failed.has('n1')).toBe(false);
+    expect(summariesNow().pending.has('n1')).toBe(true);
+    await tick(0);
+    fakes[3]!.finish(ANSWER);
+    await tick(0);
+    expect(summariesNow()).toEqual({ pending: new Set(), native: new Set(), failed: new Set(), needsModel: new Set() });
+    enqueueSummary('n1', 'recording', { native: true });
+    expect(summariesNow().native.has('n1')).toBe(true);
+    dropSummary('n1');
+    expect(summariesNow().native.has('n1')).toBe(false);
+    warn.mockRestore();
+  });
+
+  it('starts nothing once the recorder has come up during the sync wait', async () => {
+    let release: () => void = () => undefined;
+    synced.settled.mockImplementationOnce(() => new Promise<undefined>((resolve) => (release = () => resolve(undefined))));
+    enqueueSummary('n1', 'recording');
+    await tick(0);
+    expect(fakes).toEqual([]);
+    hold(true);
+    release();
+    await tick(0);
+    expect(fakes).toEqual([]);
+    expect(queued()).toEqual([expect.objectContaining({ id: 'n1', tries: 0, started: false })]);
+    hold(false);
+    await tick(1500);
+    expect(fakes).toHaveLength(1);
+  });
+
+  it('takes the model’s heading as the title of a note still wearing a meeting’s date title', async () => {
+    notes.set('n1', { ...notes.get('n1')!, body: '# Meeting, 26 Sep 14:05\n\nWords.' });
+    enqueueSummary('n1', 'recording');
+    await tick(0);
+    fakes[0]!.finish(ANSWER);
+    await tick(0);
+    expect(notes.get('n1')?.body).toBe(`# March launch settled\n\n${SECTION}\n\nWords.`);
+    expect(summarized).toHaveBeenCalledWith({ id: 'n1', title: 'March launch settled' });
+  });
+
+  it('holds the write, with the answer kept, when the better words came to be owed between the run and the write', async () => {
+    enqueueSummary('n1', 'recording');
+    await tick(0);
+    refine.pending.add('n1');
+    fakes[0]!.finish(ANSWER);
+    await tick(0);
+    expect(invoked.filter((c) => c.command === 'update_note')).toEqual([]);
+    expect(queued()[0]).toMatchObject({ id: 'n1', text: ANSWER, tries: 0 });
+    refine.pending.delete('n1');
+    await tick(20_000);
+    expect(fakes).toHaveLength(1);
+    expect(notes.get('n1')?.body).toContain(SECTION);
+  });
+
+  it('counts a write that failed for any reason but a conflict as a try, without asking the model again', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const real = invoke.getMockImplementation()!;
+    invoke.mockImplementation(async (command, args) => {
+      if (command === 'update_note') throw new Error('the disk is full');
+      return real(command, args);
+    });
+    try {
+      enqueueSummary('n1', 'recording');
+      await tick(0);
+      fakes[0]!.finish(ANSWER);
+      await tick(0);
+      expect(queued()[0]).toMatchObject({ tries: 1, text: ANSWER });
+      await tick(20_000);
+      await tick(20_000);
+      expect(queued()[0]).toMatchObject({ tries: 3, failed: true });
+      expect(fakes).toHaveLength(1);
+    } finally {
+      invoke.mockImplementation(real);
+      warn.mockRestore();
+    }
   });
 
   it('gives up after three failures twenty seconds apart, and Try again puts the job back', async () => {
@@ -360,14 +459,21 @@ describe('a long recording', () => {
     expect(fakes).toHaveLength(1);
     expect(fakes[0]!.options.system).toBe(RECORDING_NOTES_PROMPT);
     expect(fakes[0]!.options.prompt.startsWith(`${PIECE_CONTEXT(1, 2)}\n\n`)).toBe(true);
+    // The recorder up as the first piece ends: the next piece waits for it to go, the finished one kept.
     fakes[0]!.finish('- The first half.');
+    hold(true);
     await tick(0);
     expect(queued()[0]?.pieces).toEqual(['- The first half.']);
+    expect(fakes).toHaveLength(1);
+    hold(false);
+    await tick(1500);
     expect(fakes[1]!.options.prompt.startsWith(`${PIECE_CONTEXT(2, 2)}\n\n`)).toBe(true);
     fakes[1]!.finish('- The second half.\n- [ ] Book the venue.');
     await tick(0);
     expect(fakes[2]!.options.system).toBe(RECORDING_SUMMARY_PROMPT);
-    expect(fakes[2]!.options.prompt).toBe(`${NOTES_CONTEXT}\n\n- The first half.\n\n- The second half.\n- [ ] Book the venue.`);
+    const words = renderNote(long).plain.split(/\s+/).filter(Boolean).length;
+    expect(fakes[2]!.options.prompt).toBe(`${NOTES_CONTEXT(words)}\n\n- The first half.\n\n- The second half.\n- [ ] Book the venue.`);
+    expect(NOTES_CONTEXT(words)).toContain('measured against that, not against these notes');
     fakes[2]!.finish(ANSWER);
     await tick(0);
     expect(notes.get('n1')?.body).toContain(SECTION);
@@ -412,18 +518,91 @@ describe('an open note', () => {
     expect(invoked.filter((c) => c.command === 'update_note')).toEqual([]);
   });
 
-  it('drops the job when the editor says the section was edited, and leaves it when the run was stopped', async () => {
+  it('lands through the real editor run, and keeps the section as any body reads it, so a remake finds it unchanged', async () => {
+    const view = new EditorView({ state: EditorState.create({ doc: '# March launch\n\nThat is the March launch settled.', extensions: [aiChanges()] }) });
+    try {
+      openForSummaries('n1', (ask) => startNoteRun(view, 'n1', 'summarize', { ok: true, model: 'qwen3.5-4b', chosen: 'qwen3.5-4b' }, { recording: ask }));
+      enqueueSummary('n1', 'recording');
+      await tick(0);
+      expect(fakes).toHaveLength(1);
+      // Landed as the note screen lands a run (ai/useLanding.ts): the finished lines through the lander.
+      const lander = new Lander(view, runFor('n1')!.id, { wisp: false, haptic: false }, view.state.doc.toString());
+      fakes[0]!.finish(ANSWER);
+      await tick(0);
+      lander.finish(allLines(runFor('n1')!.text!));
+      const doc = view.state.doc.toString();
+      expect(doc).toBe(`# March launch\n\n${SECTION}\n\nThat is the March launch settled.`);
+      expect(readSummary('n1')?.text).toBe(SECTION);
+      expect(summaryUnchanged('n1', summarySection(doc, SECTION)!.text)).toBe(true);
+      expect(queued()).toEqual([]);
+      // Asked again from the strip, the run goes over the section the note has, not beside it.
+      openForSummaries('n1', (ask) => startNoteRun(view, 'n1', 'summarize', { ok: true, model: 'qwen3.5-4b', chosen: 'qwen3.5-4b' }, { recording: ask }));
+      enqueueSummary('n1', 'recording');
+      await tick(500);
+      expect(fakes).toHaveLength(2);
+      expect(runFor('n1')?.scope).toEqual({ from: 16, to: 16 + SECTION.length + 1 });
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it('hands the answer to the note’s editor when the note was opened while the model wrote, and writes nothing plain', async () => {
+    enqueueSummary('n1', 'recording');
+    await tick(0);
+    expect(fakes).toHaveLength(1);
+    const starter = vi.fn(() => ({ ok: true as const, landed: SECTION }));
+    openForSummaries('n1', starter);
+    fakes[0]!.finish(ANSWER);
+    await tick(0);
+    expect(starter).toHaveBeenCalledWith({ words: 'That is the March launch settled. Sam owns the press list.', context: undefined, model: 'qwen3.5-4b', maxTokens: expect.any(Number), replace: false, text: ANSWER });
+    expect(invoked.filter((c) => c.command === 'update_note')).toEqual([]);
+    expect(readSummary('n1')).toMatchObject({ text: SECTION, model: 'qwen3.5-4b', forMs: 4000 });
+    expect(queued()).toEqual([]);
+    expect(summarized).toHaveBeenCalledWith({ id: 'n1', title: 'March launch' });
+    // An answer kept from a pass that could not write is handed over the same way at the next kick, the model not asked again.
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([{ id: 'n1', kind: 'recording', tries: 0, text: ANSWER }]));
+    starter.mockClear();
+    stop?.();
+    stop = startSummaries(changed, summarized);
+    await tick(4000);
+    expect(fakes).toHaveLength(1);
+    expect(starter).toHaveBeenCalledWith(expect.objectContaining({ text: ANSWER }));
+    expect(queued()).toEqual([]);
+  });
+
+  it('drops the job when the editor says the section was edited', async () => {
     openForSummaries('n1', () => ({ ok: false, reason: 'edited' }));
     enqueueSummary('n1', 'recording');
     await tick(0);
     expect(queued()).toEqual([]);
-    openForSummaries('n1', () => {
-      const handle = startRun({ noteId: 'n1', kind: 'summarize', model: 'qwen3.5-4b', system: 's', prompt: 'p', maxTokens: 10 });
-      handle.cancel();
-      return { ok: true, handle };
+  });
+
+  it('leaves the job when the recorder cut the run, to land over what landed once the recorder has gone, and drops it when the person stopped it', async () => {
+    const starter = vi.fn((ask: { replace: boolean }) => {
+      void ask;
+      return { ok: true as const, handle: startRun({ noteId: 'n1', kind: 'summarize', model: 'qwen3.5-4b', system: 's', prompt: 'p', maxTokens: 10 }) };
     });
+    openForSummaries('n1', starter);
     enqueueSummary('n1', 'recording');
     await tick(0);
-    expect(queued()).toEqual([expect.objectContaining({ id: 'n1', tries: 0 })]);
+    expect(starter).toHaveBeenCalledTimes(1);
+    hold(true);
+    await tick(0);
+    expect(runFor('n1')?.phase).toBe('stopped');
+    // Uncounted, and marked to replace: the half that landed is the app's own, not an edit of the person's.
+    expect(queued()).toEqual([expect.objectContaining({ id: 'n1', tries: 0, started: false, replace: true })]);
+    await tick(60_000);
+    expect(starter).toHaveBeenCalledTimes(1);
+    hold(false);
+    await tick(1500);
+    expect(starter).toHaveBeenCalledTimes(2);
+    expect(starter).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }));
+    // The person's Stop, from the strip or the scene: theirs to ask for again.
+    await cancelRun('n1');
+    await tick(0);
+    expect(queued()).toEqual([]);
+    await tick(60_000);
+    expect(starter).toHaveBeenCalledTimes(2);
+    expect(fakes).toHaveLength(2);
   });
 });

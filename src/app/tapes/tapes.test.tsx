@@ -10,11 +10,15 @@ import { NoteTape, TranscriptWords, type TapeSummary } from './NoteTape.tsx';
 import { TapeArt } from './TapeArt.tsx';
 import { useTape, type Tape } from './useTape.ts';
 
-/** The summary queue as the strip reads it: which notes have one on the way, or waiting for a model, or given up. */
-const queue = vi.hoisted(() => ({ pending: new Set<string>(), needsModel: new Set<string>(), failed: new Set<string>() }));
+/** The summary queue as the strip reads it: which notes have one on the way, or waiting for a model, or given up; and whose better words are still to come. */
+const queue = vi.hoisted(() => ({ pending: new Set<string>(), needsModel: new Set<string>(), failed: new Set<string>(), refining: new Set<string>() }));
 vi.mock('../ai/summaries.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../ai/summaries.ts')>()),
   useSummaries: () => ({ pending: queue.pending, native: new Set<string>(), failed: queue.failed, needsModel: queue.needsModel }),
+}));
+vi.mock('../capture/refine.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../capture/refine.ts')>()),
+  useRefining: () => ({ pending: queue.refining, download: null }),
 }));
 
 /**
@@ -44,7 +48,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   stubMatchMedia(false);
-  for (const set of [queue.pending, queue.needsModel, queue.failed]) set.clear();
+  for (const set of [queue.pending, queue.needsModel, queue.failed, queue.refining]) set.clear();
 });
 
 describe('the tape, playing', () => {
@@ -171,10 +175,18 @@ describe('the tape at the top of a note', () => {
     expect(strip({ summary: summary({ behind: true }) }).textContent).toContain('Summary is from before the last take.');
     queue.pending.add('t');
     let host = strip({ summary: summary({ behind: true }) });
-    const word = button('Summarize the recording', host);
+    let word = button('Summarize the recording', host);
     expect(word.textContent).toBe('Summarizing');
     expect(word.disabled).toBe(true);
     expect(host.textContent).not.toContain('Summary is from before the last take.');
+    // Queued behind the note's better words: not "Summarizing" yet, and the strip says what it waits for.
+    queue.refining.add('t');
+    host = strip({ summary: summary() });
+    word = button('Summarize the recording', host);
+    expect(word.textContent).toBe('Summarize');
+    expect(word.disabled).toBe(true);
+    expect(host.textContent).toContain('The summary comes after the better words.');
+    queue.refining.clear();
     queue.pending.clear();
     queue.needsModel.add('t');
     host = strip({ summary: summary() });

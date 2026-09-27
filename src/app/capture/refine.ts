@@ -6,7 +6,8 @@ import { preferences } from '../core/preferences.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 import { getNote, setNoteRecording, updateNote } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
-import { summarySection, withoutSummary, withSummary } from '../ai/summaryText.ts';
+import { keptText, summaryUnchanged } from '../ai/summaryKeep.ts';
+import { summarySection, withSummary } from '../ai/summaryText.ts';
 import type { Segment } from './markdown.ts';
 import type { Placing } from './place.ts';
 import { refinedBody, refinedSegments } from './refineText.ts';
@@ -36,8 +37,9 @@ import { refinedBody, refinedSegments } from './refineText.ts';
  * the recorder wins the cores, so a run of theirs in flight is cancelled the moment it comes up, and their queues
  * look again once it has gone. Told this way round, by a subscription, because the summary queue reads this module
  * (`refineHeld`, `refinePending`) and a module that imported it back would be a cycle. A summary that landed between
- * Done and the better words does not stop the better words: the compare reads both bodies with the app's own section
- * taken off, and the section is carried into the better words (§127 section 2).
+ * Done and the better words does not stop the better words: the note must read as Done saved it with the app's own
+ * section written in at its place, and the section is carried into the better words (§127 section 2). A section that
+ * is not the app's - typed, or the app's and then edited - is the person's, and the usual rule holds.
  *
  * A job is marked `started` before its pass runs, and a job found `started` at launch counts that as one try, so a
  * pass that kills the app cannot kill it at every launch: three tries and the job is dropped.
@@ -314,16 +316,22 @@ function mark(job: RefineJob, started: boolean): void {
 
 /**
  * The better words go in only if the note still reads as Done left it - the app's own summary section aside, which
- * may have landed since and is carried into the better words as it stands; the better phrases go in either way.
+ * may have landed since (ai/summaryKeep.ts knows it) and is carried into the better words as it stands; the better
+ * phrases go in either way. A section of the person's own is theirs: one Done saved is in the better words already,
+ * and one written since is an edit, which wins.
  */
 async function apply(job: RefineJob, refined: Segment[]): Promise<void> {
   if (!refined.length) return;
   const note = await getNote(job.id);
   if (!note) return;
-  if (withoutSummary(note.body) === withoutSummary(job.savedBody)) {
-    const section = summarySection(note.body);
+  const kept = keptText(job.id);
+  const section = summarySection(note.body, kept);
+  const ours = section !== null && summaryUnchanged(job.id, section.text);
+  // The editor's landing puts a newline after the note's last line; that is not an edit.
+  const asSaved = (ours ? withSummary(job.savedBody, section.text, { kept }) : job.savedBody).trimEnd();
+  if (note.body.trimEnd() === asSaved) {
     const better = refinedBody(job, refined);
-    await updateNote(job.id, section ? withSummary(withoutSummary(better), section.text) : better, note.revision ?? 1).catch(() => null);
+    await updateNote(job.id, ours && !summarySection(better, kept) ? withSummary(better, section.text, { kept }) : better, note.revision ?? 1).catch(() => null);
   }
   await setNoteRecording(job.id, job.recordingMs, refinedSegments(job, refined)).catch(() => null);
 }

@@ -1,5 +1,5 @@
 import { frontMatterEnd } from '../core/frontMatter.ts';
-import { noteTitle, withoutFrontMatter } from '../core/noteTitle.ts';
+import { noteTitle } from '../core/noteTitle.ts';
 
 /**
  * The summary section a note carries in its body, as the page reads and writes it (docs/DESIGN.md §127 section 2).
@@ -18,12 +18,18 @@ import { noteTitle, withoutFrontMatter } from '../core/noteTitle.ts';
  * above them, since `noteTitle` takes the first line and `## Summary` on top would title every card, tab and toast
  * "Summary".
  *
+ * The shape alone cannot close the section where the person's own list stands right under it: a blank followed by
+ * their `- [ ]` lines is still the shape. So every reader that has the KEPT text (ai/summaryKeep.ts, what the app
+ * wrote) hands it in, and the section is that text's span when the body still reads so, boxes ticked or not, with a
+ * blank or the end after it; the shape is the fallback for a section nothing kept.
+ *
  * Two writers place and shape it, the queue for a closed note (`withSummary`, here) and the editor for an open one
  * (ai/start.ts, through the lander), so the rules live here once. `withoutSummary` is the note with the app's own
- * section taken off, for the better words' compare (capture/refine.ts) and a sync merge that must not see the
- * section as an edit. `carryTicked` keeps every `- [x]` line of an old section in the new one, so a to-do he ticked
- * never comes back open in To do, however the model rephrases. `summaryLine` is the prose line, for the shelf, the
- * toast and the notification. `transcriptPieces` cuts a long transcript for the pieces pass.
+ * section taken off, for the sync merge to come (§127 section 6) that must not see the section as an edit; the
+ * better words' guard (capture/refine.ts) reads the note against what Done saved with the section written in.
+ * `carryTicked` keeps every `- [x]` line of an old section in the new one, so a to-do he ticked never comes back
+ * open in To do, however the model rephrases. `summaryLine` is the prose line, for the shelf, the toast and the
+ * notification. `transcriptPieces` cuts a long transcript for the pieces pass.
  */
 
 /** The heading the section is known by. */
@@ -31,12 +37,24 @@ export const SUMMARY_HEADING = '## Summary';
 
 /** A line of the section past the heading and the prose line: an item, a to-do, or a ticked to-do. */
 const ITEM = /^\s*-\s+(?:\[[ xX]\]\s+)?\S/;
-/** A bullet the model wrote with another mark: made a dash. */
-const OTHER_BULLET = /^(\s*)[*+]\s+/;
+/** A bullet the model wrote with another mark - `*`, `+`, a number, a typographic bullet - made a dash. */
+const OTHER_BULLET = /^(\s*)(?:[*+•·▪‣]|\d+[.)])\s+/;
+/** A box written tight against its dash, `-[ ]`: given its space. */
+const TIGHT_BOX = /^(\s*)-\[([ xX])\]/;
+/** A decision written without its dash: made an item, as the prompt asked. */
+const BARE_DECIDED = /^(\s*)(decided:)/i;
+/** A label the model puts on the prose line, which the heading already says. */
+const LABEL = /^(?:\*\*summary:?\*\*:?|summary:)\s*/i;
+/** An introduction, "Here is the summary:", that says nothing itself. */
+const INTRO = /:$/;
+/** A prose line that ends its sentence; one that does not was wrapped, and the next line goes on from it. */
+const SENTENCE_DONE = /[.!?…:]["”’)\]]*$/;
 /** A to-do that has been ticked. */
 const TICKED = /^\s*-\s+\[[xX]\]\s+/;
 /** A to-do, ticked or not. */
 const TODO = /^\s*-\s+\[[ xX]\]\s+/;
+/** A to-do line with its box as an open one, for reading a kept section against a body where some were ticked. */
+const untick = (line: string) => line.replace(TODO, '- [ ] ');
 /** A heading of any level. */
 const HEADING = /^#{1,6}\s+/;
 /** A horizontal rule. */
@@ -45,8 +63,8 @@ const RULE = /^(?:-{3,}|\*{3,}|_{3,})\s*$/;
 const PICTURE = /^!\[[^\]]*\]\([^)]*\)\s*$/;
 /** A code fence, which the model sometimes puts round its answer. */
 const FENCE = /^```/;
-/** A mark still under the pen as the model streams: a heading's hashes, an item's dash, a box not yet closed. */
-const UNDER_PEN = /^(?:#{1,6}|-|-\s+\[[ xX]?\]?)\s*$/;
+/** A mark still under the pen as the model streams: a heading's hashes, an item's dash or number, a box not yet closed. */
+const UNDER_PEN = /^(?:#{1,6}|-|-\s+\[[ xX]?\]?|\d+[.)]?|[*+•·▪‣])\s*$/;
 
 /** A transcript up to this many characters goes to the model in one pass. */
 export const ONE_PASS_CHARS = 20_000;
@@ -65,40 +83,58 @@ export interface ShapedSummary {
 /**
  * The model's answer as the section the page writes: `## Summary`, one prose line, then only item lines, blanks
  * collapsed to one between groups. The model's `# heading` first line is taken for the title and never written into
- * the section; a second prose line, a heading, a rule and a closing remark are dropped. Works on the answer so far as
- * well as the finished one, so a run's lines only ever grow as it streams (ai/runs.ts `restore`).
+ * the section; a second prose line, a heading, a rule and a closing remark are dropped. What a 4B reaches for is
+ * read as what was meant: a numbered or typographic bullet is an item, a label or an introduction on the prose line
+ * is not the prose, and a sentence wrapped over two lines is one sentence. Works on the answer so far as well as the
+ * finished one, so a run's lines only ever grow as it streams (ai/runs.ts `restore`).
  */
 export function shapeSummary(modelText: string): ShapedSummary {
   let title: string | null = null;
   let prose: string | null = null;
+  /** The prose line may still go on: no blank, item or heading has come since it. */
+  let proseOpen = false;
+  /** A line of prose has come, if only a label: the heading is the section's from then on, so it never un-lands. */
+  let sawProse = false;
   const items: string[] = [];
   let seenItem = false;
   for (const raw of modelText.split('\n')) {
-    const line = raw.trimEnd().replace(OTHER_BULLET, '$1- ');
+    const line = raw.trimEnd().replace(OTHER_BULLET, '$1- ').replace(TIGHT_BOX, '$1- [$2]').replace(BARE_DECIDED, '$1- $2');
     const bare = line.trim();
     if (!bare) {
+      proseOpen = false;
       // A blank between groups, once; none before the first item.
       if (items.length && items[items.length - 1] !== '') items.push('');
       continue;
     }
     if (FENCE.test(bare) || UNDER_PEN.test(bare)) continue;
     if (ITEM.test(line)) {
+      proseOpen = false;
       items.push(bare);
       seenItem = true;
       continue;
     }
     if (HEADING.test(bare)) {
+      proseOpen = false;
       const words = bare.replace(HEADING, '').trim();
       // The first heading names the recording; the section's own heading, echoed, is not a title.
       if (title === null && prose === null && !seenItem && words && words.toLowerCase() !== 'summary') title = words;
       continue;
     }
     if (RULE.test(bare)) continue;
-    // The one prose line, before any item; every other line of prose is dropped.
-    if (prose === null && !seenItem) prose = bare.replace(/^\*\*summary\*\*:?\s*/i, '').replace(/^summary:\s*/i, '');
+    if (seenItem) continue;
+    sawProse = true;
+    // The one prose line: a label alone or an introduction is not it, and the next line of prose is. A line that
+    // did not end its sentence was wrapped, and the line after it goes on from it; every other line of prose is dropped.
+    if (prose === null) {
+      const stripped = bare.replace(LABEL, '');
+      if (stripped && !INTRO.test(stripped)) {
+        prose = stripped;
+        proseOpen = true;
+      }
+    } else if (proseOpen && !SENTENCE_DONE.test(prose)) prose = `${prose} ${bare}`;
   }
   while (items.length && items[items.length - 1] === '') items.pop();
-  if (prose === null && !items.length) return { title, section: '' };
+  if (prose === null && !items.length) return { title, section: sawProse ? SUMMARY_HEADING : '' };
   const lines = [SUMMARY_HEADING, ...(prose !== null ? [prose] : []), ...(items.length ? ['', ...items] : [])];
   return { title, section: lines.join('\n') };
 }
@@ -151,11 +187,24 @@ function sectionLength(lines: readonly string[], at: number): number {
   return last - at + 1;
 }
 
-/** The lines the section takes, as [first line, count], or null without one. Front matter is never searched. */
-function findSection(lines: readonly string[]): [number, number] | null {
+/**
+ * The lines the section takes, as [first line, count], or null without one. With the kept text, the section is that
+ * text's lines where the body still reads so from the heading, boxes ticked or not, and a blank or the end follows:
+ * the keep closes it, so a list of the person's straight under it is not read as its. By the shape otherwise. Front
+ * matter is never searched.
+ */
+function findSection(lines: readonly string[], kept: string | null = null): [number, number] | null {
   const from = frontMatterEnd(lines);
   for (let n = from; n < lines.length; n += 1) {
-    if (isHeading(lines[n]!)) return [n, sectionLength(lines, n)];
+    if (!isHeading(lines[n]!)) continue;
+    if (kept) {
+      const keptLines = kept.split('\n');
+      const after = n + keptLines.length;
+      if (keptLines.every((line, i) => n + i < lines.length && untick(lines[n + i]!) === untick(line)) && (after >= lines.length || !lines[after]!.trim())) {
+        return [n, keptLines.length];
+      }
+    }
+    return [n, sectionLength(lines, n)];
   }
   return null;
 }
@@ -167,10 +216,10 @@ function offsetOfLine(lines: readonly string[], n: number): number {
   return at;
 }
 
-/** The section in `body`, found by its shape, or null. */
-export function summarySection(body: string): SummarySpan | null {
+/** The section in `body`: the kept text's span where the body still reads so (ai/summaryKeep.ts), else found by its shape; null without one. */
+export function summarySection(body: string, kept: string | null = null): SummarySpan | null {
   const lines = body.split('\n');
-  const found = findSection(lines);
+  const found = findSection(lines, kept);
   if (!found) return null;
   const [first, count] = found;
   const start = offsetOfLine(lines, first);
@@ -194,7 +243,7 @@ export function summaryLine(body: string): string | null {
  * Where a fresh section goes, as the index of the line it starts on: after the front matter and after the first line
  * of words, whatever its marks. After a `# title` line; after a plain first paragraph, through its last line; after
  * a to-do first line and the list it opens; a picture first line is stepped over, as `noteTitle` steps over it. A
- * body with no words at all puts it at the end.
+ * body with no words at all puts it at the end, and the writers put the model's heading above it there (`hasWords`).
  */
 function placeLine(lines: readonly string[]): number {
   let n = frontMatterEnd(lines);
@@ -207,6 +256,12 @@ function placeLine(lines: readonly string[]): number {
   return n;
 }
 
+/** Whether the body has a line of words past the front matter and any picture, or a title named in the front matter: without one, `## Summary` would be its title. */
+export function hasWords(body: string): boolean {
+  const lines = body.split('\n');
+  return firstWordsLine(lines) !== null || titledInFrontMatter(lines);
+}
+
 /** The offset a fresh section is written at: the start of the line after the first line of words. */
 export function summaryPlace(body: string): number {
   const lines = body.split('\n');
@@ -217,14 +272,18 @@ export function summaryPlace(body: string): number {
 // ---- writing it -----------------------------------------------------------------------------
 
 /**
- * The body with the section written: over the one it has, or fresh at its place with a blank line either side. With
- * `title`, a note still wearing its date title (`dateTitled`) takes the model's heading as its first line.
+ * The body with the section written: over the one it has (closed by `kept`, the text the app wrote, where there is
+ * one), or fresh at its place with a blank line either side. With `title`, a note still wearing its date title
+ * (`dateTitled`) takes the model's heading as its first line, and a note with no words at all gets it as a `# title`
+ * line above the section, since the section's own heading would otherwise be the title of every card and toast.
  */
-export function withSummary(body: string, section: string, { title = null }: { title?: string | null } = {}): string {
+export function withSummary(body: string, section: string, { title = null, kept = null }: { title?: string | null; kept?: string | null } = {}): string {
   const lines = body.split('\n');
-  const found = findSection(lines);
+  const found = findSection(lines, kept);
+  const words = firstWordsLine(lines) !== null || titledInFrontMatter(lines);
+  const head = !words && title ? [`# ${title}`, ''] : [];
   let out: string[];
-  if (lines.every((l) => !l.trim())) out = section.split('\n');
+  if (lines.every((l) => !l.trim())) out = [...head, ...section.split('\n')];
   else if (found) {
     const [first, count] = found;
     out = [...lines.slice(0, first), ...section.split('\n'), ...lines.slice(first + count)];
@@ -232,15 +291,15 @@ export function withSummary(body: string, section: string, { title = null }: { t
     const n = placeLine(lines);
     const before = n > 0 && lines[n - 1]!.trim() !== '' ? [''] : [];
     const after = n < lines.length && lines[n]!.trim() !== '' ? [''] : [];
-    out = [...lines.slice(0, n), ...before, ...section.split('\n'), ...after, ...lines.slice(n)];
+    out = [...lines.slice(0, n), ...before, ...head, ...section.split('\n'), ...after, ...lines.slice(n)];
   }
-  return title ? retitled(out.join('\n'), title) : out.join('\n');
+  return title && words ? retitled(out.join('\n'), title) : out.join('\n');
 }
 
-/** The body with the app's section taken off, and the blank line that went with it. */
-export function withoutSummary(body: string): string {
+/** The body with the app's section taken off, and the blank line that went with it; `kept` closes the section as in `summarySection`. */
+export function withoutSummary(body: string, kept: string | null = null): string {
   const lines = body.split('\n');
-  const found = findSection(lines);
+  const found = findSection(lines, kept);
   if (!found) return body;
   const [first, count] = found;
   const rest = [...lines.slice(0, first), ...lines.slice(first + count)];
@@ -250,18 +309,22 @@ export function withoutSummary(body: string): string {
   return rest.join('\n');
 }
 
+/** A ticked line as it is matched against the new section: the box lower-cased, trailing punctuation and space ignored. */
+const tickedKey = (line: string) => line.trim().replace(TICKED, '- [x] ').replace(/[\s.!?,;:]+$/, '').toLowerCase();
+
 /**
  * The new section with every ticked to-do of the old one carried in verbatim, after the new to-dos: a to-do he ticked
  * does not come back open, however the model rephrases it. Un-ticked old to-dos are not carried: the new list is the
- * new list. A ticked line the new section already has is not doubled.
+ * new list. A ticked line the new section already has, whatever the case of its box or its closing full stop, is
+ * not doubled.
  */
 export function carryTicked(old: string, next: string): string {
   const nextLines = next.split('\n');
-  const have = new Set(nextLines.map((l) => l.trim()));
+  const have = new Set(nextLines.map(tickedKey));
   const ticked = old
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => TICKED.test(l) && !have.has(l));
+    .filter((l) => TICKED.test(l) && !have.has(tickedKey(l)));
   if (!ticked.length) return next;
   let at = -1;
   for (let n = 0; n < nextLines.length; n += 1) if (TODO.test(nextLines[n]!)) at = n;
@@ -280,10 +343,14 @@ export function dateTitled(body: string): boolean {
   return DATE_TITLE.test(noteTitle(body));
 }
 
-/** The body with the model's heading as its title, only while it still wears its date title; else as it was. */
+/**
+ * The body with the model's heading as its title, only while it still wears its date title; else as it was. A title
+ * named in the front matter is not the first line's to change, and is left.
+ */
 export function retitled(body: string, title: string): string {
   if (!title || !dateTitled(body)) return body;
   const lines = body.split('\n');
+  if (titledInFrontMatter(lines)) return body;
   const at = firstWordsLine(lines);
   if (at === null) return body;
   lines[at] = `# ${title}`;
@@ -292,13 +359,17 @@ export function retitled(body: string, title: string): string {
 
 /** The index of the first line of words in `lines`, past the front matter and any picture; null with none. */
 function firstWordsLine(lines: readonly string[]): number | null {
-  const words = withoutFrontMatter(lines);
-  const skipped = lines.length - words.length;
-  for (let n = 0; n < words.length; n += 1) {
-    const line = words[n]!;
-    if (line.trim() && !PICTURE.test(line)) return n + skipped;
+  for (let n = frontMatterEnd(lines); n < lines.length; n += 1) {
+    const line = lines[n]!;
+    if (line.trim() && !PICTURE.test(line)) return n;
   }
   return null;
+}
+
+/** Whether the front matter names the note's title, which `noteTitle` takes over the first line of words (core/noteTitle.ts). */
+function titledInFrontMatter(lines: readonly string[]): boolean {
+  const end = frontMatterEnd(lines);
+  return end > 0 && lines.slice(1, end - 1).some((line) => /^\s*title\s*:/i.test(line));
 }
 
 // ---- long recordings ----------------------------------------------------------------------

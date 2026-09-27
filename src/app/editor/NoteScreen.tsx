@@ -30,10 +30,9 @@ import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
 import { enqueueSummary } from '../ai/summaries.ts';
-import { summaryBehind, summaryUnchanged } from '../ai/summaryKeep.ts';
+import { keptText, summaryBehind, summaryUnchanged } from '../ai/summaryKeep.ts';
 import { summarySection } from '../ai/summaryText.ts';
 import type { CaptureLanding } from '../capture/landing.ts';
-import { isTauri } from '../core/tauri.ts';
 import { keepAllChanges } from './aiChanges.ts';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
@@ -341,17 +340,17 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               onSpeak={speakHere}
               onRemove={removeRecording}
               hasMemos={hasClips(body.current)}
-              // The recording's summary (ai/summaries.ts): queued from here, and landed in this editor as a run. Not
-              // in a browser, which has no model and shows what synced.
+              // The recording's summary (ai/summaries.ts): queued from here, and landed in this editor as a run. Only
+              // where the AI can run: a browser has no model and shows what synced, and iOS has none yet.
               summary={
-                isTauri()
+                ai.canSummarize
                   ? {
                       ask: (replace) => {
                         flush();
                         enqueueSummary(note.id, 'recording', { replace });
                       },
                       edited: () => {
-                        const section = summarySection(body.current);
+                        const section = summarySection(body.current, keptText(note.id));
                         return section !== null && !summaryUnchanged(note.id, section.text);
                       },
                       behind: summaryBehind(note.id, tape.length),

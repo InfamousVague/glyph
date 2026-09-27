@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { kindWords } from '../ai/kinds.ts';
 import { ended, useRun } from '../ai/runs.ts';
 import { useSummaries } from '../ai/summaries.ts';
+import { useRefining } from '../capture/refine.ts';
 import { TAPE_MS, counter } from '../capture/tape.ts';
 import { prefersStill } from '../core/motion.ts';
 import type { Note } from '../core/store.ts';
@@ -24,8 +25,10 @@ import styles from './NoteTape.module.css';
  * the title by the model on the phone, queued (ai/summaries.ts) and landed in this open note as a run with Keep and
  * Revert. A summary is remade only on purpose, so a section the person edited is asked about first, "You edited
  * the summary. Replace it?" with Replace and Keep mine, and nothing is written until one is tapped. An Add to the
- * tape does not remake it: the strip says "Summary is from before the last take." and the word remakes it. The
- * word is only there where there is a model to run: a browser has none and shows what synced.
+ * tape does not remake it: the strip says "Summary is from before the last take." and the word remakes it. A job
+ * queued behind the note's better words (capture/refine.ts) is not "Summarizing" yet, and the strip says what it
+ * waits for. The word is only there where the AI can run (ai/available.ts): a browser has no model and shows what
+ * synced, and iOS has none yet.
  *
  * Only a spoken note has one (Matt: "Don't show the tape on notes that don't
  * have any audio recorded; the notes with audio recordings added should show
@@ -80,18 +83,23 @@ export function NoteTape({ note, title: typed, tape, onSpeak, onRemove, hasMemos
     return () => window.clearTimeout(timer);
   }, [replacing]);
   const summaries = useSummaries();
+  const refining = useRefining();
   const run = useRun(note.id);
   if (tape.length <= 0) return null;
-  const summarizing = summaries.pending.has(note.id) || (run !== null && run.kind === 'summarize' && !ended(run));
+  // A queued job waits for the note's better words first; only past them is it "Summarizing".
+  const held = summaries.pending.has(note.id) && refining.pending.has(note.id);
+  const summarizing = (summaries.pending.has(note.id) && !held) || (run !== null && run.kind === 'summarize' && !ended(run));
   const summaryLine = summaries.needsModel.has(note.id)
     ? 'Needs a model.'
     : summaries.failed.has(note.id)
       ? 'The summary didn’t come.'
-      : summarizing
-        ? null
-        : summary?.behind
-          ? 'Summary is from before the last take.'
-          : null;
+      : held
+        ? 'The summary comes after the better words.'
+        : summarizing
+          ? null
+          : summary?.behind
+            ? 'Summary is from before the last take.'
+            : null;
   const title = typed || 'Untitled';
   const label = title.length > CLIP ? `${title.slice(0, CLIP - 1).trimEnd()}…` : title;
   const moved = tape.playing || tape.at > 0;
@@ -151,7 +159,7 @@ export function NoteTape({ note, title: typed, tape, onSpeak, onRemove, hasMemos
                 if (summary.edited()) setReplacing(true);
                 else summary.ask(false);
               }}
-              disabled={summarizing}
+              disabled={summarizing || held}
               aria-label="Summarize the recording"
               title="The recording, summarized under the title."
             >

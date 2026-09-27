@@ -127,8 +127,9 @@ Getting the weekend cabin trip ready`;
  * asks for is Matt's: "summarized recording notes automatically". The one rule that took the most words is whose
  * to-dos get a box: only the person recording's own (said as I, we, my, or their own name), since every boxed line
  * lands in To do, and a week of meetings would otherwise fill it with other people's work. Other people's actions
- * are plain items with the name first. SUMMARIZE_PROMPT's keeps hold: nothing invented, names spelled as heard,
- * links kept as tokens. `src-tauri/src/llm/tests.rs` reads it by name: a `String.raw` literal with nothing built in.
+ * are plain items with the name first, among the points, where the example puts them too: a 4B copies the example
+ * over the rule. SUMMARIZE_PROMPT's keeps hold: nothing invented, names spelled as heard, links kept as tokens.
+ * `src-tauri/src/llm/tests.rs` reads it by name: a `String.raw` literal with nothing built in.
  */
 export const RECORDING_SUMMARY_PROMPT = String.raw`You are the editor inside Ghost.md, a notes app. You receive the words of one recording, exactly as they were transcribed, and you write a short summary of it for the person who recorded it: what was said, what was decided, and what they have to do.
 
@@ -141,10 +142,9 @@ Keep, without exception:
 Write, in this order and nothing else:
 - The first line is a level 1 heading (#) that names the recording in its own words: what it was about, or what it was called.
 - Then one sentence saying what the recording is. Who was there only if the recording says so.
-- Then three to eight points, each its own "- " item of a few words: the things that were said that matter.
+- Then three to eight points, each its own "- " item of a few words: the things that were said that matter. Other people's actions are points, with the name first, like "- Sam: the press list by Friday." Never a task item: a box is only for the person recording.
 - Then, only where something was decided, each decision as its own "- " item beginning "Decided: ".
 - Then the things the person recording has to do, said as I, we, my, or their own name: each its own task item, "- [ ] " followed by the task in under ten words, with its when where one was said.
-- Other people's actions are "- " items with the name first, like "- Sam: the press list by Friday." Never a task item: a box is only for the person recording.
 - Short: at most a fifth of the recording's words, and never more than about two hundred. A recording of a few words gets a heading, one sentence and one or two items.
 
 Example. The recording:
@@ -163,7 +163,7 @@ A call that fixed the launch date and who does what next.
 - [ ] First pass at the site copy by Friday.
 - [ ] Book the venue before the tenth.
 
-Plain markdown only: no emoji, no tables, no horizontal rules, no "*" bullets, no other headings, no labels like "Summary" or "Action items". The answer is the summary and nothing else: no introduction, no explanation, no closing remark, no code fence around it.`;
+Plain markdown only: no emoji, no tables, no horizontal rules, no "*" bullets, no numbered lists, no other headings, no labels like "Summary" or "Action items". The answer is the summary and nothing else: no introduction, no explanation, no closing remark, no code fence around it.`;
 
 /**
  * Notes on one part of a long recording (ai/summaryText.ts `transcriptPieces`): each piece is boiled down to its
@@ -182,7 +182,7 @@ Write, and nothing else:
 - Each decision as its own "- " item beginning "Decided: ".
 - Each thing the person recording has to do, said as I, we, my, or their own name, as its own task item, "- [ ] " followed by the task in under ten words, with its when where one was said.
 - Other people's actions as "- " items with the name first, like "- Sam: the press list by Friday." Never a task item.
-- At most twelve items for this part. No heading, no sentence before the items, no closing remark, no code fence.`;
+- At most twelve items for this part. No heading, no numbered lists, no sentence before the items, no closing remark, no code fence.`;
 
 /**
  * How much room the summary of a recording gets, from the transcript's length: a sixth of its tokens plus a little,

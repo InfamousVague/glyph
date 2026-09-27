@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { aiChanges, landingField } from '../editor/aiChanges.ts';
-import type { RunRequest } from './runs.ts';
+import { aiChanges, aiChangesField, landingField } from '../editor/aiChanges.ts';
+import type { RunRequest, RunState } from './runs.ts';
 
+/** Every run asked for; each answers `done` as a finished run, so what follows the end (the title) can be seen. */
 const requests: RunRequest[] = [];
 vi.mock('./runs.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('./runs.ts')>();
@@ -11,13 +12,17 @@ vi.mock('./runs.ts', async (importOriginal) => {
     ...real,
     startRun: (request: RunRequest) => {
       requests.push(request);
-      return { id: 'r', done: Promise.resolve(), cancel: () => undefined };
+      return { id: `r${requests.length}`, done: Promise.resolve({ phase: 'done' } as RunState), cancel: () => undefined };
     },
   };
 });
 
 const { landingAt, placementOf, startNoteRun } = await import('./start.ts');
-const { keepSummary } = await import('./summaryKeep.ts');
+const { Lander } = await import('./land.ts');
+const { allLines } = await import('./runs.ts');
+const { keepSummary, readSummary } = await import('./summaryKeep.ts');
+const { summarySection } = await import('./summaryText.ts');
+const { runsOf } = await import('./log.ts');
 
 let view: EditorView | null = null;
 function open(doc: string): EditorView {
@@ -89,6 +94,16 @@ describe('the recording’s summary as a run', () => {
   const ANSWER = '# March launch\nWhat the call settled.\n\n- Launch in March.\n\n- [ ] Book the venue.';
   const SECTION = '## Summary\nWhat the call settled.\n\n- Launch in March.\n\n- [ ] Book the venue.';
 
+  /** The last run's answer streamed through its restore into a lander a character at a time, then finished: the note as it reads after. */
+  function stream(v: EditorView, answer: string): string {
+    const request = requests[requests.length - 1]!;
+    const restore = request.restore!;
+    const lander = new Lander(v, `r${requests.length}`, { wisp: false, haptic: false }, v.state.doc.toString());
+    for (let n = 1; n <= answer.length; n += 1) lander.land(restore(answer.slice(0, n), false).split('\n').slice(0, -1));
+    lander.finish(allLines(restore(answer, true)));
+    return v.state.doc.toString();
+  }
+
   it('is given the tape’s words and the recording prompt, and lands under the title with a blank line first', () => {
     const v = open('# Planning call\n\nWe started with the launch.');
     localStorage.clear();
@@ -114,8 +129,9 @@ describe('the recording’s summary as a run', () => {
     const v = open(`# Planning call\n\n${old}\n\nWe started with the launch.`);
     keepSummary('n', { text: old, model: 'm', at: 1, forMs: 1000 });
     startNoteRun(v, 'n', 'summarize', ready, { recording });
-    expect(requests[0]).toMatchObject({ scope: { from: 17, to: 17 + old.length }, placement: 'replace' });
-    expect(v.state.field(landingField)).toMatchObject({ start: 17, cursor: 17, oldEnd: 17 + old.length });
+    // The scope takes the section's newline with it, so the lander does not put another after its last line.
+    expect(requests[0]).toMatchObject({ scope: { from: 17, to: 17 + old.length + 1 }, placement: 'replace' });
+    expect(v.state.field(landingField)).toMatchObject({ start: 17, cursor: 17, oldEnd: 17 + old.length + 1 });
     // No blank first over an old section, and the ticked to-do carried as it finishes.
     expect(requests[0]?.restore?.(ANSWER, false)).toBe(SECTION);
     expect(requests[0]?.restore?.(ANSWER, true)).toBe(`${SECTION}\n- [x] Send Sam the list.`);
@@ -124,6 +140,69 @@ describe('the recording’s summary as a run', () => {
     expect(startNoteRun(v, 'n', 'summarize', ready, { recording })).toEqual({ ok: false, reason: 'edited' });
     expect(startNoteRun(v, 'n', 'summarize', ready, { recording: { ...recording, replace: true } }).ok).toBe(true);
     expect(startNoteRun(v, 'n', 'summarize', ready, { recording: { ...recording, words: ' ' } })).toEqual({ ok: false, reason: 'nothing' });
+  });
+
+  it('remakes the section in place: the same answer leaves the note as it was, a shorter one leaves one blank line under it', () => {
+    const old = '## Summary\nThe old line.\n\n- Launch moves.\n\n- [ ] Book the venue.';
+    const body = `# Planning call\n\n${old}\n\nWe started with the launch.`;
+    const v = open(body);
+    keepSummary('n', { text: old, model: 'm', at: 1, forMs: 1000 });
+    startNoteRun(v, 'n', 'summarize', ready, { recording: { ...recording, replace: true } });
+    expect(stream(v, '# T\nThe old line.\n\n- Launch moves.\n\n- [ ] Book the venue.')).toBe(body);
+    startNoteRun(v, 'n', 'summarize', ready, { recording: { ...recording, replace: true } });
+    expect(stream(v, '# T\nA newer line.\n\n- [ ] One thing.')).toBe('# Planning call\n\n## Summary\nA newer line.\n\n- [ ] One thing.\n\nWe started with the launch.');
+  });
+
+  it('is closed by the kept text, so a list of the person’s under it is neither the section nor edited', () => {
+    const written = '## Summary\nWhat the call settled.\n\n- [ ] Book the venue.';
+    const list = '- [ ] Call Sam\n- [ ] Book the room';
+    const v = open(`# Planning call\n\n${written}\n\n${list}`);
+    keepSummary('n', { text: written, model: 'm', at: 1, forMs: 1000 });
+    const started = startNoteRun(v, 'n', 'summarize', ready, { recording });
+    expect(started.ok).toBe(true);
+    expect(requests[0]).toMatchObject({ scope: { from: 17, to: 17 + written.length + 1 } });
+    expect(stream(v, '# T\nA newer line.\n\n- [ ] Book the venue before the 10th.')).toBe(`# Planning call\n\n## Summary\nA newer line.\n\n- [ ] Book the venue before the 10th.\n\n${list}`);
+  });
+
+  it('lands the model’s heading as the title of a note with no words, which the section would otherwise title', () => {
+    expect(startNoteRun(open(''), 'n', 'summarize', ready, { recording }).ok).toBe(true);
+    expect(stream(view!, ANSWER)).toBe(`# March launch\n\n${SECTION}\n`);
+    expect(startNoteRun(open('![](image/a.jpg)'), 'n', 'summarize', ready, { recording }).ok).toBe(true);
+    expect(stream(view!, ANSWER)).toBe(`![](image/a.jpg)\n\n# March launch\n\n${SECTION}\n`);
+  });
+
+  it('takes the model’s heading as the title once the run is done, only while the note wears a meeting’s date title', async () => {
+    const v = open('# Meeting, 26 Sep 14:05\n\nWords.');
+    startNoteRun(v, 'n', 'summarize', ready, { recording });
+    requests[0]!.restore!(ANSWER, true);
+    await Promise.resolve();
+    expect(v.state.doc.toString()).toBe('# March launch\n\nWords.');
+    const kept = open('# Sam’s call\n\nWords.');
+    startNoteRun(kept, 'n', 'summarize', ready, { recording });
+    requests[1]!.restore!(ANSWER, true);
+    await Promise.resolve();
+    expect(kept.state.doc.toString()).toBe('# Sam’s call\n\nWords.');
+  });
+
+  it('lands an answer the queue already has at once, as tracked changes with no run, and answers the section as landed', () => {
+    const v = open('# Planning call\n\nWe started with the launch.');
+    const started = startNoteRun(v, 'n', 'summarize', ready, { recording: { ...recording, text: ANSWER } });
+    expect(started).toEqual({ ok: true, landed: SECTION });
+    expect(requests).toEqual([]);
+    // Signed by the AI as a run's landing is (ai/useLanding.ts).
+    expect(v.state.doc.toString()).toBe(`---\nauthors: Ghost\n---\n# Planning call\n\n${SECTION}\n\nWe started with the launch.`);
+    expect(summarySection(v.state.doc.toString())?.text).toBe(SECTION);
+    // Marked as the AI's lines, with the bookmark put away, and the before and after in the log for Undo.
+    expect(v.state.field(aiChangesField).length).toBeGreaterThan(0);
+    expect(v.state.field(landingField)).toBeNull();
+    expect(runsOf('n').some((r) => r.before === '# Planning call\n\nWe started with the launch.')).toBe(true);
+    // Over an old section the same way, and refused for one the person edited.
+    keepSummary('n', { text: SECTION, model: 'm', at: 1, forMs: 1000 });
+    const again = startNoteRun(v, 'n', 'summarize', ready, { recording: { ...recording, text: '# T\nA newer line.\n\n- [ ] One thing.' } });
+    expect(again).toEqual({ ok: true, landed: '## Summary\nA newer line.\n\n- [ ] One thing.' });
+    expect(v.state.doc.toString()).toBe('---\nauthors: Ghost\n---\n# Planning call\n\n## Summary\nA newer line.\n\n- [ ] One thing.\n\nWe started with the launch.');
+    expect(startNoteRun(v, 'n', 'summarize', ready, { recording: { ...recording, text: ANSWER } })).toEqual({ ok: false, reason: 'edited' });
+    expect(readSummary('n')?.text).toBe(SECTION);
   });
 });
 

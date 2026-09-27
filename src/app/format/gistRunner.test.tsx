@@ -44,6 +44,25 @@ describe('the gist runner', () => {
     expect(generate).toHaveBeenCalledTimes(1);
   });
 
+  it('starts nothing when the recorder comes up while the catalogue is being read', async () => {
+    const notes = [makeNote('p2', 'plans for the weekend\n- cabin\n', { updatedAt: 3 })];
+    function Home() {
+      useGists(notes);
+      return null;
+    }
+    show(<Home />);
+    let release: () => void = () => undefined;
+    vi.mocked(listModels).mockImplementationOnce(() => new Promise((resolve) => (release = () => resolve([{ id: 'qwen3.5-2b', present: true }] as never))));
+    const turn = runGists();
+    pauseGists(true);
+    release();
+    await turn;
+    expect(generate).not.toHaveBeenCalled();
+    pauseGists(false);
+    await runGists();
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
   it('hands the home page a gist the moment it lands, with the notes as they were', async () => {
     const notes = [makeNote('n3', 'plans for the weekend\n- cabin\n', { updatedAt: 3 })];
     const seen: { current: Record<string, string> } = { current: {} };

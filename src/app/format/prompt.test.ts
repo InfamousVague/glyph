@@ -13,7 +13,11 @@ describe('the recording prompts', () => {
       expect(prompt).toContain('[the words](link-1)');
     }
     expect(RECORDING_SUMMARY_PROMPT).toContain('Decided: ');
+    expect(RECORDING_SUMMARY_PROMPT).toContain('no numbered lists');
     expect(RECORDING_SUMMARY_PROMPT.endsWith('no code fence around it.')).toBe(true);
+    // The rule for other people's actions sits with the points, where the example puts "- Sam: the press list."
+    const points = RECORDING_SUMMARY_PROMPT.split('\n').find((line) => line.includes('three to eight points'));
+    expect(points).toContain("Other people's actions are points, with the name first");
     // src-tauri/src/llm/tests.rs `page_prompt_in` copies a literal's source up to its closing backtick: each is a plain
     // String.raw literal with nothing built in, so what it reads is what the phone sends.
     const source = readFileSync(join(process.cwd(), 'src/app/format/prompt.ts'), 'utf8');
