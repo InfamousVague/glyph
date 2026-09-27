@@ -1,14 +1,89 @@
 //! A note's file name: its title, made safe for every file system a library
 //! might be synced to (docs/LIBRARY.md).
 
-/// The title the note's list shows: the first line of words, a heading's `#`s
-/// gone, a picture line skipped. The same rule as the page's `noteTitle`.
+/// The title a note's file is named by. Which line it is follows the page's
+/// `noteTitle` (core/noteTitle.ts): the first line of words, a picture line
+/// skipped, and front matter at the top of the body skipped with it, its
+/// `title:` taken as the title where it has one. A book, a canvas and a note an
+/// AI signed all open with such a block, and were named "---.md" until
+/// 2026-09-27. What is taken off that line is not the page's: both drop a
+/// heading's `#`s, but `plain` also drops a list's or a task's marker, a
+/// quote's `>`, emphasis and code marks, and a link's address, which the list
+/// shows, and keeps the bookmark (`§§`), which the list drops. So
+/// "- [ ] **Buy** milk" names a file "Buy milk.md", and the list shows the line
+/// as it is written.
 pub fn title_of(body: &str) -> String {
-    body.lines()
+    let lines: Vec<&str> = body.lines().collect();
+    let (named, words) = without_front_matter(&lines);
+    named
+        .as_deref()
+        .into_iter()
+        .chain(words.iter().copied())
         .map(str::trim)
         .find(|line| !line.is_empty() && !is_picture_line(line))
         .map(plain)
         .unwrap_or_default()
+}
+
+/// The most lines front matter may take, both fences included: the page's
+/// `FRONT_MATTER_LINES`. A `---` further down is a rule in a long note.
+const FRONT_MATTER_LINES: usize = 40;
+
+/// The page's `withoutFrontMatter`: the `title:` of the body's front matter,
+/// its quotes taken off, where it has a title with words in it, and the lines
+/// after the block (every line where there is no block).
+fn without_front_matter<'a>(lines: &'a [&'a str]) -> (Option<String>, &'a [&'a str]) {
+    let end = front_matter_end(lines);
+    if end == 0 {
+        return (None, lines);
+    }
+    let named = lines[1..end - 1].iter().find_map(|line| title_value(line)).filter(|title| !title.is_empty());
+    (named, &lines[end..])
+}
+
+/// The page's `frontMatterEnd` (core/frontMatter.ts): the index of the line
+/// after the closing fence, or 0 where there is no front matter. That is a
+/// fence (`---` or `+++`) on the first line, then only `key:` lines and blank
+/// ones, then a fence within the first 40 lines. A note that opens with a
+/// rule and some words opens with a rule. The file's own front matter is read
+/// by another rule (frontmatter.rs `split`), which the page never sees.
+fn front_matter_end(lines: &[&str]) -> usize {
+    if !lines.first().is_some_and(|line| is_fence(line)) {
+        return 0;
+    }
+    for (n, line) in lines.iter().enumerate().take(FRONT_MATTER_LINES).skip(1) {
+        if is_fence(line) {
+            return n + 1;
+        }
+        if !is_key_line(line) && !line.trim().is_empty() {
+            return 0;
+        }
+    }
+    0
+}
+
+/// A front matter fence on a line of its own: the page's `FENCE`.
+fn is_fence(line: &str) -> bool {
+    matches!(line.trim_end(), "---" | "+++")
+}
+
+/// A `key:` line: the page's `KEY_LINE`, a key of ASCII letters, digits, `_`,
+/// `.` and `-`, with space allowed before it and before its colon.
+fn is_key_line(line: &str) -> bool {
+    let rest = line.trim_start();
+    let key = rest.len() - rest.trim_start_matches(|c: char| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-')).len();
+    key > 0 && rest[key..].trim_start().starts_with(':')
+}
+
+/// A `title:` line's value, as `withoutFrontMatter` reads it: the key in any
+/// case, a quote off each end, then trimmed. None for any other key.
+fn title_value(line: &str) -> Option<String> {
+    let rest = line.trim_start();
+    let key = rest.get(..5).filter(|key| key.eq_ignore_ascii_case("title"))?;
+    let value = rest[key.len()..].trim_start().strip_prefix(':')?.trim_start();
+    let value = value.strip_prefix(['"', '\'']).unwrap_or(value);
+    let value = value.strip_suffix(['"', '\'']).unwrap_or(value);
+    Some(value.trim().to_string())
 }
 
 /// A line's words without its Markdown: a heading's `#`s, a quote's `>`, a
@@ -137,6 +212,30 @@ mod tests {
         assert_eq!(title_of("> **Bold** idea with `code` and ~~old~~"), "Bold idea with code and old");
         assert_eq!(title_of("1. First step <https://x.y> see https://example.com"), "First step see");
         assert_eq!(file_stem(&title_of("- [ ] buy milk [notion](https://www.notion.so/x)")), "buy milk", "a trailing item mark is not part of the name");
+    }
+
+    #[test]
+    fn front_matter_in_the_body_is_skipped_and_its_title_taken() {
+        // A book (book/book.ts `bookNoteBody`), named by its `title:` out of its quotes.
+        assert_eq!(title_of("---\ntitle: \"My book\"\nbook: true\n---\n# My book\n\n- [[Chapter one]]\n"), "My book");
+        assert_eq!(file_stem(&title_of("---\nbook: true\ntitle: My book\n---\n\nIntro")), "My book", "the book that was filed as ---.md");
+        // A canvas (canvas/jsonCanvas.ts `canvasNoteBody`), whose words open with `{`.
+        let canvas = "---\ntitle: \"Cabin plan: the weekend\"\n---\n{\n  \"nodes\": [],\n  \"edges\": []\n}\n";
+        assert_eq!(file_stem(&title_of(canvas)), "Cabin plan the weekend");
+        // A note an AI signed (core/authors.ts `withAuthor`): no `title:`, so its first line of words.
+        assert_eq!(title_of("---\nauthors: Matt, Claude\n---\n# Weekend trip\n\nBook the cabin."), "Weekend trip");
+        assert_eq!(title_of("---\ntitle: \"\"\nbook: true\n---\n# Reading list"), "Reading list", "an empty title is no title");
+    }
+
+    #[test]
+    fn a_rule_and_some_words_are_not_front_matter() {
+        // Words between the fences make the first `---` a rule, even after a line that looks like a key. The note is
+        // titled by its first line, as the page's list titles it, not by what follows the second rule.
+        assert_eq!(title_of("---\nNote: the cabin is booked\nand the car is not\n---\nPack on Thursday."), "---");
+        // A close within the first 40 lines ends the keys; one further down is a rule in a long note.
+        let keys = |n: usize| format!("---\n{}---\nWords", "key: value\n".repeat(n));
+        assert_eq!(title_of(&keys(38)), "Words");
+        assert_eq!(title_of(&keys(39)), "---");
     }
 
     #[test]
