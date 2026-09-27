@@ -1,9 +1,13 @@
 /*
  * The shelf of tapes on the home page (TapeShelf.tsx): a row of cassettes that scrolls sideways at every width,
- * bleeding to the screen's edges under the page's gutters, each 11rem wide with its two lines of words under it in
- * the same column. The row snaps loosely to a cassette, and a mouse wheel over it scrolls it sideways as the tab row
- * does (core/scrollSideways.ts). Measured for the Fold's cover screen, 412px wide: two cassettes and a bit showing,
- * the title line readable (docs/DESIGN.md §127 section 1).
+ * bleeding to the screen's edges under the page's gutters, each 11rem wide with its three lines of words under it
+ * in the same column. The row snaps loosely to a cassette. The mouse wheel is left alone over it, unlike over the
+ * tab row and the workspace pills (core/scrollSideways.ts): those sit in bars with nothing to scroll above them,
+ * while the shelf sits in the page's own scroller, and React's wheel listeners are passive, so a turn of the wheel
+ * over the row moved it a cassette sideways and scrolled the page down at once. Shift with the wheel, a trackpad's
+ * sideways swipe and a finger all still move the row, and "and N more" is the mouse's way to the rest. Measured in
+ * Chromium at the Fold's cover screen's 412px, not yet on the Fold (docs/DESIGN.md §127 section 1): two cassettes
+ * and a bit showing, the title line readable.
  */
 
 /*
@@ -12,9 +16,12 @@
  * heading while the last one runs off the screen's edge, which is what says there is more.
  */
 .row {
+  /* A cassette's width, which the words under it and the "and N more" word's height are measured from. */
+  --shelf-tape: 11rem;
   list-style: none;
-  margin: 0 calc(-1 * var(--app-gutter-end)) 0 calc(-1 * var(--app-gutter-start));
-  padding: var(--glacier-space-1) var(--app-gutter-end) var(--glacier-space-2) var(--app-gutter-start);
+  margin-inline: calc(-1 * var(--app-gutter-start)) calc(-1 * var(--app-gutter-end));
+  padding-block: var(--glacier-space-1) var(--glacier-space-2);
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   display: flex;
   align-items: flex-start;
   gap: var(--glacier-space-3);
@@ -33,7 +40,7 @@
 /* One cassette and its words: a fixed column, arriving on a beat set by its place in the row, as the cards do (notes/NoteCard.module.css). */
 .tape {
   flex: none;
-  inline-size: 11rem;
+  inline-size: var(--shelf-tape);
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
@@ -48,7 +55,7 @@
   }
 }
 
-/* The cassette and its title line are one button, opening the note; it gives a little when pressed, as the tape at the top of a note does. */
+/* The cassette and its two lines are one button, opening the note; it gives a little when pressed, as the tape at the top of a note does. */
 .cassette {
   appearance: none;
   display: block;
@@ -74,17 +81,14 @@
   border-radius: var(--glacier-radius-md);
 }
 
-/* Line one: the title, clipped to one line, with the counter and the date beside it in small capitals. */
-.line {
-  display: flex;
-  align-items: baseline;
-  gap: var(--glacier-space-2);
-  margin-block-start: var(--glacier-space-2);
-}
-
+/*
+ * Line one: the title, the whole of the column and clipped to one line. With the counter and the date beside it, as
+ * first built, the title had 66 to 86 of the column's 176px on the cover screen and read as nine characters
+ * ("Standup n…", "Call with …"), which is not a title to find a tape by; alone it has about twenty-two.
+ */
 .title {
-  flex: 1;
-  min-inline-size: 0;
+  display: block;
+  margin-block-start: var(--glacier-space-2);
   font-size: var(--glacier-font-size-sm);
   line-height: var(--glacier-leading-sm);
   font-weight: var(--glacier-font-weight-semibold);
@@ -97,10 +101,11 @@
   color: var(--glacier-text-subtle);
 }
 
-/* "12:40 · 26 SEP": the label's small print (tapes/TapeArt.module.css .small), set in real type beside the title. */
+/* Line two, "12:40 · 26 SEP": the label's small print (tapes/TapeArt.module.css .small), set in real type under the title. */
 .meta {
-  flex: none;
+  display: block;
   font-size: var(--glacier-font-size-xs);
+  line-height: var(--glacier-leading-xs);
   font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: var(--app-tracking-caps-close);
   text-transform: uppercase;
@@ -110,25 +115,19 @@
 }
 
 /*
- * Line two: the caption, one line in the gist's quiet ink, kept at a line's height even when there is nothing to say
- * so the cassettes' words end level along the row. A word to tap sits after it.
+ * Line three: the caption, in the gist's quiet ink, kept at a line's height even when there is nothing to say so the
+ * cassettes' words end level along the row and the page under the shelf does not jump when a gist or a summary lands.
+ * The kit's leading tokens are unitless (1.5), so a line's height is the size times the leading, never the leading
+ * alone (stylesheets.test.ts holds this). The words flow as prose and wrap when they must: "Listening again. Keep
+ * Ghost.md open." is 240px at the column's 176, and clipped to one line neither it nor the words before a Try again
+ * could be read.
  */
 .caption {
-  display: flex;
-  align-items: center;
-  gap: var(--glacier-space-2);
   margin: var(--glacier-space-1) 0 0;
-  min-block-size: var(--glacier-leading-sm);
+  min-block-size: calc(var(--glacier-font-size-sm) * var(--glacier-leading-sm));
   font-size: var(--glacier-font-size-sm);
   line-height: var(--glacier-leading-sm);
   color: var(--app-ink-3);
-  white-space: nowrap;
-}
-
-.captionText {
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* The summary's first line or the gist: written on the phone, so it fades in a moment after the cassette, as a card's gist does. */
@@ -142,9 +141,11 @@
   }
 }
 
-/* The working spinner, a card's (notes/NoteCard.module.css .working), inline before the word. */
+/* The working spinner, a card's (notes/NoteCard.module.css .working), inline before the word and sitting in its first line. */
 .working {
-  flex: none;
+  display: inline-block;
+  vertical-align: -0.15em;
+  margin-inline-end: var(--glacier-space-2);
   animation: shelf-working 1.1s linear infinite;
 }
 
@@ -154,25 +155,27 @@
   }
 }
 
-/* Get a model, Try again: the quiet word, at the caption's own size and height rather than a whole tap target's. */
+/* Get a model, Try again: the quiet word after the caption's words, at their size and height rather than a whole tap target's, and under them when it does not fit beside. */
 .word {
-  flex: none;
   min-block-size: auto;
   padding: 0;
   font-size: inherit;
   line-height: inherit;
+  vertical-align: baseline;
 }
 
 /*
  * "and N more in All notes" at the row's end, level with the cassettes' middles, in the size and ink To do's own
- * "and N more" has (HomeScreen.module.css .more). Written out rather than composed: this one is a word to tap with
- * no margin above it, and a composing class that resets what it composes loses on source order (stylesheets.test.ts).
+ * "and N more" has (HomeScreen.module.css .more). The item is as tall as a cassette (tapes/TapeArt.tsx draws 320 by
+ * 204), not as tall as a cassette and its words, so the word sits beside the reels rather than 17px under them.
+ * Written out rather than composed: this one is a word to tap with no margin above it, and a composing class that
+ * resets what it composes loses on source order (stylesheets.test.ts).
  */
 .moreItem {
   flex: none;
   display: flex;
   align-items: center;
-  align-self: stretch;
+  block-size: calc(var(--shelf-tape) * 204 / 320);
   scroll-snap-align: end;
 }
 

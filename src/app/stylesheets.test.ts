@@ -254,6 +254,26 @@ describe('the stylesheets', () => {
     expect(Object.keys(LOSES).filter((key) => !seen.has(key))).toEqual([]);
   });
 
+  /*
+   * The kit's leading tokens are unitless (`--glacier-leading-sm: 1.5`), a factor for `line-height` and nothing else:
+   * read as a length, one is no length at all, and the declaration draws nothing. The shelf's caption asked for a
+   * line's height as `min-block-size: var(--glacier-leading-sm)` and had none, so the page under it jumped when a gist
+   * landed. A line's height is the size times the leading, inside a `calc()`.
+   */
+  it('read a leading token only as a line-height, or inside a calc()', () => {
+    const asLength: string[] = [];
+    for (const [sheet, css] of text) {
+      for (const rule of flatRules(css)) {
+        for (const [property, value] of declarationsOf(rule.body)) {
+          if (property === 'line-height' || property === 'font' || property.startsWith('--')) continue;
+          if (!/var\(\s*--glacier-leading-/.test(value) || /calc\([^;]*var\(\s*--glacier-leading-/.test(value)) continue;
+          asLength.push(`${relative(src, sheet)} ${rule.selector} ${property}`);
+        }
+      }
+    }
+    expect(asLength).toEqual([]);
+  });
+
   it('compose only classes that are there', () => {
     const missing: string[] = [];
     for (const [sheet, css] of text) {

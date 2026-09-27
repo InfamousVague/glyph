@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
+import { packRadii } from '../capture/tape.ts';
 import type { Note } from '../core/store.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, show, unmount } from '../../test/render.tsx';
@@ -8,6 +9,7 @@ import { button, show, unmount } from '../../test/render.tsx';
  * The shelf of tapes (docs/DESIGN.md §127 section 1): a cassette a note, its words under it, and the caption in its
  * order (home/tapeCaption.ts) - the first true thing wins. The queues the caption reads are stood in for here, since
  * none of them can run in a test, and the sets are the same objects the shelf reads, so a test fills one and draws.
+ * The shelf is drawn as on a phone, where a long tape's caption asks for the app to be kept open.
  */
 
 const sources = vi.hoisted(() => ({
@@ -27,11 +29,13 @@ vi.mock('../ai/summaries.ts', () => ({
   retrySummary: (id: string) => sources.retried.push(id),
 }));
 vi.mock('../ai/summaryText.ts', () => ({ summaryLine: (body: string) => sources.lines.get(body) ?? null }));
+vi.mock('../core/platform.ts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../core/platform.ts')>()), isMobile: true }));
 const { TapeShelf } = await import('./TapeShelf.tsx');
 const { captionOf } = await import('./tapeCaption.ts');
 
 afterEach(() => {
   unmount();
+  vi.restoreAllMocks();
   sources.recording = null;
   for (const set of [sources.refining, sources.pending, sources.native, sources.failed, sources.needsModel]) set.clear();
   sources.lines.clear();
@@ -44,6 +48,19 @@ const shelf = (notes: Note[], over: { more?: number; gists?: Record<string, stri
   show(<TapeShelf notes={notes} more={over.more ?? 0} gists={over.gists ?? {}} onOpen={over.onOpen ?? (() => undefined)} onMore={over.onMore ?? (() => undefined)} onGetModel={over.onGetModel ?? (() => undefined)} />);
 const captions = (host: HTMLElement) => [...host.querySelectorAll('li > p')].map((p) => p.textContent);
 const cassettes = (host: HTMLElement) => [...host.querySelectorAll<HTMLButtonElement>('li > button')];
+/** The frames, run by hand on a clock of the test's own, which the cassettes read as well (as tapes/tapes.test.tsx runs them). */
+const frames = () => {
+  const queued: FrameRequestCallback[] = [];
+  let clock = performance.now();
+  vi.spyOn(performance, 'now').mockImplementation(() => clock);
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => queued.push(cb));
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+  return (count: number) => {
+    for (let i = 0; i < count; i += 1) act(() => queued.shift()?.((clock += 16)));
+  };
+};
+/** Each cassette's reels' transforms: null while a reel has never turned. */
+const reels = (host: HTMLElement) => cassettes(host).map((b) => [...b.querySelectorAll('svg > g:not([mask])')].map((g) => g.getAttribute('transform')));
 
 describe('the shelf', () => {
   it('draws a bare cassette a tape, its title, counter and date under it, and opens the note from it', () => {
@@ -53,7 +70,8 @@ describe('the shelf', () => {
     // The words are under the cassette in real type, not printed on its label.
     expect([...trip!.querySelectorAll('svg text')].map((t) => t.textContent)).toEqual(['A']);
     expect(trip!.querySelector('[class*=title]')?.textContent).toBe('Trip');
-    expect(trip!.querySelector('[class*=meta]')?.textContent).toMatch(/^12:40 · /);
+    // The counter, then the day and the month in the device's own order.
+    expect(trip!.querySelector('[class*=meta]')?.textContent).toMatch(/^12:40 · (\d{1,2} [A-Z][a-z]{2}|[A-Z][a-z]{2} \d{1,2})$/);
     expect(trip!.getAttribute('aria-label')).toMatch(/^Trip, 12:40, /);
     expect(trip!.getAttribute('aria-label')).not.toContain('summarized');
     expect(blank!.querySelector('[class*=title]')?.textContent).toBe('Untitled');
@@ -65,8 +83,9 @@ describe('the shelf', () => {
 
   it('draws every cassette against the longest tape on the shelf, at least five minutes', () => {
     const takeup = (host: HTMLElement) => [...host.querySelectorAll('li > button')].map((b) => Number(b.querySelectorAll('circle')[1]!.getAttribute('r')));
-    // Alone, a three-minute note is over half wound on the five-minute tape.
+    // Alone, a three-minute note is over half wound on the five-minute tape: the floor, not its own three minutes.
     const [alone] = takeup(shelf([tape('short', 180_000)]));
+    expect(alone).toBe(packRadii(180_000).takeup);
     unmount();
     // Beside an hour, it is a thin ring and the hour is a full reel.
     const [beside, hour] = takeup(shelf([tape('short', 180_000), tape('long', 3_600_000)]));
@@ -89,6 +108,8 @@ describe('the shelf', () => {
     const host = shelf([note]);
     expect(cassettes(host)[0]!.getAttribute('aria-label')).toMatch(/, summarized$/);
     expect(captions(host)).toEqual(['What the call settled.']);
+    // In the gist's style, since it fades in as a gist does.
+    expect(host.querySelector('li > p')?.className).toMatch(/gist/);
   });
 });
 
@@ -123,21 +144,38 @@ describe('the caption', () => {
     expect(captionOf(note, { ...phone, refining: set('n') }, undefined)).toEqual({ kind: 'working', word: 'Listening again', keepOpen: false });
     expect(captionOf(long, { ...quiet, refining: set('n') }, undefined)).toEqual({ kind: 'working', word: 'Listening again', keepOpen: false });
     expect(captionOf(long, { ...phone, refining: set('n'), summaries: { ...none, native: set('n') } }, undefined)).toEqual({ kind: 'working', word: 'Listening again', keepOpen: false });
+    // Over ten minutes, not at them.
+    expect(captionOf(tape('n', 600_000), { ...phone, refining: set('n') }, undefined)).toEqual({ kind: 'working', word: 'Listening again', keepOpen: false });
+    expect(captionOf(tape('n', 600_001), { ...phone, refining: set('n') }, undefined)).toEqual({ kind: 'working', word: 'Listening again', keepOpen: true });
+  });
+
+  it('says to keep Ghost.md open, in those words, under a long tape the page is working on', () => {
+    sources.refining.add('a');
+    sources.pending.add('b');
+    const host = shelf([tape('a', 1_200_000), tape('b', 1_200_000), tape('c', 1_200_000)]);
+    expect(captions(host)).toEqual(['Listening again. Keep Ghost.md open.', 'Summarizing. Keep Ghost.md open.', '']);
   });
 
   it('is drawn with the spinner while something is on its way, and the reels turn only while a meeting is recorded', () => {
+    const run = frames();
     sources.refining.add('a');
     sources.pending.add('b');
     sources.recording = 'c';
     const host = shelf([tape('a', 1000), tape('b', 1000), tape('c', 1000)]);
     expect(captions(host)).toEqual(['Listening again', 'Summarizing', 'Recording']);
     expect([...host.querySelectorAll('li')].map((li) => li.querySelector('[class*=working]') !== null)).toEqual([true, true, false]);
+    // The tape is the player and lives in the note: only a meeting being recorded turns its reels here.
+    run(5);
+    const [a, b, c] = reels(host);
+    expect(a).toEqual([null, null]);
+    expect(b).toEqual([null, null]);
+    expect(c!.every((t) => t?.startsWith('rotate('))).toBe(true);
   });
 
   it('offers Try again after the summary did not come, which puts the job back in the queue', () => {
     sources.failed.add('a');
     const host = shelf([tape('a', 1000)]);
-    expect(captions(host)).toEqual(['The summary didn’t comeTry again']);
+    expect(captions(host)).toEqual(['The summary didn’t come Try again']);
     act(() => button('Try again', host).click());
     expect(sources.retried).toEqual(['a']);
   });
@@ -146,7 +184,7 @@ describe('the caption', () => {
     sources.needsModel.add('a');
     const onGetModel = vi.fn();
     const host = shelf([tape('a', 1000)], { onGetModel });
-    expect(captions(host)).toEqual(['Needs a modelGet a model']);
+    expect(captions(host)).toEqual(['Needs a model Get a model']);
     act(() => button('Get a model', host).click());
     expect(onGetModel).toHaveBeenCalledTimes(1);
   });

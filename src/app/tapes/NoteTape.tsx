@@ -4,6 +4,7 @@ import { TAPE_MS, counter } from '../capture/tape.ts';
 import { prefersStill } from '../core/motion.ts';
 import type { Note } from '../core/store.ts';
 import { TapeArt } from './TapeArt.tsx';
+import { tapeDate } from './tapeDate.ts';
 import type { Tape } from './useTape.ts';
 import styles from './NoteTape.module.css';
 
@@ -28,7 +29,6 @@ import styles from './NoteTape.module.css';
  * screen's business.
  */
 
-const DATE = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
 const CLIP = 22;
 
 interface NoteTapeProps {
@@ -64,7 +64,7 @@ export function NoteTape({ note, title: typed, tape, onSpeak, onRemove, hasMemos
           lengthMs={Math.max(TAPE_MS, tape.length)}
           playing={tape.playing}
           title={label}
-          side={DATE.format(note.createdAt).toUpperCase()}
+          side={tapeDate.format(note.createdAt).toUpperCase()}
           counter={counter(tape.length)}
         />
       </button>
