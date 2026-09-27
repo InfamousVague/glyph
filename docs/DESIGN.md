@@ -4780,11 +4780,14 @@ compose them, or where the shared file is itself imported if that is later, and 
 them: the choice card's rules come after the size and theme cards and before the typeface cards, and the swatch's after
 the workspace swatch and before the accent swatch. Importing the shared file first changes nothing, since each
 composer still carries its own copy. A composer that needs another value says it with a heavier selector
-(`.option.option`, or an attribute), or the shared class leaves that property to its composers. One class breaks the
-rule today, from before the pass: the canvas card's words (canvas/CanvasView.module.css `.words`) ask for no height
-cap, no margin and the card's ink over notes/NotePeek.module.css `.peek`, and get the peek's cap, its margin and its
-grey, since the peek's own sheet lands after the canvas's. The test names it; giving the card what it asks for changes
-how it looks, so that is left for its own decision.
+(`.option.option`, or an attribute), or the shared class leaves that property to its composers. One class broke the
+rule from before the pass: the canvas card's words (canvas/CanvasView.module.css `.words`) asked for no height cap, no
+margin and the card's ink over notes/NotePeek.module.css `.peek`, and got the peek's cap (about six lines, 120.7px), its
+margin and its grey, since the peek's own sheet lands after the canvas's. Since 2026-09-27 they say it as `.words.words`,
+and a card's words start at its padding, fill it to its foot and take its ink (0.965 in dark and 0.16 in light, where
+they were 0.6 and 0.56): a 170px card on the "How Ghost.md works" canvas shows its words to 136px where they stopped at
+121px, and a card that is only a table reaches its top edge. Words longer than their card still stop at its foot with
+no fade, as they did, so a line can be cut through there. The test's list of classes that lose is empty.
 
 **Rules the pass wrote down:**
 

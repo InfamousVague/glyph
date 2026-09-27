@@ -129,13 +129,10 @@ const bareAllowed = (name: string) => Object.keys(BARE).some((key) => (key.endsW
  * keeps only that one): the rules sit just before the last file in the bundle to compose them, or where the file is
  * itself imported if that is later. So a composer says a different value with a heavier selector, never by order.
  *
- * The one class that loses today, and what it loses, left as it draws: the canvas card's words ask for no height cap,
- * no margin and the card's ink over the home card's peek, and get the peek's cap, its margin and its grey, because the
- * peek's own sheet lands after the canvas's in the bundle. Giving the card what it asks for changes how it looks.
+ * A class that loses today is named here with what it loses, left as it draws until giving it what it asks for is
+ * decided. None does: the canvas card's words, the last, now say theirs as `.words.words`.
  */
-const LOSES: Record<string, string> = {
-  'app/canvas/CanvasView.module.css .words': 'color, margin-block-start, max-block-size',
-};
+const LOSES: Record<string, string> = {};
 
 /** The classes a stylesheet defines, outside `:global()`. */
 function classesOf(css: string): Set<string> {

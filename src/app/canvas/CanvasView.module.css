@@ -193,10 +193,18 @@
   composes: peek from '../notes/NotePeek.module.css';
   flex: 1;
   min-block-size: 0;
+  overflow: hidden;
+}
+
+/*
+ * What the card's words say over the peek, one class heavier: the peek's rules are copied to the head of every sheet
+ * that composes them and only the last copy counts, which lands after this sheet, so at the peek's own weight these
+ * lost (docs/DESIGN.md §124). No cap on the height, no gap above the words, and the card's ink, not the peek's grey.
+ */
+.words.words {
   max-block-size: none;
   margin-block-start: 0;
   color: inherit;
-  overflow: hidden;
 }
 
 .fileCard,
