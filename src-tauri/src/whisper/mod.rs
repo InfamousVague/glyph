@@ -28,7 +28,10 @@
 //! - `model` is the catalogue of model files, their pinned hashes and their
 //!   mirrors. The download is `model_files`'s, which the formatter shares, so
 //!   this module holds no Tauri at all - not even the runtime a retry sleeps on.
-//! - `wav` reads a WAV file, for whole-file benchmarking and the tests.
+//! - `wav` reads a WAV file, whole or a stretch at a time, for the refine
+//!   pass, a meeting's write-up, whole-file benchmarking and the tests.
+//! - `spans` finds where the speech is in a recorded file, with `vad`, so the
+//!   write-up transcribes a meeting one span at a time and never holds an hour.
 //!
 //! Errors cross this module as `String`, not as an enum like `StoreError`, and
 //! that is a measured choice rather than a lazy one: every error path out of
@@ -44,6 +47,7 @@
 //! whisper-rs or the HTTP client for that target at all.
 
 pub mod model;
+pub mod spans;
 pub mod stream;
 pub mod text;
 pub mod vad;

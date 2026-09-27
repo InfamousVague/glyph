@@ -65,11 +65,11 @@ mod tests;
 pub use events::{Event, Failure, Partial, Pass, Rewound, Segment, Transcribe};
 
 /// A phrase is finished when this much quiet follows it...
-const PAUSE: usize = ms_to_samples(600);
+pub const PAUSE: usize = ms_to_samples(600);
 /// ...provided at least this much speech came before the quiet.
-const MIN_SPEECH: usize = ms_to_samples(1_500);
+pub const MIN_SPEECH: usize = ms_to_samples(1_500);
 /// Quiet this long finishes ANY phrase, however short.
-const LONG_PAUSE: usize = ms_to_samples(1_200);
+pub const LONG_PAUSE: usize = ms_to_samples(1_200);
 /// Uncommitted audio never grows past this without a cut.
 const FORCE_COMMIT: usize = ms_to_samples(20_000);
 /// How far back from the force point to look for somewhere quiet to cut.
@@ -79,20 +79,20 @@ const FORCE_QUIET: usize = ms_to_samples(200);
 /// Audio with no speech in it is dropped once it reaches this...
 const SILENCE_DROP: usize = ms_to_samples(2_000);
 /// ...keeping this much, as lead-in for whatever is said next.
-const SILENCE_KEEP: usize = ms_to_samples(300);
+pub const SILENCE_KEEP: usize = ms_to_samples(300);
 /// The least uncommitted audio a partial is run on.
 const PARTIAL_MIN: usize = ms_to_samples(1_000);
 /// New audio between one partial and the next.
 const PARTIAL_STEP: usize = ms_to_samples(700);
 /// The longest window ever handed to the model: whisper's 30 s, less margin.
-const WINDOW_CAP: usize = ms_to_samples(28_000);
+pub const WINDOW_CAP: usize = ms_to_samples(28_000);
 /// How much committed text rides along as the prompt, after the cue
 /// vocabulary. See `text::prompt`.
 const PROMPT_CHARS: usize = 200;
 /// Consecutive voiced frames before the VAD's opinion counts as speech: 40 ms.
 /// One loud frame is a click, a tap on the glass, a key; no syllable is that
 /// short.
-const ONSET_FRAMES: usize = 2;
+pub const ONSET_FRAMES: usize = 2;
 
 /// A committed segment and the exact sample its audio ends on. `Segment`'s
 /// times are rounded to milliseconds; a rewind has to cut on the sample.
