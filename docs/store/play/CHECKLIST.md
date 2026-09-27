@@ -79,22 +79,21 @@ Store presence › Main store listing. **Done: every field has a file.** Paste e
 | Full description | `copy/listing.md` › Full description. Read its two conditions first: the MEETINGS section is 1.9.0's, and the one emoji is the heat effect's own syntax. |
 | App icon | `graphics/icon-512.png`, 512 × 512, 32-bit PNG with every pixel opaque, 594 KB: the app's own icon (`src-tauri/icons/icon.png`, re-encoded). Play draws its own rounded mask over it. `graphics/icon-512-preview.md` says where it came from. |
 | Feature graphic | `graphics/feature-1024x500.png`, 1024 × 500, 24-bit PNG with no alpha: the listening ghost on ruled paper beside the wordmark and the line "Notes you say or type." `copy/feature-graphic.md` is the design and `graphics/feature-1024x500-preview.md` says how it was made. The two files in `graphics/spares/` (the waving ghost, and a dark version) are swaps, not uploads. |
-| Phone screenshots | Eight, in this order, from `screenshots/phone/`: `01-speak.png`, `02-hey-ghost.png`, `03-tapes.png`, `04-the-review.png`, `05-a-meeting.png`, `06-the-marks.png`, `07-a-board.png`, `08-home.png`. 1080 × 1920 (9:16), 24-bit PNG with no alpha, each a real screen under its caption on the app's paper. `copy/screenshots.md` says what each shows and its caption. Play takes at most eight; the four in `screenshots/phone/spares/` (`09-the-tapes-shelf.png`, `10-a-canvas.png`, `11-things-to-say.png`, `12-a-spoken-note.png`) are swaps, not additions. |
-| 7-inch tablet screenshots | From `screenshots/tablet/`: `01-home.png`, `02-a-tape.png`, `03-a-canvas.png`, `04-a-book.png`. 1812 × 2176, the Fold opened out with the sidebar docked. `screenshots/tablet/spares/` holds `05-a-board.png` and `06-a-meeting.png` as swaps. |
-| 10-inch tablet screenshots | The same four files. Both tablet slots take 1812 × 2176 (the 7-inch slot takes sides of 320 to 3840 px, the 10-inch 1080 to 7680, each with the long side under twice the short), so upload the set twice. |
+| Phone screenshots | Eight, in this order, from `screenshots/phone/`: `01-speak.png`, `02-hey-ghost.png`, `03-tapes.png`, `04-the-review.png`, `05-a-meeting.png`, `06-the-marks.png`, `07-a-board.png`, `08-home.png`. 1080 × 1920 (9:16), 24-bit PNG with no alpha, each a real screen under its caption on the app's paper, the dark theme. `copy/screenshots.md` says what each shows and its caption. Play takes at most eight; the four in `screenshots/phone/spares/` (`09-the-tapes-shelf.png`, `10-a-canvas.png`, `11-things-to-say.png`, `12-a-spoken-note.png`) are swaps, not additions. `screenshots/phone-light/` is the same twelve in the light theme, should the listing read light. |
+| 7-inch tablet screenshots | From `screenshots/tablet-16x9/`: `01-home.png`, `02-a-tape.png`, `03-a-canvas.png`, `04-a-book.png`. 2560 × 1440 (16:9), 24-bit PNG with no alpha, the landscape screen with the sidebar docked under its caption. Play's preview assets page asks for 16:9 or 9:16 in the tablet slots, with sides between 1080 and 7680 px, which this is. `tablet-16x9/spares/` holds `05-a-board.png` and `06-a-meeting.png` as swaps, and `tablet-16x9-light/` the same six in light. |
+| 10-inch tablet screenshots | The same four files. Both tablet slots take the same shape, so upload the set twice. Do not upload `screenshots/tablet/`, the Fold opened out at 1812 × 2176: it is near square, not 9:16, and is kept for the landing page and for the day the slots take that shape. |
 | Video | None. |
 
 Save, then read the preview on the right of the page as a phone would show it: the first two or three screenshots
 and the short description are what a search result shows.
 
-**The screenshots, as they stand on 2026-09-27 at 18:23.** The names above are the ones `../shots/compose.mjs`
-writes, from the raw screens `../shots/shoot.mjs` puts in `screenshots/raw/`. All eight phone pictures and the four
-phone spares were in place, at 1080 × 1920 with no alpha; the tablet set was still being made. Check the folder before the day: `file screenshots/phone/*.png screenshots/tablet/*.png` should print
-eight files at 1080 x 1920 and four at 1812 x 2176, all "8-bit/color RGB" and none "RGBA". If a picture is not
-there, an earlier set of real screens at 1.8.0-20 is in `../old-pack/phone-screenshots/` (1242 × 2208, no alpha,
-dark page, no caption; `01-home.png` to `08-a-meeting-written-up.png`, and two `spare-*.png`), with
-`../old-pack/tablet-7in-screenshots/` (2184 × 1968) and `../old-pack/tablet-10in-screenshots/` (2560 × 1600). They
-can go up as they are and be swapped later; the listing can be edited after publishing.
+**The screenshots, as they stand on 2026-09-27 at 18:40.** Every picture named above is in the pack folder, and
+`node ../shots/verify.mjs` read each one back with pngjs: the phone sets at 1080 × 1920, the tablet sets at 2560 ×
+1440, none with alpha, none over 620 KB. Run it again before the day; its last line should say every final fits Play.
+If Play's review turns a captioned picture down for the words above the screen, `screenshots/plain/` (dark) and
+`screenshots/plain-light/` hold every picture with no caption and no frame under the same names, `phone/` at 1080 ×
+1920 and `tablet/` at 2400 × 1350: swap the one turned down for its plain twin and resubmit. The listing can be edited
+after publishing. An older set of real screens at 1.8.0-20 is in `../old-pack/` and is not needed.
 
 ## 5. The upload key and the bundle
 
@@ -185,33 +184,14 @@ can go up as they are and be swapped later; the listing can be edited after publ
 | `graphics/feature-1024x500.png` | The feature graphic, 1024 × 500 |
 | `graphics/icon-512-preview.md`, `graphics/feature-1024x500-preview.md` | Where each graphic came from and how it was checked |
 | `graphics/spares/` | Two other feature graphics, not for upload unless chosen instead |
-| `screenshots/phone/01-speak.png` to `08-home.png` | The eight phone screenshots |
+| `screenshots/phone/01-speak.png` to `08-home.png` | The eight phone screenshots, dark, captioned |
 | `screenshots/phone/spares/` | Four phone pictures to swap in, not to add |
-| `screenshots/tablet/01-home.png` to `04-a-book.png` | The four tablet screenshots, for both tablet slots |
-| `screenshots/tablet/spares/` | Two tablet pictures to swap in, not to add |
+| `screenshots/phone-light/`, with `spares/` | The same twelve in the light theme |
+| `screenshots/tablet-16x9/01-home.png` to `04-a-book.png` | The four tablet screenshots, 16:9, for both tablet slots |
+| `screenshots/tablet-16x9/spares/` | Two tablet pictures to swap in, not to add |
+| `screenshots/tablet-16x9-light/`, with `spares/` | The same six in the light theme |
+| `screenshots/tablet/`, `tablet-light/` | The same six screens at the Fold's inner shape, 1812 × 2176; not for the tablet slots |
+| `screenshots/plain/`, `plain-light/` | Every picture with no caption and no frame, for a strict reading of Play's rule |
 | `screenshots/raw/` | The bare screens the pictures were made from, not for upload |
 
 The Markdown lives in the repo on the `store/play-assets` branch; the pictures live only in the pack folder.
-
-## The tablet screenshots, read against Play's rule, and the plain set
-
-Added on 2026-09-27 at 18:30, after Play's preview assets page was read again. The tablet slots take 16:9 or 9:16
-pictures only, with sides between 1080 and 7680 px, so the Fold's near-square set in `screenshots/tablet/` cannot
-be uploaded as it is. Upload this instead, in both tablet slots:
-
-| Field | Upload |
-|---|---|
-| 7-inch tablet screenshots | `screenshots/tablet-16x9/01-home.png`, `02-a-tape.png`, `03-a-canvas.png`, `04-a-book.png`: 2560 × 1440, 24-bit PNG with no alpha, the landscape screen with the sidebar docked under its caption. `screenshots/tablet-16x9/spares/` holds `05-a-board.png` and `06-a-meeting.png` as swaps. `screenshots/tablet-16x9-light/` is the same set in the light theme, should the phone set go up light. |
-| 10-inch tablet screenshots | The same four files. |
-
-Check before the day: `file screenshots/tablet-16x9/*.png` should print four files at 2560 x 1440, all "8-bit/color
-RGB" and none "RGBA". `node ../shots/verify.mjs screenshots/tablet-16x9 screenshots/plain` reads every picture
-against the limits and prints "All within the limits."
-
-If Play's review turns a captioned picture down for the words above the screen, `screenshots/plain/` (dark) and
-`screenshots/plain-light/` hold every picture with no caption and no frame, under the same names: `phone/` at
-1080 × 1920 and `tablet/` at 2400 × 1350. Swap the one turned down for its plain twin and resubmit. The section "The
-plain set" in `copy/screenshots.md` says why the captioned ones are within the rule as written.
-
-Files this adds to the pack: `screenshots/tablet-16x9/` and `-light/` (the tablet pictures to upload), `screenshots/plain/`
-and `plain-light/` (the uncaptioned twins), and in `screenshots/raw/` the `tablet-*` raws beside the `fold-*` ones.
