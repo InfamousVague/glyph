@@ -42,7 +42,8 @@ const page = (notes: Note[], over: Partial<Props> = {}) => (
     {...over}
   />
 );
-const headings = () => [...document.querySelectorAll('h2')].map((h) => h.textContent?.replace(/\d+$/, '').trim());
+/** The groups on the page, by the word on each heading, in the page's order: the count after a word is not the word. */
+const headings = () => [...document.querySelectorAll('h2 [class*=groupName]')].map((h) => h.textContent);
 const tasks = () => [...document.querySelectorAll('button[aria-label^="Tick off "]')].map((b) => b.getAttribute('aria-label')!.slice('Tick off '.length));
 /** The cassettes on the shelf, by the title each says to a screen reader, in the row's order. */
 const shelved = () => [...document.querySelectorAll('ol[aria-label="Tapes"] li > button[aria-label]')].map((b) => b.getAttribute('aria-label')?.split(',')[0]);
@@ -72,6 +73,31 @@ describe('the home page', () => {
     expect(document.querySelector('#home-tapes svg')).not.toBeNull();
     // A page of a book says which on its card.
     expect(document.querySelector('[title="Page 1 of Trip"]')?.textContent).toBe('Trip');
+  });
+
+  it('draws one mark on every heading, each at the heading’s own size and none at a width of its own', () => {
+    show(
+      page([
+        makeNote('p', '# Packing\n\n- [ ] Tent', { starred: true, updatedAt: 3 }),
+        recorded('t', 'Directions', 4),
+        makeNote('b', bookNoteBody('Trip', ['Packing']), { updatedAt: 2 }),
+        makeNote('r', '# Route', { updatedAt: 1 }),
+      ]),
+    );
+    const marks = [...document.querySelectorAll('h2')].map((h) => h.querySelectorAll('svg'));
+    expect(marks.map((m) => m.length)).toEqual([1, 1, 1, 1, 1]);
+    // The mismatch, as a test (docs/DESIGN.md §132): the kit's Book wrote width=24 beside the 1em strokes. Every mark
+    // is a 1em box now, sized by the heading it sits in.
+    for (const [mark] of marks) {
+      expect(mark!.style.inlineSize).toBe('1em');
+      expect(mark!.hasAttribute('width')).toBe(false);
+    }
+  });
+
+  it('shows four of the notes touched last, and the rest wait in All notes', () => {
+    show(page(Array.from({ length: 6 }, (_, i) => makeNote(`n${i}`, `# Note ${i}`, { updatedAt: i + 1 }))));
+    expect(cards('home-recent')).toEqual(['Note 5', 'Note 4', 'Note 3', 'Note 2']);
+    expect(button('All notes · 6')).toBeTruthy();
   });
 
   it('shelves what the recorder made, last recorded first, nothing twice, and leaves a typed note spoken into in Recent with its counter', () => {

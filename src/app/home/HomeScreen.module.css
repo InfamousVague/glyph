@@ -1,6 +1,9 @@
 /*
  * The home page (HomeScreen.tsx): its glass bar, its scroller and its dock, which it took over from the notes list it
- * replaced, and then the date, the cards and the to-dos.
+ * replaced, and then the date, the headed groups of cards, the to-dos and the foot. One scale of four steps (docs/DESIGN.md
+ * §132): the date at xl, a group's heading at lg, a card's title at md (notes/NoteCard.module.css), and every other
+ * line at sm or xs in the third ink. Air between the groups is the page's white space (Matt: "no solid organization
+ * and use of white space").
  */
 
 .screen {
@@ -86,27 +89,92 @@
 }
 
 /*
- * The heading over a group on the page - Pinned, Tapes, Library, Recent, To do.
- * Spaced capitals a step below the titles, in the second ink, with the pin on
- * the Pinned one, the cassette on Tapes and the book on the Library: the one
- * mark for the whole group, so no card needs its own.
+ * A group: its heading row, then its cards. Air between groups is the page's white space (Matt: "no solid
+ * organization and use of white space"): space-8, and space-10 in the 60rem column, where the groups are wider than
+ * they are tall. The first group sits under whatever the head ends with, which leaves its own space-5. Before this,
+ * one space-6 stood between five groups under five whispered labels, and the eye had nowhere to start.
+ */
+.section + .section {
+  margin-block-start: var(--glacier-space-8);
+}
+
+@container home-page (min-width: 44rem) {
+  .section + .section {
+    margin-block-start: var(--glacier-space-10);
+  }
+}
+
+/* A digest phrase glides here: the heading lands under the glass bar, not behind it. */
+.section {
+  scroll-margin-block-start: calc(var(--app-safe-top) + var(--glacier-space-4));
+}
+
+/* The heading and, at the row's other end, the way to the rest of the group where there is one ("See all", "Show all 14"). */
+.groupRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+  margin: 0 0 var(--glacier-space-3);
+}
+
+/*
+ * The heading over a group on the page - Pinned, To do, Tapes, Library, Recent - a step above a card's title, in
+ * sentence case with the titles' tracking. It was spaced capitals a step below the titles (`.app-eyebrow`'s idiom),
+ * so nothing on the page was bigger than a card's title; the caps idiom stays in sheets and cards elsewhere.
  */
 .group {
   display: flex;
   align-items: center;
   gap: var(--glacier-space-2);
-  margin: var(--glacier-space-6) 0 var(--glacier-space-2);
-  font-size: var(--glacier-font-size-sm);
+  margin: 0;
+  font-size: var(--glacier-font-size-lg);
+  line-height: var(--glacier-leading-lg);
   font-weight: var(--glacier-font-weight-semibold);
-  letter-spacing: var(--app-tracking-caps-close);
-  text-transform: uppercase;
+  letter-spacing: var(--app-tracking-title);
+  color: var(--app-ink);
+}
+
+/*
+ * One mark per group, at the heading's own size, in the second ink so the word leads (Matt, §29g: "make the label
+ * more apparent for the group"). Every one is art/Icons.tsx's line, a 1em box with a 2.4 stroke: ~20px with a ~2px
+ * stroke, the dock's weight. The mismatch Matt saw was two kinds of icon on one row - the pin and the cassette at
+ * `font-size: 1.15em` of a 13px heading, ~15px, and the kit's lucide Book beside them at the width=24 it writes as an
+ * attribute, ignoring the em (docs/DESIGN.md §132).
+ */
+.groupMark {
+  flex: none;
   color: var(--app-ink-2);
 }
 
-/* The pin, once, on the heading: tilted the way it used to sit on each row. */
-.groupIcon {
-  font-size: 1.15em;
+/* The pin leans, the way it used to sit on each row (§29g); the other marks stand straight. */
+.groupMarkPin {
   transform: rotate(-12deg);
+}
+
+.groupName {
+  min-inline-size: 0;
+}
+
+/* How many, after the heading's word: "To do · 14", in a regular weight and the third ink, so the word still leads. */
+.count {
+  margin-inline-start: var(--glacier-space-1);
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-regular);
+  font-variant-numeric: tabular-nums;
+  color: var(--app-ink-3);
+}
+
+/*
+ * The word at the heading row's end: an `.app-word` (app.css) brought down to the row's height, with its tap room on
+ * the side away from the heading. Worn with `app-word` in the className, never composed: a composer overriding at
+ * equal weight loses on source order (stylesheets.test.ts).
+ */
+.groupWord {
+  flex: none;
+  min-block-size: var(--glacier-space-8);
+  padding: 0 0 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
 }
 
 .empty {
@@ -314,11 +382,18 @@
   container: home-page / inline-size;
 }
 
-/* Today, quietly, where the page begins: the one line that is about now rather than about a note. */
+/*
+ * Today, where the page begins: the page's one title, at xl, since a page with no title had nowhere for the eye to
+ * start. It was one small line in the second ink. The head's pieces each leave space-5 under themselves (the pills'
+ * and the notices' own margins), so the first heading sits space-5 under whatever came last.
+ */
 .today {
-  margin: 0 0 var(--glacier-space-3);
-  font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-2);
+  margin: 0 0 var(--glacier-space-5);
+  font-size: var(--glacier-font-size-xl);
+  line-height: var(--glacier-leading-xl);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-title);
+  color: var(--app-ink);
 }
 
 /*
@@ -344,10 +419,9 @@
   }
 }
 
-/* How many to-dos are open, beside the heading, in the heading's own quiet. */
-.count {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.7;
+/* A step more air between the home page's cards than the grid's (All notes keeps `.cards`' space-3 through its compose). */
+.section .cards {
+  gap: var(--glacier-space-4);
 }
 
 .tasks {
@@ -425,13 +499,13 @@
   color: var(--glacier-text-subtle);
 }
 
-/* The way to the grid of every note (notes/AllNotesScreen.tsx): the grid's mark, the words and the count, on one line. */
+/* The way to the grid of every note (notes/AllNotesScreen.tsx): the grid's mark (art/Icons.tsx Grid), the words and the count, on one line, a group's air above it. */
 .allNotes {
   display: flex;
   align-items: center;
   gap: var(--glacier-space-2);
-  margin-block-start: var(--glacier-space-6);
-  padding-block: var(--glacier-space-3);
+  margin-block-start: var(--glacier-space-8);
+  padding-block: var(--glacier-space-4);
   border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
   inline-size: 100%;
   text-align: start;
@@ -456,9 +530,4 @@
   margin: 0 0 var(--glacier-space-6);
   font-size: var(--glacier-font-size-md);
   color: var(--glacier-text-muted);
-}
-
-/* The Tapes' and the Library's marks stand straight; the pin above them leans. */
-.groupIconStill {
-  font-size: 1.15em;
 }

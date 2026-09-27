@@ -50,13 +50,18 @@
   outline-offset: 2px;
 }
 
+/*
+ * The title, at md on every card: the grid's dense size, and now the home page's too, so home and All notes share one
+ * title size and the home page's headings (lg) stand a step above the cards under them (docs/DESIGN.md §132). It was
+ * lg on the home page, the same size as nothing else on that page, and the eye had no place to start.
+ */
 .title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  font-size: var(--glacier-font-size-lg);
-  line-height: 1.2;
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.25;
   font-weight: var(--glacier-font-weight-semibold);
   overflow-wrap: anywhere;
 }
@@ -198,9 +203,9 @@
 }
 
 /*
- * Dense: the grid's card, a step smaller all through - less padding, the title at the body size, the preview and the
- * index shorter - so five sit across a desktop window and two across a phone, and the page reads as a page of notes
- * rather than a stack of posters.
+ * Dense: the grid's card, a step smaller all through - less padding, the preview and the index shorter - so five sit
+ * across a desktop window and two across a phone, and the page reads as a page of notes rather than a stack of
+ * posters. The title is md on every card now, so dense keeps only the room it leaves for the corner.
  */
 .item[data-dense] .card {
   gap: var(--glacier-space-1);
@@ -209,8 +214,6 @@
 }
 
 .item[data-dense] .title {
-  font-size: var(--glacier-font-size-md);
-  line-height: 1.25;
   /* Room for the ring or the dot in the corner, which the wider card had beside a shorter title. */
   padding-inline-end: var(--glacier-space-4);
 }
