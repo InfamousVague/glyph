@@ -42,6 +42,9 @@ export interface RunScope {
   to: number;
 }
 
+/** Where a run's lines go: over the words in its scope, above the note, or under it (ai/start.ts `placementOf`). */
+export type Placement = 'replace' | 'prepend' | 'append';
+
 export interface RunRequest {
   noteId: string;
   kind: RunKind;
@@ -66,6 +69,8 @@ export interface RunRequest {
   /** The hash of the body it was written from (format/pipeline.ts `noteHash`), for what is kept. */
   hash?: number | null;
   scope?: RunScope | null;
+  /** Where its lines land when the kind's own rule is not the one meant: a recording's summary lands over its scope. */
+  placement?: Placement | null;
 }
 
 export interface RunState {
@@ -75,6 +80,8 @@ export interface RunState {
   instruction: string | null;
   model: string;
   scope: RunScope | null;
+  /** Where its lines land when not by its kind's rule (a recording's summary): absent or null for the kind's own. */
+  placement?: Placement | null;
   phase: RunPhase;
   /** The lines the model has finished, as the note's words. Only ever grows while it runs. */
   lines: readonly string[];
@@ -195,6 +202,7 @@ export function startRun(request: RunRequest): RunHandle {
     instruction: request.instruction ?? null,
     model: request.model,
     scope: request.scope ?? null,
+    placement: request.placement ?? null,
     phase: 'queued',
     lines: [],
     partial: '',

@@ -8,6 +8,8 @@ import { addWorkspace, fileNote, workspaceOf } from '../core/workspaces.ts';
 import { keepGist, readGist } from '../format/results.ts';
 import { recordRun, runsOf } from '../ai/log.ts';
 import { hasMarks, saveMarks } from '../ai/marks.ts';
+import { summaryPending } from '../ai/summaries.ts';
+import { keepSummary, readSummary } from '../ai/summaryKeep.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, show, unmount } from '../../test/render.tsx';
 import type { NoteActions } from './useNoteActions.ts';
@@ -41,13 +43,16 @@ const settle = () =>
     for (let i = 0; i < 10; i += 1) await Promise.resolve();
   });
 const said = () => document.body.textContent ?? '';
-/** What the app keeps beside a note, on this device: its gist on the home page, its AI runs and the marks they left. */
+/** What the app keeps beside a note, on this device: its gist on the home page, its AI runs and the marks they left, its summary and the job to write one. */
 function keepBeside(id: string): void {
   keepGist(id, { text: 'A gist.', for: 1, model: 'qwen3.5-4b' });
   recordRun({ id: `run-${id}`, noteId: id, kind: 'format', instruction: null, model: 'qwen3.5-4b', at: 0, ms: 1000, outputTokens: 5, outcome: 'done', message: null, truncated: false });
   saveMarks(id, '# Apples', [{ id: 'c', runId: `run-${id}`, from: 0, to: 3, removed: '', block: true }]);
+  keepSummary(id, { text: '## Summary\nA line.', model: 'qwen3.5-4b', at: 0, forMs: 1000 });
+  // A job in the queue, as the phone would have it (the queue itself only takes one in the app).
+  localStorage.setItem('glyph-summary-queue', JSON.stringify([{ id, kind: 'recording', tries: 0 }]));
 }
-const keptBeside = (id: string) => ({ gist: readGist(id) !== null, runs: runsOf(id).length, marks: hasMarks(id) });
+const keptBeside = (id: string) => ({ gist: readGist(id) !== null, runs: runsOf(id).length, marks: hasMarks(id), summary: readSummary(id) !== null, job: summaryPending(id) });
 const apples = makeNote('a', '# Apples');
 const bread = makeNote('b', '# Bread');
 const cheese = makeNote('c', '# Cheese');
@@ -75,12 +80,12 @@ describe('deleting for good', () => {
     await act(async () => void vi.advanceTimersByTime(4999));
     await settle();
     expect(await getNote('a')).not.toBeNull();
-    expect(keptBeside('a')).toEqual({ gist: true, runs: 1, marks: true });
+    expect(keptBeside('a')).toEqual({ gist: true, runs: 1, marks: true, summary: true, job: true });
     await act(async () => void vi.advanceTimersByTime(1));
     await settle();
     expect(await getNote('a')).toBeNull();
     expect(workspaceOf('a')).toBeNull();
-    expect(keptBeside('a')).toEqual({ gist: false, runs: 0, marks: false });
+    expect(keptBeside('a')).toEqual({ gist: false, runs: 0, marks: false, summary: false, job: false });
     expect(isTrashed('a')).toBe(false);
     expect(actions.hidden.has('a')).toBe(false);
     expect(refresh).toHaveBeenCalled();
@@ -96,7 +101,7 @@ describe('deleting for good', () => {
     await act(async () => void vi.advanceTimersByTime(10_000));
     await settle();
     expect(await getNote('a')).not.toBeNull();
-    expect(keptBeside('a')).toEqual({ gist: true, runs: 1, marks: true });
+    expect(keptBeside('a')).toEqual({ gist: true, runs: 1, marks: true, summary: true, job: true });
   });
 
   it('makes the first final when a second is deleted, since only one Undo is on screen', async () => {
@@ -163,7 +168,7 @@ describe('the trash', () => {
     expect(await getNote('b')).toBeNull();
     expect(isTrashed('a')).toBe(false);
     expect(workspaceOf('a')).toBeNull();
-    expect(keptBeside('a')).toEqual({ gist: false, runs: 0, marks: false });
+    expect(keptBeside('a')).toEqual({ gist: false, runs: 0, marks: false, summary: false, job: false });
     expect(said()).toContain('Deleted 2 notes for good.');
   });
 

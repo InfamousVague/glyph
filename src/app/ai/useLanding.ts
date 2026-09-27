@@ -48,7 +48,7 @@ export function useLanding(
       // A reopened note mid-run, before a line had landed: the landing is decided again as it was at the start
       // (ai/start.ts), against the note as it reads now, which is as it read then, since it was closed in between.
       if (!view.state.field(landingField) && run.scope) {
-        view.dispatch({ effects: setLanding.of({ runId: run.id, ...landingAt(run.kind, run.scope, view.state.doc.length) }) });
+        view.dispatch({ effects: setLanding.of({ runId: run.id, ...landingAt(run.kind, run.scope, view.state.doc.length, run.placement ?? undefined) }) });
       }
       const lander = new Lander(view, run.id, { wisp: optionsRef.current.wisp, haptic: optionsRef.current.haptic }, view.state.doc.toString());
       current.current = { runId: run.id, lander, before: lander.before };

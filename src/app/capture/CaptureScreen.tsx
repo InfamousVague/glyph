@@ -7,8 +7,9 @@ import { fireNativeHaptic } from '../core/haptics.ts';
 import { answerHost, endCapture, isLocked, setCapturing } from '../core/host.ts';
 import { applyCommandMutation, createNote, getNote, listNotes, newNoteId, noteTitle, setNoteRecording, type Note } from '../core/store.ts';
 import { capitalise } from '../core/text.ts';
-import { preferences } from '../core/preferences.ts';
+import { LONG_NOTE_MS, preferences } from '../core/preferences.ts';
 import { enqueueRefine, setRecorderLive } from './refine.ts';
+import { enqueueSummary } from '../ai/summaries.ts';
 import { reviewAvailable, type ReviewHandoff } from '../ai/review.ts';
 import { discardRecording, reassignRecording, type Stopped } from './engine.ts';
 import { renderNote, type Segment } from './markdown.ts';
@@ -84,7 +85,10 @@ import styles from './CaptureScreen.module.css';
  *
  * Done opens the note the words went into when it already existed, with an Undo (editor/NoteScreen.tsx); otherwise it
  * goes back to the list, the new note at the top, a tap away. A locked phone has already stepped back behind its lock
- * screen without showing the note to whoever is holding it.
+ * screen without showing the note to whoever is holding it. The review after a recording (ai/review.ts) runs only
+ * for a take under three minutes (core/preferences.ts `LONG_NOTE_MS`): a longer one's transcript would not fit the
+ * model's window, so it goes back to the list with its better words to come from the queue, its summary too when
+ * Settings says so (ai/summaries.ts), and the Done line says why (docs/DESIGN.md §127 section 2).
  *
  * The pieces are their own modules: the cards (CaptureCards.tsx), the chip (RouteChip.tsx), the lines of words that
  * are not the note (screenText.ts), the diagnostics line (diagnostics.ts), the last words of a stopped decode
@@ -1026,6 +1030,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     }
     fireNativeHaptic('success');
     endCapture(locked);
+    // A long take: the review's prompt would not fit the model's window, and its job is dictation's.
+    const long = refineJob !== null && refineJob.recordingMs - refineJob.fromMs > LONG_NOTE_MS;
     const ask = pendingAsk.current ?? undefined;
     // What the recording left in notes that were there already, and the notes it made, for the note that opens.
     // Its Undo drops the better words only for words it takes out of the note that opens: a take written into it.
@@ -1043,14 +1049,23 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
       return;
     }
     // The review after a recording: it runs the better words and the formatting when it is done.
-    // Not over a locked phone, whose note is not shown to whoever is holding it.
-    if (!locked && (await reviewAvailable())) {
+    // Not over a locked phone, whose note is not shown to whoever is holding it, and not for a long take.
+    if (!locked && !long && (await reviewAvailable())) {
       const review = { noteId: saved.id, job: refineJob, heard: heardRef.current.join(' '), commands: [...commandLog.current], touched: [...take.touched] };
       if (landing || ask) onFinish(saved, locked, review, ask, landing);
       else onFinish(saved, locked, review);
       return;
     }
     if (refineJob) enqueueRefine(refineJob);
+    // A long voice note's summary, when Settings says so: the recorder's own new note, behind its better words. Never
+    // for a take into a note that was there, whose tape is not the note.
+    const summarized = long && !aimed && saved.source === 'capture' && preferences().summaries === 'long';
+    if (summarized) enqueueSummary(saved.id, 'recording');
+    if (long && !locked) {
+      // The Done line says why the note is not opened for a review, and stays long enough to be read.
+      setRoute({ phase: 'said', text: summarized ? 'Long recording. The better words come later. The summary comes later.' : 'Long recording. The better words come later.' });
+      await new Promise<void>((resolve) => window.setTimeout(resolve, SAID_MS));
+    }
     if (landing || ask) onFinish(saved, locked, undefined, ask, landing);
     else onFinish(saved, locked);
   }, [onFinish, take, writer, tapeOfTake, session, microphone, setPhase, setError, live]);

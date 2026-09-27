@@ -71,9 +71,11 @@ vi.mock('./academy/AcademyScreen.tsx', () => ({ AcademyScreen: () => <main data-
 vi.mock('./launch/LaunchScreen.tsx', () => ({ LaunchScreen: () => null }));
 // A card's small drawing is a CodeMirror editor (notes/NotePeek.tsx), one per card: nothing the Shell decides.
 vi.mock('./notes/NotePeek.tsx', () => ({ NotePeek: () => null }));
-// The summary queue is §127 section 2's to fill; here a tape can be made to wait for a model, for the shelf's Get a model.
+// The summary queue (§127 section 2) as the shelf reads it: here a tape can be made to wait for a model, for the shelf's
+// Get a model. The queue itself is the real one, which does nothing off the phone.
 const needsModel = vi.hoisted(() => new Set<string>());
-vi.mock('./ai/summaries.ts', () => ({
+vi.mock('./ai/summaries.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./ai/summaries.ts')>()),
   useSummaries: () => ({ pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel }),
   retrySummary: () => undefined,
 }));

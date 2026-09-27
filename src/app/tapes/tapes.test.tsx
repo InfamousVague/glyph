@@ -6,9 +6,20 @@ import { PACK_MAX_R, packRadii } from '../capture/tape.ts';
 import { makeNote } from '../../test/notes.ts';
 import { stubMatchMedia } from '../../test/stubs.ts';
 import { button, show } from '../../test/render.tsx';
-import { NoteTape, TranscriptWords } from './NoteTape.tsx';
+import { NoteTape, TranscriptWords, type TapeSummary } from './NoteTape.tsx';
 import { TapeArt } from './TapeArt.tsx';
 import { useTape, type Tape } from './useTape.ts';
+
+/** The summary queue as the strip reads it: which notes have one on the way, or waiting for a model, or given up; and whose better words are still to come. */
+const queue = vi.hoisted(() => ({ pending: new Set<string>(), needsModel: new Set<string>(), failed: new Set<string>(), refining: new Set<string>() }));
+vi.mock('../ai/summaries.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../ai/summaries.ts')>()),
+  useSummaries: () => ({ pending: queue.pending, native: new Set<string>(), failed: queue.failed, needsModel: queue.needsModel }),
+}));
+vi.mock('../capture/refine.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../capture/refine.ts')>()),
+  useRefining: () => ({ pending: queue.refining, download: null }),
+}));
 
 /**
  * A spoken note's tape: the playhead the page follows (in a browser a clock stands in for the audio, which is what
@@ -37,6 +48,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   stubMatchMedia(false);
+  for (const set of [queue.pending, queue.needsModel, queue.failed, queue.refining]) set.clear();
 });
 
 describe('the tape, playing', () => {
@@ -87,13 +99,14 @@ describe('the tape, playing', () => {
 });
 
 describe('the tape at the top of a note', () => {
-  const strip = (over: { hasMemos?: boolean; onRemove?: () => void; recordingMs?: number } = {}) => {
+  const strip = (over: { hasMemos?: boolean; onRemove?: () => void; recordingMs?: number; summary?: TapeSummary | null } = {}) => {
     function Strip() {
       const t = useTape(makeNote('t', '# Trip', { recordingMs: over.recordingMs ?? 65_000, segments: phrases }));
-      return <NoteTape note={makeNote('t', '# Trip')} title="Trip" tape={t} onSpeak={() => undefined} onRemove={over.onRemove ?? (() => undefined)} hasMemos={over.hasMemos ?? false} />;
+      return <NoteTape note={makeNote('t', '# Trip')} title="Trip" tape={t} onSpeak={() => undefined} onRemove={over.onRemove ?? (() => undefined)} hasMemos={over.hasMemos ?? false} summary={over.summary ?? null} />;
     }
     return show(<Strip />);
   };
+  const summary = (over: Partial<TapeSummary> = {}): TapeSummary => ({ ask: () => undefined, edited: () => false, behind: false, ...over });
 
   it('is not there for a note with nothing recorded', () => {
     expect(strip({ recordingMs: 0 }).innerHTML).toBe('');
@@ -126,6 +139,62 @@ describe('the tape at the top of a note', () => {
     const host = strip({ onRemove });
     act(() => button("Remove this note's recording", host).click());
     expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('has a Summarize word only where there is a model, which asks the queue for the recording’s summary', () => {
+    expect(strip().querySelector('[aria-label="Summarize the recording"]')).toBeNull();
+    const ask = vi.fn();
+    const host = strip({ summary: summary({ ask }) });
+    const word = button('Summarize the recording', host);
+    expect(word.textContent).toBe('Summarize');
+    expect(word.title).toBe('The recording, summarized under the title.');
+    act(() => word.click());
+    expect(ask).toHaveBeenCalledWith(false);
+    expect(host.textContent).not.toContain('Summary is from before the last take.');
+  });
+
+  it('asks before replacing a summary that was edited, replaces on Replace, and leaves it on Keep mine', () => {
+    vi.useFakeTimers();
+    const ask = vi.fn();
+    const host = strip({ summary: summary({ ask, edited: () => true }) });
+    act(() => button('Summarize the recording', host).click());
+    expect(ask).not.toHaveBeenCalled();
+    expect(host.textContent).toContain('You edited the summary. Replace it?');
+    act(() => button('Keep the summary as you edited it', host).click());
+    expect(ask).not.toHaveBeenCalled();
+    expect(host.textContent).not.toContain('You edited the summary. Replace it?');
+    act(() => button('Summarize the recording', host).click());
+    act(() => void vi.advanceTimersByTime(8000));
+    expect(host.textContent).not.toContain('You edited the summary. Replace it?');
+    act(() => button('Summarize the recording', host).click());
+    act(() => button('Replace the summary you edited', host).click());
+    expect(ask).toHaveBeenCalledWith(true);
+  });
+
+  it('says when the summary is from before the last take, when one is on its way, when a model is missing, and when it did not come', () => {
+    expect(strip({ summary: summary({ behind: true }) }).textContent).toContain('Summary is from before the last take.');
+    queue.pending.add('t');
+    let host = strip({ summary: summary({ behind: true }) });
+    let word = button('Summarize the recording', host);
+    expect(word.textContent).toBe('Summarizing');
+    expect(word.disabled).toBe(true);
+    expect(host.textContent).not.toContain('Summary is from before the last take.');
+    // Queued behind the note's better words: not "Summarizing" yet, and the strip says what it waits for.
+    queue.refining.add('t');
+    host = strip({ summary: summary() });
+    word = button('Summarize the recording', host);
+    expect(word.textContent).toBe('Summarize');
+    expect(word.disabled).toBe(true);
+    expect(host.textContent).toContain('The summary comes after the better words.');
+    queue.refining.clear();
+    queue.pending.clear();
+    queue.needsModel.add('t');
+    host = strip({ summary: summary() });
+    expect(host.textContent).toContain('Needs a model.');
+    queue.needsModel.clear();
+    queue.failed.add('t');
+    host = strip({ summary: summary() });
+    expect(host.textContent).toContain('The summary didn’t come.');
   });
 
   it('asks first where voice memos play from it, keeps it on Keep, and stops asking after a while', () => {

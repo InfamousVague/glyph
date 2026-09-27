@@ -23,6 +23,7 @@ const SYNCED_PREFS = [
   'quietStop',
   'commandWord',
   'review',
+  'summaries',
   'codeLight',
   'codeDark',
   'codeChosen',

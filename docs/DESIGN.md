@@ -5079,7 +5079,7 @@ that came out of answering them:
   notification on the lock screen says nothing of what was said.
 
 Four things, in the order they ship: the shelf (page), summaries (page), meetings on the Mac (page), then meetings
-and the write-up on Android (a native release, generation 20). Only section 1 is built and written up here; the
+and the write-up on Android (a native release, generation 20). Sections 1 and 2 are built and written up here; the
 other sections are headings until their slices land.
 
 ### 1. Tapes: the shelf on the home page
@@ -5214,7 +5214,234 @@ allNotes.test.ts (`tapes`). Page code, over the air, generation 19.
 
 ### 2. The summary
 
-To come.
+Built 2026-09-27, as page code, generation 19. Matt: "add summaries to them, I'm going to start recording meetings
+and stuff and letting the audio be transcribed then summarized by AI so I get summarized recording notes
+automatically". He chose where it runs: on the phone, the on-device model, after the better words, never the
+server.
+
+**When.** A summary is made for a **meeting** (section 3) when its transcript is there, automatically; for any note
+with a tape, when the tape strip's **Summarize** word is tapped (`tapes/NoteTape.tsx`); and for a **long voice
+note**, automatically, only when the setting says so. Meetings do not exist yet: the `'meeting'` kind is typed and
+handled by the queue, and nothing makes one. Never for a typed note spoken into (the recorder's own new note alone
+is enqueued at Done, `saved.source === 'capture'` and not aimed), and never again on its own: an Add to the tape does
+not remake the summary. The strip says "Summary is from before the last take." with the word to remake it, which it
+knows from the tape's length: the kept record carries `forMs`, the tape's length when the summary was written, and a
+longer tape now is a take it never heard.
+
+- **Setting.** Settings › Recording › After recording › **Summaries**, a three-way choice under Better words:
+  "Meetings" (default), "Meetings and long voice notes", "Off". Hint: "The language model on the phone writes a
+  summary under the title. What was said, what was decided, and your to-dos. A long voice note is one over three
+  minutes. A few minutes of the phone for a long recording." Search words: summary, meeting, write-up, minutes.
+  `prefs.summaries: 'meetings' | 'long' | 'off'`, synced with the person's other choices;
+  `core/preferences.ts` `LONG_NOTE_MS = 180_000`, one line to change and the sentence in the hint with it. The
+  Recording pane is listed on the Mac as well as Android (`isAndroid || (isTauri() && !isMobile)`): the Mac records
+  through Speak, runs the better words and the summaries, and its rows had no home there. Without "Where the side
+  key is", and its first section titled "While recording" rather than "The side key".
+
+**The review's place.** `CaptureScreen.finish` runs the review only for a take under `LONG_NOTE_MS` (the take's
+own span, `recordingMs - fromMs` of its better-words job); a longer take goes back to the list and the recorder's
+Done line says why, for `SAID_MS`: "Long recording. The better words come later." with "The summary comes later."
+appended when one was queued. The Review setting's hint says "For recordings under three minutes." One or the other,
+never both.
+
+**What it reads.** The tape, not the note: `renderNote(note.segments).plain`, the note read fresh by id, commands
+already left out of the phrases the note keeps. A meeting's transcript will be the same text, so every path
+summarises the same words.
+
+**What it writes.** One section, into the body, so it is words: synced, shared, in the `.md` file, in To do.
+
+```
+# Planning call with Sam
+
+## Summary
+What the call settled about the March launch.
+
+- Launch moves to the second week of March.
+- Sam: the press list by Friday.
+
+- Decided: no paid ads until the beta closes.
+
+- [ ] Book the venue before the 10th.
+
+We started with the launch date. …
+```
+
+- **The section has a shape the page owns** (`ai/summaryText.ts` `shapeSummary(modelText)`): the heading
+  `## Summary`; one prose line, taken only straight after the heading; then only item lines (`-`, `- [ ]`, `- [x]`),
+  blanks collapsed to one between groups and one put after the prose line. What a 4B reaches for is read as what
+  was meant: a `*`, `+`, numbered (`1.`, `2)`) or typographic (`•`) bullet is made a dash, a box written tight
+  (`-[ ]`) is given its space, a `Decided:` line without its dash is made an item, a label on the prose line
+  (`**Summary**`, `**Summary:**`, `Summary:`) or an introduction ending in a colon is not the prose (the next line of
+  prose is, and an emptied line never leaves two blanks), and a sentence wrapped over two lines is one sentence
+  (joined while the line before did not end its sentence; a second sentence is still dropped). The model's
+  `# heading` first line is taken for the title and never written into the section; any other prose line, heading,
+  rule, code fence or closing remark is dropped, and a mark still under the pen (a lone `#`, `-`, `1.` or `•`) is
+  skipped, so the shape is a prefix of itself as the model streams and a run's landed lines never move (the heading,
+  once any prose has come, stays even while a label is stripped to nothing). `summarySection(body, kept?)` finds it
+  again: with the kept text (below) it is that text's lines where the body still reads so from `## Summary`, boxes
+  ticked or not, with a blank or the end after it - the keep closes it, so the person's own list straight under it
+  is never read as the section's, which the shape alone cannot tell (a blank followed by `- [ ]` lines is still the
+  shape); by the shape otherwise: through the prose line if it comes before any item, and every following blank or
+  item line, ending at the first line that is none of those, or a `#` heading, or a rule, or the end; trailing
+  blanks are not its. A dictated note's paragraphs end it at their first line; `## Transcript` ends it too. Never
+  inside the front matter. Every reader that has the keep hands it in: both writers, the strip's `edited`, the
+  better words' guard.
+- **Place** (`summaryPlace(body)`): after the front matter and after the first line of words, whatever its marks:
+  after a `# title` line; after a plain first paragraph, through its last line; after a to-do first line and the
+  list it opens; a picture first line is stepped over as `noteTitle` steps over it. Never above the first line of
+  words. A note with no words at all (`hasWords`: the tape kept and the text cleared, a picture alone) would be
+  titled "Summary" by the section's own heading, so both writers put the model's heading above it as a `# title`
+  line; a title named in the front matter counts as words and is left.
+- **Again, only on purpose.** `ai/summaryKeep.ts` (`glyph-summaries`, a `noteSheet`) keeps per note the exact
+  section text the app wrote, the model, when, and `forMs`. On a remake: a section that still equals the kept text
+  is replaced whole; one that differs was edited, and the strip asks "You edited the summary. Replace it?" with
+  **Replace** and **Keep mine**, nothing written until one is tapped (Replace queues the job with `replace: true`;
+  a job of the queue's own finds an edited section and is dropped, never remade behind the person's back); with no
+  section a fresh one is written at its place. `carryTicked(old, next)`: every `- [x]` line of the old section is
+  carried verbatim into the new one after the new to-dos, or as a group of its own when the new one has none; a
+  ticked line the model kept - whatever the case of its box or its closing full stop - is not doubled; un-ticked
+  old to-dos are not carried.
+- **Title**: `dateTitled(body)` is a first line reading "Meeting, 26 Sep 14:05" (either order of day and month);
+  `retitled(body, title)` takes the model's heading only then, and never a title named in the front matter. Both
+  writers apply it.
+- **Guard**: `updateNote(id, next, note.revision)`; a conflict is read again and applied once more, then given up
+  for this pass with the model's answer kept on the job (`text`), so the next kick writes without asking the model
+  again; any other failure of the write counts as a try, so a note the bridge cannot write fails after three rather
+  than being tried every twenty seconds for as long as the app is open. The job waits for `syncSettled()` and calls
+  `syncNow()` before its read and after its write. The merge rule (section 6: theirs taken with the local section
+  re-applied, no conflict copy) is to come; until it lands, a summary landing while another device edits the same
+  note makes a conflict copy as any crossing edit does.
+- **An open note lands through its editor.** The note screen registers a starter with the queue
+  (`ai/summaries.ts` `openForSummaries`, from `editor/useNoteAi.ts`); when the job's turn comes the queue hands it
+  the words and the summary is a run (`ai/start.ts` `startNoteRun` with `{ recording }`: the recording prompt, the
+  tape's words, a `scope` at the section's place or over the old section - its newline included, so the lander
+  does not take the section's last line for the note's and put one more blank under it at every remake - and a
+  `placement` of `'replace'` on the run, which `landingAt` takes over the kind's own rule and `ai/useLanding.ts`
+  reads again for a note reopened mid-run). The strip follows it and the lines land as tracked changes with Keep
+  and Revert. The model's answer is shaped as it streams (`restore`), with a blank line landed first where the line
+  above is words; a title that ran straight into its paragraph gets a blank line put under it before the run, so
+  the section stands on its own rather than making the paragraph the last item's. The ticked to-dos are carried as
+  the run finishes, and the title taken once it is done. What the queue keeps is the section as it landed
+  (`summarySection` of the run's text), never the run's text with its opening blank, so the strip's next Summarize
+  finds the section unchanged. The strip's word itself only enqueues: the pieces of a long transcript run in the
+  queue, and the final pass lands as the run. A note that is closed is written plain by `withSummary`, since a
+  background write can make no marks - but never under an open editor: the plain write checks for the note's
+  starter before every `updateNote`, and a note opened while the model wrote is handed the finished answer
+  (`SummaryAsk.text`) for its editor to land at once, with no run, as the same tracked changes (`landReady`: the
+  lander, the AI's signature, the log's record for Undo); a kept answer from a pass that could not write is handed
+  over the same way at the next kick. The editor's next save would otherwise conflict and every save of that visit
+  after it be dropped (`editor/useNoteSaving.ts`), which is the hole the hand-off exists to close. Both writers
+  place the section with `summaryPlace` and shape it with `shapeSummary`: one rule, one set of tests.
+- `summaryLine(body)`: the prose line under `## Summary`, for the shelf, the toast and the notification.
+- More's Summarize (SUMMARIZE_PROMPT over the body, landing above the note) stays as it is; the strip's word is the
+  recording's. Its hint: "The recording, summarized under the title."
+
+**The prompt** (`format/prompt.ts` `RECORDING_SUMMARY_PROMPT`, a plain `String.raw` literal so `llm/tests.rs` can
+read it by name, with SUMMARIZE_PROMPT's keeps). It asks for: a first line `# name` in the recording's own words;
+one sentence saying what the recording is (who was there only if said); three to eight points as `-` items, **other
+people's actions among them with the name first** ("- Sam: the press list by Friday."), never boxed - the rule sits
+with the points because the example puts "- Sam: the press list." there, and a 4B copies the example over a rule;
+decisions as `-` items beginning "Decided:", only where something was decided; **a `- [ ]` only for what the person
+recording has to do** (said as I, we, my, or their own name), under ten words, with the when where said; at most a
+fifth of the recording's words and never more than about two hundred; plain markdown, no `*` bullets, no numbered
+lists, no other labels, no closing remark. `TEMPERATURE` (0.3), no thinking. Model:
+`modelFor(present, prefs.formatModel)`. Budget `recordingSummaryBudget(chars) = min(1024, max(200, tokens / 6 + 96))`.
+The Rust side has not run it: `llm/tests.rs` should gain a test beside `summarizes_a_note_to_a_fraction_keeping_its_facts`
+that reads both prompts by name over a two-speaker fixture (one `# name`, points, a Decided line, a box only on the
+recorder's own actions, plus a pieces pass) and checks which lines carry a box; it needs a model, so it is a
+follow-up for the next native release.
+
+**Long recordings.** `transcriptPieces(plain, PIECE_CHARS = 12_000)`: 20,000 chars or fewer goes in one pass;
+longer is cut at paragraph breaks into pieces of about 3,000 tokens, a paragraph longer than a piece cut at sentence
+ends, nothing dropped. Each piece goes through `RECORDING_NOTES_PROMPT` with the line "Part n of m of one recording."
+before it (budget `recordingNotesBudget(chars) = min(512, max(128, tokens / 4 + 64))`), then the joined notes through
+the summary prompt under `NOTES_CONTEXT(words)`: "These are notes on the parts of one recording, in order. The
+recording itself was about 9,400 words: the summary's length is measured against that, not against these notes."
+- without the second sentence an hour's meeting came out at a fifth of the notes, about a hundred words. Each
+finished piece is checkpointed in the job (`pieces`), so a kill after four of five starts at the fifth.
+
+**The queue** (`ai/summaries.ts`, on `capture/refine.ts`'s pattern). `glyph-summary-queue` in localStorage, one job
+per note `{ id, kind, tries, started?, pieces?, text?, native?, failed?, replace? }`. `enqueueSummary(id, kind,
+{ native, replace })`, `startSummaries(changed, summarized)` wired in `shell/useHousekeeping.ts` after
+`startRefining`, kicked 4 s after launch and 2 s after every return to the foreground, one at a time, only in Tauri,
+only while the page is visible to start.
+
+- **Holds**: `refineHeld()` (the recorder or a review is up); `refinePending(id)` (the note's better words are still
+  to come, checked before the run and again before the write; a job held only by that looks again in 20 s);
+  `anyRunning()` with a 3 s wait; `isTrashed(id)` (the job waits, and a delete for good drops it); `syncSettled()`.
+  The hold is read again after every wait and before every generation - after the sync wait, between two pieces,
+  before the editor's starter - so one that arrives mid-job starts nothing more; the gist runner checks the same
+  before its generation.
+- **The recorder wins the cores.** `refine.ts` tells who follows its hold (`onRefineHold`), and the summary queue
+  and the gist runner (`format/gist.ts` `pauseGists`) follow it: a run in flight is cancelled (`ai_cancel` through
+  the run's own cancel) and its job left queued, uncounted; a gist cancelled this way is not counted against its
+  note. That cut is the queue's own (`cut`, set as it cancels) and is told from a stop by the person: the strip's
+  Stop, the scene's, or a run of their own started on the note, which end the summary's run the same way, drop
+  the job instead - Stop sticks, and the model is not asked again twenty seconds later. An editor run the recorder
+  cut leaves the lines that landed (a half section, the app's own); the job is patched `replace: true`, so the
+  re-run lands over that half by shape rather than reading it as an edit and dropping the job. A subscription
+  rather than calls into the two modules, because the queue reads `refineHeld` and `refinePending` from refine.ts
+  and a module that imported it back would be a cycle. refine.ts's guard reads the note against what Done saved
+  with the app's own section (the kept one, unchanged) written in at its place (`withSummary(savedBody, kept)`,
+  trailing newline aside), and carries the section into the better words where they lack it, so a summary that
+  landed between Done and the better words stops neither; a `## Summary` the person typed is theirs, in the better
+  words already from the words before the take and never moved, and the app's section edited since Done is an edit
+  like any other, which wins.
+- **A poison job cannot kill the app at every launch.** A job is marked `started` before it runs and cleared
+  however it ends; a job found `started` at launch counts that as one try. `refine.ts` has the same field. Three
+  tries and it is `failed`, for the caption's Try again (`retrySummary`), which resets `tries`.
+- **No model**: the job waits, looks again in 60 s, and the caption says "Needs a model" with the way to Settings;
+  the strip says "Needs a model." too, for a job queued from elsewhere, while its own Summarize word is there only
+  where the AI can run or is still being looked for (`useNoteAi` `canSummarize`, from `ai/available.ts`: not in a
+  browser, not on iOS, not without a model). A job queued behind the note's better words is not "Summarizing" yet:
+  the strip's word is plain and disabled and the line under it says "The summary comes after the better words."
+  "busy" or "cancelled": 20 s, uncounted. A failure: `tries + 1`.
+- A note deleted for good drops its job and its kept record (`dropSummary`, `forgetSummary` beside
+  `forgetResults` in `notes/useNoteActions.ts`); trashed, it waits.
+- **Success**: `changed()` refreshes the list; a toast "Summarized “{title}”" with **Open** (`useToast`, 10 s,
+  opening the note where it was left) when the page is visible, and not for a native job. A native job (section 4)
+  waits in the queue for a result nothing delivers yet.
+- Runs through `generate()` for a closed note, and through the note screen's starter for an open one.
+  `useSummaries()` is the external store the shelf and the strip read: `pending`, `native`, `failed`, `needsModel`.
+- `ai_unload` after a long tape is generation 20; until then the five-minute idle bounds the engine's context.
+
+**The scene** (§128) is for one run, and a summary run may follow the review's on the same note: while the queue
+holds a job for the note, `scene/AtWork.tsx` waits `GRACE_MS` after an end rather than `HOLD_MS` alone, then
+follows the summary run as "Reading the recording" and "Writing the summary".
+
+**Web.** No summariser: the strip has no Summarize word there (`summary` is null where the AI cannot run), the
+setting is not listed, and the page shows what synced, the shelf's caption included.
+
+**Files.** `ai/summaries.ts`, `ai/summaryText.ts` (`shapeSummary`, `summarySection`, `summaryPlace`, `withSummary`,
+`withoutSummary`, `carryTicked`, `summaryLine`, `dateTitled`, `retitled`, `transcriptPieces`; pure),
+`ai/summaryKeep.ts` (`glyph-summaries`), `ai/start.ts` (`recording` option, `landingAt` from a placement),
+`ai/runs.ts` (`placement`), `ai/useLanding.ts`, `format/prompt.ts` (two prompts, two budgets), `capture/refine.ts`
+(`refineHeld`, `refinePending`, `onRefineHold`, `started`, the stripped compare), `format/gist.ts` (`pauseGists`),
+`capture/CaptureScreen.tsx` (the review's line, the Done line, the long-note enqueue), `tapes/NoteTape.tsx`
+(Summarize, the ask, the lines), `editor/useNoteAi.ts` + `editor/NoteScreen.tsx` (the starter, the strip's ask),
+`settings/RecordingPane.tsx` + `SettingsSheet.tsx`, `core/preferences.ts` (`summaries`, `LONG_NOTE_MS`),
+`core/sync/prefs.ts`, `shell/useHousekeeping.ts` + `App.tsx` (wire, toast, Open), `notes/useNoteActions.ts` (drop
+on delete), `scene/AtWork.tsx` (the grace). Tests: summaryText.test.ts (shape, the stream, found by shape and
+closed by a paragraph, a heading, a rule, `## Transcript`; place after a title, a plain line, a to-do, a picture,
+front matter; the no-words title; replace whole; the keep closing the section over the person's list; ticked
+carried and matched loosely; `dateTitled`; pieces; `summaryLine`; every paragraph kept on a remake; the labels,
+bullets, boxes and wrapped sentences the shape reads; the stream with them), summaries.test.ts (writes and keeps;
+waits behind refine, before the run and before the write; behind a run; the recorder cancels and leaves the job,
+during the sync wait and between pieces too; `started` counts a try; no model says so, in the store; three tries
+then failed and Try again; a write failure counts; trashed waits and deleted drops; native waits; visible only;
+edited left alone and replaced on purpose; the conflict; the date title; pieces and the checkpoint; the open note's
+hand-off through the real editor run, the section kept as landed, the note opened mid-generation handed the answer,
+the recorder's cut versus the person's Stop), prompt.test.ts (both prompts readable by name, the other-people rule
+with the points, the budgets), start.test.ts (the run's scope over the section's newline, placement, the streamed
+shape, the blank line, over the old section and in place, edited refused, the keep closing over a list, the no-words
+title, the date title taken, the ready answer landed with no run), refine.test.ts (the guard with the section
+written in, a typed section left, an edited one stopping the pass, `started`, the hold told), gistRunner.test.tsx
+(paused, and paused during the catalogue read), tapes.test.tsx (the word, the ask, the lines, the wait for the
+better words), NoteScreen.test.tsx (the word only where the AI can run), CaptureScreen.test.tsx (review under three
+minutes, none over, the Done line, the enqueue only when the setting says), RecordingPane.test.tsx and
+SettingsSheet.test.tsx (the choice, the Mac), useHousekeeping.test.tsx (the toast's Open), useNoteActions.test.tsx
+(the drop), AtWork.test.tsx (the grace). In Rust, to come: `llm/tests.rs` over the two-speaker fixture. Page code,
+over the air, generation 19. Nothing here has run on the Fold.
 
 ### 3. Meetings
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { generate, listModels } from '../core/ai.ts';
+import { generate, listModels, type Run } from '../core/ai.ts';
 import { externalStore } from '../core/externalStore.ts';
 import { MARKER } from '../core/itemSyntax.ts';
 import type { Note } from '../core/store.ts';
@@ -8,6 +8,7 @@ import { bodyHash } from './bodyHash.ts';
 import { protectLinks } from './links.ts';
 import { presentIds, smallestOf } from '../ai/available.ts';
 import { anyRunning, isRunning } from '../ai/runs.ts';
+import { onRefineHold } from '../capture/refine.ts';
 import { GIST_PROMPT, TEMPERATURE } from './prompt.ts';
 import { keepGist, readGist } from './results.ts';
 
@@ -30,6 +31,11 @@ import { keepGist, readGist } from './results.ts';
  * (home/HomeScreen.tsx, notes/AllNotesScreen.tsx), never at once: the bodies
  * the runner works from are the last page's to hand them over, so two pages
  * drawn together would take turns replacing each other's.
+ *
+ * The recorder wins the cores (docs/DESIGN.md §127 section 2): while it or a
+ * review is up (`pauseGists`, following capture/refine.ts's hold) a gist in
+ * flight is cancelled and not counted against its note, and the runner looks
+ * again once the hold has gone.
  */
 
 /** The model's answer as a card's line: the first line, bare, at most this long. */
@@ -70,7 +76,21 @@ const spoken = externalStore(0);
 const speak = () => spoken.update((n) => n + 1);
 const failed = new Set<string>();
 let active: string | null = null;
+/** The generation in flight, so a pause can cancel it. */
+let activeRun: Run | null = null;
 let timer = 0;
+/** The recorder or a review is up: nothing starts, and what was running is cancelled. */
+let paused = false;
+
+/** No gist runs while `on`; a run in flight is cancelled, uncounted, and the runner looks again once let go. */
+export function pauseGists(on: boolean): void {
+  if (paused === on) return;
+  paused = on;
+  if (on) activeRun?.cancel();
+  else kick();
+}
+
+onRefineHold(pauseGists);
 
 function hashOf(id: string, body: string): number {
   const known = hashes.get(id);
@@ -123,7 +143,7 @@ export async function runGists(): Promise<void> {
 }
 
 async function pump(): Promise<void> {
-  if (active || !isTauri() || document.visibilityState !== 'visible') return;
+  if (active || paused || !isTauri() || document.visibilityState !== 'visible') return;
   // A note's own run comes first: the model is one, and a line for the home page can wait a few seconds.
   if (anyRunning()) {
     window.clearTimeout(timer);
@@ -139,18 +159,24 @@ async function pump(): Promise<void> {
   try {
     const model = smallestOf(presentIds(await listModels()));
     if (!model) return;
+    // The recorder may have come up while the catalogue was read: nothing starts under it.
+    if (paused) return;
     // Links go in as tokens, as for every run, and the line never has them.
     const { text } = protectLinks(body);
-    const output = await generate({ model, system: GIST_PROMPT, prompt: text, maxTokens: 40, temperature: TEMPERATURE, onProgress: () => undefined }).done;
+    activeRun = generate({ model, system: GIST_PROMPT, prompt: text, maxTokens: 40, temperature: TEMPERATURE, onProgress: () => undefined });
+    const output = await activeRun.done;
     const line = tidyGist(output.text);
     if (line) keepGist(id, { text: line, for: hashOf(id, body), model, len: body.length, head: headOf(body) });
     else failed.add(id);
     speak();
   } catch (failure) {
+    // Cancelled for the recorder: the note is asked about again once the recorder has gone.
+    if (paused) return;
     console.warn('[glyph] the gist did not come:', failure);
     failed.add(id);
   } finally {
     active = null;
+    activeRun = null;
     speak();
     window.clearTimeout(timer);
     timer = window.setTimeout(() => void pump(), 800);

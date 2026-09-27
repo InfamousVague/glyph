@@ -31,11 +31,22 @@ vi.mock('../core/store.ts', async (importOriginal) => ({
   latestCommandMutation: commands.latest,
   undoCommandMutation: commands.undo,
 }));
+/** The summary queue's wiring, as the hook hands it over: what to do when one lands. */
+const summaries = vi.hoisted(() => ({ wired: null as null | { changed: () => void; summarized: (done: { id: string; title: string }) => void } }));
+vi.mock('../ai/summaries.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../ai/summaries.ts')>()),
+  startSummaries: (changed: () => void, summarized: (done: { id: string; title: string }) => void) => {
+    summaries.wired = { changed, summarized };
+    return () => {
+      summaries.wired = null;
+    };
+  },
+}));
 
 const { useHousekeeping } = await import('./useHousekeeping.ts');
 
-function Probe({ notes = [], loading = false, refresh, sidebar = false }: { notes?: Note[]; loading?: boolean; refresh: () => Promise<void>; sidebar?: boolean }) {
-  useHousekeeping({ notes, loading, refresh, sidebar });
+function Probe({ notes = [], loading = false, refresh, sidebar = false, open = () => undefined }: { notes?: Note[]; loading?: boolean; refresh: () => Promise<void>; sidebar?: boolean; open?: (id: string) => void }) {
+  useHousekeeping({ notes, loading, refresh, sidebar, open });
   return null;
 }
 const tree = (props: Parameters<typeof Probe>[0]) => (
@@ -105,6 +116,21 @@ describe('the memos', () => {
     expect(isTrashed('m')).toBe(true);
     expect(isTrashed('n')).toBe(false);
     expect(refresh).toHaveBeenCalled();
+  });
+});
+
+describe('a recording summarized in the background', () => {
+  it('reads the notes again when the summary lands, and says so with the way to the note', async () => {
+    const refresh = vi.fn(async () => undefined);
+    const open = vi.fn();
+    keep({ refresh, open });
+    expect(summaries.wired).not.toBeNull();
+    summaries.wired!.changed();
+    expect(refresh).toHaveBeenCalled();
+    await act(async () => summaries.wired!.summarized({ id: 'n1', title: 'Planning call' }));
+    expect(document.body.textContent).toContain('Summarized “Planning call”');
+    await act(async () => button('Open').click());
+    expect(open).toHaveBeenCalledWith('n1');
   });
 });
 

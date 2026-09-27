@@ -63,12 +63,19 @@ vi.mock('./refine.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./refine.ts')>();
   return { ...actual, enqueueRefine: (job: Omit<RefineJob, 'tries'>) => void capture.refines.push(job) };
 });
+/** The summaries asked for at Done (ai/summaries.ts `enqueueSummary`). */
+const summaries = vi.hoisted(() => ({ asked: [] as [string, string][] }));
+vi.mock('../ai/summaries.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../ai/summaries.ts')>()),
+  enqueueSummary: (id: string, kind: string) => void summaries.asked.push([id, kind]),
+}));
 
 beforeEach(() => {
   localStorage.clear();
   capture.discarded = [];
   capture.reassigned = [];
   capture.refines = [];
+  summaries.asked = [];
   capture.notesHeld = null;
   HTMLElement.prototype.scrollTo = () => undefined;
   capture.handlers = null;
@@ -464,6 +471,52 @@ describe('the sound of a recording', () => {
     expect((await getNote('work'))?.body).toContain('- Call Sam');
     expect(capture.refines).toHaveLength(1);
     expect(capture.refines[0]).toMatchObject({ id: 'groceries', fromMs: 30_000, keywordAt: [{ startMs: 31_000, endMs: 31_900 }] });
+  });
+
+  it('runs no review for a take over three minutes, says why at Done, and asks for its summary only when Settings says so', async () => {
+    window.history.replaceState({}, '', '/?review');
+    try {
+      keeping(200_000, null);
+      let onFinish = vi.fn();
+      render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+      await waitFor(() => expect(capture.handlers).not.toBeNull());
+      await say('A long meeting about the launch.', 1000);
+      fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+      await screen.findByText('Long recording. The better words come later.');
+      expect(onFinish).not.toHaveBeenCalled();
+      await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1), { timeout: 4000 });
+      // No review, and the better words from the queue instead.
+      expect(onFinish.mock.calls[0]?.[2]).toBeUndefined();
+      expect(capture.refines).toHaveLength(1);
+      expect(summaries.asked).toEqual([]);
+      cleanup();
+
+      setPreferences({ summaries: 'long' });
+      keeping(200_000, null);
+      onFinish = vi.fn();
+      render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+      await waitFor(() => expect(capture.handlers).not.toBeNull());
+      await say('A long meeting about the launch.', 1000);
+      fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+      await screen.findByText('Long recording. The better words come later. The summary comes later.');
+      await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1), { timeout: 4000 });
+      expect(summaries.asked).toEqual([[onFinish.mock.calls[0]?.[0].id, 'recording']]);
+      cleanup();
+
+      // A short take keeps its review, and is never summarized on its own.
+      keeping(20_000, null);
+      onFinish = vi.fn();
+      render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+      await waitFor(() => expect(capture.handlers).not.toBeNull());
+      await say('A short note.', 1000);
+      fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+      await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+      expect(onFinish.mock.calls[0]?.[2]).toMatchObject({ noteId: onFinish.mock.calls[0]?.[0].id });
+      expect(summaries.asked).toHaveLength(1);
+    } finally {
+      setPreferences({ summaries: 'meetings' });
+      window.history.replaceState({}, '', '/');
+    }
   });
 
   it('starts the file afresh on a note whose recording was removed, rather than playing after the removed sound', async () => {
