@@ -83,7 +83,8 @@ const BARE = /^[.!?…]*\s*$/;
 /** "Check box:" and "Bullet point:", which a command's payload and the block cues write, taken off what a person would quote. */
 const CUE_PREFIX = /^(?:check(?:ed)?\s?box|bullet\s?point|checklist(?:\s+item)?|check\s+item)[:,.]?\s*/i;
 
-const SEND_VERB = /^(?:add|put|send|move|stick|file|save|drop)\s+(?:that|it|this|those|them|these)\s+(?:to|in|into|on|onto|under|for)\s+(?:(?:the|my|our)\s+)?(.+)$/i;
+/** "It" and "that" are the thing taken back; "this" is the take's own word ("move this to X" moves the recording). */
+const SEND_VERB = /^(?:add|put|send|move|stick|file|save|drop)\s+(?:that|it|those|them|these)\s+(?:to|in|into|on|onto|under|for)\s+(?:(?:the|my|our)\s+)?(.+)$/i;
 const SEND_GOES = /^(?:that|it|this)(?:['’]s|\s+(?:goes|belongs|should\s+go|should\s+be|is|was))\s+(?:in|into|on|to|for|under)\s+(?:(?:the|my|our)\s+)?(.+)$/i;
 
 /** Words that carry nothing of a sentence, for telling one said again from a new one. */
@@ -283,6 +284,11 @@ export function swapWord(previous: string, fragment: string): { text: string; fr
 /** A segment's words as a person would quote them: "Check box:" and "Bullet point:" off, a final stop off. */
 export function quoted(text: string): string {
   return withoutFinalStop(text.replace(CUE_PREFIX, '')).trim();
+}
+
+/** The cue an item was written with ("Check box: ", "Bullet point: "), or '': a replacement inherits it, so the list shape holds. */
+export function cuePrefixOf(text: string): string {
+  return CUE_PREFIX.exec(text)?.[0] ?? '';
 }
 
 /** The safe openers a partial can be starting, and how much of each is ordinary words that start prose too. */

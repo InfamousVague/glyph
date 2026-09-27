@@ -293,6 +293,24 @@
   border-style: dashed;
 }
 
+/* The last thing said, taken back: filled as a landing is, no tick, and Undo at the end of the line. */
+.route[data-phase='tookBack'] {
+  border-color: var(--app-ink);
+  background: var(--app-ink);
+  color: var(--app-paper);
+  animation: chip-pop var(--app-pop) both;
+}
+
+.route[data-phase='tookBack'] strong {
+  color: inherit;
+}
+
+.routeUndo {
+  flex: none;
+  margin-inline-start: var(--glacier-space-2);
+  color: var(--app-paper);
+}
+
 @keyframes chip-in {
   from {
     opacity: 0;

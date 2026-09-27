@@ -113,6 +113,7 @@ describe('a send', () => {
     ['Scratch that, that goes in Groceries.', 'Groceries'],
     ['Scratch that, it belongs in House TODOs.', 'House TODOs'],
     ['Scratch that, move it to House TODOs instead.', 'House TODOs'],
+    ['Scratch that, this goes in House TODOs.', 'House TODOs'],
     ['Actually, put that in House TODOs.', 'House TODOs'],
     ['No wait, that goes in Groceries.', 'Groceries'],
     ['Scratch that, hey Ghost, add it to Groceries.', 'Groceries'],
@@ -125,6 +126,8 @@ describe('a send', () => {
     expect(readTakeBack('Scratch that, add milk to Groceries.')).toMatchObject({ send: null, rest: 'add milk to Groceries.' });
     expect(readTakeBack('Scratch that, add it to the top.')).toMatchObject({ send: null });
     expect(readTakeBack('Scratch that, put it to a table.')).toMatchObject({ send: null });
+    // "This" is the take's own word: "move this to X" moves the recording.
+    expect(readTakeBack('Scratch that, move this to Groceries.')).toMatchObject({ send: null });
   });
 
   it('is read over a whole phrase said in a breath of its own', () => {
