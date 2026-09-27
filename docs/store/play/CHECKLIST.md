@@ -87,10 +87,9 @@ Store presence › Main store listing. **Done: every field has a file.** Paste e
 Save, then read the preview on the right of the page as a phone would show it: the first two or three screenshots
 and the short description are what a search result shows.
 
-**The screenshots, as they stand on 2026-09-27 at 18:22.** The names above are the ones `../shots/compose.mjs`
-writes, from the raw screens `../shots/shoot.mjs` puts in `screenshots/raw/`. Seven of the eight phone pictures and
-the four phone spares were in place, at 1080 × 1920 with no alpha; `04-the-review.png` and the tablet set were still
-being made. Check the folder before the day: `file screenshots/phone/*.png screenshots/tablet/*.png` should print
+**The screenshots, as they stand on 2026-09-27 at 18:23.** The names above are the ones `../shots/compose.mjs`
+writes, from the raw screens `../shots/shoot.mjs` puts in `screenshots/raw/`. All eight phone pictures and the four
+phone spares were in place, at 1080 × 1920 with no alpha; the tablet set was still being made. Check the folder before the day: `file screenshots/phone/*.png screenshots/tablet/*.png` should print
 eight files at 1080 x 1920 and four at 1812 x 2176, all "8-bit/color RGB" and none "RGBA". If a picture is not
 there, an earlier set of real screens at 1.8.0-20 is in `../old-pack/phone-screenshots/` (1242 × 2208, no alpha,
 dark page, no caption; `01-home.png` to `08-a-meeting-written-up.png`, and two `spare-*.png`), with
