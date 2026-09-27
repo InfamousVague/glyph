@@ -1,0 +1,207 @@
+/*
+ * The map card (MapCard.tsx): a box the width of the note's column, the quiet card under and the map over it, the
+ * chips at its corners, and the tap over all of it. The tile pane is greyed and washed with the page's paper, so
+ * OpenStreetMap's coloured landuse and black labels sit between the fourth and third inks and the pin is the only
+ * full-ink mark; inverted on a dark page. Leaflet's own colours (a #ddd ground, a blue link colour, an outline on
+ * focus) are taken off here, so nothing of Leaflet's shows.
+ */
+
+.card {
+  position: relative;
+  overflow: hidden;
+  /* The tape row's weight on a phone, so a spoken tagged note has two rows of one kind above its words. */
+  block-size: 6rem;
+  border-radius: var(--glacier-radius-lg);
+  border: var(--glacier-hairline) solid var(--app-rule);
+  background: var(--app-paper-2);
+  color: var(--app-ink);
+}
+
+/* The opened Fold and the Mac have the room. */
+@media (min-width: 600px) {
+  .card {
+    block-size: 8rem;
+  }
+}
+
+/* A map without a map: paper, a faint dot grid, and the pin in the middle. Always under the map, so a missing tile is paper. */
+.quiet {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--app-ink-3);
+}
+
+/* The dot grid on its own layer, so its faintness is not the pin's. */
+.quiet::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(currentColor 0.6px, transparent 0.7px);
+  background-size: 12px 12px;
+  opacity: 0.45;
+}
+
+.pinMark {
+  position: relative;
+  font-size: 2em;
+  color: var(--app-ink-2);
+}
+
+/* A rough tag's mark on the quiet card: a ring, since an area is not a point. */
+.ring {
+  position: relative;
+  inline-size: 2em;
+  block-size: 2em;
+  border-radius: 50%;
+  border: 2px solid var(--app-ink-2);
+  background: color-mix(in srgb, var(--app-ink-2) 10%, transparent);
+}
+
+/* The map itself, over the quiet card, arriving once its tiles have loaded. */
+.map {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity var(--glacier-duration-normal) var(--glacier-ease-out);
+  /* Leaflet's own ground and face taken off: tiles arrive over paper, and its words are the page's. */
+  background: var(--app-paper-2);
+  font: inherit;
+  outline: none;
+}
+
+.card[data-loaded] .map {
+  opacity: 1;
+}
+
+/*
+ * The wash: the page's paper over the tiles at just under half, in both themes, so a street is still a street but no
+ * patch of the map is busier than a word. Being paper-2, it tints the greys towards a named theme's paper.
+ */
+.map::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 450;
+  background: var(--app-paper-2);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* The tiles in the page's inks: greyed on the light page, greyed and inverted on the dark one. */
+.map :global(.leaflet-tile-pane) {
+  filter: grayscale(1) contrast(0.92) brightness(1.04);
+}
+
+.card[data-dark] .map :global(.leaflet-tile-pane) {
+  filter: grayscale(1) invert(1) brightness(0.8);
+}
+
+.map :global(.leaflet-container) {
+  background: var(--app-paper-2);
+  font: inherit;
+  outline: none;
+}
+
+/* The marker: the app's pin in the page's ink, over the wash. */
+.pin {
+  color: var(--app-ink);
+  background: none;
+  border: none;
+}
+
+.map :global(.leaflet-marker-pane) {
+  z-index: 460;
+}
+
+/* The chips: glass at the corners, one line each, never in the way of a tap. */
+.chip {
+  position: absolute;
+  z-index: 470;
+  max-inline-size: calc(100% - 2 * var(--glacier-space-2));
+  padding: 2px var(--glacier-space-2);
+  border-radius: var(--glacier-radius-sm);
+  background: color-mix(in srgb, var(--app-paper) 82%, transparent);
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* Top left: the place, or the coordinates. */
+.where {
+  inset-block-start: var(--glacier-space-2);
+  inset-inline-start: var(--glacier-space-2);
+  color: var(--app-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bottom left: why the card is quiet, or "Show the map". */
+.why {
+  inset-block-end: var(--glacier-space-2);
+  inset-inline-start: var(--glacier-space-2);
+  color: var(--app-ink-3);
+}
+
+.show {
+  color: var(--app-ink-2);
+}
+
+/* Bottom right: whose data this is, only where their data is shown. */
+.credit {
+  inset-block-end: var(--glacier-space-2);
+  inset-inline-end: var(--glacier-space-2);
+  color: var(--app-ink-3);
+}
+
+/* Bottom left and right share the foot; the left one gives way when the card is narrow. */
+.why + .credit,
+.show + .credit {
+  max-inline-size: 60%;
+}
+
+/* The tap: the whole card, over everything, invisible but for the kit's focus ring. */
+.tap {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  z-index: 480;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-lg);
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tap:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: -2px;
+}
+
+/* A card that appears on an open note arrives on the kit's beat. */
+.card[data-arrive] {
+  animation: mapArrive 360ms var(--glacier-ease-out) both;
+}
+
+@keyframes mapArrive {
+  from {
+    block-size: 0;
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card[data-arrive] {
+    animation: none;
+  }
+
+  .map {
+    transition: none;
+  }
+}

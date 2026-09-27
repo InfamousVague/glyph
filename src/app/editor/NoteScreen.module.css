@@ -326,3 +326,12 @@
   padding-inline: var(--app-gutter);
   margin-block: var(--glacier-space-2) 0;
 }
+
+/*
+ * Where the note was written (editor/MapCard.tsx): under the byline where there is one, over the first line, in the
+ * note's own column. The byline's gutter, and its own gap to the words; not drawn where the page holds still.
+ */
+.mapCard {
+  margin-block: var(--glacier-space-2) var(--glacier-space-3);
+  margin-inline: var(--app-gutter);
+}

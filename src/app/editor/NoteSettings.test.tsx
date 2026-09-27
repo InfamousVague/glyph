@@ -175,3 +175,57 @@ describe('the Workspace page', () => {
     expect(buttonSaying(document.body, 'Workspace')?.textContent).toContain('Cabin');
   });
 });
+
+describe('where the note was written', () => {
+  const LONDON = { lat: 51.5074, lon: -0.1278, place: null, rough: false };
+  const location = (over: Partial<NonNullable<Props['location']>> = {}): NonNullable<Props['location']> => ({ tag: null, can: { ok: true }, asksName: true, refused: null, onAdd: vi.fn(), onRemove: vi.fn(), ...over });
+  const row = () => buttonSaying(document.body, 'Add my location') ?? [...document.querySelectorAll('[aria-disabled="true"]')].find((el) => el.textContent?.includes('Add my location'));
+
+  it('offers to add the location where a fix can be asked for, saying whether the name will be asked too', () => {
+    const here = location();
+    show(<NoteSettings {...sheet({ location: here })} />);
+    expect(row()?.textContent).toContain('Where you are now, kept in the note. Its name is asked of OpenStreetMap once.');
+    act(() => buttonSaying(document.body, 'Add my location')!.click());
+    expect(here.onAdd).toHaveBeenCalledTimes(1);
+    rerender(<NoteSettings {...sheet({ location: location({ asksName: false }) })} />);
+    expect(row()?.textContent).toContain('Where you are now, kept in the note.');
+    expect(row()?.textContent).not.toContain('OpenStreetMap');
+  });
+
+  it('offers to remove a tag, naming the place or the coordinates', () => {
+    const here = location({ tag: { ...LONDON, place: 'Trafalgar Square, London' } });
+    show(<NoteSettings {...sheet({ location: here })} />);
+    expect(buttonSaying(document.body, 'Remove location')?.textContent).toContain('Trafalgar Square, London');
+    act(() => buttonSaying(document.body, 'Remove location')!.click());
+    expect(here.onRemove).toHaveBeenCalledTimes(1);
+    rerender(<NoteSettings {...sheet({ location: location({ tag: { ...LONDON, lat: 51.51, lon: -0.13, rough: true } }) })} />);
+    expect(buttonSaying(document.body, 'Remove location')?.textContent).toContain('Roughly 51.51, -0.13');
+  });
+
+  it('greys the row and says why where no fix can be asked for', () => {
+    const why = {
+      'local-only': 'Local only is on. A location fix would ask the phone’s location service.',
+      mac: 'This Mac can’t say where it is yet. Tag it on the phone and it syncs here.',
+      unavailable: 'Update Ghost.md to tag notes with where they were written.',
+      none: 'This browser can’t say where you are.',
+    } as const;
+    for (const [reason, words] of Object.entries(why)) {
+      unmount();
+      show(<NoteSettings {...sheet({ location: location({ can: { ok: false, why: reason as keyof typeof why } }) })} />);
+      expect(buttonSaying(document.body, 'Add my location')).toBeUndefined();
+      expect(row()?.textContent).toContain(words);
+    }
+  });
+
+  it('says why the note was not tagged on its own after a refusal, and still offers to try', () => {
+    show(<NoteSettings {...sheet({ location: location({ refused: 'refused' }) })} />);
+    expect(buttonSaying(document.body, 'Add my location')?.textContent).toContain('Ghost.md wasn’t allowed to know where you are, so this note wasn’t tagged. Tap to ask again.');
+    rerender(<NoteSettings {...sheet({ location: location({ refused: 'blocked' }) })} />);
+    expect(buttonSaying(document.body, 'Add my location')?.textContent).toContain('Location is off for Ghost.md, so this note wasn’t tagged.');
+  });
+
+  it('has no such row where the screen offers none', () => {
+    show(<NoteSettings {...sheet()} />);
+    expect(document.body.textContent).not.toContain('Add my location');
+  });
+});

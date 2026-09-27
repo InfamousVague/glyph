@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { EditorView } from '@codemirror/view';
+import { undo } from '@codemirror/commands';
 import { ToastProvider } from '@glacier/react';
-import { button, buttonSaying, press, rerender, show, typeInto, unmount } from '../../test/render.tsx';
+import { button, buttonSaying, press, rerender, show, typeInto, unmount, waitUntil } from '../../test/render.tsx';
 import { applyCommandMutation, createNote, getNote, setNoteRecording, updateNote, type Note } from '../core/store.ts';
 import type { CaptureLanding } from '../capture/landing.ts';
 import { goBack } from '../core/back.ts';
@@ -34,6 +35,13 @@ vi.mock('../capture/refine.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../capture/refine.ts')>();
   return { ...real, holdNote: (id: string, on: boolean) => void holds.push([id, on]), dropRefine: (id: string, fromMs: number) => void drops.push([id, fromMs]) };
 });
+
+// The map card's Leaflet is a picture the card draws for itself (MapCard.test.tsx); here only that a card is there.
+vi.mock('leaflet', () => {
+  const L = { map: () => ({ setView: () => undefined, invalidateSize: () => undefined, remove: () => undefined }), tileLayer: () => ({ on: () => undefined, addTo: () => undefined }), divIcon: () => ({}), marker: () => ({ addTo: () => undefined }) };
+  return { ...L, default: L };
+});
+vi.mock('leaflet/dist/leaflet.css', () => ({}));
 
 vi.mock('../core/store.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../core/store.ts')>();
@@ -634,5 +642,162 @@ describe('the review’s scene', () => {
     expect(scene()).toBeNull();
     expect(onBack).not.toHaveBeenCalled();
     expect(document.querySelector('.cm-editor')).not.toBeNull();
+  });
+});
+
+describe('where the note was written', () => {
+  const TAGGED = '---\nlocation: 51.5074,-0.1278\n---\n# Groceries\n';
+  const card = () => document.querySelector<HTMLElement>('[class*=mapCard][data-mode]');
+  /** The device answers a fix, or refuses (jsdom has no geolocation). */
+  const fixAt = (lat: number, lon: number, code?: number) => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback, fail: PositionErrorCallback) => {
+          if (code) fail({ code, message: '' } as GeolocationPositionError);
+          else ok({ coords: { latitude: lat, longitude: lon, accuracy: 15 }, timestamp: 1 } as GeolocationPosition);
+        },
+      },
+    });
+  };
+  /** Nominatim, stood in for: the name it gives, and every address it was asked. */
+  const nominatim = (name: string | null) => {
+    const asked: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      asked.push(url);
+      return { ok: true, json: async () => (name ? { name, addresstype: 'square', address: { city: 'London' } } : {}) };
+    });
+    return asked;
+  };
+  /** The queue of better-words passes as the phone keeps it (capture/refine.ts), with one for `id`, or none. */
+  const queued = (id: string | null) => {
+    if (id) localStorage.setItem('glyph-refine-queue', JSON.stringify([{ id, fromMs: 0, recordingMs: 1000, baseBody: '', savedBody: '# Said', titled: true, priorSegments: [], promptTail: '', tries: 0 }]));
+    else localStorage.removeItem('glyph-refine-queue');
+  };
+  const addFromSheet = () => {
+    act(() => button('More for this note').click());
+    act(() => buttonSaying(document.body, 'Add my location')!.click());
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(navigator, 'geolocation');
+  });
+
+  it('draws the map card at the top of a tagged note, and not over a canvas or a book’s index', async () => {
+    show(screen(await createNote('n1', TAGGED)));
+    expect(card()).not.toBeNull();
+    expect(card()?.textContent).toContain('51.5074, -0.1278');
+    // The words' column: the card sits before the editor.
+    expect(card()!.compareDocumentPosition(document.querySelector('.cm-editor')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    unmount();
+    show(screen(await createNote('c1', '---\nlocation: 51.5074,-0.1278\n---\n{"nodes":[],"edges":[]}')));
+    expect(card()).toBeNull();
+    unmount();
+    show(screen(await createNote('b1', '---\nbook: true\nlocation: 51.5074,-0.1278\n---\n# Trip\n\n1. [[Packing]]\n')));
+    expect(card()).toBeNull();
+    unmount();
+    show(screen(await createNote('n2', '# Groceries')));
+    expect(card()).toBeNull();
+  });
+
+  it('adds the location from the More sheet as one undo step, saved like typing, with its name when it comes and no toast', async () => {
+    fixAt(51.50741, -0.12776);
+    const asked = nominatim('Trafalgar Square');
+    show(screen(await createNote('n1', '# Groceries\n- milk')));
+    const view = editor();
+    act(() => view.dispatch({ selection: { anchor: view.state.doc.length } }));
+    addFromSheet();
+    await settle();
+    // The fix, and its name, asked once of Nominatim at three decimals and written in as it came.
+    expect(asked).toEqual(['https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=51.507&lon=-0.128&zoom=15&addressdetails=1']);
+    expect(view.state.doc.toString()).toBe('---\nlocation: 51.5074,-0.1278\nplace: "Trafalgar Square, London"\n---\n# Groceries\n- milk');
+    // The caret stayed on its words, moved with the block written above them.
+    expect(view.state.selection.main.head).toBe(view.state.doc.length);
+    expect(card()?.textContent).toContain('Trafalgar Square, London');
+    expect(document.body.textContent).not.toContain('Location added');
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    expect(saved()).toEqual(['---\nlocation: 51.5074,-0.1278\nplace: "Trafalgar Square, London"\n---\n# Groceries\n- milk']);
+    // Two undo steps: the name, then the location; the words untouched throughout.
+    act(() => void undo(view));
+    expect(view.state.doc.toString()).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Groceries\n- milk');
+    act(() => void undo(view));
+    expect(view.state.doc.toString()).toBe('# Groceries\n- milk');
+    expect(card()).toBeNull();
+  });
+
+  it('takes the location off from the sheet, both keys and the block, and says why a fix did not come', async () => {
+    show(screen(await createNote('n1', '---\nlocation: 51.5074,-0.1278\nplace: "London"\n---\n# Groceries\n')));
+    act(() => button('More for this note').click());
+    expect(buttonSaying(document.body, 'Remove location')?.textContent).toContain('London');
+    act(() => buttonSaying(document.body, 'Remove location')!.click());
+    expect(editor().state.doc.toString()).toBe('# Groceries\n');
+    expect(card()).toBeNull();
+    fixAt(0, 0, 1);
+    addFromSheet();
+    await settle();
+    expect(document.body.textContent).toContain('Ghost.md wasn’t allowed to know where you are.');
+    expect(editor().state.doc.toString()).toBe('# Groceries\n');
+  });
+
+  it('shows a tag waiting for the better words from what is kept aside, and writes it once the pass has landed', async () => {
+    const { setPendingTag, pendingTag } = await import('../core/location.ts');
+    queued('n1');
+    setPendingTag('n1', { lat: 48.8566, lon: 2.3522, place: null, rough: false });
+    show(screen(await createNote('n1', '# Said\n')));
+    await settle();
+    expect(card()?.textContent).toContain('48.8566, 2.3522');
+    expect(editor().state.doc.toString()).toBe('# Said\n');
+    unmount();
+    // The pass landed while the note was closed: the next open writes the tag.
+    queued(null);
+    const fresh = await getNote('n1');
+    show(screen(fresh!));
+    await settle();
+    expect(editor().state.doc.toString()).toBe('---\nlocation: 48.8566,2.3522\n---\n# Said\n');
+    expect(pendingTag('n1')).toBeNull();
+  });
+
+  it('review path, listening fails, better words still land: the tag waits until the review hands its job back', async () => {
+    const { setPendingTag } = await import('../core/location.ts');
+    setPendingTag('n1', { lat: 40.7128, lon: -74.006, place: null, rough: false });
+    const job = { id: 'n1', fromMs: 0, recordingMs: 4000, baseBody: '', savedBody: '# Said', titled: true, priorSegments: [], promptTail: '' };
+    show(screen(await createNote('n1', '# Said\n'), { review: { key: 1, noteId: 'n1', job, heard: 'said', commands: [], touched: [] } }));
+    expect(card()?.textContent).toContain('40.7128, -74.0060');
+    expect(editor().state.doc.toString()).toBe('# Said\n');
+    // The review ends and hands back (ai/useNoteReview.ts): in a browser the queue takes nothing, so the tag lands now.
+    await waitUntil(() => expect(editor().state.doc.toString()).toBe('---\nlocation: 40.7128,-74.0060\n---\n# Said\n'));
+  });
+
+  it('waits for a new note’s first words, so an empty note is not made a file by its tag', async () => {
+    const { setPendingTag } = await import('../core/location.ts');
+    setPendingTag('n1', { lat: 35.6762, lon: 139.6503, place: null, rough: false });
+    show(screen(await createNote('n1', '')));
+    await settle();
+    expect(card()).not.toBeNull();
+    expect(editor().state.doc.toString()).toBe('');
+    type('Hello');
+    await settle();
+    expect(editor().state.doc.toString()).toBe('---\nlocation: 35.6762,139.6503\n---\nHello');
+  });
+
+  it('writes a canvas’s tag through the screen’s own saving, since its editor is hidden', async () => {
+    fixAt(52.52, 13.405);
+    nominatim(null);
+    show(screen(await createNote('c1', '{"nodes":[],"edges":[]}')));
+    addFromSheet();
+    await settle();
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    expect(saved()).toEqual(['---\nlocation: 52.5200,13.4050\n---\n{"nodes":[],"edges":[]}']);
+  });
+
+  it('follows a location typed by hand into the front matter', async () => {
+    show(screen(await createNote('n1', '# Groceries')));
+    expect(card()).toBeNull();
+    const view = editor();
+    act(() => view.dispatch({ changes: { from: 0, insert: '---\nlocation: 48.8566,2.3522\n---\n' }, userEvent: 'input.type' }));
+    expect(card()?.textContent).toContain('48.8566, 2.3522');
   });
 });

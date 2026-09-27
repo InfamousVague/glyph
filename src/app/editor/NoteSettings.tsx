@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ListChecks, TextSearch } from '@glacier/icons';
-import { ArchiveBox, ArrowLeft, Bin, Board, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
+import { ArchiveBox, ArrowLeft, Bin, Board, Locate, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
+import { tagLabel, type GeoTag } from '../core/geotag.ts';
+import type { LocateFailure } from '../core/location.ts';
 import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
 import { SheetField, SheetGroup, SheetHeading, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import { plugins } from '../plugins/registry.ts';
@@ -58,6 +60,31 @@ interface NoteSettingsProps {
   running?: RunKind | null;
   onAi?: (kind: RunKind) => void;
   onView?: (view: NoteView) => void;
+  /**
+   * Where the note was written (core/geotag.ts, core/location.ts): its tag, whether a fix can be asked for here and
+   * why not, whether the place's name would be asked for, why the last automatic tag did not come, and the two
+   * presses. Absent where the note has no such row (a canvas's JSON aside, every note has one).
+   */
+  location?: { tag: GeoTag | null; can: { ok: true } | { ok: false; why: LocateFailure }; asksName: boolean; refused: LocateFailure | null; onAdd: () => void; onRemove: () => void };
+}
+
+/** Why a fix cannot be asked for here, as the row says it under "Add my location". */
+const CANNOT: Record<LocateFailure, string> = {
+  'local-only': 'Local only is on. A location fix would ask the phone’s location service.',
+  mac: 'This Mac can’t say where it is yet. Tag it on the phone and it syncs here.',
+  unavailable: 'Update Ghost.md to tag notes with where they were written.',
+  none: 'This browser can’t say where you are.',
+  refused: 'Ghost.md wasn’t allowed to know where you are.',
+  blocked: 'Location is off for Ghost.md.',
+  timeout: 'Couldn’t find where you are.',
+};
+
+/** The location row's hint on an untagged note: why it was not tagged on its own, or what a press will do. */
+function locationHint(location: NonNullable<NoteSettingsProps['location']>): string {
+  if (!location.can.ok) return CANNOT[location.can.why];
+  if (location.refused === 'blocked') return 'Location is off for Ghost.md, so this note wasn’t tagged. Allow it in the phone’s settings, or tap to try again.';
+  if (location.refused) return 'Ghost.md wasn’t allowed to know where you are, so this note wasn’t tagged. Tap to ask again.';
+  return location.asksName ? 'Where you are now, kept in the note. Its name is asked of OpenStreetMap once.' : 'Where you are now, kept in the note.';
 }
 
 /** The two drawn icons from the kit, at the weight the sheet's own are drawn: the rings size every icon to 18 px. */
@@ -81,6 +108,7 @@ export function NoteSettings({
   onView,
   running,
   onAi,
+  location,
 }: NoteSettingsProps) {
   // Re-rendered when a plugin is switched, so its rows come and go.
   usePlugins();
@@ -206,6 +234,14 @@ export function NoteSettings({
         <SheetRow icon={Pin} label={pinned ? 'Unpin' : 'Pin to the top'} onPress={onPin} />
         <SheetRow icon={ArchiveBox} label="Archive" onPress={onArchive} />
         <SheetRow icon={WorkspaceIcon} label="Workspace" hint={filed ? filed.name : spaces.list.length ? 'Not in one' : 'None yet. Make one to sort your notes.'} onPress={() => setPage('workspace')} />
+        {/* Where it was written, last of where it sits (core/location.ts): the tag added or taken off, and why it can't be here. */}
+        {location ? (
+          location.tag ? (
+            <SheetRow icon={Locate} label="Remove location" hint={tagLabel(location.tag)} onPress={location.onRemove} />
+          ) : (
+            <SheetRow icon={Locate} label="Add my location" hint={locationHint(location)} onPress={location.can.ok ? location.onAdd : undefined} />
+          )
+        ) : null}
       </SheetGroup>
 
       {links.length || actions.length ? (

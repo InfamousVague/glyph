@@ -3,6 +3,8 @@ import type { EditorView } from '@codemirror/view';
 import type { ToastOptions } from '@glacier/react';
 import { landingLine, takeOut, type CaptureLanding } from '../capture/landing.ts';
 import { dropRefine, holdNote } from '../capture/refine.ts';
+import { withGeoTag } from '../core/geotag.ts';
+import { setPendingTag } from '../core/location.ts';
 import { undoCommandMutation } from '../core/store.ts';
 
 /**
@@ -42,10 +44,15 @@ export function useLanding(
       const open = editor.current;
       if (landing.blocks.length) {
         if (open) {
-          const out = takeOut(open.state.doc.toString(), landing.blocks);
+          const doc = open.state.doc.toString();
+          const out = takeOut(doc, landing.blocks);
           missing = out.missing;
           if (out.changes.length) {
-            open.dispatch({ changes: out.changes.map((change) => ({ ...change, insert: '' })), userEvent: 'delete' });
+            // A note left with nothing but where it was written (core/geotag.ts) is not left behind: its tag goes in
+            // the same step, so one undo brings the words and the tag back together.
+            const rest = [...out.changes].sort((a, b) => b.from - a.from).reduce((text, change) => text.slice(0, change.from) + text.slice(change.to), doc);
+            const bare = rest.trim() && withGeoTag(rest, null).trim() === '' ? withGeoTag(rest, null) : null;
+            open.dispatch({ changes: bare !== null ? { from: 0, to: doc.length, insert: bare } : out.changes.map((change) => ({ ...change, insert: '' })), userEvent: 'delete' });
             removed = true;
           }
         } else {
@@ -58,6 +65,8 @@ export function useLanding(
       }
       // Only for words taken out of this note: the better words of what stays in it still come.
       if (removed && landing.fromMs !== undefined) dropRefine(noteId, landing.fromMs);
+      // And a tag waiting for those words is not written after them (core/location.ts).
+      if (removed) setPendingTag(noteId, null);
       // After the pressed toast has gone, which pressing its action does just after this returns.
       await Promise.resolve();
       if (missing) toast({ message: `${landing.title} has changed since, so it was left as it is.`, duration: 5000 });
