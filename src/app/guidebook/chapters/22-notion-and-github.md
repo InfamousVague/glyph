@@ -66,9 +66,9 @@ A linked to-do and its task agree on done, both ways:
 
 A box you set by hand stays as you set it until the task itself changes again, so the note never argues with you. A board with no status and no checkbox has nothing to write to, and the box stays as you set it.
 
-### Not by voice, at this version
+### Not by voice
 
-The Notion card still lists voice commands, but a finished recording no longer runs them. Said while recording, "send that to Notion" sends nothing. On its own it stays in the note as words. After Hey Ghost, in a note you are adding to, it is taken as an ask of the AI. The recorder can still suggest it in a pause, but the suggestion is out of date. Send from the note instead.
+Notion is reached from the note: swipe an item, tap the quiet **Notion** after it, or **Send list to Notion**. A recording sends nothing to Notion. Said while recording, "Hey Ghost, send that to Notion" is read as words for a note called Notion, and with no such note the chip says so and the words stay where you are.
 
 ## GitHub
 

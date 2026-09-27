@@ -14,8 +14,9 @@ import { lowerFirst } from '../core/text.ts';
  * (capture/liveRoute.ts), so a tip is always something that works: words for a
  * note you name, moving the recording, a new note. The routing tip names one of
  * your own notes, which teaches the command better than a made-up title. Tables,
- * books and a board's lanes are not taught: a recording no longer carries them
- * out (docs/DESIGN.md §126).
+ * books and voice memos are not taught: a recording does not make them
+ * (docs/DESIGN.md §127). Nor, yet, is "add … to Doing" said on a board's own
+ * Speak, which the live reader does carry out into that lane.
  *
  * The asks the AI takes (`ASKS`) are on the card alone, and only when the
  * recording is a note's own Speak: an ask is read from the whole take

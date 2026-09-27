@@ -117,7 +117,7 @@ export interface MarkRow {
   css?: string;
   /**
    * Said while recording, where there is a way to say it: a cue (capture/markdown.ts), never a "Hey Ghost" command,
-   * since the recorder acts on only two of those at Done and neither makes a mark. guide/marks.test.ts says each
+   * since a command puts words into a note or makes a list, and none makes a mark. guide/marks.test.ts says each
    * phrase to the recorder and holds it to the mark it writes.
    */
   say?: string;

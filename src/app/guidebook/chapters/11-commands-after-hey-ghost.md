@@ -86,7 +86,7 @@ The words are not written into the note, and the note opens with the AI working 
 
 ## What a recording does not do
 
-Tables, books, chapters and a board's cards are not made by voice in this version. Opening a new recording, “Hey Ghost, add a table to Work” or “make a book called …” is kept as the note's words, without the keyword, and the chip says a recording cannot do that. In the middle of a recording it is taken as an ask for the AI, and runs on the note that opens after Done. A voice memo said aloud (“Voice memo … end memo”) is words. [[Where the docs and the code disagree]] lists the places that still promise them.
+A recording makes no table, book or chapter, makes no board and moves no card, and keeps no voice memo. Opening a new recording, “Hey Ghost, add a table to Work” or “make a book called …” is kept as the note's words, without the keyword, and the chip says a recording cannot do that. In the middle of a recording it is taken as an ask for the AI, and runs on the note that opens after Done. “Voice memo … end memo” is written down as words. On a board's own Speak, a lane is named like a heading: “Hey Ghost, add call Sam to Doing” puts a card in Doing as you say it ([[Boards made of list items]]).
 
 ## Read next
 

@@ -55,7 +55,7 @@ Done: launch-date
 | `columns.ts` | Columns as data: a card moved, dropped or taken off; ticked cards drawn in Done |
 | `settle.ts` | A tick carried to every fence, so the Markdown agrees with the boxes |
 | `make.ts` | Boards and cards made from a note's own lists: `boardFrom`, `boardFromList`, `addToBoard`, `newCard` |
-| `lanes.ts` | Lanes found and filled by voice: `lanesOf`, `matchLane`, `addToLane`, `moveToLane` |
+| `lanes.ts` | Lanes found by name and filled: `lanesOf` and `addToLane`, for "add … to Doing" said on a board's own Speak; and `matchLane` and `moveToLane`, which nothing in the app calls now |
 
 Every transform answers new text or new columns and never changes what it was given. `readBoard` reads an id loosely (`Fix Login` is `fix-login`, but only when the note has that anchor) and `writeBoard` writes it the one way. An id in two lanes belongs to the first.
 

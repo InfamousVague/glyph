@@ -124,11 +124,11 @@ Straight after a mark, “note Sam said so, end note” adds what the mark means
 
 ## A voice memo
 
-The tips in a pause still offer “Voice memo … end memo”, but in this version the recorder does not act on it. The words “voice memo”, what follows and “end memo” are written down like any others, and no clip is kept. A voice memo already in a note still plays where it sits. [[Pictures and voice memos]] has the rest, and [[Where the docs and the code disagree]] lists this among the promises the recorder does not keep yet.
+There is no cue for one. The words “voice memo”, what follows and “end memo” are written down like any others, and no clip is kept. A voice memo already in a note still plays where it sits: [[Pictures and voice memos]] has the rest.
 
 ## What has no cue
 
-There is no spoken cue for a table, a picture, a diagram or a board. The cheat sheet's table of marks offers “Hey Ghost, add a table to this note” and “Hey Ghost, make this a board”, but a finished recording carries out neither; [[Commands after Hey Ghost]] says what happens to them. Type those afterwards.
+There is no spoken cue for a table, a picture, a diagram or a board. Add them afterwards: a table typed with pipes or from Style › Table, a board from More › Make a board. [[Commands after Hey Ghost]] says what happens to a command that asks for one.
 
 ## Read next
 

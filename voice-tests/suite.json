@@ -1505,7 +1505,7 @@
     {
       "file": "075-continue-the-last-note",
       "group": "Recording",
-      "tests": "Memo mode: a new take continues the last note; a title becomes a heading.",
+      "tests": "A note’s own Speak: the take goes on the end of the note; a title becomes a heading.",
       "setup": "continue:Weekend trip",
       "prefs": {},
       "lines": [

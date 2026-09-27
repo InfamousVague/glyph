@@ -142,7 +142,7 @@ at from a column, from a sentence, or from another note.
   read and write both pieces: `src/app/core/boards/items.ts` (anchors, words, boxes and pointers in prose),
   `src/app/core/boards/fence.ts` (the fence and its height), `src/app/core/boards/columns.ts` (cards moved, dropped
   and drawn in Done), `src/app/core/boards/settle.ts` (a tick carried to every fence), `src/app/core/boards/make.ts`
-  (boards made from a note's lists) and `src/app/core/boards/lanes.ts` (lanes by voice). Only they know the fence's
+  (boards made from a note's lists) and `src/app/core/boards/lanes.ts` (lanes by name). Only they know the fence's
   syntax. The item line's - its marker, box, bookmark, mark, counters and anchor - is spelled once, in
   `src/app/core/itemSyntax.ts`, and boards read it from there, as does everything else in `src/app` that reads a list
   line: ticking a box, Done following a Notion task, the Notion and GitHub links, the recorder adding to a list.
@@ -169,38 +169,25 @@ at from a column, from a sentence, or from another note.
 
 ## By voice
 
-Matt: "add voice commands and cues for adding to swimlanes on the board". These are built, but a recording made in
-the app no longer runs them. Since the instruction-aware commands of DESIGN §114, the recorder reads a command once,
-from the whole recording, when Done is pressed, and a finished recording may only add to a note or make a new list.
-Neither command below is recognised there. A move is not a command at Done at all, since "move" is not one of the
-words a command there starts with. A lane is not either: the lane rule needs the board being recorded into, and Done
-does not pass it (`src/app/capture/finalInstruction.ts`), so "Hey Ghost, add call Sam to Doing" is read as an addition
-to a note called Doing, which the on-device model may offer when there is one or refuse when there is not. Words that
-end up as no command at all, after "Hey Ghost" and said into an open note, open that note with an AI ask carrying
-them; otherwise they are the note's words (docs/instruction-voice-commands.md). The rules below are still read a
-phrase at a time by `src/app/capture/take.ts`, which the voice test suite drives (docs/VOICE_TESTS.md), and are what
-a board by voice would do once the recorder takes them again.
-
-While a note with a board is being recorded into, a lane is named the way a note is, and the recorder asks before it
-acts:
+Matt: "add voice commands and cues for adding to swimlanes on the board". One of them is carried out, while a
+recording is writing to a note with a board, as on the board's own Speak:
 
 | Say | What happens |
 | --- | --- |
-| "Hey Ghost, add *words* to *lane*" | A new to-do with those words, its card at the top of that lane. "Hey Ghost, add call Sam to Doing." |
-| "Hey Ghost, move *item* to *lane*" | The item the words name moves to that lane; into Done it is ticked, out of Done unticked. "Hey Ghost, move the pricing page to the Done column." |
-| "Hey Ghost, make this a board" | The note's list becomes a board, as More → **Make a board** does. |
+| "Hey Ghost, add *words* to *lane*" | A new to-do with those words, its card at the top of that lane, drawn as it is said and stored at Done with the rest of the recording. "Hey Ghost, add call Sam to Doing." |
 
-A lane can be said with or without "the", "lane", "column" or "swimlane" around it. A lane wins over a note of the
-same name only when it is the better match. The recorder reads the command (`src/app/capture/command.ts`, plan
-kinds `lane`, `card` and `board`); `src/app/core/boards/lanes.ts` finds the lane and makes the change:
+The live reader (`src/app/capture/liveRoute.ts`) finds the lane as it finds a heading of the note being written to
+(`src/app/capture/noteFind.ts`), and the recorder's placing (`src/app/capture/place.ts`) adds the card with `lanesOf`
+and `addToLane` from `src/app/core/boards/lanes.ts`: a new to-do under the board's last item, named after its words,
+with its card at the top of the lane, as the **+** field does. Voice test 069 holds it. No tip or Things to say line
+teaches it yet.
 
-- `lanesOf(body)` lists every board's lanes, and `matchLane(spoken, lanes)` finds the one a name says - case,
-  spacing, hyphens, a leading "the" and a trailing "lane", "column" or "swimlane" aside, "finished" or "complete" for
-  Done - with a score on the same footing as a note's name, so a lane and a note called the same are weighed fairly.
-- `addToLane` writes a new to-do under the board's last item, named after its words, with its card at the top of the
-  lane, as the **+** field does.
-- `moveToLane` finds the list item the words best match (three words in five), names it if it has no anchor, and
-  moves its card to the end of the lane. Into Done its box is ticked, out of Done unticked, as a drag would.
+A card is not moved by voice and a board is not made by voice (DESIGN §127): drag the card, and use More → **Make a
+board**. "Hey Ghost, move the pricing page to Done" and "Hey Ghost, make this a board", said into a note's own Speak,
+open that note with an AI ask carrying the words; said as a fresh recording, they are saved as its words
+(docs/instruction-voice-commands.md). `matchLane` and `moveToLane` in `lanes.ts`, which weighed a lane by a spoken
+name and moved an item into it for the phrase-at-a-time reader that has gone, are kept, unused, until it is decided
+whether moving a card by voice comes back.
 
 ## On a phone
 

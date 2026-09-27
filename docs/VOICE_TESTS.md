@@ -32,16 +32,10 @@ command and is done: there is no "Yes." to confirm it any more. A command the li
 once, from the whole recording, at Done (`src/app/ai/instruction.ts`), which `src/app/capture/CaptureScreen.test.tsx`
 holds; docs/instruction-voice-commands.md is what each reader can do.
 
-**Retired tests.** A test of something the recorder no longer does is kept, with its recording, and skipped under its
-reason (`skip` in `voice-tests/suite.json`):
-
-| Test | Why it is skipped |
-|---|---|
-| 057 | A spoken "no": nothing is asked since the live reader; Not this note or Discard takes words back |
-| 063, 064, 065 | A table by voice: unreachable since PR #1; waiting on Matt |
-| 068 | A plugin by voice ("send that to Notion"): unreachable since PR #1 |
-| 070, 071 | Moving a card and making a board by voice: unreachable since PR #1 |
-| 072, 073 | A voice memo said aloud: `Take.listen` has not read the memo cue since PR #1; a follow-up |
+**Cut tests.** The tests of what the recorder no longer does went with it (DESIGN §127), and their numbers are not
+used again: 057 (a spoken "no"), 063 to 065 (a table), 068 (a plugin), 070 and 071 (moving a card, making a board),
+072 and 073 (a voice memo said aloud). `skip` in `voice-tests/suite.json` still holds a test back under its reason;
+none is held back now.
 
 **Matt's cases.** 093 to 100 are the ways "add a note to house to do's, the note is call an electrician…" was said and
 came out wrong before §126: in two phrases, with ", the note is", as "house chores", after "Hey, like", after "Hey
@@ -111,8 +105,7 @@ And a note whose title starts "AttackFM bug bash" should exist (any body). If it
 ## The target note
 
 After scripts 1 to 5, **Cabin weekend** should read like this (the exact wording of a number can differ; the
-marks cannot). No script makes a table any more: script 5 used to say one a piece at a time, and a finished
-recording does not take a table (docs/instruction-voice-commands.md).
+marks cannot). No script makes a table: a recording makes none (docs/instruction-voice-commands.md).
 
 ```markdown
 # Cabin weekend
@@ -332,8 +325,8 @@ Then tap the card to confirm the last.
 words arriving in its list, nothing stored until Done, and the note opening afterwards with "Added to Groceries" and
 Undo. A command naming a note that does not exist keeps the words in the recording's own note and says so.
 
-Tables, boards, books and moves of a card by voice are not in this script, because a recording does not run them
-(docs/instruction-voice-commands.md). The voice suite keeps their old tests, skipped with their reasons.
+Tables, books, a board made and a card moved by voice are not in this script, because a recording does not do them
+(docs/instruction-voice-commands.md, DESIGN §127).
 
 ## Script 6: prose that must stay prose, then silence
 

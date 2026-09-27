@@ -82,7 +82,7 @@ What to know before the walk.
   (`src/app/book/rowDrag.ts`): at once with a mouse, after a short hold on touch, so a scroll is still a scroll. The
   arrows stay for a place at a time.
 - **A book mark** on a note that is a chapter, in the list and on the home cards, so a page reads as a page.
-- **By voice:** the section below.
+- **Not by voice:** the section below.
 - **Writing is writing the note.** Every change from the view is a change to the book note's body, saved the way
   typing is, so the index behind the view and the view are one thing, and a book edited as Markdown in another app
   draws the same on the phone.
@@ -90,32 +90,17 @@ What to know before the walk.
   and their index, shipped as Markdown in `src/app/guidebook/` and read only when the row is pressed (DESIGN §125).
   Pressed again, it opens the book already there.
 
-## By voice
+## Not by voice
 
-Two commands, read by the rules in `src/app/capture/command.ts` and asked about before they act, as every command is.
-They are built, but a recording made in the app no longer runs them. Since DESIGN §114 the recorder reads a command
-once, from the whole recording, when Done is pressed (`src/app/ai/instruction.ts`), and a finished recording may only
-add to a note or make a new list. "Make a book called …" and "add a chapter to …" are turned down there without a
-word: after "Hey Ghost", said into an open note, they open that note with an AI ask carrying the words; said as a
-fresh recording, or without the keyword, they are saved as a note's words (docs/instruction-voice-commands.md). The
-phrase-by-phrase reader that runs them, `src/app/capture/take.ts`, is what the voice test suite drives
-(docs/VOICE_TESTS.md). What follows is what that reader does.
+A book is not made or filled by voice (DESIGN §127): make one with the **+** and add its chapters from its index.
 
-- **"Hey Ghost, make a book called Field guide"** makes the book note, empty with its index ready, beside the
-  recording, which carries on where it was. Pages can follow the name: "…with Trees, Birds and the work note", each a
-  note found by its spoken title or, when no note answers to it, a chapter still to write. Said without a name, the
-  recorder keeps listening for one. Only make, create, start, begin and new open a book: "add a book to my reading
-  list" is a book for a list.
-- **"Hey Ghost, add a chapter to the field guide"** and then its name, or the name in the same breath ("add a chapter
-  called Rivers to the field guide", "put Rivers in the field guide"). A book gets chapters, never words: whatever the
-  rules, or the phone's command model, would have placed in a book is read again as a chapter (`forBook`), so the
-  model's prompt need not know what a book is. "Add this to the field guide" and "move this to the field guide" make
-  the note being recorded a chapter. A chapter the book has, the book itself, or a note with no name yet is said and
-  not offered.
-- The card is the one a board's lane uses (*New chapter in Field guide*, *Add*); a book's card lists its pages. The
-  recorder still suggests "add a chapter to …" naming a book you have, or how to make one, in a pause and on its
-  Things to say card, although a finished recording runs neither: it hands the words to the AI or keeps them as the
-  note's.
+A book is never written into by voice either. Told to add words to one, the live reader
+(`src/app/capture/liveRoute.ts`) keeps them where the recording is and says why ("“Field guide” is a book, so the
+words stay here"), and no card offers a book. "Make a book called …" and "add a chapter to …" are read at Done by the
+rules in `src/app/capture/command.ts`, which take words said for a book as a chapter (`forBook`), only so that the
+reader can turn them down: after "Hey Ghost", said into an open note, they open that note with an AI ask
+carrying the words; said as a fresh recording, or without the keyword, they are saved as a note's words
+(docs/instruction-voice-commands.md).
 
 ## Chapter numbers
 
@@ -161,9 +146,7 @@ aren't drawn. It no longer lists the workspace's other notes.
 | `src/app/book/rowDrag.ts` | `useRowDrag`: rows lifted by a grip, in the index and the sheet |
 | `src/app/aside/aside.ts` | the right-hand aside's content: a book's index on its pages, a numbered chapter's run with no book, else nothing |
 | `src/app/book/chapterNumber.ts` | a chapter's number read from its title |
-| `src/app/capture/command.ts` | "make a book called …" and a chapter for a book named (`forBook`, `placedOn`) |
-| `src/app/capture/take.ts` | the chapter offer (the book's index with one more line) and the book offer |
-| `src/app/capture/CaptureScreen.tsx` | `makeBook`: the book note written beside the take |
+| `src/app/capture/command.ts` | "make a book called …" and a chapter for a book named, read so the reader at Done turns them down (`forBook`) |
 | `src/app/core/frontMatter.ts` | where a note's front matter ends, and `book:` and `title:` read and written (`frontMatterValue`, `withFrontMatterTitle`) |
 | `src/app/editor/NoteScreen.tsx` | a book note drawn as its index, with the Markdown a toggle away; a chapter's bar |
 | `src/app/notes/NewSheet.tsx`, `src/app/App.tsx` | the + makes one; a chapter's place is found for the screen |

@@ -55,7 +55,7 @@ Settings › Recording › Better words (on Android) is on by default. After you
 
 - It waits while the recorder is on screen, because both models need the same cores.
 - It only replaces the note's words if the note still reads exactly as Done saved it. If you have edited the note since, your edit wins.
-- It leaves out the commands you said, and puts voice memos back where they were.
+- It leaves out the commands you said.
 - If the app closed before it got to a recording, it runs the next time the app opens.
 - The first time it runs, it downloads the larger model, about 190 MB. Until that model is on the phone, or while Local only is on, notes keep the words they were heard with live.
 

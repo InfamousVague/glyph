@@ -50,7 +50,7 @@ A note with no recording has no tape. Its tools have a microphone instead, Talk 
 
 A voice memo is a stretch of a note's tape kept as sound: a tune, a name nobody can spell, somebody else's voice, the way a sentence was said. A memo already in a note plays where it sits.
 
-In this version the recorder does not make new ones. Saying "voice memo", then talking, then "end memo" writes all of those words into the note like any others, and no clip is kept, though the tips in a pause still suggest it ([[Saying the marks]], and [[Where the docs and the code disagree]]).
+The recorder does not make new ones. Saying "voice memo", then talking, then "end memo" writes all of those words into the note like any others, and no clip is kept.
 
 A clip on a bullet line is a bullet with a player on it. In the middle of a sentence it is a small player in the words. It is written like this:
 

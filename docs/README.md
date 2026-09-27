@@ -39,7 +39,7 @@ deploys, the signing keys and a move to another domain.
 
 | Page | What it is for | Read it when |
 | --- | --- | --- |
-| [instruction-voice-commands.md](instruction-voice-commands.md) | What a finished recording may do: the one reader, the safety and mutation boundaries, what happens to the recording, and how it is tested. | Changing what a spoken command can do. |
+| [instruction-voice-commands.md](instruction-voice-commands.md) | What a recording may do with a command: the two readers (the live reader as it is said, and the reader at Done), the safety and mutation boundaries, what happens to the recording, and how it is tested. | Changing what a spoken command can do. |
 | [VOICE_TESTS.md](VOICE_TESTS.md) | The voice suite (one recording per feature, checked from the scripts and from the audio) and a six-take walkthrough to play into the phone by hand. | Changing a cue or a command rule, or checking a build against real speech. |
 
 ## Art and the rest
@@ -110,6 +110,6 @@ Some parts of the app are described only in the header of the code that runs the
 | The Android build's switches (staging, dev, Play, signing) | `src-tauri/gen/android/app/build.gradle.kts` |
 | glyph-api's routes and environment | `server/src/main.rs` |
 | The native commands, by the generation that brought each | `NATIVE_GENERATION` in `src-tauri/src/ota.rs` |
-| The spoken cues, and the commands a recording reads | `src/app/capture/markdown.ts` with `src/app/capture/spoken/`; `src/app/ai/instruction.ts`, which decides what the recorder does with a command, `src/app/capture/finalInstruction.ts` and `src/app/capture/command.ts` |
+| The spoken cues, and the commands a recording reads | `src/app/capture/markdown.ts` with `src/app/capture/spoken/`; the live reader, `src/app/capture/liveRoute.ts` with `liveCommand.ts`, `noteFind.ts` and `place.ts`; and the reader at Done, `src/app/ai/instruction.ts` with `src/app/capture/finalInstruction.ts` and `src/app/capture/command.ts` |
 | The app's shell: its screens, tabs, trail and boot | `src/app/App.tsx` and `src/app/shell/` |
 | The settings kit and searching Settings | `src/app/settings/kit/settingsKit.tsx` and `src/app/settings/settingsSearch.ts` |
