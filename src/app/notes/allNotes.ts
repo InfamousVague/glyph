@@ -27,7 +27,7 @@ export interface Browse {
   archived: boolean;
   /**
    * Only the notes with a tape: every note with a recording, typed ones included, so nothing with a tape is
-   * unreachable. The home page's shelf shows eight (docs/DESIGN.md §127); "and N more" opens the page with this on,
+   * unreachable. The home page's shelf shows eight (docs/DESIGN.md §127); the Tapes heading's "See all" (§132) opens the page with this on,
    * which with a hundred recordings is the way to the ninety-second.
    */
   tapes: boolean;

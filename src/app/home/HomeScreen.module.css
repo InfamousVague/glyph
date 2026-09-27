@@ -1,12 +1,17 @@
 /*
  * The home page (HomeScreen.tsx): its glass bar, its scroller and its dock, which it took over from the notes list it
- * replaced, and then the date, the cards and the to-dos.
+ * replaced, and then the date, the headed groups of cards, the to-dos and the foot. One scale of four steps (docs/DESIGN.md
+ * §132): the date at xl, a group's heading at lg, a card's title at md (notes/NoteCard.module.css), and every other
+ * line at sm or xs in the third ink. Air between the groups is the page's white space (Matt: "no solid organization
+ * and use of white space").
  */
 
 .screen {
   position: relative;
   block-size: 100dvh;
   background: var(--glacier-bg);
+  /* Measured for the heading rows, which keep clear of the dock while the pane is narrow enough for it to cross the page (`.groupRow`). */
+  container: home-pane / inline-size;
 }
 
 /*
@@ -86,27 +91,114 @@
 }
 
 /*
- * The heading over a group on the page - Pinned, Tapes, Library, Recent, To do.
- * Spaced capitals a step below the titles, in the second ink, with the pin on
- * the Pinned one, the cassette on Tapes and the book on the Library: the one
- * mark for the whole group, so no card needs its own.
+ * A group: its heading row, then its cards. Air between groups is the page's white space (Matt: "no solid
+ * organization and use of white space"): space-8, and space-10 in the 60rem column, where the groups are wider than
+ * they are tall. The first group sits under whatever the head ends with, which leaves its own space-5. Before this,
+ * one space-6 stood between five groups under five whispered labels, and the eye had nowhere to start.
+ */
+.section + .section {
+  margin-block-start: var(--glacier-space-8);
+}
+
+@container home-page (min-width: 44rem) {
+  .section + .section {
+    margin-block-start: var(--glacier-space-10);
+  }
+}
+
+/* A digest phrase glides here: the heading lands under the glass bar, not behind it. */
+.section {
+  scroll-margin-block-start: calc(var(--app-safe-top) + var(--glacier-space-4));
+}
+
+/* The heading and, at the row's other end, the way to the rest of the group where there is one ("See all", "Show all 14"). */
+.groupRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+  margin: 0 0 var(--glacier-space-3);
+}
+
+/*
+ * The row's word ends before the dock's column, on a pane where the dock crosses the page: the page runs under the
+ * dock by design (§84, §97), and a card's corner may pass behind it, but a word to tap must not. Measured at 412x915
+ * with thirteen tapes: "See all" sat at x 334-390 under a dock at x 335-394, hidden on the first screen and whenever
+ * its heading scrolled through the dock's band; at 1280 with the sidebar docked "Show all" ended 49px under it. The
+ * dock reaches past the page's gutter by its ring, its two paddings and its inset less the gutter (55px at 412), and
+ * crosses the 60rem column until the pane is wider than the column by twice that (~1115px), so the line is the pane's
+ * width, not the column's: 70rem. Under it the row keeps that reach at its end, and a step of air.
+ */
+@container home-pane (max-width: 70rem) {
+  .groupRow {
+    padding-inline-end: calc(var(--app-ring) + var(--glacier-space-2) * 2 + var(--glacier-space-4) - var(--app-gutter) + var(--glacier-space-3));
+  }
+}
+
+/*
+ * The heading over a group on the page - Pinned, To do, Tapes, Library, Recent - a step above a card's title, in
+ * sentence case with the titles' tracking. It was spaced capitals a step below the titles (`.app-eyebrow`'s idiom),
+ * so nothing on the page was bigger than a card's title; the caps idiom stays in sheets and cards elsewhere.
  */
 .group {
   display: flex;
   align-items: center;
   gap: var(--glacier-space-2);
-  margin: var(--glacier-space-6) 0 var(--glacier-space-2);
-  font-size: var(--glacier-font-size-sm);
+  margin: 0;
+  font-size: var(--glacier-font-size-lg);
+  line-height: var(--glacier-leading-lg);
   font-weight: var(--glacier-font-weight-semibold);
-  letter-spacing: var(--app-tracking-caps-close);
-  text-transform: uppercase;
+  letter-spacing: var(--app-tracking-title);
+  color: var(--app-ink);
+}
+
+/*
+ * One mark per group, at the heading's own size, in the second ink so the word leads (Matt, §29g: "make the label
+ * more apparent for the group"). Every one is art/Icons.tsx's line, a 1em box with a 2.4 stroke: ~20px with a ~2px
+ * stroke, the dock's weight. The mismatch Matt saw was two kinds of icon on one row - the pin and the cassette at
+ * `font-size: 1.15em` of a 13px heading, ~15px, and the kit's lucide Book beside them at the width=24 it writes as an
+ * attribute, ignoring the em (docs/DESIGN.md §132).
+ */
+.groupMark {
+  flex: none;
   color: var(--app-ink-2);
 }
 
-/* The pin, once, on the heading: tilted the way it used to sit on each row. */
-.groupIcon {
-  font-size: 1.15em;
+/* The pin leans, the way it used to sit on each row (§29g); the other marks stand straight. */
+.groupMarkPin {
   transform: rotate(-12deg);
+}
+
+.groupName {
+  min-inline-size: 0;
+}
+
+/*
+ * How many, after the heading's word: "To do · 14", in a regular weight and the third ink, so the word still leads.
+ * The dot sits midway, the heading's gap on either side of it: with a margin of its own before the count, it stood
+ * 12px from the word and a space from the number, and read as the number's ("To do  · 7"). The foot's "All notes · 41"
+ * has a space each side; here the gap is the same each side.
+ */
+.count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-regular);
+  font-variant-numeric: tabular-nums;
+  color: var(--app-ink-3);
+}
+
+/*
+ * The word at the heading row's end: an `.app-word` (app.css) brought down to the row's height, with its tap room on
+ * the side away from the heading. Worn with `app-word` in the className, never composed: a composer overriding at
+ * equal weight loses on source order (stylesheets.test.ts).
+ */
+.groupWord {
+  flex: none;
+  min-block-size: var(--glacier-space-8);
+  padding: 0 0 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
 }
 
 .empty {
@@ -314,11 +406,69 @@
   container: home-page / inline-size;
 }
 
-/* Today, quietly, where the page begins: the one line that is about now rather than about a note. */
+/*
+ * Today, where the page begins: the page's one title, at xl, since a page with no title had nowhere for the eye to
+ * start. It was one small line in the second ink. The digest sits close under it; then the head's pieces each leave
+ * space-5 under themselves (the digest, the pills' and the notices' own margins), so the first heading sits space-5
+ * under whatever came last.
+ */
 .today {
-  margin: 0 0 var(--glacier-space-3);
+  margin: 0 0 var(--glacier-space-2);
+  font-size: var(--glacier-font-size-xl);
+  line-height: var(--glacier-leading-xl);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-title);
+  color: var(--app-ink);
+}
+
+/*
+ * The digest (HomeScreen.tsx, dashboard.ts `digest`): "5 to-dos open · Working on 2 tapes · 3 notes touched today",
+ * one line under the date in the second ink, wrapping on a phone. Each phrase that goes somewhere is a word to tap,
+ * at the line's own size and height rather than a whole tap target's; the middle dots between them are drawn after
+ * each phrase but the last, not typed, so a wrapped line ends with one and never begins with one (measured at 412px:
+ * three phrases wrap, and a dot at the head of the second line read as a bullet).
+ */
+.digest {
+  list-style: none;
+  margin: 0 0 var(--glacier-space-5);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--glacier-space-2);
   font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
   color: var(--app-ink-2);
+}
+
+.digest li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+}
+
+.digest li:not(:last-child)::after {
+  content: '·';
+  color: var(--app-ink-3);
+}
+
+/*
+ * A phrase that goes somewhere is a word in the first ink, at the quiet button's weight (app.css `.app-word`), so it
+ * reads apart from one that is only said ("Nothing waiting on you", the day's count) in the line's second ink: it
+ * inherited the line's ink and nothing said the digest was a row of quick actions. The mouse's cue is a line under it.
+ */
+.digestWord {
+  min-block-size: auto;
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--app-ink);
+}
+
+.digestWord:hover,
+.digestWord:focus-visible {
+  text-decoration: underline;
+  text-decoration-color: var(--app-ink-3);
+  text-underline-offset: 0.15em;
 }
 
 /*
@@ -344,24 +494,55 @@
   }
 }
 
-/* How many to-dos are open, beside the heading, in the heading's own quiet. */
-.count {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.7;
+/* A step more air between the home page's cards than the grid's (All notes keeps `.cards`' space-3 through its compose). */
+.section .cards {
+  gap: var(--glacier-space-4);
+}
+
+/*
+ * The To do card: every open to-do in one card on the note card's ground (notes/NoteCard.module.css .card), written
+ * out since this one is a column of rows and not a button. Second on the page, with the pinned cards' beats before
+ * it. The rows were eight hairlined lines at the page's foot; here they are rows in a card, with air and no rules.
+ * Measured in Chromium (docs/DESIGN.md §132): five two-line rows make a card 283px tall at 412px, 201px in two
+ * columns at the opened Fold's 1432px pane, and the whole card is on the cover screen's first screen under a pinned card.
+ * No wash on hover, unlike a note card or a tape card: nothing on it opens as a whole, only its rows.
+ */
+.todo {
+  padding: var(--glacier-space-4);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: color-mix(in oklch, var(--app-ink) 3%, transparent);
+  animation: arrive 360ms var(--glacier-ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 
 .tasks {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  gap: var(--glacier-space-3);
+}
+
+/* In the 60rem column the rows lay in two columns: a card of five one-line rows across 900px is a list with a lot of nothing to its right. */
+@container home-page (min-width: 44rem) {
+  .tasks {
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    column-gap: var(--glacier-space-6);
+  }
 }
 
 .task {
   display: flex;
   align-items: flex-start;
   gap: var(--glacier-space-3);
-  padding-block: var(--glacier-space-3);
-  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
 }
 
 /* The note's own box, as the editor draws a to-do: an empty square, ticked from here with one tap. */
@@ -410,7 +591,7 @@
   overflow-wrap: anywhere;
 }
 
-/* Which note it came from, so a to-do read out of its place still says where it lives. */
+/* Which note it came from and when that note was touched, "Kitchen · 2 hr ago": a to-do read out of its place still says where it lives. */
 .taskNote {
   font-size: var(--glacier-font-size-xs);
   color: var(--glacier-text-subtle);
@@ -419,19 +600,20 @@
   white-space: nowrap;
 }
 
+/* Past the forty rows "Show all" opens, the rest are counted, inside the card. */
 .more {
-  margin: var(--glacier-space-2) 0 0;
+  margin: var(--glacier-space-3) 0 0;
   font-size: var(--glacier-font-size-sm);
   color: var(--glacier-text-subtle);
 }
 
-/* The way to the grid of every note (notes/AllNotesScreen.tsx): the grid's mark, the words and the count, on one line. */
+/* The way to the grid of every note (notes/AllNotesScreen.tsx): the grid's mark (art/Icons.tsx Grid), the words and the count, on one line, a group's air above it. */
 .allNotes {
   display: flex;
   align-items: center;
   gap: var(--glacier-space-2);
-  margin-block-start: var(--glacier-space-6);
-  padding-block: var(--glacier-space-3);
+  margin-block-start: var(--glacier-space-8);
+  padding-block: var(--glacier-space-4);
   border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
   inline-size: 100%;
   text-align: start;
@@ -447,18 +629,19 @@
   flex: none;
 }
 
-/* Every to-do ticked (HomeScreen.tsx `allDone`): the ghost on its checkbox, and one line. */
+/* Every to-do ticked (HomeScreen.tsx `allDone`): the ghost on its checkbox, and one line, in the To do card. */
 .allDoneArt {
-  margin-block: var(--glacier-space-2) var(--glacier-space-3);
+  margin-block: 0 var(--glacier-space-2);
 }
 
 .allDoneWords {
-  margin: 0 0 var(--glacier-space-6);
+  margin: 0;
   font-size: var(--glacier-font-size-md);
   color: var(--glacier-text-muted);
 }
 
-/* The Tapes' and the Library's marks stand straight; the pin above them leans. */
-.groupIconStill {
-  font-size: 1.15em;
+@media (prefers-reduced-motion: reduce) {
+  .todo {
+    animation: none;
+  }
 }

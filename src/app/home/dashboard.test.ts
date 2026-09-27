@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
-import { bookNotes, isTape, openTasks, pinnedNotes, recentNotes, tapedNotes, tickedTasks } from './dashboard.ts';
+import { bookNotes, digest, isTape, openTasks, pinnedNotes, recentNotes, startOfToday, summaryKindOf, tapedNotes, tapesWaiting, tickedTasks, touchedToday } from './dashboard.ts';
 import { bookNoteBody } from '../book/book.ts';
 import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
 
@@ -100,6 +100,13 @@ describe('the shelf of tapes', () => {
     expect(tapedNotes([meeting, recorded('r', 30)], { m: 40 }).map((n) => n.id)).toEqual(['m', 'r']);
   });
 
+  it('asks the queue for a meeting’s write-up for a meeting, and a recording’s for anything else', () => {
+    const meeting = makeNote('m', '# Meeting', { source: 'editor', recordingMs: 3_600_000 });
+    expect(summaryKindOf(meeting, { m: 40 })).toBe('meeting');
+    expect(summaryKindOf(meeting, none)).toBe('recording');
+    expect(summaryKindOf(recorded('r', 30), { m: 40 })).toBe('recording');
+  });
+
   it('keeps a pinned tape on the shelf as well as in Pinned, since pinning is a deliberate act', () => {
     const pinned = recorded('p', 10, { starred: true });
     expect(tapedNotes([pinned], none).map((n) => n.id)).toEqual(['p']);
@@ -119,6 +126,69 @@ describe('the shelf of tapes', () => {
     const recent = recentNotes(notes, 10, { meeting: 20 }).map((n) => n.id);
     expect(shelf.filter((id) => recent.includes(id))).toEqual([]);
     expect([...shelf, ...recent].sort()).toEqual(['meeting', 'plain', 'tape', 'typed']);
+  });
+});
+
+describe('the digest', () => {
+  const none = { pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() };
+  const set = (...ids: string[]) => new Set(ids);
+
+  it('counts the notes touched since the local day began, the archive and the Guide out', () => {
+    // A Wednesday at 10:30, local time.
+    const now = new Date(2026, 8, 23, 10, 30).getTime();
+    const midnight = new Date(2026, 8, 23, 0, 0, 0, 0).getTime();
+    expect(startOfToday(now)).toBe(midnight);
+    // The Guide's pages are out, as everywhere on the page, and so is its book: added this morning, it would be the
+    // newest note of all, and not one the person touched.
+    const guide = makeNote('guide', bookNoteBody(GUIDE_TITLE, ['Your first note']), { updatedAt: now - 60_000 });
+    const notes = [
+      makeNote('at-midnight', '# A', { updatedAt: midnight }),
+      makeNote('just-before', '# B', { updatedAt: midnight - 1 }),
+      makeNote('this-morning', '# C', { updatedAt: now - 60_000 }),
+      makeNote('gone', '# D', { updatedAt: now, archivedAt: now }),
+      guide,
+      makeNote('first', '# Your first note', { updatedAt: now }),
+    ];
+    expect(touchedToday(notes, now)).toBe(2);
+  });
+
+  it('counts what is waiting on the tapes once each, working before needing a model before failed', () => {
+    const tapes = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => makeNote(id, `# ${id}`, { source: 'capture', recordingMs: 40_000 }));
+    const waiting = tapesWaiting(tapes, {
+      refining: set('a'),
+      summaries: { pending: set('b', 'e'), native: set('c'), needsModel: set('d', 'e'), failed: set('d', 'f') },
+    });
+    expect(waiting).toEqual({ working: 4, needsModel: 1, failed: 1 });
+    expect(tapesWaiting(tapes, { refining: set(), summaries: none })).toEqual({ working: 0, needsModel: 0, failed: 0 });
+    // Only the tapes given: a note in a queue but not on the page is not counted.
+    expect(tapesWaiting([], { refining: set('a'), summaries: none })).toEqual({ working: 0, needsModel: 0, failed: 0 });
+  });
+
+  it('says each phrase that is true, in its order, with where it goes', () => {
+    expect(digest({ open: 5, waiting: { working: 2, needsModel: 1, failed: 1 }, touched: 3 })).toEqual([
+      { text: '5 to-dos open', go: 'tasks' },
+      { text: 'Working on 2 tapes', go: 'tapes' },
+      { text: '1 tape needs a model', go: 'model' },
+      { text: '1 summary didn’t come', go: 'tapes' },
+      // The day's count is said, not a word: the notes it counts are all over the page, not in one group.
+      { text: '3 notes touched today', go: null },
+    ]);
+  });
+
+  it('speaks in the singular for one, and in the plural for more', () => {
+    expect(digest({ open: 1, waiting: { working: 1, needsModel: 2, failed: 2 }, touched: 1 }).map((p) => p.text)).toEqual([
+      '1 to-do open',
+      'Working on 1 tape',
+      '2 tapes need a model',
+      '2 summaries didn’t come',
+      '1 note touched today',
+    ]);
+  });
+
+  it('says nothing is waiting when none of the waiting phrases are true, and leaves out a count of nothing', () => {
+    expect(digest({ open: 0, waiting: { working: 0, needsModel: 0, failed: 0 }, touched: 0 })).toEqual([{ text: 'Nothing waiting on you', go: null }]);
+    expect(digest({ open: 0, waiting: { working: 0, needsModel: 0, failed: 0 }, touched: 2 }).map((p) => p.text)).toEqual(['Nothing waiting on you', '2 notes touched today']);
+    expect(digest({ open: 3, waiting: { working: 0, needsModel: 0, failed: 0 }, touched: 0 }).map((p) => p.text)).toEqual(['3 to-dos open']);
   });
 });
 

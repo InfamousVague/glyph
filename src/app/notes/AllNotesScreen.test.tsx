@@ -85,7 +85,7 @@ describe('the All notes page', () => {
     type(page, 'typed');
     expect(page.textContent).toContain('1 of 2');
     unmount();
-    // From the shelf's "and N more": the page opens with the word already on.
+    // From the home page's Tapes heading, its "See all": the page opens with the word already on.
     const opened = showNotes(notes, () => {}, () => {}, true);
     expect(cardTitles(opened)).toEqual(['Spoken', 'Typed then spoken']);
     expect(opened.querySelector('button[aria-pressed="true"]')?.textContent).toContain('Tapes · 2');

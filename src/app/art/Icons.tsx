@@ -109,9 +109,37 @@ export function Pin({ className }: IconProps) {
 /**
  * A cassette: the shell of the tape on the home page's shelf (tapes/TapeArt.tsx) in the icon's own line weight, with
  * its two reels. On the Tapes heading the way the pin sits on Pinned, and on All notes' Tapes toggle (docs/DESIGN.md §127).
+ *
+ * The reels are r 3 of 24, set wider apart than they were (r 2.75 at 8 and 16). At the old heading's 15px a 2.75 hole
+ * closed to a dot inside its 2.4 stroke and the mark read filled beside the Library's open book (docs/DESIGN.md §132);
+ * at 20px, r 3 leaves a hole ~3px across, a ring and not a dot.
  */
 export function Cassette({ className }: IconProps) {
-  return icon(className, 'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM10.75 12a2.75 2.75 0 1 1-5.5 0 2.75 2.75 0 0 1 5.5 0zM18.75 12a2.75 2.75 0 1 1-5.5 0 2.75 2.75 0 0 1 5.5 0z');
+  return icon(className, 'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM10.4 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM19.6 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z');
+}
+
+/** A to-do's box with its tick, for the To do heading on the home page: the square the editor draws, ticked. */
+export function TickBox({ className }: IconProps) {
+  return icon(className, 'M4.5 4.5h15v15h-15zM8.3 12.3l2.6 2.6 4.9-5.3');
+}
+
+/**
+ * A book, closed, seen from its fore-edge: the spine's curve and the cover. For the Library heading on the home page,
+ * drawn here rather than taken from the kit: the kit's lucide Book writes width=24 and stroke-width=2 as attributes and
+ * ignores the em it is set in, which is how it drew 24px and thin beside a 15px cassette (docs/DESIGN.md §132).
+ */
+export function Book({ className }: IconProps) {
+  return icon(className, 'M4.5 19.5v-15A2.5 2.5 0 0 1 7 2h12.5v20H7a2.5 2.5 0 0 1 0-5h12.5');
+}
+
+/** A clock at twenty past two, for the Recent heading: the notes touched last. */
+export function Clock({ className }: IconProps) {
+  return icon(className, 'M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18zM12 7.5V12l3 2');
+}
+
+/** Four squares: the grid of every note (notes/AllNotesScreen.tsx), on the home page's "All notes" foot. */
+export function Grid({ className }: IconProps) {
+  return icon(className, 'M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z');
 }
 
 /** An archive box: a lid, the box, and the handle slot. */

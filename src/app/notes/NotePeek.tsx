@@ -180,9 +180,14 @@ export const NotePeek = memo(function NotePeek({ body, className }: NotePeekProp
   }, [drawn, kept, key, markdown, redraw]);
 
   if (!markdown) return null;
-  // Before the editor: a blank about as tall as the lines it will draw, so the cards do not jump as they fill in.
+  // Before the editor: a blank about as tall as the lines it will draw, so the cards do not jump as they fill in; and
+  // once the editor has gone, one as tall as it stood. Held as a minimum as well as a size: a card's column gives the
+  // peek `flex: 1` (notes/NoteCard.module.css), whose basis of 0% wins over a block-size, and the blank folded to
+  // nothing (measured on the home page: a pinned card 197px tall while drawn and 128px once scrolled past, so a glide
+  // down the page, aimed before the card left the screen, landed 69px short and put the heading behind the bar).
   const lines = Math.min(PEEK_LINES, markdown.split('\n').filter((line) => line.trim()).length);
-  const style = drawn ? undefined : { blockSize: stood !== null ? `${stood}px` : `calc(var(--app-body) * 1.6 * ${lines})` };
+  const held = stood !== null ? `${stood}px` : `calc(var(--app-body) * 1.6 * ${lines})`;
+  const style = drawn ? undefined : { blockSize: held, minBlockSize: held };
   const peek = className ? `${styles.peek} ${className}` : styles.peek;
   // Drawn before: the kept drawing is the card's own HTML, what its editor drew, with no editor behind it.
   if (drawn && kept !== undefined) {

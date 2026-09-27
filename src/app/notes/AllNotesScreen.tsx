@@ -25,7 +25,8 @@ import styles from './AllNotesScreen.module.css';
  * the home page draws (notes/NoteCard.tsx), in its grid - one to a row on a phone, three or four on the Fold opened out,
  * four in a desktop window - with a search over the notes' words in the bar, the workspace pills choosing which notes, the order
  * (last touched, or by name), the archive shown when asked for, and only the notes with a tape when the Tapes word is
- * on (docs/DESIGN.md §127: the home page's shelf shows eight, and its "and N more" opens this page with Tapes on). A
+ * on (docs/DESIGN.md §127, §132: the home page's shelf shows eight, and the Tapes heading's "See all" opens this page
+ * with Tapes on). A
  * tap on a card opens the note; the arrow, the phone's back gesture and the tab row's house all go home.
  *
  * The rules - what the search finds, the order, the archive, the tapes - are notes/allNotes.ts, which the tests read.
@@ -37,7 +38,7 @@ interface AllNotesScreenProps {
   onOpen: (id: string) => void;
   /** Home. */
   onBack: () => void;
-  /** Opened with the Tapes word already on, from the shelf's "and N more". */
+  /** Opened with the Tapes word already on, from the home page's Tapes heading, its "See all". */
   tapes?: boolean;
 }
 

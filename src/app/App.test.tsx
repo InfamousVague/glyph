@@ -402,11 +402,11 @@ describe('the shelf of tapes', () => {
     }
   }
 
-  it('sends "and N more" to All notes with only the tapes showing', async () => {
+  it('sends the Tapes heading’s See all to All notes with only the tapes showing', async () => {
     await record(9);
     await openApp();
-    await waitUntil(() => expect(button('and 1 more in All notes')).toBeTruthy());
-    act(() => button('and 1 more in All notes').click());
+    await waitUntil(() => expect(button('See all')).toBeTruthy());
+    act(() => button('See all').click());
     await waitUntil(() => expect(document.querySelector('ol[aria-label="Notes"]')).not.toBeNull());
     expect(document.querySelector('button[aria-pressed="true"]')?.textContent).toContain('Tapes · 9');
   });
