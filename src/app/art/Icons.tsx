@@ -161,3 +161,23 @@ export function Workspace({ className }: IconProps) {
 export function Board({ className }: IconProps) {
   return icon(className, 'M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5');
 }
+
+/**
+ * The pin's teardrop, on the 24 grid: where a note was written. One path for the drawn pin on the quiet map card and
+ * the marker on the map itself (editor/MapCard.tsx), so the two are one drawing; the dot inside is the map's own.
+ */
+export const PLACE_PATH = 'M12 21.5c-4.2-4.4-6.5-8-6.5-11a6.5 6.5 0 0 1 13 0c0 3-2.3 6.6-6.5 11z';
+
+/** A place: the pin, with its dot. The map card's mark. */
+export function Place({ className }: IconProps) {
+  return icon(className, `${PLACE_PATH}M12 10.5m-1.4 0a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0-2.8 0`);
+}
+
+/**
+ * My location: a ring with four short ticks, the sign every maps app uses for "where I am", which is what the row on
+ * a note's More sheet does (editor/NoteSettings.tsx). Not a second pin under "Pin to the top"; the teardrop stays for
+ * the card.
+ */
+export function Locate({ className }: IconProps) {
+  return icon(className, 'M18.5 12a6.5 6.5 0 1 1-13 0a6.5 6.5 0 0 1 13 0zM12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3');
+}

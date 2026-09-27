@@ -29,6 +29,8 @@ interface GlyphInbound {
   hinge?: (angle: number) => void;
   /** The screen went off during a recording: the side key was pressed to stop (native generation 12). */
   screenOff?: Handler;
+  /** Android answered the location prompt (native generation 20): the page reads `locationAccess` again (core/location.ts). */
+  location?: Handler;
 }
 
 interface GlyphHostBridge {
@@ -69,6 +71,13 @@ interface GlyphHostBridge {
   // The notes' folder (native generation 18). Optional for the same reason.
   /** Opens the notes' folder in the phone's Files app (files/LibraryDocuments.kt). */
   browseFiles?(): void;
+  // Location (native generation 20). Optional for the same reason; location/LocationAccess.kt.
+  /** Whether the app may know where the phone is: "granted", "approximate", "ask" or "blocked" (denied twice, or off for the app). */
+  locationAccess?(): string;
+  /** Raises Android's location prompt; the answer arrives as a `location` event, after which `locationAccess` is read again. */
+  requestLocation?(): void;
+  /** Opens the app's own page in the phone's settings, where a blocked location is allowed again; true if it opened. */
+  openLocationSettings?(): boolean;
 }
 
 declare global {
