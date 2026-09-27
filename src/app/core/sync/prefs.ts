@@ -24,6 +24,9 @@ const SYNCED_PREFS = [
   'commandWord',
   'review',
   'summaries',
+  // When a meeting is written up, and whether its audio syncs: the person's choices, whichever device made the meeting.
+  'writeUp',
+  'syncMeetingRecordings',
   'codeLight',
   'codeDark',
   'codeChosen',

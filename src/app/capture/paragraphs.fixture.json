@@ -1,0 +1,36 @@
+[
+  {
+    "name": "a breath between phrases joins them, and a pause of more than a second and a half breaks them",
+    "segments": [
+      { "text": "The first thought.", "startMs": 0, "endMs": 1000 },
+      { "text": "And more of it.", "startMs": 1300, "endMs": 2300 },
+      { "text": "A different one.", "startMs": 4000, "endMs": 5000 }
+    ],
+    "paragraphs": ["The first thought. And more of it.", "A different one."]
+  },
+  {
+    "name": "a spoken new paragraph breaks the paragraph and is taken out",
+    "segments": [
+      { "text": "One idea.", "startMs": 0, "endMs": 1000 },
+      { "text": "New paragraph. Another idea.", "startMs": 1300, "endMs": 2300 }
+    ],
+    "paragraphs": ["One idea.", "Another idea."]
+  },
+  {
+    "name": "a phrase after a finished sentence starts one, whatever case it arrived in, and the first letter is capitalised",
+    "segments": [
+      { "text": "we settled the date.", "startMs": 0, "endMs": 1000 },
+      { "text": "sam owns the press list.", "startMs": 1300, "endMs": 2300 }
+    ],
+    "paragraphs": ["We settled the date. Sam owns the press list."]
+  },
+  {
+    "name": "an empty phrase is skipped and does not break the paragraph",
+    "segments": [
+      { "text": "The date is set.", "startMs": 0, "endMs": 1000 },
+      { "text": "   ", "startMs": 1300, "endMs": 1500 },
+      { "text": "for the second week.", "startMs": 1800, "endMs": 2800 }
+    ],
+    "paragraphs": ["The date is set. For the second week."]
+  }
+]

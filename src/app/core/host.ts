@@ -29,6 +29,16 @@ interface GlyphInbound {
   hinge?: (angle: number) => void;
   /** The screen went off during a recording: the side key was pressed to stop (native generation 12). */
   screenOff?: Handler;
+  /**
+   * A meeting's service has something to say (native generation 20): it started, was muted or unmuted by another
+   * app, stopped, was discarded from its notification, could not start, or the microphone was granted or refused.
+   * JSON, one registrant (capture/meetingLive.ts), which parses it and fans it out.
+   */
+  meeting?: (json: string) => void;
+  /** A meeting's write-up finished, however it finished: JSON `{ id, outcome }` (ai/summaries.ts). */
+  recordingDone?: (json: string) => void;
+  /** The meeting's own notification prompt was answered: whether Ghost.md may notify may have changed (capture/meetingLive.ts). */
+  notified?: Handler;
 }
 
 interface GlyphHostBridge {
@@ -69,6 +79,34 @@ interface GlyphHostBridge {
   // The notes' folder (native generation 18). Optional for the same reason.
   /** Opens the notes' folder in the phone's Files app (files/LibraryDocuments.kt). */
   browseFiles?(): void;
+  // Meetings (native generation 20; docs/DESIGN.md §127 sections 3 to 5). Optional for the same reason: a page that
+  // arrived over the air can be running on a binary from before the service existed.
+  /**
+   * Start recording a meeting into `noteId`'s tape (capture/MeetingService.kt): "started", "permission" when the
+   * microphone has yet to be granted (the activity asks; the answer arrives as `meeting { event: "permission" }`),
+   * "recording" when a meeting is already being recorded, or a short reason it could not.
+   */
+  startMeeting?(noteId: string, title: string): string;
+  /** Done: the service stops recording and carries on as the write-up. */
+  stopMeeting?(): void;
+  /** The service stops and deletes the WAV; the page deletes the note itself. */
+  discardMeeting?(): void;
+  /** The meeting in hand and the write-ups, as JSON (capture/meetingLive.ts `MeetingState`). */
+  meetingState?(): string;
+  /** Ask to be allowed to notify: "allowed", "asked" (the answer arrives as `notified`) or "blocked". */
+  requestNotifications?(): string;
+  /** Whether a notification from Ghost.md would show at all. */
+  canNotify?(): boolean;
+  /** Queue the write-up of `noteId`, now or when the phone is charging: "queued", or why not. */
+  writeUp?(noteId: string, now: boolean): string;
+  /** Cancel one write-up, for a note put in the trash. */
+  cancelWriteUp?(noteId: string): void;
+  /** Cancel every write-up, before a reset. */
+  cancelWriteUps?(): void;
+  /** The page has deleted a note the notification's Discard threw away. */
+  forgetDiscarded?(noteId: string): void;
+  /** A `ghostmd://` link the activity was opened with, once; "" when there is none. */
+  takeLink?(): string;
 }
 
 declare global {
@@ -142,5 +180,115 @@ export function setCapturing(on: boolean): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+// ---- meetings (native generation 20) ---------------------------------------------------------
+//
+// Each call below reaches a method the activity may not have (an over-the-air page on an older APK) and answers a safe
+// default when it does not, as `setCapturing` does: the page never throws over a bridge it cannot see.
+
+/** What `startMeeting` answers where there is no service to start one: the page undoes and says this. */
+export const NO_MEETING_SERVICE = 'Meetings need the newest Ghost.md.';
+
+/** Ask the service to record a meeting into `noteId`'s tape; see `GlyphHostBridge.startMeeting` for the answers. */
+export function startMeetingOnHost(noteId: string, title: string): string {
+  try {
+    return window.GlyphHost?.startMeeting?.(noteId, title) ?? NO_MEETING_SERVICE;
+  } catch {
+    return NO_MEETING_SERVICE;
+  }
+}
+
+/** Done: the service stops recording and carries on as the write-up. */
+export function stopMeetingOnHost(): void {
+  try {
+    window.GlyphHost?.stopMeeting?.();
+  } catch {
+    // No host, or one from before meetings: nothing is recording.
+  }
+}
+
+/** The service stops and deletes the WAV; the note is the page's to delete. */
+export function discardMeetingOnHost(): void {
+  try {
+    window.GlyphHost?.discardMeeting?.();
+  } catch {
+    // As above.
+  }
+}
+
+/** The service's state as JSON text, or null where there is no service to ask. */
+export function meetingStateJson(): string | null {
+  try {
+    return window.GlyphHost?.meetingState?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export type NotificationsAnswer = 'allowed' | 'asked' | 'blocked';
+
+/** Ask to be allowed to notify. "blocked" where there is nobody to ask. */
+export function requestNotifications(): NotificationsAnswer {
+  try {
+    const answer = window.GlyphHost?.requestNotifications?.();
+    return answer === 'allowed' || answer === 'asked' ? answer : 'blocked';
+  } catch {
+    return 'blocked';
+  }
+}
+
+/** Whether a notification from Ghost.md would show. False where there is no host to say. */
+export function canNotify(): boolean {
+  try {
+    return window.GlyphHost?.canNotify?.() === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Queue `noteId`'s write-up, now or when the phone is charging. False where there is no service. */
+export function writeUpOnHost(noteId: string, now: boolean): boolean {
+  try {
+    return window.GlyphHost?.writeUp?.(noteId, now) === 'queued';
+  } catch {
+    return false;
+  }
+}
+
+/** Cancel one write-up: a note put in the trash. */
+export function cancelWriteUpOnHost(noteId: string): void {
+  try {
+    window.GlyphHost?.cancelWriteUp?.(noteId);
+  } catch {
+    // Nothing to cancel on this host.
+  }
+}
+
+/** Cancel every write-up, before a reset. */
+export function cancelWriteUpsOnHost(): void {
+  try {
+    window.GlyphHost?.cancelWriteUps?.();
+  } catch {
+    // As above.
+  }
+}
+
+/** The page has deleted a note the notification's Discard threw away, so the host can stop listing it. */
+export function forgetDiscardedOnHost(noteId: string): void {
+  try {
+    window.GlyphHost?.forgetDiscarded?.(noteId);
+  } catch {
+    // As above.
+  }
+}
+
+/** A `ghostmd://` link the activity was opened with, taken once; '' when there is none or nobody to ask. */
+export function takeHostLink(): string {
+  try {
+    return window.GlyphHost?.takeLink?.() ?? '';
+  } catch {
+    return '';
   }
 }

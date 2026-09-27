@@ -185,6 +185,20 @@ Write, and nothing else:
 - At most twelve items for this part. No heading, no numbered lists, no sentence before the items, no closing remark, no code fence.`;
 
 /**
+ * The line before a piece's words, and the line before the joined notes (ai/summaries.ts). Templates, with `{n}`,
+ * `{m}` and `{words}` for `fill` to put in, and `String.raw` literals so `src-tauri/src/llm/tests.rs` reads them by
+ * name and the phone's own write-up says the same words (src-tauri/src/write_up.rs `prompts`). The summary's length
+ * is measured against the recording, not the notes, and the line says so.
+ */
+export const PIECE_CONTEXT = String.raw`Part {n} of {m} of one recording.`;
+export const NOTES_CONTEXT = String.raw`These are notes on the parts of one recording, in order. The recording itself was about {words} words: the summary's length is measured against that, not against these notes.`;
+
+/** A template with its `{name}` slots filled: the one substitution both the page and Rust's `fill` make. */
+export function fill(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (slot, name: string) => (name in values ? String(values[name]) : slot));
+}
+
+/**
  * How much room the summary of a recording gets, from the transcript's length: a sixth of its tokens plus a little,
  * between a floor for a short take that still wants a heading, a sentence and a few items, and a ceiling that keeps
  * an hour's meeting to about two hundred words.

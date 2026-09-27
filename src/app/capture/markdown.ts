@@ -92,6 +92,52 @@ export function toParagraphs(segments: readonly Segment[]): string[] {
   return paragraphs;
 }
 
+// ---- a meeting's transcript --------------------------------------------------------------
+
+/** The heading a meeting's transcript is written under (docs/DESIGN.md §127 section 3). */
+export const TRANSCRIPT_HEADING = '## Transcript';
+
+/** The heading on a line of its own, wherever it is in the body. */
+const TRANSCRIPT_LINE = /^## Transcript[ \t]*$/m;
+
+/**
+ * A meeting's transcript: its paragraphs under `## Transcript`, no cues and no title, since a meeting is recorded
+ * rather than read (capture/meeting.ts). The phrase still being guessed, when there is one, ends the last paragraph.
+ * The twin of src-tauri/src/transcript.rs, which writes the same shape from the phone's own transcription; both are
+ * tested against paragraphs.fixture.json so they cannot drift.
+ */
+export function renderTranscript(segments: readonly Segment[], partial = ''): string {
+  const paragraphs = toParagraphs(segments);
+  const guess = partial.trim();
+  if (guess) {
+    const last = paragraphs.length - 1;
+    if (last >= 0) paragraphs[last] = `${paragraphs[last]} ${guess}`;
+    else paragraphs.push(guess);
+  }
+  return `${TRANSCRIPT_HEADING}\n\n${paragraphs.join('\n\n')}`;
+}
+
+/** The transcript section of a body, from its heading to the end, or null where there is none. */
+export function transcriptOf(body: string): string | null {
+  const at = TRANSCRIPT_LINE.exec(body)?.index;
+  return at === undefined ? null : body.slice(at).trimEnd();
+}
+
+/** The body with `transcript` (a whole section, heading and all) in place of the one it has, or on its end. */
+export function withTranscript(body: string, transcript: string): string {
+  const section = transcript.trimEnd();
+  const at = TRANSCRIPT_LINE.exec(body)?.index;
+  if (at !== undefined) return `${body.slice(0, at)}${section}`;
+  const before = body.trimEnd();
+  return before ? `${before}\n\n${section}` : section;
+}
+
+/** The body with its transcript section taken off, for telling a transcript that arrived from an edit (editor/useNoteSaving.ts). */
+export function withoutTranscript(body: string): string {
+  const at = TRANSCRIPT_LINE.exec(body)?.index;
+  return (at === undefined ? body : body.slice(0, at)).trimEnd();
+}
+
 interface Sentence {
   text: string;
 }
