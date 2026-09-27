@@ -182,8 +182,16 @@ impl Library {
             .unwrap_or(entry.modified_ms);
         let archived_at = front.text("archived").and_then(|t| parse_iso(&t)).or_else(|| front.flag("archived").then_some(entry.modified_ms));
         let sidecar = self.sidecar(&id);
-        self.index.execute("DELETE FROM notes WHERE path = ?1 OR id = ?2", rusqlite::params![entry.path, id])?;
-        self.index.execute(
+        // The row is replaced in one write transaction. Two handles are open in
+        // one process now (the app's, and a meeting's write-up on its own
+        // thread), and both scan the same files: as two autocommitted
+        // statements, the second handle's INSERT could land between the first's
+        // DELETE and INSERT and fail on the path's UNIQUE constraint. As one
+        // transaction it waits on SQLite's writer lock and replaces the row in
+        // its turn.
+        let tx = rusqlite::Transaction::new_unchecked(&self.index, rusqlite::TransactionBehavior::Immediate)?;
+        tx.execute("DELETE FROM notes WHERE path = ?1 OR id = ?2", rusqlite::params![entry.path, id])?;
+        tx.execute(
             &format!("INSERT INTO notes ({ROW_COLUMNS}, title, size) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"),
             rusqlite::params![
                 id,
@@ -203,6 +211,7 @@ impl Library {
                 entry.size as i64,
             ],
         )?;
+        tx.commit()?;
         Ok(())
     }
 
