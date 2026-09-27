@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, Hourglass } from '@glacier/icons';
 import { cancelRun, ended, runFor, useRun, type RunState } from '../ai/runs.ts';
+import { useSummaries } from '../ai/summaries.ts';
 import type { ReviewStage } from '../ai/useNoteReview.ts';
 import { clock, paceNumber } from '../ai/words.ts';
 import { withinWispBudget } from '../art/wispEdge.ts';
@@ -56,7 +57,11 @@ import styles from './AtWork.module.css';
  *
  * It never blocks anything. The strip and the note are under it, the review
  * carries on whether it is up or not, and the moment the run ends it begins
- * to leave, so the findings and the toast are seen landing. It is a child of
+ * to leave, so the findings and the toast are seen landing. One exception:
+ * while the summary queue holds a job for this note (ai/summaries.ts), a
+ * summary run may follow the review's, and the scene waits the grace for it
+ * after an end instead of the settle alone, then follows it as "Reading the
+ * recording" and "Writing the summary" (docs/DESIGN.md §127 section 2). It is a child of
  * the note screen on purpose and never navigates: leaving the note mid-review
  * drops the findings (useNoteReview's cleanup), so nothing here does. Back
  * closes it, armed one commit after the note's own handler so the first swipe
@@ -170,6 +175,8 @@ export function AtWork({ noteId, opening, heard, body, hasJob, stage, inline = f
   const run = useRun(noteId);
   const live = run && run.id !== current.ignoreId ? run : null;
   const refining = useRefining();
+  // A summary run may follow this one on the note: after an end, wait the grace for it rather than the settle alone.
+  const summaryDue = useSummaries().pending.has(noteId);
   const prefs = usePreferences();
   const wide = useWideScreen();
 
@@ -254,7 +261,7 @@ export function AtWork({ noteId, opening, heard, body, hasJob, stage, inline = f
         setSeen((was) => ({ ...was, leaving: true }));
         later(() => setSeen((was) => ({ ...was, shown: false, leaving: false })), LEAVE_MS);
       }, hold);
-    if (liveEnded || (over && !liveId)) leave(HOLD_MS);
+    if (liveEnded || (over && !liveId)) leave(liveEnded && summaryDue ? Math.max(HOLD_MS, GRACE_MS) : HOLD_MS);
     else if (!liveId) {
       if (sawStage) later(() => setSeen((was) => ({ ...was, ended: true })), GRACE_MS);
       // The one leave that fires on nothing having happened, so it asks again as it fires. Seen once in the browser
@@ -263,7 +270,7 @@ export function AtWork({ noteId, opening, heard, body, hasJob, stage, inline = f
       else leave(Math.max(0, openedAt + OPEN_GRACE_MS - Date.now()), () => seenSoFar.current.staged || seenSoFar.current.liveId !== null || seenSoFar.current.sawStage);
     }
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [shown, staged, hidden, liveId, liveEnded, over, sawStage, openedAt, key]);
+  }, [shown, staged, hidden, liveId, liveEnded, over, sawStage, openedAt, key, summaryDue]);
 
   // Since Done: wall time from the opening, a second at a time, paused while hidden and true again on return.
   const [now, setNow] = useState(Date.now);

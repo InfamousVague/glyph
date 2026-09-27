@@ -49,6 +49,12 @@ vi.mock('../capture/refine.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../capture/refine.ts')>()),
   useRefining: () => ({ pending: new Set<string>(), download: refining.download }),
 }));
+/** The summary queue: which notes have a summary on the way, so a run of it may follow the review's. */
+const summaries = vi.hoisted(() => ({ pending: new Set<string>() }));
+vi.mock('../ai/summaries.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../ai/summaries.ts')>()),
+  useSummaries: () => ({ pending: summaries.pending, native: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() }),
+}));
 
 const { AtWork } = await import('./AtWork.tsx');
 const { forgetAllRuns, runFor, startRun } = await import('../ai/runs.ts');
@@ -87,7 +93,7 @@ function hide(hidden: boolean): void {
 }
 
 /** The run started for note `n` on a fake that has not been told what to do yet. */
-async function start(kind: 'review' | 'ask' = 'review') {
+async function start(kind: 'review' | 'ask' | 'summarize' = 'review') {
   let handle!: ReturnType<typeof startRun>;
   await act(async () => {
     handle = startRun({ noteId: 'n', kind, model: 'qwen3.5-4b', system: 's', prompt: 'p', maxTokens: 1900, think: true });
@@ -101,6 +107,7 @@ beforeEach(() => {
   fakes.length = 0;
   haptics.length = 0;
   refining.download = null;
+  summaries.pending.clear();
   setPreferences({ wispEdge: true });
 });
 
@@ -281,6 +288,52 @@ describe('following the run', () => {
     await later(5000);
     expect(scene()).not.toBeNull();
     expect(title()).toBe('Loading Qwen3.5 4B.');
+  });
+
+  it('waits the grace for a summary run after the review’s while the queue holds one for the note, and follows it', async () => {
+    summaries.pending.add('n');
+    show(atWork({ stage: comparing }));
+    rerender(atWork({ stage: null }));
+    const first = await start();
+    await act(async () => {
+      first.fake.finish('[]\n');
+      await first.handle.done;
+    });
+    // Past the settle the scene is still there: a summary may follow.
+    await later(HOLD_MS + LEAVE_MS);
+    expect(scene()).not.toBeNull();
+    expect(scene()?.hasAttribute('data-leaving')).toBe(false);
+    const second = await start('summarize');
+    await act(async () => second.fake.report({ phase: 'prefill', promptTokens: 400, promptTokensDone: 100 }));
+    expect(working()).toBe('Reading the recording');
+    expect([...(scene()?.querySelectorAll('[data-state]') ?? [])].map((li) => li.textContent)).toContain('Writing the summary');
+    await act(async () => {
+      second.fake.finish('## Summary\nA line.\n');
+      await second.handle.done;
+    });
+    summaries.pending.clear();
+    rerender(atWork({ stage: null }));
+    await later(HOLD_MS + LEAVE_MS);
+    expect(scene()).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('leaves after the grace when no summary run comes, and after the settle alone when none is queued', async () => {
+    summaries.pending.add('n');
+    show(atWork({ stage: comparing }));
+    rerender(atWork({ stage: null }));
+    const { handle, fake } = await start();
+    await act(async () => {
+      fake.finish('[]\n');
+      await handle.done;
+    });
+    await later(GRACE_MS - 1);
+    expect(scene()?.hasAttribute('data-leaving')).toBe(false);
+    await later(1);
+    expect(scene()?.hasAttribute('data-leaving')).toBe(true);
+    await later(LEAVE_MS);
+    expect(scene()).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('takes the review as over when no run comes after the stage clears, says so, and leaves', async () => {
