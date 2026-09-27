@@ -110,6 +110,7 @@ With the Marks plugin on, as it is unless you switched it off in Settings › Pl
 | “highlight … end highlight” | `==…==` |
 | “aside … end aside” | `%%…%%` |
 | “unsure … end unsure” | `??…??` |
+| “redact … end redact” | `@@…@@` |
 | “shout … end shout” | `^^…^^` |
 | “added … end added” | `++…++` |
 | “heated … end heated” | `🔥🔥…🔥🔥` |

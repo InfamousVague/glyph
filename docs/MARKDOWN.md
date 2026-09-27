@@ -42,8 +42,13 @@ kit's own ramps (blue, red, amber, green, teal, purple, gray). A name the build 
 highlight and its brackets are the note they always were.
 
 Ghost.md's own marks are on top of that, each from the Marks plugin and switched off with it: `||spoiler||`,
-`==highlight==`, `%%aside%%`, `??unsure??`, `^^shout^^`, `++added++`, five effects, and a note on any of them in
-brackets — `??four hundred??(Sam said 400)`.
+`==highlight==`, `%%aside%%`, `??unsure??`, `@@redact@@`, `^^shout^^`, `++added++`, five effects, and a note on any
+of them in brackets — `??four hundred??(Sam said 400)`.
+
+A redaction is a solid bar of the page's ink over its words, lifted while the caret is in them so they can be read and
+edited; in the Formatted view the at signs are hidden and the bar stays. It is a look only: the words stay in the
+note, so a share, an export or any other app shows them between their `@@`. (Cut once as "the same as spoiler", and
+back at Matt's asking, 2026-09-26: the bar where the spoiler is smoke.)
 
 **Effects** are moving looks on words, and each is written as its emoji twice either side. The emoji is the effect's
 name, so a note read anywhere else still says what was meant.

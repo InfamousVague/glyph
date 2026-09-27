@@ -89,7 +89,7 @@ Saving is `editor/useNoteSaving.ts`. The live words are a ref, `body`, and only 
 ## Where the comments have fallen behind
 
 - `glyphLines.ts` says the editor never hides anything, and `links.ts` repeats it. The Formatted view hides marks, and the drawn blocks replace their Markdown while the caret is elsewhere.
-- `language.ts` and `wispFormat.ts` speak of "the Spoiler plugin". The spoiler is one of the Marks plugin's eleven formats.
+- `language.ts` and `wispFormat.ts` speak of "the Spoiler plugin". The spoiler is one of the Marks plugin's twelve formats.
 - `tables.ts` and `drawnBlock.ts` call the Formatted view one that cannot be edited, where a drawn block stays drawn, and `links.ts` calls the Formatted note read-only. On the note screen the Formatted view is editable, and a table steps aside for the caret there as it does in Markdown.
 
 ## Read next
