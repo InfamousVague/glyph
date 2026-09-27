@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { LoaderCircle } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { counter } from '../capture/tape.ts';
+import { hasTape } from './allNotes.ts';
 import { chaptersOf, isBookBody, type BookPlace } from '../book/book.ts';
 import { activeGist } from '../format/gist.ts';
 import { hasMarks } from '../ai/marks.ts';
@@ -44,7 +45,6 @@ export function NoteCard({ note, index, onOpen, gist, place, dense = false }: No
   const title = noteTitle(note.body);
   const book = isBookBody(note.body);
   const chapters = book ? chaptersOf(note.body) : [];
-  const tapeMs = note.recordingMs ?? 0;
   return (
     <li key={note.id} className={styles.item} data-dense={dense || undefined} style={{ '--i': Math.min(index, 8) } as CSSProperties}>
       <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
@@ -96,9 +96,9 @@ export function NoteCard({ note, index, onOpen, gist, place, dense = false }: No
           </>
         )}
         <span className={styles.when}>
-          {tapeMs > 0 ? (
+          {hasTape(note) ? (
             <>
-              <span className={styles.tapeLength}>{counter(tapeMs)}</span> ·{' '}
+              <span className={styles.tapeLength}>{counter(note.recordingMs ?? 0)}</span> ·{' '}
             </>
           ) : null}
           {when(note.updatedAt)}

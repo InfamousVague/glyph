@@ -3,6 +3,7 @@ import { itemOnLine, itemWords } from '../core/boards.ts';
 import { taskBox } from '../core/itemSyntax.ts';
 import type { Note } from '../core/store.ts';
 import { guidePages } from '../guidebook/guidebook.ts';
+import { hasTape } from '../notes/allNotes.ts';
 
 /**
  * What the home page gathers from the notes (home/HomeScreen.tsx): the pinned ones, the tapes on the shelf, the ones
@@ -26,10 +27,11 @@ export type Meetings = Readonly<Record<string, number>>;
 /**
  * A tape: a note with a recording that the recorder made (`source: 'capture'`), or a meeting (docs/DESIGN.md §127).
  * A note that was written and then talked into is a note, not a tape: it keeps its card in Recent, with the tape's
- * counter in its foot (notes/NoteCard.tsx). The one predicate for the shelf and for Recent, so nothing shows twice.
+ * counter in its foot (notes/NoteCard.tsx). The one predicate for the shelf and for Recent, so nothing shows twice;
+ * whether a note has a tape at all is All notes' `hasTape`, the one way that is written.
  */
 export function isTape(note: Note, meetings: Meetings): boolean {
-  return !note.archivedAt && (note.recordingMs ?? 0) > 0 && (note.source === 'capture' || note.id in meetings);
+  return !note.archivedAt && hasTape(note) && (note.source === 'capture' || note.id in meetings);
 }
 
 /**

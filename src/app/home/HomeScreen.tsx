@@ -66,6 +66,11 @@ interface HomeScreenProps {
 const RECENT = 6;
 const SHELF = 8;
 const TASKS = 8;
+/**
+ * How many beats the groups under the shelf wait for it: the two and a bit cassettes the cover screen shows, not all
+ * eight, or Recent's first card waited 320ms under an empty heading on every press of Home.
+ */
+const SHELF_BEATS = 3;
 
 export function HomeScreen({
   notes,
@@ -105,6 +110,7 @@ export function HomeScreen({
   // The tapes, the last recorded first; the shelf holds eight and says how many more there are (home/TapeShelf.tsx).
   const taped = useMemo(() => tapedNotes(shown, meetings), [shown, meetings]);
   const shelf = useMemo(() => taped.slice(0, SHELF), [taped]);
+  const shelfBeats = Math.min(shelf.length, SHELF_BEATS);
   const books = useMemo(() => bookNotes(shown), [shown]);
   /** Every page's book, for the cards' marks (book/book.ts). */
   const inBooks = useMemo(() => bookIndex(shown), [shown]);
@@ -187,7 +193,7 @@ export function HomeScreen({
                 <Book className={styles.groupIconStill} />
                 Library
               </h2>
-              <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length + shelf.length))}</ol>
+              <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length + shelfBeats))}</ol>
             </section>
           ) : null}
 
@@ -196,7 +202,7 @@ export function HomeScreen({
               <h2 id="home-recent" className={styles.group}>
                 Recent
               </h2>
-              <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length + shelf.length + books.length))}</ol>
+              <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length + shelfBeats + books.length))}</ol>
             </section>
           ) : null}
 

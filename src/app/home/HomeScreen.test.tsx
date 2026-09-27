@@ -3,7 +3,7 @@ import { act, type ComponentProps } from 'react';
 import { bookNoteBody } from '../book/book.ts';
 import type { Updates } from '../core/ota.ts';
 import { reloadPreferences } from '../core/preferences.ts';
-import { addWorkspace, chooseWorkspace } from '../core/workspaces.ts';
+import { addWorkspace, chooseWorkspace, fileNote } from '../core/workspaces.ts';
 import type { Note } from '../core/store.ts';
 import { bodyHash } from '../format/bodyHash.ts';
 import { keepGist } from '../format/results.ts';
@@ -68,6 +68,8 @@ describe('the home page', () => {
       ]),
     );
     expect(headings()).toEqual(['Pinned', 'Tapes', 'Library', 'Recent', 'To do']);
+    // The cassette mark on Tapes, the way the pin sits on Pinned.
+    expect(document.querySelector('#home-tapes svg')).not.toBeNull();
     // A page of a book says which on its card.
     expect(document.querySelector('[title="Page 1 of Trip"]')?.textContent).toBe('Trip');
   });
@@ -90,6 +92,14 @@ describe('the home page', () => {
     expect(cards('home-recent')).toEqual(['Typed then spoken']);
     expect(document.querySelector('section[aria-labelledby="home-recent"] [class*=tapeLength]')?.textContent).toBe('12:40');
     expect(document.body.textContent).not.toContain('more in All notes');
+  });
+
+  it('shelves only the chosen workspace’s tapes, as every group shows only its notes', () => {
+    const kitchen = addWorkspace('Kitchen')!;
+    fileNote('in', kitchen.id);
+    chooseWorkspace(kitchen.id);
+    show(page([recorded('in', 'Kitchen take', 2), recorded('out', 'Elsewhere', 3)]));
+    expect(shelved()).toEqual(['Kitchen take']);
   });
 
   it('shows eight tapes and sends the rest to All notes with its Tapes toggle on', () => {
