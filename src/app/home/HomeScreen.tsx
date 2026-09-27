@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Mic } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
@@ -11,6 +11,7 @@ import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { Book, Cassette, Clock, Cog, Grid, Magnifier, Pin, Plus, TickBox } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
+import { when } from '../notes/when.ts';
 import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { AcademyCard, RefiningNotice, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
@@ -72,11 +73,13 @@ interface HomeScreenProps {
 
 /**
  * How many of the notes touched last are shown (four: one row on a wide screen, and they run straight into "All
- * notes", which is their See all), how many tapes are on the shelf, and how many to-dos before the rest are counted instead.
+ * notes", which is their See all), how many tapes are on the shelf, how many to-dos the card holds until "Show all"
+ * is pressed, and how many it holds then, before the rest are counted instead.
  */
 const RECENT = 4;
 const SHELF = 8;
-const TASKS = 8;
+const TASKS = 5;
+const TASKS_OPEN = 40;
 /**
  * How many beats the groups under the shelf wait for it: the two and a bit cassettes the cover screen shows, not all
  * eight, or Recent's first card waited 320ms under an empty heading on every press of Home.
@@ -139,6 +142,11 @@ export function HomeScreen({
   const open = tasks.filter((t) => !ticked.has(`${t.noteId}:${t.line}`));
   // With none left open, a page that had to-dos says they are done; one that never had any says nothing.
   const allDone = !open.length && (ticked.size > 0 || tickedTasks(shown) > 0);
+  // "Show all 14": the card opens in place to forty rows. Folded again with the workspace, whose to-dos these are.
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => setShowAll(false), [workspace]);
+  // The To do card takes one beat between the pinned cards and the shelf.
+  const todoBeats = open.length || allDone ? 1 : 0;
 
   const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -182,7 +190,66 @@ export function HomeScreen({
             </section>
           ) : null}
 
-          {/* The tapes, as cassettes on a shelf (docs/DESIGN.md §127). No group while there are none. */}
+          {/*
+            What is waiting, in one card, second on the page: its tick is the page's one in-place action, and a
+            meeting's summary writes its `- [ ]` actions here (§127). Five rows, most recently touched note's first,
+            each with the note it lives in and when that note was touched; "Show all" opens the card to forty.
+          */}
+          {open.length ? (
+            <section className={styles.section} aria-labelledby="home-tasks">
+              <div className={styles.groupRow}>
+                <h2 id="home-tasks" className={styles.group}>
+                  <TickBox className={styles.groupMark} />
+                  <span className={styles.groupName}>To do</span>
+                  <span className={styles.count}>· {open.length}</span>
+                </h2>
+                {open.length > TASKS ? (
+                  <button type="button" className={`app-word ${styles.groupWord}`} onClick={() => setShowAll((was) => !was)}>
+                    {showAll ? 'Show fewer' : `Show all ${open.length}`}
+                  </button>
+                ) : null}
+              </div>
+              <div className={styles.todo} style={{ '--i': Math.min(pinned.length, 8) } as CSSProperties}>
+                <ul className={styles.tasks}>
+                  {open.slice(0, showAll ? TASKS_OPEN : TASKS).map((task) => (
+                    <li key={`${task.noteId}:${task.line}`} className={styles.task}>
+                      <button
+                        type="button"
+                        className={styles.box}
+                        aria-label={`Tick off ${task.text}`}
+                        onClick={() => {
+                          setTicked((was) => new Set(was).add(`${task.noteId}:${task.line}`));
+                          onTick(task);
+                        }}
+                      />
+                      <button type="button" className={styles.taskOpen} onClick={() => onOpen(task.noteId, task.at)}>
+                        <span className={styles.taskText}>{shortenUrls(task.text)}</span>
+                        <span className={styles.taskNote}>
+                          {titleOf.get(task.noteId)} · {when(task.touched)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {showAll && open.length > TASKS_OPEN ? <p className={styles.more}>and {open.length - TASKS_OPEN} more in your notes</p> : null}
+              </div>
+            </section>
+          ) : allDone ? (
+            <section className={styles.section} aria-labelledby="home-tasks">
+              <div className={styles.groupRow}>
+                <h2 id="home-tasks" className={styles.group}>
+                  <TickBox className={styles.groupMark} />
+                  <span className={styles.groupName}>To do</span>
+                </h2>
+              </div>
+              <div className={styles.todo} style={{ '--i': Math.min(pinned.length, 8) } as CSSProperties}>
+                <Ghost scene="all-ticked" size="small" className={styles.allDoneArt} />
+                <p className={styles.allDoneWords}>Every to-do is done.</p>
+              </div>
+            </section>
+          ) : null}
+
+          {/* The tapes, as cards on a shelf (docs/DESIGN.md §127). No group while there are none. */}
           {shelf.length ? (
             <section className={styles.section} aria-labelledby="home-tapes">
               <div className={styles.groupRow}>
@@ -210,7 +277,7 @@ export function HomeScreen({
                   <span className={styles.groupName}>Library</span>
                 </h2>
               </div>
-              <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length + shelfBeats))}</ol>
+              <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length + todoBeats + shelfBeats))}</ol>
             </section>
           ) : null}
 
@@ -222,50 +289,7 @@ export function HomeScreen({
                   <span className={styles.groupName}>Recent</span>
                 </h2>
               </div>
-              <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length + shelfBeats + books.length))}</ol>
-            </section>
-          ) : null}
-
-          {open.length ? (
-            <section className={styles.section} aria-labelledby="home-tasks">
-              <div className={styles.groupRow}>
-                <h2 id="home-tasks" className={styles.group}>
-                  <TickBox className={styles.groupMark} />
-                  <span className={styles.groupName}>To do</span>
-                  <span className={styles.count}>· {open.length}</span>
-                </h2>
-              </div>
-              <ul className={styles.tasks}>
-                {open.slice(0, TASKS).map((task) => (
-                  <li key={`${task.noteId}:${task.line}`} className={styles.task}>
-                    <button
-                      type="button"
-                      className={styles.box}
-                      aria-label={`Tick off ${task.text}`}
-                      onClick={() => {
-                        setTicked((was) => new Set(was).add(`${task.noteId}:${task.line}`));
-                        onTick(task);
-                      }}
-                    />
-                    <button type="button" className={styles.taskOpen} onClick={() => onOpen(task.noteId, task.at)}>
-                      <span className={styles.taskText}>{shortenUrls(task.text)}</span>
-                      <span className={styles.taskNote}>{titleOf.get(task.noteId)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {open.length > TASKS ? <p className={styles.more}>and {open.length - TASKS} more in your notes</p> : null}
-            </section>
-          ) : allDone ? (
-            <section className={styles.section} aria-labelledby="home-tasks">
-              <div className={styles.groupRow}>
-                <h2 id="home-tasks" className={styles.group}>
-                  <TickBox className={styles.groupMark} />
-                  <span className={styles.groupName}>To do</span>
-                </h2>
-              </div>
-              <Ghost scene="all-ticked" className={styles.allDoneArt} />
-              <p className={styles.allDoneWords}>Every to-do is done.</p>
+              <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length + todoBeats + shelfBeats + books.length))}</ol>
             </section>
           ) : null}
 

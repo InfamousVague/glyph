@@ -59,7 +59,7 @@ beforeEach(() => {
 afterEach(() => unmount());
 
 describe('the home page', () => {
-  it('lays its groups out in their order: Pinned, Tapes, Library, Recent, To do', () => {
+  it('lays its groups out in their order: Pinned, To do, Tapes, Library, Recent', () => {
     show(
       page([
         makeNote('p', '# Packing\n\n- [ ] Tent', { starred: true, updatedAt: 3 }),
@@ -68,7 +68,7 @@ describe('the home page', () => {
         makeNote('r', '# Route', { updatedAt: 1 }),
       ]),
     );
-    expect(headings()).toEqual(['Pinned', 'Tapes', 'Library', 'Recent', 'To do']);
+    expect(headings()).toEqual(['Pinned', 'To do', 'Tapes', 'Library', 'Recent']);
     // The cassette mark on Tapes, the way the pin sits on Pinned.
     expect(document.querySelector('#home-tapes svg')).not.toBeNull();
     // A page of a book says which on its card.
@@ -164,12 +164,12 @@ describe('the home page', () => {
     expect(document.body.textContent).not.toContain('A blank page.');
   });
 
-  it('ticks a to-do off at once, before its note has been written, and names the note it is in', () => {
+  it('ticks a to-do off at once, before its note has been written, and names the note it is in and when that was touched', () => {
     const onTick = vi.fn();
-    const notes = [makeNote('a', '# Shop\n\n- [ ] Milk\n- [ ] Eggs', { updatedAt: 2 })];
+    const notes = [makeNote('a', '# Shop\n\n- [ ] Milk\n- [ ] Eggs', { updatedAt: Date.now() })];
     show(page(notes, { onTick }));
     expect(tasks()).toEqual(['Milk', 'Eggs']);
-    expect(document.querySelector('[class*=taskNote]')?.textContent).toBe('Shop');
+    expect(document.querySelector('[class*=taskNote]')?.textContent).toBe('Shop · Just now');
     act(() => button('Tick off Milk').click());
     expect(onTick).toHaveBeenCalledWith(expect.objectContaining({ noteId: 'a', line: 2, text: 'Milk' }));
     expect(tasks()).toEqual(['Eggs']);
@@ -188,11 +188,29 @@ describe('the home page', () => {
     expect(headings()).not.toContain('To do');
   });
 
-  it('shows eight to-dos and counts the rest', () => {
-    const many = Array.from({ length: 11 }, (_, i) => `- [ ] Thing ${i + 1}`).join('\n');
+  it('shows five to-dos, opens to all of them on Show all, and folds them on Show fewer', () => {
+    const many = Array.from({ length: 8 }, (_, i) => `- [ ] Thing ${i + 1}`).join('\n');
     show(page([makeNote('a', `# List\n\n${many}`)]));
+    expect(tasks()).toHaveLength(5);
+    expect(document.querySelector('#home-tasks')?.textContent).toContain('· 8');
+    expect(document.body.textContent).not.toContain('more in your notes');
+    act(() => button('Show all 8').click());
     expect(tasks()).toHaveLength(8);
-    expect(document.body.textContent).toContain('and 3 more in your notes');
+    act(() => button('Show fewer').click());
+    expect(tasks()).toHaveLength(5);
+  });
+
+  it('opens to forty at most, and counts the rest inside the card', () => {
+    const many = Array.from({ length: 45 }, (_, i) => `- [ ] Thing ${i + 1}`).join('\n');
+    show(page([makeNote('a', `# List\n\n${many}`)]));
+    act(() => button('Show all 45').click());
+    expect(tasks()).toHaveLength(40);
+    expect(document.querySelector('section[aria-labelledby="home-tasks"] [class*=todo] p')?.textContent).toBe('and 5 more in your notes');
+  });
+
+  it('has no Show all under five to-dos', () => {
+    show(page([makeNote('a', '# List\n\n- [ ] One\n- [ ] Two')]));
+    expect(document.querySelector('section[aria-labelledby="home-tasks"] [class*=groupWord]')).toBeNull();
   });
 
   it('opens a card and a to-do’s note, and counts every note left out of the archive for All notes', () => {

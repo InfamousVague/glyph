@@ -424,18 +424,47 @@
   gap: var(--glacier-space-4);
 }
 
+/*
+ * The To do card: every open to-do in one card on the note card's ground (notes/NoteCard.module.css .card), written
+ * out since this one is a column of rows and not a button. Second on the page, with the pinned cards' beats before
+ * it. The rows were eight hairlined lines at the page's foot; here they are rows in a card, with air and no rules.
+ */
+.todo {
+  padding: var(--glacier-space-4);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: color-mix(in oklch, var(--app-ink) 3%, transparent);
+  animation: arrive 360ms var(--glacier-ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 .tasks {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  gap: var(--glacier-space-3);
+}
+
+/* In the 60rem column the rows lay in two columns: a card of five one-line rows across 900px is a list with a lot of nothing to its right. */
+@container home-page (min-width: 44rem) {
+  .tasks {
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    column-gap: var(--glacier-space-6);
+  }
 }
 
 .task {
   display: flex;
   align-items: flex-start;
   gap: var(--glacier-space-3);
-  padding-block: var(--glacier-space-3);
-  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
 }
 
 /* The note's own box, as the editor draws a to-do: an empty square, ticked from here with one tap. */
@@ -484,7 +513,7 @@
   overflow-wrap: anywhere;
 }
 
-/* Which note it came from, so a to-do read out of its place still says where it lives. */
+/* Which note it came from and when that note was touched, "Kitchen · 2 hr ago": a to-do read out of its place still says where it lives. */
 .taskNote {
   font-size: var(--glacier-font-size-xs);
   color: var(--glacier-text-subtle);
@@ -493,8 +522,9 @@
   white-space: nowrap;
 }
 
+/* Past the forty rows "Show all" opens, the rest are counted, inside the card. */
 .more {
-  margin: var(--glacier-space-2) 0 0;
+  margin: var(--glacier-space-3) 0 0;
   font-size: var(--glacier-font-size-sm);
   color: var(--glacier-text-subtle);
 }
@@ -521,13 +551,19 @@
   flex: none;
 }
 
-/* Every to-do ticked (HomeScreen.tsx `allDone`): the ghost on its checkbox, and one line. */
+/* Every to-do ticked (HomeScreen.tsx `allDone`): the ghost on its checkbox, and one line, in the To do card. */
 .allDoneArt {
-  margin-block: var(--glacier-space-2) var(--glacier-space-3);
+  margin-block: 0 var(--glacier-space-2);
 }
 
 .allDoneWords {
-  margin: 0 0 var(--glacier-space-6);
+  margin: 0;
   font-size: var(--glacier-font-size-md);
   color: var(--glacier-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .todo {
+    animation: none;
+  }
 }
