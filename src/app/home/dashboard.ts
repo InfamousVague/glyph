@@ -3,7 +3,7 @@ import { itemOnLine, itemWords } from '../core/boards.ts';
 import { taskBox } from '../core/itemSyntax.ts';
 import type { SummariesState, SummaryKind } from '../ai/summaries.ts';
 import type { Note } from '../core/store.ts';
-import { guidePages } from '../guidebook/guidebook.ts';
+import { guidePages, isGuideBook } from '../guidebook/guidebook.ts';
 import { hasTape } from '../notes/allNotes.ts';
 
 /**
@@ -117,11 +117,16 @@ export function startOfToday(now = Date.now()): number {
   return day.getTime();
 }
 
-/** How many of the notes were touched since the local day began, out of the archive and the Guide: the digest's "N notes touched today". */
+/**
+ * How many of the notes were touched since the local day began, out of the archive and the Guide, its pages and its
+ * book alike (the day the manual is added it is the newest note there is, and not one the person touched): the
+ * digest's "N notes touched today". Every kind of note counts, pinned, tape and book as much as a plain one, which is
+ * why the phrase is said and goes nowhere: the notes it counts are all over the page, and Recent holds four of one kind.
+ */
 export function touchedToday(notes: readonly Note[], now = Date.now()): number {
   const since = startOfToday(now);
   const guide = guidePages(notes);
-  return notes.filter((n) => !n.archivedAt && !guide.has(n.id) && n.updatedAt >= since).length;
+  return notes.filter((n) => !n.archivedAt && !guide.has(n.id) && !isGuideBook(n) && n.updatedAt >= since).length;
 }
 
 /** What is waiting on the tapes, from the queues the shelf already reads (home/tapeCaption.ts). */
@@ -150,11 +155,11 @@ export function tapesWaiting(tapes: readonly Note[], sources: { refining: Readon
 }
 
 /** Where a digest phrase goes: a group on the page, or Settings › Formatting for a missing model. */
-export type DigestGo = 'tasks' | 'tapes' | 'model' | 'recent';
+export type DigestGo = 'tasks' | 'tapes' | 'model';
 
 export interface DigestPhrase {
   text: string;
-  /** Null for a phrase that is only said. */
+  /** Null for a phrase that is only said: the quiet one, and the day's count, whose notes are all over the page. */
   go: DigestGo | null;
 }
 
@@ -171,7 +176,7 @@ export function digest(facts: { open: number; waiting: Waiting; touched: number 
   if (waiting.needsModel) phrases.push({ text: waiting.needsModel === 1 ? '1 tape needs a model' : `${waiting.needsModel} tapes need a model`, go: 'model' });
   if (waiting.failed) phrases.push({ text: waiting.failed === 1 ? '1 summary didn’t come' : `${waiting.failed} summaries didn’t come`, go: 'tapes' });
   if (!phrases.length) phrases.push({ text: 'Nothing waiting on you', go: null });
-  if (touched) phrases.push({ text: `${touched} note${touched === 1 ? '' : 's'} touched today`, go: 'recent' });
+  if (touched) phrases.push({ text: `${touched} note${touched === 1 ? '' : 's'} touched today`, go: null });
   return phrases;
 }
 

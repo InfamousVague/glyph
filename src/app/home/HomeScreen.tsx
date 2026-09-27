@@ -45,13 +45,15 @@ import styles from './HomeScreen.module.css';
  * Redrawn as headed groups with room between them (docs/DESIGN.md §132; Matt: "The library and tapes headers on the
  * home page are different sizes, id like you to redo the home dashboard UI/UX to make it easier to digest everything
  * with cards and quick actions and summaries and better labeling. Right now it's just very data dense with no solid
- * organization and use of white space"). The date is the page's one title; then anything waiting on them (an update,
- * the Academy's invitation, the voice model); then the groups, each under a sentence-case heading with one mark
- * beside it: the notes they pinned first (Matt, §29g: pinned notes "in a category above the rest"), the tapes the
- * recorder made as a row of cards (home/TapeShelf.tsx; Matt: "display them in a cassette shelf on the home page"),
- * their books, the ones they were in last, and every to-do not yet ticked, gathered from all of their notes and ticked
- * here without opening the note. The page does not list every note; "All notes" at its foot opens the page that does,
- * as a grid of the same cards (notes/AllNotesScreen.tsx).
+ * organization and use of white space"). The date is the page's one title, with a digest under it of what is waiting;
+ * then anything waiting on them (an update, the Academy's invitation, the voice model); then the groups, each under a
+ * sentence-case heading with one mark beside it, in this order: the notes they pinned (Matt, §29g: pinned notes "in a
+ * category above the rest"); every to-do not yet ticked, gathered from all of their notes into one card and ticked
+ * here without opening the note, second because it is what is waiting, its tick is the page's one in-place action, and
+ * a meeting's summary writes its actions there; the tapes the recorder made as a row of cards (home/TapeShelf.tsx;
+ * Matt: "display them in a cassette shelf on the home page"), above the Library as §127 placed them; their books; and
+ * the notes they were in last, four of them, running into "All notes" at the foot, which opens the page that lists every
+ * note as a grid of the same cards (notes/AllNotesScreen.tsx).
  *
  * The headers Matt saw at two sizes were two kinds of icon: the pin and the cassette were art/Icons.tsx's 1em strokes
  * drawn at 1.15em of a 13px heading, while the Library's book was the kit's lucide, which writes width=24 as an
@@ -173,10 +175,15 @@ export function HomeScreen({
   const touched = useMemo(() => touchedToday(shown), [shown]);
   const phrases = useMemo(() => digest({ open: open.length, waiting, touched }), [open.length, waiting, touched]);
   const hasNotes = shown.some((n) => !n.archivedAt);
-  /** A phrase tapped: the page glides to its group, or Settings opens at Formatting for a missing model. A group that is not on the page: nothing. */
+  /**
+   * A phrase tapped: the page glides to its group, or Settings opens at Formatting for a missing model. A group that is
+   * not on the page: nothing. The glide's target is fixed when it starts, so what is above the group must hold its
+   * height while the page moves: a pinned card's peek lets its editor go as the card leaves the scroller, and the blank
+   * that stands in is held at the editor's height (notes/NotePeek.tsx), or the heading landed 69px behind the bar.
+   */
   const glide = (go: DigestGo) => {
     if (go === 'model') return (onGetModel ?? onSettings)();
-    const id = { tasks: 'home-tasks', tapes: 'home-tapes', recent: 'home-recent' }[go];
+    const id = { tasks: 'home-tasks', tapes: 'home-tapes' }[go];
     // Optional-chained: jsdom has no scrollIntoView.
     document
       .getElementById(id)
@@ -243,15 +250,20 @@ export function HomeScreen({
           {/*
             What is waiting, in one card, second on the page: its tick is the page's one in-place action, and a
             meeting's summary writes its `- [ ]` actions here (§127). Five rows, most recently touched note's first,
-            each with the note it lives in and when that note was touched; "Show all" opens the card to forty.
+            each with the note it lives in and when that note was touched; "Show all" opens the card to forty. With
+            the last one ticked, the same card holds the ghost instead, under a heading with no count and no word.
           */}
-          {open.length ? (
+          {open.length || allDone ? (
             <section className={styles.section} aria-labelledby="home-tasks">
               <div className={styles.groupRow}>
                 <h2 id="home-tasks" className={styles.group}>
                   <TickBox className={styles.groupMark} />
                   <span className={styles.groupName}>To do</span>
-                  <span className={styles.count}>· {open.length}</span>
+                  {open.length ? (
+                    <span className={styles.count}>
+                      <span>·</span> {open.length}
+                    </span>
+                  ) : null}
                 </h2>
                 {open.length > TASKS ? (
                   <button type="button" className={`app-word ${styles.groupWord}`} onClick={() => setShowAll((was) => !was)}>
@@ -260,41 +272,37 @@ export function HomeScreen({
                 ) : null}
               </div>
               <div className={styles.todo} style={{ '--i': Math.min(pinned.length, 8) } as CSSProperties}>
-                <ul className={styles.tasks}>
-                  {open.slice(0, showAll ? TASKS_OPEN : TASKS).map((task) => (
-                    <li key={`${task.noteId}:${task.line}`} className={styles.task}>
-                      <button
-                        type="button"
-                        className={styles.box}
-                        aria-label={`Tick off ${task.text}`}
-                        onClick={() => {
-                          setTicked((was) => new Set(was).add(`${task.noteId}:${task.line}`));
-                          onTick(task);
-                        }}
-                      />
-                      <button type="button" className={styles.taskOpen} onClick={() => onOpen(task.noteId, task.at)}>
-                        <span className={styles.taskText}>{shortenUrls(task.text)}</span>
-                        <span className={styles.taskNote}>
-                          {titleOf.get(task.noteId)} · {when(task.touched)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {showAll && open.length > TASKS_OPEN ? <p className={styles.more}>and {open.length - TASKS_OPEN} more in your notes</p> : null}
-              </div>
-            </section>
-          ) : allDone ? (
-            <section className={styles.section} aria-labelledby="home-tasks">
-              <div className={styles.groupRow}>
-                <h2 id="home-tasks" className={styles.group}>
-                  <TickBox className={styles.groupMark} />
-                  <span className={styles.groupName}>To do</span>
-                </h2>
-              </div>
-              <div className={styles.todo} style={{ '--i': Math.min(pinned.length, 8) } as CSSProperties}>
-                <Ghost scene="all-ticked" size="small" className={styles.allDoneArt} />
-                <p className={styles.allDoneWords}>Every to-do is done.</p>
+                {open.length ? (
+                  <>
+                    <ul className={styles.tasks}>
+                      {open.slice(0, showAll ? TASKS_OPEN : TASKS).map((task) => (
+                        <li key={`${task.noteId}:${task.line}`} className={styles.task}>
+                          <button
+                            type="button"
+                            className={styles.box}
+                            aria-label={`Tick off ${task.text}`}
+                            onClick={() => {
+                              setTicked((was) => new Set(was).add(`${task.noteId}:${task.line}`));
+                              onTick(task);
+                            }}
+                          />
+                          <button type="button" className={styles.taskOpen} onClick={() => onOpen(task.noteId, task.at)}>
+                            <span className={styles.taskText}>{shortenUrls(task.text)}</span>
+                            <span className={styles.taskNote}>
+                              {titleOf.get(task.noteId)} · {when(task.touched)}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {showAll && open.length > TASKS_OPEN ? <p className={styles.more}>and {open.length - TASKS_OPEN} more in your notes</p> : null}
+                  </>
+                ) : (
+                  <>
+                    <Ghost scene="all-ticked" size="small" className={styles.allDoneArt} />
+                    <p className={styles.allDoneWords}>Every to-do is done.</p>
+                  </>
+                )}
               </div>
             </section>
           ) : null}
@@ -306,7 +314,11 @@ export function HomeScreen({
                 <h2 id="home-tapes" className={styles.group}>
                   <Cassette className={styles.groupMark} />
                   <span className={styles.groupName}>Tapes</span>
-                  {taped.length > shelf.length ? <span className={styles.count}>· {taped.length}</span> : null}
+                  {taped.length > shelf.length ? (
+                    <span className={styles.count}>
+                      <span>·</span> {taped.length}
+                    </span>
+                  ) : null}
                 </h2>
                 {/* Only past the shelf's eight: the count and the way to the rest, All notes with its Tapes toggle on. */}
                 {taped.length > shelf.length ? (

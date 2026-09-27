@@ -138,8 +138,9 @@ describe('the digest', () => {
     const now = new Date(2026, 8, 23, 10, 30).getTime();
     const midnight = new Date(2026, 8, 23, 0, 0, 0, 0).getTime();
     expect(startOfToday(now)).toBe(midnight);
-    // The Guide's pages are out, as everywhere on the page; its book is a book in the Library, touched yesterday here.
-    const guide = makeNote('guide', bookNoteBody(GUIDE_TITLE, ['Your first note']), { updatedAt: midnight - 1 });
+    // The Guide's pages are out, as everywhere on the page, and so is its book: added this morning, it would be the
+    // newest note of all, and not one the person touched.
+    const guide = makeNote('guide', bookNoteBody(GUIDE_TITLE, ['Your first note']), { updatedAt: now - 60_000 });
     const notes = [
       makeNote('at-midnight', '# A', { updatedAt: midnight }),
       makeNote('just-before', '# B', { updatedAt: midnight - 1 }),
@@ -169,7 +170,8 @@ describe('the digest', () => {
       { text: 'Working on 2 tapes', go: 'tapes' },
       { text: '1 tape needs a model', go: 'model' },
       { text: '1 summary didn’t come', go: 'tapes' },
-      { text: '3 notes touched today', go: 'recent' },
+      // The day's count is said, not a word: the notes it counts are all over the page, not in one group.
+      { text: '3 notes touched today', go: null },
     ]);
   });
 

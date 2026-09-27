@@ -23,7 +23,7 @@ export type Screen =
   | { name: 'list' }
   /**
    * Every note as a grid of cards (notes/AllNotesScreen.tsx), from the home page's "All notes". Opened with `tapes`
-   * from the shelf's "and N more", it shows only the notes with a recording (docs/DESIGN.md §127).
+   * from the Tapes heading's "See all", it shows only the notes with a recording (docs/DESIGN.md §127, §132).
    */
   | { name: 'notes'; tapes?: boolean }
   | {

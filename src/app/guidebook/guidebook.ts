@@ -38,6 +38,15 @@ export function guidePages(notes: readonly Note[]): Set<string> {
   return pages;
 }
 
+/**
+ * The Guide's own book note: the book by the Guide's title. Its card is in the Library as any book's is, but the day
+ * it is added it is the newest note of all, and the home page's count of the notes touched today leaves it out with
+ * its pages (home/dashboard.ts `touchedToday`): the manual arriving is not a note the person touched.
+ */
+export function isGuideBook(note: Note): boolean {
+  return isBookBody(note.body) && sameTitle(noteTitle(note.body), GUIDE_TITLE);
+}
+
 /** A chapter as it ships: its title, read from its heading as the list reads it, and its Markdown. */
 export interface GuideChapter {
   title: string;

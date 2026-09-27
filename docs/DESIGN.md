@@ -5835,7 +5835,8 @@ UI/UX to make it easier to digest everything with cards and quick actions and su
 now it's just very data dense with no solid organization and use of white space"
 
 Built on branch home/redesign against HEAD 3c30964 (1.8.0-18), in four slices and a browser pass, each committed
-alone: the headings and their marks; the To do card; the tape card and the offer; the digest; the measurements.
+alone: the headings and their marks; the To do card; the tape card and the offer; the digest; the measurements. Then
+a review's findings put right, below ("Put right after the review").
 
 **The mismatch, at its cause.** Pin and Cassette on the headings were art/Icons.tsx `icon()` strokes, a 1em box
 drawn at `font-size: 1.15em` of a 13.4px heading, so ~15.4px with a 1.5px stroke, and the cassette's reels (r 2.75
@@ -5857,18 +5858,35 @@ grouping rules are untouched. Constants: `RECENT = 4` (was 6), `TASKS = 5` (was 
 **One scale.** Head xl, headings lg semibold in sentence case with title tracking (the spaced capitals went from
 this page: `.group`, `.app-eyebrow` and the shelf's `.meta` were three competing caps styles), card titles md on
 every card (the grid's dense size, so home and All notes share one; NoteCard.module.css `.title`), lines sm and xs
-in the third ink. A count after a heading is md regular tabular in the third ink: "To do · 14"; Tapes counts only
-when there are more than the shelf holds. The mark sits in the second ink so the word leads.
+in the third ink. A count after a heading is md regular tabular in the third ink: "To do · 14", the dot midway with
+the heading's gap on either side of it (a margin of the count's own had it 12px from the word and a space from the
+number, reading as the number's); Tapes counts only when there are more than the shelf holds. The mark sits in the
+second ink so the word leads. The row's word ("See all", "Show all 14") ends before the dock's column wherever the
+dock crosses the page: the page runs under the dock by design (§84, §97), and a card's corner may pass behind it, but
+a word to tap must not, and at 412 "See all" sat wholly under the dock on the first screen. The dock reaches past the
+gutter by its ring, two paddings and its inset less the gutter (55px at 412), and crosses the 60rem column until the
+pane is wider than the column by twice that (~1115px), so the row keeps that reach at its end under a container
+query on the pane (`.screen` is `home-pane`), at 70rem, not on the column: a 1440px window with the sidebar docked
+is a 1060px pane, where the column is at its 60rem and the dock still crosses it by 22px.
 
-**The digest.** One line under the date, only the phrases that are true, separated by middle dots, each a word
-that glides to its group: "5 to-dos open · Working on 2 tapes · 3 notes touched today"; "1 tape needs a model"
-opens Settings › Formatting; "Nothing waiting on you" when none of the waiting phrases are true. Pure and tested in
-dashboard.ts (`digest`, `touchedToday`, `startOfToday`, `tapesWaiting`); no fetch, the queues' sets and the to-dos
-were already on the page. No full stops: a row of fragments, like "All notes · 41". The dot is drawn after each
-phrase but the last (`li:not(:last-child)::after`), not before each but the first: at 412px three phrases wrap, and
-a dot at the head of the second line read as a bullet. The glide is `scrollIntoView` on the group's section, with
-`scroll-margin-block-start` of the safe top so the heading lands under the glass bar, and `auto` behaviour under
-reduced motion.
+**The digest.** One line under the date, only the phrases that are true, separated by middle dots: "5 to-dos open
+· Working on 2 tapes · 3 notes touched today". A phrase that goes somewhere is a word, in the first ink at the quiet
+button's weight so it reads apart from one that is only said (it inherited the line's ink at first, and nothing said
+the digest was a row of quick actions), with a line under it for the mouse: "5 to-dos open" and "Working on 2 tapes"
+glide to their groups, "1 tape needs a model" opens Settings › Formatting. "Nothing waiting on you" is said when none
+of the waiting phrases are true, and so is "N notes touched today": it counts every kind of note the person touched,
+pinned, tape and book alike (the Guide's pages and its book out: the day the manual is added it is the newest note of
+all), and those notes are all over the page, so a glide to Recent, which holds four of one kind, landed on a group
+that did not match its number. Pure and tested in dashboard.ts (`digest`, `touchedToday`, `startOfToday`,
+`tapesWaiting`); no fetch, the queues' sets and the to-dos were already on the page. No full stops: a row of
+fragments, like "All notes · 41". The dot is drawn after each phrase but the last (`li:not(:last-child)::after`),
+not before each but the first: at 412px three phrases wrap, and a dot at the head of the second line read as a
+bullet. The glide is `scrollIntoView` on the group's section, with `scroll-margin-block-start` of the safe top so
+the heading lands under the glass bar, and `auto` behaviour under reduced motion. Its target is fixed when it starts,
+so what is above the group has to hold its height while the page moves: a pinned card's peek lets its editor go as
+the card leaves the scroller, and the blank that stands in is now held as a minimum height as well as a size
+(notes/NotePeek.tsx), since the card's `flex: 1` on the peek, with its basis of 0%, let a set block-size fold to
+nothing; before that the heading landed 69px behind the bar, one pinned card's peek short.
 
 **Air, on the kit's scale.** space-8 between groups (space-10 in the 60rem column), space-3 from a heading row to
 its cards, space-4 between cards on the home page (All notes keeps space-3 through its compose; the home page's
@@ -5899,6 +5917,19 @@ and not built: nothing at rest would say it exists, and a long press inside a sc
 If Matt wants pin, archive and delete on the page, the discoverable form is an always-drawn "More for {title}"
 word at the title's right opening a sheet with the palette's "This note" words; the palette has them today.
 
+**Put right after the review** (the same day; a review of the slices, three lenses, nineteen findings). The
+heading row's word out from under the dock (above); the glide's overshoot, at its cause in NotePeek's blank (above);
+the count's dot centred; the digest's words told from its said phrases, and the day's count said rather than sent
+to Recent; the Guide's book out of the day's count with its pages; the header comment in the page's order; the five
+comments that still sent "and N more" to the grid; the two To do sections folded into one, so ticking the last to-do
+swaps the card's body for the ghost without a second arrive; the shots script scrolling the page's scroller rather
+than the docked sidebar's, so the wide pages' lower halves were looked at. Tests for what no test could fail:
+Summarize asks the queue for 'meeting' for a note in the meetings map and 'recording' for a plain capture, and is not
+offered off Tauri (`enqueueSummary` a `vi.fn()`, `isTauri` a switch); the To do card folds and the digest counts
+afresh when a workspace is chosen; five to-dos have no Show all and six do; "and N more in your notes" only once
+opened; "Working on 1 tape" glides to Tapes; the foot's mark is the 1em line with no width and no inline font-size,
+and every heading's mark wears `groupMark`.
+
 **Measured** (Chromium 2×, Playwright from the npx cache against `vite preview` of the branch's build, the §132
 seed of twelve notes with three tapes; light and dark identical to the pixel; the Fold itself not yet):
 - 412 × 915: date at y 93, 33px tall at 23.4px; the digest one line (two with three phrases); Pinned heading at
@@ -5924,6 +5955,16 @@ seed of twelve notes with three tapes; light and dark identical to the pixel; th
   open · 1 note touched today", To do · 2 with no Show all); `design` pending in the queue reads "7 to-dos open ·
   Working on 1 tape · 5 notes touched today" and the card's caption "Summarizing. Keep Ghost.md open." with its
   spinner; the Academy card sits between the digest and Pinned.
+- After the review, in the browser pane (thirteen tapes and fifteen to-dos, so both words are on the page): at 412
+  the row keeps 66px at its end and "See all" spans x 267-323 against a dock at x 335-394 (it spanned 334-390, under
+  it); at 1280 with the sidebar docked (pane 900) the row keeps 78px and "Show all 15" ends at x 1176 against a dock
+  at 1189; at 1812 docked (pane 1432, past 70rem) the row keeps nothing and both words end on the column's edge at
+  x 1576, the dock at 1718. The count's dot at 412: 9px from "do" and 9px from "7" (was 12 and 4). A tap on "7 to-dos
+  open" at 412: the To do section lands at y 70 under the 53px bar, its scroll margin 71, the heading at y 75; the
+  pinned card that scrolled past is still 196.5px with its peek held at 69px (it landed at y 1 with the card at 128px).
+  In the dark the word is the paper ink, the said phrase 0.8 and the dot 0.6, as the tokens say. Recent at rest,
+  below the fold, measures 646px at 412 with its four cards' blanks held (490 with them folded to 0px), so the cards
+  fill in without the page under them moving.
 
 **Tests.** HomeScreen.test.tsx: the order Pinned, To do, Tapes, Library, Recent; every heading's mark 1em with no
 width attribute; four Recent cards from six; five to-dos, Show all 8 → eight and Show fewer → five, Show all 45 →
@@ -5941,7 +5982,14 @@ runs as is: every read a declared token, leading tokens only as line-height or i
 under headings ("1 hr 41 min in all."), kind labels on cards and a to-do count in a card's foot, all considered and
 left out as the density Matt asked to remove; a Pinned cap (All notes has no Pinned toggle to land on); Recent at
 eight on a wide screen (eight editors for two rows); a fifth tape card peeking on the opened Fold was not seen,
-since the seed has three tapes.
+since the seed has three tapes. The review's two that stay: the tape cards at a fixed 13rem do not sit on the
+grid's columns on a wide screen (at 1812 the second tape's edge is ~20px left of the second grid column, the Recent
+cards 224 wide against the tapes' 208), since the grid's auto-fill column count is not a number a sideways row can
+read from CSS without a formula that repeats the grid's rule, and a formula in two places is where they part; and
+the card ground written out three times (the note card's `.card`, the tape's `.tape`, the To do card's `.todo`, with
+`@keyframes arrive` in three sheets), which a global `.app-card` beside `.app-word` would fold into one, a change to
+NoteCard's sheet beyond this page. The `.todo` comment says why it alone has no hover wash: nothing on it opens as a
+whole.
 
 Cites: §21, §26, §29g, §29i, §31, "The card is the note, small" and "A home page, and the notes list gone"
 (2026-09-18), §64/§67, §71, §72, §84/§97, §92/§110, §94, §115, §118, §121, §124, §125, §127.

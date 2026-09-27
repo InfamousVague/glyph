@@ -10,6 +10,8 @@
   position: relative;
   block-size: 100dvh;
   background: var(--glacier-bg);
+  /* Measured for the heading rows, which keep clear of the dock while the pane is narrow enough for it to cross the page (`.groupRow`). */
+  container: home-pane / inline-size;
 }
 
 /*
@@ -119,6 +121,21 @@
 }
 
 /*
+ * The row's word ends before the dock's column, on a pane where the dock crosses the page: the page runs under the
+ * dock by design (§84, §97), and a card's corner may pass behind it, but a word to tap must not. Measured at 412x915
+ * with thirteen tapes: "See all" sat at x 334-390 under a dock at x 335-394, hidden on the first screen and whenever
+ * its heading scrolled through the dock's band; at 1280 with the sidebar docked "Show all" ended 49px under it. The
+ * dock reaches past the page's gutter by its ring, its two paddings and its inset less the gutter (55px at 412), and
+ * crosses the 60rem column until the pane is wider than the column by twice that (~1115px), so the line is the pane's
+ * width, not the column's: 70rem. Under it the row keeps that reach at its end, and a step of air.
+ */
+@container home-pane (max-width: 70rem) {
+  .groupRow {
+    padding-inline-end: calc(var(--app-ring) + var(--glacier-space-2) * 2 + var(--glacier-space-4) - var(--app-gutter) + var(--glacier-space-3));
+  }
+}
+
+/*
  * The heading over a group on the page - Pinned, To do, Tapes, Library, Recent - a step above a card's title, in
  * sentence case with the titles' tracking. It was spaced capitals a step below the titles (`.app-eyebrow`'s idiom),
  * so nothing on the page was bigger than a card's title; the caps idiom stays in sheets and cards elsewhere.
@@ -156,9 +173,16 @@
   min-inline-size: 0;
 }
 
-/* How many, after the heading's word: "To do · 14", in a regular weight and the third ink, so the word still leads. */
+/*
+ * How many, after the heading's word: "To do · 14", in a regular weight and the third ink, so the word still leads.
+ * The dot sits midway, the heading's gap on either side of it: with a margin of its own before the count, it stood
+ * 12px from the word and a space from the number, and read as the number's ("To do  · 7"). The foot's "All notes · 41"
+ * has a space each side; here the gap is the same each side.
+ */
 .count {
-  margin-inline-start: var(--glacier-space-1);
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
   font-size: var(--glacier-font-size-md);
   font-weight: var(--glacier-font-weight-regular);
   font-variant-numeric: tabular-nums;
@@ -427,12 +451,24 @@
   color: var(--app-ink-3);
 }
 
+/*
+ * A phrase that goes somewhere is a word in the first ink, at the quiet button's weight (app.css `.app-word`), so it
+ * reads apart from one that is only said ("Nothing waiting on you", the day's count) in the line's second ink: it
+ * inherited the line's ink and nothing said the digest was a row of quick actions. The mouse's cue is a line under it.
+ */
 .digestWord {
   min-block-size: auto;
   padding: 0;
   font-size: inherit;
   line-height: inherit;
-  color: inherit;
+  color: var(--app-ink);
+}
+
+.digestWord:hover,
+.digestWord:focus-visible {
+  text-decoration: underline;
+  text-decoration-color: var(--app-ink-3);
+  text-underline-offset: 0.15em;
 }
 
 /*
@@ -469,6 +505,7 @@
  * it. The rows were eight hairlined lines at the page's foot; here they are rows in a card, with air and no rules.
  * Measured in Chromium (docs/DESIGN.md §132): five two-line rows make a card 283px tall at 412px, 201px in two
  * columns at the opened Fold's 1432px pane, and the whole card is on the cover screen's first screen under a pinned card.
+ * No wash on hover, unlike a note card or a tape card: nothing on it opens as a whole, only its rows.
  */
 .todo {
   padding: var(--glacier-space-4);
