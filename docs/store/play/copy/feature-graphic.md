@@ -10,7 +10,7 @@ The app's own ink on paper, and nothing else.
 
 - **The page.** The app's paper, the light one the listing's screenshots use, with the icon's faint ruled lines
   across it at the icon's spacing. No gradient, no photograph, no device frame, no badge, no "new".
-- **The ghost mark.** The dotwork ghost, the one on the app icon (`src-tauri/icons/icon.png`; `art/Ghost.tsx` draws it in the
+- **The ghost mark.** The dotwork ghost, the one on the app icon (`src-tauri/icons/icon.png`, and `art/Ghost.tsx` draws it in the
   app), in ink, about 260 px tall, left of centre, its feet on a rule.
 - **The wordmark.** Ghost.md, to the right of the ghost, in the app's bold grotesk with its tight letter-spacing,
   about 96 px, in ink.
@@ -24,7 +24,7 @@ The app's own ink on paper, and nothing else.
   round here. Use the site's order if the two should match to the letter.
 
 Ink and paper are the app's own tokens, so the graphic reads as the app does. A dark version (ink page, paper
-ghost and words) is a swap of the two tokens; Play shows one graphic whatever the phone's theme, and the light one
+ghost and words) is a swap of the two tokens. Play shows one graphic whatever the phone's theme, and the light one
 matches the screenshots, so it is the one to upload.
 
 ## Layout, in pixels

@@ -13,8 +13,10 @@ const cp = (s) => Array.from(s).length;
 let bad = false;
 const over = (label, s, limit) => {
   const n = cp(s);
-  console.log(`${label}: ${n} characters (${s.length} UTF-16 units), limit ${limit}${n > limit ? '  OVER' : ''}`);
-  if (n > limit) bad = true;
+  // Play counts one of the two; the Console's own counter is a script, so the UTF-16 length is the one to fear.
+  const isOver = n > limit || s.length > limit;
+  console.log(`${label}: ${n} characters (${s.length} UTF-16 units), limit ${limit}${isOver ? '  OVER' : ''}`);
+  if (isOver) bad = true;
 };
 
 const listing = blocks(files['listing.md']);
