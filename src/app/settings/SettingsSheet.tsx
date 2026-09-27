@@ -180,7 +180,6 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
             words: 'voice microphone mic dictate',
             settings: [
               { name: 'Stop when I go quiet', words: 'silence auto stop' },
-              { name: 'Commands start with “hey Ghost”', words: 'wake word voice cues' },
               { name: 'Review after recording', words: 'check transcript' },
               { name: 'Better words', words: 'refine clean up transcript' },
               { name: 'Summaries', words: 'summary meeting write-up minutes' },

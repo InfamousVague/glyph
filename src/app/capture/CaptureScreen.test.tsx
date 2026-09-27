@@ -236,10 +236,12 @@ describe('things to say', () => {
     render(<CaptureScreen fromAssistant={false} onFinish={vi.fn()} />);
     await waitFor(() => expect(capture.handlers).not.toBeNull());
     const card = await screen.findByLabelText('Things to say');
-    await waitFor(() => expect(card.textContent).toContain('add … to Groceries'));
+    // The command said bare (docs/DESIGN.md §136): no "Hey Ghost" before it.
+    await waitFor(() => expect(card.textContent).toContain('Add … to Groceries'));
+    expect(card.textContent).not.toMatch(/Hey Ghost/);
     expect(card.textContent).toContain('Bullet point');
     // A new recording is not a note yet: an ask said into it would not run, so none is offered.
-    expect(card.textContent).not.toContain('fix the spelling');
+    expect(card.textContent).not.toContain('Fix the spelling');
     act(() => capture.handlers!.onSegment({ text: 'Milk and eggs', startMs: 0, endMs: 900 }));
     await waitFor(() => expect(screen.queryByLabelText('Things to say')).toBeNull());
   });
@@ -249,9 +251,9 @@ describe('things to say', () => {
     render(<CaptureScreen fromAssistant={false} noteId="groceries" onFinish={vi.fn()} />);
     await waitFor(() => expect(capture.handlers).not.toBeNull());
     const card = await screen.findByLabelText('Things to say');
-    await waitFor(() => expect(card.textContent).toContain('fix the spelling'));
+    await waitFor(() => expect(card.textContent).toContain('Fix the spelling'));
     expect(card.textContent).not.toContain('to Groceries');
-    expect(card.textContent).toContain('make a list called');
+    expect(card.textContent).toContain('Make a list called');
   });
 });
 

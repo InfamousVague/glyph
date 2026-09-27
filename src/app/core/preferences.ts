@@ -216,14 +216,6 @@ export interface Preferences {
    */
   quietStop: boolean;
   /**
-   * Commands while recording ("add buy milk to HelloTrade") only count after
-   * "hey Ghost" is said (capture/liveRoute.ts). On by default: Matt, after a
-   * command became a note, "not do anything until it hears the keyword". Off,
-   * a few plain shapes ("add a note to House TODOs, …") are read at the very
-   * start of a recording without it.
-   */
-  commandWord: boolean;
-  /**
    * After Stop, the review (review/): the slower speech model listens again and
    * the language model, thinking out loud, checks the note; the person keeps
    * or commits what it finds. On by default: Matt asked for it. Only for takes
@@ -318,7 +310,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
   noteFace: 'maple',
   refine: true,
   quietStop: false,
-  commandWord: true,
   review: true,
   summaries: 'meetings',
   localOnly: false,

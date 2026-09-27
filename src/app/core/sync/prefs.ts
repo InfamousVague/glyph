@@ -21,7 +21,6 @@ const SYNCED_PREFS = [
   'noteFace',
   'refine',
   'quietStop',
-  'commandWord',
   'review',
   'summaries',
   'codeLight',

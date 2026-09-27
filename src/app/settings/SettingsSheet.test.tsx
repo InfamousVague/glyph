@@ -127,7 +127,7 @@ describe('the list of sections', () => {
     const host = settings();
     expect(labels(host)).toContain('Recording');
     const recording = handed.find((section) => section.id === 'recording');
-    expect(recording?.settings?.map((s) => s.name)).toEqual(['Stop when I go quiet', 'Commands start with “hey Ghost”', 'Review after recording', 'Better words', 'Summaries']);
+    expect(recording?.settings?.map((s) => s.name)).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries']);
   });
 
   it('grows Developer and Test results once developer mode is on', () => {

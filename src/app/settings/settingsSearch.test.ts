@@ -6,7 +6,7 @@ const sections: SearchableSection[] = [
   { id: 'theme', label: 'Appearance', summary: 'Dark', settings: [{ name: 'Code', words: 'syntax' }] },
   { id: 'animations', label: 'Animations', settings: [{ name: 'Smoke at the edges' }, { name: 'Ghostly typing' }] },
   { id: 'developer', label: 'Developer', settings: [{ name: 'Smoke bench' }] },
-  { id: 'recording', label: 'Recording', settings: [{ name: 'Commands start with “hey Ghost”' }, { name: "Use Ghost.md's guess" }] },
+  { id: 'recording', label: 'Recording', settings: [{ name: 'Say “scratch that”' }, { name: "Use Ghost.md's guess" }] },
 ];
 
 const found = (query: string) => searchSettings(sections, query).map((hit) => (hit.setting ? `${hit.section.id}/${hit.setting}` : hit.section.id));
@@ -39,7 +39,7 @@ describe('searchSettings', () => {
   });
 
   it('reads curly quotes and apostrophes as straight ones', () => {
-    expect(found('"hey')).toEqual(['recording/Commands start with “hey Ghost”']);
+    expect(found('"scratch')).toEqual(['recording/Say “scratch that”']);
     expect(found("ghost.md's")).toEqual(["recording/Use Ghost.md's guess"]);
   });
 });
@@ -51,9 +51,9 @@ describe('findSetting', () => {
       <section class="setk"><div class="setk__title">Code</div>
         <div class="setk-row"><span class="setk-row__label">On the light page</span><span class="setk-row__hint">Code colours</span></div>
       </section>
-      <div class="setk-row"><span class="setk-row__label">Commands start with “hey Ghost”</span></div>`;
+      <div class="setk-row"><span class="setk-row__label">Say “scratch that”</span></div>`;
     expect(findSetting(page, 'Code')?.className).toBe('setk__title');
-    expect(findSetting(page, 'commands start with "hey ghost"')?.textContent).toBe('Commands start with “hey Ghost”');
+    expect(findSetting(page, 'say "scratch that"')?.textContent).toBe('Say “scratch that”');
     expect(findSetting(page, 'Code colours')).toBeNull();
   });
 });

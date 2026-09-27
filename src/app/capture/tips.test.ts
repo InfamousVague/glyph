@@ -33,11 +33,15 @@ describe('tips in a pause', () => {
   // Changed on purpose (docs/DESIGN.md §126, §127): a recording no longer carries out a table, a book or a chapter, so
   // no tip teaches one. A board's lane is carried out on its own Speak but not taught yet, until Matt says whether a
   // tip for it should come back (§127, question 5).
-  it('teach only the commands a recording carries out as they are said', () => {
+  // A command needs no keyword (docs/DESIGN.md §136): every tip says it bare, in a form the bare gate takes.
+  it('teach only the commands a recording carries out as they are said, without the keyword', () => {
     const said = tips({ noteTitle: 'Groceries', continuing: true }).map((tip) => tip.say);
-    for (const line of ['Hey Ghost, add … to Groceries', 'Hey Ghost, new item for Groceries', 'Hey Ghost, new note', 'Hey Ghost, move this to Groceries']) expect(said).toContain(line);
+    for (const line of ['Add … to Groceries', 'New item for Groceries', 'New note', 'Move this to Groceries']) expect(said).toContain(line);
     expect(said.some((line) => /\b(?:table|chapter|book|lane)\b/i.test(line))).toBe(false);
     expect(said.some((line) => /fix the spelling|summarize/i.test(line))).toBe(false);
+    expect(said.some((line) => /Hey Ghost/i.test(line))).toBe(false);
+    // A note whose title does not say it is a list: "a note" said is the evidence the gate wants.
+    expect(tips({ noteTitle: 'Work', continuing: true }).map((tip) => tip.say)).toContain('Add a note to Work, …');
   });
 });
 
@@ -45,33 +49,35 @@ describe('the card before the first word', () => {
   it('shows a couple of each kind, naming a note of theirs', () => {
     const card = starters({ noteTitle: 'Groceries', asking: true });
     expect(card.shape.map((tip) => tip.say)).toEqual(['Bullet point', 'The next item is …']);
-    expect(card.send.map((tip) => tip.say)).toEqual(['Hey Ghost, add … to Groceries', 'Hey Ghost, move this to Groceries']);
-    expect(card.ask.map((tip) => tip.say)).toEqual(['Hey Ghost, fix the spelling', 'Hey Ghost, summarize this']);
+    expect(card.send.map((tip) => tip.say)).toEqual(['Add … to Groceries', 'Move this to Groceries']);
+    expect(card.ask.map((tip) => tip.say)).toEqual(['Fix the spelling', 'Summarize this']);
   });
 
-  it('still sends somewhere with no note to name, drops the keyword when it is off, and offers no ask where none can run', () => {
-    const card = starters({ noteTitle: null, keyword: false });
+  it('still sends somewhere with no note to name, and offers no ask where none can run', () => {
+    const card = starters({ noteTitle: null });
     expect(card.send.map((tip) => tip.say)).toEqual(['Make a list called … with …']);
     expect(card.ask).toEqual([]);
-    expect(starters({ noteTitle: null, keyword: false, asking: true }).ask[0]?.say).toBe('Fix the spelling');
+    expect(starters({ noteTitle: null, asking: true }).ask[0]?.say).toBe('Fix the spelling');
   });
 
   // Its items said the natural way, in a sentence after the name, would be the reader's title: the tip teaches "with".
-  it('makes a new list with its items, as the reader at Done reads it, with the keyword on or off', async () => {
-    for (const keyword of [true, false]) {
-      const [tip] = starters({ noteTitle: null, keyword }).send;
-      const said = `${tip!.say.replace('…', 'packing').replace('…', 'toothbrush, socks and charger')}.`;
-      await expect(readInstruction(said, []), said).resolves.toEqual({ kind: 'command', plan: { kind: 'create-list', title: 'packing', items: ['toothbrush', 'socks', 'charger'] } });
+  it('makes a new list with its items, as the reader at Done reads it, with the keyword or without', async () => {
+    const [tip] = starters({ noteTitle: null }).send;
+    for (const lead of ['', 'Hey Ghost, ']) {
+      const said = `${lead}${lead ? tip!.say.charAt(0).toLowerCase() + tip!.say.slice(1) : tip!.say}`.replace('…', 'packing').replace('…', 'toothbrush, socks and charger');
+      await expect(readInstruction(`${said}.`, []), said).resolves.toEqual({ kind: 'command', plan: { kind: 'create-list', title: 'packing', items: ['toothbrush', 'socks', 'charger'] } });
     }
   });
 
-  it('never suggests an ask the reader would not take: each one, spoken first with the keyword, is read as its run', () => {
+  it('never suggests an ask the reader would not take: each one, spoken first, is read as its run, bare as the whole phrase', () => {
     expect(ASKS.length).toBe(5);
     for (const ask of ASKS) {
-      const said = `Hey Ghost, ${ask.say.charAt(0).toLowerCase()}${ask.say.slice(1)}`;
-      const bare = bareWords(said);
-      expect(bare?.keyed, said).toBe(true);
-      expect(runOf(bare!.words), said).not.toBeNull();
+      const bare = bareWords(ask.say);
+      expect(bare?.keyed, ask.say).toBe(false);
+      expect(runOf(bare!.words, { whole: true }), ask.say).not.toBeNull();
+      const keyed = bareWords(`Hey Ghost, ${ask.say.charAt(0).toLowerCase()}${ask.say.slice(1)}`);
+      expect(keyed?.keyed, ask.say).toBe(true);
+      expect(runOf(keyed!.words), ask.say).not.toBeNull();
     }
   });
 });
@@ -85,7 +91,7 @@ describe('the tips that send words to a note', () => {
   const work = { id: 'work', body: '# Work\n\nNotes.\n' };
   const sending = (list: readonly Tip[]) => list.filter((tip) => /Groceries|new note/i.test(tip.say));
 
-  it('are each carried out, mid-take on a note’s own Speak, as the tip says', () => {
+  it('are each carried out, mid-take on a note’s own Speak, as the tip says, without the keyword', () => {
     const list = sending([...tips({ noteTitle: 'Groceries', continuing: true }), ...starters({ noteTitle: 'Groceries' }).send]);
     expect(list.length).toBeGreaterThan(3);
     for (const tip of list) {
@@ -101,6 +107,17 @@ describe('the tips that send words to a note', () => {
       expect(made.join(''), said).not.toMatch(/Hey Ghost/i);
     }
   });
+
+  // A note whose title does not say it is a list gets the "a note" form, which the gate takes into any note.
+  it('send words into a note whose title does not say it is a list, with “a note” said', () => {
+    const [tip] = starters({ noteTitle: 'Work' }).send;
+    expect(tip!.say).toBe('Add a note to Work, …');
+    const take = new LiveTake([groceries, work], { own: groceries });
+    take.phrase({ text: 'First words.', startMs: 0, endMs: 900 }, 0);
+    take.phrase({ text: `${tip!.say.replace('…', 'call Sam')}.`, startMs: 1000, endMs: 1900 }, 1000);
+    take.close(2000);
+    expect(take.result().bodies.get('work')).toBe('# Work\n\nNotes.\n\nCall Sam.');
+  });
 });
 
 describe('the tip for a pause', () => {
@@ -108,7 +125,7 @@ describe('the tip for a pause', () => {
   const work = { id: 'work', title: 'Work', note: { body: '# Work' } };
   const guide = { id: 'guide', title: 'Field guide', note: { body: bookNoteBody('Field guide', ['Birds']) } };
   const pause = (turn: number, over: Partial<Parameters<typeof tipInPause>[0]> = {}) =>
-    tipInPause({ notes: [groceries, work], own: 'new', target: null, keyword: true, pluginTips: () => [], turn, ...over });
+    tipInPause({ notes: [groceries, work], own: 'new', target: null, pluginTips: () => [], turn, ...over });
   /** Every tip a recording's pauses come round to: more turns than there are tips, so each is seen. */
   const all = (over: Partial<Parameters<typeof tipInPause>[0]> = {}) => [...new Set(Array.from({ length: 120 }, (_, turn) => pause(turn, over)?.say ?? ''))];
 
@@ -121,10 +138,10 @@ describe('the tip for a pause', () => {
     expect(pause(list.length + 2)).toEqual(list[2]);
   });
 
-  it('names the most recent note that is not the one being written to', () => {
-    expect(all()).toContain('Hey Ghost, add … to Groceries');
+  it('names the most recent note that is not the one being written to, in the form its title allows', () => {
+    expect(all()).toContain('Add … to Groceries');
     const aimed = all({ own: 'groceries', target: groceries.note });
-    expect(aimed).toContain('Hey Ghost, add … to Work');
+    expect(aimed).toContain('Add a note to Work, …');
     expect(aimed.some((say) => say.includes('Groceries'))).toBe(false);
   });
 
@@ -135,16 +152,15 @@ describe('the tip for a pause', () => {
 
   // No plugin gives a tip now (Notion's, which taught a command that had gone, went with it: docs/DESIGN.md §127);
   // the seam stays, and is held here with one of a plugin's own making.
-  it('adds the plugins’ own tips for the note it names, said after the keyword only when it is on', () => {
+  it('adds the plugins’ own tips for the note it names, as the plugin wrote them', () => {
     const asked: (string | null)[] = [];
     const pluginTips = (recent: string | null) => {
       asked.push(recent);
       return [{ say: 'Ring the bell', does: 'to try a plugin’s tip' }];
     };
-    expect(all({ pluginTips })).toContain('Hey Ghost, ring the bell');
-    expect(asked[0]).toBe('Groceries');
-    const plain = all({ pluginTips, keyword: false });
+    const plain = all({ pluginTips });
     expect(plain).toContain('Ring the bell');
+    expect(asked[0]).toBe('Groceries');
     expect(plain).toContain('Add … to Groceries');
     expect(plain.some((say) => say.startsWith('Hey Ghost'))).toBe(false);
   });
