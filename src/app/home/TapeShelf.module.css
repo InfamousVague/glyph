@@ -163,7 +163,11 @@
   line-height: inherit;
 }
 
-/* "and N more in All notes" at the row's end, as To do says it (HomeScreen.module.css .more), level with the cassettes' middles. */
+/*
+ * "and N more in All notes" at the row's end, level with the cassettes' middles, in the size and ink To do's own
+ * "and N more" has (HomeScreen.module.css .more). Written out rather than composed: this one is a word to tap with
+ * no margin above it, and a composing class that resets what it composes loses on source order (stylesheets.test.ts).
+ */
 .moreItem {
   flex: none;
   display: flex;
@@ -173,9 +177,9 @@
 }
 
 .more {
-  composes: more from './HomeScreen.module.css';
-  margin: 0;
   padding-inline: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-subtle);
   white-space: nowrap;
 }
 

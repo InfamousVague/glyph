@@ -5046,3 +5046,168 @@ and eight new voice suite scripts (093 to 100) whose audio is still to be made.
 on-device model does not pick among titles; it has not been timed on the Fold beside Whisper. "Hey Ghost" is not in
 Whisper's prompt (an APK change). Voice memos said aloud, plugin commands by voice, and removing take.ts's
 phrase-at-a-time reader are follow-ups. Kevin wrote PR #1 and should see this section.
+
+## 127. Tapes on the home page, summaries, and meetings (2026-09-26)
+
+Matt: "Id like to expand on the voice notes, display them in a cassette shelf on the home page and add summaries to
+them, I'm going to start recording meetings and stuff and letting the audio be transcribed then summarized by AI so I
+get summarized recording notes automatically via a background task, when it's done send a notification that a new
+recording has been summarized."
+
+Standing rules this is built under: no always-on microphone (a recording in progress is the one open microphone, and
+a meeting may need to carry on with the screen off); nothing leaves the phone unless he chooses it (whisper and the
+Qwen models on the device; glyph-api is asked for nothing); the tape lives in the note (§26) and the note is the AI's
+only surface (§114); every line of copy keeps §21's voice. Read-only map at HEAD 3d804cd. Nothing here has run on the
+Fold. Section 9 is where the measured numbers go, and until a line there says a number was measured, every timing in
+this section is an estimate from the emulator or the Mac.
+
+**What the review changed.** The first draft was read against the tree and forty-odd holes were found. The shape
+that came out of answering them:
+
+- The shelf shows what the recorder made, ordered by when it was recorded. A typed note spoken into keeps its card.
+- A summary is written once, on purpose or for a meeting, into a section with a shape the page owns and a close it
+  can find again. It is never remade behind the person's back, so an edit to it is never lost and a ticked to-do
+  never comes back open.
+- Automatic summaries are tied to the kind of recording, not to an invisible length. The one length rule left (long
+  voice notes, if he wants them) is written in the setting's own words.
+- A meeting on Android is native work only. Nothing ships a screen-on, RAM-only, live-transcribing "meeting" on the
+  current binary. The Mac gets meetings in the page recorder first, because its window keeps running and its memory
+  is not a phone's.
+- The service that records a meeting is the service that writes it up. WorkManager is the retry path, not the main
+  one.
+- Sync cannot be stopped by one long tape, meeting audio stays on the phone unless he says otherwise, and a
+  notification on the lock screen says nothing of what was said.
+
+Four things, in the order they ship: the shelf (page), summaries (page), meetings on the Mac (page), then meetings
+and the write-up on Android (a native release, generation 20). Only section 1 is built and written up here; the
+other sections are headings until their slices land.
+
+### 1. Tapes: the shelf on the home page
+
+**What is on it.** `home/dashboard.ts` `tapedNotes(notes, meetings)`: not archived, not a Guide page,
+`recordingMs > 0`, and made by the recorder (`source === 'capture'`) or a meeting (`id in prefs.meetings`, section 3).
+Ordered by `createdAt`, newest recorded first, which is how a shelf of tapes reads; a summary or the better words
+landing later bumps `updatedAt` and must not move a tape along the row. Pure, tested. The list read already carries
+`recordingMs`, `source` and `createdAt`, so the shelf costs no fetch. The workspace filter applies as to every group.
+
+A typed note that was later spoken into (a note with a tape whose `source` is `editor`, a note with one voice memo)
+is **not** on the shelf and stays in Recent, where he left it. Its card wears the tape's counter in its foot,
+"12:40 · Yesterday" (`NoteCard.tsx` reads `recordingMs`, tabular figures, no icon). That is how a spoken-into note is
+told from a typed one off the shelf. A note that was recorded is a tape; a note that was written and then talked into
+is a note.
+
+**Nothing twice.** `recentNotes` leaves out exactly the notes `tapedNotes` takes (one exported predicate,
+`isTape(note, meetings)`, used by both). Pinned keeps its card and the cassette is drawn as well, since pinning is a
+deliberate act. `openTasks` is untouched.
+
+**Where it sits.** Pinned, **Tapes**, Library, Recent, To do. Heading `.group` as the others, with a small cassette
+mark drawn in `art/Icons.tsx` (`Cassette`, the shell of `TapeArt` in the icon's own line weight), the way the pin sits
+on Pinned.
+
+**A cassette.** `<TapeArt bare positionMs={recordingMs} lengthMs={shelfLength} />` inside a `<button>` that opens the
+note (`onOpen(id)`, the same `openNoteWhereLeft` a card uses). `bare` draws the label paper with its A mark and no
+words: at the shelf's 11rem the label's 13px title would be 7px and its small print 4px, unreadable, and on the cover
+screen the whole row is 412px wide. The words go **under** the cassette in real type:
+
+- Line one, the title (`noteTitle(body) || 'Untitled'`), `--glacier-font-size-sm`, one line, clipped by CSS. Beside
+  it, in the caps style of `.small`, the counter and the date: "12:40 · 26 Sep".
+- Line two, the caption (below).
+
+`tapeLabel` stays NoteTape's. Reels still; a tap does not play. The tape is the player and lives in the note (§26).
+`aria-label` = "{title}, {counter}, {date}" plus ", summarized" when it has a summary.
+
+- `TapeArt` gets `lengthMs?: number` (default `TAPE_MS`): how much tape fills the cassette.
+  `packRadii(positionMs, lengthMs = TAPE_MS)` and `reelTurn(positionMs, ms, lengthMs)` take it. The shelf passes the
+  longest tape on the shelf, at least five minutes, so a three-minute note beside an hour's meeting is a thin ring
+  beside a full reel. NoteTape passes `Math.max(TAPE_MS, tape.length)`, so a long tape winds across its whole length
+  in playback instead of saturating at five minutes. This is what makes tape.ts's header sentence ("nobody has to
+  read a number to see how long a note is") true past five minutes.
+- The mask id `tape-label-mask` becomes per instance (`useId()`): eight cassettes on one page share it today.
+- Arrival beat: each cassette takes `--i` as the cards do (capped at 8).
+- Measured on the Fold's cover screen before the OTA: the title line readable, two and a bit cassettes showing.
+
+**The caption**, one line under the title, the first of these that is true:
+
+1. "Recording" with the reels turning, while this note's meeting is being recorded (section 3; the shelf polls
+   `GlyphHost.meetingState()` once a second while visible, only on a binary that has it).
+2. "Listening again" with the working spinner (`LoaderCircle`, NoteCard's `.working`) while the note's better-words
+   job is queued or running (`useRefining().pending.has(id)`).
+3. "Writing up" with the spinner while a native write-up is running for it (section 4;
+   `useSummaries().native.has(id)`).
+4. "Summarizing" with the spinner while its page summary is queued or running (`useSummaries().pending.has(id)`),
+   the strip's own word (`kindWords('summarize').doing`).
+5. On a phone, while 2 or 4 is true for a tape over ten minutes and the write-up is the page's (not the service's):
+   "Keep Ghost.md open" after the word, since the page's queues only run while the app is up (VoiceModelStatus's
+   precedent, "Keep Ghost.md open.").
+6. "Needs a model" with a `Get a model` word (`app-word`, opens Settings › Formatting) when the job is waiting for a
+   language model that is not on the phone.
+7. "The summary didn't come" with a `Try again` word after the queue gave up.
+8. The summary's first sentence (`summaryLine(body)`), in the gist's style (`.gist`).
+9. Else the gist, if the note has one; else nothing.
+
+`useGists` is given the shelf's notes as well as the cards' (`carded = [...pinned, ...shelf, ...recent]`,
+HomeScreen.tsx), or a 40-second voice note would never get a line. A landed summary changes the body past the gist's
+5% rule, so one gist run follows each summary; that is fine and said here.
+
+The order is one pure function, `captionOf` in `home/tapeCaption.ts`, beside the shelf that draws it. The states
+that depend on the later sections (1, 3, 4, 6, 7, 8) read their sources through small hooks that answer "none"
+today: `ai/summaries.ts` (`useSummaries`, `retrySummary`), `ai/summaryText.ts` (`summaryLine`) and
+`home/useMeetingLive.ts`. The caption code and its tests exist now; the later slices fill the hooks. Only
+`useRefining().pending` is real in this slice.
+
+**How many.** `SHELF = 8`, beside `RECENT = 6` and `TASKS = 8`. Past eight, a word at the end of the row, "and N
+more in All notes" (`.more`, as To do says it), which opens the grid with its new **Tapes** toggle on.
+`notes/AllNotesScreen.tsx` gets a Tapes toggle beside the order words, in the archive toggle's shape; `browseNotes`
+gains `{ tapes: boolean }` (every note with `recordingMs > 0`, typed ones included, so nothing with a tape is
+unreachable). Test in allNotes.test.ts. With a hundred recordings this is the way to the ninety-second.
+
+**Widths.** A row that scrolls sideways at every width, bleeding to the screen's edges under the gutters (negative
+inline margins to `--app-gutter-start/end`, padding back in), `scroll-snap-type: x proximity`, each cassette `11rem`
+wide with `--glacier-space-3` between, the two text lines under each in the same column. `prefers-reduced-motion`
+changes nothing (the reels are still already, except a meeting's, which then stay still too).
+
+**Empty.** No group when there are no tapes. No loading state.
+
+**Files.** `home/dashboard.ts` (`isTape`, `tapedNotes`, `recentNotes`), `home/TapeShelf.tsx` +
+`TapeShelf.module.css`, `home/HomeScreen.tsx` (the section, `SHELF`, gists for the shelf), `capture/tape.ts`
+(`lengthMs`), `tapes/TapeArt.tsx` (`bare`, `lengthMs`, `useId`), `tapes/NoteTape.tsx` (`lengthMs`),
+`notes/NoteCard.tsx` (+ `.tapeLength`), `notes/AllNotesScreen.tsx` + `notes/allNotes.ts` (Tapes toggle),
+`art/Icons.tsx` (`Cassette`), `core/preferences.ts` (`meetings: Record<string, number>`, synced like `trash`, empty
+until section 3 writes it). Tests: dashboard.test.ts (order by `createdAt`; archive, Guide and typed-with-tape out;
+`recentNotes` leaves out only what the shelf takes; a typed note with a tape stays in Recent), tape.test.ts
+(`packRadii` with `lengthMs`), HomeScreen.test.tsx (heading order; "and N more" opens the grid with Tapes on; the
+shelf's notes are gisted), TapeShelf.test.tsx (each caption state in order, Try again re-queues, Get a model opens
+Settings), NoteCard test (the counter in the foot), allNotes.test.ts (`tapes`). Page code, over the air, generation
+19.
+
+### 2. The summary
+
+To come.
+
+### 3. Meetings
+
+To come.
+
+### 4. The write-up with the app closed (Android, generation 20)
+
+To come.
+
+### 5. The notification
+
+To come.
+
+### 6. Sync, storage, sharing, privacy
+
+To come.
+
+### 7. Every line, in the app's voice (§21)
+
+To come.
+
+### 8. Slices, each shippable alone
+
+To come.
+
+### 9. Measured
+
+To come.

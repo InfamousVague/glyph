@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react';
 import { LoaderCircle } from '@glacier/icons';
-import { kindWords } from '../ai/kinds.ts';
-import { retrySummary, useSummaries, type SummariesState } from '../ai/summaries.ts';
+import { retrySummary, useSummaries } from '../ai/summaries.ts';
 import { summaryLine } from '../ai/summaryText.ts';
 import { useRefining } from '../capture/refine.ts';
 import { TAPE_MS, counter } from '../capture/tape.ts';
@@ -9,6 +8,7 @@ import { isMobile } from '../core/platform.ts';
 import { scrollSideways } from '../core/scrollSideways.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 import { TapeArt } from '../tapes/TapeArt.tsx';
+import { captionOf, type Caption, type CaptionSources } from './tapeCaption.ts';
 import { useMeetingLive } from './useMeetingLive.ts';
 import styles from './TapeShelf.module.css';
 
@@ -20,12 +20,12 @@ import styles from './TapeShelf.module.css';
  *
  * Each cassette is drawn bare (tapes/TapeArt.tsx) and its words are set under it in real type: at the shelf's 11rem
  * the label's own print would be unreadable, and on the Fold's cover screen the whole row is 412px wide. Line one is
- * the title with the counter and the date beside it; line two is the caption, the first true thing in `captionOf`'s
- * order - a meeting being recorded, the better words or a summary on their way, a model that is missing, a summary
- * that did not come, the summary's first line, or the gist. A tap opens the note; the reels are still, since the
- * tape is the player and lives in the note (§26). The longest tape on the shelf, at least five minutes, is the
- * length every cassette is drawn against, so a three-minute note beside an hour's meeting is a thin ring beside a
- * full reel.
+ * the title with the counter and the date beside it; line two is the caption, the first true thing in the order
+ * home/tapeCaption.ts keeps - a meeting being recorded, the better words or a summary on their way, a model that is
+ * missing, a summary that did not come, the summary's first line, or the gist. A tap opens the note; the reels are
+ * still, since the tape is the player and lives in the note (§26). The longest tape on the shelf, at least five
+ * minutes, is the length every cassette is drawn against, so a three-minute note beside an hour's meeting is a thin
+ * ring beside a full reel.
  */
 
 interface TapeShelfProps {
@@ -40,49 +40,6 @@ interface TapeShelfProps {
   onMore: () => void;
   /** "Get a model": Settings › Formatting, where a language model is fetched. */
   onGetModel: () => void;
-}
-
-/** A tape this long or longer says "Keep Ghost.md open" on a phone while the page works on it: the page's queues only run while the app is up. */
-const LONG_TAPE_MS = 600_000;
-
-/** What the caption reads from, apart from the note: the queues, and whether this is a phone. */
-export interface CaptionSources {
-  /** The note whose meeting is being recorded, or null. */
-  recording: string | null;
-  /** Notes whose better words are queued or running (capture/refine.ts). */
-  refining: ReadonlySet<string>;
-  summaries: SummariesState;
-  /** On a phone the page's queues stop when the app is left, so a long job asks for the app to stay open. */
-  phone: boolean;
-}
-
-export type Caption =
-  /** A meeting being recorded: the reels turn. */
-  | { kind: 'recording' }
-  /** The better words or a summary on their way, with the working spinner; `keepOpen` adds "Keep Ghost.md open". */
-  | { kind: 'working'; word: string; keepOpen: boolean }
-  /** The job waits for a language model that is not on the phone: "Needs a model" with the word to get one. */
-  | { kind: 'needsModel' }
-  /** The queue gave up: "The summary didn't come" with Try again. */
-  | { kind: 'failed' }
-  /** The summary's first line, or the gist. */
-  | { kind: 'line'; text: string };
-
-/** The one line under a cassette's title: the first of these that is true, or null for none (§127 section 1, "The caption"). */
-export function captionOf(note: Note, sources: CaptionSources, gist: string | undefined): Caption | null {
-  const { summaries } = sources;
-  // A long tape the page itself is working on: the service's write-up carries on with the app closed, the page's queues do not.
-  const keepOpen = sources.phone && (note.recordingMs ?? 0) > LONG_TAPE_MS && !summaries.native.has(note.id);
-  if (sources.recording === note.id) return { kind: 'recording' };
-  if (sources.refining.has(note.id)) return { kind: 'working', word: 'Listening again', keepOpen };
-  if (summaries.native.has(note.id)) return { kind: 'working', word: 'Writing up', keepOpen: false };
-  if (summaries.pending.has(note.id)) return { kind: 'working', word: kindWords('summarize').doing, keepOpen };
-  if (summaries.needsModel.has(note.id)) return { kind: 'needsModel' };
-  if (summaries.failed.has(note.id)) return { kind: 'failed' };
-  const line = summaryLine(note.body);
-  if (line) return { kind: 'line', text: line };
-  if (gist) return { kind: 'line', text: gist };
-  return null;
 }
 
 const DATE = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });

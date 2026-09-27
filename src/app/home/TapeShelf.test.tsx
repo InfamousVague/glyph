@@ -6,8 +6,8 @@ import { button, show, unmount } from '../../test/render.tsx';
 
 /**
  * The shelf of tapes (docs/DESIGN.md §127 section 1): a cassette a note, its words under it, and the caption in its
- * order - the first true thing wins. The queues the caption reads are stood in for here, since none of them can run
- * in a test, and the sets are the same objects the shelf reads, so a test fills one and draws.
+ * order (home/tapeCaption.ts) - the first true thing wins. The queues the caption reads are stood in for here, since
+ * none of them can run in a test, and the sets are the same objects the shelf reads, so a test fills one and draws.
  */
 
 const sources = vi.hoisted(() => ({
@@ -27,7 +27,8 @@ vi.mock('../ai/summaries.ts', () => ({
   retrySummary: (id: string) => sources.retried.push(id),
 }));
 vi.mock('../ai/summaryText.ts', () => ({ summaryLine: (body: string) => sources.lines.get(body) ?? null }));
-const { TapeShelf, captionOf } = await import('./TapeShelf.tsx');
+const { TapeShelf } = await import('./TapeShelf.tsx');
+const { captionOf } = await import('./tapeCaption.ts');
 
 afterEach(() => {
   unmount();
