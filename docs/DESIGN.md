@@ -5046,3 +5046,74 @@ and eight new voice suite scripts (093 to 100) whose audio is still to be made.
 on-device model does not pick among titles; it has not been timed on the Fold beside Whisper. "Hey Ghost" is not in
 Whisper's prompt (an APK change). Voice memos said aloud, plugin commands by voice, and removing take.ts's
 phrase-at-a-time reader are follow-ups. Kevin wrote PR #1 and should see this section.
+
+## 127. Only what a recording can reach stays (2026-09-26)
+
+Matt, told that voice tables had been unreachable since PR #1 (§126, question 2): "Cut it, let's refine things to
+just keep what's active now".
+
+So every voice and recorder feature the running app could no longer reach has gone, with every line that taught one.
+Each was checked first: nothing on the page called it outside its own tests, and a recording, through the live reader
+(§126) or the reader at Done, never got to it. A command said for one of them is read as it was before the cut: at
+Done a table, a book, a chapter, a board or a move is still turned down and becomes an ask or the note's words.
+
+**What went.**
+
+- The table dialogue by voice: "Hey Ghost, add a table to X", the labels, the rows, "done", the preview and the yes.
+  capture/table.ts, the table card and its preview, the take's tables and their clock, voice tests 063 to 065 and the
+  simulated table scripts. `cellsOf` moves into command.ts, which still reads a table's shape so it can refuse it.
+- The take's phrase-at-a-time reader: `phrase` and `tick`, the spoken yes and no, the twenty seconds a question was
+  given, and `TAKE_TIMING`, whose two timings the live reader used are its own now (`LIVE_TIMING`). With it the
+  phone's command model asked mid-take (`understandInstructionCommand`, `commandModel`) and the card's "say yes or no".
+  Voice test 057, a spoken "no".
+- What only that reader reached: a book or a chapter made by voice (`makeBook`), a board made or a card moved by voice
+  (the `lane` and `card` plans, which need a board no caller passes), moving the take or starting a named note from a
+  card (`routeTo`, `carryOn`), and the ghost of the words sliding away (Tail). Voice tests 070 and 071.
+- The spoken voice memo, "voice memo … end memo" (capture/voiceMemo.ts), and the pause tip that offered it. Voice
+  tests 072 and 073.
+- Plugin voice commands and item targets: "send that to Notion", "new task for X in Notion", "add a note for the
+  Notion task for …". plugins/notion/voice.ts and `findTasks`, the `voice` and `itemTargets` extension points and
+  `CaptureContext`, the recorder's last-said and sent links (`applyLinks`), the plugin chip, a placement's plugin
+  target, Notion's pause tip and its voice permission, and "say it" in its description. Voice test 068.
+
+The confirm card after Done has two offers now, words into a note and a new list by name, and the take's offers are
+typed as the plans the reader at Done carries out (`FinalPlan`). The chip keeps the views the live reader shows. The
+voice suite is 92 scripts, all run.
+
+**What stayed.** The live reader, all of it, and "Hey Ghost, add call Sam to Doing" said on a board's own Speak, which
+puts a card in Doing as it is said (liveRoute.ts into place.ts's lane placing, voice test 069). The reader at Done,
+its card, and its refusals. Every dictation cue and the plugins' format cues; the tips, the Things to say card and its
+asks. Typed and drawn tables, and Style › Table. Boards and books. Notion and GitHub: the swipe, the quiet word, Send
+list, links and pills. Voice memos already in notes, drawn and played, with the tape id kept at Done.
+
+**Taught true.** The Guide's chapters on memos, the marks, commands, boards, books, the better words, Notion, the one
+page, formats, the plugin seam, the microphone, the command guards and the tests; the index's five things; and the
+disagreements chapter, whose voice entries are all resolved. docs/BOARDS.md, BOOKS.md, PLUGINS.md, VOICE_TESTS.md,
+instruction-voice-commands.md and docs/README.md. Settings › Plugins shows Notion's reach without "Voice commands".
+The historical sections of this file are left as they were.
+
+**Kept for Matt to decide.** Not cut, because each is a choice rather than a dead branch:
+
+1. command.ts still reads a table, a book, a chapter, a board, a move and a new note (`TABLE`, `MAKE_BOOK`,
+   `MAKE_BOARD`, `forBook`, `chapterFor`), only so the reader at Done can turn them down; without them "add a table
+   to Work" would offer to add "a table" to Work. Fold them into one refusal, as liveCommand.ts's `NOT_WORDS` is?
+2. `matchLane` and `moveToLane` (core/boards/lanes.ts), the keyword's sound-alikes (`findSoundAlike`), the mid-take
+   drafts in takeWriter.ts (`flushDraft`, `keepDraft`, `updateNote`), `clipMarkdown`, and a refine job's `clips`,
+   which a job queued by an older build may still carry: each is now unused or test-only. Keep or cut?
+3. The plugin `tips` point and the `voice` permission kind stay, with no plugin using either.
+4. `interpretWakeCommand` stays for the evaluation corpus, whose create cases the reader at Done would refuse. Move the
+   corpus onto `classifyFinalTranscript` and accept that?
+5. Adding to a lane by voice works but nothing teaches it. A tip on a board's own Speak?
+6. "Hey Ghost, send that to Notion" is read as words for a note called Notion: with none the chip says so, and with a
+   note titled like "Notion setup" the words go there. Guard the word?
+7. Mid-take, "make a book called …" or "add a table to …" is queued as an ask for the AI. Leave it out instead?
+8. After a routed command, "No." is written as an item. It was the old reader's answer.
+
+**Native follow-ups.** Page code only, generation 19, over the air. Two things in Rust describe what went, for the
+next native release: `CUE_VOCABULARY`'s `MORE_CUES` in src-tauri/src/whisper/text.rs still primes Whisper with
+"Voice memo, end memo", and llm/tests.rs `understands_spoken_commands` measures `COMMAND_PROMPT`, table cases and
+all, where it could measure `COMMAND_SYSTEM`, which `ai_infer_command` sends. `REVIEW_PROMPT` still says spoken cues
+make tables; changing it changes the review, and llm/tests.rs reads it by name.
+
+**Tests.** The cut features' tests went with them. New: no tip offers a voice memo, `cellsOf` is held in
+command.test.ts, and no plugin word comes off a note's name in route.test.ts.
