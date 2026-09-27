@@ -192,3 +192,26 @@ can go up as they are and be swapped later; the listing can be edited after publ
 | `screenshots/raw/` | The bare screens the pictures were made from, not for upload |
 
 The Markdown lives in the repo on the `store/play-assets` branch; the pictures live only in the pack folder.
+
+## The tablet screenshots, read against Play's rule, and the plain set
+
+Added on 2026-09-27 at 18:30, after Play's preview assets page was read again. The tablet slots take 16:9 or 9:16
+pictures only, with sides between 1080 and 7680 px, so the Fold's near-square set in `screenshots/tablet/` cannot
+be uploaded as it is. Upload this instead, in both tablet slots:
+
+| Field | Upload |
+|---|---|
+| 7-inch tablet screenshots | `screenshots/tablet-16x9/01-home.png`, `02-a-tape.png`, `03-a-canvas.png`, `04-a-book.png`: 2560 × 1440, 24-bit PNG with no alpha, the landscape screen with the sidebar docked under its caption. `screenshots/tablet-16x9/spares/` holds `05-a-board.png` and `06-a-meeting.png` as swaps. `screenshots/tablet-16x9-light/` is the same set in the light theme, should the phone set go up light. |
+| 10-inch tablet screenshots | The same four files. |
+
+Check before the day: `file screenshots/tablet-16x9/*.png` should print four files at 2560 x 1440, all "8-bit/color
+RGB" and none "RGBA". `node ../shots/verify.mjs screenshots/tablet-16x9 screenshots/plain` reads every picture
+against the limits and prints "All within the limits."
+
+If Play's review turns a captioned picture down for the words above the screen, `screenshots/plain/` (dark) and
+`screenshots/plain-light/` hold every picture with no caption and no frame, under the same names: `phone/` at
+1080 × 1920 and `tablet/` at 2400 × 1350. Swap the one turned down for its plain twin and resubmit. The section "The
+plain set" in `copy/screenshots.md` says why the captioned ones are within the rule as written.
+
+Files this adds to the pack: `screenshots/tablet-16x9/` and `-light/` (the tablet pictures to upload), `screenshots/plain/`
+and `plain-light/` (the uncaptioned twins), and in `screenshots/raw/` the `tablet-*` raws beside the `fold-*` ones.

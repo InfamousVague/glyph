@@ -50,3 +50,38 @@ twice the short), so upload the set to both.
 
 Settings, which a caption could not improve; sync and sharing, which are a sign-in form and a link; the notification
 a meeting sends, which the web build cannot show and which would have to be staged.
+
+## The tablet slots take 16:9 or 9:16 only
+
+Read again on 2026-09-27 from Play's preview assets page: the 7-inch and 10-inch tablet slots take pictures with
+sides between 1080 and 7680 px and, in the page's words, "16:9 aspect ratio for landscape and a 9:16 aspect ratio for
+portrait". The Fold opened out is near square (1812 × 2176 as shot in a browser, 2184 × 1968 on the phone), so that
+set cannot go up as it is. Its raws stay in `screenshots/raw/` under `fold-*` as a reference for the day the slots
+take a squarer shape, and nothing else uses them.
+
+The set to upload is `screenshots/tablet-16x9/` (the dark theme) or `screenshots/tablet-16x9-light/` (the light
+one), made by `../shots/shoot-tablet.mjs` and `../shots/compose-tablet.mjs`. Each is 2560 × 1440, a 24-bit PNG with
+no alpha: a landscape screen of 2400 × 1350 (a 1200 × 675 viewport at a scale of 2, the sidebar docked, the same
+invented library) under a band of 280 px for the kicker and the caption, which is 19.4 percent of the picture, under
+the fifth Play allows for a tagline. The same four files go into both tablet slots.
+
+| # | File | The screen | Caption |
+|---|---|---|---|
+| 1 | `tablet-16x9/01-home.png` | The home page beside the docked sidebar: the date, To do, Pinned, the Library | Your day, with the sidebar docked. |
+| 2 | `tablet-16x9/02-a-tape.png` | Planning call with Sam beside the sidebar: the tape, the title, the Summary | The note, the tape, the summary. |
+| 3 | `tablet-16x9/03-a-canvas.png` | Cabin weekend, laid out: the group, the cards, the lines with words on them, the minimap | Cards on a canvas, lines between them. |
+| 4 | `tablet-16x9/04-a-book.png` | Portugal in Read, the Book index aside | A book, read straight through. |
+| 5 | `tablet-16x9/spares/05-a-board.png` | Launch week as a board, three columns | A list can be a board. |
+| 6 | `tablet-16x9/spares/06-a-meeting.png` | Monday standup with its long tape and its Summary | Screen off. Written up when it ends. |
+
+The two spares are swaps, not additions, and picture 6 is 1.9.0's.
+
+## The plain set, with no caption
+
+Play's screenshot rule also reads that a picture should show "only the app interface", with a tagline allowed on at
+most a fifth of it. The captioned sets keep their band under the fifth (the phone's 380 px of 1920 is 19.8 percent,
+the tablet's 280 of 1440 is 19.4), so they are within the rule as written. Should a reviewer read it the strict way
+and turn a captioned picture down, `screenshots/plain/` (dark) and `screenshots/plain-light/` hold the same
+pictures with no caption and no frame: `phone/` at 1080 × 1920 and `tablet/` at 2400 × 1350, both 16:9 or 9:16,
+24-bit PNG with no alpha, under the same names and numbers, so a plain picture swaps for its captioned one by name.
+`../shots/plain.mjs` writes them from the raws.
