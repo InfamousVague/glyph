@@ -47,6 +47,12 @@ src-tauri/gen/android/**
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/capture/**
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/updates/
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/updates/**
+# Meetings' write-up: the JNI door, the retry chain and the notifications (native generation 20).
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/recordings/
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/recordings/**
+# The Kotlin unit tests (plain JUnit, no device): `./gradlew :app:testUniversalReleaseUnitTest`.
+!src-tauri/gen/android/app/src/test/
+!src-tauri/gen/android/app/src/test/**
 # The store build's manifest overlay (GLYPH_STORE=play, app/build.gradle.kts).
 !src-tauri/gen/android/app/src/store/
 !src-tauri/gen/android/app/src/store/**
