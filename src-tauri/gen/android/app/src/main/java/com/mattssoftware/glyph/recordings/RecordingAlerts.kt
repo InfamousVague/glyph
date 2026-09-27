@@ -92,6 +92,9 @@ internal object RecordingAlerts {
       .setOngoing(true)
       .setSilent(true)
       .setOnlyAlertOnce(true)
+      // Shown the moment the microphone opens: Android 12+ otherwise holds a service's notification back for ten
+      // seconds, and a running microphone with no Stop in sight for ten seconds is the wrong first impression.
+      .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
       .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
       .setCategory(NotificationCompat.CATEGORY_SERVICE)
       .build()
@@ -122,6 +125,7 @@ internal object RecordingAlerts {
       .setOngoing(true)
       .setSilent(true)
       .setOnlyAlertOnce(true)
+      .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
       .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
       .setCategory(NotificationCompat.CATEGORY_PROGRESS)
       .build()

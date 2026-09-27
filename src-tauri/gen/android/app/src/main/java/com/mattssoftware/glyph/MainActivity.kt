@@ -36,6 +36,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.exifinterface.media.ExifInterface
+import androidx.lifecycle.Lifecycle
 import org.json.JSONObject
 import java.io.FileOutputStream
 import java.util.Locale
@@ -97,13 +98,22 @@ class MainActivity : TauriActivity() {
      * WebView is resumed first, as `deliverCapture` does: a paused one queues
      * the script instead of running it.
      */
-    internal fun tell(name: String, argument: String?): Boolean {
+    internal fun tell(name: String, argument: String?): Boolean = tell(name, argument, null)
+
+    /**
+     * As above, and `taken` hears whether the page had a handler for it: false
+     * when it did not (the page is still loading, or an older page), so a word
+     * that must not be lost can be kept and said again.
+     */
+    internal fun tell(name: String, argument: String?, taken: ((Boolean) -> Unit)?): Boolean {
       val activity = resumed?.get() ?: return false
       val wv = activity.webView ?: return false
       val call = if (argument == null) "window.__glyph.$name()" else "window.__glyph.$name(${JSONObject.quote(argument)})"
       activity.runOnUiThread {
         wv.onResume()
-        wv.evaluateJavascript("window.__glyph && window.__glyph.$name && $call", null)
+        wv.evaluateJavascript("window.__glyph && window.__glyph.$name ? ($call, 'ok') : 'no'") { result ->
+          taken?.invoke(result == "\"ok\"")
+        }
       }
       return true
     }
@@ -226,7 +236,7 @@ class MainActivity : TauriActivity() {
     // The microphone's answer, now that the page's retry can start the service while the activity is resumed.
     pendingPermission?.let { granted ->
       pendingPermission = null
-      tell("meeting", JSONObject().put("event", "permission").put("noteId", JSONObject.NULL).put("elapsedMs", 0).put("granted", granted).toString())
+      deliverPermission(granted)
     }
     MeetingService.flushPending()
     // Registered whether or not the WebView exists yet: on a cold start it
@@ -342,9 +352,19 @@ class MainActivity : TauriActivity() {
       REQUEST_MEETING_NOTIFICATIONS -> webView?.let { wv ->
         runOnUiThread { wv.evaluateJavascript("window.__glyph && window.__glyph.notified && window.__glyph.notified()", null) }
       }
-      // Kept for onResume, which follows this callback: the page's retry must start the service with the activity resumed.
-      REQUEST_MICROPHONE -> pendingPermission = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+      REQUEST_MICROPHONE -> {
+        val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+        // After a dialog this callback comes before onResume, which delivers the answer, so the page's retry
+        // starts the service with the activity resumed. With no dialog (refused twice before, Android answers on
+        // the spot) the activity never left the front and no resume follows: the answer goes now.
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) deliverPermission(granted) else pendingPermission = granted
+      }
     }
+  }
+
+  /** The microphone's answer to the page, `meeting { event: "permission", granted }`. */
+  private fun deliverPermission(granted: Boolean) {
+    tell("meeting", JSONObject().put("event", "permission").put("noteId", JSONObject.NULL).put("elapsedMs", 0).put("granted", granted).toString())
   }
 
   override fun onWebViewCreate(webView: WebView) {

@@ -10,7 +10,9 @@ import android.media.AudioRecord
 import android.media.AudioRecordingConfiguration
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
@@ -89,6 +91,9 @@ class MeetingService : Service() {
     private const val TAG = "GlyphMeeting"
     private const val THERMAL_WAIT_MS = 60_000L
     private const val THERMAL_WAITS = 30
+    /** How often, and how many times, the word of a died meeting is offered to a page that has not registered for it yet. */
+    private const val FLUSH_EVERY_MS = 2_000L
+    private const val FLUSH_TRIES = 15
     /** The wake lock's own limit, past the cap and the question: a lock this service forgot must not outlive the phone's night. */
     private const val RECORDING_WAKE_MS = MEETING_MAX_MS + MEETING_ANSWER_MS + 60_000L
     private const val WRITE_UP_WAKE_MS = 4 * 60 * 60 * 1000L
@@ -165,11 +170,46 @@ class MeetingService : Service() {
       RecordingWorker.sweep(context)
     }
 
-    /** Says what was held for the page, once an activity is resumed (MainActivity.onResume). */
+    /** One chain of offers at a time: `recover` and onResume both flush, and two chains would knock twice as often. */
+    private val flushing = AtomicBoolean(false)
+
+    /**
+     * Says what was held for the page, once an activity is resumed
+     * (MainActivity.onResume). At a cold launch the activity is resumed before
+     * its WebView exists, and the page registers its handler later still, so
+     * the word is kept until the page says it took it, and offered again every
+     * two seconds for half a minute; after that it waits for the next resume.
+     */
     fun flushPending() {
-      val id = died.getAndSet(null) ?: return
+      if (died.get() == null || !flushing.compareAndSet(false, true)) return
+      offerDied(0)
+    }
+
+    private fun offerDied(attempt: Int) {
+      val id = died.get()
+      if (id == null) {
+        flushing.set(false)
+        return
+      }
       val json = JSONObject().put("event", "stopped").put("noteId", id).put("elapsedMs", 0).put("reason", "died")
-      if (!MainActivity.tell("meeting", json.toString())) died.compareAndSet(null, id)
+      val told = MainActivity.tell("meeting", json.toString()) { taken ->
+        if (taken) {
+          died.compareAndSet(id, null)
+          flushing.set(false)
+        } else {
+          offerLater(attempt)
+        }
+      }
+      if (!told) offerLater(attempt)
+    }
+
+    private fun offerLater(attempt: Int) {
+      if (attempt < FLUSH_TRIES) {
+        Handler(Looper.getMainLooper()).postDelayed({ offerDied(attempt + 1) }, FLUSH_EVERY_MS)
+      } else {
+        flushing.set(false)
+        Log.i(TAG, "the page did not take word of the meeting a kill left; kept for the next resume")
+      }
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -184,6 +224,10 @@ class MeetingService : Service() {
 
   /** Everything after the microphone runs here, one thing at a time: Stop's bookkeeping, then the write-up. */
   private lateinit var control: ExecutorService
+  /** The main thread, where starts arrive: the one place a stop can be decided without racing a new START. */
+  private val main = Handler(Looper.getMainLooper())
+  /** The newest start this service was given, for `stopSelfResult`: a stop over a newer start is refused by Android. */
+  @Volatile private var lastStartId = 0
   private var wakeLock: PowerManager.WakeLock? = null
   private var record: AudioRecord? = null
   private var reader: Thread? = null
@@ -204,12 +248,13 @@ class MeetingService : Service() {
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    lastStartId = startId
     when (intent?.action) {
-      ACTION_START -> start(intent.getStringExtra(EXTRA_NOTE_ID), intent.getStringExtra(EXTRA_TITLE))
-      ACTION_STOP -> if (recording) requestStop("notification") else idleStop()
-      ACTION_DISCARD -> if (recording) requestDiscard(fromNotification = true) else idleStop()
-      ACTION_KEEP_GOING -> keepGoing()
-      else -> idleStop()
+      ACTION_START -> start(intent.getStringExtra(EXTRA_NOTE_ID), intent.getStringExtra(EXTRA_TITLE), startId)
+      ACTION_STOP -> if (recording) requestStop("notification") else idleStop(startId)
+      ACTION_DISCARD -> if (recording) requestDiscard(fromNotification = true) else idleStop(startId)
+      ACTION_KEEP_GOING -> keepGoing(startId)
+      else -> idleStop(startId)
     }
     // A microphone service cannot be restarted from the background on Android 14+, and a restarted one would have
     // no meeting to record anyway: the next launch's `recover` finishes what a kill left.
@@ -222,9 +267,9 @@ class MeetingService : Service() {
    * then the wake lock, then `AudioRecord`. Anything thrown, or a recorder
    * that did not initialise, undoes it all and tells the page `failed`.
    */
-  private fun start(id: String?, name: String?) {
+  private fun start(id: String?, name: String?, startId: Int) {
     if (id == null) {
-      idleStop()
+      idleStop(startId)
       return
     }
     if (recording) {
@@ -359,10 +404,10 @@ class MeetingService : Service() {
     if (asked && !keptGoing && elapsed - askedAtElapsed >= MEETING_ANSWER_MS) requestStop("cap")
   }
 
-  private fun keepGoing() {
+  private fun keepGoing(startId: Int) {
     keptGoing = true
     RecordingAlerts.cancel(this, RecordingAlerts.QUESTION_ID)
-    if (!recording && writingUp == null) idleStop()
+    if (!recording && writingUp == null) idleStop(startId)
   }
 
   /** Another app took the microphone, or gave it back (Android 10+). The file keeps growing with silence so the timeline stays honest. */
@@ -416,7 +461,10 @@ class MeetingService : Service() {
     ending.set(false)
     if (answer.has("error")) {
       Log.w(TAG, "the tape was not recorded: ${answer.optString("error")}")
-      RecordingWorker.enqueue(this, id, name, now = false, fresh = false)
+      // `finish` writes the queued progress file before anything that can fail, so the chain's run resumes it
+      // as it is. If even that did not happen (it threw before writing), the request is fresh, so Rust makes the
+      // file from the title; a request that is not fresh does nothing for an id with no file.
+      RecordingWorker.enqueue(this, id, name, now = false, fresh = WriteUp.readProgress(this, id) == null)
       pushStopped(id, reason, elapsed)
       settleAfter()
       return
@@ -499,7 +547,10 @@ class MeetingService : Service() {
     val current = writingUp
     if (current == null) {
       dropWakeLock()
-      stopSelf()
+      // Decided on the main thread, where a START is handled: one delivered meanwhile has set `recording` by the
+      // time this runs, and one not yet delivered carries a newer start id, which stopSelfResult will not stop over.
+      // A plain stopSelf here could take down a meeting that began while the last write-up was ending.
+      main.post { if (!recording && writingUp == null) stopSelfResult(lastStartId) }
     } else {
       RecordingAlerts.show(this, RecordingAlerts.RECORDING_ID, RecordingAlerts.writeUp(this, null, "Writing up"))
     }
@@ -569,7 +620,7 @@ class MeetingService : Service() {
   }
 
   /** Started for nothing (a stale action, no id): be foreground for a moment, as the start demanded, then go. */
-  private fun idleStop() {
+  private fun idleStop(startId: Int) {
     if (recording || writingUp != null) return
     try {
       startWriteUpForeground(RecordingAlerts.writeUp(this, null, "Writing up"))
@@ -577,7 +628,7 @@ class MeetingService : Service() {
       Log.i(TAG, "idle start could not be foreground: $error")
     }
     stopForeground(STOP_FOREGROUND_REMOVE)
-    stopSelf()
+    stopSelfResult(startId)
   }
 
   private fun startRecordingForeground(notification: android.app.Notification) {
