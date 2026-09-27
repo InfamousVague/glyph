@@ -19,7 +19,7 @@ use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 
-use super::job::{threads, Failure, Job, Output, Phase, ProgressFn, MAX_CONTEXT_TOKENS, MAX_OUTPUT_TOKENS};
+use super::job::{Failure, Job, Output, Phase, ProgressFn, MAX_CONTEXT_TOKENS, MAX_OUTPUT_TOKENS};
 use super::prompt;
 use super::report::{Counts, Reporter};
 
@@ -54,6 +54,14 @@ pub(super) struct Snapshot {
     state: SeqState,
 }
 
+/// The context kept from the last job, with the cores it was made for:
+/// llama-cpp-2 0.1.156 sets the thread count only when a context is made, so
+/// a job wanting another count gets a new one.
+pub(super) struct Kept<'m> {
+    ctx: LlamaContext<'m>,
+    threads: i32,
+}
+
 /// The window a job needs: its prompt, the most it may write, a little slack,
 /// rounded up to a step - capped by the window the model was trained on
 /// (`n_ctx_train`), and never under the smallest worth making.
@@ -86,12 +94,13 @@ fn needs_remake(have: u32, need: u32) -> bool {
 }
 
 /// One job run on `model`, in the context kept in `ctx_slot` (made, or made
-/// again bigger, as the job needs) and with the prefix kept in `snapshot`.
+/// again bigger or for other cores, as the job needs) and with the prefix kept
+/// in `snapshot`.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn generate<'m>(
     backend: &'static LlamaBackend,
     model: &'m LlamaModel,
-    ctx_slot: &mut Option<LlamaContext<'m>>,
+    ctx_slot: &mut Option<Kept<'m>>,
     snapshot: &mut Option<Snapshot>,
     job: &mut Job,
     report: &mut Reporter,
@@ -134,9 +143,10 @@ pub(super) fn generate<'m>(
     let closing_room = if request.think && request.think_budget > 0 { 64 } else { 0 };
     let (n_ctx, max_tokens) = window(counts.prompt_tokens, max_tokens, closing_room, model.n_ctx_train())?;
 
-    // A context that fits, made or remade.
+    // A context that fits, made or remade, on the cores the job asked for.
+    let want_threads = job.threads.max(1);
     let remake = match ctx_slot.as_ref() {
-        Some(ctx) => needs_remake(ctx.n_ctx(), n_ctx),
+        Some(kept) => needs_remake(kept.ctx.n_ctx(), n_ctx) || kept.threads != want_threads,
         None => true,
     };
     if remake {
@@ -145,14 +155,14 @@ pub(super) fn generate<'m>(
             .with_n_ctx(NonZeroU32::new(n_ctx))
             .with_n_batch(CHUNK as u32)
             .with_n_ubatch(CHUNK as u32)
-            .with_n_threads(threads())
-            .with_n_threads_batch(threads());
+            .with_n_threads(want_threads)
+            .with_n_threads_batch(want_threads);
         let ctx = model
             .new_context(backend, params)
             .map_err(|e| error(&format!("cannot make a {n_ctx}-token context"), &e))?;
-        *ctx_slot = Some(ctx);
+        *ctx_slot = Some(Kept { ctx, threads: want_threads });
     }
-    let ctx = ctx_slot.as_mut().expect("a context was just ensured");
+    let ctx = &mut ctx_slot.as_mut().expect("a context was just ensured").ctx;
 
     // Prefill: the immutable system/template prefix from its snapshot when it
     // matches, else decoded and snapshotted; then the per-job user remainder.

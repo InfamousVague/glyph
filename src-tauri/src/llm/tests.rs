@@ -97,6 +97,7 @@ fn request(id: &str, system: &str, note: &str, max_tokens: u32) -> Request {
         think: false,
         think_budget: 0,
         grammar: None,
+        background: false,
     }
 }
 

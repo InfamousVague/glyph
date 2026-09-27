@@ -189,6 +189,7 @@ pub fn run() {
             ai_commands::ai_generate,
             ai_commands::ai_infer_command,
             ai_commands::ai_cancel,
+            ai_commands::ai_unload,
             reset::reset_local_data,
             ota::ota_claim_boot,
             ota::ota_boot_ok,

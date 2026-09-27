@@ -26,6 +26,13 @@
 //!   `cancelled`. Runs queue: a second request waits for the first.
 //! - `ai_cancel({ id }) -> bool`: the run stops within a chunk; its
 //!   `ai_generate` then rejects with "cancelled".
+//! - `ai_unload()`: the loaded model is dropped now rather than after the
+//!   worker's five idle minutes, for the page to ask after a long summary
+//!   (native generation 20).
+//!
+//! The worker itself is `llm::shared()`, a crate-level one rather than this
+//! module's, because a meeting's write-up reaches it over JNI with no Tauri in
+//! the process (`write_up.rs`) and there must be one model loaded, not two.
 //!
 //! On iOS every command exists with the same signature and rejects, or answers
 //! "not present": the model there will be Apple's, and a page written against
@@ -51,8 +58,6 @@ use crate::model_downloads;
 
 #[cfg(not(target_os = "ios"))]
 use crate::llm::engine::{Llm, Request};
-#[cfg(not(target_os = "ios"))]
-use std::sync::OnceLock;
 
 #[cfg(target_os = "ios")]
 use crate::unsupported::{on_ios, FORMATTING};
@@ -79,6 +84,10 @@ pub struct GenerateRequest {
     /// for the model and the answer begins. 0 is no limit.
     #[serde(default)]
     pub think_budget: u32,
+    /// Never sent by the page: a background job is a meeting's write-up, which
+    /// comes in by its own door. Read so the request's shape is the engine's.
+    #[serde(default)]
+    pub background: bool,
 }
 
 fn default_temperature() -> f32 {
@@ -101,6 +110,7 @@ impl From<GenerateRequest> for Request {
             think: request.think,
             think_budget: request.think_budget,
             grammar: None,
+            background: request.background,
         }
     }
 }
@@ -159,10 +169,6 @@ pub struct ModelInfo {
 
 #[derive(Default)]
 pub struct AiState {
-    /// Started on the first generation, never before: a launch pays nothing
-    /// for a feature it may not use.
-    #[cfg(not(target_os = "ios"))]
-    llm: OnceLock<Llm>,
     /// The cancel flag of every run in flight, by the page's id.
     runs: Mutex<HashMap<String, Arc<AtomicBool>>>,
     /// One download at a time: two would write the same `.part` at once.
@@ -171,9 +177,11 @@ pub struct AiState {
 }
 
 impl AiState {
+    /// The shared worker (`llm::shared`), started on the first generation and
+    /// never before: a launch pays nothing for a feature it may not use.
     #[cfg(not(target_os = "ios"))]
-    fn llm(&self) -> &Llm {
-        self.llm.get_or_init(Llm::start)
+    fn llm(&self) -> &'static Llm {
+        crate::llm::shared()
     }
 
     /// Raises every run's cancel flag.
@@ -196,10 +204,12 @@ pub fn install(app: &tauri::App) {
 pub fn shutdown(app: &AppHandle) {
     if let Some(state) = app.try_state::<AiState>() {
         state.cancel_all();
-        #[cfg(not(target_os = "ios"))]
-        if let Some(llm) = state.llm.get() {
-            llm.shutdown();
-        }
+    }
+    // A write-up's piece ends too, so Exit does not join a whole one.
+    crate::guards::abort_with("shutdown");
+    #[cfg(not(target_os = "ios"))]
+    if let Some(llm) = crate::llm::started() {
+        llm.shutdown();
     }
 }
 
@@ -272,7 +282,7 @@ pub async fn ai_delete_model(app: AppHandle, state: State<'_, AiState>, id: Stri
         // it is removed. Unlinking a mapped file is safe on Android and macOS
         // either way; this is about giving the space back.
         state.cancel_all();
-        if let Some(llm) = state.llm.get() {
+        if let Some(llm) = crate::llm::started() {
             llm.unload();
         }
         for candidate in [crate::model_files::path_in(&dir, &spec.spec), crate::model_files::part_path(&dir, &spec.spec)] {
@@ -326,6 +336,19 @@ pub async fn ai_generate(
             .map_err(|_| "the formatting engine went away".to_string())?;
         result.map_err(|failure| failure.to_string())
     }
+}
+
+/// Drops the loaded model now: the page asks after a summary of a long tape,
+/// where the five idle minutes would keep a KV cache and gigabytes of mapped
+/// weights on a phone that has finished. Nothing to drop is nothing to do, and
+/// a worker never started is not started for this. Native generation 20.
+#[tauri::command]
+pub fn ai_unload() -> Result<(), String> {
+    #[cfg(not(target_os = "ios"))]
+    if let Some(llm) = crate::llm::started() {
+        llm.unload();
+    }
+    Ok(())
 }
 
 /// Stops a run. True if there was one to stop.
@@ -394,6 +417,8 @@ pub async fn ai_infer_command(
             think: false,
             think_budget: 0,
             grammar: Some(command::GRAMMAR),
+            // A voice command is the person waiting: it goes before, and preempts, a write-up's piece.
+            background: false,
         };
         let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, |_| {});
         let received = tauri::async_runtime::spawn_blocking(move || answer.recv()).await;
@@ -445,6 +470,7 @@ mod tests {
         assert_eq!(request.grammar, None);
         assert_eq!((request.id.as_str(), request.context.as_deref(), request.max_tokens, request.think_budget), ("r1", Some("c"), 200, 64));
         assert!(request.think && (request.temperature - 0.3).abs() < f32::EPSILON);
+        assert!(!request.background, "the page's requests are foreground ones");
     }
 
     #[test]

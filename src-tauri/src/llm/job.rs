@@ -39,6 +39,11 @@ pub struct Request {
     pub think_budget: u32,
     /// Native-owned constrained output, never accepted from an IPC request.
     pub grammar: Option<&'static str>,
+    /// A meeting's write-up, run with the app closed or behind it: a foreground
+    /// request goes before it in the queue and preempts it while it runs
+    /// (`guards::abort_with("busy")`), so a voice command after Done never
+    /// queues behind a 3,000-token prefill. Never set by the page.
+    pub background: bool,
 }
 
 /// What one generation wrote, and what it cost.
@@ -86,6 +91,10 @@ pub(super) struct Job {
     pub(super) cancel: Arc<AtomicBool>,
     pub(super) progress: ProgressFn,
     pub(super) reply: Sender<Result<Output, Failure>>,
+    /// The cores this job takes, chosen by the caller: `threads()` from the
+    /// page, and for a write-up `threads_background()` while the app is in
+    /// front. A kept context made with another count is made again.
+    pub(super) threads: i32,
 }
 
 /// Where a generation is.
@@ -130,4 +139,11 @@ pub(super) type ProgressFn = Box<dyn FnMut(Progress) + Send>;
 /// page to stay responsive on.
 pub(super) fn threads() -> i32 {
     std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).clamp(2, 6) as i32
+}
+
+/// How many cores a background job takes while the app is in front: half of
+/// `threads`, never under two (`guards::background_threads`), so a write-up
+/// never takes every core from a phone somebody is typing on.
+pub(super) fn threads_background() -> i32 {
+    crate::guards::background_threads(threads())
 }

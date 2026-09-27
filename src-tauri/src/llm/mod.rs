@@ -51,6 +51,9 @@ pub mod prompt;
 
 #[cfg(not(target_os = "ios"))]
 pub mod engine;
+// The one worker both doors share (engine.rs's header), and the cores a job takes.
+#[cfg(not(target_os = "ios"))]
+pub use engine::{shared, started, threads_for};
 #[cfg(not(target_os = "ios"))]
 mod generate;
 #[cfg(not(target_os = "ios"))]
