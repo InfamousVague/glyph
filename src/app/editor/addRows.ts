@@ -21,9 +21,9 @@ import { apply, footnotePlan, formPlan, itemPlan, ownLinePlan, wordsPlan, type B
  *
  * **A row is there, dimmed or not there** by one rule. A row this device or this build can never do is not drawn: a
  * page that arrives over the air on an older binary shows nothing it cannot do, so the video row waits for the binary
- * with a video picker (native generation 21) and the picture row on the Mac for the Mac's own run of its picker. A row a choice the person made
- * stands in the way of is drawn dimmed, with the choice named under it: Local only, for a place. A refusal found only
- * by trying (location blocked for the app) keeps the row, and is said when it happens.
+ * with a video picker (native generation 21) and the picture row on the Mac for the Mac's own run of its picker. A row
+ * a choice the person made stands in the way of is drawn dimmed, with the choice named under it: Local only, for a
+ * place. A refusal found only by trying (location blocked for the app) keeps the row, and is said when it happens.
  *
  * Where each goes is editor/inserts.ts: a drawn thing on a line of its own, a block with blank lines where words are
  * near, words at the caret. Every write is one Undo, and appears at once (docs/DESIGN.md §140, §141).
@@ -94,15 +94,6 @@ export function canPickPicture(): boolean {
   return false;
 }
 
-/**
- * Whether this binary picks a video: an Android binary whose bridge has `pickVideo`, which comes with native
- * generation 21 (docs/DESIGN.md §141, the second slice). No binary has it yet, so no page shows the row. The gate is
- * the bridge alone until that binary is built: a page that waited for a generation above the one being built is what
- * scripts/lib/otaRs.test.mjs refuses, so the generation's number comes in with the binary that provides it.
- */
-export function canPickVideo(): boolean {
-  return isTauri() && isAndroid && typeof window.GlyphHost?.pickVideo === 'function';
-}
 
 /** Whether a place can be added here: never where the device cannot say, dimmed under Local only. */
 export function placeRow(): AddGates['place'] {
@@ -110,11 +101,15 @@ export function placeRow(): AddGates['place'] {
   return preferences().localOnly ? 'dimmed' : 'on';
 }
 
-/** The gates, for a screen that can do `can` (a picture picker, a video, a place, a note to link, a canvas to frame). */
+/**
+ * The gates, for a screen that can do `can` (a picture picker, a video, a place, a note to link, a canvas to frame).
+ * A video is the screen's to say outright: it asks the binary once as it opens (core/videos.ts `canAddVideos`, an
+ * Android binary of native generation 21 with the picker on its bridge) and gives the list an `onVideo` only there.
+ */
 export function readGates(can: { picture: boolean; video: boolean; place: boolean; note: boolean; canvas: boolean }): AddGates {
   return {
     picture: can.picture && canPickPicture(),
-    video: can.video && canPickVideo(),
+    video: can.video,
     place: can.place ? placeRow() : 'absent',
     note: can.note,
     canvas: can.canvas,

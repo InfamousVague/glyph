@@ -3,6 +3,7 @@ import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } fr
 import { isolateHistory } from '@codemirror/commands';
 import { failureText } from '../core/failure.ts';
 import { IMAGE_READY, IMAGE_REF, imageMarkdown, imageUrl, saveImageFile } from '../core/images.ts';
+import { videoOfLine } from '../core/videoRefs.ts';
 import { insertSpots, markSpot, ownLinePlan, releaseSpot, reserveSpot, spotAt } from './inserts.ts';
 import styles from './markdown.module.css';
 
@@ -58,10 +59,15 @@ class ImageWidget extends WidgetType {
 const refreshImages = StateEffect.define<null>();
 let generation = 0;
 
+/**
+ * A picture under each line that holds one. A film's line holds its poster as a picture, and its card draws that
+ * poster (editor/videos.ts), so the picture steps aside there rather than drawing it twice.
+ */
 function decorate(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   for (let n = 1; n <= state.doc.lines; n += 1) {
     const line = state.doc.line(n);
+    if (videoOfLine(line.text)) continue;
     for (const match of line.text.matchAll(IMAGE_REF)) {
       const name = match[2] ?? '';
       if (!name) continue;

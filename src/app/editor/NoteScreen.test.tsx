@@ -83,6 +83,25 @@ vi.mock('../ai/available.ts', async (importOriginal) => {
   };
 });
 
+/**
+ * Films (core/videos.ts), on a phone that adds them only where a test says so: the picker, the keeping and whether a
+ * film is here are stood in for, so the note screen's own part is what is tried.
+ */
+const films = vi.hoisted(() => ({
+  can: false,
+  pick: null as (() => Promise<{ video: string; poster: string; ms: number; width: number; height: number } | null>) | null,
+}));
+vi.mock('../core/videos.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../core/videos.ts')>();
+  return {
+    ...real,
+    canAddVideos: async () => films.can,
+    pickVideo: () => (films.pick ? films.pick() : Promise.resolve(null)),
+    filmHere: async () => 'elsewhere' as const,
+    filmsPlay: async () => 'elsewhere' as const,
+  };
+});
+
 const { NoteScreen } = await import('./NoteScreen.tsx');
 
 const saves = vi.mocked(updateNote);
@@ -139,6 +158,7 @@ afterEach(() => {
   unmount();
   setTopBarTools(null);
   ai.ok = false;
+  Object.assign(films, { can: false, pick: null });
   vi.useRealTimers();
   Reflect.deleteProperty(document, 'visibilityState');
 });
@@ -1162,5 +1182,89 @@ describe('the + beside the line', () => {
     expect(document.querySelectorAll('.cm-plus').length).toBeLessThanOrEqual(1);
     const plus = document.querySelector<HTMLButtonElement>('.cm-plus');
     expect(plus === null || plus.hidden).toBe(true);
+  });
+});
+
+describe('a film from the + beside the line', () => {
+  /** The note focused with the caret on its last, empty line, the + come beside it, and pressed. */
+  const openPlus = async (view: EditorView) => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    act(() => {
+      view.dispatch({ selection: { anchor: view.state.doc.length } });
+      view.focus();
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(10 + 200));
+    const plus = view.scrollDOM.querySelector<HTMLButtonElement>('.cm-plus');
+    expect(plus?.dataset.state).toBe('shown');
+    act(() => plus!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })));
+  };
+  const rows = () => [...document.querySelectorAll<HTMLButtonElement>('#add-list button')].map((row) => row.textContent);
+  const video = () => {
+    const row = [...document.querySelectorAll<HTMLButtonElement>('#add-list button')].find((found) => found.textContent === 'A video');
+    if (!row) throw new Error(`no video row in: ${rows().join(', ')}`);
+    act(() => row.click());
+  };
+  const PICKED = { video: 'f1.mp4', poster: 'p1.jpg', ms: 12_300, width: 1080, height: 1920 };
+
+  it('is offered only where the binary adds films', async () => {
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    await settle();
+    await openPlus(editor());
+    expect(rows()).not.toContain('A video');
+    unmount();
+    films.can = true;
+    show(screen(await createNote('n2', '# Walk\n\n')));
+    await settle();
+    await openPlus(editor());
+    expect(rows()).toContain('A video');
+    vi.restoreAllMocks();
+  });
+
+  it('is one line at the caret, its poster linked to it, one Undo, with its card under it', async () => {
+    films.can = true;
+    films.pick = async () => PICKED;
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    await settle();
+    const view = editor();
+    await openPlus(view);
+    video();
+    await settle();
+    expect(view.state.doc.toString()).toBe('# Walk\n\n[![video 0:12](image/p1.jpg)](video/f1.mp4)\n');
+    expect(view.state.selection.main.head).toBe(view.state.doc.length);
+    expect(view.dom.querySelectorAll('.cm-videoCard')).toHaveLength(1);
+    act(() => void undo(view));
+    expect(view.state.doc.toString()).toBe('# Walk\n\n');
+    vi.restoreAllMocks();
+  });
+
+  it('says so while a long film is copied, and says what went wrong on the note’s line', async () => {
+    films.can = true;
+    let fail: ((why: Error) => void) | null = null;
+    films.pick = () => new Promise((_resolve, reject) => void (fail = reject));
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    await settle();
+    const view = editor();
+    await openPlus(view);
+    video();
+    await act(async () => vi.advanceTimersByTimeAsync(600));
+    expect(document.body.textContent).toContain('Adding the video.');
+    await act(async () => fail!(new Error('There isn’t room on this phone for that video.')));
+    await settle();
+    expect(document.body.textContent).toContain('There isn’t room on this phone for that video.');
+    expect(view.state.doc.toString()).toBe('# Walk\n\n');
+    vi.restoreAllMocks();
+  });
+
+  it('writes nothing when the picker is closed with nothing chosen', async () => {
+    films.can = true;
+    films.pick = async () => null;
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    await settle();
+    const view = editor();
+    await openPlus(view);
+    video();
+    await settle();
+    expect(view.state.doc.toString()).toBe('# Walk\n\n');
+    vi.restoreAllMocks();
   });
 });

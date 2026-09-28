@@ -114,18 +114,10 @@ describe('the list’s rows', () => {
 });
 
 describe('where a row is there at all', () => {
-  it('offers no video until an Android binary with the video picker, which no binary has yet', () => {
-    expect(rows.canPickVideo()).toBe(false);
-    Object.assign(device, { tauri: true, android: true });
-    // Today's binary, generation 20: a bridge with a picture picker and no video one.
-    window.GlyphHost = { pickImage: () => 'started' } as unknown as Window['GlyphHost'];
-    expect(rows.canPickVideo()).toBe(false);
-    expect(rows.readGates({ picture: true, video: true, place: true, note: true, canvas: true }).video).toBe(false);
-    // The generation 21 binary's bridge, and still only on Android.
-    window.GlyphHost = { pickVideo: () => 'started' } as unknown as Window['GlyphHost'];
-    expect(rows.canPickVideo()).toBe(true);
-    device.android = false;
-    expect(rows.canPickVideo()).toBe(false);
+  it('offers a video exactly where the screen says the binary adds one (core/videos.ts canAddVideos)', () => {
+    const gates = (video: boolean) => rows.readGates({ picture: true, video, place: true, note: true, canvas: true });
+    expect(gates(false).video).toBe(false);
+    expect(gates(true).video).toBe(true);
   });
 
   it('offers a picture in a browser and on Android with the picker, and not on the Mac until its picker has been run there', () => {

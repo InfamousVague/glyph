@@ -1,4 +1,5 @@
 import { placeOfLine } from '../core/placeRefs.ts';
+import { videoOfLine } from '../core/videoRefs.ts';
 
 /**
  * Places and videos through the model, kept by construction, as tables are (tables.ts).
@@ -22,8 +23,6 @@ export interface ProtectedEmbed {
   line: string;
 }
 
-/** A video line: a poster picture linked to its film under `video/`, and nothing else but a lead. */
-const VIDEO_LINE = /^\s*(?:(?:[-*+]|\d+[.)])\s+)?\[!\[[^\]\n]*\]\(image\/[A-Za-z0-9_.-]+\)\]\(video\/[A-Za-z0-9-]+\.(?:mp4|m4v|mov|webm)\)\s*$/;
 /** A line that opens or closes fenced code. */
 const FENCE = /^\s*(```|~~~)/;
 
@@ -36,7 +35,7 @@ export function protectEmbeds(body: string): { text: string; embeds: ProtectedEm
     const marker = FENCE.exec(line)?.[1];
     if (marker) fence = fence === null ? marker : fence === marker ? null : fence;
     if (fence || marker) return line;
-    const kind = placeOfLine(line) ? 'place' : VIDEO_LINE.test(line) ? 'video' : null;
+    const kind = placeOfLine(line) ? 'place' : videoOfLine(line) ? 'video' : null;
     if (!kind) return line;
     counts[kind] += 1;
     const token = `${kind}-${counts[kind]}`;

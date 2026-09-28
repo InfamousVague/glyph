@@ -42,6 +42,7 @@ import { wispRipples, type RippleSource } from './wispRipples.ts';
 import { aiChanges, type AiChange } from './aiChanges.ts';
 import { insertPlus, type PlusHooks } from './insertPlus.ts';
 import { placeCards, refreshPlaceCards, type PlaceMode } from './placeCards.ts';
+import { videoCards, type VideoMode } from './videos.ts';
 import { plugins } from '../plugins/registry.ts';
 import styles from './markdown.module.css';
 
@@ -69,8 +70,8 @@ import styles from './markdown.module.css';
  * Compartments and are swapped in place when they change. Everything else -
  * `grow`, `arrivals`, `wispTyping`, `ripples`, `peek`, `diagrams`,
  * `placeholder`, and whether `wiki` or `linkMenus` was given at all - is read
- * once, when the view is made, and so are whether `plus` was given and which
- * `places`; a caller that needs a different set remounts
+ * once, when the view is made, and so are whether `plus` was given, which
+ * `places` and which `videos`; a caller that needs a different set remounts
  * the editor with a new `key` (src/read/Reader.tsx does). And a new `wiki`
  * object is also a sign the notes changed (below), so a caller keeps the same
  * one while its lookups are the same.
@@ -158,6 +159,11 @@ interface EditorProps {
    * page, and `off`, no card and nothing fetched, everywhere else. Read once.
    */
   places?: PlaceMode;
+  /**
+   * How a film in the words draws its card (editor/videos.ts): `play` on the note screen, which plays it where it is on
+   * this phone, `shared` on a shared page, and `still`, the poster and its length, everywhere else. Read once.
+   */
+  videos?: VideoMode;
 }
 
 /**
@@ -210,6 +216,7 @@ export function Editor({
   onAiMarks,
   plus,
   places = 'off',
+  videos = 'still',
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -287,6 +294,8 @@ export function Editor({
         inlineImages((message) => onImageErrorRef.current?.(message)),
         // A place in the words: its map card as `places` says, and its line folded to its name (editor/placeCards.ts).
         placeCards(places, { dark: () => darkRef.current }),
+        // A film in the words: its card as `videos` says, and its line folded to its words (editor/videos.ts).
+        videoCards(videos),
         shortLinks({ still: peek }),
         // A card under a line that is only a link (editor/linkCards.ts).
         peek ? [] : linkCards(),

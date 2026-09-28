@@ -42,6 +42,10 @@ import {
   type LocateFailure,
 } from '../core/location.ts';
 import { placeMarkdown } from '../core/placeRefs.ts';
+import { videoMarkdown } from '../core/videoRefs.ts';
+import { canAddVideos, pickVideo } from '../core/videos.ts';
+import { failureText } from '../core/failure.ts';
+import { rememberShape } from './videos.ts';
 import { afterComposition, focusToken, insertLineAt, nameLater, releaseSpot, reserveSpot, spotAt } from './inserts.ts';
 import { plusRecheck, type PlusHooks, type PlusKey, type PlusOpening } from './insertPlus.ts';
 import { AddList } from './AddList.tsx';
@@ -110,8 +114,9 @@ import styles from './NoteScreen.module.css';
  * has landed or the review has handed back, and a new note's once it has words.
  *
  * So is the + beside an empty line (editor/insertPlus.ts) and its list (editor/AddList.tsx): this screen says when a
- * + may show, opens the list against it, and owns the rows that leave the editor, the picker for a picture and the
- * fix and the name for a place, which lands as a line of its own with its map card under it (`addPlace`).
+ * + may show, opens the list against it, and owns the rows that leave the editor, the picker for a picture, the fix
+ * and the name for a place, which lands as a line of its own with its map card under it (`addPlace`), and the Photo
+ * Picker for a film, which lands the same way with its card, played here where it is on this phone (`addVideo`).
  */
 
 interface NoteScreenProps {
@@ -570,6 +575,51 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       });
     })();
   };
+  /**
+   * A film from the + beside the line (native generation 21): picked with the Photo Picker, copied with its poster
+   * (media/VideoPick.kt) and kept (`save_video`), then written as a line of its own where the caret was, its poster
+   * linked to it (core/videoRefs.ts), which draws its card (editor/videos.ts). The place is kept from the tap, since the
+   * picker leaves the app and a long film takes a while to copy; "Adding the video." says so after a moment. A write
+   * that lands after the person went to another field leaves the focus where they are (`focusToken`). What goes wrong
+   * is said on the note's line, as a picture's is.
+   */
+  const addVideo = () => {
+    const editor = viewRef.current;
+    if (!editor) return;
+    const token = focusToken(editor);
+    const spot = reserveSpot(editor);
+    let said = false;
+    const slow = window.setTimeout(() => {
+      said = true;
+      toast({ message: 'Adding the video.', duration: 0 });
+    }, 600);
+    const quiet = () => {
+      window.clearTimeout(slow);
+      if (said) dismiss();
+    };
+    const letGo = () => {
+      token.done();
+      if (editor.dom.isConnected) releaseSpot(editor, spot);
+    };
+    void (async () => {
+      try {
+        const film = await pickVideo();
+        quiet();
+        if (!film || !mounted.current || !editor.dom.isConnected || spotAt(editor, spot) === null) return;
+        rememberShape(film.poster, film.width, film.height);
+        const landed = insertLineAt(editor, spot, videoMarkdown(film.poster, film.video, film.ms), { userEvent: 'input.plus.drawn', token });
+        releaseSpot(editor, landed.spot);
+        fireNativeHaptic('light');
+      } catch (failure) {
+        quiet();
+        if (!mounted.current) return;
+        fireNativeHaptic('warning');
+        pictures.say(failureText(failure));
+      } finally {
+        letGo();
+      }
+    })();
+  };
   /** Remove location: both keys out, as one undo step; the card going, on the beat it came on, is the feedback. */
   const removeLocation = () => {
     flush();
@@ -623,6 +673,13 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
    * when any of those changes.
    */
   const [adding, setAdding] = useState<PlusOpening | null>(null);
+  // Whether this binary adds films (native generation 21): asked once, for the list's A video.
+  const [videosHere, setVideosHere] = useState(false);
+  useEffect(() => {
+    void canAddVideos().then((can) => {
+      if (mounted.current) setVideosHere(can);
+    });
+  }, []);
   const addKeys = useRef<((key: PlusKey) => boolean) | null>(null);
   const plusAllowed = !typed && shown === 'raw' && ai.runningKind === null;
   const plusAllowedRef = useRef(plusAllowed);
@@ -850,6 +907,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             onAiMarks={ai.onAiMarks}
             plus={plusHooks}
             places="live"
+            videos="play"
             grow
           />
           {blank && !typed ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
@@ -877,6 +935,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
           keys={addKeys}
           onPicture={() => void pictures.addPhoto()}
           onPlace={addPlace}
+          onVideo={videosHere ? addVideo : undefined}
           titles={wiki && allTitles ? allTitles : undefined}
           canvases={wiki ? canvasTitles : undefined}
           own={title}

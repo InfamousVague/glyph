@@ -121,6 +121,16 @@ describe('the list', () => {
     expect(document.getElementById('add-list')?.getAttribute('role')).toBe('menu');
   });
 
+  it('holds A video second where the screen adds films, and a press on it is the screen’s', () => {
+    const onVideo = vi.fn();
+    open({ onVideo });
+    expect(words().slice(0, 3)).toEqual(['A picture', 'A video', 'A place']);
+    const row = [...document.querySelectorAll<HTMLButtonElement>('#add-list button')].find((found) => found.textContent === 'A video')!;
+    act(() => row.click());
+    expect(onVideo).toHaveBeenCalledTimes(1);
+    expect(closed).toBe(1);
+  });
+
   it('holds no row the screen cannot do', () => {
     open({ onPicture: undefined, onPlace: undefined, titles: undefined });
     expect(words().filter((row) => !/\d/.test(row ?? ''))).toEqual(['A table', 'A to-do', 'More']);

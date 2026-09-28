@@ -7,6 +7,7 @@ import { Byline } from '../authors/Byline.tsx';
 import { bodyWithoutTitle, bookWords, chaptersOf, numbered, toggledTitle, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 import { CanvasMark } from './CanvasMark.tsx';
 import { Editor } from '../editor/Editor.tsx';
+import type { VideoMode } from '../editor/videos.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { readBookSpot, useBookSpot } from './bookSpot.ts';
 import { useRowDrag } from './rowDrag.ts';
@@ -56,18 +57,20 @@ interface BookViewProps {
   dark?: boolean;
   /** The book note's id and the page it scrolls in, to keep where it was left (book/bookSpot.ts); absent, nothing is kept. */
   spot?: { id: string; page: RefObject<HTMLElement | null> };
+  /** Whose film cards these are (editor/videos.ts): a shared page's say only a still is shared. The owner's by default. */
+  videos?: VideoMode;
 }
 
 /** The book's own words around its index, drawn as a note is - read-only, formatted - so a link in them opens. */
-function BookWords({ words, known, open, dark }: { words: string; known: (title: string) => boolean; open: (title: string) => void; dark: boolean }) {
+function BookWords({ words, known, open, dark, videos }: { words: string; known: (title: string) => boolean; open: (title: string) => void; dark: boolean; videos: VideoMode }) {
   return (
     <div className={styles.preface}>
-      <Editor value={words} onChange={noop} dark={dark} assist={false} readOnly display="formatted" wiki={{ known, open }} grow />
+      <Editor value={words} onChange={noop} dark={dark} assist={false} readOnly display="formatted" wiki={{ known, open }} videos={videos} grow />
     </div>
   );
 }
 
-export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, readOnly = false, dark: darkGiven, spot }: BookViewProps) {
+export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, readOnly = false, dark: darkGiven, spot, videos = 'still' }: BookViewProps) {
   const isCanvas = (name: string) => {
     const found = bodyOf?.(name);
     return !!found && isCanvasBody(found);
@@ -175,7 +178,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
                 <p className={styles.readNote}>A canvas: open it to see the cards.</p>
               ) : words === null ? null : (
                 <div className={styles.readBody}>
-                  <Editor value={bodyWithoutTitle(words, chapter.title)} onChange={noop} dark={dark} assist={false} readOnly display="formatted" peek grow />
+                  <Editor value={bodyWithoutTitle(words, chapter.title)} onChange={noop} dark={dark} assist={false} readOnly display="formatted" videos={videos} peek grow />
                 </div>
               )}
             </section>
@@ -188,7 +191,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   return (
     <div className={styles.book} data-chapters={chapters.length} data-read-only={readOnly || undefined}>
       <Byline authors={authors} />
-      {words.before ? <BookWords words={words.before} known={known} open={open} dark={dark} /> : null}
+      {words.before ? <BookWords words={words.before} known={known} open={open} dark={dark} videos={videos} /> : null}
       {chapters.length === 0 ? (
         <p className={styles.empty}>{readOnly ? 'No chapters yet.' : 'No chapters yet. Add one below, or a note you have already written.'}</p>
       ) : (
@@ -244,7 +247,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
         </ol>
       )}
 
-      {words.after ? <BookWords words={words.after} known={known} open={open} dark={dark} /> : null}
+      {words.after ? <BookWords words={words.after} known={known} open={open} dark={dark} videos={videos} /> : null}
 
       {readOnly ? (
         chapters.length ? (
