@@ -84,8 +84,10 @@ and install the APK. After that the app keeps itself current:
   asked through `hasNativeGeneration` (`src/app/core/nativeGeneration.ts`), so an older binary hides the feature
   rather than calling a command it lacks. And ship with `--apk`. Raise `BUNDLE_REQUIRES` as well only when the
   page cannot run at all on an older binary: older apps then keep their current frontend and offer the APK
-  instead. Generation 19 did that (revision-checked note writes, DESIGN §114), so both constants are 19 today.
-  Never stamp `NATIVE_GENERATION` into `ota.json`; `vite.config.ts` reads `BUNDLE_REQUIRES` for that.
+  instead. Generation 19 did that (revision-checked note writes, DESIGN §114). Generation 20 (meetings on the phone,
+  DESIGN §127) did not, since every call it added is gated, so today `NATIVE_GENERATION` is 20 and
+  `BUNDLE_REQUIRES` is 19. Never stamp `NATIVE_GENERATION` into `ota.json`; `vite.config.ts` reads `BUNDLE_REQUIRES`
+  for that.
 
 Every `ota.json` and `apk.json` is **Ed25519-signed**, and the app accepts only what a key in
 `src-tauri/ota-trusted-keys.txt` signed. Trust is a key, not a domain: any host can serve
