@@ -1,44 +1,43 @@
-import { BookOpen, BookOpenText, Compass, FileText, GraduationCap, LayoutGrid, ListChecks, ShieldCheck, Workflow } from '@glacier/icons';
+import { BookOpen, BookOpenText, GraduationCap, ListChecks, Shapes } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import { fireNativeHaptic } from '../core/haptics.ts';
-import { openLink } from '../core/linkPreview.ts';
 import { storeOf, type Updates } from '../core/ota.ts';
 import { isAndroid } from '../core/platform.ts';
-import { isTauri } from '../core/tauri.ts';
 import { GUIDE_CHAPTERS, GUIDE_TITLE } from '../guidebook/guidebook.ts';
 import { ReleasesSection, UpdatesSection } from './AboutUpdates.tsx';
 import { countKnock, KNOCKS_WANTED, setDeveloperMode } from './developerMode.ts';
-import { PaneHero, PaneSection, SettingRow, SettingsFootnote } from './kit/settingsKit.tsx';
+import { PaneHero, PaneSection, SettingRow } from './kit/settingsKit.tsx';
+import type { SettingsTarget } from './SettingsScreen.tsx';
 import { buildLine } from './updateLines.ts';
 
 /**
  * About, updates and what's new, as one page (Matt: "combine about whats new and updates settings pages"): the
- * version, big, then where this build stands and how to move it on, then help, then every release published, then
- * the privacy policy.
+ * version, big, then where this build stands and how to move it on, then help, then every release published.
+ *
+ * Help is five rows since docs/DESIGN.md §138 (Matt: "also see if you can clean up / streamline settings a bit"),
+ * where it was eight, five of them "Add …": the cheat sheet and the four examples are pages of their own behind two
+ * of them (Settings' sub-pages, back to About), and "How to talk to Ghost.md", which promised voice cues and opened the
+ * set-up walkthrough, is named for what it opens. The privacy policy and its two lines went to Account's Privacy
+ * card, where sync and shared links already were.
  *
  * The version is also the door to the developer tools - seven presses on it, the way Android's own are unlocked, with
  * a countdown from the third press so somebody who knows the gesture knows it is working.
+ *
+ * What the search finds here is AboutPane.findable.ts, in this page's order.
  */
-
-/** The privacy policy (landing/privacy.html), on the download site. */
-const PRIVACY_URL = 'https://ghostmarkdown.com/privacy.html';
 
 interface AboutPaneProps {
   updates: Updates;
+  /** Opens the welcome walkthrough on its first page. */
   onGuide: () => void;
-  onSample: () => void;
   /** Adds Ghost.md: The Guide, the book (guidebook/guidebook.ts), and opens its index. */
   onGuideBook: () => void;
-  onBoard: () => void;
-  onCanvas: () => void;
-  onHowCanvas: () => void;
   onAcademy: () => void;
-  onCheatSheet: () => void;
-  /** The seventh press: developer mode is on, and the page to go to is Developer. */
-  onDeveloper: () => void;
+  /** Lands on another page of Settings: the cheat sheet, the examples, and Developer at the seventh press. */
+  onOpen: (target: SettingsTarget) => void;
 }
 
-export function AboutPane({ updates, onGuide, onSample, onGuideBook, onBoard, onCanvas, onHowCanvas, onAcademy, onCheatSheet, onDeveloper }: AboutPaneProps) {
+export function AboutPane({ updates, onGuide, onGuideBook, onAcademy, onOpen }: AboutPaneProps) {
   const { toast } = useToast();
   const knock = () => {
     const left = countKnock();
@@ -46,7 +45,7 @@ export function AboutPane({ updates, onGuide, onSample, onGuideBook, onBoard, on
       setDeveloperMode(true);
       fireNativeHaptic('success');
       toast({ message: 'Developer settings are on.', duration: 1800 });
-      onDeveloper();
+      onOpen({ id: 'developer' });
       return;
     }
     if (left <= KNOCKS_WANTED - 3) {
@@ -63,67 +62,31 @@ export function AboutPane({ updates, onGuide, onSample, onGuideBook, onBoard, on
         <SettingRow
           icon={<GraduationCap size={20} />}
           label="Ghost.md Academy"
-          hint="Markdown taught a mark at a time: it shows you one, you type your own, and you watch it format underneath."
+          hint="Markdown taught a mark at a time. It shows you one, you type your own, and you watch it format."
           onPress={() => onAcademy()}
         />
+        {/* What guide/pages.ts shows: off Android the side-key page is the one that says to start a note with Speak. */}
         <SettingRow
           icon={<BookOpen size={20} />}
-          label="How to talk to Ghost.md"
-          hint={isAndroid ? 'The side key, and the cues that make markdown.' : 'The cues that make markdown.'}
+          label="The welcome walkthrough"
+          hint={
+            isAndroid
+              ? 'The pages from the first launch: the theme, the model, the side key, the marks and a few habits.'
+              : 'The pages from the first launch: the theme, the model, Speak, the marks and a few habits.'
+          }
           onPress={() => onGuide()}
         />
-        <SettingRow
-          icon={<ListChecks size={20} />}
-          label="Formatting cheat sheet"
-          hint="Every mark you can type, with what it looks like, in one page to look things up in."
-          onPress={() => onCheatSheet()}
-        />
+        <SettingRow icon={<ListChecks size={20} />} label="Cheat sheet" hint="Every mark you can type, and what it looks like, on one page." onPress={() => onOpen({ id: 'cheatsheet' })} />
         <SettingRow
           icon={<BookOpenText size={20} />}
-          label={`Add ${GUIDE_TITLE}`}
-          hint={`The whole app as a book of ${GUIDE_CHAPTERS} short chapters: how to use it, then how it is made. Pressed again, it opens the book you have.`}
+          label={GUIDE_TITLE}
+          hint={`The whole app as a book of ${GUIDE_CHAPTERS} short chapters. Added to your notes the first time, and opened after that.`}
           onPress={onGuideBook}
         />
-        <SettingRow
-          icon={<LayoutGrid size={20} />}
-          label="Add the example board"
-          hint="A working board written in markdown: columns, cards, and the items they point at."
-          onPress={onBoard}
-        />
-        <SettingRow
-          icon={<Workflow size={20} />}
-          label="Add the example canvas"
-          hint="Cards on a page with lines between them, in the same file Obsidian's canvas uses."
-          onPress={onCanvas}
-        />
-        <SettingRow
-          icon={<Compass size={20} />}
-          label="Add the “How Ghost.md works” canvas"
-          hint="Eight plain cards, in order: say it, it lands as a note, and where a note can go."
-          onPress={onHowCanvas}
-        />
-        <SettingRow
-          icon={<FileText size={20} />}
-          label="Add the sample note"
-          hint="One note with every mark in it: headings, lists, a table, a picture, a secret in smoke."
-          onPress={onSample}
-        />
+        <SettingRow icon={<Shapes size={20} />} label="Examples" hint="A sample note, a board, a canvas, and one that says how Ghost.md works." onPress={() => onOpen({ id: 'examples' })} />
       </PaneSection>
       {/* The releases are attack.fm's over-the-air builds, which an iPhone never runs: the App Store says what's new there. */}
       {storeOf(updates.status) === 'appstore' ? null : <ReleasesSection updates={updates} />}
-      {/*
-        The privacy policy, reachable from inside the app as the App Store asks (guideline 5.1.1), and what it comes to
-        in two lines. The page is landing/privacy.html; the footnote is its short version, so the two say the same.
-      */}
-      <PaneSection title="Privacy">
-        <SettingRow icon={<ShieldCheck size={20} />} label="Privacy policy" hint="What stays on this device, and what an account, a shared link or a plugin sends." onPress={() => void openLink(PRIVACY_URL)} />
-      </PaneSection>
-      <SettingsFootnote>
-        {isTauri()
-          ? 'Your notes, recordings and pictures stay on this device, and your voice is turned into text here.'
-          : "Your notes stay in this browser. Speech is turned into text by the browser's own recognition, which in Chrome sends it to Google."}{' '}
-        Signed in to an account, they're synced encrypted on the device first, so only your own devices can read them. No ads, no analytics, no tracking.
-      </SettingsFootnote>
     </>
   );
 }

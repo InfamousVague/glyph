@@ -37,6 +37,8 @@ vi.mock('../core/platform.ts', async (importOriginal) => ({
     return android;
   },
 }));
+// The Model card is ModelCard.test.tsx's; here it is only a card with its title, on the pages that have it.
+vi.mock('./ModelCard.tsx', () => ({ ModelCard: () => <section className="setk"><div className="setk__title">Model</div></section> }));
 
 const { RecordingPane } = await import('./RecordingPane.tsx');
 const { savedHeight, saveHeight } = await import('../capture/sideKey.ts');
@@ -44,8 +46,11 @@ const { preferences, setPreferences, DEFAULT_PREFERENCES } = await import('../co
 
 /**
  * Recording's page: its switches write the preferences the recorder reads, and in the app the side key can be moved
- * from Ghost.md's guess to where the key really is, and put back.
+ * from Ghost.md's guess to where the key really is, and put back. Its cards since docs/DESIGN.md §138: While
+ * recording, After recording, Summaries as three picks, the Model, Meetings, Tapes and the side key, last.
  */
+
+const titles = (host: HTMLElement) => [...host.querySelectorAll('.setk__title')].map((title) => title.textContent);
 
 beforeEach(() => {
   native = true;
@@ -67,9 +72,13 @@ describe('the Recording page', () => {
     expect(preferences().refine).toBe(!refine);
   });
 
+  it('holds its cards in order on an Android phone, the side key last', () => {
+    expect(titles(show(<RecordingPane />))).toEqual(['While recording', 'After recording', 'Summaries', 'Model', 'Tapes', 'The side key']);
+  });
+
   it('offers Ghost.md’s guess back only once the side key has been moved, and forgets the move', () => {
     let host = show(<RecordingPane />);
-    expect(host.textContent).toContain('Where the side key is');
+    expect(titles(host)).toContain('The side key');
     expect(host.textContent).not.toContain('Use Ghost.md’s guess');
     saveHeight(0.62);
     host = show(<RecordingPane />);
@@ -81,29 +90,31 @@ describe('the Recording page', () => {
     expect(host.textContent).not.toContain('Use Ghost.md’s guess');
   });
 
-  it('has no side key to place in a browser, nor on the Mac, where the first section is not the key’s', () => {
+  it('has no side key to place in a browser, nor on the Mac, and no model or tapes in a browser', () => {
     native = false;
     android = false;
-    expect(show(<RecordingPane />).textContent).not.toContain('Where the side key is');
+    const browser = show(<RecordingPane />);
+    expect(titles(browser)).toEqual(['While recording', 'After recording', 'Summaries']);
     native = true;
     const mac = show(<RecordingPane />);
-    expect(mac.textContent).not.toContain('Where the side key is');
-    expect(mac.textContent).not.toContain('The side key');
-    expect(mac.textContent).toContain('While recording');
-    expect(mac.textContent).toContain('Summaries');
+    expect(titles(mac)).toEqual(['While recording', 'After recording', 'Summaries', 'Model', 'Tapes']);
+    // The side key is not the Mac's to press.
+    expect(mac.textContent).toContain("Saves after four seconds of quiet, once you've started talking. Done still works.");
+    expect(mac.textContent).not.toContain('side key');
   });
 
-  it('offers the summaries three ways, meetings by default, and writes the choice the queue reads', () => {
+  it('offers the summaries as three picks, meetings by default, each saying what it means, and writes the choice the queue reads', () => {
     const host = show(<RecordingPane />);
     expect(preferences().summaries).toBe('meetings');
-    expect(host.textContent).toContain('A long voice note is one over three minutes.');
-    // Each choice is a label round a hidden radio input, as the kit draws a segmented control.
-    const choose = (value: string) => act(() => host.querySelector<HTMLInputElement>(`input[type="radio"][value="${value}"]`)!.click());
-    expect(host.textContent).toContain('Meetings and long voice notes');
-    choose('long');
+    const pick = (label: string) => host.querySelector<HTMLButtonElement>(`[role="radio"][aria-label="${label}"]`)!;
+    expect(pick('Meetings').getAttribute('aria-checked')).toBe('true');
+    expect(host.textContent).toContain('Every meeting, once it is done.');
+    expect(host.textContent).toContain('A long voice note is one over three minutes. A few minutes of the phone for each.');
+    act(() => pick('Meetings and long voice notes').click());
     expect(preferences().summaries).toBe('long');
-    choose('off');
+    act(() => pick('Off').click());
     expect(preferences().summaries).toBe('off');
+    expect(pick('Off').getAttribute('aria-checked')).toBe('true');
   });
 });
 
@@ -122,18 +133,24 @@ describe('Meetings', () => {
     delete window.GlyphHost;
   });
 
-  it('is on an Android phone with the service, where Write up is the phone’s choice and Allow asks the meeting’s own prompt', async () => {
+  it('is on an Android phone with the service, where Write up straight away is the phone’s choice and Allow asks the meeting’s own prompt', async () => {
     phone.generation = 20;
     const asked = vi.fn(() => 'asked');
     let canNotify = false;
     window.GlyphHost = { requestNotifications: asked, canNotify: () => canNotify } as unknown as Window['GlyphHost'];
     const { Pane, prefs } = await freshPage();
     const host = show(<Pane />);
-    await waitUntil(() => expect(host.textContent).toContain('Meetings'));
-    expect(host.textContent).toContain('A meeting is written up when the phone is charging or above half. Straight away uses more of the battery.');
+    await waitUntil(() => expect(titles(host)).toContain('Meetings'));
+    expect(titles(host)).toEqual(['While recording', 'After recording', 'Summaries', 'Model', 'Meetings', 'Tapes', 'The side key']);
+    expect(host.textContent).toContain('Off, a meeting is written up when the phone is charging or above half. On, straight away, which uses more of the battery.');
+    // One switch over the two values the preference always kept: off is "charging", the default, and on is "now".
+    const straight = () => host.querySelector<HTMLInputElement>('[aria-label="Write up straight away"]')!;
     expect(prefs.preferences().writeUp).toBe('charging');
-    act(() => host.querySelector<HTMLInputElement>('input[type="radio"][value="now"]')!.click());
+    expect(straight().checked).toBe(false);
+    act(() => straight().click());
     expect(prefs.preferences().writeUp).toBe('now');
+    act(() => straight().click());
+    expect(prefs.preferences().writeUp).toBe('charging');
     expect(host.textContent).toContain('Tell me when a meeting is written up');
     act(() => button('Allow', host).click());
     expect(asked).toHaveBeenCalledTimes(1);
@@ -147,14 +164,14 @@ describe('Meetings', () => {
   it('is not on an older phone, nor on the Mac, which has no service', async () => {
     const { Pane } = await freshPage();
     const older = show(<Pane />);
-    await waitUntil(() => expect(older.textContent).toContain('Your tapes'));
+    await waitUntil(() => expect(older.textContent).toContain('No tapes on this device.'));
     expect(older.textContent).not.toContain('Tell me when a meeting is written up');
     unmount();
     phone.generation = 20;
     android = false;
     const { Pane: Mac } = await freshPage();
     const host = show(<Mac />);
-    await waitUntil(() => expect(host.textContent).toContain('Your tapes'));
+    await waitUntil(() => expect(host.textContent).toContain('No tapes on this device.'));
     expect(host.textContent).not.toContain('Tell me when a meeting is written up');
   });
 });
@@ -173,17 +190,20 @@ describe('Tapes', () => {
     );
   };
 
+  /** The Tapes card's footer: the room the tapes take, or what a removal did. */
+  const footer = (host: HTMLElement) => [...host.querySelectorAll('section')].find((s) => s.querySelector('.setk__title')?.textContent === 'Tapes')?.querySelector('.setk__footer')?.textContent;
+
   it('says how much room the tapes take, and on a phone that can, removes the audio of the old ones after a second tap, keeping the words', async () => {
     phone.generation = 20;
     seed();
     const { Pane, recordings } = await freshPage();
     const host = show(<Pane />);
-    await waitUntil(() => expect(host.textContent).toContain('Your tapes take about 117 MB on this device.'));
-    act(() => button('Remove audio older than a month', host).click());
+    await waitUntil(() => expect(footer(host)).toBe('Your tapes take about 117 MB on this device.'));
+    expect(host.textContent).toContain('Remove audio older than a month');
+    act(() => button('Remove', host).click());
     expect(phone.removed).toEqual([]);
-    expect(host.textContent).toContain('Tap again to remove the audio');
-    await act(async () => button('Tap again to remove the audio', host).click());
-    await waitUntil(() => expect(host.textContent).toContain('Removed the audio of one tape. The words stay.'));
+    await act(async () => button('Tap again', host).click());
+    await waitUntil(() => expect(footer(host)).toBe('Removed the audio of one tape. The words stay.'));
     expect(phone.removed).toEqual([['old']]);
     expect(recordings.audioRemoved('old')).toBe(true);
     expect(recordings.audioRemoved('new')).toBe(false);
@@ -203,18 +223,19 @@ describe('Tapes', () => {
     });
     const { Pane } = await freshPage();
     const host = show(<Pane />);
-    await waitUntil(() => expect(host.textContent).toContain('No tapes on this device.'));
+    await waitUntil(() => expect(footer(host)).toBe('No tapes on this device.'));
     expect(heads.every((head) => head.startsWith('HEAD '))).toBe(true);
-    expect(buttonSaying(host, 'Remove audio older than a month')?.hasAttribute('disabled') ?? true).toBe(true);
+    expect(button('Remove', host).disabled).toBe(true);
     fetch.mockRestore();
   });
 
-  it('only says the size on an older phone, which cannot remove a file', async () => {
+  it('only says the size on an older phone, which cannot remove a file, and says why the row is held', async () => {
     seed();
     const { Pane } = await freshPage();
     const host = show(<Pane />);
-    await waitUntil(() => expect(host.textContent).toContain('Your tapes take about 117 MB on this device.'));
-    expect(buttonSaying(host, 'Remove audio')).toBeUndefined();
+    await waitUntil(() => expect(footer(host)).toBe('Your tapes take about 117 MB on this device.'));
+    expect(buttonSaying(host, 'Remove')).toBeUndefined();
+    expect(host.textContent).toContain('Update Ghost.md to remove audio here.');
   });
 
   it('counts in gigabytes past one, and says when there are no tapes', async () => {
@@ -232,6 +253,6 @@ describe('Tapes', () => {
     expect(oldTapes([tapeOf('old', 31), tapeOf('edge', 30), tapeOf('typed', 40, { recordingMs: 0 }), tapeOf('gone', 40, { archivedAt: 1 })], 100 * day).map((n) => n.id)).toEqual(['old']);
     const { Pane } = await freshPage();
     const host = show(<Pane />);
-    await waitUntil(() => expect(host.textContent).toContain('No tapes on this device.'));
+    await waitUntil(() => expect(footer(host)).toBe('No tapes on this device.'));
   });
 });

@@ -5,12 +5,17 @@ import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { PaneSection, RowAction, SettingRow, SettingsFootnote } from './kit/settingsKit.tsx';
 
 /**
- * Location: where a note was written, and the three network things it can mean (core/location.ts). The map at the top
- * of a tagged note asks openstreetmap.org for its tiles; the place's name is asked of OpenStreetMap once when a
- * location is added; and every new note made here can start with where the device was (Matt: "Add a setting to
- * geotag notes by default and turn it on"). Each is its own switch, and Local only turns all of them off, since a fix
- * is a network lookup too. A pane of its own because the privacy switches sit beside their features (Local only under
- * Formatting, Link previews under Type), and this is a feature with three.
+ * Location, a card on Account after Privacy: where a note was written, and the three network things it can mean
+ * (core/location.ts). The map at the top of a tagged note asks openstreetmap.org for its tiles; the place's name is
+ * asked of OpenStreetMap once when a location is added; and every new note made here can start with where the device
+ * was (Matt: "Add a setting to geotag notes by default and turn it on"). Each is its own switch, and Local only turns
+ * all of them off, since a fix is a network lookup too.
+ *
+ * It was a page of its own, Settings › Location, while the privacy switches sat beside their features (Local only
+ * under Formatting, Link previews under Type). Those are one Privacy card on Account since docs/DESIGN.md §138, and
+ * what leaves the phone is Account's story, so this is a card beside it, with the page's words as they were. Tagging
+ * new notes stays on this device (core/sync/prefs.ts says why), and the hint says so; the map and the place names
+ * sync, as Link previews does.
  *
  * Turning tagging on asks for a fix once, here, so the permission prompt happens in Settings and never over the
  * recorder. A refusal leaves the switch on, as Matt asked: notes are simply not tagged until location is allowed,
@@ -25,7 +30,7 @@ const CANNOT: Partial<Record<LocateFailure, string>> = {
   unavailable: 'Update Ghost.md to tag notes.',
 };
 
-export function LocationPane() {
+export function LocationCard() {
   const prefs = usePreferences();
   // A refusal met here, or the one an automatic ask met and kept (core/location.ts): the footnote says it either way.
   const [refusedHere, setRefused] = useState<LocateFailure | null>(null);
@@ -53,7 +58,7 @@ export function LocationPane() {
 
   return (
     <>
-      <PaneSection title="On a note" description="A note can say where it was written. The place is kept in the note's own words, so it goes wherever the note does. A link you share leaves it out unless you say so on the note.">
+      <PaneSection title="Location" description="A note can say where it was written. The place is kept in the note's own words, so it goes wherever the note does. A link you share leaves it out unless you say so on the note.">
         <SettingRow
           label="Map on a tagged note"
           hint="A small map at the top of the note. Opening a tagged note fetches the tiles from openstreetmap.org, which sees your IP address, as a website would."
@@ -66,10 +71,6 @@ export function LocationPane() {
           control={<Switch aria-label="Place names" checked={prefs.placeNames} onCheckedChange={(placeNames) => setPreferences({ placeNames })} />}
           disabledReason={localOnly}
         />
-      </PaneSection>
-      {prefs.localOnly ? <SettingsFootnote>A tagged note shows where it was written and a pin while Local only is on, and no new location is taken.</SettingsFootnote> : null}
-
-      <PaneSection title="New notes">
         <SettingRow
           label="Tag new notes with my location"
           hint="Every note you make here starts with where you were, typed or spoken. Off, you add a location by hand from More on a note. This switch stays on this device."
@@ -77,6 +78,7 @@ export function LocationPane() {
           disabledReason={localOnly ?? tagWhy}
         />
       </PaneSection>
+      {prefs.localOnly ? <SettingsFootnote>A tagged note shows where it was written and a pin while Local only is on, and no new location is taken.</SettingsFootnote> : null}
       {refused ? (
         <SettingsFootnote>
           {refused === 'blocked' ? 'Location is off for Ghost.md, so new notes are not tagged. ' : 'Ghost.md wasn’t allowed to know where you are, so new notes are not tagged. '}

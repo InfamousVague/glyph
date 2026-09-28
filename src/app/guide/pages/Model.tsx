@@ -8,12 +8,12 @@ import styles from '../Guide.module.css';
  * Which model the AI runs, asked up front like the theme: the choice is a
  * row per model with its size, the chosen one printed in reverse. Choosing
  * only sets the preference; the bytes come from the word under the list, now,
- * or from Get in Settings > Formatting later, so a phone on wifi tonight is
- * ready tomorrow. Asking the AI on a note with no model on the phone says it
+ * or from Get in Settings › Recording › Model later, so a phone on wifi tonight
+ * is ready tomorrow. Asking the AI on a note with no model on the phone says it
  * needs one and fetches nothing (ai/available.ts), so the line says where to
- * get it rather than promising a download. Changeable any time in Settings >
- * Formatting; the Developer page's "Choose your model" row opens the guide on
- * this page alone (guide/pages.ts `GUIDE_MODEL_PAGE`).
+ * get it rather than promising a download. Changeable any time on that card
+ * (settings/ModelCard.tsx, which was the Formatting page until
+ * docs/DESIGN.md §138).
  *
  * The line under the rows reads the download only in the app: in a browser
  * there is nothing to fetch, and a row still sets the preference.
@@ -48,7 +48,7 @@ export function Model() {
               ? `${chosen.name} is on the phone.`
               : problem
                 ? problem
-                : `${chosen.name} is not on the phone yet. Get it later in Settings › Formatting, or `}
+                : `${chosen.name} is not on the phone yet. Get it later in Settings › Recording, or `}
           {!here && download === null ? (
             <button type="button" className={`app-word ${styles.action}`} onClick={() => void fetch(formatModel)}>
               get it now

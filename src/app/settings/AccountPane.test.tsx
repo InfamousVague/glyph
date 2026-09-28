@@ -64,18 +64,36 @@ describe('Delete account', () => {
   });
 });
 
+/** The cards' titles on the page, in its order. */
+const titles = (host: HTMLElement) => [...host.querySelectorAll('.setk__title')].map((title) => title.textContent);
+
 describe('Signed out', () => {
-  it('says where Local only is when it is holding the sync off', async () => {
-    const { setPreferences } = await import('../core/preferences.ts');
+  // Changed on purpose (docs/DESIGN.md §138): Privacy and Location are Account's cards, and signed out they come first.
+  it('opens on the Privacy card, then Location, then the ways in, with no callout for Local only', () => {
     session = null;
     setPreferences({ localOnly: true });
-    try {
-      const host = show(<AccountPane />);
-      // The switch is under Formatting: the page used to send people to a Developer page that has none.
-      expect(host.textContent).toContain('“Local only” is on in Formatting, so nothing syncs until it is off.');
-    } finally {
-      setPreferences({ localOnly: false });
-    }
+    const host = show(<AccountPane />);
+    expect(titles(host)).toEqual(['Privacy', 'Location', 'Sign in']);
+    // The card is the first thing on the page and its switch says the state: no sentence pointing at it.
+    expect(host.querySelector('.setk-callout')).toBeNull();
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Local only"]')?.checked).toBe(true);
+  });
+});
+
+describe('Signed in', () => {
+  it('has Sync, then Privacy and Location, then Delete account', () => {
+    const host = show(<AccountPane />);
+    expect(titles(host)).toEqual(['Sync', 'Privacy', 'Location']);
+    expect(buttonSaying(host, 'Delete account')).toBeDefined();
+  });
+
+  it('says Local only holds the sync off, and the words go to its card', () => {
+    setPreferences({ localOnly: true });
+    const onOpen = vi.fn();
+    const host = show(<AccountPane onOpen={onOpen} />);
+    expect(host.querySelector('.setk-callout')?.textContent).toBe('Local only is on, so nothing syncs until it is off.');
+    act(() => host.querySelector<HTMLButtonElement>('.setk-callout .setk-go')!.click());
+    expect(onOpen).toHaveBeenCalledWith({ id: 'account', setting: 'Privacy' });
   });
 });
 

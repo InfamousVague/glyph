@@ -649,6 +649,22 @@
   user-select: all;
 }
 
+/* ── a word that goes somewhere ───────────────────────────────────────────── */
+
+/*
+ * "Local only" in a sentence (settingsKit.tsx `GoWord`): set in the line as a word of it, in ink and underlined, since
+ * a word that goes somewhere has to look it. The app's quiet button, without its row's height.
+ */
+.setk-go {
+  display: inline;
+  min-block-size: 0;
+  padding: 0;
+  color: var(--app-ink);
+  text-decoration: underline;
+  text-decoration-thickness: var(--glacier-hairline);
+  text-underline-offset: 0.2em;
+}
+
 /* ── pick one: a ring, an ink dot when chosen ─────────────────────────────── */
 
 .setk-pick {
@@ -692,11 +708,15 @@
   border-radius: 999px;
 }
 
-/* ── Type's sample: the size shown rather than described ──────────────────── */
+/* ── the Type card's sample: the size shown rather than described ─────────── */
 
+/*
+ * "Aa" in the Type card's head on Appearance (AppearancePane.tsx), in the note's own face at the headings' size, so it
+ * changes with the choice under it. It was the top of a Type page of its own until docs/DESIGN.md §138.
+ */
 .settingsScreen__sample {
-  margin: 0 0 var(--glacier-space-2);
-  padding-inline: var(--glacier-space-2);
+  display: block;
+  font-family: var(--app-note-font);
   font-size: var(--app-h1);
   line-height: 1;
   letter-spacing: var(--app-tracking-display);

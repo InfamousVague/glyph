@@ -1,31 +1,34 @@
-import { useEffect, useState } from 'react';
-import { BookOpen, CircleUser, FlaskConical, Info, MapPin, Mic, Puzzle, Sparkles, SunMoon, Terminal, Type, Waves } from '@glacier/icons';
+import { useCallback, useEffect, useState } from 'react';
+import { BookOpen, CircleUser, FlaskConical, Info, Mic, Puzzle, Shapes, SunMoon, Terminal } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
+import { findable as accountFindable } from './AccountPane.findable.ts';
 import { gb, modelName, modelSpec, useModels } from '../core/ai.ts';
-import { hapticsAvailable, useHapticsPref } from '../core/haptics.ts';
+import { hapticsAvailable } from '../core/haptics.ts';
 import { isAndroid, isMobile } from '../core/platform.ts';
 import type { Updates } from '../core/ota.ts';
-import { facesOf, usePreferences } from '../core/preferences.ts';
-import { capitalise } from '../core/text.ts';
+import { DEFAULT_PREFERENCES, facesOf, usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
+import { useSidebar } from '../core/useWideScreen.ts';
 import { useDeveloperMode } from './developerMode.ts';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
-import { markGroups } from '../guide/marks.ts';
-import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
-import { FormattingPane } from './FormattingPane.tsx';
-import { LocationPane } from './LocationPane.tsx';
+import { findable as cheatSheetFindable } from '../guide/CheatSheet.findable.ts';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
+import { findable as pluginsFindable } from '../plugins/PluginsPane.findable.ts';
 import { usePlugins } from '../plugins/hooks.ts';
 import { AboutPane } from './AboutPane.tsx';
+import { findable as aboutFindable } from './AboutPane.findable.ts';
 import { AppearancePane } from './AppearancePane.tsx';
+import { findable as appearanceFindable } from './AppearancePane.findable.ts';
 import { DeveloperPane } from './DeveloperPane.tsx';
-import { FeelPane } from './FeelPane.tsx';
+import { findable as developerFindable } from './DeveloperPane.findable.ts';
+import { ExamplesPane } from './ExamplesPane.tsx';
+import { findable as examplesFindable } from './ExamplesPane.findable.ts';
 import { RecordingPane } from './RecordingPane.tsx';
-import { SettingsScreen, type SettingsSection } from './SettingsScreen.tsx';
+import { findable as recordingFindable } from './RecordingPane.findable.ts';
+import { SettingsScreen, type SettingsSection, type SettingsTarget } from './SettingsScreen.tsx';
 import { TestResultsPane } from './TestResultsPane.tsx';
-import { TypePane } from './TypePane.tsx';
 import { updatesSummary } from './updateLines.ts';
 import { ACCENT_WORDS, DENSITY_WORDS, FACE_WORDS, ROUNDING_WORDS, SIZE_WORDS, THEME_WORDS } from './words.ts';
 import { reportSummary } from '../diag/testReport.ts';
@@ -35,27 +38,27 @@ import { reportSummary } from '../diag/testReport.ts';
  * screen that lists them (SettingsScreen). The readings come from the same
  * stores the panes edit, so a row can never disagree with its pane.
  *
- * Six clusters, in the list's order: who you are (Account); how it looks
- * (Type, Appearance); how it works (Recording, Location, Formatting, Feel, which holds
- * the animations and, where there is a motor, the haptics: one page since
- * docs/DESIGN.md §136, Matt: "clean up / streamline settings a bit");
- * the plugins (each switched-on plugin's own page, then Plugins to switch
- * them); help and the app itself (the Cheat sheet, and About, which holds the
- * updates and what's new); and the hidden pages (Developer, Test results).
- * Recording on Android, where there is a side key, and on the Mac, which
- * records through Speak and runs the better words and the summaries
- * (docs/DESIGN.md §127 section 2); Feel's Touch only where there is a
- * motor, the hidden pages only once unlocked. Each pane is a file of its
- * own; the words for a preference's values are words.ts, shared with the
- * panes, so a reading here says what the pane's control says.
+ * Five rows on a phone since docs/DESIGN.md §138 (Matt: "also see if you can clean up / streamline settings a bit"),
+ * on one screen with air under them, in four cards: who you are and what leaves the phone (Account); how it looks,
+ * moves and feels (Appearance), what happens to a recording and the model that writes it up (Recording), and what
+ * reaches beyond the phone (Plugins); the app itself (About); and the hidden pages (Developer, Test results). It was
+ * twelve rows over two screens. Recording is listed on Android, where there is a side key, and on the Mac, which
+ * records through Speak and runs the better words and the summaries (§127 section 2); the hidden pages only once
+ * unlocked.
+ *
+ * Sub-pages are sections too, off the list (`listed: false`) and still searched, each stepping back to its parent:
+ * a switched-on plugin's own page behind its Plugins card, and the cheat sheet and the examples behind About's Help.
+ * What the search finds on each page is that page's `findable`, a `.ts` beside it (a plugin's is on its `settings`),
+ * and SettingsSheet.test.tsx renders every page and fails on a name it does not draw. The words for a preference's
+ * values are words.ts, shared with the panes, so a reading here says what the pane's control says.
  */
 
 interface SettingsSheetProps {
   open: boolean;
   onClose: () => void;
   updates: Updates;
-  /** Open the walkthrough, on its first page or a given one (Guide's page indexes). */
-  onGuide: (page?: number) => void;
+  /** Opens the welcome walkthrough on its first page (About › Help). */
+  onGuide: () => void;
   /** Make the sample note, the one with every mark in it (core/seed.ts), and open it. */
   onSample: () => void;
   /** Adds Ghost.md: The Guide (guidebook/guidebook.ts), once, and opens its index. */
@@ -73,99 +76,79 @@ interface SettingsSheetProps {
    * not taught yet. The moment it was asked for, so asking twice opens it twice; 0 for not asked.
    */
   toCheatSheet?: number;
-  /** Asked from outside to open at Formatting: the home page's shelf sends people there for a language model (home/TapeShelf.tsx). The same shape as `toCheatSheet`. */
-  toFormatting?: number;
+  /**
+   * Asked from outside to open at Recording's Model card, lit: the home page's "Get a model" and its digest's phrase
+   * send people there for a language model (home/TapeShelf.tsx, home/dashboard.ts). The same shape as `toCheatSheet`.
+   */
+  toModel?: number;
 }
 
-export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGuideBook, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0, toFormatting = 0 }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGuideBook, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0, toModel = 0 }: SettingsSheetProps) {
   const prefs = usePreferences();
   const faces = facesOf(prefs);
   const account = useAccount();
   const syncStatus = useSyncStatus();
-  const haptics = useHapticsPref();
   const devMode = useDeveloperMode();
+  // The sidebar's choice is drawn on Appearance only on a window wide enough for the sidebar, and searched only there.
+  const wide = useSidebar();
   const { all: allPlugins, enabled: plugins } = usePlugins();
   const { models } = useModels();
-  const [goTo, setGoTo] = useState<{ id: string; nonce: number } | null>(null);
+  const [goTo, setGoTo] = useState<(SettingsTarget & { nonce: number }) | null>(null);
+  /** Lands on a section, and on a setting there when one is named: a row that opens a sub-page, or a word like "Local only". */
+  const go = useCallback((target: SettingsTarget) => setGoTo({ ...target, nonce: Date.now() }), []);
   // Opened from the Academy: the sheet comes up on the cheat sheet itself rather than on the list of sections.
   useEffect(() => {
     if (toCheatSheet) setGoTo({ id: 'cheatsheet', nonce: toCheatSheet });
   }, [toCheatSheet]);
-  // Opened from the shelf's "Get a model": the sheet comes up on Formatting, where the model is fetched.
+  // Opened from the shelf's "Get a model": the sheet comes up on Recording with the Model card lit, where it is fetched.
   useEffect(() => {
-    if (toFormatting) setGoTo({ id: 'formatting', nonce: toFormatting });
-  }, [toFormatting]);
+    if (toModel) setGoTo({ id: 'recording', setting: 'Model', nonce: toModel });
+  }, [toModel]);
 
+  // Where a recorder with a model behind it runs: Android, and the Mac app (§127 section 2).
+  const recording = isAndroid || (isTauri() && !isMobile);
   const chosenModel = modelSpec(prefs.formatModel);
   const modelHere = models.find((m) => m.id === prefs.formatModel)?.present ?? false;
-  const formattingSummary = !isTauri()
-    ? 'Runs on the phone'
-    : `${modelName(prefs.formatModel)} · ${modelHere ? 'on the phone' : `${gb(chosenModel?.bytes ?? 0)} to get`}`;
+  const device = isAndroid ? 'the phone' : 'this Mac';
+  /** What a take becomes, then the model that writes it up and whether it is here: Formatting's reading until §138. */
+  const recordingSummary = [
+    prefs.refine ? 'Better words' : 'Words as heard',
+    isTauri() ? `${modelName(prefs.formatModel)}${modelHere ? ` on ${device}` : `, ${gb(chosenModel?.bytes ?? 0)} to get`}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   const sections: SettingsSection[] = [
     // Who you are, first and on its own card (Matt: "move account to top of settings section"): it is what a person
-    // opens Settings for on a new phone, and everything below it is how the app behaves once they are in.
+    // opens Settings for on a new phone, and everything below it is how the app behaves once they are in. What leaves
+    // the phone is here too: sync and shared links, and the Privacy and Location cards.
     {
       id: 'account',
       label: 'Account',
-      words: 'sign in login handle encrypted',
-      // Signed in, the page is the account's; signed out, it is the ways in.
-      settings: account.session
-        ? [
-            { name: 'Sync now', words: 'devices' },
-            { name: 'Sync meeting recordings', words: 'audio meeting privacy' },
-            { name: 'Live typing (trial)', words: 'realtime collaborate' },
-            { name: 'Password and recovery codes', words: 'change' },
-            { name: 'Sign out', words: 'log out logout' },
-            { name: 'Shared links', words: 'share publish read' },
-            { name: 'Delete account', words: 'remove close erase data' },
-          ]
-        : [
-            { name: 'I have an account', words: 'sign in login' },
-            { name: 'Create an account', words: 'sign up register' },
-            { name: 'Lost the password', words: 'forgot recovery code reset' },
-          ],
+      words: 'sign in login handle encrypted sync',
+      // Signed in, the page is the account's; signed out, it is the ways in. Privacy and Location either way.
+      settings: accountFindable(Boolean(account.session)),
       icon: <CircleUser size={16} />,
-      content: <AccountPane />,
-      summary: syncSummary(account.session?.handle ?? null, syncStatus),
-      group: 5,
-    },
-    {
-      id: 'type',
-      label: 'Type',
-      words: 'text font',
-      settings: [
-        { name: 'Text size', words: 'font bigger smaller larger' },
-        { name: 'Note font', words: 'font typeface body note editor maple fira mono monospace code coding ligatures inter noto plex' },
-        { name: 'Interface font', words: 'font typeface ui app tabs menus inter noto plex' },
-        { name: 'Link previews', words: 'links url cards' },
-      ],
-      icon: <Type size={16} />,
-      content: <TypePane />,
-      // Spacing moved to Appearance, where the rest of how the app is drawn lives.
-      // The size, then the two faces: the note's, then the interface's.
-      // The size as it is kept when it has no word: core/preferences.ts settles the faces on reading, not the size.
-      summary: `${SIZE_WORDS[prefs.textSize] ?? prefs.textSize} · ${FACE_WORDS[faces.note]} · ${FACE_WORDS[faces.ui]}`,
+      content: <AccountPane onOpen={go} />,
+      // Local only holds the sync off, so the line says it is on.
+      summary: `${syncSummary(account.session?.handle ?? null, syncStatus)}${prefs.localOnly ? ' · Local only' : ''}`,
       group: 0,
     },
     {
       id: 'theme',
       label: 'Appearance',
-      words: 'theme look',
-      settings: [
-        { name: 'Page', words: 'theme light dark system dawn boreal ember' },
-        { name: 'Accent', words: 'colour color highlight' },
-        { name: 'Spacing', words: 'density compact padding roomy tight' },
-        { name: 'Size', words: 'scale zoom interface ui bigger smaller' },
-        { name: 'Sidebar', words: 'dock column popover notes list' },
-        { name: 'Corners', words: 'rounding radius round square' },
-        { name: 'Code', words: 'syntax highlighting colours colors' },
-      ],
+      // Feel was a page's name until §138: its movement and its touch are cards here now.
+      words: 'theme look feel',
+      settings: appearanceFindable({ wide, haptics: hapticsAvailable() }),
       icon: <SunMoon size={16} />,
       content: <AppearancePane />,
-      // The page, then anything else that has been moved off its default: the colour, the air, the corners.
+      // The page and the note's face, then anything else that has been moved off its default.
       summary: [
         THEME_WORDS[prefs.theme],
+        FACE_WORDS[faces.note],
+        // The size as it is kept when it has no word: core/preferences.ts settles the faces on reading, not the size.
+        prefs.textSize === DEFAULT_PREFERENCES.textSize ? null : (SIZE_WORDS[prefs.textSize] ?? prefs.textSize),
+        faces.ui === DEFAULT_PREFERENCES.typeface ? null : FACE_WORDS[faces.ui],
         prefs.accent === 'ink' ? null : ACCENT_WORDS[prefs.accent],
         // The density is not settled on reading either (core/preferences.ts): one with no word is said as it is kept.
         prefs.density === 'comfortable' ? null : (DENSITY_WORDS[prefs.density] ?? prefs.density),
@@ -173,97 +156,35 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       ]
         .filter(Boolean)
         .join(' · '),
-      group: 0,
+      group: 1,
     },
-    ...(isAndroid || (isTauri() && !isMobile)
+    ...(recording
       ? [
           {
             id: 'recording',
             label: 'Recording',
             words: 'voice microphone mic dictate',
-            settings: [
-              { name: 'Stop when I go quiet', words: 'silence auto stop' },
-              { name: 'Review after recording', words: 'check transcript' },
-              { name: 'Better words', words: 'refine clean up transcript' },
-              { name: 'Summaries', words: 'summary meeting write-up minutes' },
-              ...(isAndroid ? [{ name: 'Where the side key is', words: 'button height position hardware' }] : []),
-              // Meetings, on a phone with the service (native generation 20); the search lists them on an older binary too, where they open the page.
-              ...(isAndroid
-                ? [
-                    { name: 'Write up', words: 'meeting battery charging' },
-                    { name: 'Tell me when a meeting is written up', words: 'notification alert written up' },
-                  ]
-                : []),
-              { name: 'Your tapes', words: 'tapes storage audio remove space' },
-            ],
+            settings: recordingFindable({ android: isAndroid, app: isTauri() }),
             icon: <Mic size={16} />,
             content: <RecordingPane />,
-            // What is switched on. It said "A note a take", memo mode's reading, until §136: memo mode went on 2026-09-22.
-            summary: capitalise(
-              [prefs.quietStop ? 'stops when quiet' : null, prefs.review ? 'review' : null, prefs.refine ? 'better words' : null, prefs.summaries === 'off' ? null : prefs.summaries === 'meetings' ? 'meeting summaries' : 'summaries']
-                .filter(Boolean)
-                .join(' · ') || 'nothing after recording',
-            ),
+            summary: recordingSummary,
             group: 1,
           },
         ]
       : []),
     {
-      // Where a note was written (core/location.ts): the map, the place name, and tagging new notes.
-      id: 'location',
-      label: 'Location',
-      words: 'map place where geotag gps',
-      settings: [
-        { name: 'Map on a tagged note', words: 'openstreetmap tiles' },
-        { name: 'Place names', words: 'nominatim address geocode' },
-        { name: 'Tag new notes with my location', words: 'automatic gps position geotag' },
-      ],
-      icon: <MapPin size={16} />,
-      content: <LocationPane />,
-      summary: [prefs.tagNewNotes && !prefs.localOnly ? 'Tags new notes' : null, prefs.localOnly || !prefs.mapTiles ? 'No map' : 'Map on tagged notes'].filter(Boolean).join(' · '),
+      id: 'plugins',
+      label: 'Plugins',
+      words: 'extensions integrations add-ons',
+      // Every plugin, on or off: the way to switch on one that has no page yet.
+      settings: pluginsFindable(allPlugins),
+      icon: <Puzzle size={16} />,
+      // A card's row lands on that plugin's own page, and "Local only" on Account's Privacy card (plugins/PluginsPane.tsx).
+      content: <PluginsPane onOpen={go} />,
+      summary: `${plugins.length} of ${allPlugins.length} on`,
       group: 1,
     },
-    {
-      id: 'formatting',
-      label: 'Formatting',
-      words: 'ai model',
-      settings: [
-        { name: 'Local only', words: 'offline privacy network internet nothing leaves the phone' },
-        { name: 'Model', words: 'ai download llm' },
-      ],
-      icon: <Sparkles size={16} />,
-      content: <FormattingPane />,
-      summary: formattingSummary,
-      group: 1,
-    },
-    // Animations and the haptics, one page since §136: how the app moves, and how it answers a touch where there is a
-    // motor to answer with (FeelPane.tsx).
-    {
-      id: 'feel',
-      label: 'Feel',
-      words: 'motion movement vibration',
-      settings: [
-        { name: 'Animation speed', words: 'motion fast slow' },
-        { name: 'Ghostly typing', words: 'wisp letters' },
-        { name: 'Smoke at the edges', words: 'wisp fade scroll' },
-        { name: 'Ripples while recording', words: 'waves voice' },
-        ...(hapticsAvailable() ? [{ name: 'Haptics', words: 'vibrate vibration buzz touch' }] : []),
-      ],
-      icon: <Waves size={16} />,
-      content: <FeelPane />,
-      summary: capitalise(
-        [
-          prefs.wisp ? 'Ghostly typing' : null,
-          prefs.wispEdge ? 'smoke' : null,
-          prefs.ripples ? 'ripples' : null,
-          prefs.motionSpeed !== 'normal' ? prefs.motionSpeed : null,
-          hapticsAvailable() && haptics ? 'haptics' : null,
-        ]
-          .filter(Boolean)
-          .join(' · ') || 'all still',
-      ),
-      group: 1,
-    },
+    // Each switched-on plugin's own page, behind its card: a sub-page of Plugins in the plugin's own colour.
     ...plugins.flatMap((plugin) => {
       const settings = plugin.settings;
       if (!settings) return [];
@@ -273,74 +194,53 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
           id: `plugin:${plugin.manifest.id}`,
           label: plugin.manifest.name,
           words: plugin.manifest.description,
+          settings: settings.settings,
           hue: settings.hue,
           icon: <Icon size={16} />,
           content: <settings.Pane />,
           summary: settings.summary(),
-          group: 2,
+          group: 1,
+          listed: false,
+          parent: 'plugins',
         },
       ];
     }),
     {
-      id: 'plugins',
-      label: 'Plugins',
-      words: 'extensions integrations add-ons',
-      // Every plugin, on or off: the way to switch on one that has no page yet.
-      settings: allPlugins.map((plugin) => ({ name: plugin.manifest.name, words: plugin.manifest.description })),
-      icon: <Puzzle size={16} />,
-      // A card's row lands on that plugin's own page (plugins/PluginsPane.tsx).
-      content: <PluginsPane onOpen={(id) => setGoTo({ id, nonce: Date.now() })} />,
-      summary: `${plugins.length} of ${allPlugins.length} on`,
+      id: 'about',
+      label: 'About',
+      words: 'version help',
+      settings: aboutFindable,
+      icon: <Info size={16} />,
+      content: <AboutPane updates={updates} onGuide={onGuide} onGuideBook={onGuideBook} onAcademy={onAcademy} onOpen={go} />,
+      // The version and where it stands, now that updates live on this page too.
+      summary: `${updates.version} · ${updatesSummary(updates)}`,
       group: 2,
     },
+    // Help, not settings: two pages behind About's Help card, still searched.
     {
       id: 'cheatsheet',
       label: 'Cheat sheet',
       words: 'markdown syntax marks help',
       // Every mark it shows, so looking for "bold" or "spoiler" lands on it.
-      settings: markGroups()
-        .flatMap((group) => group.rows)
-        .map((row) => ({ name: row.name, words: row.symbol })),
+      settings: cheatSheetFindable(),
       icon: <BookOpen size={16} />,
       content: <CheatSheet />,
       summary: 'Every mark and every cue',
-      group: 3,
+      group: 2,
+      listed: false,
+      parent: 'about',
     },
     {
-      id: 'about',
-      label: 'About',
-      words: 'version help',
-      settings: [
-        { name: 'Updates', words: 'update check upgrade install' },
-        { name: 'Update alerts', words: 'notifications notify' },
-        { name: "What's new", words: 'changelog releases' },
-        { name: 'Ghost.md Academy', words: 'learn tutorial lessons' },
-        // The switch "Commands start with hey Ghost" went (docs/DESIGN.md §136): someone looking for it finds the Guide.
-        { name: 'How to talk to Ghost.md', words: 'voice commands cues hey ghost keyword' },
-        { name: `Add ${GUIDE_TITLE}`, words: 'guide manual help book' },
-        { name: 'Add the sample note', words: 'example' },
-        { name: 'Add the example board', words: 'kanban' },
-        { name: 'Add the example canvas' },
-        { name: 'Privacy policy', words: 'data privacy personal information' },
-      ],
-      icon: <Info size={16} />,
-      content: (
-        <AboutPane
-          updates={updates}
-          onGuide={onGuide}
-          onSample={onSample}
-          onGuideBook={onGuideBook}
-          onBoard={onBoard}
-          onCanvas={onCanvas}
-          onHowCanvas={onHowCanvas}
-          onAcademy={onAcademy}
-          onCheatSheet={() => setGoTo({ id: 'cheatsheet', nonce: Date.now() })}
-          onDeveloper={() => setGoTo({ id: 'developer', nonce: Date.now() })}
-        />
-      ),
-      // The version and where it stands, now that updates live on this page too.
-      summary: `${updates.version} · ${updatesSummary(updates)}`,
-      group: 3,
+      id: 'examples',
+      label: 'Examples',
+      words: 'sample example',
+      settings: examplesFindable,
+      icon: <Shapes size={16} />,
+      content: <ExamplesPane onSample={onSample} onBoard={onBoard} onCanvas={onCanvas} onHowCanvas={onHowCanvas} />,
+      summary: 'A note, a board and two canvases',
+      group: 2,
+      listed: false,
+      parent: 'about',
     },
     ...(devMode
       ? [
@@ -348,19 +248,11 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
             id: 'developer',
             label: 'Developer',
             words: 'debug',
-            settings: [
-              { name: 'Welcome guide', words: 'onboarding set-up' },
-              { name: 'Choose your model' },
-              { name: 'Smoke bench', words: 'wisp performance frames' },
-              { name: 'Developer settings', words: 'mode' },
-              { name: 'Reset local data', words: 'clear erase' },
-              { name: 'Reset everything', words: 'clear erase models' },
-              { name: 'Window', words: 'inset screen engine' },
-            ],
+            settings: developerFindable,
             icon: <Terminal size={16} />,
-            content: <DeveloperPane onGuide={onGuide} />,
-            summary: 'Set-up, reset',
-            group: 4,
+            content: <DeveloperPane />,
+            summary: 'Benches, reset',
+            group: 3,
           },
           {
             id: 'test-results',
@@ -369,7 +261,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
             icon: <FlaskConical size={16} />,
             content: <TestResultsPane />,
             summary: reportSummary(),
-            group: 4,
+            group: 3,
           },
         ]
       : []),

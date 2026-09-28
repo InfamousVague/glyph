@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Puzzle } from '@glacier/icons';
 import { Switch } from '@glacier/react';
 import { usePreferences } from '../core/preferences.ts';
-import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from '../settings/kit/settingsKit.tsx';
+import { GoWord, PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from '../settings/kit/settingsKit.tsx';
+import type { SettingsTarget } from '../settings/SettingsScreen.tsx';
 import { usePlugins } from './hooks.ts';
 import { PERMISSION_WORDS, reachLine, usesNetwork } from './reach.ts';
 import type { GlyphPlugin } from './types.ts';
@@ -16,8 +17,12 @@ import type { GlyphPlugin } from './types.ts';
  * anywhere (its page here, its rows on a note's cog, its swipe, its tips in a pause, its context for the formatter)
  * and keeps its data, so switching it on again brings it back as it was.
  *
- * Local only (Settings > Formatting) holds every plugin that uses the internet off, whatever its switch says
- * (plugins/registry.ts); the page says so at the top and on each card it holds.
+ * Local only (Settings › Account › Privacy) holds every plugin that uses the internet off, whatever its switch says
+ * (plugins/registry.ts); the page says so at the top and on each card it holds, and "Local only" there is a word that
+ * opens Account at the Privacy card (docs/DESIGN.md §138), where it said "in Formatting" and left the person to look.
+ * A plugin's own page is a sub-page of this one, behind its card, and back from it comes here.
+ *
+ * What the search finds here is PluginsPane.findable.ts.
  */
 
 interface PluginCardProps {
@@ -26,9 +31,12 @@ interface PluginCardProps {
   /** Held off by Local only, whatever the switch says. */
   held: boolean;
   onChange: (on: boolean) => void;
-  /** Lands on a section of Settings, by its id: the plugin's own page. */
-  onOpen?: (sectionId: string) => void;
+  /** Lands on a page of Settings: the plugin's own page, or Account at the Privacy card for "Local only". */
+  onOpen?: (target: SettingsTarget) => void;
 }
+
+/** Account's Privacy card, where Local only is switched. */
+const LOCAL_ONLY: SettingsTarget = { id: 'account', setting: 'Privacy' };
 
 function PluginCard({ plugin, on, held, onChange, onOpen }: PluginCardProps) {
   const { manifest } = plugin;
@@ -37,9 +45,18 @@ function PluginCard({ plugin, on, held, onChange, onOpen }: PluginCardProps) {
   return (
     <PaneSection footer={`${manifest.standard ? 'Ships with Ghost.md' : manifest.author} · version ${manifest.version}`}>
       <PaneHero glyph={<Icon size={22} />} title={manifest.name} meta={manifest.description} trailing={<Switch aria-label={`${manifest.name} plugin`} checked={on && !held} onCheckedChange={onChange} disabled={held} />} />
-      {held ? <SettingRow label="Off while Local only is on" hint="It uses the internet. Switch “Local only” off in Formatting to use it." /> : null}
+      {held ? (
+        <SettingRow
+          label="Off while Local only is on"
+          hint={
+            <>
+              It uses the internet. Switch <GoWord onPress={onOpen ? () => onOpen(LOCAL_ONLY) : undefined}>Local only</GoWord> off to use it.
+            </>
+          }
+        />
+      ) : null}
       {on && !held && plugin.settings && onOpen ? (
-        <SettingRow icon={<Icon size={16} />} label={plugin.settings.summary()} hint={`${manifest.name}’s own page: what it keeps, and how it is set.`} onPress={() => onOpen(`plugin:${manifest.id}`)} />
+        <SettingRow icon={<Icon size={16} />} label={plugin.settings.summary()} hint={`${manifest.name}’s own page: what it keeps, and how it is set.`} onPress={() => onOpen({ id: `plugin:${manifest.id}` })} />
       ) : null}
       <SettingRow label="What it may reach" hint={reachLine(manifest)} control={<RowAction onPress={() => setWhy((v) => !v)}>{why ? 'Less' : 'Why'}</RowAction>} />
       {why
@@ -51,7 +68,7 @@ function PluginCard({ plugin, on, held, onChange, onOpen }: PluginCardProps) {
   );
 }
 
-export function PluginsPane({ onOpen }: { onOpen?: (sectionId: string) => void }) {
+export function PluginsPane({ onOpen }: { onOpen?: (target: SettingsTarget) => void }) {
   const { all, enabled, setEnabled } = usePlugins();
   const localOnly = usePreferences().localOnly;
   return (
@@ -60,10 +77,16 @@ export function PluginsPane({ onOpen }: { onOpen?: (sectionId: string) => void }
         <PaneHero
           glyph={<Puzzle size={22} />}
           title="Plugins"
-          meta={`${enabled.length} of ${all.length} on. Each reaches only what its card says. One switched off offers nothing anywhere - its rows, its commands, its page - until it is on again, and keeps what it kept.`}
+          meta={`${enabled.length} of ${all.length} on. Each reaches only what its card says. One switched off offers nothing anywhere, not its rows, its commands or its page, until it is on again, and keeps what it kept.`}
         />
       </PaneSection>
-      {localOnly ? <SettingsCallout>“Local only” is on in Formatting: plugins that use the internet are held off until it is off.</SettingsCallout> : null}
+      {localOnly ? (
+        <SettingsCallout>
+          <span>
+            <GoWord onPress={onOpen ? () => onOpen(LOCAL_ONLY) : undefined}>Local only</GoWord> is on, so plugins that use the internet are held off until it is off.
+          </span>
+        </SettingsCallout>
+      ) : null}
       {all.map((plugin) => (
         <PluginCard key={plugin.manifest.id} plugin={plugin} on={enabled.includes(plugin)} held={localOnly && usesNetwork(plugin.manifest)} onChange={(on) => setEnabled(plugin.manifest.id, on)} onOpen={onOpen} />
       ))}

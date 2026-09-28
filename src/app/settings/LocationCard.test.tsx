@@ -23,12 +23,13 @@ vi.mock('../core/location.ts', async (importOriginal) => {
   };
 });
 
-const { LocationPane } = await import('./LocationPane.tsx');
+const { LocationCard } = await import('./LocationCard.tsx');
 const { preferences, setPreferences, DEFAULT_PREFERENCES } = await import('../core/preferences.ts');
 
 /**
- * The Location page: the three switches, all off under Local only, and the ask that turning tagging on makes here so
- * the prompt never comes over the recorder; a refusal leaves the switch on and says why notes are not tagged.
+ * The Location card on Account (docs/DESIGN.md §138; it was the Location page): the three switches, all off under
+ * Local only, and the ask that turning tagging on makes here so the prompt never comes over the recorder; a refusal
+ * leaves the switch on and says why notes are not tagged.
  */
 
 const flip = (host: HTMLElement, label: string) => act(() => host.querySelector<HTMLElement>(`[aria-label="${label}"]`)!.click());
@@ -44,9 +45,9 @@ beforeEach(() => {
 });
 afterEach(() => vi.clearAllMocks());
 
-describe('the Location page', () => {
+describe('the Location card', () => {
   it('has the three switches, on by default, and each writes its preference', () => {
-    const host = show(<LocationPane />);
+    const host = show(<LocationCard />);
     expect(preferences()).toMatchObject({ mapTiles: true, placeNames: true, tagNewNotes: true });
     flip(host, 'Map on a tagged note');
     flip(host, 'Place names');
@@ -59,7 +60,7 @@ describe('the Location page', () => {
 
   it('greys all three under Local only, and says a tagged note still shows where it was written', () => {
     setPreferences({ localOnly: true });
-    const host = show(<LocationPane />);
+    const host = show(<LocationCard />);
     expect(host.querySelectorAll('[data-disabled]')).toHaveLength(3);
     expect([...host.querySelectorAll('.setk-row__why')].map((el) => el.textContent)).toEqual(['Local only is on.', 'Local only is on.', 'Local only is on.']);
     // A named tag keeps its name under Local only; only the coordinates would be wrong to promise.
@@ -68,7 +69,7 @@ describe('the Location page', () => {
 
   it('asks for a fix once when tagging is turned on, so the prompt happens here and not over the recorder', async () => {
     setPreferences({ tagNewNotes: false });
-    const host = show(<LocationPane />);
+    const host = show(<LocationCard />);
     flip(host, 'Tag new notes with my location');
     expect(preferences().tagNewNotes).toBe(true);
     await waitUntil(() => expect(device.forgot).toBe(1));
@@ -79,7 +80,7 @@ describe('the Location page', () => {
   it('leaves the switch on after a refusal, and says why notes are not tagged, with the way to settings where the phone is blocked', async () => {
     setPreferences({ tagNewNotes: false });
     device.answer = 'refused';
-    const host = show(<LocationPane />);
+    const host = show(<LocationCard />);
     flip(host, 'Tag new notes with my location');
     await waitUntil(() => expect(host.textContent).toContain('Ghost.md wasn’t allowed to know where you are, so new notes are not tagged.'));
     expect(preferences().tagNewNotes).toBe(true);
@@ -99,7 +100,7 @@ describe('the Location page', () => {
 
   it('says so when a new note’s own ask was refused, and forgets it once the switch is turned off', () => {
     localStorage.setItem('glyph-geotag-refused', JSON.stringify({ why: 'refused', at: Date.now() }));
-    const host = show(<LocationPane />);
+    const host = show(<LocationCard />);
     expect(host.textContent).toContain('Ghost.md wasn’t allowed to know where you are, so new notes are not tagged.');
     expect(preferences().tagNewNotes).toBe(true);
     flip(host, 'Tag new notes with my location');
@@ -113,7 +114,7 @@ describe('the Location page', () => {
       ['unavailable', 'Update Ghost.md to tag notes.'],
     ] as const) {
       device.can = { ok: false, why };
-      const host = show(<LocationPane />);
+      const host = show(<LocationCard />);
       const rows = host.querySelectorAll('[data-disabled]');
       expect(rows).toHaveLength(1);
       expect(rows[0]?.textContent).toContain(words);

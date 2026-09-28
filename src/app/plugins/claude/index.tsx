@@ -27,5 +27,15 @@ export const manifest: PluginManifest = {
 export const claudePlugin: GlyphPlugin = {
   manifest,
   icon: Bot,
-  settings: { Pane: ClaudePane, summary: () => 'Read and write your notes from Claude', hue: 'coral' },
+  settings: {
+    Pane: ClaudePane,
+    summary: () => 'Read and write your notes from Claude',
+    hue: 'coral',
+    // What Settings' search finds on the page (docs/DESIGN.md §138): its cards, by their titles.
+    settings: [
+      { name: 'Connect', words: 'mcp server address hosted computer' },
+      { name: 'What Claude can do', words: 'tools' },
+      { name: 'Your key', words: 'secret connections' },
+    ],
+  },
 };

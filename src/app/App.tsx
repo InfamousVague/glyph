@@ -112,8 +112,8 @@ function Shell() {
   const [settings, setSettings] = useState(false);
   /** Settings asked to open at the cheat sheet, from the Academy: the moment it was asked for, or 0. */
   const [toCheatSheet, setToCheatSheet] = useState(0);
-  // The shelf's "Get a model" (home/TapeShelf.tsx): Settings open at Formatting, where a language model is fetched.
-  const [toFormatting, setToFormatting] = useState(0);
+  // The shelf's "Get a model" (home/TapeShelf.tsx): Settings open at Recording's Model card, where a language model is fetched.
+  const [toModel, setToModel] = useState(0);
 
   // Whether the side key launched the app, asked of the host once (core/host.ts).
   const [launchedByKey] = useState(takeCaptureLaunch);
@@ -333,10 +333,10 @@ function Shell() {
     await showMade(make(title));
   };
 
-  // Settings > About: a sample note, a board, a canvas or the canvas that explains canvases (core/seed.ts), or the guide's
-  // index (guidebook/guidebook.ts), opened at once. The guide's chapters are chunks fetched on the press, which fails
-  // offline or once a deploy has replaced them under an open tab: then the person is told, and a second press makes
-  // only the chapters still missing.
+  // Settings › About › Examples: a sample note, a board, a canvas or the canvas that explains canvases (core/seed.ts),
+  // or, from About's Help, the guide's index (guidebook/guidebook.ts), opened at once. The guide's chapters are chunks
+  // fetched on the press, which fails offline or once a deploy has replaced them under an open tab: then the person is
+  // told, and a second press makes only the chapters still missing.
   const openSample = (add: () => Promise<Note>, failed = 'That note could not be added. Try again.') => () => {
     tabs.replaceNext(null);
     void (async () => {
@@ -555,7 +555,7 @@ function Shell() {
       onSettings={() => setSettings(true)}
       onGetModel={() => {
         setSettings(true);
-        setToFormatting(Date.now());
+        setToModel(Date.now());
       }}
       onSearch={openCommands ?? undefined}
       onAllNotes={showAllNotes}
@@ -799,10 +799,9 @@ function Shell() {
         open={settings}
         onClose={() => setSettings(false)}
         updates={updates}
-        onGuide={(page) => {
+        onGuide={() => {
           setSettings(false);
-          // A row's press hands its event along; only a number is a page.
-          guide.show(typeof page === 'number' ? page : 0);
+          guide.show(0);
         }}
         onSample={openSample(addSampleNote)}
         // The guide once: read against the library as it is now, less the trash, so a second press opens the first.
@@ -820,7 +819,7 @@ function Shell() {
           setScreen({ name: 'academy' });
         }}
         toCheatSheet={toCheatSheet}
-        toFormatting={toFormatting}
+        toModel={toModel}
       />
       {/*
         Not over a capture. The side key can arrive while the guide is open -

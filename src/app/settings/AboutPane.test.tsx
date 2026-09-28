@@ -45,14 +45,16 @@ function updates(over: Partial<Updates> = {}): Updates {
   };
 }
 
-function about(given: Updates = updates(), onDeveloper = vi.fn(), onGuideBook = vi.fn()) {
+function about(given: Updates = updates(), onOpen = vi.fn(), onGuideBook = vi.fn()) {
   const noop = () => undefined;
   const host = show(
     <ToastProvider>
-      <AboutPane updates={given} onGuide={noop} onSample={noop} onGuideBook={onGuideBook} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} onCheatSheet={noop} onDeveloper={onDeveloper} />
+      <AboutPane updates={given} onGuide={noop} onGuideBook={onGuideBook} onAcademy={noop} onOpen={onOpen} />
     </ToastProvider>,
   );
-  return { host, onDeveloper, onGuideBook };
+  // The seventh press lands on Developer: the one place it opens from here that the version tests watch.
+  const onDeveloper = { get called() { return onOpen.mock.calls.some(([target]) => target.id === 'developer'); } };
+  return { host, onOpen, onDeveloper, onGuideBook };
 }
 
 beforeEach(() => {
@@ -71,7 +73,7 @@ describe('the version on About', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     // Far from any press an earlier test made, so this run starts at one.
     vi.setSystemTime(new Date('2026-09-25T12:00:00Z'));
-    const { host, onDeveloper } = about();
+    const { host, onDeveloper, onOpen } = about();
     const version = host.querySelector<HTMLButtonElement>('.setk-hero--press')!;
     expect(version.textContent).toContain('1.8.0');
     const presses = (n: number) => {
@@ -86,9 +88,9 @@ describe('the version on About', () => {
     expect(document.body.textContent).toContain('4 more taps for developer settings.');
     presses(3);
     expect(document.body.textContent).toContain('1 more tap for developer settings.');
-    expect(onDeveloper).not.toHaveBeenCalled();
+    expect(onDeveloper.called).toBe(false);
     presses(1);
-    expect(onDeveloper).toHaveBeenCalledOnce();
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith({ id: 'developer' });
     expect(localStorage.getItem('glyph-developer')).toBe('on');
     expect(document.body.textContent).toContain('Developer settings are on.');
   });
@@ -105,18 +107,36 @@ describe('the version on About', () => {
     // A second's rest: the seventh press is the first of a new run.
     vi.setSystemTime(Date.now() + 1000);
     press(version);
-    expect(onDeveloper).not.toHaveBeenCalled();
+    expect(onDeveloper.called).toBe(false);
     expect(localStorage.getItem('glyph-developer')).toBeNull();
   });
 });
 
 describe('Help on About', () => {
-  it('has a row that adds Ghost.md: The Guide, counting its chapters, and pressing it calls the handler', () => {
+  const row = (host: HTMLElement, label: string) => [...host.querySelectorAll('button')].find((b) => b.querySelector('.setk-row__label')?.textContent === label);
+
+  it('has a row for Ghost.md: The Guide, counting its chapters, and pressing it calls the handler', () => {
     const { host, onGuideBook } = about();
-    const row = [...host.querySelectorAll('button')].find((b) => b.querySelector('.setk-row__label')?.textContent === 'Add Ghost.md: The Guide');
-    expect(row?.textContent).toContain('a book of 44 short chapters');
-    press(row);
+    expect(row(host, 'Ghost.md: The Guide')?.textContent).toContain('a book of 44 short chapters');
+    press(row(host, 'Ghost.md: The Guide'));
     expect(onGuideBook).toHaveBeenCalledOnce();
+  });
+
+  // Changed on purpose (docs/DESIGN.md §138): eight rows, five of them "Add …", are five, two of them pages.
+  it('is five rows, the cheat sheet and the examples each opening its own page', () => {
+    const { host, onOpen } = about();
+    const help = [...host.querySelectorAll('section')].find((s) => s.querySelector('.setk__title')?.textContent === 'Help')!;
+    expect([...help.querySelectorAll('.setk-row__label')].map((l) => l.textContent)).toEqual(['Ghost.md Academy', 'The welcome walkthrough', 'Cheat sheet', 'Ghost.md: The Guide', 'Examples']);
+    press(row(host, 'Cheat sheet'));
+    expect(onOpen).toHaveBeenLastCalledWith({ id: 'cheatsheet' });
+    press(row(host, 'Examples'));
+    expect(onOpen).toHaveBeenLastCalledWith({ id: 'examples' });
+  });
+
+  it('has no privacy card: that is Account’s now', () => {
+    const { host } = about();
+    expect(host.textContent).not.toContain('Privacy policy');
+    expect(host.textContent).not.toContain('No ads, no analytics');
   });
 });
 
