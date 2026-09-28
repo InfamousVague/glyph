@@ -61,14 +61,21 @@ const pageQueries = (css: string) =>
 describe('the home page’s tiers', () => {
   it('puts a column on the side of each line it is on, at the root’s rem', () => {
     expect([703.9, 704, 1055.9, 1056].map((px) => tierOf(px, 16))).toEqual(['stack', 'wide', 'wide', 'desk']);
+    expect([1407.9, 1408, 1919.9, 1920, 2505].map((px) => tierOf(px, 16))).toEqual(['desk', 'broad', 'broad', 'vast', 'vast']);
     // Settings' interface size moves the root's rem, and the lines with it, as it moves the container queries'.
     expect([879, 880, 1319, 1320].map((px) => tierOf(px, 20))).toEqual(['stack', 'wide', 'wide', 'desk']);
     // A phone's column is the stack, and so is one jsdom never laid out.
     expect([367, 331, 0].map((px) => tierOf(px, 16))).toEqual(['stack', 'stack', 'stack']);
   });
 
-  it('holds the phone’s four notes and five to-dos until the desk, which holds six and eight', () => {
-    expect(CAPS).toEqual({ stack: { recent: 4, tasks: 5 }, wide: { recent: 4, tasks: 5 }, desk: { recent: 6, tasks: 8 } });
+  it('holds the phone’s four notes and five to-dos until the desk, which holds six and eight, and a vast desk eight and ten', () => {
+    expect(CAPS).toEqual({
+      stack: { recent: 4, tasks: 5 },
+      wide: { recent: 4, tasks: 5 },
+      desk: { recent: 6, tasks: 8 },
+      broad: { recent: 6, tasks: 8 },
+      vast: { recent: 8, tasks: 10 },
+    });
   });
 
   it('asks the page’s container at the lines tiers.ts draws, and at every one of them', () => {
@@ -89,9 +96,9 @@ describe('the home page’s tiers', () => {
   });
 
   it('asks exactly these questions of the page: from each line, and between two of them, never at one', () => {
-    const { wide, tapesGrid, desk } = LINES;
+    const { wide, tapesGrid, desk, broad, vast } = LINES;
     const preludes = (css: string) => pageQueries(css).map(({ prelude }) => prelude.replace('@container home-page ', ''));
-    expect(preludes(sheets.home)).toEqual([`(min-width: ${wide}rem)`, `(${wide}rem <= width < ${desk}rem)`, `(min-width: ${desk}rem)`]);
+    expect(preludes(sheets.home)).toEqual([`(min-width: ${wide}rem)`, `(${wide}rem <= width < ${desk}rem)`, `(min-width: ${desk}rem)`, `(min-width: ${broad}rem)`, `(min-width: ${vast}rem)`]);
     expect(preludes(sheets.shelf)).toEqual([`(min-width: ${tapesGrid}rem)`, `(${tapesGrid}rem <= width < ${desk}rem)`, `(min-width: ${desk}rem)`]);
     // The shelf is a grid only from its own line: under it, the phone's sideways row.
     const grids = blocks(sheets.shelf).filter(({ body }) => rulesOf(body).some(({ selector, body: rule }) => selector === '.row' && declarationsOf(rule).get('display') === 'grid'));
@@ -104,14 +111,16 @@ describe('the home page’s tiers', () => {
     for (const { prelude } of blocks(sheets.home).filter(({ prelude }) => !prelude.startsWith('@container home-page'))) {
       expect(prelude, prelude).not.toMatch(/\.(grid|head|notices)\b|\[data-(group|paired)\b/);
     }
-    // The column is the container every question asks, and it is wider than the desk's line, or there could be no desk.
+    // The column is the container every question asks, and it spans the pane, uncapped (docs/DESIGN.md §139), so
+    // every tier up to the vast desk is reached in a wide enough window.
     const column = declarationsOf(blocks(sheets.home).find(({ prelude }) => prelude === '.page')!.body);
     expect(column.get('container')).toBe('home-page / inline-size');
-    expect(Number(/^(\d+)rem$/.exec(column.get('max-inline-size') ?? '')?.[1])).toBeGreaterThan(LINES.desk);
-    // The heading rows keep clear of the dock while the pane is narrow enough for it to cross the column, which is
-    // until the pane is wider than the column's cap by twice the dock's reach: the line is past the cap.
-    const dockLine = blocks(sheets.home).find(({ prelude }) => prelude.startsWith('@container home-pane'))!.prelude;
-    expect(Number(/max-width: (\d+)rem/.exec(dockLine)?.[1])).toBeGreaterThan(Number(/^(\d+)rem$/.exec(column.get('max-inline-size') ?? '')?.[1]));
+    expect(column.has('max-inline-size')).toBe(false);
+    // So the dock crosses the column at every width, and the heading rows keep clear of it at every width: a rule of
+    // the sheet's own, asked of nothing.
+    const rows = blocks(sheets.home).filter(({ prelude }) => prelude === '.groupRow').map(({ body }) => declarationsOf(body));
+    expect(rows.some((row) => row.get('padding-inline-end')?.includes('var(--app-ring)'))).toBe(true);
+    expect(sheets.home).not.toMatch(/@container home-pane/);
   });
 
   it('places the groups by the names the page writes, and the desk’s rows in the page’s order', () => {

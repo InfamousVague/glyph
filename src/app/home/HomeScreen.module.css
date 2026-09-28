@@ -10,8 +10,6 @@
   position: relative;
   block-size: 100dvh;
   background: var(--glacier-bg);
-  /* Measured for the heading rows, which keep clear of the dock while the pane is narrow enough for it to cross the page (`.groupRow`). */
-  container: home-pane / inline-size;
 }
 
 /*
@@ -116,20 +114,16 @@
 }
 
 /*
- * The row's word ends before the dock's column, on a pane where the dock crosses the page: the page runs under the
- * dock by design (§84, §97), and a card's corner may pass behind it, but a word to tap must not. Measured at 412x915
- * with thirteen tapes: "See all" sat at x 334-390 under a dock at x 335-394, hidden on the first screen and whenever
- * its heading scrolled through the dock's band; at 1280 with the sidebar docked "Show all" ended 49px under it. The
- * dock reaches past the page's gutter by its ring, its two paddings and its inset less the gutter (55px at 412), and
- * crosses the column until the pane is wider than the column by twice the dock's whole width and inset: with the
- * column capped at 80rem (`.page`) that is a pane of ~1469px, 91.8rem, so the line is the pane's width, not the
- * column's: 92rem (it was 70rem, over the 60rem column). Under it the row keeps that reach at its end, and a step of
- * air.
+ * The row's word ends before the dock's column: the page runs under the dock by design (§84, §97), and a card's corner
+ * may pass behind it, but a word to tap must not. Measured at 412x915 with thirteen tapes: "See all" sat at x 334-390
+ * under a dock at x 335-394, hidden on the first screen and whenever its heading scrolled through the dock's band; at
+ * 1280 with the sidebar docked "Show all" ended 49px under it. The dock reaches past the page's gutter by its ring, its
+ * two paddings and its inset less the gutter (55px at 412), so the row keeps that reach at its end, and a step of air.
+ * At every width: the page spans the pane (`.page`, §139), so the dock crosses it however wide the window is. It was
+ * asked of the pane's width while the page was capped at 80rem, past which the dock stood clear of the column.
  */
-@container home-pane (max-width: 92rem) {
-  .groupRow {
-    padding-inline-end: calc(var(--app-ring) + var(--glacier-space-2) * 2 + var(--glacier-space-4) - var(--app-gutter) + var(--glacier-space-3));
-  }
+.groupRow {
+  padding-inline-end: calc(var(--app-ring) + var(--glacier-space-2) * 2 + var(--glacier-space-4) - var(--app-gutter) + var(--glacier-space-3));
 }
 
 /*
@@ -362,15 +356,14 @@
 
 
 /*
- * One column in the middle of a wide window: on a desktop the page ran the whole window across, and a card or a
- * notice two thousand pixels wide reads as a banner rather than as something to pick up. 80rem, room for a main and
- * its rail ("The page laid out wide", at the end), where it was 60rem, one phone column stretched: the cards sit on
- * the page's units, and the notices and the head's lines are held to the first of them or to the main, so nothing is
- * a banner at this width either. Past the desk's line (66rem), or there could be no desk.
+ * The page spans the pane, whatever its width (Matt: "On desktop there is a limit to the width of the body content but
+ * it should allow content to span 100% of the app window"). It was one column in the middle of a wide window, 60rem and
+ * then 80rem, so a card or a notice two thousand pixels wide would not read as a banner. The tiers keep that promise
+ * now instead ("The page laid out wide", at the end): past the desk the main takes three cards across and then four,
+ * and with no To do the cards run six and then eight across, so a card stays a card's size on a wide screen, and the
+ * notices and the head's lines are held to the main.
  */
 .page {
-  max-inline-size: 80rem;
-  margin-inline: auto;
   /* Measured by the page's grid, which lays the groups out by the column's width (`.grid`), and by the shelf's row
      (TapeShelf.module.css). No padding and no border, so this box is the width home/useColumnTier.ts reads as well. */
   container: home-page / inline-size;
@@ -620,6 +613,8 @@
  *   ("the hinge in the gap", scene/AtWork.module.css). A single pinned card and To do side by side; every other group
  *   across both, its cards two to a row on the units' columns.
  * - From 66rem, a desk: a main two cards across and, beside it, a rail one card wide that holds To do.
+ * - From 88rem, a broad desk: the main three cards across and the tapes four, the rail a quarter of the page.
+ * - From 120rem, a vast one: the main four cards across and the tapes eight, one row of them.
  *
  * The groups keep their order, and each is placed in it, so what is seen is what is written. The rhythm is the groups'
  * own margins, never a row gap, so an absent group leaves no gap of its own.
@@ -843,6 +838,50 @@
   /* The empty page: the ghost where the main is, its words where the rail is. */
   .empty {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+/*
+ * A broad desk (88rem and up), now that the page spans the pane (§139): past it the desk's main two cards across grew
+ * to banners, 570px each in a 1800 window. So the main is three quarters of the page and three cards across, the tapes
+ * four (two whole rows of the shelf's eight), and the rail a quarter, 342px at the line and wider after, room for To
+ * do's heading, count and word beside the dock (they need 294-305, home/tiers.ts). With no To do, one column, the cards
+ * six across and the tapes eight, each a single whole row of what the page holds (`CAPS`).
+ */
+@container home-page (min-width: 88rem) {
+  .grid {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+    --home-units: 3;
+    --shelf-across: 4;
+  }
+
+  .grid:not(:has(> [data-group='tasks'])) {
+    --home-units: 6;
+    --shelf-across: 8;
+  }
+
+  /* The date, the digest and the notices held to the main's width. */
+  .head > :is(.today, .digest, .notices) {
+    max-inline-size: calc((100% - var(--glacier-space-10)) * 3 / 4);
+  }
+
+  .empty {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  }
+}
+
+/*
+ * A vast desk (120rem and up: a 1920 page, a big display's window): the main four cards across and the tapes eight,
+ * so eight Recent cards are two whole rows and the shelf one. With no To do, the cards eight across, one row.
+ */
+@container home-page (min-width: 120rem) {
+  .grid {
+    --home-units: 4;
+    --shelf-across: 8;
+  }
+
+  .grid:not(:has(> [data-group='tasks'])) {
+    --home-units: 8;
   }
 }
 

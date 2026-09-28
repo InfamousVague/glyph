@@ -134,12 +134,11 @@
 }
 
 /*
- * One column a reader's width, in the middle of a wide window. The home page's goes on to 80rem for its main and rail
- * (home/HomeScreen.module.css `.page`, docs/DESIGN.md §137); this one stays at 60rem, where §121's grid is four across.
+ * The page spans the pane, as the home page's does (Matt: "it should allow content to span 100% of the app window",
+ * docs/DESIGN.md §139). It was a 60rem column in the middle of a wide window; now §121's grid simply fits more cards to
+ * a row, about eight in an 1800 window.
  */
 .page {
-  max-inline-size: 60rem;
-  margin-inline: auto;
   container: all-notes / inline-size;
 }
 
@@ -237,7 +236,7 @@
  * preview is big enough to read (Matt: "make the size of the cards for note previews larger on small displays like
  * standard phone portrait view we may only see one note per row while unfolded may see 3-4"). Under the app's 600px
  * line (core/useWideScreen.ts) it is one column; wider, as many as fit a card 12rem across - measured, two at 600px,
- * three at 750, four from about 870 and in a desktop window's 60rem column, so three or four on the Fold opened out.
+ * three at 750, four from about 870, so three or four on the Fold opened out, and more across a desktop window.
  * The same grid, not a copy of it.
  */
 .cards {

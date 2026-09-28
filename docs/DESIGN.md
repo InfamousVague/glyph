@@ -7360,3 +7360,46 @@ passed, 123 skipped).
 - All notes' own empty-state tracks (3fr/2fr), and the tape's ground still written out three times (§132).
 
 Cites: §21, §29g, §53, §66, §84/§97, §92/§110, §121, §127, §132.
+
+## 139. The page spans the window: two more desks past the cap (2026-09-28)
+
+Matt: "On desktop there is a limit to the width of the body content but it should allow content to span 100% of the
+app window".
+
+A note already did: its editor ran the pane's width. The home page did not: `.page` was a column capped at 80rem
+(1280px) in the middle of the window, and All notes' at 60rem. Both caps are gone (`HomeScreen.module.css` and
+`AllNotesScreen.module.css`, `.page`), so each page spans the pane less its gutters.
+
+The cap was there so a card would not become a banner, and §137's desk depended on it: uncapped, the desk's main two
+cards across would be about 570px each in an 1800 window. So the home page gains two tiers past the desk
+(`home/tiers.ts`, the container queries in `HomeScreen.module.css`):
+
+| Tier | From | Main | Rail | No To do | Recent / to-dos |
+|---|---|---|---|---|---|
+| desk (§137) | 66rem | 2 cards, 3 tapes | 1fr of 3 | 3 cards, 4 tapes | 6 / 8 |
+| broad | 88rem | 3 cards, 4 tapes | 1fr of 4 | 6 cards, 8 tapes | 6 / 8 |
+| vast | 120rem | 4 cards, 8 tapes | 1fr of 4 | 8 cards, 8 tapes | 8 / 10 |
+
+Every count keeps §137's rule that a row is whole: six Recent cards are two rows of three or one of six, eight are two
+rows of four or one of eight, and the shelf's eight tapes are two rows of four or one of eight. The broad line is 88rem
+because that is where its rail, a quarter of the page, reaches 342px, room for To do's heading, count and word (§137's
+294-305).
+
+Measured in the preview, sidebar hidden:
+
+| Window | Page | Tier | Recent cards |
+|---|---|---|---|
+| 412 | 367 | stack | 1 across, 367 (unchanged) |
+| 1280 | 1215 | desk | 2 across, 377 |
+| 1440 | 1374 | desk | 2 across, 429 |
+| 1600 | 1533 | broad | 3 across, 355; no To do, 6 across, 237 |
+| 1800 | 1745 | broad | 3 across, 408 |
+| 2560 | 2493 | vast | 4 across, 441; no To do, 8 across, 294 |
+
+All notes keeps §121's grid, so it simply fits more: eight across at 204px in an 1800 window.
+
+The heading rows' clearance from the dock (§137) was asked of the pane's width, at 92rem, because past that the dock
+stood clear of the capped column. With the page spanning the pane the dock crosses it at every width, so the
+clearance is a plain rule now, and the `home-pane` container it asked is gone. The phone is untouched: under 44rem no
+tier applies, the cap never reached a phone's column, and the clearance already applied there.
+

@@ -23,7 +23,7 @@ import styles from './AllNotesScreen.module.css';
  * The home page's "All notes" used to open the sidebar, which is a tree for jumping to a note you already know by name;
  * for looking through what there is, it was a column of small rows over the page. This is a page of its own: the cards
  * the home page draws (notes/NoteCard.tsx), in its grid - one to a row on a phone, three or four on the Fold opened out,
- * four in a desktop window - with a search over the notes' words in the bar, the workspace pills choosing which notes, the order
+ * more across a desktop window - with a search over the notes' words in the bar, the workspace pills choosing which notes, the order
  * (last touched, or by name), the archive shown when asked for, and only the notes with a tape when the Tapes word is
  * on (docs/DESIGN.md §127, §132: the home page's shelf shows eight, and the Tapes heading's "See all" opens this page
  * with Tapes on). A
