@@ -27,8 +27,10 @@ import { GoWord, PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, 
  *
  * Who you are, and what leaves the phone (docs/DESIGN.md §138): the Privacy card (PrivacyCard.tsx: Local only, Link
  * previews, the policy) and the Location card (LocationCard.tsx, which was a page) are here, beside sync and shared
- * links, signed in or out. Signed out they come first, since the form is an invitation and the cards are settings.
- * Signed in, while Local only holds the sync off, the callout's "Local only" is a word that brings its card into view.
+ * links, signed in or out. Signed out, Privacy is the first thing on the page, since the form is an invitation and the
+ * card is settings, and Location comes after the ways in: first as well, the two cards put Sign in a screen and a half
+ * down at 412 × 915 (its title at 1476 px), where after Privacy alone it heads the second screen (948). Signed in,
+ * while Local only holds the sync off, the callout's "Local only" is a word that brings its card into view.
  *
  * What the search finds here is AccountPane.findable.ts.
  */
@@ -84,7 +86,6 @@ function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said
       {said ? <SettingsCallout>{said}</SettingsCallout> : null}
       {/* No callout for Local only here: its card is the first thing on the page, and its switch says the state. */}
       <PrivacyCard />
-      <LocationCard />
       <Ghost scene="signed-out" align="center" />
       <PaneSection
         title={mode === 'up' ? 'New account' : mode === 'recover' ? 'Recover' : 'Sign in'}
@@ -121,6 +122,7 @@ function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said
       <SettingsFootnote>
         Your password never leaves this device, and nobody can reset it for you. Without it or a recovery code, the notes in an account can't be opened by anyone. Notes on this device stay here either way.
       </SettingsFootnote>
+      <LocationCard />
     </>
   );
 }

@@ -68,12 +68,12 @@ describe('Delete account', () => {
 const titles = (host: HTMLElement) => [...host.querySelectorAll('.setk__title')].map((title) => title.textContent);
 
 describe('Signed out', () => {
-  // Changed on purpose (docs/DESIGN.md §138): Privacy and Location are Account's cards, and signed out they come first.
-  it('opens on the Privacy card, then Location, then the ways in, with no callout for Local only', () => {
+  // Changed on purpose (docs/DESIGN.md §138): Privacy and Location are Account's cards, and signed out Privacy comes first.
+  it('opens on the Privacy card, then the ways in, then Location, with no callout for Local only', () => {
     session = null;
     setPreferences({ localOnly: true });
     const host = show(<AccountPane />);
-    expect(titles(host)).toEqual(['Privacy', 'Location', 'Sign in']);
+    expect(titles(host)).toEqual(['Privacy', 'Sign in', 'Location']);
     // The card is the first thing on the page and its switch says the state: no sentence pointing at it.
     expect(host.querySelector('.setk-callout')).toBeNull();
     expect(host.querySelector<HTMLInputElement>('[aria-label="Local only"]')?.checked).toBe(true);

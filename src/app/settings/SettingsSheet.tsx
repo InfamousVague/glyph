@@ -225,7 +225,8 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       settings: cheatSheetFindable(),
       icon: <BookOpen size={16} />,
       content: <CheatSheet />,
-      summary: 'Every mark and every cue',
+      // Marks only: the cues are the guide's to teach (guide/CheatSheet.tsx), so the line no longer promises them.
+      summary: 'Every mark you can type',
       group: 2,
       listed: false,
       parent: 'about',
