@@ -29,7 +29,7 @@ Until you speak, the page shows:
 
 ## While you talk
 
-Words appear as they are heard, on the note's own page, set as they will read: a heading as a heading, a bullet as a bullet. The phrase still being guessed is written at the end as it is heard, and it can change while the recogniser makes up its mind. With **Ghostly typing** on (Settings › Animations), new letters come in out of smoke and replaced ones go back into it. Once the recogniser settles on a phrase, it takes its marks: “Bullet point, the heating” lands as a bullet. [[Saying the marks]] has every cue.
+Words appear as they are heard, on the note's own page, set as they will read: a heading as a heading, a bullet as a bullet. The phrase still being guessed is written at the end as it is heard, and it can change while the recogniser makes up its mind. With **Ghostly typing** on (Settings › Feel), new letters come in out of smoke and replaced ones go back into it. Once the recogniser settles on a phrase, it takes its marks: “Bullet point, the heating” lands as a bullet. [[Saying the marks]] has every cue.
 
 On a note's own Speak, the note's text is above and the new words are written onto its end, or into its list when its title says it is one (House TODOs, Groceries). Name another note, as in “Add a note to Groceries, …”, and the words go into its list as you say them, with or without “Hey Ghost” first: [[Spoken commands]].
 

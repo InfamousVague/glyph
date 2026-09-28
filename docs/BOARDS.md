@@ -243,6 +243,6 @@ mobile". What that means on the page:
 - **A lane with more below goes to smoke at its foot** (Matt: "the blur at the bottom of the swimlanes should be the
   wisp effect we use on text"). Only while there are cards under the lane's foot: the app's wisp edge, the words and
   cards bending and softening into the lane's ground as they go, over a short fade (`src/app/art/wispFoot.ts`, one
-  filter made for the lanes' height). With Settings › Animations › Smoke at the edges switched off, with reduced
+  filter made for the lanes' height). With Settings › Feel › Smoke at the edges switched off, with reduced
   motion, or on a lane so large that the filter would not fit the engine's budget of 2^24 device pixels (over it
   WebKit paints the filter solid black), the lane keeps the plain fade.

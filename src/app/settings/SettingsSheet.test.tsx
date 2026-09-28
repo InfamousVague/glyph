@@ -59,6 +59,7 @@ const { SettingsSheet } = await import('./SettingsSheet.tsx');
 const { setPreferences, DEFAULT_PREFERENCES } = await import('../core/preferences.ts');
 const { setDeveloperMode } = await import('./developerMode.ts');
 const { findSetting, searchSettings } = await import('./settingsSearch.ts');
+const { setHapticsPref } = await import('../core/haptics.ts');
 
 /**
  * Settings as the app hands it over: which sections the list has on each kind of device, what their readings say,
@@ -110,16 +111,19 @@ afterEach(() => {
 });
 
 describe('the list of sections', () => {
-  it('in a browser, has neither Recording nor Feel nor the hidden pages', () => {
+  // Changed on purpose (docs/DESIGN.md §136): Feel holds the animations, and the haptics where there is a motor.
+  it('in a browser, has neither Recording nor the haptics nor the hidden pages', () => {
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Type', 'Appearance', 'Formatting', 'Notion', 'GitHub', 'Claude', 'Plugins', 'Animations', 'Cheat sheet', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Type', 'Appearance', 'Formatting', 'Feel', 'Notion', 'GitHub', 'Claude', 'Plugins', 'Cheat sheet', 'About']);
+    expect(handed.find((section) => section.id === 'feel')?.settings?.map((s) => s.name)).toEqual(['Animation speed', 'Ghostly typing', 'Smoke at the edges', 'Ripples while recording']);
   });
 
-  it('on an Android phone, has Recording for its side key and Feel for its motor', () => {
+  it('on an Android phone, has Recording for its side key and the haptics in Feel for its motor', () => {
     native = true;
     android = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Type', 'Appearance', 'Recording', 'Formatting', 'Feel', 'Notion', 'GitHub', 'Claude', 'Plugins', 'Animations', 'Cheat sheet', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Type', 'Appearance', 'Recording', 'Formatting', 'Feel', 'Notion', 'GitHub', 'Claude', 'Plugins', 'Cheat sheet', 'About']);
+    expect(handed.find((section) => section.id === 'feel')?.settings?.map((s) => s.name)).toContain('Haptics');
   });
 
   it('on the Mac, has Recording too, for the better words and the summaries, without the side key', () => {
@@ -181,12 +185,38 @@ describe('the readings', () => {
     expect(reading(settings(), 'Appearance')).toBe('Dark · Tight · Square');
   });
 
-  it('say what moves under Animations, and All still when nothing does', () => {
+  it('say what moves under Feel, and All still when nothing does', () => {
     setPreferences({ wisp: true, wispEdge: false, ripples: true, motionSpeed: 'brisk' });
-    expect(reading(settings(), 'Animations')).toBe('Ghostly typing · ripples · brisk');
+    expect(reading(settings(), 'Feel')).toBe('Ghostly typing · ripples · brisk');
     unmount();
     setPreferences({ wisp: false, wispEdge: false, ripples: false, motionSpeed: 'normal' });
-    expect(reading(settings(), 'Animations')).toBe('All still');
+    expect(reading(settings(), 'Feel')).toBe('All still');
+  });
+
+  it('say the haptics under Feel where there is a motor to switch', () => {
+    native = true;
+    android = true;
+    setPreferences({ wisp: false, wispEdge: false, ripples: false, motionSpeed: 'normal' });
+    // The switch's default is read once, as the page loads, and these tests load it off a phone: switched on here.
+    setHapticsPref(true);
+    try {
+      expect(reading(settings(), 'Feel')).toBe('Haptics');
+    } finally {
+      setHapticsPref(false);
+    }
+  });
+
+  // Changed on purpose (docs/DESIGN.md §136): it said "A note a take", memo mode's reading, and memo mode has gone.
+  it('say what happens after a recording under Recording, and Nothing after recording when nothing does', () => {
+    native = true;
+    setPreferences({ quietStop: false, review: true, refine: true, summaries: 'meetings' });
+    expect(reading(settings(), 'Recording')).toBe('Review · better words · meeting summaries');
+    unmount();
+    setPreferences({ quietStop: true, review: false, refine: false, summaries: 'long' });
+    expect(reading(settings(), 'Recording')).toBe('Stops when quiet · summaries');
+    unmount();
+    setPreferences({ quietStop: false, review: false, refine: false, summaries: 'off' });
+    expect(reading(settings(), 'Recording')).toBe('Nothing after recording');
   });
 
   it('put the version before where its updates stand under About', () => {

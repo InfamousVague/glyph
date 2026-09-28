@@ -8,7 +8,7 @@ Settings opens on a list of sections. On a phone, each opens as a page of its ow
 
 **Search settings**, at the top of the list, finds a section or a single setting inside one. Every word you type has to start a word of what it finds, in any order, so "sm ed" finds Smoke at the edges. A result opens its page and lights the setting for a moment. Enter opens the first result, and on a keyboard ⌘F or Ctrl+F goes to the field.
 
-Some sections appear only where they mean something: Recording on Android, Feel where there is a motor, and a plugin's page while the plugin is on.
+Some sections, and one switch, appear only where they mean something: Recording on Android, the Touch switch where there is a motor, and a plugin's page while the plugin is on.
 
 ## Account
 
@@ -54,13 +54,7 @@ On Android only.
 
 ## Feel
 
-**Haptics**, on by default: a small tap when a style or a cue kicks in. Only in the phone app, where there is a motor.
-
-## The plugins' pages, then Plugins
-
-Each plugin that is on and has a page of its own is listed next. **Notion** holds its sign-in and the boards Notion shared, **GitHub** the repos read and the token, and **Claude** the way to connect. Then **Plugins**, with a card and a switch for each of the four. See [[Notion and GitHub]].
-
-## Animations
+How the app moves, and how it answers a touch.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
@@ -68,8 +62,13 @@ Each plugin that is on and has a page of its own is listed next. **Notion** hold
 | Ghostly typing | On | Letters arrive as smoke and gather into words as you talk or type, and dissolve where they are deleted. |
 | Smoke at the edges | On | A page going under the header or the dock turns to smoke as it passes. |
 | Ripples while recording | On | The newest words move with your voice as the phone hears it. |
+| Haptics | On | A small tap when a style or a cue kicks in. Only in the phone app, where there is a motor. |
 
 Your device's own reduce motion setting comes first: with it on, Ghost.md holds still whatever these say. Switching one off leaves the thing itself working, only still.
+
+## The plugins' pages, then Plugins
+
+Each plugin that is on and has a page of its own is listed next. **Notion** holds its sign-in and the boards Notion shared, **GitHub** the repos read and the token, and **Claude** the way to connect. Then **Plugins**, with a card and a switch for each of the four. See [[Notion and GitHub]].
 
 ## Cheat sheet
 

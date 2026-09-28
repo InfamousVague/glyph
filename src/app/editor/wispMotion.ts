@@ -11,7 +11,7 @@ import { motionScale } from '../core/preferences.ts';
  * moves one letter. With typing on, the person's own letters and backspaces do too, and a paste only its first
  * letters. `revealWisp` fades a stretch already there in, as a note opens. Everything in motion is held in one field,
  * mapped through every change, with the moment each piece starts and how long it lasts at the chosen pace
- * (Settings > Animations), until the drawing says it has settled. With reduced motion asked for, nothing is set in
+ * (Settings > Feel), until the drawing says it has settled. With reduced motion asked for, nothing is set in
  * motion at all.
  *
  * The user events are load-bearing: a board's own edits (`input.board`) are not typing, and a tapped box's letter
@@ -174,7 +174,7 @@ function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, 
   return moving;
 }
 
-/** Motion set at the chosen pace (Settings > Animations): each piece's wait and its arc stretched or shortened alike. */
+/** Motion set at the chosen pace (Settings > Feel): each piece's wait and its arc stretched or shortened alike. */
 function paced(list: Moving[], now: number): Moving[] {
   const scale = motionScale();
   if (scale === 1) return list;
