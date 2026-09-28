@@ -296,7 +296,7 @@ export interface Preferences {
    * sent. Synced, so every device lists every share, keeps it up to date and can stop it. The key is end-to-end
    * encrypted with the rest of the settings: the server that holds the share never sees it.
    */
-  shares: Record<string, { id: string; key: string; sent: string; lacked?: string[]; place?: true }>;
+  shares: Record<string, { id: string; key: string; sent: string; lacked?: string[]; place?: true; places?: true }>;
   /**
    * The app's movement, three switches under Settings › Appearance › Motion (Matt: "add animations section to settings").
    * On by default, every one of them: they are what Glyph looks like. A phone asking for less motion is obeyed
@@ -425,11 +425,19 @@ function settle(raw: unknown): Preferences {
   const LINK_PART = /^[A-Za-z0-9_-]{16,64}$/;
   if (loaded.shares && typeof loaded.shares === 'object') {
     for (const [note, kept] of Object.entries(loaded.shares as Record<string, unknown>)) {
-      const k = kept as { id?: unknown; key?: unknown; sent?: unknown; lacked?: unknown; place?: unknown } | null;
+      const k = kept as { id?: unknown; key?: unknown; sent?: unknown; lacked?: unknown; place?: unknown; places?: unknown } | null;
       if (!k || typeof k.id !== 'string' || typeof k.key !== 'string' || !LINK_PART.test(k.id) || !LINK_PART.test(k.key)) continue;
       const lacked = Array.isArray(k.lacked) ? k.lacked.filter((n): n is string => typeof n === 'string') : undefined;
-      // Whether the share carries where its note was written (share/share.ts): only ever true, never written false.
-      shares[note] = { id: k.id, key: k.key, sent: typeof k.sent === 'string' ? k.sent : '', ...(lacked?.length ? { lacked } : {}), ...(k.place === true ? { place: true } : {}) };
+      // Whether the share carries where its note was written, and the places written in it (share/share.ts): each only
+      // ever true, never written false. An older build drops `places` when it rewrites these, which fails closed.
+      shares[note] = {
+        id: k.id,
+        key: k.key,
+        sent: typeof k.sent === 'string' ? k.sent : '',
+        ...(lacked?.length ? { lacked } : {}),
+        ...(k.place === true ? { place: true } : {}),
+        ...(k.places === true ? { places: true } : {}),
+      };
     }
   }
   loaded.shares = shares;

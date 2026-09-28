@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { makeNote } from '../../test/notes.ts';
 import { noteTitle } from '../core/store.ts';
 import { bookNoteBody, chaptersOf } from '../book/book.ts';
-import { forkShared, newShareId, newShareKey, openShare, readShareLink, sealShare, shareLink, sharedAsFile, sharedOf, sharesPlace, withPictures, type Shared } from './share.ts';
+import { forkShared, newShareId, newShareKey, openShare, readShareLink, sealShare, shareLink, sharedAsFile, sharedOf, sharesPlace, sharesPlaces, withPictures, type Shared } from './share.ts';
 import { crc32, zipFiles } from './zip.ts';
 
 describe('a share sealed by its link', () => {
@@ -174,5 +174,45 @@ describe('where a shared page was written', () => {
     expect(sharesPlace(notes[1]!, notes)).toBe(true);
     expect(sharesPlace(book, notes)).toBe(true);
     expect(sharesPlace(notes[2]!, notes)).toBe(false);
+  });
+});
+
+describe('the places written in a shared page', () => {
+  const CAIS = '[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)';
+  const TAG = '---\nlocation: 51.5074,-0.1278\n---\n';
+  const placed = makeNote('p', `${TAG}# Lisbon\n\nLunch\n\n${CAIS}\n\nMet at ${CAIS} and <geo:38.7,-9.1>.\n\n- [ ] ${CAIS}`);
+  const book = makeNote('b', bookNoteBody('Trip', ['Lisbon', 'Porto']));
+  const lisbon = makeNote('l', `# Lisbon\n\n${CAIS}`);
+  const porto = makeNote('o', '# Porto\n\nThe bridge.');
+
+  it('stay out, every form of them, unless the share says to carry them', () => {
+    const body = sharedOf(placed, [placed]).pages[0]!.body;
+    expect(body).not.toMatch(/geo:/);
+    expect(body).toBe('# Lisbon\n\nLunch\n\nMet at Cais do Sodré, Lisbon and .');
+    expect(sharedOf(placed, [placed], { places: true }).pages[0]!.body).toBe(placed.body.slice(TAG.length));
+  });
+
+  it('are a switch of their own: the tag’s tick carries the tag and not the places, and the other way round', () => {
+    const tagOnly = sharedOf(placed, [placed], { place: true }).pages[0]!.body;
+    expect(tagOnly).toContain('location: 51.5074,-0.1278');
+    expect(tagOnly).not.toMatch(/geo:/);
+    const placesOnly = sharedOf(placed, [placed], { places: true }).pages[0]!.body;
+    expect(placesOnly).not.toContain('location:');
+    expect(placesOnly).toContain(CAIS);
+  });
+
+  it('are seen in any chapter of a book, and apart from the tag', () => {
+    const notes = [book, lisbon, porto];
+    expect(sharesPlaces(book, notes)).toBe(true);
+    expect(sharesPlace(book, notes)).toBe(false);
+    expect(sharesPlaces(porto, notes)).toBe(false);
+    expect(sharesPlace(placed, [placed])).toBe(true);
+    expect(sharesPlaces(placed, [placed])).toBe(true);
+    expect(sharedOf(book, notes).pages[1]!.body).toBe('# Lisbon');
+  });
+
+  it('change nothing a share of a page without them sends', () => {
+    expect(sharedOf(porto, [porto]).pages[0]!.body).toBe(porto.body);
+    expect(sharedOf(porto, [porto], { places: true }).pages[0]!.body).toBe(porto.body);
   });
 });

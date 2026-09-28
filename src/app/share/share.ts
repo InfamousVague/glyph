@@ -4,6 +4,7 @@ import { fromBase64Url, openBytes, sealBytes, toBase64Url, type Bytes } from '..
 import { imageBytes, imageNames, keepImage, smallerImage } from '../core/images.ts';
 import { withFrontMatterTitle, frontMatterValue } from '../core/frontMatter.ts';
 import { withGeoTag } from '../core/geotag.ts';
+import { hasPlaces, withoutPlaces } from '../core/placeRefs.ts';
 import { createNote, listNotes, newNoteId, noteTitle, NOTE_SAVED, NOTES_CHANGED, type Note } from '../core/store.ts';
 import { onPreferences, preferences, setPreferences } from '../core/preferences.ts';
 import { readStored, writeStored } from '../core/stored.ts';
@@ -30,6 +31,12 @@ import { zipFiles } from './zip.ts';
  * arriving by sync from another device, would otherwise publish the coordinates to everyone holding the link, and
  * the reader's Save a copy and download would carry them into other libraries. The opt-in is the design; there is no
  * rounding fallback.
+ *
+ * The places written in a note's words (core/placeRefs.ts, the + beside the line's A place) have a switch of their
+ * own, "Share the places in it" (`Kept.places`): every `geo:` address leaves the share, in whatever form it is written,
+ * unless it is ticked. A switch of its own rather than the tag's widened, because a tick given for where a note was
+ * written would otherwise seal every place added later, in every chapter of a shared notebook, under a choice made for
+ * something else.
  */
 
 /** What a share holds, sealed. A note is one page; a book is its index first, then its chapters in order. */
@@ -197,10 +204,14 @@ export function readShareLink(text: string): { id: string; key: string } | null 
 
 /**
  * What `note` shares: itself, or a book's index and every chapter that has a note, found among `notes`. Where each
- * page was written stays out unless `place` says to carry it (see the header).
+ * page was written stays out unless `place` says to carry it, and the places written in the words unless `places`
+ * does (see the header).
  */
-export function sharedOf(note: Note, notes: readonly Note[], { place = false }: { place?: boolean } = {}): Shared {
-  const carried = (body: string) => (place ? body : withGeoTag(body, null));
+export function sharedOf(note: Note, notes: readonly Note[], { place = false, places = false }: { place?: boolean; places?: boolean } = {}): Shared {
+  const carried = (body: string) => {
+    const tagged = place ? body : withGeoTag(body, null);
+    return places ? tagged : withoutPlaces(tagged);
+  };
   const title = noteTitle(note.body) || 'Untitled';
   if (!isBookBody(note.body)) return { v: 1, kind: 'note', title, pages: [{ title, body: carried(note.body) }], at: Date.now() };
   const pages = [{ title, body: carried(note.body) }];
@@ -213,7 +224,12 @@ export function sharedOf(note: Note, notes: readonly Note[], { place = false }: 
 
 /** Whether the pages `note` would share say where any of them was written, for the sheet to offer the choice. */
 export function sharesPlace(note: Note, notes: readonly Note[]): boolean {
-  return sharedOf(note, notes, { place: true }).pages.some((page) => page.body !== withGeoTag(page.body, null));
+  return sharedOf(note, notes, { place: true, places: true }).pages.some((page) => page.body !== withGeoTag(page.body, null));
+}
+
+/** Whether the pages `note` would share hold a place in their words, in any chapter, for the sheet to offer its own choice. */
+export function sharesPlaces(note: Note, notes: readonly Note[]): boolean {
+  return sharedOf(note, notes, { place: true, places: true }).pages.some((page) => hasPlaces(page.body));
 }
 
 // ---- the account's shares --------------------------------------------------------------------------
@@ -236,7 +252,12 @@ export interface Kept {
   lacked?: string[];
   /** The share carries where its pages were written (the header says why it does not by default). Only ever true. */
   place?: true;
+  /** The share carries the places written in its pages' words: a switch apart from `place`. Only ever true. */
+  places?: true;
 }
+
+/** What a kept share says to carry, as `sharedOf` takes it. */
+const carries = (kept: Kept) => ({ place: kept.place === true, places: kept.places === true });
 
 let migrated = false;
 function migrateLegacy(): void {
@@ -316,7 +337,7 @@ export async function shareNote(note: Note, notes: readonly Note[]): Promise<str
   const auth = token();
   const all = readKept();
   const kept = all[note.id] ?? { id: newShareId(), key: newShareKey(), sent: '' };
-  const shared = sharedOf(note, notes, { place: kept.place === true });
+  const shared = sharedOf(note, notes, carries(kept));
   const carried = await withPictures(shared);
   await call('PUT', `shares/${kept.id}`, { token: auth, body: { blob: await sealForServer(carried.shared, kept.key) } });
   all[note.id] = { ...kept, sent: digest(shared), lacked: carried.lacked };
@@ -336,6 +357,22 @@ export async function shareWithPlace(noteId: string, on: boolean): Promise<void>
   if (!kept) return;
   const { place: _was, ...rest } = kept;
   all[noteId] = on ? { ...rest, place: true } : rest;
+  writeKept(all);
+  await refreshShares();
+}
+
+/** Whether `noteId`'s share carries the places written in its words. */
+export function sharingPlaces(noteId: string): boolean {
+  return readKept()[noteId]?.places === true;
+}
+
+/** Sets whether `noteId`'s share carries the places written in its words, and sends the share again as it now reads. */
+export async function shareWithPlaces(noteId: string, on: boolean): Promise<void> {
+  const all = readKept();
+  const kept = all[noteId];
+  if (!kept) return;
+  const { places: _was, ...rest } = kept;
+  all[noteId] = on ? { ...rest, places: true } : rest;
   writeKept(all);
   await refreshShares();
 }
@@ -367,7 +404,7 @@ export async function refreshShares(): Promise<number> {
     const note = notes.find((n) => n.id === id);
     const kept = all[id];
     if (!note || !kept) continue;
-    const shared = sharedOf(note, notes, { place: kept.place === true });
+    const shared = sharedOf(note, notes, carries(kept));
     // The pages as they were, and every picture they show either sent or still not here: nothing to send.
     if (digest(shared) === kept.sent && !(await lackedArrived(kept))) continue;
     try {
