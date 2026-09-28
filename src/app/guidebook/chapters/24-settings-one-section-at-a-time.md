@@ -32,8 +32,8 @@ Signed out, it opens on **Sign in**, with **Create an account** and **Lost the p
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| Map on a tagged note | On | A small map at the top of a note that says where it was written, its tiles fetched from openstreetmap.org. |
-| Place names | On | The name of the place, asked of OpenStreetMap once when a location is added, and kept in the note. |
+| Map on a tagged note | On | A small map at the top of a note that says where it was written, and under each place the + beside the line adds, its tiles fetched from openstreetmap.org. |
+| Place names | On | The name of the place, asked of OpenStreetMap once when a location or a place is added, and kept in the note. |
 | Tag new notes with my location | On | Every note you make on this device starts with where you were, typed or spoken. It stays on this device. If location is refused, it stays on and new notes are not tagged until location is allowed, and the card says so. |
 
 Local only holds all three off.

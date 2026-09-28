@@ -1,14 +1,47 @@
 # Pictures and voice memos
 
-_How a picture gets into a note and where it is kept, the recording behind a spoken note, and the voice memos that play from it._
+_How a picture gets into a note and where it is kept, the + beside the line and the places it adds, the recording behind a spoken note, and the voice memos that play from it._
 
 ## Putting a picture in
 
-- **Add image.** Press and hold in a note, or right-click, and choose Add image. On Android it opens the phone's own picker, and in a browser tab a file chooser. The Mac app has no picker of its own yet, and nor has the iPhone build, which is not released: there, Add image says this build cannot add pictures, and pasting is the way in.
+- **The + beside the line.** On an empty line, tap the + in the margin and choose A picture, as below.
+- **Add image.** Press and hold in a note, or right-click, and choose Add image. On Android it opens the phone's own picker, and on the Mac and in a browser tab a file chooser. On the Mac a file that is not a picture is refused, and a HEIC photo the Mac cannot open says to save it as a JPEG first. The iPhone build, which is not released, has no picker yet: there Add image says this build cannot add pictures, and pasting is the way in.
 - **Paste.** Paste a picture with the keyboard, or with Paste in the press-and-hold menu where the menu offers it. Any text that came along in the same paste, such as a web page's address, is dropped: the picture is what was meant.
 - **Drop.** Dropping a picture works on a canvas, where it becomes a card ([[Canvases, cards and lines]]). A note does not take a dropped picture.
 
-The picture goes in on the line you were on if that line is empty, or on a new line under it, and the caret moves below it, so you carry on writing underneath. It never splits a line in two.
+The picture goes in on the line you were on if that line is empty, or holds only a list's dash or a to-do's box, or else on a new line under it. The caret moves below it, so you carry on writing underneath. It never splits a line in two. Under a list, a quote or a table it leaves a blank line first, so it is not read as part of them.
+
+## The + beside the line
+
+Rest the caret on an empty line, and a small **+** comes into the margin beside it. An empty line is one with no words: nothing at all, or only a list's dash, a to-do's box or a quote's mark. Type a letter and the + goes. There is none on a line with words, in a block of code, in the front matter, while you only read, or while the AI is writing into the note.
+
+Tap it, or click it, and it turns into a × and a short list opens beside it. The keyboard stays up and the caret stays where it was. On the Mac the arrow keys move through the list, Return chooses, Escape closes it, and Left goes back from More.
+
+| Row | What it puts in |
+|---|---|
+| A picture | A picture from the phone's picker, on a line of its own |
+| A place | Where you are now, as a line naming the place, with its map under it |
+| The date and time | The date and time as the row shows it, such as 28 Sept 2026, 14:05, where the caret is |
+| A table | A small table, its first heading picked out to write over |
+| A note | A link to another note: type part of its title and choose it |
+| A to-do | A to-do's box. An empty list item becomes a to-do. |
+| More | The rest, on a second page of the same list |
+
+More holds a heading, a bulleted list, a numbered list, a quote, a callout, a choice, a block of code, a divider, a board, a chart, a canvas drawn in a frame, a footnote, a tag, a counter, a sum, and each effect that is switched on. Each comes with a little to write over. Back, at the top, goes to the first page.
+
+Each is one Undo, and what it puts in is there at once. A row the device cannot do is not in the list: the Mac has no place, since it cannot say where it is, and no picture yet. A row a setting holds off is greyed, with the setting named. A video is to come, once the app on the phone can pick one.
+
+## A place
+
+A place is one line, a link to where it is:
+
+```
+[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)
+```
+
+Away from the caret the line reads as the name alone, with the map under it. Tap the map to open the place in your maps app. A note can hold as many places as you like. Where the note itself was written is another thing, kept at the top of the note with its own map.
+
+The name is asked of OpenStreetMap while the phone finds where you are, when Place names is on in Settings › Account › Location. When no name comes within a few seconds the line keeps the coordinates, and the name is written in afterwards only if you have done nothing in the note since. Under Local only the row is greyed, and a place already in a note shows its map quiet, with no tiles. A shared note leaves its places out unless you tick **Share the places in it** ([[Sharing a note or a book]]). Other apps show the line as a link.
 
 ## What it is written as
 

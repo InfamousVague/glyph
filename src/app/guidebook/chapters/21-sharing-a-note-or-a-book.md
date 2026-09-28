@@ -42,7 +42,13 @@ The pictures a page shows travel inside the share, because a reader has no accou
 2. If not, each is redrawn smaller, at most 1024 pixels on its long side, as a reading copy.
 3. If those still do not fit, as many go as fit, in the order the pages show them.
 
-A picture this device does not have yet is left out, and the share goes again once it arrives. A share whose words alone are too big is refused: "That is more than a share can hold, even with its pictures drawn smaller. Share a chapter, or fewer of them."
+A picture this device does not have yet is left out, and the share goes again once it arrives.
+
+## Where it was written, and the places in it
+
+A note that says where it was written keeps that out of its link until you tick **Share where it was written**, under Sharing. Ticked, the shared page shows the place and its map.
+
+The places written in a note's words, the ones the + beside the line adds, have a tick of their own, **Share the places in it**. Until it is ticked every place leaves the link, however it was written: a line that is only a place goes, and a place inside a sentence keeps its name and loses its address. Each tick shows only when the pages hold that kind of place, in the note or in any chapter of a book, and the hint under **Copy the link** says in one sentence what the link carries. Ticking one never ticks the other, so a tick given for where a note was written never carries a place added later. A share whose words alone are too big is refused: "That is more than a share can hold, even with its pictures drawn smaller. Share a chapter, or fewer of them."
 
 ## What a reader sees
 

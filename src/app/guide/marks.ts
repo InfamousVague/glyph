@@ -24,6 +24,7 @@ import {
   List,
   ListOrdered,
   ListTodo,
+  MapPin,
   Minus,
   MessageSquareQuote,
   Sigma,
@@ -100,7 +101,8 @@ export type Looks =
   | 'progress'
   | 'choice'
   | 'spoilerLine'
-  | 'bookmark';
+  | 'bookmark'
+  | 'place';
 
 export interface MarkRow {
   /** The mark itself, as a person would type it: `**`, `- [ ]`. */
@@ -197,7 +199,7 @@ const OWN: MarkGroup[] = [
   },
   {
     title: 'Pointing somewhere',
-    lead: 'At another note, at a line of this one, or at the small print underneath.',
+    lead: 'At another note, at a line of this one, at a place on a map, or at the small print underneath.',
     rows: [
       { symbol: '[[ ]]', name: 'Another note', typed: 'the deposit is in [[The cabin trip]]', words: 'The cabin trip', looks: 'wiki', icon: SquareArrowOutUpRight, say: '“note link The cabin trip end link”' },
       {
@@ -219,6 +221,8 @@ const OWN: MarkGroup[] = [
         say: '“item link ask Sam end link”',
       },
       { symbol: '§§', name: 'The bookmark', typed: 'the deposit is four hundred §§', words: 'the deposit is four hundred', looks: 'bookmark', icon: Bookmark, note: 'The note opens here. Tap the bookmark button to move it to the line you are on.', say: '“… bookmark this”' },
+      // A place the + beside the line adds (core/placeRefs.ts): alone on its line, it reads as its name, with its map under it.
+      { symbol: '[ ](geo: )', name: 'A place', typed: '[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)', words: 'Cais do Sodré, Lisbon', looks: 'place', icon: MapPin },
       { symbol: '[^ ]', name: 'A footnote', typed: 'four hundred[^sam]\n\n[^sam]: Sam said so.', words: 'four hundred', looks: 'foot', icon: Asterisk, note: 'Sam said so.', say: '“footnote Sam said so end footnote”' },
     ],
   },

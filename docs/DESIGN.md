@@ -7602,3 +7602,122 @@ What still moves:
 The setting keeps its name. Its hint now says what it does: "Words you say arrive as smoke, and words you delete leave
 as smoke. What you type appears at once." The Guide's chapters 24 and 30 say the same.
 
+## 141. A + beside the line, and a short list of things to add (2026-09-28)
+
+Matt: "Add a + button next to the line we're typing in, in the empty gutter padding and add a menu to add things like
+geotag cards images videos and more."
+
+Then, of the four questions the design left him: a place is "a map card at the line, many per note"; the list is
+"Fuller but hide extras behind nested menu"; the + shows on "EMPTY LINES ONLY, on every platform, Mac hover included";
+and the journal's entries, which are §142's, are titled by the minute.
+
+**One +, beside the caret's empty line** (`editor/insertPlus.ts`, the rule in `editor/plusLine.ts`). It sits in the
+room every line already leaves before its first letter, the gutter (`--app-gutter`, 22.4px on the phone, 24.5 on the
+opened Fold, 26.3 on the Mac): two strokes in the third ink, 12px, no ring, since the app's ring is wider than the
+phone's gutter. Its target is that line's gutter and no more, so a tap in another line's gutter, or on this line's
+first letter, still lands where it did. An empty line is one with no words (`core/itemSyntax.ts` `lineWords`): blank,
+or only a list's, a to-do's or a quote's lead. The + comes once the caret has rested there for 150ms, so Enter, Enter
+in a run never flickers it, and the first letter typed makes the line one with words and takes it away at once. It
+arrives on typing's arc, 350ms and a 2px lift, and leaves on a deleted letter's beat, 140ms; one that had not finished
+arriving goes with no fade. It is never drawn in the front matter, in fenced code, on a selection, in a view that
+cannot be edited or has lost the focus, on a notebook's index or a canvas, over the transcript, or while an AI run
+writes into the note. Only the note screen asks for it. Nothing about it waits for the keyboard to finish composing a
+word: showing and hiding it touches no line. Its line carries `cm-plusLine` while it shows, which fades the bookmark's
+gold edge in the same gutter, and the class is changed only while nothing is being composed.
+
+**The press keeps the keyboard, and the focus.** The + is a button in the scroller, outside the lines, so none of
+CodeMirror's handlers see it, and its press is the suggestion pill's rule: a pointer or mouse press has its default
+taken away, a touch is only kept from the editor (a prevented touchstart never becomes a click on Android), and a long
+press never reaches press and hold. A tap or a click turns it into a × and opens the list against its row. The editor
+keeps its focus, and the list is driven from the editor's keys at the highest precedence, as CodeMirror's completion
+list is: Up and Down move the lit row, Enter chooses, Escape closes, Left goes back from More, Right goes into it, and
+the lit row is named to a screen reader by `aria-activedescendant`. Any other key closes the list and does what it
+always does; so does any change or caret move. Tab reaches the + from the editor even while it waits, taking the focus
+shows it at once, and Enter on it opens the list with the focus on its first row.
+
+**The list** (`editor/AddList.tsx`, the rows in `editor/addRows.ts`). A short card in paper-2 with press and hold's
+hairline and shadow, rows 2.75rem tall with an icon in the third ink and the words in ink, and no hints but a dimmed
+row's reason. It opens below the +'s row, above it when the keyboard leaves no room below, and on the larger side,
+scrolling with a fade at the cut edge, when neither holds it all; never over the row, and clear of the top bar and the
+tabs. Its left edge is the text's. On a coarse pointer 600px and wider it keeps to one side of the window's middle, the
+Fold's crease: at the text when it fits before the crease (or when at least 12rem does), else 16px past it, and across
+it only when neither side has 12rem. It does not close on a scroll: the keyboard rising shortens the page and the
+editor scrolls the caret into view, so the list follows the + in one frame, and closes only once the + has left the
+screen. It closes on a row chosen, a press elsewhere, a wheel or a drag outside it, Escape, the back gesture and the ×.
+It is not a sheet, which takes the page and the keyboard, and not press and hold's sideways band, which reads as a
+toolbox.
+
+**Seven things, then More.** A picture, A video, A place, the time as it will be written ("28 Sep 2026, 14:05",
+`core/stamp.ts`, the day and the short month in the locale's order, the year, a 24-hour clock; the journal titles its
+entries with the same helper), A table, A note (a step inside the list: "Which note?", part of its title, at most
+twelve), A to-do, and More. More turns the list over to a second page in the same card, Back at its top: a heading, a
+bulleted list, a numbered list, a quote, a callout, a choice, a block of code, a divider, a board (as Make a board
+writes one: To do, Doing and Done, and a first card named by an anchor nothing else has), a chart (the canvas's own
+Mermaid seed), a canvas drawn in a frame (a step, "Which canvas?"), a footnote (the next number at the caret, its line
+at the end of the note), a tag, a counter, a sum, and each effect that is switched on. Each comes with a seed to write
+over. The marks that wrap words (bold and the rest) stay Style's: on an empty line there are no words to wrap. A voice
+memo is not offered, since the recorder no longer makes them, nor a web link, which is pasted.
+
+**A row is there, dimmed or not there, by one rule.** A row this device or this build can never do is not drawn: an
+over-the-air page on an older binary shows nothing it cannot do. A row a choice the person made stands in the way of
+is drawn dimmed with the choice named, which today is Local only, for a place; a press on it adds nothing. A refusal
+found only by trying keeps the row and is said when it happens. So the Mac has no place (its WebView never answers a
+fix) and no picture until its picker has been run on a Mac (`MAC_PICKER_TRIED`), the iPhone app has no place (it
+declares no location permission, and `canLocate` now answers `ios` before anything is asked), and no binary yet has a
+video row: it waits for the bridge's `pickVideo`, which comes with native generation 21 in the second slice.
+
+**Where each goes** (`editor/inserts.ts`, docs/MARKDOWN.md). Drawn things (a picture, a place, a canvas's frame) get a
+line of their own: they take the caret's line when it has no words, lead included, and otherwise go after it, and a
+blank line keeps them out of a list, a quote or a table above. Blocks get a blank line on either side where words are.
+Words go at the caret, spaced as a sentence needs. A to-do, a list, a heading or a sum is a line's lead, written on the
+empty line, turning an empty item's lead into its own, never a second box. Each insert is one transaction with its
+history isolated, so one Undo takes back exactly it, and what the + writes is there at once, drawn lines whole, as
+typing is since §140: its user events (`input.plus`, `input.plus.drawn`) set nothing in motion, and the empty lead a
+picture takes the place of just goes.
+
+**Found on the way, and mended by the same rules.** A picture from Add image, from a paste or from the + under an
+empty to-do was the to-do's words; under a list item, a quote or on the empty line under a table it joined them. A
+table from Style took the next line of words as a row. A rule from Style under a paragraph read as a heading in
+Obsidian and on GitHub, though never in the app, whose parser has no setext headings. All now leave a blank line where
+it is needed. And Add image on the Mac asked for the phone's picker, which it has not got, and only ever said this
+build cannot add pictures: the Mac takes the page's file input now, which WebKit answers with its open panel. The
+panel holds to no filter, so a file that is not a picture is refused in words, a HEIC an older Mac cannot open says to
+save it as a JPEG first, and the shrink asks again without its turning option when an older WebKit refuses the option.
+
+**A place is a line.** `[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)`, a plain link to a `geo:` address, alone on its
+line (`core/placeRefs.ts`): four decimals, or two for a rough fix. It draws as the map card under it
+(`editor/placeCards.ts`), without the place chip, since the line says the name, and folds to its name off the caret.
+The note screen draws it live, a shared page quiet until the reader asks, and every other editor (a note drawn small, a
+notebook read straight through) draws no card, since nothing there may fetch. The note's own tag stays in its front
+matter with its card at the top, and a note can hold many places. The fix is found as Add my location finds it, "Finding
+where you are." after a moment. The name is asked while the fix is found, from what is known first
+(`core/location.ts` `placeName`), and waited for three seconds, so place and name land as one write and one Undo. This
+changes the letter of the location module's second rule, which asked only for a tag already in its note: a place
+pressed with the + is asked for while its note is open and its spot is kept, since the person chose these coordinates
+and this note seconds before. A note left, or a place let go, before the fix sends nothing. A name later than the wait
+is written only while the place is still the newest change the note's history holds and nothing waits to be redone,
+so an Undo never takes back a name in place of what the person just did. A write that lands after the person has gone
+to another field (the Find bar, a sheet) takes no selection, no scroll and no focus. Local only takes the fix, the name
+and the tiles.
+
+**Shares: a switch of their own.** A share leaves out every `geo:` address in its pages' words, in whatever form it is
+written, unless "Share the places in it" is ticked (`Kept.places`, docs/SHARING.md). The tag's "Share where it was
+written" keeps its row and its words exactly, so no tick anyone gave grows to cover places added later. The Copy the
+link hint names in one sentence what the link carries of each.
+
+**AI runs keep places whole.** A place's line, and a video's, goes to the model as a picture-shaped token,
+`![place-1](place)`, as a table does, and comes back verbatim (`format/embeds.ts`); every prompt that names the table's
+token is told of these in one sentence, and a summary may leave one out. A model can no longer move a place's
+coordinates or describe it.
+
+**The video, to come.** The second slice is the generation 21 APK: the Photo Picker with no permission asked, the film
+kept under `video/`, out of Google's cloud backup, played from the app's own ranged scheme, never synced or shared,
+its poster an ordinary picture so the owner's other devices and a reader see a still. Its page gate here waits on the
+bridge alone, because a page that waited for a generation above the one being built is what
+`scripts/lib/otaRs.test.mjs` refuses: the generation's number arrives with the binary that provides it.
+
+**To try on the Fold.** Whether the gutter-wide, row-tall target is easy to hit on the cover screen at the default
+density and at compact; how One UI's back gesture treats a tap that starts at the left edge; whether 150ms feels
+right; how often a place's name comes inside three seconds; the list's room above Samsung Keyboard on the cover
+screen; and the note step's field keeping the keyboard up.
+
