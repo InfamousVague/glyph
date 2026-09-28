@@ -54,9 +54,22 @@ export interface JournalMonth {
   entries: EntryRow[];
 }
 
-/** A wall clock written in the device's language, read as the clock it is rather than as a moment in this zone. */
-function wallText(wall: number, options: Intl.DateTimeFormatOptions): string {
-  return new Intl.DateTimeFormat(undefined, { ...options, timeZone: 'UTC' }).format(wall);
+/**
+ * The ways a row writes a wall clock, in the device's language, each read as the clock it is rather than as a moment in
+ * this zone. Made once for a journal's rows, not once a row: a year of entries is a year of rows.
+ */
+function wallFormats() {
+  const make = (options: Intl.DateTimeFormatOptions) => {
+    const format = new Intl.DateTimeFormat(undefined, { ...options, timeZone: 'UTC' });
+    return (wall: number) => format.format(wall);
+  };
+  return {
+    day: make({ day: 'numeric' }),
+    weekday: make({ weekday: 'short' }),
+    time: make({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
+    long: make({ weekday: 'long', month: 'long', day: 'numeric' }),
+    month: make({ month: 'long', year: 'numeric' }),
+  };
 }
 
 /** A line of a template, as the lines it fills can be recognised: its placeholders stand for anything. */
@@ -97,30 +110,33 @@ export function firstWords(body: string, template = ''): string {
   return '';
 }
 
+/** A written entry, and when it was written. */
+type Written = JournalPage & { note: Note; wall: number };
+
 /** One entry's row. */
-function rowOf(page: JournalPage & { note: Note }, template: string): EntryRow {
-  const wall = stampOf(page.note.body, page.note.createdAt);
+function rowOf(page: Written, template: string, formats: ReturnType<typeof wallFormats>): EntryRow {
+  const { wall } = page;
   const tag = geoTagOf(page.note.body);
   const place = tag ? tagLabel(tag) : null;
   const first = firstWords(page.note.body, template);
-  const day = wallText(wall, { day: 'numeric' });
-  const weekday = wallText(wall, { weekday: 'short' });
-  const time = wallText(wall, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-  const long = wallText(wall, { weekday: 'long', month: 'long', day: 'numeric' });
-  const label = `${[long, time, place].filter(Boolean).join(', ')}.${first ? ` ${first}` : ''}`;
-  return { title: page.title, id: page.note.id, wall, day, weekday, time, place, first, label };
+  const time = formats.time(wall);
+  const label = `${[formats.long(wall), time, place].filter(Boolean).join(', ')}.${first ? ` ${first}` : ''}`;
+  return { title: page.title, id: page.note.id, wall, day: formats.day(wall), weekday: formats.weekday(wall), time, place, first, label };
 }
 
-/** The written entries, newest first, and the names planned with no note yet, in the index's order. */
-function written(pages: readonly JournalPage[], template: string): { rows: EntryRow[]; unwritten: string[] } {
-  const rows: (EntryRow & { line: number })[] = [];
+/**
+ * The written entries, newest first, and the names planned with no note yet, in the index's order: only the order,
+ * with nothing written out, for the bar and the cards, which draw no rows.
+ */
+function written(pages: readonly JournalPage[]): { rows: Written[]; unwritten: string[] } {
+  const rows: Written[] = [];
   const unwritten: string[] = [];
   for (const page of pages) {
-    if (page.note) rows.push({ ...rowOf({ ...page, note: page.note }, template), line: page.line });
+    if (page.note) rows.push({ ...page, note: page.note, wall: stampOf(page.note.body, page.note.createdAt) });
     else if (!isEntryTitle(page.title)) unwritten.push(page.title);
   }
   rows.sort((a, b) => b.wall - a.wall || b.line - a.line);
-  return { rows: rows.map(({ line: _line, ...row }) => row), unwritten };
+  return { rows, unwritten };
 }
 
 /** A journal's lines with their notes, found by title as a link finds one. */
@@ -133,14 +149,16 @@ export function pagesOf(body: string, noteOf: (title: string) => Note | undefine
  * order. `template` is the journal's, so a row's first line is the entry's own words and not the template's.
  */
 export function monthsOf(pages: readonly JournalPage[], template = ''): { months: JournalMonth[]; unwritten: string[] } {
-  const { rows, unwritten } = written(pages, template);
+  const { rows, unwritten } = written(pages);
+  const formats = wallFormats();
   const months: JournalMonth[] = [];
-  for (const row of rows) {
+  for (const page of rows) {
+    const row = rowOf(page, template, formats);
     const at = new Date(row.wall);
     const key = `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`;
     const last = months[months.length - 1];
     if (last?.key === key) last.entries.push(row);
-    else months.push({ key, label: wallText(row.wall, { month: 'long', year: 'numeric' }), entries: [row] });
+    else months.push({ key, label: formats.month(row.wall), entries: [row] });
   }
   return { months, unwritten };
 }
@@ -152,7 +170,7 @@ export function monthsOf(pages: readonly JournalPage[], template = ''): { months
  */
 export function inTimeOrder(place: BookPlace, noteOf: (title: string) => Note | undefined): BookPlace {
   if (!place.journal) return place;
-  const { rows, unwritten } = written(pagesOf(place.book.body, noteOf), '');
+  const { rows, unwritten } = written(pagesOf(place.book.body, noteOf));
   const order = [...rows.reverse().map((row) => row.title), ...unwritten];
   const chapters = order.map((title) => place.chapters.find((chapter) => chapter.title === title)!).filter(Boolean);
   const current = place.chapters[place.at]?.title;
@@ -182,7 +200,7 @@ export function journalCards(notes: readonly Note[], newest = 4): Map<string, Jo
   if (!journals.length) return cards;
   const noteOf = byTitle(notes);
   for (const journal of journals) {
-    const { rows, unwritten } = written(pagesOf(journal.body, noteOf), '');
+    const { rows, unwritten } = written(pagesOf(journal.body, noteOf));
     cards.set(journal.id, { count: rows.length + unwritten.length, newest: [...rows.map((row) => row.title), ...unwritten].slice(0, newest) });
   }
   return cards;
