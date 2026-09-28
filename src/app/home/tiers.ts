@@ -6,7 +6,14 @@
  * - the stack, under 44rem: the phone's one column, exactly as it shipped (docs/DESIGN.md §132);
  * - wide, from 44rem: two of those columns across, the gap between them on the Fold's hinge when it is opened out,
  *   the tapes a grid on the two columns' halves from 50rem;
- * - desk, from 60rem: a main two cards across beside a rail that holds To do.
+ * - desk, from 66rem: a main two cards across beside a rail that holds To do.
+ *
+ * Both lines are where To do's heading row fits: the heading, its count and "Show all 11", with the dock's clearance
+ * at the row's end, need 294-305px. Two across starts at 44rem, where a unit is 328; lower, a docked 1024 tablet's
+ * 666px column would be units of 308, three pixels to spare. The desk waits for 66rem because its rail is a third of
+ * the column, 335px there; at 60rem it was 304, and "To do" broke over two lines and the rail's card dropped out of
+ * line with Pinned's (a 1024 tablet turned, a 1440 MacBook with the sidebar docked). Two across holds those screens
+ * instead, a unit each of 460-480.
  *
  * The page's width and never the window's. The page is the window less a docked sidebar (app.css `.app-split`), so a
  * 1280px window with the sidebar docked has a 900px page, and a query on the window would lay that out as a desk with
@@ -20,7 +27,7 @@
 export type Tier = 'stack' | 'wide' | 'desk';
 
 /** The page's lines in rem: the container queries' own numbers in HomeScreen.module.css and TapeShelf.module.css (home/tiers.test.ts holds them to these). */
-export const LINES = { wide: 44, tapesGrid: 50, desk: 60 } as const;
+export const LINES = { wide: 44, tapesGrid: 50, desk: 66 } as const;
 
 /** Which tier a column of `columnPx` is in; `remPx` is the root's rem, which the container queries read too (Settings' interface size moves it). */
 export function tierOf(columnPx: number, remPx: number): Tier {

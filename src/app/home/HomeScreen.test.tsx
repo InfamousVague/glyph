@@ -282,31 +282,66 @@ describe('the home page', () => {
     expect([...document.querySelectorAll('section[data-group]')].map((s) => s.getAttribute('aria-labelledby'))).toEqual(['home-pinned', 'home-tasks', 'home-tapes', 'home-library', 'home-recent']);
   });
 
-  it('says To do is opened out only while Show all is on and there are more than the card holds', () => {
-    const six = Array.from({ length: 6 }, (_, i) => `- [ ] Thing ${i + 1}`).join('\n');
-    show(page([makeNote('a', `# List\n\n${six}`)]));
-    const section = () => document.querySelector('section[data-group="tasks"]')!;
-    expect(section().hasAttribute('data-open')).toBe(false);
-    act(() => button('Show all 6').click());
-    expect(section().getAttribute('data-open')).toBe('');
-    // Ticked down to the five the card holds, it is not opened out any more, though Show all was never folded.
-    act(() => button('Tick off Thing 1').click());
-    expect(tasks()).toHaveLength(5);
-    expect(section().hasAttribute('data-open')).toBe(false);
-    unmount();
-    show(page([makeNote('a', `# List\n\n${six}`)]));
-    act(() => button('Show all 6').click());
-    act(() => button('Show fewer').click());
-    expect(section().hasAttribute('data-open')).toBe(false);
+  it('lays the page out as a head, its groups and the foot, the notices in the head', () => {
+    show(page([makeNote('p', '# Packing\n\n- [ ] Tent', { starred: true, updatedAt: 3 }), recorded('t', 'Directions', 4), makeNote('r', '# Route', { updatedAt: 1 })]));
+    // The grid's own children are what the wide screens place (HomeScreen.module.css, "The page laid out wide").
+    const grid = document.querySelector('[class*=grid]')!;
+    const children = [...grid.children];
+    expect(children[0]!.className).toMatch(/head/);
+    expect(children.slice(1, -1).map((child) => child.getAttribute('data-group'))).toEqual(['pinned', 'tasks', 'tapes', 'recent']);
+    expect(children.at(-1)!.textContent).toMatch(/^All notes · /);
+    // The date, the digest and the notices in the head, where the wide screens hold them to the first unit.
+    const head = children[0]!;
+    expect(head.querySelector('[class*=today]')).not.toBeNull();
+    expect(head.querySelector('ul[aria-label="Today"]')).not.toBeNull();
+    expect(head.querySelector(':scope > [class*=notices]')).not.toBeNull();
   });
 
-  it('keeps To do’s heading where it was on the screen when Show all moves it, and Show fewer moves it back', () => {
-    // jsdom lays nothing out, so the layout is told: opened out, the card spans the page under the pinned card, and
-    // its heading is 220px lower, as on two columns (HomeScreen.module.css).
-    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const top = this.querySelector(':scope > h2#home-tasks') ? (this.closest('section')?.hasAttribute('data-open') ? 520 : 300) : 0;
+  it('pairs one pinned card with To do only while To do is not opened out', () => {
+    const six = Array.from({ length: 6 }, (_, i) => `- [ ] Thing ${i + 1}`).join('\n');
+    const paired = () => document.querySelector('[class*=grid]')!.hasAttribute('data-paired');
+    const lisbon = makeNote('p', '# Lisbon', { starred: true });
+    show(page([lisbon, makeNote('a', `# List\n\n${six}`)]));
+    expect(paired()).toBe(true);
+    act(() => button('Show all 6').click());
+    expect(paired()).toBe(false);
+    // Ticked down to the five the card holds, it is a pair again, though Show all was never folded.
+    act(() => button('Tick off Thing 1').click());
+    expect(tasks()).toHaveLength(5);
+    expect(paired()).toBe(true);
+    unmount();
+    show(page([lisbon, makeNote('a', `# List\n\n${six}`)]));
+    act(() => button('Show all 6').click());
+    act(() => button('Show fewer').click());
+    expect(paired()).toBe(true);
+    unmount();
+    // Every to-do ticked keeps the card, with its ghost, and the pair with it.
+    show(page([lisbon, makeNote('a', '# List\n\n- [x] Done')]));
+    expect(paired()).toBe(true);
+    unmount();
+    // Two pinned cards are a row of their own; no To do, or no pin, is nothing to pair.
+    show(page([lisbon, makeNote('q', '# Porto', { starred: true }), makeNote('a', `# List\n\n${six}`)]));
+    expect(paired()).toBe(false);
+    unmount();
+    show(page([lisbon, makeNote('a', '# List')]));
+    expect(paired()).toBe(false);
+    unmount();
+    show(page([makeNote('a', `# List\n\n${six}`)]));
+    expect(paired()).toBe(false);
+  });
+
+  /**
+   * jsdom lays nothing out, so the layout is told: out of the pair, the card spans the page under the pinned card, and
+   * its heading is 220px lower than beside it, as on two columns (HomeScreen.module.css).
+   */
+  const twoColumns = () =>
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const top = this.querySelector(':scope > h2#home-tasks') ? (this.closest('[data-paired]') ? 300 : 520) : 0;
       return { x: 0, y: top, top, left: 0, right: 0, bottom: top, width: 0, height: 0, toJSON: () => ({}) } as DOMRect;
     });
+
+  it('keeps To do’s heading where it was on the screen when Show all moves it, and Show fewer moves it back', () => {
+    const rect = twoColumns();
     try {
       const many = Array.from({ length: 8 }, (_, i) => `- [ ] Thing ${i + 1}`).join('\n');
       show(page([makeNote('p', '# Lisbon', { starred: true }), makeNote('a', `# List\n\n${many}`)]));
@@ -319,6 +354,26 @@ describe('the home page', () => {
       // Where the heading does not move, the page does not either.
       rect.mockImplementation(() => ({ x: 0, y: 300, top: 300, left: 0, right: 0, bottom: 300, width: 0, height: 0, toJSON: () => ({}) }) as DOMRect);
       act(() => button('Show all 8').click());
+      expect(scroller.scrollTop).toBe(40);
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it('keeps To do’s heading where it was when the tick that brings it down to what the card holds puts it back beside the pinned card', () => {
+    const rect = twoColumns();
+    try {
+      const six = Array.from({ length: 6 }, (_, i) => `- [ ] Thing ${i + 1}`).join('\n');
+      show(page([makeNote('p', '# Lisbon', { starred: true }), makeNote('a', `# List\n\n${six}`)]));
+      const scroller = document.querySelector<HTMLElement>('[class*=scroll]')!;
+      scroller.scrollTop = 40;
+      act(() => button('Show all 6').click());
+      expect(scroller.scrollTop).toBe(260);
+      // Ticking the list off from the top: six to five puts the card back in the pair, 220px up, and the page with it.
+      act(() => button('Tick off Thing 1').click());
+      expect(scroller.scrollTop).toBe(40);
+      // A tick that moves nothing moves nothing.
+      act(() => button('Tick off Thing 2').click());
       expect(scroller.scrollTop).toBe(40);
     } finally {
       rect.mockRestore();
@@ -426,8 +481,9 @@ describe('the home page on a wide screen', () => {
   ];
   const held = () => ({ recent: cards('home-recent').length, tasks: tasks().length, shelf: shelved().length });
 
-  it('holds a desk’s six notes and eight to-dos from the first paint, and the shelf’s eight', () => {
-    // The column read before the first paint, as a desk's 1100px: the size observer here never reports.
+  it('holds a desk’s six notes and eight to-dos when the column is read on mount, before any report, and the shelf’s eight', () => {
+    // The column read on mount, as a desk's 1100px: the size observer here never reports. (That the read is a layout
+    // effect, in before the first paint, is the hook's and the browser pass's to show: jsdom paints nothing.)
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, top: 0, left: 0, right: 1100, bottom: 0, width: 1100, height: 0, toJSON: () => ({}) } as DOMRect);
     try {
       show(page(library()));
@@ -436,6 +492,17 @@ describe('the home page on a wide screen', () => {
       expect(button('Show all 11')).toBeTruthy();
       expect(document.querySelector('#home-tapes')?.textContent).toContain('· 9');
       expect(button('See all', document.querySelector('section[aria-labelledby="home-tapes"]')!)).toBeTruthy();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it('shows a desk every to-do up to the eight its card holds, with no Show all', () => {
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, top: 0, left: 0, right: 1100, bottom: 0, width: 1100, height: 0, toJSON: () => ({}) } as DOMRect);
+    try {
+      show(page([makeNote('a', `# List\n\n${Array.from({ length: 7 }, (_, i) => `- [ ] Thing ${i + 1}`).join('\n')}`)]));
+      expect(tasks()).toHaveLength(7);
+      expect(document.querySelector('section[aria-labelledby="home-tasks"] [class*=groupWord]')).toBeNull();
     } finally {
       rect.mockRestore();
     }
@@ -486,6 +553,24 @@ describe('the home page on a wide screen', () => {
       expect(button('Show all 11')).toBeTruthy();
       resizeTo(800);
       expect(held()).toEqual({ recent: 4, tasks: 5, shelf: 8 });
+    });
+
+    it('draws its lines at the root’s rem, which Settings’ interface size moves', () => {
+      // At 125% a rem is 20px: 1100px of column is 55rem, two across, and the desk's line is 1320px.
+      setPreferences({ uiScale: 1.25 });
+      const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, top: 0, left: 0, right: 1100, bottom: 0, width: 1100, height: 0, toJSON: () => ({}) } as DOMRect);
+      try {
+        expect(getComputedStyle(document.documentElement).fontSize).toBe('20px');
+        show(page(library()));
+        expect(held()).toEqual({ recent: 4, tasks: 5, shelf: 8 });
+        resizeTo(1300);
+        expect(held()).toEqual({ recent: 4, tasks: 5, shelf: 8 });
+        resizeTo(1400);
+        expect(held()).toEqual({ recent: 6, tasks: 8, shelf: 8 });
+      } finally {
+        rect.mockRestore();
+        setPreferences({ uiScale: 1 });
+      }
     });
 
     it('stops watching the column when the page goes', () => {

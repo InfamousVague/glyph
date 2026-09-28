@@ -60,7 +60,7 @@ import styles from './HomeScreen.module.css';
  * Laid out by its own width (home/tiers.ts, docs/DESIGN.md §137; Matt: "Extend the dashboard to support wide phone /
  * tablet layouts too", and then: "It's okay if they're two across or the layout changes slightly on wide the four
  * column was a suggestion not a rule"): the phone's one column under 44rem; from there two of them across, with the
- * Fold's hinge in the gap between; and past 60rem a main two cards across beside a rail that holds To do. The groups
+ * Fold's hinge in the gap between; and past 66rem a main two cards across beside a rail that holds To do. The groups
  * keep their order at every width, and the order they are read in is the order they are written in below.
  *
  * The headers Matt saw at two sizes were two kinds of icon: the pin and the cassette were art/Icons.tsx's 1em strokes
@@ -173,15 +173,29 @@ export function HomeScreen({
   // "Show all 14": the card opens in place to forty rows. Folded again with the workspace, whose to-dos these are.
   const [showAll, setShowAll] = useState(false);
   useEffect(() => setShowAll(false), [workspace]);
+  // Opened out: Show all pressed and more open than the card holds. A tick can end it with Show all still on.
+  const spread = showAll && open.length > caps.tasks;
   /*
-   * Show all keeps its heading where it was on the screen. On two columns To do sits beside a single pinned card, and
-   * opened out it spans the page under that card (HomeScreen.module.css), which moved its heading down by the card's
-   * height, away from the thumb that pressed it; so the page scrolls by as much as the heading moved, and Show fewer
-   * does the same the other way. Where nothing moves (a phone, a desk's rail, a card that already spanned) that is
-   * nothing. A scroll set, not a glide: the heading is meant to stay still, so there is nothing for reduced motion.
+   * The pair: one pinned card and To do side by side on two columns (HomeScreen.module.css `.grid[data-paired]`), while
+   * To do is not opened out. Worked out here rather than asked of the page's shape by the sheet, since it is the page's
+   * state, and the heading's hold below turns on it.
+   */
+  const paired = pinned.length === 1 && (open.length > 0 || allDone) && !spread;
+  /*
+   * A press on the card keeps its heading where it was on the screen. On two columns To do sits beside a single pinned
+   * card, and opened out it spans the page under that card (HomeScreen.module.css), which moves its heading down by the
+   * card's height, away from the thumb that pressed it; the tick that brings the count down to what the card holds
+   * puts it back beside the card, which moves it up by as much, out from under the finger ticking the list off. So
+   * Show all, Show fewer and a tick each note where the heading is, and after the commit the page scrolls by as much
+   * as it moved. Where nothing moves (a phone, a desk's rail, a card that already spanned) that is nothing. A scroll
+   * set, not a glide: the heading is meant to stay still, so there is nothing for reduced motion.
    */
   const tasksRow = useRef<HTMLDivElement>(null);
   const heldAt = useRef<number | null>(null);
+  const holdTasks = () => {
+    heldAt.current = tasksRow.current?.getBoundingClientRect().top ?? null;
+  };
+  // After every commit, and only the one a press asked for: a press is its own commit, since its updates are batched.
   useLayoutEffect(() => {
     const was = heldAt.current;
     heldAt.current = null;
@@ -190,7 +204,7 @@ export function HomeScreen({
     if (was === null || !row || !scroll) return;
     const moved = row.getBoundingClientRect().top - was;
     if (moved) scroll.scrollTop += moved;
-  }, [showAll]);
+  });
   // The To do card takes one beat between the pinned cards and the shelf.
   const todoBeats = open.length || allDone ? 1 : 0;
 
@@ -235,9 +249,10 @@ export function HomeScreen({
           {/*
             The page's grid (HomeScreen.module.css, "The page laid out wide"): a plain block on a phone, where the
             wrappers lay out as if they were not there, and two columns, or a main and a rail, on the wider screens.
-            Each group says which it is (`data-group`) for its place on them.
+            Each group says which it is (`data-group`) for its place on them, and the grid whether Pinned and To do
+            are a pair (`data-paired`).
           */}
-          <div className={styles.grid}>
+          <div className={styles.grid} data-paired={paired ? '' : undefined}>
             <div className={styles.head}>
               <p className={styles.today}>{today}</p>
               {/* The digest: a row of fragments, each a word that goes to its group. Nothing while loading, and the ghost speaks on an empty page. */}
@@ -289,12 +304,12 @@ export function HomeScreen({
               What is waiting, in one card, second on the page: its tick is the page's one in-place action, and a
               meeting's summary writes its `- [ ]` actions here (§127). Five rows (eight in a desk's rail), most
               recently touched note's first, each with the note it lives in and when that note was touched; "Show all"
-              opens the card to forty, and says so with `data-open`, which on two columns spreads the card across the
-              page. With the last one ticked, the same card holds the ghost instead, under a heading with no count and
-              no word.
+              opens the card to forty, which on two columns takes it out of the pair and spreads it across the page.
+              With the last one ticked, the same card holds the ghost instead, under a heading with no count and no
+              word.
             */}
             {open.length || allDone ? (
-              <section className={styles.section} data-group="tasks" data-open={showAll && open.length > caps.tasks ? '' : undefined} aria-labelledby="home-tasks">
+              <section className={styles.section} data-group="tasks" aria-labelledby="home-tasks">
                 <div ref={tasksRow} className={styles.groupRow}>
                   <h2 id="home-tasks" className={styles.group}>
                     <TickBox className={styles.groupMark} />
@@ -310,7 +325,7 @@ export function HomeScreen({
                       type="button"
                       className={`app-word ${styles.groupWord}`}
                       onClick={() => {
-                        heldAt.current = tasksRow.current?.getBoundingClientRect().top ?? null;
+                        holdTasks();
                         setShowAll((was) => !was);
                       }}
                     >
@@ -329,6 +344,7 @@ export function HomeScreen({
                               className={styles.box}
                               aria-label={`Tick off ${task.text}`}
                               onClick={() => {
+                                holdTasks();
                                 setTicked((was) => new Set(was).add(`${task.noteId}:${task.line}`));
                                 onTick(task);
                               }}

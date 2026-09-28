@@ -366,8 +366,7 @@
  * notice two thousand pixels wide reads as a banner rather than as something to pick up. 80rem, room for a main and
  * its rail ("The page laid out wide", at the end), where it was 60rem, one phone column stretched: the cards sit on
  * the page's units, and the notices and the head's lines are held to the first of them or to the main, so nothing is
- * a banner at this width either. The desk begins at exactly the old cap, so a column that stopped there goes on to be
- * one.
+ * a banner at this width either. Past the desk's line (66rem), or there could be no desk.
  */
 .page {
   max-inline-size: 80rem;
@@ -616,11 +615,11 @@
  * - Under 44rem, the stack: nothing below applies, and a phone draws what it drew before, to the pixel. The wrappers
  *   the page gained for this (`.grid`, `.head`, `.notices`) have no rules under the line and lay out as if absent,
  *   since the margins collapse through them.
- * - From 44rem, two units across (the Fold opened out, a tablet held upright, a desktop pane under ~1010px), with
+ * - From 44rem, two units across (the Fold opened out, a tablet either way up, a desktop pane under ~1100px), with
  *   space-10 between them, the gap the Fold's hinge runs down when it is flat and the sidebar is not docked beside it
  *   ("the hinge in the gap", scene/AtWork.module.css). A single pinned card and To do side by side; every other group
  *   across both, its cards two to a row on the units' columns.
- * - From 60rem, a desk: a main two cards across and, beside it, a rail one card wide that holds To do.
+ * - From 66rem, a desk: a main two cards across and, beside it, a rail one card wide that holds To do.
  *
  * The groups keep their order, and each is placed in it, so what is seen is what is written. The rhythm is the groups'
  * own margins, never a row gap, so an absent group leaves no gap of its own.
@@ -653,9 +652,18 @@
     margin-block-end: calc(-1 * var(--glacier-space-10));
   }
 
-  /* Every heading row a word's height, whether or not a word ends it, so two groups side by side start their cards on one line. */
+  /*
+   * Every heading row a word's height, whether or not a word ends it, so two groups side by side start their cards on
+   * one line. The heading never breaks: where its row is too short for it and its word (a unit or a rail narrower than
+   * the lines allow, at a large interface size), the word goes under it rather than "To do" over two lines.
+   */
   .groupRow {
     min-block-size: var(--glacier-space-8);
+    flex-wrap: wrap;
+  }
+
+  .group {
+    white-space: nowrap;
   }
 
   /* The home page's cards on the page's units, `--home-units` of them across (the tiers below say how many), rather than as many as fit 12rem. */
@@ -664,13 +672,14 @@
   }
 
   /*
-   * To do's rows: one column in a unit or in the rail, two across the page, where five one-line rows in one column
-   * were a list with a lot of nothing to its right. Never wider than the card (the `min()`: on the smallest desk the
-   * rail's card is under 18rem inside, and its rows overflowed it by 23px). The gap is the page's own, so across the
-   * page the first column of rows ends where the first unit does, and the hinge runs between the two.
+   * To do's rows, a column for each unit the card is across: one in a unit or in the rail, two across the page, where
+   * five one-line rows in one column were a list with a lot of nothing to its right. The gap is the page's own, so
+   * across the page the first column of rows ends where the first unit does, and the hinge runs between the two. By
+   * the units and not by as many as fit 18rem, which at the top of two across (66rem) made three columns off the
+   * units' line, and in the smallest rail overflowed the card by 23px.
    */
   .tasks {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+    grid-template-columns: repeat(var(--home-units, 1), minmax(0, 1fr));
     column-gap: var(--glacier-space-10);
   }
 
@@ -688,8 +697,10 @@
     align-content: center;
   }
 
+  /* Against the gap, at its column's end: the ghost stops at 45% of the height, and at its column's start it left the words 515px off on a desk. */
   .empty > .emptyArt[data-size] {
     grid-row: 1 / span 2;
+    justify-self: end;
     margin-block-end: 0;
     inline-size: min(100%, 36rem, calc(45dvh * var(--ghost-ratio, 1)));
   }
@@ -704,12 +715,14 @@
 }
 
 /*
- * Two units across (44rem to under 60rem). Every group spans both, but for the pair: one pinned card and To do side
- * by side, To do in the second unit, while there is exactly one pinned card and To do is not opened out. Two pinned
- * cards are a row of two of their own, and Show all spreads To do across the page under them (HomeScreen.tsx holds
- * its heading where it was on the screen). With no To do, the one pinned card keeps the first unit.
+ * Two units across (44rem to under 66rem). Every group spans both, but for the pair: one pinned card and To do side
+ * by side, To do in the second unit, while there is exactly one pinned card and To do is not opened out
+ * (HomeScreen.tsx `paired`). Two pinned cards are a row of two of their own, and Show all spreads To do across the page
+ * under them; a tick down to what the card holds puts it back (HomeScreen.tsx holds its heading where it was on the
+ * screen, both ways). With no To do, the one pinned card keeps the first unit. Each of the pair has one unit's worth:
+ * one card across, one column of rows.
  */
-@container home-page (44rem <= width < 60rem) {
+@container home-page (44rem <= width < 66rem) {
   .grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     --home-units: 2;
@@ -719,13 +732,14 @@
     grid-column: 1 / -1;
   }
 
-  .grid:has(> [data-group='pinned'] > .cards > li:only-child):has(> [data-group='tasks']:not([data-open])) > [data-group='pinned'] {
+  .grid[data-paired] > [data-group='pinned'] {
     grid-column: 1;
     --home-units: 1;
   }
 
-  .grid:has(> [data-group='pinned'] > .cards > li:only-child):has(> [data-group='tasks']:not([data-open])) > [data-group='tasks'] {
+  .grid[data-paired] > [data-group='tasks'] {
     grid-column: 2;
+    --home-units: 1;
   }
 
   /* The cards' gap is the units' gap, so across both units the hinge runs between two cards. */
@@ -745,14 +759,15 @@
 }
 
 /*
- * A desk (60rem and up): a main two cards across and, beside it, a rail one card wide (1fr of 2fr is a card and half
- * a gap) that holds To do, the page's one list of rows and the one group that grows tall. Named areas, a row for each
+ * A desk (66rem and up): a main two cards across and, beside it, a rail one card wide (1fr of 2fr is a card and half
+ * a gap) that holds To do, the page's one list of rows and the one group that grows tall. From 66rem, where the rail
+ * is 335px and more, room for To do's heading, its count and its word beside the dock's clearance (home/tiers.ts). Named areas, a row for each
  * group in the main and a sixth, flexible, that the rail runs down as well: an item that spans a flexible row is left
  * out of the other rows' sizing, so a rail taller than the main (Show all's forty) grows that row alone, and the air
  * falls under Recent rather than between the groups. An absent group is an empty row with no height. With no Pinned,
  * To do's top is level with the Tapes', and the rail is read first at its top, as a side column is.
  */
-@container home-page (min-width: 60rem) {
+@container home-page (min-width: 66rem) {
   .grid {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
@@ -778,6 +793,7 @@
 
   .grid > [data-group='tasks'] {
     grid-area: tasks;
+    --home-units: 1;
   }
 
   .grid > [data-group='tapes'] {

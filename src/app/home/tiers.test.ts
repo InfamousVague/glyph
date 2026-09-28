@@ -12,6 +12,9 @@ import { CAPS, LINES, tierOf } from './tiers.ts';
 const bare = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 const sheet = (name: string) => bare(readFileSync(join(import.meta.dirname, name), 'utf8'));
 const sheets = { home: sheet('HomeScreen.module.css'), shelf: sheet('TapeShelf.module.css') };
+/** The page itself, read as text for the names its sheet places: what each group says it is, in the order written. */
+const page = readFileSync(join(import.meta.dirname, 'HomeScreen.tsx'), 'utf8');
+const groups = [...page.matchAll(/data-group="(\w+)"/g)].map(([, name = '']) => name);
 
 /** A sheet's top-level blocks: each at-rule's or rule's prelude, and its body, braces matched. */
 function blocks(css: string): { prelude: string; body: string }[] {
@@ -33,6 +36,22 @@ function blocks(css: string): { prelude: string; body: string }[] {
   return out;
 }
 
+/** A block's rules, one level down: each selector (one line) and its body. */
+const rulesOf = (body: string) => blocks(body).map(({ prelude, body: rule }) => ({ selector: prelude, body: rule }));
+
+/** A rule's declarations, property to value. */
+function declarationsOf(body: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const line of body.split(';')) {
+    const colon = line.indexOf(':');
+    if (colon > 0) out.set(line.slice(0, colon).trim(), line.slice(colon + 1).trim().split(/\s+/).join(' '));
+  }
+  return out;
+}
+
+/** The body of a sheet's `@container home-page` block with this exact query. */
+const pageBlock = (css: string, query: string) => blocks(css).find(({ prelude }) => prelude === `@container home-page ${query}`)?.body ?? '';
+
 /** The rem numbers in each of a sheet's `@container home-page (…)` preludes, both ends of a range. */
 const pageQueries = (css: string) =>
   blocks(css)
@@ -41,9 +60,9 @@ const pageQueries = (css: string) =>
 
 describe('the home page’s tiers', () => {
   it('puts a column on the side of each line it is on, at the root’s rem', () => {
-    expect([703.9, 704, 959.9, 960].map((px) => tierOf(px, 16))).toEqual(['stack', 'wide', 'wide', 'desk']);
+    expect([703.9, 704, 1055.9, 1056].map((px) => tierOf(px, 16))).toEqual(['stack', 'wide', 'wide', 'desk']);
     // Settings' interface size moves the root's rem, and the lines with it, as it moves the container queries'.
-    expect([879, 880, 1199, 1200].map((px) => tierOf(px, 20))).toEqual(['stack', 'wide', 'wide', 'desk']);
+    expect([879, 880, 1319, 1320].map((px) => tierOf(px, 20))).toEqual(['stack', 'wide', 'wide', 'desk']);
     // A phone's column is the stack, and so is one jsdom never laid out.
     expect([367, 331, 0].map((px) => tierOf(px, 16))).toEqual(['stack', 'stack', 'stack']);
   });
@@ -69,6 +88,54 @@ describe('the home page’s tiers', () => {
     expect([...asked].sort((a, b) => a - b)).toEqual([...lines].sort((a, b) => a - b));
   });
 
+  it('asks exactly these questions of the page: from each line, and between two of them, never at one', () => {
+    const { wide, tapesGrid, desk } = LINES;
+    const preludes = (css: string) => pageQueries(css).map(({ prelude }) => prelude.replace('@container home-page ', ''));
+    expect(preludes(sheets.home)).toEqual([`(min-width: ${wide}rem)`, `(${wide}rem <= width < ${desk}rem)`, `(min-width: ${desk}rem)`]);
+    expect(preludes(sheets.shelf)).toEqual([`(min-width: ${tapesGrid}rem)`, `(${tapesGrid}rem <= width < ${desk}rem)`, `(min-width: ${desk}rem)`]);
+    // The shelf is a grid only from its own line: under it, the phone's sideways row.
+    const grids = blocks(sheets.shelf).filter(({ body }) => rulesOf(body).some(({ selector, body: rule }) => selector === '.row' && declarationsOf(rule).get('display') === 'grid'));
+    expect(grids.map(({ prelude }) => prelude)).toEqual([`@container home-page (min-width: ${tapesGrid}rem)`]);
+  });
+
+  it('gives the phone nothing new: the page’s wrappers and its placing names only inside a question of the page', () => {
+    // A rule for the grid, the head or the notices, or one naming a group's place, at the sheet's top level would
+    // reach a phone, which is meant to draw exactly what it drew before the page was laid out wide.
+    for (const { prelude } of blocks(sheets.home).filter(({ prelude }) => !prelude.startsWith('@container home-page'))) {
+      expect(prelude, prelude).not.toMatch(/\.(grid|head|notices)\b|\[data-(group|paired)\b/);
+    }
+    // The column is the container every question asks, and it is wider than the desk's line, or there could be no desk.
+    const column = declarationsOf(blocks(sheets.home).find(({ prelude }) => prelude === '.page')!.body);
+    expect(column.get('container')).toBe('home-page / inline-size');
+    expect(Number(/^(\d+)rem$/.exec(column.get('max-inline-size') ?? '')?.[1])).toBeGreaterThan(LINES.desk);
+    // The heading rows keep clear of the dock while the pane is narrow enough for it to cross the column, which is
+    // until the pane is wider than the column's cap by twice the dock's reach: the line is past the cap.
+    const dockLine = blocks(sheets.home).find(({ prelude }) => prelude.startsWith('@container home-pane'))!.prelude;
+    expect(Number(/max-width: (\d+)rem/.exec(dockLine)?.[1])).toBeGreaterThan(Number(/^(\d+)rem$/.exec(column.get('max-inline-size') ?? '')?.[1]));
+  });
+
+  it('places the groups by the names the page writes, and the desk’s rows in the page’s order', () => {
+    expect(groups).toEqual(['pinned', 'tasks', 'tapes', 'library', 'recent']);
+    // Every group the sheet names is one the page writes; a name the page does not write places nothing.
+    const named = new Set([...sheets.home.matchAll(/\[data-group='(\w+)'\]/g)].map(([, name = '']) => name));
+    expect([...named].sort()).toEqual([...groups].sort());
+    // The pair is the page's to say (HomeScreen.tsx `paired`), on the grid, and the sheet asks for it by that name.
+    expect(page).toMatch(/className=\{styles\.grid\} data-paired=/);
+    expect([...sheets.home.matchAll(/(\S*)\[data-paired\]/g)].map(([, on]) => on)).toEqual(['.grid', '.grid']);
+    // The desk: the head, then each group in the main in the page's order beside To do's rail, a flexible row, the foot.
+    const desk = rulesOf(pageBlock(sheets.home, `(min-width: ${LINES.desk}rem)`));
+    const areas = (selector: string) => [...(declarationsOf(desk.find((rule) => rule.selector === selector)!.body).get('grid-template-areas') ?? '').matchAll(/'([^']*)'/g)].map(([, row]) => row);
+    const main = groups.filter((group) => group !== 'tasks');
+    expect(areas('.grid')).toEqual(['head head', ...main.map((group) => `${group} tasks`), '. tasks', 'foot foot']);
+    // With no To do at all, one column in the same order.
+    expect(areas(".grid:not(:has(> [data-group='tasks']))")).toEqual(['head', ...main, '.', 'foot']);
+    // And every group is put in the area of its own name.
+    for (const group of groups) {
+      const rule = desk.find(({ selector }) => selector === `.grid > [data-group='${group}']`);
+      expect(rule && declarationsOf(rule.body).get('grid-area'), group).toBe(group);
+    }
+  });
+
   it('places the tapes on the units only between the tapes’ line and the desk’s, so the desk’s grid never inherits a column', () => {
     const placed = blocks(sheets.shelf).filter(({ prelude, body }) => prelude.includes('.tape:nth-child') || body.includes('.tape:nth-child'));
     expect(placed.map(({ prelude }) => prelude)).toEqual([`@container home-page (${LINES.tapesGrid}rem <= width < ${LINES.desk}rem)`]);
@@ -77,14 +144,12 @@ describe('the home page’s tiers', () => {
   it('declares the units and the shelf’s count in the home page’s sheet, where the tiers set them, and reads them with a fallback', () => {
     expect(sheets.home).toMatch(/--home-units\s*:/);
     expect(sheets.home).toMatch(/--shelf-across\s*:/);
-    // Under the first line nothing sets them, so wherever they are read a fallback stands in.
-    let reads = 0;
-    for (const css of Object.values(sheets)) {
-      for (const [read, name = '', after = ''] of css.matchAll(/var\(\s*(--home-units|--shelf-across)\s*([,)])/g)) {
-        reads++;
-        expect(after, `${name}: ${read}`).toBe(',');
-      }
+    // Wherever nothing sets them a fallback stands in: one unit (a group in a unit, a rail), and three tapes across the main.
+    const fallbacks = { '--home-units': '1', '--shelf-across': '3' };
+    for (const [name, css] of Object.entries(sheets)) {
+      const reads = [...css.matchAll(/var\(\s*(--home-units|--shelf-across)\s*(?:,\s*([^)]*))?\)/g)];
+      expect(reads.length, name).toBeGreaterThan(0);
+      for (const [read, property = '', fallback] of reads) expect(fallback?.trim(), `${name}: ${read}`).toBe(fallbacks[property as keyof typeof fallbacks]);
     }
-    expect(reads).toBe(2);
   });
 });

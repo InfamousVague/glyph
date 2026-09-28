@@ -134,12 +134,11 @@
 }
 
 /*
- * One column in the middle of a wide window, as the home page is, and as wide: the foot's "All notes · N" opens a page
- * whose column has the home page's width and left edge, rather than one that steps in by 102px each side at 1600
- * with the sidebar docked (home/HomeScreen.module.css `.page`).
+ * One column a reader's width, in the middle of a wide window. The home page's goes on to 80rem for its main and rail
+ * (home/HomeScreen.module.css `.page`, docs/DESIGN.md §137); this one stays at 60rem, where §121's grid is four across.
  */
 .page {
-  max-inline-size: 80rem;
+  max-inline-size: 60rem;
   margin-inline: auto;
   container: all-notes / inline-size;
 }
@@ -238,10 +237,8 @@
  * preview is big enough to read (Matt: "make the size of the cards for note previews larger on small displays like
  * standard phone portrait view we may only see one note per row while unfolded may see 3-4"). Under the app's 600px
  * line (core/useWideScreen.ts) it is one column; wider, as many as fit a card 12rem across - measured, two at 600px,
- * three at 750, four from about 870, three or four on the Fold opened out, and five or six in a desktop window's wider
- * column (five across 1165px at 1600 with the sidebar docked, six across the 80rem at 1812). The same grid, not a copy
- * of it; the home page lays its own groups' cards on its units past 44rem instead, and those rules are its sections'
- * alone (`.section .cards`), so none of them reaches this page.
+ * three at 750, four from about 870 and in a desktop window's 60rem column, so three or four on the Fold opened out.
+ * The same grid, not a copy of it.
  */
 .cards {
   composes: cards from '../home/HomeScreen.module.css';
