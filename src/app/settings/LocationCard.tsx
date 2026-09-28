@@ -26,6 +26,7 @@ import { PaneSection, RowAction, SettingRow, SettingsFootnote } from './kit/sett
 const CANNOT: Partial<Record<LocateFailure, string>> = {
   'local-only': 'Local only is on.',
   mac: 'This Mac can’t say where it is yet.',
+  ios: 'Ghost.md can’t find where you are on this device yet.',
   none: 'This browser can’t say where you are.',
   unavailable: 'Update Ghost.md to tag notes.',
 };

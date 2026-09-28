@@ -11,6 +11,7 @@ import type { GeoTag } from './geotag.ts';
 let native = false;
 let android = false;
 let mac = false;
+let ios = false;
 let generation = 20;
 /** What `geocode_place` answers, or throws. */
 let answer: () => Promise<unknown> = async () => ({ name: 'Trafalgar Square', addresstype: 'square', address: { city: 'London' } });
@@ -36,7 +37,9 @@ vi.mock('./platform.ts', () => ({
     return mac;
   },
   isMobile: false,
-  isIOS: false,
+  get isIOS() {
+    return ios;
+  },
   isNativeMobile: false,
 }));
 const openUrl = vi.fn(async (_url: string) => undefined);
@@ -87,6 +90,7 @@ beforeEach(async () => {
   native = false;
   android = false;
   mac = false;
+  ios = false;
   generation = 20;
   answer = async () => ({ name: 'Trafalgar Square', addresstype: 'square', address: { city: 'London' } });
   invoked.length = 0;
@@ -231,6 +235,65 @@ describe('the gates', () => {
     expect(await location.canAskPlace()).toBe(false);
     prefs.setPreferences({ placeNames: true, localOnly: true });
     expect(await location.canAskPlace()).toBe(false);
+  });
+});
+
+describe('a place’s name for the + beside the line', () => {
+  it('answers from what is known without asking', async () => {
+    native = true;
+    location.wantPlace('n1', LONDON);
+    await settle();
+    expect(invoked).toHaveLength(1);
+    await expect(location.placeName(LONDON)).resolves.toBe('Trafalgar Square, London');
+    expect(invoked).toHaveLength(1);
+  });
+
+  it('answers nothing, without asking, for a place whose ask failed this run', async () => {
+    native = true;
+    answer = async () => {
+      throw new Error('offline');
+    };
+    await expect(location.placeName(LONDON)).resolves.toBeNull();
+    expect(invoked).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(2000);
+    await expect(location.placeName(LONDON)).resolves.toBeNull();
+    expect(invoked).toHaveLength(1);
+  });
+
+  it('otherwise asks once, and never where names may not be asked', async () => {
+    native = true;
+    const named = location.placeName(LONDON);
+    const again = location.placeName(LONDON);
+    await settle();
+    await expect(named).resolves.toBe('Trafalgar Square, London');
+    await expect(again).resolves.toBe('Trafalgar Square, London');
+    expect(invoked).toHaveLength(1);
+    prefs.setPreferences({ placeNames: false });
+    await expect(location.placeName({ ...LONDON, lat: 40, lon: -74 })).resolves.toBeNull();
+    expect(invoked).toHaveLength(1);
+  });
+});
+
+describe('the iPhone app', () => {
+  it('is never asked for a fix: it declares no permission, so its WebView refuses every ask', async () => {
+    ios = true;
+    native = true;
+    const { calls } = fixAt(1, 1);
+    expect(location.canLocate()).toEqual({ ok: false, why: 'ios' });
+    expect(location.locateHere()).toEqual({ ok: false, why: 'ios' });
+    await expect(location.locate()).rejects.toMatchObject({ why: 'ios' });
+    expect(calls).toHaveLength(0);
+    // Safari on an iPhone is a browser, and asks as one.
+    native = false;
+    expect(location.canLocate()).toEqual({ ok: true });
+  });
+
+  it('under Local only still says Local only, and a phone that can locate says so without it', () => {
+    fixAt(1, 1);
+    expect(location.locateHere()).toEqual({ ok: true });
+    prefs.setPreferences({ localOnly: true });
+    expect(location.canLocate()).toEqual({ ok: false, why: 'local-only' });
+    expect(location.locateHere()).toEqual({ ok: true });
   });
 });
 

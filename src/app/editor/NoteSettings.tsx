@@ -81,6 +81,7 @@ interface NoteSettingsProps {
 const CANNOT: Record<LocateFailure, string> = {
   'local-only': 'Local only is on. A location fix would ask the phone’s location service.',
   mac: 'This Mac can’t say where it is yet. Tag it on the phone and it syncs here.',
+  ios: 'Ghost.md can’t find where you are on this device yet.',
   unavailable: 'Update Ghost.md to tag notes with where they were written.',
   none: 'This browser can’t say where you are.',
   refused: 'Ghost.md wasn’t allowed to know where you are.',

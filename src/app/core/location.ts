@@ -4,7 +4,7 @@ import { geoTagOf, shortPlace, tagOf, withGeoTag, type Fix, type GeoTag, type Pl
 import { answerHost } from './host.ts';
 import { hasNativeGeneration } from './nativeGeneration.ts';
 import { hasLocationBridge } from './placeLink.ts';
-import { isAndroid, isMacApp } from './platform.ts';
+import { isAndroid, isIOS, isMacApp } from './platform.ts';
 import { preferences } from './preferences.ts';
 import { readStored, writeStored } from './stored.ts';
 import { getNote, updateNote } from './store.ts';
@@ -31,7 +31,10 @@ import { invoke, isTauri } from './tauri.ts';
  *    again after the wait, since Local only may have been turned on during it. The page cannot set a User-Agent (a
  *    forbidden header), the Android page's Referer is `http://tauri.localhost/` and the Mac's page sends none, so in
  *    the app the ask goes through Rust (src-tauri/src/geocode.rs, native generation 20), which names the app; on the
- *    web the page's own origin is the name, and the page fetches for itself.
+ *    web the page's own origin is the name, and the page fetches for itself. A place a person adds with the + beside
+ *    the line is asked for from the moment its fix comes, while its note is open and its spot is kept: the person
+ *    chose these coordinates and this note seconds before (`placeName`), and asking then lets the place and its name
+ *    land as one write and one Undo.
  *
  * 3. A TAG WAITS FOR THE BETTER WORDS. capture/refine.ts writes them only if the note still reads as Done saved it,
  *    and builds the whole body from the take, so a `location:` stamped after Done would either drop them silently or
@@ -59,9 +62,11 @@ import { invoke, isTauri } from './tauri.ts';
  * ever: the Mac is answered `mac` before anything is asked, draws what the phone tagged, and CoreLocation is a
  * follow-up. An older Android binary reached over the air declares no location permission in its manifest, and
  * Android denies an undeclared permission with no dialog, indistinguishable from a refusal: that is `unavailable`.
+ * The iPhone app declares no location permission either (only the microphone's, src-tauri/Info.ios.plist), so its
+ * WebView refuses every ask, and Rust's geocode refuses there too: that is `ios`, answered before anything is asked.
  */
 
-export type LocateFailure = 'refused' | 'blocked' | 'unavailable' | 'timeout' | 'none' | 'mac' | 'local-only';
+export type LocateFailure = 'refused' | 'blocked' | 'unavailable' | 'timeout' | 'none' | 'mac' | 'ios' | 'local-only';
 
 /** Why a fix did not come: `locate` rejects with one of these. */
 export class LocateError extends Error {
@@ -115,13 +120,23 @@ function readAccess(): Access {
   }
 }
 
-/** Whether a fix can be asked for here at all, and why not: read before anything is asked. */
-export function canLocate(): { ok: true } | { ok: false; why: LocateFailure } {
-  if (preferences().localOnly) return { ok: false, why: 'local-only' };
+/**
+ * Whether this device and this build can find where they are at all, whatever the switches say: the Mac's WebView
+ * never answers, the iPhone app declares no permission, a browser may have no geolocation, and an older Android
+ * binary has no bridge. A row that can never work is not drawn (the + beside the line's list, editor/addRows.ts).
+ */
+export function locateHere(): { ok: true } | { ok: false; why: LocateFailure } {
   if (isMacApp) return { ok: false, why: 'mac' };
+  if (isIOS && isTauri()) return { ok: false, why: 'ios' };
   if (typeof navigator === 'undefined' || !navigator.geolocation) return { ok: false, why: 'none' };
   if (isAndroid && isTauri() && !androidBridge()) return { ok: false, why: 'unavailable' };
   return { ok: true };
+}
+
+/** Whether a fix can be asked for here at all, and why not: read before anything is asked. */
+export function canLocate(): { ok: true } | { ok: false; why: LocateFailure } {
+  if (preferences().localOnly) return { ok: false, why: 'local-only' };
+  return locateHere();
 }
 
 /** Raises Android's prompt through the activity's own request code, and waits for its answer (or for the app to come back). */
@@ -294,6 +309,19 @@ function nameFor(tag: GeoTag): Promise<string | null> {
   })().finally(() => inflight.delete(key));
   inflight.set(key, asked);
   return asked;
+}
+
+/**
+ * The name for a place the + beside the line is adding (editor/NoteScreen.tsx): what is already known first, with no
+ * ask; nothing for a place whose ask failed this run; otherwise asked once, on Nominatim's terms (`nameFor`). Null
+ * when none may be asked or none came. Rule 2 in the header says why this may ask before the place is written.
+ */
+export function placeName(tag: GeoTag): Promise<string | null> {
+  const key = keyOf(tag);
+  const had = known.get(key);
+  if (had) return Promise.resolve(had);
+  if (failed.has(key)) return Promise.resolve(null);
+  return nameFor(tag);
 }
 
 /** A name that arrived for a note that is closed: written straight in, unless a pass is queued to rewrite it. */

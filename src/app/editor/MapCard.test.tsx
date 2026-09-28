@@ -159,6 +159,12 @@ describe('the quiet card', () => {
     act(() => tap().click());
     expect(opened).toEqual([LONDON]);
   });
+
+  it('leaves the place’s chip off under a place line, which says the name already, and still names it to a tap', () => {
+    show(<MapCard tag={NAMED} mode="quiet" dark={false} where={false} />);
+    expect(chips()).toEqual(['© OpenStreetMap contributors']);
+    expect(tap().getAttribute('aria-label')).toBe('Open Trafalgar Square, London on a map');
+  });
 });
 
 describe('the reader’s ask', () => {

@@ -136,6 +136,7 @@ const NO_FIX: Record<LocateFailure, string> = {
   timeout: 'Couldn’t find where you are. Try again with location on, or outside.',
   none: 'This browser can’t say where you are.',
   mac: 'This Mac can’t say where it is yet.',
+  ios: 'Ghost.md can’t find where you are on this device yet.',
   'local-only': 'Local only is on.',
 };
 
