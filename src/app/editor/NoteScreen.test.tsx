@@ -1636,3 +1636,45 @@ describe('a journal open', () => {
     expect(readBookSpot('j1')).toBeNull();
   });
 });
+
+describe('the + beside the line in a journal', () => {
+  /** The +'s state once the caret has rested where it is, with the note focused. */
+  const restHere = async (view: EditorView) => {
+    act(() => view.focus());
+    await act(async () => vi.advanceTimersByTimeAsync(10 + 200));
+    return view.scrollDOM.querySelector<HTMLButtonElement>('.cm-plus')?.dataset.state;
+  };
+
+  it('comes beside an empty line of a new entry, and not beside the time its template wrote', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    try {
+      const entry = '---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n# Monday 28 September\n\n**14:05** ';
+      show(screen(await createNote('en1', entry), { caretAtEnd: true }));
+      await settle();
+      const view = editor();
+      expect(view.state.selection.main.head).toBe(entry.length);
+      expect(await restHere(view)).not.toBe('shown');
+      // Enter, Enter: the caret on a line of its own under the time, and the + there.
+      act(() => view.dispatch({ changes: { from: entry.length, insert: '\n\n' }, selection: { anchor: entry.length + 2 }, userEvent: 'input.type' }));
+      expect(await restHere(view)).toBe('shown');
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('never comes over a journal’s entries, or over its index shown as its Markdown', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    try {
+      const journal = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[2026-09-28 14.05]]\n';
+      show(screen(await createNote('j1', journal), { hasTitle: () => true, onOpenTitle: () => {}, noteOfTitle: () => undefined }));
+      const shown = [...document.querySelectorAll<HTMLButtonElement>('.cm-plus')].filter((plus) => !plus.hidden && plus.dataset.state === 'shown');
+      expect(shown).toEqual([]);
+      act(() => document.querySelector<HTMLButtonElement>('header button')!.click());
+      const view = editor();
+      act(() => view.dispatch({ selection: { anchor: view.state.doc.length } }));
+      expect(await restHere(view)).toBe('off');
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+});
