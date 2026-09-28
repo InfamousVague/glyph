@@ -132,6 +132,11 @@ face, and the note takes its name from `title:` where it has one, or from the fi
 Set as code, delimiters and all, so it reads as what it is. No renderer: KaTeX is around 280 KB for something a notes
 app meets a few times a year. If someone wants it drawn, that is a plugin.
 
+Found by Pandoc's rule (`src/app/core/maths.ts`): an opening `$` has a character that is not a space straight after
+it, a closing `$` has one straight before it and no digit after it, and a `$` after a backslash is a dollar. So
+`where $n$ is 3` is maths and `It costs $5, or $6 with tax.` is two prices, where the first pattern paired any two
+dollars on a line and drew `$5, or $` as code.
+
 ### Ghost.md's own: tags, counters, sums, choices, hidden lines, progress
 
 Written in plain characters that read sensibly anywhere; Ghost.md just does more with them. Matt picked the last five

@@ -3,6 +3,7 @@ import { syntaxTree } from '@codemirror/language';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { shortcodesIn } from '../core/emoji.ts';
 import { FENCE, FRONT_MATTER_LINES, frontMatterEnd } from '../core/frontMatter.ts';
+import { mathsIn } from '../core/maths.ts';
 
 /**
  * The extended markdown Glyph draws but had no look for.
@@ -41,8 +42,6 @@ const SCRIPTS: Record<string, string | undefined> = { Superscript: 'cm-sup', Sub
 
 /** A definition's line: `: the meaning`, under the term it belongs to. */
 const DEFINITION = /^(\s{0,3}:)(\s+\S.*)$/;
-/** Maths, inline or on its own lines: `$x^2$`, `$$ … $$`. */
-const MATHS = /\$\$[^$]+\$\$|\$[^$\n]+\$/g;
 /**
  * Which lines the note's front matter covers, as line numbers, or null: what core/frontMatter.ts counts as front
  * matter, so the keys drawn quiet here are the ones the list takes the note's name from. Only the lines the rule can
@@ -198,11 +197,9 @@ function decorate(state: EditorState, from: number, to: number): DecorationSet {
       }
     }
 
-    // Maths, set as code: read as what it is without carrying a renderer for it.
-    for (let match = MATHS.exec(line.text); match; match = MATHS.exec(line.text)) {
-      marks.push({ from: line.from + match.index, to: line.from + match.index + match[0].length, deco: Decoration.mark({ class: 'cm-maths' }) });
-    }
-    MATHS.lastIndex = 0;
+    // Maths, set as code: read as what it is without carrying a renderer for it. Found by Pandoc's rule (core/maths.ts),
+    // so a line with two prices on it is prices.
+    for (const maths of mathsIn(line.text, line.from)) marks.push({ from: maths.from, to: maths.to, deco: Decoration.mark({ class: 'cm-maths' }) });
 
     // A shortcode becomes its emoji, unless the caret is on that line, where the words are wanted.
     if (!caretLines.has(n)) {
