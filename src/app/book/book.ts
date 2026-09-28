@@ -44,6 +44,16 @@ export function isBookBody(body: string): boolean {
   return said !== null && /^(true|yes)$/i.test(said);
 }
 
+/**
+ * Whether a notebook is a journal (book/journal.ts): `journal: true` beside `book: true`, read as `book:` is. Here
+ * beside `isBookBody` so a notebook's place and a journal's rules both read it without a cycle.
+ */
+export function isJournalBody(body: string): boolean {
+  if (!isBookBody(body)) return false;
+  const said = frontMatterValue(body, 'journal');
+  return said !== null && /^(true|yes)$/i.test(said);
+}
+
 /** The body of a new book note, named, with any chapters given in order. */
 export function bookNoteBody(title: string, chapters: readonly string[] = []): string {
   const named = quotedTitle(title, 'Notebook');

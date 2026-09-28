@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Mic } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
+import { longDay } from '../core/stamp.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { usePreferences } from '../core/preferences.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
@@ -212,7 +213,8 @@ export function HomeScreen({
   // The To do card takes one beat between the pinned cards and the shelf.
   const todoBeats = open.length || allDone ? 1 : 0;
 
-  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  // "Monday 28 September", as a journal's {{date}} writes the day (core/stamp.ts).
+  const today = longDay(new Date());
   // The digest under the date: what is waiting, from what the page already holds (dashboard.ts `digest`). The tapes'
   // queues are the shelf's own sources, read here as well; two subscribers to one store is fine.
   const summaries = useSummaries();
