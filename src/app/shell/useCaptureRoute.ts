@@ -187,6 +187,8 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
         pendingMeeting.current = null;
         started.current.add(id);
         setScreen(meetingScreen(id, fromAssistant));
+        // The list read again, so the note is on the shelf, recording, when Back leaves the meeting screen.
+        void now.current.refresh().catch(() => undefined);
         return;
       }
       if (answer === 'permission') {

@@ -11,10 +11,15 @@
 }
 
 .top {
+  /*
+   * A pane over the screen (app.css .app-headerPane), which places it across the whole width: the gutters are its
+   * own, as the recorder's are, or "Meeting" and the counter sit against the glass's edges.
+   */
   display: flex;
   align-items: baseline;
   gap: var(--glacier-space-4);
   min-block-size: var(--glacier-space-10);
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   padding-block: calc(var(--app-safe-top) + var(--glacier-space-3)) var(--glacier-space-2);
   font-size: var(--glacier-font-size-sm);
   color: var(--app-ink-2);

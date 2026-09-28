@@ -30,6 +30,7 @@ import java.io.IOException
 import java.io.RandomAccessFile
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -158,6 +159,12 @@ class MeetingService : Service() {
      * so nothing here calls into Rust beside Tauri's own index open in the same
      * second), and the page is told it stopped as `died`. Then every unfinished
      * job goes back into the chain.
+     *
+     * Only a meeting Rust never heard of is handed over here. One whose Stop got
+     * as far as `finish` has a progress file, which the sweep below looks after,
+     * and one whose request is in the chain already (the task swiped away,
+     * `onTaskRemoved`) is not asked for twice: a second fresh request after the
+     * page has taken the first one's result would write the meeting up again.
      */
     fun recover(context: Context) {
       val saved = prefs(context)
@@ -166,7 +173,9 @@ class MeetingService : Service() {
         val name = saved.getString(KEY_TITLE, null)
         Log.i(TAG, "finishing a meeting a kill left unfinished")
         clearMeeting(context)
-        RecordingWorker.enqueue(context, id, name, now = false, fresh = true)
+        if (WriteUp.readProgress(context, id) == null && !RecordingWorker.isQueued(context, id)) {
+          RecordingWorker.enqueue(context, id, name, now = false, fresh = true)
+        }
         died.set(id)
         flushPending()
       }
@@ -477,7 +486,13 @@ class MeetingService : Service() {
     // In hand before the chain request exists, so a worker that starts at once finds it so and waits its turn
     // rather than racing this service for the same job.
     writingUp = id
-    RecordingWorker.enqueue(this, id, name, now = false, fresh = false)
+    // Waited for, briefly: when the task was swiped away the process has a fraction of a second left
+    // (`onTaskRemoved`), and a request still in WorkManager's queue when it goes is no request at all.
+    try {
+      RecordingWorker.enqueue(this, id, name, now = false, fresh = false).result.get(2, TimeUnit.SECONDS)
+    } catch (error: Exception) {
+      Log.w(TAG, "the chain request was not confirmed", error)
+    }
     holdWakeLock(WRITE_UP_WAKE_MS)
     try {
       startWriteUpForeground(RecordingAlerts.writeUp(this, name, RecordingAlerts.progressLine("listening", 0)))
@@ -586,6 +601,23 @@ class MeetingService : Service() {
         Log.w(TAG, "cancel threw", error)
       }
     }, "glyph-meeting-cancel").start()
+  }
+
+  /**
+   * The task swiped away from Recents while a meeting records. The Tauri shell
+   * exits its process when its last activity is destroyed, and this service
+   * goes with it (seen on the emulator: "exited cleanly (0)" a moment after the
+   * swipe, the service still in front), so the meeting cannot carry on. It is
+   * stopped as Done would stop it, so the tape is measured and the chain request
+   * made while there is still time, and what was recorded is written up with the
+   * app closed rather than at the next launch. Should the process outlive the
+   * swipe, the service writes it up itself, as after any Stop.
+   */
+  override fun onTaskRemoved(rootIntent: Intent?) {
+    super.onTaskRemoved(rootIntent)
+    if (!recording) return
+    Log.i(TAG, "the task was removed while recording: the meeting stops")
+    requestStop("died")
   }
 
   /**

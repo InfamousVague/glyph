@@ -203,6 +203,8 @@ describe('a meeting on the phone', () => {
     expect(summaries.queued).toEqual([[note.id, 'meeting', { native: true }]]);
     expect(service.started).toEqual([[note.id, note.body.slice(2).trim()]]);
     expect(screen).toMatchObject({ name: 'meeting', noteId: note.id, fromAssistant: false });
+    // The list is read again, so the shelf has the note, recording, when Back leaves the meeting screen.
+    expect(refresh).toHaveBeenCalled();
   });
 
   it('queues no write-up with summaries off: the transcript still comes', async () => {

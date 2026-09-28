@@ -10,6 +10,7 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.Operation
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.Worker
@@ -124,8 +125,12 @@ class RecordingWorker(context: Context, params: WorkerParameters) : Worker(conte
 
     private fun tag(noteId: String) = "glyph-write-up:$noteId"
 
-    /** One request for `noteId` at the end of the chain. `fresh` restarts a cancelled, failed or model-less job; `now` skips the battery rule. */
-    fun enqueue(context: Context, noteId: String, title: String?, now: Boolean, fresh: Boolean) {
+    /**
+     * One request for `noteId` at the end of the chain. `fresh` restarts a cancelled, failed or model-less job; `now`
+     * skips the battery rule. The answer is WorkManager's operation, for a caller that must know the request is
+     * written down before the process may die (`MeetingService.finishRecording`).
+     */
+    fun enqueue(context: Context, noteId: String, title: String?, now: Boolean, fresh: Boolean): Operation {
       val data = Data.Builder()
         .putString(KEY_NOTE_ID, noteId)
         .putString(KEY_TITLE, title)
@@ -137,7 +142,7 @@ class RecordingWorker(context: Context, params: WorkerParameters) : Worker(conte
         .addTag(tag(noteId))
         .setBackoffCriteria(BackoffPolicy.LINEAR, 2, TimeUnit.MINUTES)
         .build()
-      WorkManager.getInstance(context).enqueueUniqueWork(CHAIN, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+      return WorkManager.getInstance(context).enqueueUniqueWork(CHAIN, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
     }
 
     /** The sweep that runs when the charger connects: every unfinished job back into the chain. KEEP: one is enough. */
