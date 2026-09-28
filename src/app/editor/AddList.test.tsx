@@ -67,6 +67,13 @@ function sized(rows: number) {
       return this.id === 'add-list' ? 256 : 0;
     },
   });
+  // The rows' whole height, whatever they are capped to.
+  Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.parentElement?.id === 'add-list' ? rows * 44 + 8 : 0;
+    },
+  });
 }
 
 function screen(width: number, height: number, { coarse = true } = {}) {
@@ -101,6 +108,7 @@ afterEach(() => {
   document.body.innerHTML = '';
   Reflect.deleteProperty(HTMLElement.prototype, 'offsetHeight');
   Reflect.deleteProperty(HTMLElement.prototype, 'offsetWidth');
+  Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight');
   Reflect.deleteProperty(navigator, 'geolocation');
   vi.unstubAllGlobals();
   setPreferences({ localOnly: DEFAULT_PREFERENCES.localOnly });
@@ -225,6 +233,23 @@ describe('what closes it', () => {
     });
     expect(closed).toBe(0);
     expect(placed(list()!).top).toBe(300 + 27 + 6);
+  });
+
+  it('not a scroll of its own rows, which keep where they are scrolled to', async () => {
+    screen(412, 500, { coarse: false });
+    rowAt(240);
+    const { list } = open();
+    const rows = list()!.firstElementChild as HTMLElement;
+    const was = placed(list()!).top;
+    // Were the list placed again on its own scroll, it would move to where the + now says, and its cap would be taken
+    // off and put back, which drops the rows' scroll in a real layout.
+    rowAt(200);
+    await act(async () => {
+      rows.dispatchEvent(new Event('scroll'));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+    expect(closed).toBe(0);
+    expect(placed(list()!).top).toBe(was);
   });
 
   it('once the + has left the screen', async () => {

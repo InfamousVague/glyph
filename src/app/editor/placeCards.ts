@@ -189,6 +189,10 @@ const folds = ViewPlugin.fromClass(
 
 const theme = EditorView.baseTheme({
   '.cm-placeCard': {
+    // The card's chips in the app's own hand and size, as on the card at the top of the note, not the note's.
+    fontFamily: 'var(--glacier-font-sans, system-ui)',
+    fontSize: '1rem',
+    lineHeight: '1.5',
     paddingBlock: '0.25em 0.6em',
     // Level with the words: a block widget sits outside the lines, which take the gutter as padding.
     paddingInline: 'calc(var(--app-safe-left, 0px) + var(--app-gutter, 0px)) calc(var(--app-safe-right, 0px) + var(--app-gutter, 0px))',

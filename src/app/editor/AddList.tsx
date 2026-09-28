@@ -320,8 +320,9 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
     const box = pane();
     const top = Math.max(viewTop, box?.top ?? 0) + EDGE;
     const bottom = viewBottom - EDGE;
-    scroller.style.maxBlockSize = 'none';
-    const natural = element.offsetHeight;
+    // Its whole height, read without unsetting the cap, which would lose where its rows are scrolled to.
+    const chrome = element.offsetHeight - scroller.offsetHeight;
+    const natural = chrome + scroller.scrollHeight;
     const rowHeight = (scroller.querySelector<HTMLElement>('[data-index]')?.offsetHeight ?? 44) * 3 + 8;
     const below = bottom - (row.bottom + GAP);
     const above = row.top - GAP - top;
@@ -336,7 +337,6 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
       height = Math.max(above, rowHeight);
       y = row.top - GAP - height;
     }
-    const chrome = natural - scroller.offsetHeight;
     scroller.style.maxBlockSize = height < natural ? `${Math.max(0, height - chrome)}px` : '';
 
     // Across: the text's left edge, and on a folding phone opened out, one side of the crease.
@@ -365,14 +365,21 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
     element.style.inlineSize = width === full ? '' : `${width}px`;
   }, [opening.button, pane, close]);
 
+  // A page turned opens at its top, with Back first, wherever the page before was scrolled to.
+  useLayoutEffect(() => {
+    if (rowsBox.current) rowsBox.current.scrollTop = 0;
+  }, [page]);
+
   useLayoutEffect(() => {
     place();
   }, [place, page, rows.length, looking]);
 
-  // Re-anchored to the + on every scroll and resize, one frame at a time: the keyboard rising scrolls the note.
+  // Re-anchored to the + on every scroll and resize, one frame at a time: the keyboard rising scrolls the note. A
+  // scroll of the list's own rows is the list's.
   useEffect(() => {
     let frame = 0;
-    const soon = () => {
+    const soon = (event?: Event) => {
+      if (event?.target instanceof Node && card.current?.contains(event.target)) return;
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(place);
     };

@@ -643,6 +643,16 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     view?.dispatch({ effects: plusRecheck.of(null) });
     if (!plusAllowed) setAdding(null);
   }, [view, plusAllowed]);
+  /**
+   * Where the list may go: the note's scrolling page, below the header, which clears the top bar and the tabs
+   * (`--app-safe-top`) even while the page itself runs up under them.
+   */
+  const notePane = (): DOMRect | null => {
+    const box = page.current?.getBoundingClientRect();
+    if (!box) return null;
+    const top = Math.max(box.top, header.current?.getBoundingClientRect().bottom ?? box.top);
+    return new DOMRect(box.left, top, box.width, Math.max(0, box.bottom - top));
+  };
   /** Every canvas among the notes, for More's A canvas: a frame of it drawn in the words (editor/canvasFrames.ts). */
   const canvasTitles = allTitles && bodyOfTitle ? () => allTitles().filter((t) => isCanvasBody(bodyOfTitle(t) ?? '')) : undefined;
 
@@ -862,7 +872,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         <AddList
           view={view}
           opening={adding}
-          pane={() => page.current?.getBoundingClientRect() ?? null}
+          pane={notePane}
           onClose={() => setAdding(null)}
           keys={addKeys}
           onPicture={() => void pictures.addPhoto()}
