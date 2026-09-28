@@ -441,10 +441,10 @@ describe('a tag waiting for the better words', () => {
   });
 
   it('waits for an entry’s first own words, whichever of the note’s screen and the sweep asks first', async () => {
-    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const { rememberUntouched } = await import('./untouched.ts');
     const words = '# Monday 28 September\n\n**14:05** ';
     const made = `---\ntitle: "2026-09-28 14.05"\n---\n${words}`;
-    rememberEntry('e1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    rememberUntouched('e1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
     await store.createNote('e1', made);
     location.setPendingTag('e1', LONDON);
     const asked = nominatim();

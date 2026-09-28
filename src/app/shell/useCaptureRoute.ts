@@ -5,7 +5,7 @@ import type { SpokenAsk } from '../capture/CaptureScreen.tsx';
 import type { CaptureLanding } from '../capture/landing.ts';
 import { afterPendingDeletes } from '../capture/launch.ts';
 import type { Placing } from '../capture/place.ts';
-import { untouchedEntry } from '../book/entryDrafts.ts';
+import { isUntouched } from '../core/untouched.ts';
 import { meetingTitle } from '../capture/meeting.ts';
 import { meetingStateNow, onMeetingEvent, useMeetingState, type MeetingEvent } from '../capture/meetingLive.ts';
 import { freshTapeId, setTapeId } from '../core/clips.ts';
@@ -51,7 +51,7 @@ import { captureScreen, meetingScreen, type Screen } from './screen.ts';
 export interface EntryAim {
   /** The entry's id: the capture is aimed at it. */
   id: string;
-  /** Where the words go: on from its time, or into its to-do list (book/template.ts `openEnd`). */
+  /** Where the words go: on from its time, or into its to-do list (core/template.ts `openEnd`). */
   placing: Placing;
   /** Asks where it was written, once the capture screen has gone, for an entry the words were kept in; null for none. */
   tag: ((held: { reviewing: boolean }, locked: boolean) => void) | null;
@@ -316,7 +316,7 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
       // nobody wrote in is taken back from there.
       const aim = entryAim.current?.id === aimedAt ? entryAim.current : null;
       entryAim.current = null;
-      const kept = aim !== null && note !== null && note.id === aim.id && !untouchedEntry(aim.id, note.body, note);
+      const kept = aim !== null && note !== null && note.id === aim.id && !isUntouched(aim.id, note.body, note);
       if (aim && !kept && (note === null || note.id === aim.id)) {
         const where = await aim.nothing();
         await refresh();

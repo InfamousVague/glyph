@@ -1,4 +1,4 @@
-import { untouchedEntry } from '../book/entryDrafts.ts';
+import { isUntouched } from './untouched.ts';
 import { refinePending } from '../capture/refine.ts';
 import { frontMatterOffset } from './frontMatter.ts';
 import { geoTagOf, shortPlace, tagOf, withGeoTag, type Fix, type GeoTag, type PlaceAnswer } from './geotag.ts';
@@ -48,7 +48,7 @@ import { invoke, isTauri } from './tauri.ts';
  *    new note is a draft with no file until it has some (docs/LIBRARY.md), and a tag written into an empty note
  *    would make one; a draft left without any takes its waiting tag with it. A journal's entry has words from birth,
  *    its template's, so its tag waits for the first of its own instead (`hasOwnWords`): an entry nobody wrote in is
- *    taken back when it is left (book/entryDrafts.ts), and no place lands on it or is named first.
+ *    taken back when it is left (core/untouched.ts), and no place lands on it or is named first.
  *
  * 4. NEVER WHILE THE RECORDER IS LIVE. The generated RustWebChromeClient has one `permissionListener` shared by the
  *    microphone, geolocation and camera prompts: a location ask raised while the recorder's getUserMedia prompt is
@@ -412,11 +412,11 @@ function hasWords(body: string): boolean {
 
 /**
  * Whether the words are the person's own: any at all, and not a journal's entry still as this device made it from its
- * template (book/entryDrafts.ts). An entry has words from birth, its date and its time, and a tag landing on one nobody
+ * template (core/untouched.ts). An entry has words from birth, its date and its time, and a tag landing on one nobody
  * wrote in would keep it, and ask its name of Nominatim, for an entry about to be taken back.
  */
-function hasOwnWords(noteId: string, body: string, note?: Parameters<typeof untouchedEntry>[2]): boolean {
-  return hasWords(body) && !untouchedEntry(noteId, body, note);
+function hasOwnWords(noteId: string, body: string, note?: Parameters<typeof isUntouched>[2]): boolean {
+  return hasWords(body) && !isUntouched(noteId, body, note);
 }
 
 /**

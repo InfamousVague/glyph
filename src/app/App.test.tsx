@@ -538,7 +538,7 @@ describe('a journal’s entries', () => {
     expect(await diaryBody()).toBe(`${DIARY}- [[${title}]]\n`);
     const body = (await getNote(id))!.body;
     expect(body).toMatch(new RegExp(`^---\\ntitle: "${title}"\\ndate: \\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}\\n---\\n# \\w+.*\\n\\n\\*\\*\\d{2}:\\d{2}\\*\\* $`));
-    expect(seen.note!.caretAtEnd).toBe(true);
+    expect(seen.note!.caret).toBe('end');
     // In the journal's tab: made from inside it.
     expect(tabs()).toEqual([id]);
     // The journal keeps no places: nothing is asked for this entry.

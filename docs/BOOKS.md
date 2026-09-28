@@ -149,7 +149,7 @@ entry-place: true
 - **Making one:** the New notebook sheet's Journal choice, with the template, a preview of an entry made now, and
   the place switch, whose default is this device's Tag new notes. Or a notebook kept as a journal from its More
   sheet, every page where it was; and made a notebook again from there. Not the Guide.
-- **New entry** (`App.tsx` `newEntry`): the record first (`src/app/book/entryDrafts.ts`), then the line last in the
+- **New entry** (`App.tsx` `newEntry`): the record first (`src/app/core/untouched.ts`), then the line last in the
   index, at its top level, through the journal's own screen when it is open, then the note, opened with the caret at
   the end. Named past every note there is and every line the journal has, so an entry made while another is being
   taken back does not share its name. A second press while one is made does nothing. Where it was written is asked at
@@ -222,9 +222,9 @@ toggle aren't drawn. It no longer lists the workspace's other notes.
 | `src/app/aside/aside.ts` | the right-hand aside's content: a notebook's index on its pages, a numbered chapter's run with no notebook, else nothing |
 | `src/app/book/chapterNumber.ts` | a chapter's number read from its title |
 | `src/app/book/journal.ts` | a journal's keys, its presets, an entry's name, `date:` and body, `stampOf`, and which notes are entries (`entryPages`); pure, so the MCP server bundles it |
-| `src/app/book/template.ts` | a template filled (`fillTemplate`, `formatStamp`), and where a spoken entry's words go (`openEnd`) |
+| `src/app/core/template.ts` | a template filled (`fillTemplate`, `formatStamp`), and where a spoken entry's words go (`openEnd`) |
 | `src/app/book/journalMonths.ts` | the entries by month, a row's words, the bar's time order, a journal's card and the aside's month |
-| `src/app/book/entryDrafts.ts` | the record of an entry nobody has written in yet, on this device |
+| `src/app/core/untouched.ts` | the record of an entry nobody has written in yet, on this device |
 | `src/app/book/JournalView.tsx`, `src/app/book/TemplatePicker.tsx` | a journal drawn, and the template's choice with its preview and the place switch |
 | `src/app/core/stamp.ts` | a moment as words: `stamp`, `clockTime`, `longDay` |
 | `src/app/capture/command.ts` | "make a book called …" and a page for a notebook named, read so the reader at Done turns them down (`forBook`) |

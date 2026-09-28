@@ -1,6 +1,7 @@
 /**
  * A moment written as words, one way wherever the app writes one: the time the + puts at the line (docs/DESIGN.md
- * §141), a journal entry's date and time (§142, book/template.ts `{{date}}` and `{{time}}`), and the home page's day.
+ * §141), a journal entry's date and time (§142, core/template.ts `{{date}}` and `{{time}}`), the home page's day, and
+ * the day in words a new note can be named by (§144, core/noteNames.ts).
  *
  * In the device's own language and order, and always on a 24-hour clock, as a meeting's title is written
  * (capture/meeting.ts `meetingTitle`): "14:05" reads the same to everyone who reads the note later, and a note does
@@ -32,4 +33,13 @@ export function clockTime(date: Date): string {
 /** "Monday 28 September": the weekday, the day and the month, no year, as the home page greets the day. */
 export function longDay(date: Date): string {
   return new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(date);
+}
+
+/**
+ * "Monday, 28 September 2026": the weekday, the day, the month and the year, in the locale's own order and words, as a
+ * new note's name for the day (core/noteNames.ts). With its year, so it never names two days: the home page's
+ * `longDay` has none and repeats every year.
+ */
+export function longDate(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
 }

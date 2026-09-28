@@ -47,8 +47,8 @@ import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { frontMatterOffset, withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, chaptersOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
 import { entryBody, entryPages, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, templateSentence, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
-import { entryRecord, entryRecords, forgetEntry, rememberEntry, setEntryWords, untouchedEntry, type EntryRecord } from './book/entryDrafts.ts';
-import { fillTemplate, openEnd } from './book/template.ts';
+import { untouchedRecord, untouchedRecords, forgetUntouched, rememberUntouched, setUntouchedWords, isUntouched, type UntouchedRecord } from './core/untouched.ts';
+import { fillTemplate, openEnd } from './core/template.ts';
 import { inTimeOrder } from './book/journalMonths.ts';
 import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
@@ -236,7 +236,7 @@ function Shell() {
     const id = noteIdOf(spot);
     if (spot === ALL_NOTES) setScreen({ name: 'notes' });
     else if (id === null) void backToList();
-    else if (shown && entryRecord(shown)?.journalId === id) openNoteWithin(id);
+    else if (shown && untouchedRecord(shown)?.journalId === id) openNoteWithin(id);
     else openNote(id);
   };
   const goBack = () => land(walk.back());
@@ -472,7 +472,7 @@ function Shell() {
   /**
    * Talking into a note, from its mic or the palette. A journal's is Speak an entry: an entry made and spoken, never
    * words into the index (`newEntry`). An entry nobody has written in yet is spoken from its time line: the line it was
-   * left open with is taken off and put back before the words (book/template.ts `openEnd`, capture/place.ts `lead`),
+   * left open with is taken off and put back before the words (core/template.ts `openEnd`, capture/place.ts `lead`),
    * so it still starts with its time, and a day's to-dos said aloud are to-dos. Said nothing, the entry is put back as
    * it was made.
    */
@@ -483,9 +483,9 @@ function Shell() {
       await newEntry(id, { speak: true });
       return;
     }
-    const fresh = entryRecord(id) ? await getNote(id).catch(() => null) : null;
+    const fresh = untouchedRecord(id) ? await getNote(id).catch(() => null) : null;
     // A meeting holds the microphone: the capture opens the meeting instead, and the entry is left as it was made.
-    if (!fresh || !untouchedEntry(id, fresh.body, fresh) || meetingStateNow()?.recording) {
+    if (!fresh || !isUntouched(id, fresh.body, fresh) || meetingStateNow()?.recording) {
       await capture.start(false, id);
       return;
     }
@@ -494,7 +494,7 @@ function Shell() {
     const { base, placing } = openEnd(filled);
     if (base !== filled) {
       await updateNote(id, `${head}${base}`, fresh.revision ?? 1).catch(() => undefined);
-      setEntryWords(id, base);
+      setUntouchedWords(id, base);
     }
     await capture.start(false, id, {
       id,
@@ -506,7 +506,7 @@ function Shell() {
         if (!now) return { name: 'list' };
         if (base === filled) return { name: 'note', note: now };
         const back = await updateNote(id, `${head}${filled}`, now.revision ?? 1).catch(() => now);
-        setEntryWords(id, filled);
+        setUntouchedWords(id, filled);
         return { name: 'note', note: back };
       },
     });
@@ -517,7 +517,7 @@ function Shell() {
    * from the journal's template, puts its line last in the journal's index and opens it with the caret at the end: in
    * the journal's tab from inside the journal, a tab of its own from anywhere else.
    *
-   * The order is the record first (book/entryDrafts.ts), then the line, then the note, so that a WebView let go at any
+   * The order is the record first (core/untouched.ts), then the line, then the note, so that a WebView let go at any
    * step leaves a record the take-back below can finish from. The line goes through the journal's own screen when it is
    * the note being read (`journalWriter`), since its next save would otherwise write the old index back.
    */
@@ -596,7 +596,7 @@ function Shell() {
     const id = newNoteId();
     making.current.add(id);
     try {
-      rememberEntry(id, { journalId, title, words, at: now });
+      rememberUntouched(id, { journalId, title, words, at: now });
       await writeJournal(journalId, (body) => withEntry(body, title));
       if (spoken && placing) {
         await createNote(id, entryBody(title, localStamp(now), words), 'editor');
@@ -621,7 +621,7 @@ function Shell() {
       const note = await createNote(id, entryBody(title, localStamp(now), words), 'editor');
       fileNewNote(id);
       await refresh();
-      setScreen({ name: 'note', note, caretAtEnd: true });
+      setScreen({ name: 'note', note, caret: 'end' });
       // Where it was written, when the journal keeps that: the tag waits for the entry's first own words.
       if (entryPlaceOf(journal.body)) void tagEntryIfWanted([id], { reviewing: false }, { introduce: introduceEntries(name) });
     } finally {
@@ -631,7 +631,9 @@ function Shell() {
 
   /*
    * An entry nobody has written in, taken back once it is left (docs/DESIGN.md §142): the promise a new note keeps, that
-   * a note opened and left leaves nothing behind, kept for an entry that had words from birth. Looked at whenever the
+   * a note opened and left leaves nothing behind, kept for an entry that had words from birth. And the same for a new
+   * note given words from its blank page, a template or a name (§144), whose record has no journal: the note and its
+   * waiting tag go, and there is no line to take out. Looked at whenever the
    * screen or the open tabs change, and at launch, which opens on the home page. An entry stays while it is the note
    * on screen, while a capture is aimed at it, and while its tab is open behind another note, a capture or a meeting:
    * a tab switched, a link followed, a recording of something else. Anywhere else - home, All notes, the Academy, its
@@ -654,12 +656,14 @@ function Shell() {
    * taking it out would leave a written entry out of its journal. Left in when the store does not answer, the lesser
    * harm: a line with an entry's name and no note is not drawn (book/journalMonths.ts).
    */
-  const lineOut = async (id: string, record: EntryRecord) => {
+  const lineOut = async (id: string, record: UntouchedRecord) => {
+    const journalId = record.journalId;
+    if (!journalId) return;
     const all = await listNotes().catch(() => null);
     if (!all || all.some((n) => n.id !== id && sameTitle(noteTitle(n.body), record.title))) return;
-    await writeJournal(record.journalId, (body) => withoutChapter(body, record.title));
+    await writeJournal(journalId, (body) => withoutChapter(body, record.title));
   };
-  const takeBack = async (id: string, record: EntryRecord) => {
+  const takeBack = async (id: string, record: UntouchedRecord) => {
     let fresh: Note | null;
     try {
       fresh = await getNote(id);
@@ -670,22 +674,22 @@ function Shell() {
     if (stays(id) || making.current.has(id)) return;
     if (!fresh) {
       await lineOut(id, record);
-      forgetEntry(id);
+      forgetUntouched(id);
       return;
     }
-    if (isTrashed(id) || !untouchedEntry(id, fresh.body, fresh)) {
-      forgetEntry(id);
+    if (isTrashed(id) || !isUntouched(id, fresh.body, fresh)) {
+      forgetUntouched(id);
       return;
     }
     await deleteNote(id);
     await lineOut(id, record);
     setPendingTag(id, null);
     tabs.drop(id);
-    forgetEntry(id);
+    forgetUntouched(id);
     await refresh();
   };
   useEffect(() => {
-    for (const [id, record] of Object.entries(entryRecords())) {
+    for (const [id, record] of Object.entries(untouchedRecords())) {
       if (making.current.has(id) || takingBack.current.has(id) || stays(id)) continue;
       takingBack.current.add(id);
       void takeBack(id, record).finally(() => takingBack.current.delete(id));
@@ -775,7 +779,7 @@ function Shell() {
         noteOfTitle={titled}
         onNewEntry={() => void newEntry(screen.note.id)}
         onJournal={onJournal}
-        caretAtEnd={screen.caretAtEnd}
+        caret={screen.caret}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
         pageTitles={() => shownNotes.filter((n) => !entryIds.has(n.id)).map((n) => noteTitle(n.body)).filter(Boolean)}
         rename={rename}

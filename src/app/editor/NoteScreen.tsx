@@ -21,7 +21,7 @@ import { BookView } from '../book/BookView.tsx';
 import { JournalView } from '../book/JournalView.tsx';
 import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
 import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate, type JournalWriter } from '../book/journal.ts';
-import { entryRecord, forgetEntry, untouchedEntry } from '../book/entryDrafts.ts';
+import { untouchedRecord, forgetUntouched, isUntouched } from '../core/untouched.ts';
 import { isGuideBook } from '../guidebook/guidebook.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
 import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
@@ -155,8 +155,11 @@ interface NoteScreenProps {
    * makes and saves, never a write under it that its next save would undo or be refused by.
    */
   onJournal?: (writer: JournalWriter | null) => void;
-  /** A journal's entry just made: the caret at the end of its words, and the keyboard up where the phone allows it. */
-  caretAtEnd?: boolean;
+  /**
+   * A note just made, to be written in: the caret at this place in its words, or `end`, the editor focused and the
+   * keyboard up where the phone allows it (shell/screen.ts). Absent, a note opened to be read, which takes no focus.
+   */
+  caret?: number | 'end';
   /** Every note's title, for a canvas's + to choose a note from. */
   allTitles?: () => string[];
   /** The titles a notebook's index offers to add as a page: every note's but a journal's entries; absent, every note's. */
@@ -209,7 +212,7 @@ export function NoteScreen({
   noteOfTitle,
   onNewEntry,
   onJournal,
-  caretAtEnd = false,
+  caret,
   allTitles,
   pageTitles,
   at,
@@ -266,7 +269,7 @@ export function NoteScreen({
    */
   const [tag, setTag] = useState<GeoTag | null>(() => geoTagOf(note.body) ?? pendingTag(note.id));
   /*
-   * A journal's entry this device made and nobody has written in yet (book/entryDrafts.ts; docs/DESIGN.md §142). Not
+   * A journal's entry this device made and nobody has written in yet (core/untouched.ts; docs/DESIGN.md §142). Not
    * `blank`, which keeps its meaning, no words at all, so the blank note's ghost never draws over an entry's date:
    * this is its own state, read from the entry's record, and followed only for a note that has one. While it holds, a
    * tag waits for the entry's first own words and the map fetches no tiles, since the entry is taken back if it is
@@ -276,18 +279,18 @@ export function NoteScreen({
    * lands. App decides a take-back from the store, and the words reach the store 400 ms later, or on the way out a
    * turn after App has looked, so an entry typed in and left at once for home was taken back with its words.
    */
-  const drafted = useRef(entryRecord(note.id) !== null);
-  const [untouched, setUntouched] = useState(() => drafted.current && untouchedEntry(note.id, note.body, note));
+  const drafted = useRef(untouchedRecord(note.id) !== null);
+  const [untouched, setUntouched] = useState(() => drafted.current && isUntouched(note.id, note.body, note));
   const onChange = useCallback(
     (next: string) => {
       keep(next);
       const now = geoTagOf(next) ?? pendingTag(note.id);
       setTag((was) => (sameTag(was, now) ? was : now));
       if (!drafted.current) return;
-      const still = untouchedEntry(note.id, next);
+      const still = isUntouched(note.id, next);
       setUntouched(still);
       if (still) return;
-      forgetEntry(note.id);
+      forgetUntouched(note.id);
       drafted.current = false;
     },
     [keep, note.id],
@@ -756,14 +759,18 @@ export function NoteScreen({
   }, [inBook, title]);
   const { marked, bookmark } = useBookmark(note, view, page, (message) => toast({ message }));
   useLandAt(at, view, page, header);
-  // A journal's entry just made: the caret at the end of its words, once the editor is here. No new note focused itself
-  // before; whether Android raises the keyboard after the entry's write is the phone's to say.
-  const caretPlaced = useRef(!caretAtEnd);
+  // A note just made, to be written in: the caret where it was asked for, once the editor is here, and the focus. A new
+  // note's line 1, or the end of a journal's entry. Whether Android raises the keyboard for a focus that follows the
+  // note's write is the phone's to say; if not, the caret waits there and the first tap on the page raises it.
+  const caretPlaced = useRef(caret === undefined);
   useEffect(() => {
     if (caretPlaced.current || !view) return;
     caretPlaced.current = true;
-    view.dispatch({ selection: { anchor: view.state.doc.length }, scrollIntoView: true });
+    const length = view.state.doc.length;
+    view.dispatch({ selection: { anchor: caret === 'end' || caret === undefined ? length : Math.min(Math.max(0, caret), length) }, scrollIntoView: true });
     view.focus();
+    // Once, as the editor arrives: the caret asked for when the note was opened.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
   // A journal open hands App the way to write its index through this screen (`onJournal`), and takes it back as it goes.
   const writeIndex = useRef<(change: (body: string) => string) => void>(() => undefined);

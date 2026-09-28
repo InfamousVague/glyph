@@ -20,7 +20,7 @@ import { bestList, fitOf, itemText, listsOf, restingList, runsOf, semanticListKi
  * the better words, handed the same note, words and placing, write the same text.
  *
  * The end can carry a `lead`: words the note's last line was left open with, which the take goes on from. A journal's
- * entry starts with its time and a space, "**14:05** " (book/template.ts `openEnd`), and a spoken entry is written as
+ * entry starts with its time and a space, "**14:05** " (core/template.ts `openEnd`), and a spoken entry is written as
  * that line said on, not a lone bold time with the words in a paragraph under it (docs/DESIGN.md §142). The note is
  * handed over without that line, and every writer puts it back with the take.
  */
@@ -44,7 +44,7 @@ export type Placing =
       heading: string | null;
       /**
        * The note has no list yet: the one to start, or null for none (the words go at the end). Numbered for a journal
-       * whose template ends in an empty numbered item, "1. " (book/template.ts `openEnd`).
+       * whose template ends in an empty numbered item, "1. " (core/template.ts `openEnd`).
        */
       fresh: 'task' | 'bullet' | 'number' | null;
     }

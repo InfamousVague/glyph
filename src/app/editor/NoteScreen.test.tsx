@@ -978,11 +978,11 @@ describe('where the note was written', () => {
 
   it('keeps an untouched entry’s tag waiting, its card quiet and its place unnamed, until its first own words', async () => {
     const { tagNewNotes, pendingTag } = await import('../core/location.ts');
-    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const { rememberUntouched } = await import('../core/untouched.ts');
     const asked = nominatim('Somerset House');
     const words = '# Monday 28 September\n\n**14:05** ';
     const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
-    rememberEntry('en1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    rememberUntouched('en1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
     show(screen(await createNote('en1', made)));
     // A place no other test here has named: names already known this run are not asked again.
     await act(async () => tagNewNotes(['en1'], Promise.resolve({ lat: 51.5033, lon: -0.1196, accuracy: 12, at: 0 }), { reviewing: false }));
@@ -1003,17 +1003,17 @@ describe('where the note was written', () => {
   });
 
   it('makes an entry the person’s on its first own word, before the save: left at once, it is not taken back', async () => {
-    const { rememberEntry, entryRecord } = await import('../book/entryDrafts.ts');
+    const { rememberUntouched, untouchedRecord } = await import('../core/untouched.ts');
     const words = '# Monday 28 September\n\n**14:05** ';
     const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
-    rememberEntry('en2', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    rememberUntouched('en2', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
     show(screen(await createNote('en2', made)));
-    expect(entryRecord('en2')).not.toBeNull();
+    expect(untouchedRecord('en2')).not.toBeNull();
     type('W');
     // Nothing saved yet (400 ms), and the record is gone already: App's take-back reads the store and the record, and
     // Home pressed now finds no record to act on while the save on the way out is still a turn behind.
     expect(saves).not.toHaveBeenCalled();
-    expect(entryRecord('en2')).toBeNull();
+    expect(untouchedRecord('en2')).toBeNull();
     unmount();
     await settle();
     expect((await getNote('en2'))?.body).toBe(`${made}W`);
@@ -1285,10 +1285,10 @@ describe('where the note was written', () => {
 
     it('writes a late name all the same in an untouched entry, whose waiting tag lands after the place', async () => {
       const { tagNewNotes } = await import('../core/location.ts');
-      const { rememberEntry } = await import('../book/entryDrafts.ts');
+      const { rememberUntouched } = await import('../core/untouched.ts');
       const words = '# Monday 28 September\n\n**14:05** \n\n';
       const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
-      rememberEntry('en9', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+      rememberUntouched('en9', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
       // Places of their own, so no name is known already: the entry's tag is named at once, the + place's late.
       fixAt(51.51383, -0.09837);
       let named: (() => void) | null = null;
@@ -1322,10 +1322,10 @@ describe('where the note was written', () => {
 
     it('keeps the coordinates when the person did something after the place, the tag landing or not', async () => {
       const { tagNewNotes } = await import('../core/location.ts');
-      const { rememberEntry } = await import('../book/entryDrafts.ts');
+      const { rememberUntouched } = await import('../core/untouched.ts');
       const words = '# Monday 28 September\n\n**14:05** \n\n';
       const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
-      rememberEntry('en10', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+      rememberUntouched('en10', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
       fixAt(51.50332, -0.11951);
       let named: (() => void) | null = null;
       vi.stubGlobal('fetch', (url: string) =>
@@ -1668,7 +1668,7 @@ describe('a notebook kept as a journal', () => {
 
   it('puts the caret at the end of a new entry’s words, and has the editor’s focus', async () => {
     const entry = '---\ntitle: "2026-09-28 14.05"\n---\n# Monday 28 September\n\n**14:05** ';
-    show(screen(await createNote('en1', entry), { caretAtEnd: true }));
+    show(screen(await createNote('en1', entry), { caret: 'end' }));
     await settle();
     expect(editor().state.selection.main.head).toBe(entry.length);
     expect(editor().hasFocus).toBe(true);
@@ -1738,7 +1738,7 @@ describe('the + beside the line in a journal', () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     try {
       const entry = '---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n# Monday 28 September\n\n**14:05** ';
-      show(screen(await createNote('en1', entry), { caretAtEnd: true }));
+      show(screen(await createNote('en1', entry), { caret: 'end' }));
       await settle();
       const view = editor();
       expect(view.state.selection.main.head).toBe(entry.length);

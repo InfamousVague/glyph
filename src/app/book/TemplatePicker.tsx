@@ -7,7 +7,7 @@ import { Editor } from '../editor/Editor.tsx';
 import { SheetGroup, SheetHeading, SheetIcon, SheetRow } from '../plugins/kit.tsx';
 import { entryPlaceHint } from './entryPlace.ts';
 import { entryTitle, OWN, PRESETS, presetOf, type PresetId } from './journal.ts';
-import { fillTemplate } from './template.ts';
+import { fillTemplate } from '../core/template.ts';
 import styles from './TemplatePicker.module.css';
 
 /**
@@ -16,7 +16,7 @@ import styles from './TemplatePicker.module.css';
  * editor/NoteSettings.tsx).
  *
  * Five choices, the presets and your own (book/journal.ts). Your own opens a box to write it in, in the note's own
- * face, with the placeholders under it to tap in at the caret, and the one rule a format has (book/template.ts: words
+ * face, with the placeholders under it to tap in at the caret, and the one rule a format has (core/template.ts: words
  * go in square brackets). Under the choice, the page an entry would start as now, filled with this minute and drawn by
  * the note's own editor, read-only, in the view and the face a new note opens in (Settings' Show, the typeface), so
  * the page shown is the page opened: drawn formatted in the sheet's face, it promised a heading with no marks that

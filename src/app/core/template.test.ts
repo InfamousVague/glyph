@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { inLocale } from '../../test/locale.ts';
 import { placeTake } from '../capture/place.ts';
-import { PRESETS } from './journal.ts';
-import { fillTemplate, formatStamp, openEnd } from './template.ts';
+import { PRESETS } from '../book/journal.ts';
+import { fillTemplate, firstOpenAt, formatStamp, openEnd } from './template.ts';
 
 /**
  * A journal's template filled for an entry: Obsidian's placeholders, Moment's tokens, names in the device's language,
@@ -60,6 +60,46 @@ describe('a format', () => {
     expect(fill('{{date:D MMMM at HH:mm}}')).toBe('28 September pmt 14:05');
     expect(fill('{{date:YYYY-MM-DD}} {{time:HH.mm}}')).toBe('2026-09-28 14.05');
     expect(fill('{{date:[Week of] D MMM}}', 'en-US')).toBe('Week of 28 Sep');
+  });
+});
+
+describe('the ISO week', () => {
+  const week = (at: Date, text = 'GGGG-[W]WW') => inLocale('en-US', () => formatStamp(at, text));
+
+  it('names the week its Thursday is in, the same in every language', () => {
+    expect(week(AT())).toBe('2026-W40');
+    // A Friday in 2021 is in 2020's last week, and the last days of a year can be the next year's first week.
+    expect(week(new Date(2021, 0, 1))).toBe('2020-W53');
+    expect(week(new Date(2026, 11, 31))).toBe('2026-W53');
+    expect(week(new Date(2027, 0, 1))).toBe('2026-W53');
+    expect(week(new Date(2024, 11, 30))).toBe('2025-W01');
+    // A Sunday is the end of its week, not the start of the next, as it would be in en-US's own week.
+    expect(week(new Date(2026, 9, 4))).toBe('2026-W40');
+    expect(week(new Date(2026, 9, 5))).toBe('2026-W41');
+    expect(inLocale('de-DE', () => formatStamp(AT(), 'GGGG-[W]WW'))).toBe('2026-W40');
+  });
+
+  it('writes W with no leading nought, keeps [W] a letter, and leaves Moment’s own week as it was typed', () => {
+    expect(week(new Date(2026, 0, 5), 'W WW [W]')).toBe('2 02 W');
+    expect(week(AT(), 'gggg-[W]ww')).toBe('gggg-Www');
+    expect(fill('{{date:GGGG-[W]WW}}')).toBe('2026-W40');
+  });
+});
+
+describe('where a new note’s caret goes', () => {
+  it('is the end of the first line left open: an empty heading, an empty lead, or words ending in a space', () => {
+    expect(firstOpenAt('# \n\n- [ ] ')).toBe(2);
+    expect(firstOpenAt('# 2026-09-28\n\nMonday 28 September\n\n- [ ] ')).toBe('# 2026-09-28\n\nMonday 28 September\n\n- [ ] '.length);
+    expect(firstOpenAt('# Meeting 2026-09-28 14.05\n\nWith \n\n## Notes\n\n- ')).toBe('# Meeting 2026-09-28 14.05\n\nWith '.length);
+    expect(firstOpenAt('# Title\n\n> ')).toBe('# Title\n\n> '.length);
+    expect(firstOpenAt('# Title\n\n1. ')).toBe('# Title\n\n1. '.length);
+    expect(firstOpenAt('## \n')).toBe(3);
+  });
+
+  it('is never a blank line, and is the end of the words when nothing is left open', () => {
+    expect(firstOpenAt('# Title\n\nWords.\n')).toBe('# Title\n\nWords.\n'.length);
+    expect(firstOpenAt('\n\n')).toBe(2);
+    expect(firstOpenAt('')).toBe(0);
   });
 });
 

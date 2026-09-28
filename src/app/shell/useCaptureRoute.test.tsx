@@ -470,10 +470,10 @@ describe('where a capture’s new notes were made', () => {
   });
 
   it('asks where a journal’s entry was written once the recorder has gone, never at its start, and quietly over a lock', async () => {
-    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const { rememberUntouched } = await import('../core/untouched.ts');
     const words = '# Monday 28 September\n';
     const made = `---\ntitle: "2026-09-28 14.05"\n---\n${words}`;
-    rememberEntry('entry', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    rememberUntouched('entry', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
     await createNote('entry', made);
     const asked: { reviewing: boolean; locked: boolean; on: string }[] = [];
     const nothing = vi.fn(async (): Promise<Screen> => ({ name: 'list' }));
@@ -500,11 +500,11 @@ describe('where a capture’s new notes were made', () => {
   });
 
   it('lands where a journal’s entry says when nothing was kept for it, and asks nothing', async () => {
-    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const { rememberUntouched } = await import('../core/untouched.ts');
     const words = '# Monday 28 September\n';
     const made = await createNote('entry', `---\ntitle: "2026-09-28 14.05"\n---\n${words}`);
     await createNote('diary', '---\nbook: true\njournal: true\n---\n');
-    rememberEntry('entry', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    rememberUntouched('entry', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
     const tag = vi.fn();
     const journal = (await getNote('diary'))!;
     const aim = { id: 'entry', placing: { kind: 'end', lead: '**14:05** ' } as const, tag, nothing: async (): Promise<Screen> => ({ name: 'note', note: journal }) };

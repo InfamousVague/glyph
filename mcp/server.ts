@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { isBookBody, isJournalBody } from '../src/app/book/book.ts';
 import { entryBody, entryTitle, isEntryTitle, localStamp, templateOf, uniqueTitle, withEntry } from '../src/app/book/journal.ts';
-import { fillTemplate, openEnd } from '../src/app/book/template.ts';
+import { fillTemplate, openEnd } from '../src/app/core/template.ts';
 import { placeWords } from '../src/app/capture/listAppend.ts';
 import { placeTake } from '../src/app/capture/place.ts';
 import { aiName, authorsOf, withAuthor } from '../src/app/core/authors.ts';
@@ -24,7 +24,7 @@ import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './g
  *
  * A journal's entries are written as the app writes them (docs/DESIGN.md §142): `add_journal_entry` makes the entry
  * named by its minute from the journal's template, with the words on from its time, and puts its line in the journal's
- * index, from the app's own modules (book/journal.ts, book/template.ts). `append_to_note` turns a journal down, since
+ * index, from the app's own modules (book/journal.ts, core/template.ts). `append_to_note` turns a journal down, since
  * its words are the list of its entries, and a rewrite keeps a notebook's keys as it keeps the authors and the place.
  */
 

@@ -1,17 +1,18 @@
 import type { Placing } from '../capture/place.ts';
-import { listLead } from '../core/itemSyntax.ts';
-import { clockTime, longDay } from '../core/stamp.ts';
+import { lineWords, listLead } from './itemSyntax.ts';
+import { clockTime, longDay } from './stamp.ts';
 
 /**
- * A journal's template filled for one entry (book/journal.ts; docs/DESIGN.md §142), with the double-brace placeholders
- * Obsidian's core Templates plugin writes:
+ * A template filled for one note: a journal's for one entry (book/journal.ts; docs/DESIGN.md §142), and a new note's
+ * from one of the six it can start from (notes/noteTemplates.ts; §144). Here in core/ and not in book/ since notes use
+ * it as much as journals now. The double-brace placeholders are the ones Obsidian's core Templates plugin writes:
  *
  *   {{date}}      Monday 28 September         the home page's day, no year (core/stamp.ts `longDay`)
  *   {{time}}      14:05                       a 24-hour clock in every language (core/stamp.ts `clockTime`)
  *   {{weekday}}   Monday
- *   {{title}}     2026-09-28 14.05            the entry's name
+ *   {{title}}     2026-09-28 14.05            the entry's name; empty for a new note, which has none yet
  *   {{journal}}   Diary                       the journal's name
- *   {{date:FORMAT}} and {{time:FORMAT}}       Moment's tokens, as Obsidian takes them
+ *   {{date:FORMAT}} and {{time:FORMAT}}       Moment's tokens, as Obsidian takes them, and the ISO week (below)
  *
  * Anything else is left as it was typed. A name is looked up among these by its own names only: format/prompt.ts's
  * lookup used `in`, so `{{constructor}}` or `{{toString}}` there would print a function's source.
@@ -22,8 +23,13 @@ import { clockTime, longDay } from '../core/stamp.ts';
  * "Sept", and Obsidian's `{{date}}`, which is `YYYY-MM-DD` there, is the long day here; `{{date:YYYY-MM-DD}}` is the
  * same in both.
  *
+ * The week is ISO's, `GGGG` its year and `WW` its number (`{{date:GGGG-[W]WW}}` is `2026-W40`), the same everywhere.
+ * Moment's own week, `gggg` and `ww`, starts on the locale's first day, a Sunday in en-US, and is not read: it stays as
+ * it was typed, so Obsidian's weekly default `gggg-[W]ww` prints as it is, and `GGGG-[W]WW` is the form both read alike.
+ *
  * And where a spoken entry's words go (`openEnd`), which is the template's last line: a line left open goes on, an
- * empty to-do starts the to-do list. Pure: the MCP server fills a template as the app does.
+ * empty to-do starts the to-do list. And where a new note's caret goes (`firstOpenAt`), the first line left open. Pure:
+ * the MCP server fills a template as the app does.
  */
 
 /** A placeholder: its name, and a format after a colon for the two that take one. */
@@ -73,7 +79,23 @@ function meridiem(at: Date): string {
   return part?.value ?? (at.getHours() < 12 ? 'AM' : 'PM');
 }
 
+/**
+ * The ISO week `at` falls in: its year and its number. A week is Monday to Sunday and belongs to the year its Thursday
+ * is in, so 1 January 2021, a Friday, is in 2020's week 53, and 30 December 2024 is in 2025's week 1.
+ */
+function isoWeek(at: Date): { year: number; week: number } {
+  const thursday = new Date(at.getFullYear(), at.getMonth(), at.getDate() + 3 - ((at.getDay() + 6) % 7));
+  const first = new Date(thursday.getFullYear(), 0, 4);
+  const firstThursday = new Date(first.getFullYear(), 0, 4 + 3 - ((first.getDay() + 6) % 7));
+  // Whole days apart, by the calendar and not the clock, so a change to summer time in between counts for nothing.
+  const days = Math.round((Date.UTC(thursday.getFullYear(), thursday.getMonth(), thursday.getDate()) - Date.UTC(firstThursday.getFullYear(), firstThursday.getMonth(), firstThursday.getDate())) / 86_400_000);
+  return { year: thursday.getFullYear(), week: 1 + days / 7 };
+}
+
 const TOKENS: Record<string, (at: Date) => string> = {
+  GGGG: (at) => String(isoWeek(at).year).padStart(4, '0'),
+  WW: (at) => two(isoWeek(at).week),
+  W: (at) => String(isoWeek(at).week),
   YYYY: (at) => String(at.getFullYear()).padStart(4, '0'),
   YY: (at) => two(at.getFullYear() % 100),
   MMMM: (at) => named(at, { month: 'long' }),
@@ -99,7 +121,7 @@ const TOKENS: Record<string, (at: Date) => string> = {
 };
 
 /** Words in square brackets, or a token: the longest first at each place, as Moment reads them. */
-const TOKEN = /\[([^\]]*)\]|YYYY|YY|MMMM|MMM|MM|M|Do|DD|D|dddd|ddd|HH|H|hh|h|mm|A|a/g;
+const TOKEN = /\[([^\]]*)\]|GGGG|WW|W|YYYY|YY|MMMM|MMM|MM|M|Do|DD|D|dddd|ddd|HH|H|hh|h|mm|A|a/g;
 
 /** `at` written in Moment's tokens (`YYYY-MM-DD`, `dddd [at] HH:mm`), words in square brackets kept as they are. */
 export function formatStamp(at: Date, format: string): string {
@@ -128,4 +150,23 @@ export function openEnd(words: string): { base: string; placing: Placing } {
   }
   if (last.trim() && /\s$/.test(last)) return { base: rest, placing: { kind: 'end', lead: last } };
   return { base: words, placing: { kind: 'end' } };
+}
+
+/**
+ * Where a new note's caret goes in its filled words: the end of the first line left open, or the end of the words. A
+ * line is open when it is a heading with no words (`# `), a list's, a to-do's or a quote's lead with no words (`- `,
+ * `- [ ] `, `1. `, `> `), or words ending in a space (`With `), which is `openEnd`'s own rule for a line left open. A
+ * blank line is not open. So A day's caret is in its to-do, A meeting's after "With ", and the rest in their heading.
+ */
+export function firstOpenAt(words: string): number {
+  let at = 0;
+  for (const line of words.split('\n')) {
+    const heading = /^ {0,3}#{1,6} +$/.test(line);
+    // A lead with nothing after it: `- `, `- [ ] `, `1. `, `> `.
+    const lead = line.trim() !== '' && !lineWords(line);
+    const leftOpen = line.trim() !== '' && /\s$/.test(line);
+    if (heading || lead || leftOpen) return at + line.length;
+    at += line.length + 1;
+  }
+  return words.length;
 }

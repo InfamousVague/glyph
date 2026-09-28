@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { inLocale } from '../../test/locale.ts';
-import { clockTime, longDay, stamp } from './stamp.ts';
+import { clockTime, longDate, longDay, stamp } from './stamp.ts';
 
 /**
  * A moment as words: the day and the month in the device's order, and a 24-hour clock in every language. Monday 28
@@ -28,5 +28,11 @@ describe('a moment as words', () => {
     expect(inLocale('en-GB', () => longDay(AFTERNOON))).toBe('Monday 28 September');
     expect(inLocale('en-US', () => longDay(AFTERNOON))).toBe('Monday, September 28');
     expect(inLocale('de-DE', () => longDay(AFTERNOON))).toBe('Montag, 28. September');
+  });
+
+  it('names the day in words with its year, in the locale’s own order', () => {
+    expect(inLocale('en-GB', () => longDate(AFTERNOON))).toBe('Monday, 28 September 2026');
+    expect(inLocale('en-US', () => longDate(AFTERNOON))).toBe('Monday, September 28, 2026');
+    expect(inLocale('de-DE', () => longDate(AFTERNOON))).toBe('Montag, 28. September 2026');
   });
 });
