@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Mic } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
@@ -35,6 +35,8 @@ import {
   type OpenTask,
 } from './dashboard.ts';
 import { TapeShelf } from './TapeShelf.tsx';
+import { CAPS } from './tiers.ts';
+import { useColumnTier } from './useColumnTier.ts';
 import { bookIndex, placeOf } from '../book/book.ts';
 import styles from './HomeScreen.module.css';
 
@@ -52,8 +54,14 @@ import styles from './HomeScreen.module.css';
  * here without opening the note, second because it is what is waiting, its tick is the page's one in-place action, and
  * a meeting's summary writes its actions there; the tapes the recorder made as a row of cards (home/TapeShelf.tsx;
  * Matt: "display them in a cassette shelf on the home page"), above the Library as §127 placed them; their books; and
- * the notes they were in last, four of them, running into "All notes" at the foot, which opens the page that lists every
- * note as a grid of the same cards (notes/AllNotesScreen.tsx).
+ * the notes they were in last, four of them (six on a desk), running into "All notes" at the foot, which opens the page
+ * that lists every note as a grid of the same cards (notes/AllNotesScreen.tsx).
+ *
+ * Laid out by its own width (home/tiers.ts, docs/DESIGN.md §137; Matt: "Extend the dashboard to support wide phone /
+ * tablet layouts too", and then: "It's okay if they're two across or the layout changes slightly on wide the four
+ * column was a suggestion not a rule"): the phone's one column under 44rem; from there two of them across, with the
+ * Fold's hinge in the gap between; and past 60rem a main two cards across beside a rail that holds To do. The groups
+ * keep their order at every width, and the order they are read in is the order they are written in below.
  *
  * The headers Matt saw at two sizes were two kinds of icon: the pin and the cassette were art/Icons.tsx's 1em strokes
  * drawn at 1.15em of a 13px heading, while the Library's book was the kit's lucide, which writes width=24 as an
@@ -90,13 +98,12 @@ interface HomeScreenProps {
 }
 
 /**
- * How many of the notes touched last are shown (four: one row on a wide screen, and they run straight into "All
- * notes", which is their See all), how many tapes are on the shelf, how many to-dos the card holds until "Show all"
- * is pressed, and how many it holds then, before the rest are counted instead.
+ * How many tapes are on the shelf, at every width (one row on a phone, two rows of four on the wider screens), and how
+ * many to-dos the card holds once "Show all" is pressed, before the rest are counted instead. How many of the notes
+ * touched last are shown and how many to-dos before "Show all" are the page's width's to say (home/tiers.ts `CAPS`):
+ * four and five on a phone, and the notes run straight into "All notes", which is their See all.
  */
-const RECENT = 4;
 const SHELF = 8;
-const TASKS = 5;
 const TASKS_OPEN = 40;
 /**
  * How many beats the groups under the shelf wait for it: the two and a bit cassettes the cover screen shows, not all
@@ -124,6 +131,9 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
+  // Which of its layouts the page is in, by its own column's width (home/tiers.ts): how many notes and to-dos it holds.
+  const page = useRef<HTMLDivElement>(null);
+  const caps = CAPS[useColumnTier(page)];
   // Smoke at both ends: under the bar, and at the page's very foot, with the notes running on under the dock's
   // buttons down to it (Matt: "Make the bottom bar transparent and move the dark gradient down").
   useWispEdge(scroller, 'home', topBar, { foot: true });
@@ -138,7 +148,7 @@ export function HomeScreen({
   // Which notes are meetings (core/preferences.ts): a meeting is a tape whatever made it, so Recent leaves it to the shelf.
   const { meetings } = usePreferences();
   const pinned = useMemo(() => pinnedNotes(shown), [shown]);
-  const recent = useMemo(() => recentNotes(shown, RECENT, meetings), [shown, meetings]);
+  const recent = useMemo(() => recentNotes(shown, caps.recent, meetings), [shown, caps.recent, meetings]);
   // The tapes, the last recorded first; the shelf holds eight and says how many more there are (home/TapeShelf.tsx).
   const taped = useMemo(() => tapedNotes(shown, meetings), [shown, meetings]);
   const shelf = useMemo(() => taped.slice(0, SHELF), [taped]);
@@ -163,6 +173,24 @@ export function HomeScreen({
   // "Show all 14": the card opens in place to forty rows. Folded again with the workspace, whose to-dos these are.
   const [showAll, setShowAll] = useState(false);
   useEffect(() => setShowAll(false), [workspace]);
+  /*
+   * Show all keeps its heading where it was on the screen. On two columns To do sits beside a single pinned card, and
+   * opened out it spans the page under that card (HomeScreen.module.css), which moved its heading down by the card's
+   * height, away from the thumb that pressed it; so the page scrolls by as much as the heading moved, and Show fewer
+   * does the same the other way. Where nothing moves (a phone, a desk's rail, a card that already spanned) that is
+   * nothing. A scroll set, not a glide: the heading is meant to stay still, so there is nothing for reduced motion.
+   */
+  const tasksRow = useRef<HTMLDivElement>(null);
+  const heldAt = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const was = heldAt.current;
+    heldAt.current = null;
+    const row = tasksRow.current;
+    const scroll = scroller.current;
+    if (was === null || !row || !scroll) return;
+    const moved = row.getBoundingClientRect().top - was;
+    if (moved) scroll.scrollTop += moved;
+  }, [showAll]);
   // The To do card takes one beat between the pinned cards and the shelf.
   const todoBeats = open.length || allDone ? 1 : 0;
 
@@ -203,171 +231,191 @@ export function HomeScreen({
         <h1 className={styles.saidOnly}>Home</h1>
       </header>
       <div ref={scroller} className={styles.scroll}>
-        <div className={styles.page}>
-          <p className={styles.today}>{today}</p>
-          {/* The digest: a row of fragments, each a word that goes to its group. Nothing while loading, and the ghost speaks on an empty page. */}
-          {!loading && hasNotes ? (
-            <ul className={styles.digest} aria-label="Today">
-              {phrases.map(({ text, go }) => (
-                <li key={text}>
-                  {go ? (
-                    <button type="button" className={`app-word ${styles.digestWord}`} onClick={() => glide(go)}>
-                      {text}
-                    </button>
-                  ) : (
-                    <span>{text}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <WorkspaceBar onManage={setManage} />
-          <UpdateNotice updates={updates} />
-          <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
-          {showAcademy && onAcademy ? <AcademyCard onOpen={onAcademy} onHide={onHideAcademy} /> : null}
-          <RefiningNotice />
-
-          {!loading && !hasNotes ? (
-            <div className={styles.empty}>
-              <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
-              <p className={styles.emptyLead}>{spaces.current ? `Nothing in ${spaces.current.name} yet.` : 'A blank page.'}</p>
-              <p className={styles.emptyHint}>{isAndroid ? 'Write it, or hold the side key and say it.' : 'Write it, or tap Speak and say it.'}</p>
-            </div>
-          ) : null}
-
-          {pinned.length ? (
-            <section className={styles.section} aria-labelledby="home-pinned">
-              <div className={styles.groupRow}>
-                <h2 id="home-pinned" className={styles.group}>
-                  <Pin className={`${styles.groupMark} ${styles.groupMarkPin}`} />
-                  <span className={styles.groupName}>Pinned</span>
-                </h2>
-              </div>
-              <ol className={styles.cards}>{pinned.map(card)}</ol>
-            </section>
-          ) : null}
-
+        <div ref={page} className={styles.page}>
           {/*
-            What is waiting, in one card, second on the page: its tick is the page's one in-place action, and a
-            meeting's summary writes its `- [ ]` actions here (§127). Five rows, most recently touched note's first,
-            each with the note it lives in and when that note was touched; "Show all" opens the card to forty. With
-            the last one ticked, the same card holds the ghost instead, under a heading with no count and no word.
+            The page's grid (HomeScreen.module.css, "The page laid out wide"): a plain block on a phone, where the
+            wrappers lay out as if they were not there, and two columns, or a main and a rail, on the wider screens.
+            Each group says which it is (`data-group`) for its place on them.
           */}
-          {open.length || allDone ? (
-            <section className={styles.section} aria-labelledby="home-tasks">
-              <div className={styles.groupRow}>
-                <h2 id="home-tasks" className={styles.group}>
-                  <TickBox className={styles.groupMark} />
-                  <span className={styles.groupName}>To do</span>
+          <div className={styles.grid}>
+            <div className={styles.head}>
+              <p className={styles.today}>{today}</p>
+              {/* The digest: a row of fragments, each a word that goes to its group. Nothing while loading, and the ghost speaks on an empty page. */}
+              {!loading && hasNotes ? (
+                <ul className={styles.digest} aria-label="Today">
+                  {phrases.map(({ text, go }) => (
+                    <li key={text}>
+                      {go ? (
+                        <button type="button" className={`app-word ${styles.digestWord}`} onClick={() => glide(go)}>
+                          {text}
+                        </button>
+                      ) : (
+                        <span>{text}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <WorkspaceBar onManage={setManage} />
+              <div className={styles.notices}>
+                <UpdateNotice updates={updates} />
+                <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
+                {showAcademy && onAcademy ? <AcademyCard onOpen={onAcademy} onHide={onHideAcademy} /> : null}
+                <RefiningNotice />
+              </div>
+            </div>
+
+            {!loading && !hasNotes ? (
+              <div className={styles.empty}>
+                <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
+                <p className={styles.emptyLead}>{spaces.current ? `Nothing in ${spaces.current.name} yet.` : 'A blank page.'}</p>
+                <p className={styles.emptyHint}>{isAndroid ? 'Write it, or hold the side key and say it.' : 'Write it, or tap Speak and say it.'}</p>
+              </div>
+            ) : null}
+
+            {pinned.length ? (
+              <section className={styles.section} data-group="pinned" aria-labelledby="home-pinned">
+                <div className={styles.groupRow}>
+                  <h2 id="home-pinned" className={styles.group}>
+                    <Pin className={`${styles.groupMark} ${styles.groupMarkPin}`} />
+                    <span className={styles.groupName}>Pinned</span>
+                  </h2>
+                </div>
+                <ol className={styles.cards}>{pinned.map(card)}</ol>
+              </section>
+            ) : null}
+
+            {/*
+              What is waiting, in one card, second on the page: its tick is the page's one in-place action, and a
+              meeting's summary writes its `- [ ]` actions here (§127). Five rows (eight in a desk's rail), most
+              recently touched note's first, each with the note it lives in and when that note was touched; "Show all"
+              opens the card to forty, and says so with `data-open`, which on two columns spreads the card across the
+              page. With the last one ticked, the same card holds the ghost instead, under a heading with no count and
+              no word.
+            */}
+            {open.length || allDone ? (
+              <section className={styles.section} data-group="tasks" data-open={showAll && open.length > caps.tasks ? '' : undefined} aria-labelledby="home-tasks">
+                <div ref={tasksRow} className={styles.groupRow}>
+                  <h2 id="home-tasks" className={styles.group}>
+                    <TickBox className={styles.groupMark} />
+                    <span className={styles.groupName}>To do</span>
+                    {open.length ? (
+                      <span className={styles.count}>
+                        <span>·</span> {open.length}
+                      </span>
+                    ) : null}
+                  </h2>
+                  {open.length > caps.tasks ? (
+                    <button
+                      type="button"
+                      className={`app-word ${styles.groupWord}`}
+                      onClick={() => {
+                        heldAt.current = tasksRow.current?.getBoundingClientRect().top ?? null;
+                        setShowAll((was) => !was);
+                      }}
+                    >
+                      {showAll ? 'Show fewer' : `Show all ${open.length}`}
+                    </button>
+                  ) : null}
+                </div>
+                <div className={styles.todo} style={{ '--i': Math.min(pinned.length, 8) } as CSSProperties}>
                   {open.length ? (
-                    <span className={styles.count}>
-                      <span>·</span> {open.length}
-                    </span>
-                  ) : null}
-                </h2>
-                {open.length > TASKS ? (
-                  <button type="button" className={`app-word ${styles.groupWord}`} onClick={() => setShowAll((was) => !was)}>
-                    {showAll ? 'Show fewer' : `Show all ${open.length}`}
-                  </button>
-                ) : null}
-              </div>
-              <div className={styles.todo} style={{ '--i': Math.min(pinned.length, 8) } as CSSProperties}>
-                {open.length ? (
-                  <>
-                    <ul className={styles.tasks}>
-                      {open.slice(0, showAll ? TASKS_OPEN : TASKS).map((task) => (
-                        <li key={`${task.noteId}:${task.line}`} className={styles.task}>
-                          <button
-                            type="button"
-                            className={styles.box}
-                            aria-label={`Tick off ${task.text}`}
-                            onClick={() => {
-                              setTicked((was) => new Set(was).add(`${task.noteId}:${task.line}`));
-                              onTick(task);
-                            }}
-                          />
-                          <button type="button" className={styles.taskOpen} onClick={() => onOpen(task.noteId, task.at)}>
-                            <span className={styles.taskText}>{shortenUrls(task.text)}</span>
-                            <span className={styles.taskNote}>
-                              {titleOf.get(task.noteId)} · {when(task.touched)}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                    {showAll && open.length > TASKS_OPEN ? <p className={styles.more}>and {open.length - TASKS_OPEN} more in your notes</p> : null}
-                  </>
-                ) : (
-                  <>
-                    <Ghost scene="all-ticked" size="small" className={styles.allDoneArt} />
-                    <p className={styles.allDoneWords}>Every to-do is done.</p>
-                  </>
-                )}
-              </div>
-            </section>
-          ) : null}
+                    <>
+                      <ul className={styles.tasks}>
+                        {open.slice(0, showAll ? TASKS_OPEN : caps.tasks).map((task) => (
+                          <li key={`${task.noteId}:${task.line}`} className={styles.task}>
+                            <button
+                              type="button"
+                              className={styles.box}
+                              aria-label={`Tick off ${task.text}`}
+                              onClick={() => {
+                                setTicked((was) => new Set(was).add(`${task.noteId}:${task.line}`));
+                                onTick(task);
+                              }}
+                            />
+                            <button type="button" className={styles.taskOpen} onClick={() => onOpen(task.noteId, task.at)}>
+                              <span className={styles.taskText}>{shortenUrls(task.text)}</span>
+                              <span className={styles.taskNote}>
+                                {titleOf.get(task.noteId)} · {when(task.touched)}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {showAll && open.length > TASKS_OPEN ? <p className={styles.more}>and {open.length - TASKS_OPEN} more in your notes</p> : null}
+                    </>
+                  ) : (
+                    <>
+                      <Ghost scene="all-ticked" size="small" className={styles.allDoneArt} />
+                      <p className={styles.allDoneWords}>Every to-do is done.</p>
+                    </>
+                  )}
+                </div>
+              </section>
+            ) : null}
 
-          {/* The tapes, as cards on a shelf (docs/DESIGN.md §127). No group while there are none. */}
-          {shelf.length ? (
-            <section className={styles.section} aria-labelledby="home-tapes">
-              <div className={styles.groupRow}>
-                <h2 id="home-tapes" className={styles.group}>
-                  <Cassette className={styles.groupMark} />
-                  <span className={styles.groupName}>Tapes</span>
+            {/* The tapes, as cards on a shelf (docs/DESIGN.md §127). No group while there are none. */}
+            {shelf.length ? (
+              <section className={styles.section} data-group="tapes" aria-labelledby="home-tapes">
+                <div className={styles.groupRow}>
+                  <h2 id="home-tapes" className={styles.group}>
+                    <Cassette className={styles.groupMark} />
+                    <span className={styles.groupName}>Tapes</span>
+                    {taped.length > shelf.length ? (
+                      <span className={styles.count}>
+                        <span>·</span> {taped.length}
+                      </span>
+                    ) : null}
+                  </h2>
+                  {/* Only past the shelf's eight: the count and the way to the rest, All notes with its Tapes toggle on. */}
                   {taped.length > shelf.length ? (
-                    <span className={styles.count}>
-                      <span>·</span> {taped.length}
-                    </span>
+                    <button type="button" className={`app-word ${styles.groupWord}`} onClick={() => onAllNotes({ tapes: true })}>
+                      See all
+                    </button>
                   ) : null}
-                </h2>
-                {/* Only past the shelf's eight: the count and the way to the rest, All notes with its Tapes toggle on. */}
-                {taped.length > shelf.length ? (
-                  <button type="button" className={`app-word ${styles.groupWord}`} onClick={() => onAllNotes({ tapes: true })}>
-                    See all
-                  </button>
-                ) : null}
-              </div>
-              <TapeShelf
-                notes={shelf}
-                gists={gists}
-                onOpen={onOpen}
-                onGetModel={onGetModel ?? onSettings}
-                // The queue is asked for the tape's real kind: a meeting's write-up for a meeting, a recording's otherwise.
-                onSummarize={(note) => enqueueSummary(note.id, summaryKindOf(note, meetings))}
-                canSummarize={isTauri()}
-              />
-            </section>
-          ) : null}
+                </div>
+                <TapeShelf
+                  notes={shelf}
+                  gists={gists}
+                  onOpen={onOpen}
+                  onGetModel={onGetModel ?? onSettings}
+                  // The queue is asked for the tape's real kind: a meeting's write-up for a meeting, a recording's otherwise.
+                  onSummarize={(note) => enqueueSummary(note.id, summaryKindOf(note, meetings))}
+                  canSummarize={isTauri()}
+                />
+              </section>
+            ) : null}
 
-          {books.length ? (
-            <section className={styles.section} aria-labelledby="home-library">
-              <div className={styles.groupRow}>
-                <h2 id="home-library" className={styles.group}>
-                  <Book className={styles.groupMark} />
-                  <span className={styles.groupName}>Library</span>
-                </h2>
-              </div>
-              <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length + todoBeats + shelfBeats))}</ol>
-            </section>
-          ) : null}
+            {books.length ? (
+              <section className={styles.section} data-group="library" aria-labelledby="home-library">
+                <div className={styles.groupRow}>
+                  <h2 id="home-library" className={styles.group}>
+                    <Book className={styles.groupMark} />
+                    <span className={styles.groupName}>Library</span>
+                  </h2>
+                </div>
+                <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length + todoBeats + shelfBeats))}</ol>
+              </section>
+            ) : null}
 
-          {recent.length ? (
-            <section className={styles.section} aria-labelledby="home-recent">
-              <div className={styles.groupRow}>
-                <h2 id="home-recent" className={styles.group}>
-                  <Clock className={styles.groupMark} />
-                  <span className={styles.groupName}>Recent</span>
-                </h2>
-              </div>
-              <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length + todoBeats + shelfBeats + books.length))}</ol>
-            </section>
-          ) : null}
+            {recent.length ? (
+              <section className={styles.section} data-group="recent" aria-labelledby="home-recent">
+                <div className={styles.groupRow}>
+                  <h2 id="home-recent" className={styles.group}>
+                    <Clock className={styles.groupMark} />
+                    <span className={styles.groupName}>Recent</span>
+                  </h2>
+                </div>
+                <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length + todoBeats + shelfBeats + books.length))}</ol>
+              </section>
+            ) : null}
 
-          {/* The way to every note: the grid page (notes/AllNotesScreen.tsx), with how many wait there. */}
-          <button type="button" className={`app-word ${styles.allNotes}`} onClick={() => onAllNotes()}>
-            <Grid className={styles.allNotesMark} />
-            All notes · {notes.filter((n) => !n.archivedAt).length}
-          </button>
+            {/* The way to every note: the grid page (notes/AllNotesScreen.tsx), with how many wait there. */}
+            <button type="button" className={`app-word ${styles.allNotes}`} onClick={() => onAllNotes()}>
+              <Grid className={styles.allNotesMark} />
+              All notes · {notes.filter((n) => !n.archivedAt).length}
+            </button>
+          </div>
         </div>
       </div>
 
