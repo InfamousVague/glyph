@@ -201,10 +201,10 @@
  *
  * - From 50rem to 60rem, the page's two units: half a unit each, two to a unit, four across, with the units' own gap
  *   between the pairs, so a tape's outer edge is a unit's edge and the Fold's hinge runs between the second and the
- *   third. 50rem because every width the Fold reports opened out with its hinge down the page is 51-55rem of column,
- *   while a tablet held upright (45-49rem) keeps the phone's full-size tapes in the row. On the grid a cassette is
- *   smaller than the phone's 170px: 139 at the grid's foot, 142-157 on the Fold, 144 in a 1280 window with the sidebar
- *   docked, 173 at the top.
+ *   third. 50rem because every width the Fold may report opened out with its hinge down the page (870 to 933; §92 saw
+ *   880) is 51-55rem of column, while a tablet held upright (45-49rem) keeps the phone's full-size tapes in the row.
+ *   On the grid a cassette is smaller than the phone's 170px: about 139 at the grid's foot, and measured, 142-157 on
+ *   the Fold opened out (870 to 933 wide), 144 in a 1280 window with the sidebar docked, 175 at the top (1010 wide).
  * - From 60rem, the desk's main: three across (`--shelf-across`, which HomeScreen.module.css sets: four when there is
  *   no rail).
  *

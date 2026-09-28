@@ -14,10 +14,11 @@ import { useMeetingLive } from './useMeetingLive.ts';
 import styles from './TapeShelf.module.css';
 
 /**
- * The shelf of tapes on the home page (Matt: "display them in a cassette shelf on the home page"; docs/DESIGN.md
- * §127 section 1, redrawn as cards in §132): a row of tape cards that scrolls sideways, one for each note the
- * recorder made, the last recorded first, and on a wide page a grid on the page's columns instead (§137). Which notes are tapes is home/dashboard.ts's (`tapedNotes`); the home page
- * hands this the first eight, and says in its heading how many more there are and where.
+ * The shelf of tapes on the home page (Matt: "display them in a cassette shelf on the home page"; docs/DESIGN.md §127
+ * section 1, redrawn as cards in §132): a row of tape cards that scrolls sideways, one for each note the recorder made,
+ * the last recorded first, and on a wide page a grid on the page's columns instead (§137). Which notes are tapes is
+ * home/dashboard.ts's (`tapedNotes`); the home page hands this the first eight, and says in its heading how many more
+ * there are and where.
  *
  * Each card is on the note card's ground (notes/NoteCard.tsx), so a row of tapes and a row of notes read as one kind
  * of thing: the cassette drawn bare (tapes/TapeArt.tsx) at the card's inner width, its title under it in two lines

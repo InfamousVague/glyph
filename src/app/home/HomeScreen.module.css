@@ -476,8 +476,9 @@
  * The To do card: every open to-do in one card on the note card's ground (notes/NoteCard.module.css .card), written
  * out since this one is a column of rows and not a button. Second on the page, with the pinned cards' beats before
  * it. The rows were eight hairlined lines at the page's foot; here they are rows in a card, with air and no rules.
- * Measured in Chromium (docs/DESIGN.md §132): five two-line rows make a card 283px tall at 412px, 201px in two
- * columns at the opened Fold's 1432px pane, and the whole card is on the cover screen's first screen under a pinned card.
+ * Measured in Chromium (docs/DESIGN.md §132, §137): five two-line rows make a card 283px tall at 412px, and the whole
+ * card is on the cover screen's first screen under a pinned card; at the opened Fold's 880 it is 296px in the second
+ * unit, or 188px in two columns across the page, and in the rail of a 1280px desk eight rows make it 476px.
  * No wash on hover, unlike a note card or a tape card: nothing on it opens as a whole, only its rows.
  */
 .todo {
