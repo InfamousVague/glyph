@@ -1,8 +1,8 @@
 import { frontMatterEnd, frontMatterValue, quotedTitle } from '../core/frontMatter.ts';
 import { BOX, MARKER } from '../core/itemSyntax.ts';
-import { noteTitle, withoutFrontMatter, type Note } from '../core/store.ts';
-import { titleKey } from '../core/titleKey.ts';
-import { sameTitle } from '../editor/wikiLinks.ts';
+import { noteTitle, withoutFrontMatter } from '../core/noteTitle.ts';
+import type { Note } from '../core/store.ts';
+import { sameTitle, titleKey } from '../core/titleKey.ts';
 
 /**
  * A book: a collection of notes in an order, with an index (Matt: "add a Book feature it should be a collection of
@@ -15,6 +15,10 @@ import { sameTitle } from '../editor/wikiLinks.ts';
  * Words that are not list items - a paragraph before the list, a heading - are the book's own and are kept where
  * they are: the index view shows them over the chapters. Nothing here touches a chapter note; a chapter is any note,
  * found by its title, and a title with no note yet is a chapter still to be written.
+ *
+ * Pure, and it imports nothing that draws or stores: the MCP server (mcp/server.ts) bundles it for Node, with a
+ * journal's rules on top of it (book/journal.ts), so Claude writes an entry and its line as the app does. So the title
+ * comes from core/noteTitle.ts, not the store, and the match from core/titleKey.ts, not the editor's links.
  */
 
 export interface Chapter {

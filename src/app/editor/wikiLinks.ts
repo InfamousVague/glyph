@@ -1,6 +1,5 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { titleKey } from '../core/titleKey.ts';
 
 /**
  * A link from one note to another, written the way every notes app writes it (docs/MARKDOWN.md):
@@ -53,11 +52,8 @@ export function wikiLinksIn(text: string, offset = 0): WikiLink[] {
   return found;
 }
 
-/** A title as it is matched: what a person said, not what they typed. */
-export function sameTitle(one: string, two: string): boolean {
-  const key = titleKey(one);
-  return key !== '' && key === titleKey(two);
-}
+/** A title as it is matched: what a person said, not what they typed (core/titleKey.ts). */
+export { sameTitle } from '../core/titleKey.ts';
 
 export interface WikiOptions {
   /** Whether a note by that title exists; a link to one that does not is drawn as waiting. */

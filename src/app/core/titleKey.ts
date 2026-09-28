@@ -21,3 +21,13 @@ export function titleKey(title: string): string {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
+
+/**
+ * Whether two titles are one note's: the same key, and a key with something in it. Here rather than only in
+ * editor/wikiLinks.ts, which re-exports it for its callers, because wikiLinks draws with CodeMirror and a notebook's
+ * pure half (book/book.ts, book/journal.ts) is bundled into the MCP server, which cannot take it.
+ */
+export function sameTitle(one: string, two: string): boolean {
+  const key = titleKey(one);
+  return key !== '' && key === titleKey(two);
+}
