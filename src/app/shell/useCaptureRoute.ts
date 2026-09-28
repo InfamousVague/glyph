@@ -12,6 +12,7 @@ import { isMobile } from '../core/platform.ts';
 import { preferences, setPreferences } from '../core/preferences.ts';
 import { createNote, deleteNote, getNote, newNoteId, type Note } from '../core/store.ts';
 import { isTauri } from '../core/tauri.ts';
+import { tagNewNotesIfWanted } from '../core/location.ts';
 import { fileNewNote } from '../core/workspaces.ts';
 import { captureScreen, meetingScreen, type Screen } from './screen.ts';
 
@@ -72,13 +73,15 @@ export interface CaptureRouteOptions {
   clearStage: () => void;
   /** A line to the person: why a meeting did not start. */
   say: (message: string) => void;
+  /** Says what a first location ask is for and hands its press the ask (App.tsx; core/location.ts `tagNewNotesIfWanted`). */
+  introduceLocation?: (allow: () => void) => void;
 }
 
 /** Said when the activity refused the microphone, and when the service could not say why it failed. */
 export const MICROPHONE_REFUSED = 'Ghost.md needs the microphone to record a meeting.';
 export const MEETING_FAILED = 'The meeting could not start.';
 
-export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBoot, tooSoon, sayTooSoon, clearStage, say }: CaptureRouteOptions): CaptureRoute {
+export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBoot, tooSoon, sayTooSoon, clearStage, say, introduceLocation }: CaptureRouteOptions): CaptureRoute {
   // Read by the handlers registered once.
   const now = useRef({ screen, tooSoon, sayTooSoon, clearStage, say, refresh });
   now.current = { screen, tooSoon, sayTooSoon, clearStage, say, refresh };
@@ -284,6 +287,10 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
       if (note && !existed) fileNewNote(note.id);
       for (const made of landing?.made ?? []) fileNewNote(made);
       await refresh();
+      // The take's own new note starts with where the phone was, once the capture screen has gone (below). Not a note
+      // it only wrote into, and not the notes its spoken commands made (`landing.made`), which are the app's doing.
+      const own = note && !existed && !landing?.made.includes(note.id) ? note.id : null;
+      if (own) tagAfter.current = () => void tagNewNotesIfWanted([own], { reviewing: review?.job != null }, { quiet: locked, introduce: introduce.current });
       // Words a recording put into a note that was already there (capture/liveRoute.ts), or a card after Done confirmed:
       // that note opens, read fresh, with an Undo for what went in (editor/NoteScreen.tsx). Not over a locked phone.
       if (note && landing && !locked) {
@@ -328,6 +335,25 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
     },
     [refresh, setScreen],
   );
+
+  /*
+   * Where a take's new note was made (core/location.ts `tagNewNotesIfWanted`), asked once the screen has changed: the
+   * capture screen has unmounted by then and let the queue go, the note's screen has mounted and watches its tag
+   * (a parent's effects run after its children's), so the tag goes through that note's editor rather than under it,
+   * and the fix never holds the screen. Never at `start`: the generated chrome client has one permission listener for
+   * the microphone and the location, and a location prompt raised while the recorder's is pending overwrites it. A
+   * review live for the note keeps the tag waiting, as a queued pass does; over a locked phone the fix is taken only
+   * where the permission is already held.
+   */
+  const tagAfter = useRef<(() => void) | null>(null);
+  const introduce = useRef(introduceLocation);
+  introduce.current = introduceLocation;
+  useEffect(() => {
+    if (screen.name === 'capture' || !tagAfter.current) return;
+    const tag = tagAfter.current;
+    tagAfter.current = null;
+    tag();
+  }, [screen]);
 
   return { start, finished, meeting, showMeeting, leftMeeting };
 }

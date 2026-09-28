@@ -297,6 +297,17 @@
 }
 
 /*
+ * Under the front matter folded to its one quiet line (editor/extended.ts), a heading keeps a little of its room: the
+ * line belongs with the map card above it, not with the title, so the gap below it is the larger.
+ */
+.editor :global(.cm-frontFold) + :global(.cm-line).lineH1,
+.editor :global(.cm-frontFold) + :global(.cm-line).lineH2,
+.editor :global(.cm-frontFold) + :global(.cm-line).lineH3,
+.editor :global(.cm-frontFold) + :global(.cm-line).lineH4 {
+  padding-block-start: var(--glacier-space-6);
+}
+
+/*
  * SPACE AROUND A BLOCK. A quote and a block of code stand clear of the
  * screen's edges and of the lines around them (Matt: "code blocks and >
  * quotes are placed right up against the edges of the screen there should be

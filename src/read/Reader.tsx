@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Download, Plus } from '@glacier/icons';
 import { failureText } from '../app/core/failure.ts';
 import { Editor } from '../app/editor/Editor.tsx';
@@ -13,14 +13,25 @@ import { sameTitle } from '../app/editor/wikiLinks.ts';
 import { noteTitle, type Note } from '../app/core/store.ts';
 import { readShared, readShareLink, sharedAsFile, type Shared } from '../app/share/share.ts';
 import { authorsOf } from '../app/core/authors.ts';
+import { geoTagOf } from '../app/core/geotag.ts';
 import { Byline } from '../app/authors/Byline.tsx';
 import styles from './Reader.module.css';
+
+/*
+ * The map card, fetched only for a page that says where it was written: most shared pages do not, and the card is
+ * the app's (editor/MapCard.tsx), which would otherwise ride in the chunk this page shares with the app.
+ */
+const MapCard = lazy(() => import('../app/editor/MapCard.tsx').then((module) => ({ default: module.MapCard })));
 
 /**
  * The page a shared note or book is read on (docs/SHARING.md): the link's key opens it here, in the browser, and the
  * server only ever held ciphertext. Made of the app's own parts - the note's editor, read-only and formatted, the
  * canvas, a book's index and the bar a chapter wears - so a note reads here as it does in Ghost.md, and nothing on
  * the page can change it. Two ways to keep it: save a copy into your own Ghost.md, or download it as Markdown.
+ *
+ * A page that says where it was written (core/geotag.ts; the owner chose to share that) draws the map card under its
+ * byline, quiet until it is tapped: opening a link fetches nothing from openstreetmap.org until the reader chooses
+ * to. The page never asks for a name; it draws what the front matter holds.
  */
 
 const dark = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
@@ -42,6 +53,8 @@ export function Reader() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isDark, setDark] = useState(dark);
+  /** The page whose map the reader asked to see, if any. */
+  const [mapOn, setMapOn] = useState<number | null>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
@@ -76,7 +89,7 @@ export function Reader() {
       </main>
     );
   }
-  return <Read shared={state.shared} page={page} setPage={setPage} dark={isDark} saving={saving} setSaving={setSaving} copied={copied} setCopied={setCopied} />;
+  return <Read shared={state.shared} page={page} setPage={setPage} dark={isDark} saving={saving} setSaving={setSaving} copied={copied} setCopied={setCopied} mapOn={mapOn} setMapOn={setMapOn} />;
 }
 
 function Read({
@@ -88,6 +101,8 @@ function Read({
   setSaving,
   copied,
   setCopied,
+  mapOn,
+  setMapOn,
 }: {
   shared: Shared;
   page: number;
@@ -97,6 +112,8 @@ function Read({
   setSaving: (on: boolean) => void;
   copied: boolean;
   setCopied: (on: boolean) => void;
+  mapOn: number | null;
+  setMapOn: (n: number | null) => void;
 }) {
   // The share's pages as notes, so the book's own helpers find the index and a chapter's place in it.
   const notes = useMemo(() => shared.pages.map((p, i) => ({ id: `page-${i}`, body: p.body, createdAt: 0, updatedAt: 0, source: 'editor' }) as Note), [shared]);
@@ -120,6 +137,8 @@ function Read({
   const readable = whole ? whole.chapters.filter((c) => indexOf(c.title) > 0) : [];
   const place = whole ? { ...whole, chapters: readable, at: readable.findIndex((c) => sameTitle(c.title, whole.chapters[whole.at]!.title)) } : null;
   const canvas = isCanvasBody(current.body) ? canvasOf(current.body) : null;
+  // Where the page was written, when its owner shared that (share/share.ts): the card, quiet until tapped.
+  const tag = geoTagOf(current.body);
   const link = typeof location !== 'undefined' ? location.href : '';
   const found = readShareLink(link);
 
@@ -213,6 +232,11 @@ function Read({
       ) : (
         <article className={styles.note}>
           <Byline authors={authorsOf(current.body)} />
+          {tag ? (
+            <Suspense fallback={null}>
+              <MapCard tag={tag} mode={mapOn === page ? 'map' : 'ask'} dark={dark} onShow={() => setMapOn(page)} className={styles.map} />
+            </Suspense>
+          ) : null}
           <Editor
             key={`${page}:${current.title}`}
             value={current.body}

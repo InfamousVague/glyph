@@ -70,7 +70,8 @@ GLYPH_STORE=play npm run android:build -- --aab --target aarch64
 | Device or other IDs (a device's public key and kind, e.g. "Android") | Yes, optional, not shared | Account management |
 | Notes, audio, photos | **No** | End-to-end encrypted, so we can't read them. Play counts that as not collected. |
 | A meeting's audio | **No** | Recorded, transcribed and summarised on the phone. It is not synced at all unless Settings › Account › Sync meeting recordings is on, and then end-to-end encrypted like the rest. |
-| Anything else (location, contacts, analytics, crash logs) | No | |
+| Location (approximate and precise) | Yes, optional: only once the person allows the location permission, then on for new notes by default and switched off in Settings › Location on each device; a note's own Add my location. Not shared with us. Sent to OpenStreetMap, each switchable: the map tiles around a tagged note's place (about a kilometre across, with the device's IP address) each time the note is opened, and the place's coordinates rounded to about 100 m, once, for its name | App functionality: a note says where it was written. End-to-end encrypted in sync, so not readable by us. DESIGN §134. |
+| Anything else (contacts, analytics, crash logs) | No | |
 
 Also answer:
 - **Encrypted in transit:** yes.

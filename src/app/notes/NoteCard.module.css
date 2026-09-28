@@ -141,6 +141,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Where it was written, after the date, in the foot's own type (NoteCard.tsx): the foot stays one line, and a long
+ * name gives way at its end rather than wrapping it. Not a flex row, which would trim the spaces around the dots.
+ */
+.when {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* A book's card: how many pages, then the first few as its index, in the card's own quiet type. */
 .bookMeta {
   font-size: var(--glacier-font-size-sm);

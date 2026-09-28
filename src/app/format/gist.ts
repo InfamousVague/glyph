@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { generate, listModels, type Run } from '../core/ai.ts';
 import { externalStore } from '../core/externalStore.ts';
+import { frontMatterOffset } from '../core/frontMatter.ts';
 import { MARKER } from '../core/itemSyntax.ts';
 import type { Note } from '../core/store.ts';
 import { isTauri } from '../core/tauri.ts';
@@ -36,7 +37,16 @@ import { keepGist, readGist } from './results.ts';
  * review is up (`pauseGists`, following capture/refine.ts's hold) a gist in
  * flight is cancelled and not counted against its note, and the runner looks
  * again once the hold has gone.
+ *
+ * The gist is of the note's words, after its front matter: where a note was
+ * written (core/geotag.ts) must not become "Written at Trafalgar Square" on
+ * the home page, and a tag or a place written in must not change the hash the
+ * gist is kept against. A note with front matter regenerates its gist once,
+ * on this change.
  */
+
+/** The note's words: everything after its front matter (core/frontMatter.ts). */
+const wordsOf = (body: string) => body.slice(frontMatterOffset(body));
 
 /** The model's answer as a card's line: the first line, bare, at most this long. */
 const LONGEST = 90;
@@ -95,13 +105,13 @@ onRefineHold(pauseGists);
 function hashOf(id: string, body: string): number {
   const known = hashes.get(id);
   if (known && known.body === body) return known.hash;
-  const hash = bodyHash(body);
+  const hash = bodyHash(wordsOf(body));
   hashes.set(id, { body, hash });
   return hash;
 }
 
-/** The body's first line, the part a gist would change with. */
-const headOf = (body: string) => body.split('\n').find((l) => l.trim())?.trim() ?? '';
+/** The words' first line, the part a gist would change with. */
+const headOf = (body: string) => wordsOf(body).split('\n').find((l) => l.trim())?.trim() ?? '';
 
 /**
  * Whether the kept gist still stands for `body`: the same body, or one that
@@ -115,7 +125,7 @@ export function gistStands(kept: { for: number; len?: number; head?: string } | 
   if (kept.for === hashOf(id, body)) return true;
   if (kept.len === undefined || kept.head === undefined) return false;
   if (kept.head !== headOf(body)) return false;
-  return Math.abs(body.length - kept.len) < Math.max(20, kept.len * 0.05);
+  return Math.abs(wordsOf(body).length - kept.len) < Math.max(20, kept.len * 0.05);
 }
 
 /** The kept gist for a note, when it still stands for the body the note has now. */
@@ -131,7 +141,7 @@ export function activeGist(): string | null {
 
 function owed(): [string, string] | null {
   for (const [id, body] of bodies) {
-    if (!body.trim() || failed.has(id) || gistFor(id, body) || isRunning(id)) continue;
+    if (!wordsOf(body).trim() || failed.has(id) || gistFor(id, body) || isRunning(id)) continue;
     return [id, body];
   }
   return null;
@@ -161,12 +171,13 @@ async function pump(): Promise<void> {
     if (!model) return;
     // The recorder may have come up while the catalogue was read: nothing starts under it.
     if (paused) return;
-    // Links go in as tokens, as for every run, and the line never has them.
-    const { text } = protectLinks(body);
+    // The words after the front matter; links go in as tokens, as for every run, and the line never has them.
+    const words = wordsOf(body);
+    const { text } = protectLinks(words);
     activeRun = generate({ model, system: GIST_PROMPT, prompt: text, maxTokens: 40, temperature: TEMPERATURE, onProgress: () => undefined });
     const output = await activeRun.done;
     const line = tidyGist(output.text);
-    if (line) keepGist(id, { text: line, for: hashOf(id, body), model, len: body.length, head: headOf(body) });
+    if (line) keepGist(id, { text: line, for: hashOf(id, body), model, len: words.length, head: headOf(body) });
     else failed.add(id);
     speak();
   } catch (failure) {

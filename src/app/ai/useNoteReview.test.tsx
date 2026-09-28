@@ -52,7 +52,7 @@ import { createNote, getNote, updateNote } from '../core/store.ts';
 import { aiChanges, aiChangesField } from '../editor/aiChanges.ts';
 import { runsOf } from './log.ts';
 import { cancelRun, forgetAllRuns } from './runs.ts';
-import { useNoteReview, type ReviewStage } from './useNoteReview.ts';
+import { REVIEW_HANDED_BACK, useNoteReview, type ReviewStage } from './useNoteReview.ts';
 import type { ReviewHandoff } from './review.ts';
 
 let view: EditorView | null = null;
@@ -239,5 +239,43 @@ describe('the review after a recording, on a phone', () => {
     expect(await getNote('p6')).toMatchObject({ body: '# HelloTrade\n- buy oat milk\n- bread\n', revision: 3 });
     // The note on screen had nothing to change.
     expect(view!.state.doc.toString()).toBe(body);
+  });
+});
+
+describe('what the review tells the note’s tag', () => {
+  const qwen: ModelInfo = { id: 'qwen3.5-4b', file: 'qwen3.5-4b.gguf', bytes: 2_740_937_888, present: true, path: '/models/qwen3.5-4b.gguf' };
+  const take = (id: string) => ({ id, fromMs: 0, recordingMs: 1500, baseBody: '', savedBody: '# Player\n', titled: true, priorSegments: [], promptTail: '' });
+
+  it('says once, on `window`, when it has handed its job back, naming the note', async () => {
+    await createNote('q1', '# Player\n', 'capture');
+    const handedBack: string[] = [];
+    const heard = (event: Event) => handedBack.push((event as CustomEvent<{ noteId: string }>).detail.noteId);
+    window.addEventListener(REVIEW_HANDED_BACK, heard);
+    try {
+      vi.mocked(listenAgain).mockImplementation(() => new Promise(() => undefined));
+      show(<Note review={{ key: 1, noteId: 'q1', job: take('q1'), heard: 'Player.', commands: [], touched: [] }} editor={editor('# Player\n')} />);
+      await waitUntil(() => expect(stages.at(-1)?.what).toBe('Listening again'));
+      expect(handedBack).toEqual([]);
+      unmount();
+      expect(handedBack).toEqual(['q1']);
+      expect(enqueueRefine).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(REVIEW_HANDED_BACK, heard);
+    }
+  });
+
+  it('gives the thinking model the words after the front matter, never where the note was written', async () => {
+    const tagged = '---\nlocation: 51.5074,-0.1278\nplace: "London"\n---\n# Player\n- [ ] Fix the seat bar.\n';
+    await createNote('q2', tagged, 'capture');
+    await createNote('q3', '---\nlocation: 48.8566,2.3522\n---\n# HelloTrade\n- buy milk\n');
+    phone.models = [qwen];
+    show(<Note review={{ key: 2, noteId: 'q2', job: null, heard: 'Fix the seat bar.', commands: [], touched: ['q3'] }} editor={editor(tagged)} />);
+    await waitUntil(() => expect(phone.runs).toHaveLength(1));
+    const prompt = phone.runs[0]!.options.prompt;
+    expect(prompt).toContain('# Player\n- [ ] Fix the seat bar.');
+    expect(prompt).toContain('# HelloTrade\n- buy milk');
+    expect(prompt).not.toContain('location:');
+    expect(prompt).not.toContain('place:');
+    expect(prompt).not.toContain('51.5074');
   });
 });

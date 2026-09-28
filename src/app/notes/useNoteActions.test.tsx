@@ -4,6 +4,7 @@ import { ToastProvider } from '@glacier/react';
 import { createNote, getNote } from '../core/store.ts';
 import { reloadPreferences, setPreferences } from '../core/preferences.ts';
 import type { RecordingJobState } from '../core/recordings.ts';
+import { pendingTag, setPendingTag } from '../core/location.ts';
 import { isTrashed, trashNote } from '../core/trash.ts';
 import { addWorkspace, fileNote, workspaceOf } from '../core/workspaces.ts';
 import { keepGist, readGist } from '../format/results.ts';
@@ -149,13 +150,25 @@ describe('deleting for good', () => {
     await settle();
     expect(await getNote('a')).toBeNull();
   });
+
+  it('takes a tag still waiting to say where the note was written with it', async () => {
+    mount();
+    setPendingTag('a', { lat: 51.5074, lon: -0.1278, place: null, rough: false });
+    act(() => actions.destroy(apples));
+    await act(async () => actions.flushDeletes());
+    expect(await getNote('a')).toBeNull();
+    expect(pendingTag('a')).toBeNull();
+  });
 });
 
 describe('the trash', () => {
   it('takes a note with an Undo that brings it back, and gives it back with words of its own', () => {
     mount();
+    // A tag waiting to say where the note was written goes with it (core/location.ts), and does not come back.
+    setPendingTag('a', { lat: 51.5074, lon: -0.1278, place: null, rough: false });
     act(() => actions.remove(apples));
     expect(isTrashed('a')).toBe(true);
+    expect(pendingTag('a')).toBeNull();
     expect(said()).toContain('Moved “Apples” to the Trash.');
     act(() => button('Undo').click());
     expect(isTrashed('a')).toBe(false);

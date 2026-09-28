@@ -39,6 +39,8 @@ interface GlyphInbound {
   recordingDone?: (json: string) => void;
   /** The meeting's own notification prompt was answered: whether Ghost.md may notify may have changed (capture/meetingLive.ts). */
   notified?: Handler;
+  /** Android answered the location prompt (native generation 20): the page reads `locationAccess` again (core/location.ts). */
+  location?: Handler;
 }
 
 interface GlyphHostBridge {
@@ -107,6 +109,13 @@ interface GlyphHostBridge {
   forgetDiscarded?(noteId: string): void;
   /** A `ghostmd://` link the activity was opened with, once; "" when there is none. */
   takeLink?(): string;
+  // Location (native generation 20). Optional for the same reason; location/LocationAccess.kt.
+  /** Whether the app may know where the phone is: "granted", "approximate", "ask" or "blocked" (denied twice, or off for the app). */
+  locationAccess?(): string;
+  /** Raises Android's location prompt; the answer arrives as a `location` event, after which `locationAccess` is read again. */
+  requestLocation?(): void;
+  /** Opens the app's own page in the phone's settings, where a blocked location is allowed again; true if it opened. */
+  openLocationSettings?(): boolean;
 }
 
 declare global {

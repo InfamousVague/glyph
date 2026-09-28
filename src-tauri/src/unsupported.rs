@@ -48,6 +48,9 @@ pub const NOTION: &str = "Notion is not available on iOS yet.";
 /// `link_preview`.
 pub const LINK_PREVIEWS: &str = "Link previews are not available on iOS yet.";
 
+/// `geocode_place`.
+pub const PLACE_NAMES: &str = "Place names are not available on iOS yet.";
+
 /// The refusal a command gives on iOS: `message`, as the error its `invoke`
 /// rejects with. `_unused` takes the command's arguments, which iOS never reads.
 pub fn on_ios<T>(message: &str, _unused: impl Sized) -> Result<T, String> {
@@ -67,5 +70,6 @@ mod tests {
         assert_eq!(refused(APK), "There is no APK on iOS.");
         assert_eq!(refused(NOTION), "Notion is not available on iOS yet.");
         assert_eq!(refused(LINK_PREVIEWS), "Link previews are not available on iOS yet.");
+        assert_eq!(refused(PLACE_NAMES), "Place names are not available on iOS yet.");
     }
 }

@@ -154,6 +154,13 @@ describe('a store written by another build, or half written', () => {
     expect(launchWith({ shares }).shares).toEqual({ good: { id, key, sent: 'p2:9', lacked: ['x.jpg'] }, unsent: { id, key, sent: '' } });
   });
 
+  it('keeps whether a share carries where its note was written, only as true', () => {
+    const id = 'A'.repeat(22);
+    const key = 'b_'.repeat(20);
+    const shares = { placed: { id, key, sent: 'p2:9', place: true }, said: { id, key, sent: '', place: false }, odd: { id, key, sent: '', place: 'yes' } };
+    expect(launchWith({ shares }).shares).toEqual({ placed: { id, key, sent: 'p2:9', place: true }, said: { id, key, sent: '' }, odd: { id, key, sent: '' } });
+  });
+
   it('reads a pace, a theme, a size or a sidebar this build does not have as its own', () => {
     const read = launchWith({ motionSpeed: 'ludicrous', theme: 'neon', uiScale: 3, sidebarStyle: 'floating', noteView: 'hologram' });
     expect(read).toMatchObject({

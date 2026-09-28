@@ -1,4 +1,4 @@
-import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
+import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { shortcodesIn } from '../core/emoji.ts';
@@ -24,6 +24,16 @@ import { FENCE, FRONT_MATTER_LINES, frontMatterEnd } from '../core/frontMatter.t
  *   ---\ntitle: …\n---     front matter, which read as a horizontal rule before
  *   $x^2$  $$ … $$         maths, set as code rather than drawn: a renderer is 280 KB the phone does not need
  *   :tada:                 a shortcode, drawn as its emoji (core/emoji.ts)
+ *
+ * The front matter is drawn folded as well (`frontMatterFold`): one quiet line naming its keys, "title · authors ·
+ * location · place", while the editor is not focused with the caret in the block. A note that says where it was
+ * written (core/geotag.ts) carries two more lines above its words, which is where §95's "Not yet" for the visible
+ * `authors:` line came due. The caret entering the block, or a tap on the folded line, opens it to the lines as
+ * they are; leaving folds it again. A block decoration cannot come from a view plugin (it changes the vertical
+ * layout), so the fold is a state field, told of the editor's focus through `focusChangeEffect`. Only where the
+ * words can be edited: a read-only page (the shared reader, a note being dictated) shows the lines as they are,
+ * since a stranger has no caret to open the fold with. Goal 2 says nothing is folded; DESIGN §134 says why this is,
+ * and that it is Matt's to keep or take back.
  */
 
 /** The words of a raised or lowered run, by node name: the highlighter gives both the same tag. */
@@ -74,6 +84,89 @@ class EmojiWidget extends WidgetType {
     span.title = this.name;
     return span;
   }
+}
+
+/** The names of the keys a front matter block holds, in order: what the folded line says. */
+function keyNames(state: EditorState, front: { from: number; to: number }): string[] {
+  const names: string[] = [];
+  for (let n = front.from + 1; n < front.to; n += 1) {
+    const found = /^\s*([\w.-]+)\s*:/.exec(state.doc.line(n).text);
+    if (found) names.push(found[1]!);
+  }
+  return names;
+}
+
+/** Whether a selection head sits on one of the block's lines. */
+function caretIn(state: EditorState, front: { from: number; to: number }): boolean {
+  return state.selection.ranges.some((range) => {
+    const n = state.doc.lineAt(range.head).number;
+    return n >= front.from && n <= front.to;
+  });
+}
+
+/** The front matter folded to one line: its keys' names. A tap opens it, by putting the caret on its first key. */
+class FrontWidget extends WidgetType {
+  constructor(
+    readonly keys: readonly string[],
+    /** Where the caret goes on a tap: the first key's line. */
+    readonly at: number,
+  ) {
+    super();
+  }
+
+  eq(other: FrontWidget): boolean {
+    return other.at === this.at && other.keys.length === this.keys.length && other.keys.every((key, i) => key === this.keys[i]);
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const div = document.createElement('div');
+    div.className = 'cm-frontFold';
+    // The band on a span inside, so it keeps to the gutter as the card above it does; the widget's own box stays
+    // margin-free, which is how CodeMirror measures a block widget's height.
+    const band = document.createElement('span');
+    band.textContent = this.keys.length ? this.keys.join(' · ') : 'front matter';
+    div.append(band);
+    div.title = 'Front matter. Tap to open it.';
+    div.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      view.dispatch({ selection: { anchor: this.at }, effects: focusEffect.of(true) });
+      view.focus();
+    });
+    return div;
+  }
+}
+
+/** The editor gained or lost focus: the block is open only while it has it. */
+const focusEffect = StateEffect.define<boolean>();
+
+interface Fold {
+  focused: boolean;
+  decorations: DecorationSet;
+}
+
+function foldOf(state: EditorState, focused: boolean): DecorationSet {
+  const front = frontMatter(state.doc);
+  if (!front || !state.facet(EditorView.editable) || (focused && caretIn(state, front))) return Decoration.none;
+  const from = state.doc.line(front.from).from;
+  const to = state.doc.line(front.to).to;
+  const at = state.doc.line(Math.min(front.from + 1, front.to)).from;
+  return Decoration.set(Decoration.replace({ widget: new FrontWidget(keyNames(state, front), at), block: true }).range(from, to));
+}
+
+const frontFold = StateField.define<Fold>({
+  create: (state) => ({ focused: false, decorations: foldOf(state, false) }),
+  update(value, tr) {
+    let focused = value.focused;
+    for (const effect of tr.effects) if (effect.is(focusEffect)) focused = effect.value;
+    if (!tr.docChanged && !tr.selection && !tr.reconfigured && focused === value.focused) return value;
+    return { focused, decorations: foldOf(tr.state, focused) };
+  },
+  provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
+});
+
+/** Whether the front matter is folded to its line now, for a test to ask. */
+export function frontMatterFolded(state: EditorState): boolean {
+  return state.field(frontFold).decorations.size > 0;
 }
 
 function decorate(state: EditorState, from: number, to: number): DecorationSet {
@@ -198,6 +291,25 @@ const theme = EditorView.baseTheme({
     fontWeight: 'inherit',
   },
   '.cm-front': { background: 'color-mix(in oklch, currentColor 3%, transparent)' },
+  // The front matter folded: its keys' names on one line, in the same quiet face, and a hand for the tap that opens it.
+  // A block widget sits outside `.cm-line`, so it takes the lines' side padding itself (markdown.module.css).
+  '.cm-frontFold': {
+    paddingInline: 'var(--app-gutter, 0)',
+    fontFamily: 'var(--glacier-font-mono)',
+    fontSize: '0.84em',
+    lineHeight: '1.9',
+    color: 'var(--app-ink-3, var(--glacier-text-muted))',
+    cursor: 'pointer',
+    userSelect: 'none',
+  },
+  // A label the width of its words, so it reads as the card's and not a band across the page.
+  '.cm-frontFold > span': {
+    display: 'inline-block',
+    maxInlineSize: '100%',
+    paddingInline: 'var(--glacier-space-2, 8px)',
+    borderRadius: 'var(--glacier-radius-sm, 4px)',
+    background: 'color-mix(in oklch, currentColor 3%, transparent)',
+  },
 
   // A definition hangs under its term, the way a glossary sets one.
   '.cm-term': { fontWeight: 'var(--glacier-font-weight-semibold, 600)' },
@@ -212,6 +324,8 @@ const theme = EditorView.baseTheme({
 /** The extended markdown drawn as what it is: raised and lowered runs, callouts, definitions, front matter, maths and shortcodes. */
 export function extendedMarkdown(): Extension {
   return [
+    frontFold,
+    EditorView.focusChangeEffect.of((_state, focusing) => focusEffect.of(focusing)),
     ViewPlugin.fromClass(
       class {
         decorations: DecorationSet;

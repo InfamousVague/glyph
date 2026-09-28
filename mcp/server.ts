@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { placeWords } from '../src/app/capture/listAppend.ts';
 import { aiName, authorsOf, withAuthor } from '../src/app/core/authors.ts';
 import { failureText } from '../src/app/core/failure.ts';
+import { geoTagOf, withGeoTag } from '../src/app/core/geotag.ts';
 import { noteTitle, withoutFrontMatter } from '../src/app/core/noteTitle.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
 
@@ -81,6 +82,12 @@ function keepAuthors(before: string, next: string): string {
   let out = next;
   for (const name of authorsOf(before)) out = withAuthor(out, name);
   return out;
+}
+
+/** `next` with where `before` was written, the same way (core/geotag.ts): a rewrite that dropped the tag keeps it. */
+function keepPlace(before: string, next: string): string {
+  const tag = geoTagOf(before);
+  return tag && !geoTagOf(next) ? withGeoTag(next, tag) : next;
 }
 
 /** The note `id` or, failing that, the one titled `title`; a clear complaint when neither finds one. */
@@ -238,8 +245,9 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
       guarded(async () => {
         await account.pull();
         if (!body.trim()) return failed('A note needs some words. To remove a note, archive it with set_note_flags.');
-        // The authors the note had stay, whatever the new body says: a rewrite doesn't take anyone off.
-        const written = await account.edit(id, (note) => ({ ...note, body: authored(keepAuthors(note.body, body), author) }));
+        // The authors the note had stay, whatever the new body says: a rewrite doesn't take anyone off. Nor where
+        // it was written.
+        const written = await account.edit(id, (note) => ({ ...note, body: authored(keepPlace(note.body, keepAuthors(note.body, body)), author) }));
         return text({ updated: whole(written) });
       }),
   );

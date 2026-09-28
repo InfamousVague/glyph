@@ -180,3 +180,17 @@ describe('the account', () => {
     expect(lapsed).toEqual({ isError: true, text: "Ghost.md's sync service refused: This session has lapsed. Sign in again with `login`." });
   });
 });
+
+describe('where a note was written, as the tools see it', () => {
+  it('is kept across a rewrite that dropped it, and read whole', async () => {
+    const { service, call } = await connected();
+    await service.deviceWrites(aNote('a', '---\nlocation: 51.5074,-0.1278\nplace: "London"\n---\n# Plan\n\nOld words.'));
+    const read = JSON.parse((await call('read_note', { id: 'a' })).text) as { body: string };
+    expect(read.body).toContain('location: 51.5074,-0.1278');
+    await call('update_note', { id: 'a', body: '# Plan\n\nNew words.' });
+    expect((await service.stored('a'))?.note.body).toBe('---\nlocation: 51.5074,-0.1278\nplace: "London"\nauthors: matt, Claude\n---\n# Plan\n\nNew words.');
+    // A rewrite that says where itself is left as it says.
+    await call('update_note', { id: 'a', body: '---\nlocation: 48.8566,2.3522\n---\n# Plan\n\nMoved.' });
+    expect((await service.stored('a'))?.note.body).toBe('---\nlocation: 48.8566,2.3522\nauthors: matt, Claude\n---\n# Plan\n\nMoved.');
+  });
+});

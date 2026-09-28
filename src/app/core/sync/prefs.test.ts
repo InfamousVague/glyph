@@ -87,6 +87,16 @@ describe('settings kept the same on every device', () => {
     expect(desk.prefs).toMatchObject({ theme: 'ember', formatModel: DEFAULT_PREFERENCES.formatModel, localOnly: false });
   });
 
+  it('carry the map and the place names, and leave tagging new notes with the device that asks for its position', async () => {
+    const service = await fakeService(ACCOUNT);
+    const phone = device(service);
+    phone.set({ mapTiles: false, placeNames: false, tagNewNotes: false });
+    await phone.sync();
+    const desk = device(service);
+    await desk.sync();
+    expect(desk.prefs).toMatchObject({ mapTiles: false, placeNames: false, tagNewNotes: DEFAULT_PREFERENCES.tagNewNotes });
+  });
+
   it('carry which notes are in the trash and which are meetings, so the shelf on a second device knows them', async () => {
     const service = await fakeService(ACCOUNT);
     const phone = device(service);

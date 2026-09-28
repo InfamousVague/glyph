@@ -205,6 +205,9 @@ pub use install::peek;
 /// finish a recording, write it up with the app closed, and cancel), `ai_unload`, `ai_keep_job_config`,
 /// `recording_result_take`, `recording_job_state`, `recording_digest`, `recording_delete`, the `rec` scheme
 /// serving ranges by seek, and `GlyphHost.startMeeting` and its kin in the Android shell (1.9.0).
+/// Also 20, in the same binary: `geocode_place`, a tagged note's place name asked of Nominatim with the app's own User-Agent; the Android
+/// manifest's location permissions and the activity's `locationAccess`, `requestLocation` and
+/// `openLocationSettings`; the opener's `geo:` scope, so a tapped map opens the maps app (docs/DESIGN.md §134).
 pub const NATIVE_GENERATION: u32 = 20;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line

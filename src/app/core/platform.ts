@@ -43,6 +43,12 @@ export const isAndroid = /Android/i.test(userAgent());
 /** A phone build with a Rust core behind it: the only place a motor exists. */
 export const isNativeMobile = isTauri() && isMobile;
 
+/**
+ * The Mac app: a Tauri webview on a Macintosh that is not a phone in a Mac's clothes. Its WebView never answers a
+ * position request (core/location.ts says why), and its title bar is the window's (below).
+ */
+export const isMacApp = isTauri() && !isMobile && /Macintosh/i.test(userAgent());
+
 /*
  * Publish the platform to CSS, from the module body rather than an effect: the
  * chrome is positioned by these rules on the first paint, and a platform
@@ -52,5 +58,5 @@ if (typeof document !== 'undefined') {
   document.documentElement.dataset.platform = isAndroid ? 'android' : isIOS ? 'ios' : 'desktop';
   // The Mac app draws under a transparent title bar with the window buttons inset into it (src-tauri/src/lib.rs,
   // `set_traffic_lights_inset`): the page keeps that bar clear and lets it drag the window (app.css).
-  if (isTauri() && !isMobile && /Macintosh/i.test(userAgent())) document.documentElement.dataset.titlebar = 'overlay';
+  if (isMacApp) document.documentElement.dataset.titlebar = 'overlay';
 }

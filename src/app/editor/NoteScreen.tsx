@@ -1,8 +1,9 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { createPortal } from 'react-dom';
 import { useTopBarTools } from '../core/topBarTools.ts';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@glacier/react';
+import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { useNotePlace } from './notePlace.ts';
@@ -18,14 +19,19 @@ import { BookBar, BookFoot } from '../book/BookNav.tsx';
 import { BookView } from '../book/BookView.tsx';
 import { isBookBody, type BookPlace } from '../book/book.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
-import { withFrontMatterTitle } from '../core/frontMatter.ts';
+import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
+import { geoTagOf, sameTag, tagOf, withGeoTag, type GeoTag } from '../core/geotag.ts';
+import { canLocate, canShowTiles, forgetRefusal, landTag, locate, pendingTag, placeFor, refusedFor, rememberRefusal, setPendingTag, settleTag, wantPlace, watchTag, whyLocateFailed, type LocateFailure } from '../core/location.ts';
+import { REVIEW_HANDED_BACK } from '../ai/useNoteReview.ts';
+import { hasLocationBridge } from '../core/placeLink.ts';
+import { MapCard } from './MapCard.tsx';
 import { authorsOf } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { useUnfold } from '../core/unfold.ts';
 import { getNote, type Note } from '../core/store.ts';
-import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.ts';
+import { setPreferences, useDarkNow, usePreferences } from '../core/preferences.ts';
 import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
@@ -73,6 +79,12 @@ import styles from './NoteScreen.module.css';
  * (editor/useNoteAi.ts, with the room its strip takes in editor/useStripRoom.ts), pictures and the note's one line
  * of problems (editor/useNotePictures.ts), landing on an item a link pointed at (editor/useLandAt.ts), live sync
  * (editor/useLiveNote.ts), and the ways plugins reach the note (editor/notePlugins.ts).
+ *
+ * Where the note was written is the screen's own (core/geotag.ts, core/location.ts): the map card at the top of the
+ * note with the byline, drawn from the note's tag or from one waiting to be written; the tag written into the front
+ * matter through the editor, as one undo step, so the words are untouched and the save is typing's; and the More
+ * sheet's Add my location and Remove location. A tag waiting for a recording's better words lands here once the pass
+ * has landed or the review has handed back, and a new note's once it has words.
  */
 
 interface NoteScreenProps {
@@ -116,8 +128,21 @@ interface NoteScreenProps {
   landing?: CaptureLanding & { key: number };
 }
 
+/** What the note says when a fix did not come (core/location.ts `LocateFailure`). */
+const NO_FIX: Record<LocateFailure, string> = {
+  refused: 'Ghost.md wasn’t allowed to know where you are.',
+  blocked: 'Location is off for Ghost.md.',
+  unavailable: 'Couldn’t find where you are. Try again with location on, or outside.',
+  timeout: 'Couldn’t find where you are. Try again with location on, or outside.',
+  none: 'This browser can’t say where you are.',
+  mac: 'This Mac can’t say where it is yet.',
+  'local-only': 'Local only is on.',
+};
+
 export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask, review, landing }: NoteScreenProps) {
   const prefs = usePreferences();
+  // The page's side, followed while the note is open: on System the phone may turn dark under it.
+  const dark = useDarkNow(prefs.theme);
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the More sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
   // is enough space on the screen").
@@ -133,7 +158,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   const { toast, dismiss } = useToast();
   // The live words, and their saving: everything below that reads or writes the note goes through these. Words that
   // arrive from outside the editor - a meeting's transcript from the phone's write-up - are put into it whole.
-  const { body, onChange, flush, title, blank, adopt } = useNoteSaving(note, rename, {
+  const { body, onChange: keep, flush, title, blank, adopt } = useNoteSaving(note, rename, {
     onExternalChange: (next) => {
       const editor = viewRef.current;
       if (!editor) return;
@@ -155,6 +180,33 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       }),
     [note.id, adopt],
   );
+  /*
+   * Where the note was written: the tag its front matter carries, or one waiting to be written (core/location.ts),
+   * kept as the screen's own state the way `pinned` is, since `note` is the store's copy at open and `body` is a ref.
+   * Every change to the words passes through here, so a `location:` typed by hand, or one arriving by live sync,
+   * redraws the card, and a tag that has not changed leaves the state as it was.
+   */
+  const [tag, setTag] = useState<GeoTag | null>(() => geoTagOf(note.body) ?? pendingTag(note.id));
+  const onChange = useCallback(
+    (next: string) => {
+      keep(next);
+      const now = geoTagOf(next) ?? pendingTag(note.id);
+      setTag((was) => (sameTag(was, now) ? was : now));
+    },
+    [keep, note.id],
+  );
+  /** The card just appeared on this open note: it arrives on the beat rather than at full height. */
+  const [fresh, setFresh] = useState(false);
+  /** The tag just taken off, drawn a moment longer while its card leaves on the same beat; null otherwise. */
+  const [leaving, setLeaving] = useState<GeoTag | null>(null);
+  /** Whether the screen is still up: a fix that comes after the note was left is kept for it rather than lost. */
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   /*
    * A note that is a canvas (docs/CANVAS.md) is drawn as one where its words would be. Its JSON is there behind the
    * header's view switch (Matt: "the raw JSON in the editor"), but as the note's own switch rather than the
@@ -237,6 +289,184 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   };
 
   const editing = noteEditing(note.id, view, () => body.current, pictures.say);
+
+  /*
+   * Whether a review is live for this note and has not handed its job back (ai/useNoteReview.ts): a tag waits on it,
+   * since the better words land only if the note still reads as Done saved it (core/location.ts, section 3).
+   */
+  const reviewing = useRef(Boolean(review && review.noteId === note.id && review.job));
+  /**
+   * The tag written into the note, or taken out: through the editor where it holds the words, as one change to the
+   * front matter alone (one undo step, the caret kept in view, saved like typing); through `onChange` where the
+   * editor is hidden behind a canvas or a book's index, as a rename is (`renameHere`). Null takes both keys out.
+   */
+  const writeTag = (next: GeoTag | null): boolean => {
+    if (typed && !source) {
+      const after = withGeoTag(body.current, next);
+      if (after !== body.current) {
+        onChange(after);
+        setCanvasBody(after);
+        setBookBody(after);
+      }
+    } else if (view && mounted.current && view.dom.isConnected) {
+      const doc = view.state.doc.toString();
+      const after = withGeoTag(doc, next);
+      if (after !== doc) {
+        const was = frontMatterOffset(doc);
+        const now = frontMatterOffset(after);
+        /*
+         * The caret stays with the words. CodeMirror keeps a caret at an insertion point before what is inserted, so
+         * a caret at the top of a note with no front matter would be left in front of the new opening fence, and the
+         * next keystroke would break the block and turn the tag into words (which a share then carries). A caret in
+         * the block, or at its end, goes to the start of the words; one in the words moves by what the block grew.
+         */
+        const place = (pos: number) => (pos <= was ? now : pos + now - was);
+        const selection = EditorSelection.create(
+          view.state.selection.ranges.map((range) => EditorSelection.range(place(range.anchor), place(range.head))),
+          view.state.selection.mainIndex,
+        );
+        view.dispatch({ changes: { from: 0, to: was, insert: after.slice(0, now) }, selection, scrollIntoView: true, userEvent: 'input.location' });
+      }
+    } else {
+      // No editor (not here yet, or the note was left): the next look, or the note's own store (`landTag`).
+      return false;
+    }
+    setTag(next);
+    setPendingTag(note.id, null);
+    return true;
+  };
+  /**
+   * A tag waiting for this note lands once it may (core/location.ts `settleTag`): the better words in, the note with
+   * words. Until then the card is drawn from it. A note that says where it was written already keeps what it says.
+   */
+  const settle = () => {
+    const waiting = pendingTag(note.id);
+    if (!waiting) return;
+    if (geoTagOf(body.current)) {
+      setPendingTag(note.id, null);
+      return;
+    }
+    if (settleTag(note.id, body.current, { reviewing: reviewing.current }) !== null && writeTag(waiting)) {
+      // In the note now, so its name may be asked (this device made it; core/location.ts decides whether it may).
+      wantPlace(note.id, waiting);
+      return;
+    }
+    setTag((was) => (sameTag(was, waiting) ? was : waiting));
+  };
+  /** A name that came for the note's tag: written into the note, or onto the tag still waiting. */
+  const namePlace = (place: string, lat: number, lon: number) => {
+    const inBody = geoTagOf(body.current);
+    if (inBody && !inBody.place && inBody.lat === lat && inBody.lon === lon) {
+      writeTag({ ...inBody, place });
+      return;
+    }
+    // The tag still waiting (core/location.ts may have named it already, as it told this screen): the card says it.
+    const waiting = pendingTag(note.id);
+    if (waiting && waiting.lat === lat && waiting.lon === lon) {
+      const named = { ...waiting, place };
+      if (waiting.place !== place) setPendingTag(note.id, named);
+      setTag((was) => (sameTag(was, named) ? was : named));
+    }
+  };
+  // The latest of these, for the listeners registered once per note.
+  const latest = useRef({ settle, namePlace });
+  latest.current = { settle, namePlace };
+  useEffect(() => {
+    const off = watchTag(note.id, (event) => {
+      if (event.kind === 'place') latest.current.namePlace(event.place, event.lat, event.lon);
+      else latest.current.settle();
+    });
+    const handedBack = (event: Event) => {
+      if ((event as CustomEvent<{ noteId?: string }>).detail?.noteId !== note.id) return;
+      reviewing.current = false;
+      latest.current.settle();
+    };
+    window.addEventListener(REVIEW_HANDED_BACK, handedBack);
+    return () => {
+      off();
+      window.removeEventListener(REVIEW_HANDED_BACK, handedBack);
+    };
+  }, [note.id]);
+  // On opening, once the editor is here: a tag waiting lands if it may, and a name that came while the note was closed is written.
+  useEffect(() => {
+    latest.current.settle();
+    const now = geoTagOf(body.current);
+    if (now && !now.place) {
+      const known = placeFor(now);
+      if (known) latest.current.namePlace(known, now.lat, now.lon);
+    }
+    // The editor arriving is what this waits for; the rest is read from the refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note.id, view]);
+  // A new note's first words: the tag waiting for them lands.
+  useEffect(() => {
+    if (!blank) latest.current.settle();
+  }, [blank]);
+  // A new note left without a word leaves nothing behind (docs/LIBRARY.md), its waiting tag included.
+  const blankNow = useRef(blank);
+  blankNow.current = blank;
+  useEffect(
+    () => () => {
+      if (blankNow.current && !geoTagOf(body.current)) setPendingTag(note.id, null);
+    },
+    // The note's own leaving; the rest is read from the refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [note.id],
+  );
+
+  /** Add my location, from the More sheet: the fix, the tag into the note (or waiting), and its name asked for. */
+  const addLocation = () => {
+    flush();
+    setSettingsOpen(false);
+    let said = false;
+    // The card arriving is the feedback; a slow fix says so after a moment.
+    const slow = window.setTimeout(() => {
+      said = true;
+      toast({ message: 'Finding where you are.', duration: 0 });
+    }, 600);
+    locate().then(
+      (fix) => {
+        window.clearTimeout(slow);
+        if (said) dismiss();
+        forgetRefusal();
+        const next = tagOf(fix);
+        // Left while the fix was coming: the tag is kept for the note and written into it where it may land.
+        if (!mounted.current) {
+          landTag(note.id, next);
+          return;
+        }
+        setPendingTag(note.id, next);
+        setTag(next);
+        setFresh(true);
+        setLeaving(null);
+        // Into the note now (and its name asked), or waiting for the better words with the card drawn from it meanwhile.
+        latest.current.settle();
+      },
+      (failure: unknown) => {
+        window.clearTimeout(slow);
+        if (said) dismiss();
+        if (!mounted.current) return;
+        const why = whyLocateFailed(failure);
+        // Refused here is refused: new notes are not asked for again until location is allowed.
+        rememberRefusal(why);
+        fireNativeHaptic('warning');
+        toast({
+          message: NO_FIX[why],
+          ...(why === 'blocked' && typeof window.GlyphHost?.openLocationSettings === 'function' ? { action: { label: 'Open settings', onPress: () => void window.GlyphHost?.openLocationSettings?.() } } : {}),
+        });
+      },
+    );
+  };
+  /** Remove location: both keys out, as one undo step; the card going, on the beat it came on, is the feedback. */
+  const removeLocation = () => {
+    flush();
+    setSettingsOpen(false);
+    setFresh(false);
+    setLeaving(tag);
+    writeTag(null);
+    setPendingTag(note.id, null);
+    setTag(null);
+  };
 
   // Playing takes the screen for the transcript; the note waits under it.
   const shown: 'transcript' | 'raw' = tape.length && tape.playing ? 'transcript' : 'raw';
@@ -392,6 +622,24 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {book && onOpenTitle ? <BookBar place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}
         {/* Who wrote it, when it names anyone (core/authors.ts): a book says so for all its pages, in its index. */}
         {!paging ? <Byline authors={authorsOf(note.body)} className={styles.byline} /> : null}
+        {/*
+          Where it was written (core/geotag.ts): the map at the top of the note, with who wrote it. Only where the page
+          scrolls with the words: not over a book's index, a canvas, or the transcript, which scrolls inside itself
+          while the page holds still, so a card there would take its height from the tape for as long as it played.
+        */}
+        {(tag ?? leaving) && shown === 'raw' && !paging && !drawing ? (
+          <MapCard
+            tag={(tag ?? leaving)!}
+            // A new note's tag still waiting for its first words is drawn quiet: a draft that may never be kept fetches no tiles.
+            mode={canShowTiles() && !(blank && !geoTagOf(body.current)) ? 'map' : 'quiet'}
+            quietWhy={prefs.localOnly ? 'local-only' : !prefs.mapTiles ? 'off' : undefined}
+            dark={dark}
+            arrive={Boolean(tag) && fresh}
+            leave={!tag}
+            onLeft={() => setLeaving(null)}
+            className={styles.mapCard}
+          />
+        ) : null}
 
         {shown === 'transcript' ? (
           <div className={styles.body}>
@@ -402,7 +650,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
           <div className={`${styles.body} ${styles.canvasBody}`} hidden={shown !== 'raw'}>
             <CanvasView
               canvas={canvas}
-              dark={isDarkNow(prefs.theme)}
+              dark={dark}
               wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle, titles: allTitles } : undefined}
               // A change to the canvas is a change to the note: written into the body as the spec's JSON, front
               // matter kept, and saved the way typing is (editor/useNoteSaving.ts).
@@ -439,7 +687,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             tape={recording}
             tapeId={tape.length > 0 ? tapeId(note.id) : null}
             onImageError={pictures.say}
-            dark={isDarkNow(prefs.theme)}
+            dark={dark}
             assist={prefs.assist}
             placeholder="Write something."
             swipeAction={() => itemSend(note.id, editing)}
@@ -486,6 +734,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             : undefined
         }
         onMakeBoard={shown === 'raw' && settingsOpen && boardFrom(view?.state.doc.toString() ?? body.current) ? makeBoard : undefined}
+        location={{ tag, can: canLocate(), asksName: prefs.placeNames && !prefs.localOnly, refused: tag ? null : refusedFor(note.createdAt), onPhone: hasLocationBridge(), onAdd: addLocation, onRemove: removeLocation }}
         onPin={() => {
           flush();
           onPin({ ...note, starred: pinned });

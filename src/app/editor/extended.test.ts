@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EditorState, Text } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { glyphMarkdown } from './language.ts';
-import { calloutKind, extendedMarkdown, frontMatter } from './extended.ts';
+import { calloutKind, extendedMarkdown, frontMatter, frontMatterFolded } from './extended.ts';
 
 function drawn(doc: string) {
   const view = new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown([], []), extendedMarkdown()] }), parent: document.body });
@@ -44,11 +44,15 @@ describe('a callout', () => {
 });
 
 describe('front matter', () => {
-  it('is the note’s opening fence and its keys, drawn as keys rather than a rule', () => {
+  it('is the note’s opening fence and its keys, drawn as keys rather than a rule, once open', async () => {
     const view = new EditorView({
       state: EditorState.create({ doc: '---\ntitle: A note\ntags: one, two\n---\n\nWords.', extensions: [glyphMarkdown([], []), extendedMarkdown()] }),
       parent: document.body,
     });
+    // Folded to its line until the editor is focused with the caret in it (below); the focus is told a tick later.
+    view.focus();
+    view.dispatch({ selection: { anchor: 0 } });
+    await Promise.resolve();
     expect(view.contentDOM.querySelectorAll('.cm-front')).toHaveLength(4);
     view.destroy();
   });
@@ -112,5 +116,67 @@ describe('an emoji shortcode', () => {
 
   it('leaves a name it does not know as the words that were typed', () => {
     expect(drawn('a :not_an_emoji_name: here').html).not.toContain('cm-emoji');
+  });
+});
+
+describe('front matter, folded', () => {
+  const TAGGED = '---\ntitle: "A note"\nauthors: matt\nlocation: 51.5074,-0.1278\nplace: "London"\n---\n# A note\n\nWords.';
+  const open = (doc: string) => new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown([], []), extendedMarkdown()] }), parent: document.body });
+
+  it('is one quiet line naming its keys, in order, while the editor is not focused with the caret in it', () => {
+    const view = open(TAGGED);
+    expect(frontMatterFolded(view.state)).toBe(true);
+    const fold = view.contentDOM.querySelector('.cm-frontFold');
+    expect(fold?.textContent).toBe('title · authors · location · place');
+    expect(view.contentDOM.querySelectorAll('.cm-front')).toHaveLength(0);
+    // The words under it are drawn as they are.
+    expect(view.contentDOM.textContent).toContain('Words.');
+    view.destroy();
+  });
+
+  it('opens to its lines when the editor is focused with the caret in it, and folds again when the caret leaves', async () => {
+    const view = open(TAGGED);
+    view.focus();
+    view.dispatch({ selection: { anchor: 4 } });
+    // The editor tells its extensions of the focus a tick after the update that saw it.
+    await Promise.resolve();
+    expect(frontMatterFolded(view.state)).toBe(false);
+    expect(view.contentDOM.querySelectorAll('.cm-front')).toHaveLength(6);
+    expect(view.contentDOM.querySelector('.cm-frontFold')).toBeNull();
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    expect(frontMatterFolded(view.state)).toBe(true);
+    // Losing focus folds it even with the caret inside.
+    view.dispatch({ selection: { anchor: 4 } });
+    expect(frontMatterFolded(view.state)).toBe(false);
+    view.contentDOM.blur();
+    view.dispatch(view.state.update());
+    await Promise.resolve();
+    expect(frontMatterFolded(view.state)).toBe(true);
+    view.destroy();
+  });
+
+  it('opens on a tap, with the caret on its first key', () => {
+    const view = open(TAGGED);
+    const fold = view.contentDOM.querySelector<HTMLElement>('.cm-frontFold')!;
+    fold.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    expect(frontMatterFolded(view.state)).toBe(false);
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).toBe('title: "A note"');
+    view.destroy();
+  });
+
+  it('is not folded where the words cannot be edited: the shared reader shows the lines as they are', () => {
+    const view = new EditorView({
+      state: EditorState.create({ doc: TAGGED, extensions: [glyphMarkdown([], []), extendedMarkdown(), EditorState.readOnly.of(true), EditorView.editable.of(false)] }),
+      parent: document.body,
+    });
+    expect(frontMatterFolded(view.state)).toBe(false);
+    expect(view.contentDOM.querySelectorAll('.cm-front')).toHaveLength(6);
+    view.destroy();
+  });
+
+  it('leaves a note with no front matter, and a rule with words under it, as they are', () => {
+    expect(drawn('# Plain\n\nWords.').html).not.toContain('cm-frontFold');
+    expect(drawn('---\njust some words\n---').html).not.toContain('cm-frontFold');
+    expect(drawn('---\n---\nWords.').html).toContain('front matter');
   });
 });

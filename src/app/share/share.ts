@@ -3,6 +3,7 @@ import { accountState } from '../core/account/account.ts';
 import { fromBase64Url, openBytes, sealBytes, toBase64Url, type Bytes } from '../core/sync/crypto.ts';
 import { imageBytes, imageNames, keepImage, smallerImage } from '../core/images.ts';
 import { withFrontMatterTitle, frontMatterValue } from '../core/frontMatter.ts';
+import { withGeoTag } from '../core/geotag.ts';
 import { createNote, listNotes, newNoteId, noteTitle, NOTE_SAVED, NOTES_CHANGED, type Note } from '../core/store.ts';
 import { onPreferences, preferences, setPreferences } from '../core/preferences.ts';
 import { readStored, writeStored } from '../core/stored.ts';
@@ -23,6 +24,12 @@ import { zipFiles } from './zip.ts';
  * keeps ciphertext it cannot open, as it does a synced note. A book is shared whole - its index and every chapter
  * that has a note - so the reader can turn its pages. This device keeps which of its notes it has shared, with each
  * share's key, and writes a share again a few seconds after any save that changed what it holds.
+ *
+ * Where a note was written (core/geotag.ts) is left out of a share unless the note's "Share where it was written" is
+ * ticked (`Kept.place`): a share follows every save, so "Add my location" on a note shared last week, or a tag
+ * arriving by sync from another device, would otherwise publish the coordinates to everyone holding the link, and
+ * the reader's Save a copy and download would carry them into other libraries. The opt-in is the design; there is no
+ * rounding fallback.
  */
 
 /** What a share holds, sealed. A note is one page; a book is its index first, then its chapters in order. */
@@ -188,16 +195,25 @@ export function readShareLink(text: string): { id: string; key: string } | null 
 
 // ---- what a note or a book shares ---------------------------------------------------------------
 
-/** What `note` shares: itself, or a book's index and every chapter that has a note, found among `notes`. */
-export function sharedOf(note: Note, notes: readonly Note[]): Shared {
+/**
+ * What `note` shares: itself, or a book's index and every chapter that has a note, found among `notes`. Where each
+ * page was written stays out unless `place` says to carry it (see the header).
+ */
+export function sharedOf(note: Note, notes: readonly Note[], { place = false }: { place?: boolean } = {}): Shared {
+  const carried = (body: string) => (place ? body : withGeoTag(body, null));
   const title = noteTitle(note.body) || 'Untitled';
-  if (!isBookBody(note.body)) return { v: 1, kind: 'note', title, pages: [{ title, body: note.body }], at: Date.now() };
-  const pages = [{ title, body: note.body }];
+  if (!isBookBody(note.body)) return { v: 1, kind: 'note', title, pages: [{ title, body: carried(note.body) }], at: Date.now() };
+  const pages = [{ title, body: carried(note.body) }];
   for (const chapter of chaptersOf(note.body)) {
     const found = notes.find((n) => n.id !== note.id && sameTitle(noteTitle(n.body), chapter.title));
-    if (found && !pages.some((p) => sameTitle(p.title, chapter.title))) pages.push({ title: chapter.title, body: found.body });
+    if (found && !pages.some((p) => sameTitle(p.title, chapter.title))) pages.push({ title: chapter.title, body: carried(found.body) });
   }
   return { v: 1, kind: 'book', title, pages, at: Date.now() };
+}
+
+/** Whether the pages `note` would share say where any of them was written, for the sheet to offer the choice. */
+export function sharesPlace(note: Note, notes: readonly Note[]): boolean {
+  return sharedOf(note, notes, { place: true }).pages.some((page) => page.body !== withGeoTag(page.body, null));
 }
 
 // ---- the account's shares --------------------------------------------------------------------------
@@ -218,6 +234,8 @@ export interface Kept {
    * page, so these are looked for on each refresh and the share goes again when one is here.
    */
   lacked?: string[];
+  /** The share carries where its pages were written (the header says why it does not by default). Only ever true. */
+  place?: true;
 }
 
 let migrated = false;
@@ -298,12 +316,28 @@ export async function shareNote(note: Note, notes: readonly Note[]): Promise<str
   const auth = token();
   const all = readKept();
   const kept = all[note.id] ?? { id: newShareId(), key: newShareKey(), sent: '' };
-  const shared = sharedOf(note, notes);
+  const shared = sharedOf(note, notes, { place: kept.place === true });
   const carried = await withPictures(shared);
   await call('PUT', `shares/${kept.id}`, { token: auth, body: { blob: await sealForServer(carried.shared, kept.key) } });
   all[note.id] = { ...kept, sent: digest(shared), lacked: carried.lacked };
   writeKept(all);
   return shareLink(kept.id, kept.key);
+}
+
+/** Whether `noteId`'s share carries where it was written. */
+export function sharingPlace(noteId: string): boolean {
+  return readKept()[noteId]?.place === true;
+}
+
+/** Sets whether `noteId`'s share carries where it was written, and sends the share again as it now reads. */
+export async function shareWithPlace(noteId: string, on: boolean): Promise<void> {
+  const all = readKept();
+  const kept = all[noteId];
+  if (!kept) return;
+  const { place: _was, ...rest } = kept;
+  all[noteId] = on ? { ...rest, place: true } : rest;
+  writeKept(all);
+  await refreshShares();
 }
 
 /** Whether a picture a share lacked when it was sent is on this device now. Only those names are looked for. */
@@ -333,7 +367,7 @@ export async function refreshShares(): Promise<number> {
     const note = notes.find((n) => n.id === id);
     const kept = all[id];
     if (!note || !kept) continue;
-    const shared = sharedOf(note, notes);
+    const shared = sharedOf(note, notes, { place: kept.place === true });
     // The pages as they were, and every picture they show either sent or still not here: nothing to send.
     if (digest(shared) === kept.sent && !(await lackedArrived(kept))) continue;
     try {

@@ -110,6 +110,6 @@ describe('the Formatting page', () => {
     const host = show(<FormattingPane />);
     act(() => host.querySelector<HTMLElement>('[aria-label="Local only"]')!.click());
     expect(preferences().localOnly).toBe(true);
-    expect(host.textContent).toContain('On. No update checks, no downloads, and plugins that use the network are off.');
+    expect(host.textContent).toContain('On. No update checks, no downloads, and plugins that use the network are off, and so are the map, the place name and the location fix on a tagged note.');
   });
 });

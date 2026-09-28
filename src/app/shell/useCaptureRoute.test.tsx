@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, useState } from 'react';
+import { act, useEffect, useState } from 'react';
 
 /** The summary queue, which runs only in the app: what a meeting asked of it, and what an undo dropped. */
 const summaries = vi.hoisted(() => ({ queued: [] as [string, string, { native?: boolean }][], dropped: [] as string[] }));
@@ -12,6 +12,7 @@ import { setMeetingStateForTests } from '../capture/meetingLive.ts';
 import { tapeId } from '../core/clips.ts';
 import { createNote, getNote, listNotes, updateNote } from '../core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from '../core/preferences.ts';
+import { autoTagRefusal, pendingTag, watchTag } from '../core/location.ts';
 import { addWorkspace, chooseWorkspace, workspaceOf } from '../core/workspaces.ts';
 import { show, waitUntil } from '../../test/render.tsx';
 import { MEETING_FAILED, MICROPHONE_REFUSED, useCaptureRoute, type CaptureRoute } from './useCaptureRoute.ts';
@@ -29,23 +30,32 @@ const flushDeletes = vi.fn(async () => undefined);
 /** What the route said to the person: why a meeting did not start. */
 const said: string[] = [];
 
+/** A note's screen as far as its tag goes: it watches the tag once mounted (editor/NoteScreen.tsx), and hears what comes. */
+const heardOnScreen: string[] = [];
+function NoteWatch({ id }: { id: string }) {
+  useEffect(() => watchTag(id, (event) => void heardOnScreen.push(`${id}:${event.kind}`)), [id]);
+  return null;
+}
+
 function Probe({
   from,
   tooSoon = false,
   sayTooSoon = () => undefined,
   clearStage = () => undefined,
   atBoot = false,
+  introduceLocation,
 }: {
   from: Screen;
   tooSoon?: boolean;
   sayTooSoon?: () => void;
   clearStage?: () => void;
   atBoot?: boolean;
+  introduceLocation?: (allow: () => void) => void;
 }) {
   const [now, setNow] = useState<Screen>(from);
   screen = now;
-  route = useCaptureRoute({ screen: now, setScreen: setNow, refresh, flushDeletes, atBoot, tooSoon: () => tooSoon, sayTooSoon, clearStage, say: (message) => void said.push(message) });
-  return null;
+  route = useCaptureRoute({ screen: now, setScreen: setNow, refresh, flushDeletes, atBoot, tooSoon: () => tooSoon, sayTooSoon, clearStage, say: (message) => void said.push(message), introduceLocation });
+  return now.name === 'note' ? <NoteWatch id={now.note.id} /> : null;
 }
 
 /** The phone's service, as the activity's bridge hands it to the page. */
@@ -378,5 +388,156 @@ describe('a meeting on the phone', () => {
     expect(await getNote('gone')).toBeNull();
     expect(preferences().meetings).toEqual({});
     expect(said).toEqual([]);
+  });
+});
+
+describe('where a capture’s new notes were made', () => {
+  /** The device answers a fix, or refuses (jsdom has no geolocation). */
+  const fixAt = (lat: number, lon: number, code?: number) => {
+    const calls: PositionOptions[] = [];
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback, fail: PositionErrorCallback, options: PositionOptions) => {
+          calls.push(options);
+          if (code) fail({ code, message: '' } as GeolocationPositionError);
+          else ok({ coords: { latitude: lat, longitude: lon, accuracy: 15 }, timestamp: 1 } as GeolocationPosition);
+        },
+      },
+    });
+    return calls;
+  };
+  /** Lets the fix, the write and the ask for a name land. */
+  const settle = () =>
+    act(async () => {
+      for (let i = 0; i < 12; i += 1) await Promise.resolve();
+    });
+
+  beforeEach(() => {
+    // The name would be asked of Nominatim: not in a test.
+    setPreferences({ placeNames: false });
+  });
+  afterEach(() => Reflect.deleteProperty(navigator, 'geolocation'));
+
+  it('tags the take’s own new note after the screen has changed, and not a note it only wrote into nor one a command made', async () => {
+    const calls = fixAt(51.50741, -0.12776);
+    const house = await createNote('house', '# House TODOs\n\n- [ ] Fix the gutter\n');
+    await createNote('made', '# Eggs\n');
+    show(<Probe from={into()} />);
+    const landing = { noteId: 'house', title: 'House TODOs', blocks: ['- [ ] Call Sam'], others: [], made: ['made'] };
+    await updateNote('house', '# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n', house.revision ?? 1);
+    await act(async () => route.finished(house, false, undefined, undefined, landing));
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'house' } });
+    await settle();
+    // Nothing of the take's own was new: the device is not asked.
+    expect(calls).toHaveLength(0);
+    expect((await getNote('made'))?.body).toBe('# Eggs\n');
+    expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+    // A list a command made, opened on its card: the app's doing, so not tagged either.
+    const list = await createNote('list', '# Groceries\n');
+    await act(async () => route.finished(list, false, undefined, undefined, { noteId: 'list', title: 'Groceries', blocks: [], others: [], made: ['list'] }));
+    await settle();
+    expect(calls).toHaveLength(0);
+    // A new note of the take's own: tagged once the list is showing.
+    const said = await createNote('said', '# Said\n');
+    await act(async () => route.finished(said, false));
+    await settle();
+    expect(calls).toHaveLength(1);
+    expect((await getNote('said'))?.body).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Said\n');
+  });
+
+  it('hands the tag to the note’s screen when it opens, rather than writing under its editor', async () => {
+    fixAt(51.5074, -0.1278);
+    const note = await createNote('n', '# Said\n');
+    // The note's screen, as it watches its tag once mounted (editor/NoteScreen.tsx).
+    const told: string[] = [];
+    const off = watchTag('n', (event) => told.push(event.kind));
+    show(<Probe from={into('n')} />);
+    await act(async () => route.finished(note, false));
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'n' } });
+    await settle();
+    off();
+    expect(told).toEqual(['pending']);
+    expect((await getNote('n'))?.body).toBe('# Said\n');
+    expect(pendingTag('n')).toEqual({ lat: 51.5074, lon: -0.1278, place: null, rough: false });
+  });
+
+  it('asks only once the note’s own screen is up, so the tag goes through it and never under its editor', async () => {
+    heardOnScreen.length = 0;
+    fixAt(40.7128, -74.006);
+    const note = await createNote('fresh', '# Said\n');
+    show(<Probe from={into()} />);
+    // A take that opens its note (an instruction said into it, here; a review does too).
+    await act(async () => route.finished(note, false, undefined, { kind: 'fix' }));
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'fresh' } });
+    await settle();
+    // The screen mounted with the route change and was watching before the fix was asked for: it was handed the tag.
+    expect(heardOnScreen).toEqual(['fresh:pending']);
+    expect((await getNote('fresh'))?.body).toBe('# Said\n');
+    expect(pendingTag('fresh')).toMatchObject({ lat: 40.7128, lon: -74.006 });
+  });
+
+  it('introduces the first ask on a device that never answered the prompt, and asks on the press', async () => {
+    const calls = fixAt(40.7128, -74.006);
+    const note = await createNote('first', '# Said\n');
+    let allow: (() => void) | null = null;
+    show(<Probe from={into()} introduceLocation={(press) => (allow = press)} />);
+    await act(async () => route.finished(note, false));
+    await settle();
+    expect(allow).not.toBeNull();
+    expect(calls).toHaveLength(0);
+    await act(async () => allow!());
+    await settle();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('keeps the tag aside while a review with a job is live for the note, and never asks at start', async () => {
+    const calls = fixAt(51.5074, -0.1278);
+    const note = await createNote('n', '# Said\n');
+    show(<Probe from={into()} />);
+    const job = { id: 'n', fromMs: 0, recordingMs: 4000, baseBody: '', savedBody: '# Said', titled: true, priorSegments: [], promptTail: '' };
+    await act(async () => route.finished(note, false, { noteId: 'n', job, heard: 'said', commands: [], touched: [] }));
+    await settle();
+    expect(calls).toHaveLength(1);
+    expect((await getNote('n'))?.body).toBe('# Said\n');
+    expect(pendingTag('n')).toEqual({ lat: 51.5074, lon: -0.1278, place: null, rough: false });
+    // Starting a capture asks nothing of the device.
+    await act(async () => route.start(false));
+    await settle();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('asks nothing with the switch off, under Local only, or over a locked phone whose permission is not held', async () => {
+    const calls = fixAt(51.5074, -0.1278);
+    const note = await createNote('n', '# Said\n');
+    setPreferences({ tagNewNotes: false });
+    show(<Probe from={into()} />);
+    await act(async () => route.finished(note, false));
+    await settle();
+    setPreferences({ tagNewNotes: true, localOnly: true });
+    await act(async () => route.finished(note, false));
+    await settle();
+    expect(calls).toHaveLength(0);
+    expect((await getNote('n'))?.body).toBe('# Said\n');
+    // Locked: the fix is taken quietly, which in a browser (no bridge to ask) is a fix without a dialog.
+    setPreferences({ localOnly: false });
+    await act(async () => route.finished(note, true));
+    await settle();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('remembers a refusal, so the device is asked once and the note is left untagged', async () => {
+    const calls = fixAt(0, 0, 1);
+    const one = await createNote('one', '# One\n');
+    const two = await createNote('two', '# Two\n');
+    show(<Probe from={into()} />);
+    await act(async () => route.finished(one, false));
+    await settle();
+    await act(async () => route.finished(two, false));
+    await settle();
+    expect(calls).toHaveLength(1);
+    expect(autoTagRefusal()).toBe('refused');
+    expect((await getNote('one'))?.body).toBe('# One\n');
+    expect((await getNote('two'))?.body).toBe('# Two\n');
   });
 });

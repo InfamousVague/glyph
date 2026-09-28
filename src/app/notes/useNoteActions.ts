@@ -14,6 +14,7 @@ import { transcriptOf } from '../capture/markdown.ts';
 import { cancelWriteUpOnHost, writeUpOnHost } from '../core/host.ts';
 import { preferences } from '../core/preferences.ts';
 import { recordingJobState } from '../core/recordings.ts';
+import { setPendingTag } from '../core/location.ts';
 import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.ts';
 
 /**
@@ -48,8 +49,9 @@ const UNDO_MS = 5000;
 /**
  * What the app kept about a note beside the note itself, let go once the note is deleted for good: its filing
  * (core/workspaces.ts), its gist (format/results.ts), the runs it has seen (ai/log.ts), the changes marked in it
- * (ai/marks.ts), the summary it was written (ai/summaryKeep.ts) and the job to write one (ai/summaries.ts). Its
- * place in the trash goes with it too, which the caller does, once for all of them when the whole trash is emptied.
+ * (ai/marks.ts), the summary it was written (ai/summaryKeep.ts), the job to write one (ai/summaries.ts) and a tag
+ * waiting to say where it was written (core/location.ts). Its place in the trash goes with it too, which the caller
+ * does, once for all of them when the whole trash is emptied.
  */
 function forgetKept(id: string): void {
   forgetNote(id);
@@ -58,6 +60,7 @@ function forgetKept(id: string): void {
   forgetMarks(id);
   forgetSummary(id);
   dropSummary(id);
+  setPendingTag(id, null);
 }
 
 /** A meeting out of the trash: its write-up asked of the phone again, where there is one to run (the header says when). */
@@ -153,6 +156,8 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
         cancelWriteUpOnHost(note.id);
         if (summaryNative(note.id)) dropSummary(note.id);
       }
+      // A tag waiting for the note is not written into a note in the trash; Undo brings the note back, not the tag.
+      setPendingTag(note.id, null);
       fireNativeHaptic('warning');
       toast({
         message: `Moved ${label(note)} to the Trash.`,

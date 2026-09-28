@@ -2,6 +2,7 @@ import type { TabGroups } from '../notes/tabGroups.ts';
 import { isCodeThemeDark, isCodeThemeLight, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { MOST_TABS } from '../notes/openTabs.ts';
 import { isNoteView, type NoteView } from '../editor/viewMode.ts';
+import { useSyncExternalStore } from 'react';
 import { externalStore } from './externalStore.ts';
 import { prefersStill } from './motion.ts';
 import { readStored, writeStored } from './stored.ts';
@@ -302,7 +303,7 @@ export interface Preferences {
    * sent. Synced, so every device lists every share, keeps it up to date and can stop it. The key is end-to-end
    * encrypted with the rest of the settings: the server that holds the share never sees it.
    */
-  shares: Record<string, { id: string; key: string; sent: string; lacked?: string[] }>;
+  shares: Record<string, { id: string; key: string; sent: string; lacked?: string[]; place?: true }>;
   /**
    * The app's movement, three switches under Settings > Animations (Matt: "add animations section to settings").
    * On by default, every one of them: they are what Glyph looks like. A phone asking for less motion is obeyed
@@ -322,6 +323,24 @@ export interface Preferences {
    * the linked site, so it can be switched off.
    */
   linkPreviews: boolean;
+  /**
+   * A map at the top of a tagged note, drawn from OpenStreetMap's tiles (editor/MapCard.tsx). Opening a tagged note
+   * then asks openstreetmap.org for the tiles, so it can be switched off.
+   */
+  mapTiles: boolean;
+  /**
+   * The name of the place a tagged note was written, asked of OpenStreetMap once for a tag this device made, and kept
+   * in the note (core/location.ts). An ask sends the coordinates, so it can be switched off.
+   */
+  placeNames: boolean;
+  /**
+   * Every note made here starts with where the device was (core/location.ts `tagNewNotesIfWanted`): a note typed
+   * from the + and a note a recording makes, never one the app makes for itself. On by default (Matt: "Add a setting
+   * to geotag notes by default and turn it on"). Kept on the device, as Local only is (core/sync/prefs.ts): it makes
+   * this device ask for its position, and a device that is not allowed to know where it is leaves its notes untagged
+   * and says so on the note's More sheet.
+   */
+  tagNewNotes: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -359,6 +378,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   ripples: true,
   motionSpeed: 'normal',
   linkPreviews: true,
+  mapTiles: true,
+  placeNames: true,
+  tagNewNotes: true,
 };
 
 const STORAGE_KEY = 'glyph-preferences';
@@ -411,10 +433,11 @@ function settle(raw: unknown): Preferences {
   const LINK_PART = /^[A-Za-z0-9_-]{16,64}$/;
   if (loaded.shares && typeof loaded.shares === 'object') {
     for (const [note, kept] of Object.entries(loaded.shares as Record<string, unknown>)) {
-      const k = kept as { id?: unknown; key?: unknown; sent?: unknown; lacked?: unknown } | null;
+      const k = kept as { id?: unknown; key?: unknown; sent?: unknown; lacked?: unknown; place?: unknown } | null;
       if (!k || typeof k.id !== 'string' || typeof k.key !== 'string' || !LINK_PART.test(k.id) || !LINK_PART.test(k.key)) continue;
       const lacked = Array.isArray(k.lacked) ? k.lacked.filter((n): n is string => typeof n === 'string') : undefined;
-      shares[note] = { id: k.id, key: k.key, sent: typeof k.sent === 'string' ? k.sent : '', ...(lacked?.length ? { lacked } : {}) };
+      // Whether the share carries where its note was written (share/share.ts): only ever true, never written false.
+      shares[note] = { id: k.id, key: k.key, sent: typeof k.sent === 'string' ? k.sent : '', ...(lacked?.length ? { lacked } : {}), ...(k.place === true ? { place: true } : {}) };
     }
   }
   loaded.shares = shares;
@@ -473,6 +496,23 @@ export function isDarkNow(theme: ThemePref): boolean {
   if (scheme === 'dark') return true;
   if (scheme === 'light') return false;
   return typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/** Follows the phone turning dark or light, for a page on System that is open when it does. */
+function onSchemeChange(changed: () => void): () => void {
+  if (typeof matchMedia === 'undefined') return () => undefined;
+  const query = matchMedia('(prefers-color-scheme: dark)');
+  query.addEventListener?.('change', changed);
+  return () => query.removeEventListener?.('change', changed);
+}
+
+/**
+ * `isDarkNow`, kept current while a screen is up: on System the page follows the phone's own dark mode (the Fold's
+ * turns on at sunset), and a picture drawn in the page's inks - the map card's tiles (editor/MapCard.tsx) - must
+ * turn with it rather than wait for the note to be opened again.
+ */
+export function useDarkNow(theme: ThemePref): boolean {
+  return useSyncExternalStore(onSchemeChange, () => isDarkNow(theme), () => isDarkNow(theme));
 }
 
 /**

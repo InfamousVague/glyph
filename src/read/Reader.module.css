@@ -154,3 +154,8 @@
 .page > [data-book-foot] {
   margin-inline: 0;
 }
+
+/* Where the page was written (editor/MapCard.tsx), under the byline: the page is the column, so no gutter of its own. */
+.map {
+  margin-block: 0 var(--glacier-space-4);
+}

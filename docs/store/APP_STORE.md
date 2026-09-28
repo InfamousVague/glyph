@@ -11,11 +11,15 @@ Everything else Apple asks for is fixed or listed below (DESIGN §113).
 - **Privacy manifest:** `src-tauri/gen/apple/glyph_iOS/PrivacyInfo.xcprivacy`.
   - No tracking.
   - Collected, only with an account: User ID, User Content, Photos, Audio, linked to the user, for app function.
+  - Precise Location and Coarse Location, optional, for app function, linked to the user only with an account (DESIGN
+    §134; the manifest and the App Privacy answers need this added when iOS can tag a note).
   - Required-reason APIs: FileTimestamp C617.1, DiskSpace E174.1, SystemBootTime 35F9.1, UserDefaults CA92.1.
 - **The icon set has no alpha channel.** App Store Connect rejects an icon with one.
 - **Info.plist** (`src-tauri/Info.ios.plist`):
   - the name under the icon is Ghost.md;
   - the microphone string is accurate;
+  - `NSLocationWhenInUseUsageDescription`, in the microphone's voice, is still to add beside it when iOS tags notes
+    (`Info.macos.plist` has the Mac's already);
   - `ghostmd://` links are claimed;
   - export compliance is `false`, with the reason: all encryption on iOS is Apple's own WebCrypto.
 - **The iOS library compiles again** (`cargo check --target aarch64-apple-ios`). `libc` was missing there.

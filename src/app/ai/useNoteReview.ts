@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { modelName } from '../core/ai.ts';
 import { failureText } from '../core/failure.ts';
+import { frontMatterOffset } from '../core/frontMatter.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { getNote, listNotes, noteTitle, updateNote, type Note } from '../core/store.ts';
 import { enqueueRefine, holdRefining, keepBetterPhrases, listenAgain } from '../capture/refine.ts';
@@ -47,6 +48,13 @@ export interface ReviewStage {
   percent: number | null;
 }
 
+/**
+ * Sent on `window`, `detail: { noteId }`, when the review hands its job back: when it ends, or when the note is left.
+ * The note's tag waits on it (core/location.ts, section 3 of its header): handed back with the better words already
+ * in the note, the tag may land; handed back to the queue, `refinePending` says so and the tag keeps waiting.
+ */
+export const REVIEW_HANDED_BACK = 'glyph:review-handed-back';
+
 export function useNoteReview(
   review: (ReviewHandoff & { key: number }) | undefined,
   view: EditorView | null,
@@ -76,6 +84,7 @@ export function useNoteReview(
       if (handoff.job && refined && listened) void keepBetterPhrases(handoff.job, refined);
       else if (handoff.job) enqueueRefine(handoff.job);
       holdRefining(false);
+      window.dispatchEvent(new CustomEvent(REVIEW_HANDED_BACK, { detail: { noteId: handoff.noteId } }));
     };
 
     void (async () => {
@@ -123,7 +132,10 @@ export function useNoteReview(
       let last: RunState | null = null;
       if (model) {
         const titles = (await listNotes().catch(() => [])).map((n) => noteTitle(n.body)).filter(Boolean);
-        const prompt = reviewMessage({ title: self.title, body: self.body, heard: handoff.heard, careful, changes, commands: handoff.commands, titles, touched: others });
+        // The model reads the words, never the front matter: where a note was written (core/geotag.ts) is not a
+        // finding, and the findings land by offsets into `self`, which keeps the whole body.
+        const words = (body: string) => body.slice(frontMatterOffset(body));
+        const prompt = reviewMessage({ title: self.title, body: words(self.body), heard: handoff.heard, careful, changes, commands: handoff.commands, titles, touched: others.map((n) => ({ ...n, body: words(n.body) })) });
         const budget = reviewBudget(model, prompt.length);
         setStage(null);
         if (simulatingReview()) simulateRuns(simulatedReview);

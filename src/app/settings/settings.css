@@ -326,6 +326,7 @@
 [data-hue='grey']     { --hue: #7c7c82; --hue-dark: #a1a1a8; }
 [data-hue='brown']    { --hue: #93724e; --hue-dark: #c7a57f; }
 [data-hue='mint']     { --hue: #1f9e8f; --hue-dark: #5fe0cf; }
+[data-hue='lime']     { --hue: #5f8f0a; --hue-dark: #a3d63f; }
 
 :root[data-theme='dark'] [data-hue] {
   --hue: var(--hue-dark);

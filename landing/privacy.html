@@ -121,6 +121,23 @@
           sees your IP address, as it would if you opened the link. You can turn previews off in Settings › Type.
         </li>
         <li>
+          <strong>Where a note was written</strong>: a new note you make starts with where you are, once you allow Ghost.md to
+          know it, and you can add or remove a note's location from its More sheet. Finding where you are asks your device's
+          location service, which on Android and in a browser uses nearby Wi-Fi and mobile networks and so the service's own
+          servers (Google's, Apple's or your browser's). Turn "Tag new notes with my location" off in Settings › Location on
+          each device to stop it; Local only stops it too. Notes you already have are never tagged.
+        </li>
+        <li>
+          <strong>Maps and place names</strong>: a note tagged with a location shows a small map, drawn with tiles your device
+          fetches from openstreetmap.org when you open the note, and asks OpenStreetMap's Nominatim once, when the location is
+          written into the note, for the place's name, which is then kept in the note. A new note that never gets a word
+          asks neither. Those servers see your IP address and the coordinates
+          asked about (to about 100 m for the name). Both are off under Local only, and each has its own switch in Settings ›
+          Location. A note's location is part of the note: it syncs with it, end-to-end encrypted like the rest of the note, it
+          is in the note's file in the phone's Files app, and a connected AI assistant sees it. A shared link leaves it out
+          unless you tick "Share where it was written" on that note.
+        </li>
+        <li>
           <strong>Updates and models</strong>: the apps check attack.fm for updates, and download the voice and formatting models
           from attack.fm, or from Hugging Face if attack.fm can't be reached. These are plain downloads: no account, device id or
           anything about you is sent. The servers see your IP address.
@@ -136,7 +153,8 @@
       <h2>What we don't do</h2>
       <p>
         We don't use analytics, crash reporting, advertising or tracking of any kind, and there's no advertising id. We don't sell
-        your data, share it with anyone, or use it to train AI models.
+        your data, share it with anyone (the location, map and place-name requests above are the one exception, and you can
+        switch them off), or use it to train AI models.
       </p>
 
       <h2>Deleting your data</h2>

@@ -62,6 +62,8 @@ const HUES: Record<string, string> = {
   type: 'indigo',
   theme: 'purple',
   recording: 'red',
+  // Its own: coral is the Claude plugin's (plugins/claude), on the same list.
+  location: 'lime',
   formatting: 'orange',
   feel: 'teal',
   plugins: 'green',

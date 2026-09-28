@@ -53,6 +53,13 @@ describe('starting a run on the note', () => {
     expect(v.state.field(landingField)).toMatchObject({ start: 19, cursor: 19, oldEnd: 29 });
   });
 
+  it('gives the model the words after where the note was written, and lands the rewrite after it', () => {
+    const v = open('---\nlocation: 51.5074,-0.1278\nplace: "London"\n---\n# A\nwords\n');
+    startNoteRun(v, 'n', 'format', ready);
+    expect(requests[0]).toMatchObject({ prompt: '# A\nwords\n', scope: { from: 50, to: 60 } });
+    expect(v.state.field(landingField)).toMatchObject({ start: 50, cursor: 50, oldEnd: 60 });
+  });
+
   it('gives the model a rule with words under it, which the editor shows as words (core/frontMatter.ts)', () => {
     const v = open('---\nSome words here\n---\n# A\n');
     startNoteRun(v, 'n', 'format', ready);

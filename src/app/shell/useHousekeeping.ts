@@ -5,6 +5,7 @@ import { startSummaries } from '../ai/summaries.ts';
 import { startRefining } from '../capture/refine.ts';
 import { installBack } from '../core/back.ts';
 import { installTapHaptics } from '../core/haptics.ts';
+import { settleWaitingTags } from '../core/location.ts';
 import { settleBoot } from '../core/ota.ts';
 import { applyPreferences } from '../core/preferences.ts';
 import { sampleNoteSeeded, seedSampleNote } from '../core/seed.ts';
@@ -76,8 +77,23 @@ export function useHousekeeping({ notes, loading, refresh, sidebar, open }: Hous
   }, [refresh, toast]);
 
   // The better words after a recording, worked out in the background; the list
-  // is refreshed when a note's words change.
-  useEffect(() => startRefining(() => void refresh()), [refresh]);
+  // is refreshed when a note's words change. A new note's tag waits for those
+  // words (core/location.ts), so once a pass has landed on a closed note its
+  // tag is written in too, and the home card, sync and the other devices see it.
+  useEffect(
+    () =>
+      startRefining(() => {
+        void refresh();
+        void settleWaitingTags().then((landed) => (landed ? refresh() : undefined));
+      }),
+    [refresh],
+  );
+  // And at launch: a tag left waiting when the app stopped, or whose pass ran out of tries, lands on the first read.
+  useEffect(() => {
+    if (!loading) void settleWaitingTags().then((landed) => (landed ? refresh() : undefined));
+    // Once the notes have been read; a refresh is not a reason to look again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
   // The summary of a recording, written up after its better words (ai/summaries.ts, docs/DESIGN.md §127 section 2):
   // the list is refreshed when one lands, and a toast says so with the way to the note, for ten seconds.
   useEffect(
