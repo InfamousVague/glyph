@@ -566,6 +566,25 @@ async function wouldPrompt(): Promise<boolean> {
   return true;
 }
 
+/**
+ * The system's prompt, raised from a press, where it can be asked and has never been answered: a journal's "With
+ * where you are" turned on (book/TemplatePicker.tsx), so its first entry is not the first ask. A fix forgets a kept
+ * refusal; a refusal is kept, as the new notes' ask keeps one. Answers why no fix came, or null, and null too where
+ * nothing was asked.
+ */
+export async function askFromPress(): Promise<LocateFailure | null> {
+  if (!canLocate().ok || !(await wouldPrompt())) return null;
+  try {
+    await locate();
+    forgetRefusal();
+    return null;
+  } catch (failure) {
+    const why = whyLocateFailed(failure);
+    rememberRefusal(why);
+    return why;
+  }
+}
+
 /** The first automatic ask of this run was introduced: a person who let it pass is not asked again until the next. */
 let introduced = false;
 

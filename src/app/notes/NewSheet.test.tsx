@@ -38,6 +38,9 @@ describe('the + sheet', () => {
   it('offers a notebook by that name, and makes one on a tap', () => {
     const onBook = vi.fn();
     show(<NewSheet open onClose={noop} onNote={noop} onCanvas={noop} onBook={onBook} onFromLink={async () => undefined} />);
+    // A journal is a kind of notebook, made from the same row (book/NewBookSheet.tsx): there is no Journal row.
+    expect(buttonSaying(sheet()!, 'Notebook')?.textContent).toContain('Notes in an order with an index, or a journal of dated entries.');
+    expect(buttonSaying(sheet()!, 'Journal')).toBeUndefined();
     act(() => buttonSaying(sheet()!, 'Notebook')!.click());
     expect(onBook).toHaveBeenCalledTimes(1);
     expect(sheet()?.textContent).not.toMatch(/\bbook\b/i);

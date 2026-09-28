@@ -1045,3 +1045,69 @@ describe('where the note was written', () => {
     expect(card()?.textContent).toContain('48.8566, 2.3522');
   });
 });
+
+describe('a notebook kept as a journal', () => {
+  const NOTEBOOK = '---\ntitle: "Trip"\nbook: true\n---\n# Trip\n\n- [[Day one]]\n- [[Day two]]\n';
+  const more = () => act(() => button('More for this note').click());
+  const viewSwitch = () => document.querySelector<HTMLButtonElement>('header button')!;
+  const written = async () => {
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    return saved().at(-1) ?? '';
+  };
+
+  it('is offered on a notebook’s More sheet, and keeping it writes the keys and leaves every page where it was', async () => {
+    show(screen(await createNote('b1', NOTEBOOK), { hasTitle: () => true, onOpenTitle: () => {} }));
+    more();
+    expect(buttonSaying(document.body, 'Keep it as a journal')?.textContent).toContain('New pages start dated, from a template.');
+    act(() => buttonSaying(document.body, 'Keep it as a journal')!.click());
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Journal');
+    act(() => button('Just the time').click());
+    act(() => buttonSaying(document.body, 'Make it a journal')!.click());
+    const body = await written();
+    expect(body).toBe('---\ntitle: "Trip"\nbook: true\njournal: true\ntemplate: "**{{time}}** "\nentry-place: true\n---\n# Trip\n\n- [[Day one]]\n- [[Day two]]\n');
+    // Back on the sheet, the row says what it is now; the name field says journal.
+    expect(buttonSaying(document.body, 'Journal')?.textContent).toContain('Starts with the time. Keeps where each was written.');
+    expect(document.querySelector('input[placeholder="What this journal is called"]')).not.toBeNull();
+  });
+
+  it('writes a journal’s changes as they are made, and makes it a notebook again with every page kept', async () => {
+    const journal = '---\ntitle: "Trip"\nbook: true\njournal: true\ntemplate: "**{{time}}** "\nentry-place: true\n---\n# Trip\n\n- [[Day one]]\n';
+    show(screen(await createNote('j1', journal), { hasTitle: () => true, onOpenTitle: () => {} }));
+    more();
+    act(() => buttonSaying(document.body, 'Journal')!.click());
+    act(() => button('A morning page').click());
+    expect(await written()).toContain('template: "# {{date}}\\n\\n> What is on your mind this morning?\\n\\n"');
+    act(() => document.querySelector<HTMLElement>('input[aria-label="With where you are"]')!.click());
+    expect(await written()).not.toContain('entry-place');
+    act(() => buttonSaying(document.body, 'Make it a notebook again')!.click());
+    expect(await written()).toBe('---\ntitle: "Trip"\nbook: true\n---\n# Trip\n\n- [[Day one]]\n');
+  });
+
+  it('writes the keys into the Markdown when that is the view, so the next keystroke keeps them', async () => {
+    show(screen(await createNote('b1', NOTEBOOK), { hasTitle: () => true, onOpenTitle: () => {} }));
+    act(() => viewSwitch().click());
+    more();
+    act(() => buttonSaying(document.body, 'Keep it as a journal')!.click());
+    act(() => buttonSaying(document.body, 'Make it a journal')!.click());
+    act(() => goBack());
+    type('- [[Day three]]\n');
+    const body = await written();
+    expect(body).toContain('journal: true');
+    expect(body).toContain('[[Day three]]');
+  });
+
+  it('is not offered on the Guide, a note of words, or a canvas', async () => {
+    show(screen(await createNote('g1', '---\ntitle: "Ghost.md: The Guide"\nbook: true\n---\n# Ghost.md: The Guide\n\n1. [[Welcome]]\n'), { hasTitle: () => true, onOpenTitle: () => {} }));
+    more();
+    expect(buttonSaying(document.body, 'Keep it as a journal')).toBeUndefined();
+    unmount();
+    show(screen(await createNote('n1', '# Groceries')));
+    more();
+    expect(buttonSaying(document.body, 'Keep it as a journal')).toBeUndefined();
+    unmount();
+    show(screen(await createNote('c1', '{"nodes":[],"edges":[]}')));
+    more();
+    expect(buttonSaying(document.body, 'Keep it as a journal')).toBeUndefined();
+  });
+});

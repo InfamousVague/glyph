@@ -17,7 +17,9 @@ import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
 import { BookBar, BookFoot } from '../book/BookNav.tsx';
 import { BookView } from '../book/BookView.tsx';
-import { isBookBody, type BookPlace } from '../book/book.ts';
+import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
+import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate } from '../book/journal.ts';
+import { isGuideBook } from '../guidebook/guidebook.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
 import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
 import { geoTagOf, sameTag, tagOf, withGeoTag, type GeoTag } from '../core/geotag.ts';
@@ -239,6 +241,33 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     onChange(named);
     if (isBook) setBookBody(named);
   };
+  /*
+   * A notebook kept as a journal, or a journal's template and place switch (docs/DESIGN.md §142): written as the
+   * notebook's own changes are, and into the editor where its Markdown is the view, so the next keystroke there does
+   * not write the old keys back. Not the Guide's: a manual is not a diary.
+   */
+  const isJournal = useMemo(() => isJournalBody(bookBody), [bookBody]);
+  const writeNotebook = (change: (was: string) => string) => {
+    const next = change(body.current);
+    if (next === body.current) return;
+    if (source && view?.dom.isConnected) {
+      const doc = view.state.doc.toString();
+      view.dispatch({ changes: { from: 0, to: doc.length, insert: change(doc) } });
+    } else onChange(next);
+    setBookBody(next);
+  };
+  const journalRows =
+    isBook && !isGuideBook({ ...note, body: bookBody })
+      ? {
+          on: isJournal,
+          template: templateOf(bookBody),
+          place: entryPlaceOf(bookBody),
+          keep: (template: string, place: boolean) => writeNotebook((was) => withJournal(was, template, place)),
+          setTemplate: (text: string) => writeNotebook((was) => withTemplate(was, text)),
+          setPlace: (on: boolean) => writeNotebook((was) => withEntryPlace(was, on)),
+          unkeep: () => writeNotebook(withoutJournal),
+        }
+      : undefined;
   const paging = isBook && !source;
   const typed = !!canvas || isBook;
   const showSource = (next: boolean) => {
@@ -720,7 +749,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         pinned={pinned}
         editing={editing}
         onClose={() => setSettingsOpen(false)}
-        name={typed ? { value: title, onChange: renameHere, kind: canvas ? 'canvas' : 'notebook' } : undefined}
+        name={typed ? { value: title, onChange: renameHere, kind: canvas ? 'canvas' : isJournal ? 'journal' : 'notebook' } : undefined}
+        journal={journalRows}
         view={!wide && shown === 'raw' ? (typed ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
         onView={typed ? (next) => showSource(next === 'mixed') : chooseView}
         running={ai.runningKind}

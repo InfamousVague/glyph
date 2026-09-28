@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ListChecks, TextSearch } from '@glacier/icons';
+import { Feather, ListChecks, TextSearch } from '@glacier/icons';
 import { ArchiveBox, ArrowLeft, Bin, Board, Locate, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { tagLabel, type GeoTag } from '../core/geotag.ts';
@@ -14,6 +14,9 @@ import { KIND_ICONS } from '../ai/icons.ts';
 import type { RunKind } from '../ai/kinds.ts';
 import { WorkspacePicker } from './WorkspacePicker.tsx';
 import { ShareRows } from '../share/ShareRows.tsx';
+import { DEFAULT_TEMPLATE, PLACE_SENTENCE, templateSentence } from '../book/journal.ts';
+import { TemplatePicker } from '../book/TemplatePicker.tsx';
+import { preferences } from '../core/preferences.ts';
 import type { NoteView } from './viewMode.ts';
 import { Sheet } from './Sheet.tsx';
 import styles from './NoteSettings.module.css';
@@ -29,6 +32,10 @@ import styles from './NoteSettings.module.css';
  * switched-off plugin's rows are simply not there. A link's row says, once the sheet is open, why it cannot be used
  * here when it cannot, and is greyed; an action's row is greyed while there is nothing for it to do in the note as
  * it was when the sheet opened.
+ *
+ * A notebook can be kept as a journal from here, and a journal changed or made a notebook again (docs/DESIGN.md
+ * §142): a row under its name opens a page of the sheet with what each entry starts with (book/TemplatePicker.tsx).
+ * Keeping it as a journal leaves every page where it is; the journal's view orders them by when each was written.
  *
  * A sheet from the bottom over a dimmed note, where a thumb already is (editor/Sheet.tsx). The links are shown before
  * they work so a note can be found where they will be; each says what it will do.
@@ -54,7 +61,23 @@ interface NoteSettingsProps {
    * (docs/BOOKS.md), whose name is its `title:` front matter, and which of the two it is, for the field's placeholder.
    * Absent on a note of words, which is named by its first line.
    */
-  name?: { value: string; onChange: (title: string) => void; kind: 'canvas' | 'notebook' };
+  name?: { value: string; onChange: (title: string) => void; kind: 'canvas' | 'notebook' | 'journal' };
+  /**
+   * A notebook that can be kept as a journal, or a journal (book/journal.ts): its template and its place switch as
+   * the note says them, and the writes, each through the note as typing is. Absent on anything else, and on the Guide,
+   * which is a manual and not a diary.
+   */
+  journal?: {
+    on: boolean;
+    template: string;
+    place: boolean;
+    /** The notebook kept as a journal, with this template and place switch. */
+    keep: (template: string, place: boolean) => void;
+    setTemplate: (text: string) => void;
+    setPlace: (on: boolean) => void;
+    /** The journal made a notebook again: its entries stay as pages. */
+    unkeep: () => void;
+  };
   /** How the note is shown, when the header has no room for its switch (a folded phone); absent, no row. */
   view?: NoteView;
   /** The AI's kind of run on this note now, if one is on, and how to ask for one (ai/start.ts). Absent on a note that can't be read to. */
@@ -105,6 +128,35 @@ function locationHint(location: NonNullable<NoteSettingsProps['location']>): str
 /** The two drawn icons from the kit, at the weight the sheet's own are drawn: the rings size every icon to 18 px. */
 const FindIcon = () => <TextSearch size={18} strokeWidth={2.2} />;
 const CheatSheetIcon = () => <ListChecks size={18} strokeWidth={2.2} />;
+/** A journal's mark, the pen an entry is written with, as the + sheet's entry row wears it. */
+const JournalIcon = () => <Feather size={18} strokeWidth={2.2} />;
+
+/** A journal's page of the sheet: what its entries start with, then keeping it as one, or making it a notebook again. */
+function JournalPage({ journal, name }: { journal: NonNullable<NoteSettingsProps['journal']>; name: string }) {
+  // A notebook's choice is a draft until it is kept; a journal's is written as it is made.
+  const [template, setTemplate] = useState(journal.on ? journal.template : DEFAULT_TEMPLATE);
+  const [place, setPlace] = useState(journal.on ? journal.place : preferences().tagNewNotes);
+  const chooseTemplate = (text: string) => {
+    setTemplate(text);
+    if (journal.on) journal.setTemplate(text);
+  };
+  const choosePlace = (on: boolean) => {
+    setPlace(on);
+    if (journal.on) journal.setPlace(on);
+  };
+  return (
+    <>
+      <TemplatePicker template={template} onTemplate={chooseTemplate} place={place} onPlace={choosePlace} name={name} />
+      <SheetGroup>
+        {journal.on ? (
+          <SheetRow label="Make it a notebook again" hint="Its entries stay as pages. New pages start plain." onPress={journal.unkeep} />
+        ) : (
+          <SheetRow label="Make it a journal" hint="Its pages stay where they are." onPress={() => journal.keep(template, place)} />
+        )}
+      </SheetGroup>
+    </>
+  );
+}
 
 export function NoteSettings({
   open,
@@ -119,6 +171,7 @@ export function NoteSettings({
   onFind,
   onMakeBoard,
   name,
+  journal,
   view,
   onView,
   running,
@@ -127,7 +180,7 @@ export function NoteSettings({
 }: NoteSettingsProps) {
   // Re-rendered when a plugin is switched, so its rows come and go.
   usePlugins();
-  const [page, setPage] = useState<NoteLink | 'workspace' | 'cheatsheet' | null>(null);
+  const [page, setPage] = useState<NoteLink | 'workspace' | 'cheatsheet' | 'journal' | null>(null);
   // Re-rendered as the note is filed, so the row says where it is.
   const spaces = useWorkspaces();
   const filed = workspaceOf(noteId);
@@ -154,7 +207,31 @@ export function NoteSettings({
 
   const back = () => (page ? setPage(null) : onClose());
 
-  if (page) {
+  if (page === 'journal' && journal) {
+    return (
+      <Sheet label="Journal" onClose={onClose} onBack={back}>
+        <button type="button" className={styles.back} onClick={() => setPage(null)}>
+          <ArrowLeft /> {title || 'This note'}
+        </button>
+        <JournalPage
+          journal={{
+            ...journal,
+            keep: (template, place) => {
+              journal.keep(template, place);
+              setPage(null);
+            },
+            unkeep: () => {
+              journal.unkeep();
+              setPage(null);
+            },
+          }}
+          name={title}
+        />
+      </Sheet>
+    );
+  }
+
+  if (page && page !== 'journal') {
     // The cheat sheet is read here rather than picked from, so it is shown whole instead of through a plugin's picker.
     const Picker = page === 'cheatsheet' ? null : page === 'workspace' ? WorkspacePicker : page.Picker;
     const label = page === 'cheatsheet' ? 'Formatting cheat sheet' : page === 'workspace' ? 'Workspace' : page.label;
@@ -176,6 +253,13 @@ export function NoteSettings({
       {name ? (
         <SheetGroup>
           <SheetField label="Name" value={name.value} onChange={(e) => name.onChange(e.target.value)} placeholder={`What this ${name.kind} is called`} autoComplete="off" />
+          {journal ? (
+            journal.on ? (
+              <SheetRow icon={JournalIcon} label="Journal" hint={`${templateSentence(journal.template)}${journal.place ? ` ${PLACE_SENTENCE}` : ''}`} onPress={() => setPage('journal')} />
+            ) : (
+              <SheetRow icon={JournalIcon} label="Keep it as a journal" hint="New pages start dated, from a template." onPress={() => setPage('journal')} />
+            )
+          ) : null}
         </SheetGroup>
       ) : null}
 
@@ -241,7 +325,7 @@ export function NoteSettings({
       ) : null}
 
       {/* Read by anyone with its link, and nobody else (share/share.ts, docs/SHARING.md). */}
-      <ShareRows noteId={noteId} kind={name?.kind === 'notebook' ? 'notebook' : 'note'} />
+      <ShareRows noteId={noteId} kind={name?.kind === 'notebook' || name?.kind === 'journal' ? 'notebook' : 'note'} />
 
       {/* The group under AI, named like the rest of them (Matt: "the section under AI is not labeled"). */}
       <SheetHeading>Where it sits</SheetHeading>

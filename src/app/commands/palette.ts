@@ -54,6 +54,8 @@ export interface PaletteDoing {
   newNote: () => void;
   /** The New notebook sheet (book/NewBookSheet.tsx), as the + sheet's Notebook row opens it. */
   newNotebook: () => void;
+  /** The same sheet with Journal chosen (docs/DESIGN.md §142). Absent, no such command. */
+  newJournal?: () => void;
   speak: () => void;
   speakInto: (id: string) => void;
   closeTab: (id: string) => void;
@@ -161,6 +163,10 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query 
   add({ id: 'new', label: 'New note', group: 'Notes', keywords: 'write blank create add', shortcut: '⌘N' }, () => doing.newNote());
   // "book" and "chapters" stay among its words: a book was a notebook's name until docs/DESIGN.md §142.
   add({ id: 'notebook', label: 'New notebook', group: 'Notes', keywords: 'book index pages chapters create' }, () => doing.newNotebook());
+  if (doing.newJournal) {
+    const newJournal = doing.newJournal;
+    add({ id: 'journal', label: 'New journal', group: 'Notes', keywords: 'diary log dated entries daily' }, () => newJournal());
+  }
   add({ id: 'speak', label: 'Speak a new note', group: 'Notes', keywords: 'record voice dictate mic talk' }, () => doing.speak());
   add({ id: 'list', label: 'Home', group: 'Notes', keywords: 'home list back dashboard start' }, () => doing.showList());
   add({ id: 'notes', label: 'All notes', group: 'Notes', keywords: 'browse every grid cards library search archive' }, () => doing.browseNotes());

@@ -149,6 +149,16 @@ describe('what the palette offers', () => {
     expect(made.keywords).toContain('book');
   });
 
+  it('opens the New notebook sheet on Journal, found by a diary’s words, where the app offers it', () => {
+    expect(paletteCommands(world(), doing()).some((command) => command.descriptor.id === 'journal')).toBe(false);
+    const acts = { ...doing(), newJournal: vi.fn() };
+    const made = paletteCommands(world(), acts).find((command) => command.descriptor.id === 'journal')!;
+    expect(made.descriptor).toMatchObject({ label: 'New journal', group: 'Notes' });
+    expect(made.descriptor.keywords).toContain('diary');
+    made.run();
+    expect(acts.newJournal).toHaveBeenCalled();
+  });
+
   it('gives every command its own id, so the palette can tell them apart', () => {
     const list = ids(
       paletteCommands(

@@ -46,6 +46,7 @@ import { outOfTrash, trash } from './core/trash.ts';
 import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, isBookBody } from './book/book.ts';
+import { journalNoteBody } from './book/journal.ts';
 import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
@@ -372,13 +373,20 @@ function Shell() {
 
   /**
    * A book from the + (docs/BOOKS.md): the New book sheet asks its name and which notes are its pages, in what
-   * order, and makes one note with that index, opened on it. Filed and kept as a note is.
+   * order, and makes one note with that index, opened on it. Filed and kept as a note is. Or a journal, from the same
+   * sheet with Journal chosen (docs/DESIGN.md §142), which the palette's New journal opens on: its template and its
+   * place switch, and an empty index, opened on it.
    */
-  const [bookSheet, setBookSheet] = useState(false);
-  const newBook = () => setBookSheet(true);
+  const [bookSheet, setBookSheet] = useState<'notebook' | 'journal' | null>(null);
+  const newBook = () => setBookSheet('notebook');
+  const newJournal = () => setBookSheet('journal');
   const createBook = (title: string, pages: readonly string[]) => {
     tabs.replaceNext(null);
     return showMade(bookNoteBody(title, pages));
+  };
+  const createJournal = (title: string, template: string, place: boolean) => {
+    tabs.replaceNext(null);
+    return showMade(journalNoteBody(title, template, place));
   };
   /** What can be a page: every note's title but the books' own. */
   const pageTitles = () => shownNotes.filter((n) => !isBookBody(n.body)).map((n) => noteTitle(n.body)).filter((t) => t.trim());
@@ -623,6 +631,7 @@ function Shell() {
     openNoteWhereLeft,
     newNote: () => void newNote(),
     newNotebook: newBook,
+    newJournal,
     speak,
     speakInto,
     closeTab,
@@ -775,7 +784,15 @@ function Shell() {
         onMeeting={canMeet ? newMeeting : undefined}
         onFromLink={forkFromLink}
       />
-      <NewBookSheet open={bookSheet} onClose={() => setBookSheet(false)} titles={pageTitles()} isCanvas={(title) => isCanvasBody(bodyOfTitle(title) ?? '')} onCreate={(title, pages) => void createBook(title, pages)} />
+      <NewBookSheet
+        open={bookSheet !== null}
+        kind={bookSheet ?? 'notebook'}
+        onClose={() => setBookSheet(null)}
+        titles={pageTitles()}
+        isCanvas={(title) => isCanvasBody(bodyOfTitle(title) ?? '')}
+        onCreate={(title, pages) => void createBook(title, pages)}
+        onCreateJournal={(title, template, place) => void createJournal(title, template, place)}
+      />
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
       <WhatsNewSheet sources={updates.status?.sources} hold={guide.open || isRecording(screen)} />
       {launching ? <LaunchScreen loading={loading} notes={notes.filter((n) => !n.archivedAt).length} updates={updates} sync={syncStatus} onDone={() => setLaunching(false)} /> : null}

@@ -553,6 +553,31 @@ describe('tagging new notes', () => {
     expect(location.autoTagRefusal()).toBeNull();
   });
 
+  it('asks from a press only where the prompt was never answered, and keeps what it met', async () => {
+    const { calls } = failWith(1);
+    // No permissions API to say: the prompt may never have been answered, so the press asks, and the refusal is kept.
+    expect(await location.askFromPress()).toBe('refused');
+    expect(calls).toHaveLength(1);
+    expect(location.autoTagRefusal()).toBe('refused');
+    // Answered already: nothing is asked.
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'granted' }) } });
+    try {
+      const answered = fixAt(51.5074, -0.1278);
+      expect(await location.askFromPress()).toBeNull();
+      expect(answered.calls).toHaveLength(0);
+    } finally {
+      Reflect.deleteProperty(navigator, 'permissions');
+    }
+    // A fix forgets the refusal; under Local only nothing is asked at all.
+    const fixed = fixAt(51.5074, -0.1278);
+    expect(await location.askFromPress()).toBeNull();
+    expect(fixed.calls).toHaveLength(1);
+    expect(location.autoTagRefusal()).toBeNull();
+    prefs.setPreferences({ localOnly: true });
+    expect(await location.askFromPress()).toBeNull();
+    expect(fixed.calls).toHaveLength(1);
+  });
+
   it('does nothing with the switch off, under Local only, or with nothing to tag', async () => {
     const { calls } = fixAt(1, 1);
     expect(await location.tagNewNotesIfWanted([], { reviewing: false })).toBeNull();
