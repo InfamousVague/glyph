@@ -470,7 +470,8 @@ function Shell() {
       return;
     }
     const fresh = entryRecord(id) ? await getNote(id).catch(() => null) : null;
-    if (!fresh || !untouchedEntry(id, fresh.body, fresh)) {
+    // A meeting holds the microphone: the capture opens the meeting instead, and the entry is left as it was made.
+    if (!fresh || !untouchedEntry(id, fresh.body, fresh) || meetingStateNow()?.recording) {
       await capture.start(false, id);
       return;
     }

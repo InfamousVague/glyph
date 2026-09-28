@@ -752,6 +752,23 @@ describe('a journal’s entries', () => {
     expect((await getNote('older'))!.body).not.toContain(title);
   });
 
+  it('leaves an untouched entry as it was made when its mic opens the meeting being recorded instead', async () => {
+    const { setMeetingStateForTests } = await import('./capture/meetingLive.ts');
+    await seed(['diary', DIARY], ['m1', '# Meeting, 28 Sep 14:05']);
+    await openApp();
+    act(() => card('Diary').click());
+    const { id } = await newEntry();
+    const made = (await getNote(id))!.body;
+    setMeetingStateForTests({ recording: true, noteId: 'm1', startedAt: Date.now(), writeUps: [] } as unknown as Parameters<typeof setMeetingStateForTests>[0]);
+    try {
+      await act(async () => seen.note!.onSpeak!(id));
+      await waitUntil(() => expect(document.querySelector('[aria-label="Stop and write up"]')).not.toBeNull());
+      expect((await getNote(id))!.body).toBe(made);
+    } finally {
+      setMeetingStateForTests(null);
+    }
+  });
+
   it('opens the journal itself from its card, after an entry was read', async () => {
     const title = '2026-09-28 14.05';
     await seed(['diary', `${DIARY}- [[${title}]]\n`], ['e1', `---\ntitle: "${title}"\ndate: 2026-09-28T14:05\n---\nWords of mine.`]);
