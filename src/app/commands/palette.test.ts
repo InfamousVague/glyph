@@ -149,6 +149,16 @@ describe('what the palette offers', () => {
     expect(made.keywords).toContain('book');
   });
 
+  it('says Speak an entry for a journal’s mic, which is still its own Talk into this note', () => {
+    const acts = doing();
+    const on = (journal: boolean) => paletteCommands(world({ note: { id: 'j', title: 'Diary', ...(journal ? { journal: true as const } : {}) } }), acts).find((c) => c.descriptor.id === 'note:speak')!;
+    expect(on(false).descriptor.label).toBe('Talk into this note');
+    expect(on(true).descriptor.label).toBe('Speak an entry');
+    expect(on(true).descriptor.keywords).toContain('diary');
+    on(true).run();
+    expect(acts.speakInto).toHaveBeenCalledWith('j');
+  });
+
   it('opens the New notebook sheet on Journal, found by a diary’s words, where the app offers it', () => {
     expect(paletteCommands(world(), doing()).some((command) => command.descriptor.id === 'journal')).toBe(false);
     const acts = { ...doing(), newJournal: vi.fn() };

@@ -20,6 +20,8 @@ import type { NoteView } from '../editor/viewMode.ts';
 export interface PaletteNote {
   id: string;
   title: string;
+  /** A journal (book/journal.ts): its mic makes an entry and speaks it. */
+  journal?: true;
 }
 
 /** The app as it stands, for deciding what can be done right now. */
@@ -124,7 +126,11 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query 
   const note = world.note;
   if (note) {
     const name = titleOf(note);
-    add({ id: 'note:speak', label: 'Talk into this note', group: 'This note', keywords: 'record voice dictate mic' }, () => doing.speakInto(note.id));
+    // On a journal the mic is Speak an entry: an entry made and spoken, never words into the index (App.tsx `speakInto`).
+    add(
+      { id: 'note:speak', label: note.journal ? 'Speak an entry' : 'Talk into this note', group: 'This note', keywords: note.journal ? 'record voice dictate mic journal diary entry' : 'record voice dictate mic' },
+      () => doing.speakInto(note.id),
+    );
     add(
       { id: 'note:view', label: world.view === 'mixed' ? 'Show it formatted' : 'Show the marks', group: 'This note', keywords: 'markdown formatted preview read' },
       () => doing.setView(world.view === 'mixed' ? 'formatted' : 'mixed'),

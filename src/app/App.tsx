@@ -44,11 +44,11 @@ import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote } from './core
 import { addGuideBook, GUIDE_TITLE } from './guidebook/guidebook.ts';
 import { isTrashed, outOfTrash, trash } from './core/trash.ts';
 import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
-import { withFrontMatterTitle } from './core/frontMatter.ts';
+import { frontMatterOffset, withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
 import { entryBody, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
-import { entryRecords, forgetEntry, rememberEntry, untouchedEntry, type EntryRecord } from './book/entryDrafts.ts';
-import { fillTemplate } from './book/template.ts';
+import { entryRecord, entryRecords, forgetEntry, rememberEntry, setEntryWords, untouchedEntry, type EntryRecord } from './book/entryDrafts.ts';
+import { fillTemplate, openEnd } from './book/template.ts';
 import { inTimeOrder } from './book/journalMonths.ts';
 import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
@@ -455,7 +455,47 @@ function Shell() {
   }, [screen.name]);
 
   const speak = () => void capture.start(false);
-  const speakInto = (id: string) => void capture.start(false, id);
+  /**
+   * Talking into a note, from its mic or the palette. A journal's is Speak an entry: an entry made and spoken, never
+   * words into the index (`newEntry`). An entry nobody has written in yet is spoken from its time line: the line it was
+   * left open with is taken off and put back before the words (book/template.ts `openEnd`, capture/place.ts `lead`),
+   * so it still starts with its time, and a day's to-dos said aloud are to-dos. Said nothing, the entry is put back as
+   * it was made.
+   */
+  const speakInto = (id: string) => void speakIntoNote(id);
+  const speakIntoNote = async (id: string) => {
+    const note = notes.find((n) => n.id === id) ?? (await getNote(id).catch(() => null));
+    if (note && isJournalBody(note.body)) {
+      await newEntry(id, { speak: true });
+      return;
+    }
+    const fresh = entryRecord(id) ? await getNote(id).catch(() => null) : null;
+    if (!fresh || !untouchedEntry(id, fresh.body, fresh)) {
+      await capture.start(false, id);
+      return;
+    }
+    const head = fresh.body.slice(0, frontMatterOffset(fresh.body));
+    const filled = fresh.body.slice(head.length);
+    const { base, placing } = openEnd(filled);
+    if (base !== filled) {
+      await updateNote(id, `${head}${base}`, fresh.revision ?? 1).catch(() => undefined);
+      setEntryWords(id, base);
+    }
+    await capture.start(false, id, {
+      id,
+      placing,
+      // Where it was written was asked for when it was made, and waits for the words.
+      tag: null,
+      nothing: async () => {
+        const now = await getNote(id).catch(() => null);
+        if (!now) return { name: 'list' };
+        if (base === filled) return { name: 'note', note: now };
+        const back = await updateNote(id, `${head}${filled}`, now.revision ?? 1).catch(() => now);
+        setEntryWords(id, filled);
+        return { name: 'note', note: back };
+      },
+    });
+  };
 
   /*
    * A journal's entries (docs/DESIGN.md §142, book/journal.ts). New entry makes a note named by the minute, starts it
@@ -495,7 +535,12 @@ function Shell() {
   /** The first ask for where a journal's entries were written, introduced in the app's words, from its own press. */
   const introduceEntries = (journal: string) => (allow: () => void) =>
     toast({ message: `${journal} keeps where each entry was written.`, duration: 10_000, action: { label: 'Allow location', onPress: allow } });
-  const newEntry = async (journalId: string) => {
+  const newEntry = async (journalId: string, { speak: spoken = false }: { speak?: boolean } = {}) => {
+    // A meeting holds the microphone: the way to it, and nothing made that its capture would leave behind.
+    if (spoken && meetingStateNow()?.recording) {
+      capture.showMeeting(false);
+      return;
+    }
     const journal = await getNote(journalId).catch(() => null);
     if (!journal || !isJournalBody(journal.body)) return;
     const name = noteTitle(journal.body);
@@ -503,12 +548,33 @@ function Shell() {
     // Unique against every note there is, archived and in the Trash too: a second entry in one minute is " (2)".
     const taken = new Set((await listNotes().catch(() => notes)).map((n) => titleKey(noteTitle(n.body))));
     const title = uniqueTitle(entryTitle(now), taken);
-    const words = fillTemplate(templateOf(journal.body), { at: new Date(now), title, journal: name });
+    const filled = fillTemplate(templateOf(journal.body), { at: new Date(now), title, journal: name });
+    // Spoken, the words go on from the template's last line, which is taken off until they come.
+    const { base: words, placing } = spoken ? openEnd(filled) : { base: filled, placing: null };
     const id = newNoteId();
     making.current.add(id);
     try {
       rememberEntry(id, { journalId, title, words, at: now });
       await writeJournal(journalId, (body) => withEntry(body, title));
+      if (spoken && placing) {
+        await createNote(id, entryBody(title, localStamp(now), words), 'editor');
+        fileNewNote(id);
+        await refresh();
+        const place = entryPlaceOf(journal.body);
+        await capture.start(false, id, {
+          id,
+          placing,
+          // Asked once the recorder has gone, never at the tap: the recorder's microphone prompt and a location prompt
+          // share one listener in the Android WebView (core/location.ts, rule 4). Quiet over a locked phone.
+          tag: place ? (held, locked) => void tagEntryIfWanted([id], held, { quiet: locked, introduce: introduceEntries(name) }) : null,
+          // Nothing said: the journal, from where the entry is taken back.
+          nothing: async () => {
+            const back = await getNote(journalId).catch(() => null);
+            return back ? { name: 'note', note: back } : { name: 'list' };
+          },
+        });
+        return;
+      }
       tabs.replaceNext(shown === journalId ? journalId : null);
       const note = await createNote(id, entryBody(title, localStamp(now), words), 'editor');
       fileNewNote(id);
@@ -742,7 +808,7 @@ function Shell() {
       tabs: tabs.tabs.map((n) => ({ id: n.id, title: noteTitle(n.body) })),
       workspaces: spaces.list.map((w) => ({ id: w.id, name: w.name })),
       workspace: spaces.current?.id ?? null,
-      note: screen.name === 'note' ? { id: screen.note.id, title: noteTitle(screen.note.body) } : null,
+      note: screen.name === 'note' ? { id: screen.note.id, title: noteTitle(screen.note.body), ...(isJournalBody(screen.note.body) ? { journal: true as const } : {}) } : null,
       filedIn: screen.name === 'note' ? (workspaceOf(screen.note.id)?.id ?? null) : null,
       pinned: screen.name === 'note' ? Boolean(screen.note.starred) : false,
       canBack: walk.canBack,

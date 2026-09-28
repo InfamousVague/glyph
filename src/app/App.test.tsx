@@ -662,6 +662,78 @@ describe('a journal’s entries', () => {
     }
   });
 
+  it('speaks an entry from the journal’s mic: made, its line in, the recorder aimed at it from its time line', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    await act(async () => seen.note!.onSpeak!('diary'));
+    await waitUntil(() => expect(screenNow()?.dataset.screen).toBe('capture'));
+    const id = screenNow()!.dataset.into!;
+    const { title } = records()[id]!;
+    expect(await diaryBody()).toBe(`${DIARY}- [[${title}]]\n`);
+    // The line the words go on from is off the entry until they come, and the recorder puts it back before them.
+    expect(seen.capture!.placing).toMatchObject({ kind: 'end', lead: expect.stringMatching(/^\*\*\d{2}:\d{2}\*\* $/) });
+    const made = (await getNote(id))!;
+    expect(made.body).toMatch(/\n---\n# .+\n$/);
+    // Words kept: the entry opens, and it is theirs.
+    const { updateNote } = await import('./core/store.ts');
+    const said = await updateNote(id, `${made.body}\n**14:05** Walked along the river.`, made.revision ?? 1);
+    await act(async () => seen.capture!.onFinish(said, false));
+    await waitUntil(() => expect(noteShown()).toBe(id));
+    act(() => button('Home').click());
+    await waitUntil(() => expect(records()[id]).toBeUndefined());
+    expect(await getNote(id)).not.toBeNull();
+  });
+
+  it('speaks nothing and leaves nothing: back on the journal, the entry and its line taken back', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    await act(async () => seen.note!.onSpeak!('diary'));
+    await waitUntil(() => expect(screenNow()?.dataset.screen).toBe('capture'));
+    const id = screenNow()!.dataset.into!;
+    await act(async () => seen.capture!.onFinish(null, false));
+    await waitUntil(() => expect(noteShown()).toBe('diary'));
+    await waitUntil(async () => expect(await getNote(id)).toBeNull());
+    await waitUntil(async () => expect(await diaryBody()).toBe(DIARY));
+  });
+
+  it('opens the meeting being recorded rather than making an entry to speak into', async () => {
+    const { setMeetingStateForTests } = await import('./capture/meetingLive.ts');
+    await seed(['diary', DIARY], ['m1', '# Meeting, 28 Sep 14:05']);
+    await openApp();
+    act(() => card('Diary').click());
+    setMeetingStateForTests({ recording: true, noteId: 'm1', startedAt: Date.now(), writeUps: [] } as unknown as Parameters<typeof setMeetingStateForTests>[0]);
+    try {
+      await act(async () => seen.note!.onSpeak!('diary'));
+      await waitUntil(() => expect(document.querySelector('[aria-label="Stop and write up"]')).not.toBeNull());
+      expect(noteShown()).toBeNull();
+      expect(records()).toEqual({});
+      expect(await diaryBody()).toBe(DIARY);
+    } finally {
+      setMeetingStateForTests(null);
+    }
+  });
+
+  it('keeps an untouched entry spoken into from its own mic, aimed at its time line, and puts it back when nothing was said', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    const { id } = await newEntry();
+    const made = (await getNote(id))!.body;
+    await act(async () => seen.note!.onSpeak!(id));
+    await waitUntil(() => expect(screenNow()?.dataset.screen).toBe('capture'));
+    expect(screenNow()!.dataset.into).toBe(id);
+    expect(seen.capture!.placing).toMatchObject({ kind: 'end', lead: expect.stringMatching(/^\*\*\d{2}:\d{2}\*\* $/) });
+    // The recorder's screen is aimed at it: the entry stays.
+    expect(await getNote(id)).not.toBeNull();
+    expect((await getNote(id))!.body).not.toMatch(/\*\* $/);
+    await act(async () => seen.capture!.onFinish(null, false));
+    await waitUntil(() => expect(noteShown()).toBe(id));
+    expect((await getNote(id))!.body).toBe(made);
+    expect(records()[id]).toBeDefined();
+  });
+
   it('opens the journal itself from its card, after an entry was read', async () => {
     const title = '2026-09-28 14.05';
     await seed(['diary', `${DIARY}- [[${title}]]\n`], ['e1', `---\ntitle: "${title}"\ndate: 2026-09-28T14:05\n---\nWords of mine.`]);

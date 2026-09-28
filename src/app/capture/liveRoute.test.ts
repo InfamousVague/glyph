@@ -334,6 +334,13 @@ describe('what is never switched to', () => {
     expect(take.result().made).toEqual(['# Rivers']);
   });
 
+  it('keeps the words here when a journal is named, and says it is one: an entry is made by a tap', () => {
+    const { take, say, done } = record({ notes: [...library(), { id: 'diary', body: '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n' }] });
+    say('Hey Ghost, add Walked by the river to the diary.');
+    done();
+    expect(take.chips).toContainEqual({ phase: 'said', text: '“Diary” is a journal, so the words stay here.' });
+  });
+
   it('keeps the words here over the lock screen for a shared note, and never raises a card there', () => {
     const shared = record({ locked: true, published: (id) => id === 'house' });
     shared.say('Hey Ghost, add call Sam to house to-dos.');

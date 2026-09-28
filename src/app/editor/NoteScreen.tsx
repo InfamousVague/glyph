@@ -627,6 +627,8 @@ export function NoteScreen({
       marked={marked}
       onBookmark={bookmark}
       onSpeak={tape.length > 0 ? null : speakHere}
+      // A journal's mic makes an entry and speaks it (App.tsx `speakInto`), rather than words into the index.
+      speakLabel={isJournal ? 'Speak an entry' : undefined}
       onMore={() => setSettingsOpen(true)}
     />
   );

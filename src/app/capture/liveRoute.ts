@@ -1,6 +1,6 @@
 import { runOf } from '../ai/instruction.ts';
 import type { RunKind } from '../ai/kinds.ts';
-import { isBookBody } from '../book/book.ts';
+import { isBookBody, isJournalBody } from '../book/book.ts';
 import { capitalise } from '../core/text.ts';
 import { findKeyword, onlyFiller, PAYLOAD_LEAD } from './command.ts';
 import { bareCommand, bareShape, commandWords, hearKeyword, isOpener, misheardShape, namedAs, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine, withoutFinalStop, type Reading } from './liveCommand.ts';
@@ -1036,8 +1036,12 @@ export class LiveRoute<N extends LiveNote> {
     return { reading: chosen.reading, note: chosen.found.note, score: chosen.found.score };
   }
 
-  /** Why a note is never written to from here, or null: it is a book, or it is shared and the phone is locked. */
+  /**
+   * Why a note is never written to from here, or null: it is a notebook or a journal, whose words are its index (an
+   * entry is made by a tap, docs/DESIGN.md §127 and §142), or it is shared and the phone is locked.
+   */
   private refusal(candidate: LiveCandidate<N>, ctx: LiveContext<N>): string | null {
+    if (isJournalBody(candidate.note.body)) return `“${candidate.title}” is a journal, so the words stay here.`;
     if (isBookBody(candidate.note.body)) return `“${candidate.title}” is a notebook, so the words stay here.`;
     if (ctx.locked && ctx.published?.(candidate.note.id)) return 'That note is shared, so the words stay here.';
     return null;

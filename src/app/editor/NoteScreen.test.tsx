@@ -1170,6 +1170,9 @@ describe('a journal open', () => {
     show(screen(await createNote('j1', journal), { hasTitle: () => true, onOpenTitle: () => {}, noteOfTitle: (title) => (title === '2026-09-28 14.05' ? entry : undefined) }));
     expect(document.querySelector('ol[aria-label="Pages"]')).toBeNull();
     expect(document.querySelector('h2')?.textContent).toBe('September 2026');
+    // Its mic makes an entry and speaks it.
+    expect(document.querySelector('button[aria-label="Speak an entry"]')).not.toBeNull();
+    expect(document.querySelector('button[aria-label="Talk into this note"]')).toBeNull();
     expect(document.querySelector('[data-entries]')?.getAttribute('data-entries')).toBe('1');
     expect(readBookSpot('j1')).toBeNull();
     unmount();
