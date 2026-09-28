@@ -40,6 +40,8 @@ import { bookmarkRibbon } from './bookmarkLine.ts';
 import { localUndo, undoSlot } from './undoSlot.ts';
 import { wispRipples, type RippleSource } from './wispRipples.ts';
 import { aiChanges, type AiChange } from './aiChanges.ts';
+import { insertPlus, type PlusHooks } from './insertPlus.ts';
+import { placeCards, refreshPlaceCards, type PlaceMode } from './placeCards.ts';
 import { plugins } from '../plugins/registry.ts';
 import styles from './markdown.module.css';
 
@@ -67,7 +69,8 @@ import styles from './markdown.module.css';
  * Compartments and are swapped in place when they change. Everything else -
  * `grow`, `arrivals`, `wispTyping`, `ripples`, `peek`, `diagrams`,
  * `placeholder`, and whether `wiki` or `linkMenus` was given at all - is read
- * once, when the view is made; a caller that needs a different set remounts
+ * once, when the view is made, and so are whether `plus` was given and which
+ * `places`; a caller that needs a different set remounts
  * the editor with a new `key` (src/read/Reader.tsx does). And a new `wiki`
  * object is also a sign the notes changed (below), so a caller keeps the same
  * one while its lookups are the same.
@@ -145,6 +148,16 @@ interface EditorProps {
   diagrams?: boolean;
   /** The AI's tracked changes in this note changed (editor/aiChanges.ts): told so the note can keep them. Read through a ref. */
   onAiMarks?: (changes: readonly AiChange[]) => void;
+  /**
+   * The + beside an empty line, and its list (editor/insertPlus.ts): only the note screen asks for it. Whether it was
+   * given is read once; its callbacks are read through a ref when they are used.
+   */
+  plus?: PlusHooks;
+  /**
+   * How a place in the words draws its map card (editor/placeCards.ts): `live` on the note screen, `ask` on a shared
+   * page, and `off`, no card and nothing fetched, everywhere else. Read once.
+   */
+  places?: PlaceMode;
 }
 
 /**
@@ -195,6 +208,8 @@ export function Editor({
   peek = false,
   diagrams = false,
   onAiMarks,
+  plus,
+  places = 'off',
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -216,6 +231,8 @@ export function Editor({
   darkRef.current = dark;
   const onAiMarksRef = useRef(onAiMarks);
   onAiMarksRef.current = onAiMarks;
+  const plusRef = useRef(plus);
+  plusRef.current = plus;
 
   const themeSlot = useRef(new Compartment());
   const assistSlot = useRef(new Compartment());
@@ -268,6 +285,8 @@ export function Editor({
               dark: () => darkRef.current,
             }),
         inlineImages((message) => onImageErrorRef.current?.(message)),
+        // A place in the words: its map card as `places` says, and its line folded to its name (editor/placeCards.ts).
+        placeCards(places, { dark: () => darkRef.current }),
         shortLinks({ still: peek }),
         // A card under a line that is only a link (editor/linkCards.ts).
         peek ? [] : linkCards(),
@@ -303,6 +322,15 @@ export function Editor({
         ripples ? wispRipples(ripples) : [],
         // The AI's changes, tracked: tinted where it added, struck where it took away, Keep and Revert (aiChanges.ts).
         peek ? [] : aiChanges({ onMarks: (changes) => onAiMarksRef.current?.(changes) }),
+        // The + beside an empty line (insertPlus.ts), where the screen asked for one.
+        plus && !peek
+          ? insertPlus({
+              allowed: () => plusRef.current?.allowed() ?? false,
+              onOpen: (opening) => plusRef.current?.onOpen(opening),
+              onClose: () => plusRef.current?.onClose(),
+              onKey: (key) => plusRef.current?.onKey(key) ?? false,
+            })
+          : [],
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString());
           for (const tr of update.transactions) feelTransaction(tr);
@@ -326,7 +354,7 @@ export function Editor({
   // Theme and input aids flip through Compartments, which swap one extension
   // in place: no new state, no lost selection, no interrupted composition.
   useEffect(() => {
-    view.current?.dispatch({ effects: [themeSlot.current.reconfigure(glyphTheme(dark)), refreshCanvasFrames.of(null)] });
+    view.current?.dispatch({ effects: [themeSlot.current.reconfigure(glyphTheme(dark)), refreshCanvasFrames.of(null), refreshPlaceCards.of(null)] });
   }, [dark]);
 
   // The notes changed under the links: a canvas framed in this note may have been drawn on, so its frame is looked at

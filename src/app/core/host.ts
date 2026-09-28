@@ -70,6 +70,11 @@ interface GlyphHostBridge {
   // Pictures (native generation 8). Optional for the same reason.
   /** Open the phone's picture picker; "started", or why not. The picture arrives as an `image` event. */
   pickImage?(): string;
+  /**
+   * Open the phone's video picker (native generation 21, docs/DESIGN.md §141); "started", or why not. No binary has it
+   * yet: the + beside the line offers a video only where it is there (editor/addRows.ts).
+   */
+  pickVideo?(): string;
   // The side key to stop (native generation 12). Optional for the same reason.
   /** A recording started or ended: keeps the screen on, and reports it going off as `screenOff`. */
   setCapturing?(on: boolean): void;

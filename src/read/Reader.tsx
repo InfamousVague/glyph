@@ -246,6 +246,8 @@ function Read({
             readOnly
             display={noteView}
             wiki={{ known: (t) => indexOf(t) >= 0, open }}
+            // A place in the words draws its map quiet, as the page's own card does, until the reader asks for it.
+            places="ask"
             grow
           />
         </article>

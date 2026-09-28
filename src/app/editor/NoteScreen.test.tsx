@@ -1044,4 +1044,123 @@ describe('where the note was written', () => {
     act(() => view.dispatch({ changes: { from: 0, insert: '---\nlocation: 48.8566,2.3522\n---\n' }, userEvent: 'input.type' }));
     expect(card()?.textContent).toContain('48.8566, 2.3522');
   });
+
+  describe('a place from the + beside the line', () => {
+    /** The note focused with the caret on its last, empty line, the + come beside it, and pressed. */
+    const openPlus = async (view: EditorView) => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+      act(() => {
+        view.dispatch({ selection: { anchor: view.state.doc.length } });
+        view.focus();
+      });
+      // CodeMirror tells its plugins of the focus 10ms on, and the + comes once the caret has rested.
+      await act(async () => vi.advanceTimersByTimeAsync(10 + 200));
+      const plus = view.scrollDOM.querySelector<HTMLButtonElement>('.cm-plus');
+      expect(plus?.dataset.state).toBe('shown');
+      act(() => plus!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })));
+    };
+    const place = () => {
+      const row = [...document.querySelectorAll<HTMLButtonElement>('#add-list button')].find((found) => found.textContent === 'A place');
+      if (!row) throw new Error(`no place row in: ${document.getElementById('add-list')?.textContent ?? 'no list'}`);
+      act(() => row.click());
+    };
+
+    it('is one line at the caret, named in the same write, one Undo, with its map card under it', async () => {
+      fixAt(51.50741, -0.12776);
+      nominatim('Trafalgar Square');
+      show(screen(await createNote('n1', '# Walk\n\n')));
+      const view = editor();
+      await openPlus(view);
+      place();
+      await settle();
+      expect(view.state.doc.toString()).toBe('# Walk\n\n[Trafalgar Square, London](geo:51.5074,-0.1278)\n');
+      // The note's own tag is left alone: a place is a line of the words.
+      expect(card()).toBeNull();
+      expect(view.dom.querySelectorAll('.cm-placeCard')).toHaveLength(1);
+      act(() => void undo(view));
+      expect(view.state.doc.toString()).toBe('# Walk\n\n');
+      vi.restoreAllMocks();
+    });
+
+    it('says so while the fix is slow', async () => {
+      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: () => undefined } });
+      show(screen(await createNote('n1', '# Walk\n\n')));
+      await openPlus(editor());
+      place();
+      await act(async () => vi.advanceTimersByTimeAsync(600));
+      expect(document.body.textContent).toContain('Finding where you are.');
+      vi.restoreAllMocks();
+    });
+
+    it('asks for nothing and writes nothing when the note is left before the fix', async () => {
+      let answer: ((position: GeolocationPosition) => void) | null = null;
+      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: (ok: PositionCallback) => void (answer = ok) } });
+      const asked = nominatim('Trafalgar Square');
+      show(screen(await createNote('n1', '# Walk\n\nwords')));
+      const view = editor();
+      act(() => view.dispatch({ changes: { from: view.state.doc.length, insert: '\n' } }));
+      await openPlus(view);
+      place();
+      await settle();
+      unmount();
+      await act(async () => answer!({ coords: { latitude: 51.5, longitude: -0.12, accuracy: 15 }, timestamp: 1 } as GeolocationPosition));
+      await settle();
+      expect(asked).toEqual([]);
+      expect(saved().some((body) => body?.includes('geo:'))).toBe(false);
+      vi.restoreAllMocks();
+    });
+
+    it('writes a name later than the wait as a second step, only while nothing came after it', async () => {
+      // A place of its own: a name another test asked for would be known already, and come at once.
+      fixAt(51.51009, -0.13402);
+      let named: (() => void) | null = null;
+      vi.stubGlobal('fetch', () => new Promise((resolve) => void (named = () => resolve({ ok: true, json: async () => ({ name: 'Piccadilly Circus', addresstype: 'square', address: { city: 'London' } }) }))));
+      show(screen(await createNote('n1', '# Walk\n\n')));
+      const view = editor();
+      await openPlus(view);
+      place();
+      await settle();
+      await act(async () => vi.advanceTimersByTimeAsync(3000));
+      await settle();
+      expect(view.state.doc.toString()).toBe('# Walk\n\n[51.5101, -0.1340](geo:51.5101,-0.1340)\n');
+      await act(async () => named!());
+      await settle();
+      expect(view.state.doc.toString()).toBe('# Walk\n\n[Piccadilly Circus, London](geo:51.5101,-0.1340)\n');
+      act(() => void undo(view));
+      expect(view.state.doc.toString()).toBe('# Walk\n\n[51.5101, -0.1340](geo:51.5101,-0.1340)\n');
+      act(() => void undo(view));
+      expect(view.state.doc.toString()).toBe('# Walk\n\n');
+      vi.restoreAllMocks();
+    });
+
+    it('leaves the caret where the person took it while the fix was coming', async () => {
+      let answer: ((position: GeolocationPosition) => void) | null = null;
+      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: (ok: PositionCallback) => void (answer = ok) } });
+      nominatim(null);
+      show(screen(await createNote('n1', '# Walk\n\n')));
+      const view = editor();
+      await openPlus(view);
+      place();
+      await settle();
+      act(() => view.dispatch({ changes: { from: 2, insert: 'Long ' }, selection: { anchor: 7 }, userEvent: 'input.type' }));
+      await act(async () => answer!({ coords: { latitude: 51.5, longitude: -0.12, accuracy: 15 }, timestamp: 1 } as GeolocationPosition));
+      await settle();
+      expect(view.state.doc.toString()).toBe('# Long Walk\n\n[51.5000, -0.1200](geo:51.5000,-0.1200)\n');
+      expect(view.state.selection.main.head).toBe(7);
+      vi.restoreAllMocks();
+    });
+  });
+});
+
+describe('the + beside the line', () => {
+  it('is drawn on the note screen, and nowhere the note is only read', async () => {
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    expect(document.querySelectorAll('.cm-plus')).toHaveLength(1);
+    unmount();
+    show(screen(await createNote('b1', '---\nbook: true\n---\n# Trip\n\n1. [[Packing]]\n')));
+    // A book's index draws its chapters through read-only editors: none has a +.
+    expect(document.querySelectorAll('.cm-plus').length).toBeLessThanOrEqual(1);
+    const plus = document.querySelector<HTMLButtonElement>('.cm-plus');
+    expect(plus === null || plus.hidden).toBe(true);
+  });
 });

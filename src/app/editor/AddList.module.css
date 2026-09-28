@@ -1,0 +1,209 @@
+/*
+ * The + beside the line's list (AddList.tsx): a short card against the +'s own row, paper-2 with a hairline and press
+ * and hold's shadow, its rows an icon in the third ink and the words in ink. No hairlines between rows, no headings
+ * and no hints, but for a dimmed row's reason. It is placed by the script (fixed, from the +'s rect), so nothing here
+ * sets where it is.
+ */
+
+.list {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  inline-size: min(16rem, calc(100vw - 2 * var(--app-gutter)));
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--app-paper-2);
+  border: var(--glacier-hairline) solid var(--app-rule);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  color: var(--app-ink);
+  animation: listIn 140ms var(--glacier-ease-out);
+}
+
+/* Press and hold's arrival: a short rise, from nothing. */
+@keyframes listIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+/* What scrolls: the rows, when neither side of the row has room for all of them. */
+.rows {
+  display: flex;
+  flex-direction: column;
+  padding: var(--glacier-space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.rows::-webkit-scrollbar {
+  display: none;
+}
+
+/* More rows past an edge: the list fades there instead of cutting a row, as press and hold's band does. */
+.rows[data-more='end'] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+}
+
+.rows[data-more='start'] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 32px);
+  mask-image: linear-gradient(to bottom, transparent, #000 32px);
+}
+
+.rows[data-more='start end'] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+}
+
+/* A page turned: More and back, a step to choose a note, each slides in from the side it came from. */
+.page {
+  display: flex;
+  flex-direction: column;
+}
+
+.page[data-turn='forward'] {
+  animation: pageForward 180ms var(--glacier-ease-out);
+}
+
+.page[data-turn='back'] {
+  animation: pageBack 180ms var(--glacier-ease-out);
+}
+
+@keyframes pageForward {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+@keyframes pageBack {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+.row {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  /* A thumb's height, the menu's own. */
+  min-block-size: 2.75rem;
+  margin: 0;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: none;
+  border-radius: 12px;
+  background: none;
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-medium);
+  text-align: start;
+  color: var(--app-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.row:active,
+.row[data-active] {
+  background: var(--app-paper-3);
+}
+
+/* The row the keys are on while the editor keeps the focus: the kit's ring, so the keyboard's place is seen. */
+.row[data-active],
+.row:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover {
+    background: var(--app-paper-3);
+  }
+}
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 18px;
+  block-size: 18px;
+  /* The app's own drawn icons are 1em: this is their size. */
+  font-size: 18px;
+  color: var(--app-ink-3);
+}
+
+.words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+/* A choice the person made stands in the way: the row and its reason in the third ink. */
+.row[aria-disabled='true'] {
+  color: var(--app-ink-3);
+  cursor: default;
+}
+
+.why {
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--app-ink-3);
+}
+
+/* More's own mark: there is a page behind it. */
+.onward {
+  flex: none;
+  color: var(--app-ink-3);
+}
+
+/* A step inside the list: a note to link to, or a canvas to frame. */
+.title {
+  margin: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-1);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  color: var(--app-ink-3);
+}
+
+.field {
+  box-sizing: border-box;
+  inline-size: calc(100% - 2 * var(--glacier-space-2));
+  margin: var(--glacier-space-1) var(--glacier-space-2) var(--glacier-space-2);
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--app-rule);
+  border-radius: 12px;
+  background: var(--app-paper);
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  color: var(--app-ink);
+}
+
+.field:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.found {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.none {
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .list,
+  .page[data-turn='forward'],
+  .page[data-turn='back'] {
+    animation: none;
+  }
+}
