@@ -9,7 +9,8 @@
  * `smallerImage`).
  *
  * Its own module because it is the one part of the pictures that needs a real browser's canvas and image decoder,
- * which jsdom has neither of: a test of where pictures go stands in for this, and this alone.
+ * which jsdom has neither of: a test of where pictures go stands in for this, and this alone, and its own test asks only
+ * how a picture is opened (core/imageShrink.test.ts).
  */
 
 /** A picture shrunk so its long side is at most `longSide` px (1600 as it is kept), as a JPEG, turned the right way up. */
@@ -18,9 +19,13 @@ export async function shrink(file: Blob, longSide = 1600, quality = 0.85): Promi
   // cleaned up: Chrome on Android copies a picture as a link to a file it
   // deletes after a while, and the paste still says "image" with no bytes.
   if (!file.size) throw new Error('That picture isn’t on the clipboard anymore. Copy it again and paste.');
-  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => {
-    throw new Error('That picture couldn’t be opened.');
-  });
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+    // An older WebKit (the Mac app reaches back to macOS 13) may refuse the option rather than the picture: once more
+    // without it, which still opens the picture and leaves its turning to the engine.
+    .catch((failure: unknown) => (failure instanceof TypeError ? createImageBitmap(file) : Promise.reject(failure)))
+    .catch(() => {
+      throw new Error('That picture couldn’t be opened.');
+    });
   const scale = Math.min(1, longSide / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bitmap.width * scale);

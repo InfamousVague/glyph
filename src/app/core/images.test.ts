@@ -35,7 +35,34 @@ vi.mock('./webImages.ts', () => ({
 
 /** What a paste is shrunk to: a picture of its own, so a test can tell the shrunk bytes from the pasted ones. */
 const SHRUNK = new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3]);
-vi.mock('./imageShrink.ts', () => ({ shrink: async () => new Blob([SHRUNK], { type: 'image/jpeg' }) }));
+/** Whether the shrink cannot open what it is given, as an older Mac's WebKit cannot open a HEIC. */
+let unopenable = false;
+vi.mock('./imageShrink.ts', () => ({
+  shrink: async () => {
+    if (unopenable) throw new Error('That picture couldn’t be opened.');
+    return new Blob([SHRUNK], { type: 'image/jpeg' });
+  },
+}));
+
+/** The Mac app: a Tauri page with no GlyphHost, whose file input the system's open panel answers. */
+let mac = false;
+vi.mock('./platform.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./platform.ts')>()),
+  get isMacApp() {
+    return mac;
+  },
+}));
+
+/** The next file input answers with `file`, as a person choosing it in the open panel would. */
+function chooseFile(file: File | null): { opened: HTMLInputElement[] } {
+  const opened: HTMLInputElement[] = [];
+  vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (this: HTMLInputElement) {
+    opened.push(this);
+    Object.defineProperty(this, 'files', { value: file ? [file] : [], configurable: true });
+    queueMicrotask(() => (file ? this.onchange?.(new Event('change')) : this.oncancel?.(new Event('cancel'))));
+  });
+  return { opened };
+}
 
 const { IMAGE_READY, imageBytes, imageMarkdown, imageNames, imageUrl, keepImage, lendImages, pickImage, saveImageFile } = await import('./images.ts');
 const { noteTitle } = await import('./store.ts');
@@ -51,6 +78,8 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 beforeEach(() => {
   native = false;
+  mac = false;
+  unopenable = false;
   generation = 18;
   invoked.length = 0;
   answers.clear();
@@ -65,6 +94,7 @@ afterEach(() => {
   window.removeEventListener(IMAGE_READY, onReady);
   delete window.GlyphHost;
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('pictures in notes', () => {
@@ -207,5 +237,45 @@ describe('a picture on the phone', () => {
     window.__glyph?.image?.('not json');
     await expect(garbled).rejects.toThrow('The picture could not be read.');
     expect(invoked).toEqual([]);
+  });
+});
+
+describe('a picture on the Mac', () => {
+  beforeEach(() => {
+    native = true;
+    mac = true;
+    generation = 20;
+    answers.set('save_image_data', { name: 'from-mac.jpg' });
+  });
+
+  it('is chosen in the open panel the file input brings, and filed by Rust as bytes, never through the phone’s picker', async () => {
+    const asked = vi.fn(() => 'started');
+    window.GlyphHost = { pickImage: asked } as unknown as Window['GlyphHost'];
+    const { opened } = chooseFile(new File([new Uint8Array(8)], 'harbour.jpg', { type: 'image/jpeg' }));
+    expect(await pickImage()).toBe('from-mac.jpg');
+    expect(opened).toHaveLength(1);
+    expect(opened[0]!.accept).toBe('image/*');
+    expect(asked).not.toHaveBeenCalled();
+    expect(invoked).toEqual([{ command: 'save_image_data', args: { base64: Buffer.from(SHRUNK).toString('base64') } }]);
+  });
+
+  it('is nothing when the panel is closed', async () => {
+    chooseFile(null);
+    expect(await pickImage()).toBeNull();
+    expect(invoked).toEqual([]);
+  });
+
+  it('refuses a file that is not a picture, in words, before trying to open it', async () => {
+    chooseFile(new File([new Uint8Array(8)], 'menu.pdf', { type: 'application/pdf' }));
+    await expect(pickImage()).rejects.toThrow('That isn’t a picture.');
+    expect(invoked).toEqual([]);
+  });
+
+  it('says a HEIC it cannot open is a HEIC, and what to do', async () => {
+    unopenable = true;
+    chooseFile(new File([new Uint8Array(8)], 'IMG_0042.HEIC', { type: '' }));
+    await expect(pickImage()).rejects.toThrow('This Mac can’t open HEIC pictures. Save it as a JPEG first.');
+    chooseFile(new File([new Uint8Array(8)], 'broken.jpg', { type: 'image/jpeg' }));
+    await expect(pickImage()).rejects.toThrow('That picture couldn’t be opened.');
   });
 });
