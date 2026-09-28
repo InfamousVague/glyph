@@ -30,6 +30,7 @@ import java.io.IOException
 import java.io.RandomAccessFile
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -46,7 +47,8 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * The page's microphone is the WebView's, held only while the recorder is on
  * screen with the screen kept on. A meeting is the other case: the phone on
- * the table, the screen off, the app left or swiped away. So this is a
+ * the table, the screen off, the app left (a swipe from Recents stops the
+ * meeting, and what was recorded is written up: `onTaskRemoved`). So this is a
  * foreground service of type `microphone`, started while the app is in front
  * (the one moment Android allows that type to start), holding a partial wake
  * lock, reading `AudioRecord` at 16 kHz mono PCM16 and writing the WAV as it
@@ -59,7 +61,13 @@ import java.util.concurrent.atomic.AtomicReference
  * (`RecordingJob.finish`), and then carries on as the write-up under a
  * `mediaProcessing` type (`specialUse` on Android 14), with the chain request
  * enqueued first so a kill mid-write-up is picked up by WorkManager's backoff
- * (recordings/RecordingWorker.kt) rather than at the next launch. Discard
+ * (recordings/RecordingWorker.kt) rather than at the next launch. No new
+ * meeting starts while a Stop is being put away (`isEnding`): the Stop's
+ * bookkeeping would otherwise clear the new meeting's state and change the
+ * service's type from under its open microphone. The write-up runs on a thread
+ * of its own, so a later meeting's Done and Discard never wait behind it, and
+ * a new meeting asks any write-up in hand, this service's or the worker's, to
+ * let go (`yieldWriteUps`). Discard
  * deletes the WAV and marks the job cancelled; from the notification, with the
  * app closed, the id is remembered in `discarded` until the page has deleted
  * the note and said so.
@@ -101,6 +109,13 @@ class MeetingService : Service() {
     /** Two seconds of PCM16 at 16 kHz. The reader has its own thread and a wake lock; the room is for the moments it does not get the CPU. */
     private const val RECORD_BUFFER_BYTES = 64_000
     private const val READ_BYTES = 4096
+    /** How long a new meeting keeps asking a write-up in hand to let go, and how often. */
+    private const val YIELD_MS = 5_000L
+    private const val YIELD_EVERY_MS = 250L
+    /** How long `onTimeout` waits for the run to let go before the service stops. */
+    private const val TIMEOUT_WAIT_MS = 2_000L
+    /** Said when a meeting is started while the last one's Stop is still being put away. */
+    const val STILL_STOPPING = "The last meeting is still stopping. Try again in a moment."
 
     @Volatile private var instance: MeetingService? = null
     @Volatile private var recording = false
@@ -136,6 +151,17 @@ class MeetingService : Service() {
         .put("discarded", JSONArray(discarded(context).toList()))
         .toString()
     }
+
+    /**
+     * A Stop or Discard is being put away: the microphone let go, the tape's
+     * length being recorded, the type being changed for the write-up. A start
+     * in that window is refused (MainActivity.startMeeting, `start`), since the
+     * Stop's bookkeeping would clear the new meeting's state.
+     */
+    fun isEnding(): Boolean = instance?.ending?.get() == true
+
+    /** Where the tape goes, and where Rust reads it from: `RECORDINGS` in src-tauri/src/paths.rs. Rename both together. */
+    fun recordingsDir(context: Context): File = File(context.dataDir, "recordings")
 
     /** Done, from the page. Nothing when no meeting is being recorded. */
     fun stop() {
@@ -173,6 +199,8 @@ class MeetingService : Service() {
         val name = saved.getString(KEY_TITLE, null)
         Log.i(TAG, "finishing a meeting a kill left unfinished")
         clearMeeting(context)
+        // "Still recording?" outlives a killed process on the shade; nobody is there to answer it now.
+        RecordingAlerts.cancel(context, RecordingAlerts.QUESTION_ID)
         if (WriteUp.readProgress(context, id) == null && !RecordingWorker.isQueued(context, id)) {
           RecordingWorker.enqueue(context, id, name, now = false, fresh = true)
         }
@@ -234,8 +262,10 @@ class MeetingService : Service() {
     }
   }
 
-  /** Everything after the microphone runs here, one thing at a time: Stop's bookkeeping, then the write-up. */
+  /** Stop's and Discard's bookkeeping, one at a time, off the thread that asked. */
   private lateinit var control: ExecutorService
+  /** The write-ups, one at a time, on a thread of their own: a later meeting's Done and Discard never queue behind one. */
+  private lateinit var writer: ExecutorService
   /** The main thread, where starts arrive: the one place a stop can be decided without racing a new START. */
   private val main = Handler(Looper.getMainLooper())
   /** The newest start this service was given, for `stopSelfResult`: a stop over a newer start is refused by Android. */
@@ -244,7 +274,7 @@ class MeetingService : Service() {
   private var record: AudioRecord? = null
   private var reader: Thread? = null
   private val reading = AtomicBoolean(false)
-  /** A Stop or Discard is on its way: the second one is ignored. */
+  /** A Stop or Discard is on its way, until its bookkeeping is done: the second one is ignored, and no new meeting starts. */
   private val ending = AtomicBoolean(false)
   @Volatile private var destroyed = false
   @Volatile private var asked = false
@@ -257,6 +287,7 @@ class MeetingService : Service() {
     super.onCreate()
     instance = this
     control = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "glyph-meeting") }
+    writer = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "glyph-meeting-write-up") }
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -288,8 +319,11 @@ class MeetingService : Service() {
       pushFailed(id, "A meeting is already being recorded.")
       return
     }
-    // Where the tape goes, and where Rust reads it from: `RECORDINGS` in src-tauri/src/paths.rs. Rename both together.
-    val file = File(File(dataDir, "recordings"), "$id.wav")
+    if (ending.get()) {
+      pushFailed(id, STILL_STOPPING)
+      return
+    }
+    val file = File(recordingsDir(this), "$id.wav")
     var recorder: AudioRecord? = null
     var out: RandomAccessFile? = null
     try {
@@ -326,8 +360,7 @@ class MeetingService : Service() {
       reading.set(true)
       reader = Thread({ read(mic, spool) }, "glyph-meeting-mic").also { it.start() }
       push("started", id)
-      // A write-up in hand belongs to the last meeting; this one has the cores now. The chain retries it later.
-      writingUp?.let { earlier -> cancelWriteUp(earlier, "meeting") }
+      yieldWriteUps()
     } catch (error: Exception) {
       Log.w(TAG, "the meeting could not start", error)
       if (recorder != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) recorder.unregisterAudioRecordingCallback(silence)
@@ -438,22 +471,37 @@ class MeetingService : Service() {
 
   private fun requestStop(reason: String) {
     if (!recording || !ending.compareAndSet(false, true)) return
-    control.execute { finishRecording(reason) }
+    if (!onControl { finishRecording(reason) }) ending.set(false)
   }
 
   private fun requestDiscard(fromNotification: Boolean) {
     if (!recording || !ending.compareAndSet(false, true)) return
-    control.execute { discardRecording(fromNotification) }
+    if (!onControl { discardRecording(fromNotification) }) ending.set(false)
+  }
+
+  /** `work` on the control thread; false once the service has gone and the thread with it (onDestroy closes the file itself). */
+  private fun onControl(work: () -> Unit): Boolean = try {
+    control.execute(work)
+    true
+  } catch (error: RejectedExecutionException) {
+    Log.w(TAG, "the service has gone", error)
+    false
   }
 
   /**
    * Stop: the microphone let go, the tape's length recorded by Rust, the page
-   * told, the chain request made, and then the write-up here under the type a
-   * write-up is allowed. `finish` never deletes anything; on its error the
-   * chain alone takes the job (the worker's `run` repeats `finish`'s steps).
+   * told, the chain request made, and then the write-up, on its own thread,
+   * under the type a write-up is allowed. `finish` never deletes anything; on
+   * its error the chain alone takes the job (the worker's `run` repeats
+   * `finish`'s steps). `ending` stays set until the type has changed, so no
+   * new meeting can start under the old one's bookkeeping.
    */
   private fun finishRecording(reason: String) {
-    val id = noteId ?: return
+    val id = noteId
+    if (id == null) {
+      ending.set(false)
+      return
+    }
     val name = title ?: ""
     val elapsed = SystemClock.elapsedRealtime() - startedAtElapsed
     endReader()
@@ -466,11 +514,7 @@ class MeetingService : Service() {
       Log.w(TAG, "finish threw", error)
       JSONObject().put("error", error.toString())
     }
-    clearMeeting(this)
-    noteId = null
-    title = null
-    startedAt = null
-    ending.set(false)
+    forget(id)
     if (answer.has("error")) {
       Log.w(TAG, "the tape was not recorded: ${answer.optString("error")}")
       // `finish` writes the queued progress file before anything that can fail, so the chain's run resumes it
@@ -478,11 +522,11 @@ class MeetingService : Service() {
       // file from the title; a request that is not fresh does nothing for an id with no file.
       RecordingWorker.enqueue(this, id, name, now = false, fresh = WriteUp.readProgress(this, id) == null)
       pushStopped(id, reason, elapsed)
+      ending.set(false)
       settleAfter()
       return
     }
     pushStopped(id, reason, elapsed)
-    // The last meeting's write-up, if one was cancelled for this recording, ran on this same thread and has ended.
     // In hand before the chain request exists, so a worker that starts at once finds it so and waits its turn
     // rather than racing this service for the same job.
     writingUp = id
@@ -499,20 +543,41 @@ class MeetingService : Service() {
     } catch (error: Exception) {
       // The type change refused (§127 section 9 has this unmeasured): the chain request exists, so the worker takes it.
       Log.w(TAG, "the write-up could not stay in the foreground", error)
-      writingUp = null
+      if (writingUp == id) writingUp = null
+      ending.set(false)
       settleAfter()
       return
     }
-    runWriteUp(id, name)
+    ending.set(false)
+    try {
+      writer.execute { runWriteUp(id, name) }
+    } catch (error: RejectedExecutionException) {
+      // The service went while this Stop was put away: the chain request exists, and the worker takes the job.
+      Log.w(TAG, "the write-up was left to the chain", error)
+      if (writingUp == id) writingUp = null
+    }
   }
 
-  /** The write-up loop (WriteUp.kt), the service's flavour: heat waits a minute at a time, every other hold leaves it to the chain. */
+  /** The meeting's state let go, the saved copy with it, but only while it still names `id`. */
+  private fun forget(id: String) {
+    if (noteId != id) return
+    clearMeeting(this)
+    noteId = null
+    title = null
+    startedAt = null
+  }
+
+  /**
+   * The write-up loop (WriteUp.kt), the service's flavour: heat waits a minute
+   * at a time, every other hold leaves it to the chain, and so does a meeting
+   * that started meanwhile (it has the cores; the chain request exists).
+   */
   private fun runWriteUp(id: String, name: String) {
     var thermalWaits = 0
-    while (!destroyed) {
-      val outcome = WriteUp.runOnce(this, id, name, now = false, fresh = false) { line ->
-        // Not over a new meeting's own notification while this run lets go for it.
-        if (writingUp == id && !recording) RecordingAlerts.show(this, RecordingAlerts.RECORDING_ID, RecordingAlerts.writeUp(this, name, line))
+    while (!destroyed && !recording) {
+      val outcome = WriteUp.runOnce(this, id, name, now = false, fresh = false, requestedAt = null) { line ->
+        // Not over a new meeting's own notification while this run lets go for it, and not after the service went.
+        if (!destroyed && writingUp == id && !recording) RecordingAlerts.show(this, RecordingAlerts.RECORDING_ID, RecordingAlerts.writeUp(this, name, line))
       }
       if (outcome is Outcome.Retry && outcome.reason == "thermal" && thermalWaits < THERMAL_WAITS) {
         var cooled = false
@@ -533,27 +598,30 @@ class MeetingService : Service() {
       WriteUp.settle(this, id, name, outcome)
       break
     }
-    writingUp = null
-    settleAfter()
+    if (writingUp == id) writingUp = null
+    // Android's budget ran out (`onTimeout`) and the service went while the run let go: the progress line it may
+    // have posted as a plain notification goes too.
+    if (destroyed) RecordingAlerts.cancel(this, RecordingAlerts.RECORDING_ID) else settleAfter()
   }
 
   /** Discard: the microphone let go, the WAV removed, the job marked cancelled. The page deletes the note, now or when it next asks. */
   private fun discardRecording(fromNotification: Boolean) {
-    val id = noteId ?: return
+    val id = noteId
+    if (id == null) {
+      ending.set(false)
+      return
+    }
     endReader()
     RecordingAlerts.cancel(this, RecordingAlerts.QUESTION_ID)
     recording = false
     silenced = false
-    File(File(dataDir, "recordings"), "$id.wav").delete()
+    File(recordingsDir(this), "$id.wav").delete()
     try {
       RecordingJob.cancel(dataDir.absolutePath, id, "cancel")
     } catch (error: Throwable) {
       Log.w(TAG, "cancel threw", error)
     }
-    clearMeeting(this)
-    noteId = null
-    title = null
-    startedAt = null
+    forget(id)
     ending.set(false)
     if (fromNotification) {
       prefs(this).edit().putStringSet(KEY_DISCARDED, discarded(this).apply { add(id) }).apply()
@@ -564,7 +632,7 @@ class MeetingService : Service() {
 
   /** After a recording or a write-up ends: stop when there is nothing left, else put the write-up's notification back. */
   private fun settleAfter() {
-    if (recording) return
+    if (recording || ending.get()) return
     val current = writingUp
     if (current == null) {
       dropWakeLock()
@@ -592,15 +660,38 @@ class MeetingService : Service() {
     record = null
   }
 
-  private fun cancelWriteUp(id: String, reason: String) {
+  /**
+   * A new meeting has the cores: the write-up in hand, this service's or the
+   * worker's, is asked to let go as "meeting" (the chain retries it once the
+   * meeting ends). Asked again for a few seconds, because a run that has not
+   * yet told Rust which job it is on (`RUNNING_JOB`) cannot hear the first ask.
+   */
+  private fun yieldWriteUps() {
     val dataDir = dataDir.absolutePath
     Thread({
-      try {
-        RecordingJob.cancel(dataDir, id, reason)
-      } catch (error: Throwable) {
-        Log.w(TAG, "cancel threw", error)
+      val until = SystemClock.elapsedRealtime() + YIELD_MS
+      while (recording && SystemClock.elapsedRealtime() < until) {
+        val running = listOfNotNull(writingUp, RecordingWorker.running).distinct()
+        if (running.isEmpty()) break
+        var heard = true
+        for (id in running) {
+          try {
+            // `{"cancelled": true}` when that run was in hand and heard it (write_up.rs `cancel`).
+            val answer = RecordingJob.cancel(dataDir, id, "meeting")
+            if (answer == null || !JSONObject(answer).optBoolean("cancelled")) heard = false
+          } catch (error: Throwable) {
+            Log.w(TAG, "cancel threw", error)
+            heard = false
+          }
+        }
+        if (heard) break
+        try {
+          Thread.sleep(YIELD_EVERY_MS)
+        } catch (_: InterruptedException) {
+          break
+        }
       }
-    }, "glyph-meeting-cancel").start()
+    }, "glyph-meeting-yield").start()
   }
 
   /**
@@ -637,6 +728,16 @@ class MeetingService : Service() {
         } catch (error: Throwable) {
           Log.w(TAG, "timeout cancel threw", error)
         }
+        // The run lets go within one graph computation; waited for briefly, inside the seconds Android allows, so
+        // its last progress line is not posted after the service's own notification has gone.
+        val until = SystemClock.elapsedRealtime() + TIMEOUT_WAIT_MS
+        while (writingUp == id && SystemClock.elapsedRealtime() < until) {
+          try {
+            Thread.sleep(100)
+          } catch (_: InterruptedException) {
+            break
+          }
+        }
       }
       stopSelf()
     }, "glyph-meeting-timeout").start()
@@ -651,15 +752,18 @@ class MeetingService : Service() {
       endReader()
       recording = false
     }
+    RecordingAlerts.cancel(this, RecordingAlerts.QUESTION_ID)
     dropWakeLock()
     instance = null
     control.shutdown()
+    writer.shutdown()
     super.onDestroy()
   }
 
   /** Started for nothing (a stale action, no id): be foreground for a moment, as the start demanded, then go. */
   private fun idleStop(startId: Int) {
-    if (recording || writingUp != null) return
+    if (recording || writingUp != null || ending.get()) return
+    RecordingAlerts.cancel(this, RecordingAlerts.QUESTION_ID)
     try {
       startWriteUpForeground(RecordingAlerts.writeUp(this, null, "Writing up"))
     } catch (error: Exception) {

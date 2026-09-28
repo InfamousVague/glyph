@@ -178,10 +178,7 @@ pub fn shutdown(app: &AppHandle) {
 /// capture runs (`guards::set_capturing`).
 #[cfg(not(target_os = "ios"))]
 fn take_capture(state: &CaptureState) -> Option<Capture> {
-    let mut slot = lock(&state.capture);
-    let taken = slot.take();
-    crate::guards::set_capturing(slot.is_some());
-    taken
+    crate::guards::change_capture(&state.capture, Option::take)
 }
 
 /// The cached engine, loading it on first use.
@@ -253,18 +250,17 @@ pub async fn capture_start(app: AppHandle, state: State<'_, CaptureState>) -> Re
             .store(true, std::sync::atomic::Ordering::Relaxed);
         // A meeting's write-up in progress stops within a graph computation
         // too: a person who has started talking gets the cores (guards.rs).
+        // The capture counts as running from here, before its model loads, so
+        // a write-up starting meanwhile is refused rather than lowering the
+        // flag just raised; dropped when this block ends, by then the slot's.
+        let _starting = crate::guards::capture_starting();
         crate::guards::abort_with("capturing");
         let engine = engine(&app, &state).await?;
         let abort = Arc::new(AtomicBool::new(false));
         let session = Session::new(engine, Arc::clone(&abort))?;
         let emitter = app.clone();
         let capture = Capture::start(session, abort, move |event| emit(&emitter, event));
-        let previous = {
-            let mut slot = lock(&state.capture);
-            let previous = slot.replace(capture);
-            crate::guards::set_capturing(slot.is_some());
-            previous
-        };
+        let previous = crate::guards::change_capture(&state.capture, |slot| slot.replace(capture));
         if let Some(previous) = previous {
             // Joined off the async runtime; see `Capture::cancel`.
             tauri::async_runtime::spawn_blocking(move || previous.cancel());

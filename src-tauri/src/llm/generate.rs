@@ -93,6 +93,15 @@ fn needs_remake(have: u32, need: u32) -> bool {
     have < need || (have > need * 2 && have > 2 * MIN_CONTEXT_TOKENS)
 }
 
+/// Whether the context kept from the last job (`kept`: its size and its
+/// thread count, `None` when there is none) is made again for a job that
+/// needs `need` tokens on `want_threads` cores. llama-cpp-2 sets a context's
+/// threads only when it is made, so a write-up on half the cores after a page
+/// job on all of them (or the other way round) remakes it.
+fn remakes(kept: Option<(u32, i32)>, need: u32, want_threads: i32) -> bool {
+    kept.is_none_or(|(have, threads)| needs_remake(have, need) || threads != want_threads)
+}
+
 /// One job run on `model`, in the context kept in `ctx_slot` (made, or made
 /// again bigger or for other cores, as the job needs) and with the prefix kept
 /// in `snapshot`.
@@ -145,11 +154,7 @@ pub(super) fn generate<'m>(
 
     // A context that fits, made or remade, on the cores the job asked for.
     let want_threads = job.threads.max(1);
-    let remake = match ctx_slot.as_ref() {
-        Some(kept) => needs_remake(kept.ctx.n_ctx(), n_ctx) || kept.threads != want_threads,
-        None => true,
-    };
-    if remake {
+    if remakes(ctx_slot.as_ref().map(|kept| (kept.ctx.n_ctx(), kept.threads)), n_ctx, want_threads) {
         *ctx_slot = None;
         let params = LlamaContextParams::default()
             .with_n_ctx(NonZeroU32::new(n_ctx))
@@ -372,5 +377,10 @@ mod tests {
         assert!(needs_remake(4608, 2048), "more than twice is given back");
         assert!(needs_remake(8192, 3072));
         assert!(!needs_remake(2048, 1000), "a context that is small anyway is kept, however much bigger");
+        assert!(remakes(None, 1024, 4), "none kept: one is made");
+        assert!(!remakes(Some((2048, 4)), 1536, 4), "the right size on the same cores is kept");
+        assert!(remakes(Some((2048, 4)), 1536, 2), "the same size on fewer cores is made again: threads are set once");
+        assert!(remakes(Some((2048, 2)), 1536, 4), "and on more");
+        assert!(remakes(Some((1024, 4)), 1536, 4), "too small");
     }
 }

@@ -159,12 +159,22 @@ mod tests {
             ("updates/UpdateCheckWorker.kt", format!("File(context.dataDir, \"{OTA}\")")),
             ("MainActivity.kt", format!("File(cacheDir, \"{PICKED}\")")),
             ("MainActivity.kt", format!("File(cacheDir, \"{UPDATES}\")")),
-            ("capture/MeetingService.kt", format!("File(dataDir, \"{RECORDINGS}\")")),
+            ("capture/MeetingService.kt", format!("fun recordingsDir(context: Context): File = File(context.dataDir, \"{RECORDINGS}\")")),
             ("recordings/RecordingWorker.kt", format!("File(context.dataDir, \"{JOBS}\")")),
         ] {
             let source = kotlin(file);
             assert!(source.contains(&twin), "{file} no longer says {twin}");
             assert!(source.contains("paths.rs"), "{file} should name src-tauri/src/paths.rs beside its twin");
         }
+        // The meeting service writes the tape and Discard deletes it: both through the one function above, so a
+        // path changed in one place but not the other cannot write where Rust never looks, or leave an hour of
+        // other people's voices behind a Discard.
+        let meeting = kotlin("capture/MeetingService.kt");
+        assert_eq!(meeting.matches(&format!("\"{RECORDINGS}\"")).count(), 1, "MeetingService.kt names {RECORDINGS:?} once, in recordingsDir");
+        assert!(!meeting.contains("File(dataDir, "), "every path in MeetingService.kt goes through recordingsDir");
+        // The bridge's id rule is Rust's (`fsx::plain_id`), its length cap included.
+        let activity = kotlin("MainActivity.kt");
+        let rule = format!("id.length in 1..{}", crate::fsx::PLAIN_ID_MAX);
+        assert!(activity.contains(&rule), "MainActivity.isNoteId no longer says {rule}");
     }
 }

@@ -50,7 +50,7 @@ internal object WriteUp {
    * Runs the job once. `progress`, when given, is told the notification's new
    * line each time it changes.
    */
-  fun runOnce(context: Context, noteId: String, title: String?, now: Boolean, fresh: Boolean, progress: ((String) -> Unit)?): Outcome {
+  fun runOnce(context: Context, noteId: String, title: String?, now: Boolean, fresh: Boolean, requestedAt: Long?, progress: ((String) -> Unit)?): Outcome {
     val dataDir = context.dataDir.absolutePath
     val ended = AtomicBoolean(false)
     val watcher = Thread({
@@ -89,7 +89,7 @@ internal object WriteUp {
     watcher.isDaemon = true
     watcher.start()
     val answer = try {
-      RecordingJob.run(dataDir, noteId, options(context, now, fresh, title))
+      RecordingJob.run(dataDir, noteId, options(context, now, fresh, title, requestedAt))
     } catch (error: Throwable) {
       Log.w(TAG, "write-up threw", error)
       JSONObject().put("error", error.toString()).toString()
@@ -100,13 +100,19 @@ internal object WriteUp {
     return outcomeOf(answer)
   }
 
-  /** The options `run` takes (write_up.rs `Options`), from what only Kotlin can read. */
-  fun options(context: Context, now: Boolean, fresh: Boolean, title: String?): String {
+  /**
+   * The options `run` takes (write_up.rs `Options`), from what only Kotlin can
+   * read. Every key here is read by name by a Rust test
+   * (`write_up::tests::the_kotlin_options_are_the_rust_fields`): a misspelt one
+   * would be a silent default on the other side.
+   */
+  fun options(context: Context, now: Boolean, fresh: Boolean, title: String?, requestedAt: Long?): String {
     val battery = context.getSystemService(BatteryManager::class.java)
     val percent = battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
     return JSONObject()
       .put("now", now)
       .put("fresh", fresh)
+      .put("requestedAt", requestedAt ?: JSONObject.NULL)
       .put("title", title ?: JSONObject.NULL)
       .put("charging", battery?.isCharging ?: false)
       // A reading outside 0..100 is "unknown" (the emulator, a phone with no battery): treated as full, so the rule holds nothing back on a guess.
@@ -191,7 +197,8 @@ internal object WriteUp {
     MainActivity.tell("recordingDone", JSONObject().put("id", noteId).put("outcome", outcome).toString())
   }
 
-  private fun outcomeOf(answer: String?): Outcome {
+  /** `run`'s answer read back (write_up.rs `Answer::to_json`); internal for the test that reads the shared fixture. */
+  internal fun outcomeOf(answer: String?): Outcome {
     val json = try {
       JSONObject(answer ?: return Outcome.Retry("no answer"))
     } catch (error: Exception) {

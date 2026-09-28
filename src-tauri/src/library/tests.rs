@@ -160,26 +160,62 @@ fn two_handles_opened_at_once_on_an_older_index_both_open() {
         let mut library = Library::open_fs(&root).unwrap();
         library.save_note("k", "# Kept\n", "editor").unwrap();
     }
-    let index = rusqlite::Connection::open(root.join(".glyph/index.sqlite")).unwrap();
-    index.execute_batch("PRAGMA user_version = 1;").unwrap();
-    drop(index);
-    let openers: Vec<_> = (0..2)
-        .map(|_| {
-            let root = root.to_path_buf();
-            std::thread::spawn(move || {
-                let mut library = Library::open_fs(&root).unwrap();
-                library.list_notes().unwrap().len()
+    // Many rounds, each pair released together: one round in thirty lost the race without the lock.
+    for round in 0..40 {
+        let index = rusqlite::Connection::open(root.join(".glyph/index.sqlite")).unwrap();
+        index.execute_batch("PRAGMA user_version = 1;").unwrap();
+        drop(index);
+        let together = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let openers: Vec<_> = (0..2)
+            .map(|_| {
+                let root = root.to_path_buf();
+                let together = std::sync::Arc::clone(&together);
+                std::thread::spawn(move || {
+                    together.wait();
+                    let mut library = Library::open_fs(&root).unwrap();
+                    library.list_notes().unwrap().len()
+                })
             })
-        })
-        .collect();
-    for opener in openers {
-        assert_eq!(opener.join().unwrap(), 1, "each handle sees the note");
+            .collect();
+        for opener in openers {
+            assert_eq!(opener.join().unwrap(), 1, "round {round}: each handle sees the note");
+        }
+        let index = rusqlite::Connection::open(root.join(".glyph/index.sqlite")).unwrap();
+        let version: i64 = index.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+        assert_eq!(version, 2);
+        let rows: i64 = index.query_row("SELECT count(*) FROM notes", [], |row| row.get(0)).unwrap();
+        assert_eq!(rows, 1, "round {round}: the rows the first rebuild filled are still there");
     }
-    let index = rusqlite::Connection::open(root.join(".glyph/index.sqlite")).unwrap();
-    let version: i64 = index.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
-    assert_eq!(version, 2);
-    let rows: i64 = index.query_row("SELECT count(*) FROM notes", [], |row| row.get(0)).unwrap();
-    assert_eq!(rows, 1, "the rows the first rebuild filled are still there");
+}
+
+/// The app's handle and a meeting's write-up both write the same note in one
+/// process. Each update names the revision it read; two at the same revision,
+/// released together from two handles, must never both win, or the later file
+/// write overwrites the earlier with no conflict seen (`WRITING`).
+#[test]
+fn two_handles_writing_one_revision_at_once_never_both_win() {
+    let root = TempDir::new("library-two-writers");
+    Library::open_fs(&root).unwrap().save_note("n1", "# Meeting\n", "capture").unwrap();
+    for round in 0..20 {
+        let revision = Library::open_fs(&root).unwrap().get_note("n1").unwrap().unwrap().revision;
+        let together = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let writers: Vec<_> = ["editor", "write-up"]
+            .into_iter()
+            .map(|who| {
+                let root = root.to_path_buf();
+                let together = std::sync::Arc::clone(&together);
+                std::thread::spawn(move || {
+                    let mut library = Library::open_fs(&root).unwrap();
+                    together.wait();
+                    library.update_note("n1", &format!("# Meeting\n\n{who} {round}\n"), revision).unwrap().map(|note| note.body)
+                })
+            })
+            .collect();
+        let won: Vec<String> = writers.into_iter().filter_map(|writer| writer.join().unwrap()).collect();
+        assert_eq!(won.len(), 1, "round {round}: exactly one write at revision {revision}");
+        let note = Library::open_fs(&root).unwrap().get_note("n1").unwrap().unwrap();
+        assert_eq!((note.revision, note.body.as_str()), (revision + 1, won[0].as_str()), "round {round}: the winner's words, one revision on");
+    }
 }
 
 #[test]

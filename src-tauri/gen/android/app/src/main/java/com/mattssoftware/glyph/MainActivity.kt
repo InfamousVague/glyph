@@ -49,6 +49,8 @@ import com.mattssoftware.glyph.updates.UpdateAlerts
 import java.io.File
 import java.lang.ref.WeakReference
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -90,6 +92,16 @@ class MainActivity : TauriActivity() {
      * and an activity it held on to would be a leaked window.
      */
     @Volatile private var resumed: WeakReference<MainActivity>? = null
+
+    /**
+     * The trash's cancel and the write-up's request, one after the other in the
+     * order the page made them (native generation 20). A meeting put in the
+     * trash and brought straight back by the toast's Undo asks for both within
+     * a second; the cancel waits for the run to let go before it marks the file,
+     * and a request enqueued meanwhile would be older than that mark, which Rust
+     * honours over it. Made one at a time, the request is always the newer.
+     */
+    private val writeUpDoor: ExecutorService by lazy { Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "glyph-write-up-door") } }
 
     /**
      * `window.__glyph.<name>(argument)` on the page, from anywhere in the
@@ -826,12 +838,15 @@ class MainActivity : TauriActivity() {
      * asked; `meeting { event: "started" }` confirms it and `failed` undoes it),
      * "permission" (the microphone was asked for with REQUEST_MICROPHONE; the
      * page retries on `meeting { event: "permission", granted: true }`),
-     * "recording" (one is being recorded already), or a reason.
+     * "recording" (one is being recorded already), or a reason: the last
+     * meeting's Stop still being put away is one, said in the app's words,
+     * since its bookkeeping would clear a meeting started under it.
      */
     @JavascriptInterface
     fun startMeeting(noteId: String, title: String): String {
       if (!isNoteId(noteId)) return "not a note id"
       if (MeetingService.isRecording()) return "recording"
+      if (MeetingService.isEnding()) return MeetingService.STILL_STOPPING
       if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
         microphoneFor = noteId
         runOnUiThread { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE) }
@@ -901,7 +916,8 @@ class MainActivity : TauriActivity() {
     @JavascriptInterface
     fun writeUp(noteId: String, now: Boolean): String {
       if (!isNoteId(noteId)) return "not a note id"
-      RecordingWorker.enqueue(this@MainActivity, noteId, null, now, fresh = true)
+      val context = applicationContext
+      writeUpDoor.execute { RecordingWorker.enqueue(context, noteId, null, now, fresh = true) }
       return "queued"
     }
 
@@ -915,13 +931,13 @@ class MainActivity : TauriActivity() {
     fun cancelWriteUp(noteId: String) {
       if (!isNoteId(noteId)) return
       val dataDir = dataDir.absolutePath
-      Thread({
+      writeUpDoor.execute {
         try {
           RecordingJob.cancel(dataDir, noteId, "cancel")
         } catch (error: Throwable) {
           Log.w(TAG, "cancelWriteUp failed", error)
         }
-      }, "glyph-write-up-cancel").start()
+      }
     }
 
     /**
@@ -958,7 +974,7 @@ class MainActivity : TauriActivity() {
       return link
     }
 
-    /** The shape Rust's `fsx::plain_id` accepts; an id that fails it names no file and starts nothing. */
-    private fun isNoteId(id: String): Boolean = id.isNotEmpty() && id.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == '-' || it == '_' }
+    /** The shape Rust's `fsx::plain_id` accepts (1 to `PLAIN_ID_MAX`, 128, of these); an id that fails it names no file and starts nothing. */
+    private fun isNoteId(id: String): Boolean = id.length in 1..128 && id.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == '-' || it == '_' }
   }
 }

@@ -115,9 +115,19 @@ internal object RecordingAlerts {
       .build()
   }
 
-  /** The write-up's progress, under the same id as the recording was: "Listening to the recording, 40%", then "Summarizing". No actions. */
+  /**
+   * The write-up's progress, under the same id as the recording was: "Listening to the recording, 40%", then
+   * "Summarizing". No actions. Private, with a public version that has no title: the title can be the note's own
+   * heading (a write-up asked again reads it from the note), and a locked phone shows nothing of a note.
+   */
   fun writeUp(context: Context, title: String?, line: String): Notification {
     ensureChannel(context)
+    val public = NotificationCompat.Builder(context, CHANNEL_ID)
+      .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+      .setContentTitle("Writing up")
+      .setContentText(line)
+      .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+      .build()
     return NotificationCompat.Builder(context, CHANNEL_ID)
       .setSmallIcon(android.R.drawable.ic_btn_speak_now)
       .setContentTitle(title ?: "Writing up")
@@ -126,7 +136,8 @@ internal object RecordingAlerts {
       .setSilent(true)
       .setOnlyAlertOnce(true)
       .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-      .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+      .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+      .setPublicVersion(public)
       .setCategory(NotificationCompat.CATEGORY_PROGRESS)
       .build()
   }

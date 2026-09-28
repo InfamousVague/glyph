@@ -6,9 +6,13 @@
 //! types, so both sides can name them.
 //!
 //! - Whether a capture is running (`capturing`), derived from the capture slot
-//!   under its own lock after every change of it, never stored by hand: a stop
-//!   for an old capture racing a new start cannot clear the flag while the new
-//!   capture runs. A write-up refuses to start against one.
+//!   under its own lock after every change of it (`change_capture`), never
+//!   stored by hand: a stop for an old capture racing a new start cannot clear
+//!   the flag while the new capture runs. A capture counts from the moment it
+//!   starts starting (`capture_starting`), before its model has loaded, so a
+//!   write-up that begins in that second is refused rather than lowering the
+//!   abort the dictation has just raised. A write-up refuses to start against
+//!   one.
 //! - The one small.en at a time (`WRITE_UP`): a recording's refine pass and a
 //!   meeting's write-up both load the 190 MB model, and the second to arrive is
 //!   told "busy" rather than loading it twice. Tried, never waited on.
@@ -22,14 +26,17 @@
 //!   a writer re-reads the file's phase first, so a cancel cannot be undone by
 //!   the watcher's next tick (`jobs::Progress::save`).
 //! - Which note's write-up is on (`RUNNING_JOB`), for the cancel that waits
-//!   for it to clear.
+//!   for it to clear, and for Exit, which waits a moment for it too
+//!   (`wait_for_no_job`) so whisper is not mid-decode when C++'s static
+//!   destructors run.
 //! - The one rule for a background job's cores (`background_threads`): half of
 //!   what the foreground would take, never under two, applied to whisper's
 //!   `min(4, cores)` and llama's `clamp(2, 6)` alike, and only while the app is
 //!   in front, since with it closed nobody is typing.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::time::{Duration, Instant};
 
 use crate::lock::{lock, try_lock};
 
@@ -43,9 +50,39 @@ pub fn set_capturing(on: bool) {
     CAPTURING.store(on, Ordering::SeqCst);
 }
 
-/// Whether a capture is running now.
+/// Captures starting now: raised before `capture_start` raises the abort and
+/// loads its model, lowered once the slot says what it holds.
+static STARTING: AtomicUsize = AtomicUsize::new(0);
+
+/// One capture starting, from before its abort is raised until it is in the
+/// slot (or has failed): `capturing` is true meanwhile. Dropped to lower it.
+pub struct CaptureStarting(());
+
+/// Marks a capture as starting; see `CaptureStarting`.
+pub fn capture_starting() -> CaptureStarting {
+    STARTING.fetch_add(1, Ordering::SeqCst);
+    CaptureStarting(())
+}
+
+impl Drop for CaptureStarting {
+    fn drop(&mut self) {
+        STARTING.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// Whether a capture is running now, or starting.
 pub fn capturing() -> bool {
-    CAPTURING.load(Ordering::SeqCst)
+    CAPTURING.load(Ordering::SeqCst) || STARTING.load(Ordering::SeqCst) > 0
+}
+
+/// Changes the capture slot with `change` and records what it holds after,
+/// under the slot's own lock: the one way `capture_start`, `capture_stop`,
+/// `capture_cancel` and Exit touch it, so the flag is always the slot's.
+pub fn change_capture<T, R>(slot: &Mutex<Option<T>>, change: impl FnOnce(&mut Option<T>) -> R) -> R {
+    let mut held = lock(slot);
+    let answer = change(&mut held);
+    set_capturing(held.is_some());
+    answer
 }
 
 /// The one small.en at a time: held for a refine pass or a write-up.
@@ -100,6 +137,23 @@ pub fn clear_abort() {
 /// run's drop guard however the run ends, a panic included.
 pub static RUNNING_JOB: Mutex<Option<String>> = Mutex::new(None);
 
+/// Waits up to `limit` for the write-up in hand (if any) to clear
+/// `RUNNING_JOB`, answering whether it did. Exit calls it after raising the
+/// abort: the run lets go within one graph computation, and its whisper engine
+/// is dropped before its drop guard clears the slot.
+pub fn wait_for_no_job(limit: Duration) -> bool {
+    let until = Instant::now() + limit;
+    loop {
+        if lock(&RUNNING_JOB).is_none() {
+            return true;
+        }
+        if Instant::now() >= until {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
 /// How many cores a background job takes while the app is in front: half of
 /// what the foreground would, never under two.
 pub fn background_threads(foreground: i32) -> i32 {
@@ -115,6 +169,59 @@ pub(crate) static TEST_SERIAL: Mutex<()> = Mutex::new(());
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_capturing_flag_is_what_the_slot_holds_whichever_way_a_stop_and_a_start_race() {
+        let _one = lock(&TEST_SERIAL);
+        let slot: Mutex<Option<u32>> = Mutex::new(None);
+        for round in 0..200u32 {
+            change_capture(&slot, |held| held.replace(round));
+            let together = std::sync::Barrier::new(2);
+            std::thread::scope(|scope| {
+                // The stop for the old capture and the start of a new one, released at once.
+                scope.spawn(|| {
+                    together.wait();
+                    change_capture(&slot, Option::take)
+                });
+                scope.spawn(|| {
+                    together.wait();
+                    change_capture(&slot, |held| held.replace(round + 1_000))
+                });
+            });
+            assert_eq!(capturing(), lock(&slot).is_some(), "round {round}");
+        }
+        change_capture(&slot, Option::take);
+        assert!(!capturing());
+    }
+
+    #[test]
+    fn a_capture_counts_from_the_moment_it_starts_starting() {
+        let _one = lock(&TEST_SERIAL);
+        set_capturing(false);
+        let starting = capture_starting();
+        assert!(capturing(), "while its model loads");
+        let second = capture_starting();
+        drop(starting);
+        assert!(capturing(), "one still starting");
+        drop(second);
+        assert!(!capturing(), "and a start that failed leaves nothing behind");
+    }
+
+    #[test]
+    fn exit_waits_for_the_job_in_hand_and_no_longer_than_it_said() {
+        let _one = lock(&TEST_SERIAL);
+        assert!(wait_for_no_job(Duration::ZERO), "no job, no wait");
+        *lock(&RUNNING_JOB) = Some("n1".into());
+        let started = Instant::now();
+        assert!(!wait_for_no_job(Duration::from_millis(100)));
+        assert!(started.elapsed() < Duration::from_secs(2));
+        let clearing = std::thread::spawn(|| {
+            std::thread::sleep(Duration::from_millis(50));
+            *lock(&RUNNING_JOB) = None;
+        });
+        assert!(wait_for_no_job(Duration::from_secs(5)), "cleared while waited for");
+        clearing.join().unwrap();
+    }
 
     #[test]
     fn a_background_job_takes_half_the_cores_and_never_under_two() {

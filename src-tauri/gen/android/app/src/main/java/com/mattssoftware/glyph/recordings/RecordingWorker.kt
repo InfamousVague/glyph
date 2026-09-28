@@ -49,6 +49,8 @@ class RecordingWorker(context: Context, params: WorkerParameters) : Worker(conte
     }
     val noteId = inputData.getString(KEY_NOTE_ID) ?: return Result.success()
     val fresh = inputData.getBoolean(KEY_FRESH, false)
+    // When a fresh request was made, so a cancel made after it (the trash) wins over it on every retry.
+    val requestedAt = inputData.getLong(KEY_REQUESTED_AT, 0L).takeIf { fresh && it > 0L }
     val now = inputData.getBoolean(KEY_NOW, false)
     if (MeetingService.isRecording() || MeetingService.writingUp == noteId) return Result.retry()
     val progress = WriteUp.readProgress(context, noteId)
@@ -69,7 +71,7 @@ class RecordingWorker(context: Context, params: WorkerParameters) : Worker(conte
     }
     running = noteId
     val outcome = try {
-      WriteUp.runOnce(context, noteId, title, now, fresh, if (foregrounded) { line -> setForegroundAsync(foregroundInfo(context, title, line)) } else null)
+      WriteUp.runOnce(context, noteId, title, now, fresh, requestedAt, if (foregrounded) { line -> setForegroundAsync(foregroundInfo(context, title, line)) } else null)
     } finally {
       running = null
     }
@@ -115,6 +117,7 @@ class RecordingWorker(context: Context, params: WorkerParameters) : Worker(conte
     private const val KEY_NOW = "now"
     private const val KEY_FRESH = "fresh"
     private const val KEY_SWEEP = "sweep"
+    private const val KEY_REQUESTED_AT = "requestedAt"
 
     /** The note id a worker is running `RecordingJob.run` for right now, for Reset's cancel. */
     @Volatile var running: String? = null
@@ -129,6 +132,10 @@ class RecordingWorker(context: Context, params: WorkerParameters) : Worker(conte
      * One request for `noteId` at the end of the chain. `fresh` restarts a cancelled, failed or model-less job; `now`
      * skips the battery rule. The answer is WorkManager's operation, for a caller that must know the request is
      * written down before the process may die (`MeetingService.finishRecording`).
+     *
+     * A fresh request carries when it was made, and Rust honours it over a `cancelled` file only when the cancel is
+     * older: the request is retried with the same input after every hold, and a meeting put in the trash while it
+     * waited must stay cancelled rather than be written up by the retry.
      */
     fun enqueue(context: Context, noteId: String, title: String?, now: Boolean, fresh: Boolean): Operation {
       val data = Data.Builder()
@@ -136,6 +143,7 @@ class RecordingWorker(context: Context, params: WorkerParameters) : Worker(conte
         .putString(KEY_TITLE, title)
         .putBoolean(KEY_NOW, now)
         .putBoolean(KEY_FRESH, fresh)
+        .putLong(KEY_REQUESTED_AT, System.currentTimeMillis())
         .build()
       val request = OneTimeWorkRequestBuilder<RecordingWorker>()
         .setInputData(data)

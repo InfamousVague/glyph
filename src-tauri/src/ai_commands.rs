@@ -197,6 +197,11 @@ pub fn install(app: &tauri::App) {
     app.manage(AiState::default());
 }
 
+/// How long Exit waits for a write-up in hand to let go: well under
+/// `write_up::CANCEL_WAIT`, since the run hears the abort within one graph
+/// computation and a quit that hangs is its own fault.
+const EXIT_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
+
 /// Cancels every run and stops the worker, waiting for it. Called on
 /// `RunEvent::Exit`, for the reason `capture_commands::shutdown` gives: C++
 /// with static state must not be mid-decode when the process's destructors
@@ -205,8 +210,13 @@ pub fn shutdown(app: &AppHandle) {
     if let Some(state) = app.try_state::<AiState>() {
         state.cancel_all();
     }
-    // A write-up's piece ends too, so Exit does not join a whole one.
+    // A write-up's piece ends too, so Exit does not join a whole one, and the
+    // run is given a moment to let go: it runs on the meeting service's or the
+    // worker's thread, which nobody joins, and a whisper decode still going
+    // when C++'s static destructors run is the crash capture_commands::shutdown
+    // joins its own capture to avoid.
     crate::guards::abort_with("shutdown");
+    crate::guards::wait_for_no_job(EXIT_WAIT);
     #[cfg(not(target_os = "ios"))]
     if let Some(llm) = crate::llm::started() {
         llm.shutdown();

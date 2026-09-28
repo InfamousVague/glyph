@@ -16,7 +16,10 @@ import java.io.RandomAccessFile
  * The two lengths are patched every ten seconds and at close, so a kill leaves
  * a file whose header is at most ten seconds short. Rust reads such a file to
  * its end (`wav::data_end`: `data` as the last chunk runs to the end of the
- * file), so nothing recorded is lost, only the number on the label.
+ * file), so nothing recorded is lost, only the number on the label. Each patch
+ * also asks the disk to keep what is written (`sync`): a power cut, unlike a
+ * kill, loses what is still in the page cache, and could leave a header that
+ * claims more than landed (which `wav::patch_header` then brings down).
  */
 internal object WavSpool {
   const val SAMPLE_RATE = 16_000
@@ -52,7 +55,7 @@ internal object WavSpool {
     return out
   }
 
-  /** Writes the two lengths for `dataLen` bytes of samples and puts the position back at the end. */
+  /** Writes the two lengths for `dataLen` bytes of samples, puts the position back at the end, and syncs the file to the disk. */
   fun patch(out: RandomAccessFile, dataLen: Long) {
     val size = ByteArray(4)
     le32(size, 0, HEADER_LEN - 8 + dataLen)
@@ -62,6 +65,7 @@ internal object WavSpool {
     out.seek(40)
     out.write(size)
     out.seek(HEADER_LEN + dataLen)
+    out.fd.sync()
   }
 
   /** `bytes` of PCM16 mono at 16 kHz, as a length in milliseconds. */

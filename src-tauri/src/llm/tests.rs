@@ -222,6 +222,31 @@ fn cancelling_during_prefill_stops_the_run_and_says_cancelled() {
     assert!(events.iter().all(|e| e.phase != Phase::Generating), "{events:?}");
 }
 
+/// A meeting's write-up is a background job on the same worker: a page
+/// request that arrives while one runs preempts it (`guards::abort_with("busy")`
+/// on the flag every background job watches), and is served next rather than
+/// behind the whole piece.
+#[test]
+fn a_foreground_request_preempts_a_background_job_and_is_served_next() {
+    let _one = serial();
+    let _flags = crate::lock::lock(&crate::guards::TEST_SERIAL);
+    let Some(path) = model_path() else { return };
+    crate::guards::clear_abort();
+    let (loading, loaded) = std::sync::mpsc::channel();
+    let mut background = request("write-up:n1:piece-1", &page_prompt("RECORDING_NOTES_PROMPT"), &"We talked about the launch and the venue and the press list. ".repeat(120), 200);
+    background.background = true;
+    let piece = engine().generate(&path, background, crate::guards::abort_jobs(), move |progress| {
+        let _ = loading.send(progress.phase);
+    });
+    // Sent once the background job is in hand: from its load on, it counts as running.
+    assert_eq!(loaded.recv().ok(), Some(Phase::Loading));
+    let page = engine().generate(&path, request("page", &page_system_prompt(), SPOKEN, 16), Arc::default(), |_| {});
+    assert_eq!(piece.recv().expect("the piece answers"), Err(Failure::Cancelled));
+    assert_eq!(crate::guards::abort_reason(), "busy", "and says why, so the write-up holds uncounted");
+    assert!(page.recv().expect("the page's request answers").is_ok());
+    crate::guards::clear_abort();
+}
+
 #[test]
 fn a_prompt_over_the_window_is_refused_before_any_prefill() {
     let _one = serial();

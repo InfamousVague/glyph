@@ -16,7 +16,10 @@
 //! every seek. So `serve` stats the file, seeks, and reads the bytes of the
 //! range - and an open-ended range (`bytes=a-`, which is how an element asks
 //! for "the rest") is answered with the first `OPEN_RANGE_CAP` of it as a 206,
-//! whose `Content-Range` tells the element there is more to ask for.
+//! whose `Content-Range` tells the element there is more to ask for. A `HEAD`
+//! reads nothing at all: the tape asks one to learn why it would not play
+//! (tapes/useTape.ts), and that is when a phone short of memory should not be
+//! handed an hour's tape to throw away.
 
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -68,15 +71,17 @@ pub fn serve<R: Runtime>(app: &AppHandle<R>, request: &tauri::http::Request<Vec<
         .and_then(|file| std::fs::File::open(file).ok())
         .and_then(|file| file.metadata().ok().map(|meta| (file, meta.len())));
     let range = request.headers().get(header::RANGE).and_then(|v| v.to_str().ok());
-    answer(file, range)
+    answer(file, range, request.method() == tauri::http::Method::HEAD)
 }
 
 /// The response to a request for a recording: `file` is the open file and its
 /// length, or `None` when none was found; `range` the request's `Range` header
-/// if it sent one. A range is read by seeking to it; no range is the whole
-/// file as a 200. A file that cannot be read where it should be is a 500, not
-/// a 404: "not on this device" is the page's reading of a 404.
-fn answer(file: Option<(impl Read + Seek, u64)>, range: Option<&str>) -> Response<Vec<u8>> {
+/// if it sent one; `head` for a `HEAD`, which is answered with the headers a
+/// `GET` would have and no bytes read. A range is read by seeking to it; no
+/// range is the whole file as a 200. A file that cannot be read where it
+/// should be is a 500, not a 404: "not on this device" is the page's reading
+/// of a 404.
+fn answer(file: Option<(impl Read + Seek, u64)>, range: Option<&str>, head: bool) -> Response<Vec<u8>> {
     let respond = |status: StatusCode, body: Vec<u8>, extra: Vec<(header::HeaderName, String)>| {
         let mut builder = Response::builder()
             .status(status)
@@ -97,10 +102,13 @@ fn answer(file: Option<(impl Read + Seek, u64)>, range: Option<&str>) -> Respons
         None => (0, total.saturating_sub(1), false),
     };
     let length = if total == 0 { 0 } else { end - start + 1 };
-    let mut body = vec![0u8; length as usize];
-    let read = reader.seek(SeekFrom::Start(start)).and_then(|_| reader.read_exact(&mut body));
-    if read.is_err() {
-        return respond(StatusCode::INTERNAL_SERVER_ERROR, Vec::new(), Vec::new());
+    let mut body = Vec::new();
+    if !head {
+        body = vec![0u8; length as usize];
+        let read = reader.seek(SeekFrom::Start(start)).and_then(|_| reader.read_exact(&mut body));
+        if read.is_err() {
+            return respond(StatusCode::INTERNAL_SERVER_ERROR, Vec::new(), Vec::new());
+        }
     }
     if partial {
         respond(
@@ -193,12 +201,12 @@ mod tests {
     fn a_tape_can_seek_because_every_answer_says_it_takes_ranges() {
         let dir = TempDir::new("rec-scheme");
         let bytes: Vec<u8> = (0..100).collect();
-        let part = answer(opened(&dir, &bytes), Some("bytes=10-19"));
+        let part = answer(opened(&dir, &bytes), Some("bytes=10-19"), false);
         assert_eq!(part.status(), StatusCode::PARTIAL_CONTENT);
         assert_eq!(part.body(), &bytes[10..20]);
         assert_eq!(header_of(&part, header::CONTENT_RANGE), Some("bytes 10-19/100"));
         assert_eq!(header_of(&part, header::CONTENT_LENGTH), Some("10"));
-        let whole = answer(opened(&dir, &bytes), None);
+        let whole = answer(opened(&dir, &bytes), None, false);
         assert_eq!((whole.status(), whole.body().len()), (StatusCode::OK, 100));
         assert_eq!(header_of(&whole, header::CONTENT_LENGTH), Some("100"));
         assert_eq!(whole.body(), &bytes);
@@ -207,8 +215,8 @@ mod tests {
             assert_eq!(header_of(response, header::CONTENT_TYPE), Some("audio/wav"));
             assert_eq!(header_of(response, header::ACCESS_CONTROL_ALLOW_ORIGIN), Some("*"));
         }
-        assert_eq!(answer(None::<(std::fs::File, u64)>, Some("bytes=0-1")).status(), StatusCode::NOT_FOUND);
-        let empty = answer(opened(&dir, &[]), None);
+        assert_eq!(answer(None::<(std::fs::File, u64)>, Some("bytes=0-1"), false).status(), StatusCode::NOT_FOUND);
+        let empty = answer(opened(&dir, &[]), None, false);
         assert_eq!((empty.status(), empty.body().len()), (StatusCode::OK, 0));
     }
 
@@ -217,13 +225,67 @@ mod tests {
     fn an_open_ended_range_is_the_first_slice_and_says_how_much_is_left() {
         let dir = TempDir::new("rec-open");
         let long: Vec<u8> = (0..(OPEN_RANGE_CAP as usize + 5000)).map(|i| (i % 251) as u8).collect();
-        let first = answer(opened(&dir, &long), Some("bytes=0-"));
+        let first = answer(opened(&dir, &long), Some("bytes=0-"), false);
         assert_eq!(first.status(), StatusCode::PARTIAL_CONTENT);
         assert_eq!(first.body().len() as u64, OPEN_RANGE_CAP);
         assert_eq!(first.body(), &long[..OPEN_RANGE_CAP as usize]);
         assert_eq!(header_of(&first, header::CONTENT_RANGE), Some(format!("bytes 0-{}/{}", OPEN_RANGE_CAP - 1, long.len()).as_str()));
-        let rest = answer(opened(&dir, &long), Some(&format!("bytes={OPEN_RANGE_CAP}-")));
+        let rest = answer(opened(&dir, &long), Some(&format!("bytes={OPEN_RANGE_CAP}-")), false);
         assert_eq!(rest.body(), &long[OPEN_RANGE_CAP as usize..]);
         assert_eq!(header_of(&rest, header::CONTENT_RANGE), Some(format!("bytes {}-{}/{}", OPEN_RANGE_CAP, long.len() - 1, long.len()).as_str()));
+    }
+
+    /// A reader that counts what is read through it: the proof that a range
+    /// reads its bytes and no more, where the body alone could be a slice of a
+    /// whole file read into memory.
+    struct Counting<R> {
+        inner: R,
+        read: std::rc::Rc<std::cell::Cell<u64>>,
+    }
+
+    impl<R: Read> Read for Counting<R> {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            let n = self.inner.read(buffer)?;
+            self.read.set(self.read.get() + n as u64);
+            Ok(n)
+        }
+    }
+
+    impl<R: Seek> Seek for Counting<R> {
+        fn seek(&mut self, to: SeekFrom) -> std::io::Result<u64> {
+            self.inner.seek(to)
+        }
+    }
+
+    /// How many bytes a `Counting` reader has read, shared with the test that asks.
+    type ReadSoFar = std::rc::Rc<std::cell::Cell<u64>>;
+
+    fn counted(dir: &TempDir, bytes: &[u8]) -> (Option<(Counting<std::fs::File>, u64)>, ReadSoFar) {
+        let read = std::rc::Rc::new(std::cell::Cell::new(0));
+        let (file, total) = opened(dir, bytes).unwrap();
+        (Some((Counting { inner: file, read: std::rc::Rc::clone(&read) }, total)), read)
+    }
+
+    #[test]
+    fn a_range_reads_only_its_bytes_and_a_head_reads_none() {
+        let dir = TempDir::new("rec-counted");
+        let long: Vec<u8> = (0..(OPEN_RANGE_CAP as usize * 3)).map(|i| (i % 251) as u8).collect();
+        let (file, read) = counted(&dir, &long);
+        let part = answer(file, Some("bytes=1000-1999"), false);
+        assert_eq!(part.body(), &long[1000..2000]);
+        assert_eq!(read.get(), 1000, "the thousand bytes asked for, not the file");
+        let (file, read) = counted(&dir, &long);
+        let open = answer(file, Some("bytes=5-"), false);
+        assert_eq!(open.body().len() as u64, OPEN_RANGE_CAP);
+        assert_eq!(read.get(), OPEN_RANGE_CAP, "an open end reads its slice");
+        let (file, read) = counted(&dir, &long);
+        let head = answer(file, None, true);
+        assert_eq!((head.status(), head.body().len(), read.get()), (StatusCode::OK, 0, 0), "a HEAD reads nothing");
+        assert_eq!(header_of(&head, header::CONTENT_LENGTH), Some(long.len().to_string().as_str()), "and says how long it is");
+        let (file, read) = counted(&dir, &long);
+        let head = answer(file, Some("bytes=0-99"), true);
+        assert_eq!((head.status(), read.get()), (StatusCode::PARTIAL_CONTENT, 0));
+        assert_eq!(header_of(&head, header::CONTENT_RANGE), Some(format!("bytes 0-99/{}", long.len()).as_str()));
+        assert_eq!(answer(None::<(std::fs::File, u64)>, None, true).status(), StatusCode::NOT_FOUND, "a missing tape is still a 404");
     }
 }

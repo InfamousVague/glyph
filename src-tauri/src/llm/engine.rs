@@ -235,6 +235,10 @@ fn serve(inbox: Receiver<Message>) {
 
         let started = Instant::now();
         let mut report = Reporter::new(&job.request.id, started);
+        // A background job counts as running from its load: a model's load is
+        // seconds on a phone, and a foreground request that arrives meanwhile
+        // must preempt it rather than wait behind the whole piece that follows.
+        BACKGROUND_RUNNING.store(job.request.background, Ordering::SeqCst);
         report.send(&mut job.progress, Phase::Loading, Counts::default(), None);
         let loading = (|| -> Result<(&'static LlamaBackend, LlamaModel), String> {
             let backend = backend()?;
@@ -246,6 +250,7 @@ fn serve(inbox: Receiver<Message>) {
         let (backend, model) = match loading {
             Ok(pair) => pair,
             Err(message) => {
+                BACKGROUND_RUNNING.store(false, Ordering::SeqCst);
                 fail(*job, &mut report, Failure::Error(message), Counts::default());
                 continue;
             }

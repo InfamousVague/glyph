@@ -172,6 +172,16 @@ pub fn with_transcript(body: &str, paragraphs: &[String]) -> String {
     out
 }
 
+/// The words of `body`'s transcript section, without its heading, or `None`
+/// when it has no section or the section has no words: what a write-up asked
+/// again keeps rather than listening a second time (`write_up`).
+pub fn words_of(body: &str) -> Option<String> {
+    let at = transcript_at(body)?;
+    let section = &body[at..];
+    let words = section.split_once('\n').map_or("", |(_, rest)| rest).trim();
+    (!words.is_empty()).then(|| words.to_string())
+}
+
 /// `body` without its transcript section, trailing whitespace trimmed: what the
 /// page compares two bodies by to tell a transcript's arrival from an edit.
 pub fn without_transcript(body: &str) -> String {
@@ -305,6 +315,16 @@ mod tests {
     use super::*;
     use std::path::{Path, PathBuf};
 
+    #[test]
+    fn the_words_of_a_transcript_are_what_follows_its_heading() {
+        assert_eq!(words_of("# Meeting\n\n## Transcript\n\nWe agreed.\n\nThen we left.\n").as_deref(), Some("We agreed.\n\nThen we left."));
+        assert_eq!(words_of("# Meeting\n\n## Transcript\n"), None, "a heading with nothing heard under it");
+        assert_eq!(words_of("# Meeting\n\n## Transcript"), None);
+        assert_eq!(words_of("# Meeting\n\nNotes.\n"), None);
+        let body = with_transcript("# Meeting\n", &["We agreed.".to_string()]);
+        assert_eq!(words_of(&body).as_deref(), Some("We agreed."), "what with_transcript writes reads back");
+    }
+
     fn segment(text: &str, start_ms: u64, end_ms: u64) -> RecordedSegment {
         RecordedSegment { text: text.into(), start_ms, end_ms }
     }
@@ -342,6 +362,31 @@ mod tests {
         assert!(!cases.is_empty());
         for case in cases {
             assert_eq!(paragraphs(&case.segments), case.paragraphs, "{}", case.name);
+        }
+    }
+
+    /// The pieces and the transcript section, held to the page's twins by the
+    /// fixture both sides read (src/app/ai/writeUpTwins.fixture.json; the page's
+    /// half is ai/writeUpTwins.test.ts). A section's trailing newline is each
+    /// side's own; the words are compared.
+    #[test]
+    fn the_pieces_and_the_sections_agree_with_the_pages_fixture() {
+        let path = repo_dir().expect("the repository, or GLYPH_REPO_DIR").join("src/app/ai/writeUpTwins.fixture.json");
+        let source = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let fixture: serde_json::Value = serde_json::from_str(&source).expect("the fixture is JSON");
+        let text = |value: &serde_json::Value| value.as_str().expect("a string").to_string();
+        for case in fixture["pieces"].as_array().expect("the pieces") {
+            let unit = text(&case["unit"]);
+            let plain = vec![unit.as_str(); case["times"].as_u64().unwrap() as usize].join(&text(&case["joiner"]));
+            let lengths: Vec<u64> = pieces(&plain, case["size"].as_u64().unwrap() as usize).iter().map(|piece| piece.chars().count() as u64).collect();
+            let expected: Vec<u64> = case["pieces"].as_array().unwrap().iter().map(|n| n.as_u64().unwrap()).collect();
+            assert_eq!(lengths, expected, "{}", text(&case["name"]));
+        }
+        for case in fixture["sections"].as_array().expect("the sections") {
+            let body = text(&case["body"]);
+            let paragraphs: Vec<String> = text(&case["words"]).split("\n\n").map(str::to_string).collect();
+            assert_eq!(with_transcript(&body, &paragraphs).trim_end(), text(&case["withTranscript"]).trim_end(), "{body:?}");
+            assert_eq!(without_transcript(&body), text(&case["withoutTranscript"]), "{body:?}");
         }
     }
 

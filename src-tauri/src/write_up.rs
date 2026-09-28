@@ -41,12 +41,13 @@ use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::guards;
 use crate::jobs::{self, JobConfig, JobResult, Phase, Progress, Prompts};
 use crate::library::Library;
 use crate::llm::engine::{Failure, Request};
+use crate::llm::model::LlmSpec;
 use crate::lock::lock;
 use crate::note::{now_ms, Recording};
 use crate::whisper::engine::{whisper_threads, Engine, Session};
@@ -61,6 +62,12 @@ pub const MAX_TRIES: u32 = 3;
 
 /// How long `cancel` waits for a run to clear before it marks the file itself.
 pub const CANCEL_WAIT: Duration = Duration::from_secs(5);
+
+/// The thermal words (Kotlin's `WriteUp.thermalWord`, from
+/// `PowerManager.currentThermalStatus`) at which a run does not start: severe
+/// and worse. A test reads each in the Kotlin, so a word renamed there cannot
+/// quietly become "none" here.
+pub const HOT: [&str; 4] = ["severe", "critical", "emergency", "shutdown"];
 
 /// How much of the previous span rides along as the next one's prompt.
 const TAIL_CHARS: usize = 200;
@@ -170,18 +177,26 @@ pub fn summary_line(answer: &str) -> Option<String> {
     answer
         .lines()
         .map(str::trim)
-        .find(|line| !line.is_empty() && !line.starts_with('#') && !line.starts_with("- ") && !line.starts_with("* ") && !line.starts_with("-["))
+        .find(|line| !line.is_empty() && !line.starts_with('#') && !line.starts_with("- ") && !line.starts_with("* "))
         .map(str::to_string)
 }
 
-/// What Kotlin passes `run`, from the phone as it is at that moment.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+/// What Kotlin passes `run`, from the phone as it is at that moment. Its keys
+/// are the ones `WriteUp.options` puts, and a test holds the two lists equal.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Options {
     /// Write up now: the battery rule does not hold it.
     pub now: bool,
     /// Try again: a `cancelled`, `failed` or `needsModel` file is queued again.
     pub fresh: bool,
+    /// When a `fresh` request was made (ms since the epoch). WorkManager
+    /// retries a request with the same input after every hold, so a cancel
+    /// made after the request (the meeting put in the trash while it waited)
+    /// must win over it: `fresh` reopens a `cancelled` file only when the
+    /// cancel is older than this. `None` is a request from before the fence,
+    /// which reopens as it always did.
+    pub requested_at: Option<i64>,
     /// The note's title as recorded, for a progress file that has to be made.
     pub title: Option<String>,
     pub charging: bool,
@@ -194,7 +209,7 @@ pub struct Options {
 
 impl Default for Options {
     fn default() -> Options {
-        Options { now: false, fresh: false, title: None, charging: false, battery_percent: 100, thermal: "none".into(), app_in_front: false }
+        Options { now: false, fresh: false, requested_at: None, title: None, charging: false, battery_percent: 100, thermal: "none".into(), app_in_front: false }
     }
 }
 
@@ -333,7 +348,10 @@ pub fn finish(data_dir: &Path, id: &str, title: &str) -> Result<u64, String> {
 /// Ends a run for `id` with `reason`. For `"cancel"` the file is marked
 /// `cancelled` too, once the run has cleared or `CANCEL_WAIT` has passed, so
 /// the trash and the notification's Discard hold whatever the run does next.
-/// Never takes `WRITE_UP`, so it answers while a refine pass holds it.
+/// A `done` file is left as it is: its result waits in `<id>.json` for the
+/// page, and a meeting put in the trash and brought back lands it then rather
+/// than being written up a second time. Never takes `WRITE_UP`, so it answers
+/// while a refine pass holds it.
 pub fn cancel(data_dir: &Path, id: &str, reason: &str) -> bool {
     let running = lock(&guards::RUNNING_JOB).as_deref() == Some(id);
     if running {
@@ -345,7 +363,7 @@ pub fn cancel(data_dir: &Path, id: &str, reason: &str) -> bool {
             std::thread::sleep(Duration::from_millis(50));
         }
         let path = jobs::progress_path(&jobs::dir(data_dir), id);
-        if let Some(mut progress) = Progress::load(&path) {
+        if let Some(mut progress) = Progress::load(&path).filter(|progress| progress.phase != Phase::Done) {
             progress.phase = Phase::Cancelled;
             progress.waiting_for = None;
             let _ = progress.save(&path, false);
@@ -424,9 +442,12 @@ pub fn run(data_dir: &Path, id: &str, options: &Options) -> Answer {
     // A `needsModel` file looked at again without `fresh` says so a second time (`again`), and
     // Kotlin posts nothing; Try again after a download is a fresh look, and the answer is new.
     let was_needs_model = progress.phase == Phase::NeedsModel && !options.fresh;
+    // A cancel made after this fresh request was asked for: the request's retry must not undo it.
+    let cancelled_since = options.requested_at.is_some_and(|asked| progress.updated_at > asked);
     let mut fresh = false;
     match progress.phase {
         Phase::Done => return Answer::AlreadyDone,
+        Phase::Cancelled if cancelled_since => return Answer::Cancelled,
         Phase::Cancelled | Phase::Failed | Phase::NeedsModel if options.fresh => {
             progress.tries = 0;
             progress.phase = Phase::Queued;
@@ -454,12 +475,18 @@ pub fn run(data_dir: &Path, id: &str, options: &Options) -> Answer {
     if !options.now && config.write_up == "charging" && !options.charging && options.battery_percent < WRITE_UP_BATTERY {
         return hold(&mut progress, &path, "battery", None);
     }
-    if matches!(options.thermal.as_str(), "severe" | "critical" | "emergency" | "shutdown") {
+    if HOT.contains(&options.thermal.as_str()) {
         return hold(&mut progress, &path, "thermal", None);
     }
 
     guards::clear_abort();
     let _running = RunningJob::set(id);
+    // A dictation that began between the check above and `clear_abort` raised
+    // the flag this run just lowered; it counts as starting from the moment it
+    // raised it (`guards::capturing`), so it is seen here instead.
+    if guards::capturing() {
+        return hold(&mut progress, &path, "capturing", None);
+    }
     let mut run = Run { dirs, id, options, wav: wav_path, path: path.clone(), progress, config, abort: guards::abort_jobs() };
     let outcome = run.go();
     let Run { mut progress, .. } = run;
@@ -544,7 +571,7 @@ impl Run<'_> {
         if self.progress.phase == Phase::Queued || self.progress.recorded_ms.is_none() {
             self.repeat_finish()?;
         }
-        if self.progress.transcript.is_none() {
+        if self.progress.transcript.is_none() && !self.kept_transcript()? {
             self.listen()?;
             self.write_note()?;
         }
@@ -567,6 +594,26 @@ impl Run<'_> {
         self.progress.recorded_ms = Some(ms);
         self.progress.error = None;
         Ok(())
+    }
+
+    /// A job with nothing listened to yet, for a note that already has its
+    /// transcript (a write-up asked again after the page took the last
+    /// result): the words there are the transcript, as the person may have
+    /// corrected them. Listening again would take an hour's decoding to
+    /// replace them, and everything after the heading, with the machine's.
+    fn kept_transcript(&mut self) -> Result<bool, Stop> {
+        if self.progress.spans.is_some() || !self.progress.segments.is_empty() {
+            return Ok(false);
+        }
+        let mut library = Library::open_fs(&self.dirs.library).map_err(|e| Stop::Failed(e.to_string()))?;
+        let note = library.get_note(self.id).map_err(|e| Stop::Failed(e.to_string()))?.ok_or_else(|| Stop::Failed("no such note".into()))?;
+        let Some(words) = crate::transcript::words_of(&note.body) else { return Ok(false) };
+        self.progress.transcript_chars = words.chars().count();
+        self.progress.transcript = Some(words);
+        self.progress.spans = Some(Vec::new());
+        self.progress.percent = 100;
+        self.checkpoint()?;
+        Ok(true)
     }
 
     /// The whisper model for the transcript: small.en, or base.en when only
@@ -707,6 +754,10 @@ impl Run<'_> {
             grammar: None,
             background: true,
         };
+        #[cfg(test)]
+        if let Some(answer) = tests::STAND_IN.with(|stand_in| stand_in.borrow_mut().as_mut().map(|answer| answer(&request))) {
+            return answer.map_err(Stop::Failed);
+        }
         let answer = crate::llm::shared().generate_with_threads(&writer.path, request, writer.threads, Arc::clone(&self.abort), |_| {});
         match answer.recv() {
             Ok(Ok(output)) => Ok(output.text),
@@ -728,14 +779,17 @@ impl Run<'_> {
         if self.progress.transcript.as_deref().is_none_or(|words| words.trim().is_empty()) {
             return Ok(None);
         }
-        let status = crate::llm::model::find(&self.config.model).map(|spec| crate::model_files::status(&self.dirs.models, &spec.spec)).filter(|status| status.present);
-        let Some(status) = status else {
+        // The config's model, else the one the page's rule would pick from what is here (`model_for`): a model
+        // downloaded since the page last wrote the config is used rather than the job ending needsModel again.
+        let present: Vec<&'static LlmSpec> = crate::llm::model::CATALOGUE.iter().filter(|spec| crate::model_files::status(&self.dirs.models, &spec.spec).present).collect();
+        let Some(spec) = crate::llm::model::model_for(&present, &self.config.model) else {
             return Err(Stop::NeedsModel(self.config.model.clone()));
         };
+        let status = crate::model_files::status(&self.dirs.models, &spec.spec);
         let writer = Writer { path: PathBuf::from(status.path), threads: crate::llm::threads_for(self.options.app_in_front) };
         self.progress.phase = Phase::Summarizing;
         self.progress.waiting_for = None;
-        self.progress.model = Some(self.config.model.clone());
+        self.progress.model = Some(spec.id.to_string());
         self.progress.percent = 0;
         self.checkpoint()?;
         let transcript = self.progress.transcript.clone().unwrap_or_default();
@@ -765,7 +819,8 @@ impl Run<'_> {
 
     /// Step four: the result for the page, the file `done`, the model let go.
     fn done(&mut self, summary: Option<String>) -> Result<Answer, Stop> {
-        let result = JobResult { summary: summary.clone(), model: self.config.model.clone(), transcript_chars: self.progress.transcript_chars, finished_at: now_ms() };
+        let model = self.progress.model.clone().unwrap_or_else(|| self.config.model.clone());
+        let result = JobResult { summary: summary.clone(), model, transcript_chars: self.progress.transcript_chars, finished_at: now_ms() };
         let json = serde_json::to_vec(&result).map_err(|e| Stop::Failed(e.to_string()))?;
         crate::fsx::make_dir(&self.dirs.jobs).map_err(Stop::Failed)?;
         crate::fsx::write_atomically(&jobs::result_path(&self.dirs.jobs, self.id), &json).map_err(|e| Stop::Failed(format!("the result could not be written: {e}")))?;
@@ -792,7 +847,93 @@ impl Run<'_> {
 mod tests {
     use super::*;
     use crate::guards::TEST_SERIAL;
+    use crate::llm::model::{QWEN3_5_2B, QWEN3_5_4B};
     use crate::test_support::TempDir;
+    use std::cell::RefCell;
+    use std::collections::BTreeSet;
+    use std::rc::Rc;
+
+    /// Takes the place of the language model while a test holds it: `Run::ask`
+    /// hands it the request it would have sent, and its answer is the model's.
+    type Answering = Box<dyn FnMut(&Request) -> Result<String, String>>;
+
+    thread_local! {
+        pub(super) static STAND_IN: RefCell<Option<Answering>> = const { RefCell::new(None) };
+    }
+
+    /// One request as the stand-in saw it: its id, system, context and prompt.
+    #[derive(Debug, Clone)]
+    struct Asked {
+        id: String,
+        system: String,
+        context: Option<String>,
+        prompt: String,
+    }
+
+    /// The stand-in in place until the answer is dropped, recording every request.
+    struct StandIn(Rc<RefCell<Vec<Asked>>>);
+
+    impl StandIn {
+        fn answering(mut answer: impl FnMut(&Request) -> Result<String, String> + 'static) -> StandIn {
+            let asked = Rc::new(RefCell::new(Vec::new()));
+            let seen = Rc::clone(&asked);
+            STAND_IN.with(|stand_in| {
+                *stand_in.borrow_mut() = Some(Box::new(move |request: &Request| {
+                    seen.borrow_mut().push(Asked { id: request.id.clone(), system: request.system.clone(), context: request.context.clone(), prompt: request.prompt.clone() });
+                    answer(request)
+                }))
+            });
+            StandIn(asked)
+        }
+
+        fn asked(&self) -> Vec<Asked> {
+            self.0.borrow().clone()
+        }
+    }
+
+    impl Drop for StandIn {
+        fn drop(&mut self) {
+            STAND_IN.with(|stand_in| *stand_in.borrow_mut() = None);
+        }
+    }
+
+    /// A language model's file on the phone at its full length, sparse, so the
+    /// catalogue counts it present: the stand-in answers in its place.
+    fn a_language_model(root: &Path, spec: &LlmSpec) {
+        let dir = root.join("models");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::File::create(crate::model_files::path_in(&dir, &spec.spec)).unwrap().set_len(spec.spec.bytes).unwrap();
+    }
+
+    fn configure(root: &Path, change: impl FnOnce(&mut JobConfig)) {
+        let mut config = JobConfig { model: "qwen3.5-4b".into(), summaries: "off".into(), ..JobConfig::default() };
+        change(&mut config);
+        std::fs::write(jobs::config_path(&root.join("jobs")), serde_json::to_vec(&config).unwrap()).unwrap();
+    }
+
+    /// A job whose listening is done: its transcript in the progress file, as a resumed run finds it.
+    fn heard(root: &Path, transcript: &str) {
+        let mut progress = Progress::queued("n1", "Meeting");
+        progress.spans = Some(vec![]);
+        progress.transcript = Some(transcript.to_string());
+        progress.transcript_chars = transcript.chars().count();
+        progress.save(&jobs::progress_path(&root.join("jobs"), "n1"), false).unwrap();
+    }
+
+    /// The job queued again from the start, as a new recording under the id would be.
+    fn queued_again(root: &Path) {
+        Progress::queued("n1", "Meeting").save(&jobs::progress_path(&root.join("jobs"), "n1"), true).unwrap();
+    }
+
+    fn done(line: Option<&str>, transcript_chars: usize, summary: bool) -> Answer {
+        Answer::Done { title: "Meeting".into(), line: line.map(str::to_string), transcript_chars, summary }
+    }
+
+    /// A Kotlin source under the app's package.
+    fn kotlin(file: &str) -> String {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("gen/android/app/src/main/java/com/mattssoftware/glyph").join(file);
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    }
 
     /// A phone with one meeting note and its silent recording: a write-up
     /// that needs no model, because there is no speech to transcribe and
@@ -1036,6 +1177,305 @@ mod tests {
         assert!(matches!(run(&root, "n1", &now()), Answer::Error { again: true, .. }));
     }
 
+    #[test]
+    fn the_battery_rule_holds_only_on_battery_below_half_when_set_to_wait_for_the_charger() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, _) = phone(1);
+        finish(&root, "n1", "Meeting").unwrap();
+        let low = Options { charging: false, battery_percent: 30, ..Options::default() };
+        let runs = |options: &Options| {
+            queued_again(&root);
+            run(&root, "n1", options)
+        };
+        assert_eq!(runs(&low), Answer::Retry("battery".into()));
+        assert_eq!(runs(&Options { battery_percent: 49, ..low.clone() }), Answer::Retry("battery".into()), "just under half");
+        assert_eq!(runs(&Options { battery_percent: 50, ..low.clone() }), done(None, 0, false), "half is enough");
+        assert_eq!(runs(&Options { now: true, ..low.clone() }), done(None, 0, false), "Write up now");
+        assert_eq!(runs(&Options { charging: true, ..low.clone() }), done(None, 0, false), "on the charger");
+        configure(&root, |config| config.write_up = "now".into());
+        assert_eq!(runs(&low), done(None, 0, false), "Straight away");
+    }
+
+    #[test]
+    fn summaries_off_still_writes_the_transcript_and_says_so() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, _) = phone(1);
+        heard(&root, "We agreed.");
+        assert_eq!(run(&root, "n1", &now()), done(None, 10, false), "not needsModel: no summary was asked for");
+        let result: JobResult = crate::fsx::read_json(&jobs::result_path(&root.join("jobs"), "n1")).unwrap();
+        assert_eq!((result.summary, result.transcript_chars), (None, 10));
+    }
+
+    #[test]
+    fn a_meeting_a_kill_left_before_finish_is_measured_by_the_run_itself() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, wav_path) = phone(2);
+        // The service's header from before the first patch, and no progress file: `finish` never ran.
+        let mut bytes = std::fs::read(&wav_path).unwrap();
+        bytes[40..44].copy_from_slice(&0u32.to_le_bytes());
+        std::fs::write(&wav_path, &bytes).unwrap();
+        let recovered = Options { fresh: true, title: Some("Meeting, 26 Sep 14:05".into()), ..now() };
+        assert_eq!(run(&root, "n1", &recovered), Answer::Done { title: "Meeting, 26 Sep 14:05".into(), line: None, transcript_chars: 0, summary: false });
+        assert_eq!(std::fs::read(&wav_path).unwrap()[40..44], (16_000u32 * 2 * 2).to_le_bytes(), "the header put right");
+        assert_eq!(progress_of(&root).recorded_ms, Some(2000));
+        assert_eq!(Library::open_fs(&root.join("Library")).unwrap().get_note("n1").unwrap().unwrap().recording_ms, Some(2000));
+    }
+
+    #[test]
+    fn a_cancel_made_after_a_fresh_request_wins_over_that_requests_retry() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, _) = phone(1);
+        let mut cancelled = Progress::queued("n1", "Meeting");
+        cancelled.phase = Phase::Cancelled;
+        cancelled.save(&jobs::progress_path(&root.join("jobs"), "n1"), false).unwrap();
+        let at = progress_of(&root).updated_at;
+        // Write up now, asked before the meeting went to the trash, retried by WorkManager after it.
+        assert_eq!(run(&root, "n1", &Options { fresh: true, requested_at: Some(at - 1_000), ..now() }), Answer::Cancelled);
+        assert_eq!(progress_of(&root).phase, Phase::Cancelled, "and the file stays cancelled");
+        // Restored from the trash: a request made after the cancel.
+        assert_eq!(run(&root, "n1", &Options { fresh: true, requested_at: Some(at + 1_000), ..now() }), done(None, 0, false));
+    }
+
+    #[test]
+    fn a_cancel_leaves_a_finished_write_up_for_the_page_to_land() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, _) = phone(1);
+        finish(&root, "n1", "Meeting").unwrap();
+        assert_eq!(run(&root, "n1", &now()), done(None, 0, false));
+        assert!(!cancel(&root, "n1", "cancel"), "nothing running");
+        assert_eq!(progress_of(&root).phase, Phase::Done, "the trash does not strand a result");
+        assert!(jobs::result_path(&root.join("jobs"), "n1").exists());
+        assert_eq!(run(&root, "n1", &Options { fresh: true, ..now() }), Answer::AlreadyDone, "restored: landed, never written up twice");
+    }
+
+    #[test]
+    fn a_write_up_asked_again_keeps_the_transcript_the_note_already_has() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, _) = phone(2);
+        let corrected = "# Meeting\n\n## Transcript\n\nWe agreed, as I corrected it.\n\nThen a line I added.\n";
+        let mut library = Library::open_fs(&root.join("Library")).unwrap();
+        library.save_note("n1", corrected, "capture").unwrap();
+        drop(library);
+        // The page took the last result, so there is no progress file: Restore asks afresh.
+        assert_eq!(run(&root, "n1", &Options { fresh: true, ..now() }), done(None, "We agreed, as I corrected it.\n\nThen a line I added.".chars().count(), false));
+        assert_eq!(body_of(&root), corrected, "not listened to again, nor written over");
+        assert_eq!(progress_of(&root).transcript.as_deref(), Some("We agreed, as I corrected it.\n\nThen a line I added."));
+    }
+
+    #[test]
+    fn a_capture_that_is_still_loading_its_model_holds_a_write_up() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, _) = phone(1);
+        finish(&root, "n1", "Meeting").unwrap();
+        let starting = guards::capture_starting();
+        assert_eq!(run(&root, "n1", &now()), Answer::Retry("capturing".into()));
+        drop(starting);
+        assert_eq!(run(&root, "n1", &now()), done(None, 0, false));
+    }
+
+    #[test]
+    fn a_short_transcript_is_summarised_in_one_pass_by_the_model_that_is_here() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, _) = phone(1);
+        configure(&root, |config| config.summaries = "meetings".into());
+        // The config names the 4B (chosen before the download); only the 2B is on the phone.
+        a_language_model(&root, &QWEN3_5_2B);
+        let transcript = "We agreed to ship in March. I will book the venue.";
+        heard(&root, transcript);
+        let model = StandIn::answering(|_| Ok("# March\nA call that fixed the date.\n\n- [ ] Book the venue.".into()));
+        assert_eq!(run(&root, "n1", &now()), done(Some("A call that fixed the date."), transcript.len(), true));
+        let asked = model.asked();
+        assert_eq!(asked.len(), 1, "{asked:?}");
+        assert_eq!(asked[0].id, "write-up:n1:summary");
+        assert_eq!((asked[0].system.as_str(), asked[0].context.as_deref(), asked[0].prompt.as_str()), (prompts::SUMMARY, None, transcript));
+        let result: JobResult = crate::fsx::read_json(&jobs::result_path(&root.join("jobs"), "n1")).unwrap();
+        assert_eq!(result.model, QWEN3_5_2B.id, "the model that wrote it, by the page's rule");
+        assert_eq!(result.summary.as_deref(), Some("# March\nA call that fixed the date.\n\n- [ ] Book the venue."));
+        // With the chosen one here too, it is the one used.
+        a_language_model(&root, &QWEN3_5_4B);
+        heard(&root, transcript);
+        let _model = StandIn::answering(|_| Ok("# March\nA call.".into()));
+        run(&root, "n1", &now());
+        let result: JobResult = crate::fsx::read_json(&jobs::result_path(&root.join("jobs"), "n1")).unwrap();
+        assert_eq!(result.model, QWEN3_5_4B.id);
+    }
+
+    #[test]
+    fn a_long_transcript_goes_piece_by_piece_and_resumes_at_the_piece_it_stopped_on() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, _) = phone(1);
+        configure(&root, |config| {
+            config.summaries = "meetings".into();
+            config.one_pass_chars = 40;
+            config.piece_chars = 60;
+        });
+        a_language_model(&root, &QWEN3_5_2B);
+        let transcript = "We agreed to ship the launch in March.\n\nSam will send the press list on Friday.\n\nI will book the venue before the tenth.";
+        let pieces = crate::transcript::pieces(transcript, 60);
+        let m = pieces.len();
+        assert!(m >= 3, "{pieces:?}");
+        heard(&root, transcript);
+        // The second piece fails the first time: counted, and the first piece's notes kept.
+        let first = StandIn::answering(|request| if request.id.ends_with(":piece-2") { Err("the phone ran out of memory".into()) } else { Ok(format!("- Notes on {}", request.id)) });
+        assert_eq!(run(&root, "n1", &now()), Answer::Retry("the phone ran out of memory".into()));
+        assert_eq!(first.asked().len(), 2);
+        drop(first);
+        let held = progress_of(&root);
+        assert_eq!((held.pieces.len(), held.tries, held.waiting_for.as_deref()), (1, 1, Some("error")));
+        // The retry starts at the second piece.
+        let model = StandIn::answering(|request| Ok(if request.id.ends_with(":summary") { "# Launch\nA call about the launch.".into() } else { format!("- Notes on {}", request.id) }));
+        assert_eq!(run(&root, "n1", &now()), done(Some("A call about the launch."), transcript.len(), true));
+        let asked = model.asked();
+        assert_eq!(asked.len(), m, "pieces two to {m}, then the summary: {asked:?}");
+        for (at, piece) in asked[..m - 1].iter().zip(2..) {
+            assert_eq!(at.id, format!("write-up:n1:piece-{piece}"));
+            assert_eq!((at.system.as_str(), at.context.as_deref()), (prompts::NOTES, None));
+            let line = fill(prompts::PIECE, &[("n", &piece.to_string()), ("m", &m.to_string())]);
+            assert_eq!(at.prompt, format!("{line}\n\n{}", pieces[piece - 1]), "the piece line in the prompt, where the page puts it");
+        }
+        let summary = &asked[m - 1];
+        assert_eq!(summary.system, prompts::SUMMARY);
+        let words = transcript.split_whitespace().count();
+        assert_eq!(summary.context.as_deref(), Some(fill(prompts::PARTS, &[("words", &thousands(words))]).as_str()), "the parts line in the context");
+        let notes: Vec<String> = (1..=m).map(|n| format!("- Notes on write-up:n1:piece-{n}")).collect();
+        assert_eq!(summary.prompt, notes.join("\n\n"));
+    }
+
+    #[test]
+    fn a_dictation_started_between_pieces_holds_the_rest() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, _) = phone(1);
+        configure(&root, |config| {
+            config.summaries = "meetings".into();
+            config.one_pass_chars = 40;
+            config.piece_chars = 60;
+        });
+        a_language_model(&root, &QWEN3_5_2B);
+        heard(&root, "We agreed to ship the launch in March.\n\nSam will send the press list on Friday.\n\nI will book the venue.");
+        let _model = StandIn::answering(|_| {
+            // The person picks the phone up and starts talking while the first piece is written.
+            guards::set_capturing(true);
+            Ok("- A note.".into())
+        });
+        let answer = run(&root, "n1", &now());
+        guards::set_capturing(false);
+        assert_eq!(answer, Answer::Retry("capturing".into()));
+        let held = progress_of(&root);
+        assert_eq!((held.pieces.len(), held.waiting_for.as_deref(), held.tries), (1, Some("capturing"), 0), "a hold, not a try");
+    }
+
+    /// `text` spoken by macOS's `say` as 16 kHz mono PCM16, or `None` off a Mac.
+    fn spoken(text: &str) -> Option<Vec<i16>> {
+        use std::process::Command;
+        let stem = std::env::temp_dir().join(format!("glyph-write-up-{}", uuid::Uuid::new_v4()));
+        let (aiff, wav_path) = (stem.with_extension("aiff"), stem.with_extension("wav"));
+        let spoke = Command::new("say").arg("-o").arg(&aiff).arg(text).status();
+        let converted = matches!(spoke, Ok(s) if s.success())
+            && matches!(Command::new("afconvert").args(["-f", "WAVE", "-d", "LEI16@16000", "-c", "1"]).arg(&aiff).arg(&wav_path).status(), Ok(s) if s.success());
+        let samples = converted.then(|| wav::read(&wav_path).ok()).flatten().map(|audio| audio.iter().map(|s| (s * 32_767.0).round() as i16).collect());
+        let _ = std::fs::remove_file(&aiff);
+        let _ = std::fs::remove_file(&wav_path);
+        samples
+    }
+
+    /// The real listening: two sentences with three seconds of silence
+    /// between them, transcribed with base.en span by span. Skipped without the
+    /// model in `models/` or without `say`, as whisper's own tests are.
+    #[test]
+    fn listening_goes_span_by_span_and_each_phrase_keeps_its_place_on_the_tape() {
+        let _one = lock(&TEST_SERIAL);
+        let models = std::env::var_os("GLYPH_MODELS_DIR").map(PathBuf::from).unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("models"));
+        let status = crate::model_files::status(&models, &whisper_model::ACTIVE);
+        if !status.present {
+            eprintln!("SKIPPED: {} is not in models/", whisper_model::ACTIVE.file);
+            return;
+        }
+        let (Some(first), Some(second)) = (spoken("We agreed to ship the launch in March."), spoken("Sam will send the press list on Friday.")) else {
+            eprintln!("SKIPPED: no `say` and `afconvert` to speak the meeting with (macOS only)");
+            return;
+        };
+        let (root, wav_path) = phone(1);
+        let mut samples = first.clone();
+        samples.extend(std::iter::repeat_n(0i16, 16_000 * 3));
+        let second_at = samples_to_ms(samples.len());
+        samples.extend(&second);
+        samples.extend(std::iter::repeat_n(0i16, 16_000));
+        wav::write_pcm16(&wav_path, &samples, false).unwrap();
+        std::fs::create_dir_all(root.join("models")).unwrap();
+        std::os::unix::fs::symlink(std::fs::canonicalize(&status.path).unwrap(), crate::model_files::path_in(&root.join("models"), &whisper_model::ACTIVE)).unwrap();
+        finish(&root, "n1", "Meeting").unwrap();
+        let Answer::Done { transcript_chars, summary: false, .. } = run(&root, "n1", &now()) else { panic!("written up") };
+        assert!(transcript_chars > 0);
+        let spans = progress_of(&root).spans.expect("the spans found");
+        assert!(spans.len() >= 2, "one span a sentence at least: {spans:?}");
+        assert!(spans.iter().any(|(from, _)| *from + 400 >= second_at), "a span begins at the second sentence: {spans:?}");
+        let note = Library::open_fs(&root.join("Library")).unwrap().get_note("n1").unwrap().unwrap();
+        let lower = note.body.to_lowercase();
+        assert!(lower.contains("## transcript") && lower.contains("march") && lower.contains("friday"), "{}", note.body);
+        let segments = note.segments.clone().expect("the phrases beside the note");
+        let friday = segments.iter().find(|s| s.text.to_lowercase().contains("friday")).expect("a phrase with Friday");
+        assert!(friday.start_ms + 400 >= second_at, "offset to its place on the tape, not the span's: {friday:?} vs {second_at}");
+        assert!(segments.iter().any(|s| s.text.to_lowercase().contains("march") && s.end_ms <= second_at), "{segments:?}");
+
+        // Stopped after the first span (a kill, the heat): the retry decodes only what is left.
+        let mut resumed = Progress::queued("n1", "Meeting");
+        resumed.phase = Phase::Waiting;
+        resumed.recorded_ms = Some(samples_to_ms(samples.len()));
+        resumed.spans = Some(spans.clone());
+        resumed.spans_done = spans.iter().take_while(|(from, _)| *from + 400 < second_at).count();
+        resumed.segments = vec![crate::note::RecordedSegment { text: "Planted words for the first span.".into(), start_ms: spans[0].0, end_ms: spans[0].1 }];
+        resumed.save(&jobs::progress_path(&root.join("jobs"), "n1"), true).unwrap();
+        assert!(matches!(run(&root, "n1", &now()), Answer::Done { .. }));
+        let body = body_of(&root).to_lowercase();
+        assert!(body.contains("planted words for the first span") && body.contains("friday") && !body.contains("march"), "the first span not decoded again: {body}");
+    }
+
+    /// Every key `WriteUp.options` puts is a field of `Options`, and every
+    /// field is put: a key misspelt on either side would be read here as its
+    /// default (100% battery, the app closed) without a word.
+    #[test]
+    fn the_kotlin_options_are_the_rust_fields() {
+        let source = kotlin("recordings/WriteUp.kt");
+        let from = source.find("fun options(").expect("WriteUp.options");
+        let body = &source[from..from + source[from..].find(".toString()").expect("the options' end")];
+        let put: BTreeSet<String> = body.match_indices(".put(\"").map(|(at, key)| body[at + key.len()..].split('"').next().unwrap_or_default().to_string()).collect();
+        let fields: BTreeSet<String> = serde_json::to_value(Options::default()).unwrap().as_object().unwrap().keys().cloned().collect();
+        assert_eq!(put, fields);
+    }
+
+    /// Kotlin reads `run`'s answer by the keys `to_json` writes, the thermal
+    /// words by the ones `run` holds for, and leaves alone the phases Rust
+    /// never takes up again without being asked.
+    #[test]
+    fn the_kotlin_reads_every_answer_by_its_key_and_every_word_by_its_name() {
+        let source = kotlin("recordings/WriteUp.kt");
+        let reader = &source[source.find("fun outcomeOf(").expect("WriteUp.outcomeOf")..];
+        let answers = [
+            ("done", done(Some("A line."), 10, true)),
+            ("alreadyDone", Answer::AlreadyDone),
+            ("retry", Answer::Retry("busy".into())),
+            ("needsModel", Answer::NeedsModel { id: "qwen3.5-4b".into(), again: false }),
+            ("error", Answer::Error { message: "no".into(), again: true }),
+            ("cancelled", Answer::Cancelled),
+            ("gone", Answer::Gone),
+        ];
+        for (tag, answer) in answers {
+            let json: serde_json::Value = serde_json::from_str(&answer.to_json()).unwrap();
+            for key in json.as_object().unwrap().keys() {
+                assert!(reader.contains(&format!("\"{key}\"")), "outcomeOf never reads {key:?}, which {tag} carries");
+            }
+            assert!(json.get(tag).is_some(), "{tag} is the key {answer:?} is known by");
+        }
+        for word in HOT {
+            assert!(source.contains(&format!("-> \"{word}\"")), "WriteUp.thermalWord no longer says {word}");
+        }
+        let terminal = source.lines().find(|line| line.contains("val TERMINAL_PHASES")).expect("WriteUp.TERMINAL_PHASES");
+        for phase in [Phase::Done, Phase::NeedsModel, Phase::Failed, Phase::Cancelled] {
+            let word = serde_json::to_value(phase).unwrap();
+            assert!(terminal.contains(&format!("\"{}\"", word.as_str().unwrap())), "the sweep would retry a {phase:?} job");
+        }
+    }
+
     /// The Kotlin door (`recordings/RecordingJob.kt`) and the JNI symbols in
     /// `recording_jobs.rs` name each other: the package, the object and the
     /// three `external fun`s on one side, the three `Java_..._RecordingJob_*`
@@ -1052,6 +1492,31 @@ mod tests {
         let kotlin = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         for expected in ["package com.mattssoftware.glyph.recordings", "object RecordingJob", "external fun finish(", "external fun run(", "external fun cancel("] {
             assert!(kotlin.contains(expected), "RecordingJob.kt no longer says {expected}");
+        }
+        // The same three strings on both sides: a parameter added or dropped on one is an UnsatisfiedLinkError
+        // or garbage on the phone, not a failure anywhere else.
+        for (symbol, last) in [("finish", "title"), ("run", "options"), ("cancel", "reason")] {
+            let signature = format!("external fun {symbol}(dataDir: String, noteId: String, {last}: String): String?");
+            assert!(kotlin.contains(&signature), "RecordingJob.kt no longer says {signature}");
+            let from = door.find(&format!("fn Java_com_mattssoftware_glyph_recordings_RecordingJob_{symbol}<")).unwrap();
+            let parameters = &door[from..from + door[from..].find(") -> jstring").unwrap()];
+            assert_eq!(parameters.matches("JString<'local>").count(), 3, "{symbol} takes three strings");
+        }
+    }
+
+    /// The budgets, held to the page's by the fixture both sides read
+    /// (src/app/ai/writeUpTwins.fixture.json).
+    #[test]
+    fn the_budgets_agree_with_the_pages_fixture() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/app/ai/writeUpTwins.fixture.json");
+        let source = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let fixture: serde_json::Value = serde_json::from_str(&source).expect("the fixture is JSON");
+        let budgets = fixture["budgets"].as_array().expect("the budgets");
+        assert!(!budgets.is_empty());
+        for case in budgets {
+            let chars = case["chars"].as_u64().unwrap() as usize;
+            assert_eq!(summary_budget(chars) as u64, case["summary"].as_u64().unwrap(), "the summary's for {chars}");
+            assert_eq!(notes_budget(chars) as u64, case["notes"].as_u64().unwrap(), "a piece's notes' for {chars}");
         }
     }
 

@@ -211,10 +211,14 @@ mod tests {
         let states = jobs::list(&jobs).into_iter().map(JobState::from).collect::<Vec<_>>();
         assert_eq!((states[0].id.as_str(), states[0].phase, states[0].title.as_str()), ("n1", Phase::Done, "Meeting, 26 Sep 14:05"));
         assert_eq!(serde_json::to_value(&states[0]).unwrap()["waitingFor"], serde_json::Value::Null);
-        assert_eq!(take_result(&jobs, "n1"), Some(result));
+        assert_eq!(take_result(&jobs, "n1"), Some(result.clone()));
         assert_eq!(take_result(&jobs, "n1"), None, "once");
         assert!(!jobs::progress_path(&jobs, "n1").exists(), "the progress goes with the result");
+        // An id that climbs out of the folder names files there that must survive the take.
+        std::fs::write(root.join("n1.json"), serde_json::to_vec(&result).unwrap()).unwrap();
+        std::fs::write(root.join("n1.progress"), b"{}").unwrap();
         assert_eq!(take_result(&jobs, "../n1"), None);
+        assert!(root.join("n1.json").exists() && root.join("n1.progress").exists(), "nothing outside jobs/ is read or removed");
     }
 
     #[test]
@@ -228,10 +232,13 @@ mod tests {
         std::fs::write(recordings.join("n2.wav"), vec![0u8; 500]).unwrap();
         std::fs::write(jobs::progress_path(&jobs, "n1"), b"{}").unwrap();
         std::fs::write(root.join("escape.wav"), b"x").unwrap();
+        std::fs::write(root.join("escape.progress"), b"{}").unwrap();
+        std::fs::write(root.join("escape.json"), b"{}").unwrap();
         let deleted = delete_recordings(&recordings, &jobs, &["n1".into(), "gone".into(), "../escape".into()]);
         assert_eq!(deleted, Deleted { removed: vec!["n1".into()], freed_bytes: 1000 });
         assert!(!recordings.join("n1.wav").exists() && !jobs::progress_path(&jobs, "n1").exists());
         assert!(recordings.join("n2.wav").exists() && root.join("escape.wav").exists());
+        assert!(root.join("escape.progress").exists() && root.join("escape.json").exists(), "an escaping id takes no job files either");
         assert_eq!(serde_json::to_value(&deleted).unwrap()["freedBytes"], 1000);
     }
 

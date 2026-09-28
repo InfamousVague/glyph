@@ -221,6 +221,36 @@ mod tests {
     }
 
     #[test]
+    fn speech_with_no_pause_is_cut_at_the_window_whisper_can_take() {
+        let dir = TempDir::new("spans-unbroken");
+        let mut audio = silence(500);
+        audio.extend(speech(40_000));
+        audio.extend(silence(1000));
+        let spans = find(&written(&dir, "unbroken.wav", &audio)).unwrap();
+        assert!(spans.len() >= 2, "forty seconds is more than one window: {spans:?}");
+        for (from, to) in &spans {
+            assert!(to - from <= samples_to_ms(WINDOW_CAP), "no span passes whisper's window, or its tail is lost: {spans:?}");
+        }
+        let covered: u64 = spans.iter().map(|(from, to)| to - from).sum();
+        assert!(covered >= 39_500, "the speech is all inside the spans: {covered} ms of {spans:?}");
+    }
+
+    #[test]
+    fn a_short_phrase_and_a_short_pause_stay_one_span_until_enough_was_said() {
+        let dir = TempDir::new("spans-short-phrase");
+        // A second of speech, a pause longer than `PAUSE` but shorter than `LONG_PAUSE`, and another second: the
+        // pause does not close a phrase that is under `MIN_SPEECH`, so the two are heard together.
+        let mut audio = silence(1000);
+        audio.extend(speech(1000));
+        audio.extend(silence(800));
+        audio.extend(speech(1000));
+        audio.extend(silence(2000));
+        let spans = find(&written(&dir, "phrase.wav", &audio)).unwrap();
+        assert_eq!(spans.len(), 1, "{spans:?}");
+        assert!(near(spans[0].0, 700, 100) && near(spans[0].1, 4100, 150), "{spans:?}");
+    }
+
+    #[test]
     fn a_header_a_kill_left_short_still_yields_the_last_span() {
         let dir = TempDir::new("spans-short");
         let mut audio = speech(3000);

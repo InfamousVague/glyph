@@ -99,9 +99,33 @@ pub fn mirrors_with(model: &LlmSpec, preferred: &[String]) -> Vec<String> {
     crate::model_files::mirrors(preferred, [OURS, model.hugging_face])
 }
 
+/// The model that runs, given the ones on the phone: `chosen` when it is here,
+/// else the biggest here that is no bigger than it, else the smallest here;
+/// `None` with none. The twin of the page's `modelFor` (src/app/ai/available.ts),
+/// so a meeting written up with the app closed picks what the page would, even
+/// when a model came after the page last wrote `jobs/config.json`. An id the
+/// catalogue does not know has no ceiling, as the page sorts it.
+pub fn model_for(present: &[&'static LlmSpec], chosen: &str) -> Option<&'static LlmSpec> {
+    if let Some(spec) = present.iter().find(|spec| spec.id == chosen) {
+        return Some(spec);
+    }
+    let ceiling = find(chosen).map_or(u64::MAX, |spec| spec.spec.bytes);
+    let under = present.iter().filter(|spec| spec.spec.bytes <= ceiling).max_by_key(|spec| spec.spec.bytes);
+    under.or_else(|| present.iter().min_by_key(|spec| spec.spec.bytes)).copied()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_model_that_runs_is_the_pages_choice_from_what_is_here() {
+        assert_eq!(model_for(&[], "qwen3.5-4b"), None);
+        assert_eq!(model_for(&[&QWEN3_5_2B, &QWEN3_5_4B], "qwen3.5-4b"), Some(&QWEN3_5_4B), "the chosen one when it is here");
+        assert_eq!(model_for(&[&QWEN3_5_2B, &QWEN3_5_9B], "qwen3.5-4b"), Some(&QWEN3_5_2B), "else the biggest no bigger");
+        assert_eq!(model_for(&[&QWEN3_5_9B, &GEMMA_4_E4B], "qwen3.5-4b"), Some(&GEMMA_4_E4B), "else the smallest there is");
+        assert_eq!(model_for(&[&QWEN3_5_2B, &QWEN3_5_9B], "gpt-4"), Some(&QWEN3_5_9B), "an unknown choice has no ceiling");
+    }
 
     #[test]
     fn ids_are_unique_and_the_default_is_in_the_catalogue() {

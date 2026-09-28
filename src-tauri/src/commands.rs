@@ -425,8 +425,12 @@ mod tests {
         let phone = Phone::new();
         // Where `recordings/../escape.wav` would land if the id were joined as it came.
         std::fs::write(phone.file("escape.wav"), b"bytes").unwrap();
+        // And where `jobs/../escape.progress` and its result would.
+        std::fs::write(phone.file("escape.progress"), b"{}").unwrap();
+        std::fs::write(phone.file("escape.json"), b"{}").unwrap();
         assert_eq!(phone.delete("../escape"), Ok(false));
         assert!(phone.file("escape.wav").exists(), "nothing outside the recordings folder is touched");
+        assert!(phone.file("escape.progress").exists() && phone.file("escape.json").exists(), "nor outside the jobs folder");
     }
 
     #[test]

@@ -121,10 +121,14 @@ pub fn move_or_append(from: &Path, to: &Path, append: bool) -> Result<usize, Str
 /// Puts a recorder-owned file's header right from the file's length: the two
 /// u32 fields are rewritten only when they do not already say what is on
 /// disk. Answers with the file's sample count. What the write-up does with a
-/// file the meeting service (or a kill) left short.
+/// file the meeting service (or a kill) left short - and with one whose header
+/// claims more than landed, which a power cut mid-meeting can leave (the header
+/// block reaching the disk before the file's new size): the audio that is there
+/// is kept, and the header brought down to it, where `ours` alone would refuse
+/// the file and fail the job three times over audio that can be read.
 pub fn patch_header(path: &Path) -> Result<usize, String> {
     use std::io::Write;
-    let (declared, actual) = ours(path).ok_or_else(|| "not a recorder WAV".to_string())?;
+    let (declared, actual) = lengths(path).ok_or_else(|| "not a recorder WAV".to_string())?;
     if declared != actual {
         let fail = |e: std::io::Error| format!("could not patch the recording's header: {e}");
         let mut file = std::fs::OpenOptions::new().write(true).open(path).map_err(fail)?;
@@ -175,6 +179,13 @@ fn canonical(head: &[u8]) -> bool {
 /// the header is read; a long tape is not pulled into memory to check 44
 /// bytes.
 fn ours(path: &Path) -> Option<(usize, usize)> {
+    lengths(path).filter(|(declared, actual)| declared <= actual)
+}
+
+/// The declared and the actual data length of a file with the canonical
+/// header, whichever is longer: `ours` without its rule that the header may
+/// only fall short, for `patch_header`, which puts either right.
+fn lengths(path: &Path) -> Option<(usize, usize)> {
     let mut file = std::fs::File::open(path).ok()?;
     let len = file.metadata().ok()?.len() as usize;
     let mut head = [0u8; HEADER_LEN];
@@ -184,7 +195,7 @@ fn ours(path: &Path) -> Option<(usize, usize)> {
     }
     let declared = u32::from_le_bytes([head[40], head[41], head[42], head[43]]) as usize;
     let actual = (len - HEADER_LEN) & !1;
-    (declared <= actual).then_some((declared, actual))
+    Some((declared, actual))
 }
 
 /// What a WAV's chunk list says about its samples: the format, and where the
@@ -524,6 +535,10 @@ pub(crate) mod tests {
         std::fs::write(&path, &bytes).unwrap();
         assert_eq!(read(&path).unwrap().len(), 32_000);
         assert_eq!(duration_ms(&path).unwrap(), 2000);
+        // ...and put right by the write-up rather than refused: the audio that landed is the recording.
+        assert_eq!(patch_header(&path).unwrap(), 32_000);
+        assert_eq!(std::fs::read(&path).unwrap()[40..44], (64_000u32).to_le_bytes(), "brought down to what is there");
+        assert_eq!(ours(&path), Some((64_000, 64_000)), "and the append rule reads it as ours again");
         // An afconvert file: FLLR before the data, and a short header reads to the end too.
         let floats: Vec<f32> = (0..8000).map(|i| ((i as f32) * 0.02).sin() * 0.4).collect();
         let mut foreign = encode(&floats, 1);
