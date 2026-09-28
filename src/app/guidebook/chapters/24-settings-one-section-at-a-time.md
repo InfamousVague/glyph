@@ -42,12 +42,9 @@ On Android only.
 | Setting | Default | What it does |
 | --- | --- | --- |
 | Stop when I go quiet | Off | Saves the recording after four seconds of quiet, once you have started talking. The side key and Done still work. |
-| Commands start with “hey Ghost” | On | Whether a command needs Hey Ghost to be heard as you speak: see below. |
 | Review after recording | On | When you stop, a slower speech model listens again and the language model thinks the note through out loud, then shows what it would fix, for you to keep or commit. |
 | Where the side key is | Ghost.md's guess | A Height slider that moves the rings to sit beside your key. Once you have moved it, **Reset** beside Use Ghost.md's guess puts it back. |
 | Better words | On | After you finish, a larger model goes over the recording and fixes the words: a few seconds of the phone per minute of speech. |
-
-Its line says: “Say “Hey Ghost, add call Sam to House TODOs” and the words go into that note as you say them. Not this note, Discard or Undo takes them back. Off, “Add a note to House TODOs…” at the very start of a recording works without it.” On, a phrase is read as you speak only when it opens with Hey Ghost; a recording that opens plainly with "add eggs to Groceries" is still read once when you stop, and asks on a card. Off, the plainest shapes at the very start of a recording work without the keyword, and anything later still needs it. A free ask of the AI counts only after Hey Ghost, whichever way it is set; the named runs, such as “Fix the spelling” said first into a note, need no keyword ([[Spoken asks and the review]]).
 
 ## Formatting
 
@@ -94,7 +91,7 @@ Signed in, the settings about you are the same on every device. The ones about t
 | Travels with your account | Stays on this device |
 | --- | --- |
 | Page, Spacing, Text size, both fonts, Link previews, Code colours | Accent, Size, Sidebar, Corners |
-| Stop when I go quiet, “hey Ghost”, Review after recording, Better words | Local only, the chosen model and the models downloaded |
+| Stop when I go quiet, Review after recording, Better words | Local only, the chosen model and the models downloaded |
 | Animation speed, Ghostly typing, Smoke at the edges, Ripples while recording | Haptics, Where the side key is, Live typing, Update alerts |
 | How notes are shown, your open tabs and their groups, workspaces, the trash, your shared links | Each plugin's switch, and what it keeps: boards, repos, tokens, the Notion sign-in |
 

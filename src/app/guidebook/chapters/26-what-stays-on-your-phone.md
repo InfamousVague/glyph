@@ -12,7 +12,7 @@ Your device's own backup may include the app's files. That is between you and th
 
 ## No microphone left on
 
-The microphone listens only while you record. Hey Ghost is heard inside a recording, as words in it, and nowhere else. Nothing listens in the background for it. Holding the side key starts a recording because Ghost.md is the phone's assistant, not because anything was listening.
+The microphone listens only while you record. A spoken command, with Hey Ghost or without, is heard inside a recording, as words in it, and nowhere else. Nothing listens in the background for it. Holding the side key starts a recording because Ghost.md is the phone's assistant, not because anything was listening.
 
 ## Local only
 

@@ -129,10 +129,10 @@ There is no cue for one. The words “voice memo”, what follows and “end mem
 
 ## What has no cue
 
-There is no spoken cue for a table, a picture, a diagram or a board. Add them afterwards: a table typed with pipes or from Style › Table, a board from More › Make a board. [[Commands after Hey Ghost]] says what happens to a command that asks for one.
+There is no spoken cue for a table, a picture, a diagram or a board. Add them afterwards: a table typed with pipes or from Style › Table, a board from More › Make a board. [[Spoken commands]] says what happens to a command that asks for one.
 
 ## Read next
 
-- [[Commands after Hey Ghost]]
+- [[Spoken commands]]
 - [[The marks you can type]]
 - [[Effects on words]]

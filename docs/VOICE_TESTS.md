@@ -21,12 +21,13 @@ Two runs check it:
   `GLYPH_VOICE_ONLY=051 npm run voice:hear` hears one, and `GLYPH_VOICE_DIR` points both at another folder of
   recordings.
 
-A test's `prefs` can switch on "Stop when I go quiet" (`quietStop`) or switch off the keyword (`commandWord`). Those
-are the only two. A test's `choose` answers a card that asks which note, as it comes up: a title to tap, `new` or
+A test's `prefs` can switch on "Stop when I go quiet" (`quietStop`). That is the only one: the switch that made a
+command need the keyword went in DESIGN §136. A test's `choose` answers a card that asks which note, as it comes up: a title to tap, `new` or
 `keep`; without it, the card takes its own default, Keep here.
 
 **What the suite drives, and what the app does.** The suite plays what the recorder runs: each phrase through the live
-reader, which carries out "Glyph, add … to <note>" and its like as they are said (DESIGN §126), and the writes Done
+reader, which carries out "add … to <note>" and its like as they are said, with "Glyph" or "hey Ghost" first or
+without (DESIGN §126, §136), and the writes Done
 makes, each note once, the words placed where they fit (`src/app/capture/place.ts`). So its "Commands" group says a
 command and is done: there is no "Yes." to confirm it any more. A command the live reader does not carry out is read
 once, from the whole recording, at Done (`src/app/ai/instruction.ts`), which `src/app/capture/CaptureScreen.test.tsx`
@@ -297,8 +298,8 @@ when it heard a pause after the opening word, so keep the 1.2 s breaks. Digits f
 
 ## Script 5: commands, one recording each
 
-**Tests:** a command carried out as it is said: "Hey Ghost" (or "Glyph"), adding to another note's list, adding a
-task to a note, adding a paragraph to a note, and making a new list with its items. Each is its own short recording.
+**Tests:** a command carried out as it is said, with or without Hey Ghost: "Hey Ghost" (or "Glyph"), adding to
+another note's list, adding a task to a note, adding a paragraph to a note, and making a new list with its items. Each is its own short recording.
 The first three switch the page to the note as they are said and write the words into it; Done writes it and opens
 it, with Undo. The last is read once, from the whole recording, when Done is pressed, and a card says what it will do
 before anything is written. Needs the Groceries and AttackFM bug bash notes from "Before you start".
@@ -360,7 +361,8 @@ the end, and the note saved with everything said.
 ## Not a script: the app open and not recording
 
 Nothing listens while no recording runs. The microphone is opened by the recorder alone, so "Hey Ghost" said to the
-app on its home page does nothing. The in-app wake-word listener this section once tested was removed.
+app on its home page does nothing, and so does a command said without it. The in-app wake-word listener this section
+once tested was removed.
 
 ## Keeping score
 

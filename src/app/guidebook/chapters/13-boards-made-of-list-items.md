@@ -77,9 +77,9 @@ An item linked to Notion or GitHub carries a mark as well, always between its wo
 
 ## By voice
 
-On a board's own Speak, a lane is named like a heading of the note: "Hey Ghost, add call Sam to Doing" puts a to-do under the board's items and its card at the top of Doing as you say it. Nothing is stored until Done, when the card is written into the board with the rest of what you said.
+On a board's own Speak, a lane is named like a heading of the note: "Hey Ghost, add call Sam to Doing" puts a to-do under the board's items and its card at the top of Doing as you say it. A lane needs the keyword, as a heading of the note you are in does: without it, "add call Sam to Doing" is your words. Nothing is stored until Done, when the card is written into the board with the rest of what you said.
 
-A card is moved by dragging it, and a board is made with More › **Make a board**: "Hey Ghost, move the coffee to Done" moves no card, and "Hey Ghost, make this a board" makes no board. Said into a note's own Speak, words like these go to the AI as a spoken ask about that note, and anything it writes lands as marked changes you can undo ([[Spoken asks and the review]]). Said as a new recording, they are kept as its words. [[Commands after Hey Ghost]] has what the recorder carries out.
+A card is moved by dragging it, and a board is made with More › **Make a board**: "Hey Ghost, move the coffee to Done" moves no card, and "Hey Ghost, make this a board" makes no board. Said into a note's own Speak, words like these go to the AI as a spoken ask about that note, and anything it writes lands as marked changes you can undo ([[Spoken asks and the review]]). Said as a new recording, they are kept as its words. [[Spoken commands]] has what the recorder carries out.
 
 ## Read next
 

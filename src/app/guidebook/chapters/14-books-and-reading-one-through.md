@@ -86,7 +86,7 @@ When the open note has a number and no book names it, the **Book index** button 
 
 A whole book can be shared as one read-only link, its index and every written chapter: see [[Sharing a note or a book]].
 
-Books are not made or filled by voice. A book is never written into by voice either: words said for one stay where you are, and the chip says why ("“Field guide” is a book, so the words stay here"). "Hey Ghost, make a book called Field guide" and "Hey Ghost, add a chapter to the field guide" change no book. Said into a note's own Speak, words like these go to the AI as a spoken ask about that note instead ([[Spoken asks and the review]]). Use the + and the index.
+Books are not made or filled by voice. A book is never written into by voice either: words said for one stay where you are, and after "Hey Ghost" the chip says why ("“Field guide” is a book, so the words stay here"). "Make a book called Field guide" and "add a chapter to the field guide" change no book, with or without the keyword. Said after "Hey Ghost" into a note's own Speak, words like these go to the AI as a spoken ask about that note instead ([[Spoken asks and the review]]); without it, they are the note's words. Use the + and the index.
 
 ## Read next
 

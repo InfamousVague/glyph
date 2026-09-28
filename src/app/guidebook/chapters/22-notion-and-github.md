@@ -68,7 +68,7 @@ A box you set by hand stays as you set it until the task itself changes again, s
 
 ### Not by voice
 
-Notion is reached from the note: swipe an item, tap the quiet **Notion** after it, or **Send list to Notion**. A recording sends nothing to Notion. Said while recording, "Hey Ghost, send that to Notion" is read as words for a note called Notion, and with no such note the chip says so and the words stay where you are.
+Notion is reached from the note: swipe an item, tap the quiet **Notion** after it, or **Send list to Notion**. A recording sends nothing to Notion. Said while recording, "Hey Ghost, send that to Notion" is read as words for a note called Notion, and with no such note the chip says so and the words stay where you are. Without the keyword it is your words.
 
 ## GitHub
 

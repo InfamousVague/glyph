@@ -42,7 +42,7 @@ The workspace chosen at the top decides which notes it reads. The archive is lef
 
 ## By voice
 
-While recording, “Bullet point”, “Check box”, “Remember to …” and a list said in one breath all make lists as you talk ([[Saying the marks]]). To add to another note's list without opening it, say it: “Hey Ghost, add oat milk and rye bread to Groceries.” The words go into the list they fit, in its own style, bullets, numbers or boxes, as you say them, and the note opens with an Undo when you tap Done. In a note with several lists, a thing goes under the heading that shares its words; a to-do goes to a to-do list ([[Commands after Hey Ghost]]). A new list can be made by voice too: “Hey Ghost, make a new list called Packing with toothbrush, socks and charger”, said first, shows a card at Done, and **Create** makes the note.
+While recording, “Bullet point”, “Check box”, “Remember to …” and a list said in one breath all make lists as you talk ([[Saying the marks]]). To add to another note's list without opening it, say it: “Add oat milk and rye bread to Groceries.” The words go into the list they fit, in its own style, bullets, numbers or boxes, as you say them, and the note opens with an Undo when you tap Done. In a note with several lists, a thing goes under the heading that shares its words; a to-do goes to a to-do list ([[Spoken commands]]). A new list can be made by voice too: “Make a new list called Packing with toothbrush, socks and charger”, said first, shows a card at Done, and **Create** makes the note.
 
 ## Linked to Notion or GitHub
 
@@ -80,4 +80,4 @@ A list is plain Markdown, so it reads anywhere.
 
 - [[Boards made of list items]]
 - [[Notion and GitHub]]
-- [[Commands after Hey Ghost]]
+- [[Spoken commands]]
