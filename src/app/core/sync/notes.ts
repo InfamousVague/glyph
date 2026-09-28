@@ -1,4 +1,6 @@
 import { summarySection, withoutSummary, withSummary } from '../../ai/summaryText.ts';
+import { chaptersOf, isBookBody, withChapter } from '../../book/book.ts';
+import { sameTitle } from '../titleKey.ts';
 import { ApiError, call, callBytes } from '../account/api.ts';
 import { toHex } from '../bytes.ts';
 import { failureText } from '../failure.ts';
@@ -354,6 +356,35 @@ function copyId(): string {
   return randomId('n');
 }
 
+/** A notebook's body with the lines of its index taken out, and its blank lines as one: what two copies must agree on. */
+function besideIndex(body: string): string {
+  const index = new Set(chaptersOf(body).map((chapter) => chapter.line));
+  return body
+    .split('\n')
+    .filter((_, line) => !index.has(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimEnd();
+}
+
+/**
+ * Two copies of one notebook that differ only by the lines of their index (book/book.ts), merged: theirs, with each
+ * line this device has and theirs lacks put after the line it followed here. Null where they differ in anything else,
+ * or either is not a notebook. Two devices each adding a page, or a journal's entry, between syncs is the common case
+ * (docs/DESIGN.md §142), and a copy of "Diary" for it would be "Diary 2". A line taken out on one side and kept on the
+ * other comes back: the lesser harm, and a journal draws a line whose note is gone as nothing.
+ */
+export function mergedIndex(mine: string, theirs: string): string | null {
+  if (!isBookBody(mine) || !isBookBody(theirs) || besideIndex(mine) !== besideIndex(theirs)) return null;
+  const here = chaptersOf(mine);
+  let merged = theirs;
+  here.forEach((chapter, at) => {
+    if (chaptersOf(merged).some((there) => sameTitle(there.title, chapter.title))) return;
+    merged = withChapter(merged, chapter.title, at > 0 ? here[at - 1]!.title : null);
+  });
+  return merged;
+}
+
 /**
  * One note from the service, merged into this device. `local` is the note here as the list has it, or undefined
  * when there is none. A note left differing from its recorded fingerprint is sent by the push that follows.
@@ -387,6 +418,16 @@ async function merge(ctx: SyncContext, item: FeedItem, local: Note | undefined, 
       const merged: Note = { ...theirs, body: mine ? withSummary(theirs.body, mine.text, { kept: summarySection(theirs.body)?.text ?? null }) : withoutSummary(theirs.body) };
       await fetchFilesOf(ctx, payload);
       await ctx.notes.apply(merged);
+      outcome.changed += 1;
+      ctx.state.notes[item.id] = { rev: item.rev, mark: mark(theirs) };
+      return;
+    }
+    const index = mergedIndex(local.body, theirs.body);
+    if (index !== null) {
+      // Two copies of one notebook that differ only by their index's lines: theirs, with the lines only this device
+      // has, and no copy. As with the summary above, the mark kept is theirs, so the push that follows sends the merge.
+      await fetchFilesOf(ctx, payload);
+      await ctx.notes.apply({ ...theirs, body: index });
       outcome.changed += 1;
       ctx.state.notes[item.id] = { rev: item.rev, mark: mark(theirs) };
       return;
