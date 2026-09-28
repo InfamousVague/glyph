@@ -57,7 +57,7 @@ A card shows its item's words, without their Markdown, in three lines at most. A
 | Press and hold an item › Board from list | Only that list becomes a board, set in just above it. Select several lines first and those lines are the list. |
 | Press and hold an item › Add to board | One item joins the board its list is on, else the nearest board above it, else the first in the note: in the first column, or in Done if it is ticked. |
 | Tap the board to show its fence, then press and hold a line of it › Copy board | The fence and the items it names, together, to paste into another note. |
-| Settings › About › Add the example board | Adds [[Launch week]], a working board with notes on how to change it. |
+| Settings › About › Examples › Add the example board | Adds [[Launch week]], a working board with notes on how to change it. |
 
 Each change is one edit, so one Undo puts the note back, and nothing else in the note moves.
 

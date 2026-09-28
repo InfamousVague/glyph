@@ -72,7 +72,7 @@ What travels: notes, their recordings and pictures, the trash, your workspaces, 
 
 Settings are one set for the whole account. If two devices change them at the same moment, the later one wins.
 
-**Local only**, in Settings › Formatting, stops sync until it is off.
+**Local only**, in Settings › Account › Privacy, stops sync until it is off.
 
 ## When two devices change one note
 

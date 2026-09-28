@@ -80,7 +80,7 @@ No microphone is left listening for the name. It is heard inside a recording you
 ## 3. The AI on the phone
 
 Two kinds of model, both on the device, downloaded once, checked byte for byte: Whisper base.en (about 60 MB, live)
-and small.en (about 190 MB, afterwards); and one language model chosen in Settings › Formatting › Model: Qwen3.5 2B,
+and small.en (about 190 MB, afterwards); and one language model chosen in Settings › Recording › Model: Qwen3.5 2B,
 4B (the default, 2.7 GB), 9B, or Gemma 4 E4B. The app never fetches a language model without being asked.
 
 From a note's More sheet, under AI: Format ("Tidy and organise, keeping every word that matters"), Summarize ("The

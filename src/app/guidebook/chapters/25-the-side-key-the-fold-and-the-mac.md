@@ -36,7 +36,7 @@ If you would rather not, long-press the Ghost.md icon and choose **Record note**
 
 ### Touch and back
 
-**Haptics** answer a style or a cue with a small tap. Switch them in Settings › Feel. The phone's back gesture works inside Ghost.md, stepping back one screen at a time rather than leaving the app.
+**Haptics** answer a style or a cue with a small tap. Switch them in Settings › Appearance › Touch. The phone's back gesture works inside Ghost.md, stepping back one screen at a time rather than leaving the app.
 
 ## Folding phones
 

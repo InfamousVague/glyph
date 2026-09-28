@@ -50,8 +50,8 @@ A line that is only a link, bare, in angle brackets, or written with words, in a
 
 The title is read by the app from the linked site, only for a card on screen, and kept for a week, so a page is asked for at most once a week. Until then, or without it, the card shows the site and the path.
 
-- **Settings › Type › Link previews** off: no cards at all.
-- **Settings › Formatting › Local only** on: cards show the site and the path, and nothing is fetched.
+- **Settings › Account › Link previews** off: no cards at all.
+- **Settings › Account › Local only** on: cards show the site and the path, and nothing is fetched.
 - **In a browser tab**: the site and the path, and nothing is fetched.
 
 A list item linked to a Notion task or a GitHub issue ends with a small mark naming the plugin, `[notion](…)`. Ghost.md draws it as a pill with that name, or, where the plugin can read what it points at, as a row under the item saying what it is linked to and how it stands. That is [[Notion and GitHub]].

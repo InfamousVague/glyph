@@ -15,7 +15,7 @@ npm alias.
   this domain doesn't route `/glyph/api`.
 - **The privacy policy and the delete-account page are here**, linked from the page's foot:
   `landing/privacy.html` and `landing/delete-account.html`. They are the addresses given to Play Console and App Store
-  Connect (docs/store/PLAY_STORE.md), and Settings › About › Privacy policy opens the first. Changing either is a
+  Connect (docs/store/PLAY_STORE.md), and Settings › Account › Privacy policy opens the first. Changing either is a
   landing deploy, not an OTA.
 - **The device in hand goes first.** Android gets the APK filled and first, a Mac gets the Mac app, with a line on
   opening an app that isn't notarised yet, and an iPhone or iPad gets the web app, since there's no iOS app.

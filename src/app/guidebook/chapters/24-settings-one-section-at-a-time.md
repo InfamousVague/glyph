@@ -4,84 +4,92 @@ _Every section of Settings in the order the list shows them, with what each sett
 
 ## Finding your way
 
-Settings opens on a list of sections. On a phone, each opens as a page of its own: the back gesture or a swipe to the right steps out, and a swipe to the left goes back in. On a wide window, a Mac or a folding phone opened out, Settings is a split view with the sections down the left.
+Settings opens on a list of five sections: **Account**, **Appearance**, **Recording**, **Plugins** and **About**. Recording is there in the Android app and on the Mac, where a recorder has a model behind it, so the web version lists four. On a phone, each opens as a page of its own: the back gesture or a swipe to the right steps out, and a swipe to the left goes back in. On a wide window, a Mac or a folding phone opened out, Settings is a split view with the sections down the left.
 
-**Search settings**, at the top of the list, finds a section or a single setting inside one. Every word you type has to start a word of what it finds, in any order, so "sm ed" finds Smoke at the edges. A result opens its page and lights the setting for a moment. Enter opens the first result, and on a keyboard ⌘F or Ctrl+F goes to the field.
+A few pages open from a row on another page rather than from the list: a plugin's own page from its card on Plugins, and the cheat sheet and Examples from About. Over one of those, the way back names the page it came from, "← Plugins" or "← About", and back steps there first. In the split view the page it came from stays marked in the column.
 
-Some sections, and one switch, appear only where they mean something: Recording on Android, the Touch switch where there is a motor, and a plugin's page while the plugin is on.
+**Search settings**, at the top of the list, finds a section or a single setting inside one, the pages behind a row included. Every word you type has to start a word of what it finds, in any order, so "sm ed" finds Smoke at the edges. A result opens its page and lights the setting for a moment. Enter opens the first result, and on a keyboard ⌘F or Ctrl+F goes to the field.
+
+Two things elsewhere open Settings at a card, lit the same way. The words "Local only", where a page says it is holding something off, open Account at the Privacy card. **Get a model** on the home page opens Recording at the Model card.
+
+Some rows appear only where they mean something: Recording on Android and the Mac, the side key and the meetings on Android, the sidebar on a wide window, Touch where there is a motor, and a plugin's page while the plugin is on.
 
 ## Account
 
-Signed out, it opens on **Sign in**, with **Create an account** and **Lost the password**, which takes a recovery code, below it. Signed in, it has **Sync now**; **Live typing (trial)**, off until you switch it on, for this device only, starting with the next note you open; **Password and recovery codes**; **Sign out**, which leaves your notes on the device; **Shared links**, once you have shared something, with every note and book you have shared and a Copy and a Stop for each; and **Delete account**. More in [[Accounts, sync and the key you hold]].
+Who you are, and what leaves the device.
 
-## Type
+Signed out, it opens on the **Privacy** card, then **Sign in**, with **Create an account** and **Lost the password**, which takes a recovery code, below it, then the **Location** card. Signed in, the **Sync** card has **Sync now**, **Sync meeting recordings** (off, so a meeting's audio stays on the device that recorded it), **Live typing (trial)** (off until you switch it on, for this device only, from the next note you open), **Password and recovery codes**, and **Sign out**, which leaves your notes on the device. Then **Shared links**, once you have shared something, with a Copy and a Stop for each note and book. Then Privacy and Location, and **Delete account** last. While Local only is on, a line at the top says nothing syncs, and its "Local only" brings the Privacy card into view. More in [[Accounts, sync and the key you hold]].
 
-| Setting | Choices | What it does |
+### Privacy
+
+| Setting | Default | What it does |
 | --- | --- | --- |
-| Text size | **Large**, Larger, Largest | The note, the list and the headings all follow it. |
-| Note font | **Maple Mono**, Fira Code, Inter, Noto, Plex | The words of a note and its code. Maple Mono and Fira Code join pairs like `->` and `!=` into one sign. |
-| Interface font | **Inter**, Noto, Plex | Tabs, lists, Settings and buttons. |
-| Link previews | **On**, or off | A card with the page's title under a line that is only a link. The apps read the title from the linked site; the web version shows only the site and its path. |
+| Local only | Off | No sync, updates, downloads, link previews, maps or place names, and no location for new notes. Plugins that use the internet are held off. It stays on this device. [[What stays on your phone]] has exactly what it stops. |
+| Link previews | On | A card under a line that is only a link. The apps read the page's title from the linked site. The web version shows only the site and its path. |
+| Privacy policy | | Opens ghostmarkdown.com/privacy.html. Under the card, what it comes to in two lines. |
+
+### Location
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| Map on a tagged note | On | A small map at the top of a note that says where it was written, its tiles fetched from openstreetmap.org. |
+| Place names | On | The name of the place, asked of OpenStreetMap once when a location is added, and kept in the note. |
+| Tag new notes with my location | On | Every note you make on this device starts with where you were, typed or spoken. It stays on this device. If location is refused, it stays on and new notes are not tagged until location is allowed, and the card says so. |
+
+Local only holds all three off.
 
 ## Appearance
+
+How it looks, moves and feels. Its cards are Page, Accent, Type, Spacing, Corners, Code, Sidebar on a wide window, Motion and, in the phone app, Touch. Type is led by an "Aa" in the note's own face at the size chosen.
 
 | Setting | Choices | What it does |
 | --- | --- | --- |
 | Page | System, Light, **Dark**, Dawn, Boreal, Ember | Ink on paper or paper on ink. Dawn is a tinted light page, Boreal and Ember tinted dark ones, and each brings its own accent. System follows the device. |
 | Accent | **Ink**, Graphite, Red, Amber, Green, Teal, Purple | Colours the few things that mark a choice: a focus ring, a chosen segment. Ink is the app's own grey. |
+| Note font | **Maple Mono**, Fira Code, Inter, Noto, Plex | The words of a note and its code. Maple Mono and Fira Code join pairs like `->` and `!=` into one sign. |
+| Interface font | **Inter**, Noto, Plex | Tabs, lists, Settings and buttons. |
+| Text size | **Large**, Larger, Largest | The note, the list and the headings. |
+| Scale | 85%, 93%, **Default**, 110%, 125% | Everything, buttons and bars as well as words. It stays on this device. |
 | Spacing | Tightest, Tight, **Comfortable**, Roomy, Roomiest | The padding and gaps of everything. The words keep their size. |
-| Size | 85%, 93%, **Default**, 110%, 125% | Everything larger or smaller together, buttons and bars as well as words. Text size changes only the words. |
-| Sidebar | **Popover**, Docked | On a wide window, the sidebar icon opens your notes over the note, or docks them as a column beside it. |
-| Corners | Square, Soft, **Round**, Roundest | How round cards and fields are drawn. Pills stay pills. |
+| Rounding | Square, Soft, **Round**, Roundest | Cards, fields and buttons. Pills stay pills. |
 | Code | Light page: **Pastel**, Ink, GitHub, Solarized. Dark page: **Pastel**, Ink, One Dark, Dracula, Nord | The colours of code in a code block. Ink keeps code in the page's ink. |
+| Sidebar | **Popover**, Docked | On a wide window only: your notes over the note, or docked as a column beside it. |
+| Animation speed | Relaxed, **Normal**, Brisk | How quickly letters gather and screens and sheets move. |
+| Ghostly typing | **On** | Letters arrive as smoke and gather into words as you talk or type. |
+| Smoke at the edges | **On** | A page turns to smoke as it passes under the header or the dock. |
+| Ripples while recording | **On** | The newest words move with your voice as the phone hears it. |
+| Haptics | **On** | A small tap when a style or a cue kicks in. Only in the phone app, where there is a motor. |
+
+Your device's own reduce motion setting comes first: with it on, Ghost.md holds still whatever Motion says. Switching one off leaves the thing itself working, only still.
 
 ## Recording
 
-On Android only.
+In the Android app and on the Mac.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| Stop when I go quiet | Off | Saves the recording after four seconds of quiet, once you have started talking. The side key and Done still work. |
-| Review after recording | On | When you stop, a slower speech model listens again and the language model thinks the note through out loud, then shows what it would fix, for you to keep or commit. |
-| Where the side key is | Ghost.md's guess | A Height slider that moves the rings to sit beside your key. Once you have moved it, **Reset** beside Use Ghost.md's guess puts it back. |
-| Better words | On | After you finish, a larger model goes over the recording and fixes the words: a few seconds of the phone per minute of speech. |
+| Stop when I go quiet | Off | Saves after four seconds of quiet, once you have started talking. The side key and Done still work. |
+| Review after recording | On | After you stop, a slower listen and a read-through, with what it would fix for you to keep. For recordings under three minutes. |
+| Better words | On | A larger model goes over the recording and fixes the words, a few seconds of the phone per minute of speech. |
+| Summaries | **Meetings**, Meetings and long voice notes, Off | The model on the phone writes a summary under the title: what was said, what was decided, and your to-dos. A long voice note is one over three minutes. |
+| Tell me when a meeting is written up | | On Android. **Allow** asks for notifications, and the row then says On. |
+| Write up straight away | Off | On Android. Off, a meeting is written up when the phone is charging or above half. On, straight away, which uses more of the battery. |
+| Remove audio older than a month | | Two taps, the first arming it. Every word and phrase stays and only the audio goes. Under the card, how much room your tapes take. |
+| The side key | Ghost.md's guess | On Android, last on the page. A Height slider moves the rings to sit beside your key. Once you have moved it, **Reset** beside Use Ghost.md's guess puts it back. |
 
-## Formatting
+The **Model** card chooses the model that writes the summaries and the review, and Format, Summarize and Enhance on a note. Each model is listed once. **Get** downloads one, with the bytes shown as they arrive, and a model that is here can be picked, with **Remove** beside it. The one in use says In use and has no Remove: pick another first. Under the card, how much the models take. Qwen3.5 2B is quick, Qwen3.5 4B is the balance and the default, Qwen3.5 9B is the most careful and wants 12 GB of memory, and Gemma 4 E4B is a different voice. More in [[The models on your phone]].
 
-**Local only**, off by default, keeps Ghost.md to what is already on the device: no update checks, no model downloads, no sync, no link previews, and no plugin that uses the internet. [[What stays on your phone]] has exactly what it stops.
+## Plugins
 
-**Model** chooses which model rewrites your notes. **Get** downloads one, with the bytes shown as they arrive, and a model that is here can be chosen. Qwen3.5 2B is quick, Qwen3.5 4B is the balance and the default, Qwen3.5 9B is the most careful and wants 12 GB of memory, and Gemma 4 E4B is a different voice. Below, **On the phone** lists what is downloaded, with **Remove** and the storage it takes. In a browser the page only says that formatting runs on the device. More in [[The models on your phone]].
-
-## Feel
-
-How the app moves, and how it answers a touch.
-
-| Setting | Default | What it does |
-| --- | --- | --- |
-| Animation speed | Relaxed, **Normal**, Brisk | How quickly letters gather and screens and sheets move. |
-| Ghostly typing | On | Letters arrive as smoke and gather into words as you talk or type, and dissolve where they are deleted. |
-| Smoke at the edges | On | A page going under the header or the dock turns to smoke as it passes. |
-| Ripples while recording | On | The newest words move with your voice as the phone hears it. |
-| Haptics | On | A small tap when a style or a cue kicks in. Only in the phone app, where there is a motor. |
-
-Your device's own reduce motion setting comes first: with it on, Ghost.md holds still whatever these say. Switching one off leaves the thing itself working, only still.
-
-## The plugins' pages, then Plugins
-
-Each plugin that is on and has a page of its own is listed next. **Notion** holds its sign-in and the boards Notion shared, **GitHub** the repos read and the token, and **Claude** the way to connect. Then **Plugins**, with a card and a switch for each of the four. See [[Notion and GitHub]].
-
-## Cheat sheet
-
-Every mark you can type and every cue you can say, on one page to look things up in. It opens from a note's More sheet and from About too.
+A card and a switch for each of the four, with what each may reach and why. A plugin that is on and has a page of its own has a row on its card that opens it: **Notion** holds its sign-in and the boards Notion shared, **GitHub** the repos read and the token, and **Claude** the way to connect. See [[Notion and GitHub]] and [[Claude on your notes]].
 
 ## About
 
 - **The version**, large, and where this build stands under it.
 - **Updates**: the state of things, **Reload** when an update is downloaded, **Install** with a version number when an update needs a new app, and **Check for updates**. The web version says to reload the page, and a copy from the Play Store gets new apps from the store.
 - **Update alerts**, on Android: off until you switch them on, then a notification when a new version is out, even with Ghost.md closed.
-- **Help**: **Ghost.md Academy**, which teaches Markdown a mark at a time; **How to talk to Ghost.md**, the welcome guide, with the side key on Android; **Formatting cheat sheet**; **Add Ghost.md: The Guide**, which adds this book and opens it, or opens the one you have; **Add the example board**; **Add the example canvas**; **Add the “How Ghost.md works” canvas**; and **Add the sample note**, one note with every mark in it.
+- **Help**, five rows. **Ghost.md Academy** teaches Markdown a mark at a time. **The welcome walkthrough** opens the pages from the first launch. **Cheat sheet** opens every mark you can type on one page, which a note's More sheet and the Academy open too. **Ghost.md: The Guide** adds this book and opens it, or opens the one you have. **Examples** opens a page of four: **Add the sample note**, one note with every mark in it, **Add the example board**, **Add the example canvas** and **Add the “How Ghost.md works” canvas**.
 - **What's new**: every update, newest first, the one you are on marked "you're on this one". After an update, the new entries also show once, in a sheet.
-- **Privacy policy**, which opens ghostmarkdown.com/privacy.html.
 
 ## What travels, and what stays
 
@@ -89,19 +97,20 @@ Signed in, the settings about you are the same on every device. The ones about t
 
 | Travels with your account | Stays on this device |
 | --- | --- |
-| Page, Spacing, Text size, both fonts, Link previews, Code colours | Accent, Size, Sidebar, Corners |
-| Stop when I go quiet, Review after recording, Better words | Local only, the chosen model and the models downloaded |
-| Animation speed, Ghostly typing, Smoke at the edges, Ripples while recording | Haptics, Where the side key is, Live typing, Update alerts |
+| Page, Spacing, Text size, both fonts, Code colours | Accent, Scale, Sidebar, Rounding |
+| Link previews, Map on a tagged note, Place names | Local only, Tag new notes with my location |
+| Stop when I go quiet, Review after recording, Better words, Summaries, Write up straight away, Sync meeting recordings | The chosen model and the models downloaded, the side key |
+| Animation speed, Ghostly typing, Smoke at the edges, Ripples while recording | Haptics, Live typing, Update alerts |
 | How notes are shown, your open tabs and their groups, workspaces, the trash, your shared links | Each plugin's switch, and what it keeps: boards, repos, tokens, the Notion sign-in |
 
 ## Developer mode
 
 Seven quick taps on the version in About turn on developer settings. From the third tap a message counts down the taps that are left. Two pages then join the list, under About:
 
-- **Developer.** **Choose your model** opens that page of the welcome guide on its own, and **Welcome guide** opens it from the first page. **Window** reads off what the page is given: the top inset, the page's size, the screen and the engine that draws it. **Smoke bench** opens a page for timing the smoky edge's frames. **Developer settings** is the switch that hides both pages again.
+- **Developer.** **Window** reads off what the page is given: the top inset, the page's size, the screen and the engine that draws it. **Smoke bench** opens a page for timing the smoky edge's frames. **The phone at work** plays the scene after Done from a script, with the **Readings** chosen: a heat reading, none as on a phone that hides its thermal zones, or none at all as on the Mac. **Developer settings** is the switch that hides both pages again.
 - **Test results** is the report of the tests this release ran ([[Tests, and the report that ships]]).
 
-The Developer page also has the two resets. **Reset local data** clears the notes, recordings, pictures, settings and the sign-in on this device, and keeps the downloaded models. **Reset everything** takes the models too. Each needs two taps, the first arming it for five seconds, and Ghost.md opens on the welcome guide afterwards. Developer settings stay on.
+The Developer page also has the two resets. **Reset local data** clears the notes, recordings, pictures, settings and the sign-in on this device, and keeps the downloaded models. **Reset everything** takes the models too. Each needs two taps, the first arming it for five seconds, and Ghost.md opens on the welcome walkthrough afterwards. Developer settings stay on.
 
 ## Read next
 

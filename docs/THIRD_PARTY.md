@@ -37,7 +37,7 @@ package's place under the same name.
 ## Maps
 
 Where a note was written (docs/DESIGN.md §134) is drawn from OpenStreetMap, only on a tagged note and only with the
-switches under Settings › Location on:
+switches under Settings › Account › Location on:
 
 - **Map data** © OpenStreetMap contributors, under the Open Database License (https://www.openstreetmap.org/copyright).
   The tiles come from tile.openstreetmap.org under the OSM tile usage policy (https://operations.osmfoundation.org/policies/tiles/),

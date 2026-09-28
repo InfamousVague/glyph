@@ -76,7 +76,7 @@ Once there are two cards, a minimap sits at the bottom right with the screen's b
 
 A line that is only `![[Cabin weekend, laid out]]` draws that canvas in a frame inside the note: you can pan, zoom and use its map, but not change it. Its name and an Open sit over it, and a press on the name shows the link to edit. A book can hold a canvas as a chapter ([[Books, and reading one through]]).
 
-Settings › About adds two example canvases to your library:
+Settings › About › Examples adds two example canvases to your library:
 
 - **Add the example canvas** adds [[Cabin weekend, laid out]], one of everything: a group, cards of words and to-dos, a table of who brings what, note cards for [[Launch week]] and [[How to format a note]], a link, a chart of the days, a picture where one can be kept, and lines with words on.
 - **Add the “How Ghost.md works” canvas** adds [[How Ghost.md works]]: eight plain cards, the order on the lines.

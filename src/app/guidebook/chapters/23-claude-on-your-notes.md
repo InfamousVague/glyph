@@ -6,7 +6,7 @@ _Claude can read your notes, search them, add to them and change them, from wher
 
 Ghost.md has a connector for Claude, an MCP server. Through it Claude signs in to your Ghost.md account and works with its notes the way another of your devices would. So it needs an account, and it sees what has synced. A note Claude makes or changes reaches your devices at their next sync, as one typed on a phone would.
 
-The Claude plugin is only a page: **Settings › Claude**, also reached from Claude's card in Settings › Plugins. It carries **How to connect**, **Server address** with a **Copy**, and **On your own computer**. The first and the last each open a drawer of steps, with a Copy beside every command. Below them come what Claude can do and where your key lives. The plugin's switch shows or hides the page. Connecting and disconnecting are done in Claude.
+The Claude plugin is only a page, opened from Claude's card in **Settings › Plugins**. It carries **How to connect**, **Server address** with a **Copy**, and **On your own computer**. The first and the last each open a drawer of steps, with a Copy beside every command. Below them come what Claude can do and where your key lives. The plugin's switch shows or hides the page. Connecting and disconnecting are done in Claude.
 
 With Local only on, the page is hidden and this device stops syncing, so what Claude writes waits until it is off.
 

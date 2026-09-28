@@ -138,7 +138,7 @@ minute per address and 10 per handle.
   own.
 - `src/app/core/sync/engine.ts` — runs a pass on launch, on return to the app, a few seconds after a note or setting
   changes, and every five minutes; one at a time. Nothing runs without the account key, or with Local only on
-  (Settings › Formatting).
+  (Settings › Account › Privacy).
 - Native: `store_apply` writes a note whole, with its own times, pin, archive, folder and sidecar
   (`library::Library::apply_note`), and `sync_put_file` keeps a synced recording or picture under its own name;
   **native generation 16**. An older app doesn't sync, and the Account page says so.

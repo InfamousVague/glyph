@@ -22,13 +22,13 @@ Each card says in one line what the plugin may reach, and **Why** opens the reas
 | Marks | Nothing. Its line is empty. |
 | Claude | Your notes · The internet (attack.fm) |
 
-**Local only** (Settings › Formatting) holds off every plugin that uses the internet, whatever its switch says. Notion, GitHub and Claude go quiet, and their cards say "Off while Local only is on". Marks carries on.
+**Local only** (Settings › Account › Privacy) holds off every plugin that uses the internet, whatever its switch says. Notion, GitHub and Claude go quiet, and their cards say "Off while Local only is on". Marks carries on.
 
 ## Notion
 
 ### Signing in
 
-Notion works in the Ghost.md app, on Android or the Mac, not in the web version. Open **Settings › Notion** and tap **Sign in**. Notion opens in your browser and asks which pages and boards Ghost.md may use. Tick the boards you want, then come back. Ghost.md collects the sign-in by itself.
+Notion works in the Ghost.md app, on Android or the Mac, not in the web version. Open **Settings › Plugins**, tap the row on Notion's card to open its page, and tap **Sign in**. Notion opens in your browser and asks which pages and boards Ghost.md may use. Tick the boards you want, then come back. Ghost.md collects the sign-in by itself.
 
 Signing in needs a secret that no app can carry, so that one step goes through Ghost.md's server. The server holds the answer in memory for up to ten minutes, until your device collects it, and only the device that started the sign-in can collect it. After that the sign-in is kept on the device, in the app's own files, where no page can read it. Your notes never pass through.
 
@@ -84,7 +84,7 @@ Whenever the model on your phone works on the note, the briefing goes with it: e
 
 ### Issues
 
-Sending needs a token. Add one in **Settings › GitHub**, under Token, and tap **Keep it**. It stays on the device.
+Sending needs a token. Add one on GitHub's page, opened from its card in **Settings › Plugins**, under Token, and tap **Keep it**. It stays on the device.
 
 Then items go as issues the same four ways: the swipe, the quiet word _GitHub_, the press-and-hold menu, and **Send list to GitHub**. An issue carries the item's words as its title, and nothing else of the note. The line gains its mark:
 

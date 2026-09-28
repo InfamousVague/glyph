@@ -66,7 +66,7 @@ Block widgets must come from a state field, and a field cannot ask the view abou
 
 - `editor/wispFormat.ts` draws the spoiler: every letter under one of twelve shared SVG filters, moved about thirty times a second while smoke is on screen. The caret in it clears it; a read-only view never does.
 - `editor/textEffects.ts` draws `TEXT_EFFECTS`. Heat is `'rising'`, a haze over the text above, found by measuring after each draw. Frost is `'filter'`, one field over the words. Wave, shimmer and haunt are `'letters'`, a CSS animation per letter with negative delays, so a line drawn fresh is already moving. An effect lifts while the caret is in its words.
-- `editor/wispArrivals.ts` draws Ghostly typing (Settings > Feel): letters typed, and letters from a transaction carrying the `wisp` annotation, arrive out of smoke, from a pool of at most 32 filters. `editor/wispMotion.ts` decides what moves. The recorder (`capture/LivePage.tsx`), the AI's lander (`ai/land.ts`) and the review (`ai/review.ts`) write with the annotation.
+- `editor/wispArrivals.ts` draws Ghostly typing (Settings › Appearance › Motion): letters typed, and letters from a transaction carrying the `wisp` annotation, arrive out of smoke, from a pool of at most 32 filters. `editor/wispMotion.ts` decides what moves. The recorder (`capture/LivePage.tsx`), the AI's lander (`ai/land.ts`) and the review (`ai/review.ts`) write with the annotation.
 
 Every look is a plain inline mark, never an inline-block, so kerning and wrapping stay exactly as they are without it. `art/wisp.ts` plans the same kind of arrival, word by word, for words outside the editor (`art/WispText.tsx`, such as the welcome page's headline).
 
