@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** What one call of `RecordingJob.run` came back with (src-tauri/src/write_up.rs `Answer`). */
 internal sealed class Outcome {
-  data class Done(val title: String?, val line: String?, val summary: Boolean) : Outcome()
+  data class Done(val title: String?, val line: String?, val summary: Boolean, val transcriptChars: Int) : Outcome()
   object AlreadyDone : Outcome()
   data class Retry(val reason: String) : Outcome()
   data class NeedsModel(val again: Boolean) : Outcome()
@@ -33,8 +33,8 @@ internal sealed class Outcome {
  * every thirty, cancelling the run with "thermal" once it is severe. Rust obeys
  * within one graph computation and answers a retry the chain picks up later.
  *
- * `settle` is the other half of the contract's table: what is posted and what
- * the page is told for each outcome. Nothing is posted for an outcome that was
+ * `settle` is the other half: what is posted and what the page is told for
+ * each outcome. Nothing is posted for an outcome that was
  * already said (`again`), for a run that found the job done, or for one that
  * was cancelled or found nothing to do.
  */
@@ -100,7 +100,7 @@ internal object WriteUp {
     return outcomeOf(answer)
   }
 
-  /** The options `run` takes (the contract's 2.3), from what only Kotlin can read. */
+  /** The options `run` takes (write_up.rs `Options`), from what only Kotlin can read. */
   fun options(context: Context, now: Boolean, fresh: Boolean, title: String?): String {
     val battery = context.getSystemService(BatteryManager::class.java)
     val percent = battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
@@ -149,7 +149,7 @@ internal object WriteUp {
   }
 
   /**
-   * The contract's table for a finished run: the written-up notification and
+   * What a finished run says: the written-up notification and
    * `window.__glyph.recordingDone` for an outcome said for the first time, the
    * charging sweep for a job the battery rule held, nothing for the rest.
    */
@@ -157,8 +157,7 @@ internal object WriteUp {
     val name = title ?: readProgress(context, noteId)?.optString("title")?.takeIf { it.isNotEmpty() } ?: "Meeting"
     when (outcome) {
       is Outcome.Done -> {
-        val text = outcome.line?.takeIf { it.isNotBlank() } ?: "The transcript is in the note."
-        RecordingAlerts.postWrittenUp(context, noteId, outcome.title ?: name, text)
+        RecordingAlerts.postWrittenUp(context, noteId, outcome.title ?: name, doneLine(outcome))
         tellPage(noteId, "done")
       }
       is Outcome.NeedsModel -> if (!outcome.again) {
@@ -173,6 +172,19 @@ internal object WriteUp {
       is Outcome.Retry -> if (outcome.reason == "battery") RecordingWorker.enqueueWhenCharging(context)
       is Outcome.AlreadyDone -> Unit
     }
+  }
+
+  /**
+   * The written-up notification's line: the summary's first sentence; the
+   * transcript's place when there is no summary (Summaries off); and, for a
+   * recording with no speech in it, that nothing was heard, since a
+   * transcript that is only its heading is not one to point at.
+   */
+  fun doneLine(done: Outcome.Done): String = when {
+    !done.line.isNullOrBlank() -> done.line
+    done.summary -> "The summary is in the note."
+    done.transcriptChars == 0 -> "Nothing was heard in the recording."
+    else -> "The transcript is in the note."
   }
 
   private fun tellPage(noteId: String, outcome: String) {
@@ -190,6 +202,7 @@ internal object WriteUp {
         json.optString("title").takeIf { !json.isNull("title") && it.isNotEmpty() },
         json.optString("line").takeIf { !json.isNull("line") && it.isNotEmpty() },
         json.optBoolean("summary", false),
+        json.optInt("transcriptChars", 0),
       )
       json.optBoolean("alreadyDone") -> Outcome.AlreadyDone
       json.has("retry") -> Outcome.Retry(json.optString("retry", "retry"))

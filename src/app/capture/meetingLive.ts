@@ -47,7 +47,11 @@ export type MeetingEventName = 'started' | 'silenced' | 'sounding' | 'stopped' |
 /** What the service says (capture/MeetingService.kt), as `window.__glyph.meeting` carries it. */
 export interface MeetingEvent {
   event: MeetingEventName;
-  noteId: string;
+  /**
+   * The meeting's note. Null only on the two the activity says without one in hand (MainActivity.kt): the
+   * microphone's answer (`permission`, which is the waiting meeting's) and a tap on the recording notification (`open`).
+   */
+  noteId: string | null;
   elapsedMs: number;
   /** With `stopped`: Done or the notification's Stop, the cap, a read error, or a meeting a kill left that was finished at launch. */
   reason?: 'done' | 'notification' | 'cap' | 'error' | 'died' | null;
@@ -89,7 +93,7 @@ export function parseMeetingEvent(json: string): MeetingEvent | null {
     const got = JSON.parse(json) as Record<string, unknown>;
     const event = str(got.event) as MeetingEventName | null;
     const noteId = str(got.noteId);
-    if (!event || !noteId) return null;
+    if (!event || (!noteId && event !== 'permission' && event !== 'open')) return null;
     return {
       event,
       noteId,
@@ -182,7 +186,7 @@ function applyEvent(event: MeetingEvent): void {
       state.set({ ...was, recording: false, noteId: null, title: null, startedAt: null, elapsedMs: 0, silenced: false });
       break;
     case 'discarded':
-      state.set({ ...was, recording: false, noteId: null, title: null, startedAt: null, elapsedMs: 0, silenced: false, discarded: [...new Set([...was.discarded, event.noteId])] });
+      state.set({ ...was, recording: false, noteId: null, title: null, startedAt: null, elapsedMs: 0, silenced: false, discarded: event.noteId ? [...new Set([...was.discarded, event.noteId])] : was.discarded });
       break;
     default:
       break;

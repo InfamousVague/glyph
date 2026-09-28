@@ -717,9 +717,15 @@ impl Run<'_> {
     }
 
     /// Step three: the summary, in one pass or piece by piece with each piece's
-    /// notes checkpointed; `None` with summaries off.
+    /// notes checkpointed; `None` with summaries off, and `None` when nothing
+    /// was heard: a model asked to summarise an empty transcript writes one
+    /// anyway, and the prompt's first rule is that nothing is invented (the
+    /// page's own queue leaves a tape with no words the same way).
     fn summarize(&mut self) -> Result<Option<String>, Stop> {
         if self.config.summaries == "off" {
+            return Ok(None);
+        }
+        if self.progress.transcript.as_deref().is_none_or(|words| words.trim().is_empty()) {
             return Ok(None);
         }
         let status = crate::llm::model::find(&self.config.model).map(|spec| crate::model_files::status(&self.dirs.models, &spec.spec)).filter(|status| status.present);
@@ -851,7 +857,7 @@ mod tests {
     }
 
     #[test]
-    fn each_terminal_phase_answers_as_the_contract_says_with_and_without_fresh() {
+    fn each_terminal_phase_answers_with_and_without_fresh() {
         let _one = lock(&TEST_SERIAL);
         let (root, _) = phone(1);
         let path = jobs::progress_path(&root.join("jobs"), "n1");
@@ -891,6 +897,19 @@ mod tests {
         assert_eq!(run(&root, "n1", &now()), Answer::Gone);
         assert!(!path.exists());
         assert_eq!(run(&root, "../n1", &now()).to_json(), r#"{"again":false,"error":"not a note id"}"#);
+    }
+
+    #[test]
+    fn a_meeting_where_nothing_was_heard_is_not_summarised_even_with_summaries_on() {
+        let _one = lock(&TEST_SERIAL);
+        let (root, _) = phone(2);
+        let config = JobConfig { model: "qwen3.5-4b".into(), summaries: "meetings".into(), ..JobConfig::default() };
+        std::fs::write(jobs::config_path(&root.join("jobs")), serde_json::to_vec(&config).unwrap()).unwrap();
+        finish(&root, "n1", "Meeting").unwrap();
+        // No model on this phone either: a summary asked for would answer needsModel, so Done says none was.
+        assert_eq!(run(&root, "n1", &now()), Answer::Done { title: "Meeting".into(), line: None, transcript_chars: 0, summary: false });
+        let result: JobResult = crate::fsx::read_json(&jobs::result_path(&root.join("jobs"), "n1")).unwrap();
+        assert_eq!(result.summary, None);
     }
 
     #[test]
@@ -1021,9 +1040,7 @@ mod tests {
     /// `recording_jobs.rs` name each other: the package, the object and the
     /// three `external fun`s on one side, the three `Java_..._RecordingJob_*`
     /// functions on the other. A rename on either side fails here rather than
-    /// as an `UnsatisfiedLinkError` on a phone with the app closed. The Kotlin
-    /// file is built on its own branch: until it is in this tree its half
-    /// prints SKIPPED and passes.
+    /// as an `UnsatisfiedLinkError` on a phone with the app closed.
     #[test]
     fn the_kotlin_door_and_the_rust_symbols_name_each_other() {
         let door = include_str!("recording_jobs.rs");
@@ -1032,10 +1049,7 @@ mod tests {
             assert!(door.contains(&function), "recording_jobs.rs exports {function}");
         }
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("gen/android/app/src/main/java/com/mattssoftware/glyph/recordings/RecordingJob.kt");
-        let Ok(kotlin) = std::fs::read_to_string(&path) else {
-            eprintln!("SKIPPED: gen/android/app/src/main/java/com/mattssoftware/glyph/recordings/RecordingJob.kt is not in this tree yet");
-            return;
-        };
+        let kotlin = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         for expected in ["package com.mattssoftware.glyph.recordings", "object RecordingJob", "external fun finish(", "external fun run(", "external fun cancel("] {
             assert!(kotlin.contains(expected), "RecordingJob.kt no longer says {expected}");
         }

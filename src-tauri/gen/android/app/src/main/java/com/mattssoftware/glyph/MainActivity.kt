@@ -140,6 +140,9 @@ class MainActivity : TauriActivity() {
   /** The microphone permission's answer, delivered from onResume so the page's retry runs with the activity resumed. */
   @Volatile private var pendingPermission: Boolean? = null
 
+  /** The note whose meeting asked for the microphone, named in the answer so the page knows whose it is. */
+  @Volatile private var microphoneFor: String? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     // Before super: the window's lock-screen behaviour has to be decided before
@@ -362,9 +365,11 @@ class MainActivity : TauriActivity() {
     }
   }
 
-  /** The microphone's answer to the page, `meeting { event: "permission", granted }`. */
+  /** The microphone's answer to the page, `meeting { event: "permission", noteId, granted }`. */
   private fun deliverPermission(granted: Boolean) {
-    tell("meeting", JSONObject().put("event", "permission").put("noteId", JSONObject.NULL).put("elapsedMs", 0).put("granted", granted).toString())
+    val noteId = microphoneFor
+    microphoneFor = null
+    tell("meeting", JSONObject().put("event", "permission").put("noteId", noteId ?: JSONObject.NULL).put("elapsedMs", 0).put("granted", granted).toString())
   }
 
   override fun onWebViewCreate(webView: WebView) {
@@ -418,7 +423,7 @@ class MainActivity : TauriActivity() {
   /** Push a warm meeting tap to a running page, the way deliverCapture does; held for `takeLaunch` until the page says it took it. */
   private fun deliverMeeting() {
     val wv = webView ?: return
-    val json = JSONObject.quote(JSONObject().put("event", "open").put("noteId", JSONObject.NULL).put("elapsedMs", 0).toString())
+    val json = JSONObject.quote(JSONObject().put("event", "open").put("noteId", MeetingService.recordingNoteId() ?: JSONObject.NULL).put("elapsedMs", 0).toString())
     runOnUiThread {
       wv.onResume()
       wv.evaluateJavascript("window.__glyph && window.__glyph.meeting ? (window.__glyph.meeting($json), 'ok') : 'no'") { result ->
@@ -828,6 +833,7 @@ class MainActivity : TauriActivity() {
       if (!isNoteId(noteId)) return "not a note id"
       if (MeetingService.isRecording()) return "recording"
       if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        microphoneFor = noteId
         runOnUiThread { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE) }
         return "permission"
       }
@@ -918,22 +924,24 @@ class MainActivity : TauriActivity() {
       }, "glyph-write-up-cancel").start()
     }
 
-    /** Reset, before `reset_local_data`: both unique works whole, then any run in hand. */
+    /**
+     * Reset, before `reset_local_data`: both unique works whole, then any run
+     * in hand, waited for here on the bridge thread (at most five seconds a
+     * run). The page's call returns only once the run has let go and marked its
+     * file, so Rust's reset removes the jobs folder after the last write to it,
+     * not before one that would leave a file behind.
+     */
     @JavascriptInterface
     fun cancelWriteUps() {
       RecordingWorker.cancelAll(this@MainActivity)
       val dataDir = dataDir.absolutePath
-      val inHand = listOfNotNull(MeetingService.writingUp, RecordingWorker.running)
-      if (inHand.isEmpty()) return
-      Thread({
-        for (id in inHand) {
-          try {
-            RecordingJob.cancel(dataDir, id, "cancel")
-          } catch (error: Throwable) {
-            Log.w(TAG, "cancelWriteUps failed for $id", error)
-          }
+      for (id in listOfNotNull(MeetingService.writingUp, RecordingWorker.running).distinct()) {
+        try {
+          RecordingJob.cancel(dataDir, id, "cancel")
+        } catch (error: Throwable) {
+          Log.w(TAG, "cancelWriteUps failed for $id", error)
         }
-      }, "glyph-write-ups-cancel").start()
+      }
     }
 
     /** The page has deleted a note the notification's Discard threw away. */

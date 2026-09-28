@@ -21,7 +21,7 @@ internal object RecordingJob {
   /** Stop's bookkeeping: the header patched from the file's length, the note's tape recorded. `{"recordedMs": n}` or `{"error": s}`. */
   @JvmStatic external fun finish(dataDir: String, noteId: String, title: String): String?
 
-  /** The write-up itself, blocking. `options` is the JSON in the contract's 2.3; the answer is one of its shapes. */
+  /** The write-up itself, blocking. `options` is write_up.rs's `Options` as JSON (WriteUp.options); the answer is one of `Answer`'s shapes. */
   @JvmStatic external fun run(dataDir: String, noteId: String, options: String): String?
 
   /** Raise the run's abort with `reason` ("cancel", "thermal", "timeout", "meeting"); `{"cancelled": bool}`. */

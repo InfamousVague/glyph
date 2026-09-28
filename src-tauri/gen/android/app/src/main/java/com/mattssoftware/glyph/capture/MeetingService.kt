@@ -118,7 +118,10 @@ class MeetingService : Service() {
 
     fun isRecording(): Boolean = recording
 
-    /** The JSON the page polls (the contract's 1.4). */
+    /** The note being recorded now, or null: named in the notification tap's `open`. */
+    fun recordingNoteId(): String? = if (recording) noteId else null
+
+    /** The JSON the page polls (capture/meetingLive.ts `MeetingState`). */
     fun meetingState(context: Context): String {
       val elapsed = if (recording) SystemClock.elapsedRealtime() - startedAtElapsed else 0L
       return JSONObject()
@@ -470,9 +473,11 @@ class MeetingService : Service() {
       return
     }
     pushStopped(id, reason, elapsed)
-    RecordingWorker.enqueue(this, id, name, now = false, fresh = false)
     // The last meeting's write-up, if one was cancelled for this recording, ran on this same thread and has ended.
+    // In hand before the chain request exists, so a worker that starts at once finds it so and waits its turn
+    // rather than racing this service for the same job.
     writingUp = id
+    RecordingWorker.enqueue(this, id, name, now = false, fresh = false)
     holdWakeLock(WRITE_UP_WAKE_MS)
     try {
       startWriteUpForeground(RecordingAlerts.writeUp(this, name, RecordingAlerts.progressLine("listening", 0)))
@@ -486,12 +491,13 @@ class MeetingService : Service() {
     runWriteUp(id, name)
   }
 
-  /** The write-up loop (the contract's 7.2), the service's flavour: heat waits a minute at a time, every other hold leaves it to the chain. */
+  /** The write-up loop (WriteUp.kt), the service's flavour: heat waits a minute at a time, every other hold leaves it to the chain. */
   private fun runWriteUp(id: String, name: String) {
     var thermalWaits = 0
     while (!destroyed) {
       val outcome = WriteUp.runOnce(this, id, name, now = false, fresh = false) { line ->
-        if (writingUp == id) RecordingAlerts.show(this, RecordingAlerts.RECORDING_ID, RecordingAlerts.writeUp(this, name, line))
+        // Not over a new meeting's own notification while this run lets go for it.
+        if (writingUp == id && !recording) RecordingAlerts.show(this, RecordingAlerts.RECORDING_ID, RecordingAlerts.writeUp(this, name, line))
       }
       if (outcome is Outcome.Retry && outcome.reason == "thermal" && thermalWaits < THERMAL_WAITS) {
         var cooled = false

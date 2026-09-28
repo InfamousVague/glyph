@@ -228,6 +228,26 @@ describe('a meeting on the phone', () => {
     expect(await getNote(id)).not.toBeNull();
   });
 
+  it('takes the microphone\'s answer as the waiting meeting\'s when the push names no note', async () => {
+    installService();
+    service.answer = 'permission';
+    show(<Probe from={{ name: 'list' }} />);
+    await act(async () => route.meeting(false));
+    const [id, title] = service.started[0]!;
+    service.answer = 'started';
+    push({ event: 'permission', noteId: null, elapsedMs: 0, granted: true });
+    await waitUntil(() => expect(service.started).toEqual([[id, title], [id, title]]));
+    expect(screen).toMatchObject({ name: 'meeting', noteId: id });
+  });
+
+  it('opens the meeting screen on a tap of the recording notification that names no note', async () => {
+    installService();
+    show(<Probe from={{ name: 'list' }} />);
+    service.state = { recording: true, noteId: 'live', title: 'Meeting, 26 Sep 14:05', startedAt: 0, elapsedMs: 9, silenced: false, writingUp: null, discarded: [] };
+    push({ event: 'open', noteId: null, elapsedMs: 0 });
+    expect(screen).toMatchObject({ name: 'meeting', noteId: 'live', fromAssistant: false });
+  });
+
   it('takes everything back when the microphone is refused, and says so', async () => {
     installService();
     service.answer = 'permission';

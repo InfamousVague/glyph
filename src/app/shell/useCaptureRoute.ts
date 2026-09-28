@@ -231,18 +231,24 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
     () =>
       onMeetingEvent((event: MeetingEvent) => {
         const pending = pendingMeeting.current;
-        if (event.event === 'permission' && pending?.id === event.noteId) {
+        // The microphone's answer is the waiting meeting's: only one waits, so a push that names no note is its too.
+        if (event.event === 'permission' && pending && (event.noteId === null || pending.id === event.noteId)) {
           if (event.granted) void ask(pending.id, pending.title, pending.fromAssistant);
           else void undo(pending.id, MICROPHONE_REFUSED);
           return;
         }
-        if (event.event === 'failed' && (started.current.has(event.noteId) || pending?.id === event.noteId)) {
-          void undo(event.noteId, event.message ?? MEETING_FAILED);
+        const id = event.noteId;
+        if (id === null) {
+          if (event.event === 'open') showMeeting(false);
           return;
         }
-        if (event.event === 'started') started.current.delete(event.noteId);
+        if (event.event === 'failed' && (started.current.has(id) || pending?.id === id)) {
+          void undo(id, event.message ?? MEETING_FAILED);
+          return;
+        }
+        if (event.event === 'started') started.current.delete(id);
         const current = now.current.screen;
-        if ((event.event === 'stopped' || event.event === 'discarded') && current.name === 'meeting' && current.noteId === event.noteId) {
+        if ((event.event === 'stopped' || event.event === 'discarded') && current.name === 'meeting' && current.noteId === id) {
           setScreen({ name: 'list' });
           void now.current.refresh().catch(() => undefined);
         }

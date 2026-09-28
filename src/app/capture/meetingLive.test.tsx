@@ -58,11 +58,15 @@ describe('what the service says', () => {
     expect(parseMeetingState(null)).toBeNull();
   });
 
-  it('is read as an event, with the extras each kind carries, and not without its name or its note', () => {
+  it('is read as an event, with the extras each kind carries, and not without its name or, but for two, its note', () => {
     expect(parseMeetingEvent(JSON.stringify({ event: 'stopped', noteId: 'm1', elapsedMs: 9, reason: 'cap' }))).toEqual({ event: 'stopped', noteId: 'm1', elapsedMs: 9, reason: 'cap' });
     expect(parseMeetingEvent(JSON.stringify({ event: 'permission', noteId: 'm1', granted: false }))).toEqual({ event: 'permission', noteId: 'm1', elapsedMs: 0, granted: false });
     expect(parseMeetingEvent(JSON.stringify({ event: 'failed', noteId: 'm1', message: 'The meeting could not start.' }))).toEqual({ event: 'failed', noteId: 'm1', elapsedMs: 0, message: 'The meeting could not start.' });
     expect(parseMeetingEvent(JSON.stringify({ event: 'started' }))).toBeNull();
+    // The activity says these two with no note in hand: the microphone's answer and a tap on the notification.
+    expect(parseMeetingEvent(JSON.stringify({ event: 'permission', noteId: null, elapsedMs: 0, granted: true }))).toEqual({ event: 'permission', noteId: null, elapsedMs: 0, granted: true });
+    expect(parseMeetingEvent(JSON.stringify({ event: 'open', noteId: null, elapsedMs: 0 }))).toEqual({ event: 'open', noteId: null, elapsedMs: 0 });
+    expect(parseMeetingEvent(JSON.stringify({ event: 'discarded', noteId: null }))).toBeNull();
     expect(parseMeetingEvent(JSON.stringify({ noteId: 'm1' }))).toBeNull();
     expect(parseMeetingEvent('not json')).toBeNull();
   });
