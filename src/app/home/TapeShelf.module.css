@@ -1,14 +1,17 @@
 /*
- * The shelf of tapes on the home page (TapeShelf.tsx): a row of tape cards that scrolls sideways at every width,
- * bleeding to the screen's edges under the page's gutters, each 13rem wide on the note card's ground with the
- * cassette, the title, the caption and the foot in one column (docs/DESIGN.md §132; §127 section 1 for the shelf it
- * was, 11rem cassettes with three lines under each). The row snaps loosely to a card. The mouse wheel is left alone
- * over it, unlike over the tab row and the workspace pills (core/scrollSideways.ts): those sit in bars with nothing
- * to scroll above them, while the shelf sits in the page's own scroller, and React's wheel listeners are passive, so
- * a turn of the wheel over the row moved it a card sideways and scrolled the page down at once. Shift with the wheel,
- * a trackpad's sideways swipe and a finger all still move the row, and the heading's "See all" is the mouse's way to
- * the rest. Measured in Chromium at the Fold's cover screen's 412px, not yet on the Fold: a card 208 × 270px, the row
- * 284px (the shelf of cassettes was 196), one card whole and 164px of the next showing (§132 "Measured").
+ * The shelf of tapes on the home page (TapeShelf.tsx): a row of tape cards that scrolls sideways on a phone and on a
+ * page under 50rem, bleeding to the screen's edges under the page's gutters, each 13rem wide on the note card's ground
+ * with the cassette, the title, the caption and the foot in one column (docs/DESIGN.md §132; §127 section 1 for the
+ * shelf it was, 11rem cassettes with three lines under each). The row snaps loosely to a card. The mouse wheel is left
+ * alone over it, unlike over the tab row and the workspace pills (core/scrollSideways.ts): those sit in bars with
+ * nothing to scroll above them, while the shelf sits in the page's own scroller, and React's wheel listeners are
+ * passive, so a turn of the wheel over the row moved it a card sideways and scrolled the page down at once. Shift with
+ * the wheel, a trackpad's sideways swipe and a finger all still move the row, and the heading's "See all" is the
+ * mouse's way to the rest. Measured in Chromium at the Fold's cover screen's 412px, not yet on the Fold: a card 208 ×
+ * 270px, the row 284px (the shelf of cassettes was 196), one card whole and 164px of the next showing (§132 "Measured").
+ *
+ * Past 50rem of the page the row is a grid on the page's own columns ("On the page's columns", at the end), with the
+ * tapes' edges on the units' edges and, on the Fold opened out, the hinge between the second tape and the third.
  */
 
 /*
@@ -188,6 +191,71 @@
   line-height: var(--glacier-leading-xs);
   font-variant-numeric: tabular-nums;
   color: var(--glacier-text-subtle);
+}
+
+/*
+ * On the page's columns (docs/DESIGN.md §137): past 50rem of the page's column the row is a grid, every tape in view
+ * and none behind the screen's edge. Asked of the home page's own container, `home-page` (HomeScreen.module.css
+ * `.page`), from this sheet: CSS modules make a sheet's classes and keyframes its own, never a container's name
+ * (postcss-modules-local-by-default leaves `container-name` and `@container` alone), so both sheets mean the one column.
+ *
+ * - From 50rem to 60rem, the page's two units: half a unit each, two to a unit, four across, with the units' own gap
+ *   between the pairs, so a tape's outer edge is a unit's edge and the Fold's hinge runs between the second and the
+ *   third. 50rem because every width the Fold reports opened out with its hinge down the page is 51-55rem of column,
+ *   while a tablet held upright (45-49rem) keeps the phone's full-size tapes in the row. On the grid a cassette is
+ *   smaller than the phone's 170px: 139 at the grid's foot, 142-157 on the Fold, 144 in a 1280 window with the sidebar
+ *   docked, 173 at the top.
+ * - From 60rem, the desk's main: three across (`--shelf-across`, which HomeScreen.module.css sets: four when there is
+ *   no rail).
+ *
+ * No block padding on the grid: it was room for the arrive beat inside a row that clips, and a grid does not clip.
+ * The placements are in the ranged block alone, so the desk's grid never inherits a fourth or fifth column.
+ */
+@container home-page (min-width: 50rem) {
+  .row {
+    display: grid;
+    column-gap: var(--glacier-space-4);
+    row-gap: var(--glacier-space-4);
+    margin-inline: 0;
+    padding: 0;
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+
+  .tape {
+    inline-size: auto;
+  }
+}
+
+@container home-page (50rem <= width < 60rem) {
+  /* Four tracks, and between the pairs a spacer that makes the middle gap the page's own space-10. */
+  .row {
+    grid-template-columns:
+      minmax(0, 1fr) minmax(0, 1fr) calc(var(--glacier-space-10) - 2 * var(--glacier-space-4))
+      minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .tape:nth-child(4n + 1) {
+    grid-column: 1;
+  }
+
+  .tape:nth-child(4n + 2) {
+    grid-column: 2;
+  }
+
+  .tape:nth-child(4n + 3) {
+    grid-column: 4;
+  }
+
+  .tape:nth-child(4n + 4) {
+    grid-column: 5;
+  }
+}
+
+@container home-page (min-width: 60rem) {
+  .row {
+    grid-template-columns: repeat(var(--shelf-across, 3), minmax(0, 1fr));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
