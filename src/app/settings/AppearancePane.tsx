@@ -195,7 +195,7 @@ export function AppearancePane() {
         />
         <SettingRow
           label="Ghostly typing"
-          hint="Letters arrive as smoke and gather into words as you talk or type."
+          hint="Words you say arrive as smoke, and words you delete leave as smoke. What you type appears at once."
           control={<Switch aria-label="Ghostly typing" checked={prefs.wisp} onCheckedChange={(wisp) => setPreferences({ wisp })} />}
         />
         <SettingRow

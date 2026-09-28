@@ -68,10 +68,11 @@ describe('text arriving from smoke in the editor', () => {
     expect(ghosts[0]?.from).toBe(1);
   });
 
-  it('with typing on, sets typed letters moving, ghosts a backspace, and caps a paste', () => {
+  it('with typing on, shows typed and pasted text at once, and smokes away what is taken out', () => {
     const typed = EditorState.create({ doc: '', extensions: [wispArrivals({ typing: true })] });
+    // A typed letter is there at once: nothing arrives through smoke under the finger that typed it.
     const one = typed.update({ changes: { from: 0, insert: 'h' }, userEvent: 'input.type' }).state;
-    expect(moving(one).map((m) => one.doc.sliceString(m.from, m.to))).toEqual(['h']);
+    expect(moving(one)).toEqual([]);
     // A letter backspaced by hand goes at once: no smoke to stutter under the fingers.
     const gone = one.update({ changes: { from: 0, to: 1, insert: '' }, userEvent: 'delete.backward' }).state;
     expect(moving(gone).filter((m) => m.gone)).toEqual([]);
@@ -80,8 +81,14 @@ describe('text arriving from smoke in the editor', () => {
       .update({ changes: { from: 4, to: 8, insert: '' }, userEvent: 'delete.selection' })
       .state;
     expect(moving(word).map((m) => m.gone)).toEqual(['milk']);
+    // A paste is there at once too.
     const pasted = typed.update({ changes: { from: 0, insert: 'x'.repeat(100) }, userEvent: 'input.paste' }).state;
-    expect(moving(pasted).reduce((sum, m) => sum + (m.to - m.from), 0)).toBe(40);
+    expect(moving(pasted)).toEqual([]);
+    // Typing over a selection: the new letters are simply there, and only the words they replaced smoke away.
+    const over = EditorState.create({ doc: 'buy milk', extensions: [wispArrivals({ typing: true })] })
+      .update({ changes: { from: 4, to: 8, insert: 'e' }, userEvent: 'input.type' })
+      .state;
+    expect(moving(over).map((m) => m.gone)).toEqual(['milk']);
     const programmatic = typed.update({ changes: { from: 0, insert: 'set' } }).state;
     expect(moving(programmatic)).toEqual([]);
     // A tapped box smokes its letter away where it stood; a board's own edits (a card moved, a divider dragged) do not.
@@ -90,8 +97,11 @@ describe('text arriving from smoke in the editor', () => {
     expect(tapped.map((m) => [m.gone, m.from])).toEqual([['x', 3]]);
     // The one letter between two brackets that stay put dissolves where it stands: no throw across the box, no rise into it.
     expect(tapped[0]?.box).toBe(true);
+    // And ticked, the mark dissolves in where it stands: a tap is not typing.
+    const ticked = moving(EditorState.create({ doc: '- [ ] milk', extensions: [wispArrivals({ typing: true })] }).update({ changes: { from: 3, to: 4, insert: 'x' }, userEvent: 'input.toggle' }).state);
+    expect(ticked.map((m) => [m.gone, m.from, m.to, m.box])).toEqual([['', 3, 4, true]]);
     const byHand = moving(box.update({ changes: { from: 3, to: 4, insert: 'y' }, userEvent: 'input.type' }).state);
-    expect(byHand.every((m) => !m.box)).toBe(true);
+    expect(byHand.every((m) => !m.box && m.gone)).toBe(true);
     expect(moving(box.update({ changes: { from: 3, to: 4, insert: ' ' }, userEvent: 'input.board' }).state)).toEqual([]);
     expect(moving(box.update({ changes: { from: 3, to: 4, insert: ' ' }, userEvent: 'input.board' }).state)).toEqual([]);
   });

@@ -8,8 +8,8 @@ import { motionScale } from '../core/preferences.ts';
  *
  * A transaction carrying the `wisp` annotation - the recorder writing what it heard, or rewriting a pending phrase -
  * sets the letters it really added arriving and the text it really took away leaving, diffed so a phrase firming up
- * moves one letter. With typing on, the person's own letters and backspaces do too, and a paste only its first
- * letters. `revealWisp` fades a stretch already there in, as a note opens. Everything in motion is held in one field,
+ * moves one letter. With typing on, what the person takes out smokes away too; what they type or paste appears at
+ * once. `revealWisp` fades a stretch already there in, as a note opens. Everything in motion is held in one field,
  * mapped through every change, with the moment each piece starts and how long it lasts at the chosen pace
  * (Settings › Appearance › Motion), until the drawing says it has settled. With reduced motion asked for, nothing is set in
  * motion at all.
@@ -23,7 +23,7 @@ export type WispKind = 'heard' | 'rewrite';
 /** Put on a transaction that writes what was heard, or rewrites a pending phrase. */
 export const wisp = Annotation.define<{ kind: WispKind }>();
 
-/** Whether typed and deleted text moves too. */
+/** Whether text deleted by hand smokes away (typed text never arrives through smoke: it appears as it is typed). */
 export const typing = Facet.define<boolean, boolean>({ combine: (values) => values.some(Boolean) });
 
 /**
@@ -42,9 +42,6 @@ function deleteMs(now: number): number {
   lastDeleteAt = now;
   return run ? DELETE_RUN_MS : DELETE_MS;
 }
-
-/** A paste animates no more letters than this: past it the pool would only settle the first ones early. */
-const PASTE_MAX = 40;
 
 /** A letter that arrived, or the text that left, still in motion. */
 export interface Moving {
@@ -139,11 +136,15 @@ export function commonEnds(a: string, b: string): { prefix: number; suffix: numb
   return { prefix, suffix };
 }
 
-/** What a wisp transaction sets in motion: the letters it really added, and the text it really took away. */
-function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, outMs = OUT_MS, singleLetters = true, box?: boolean): Moving[] {
+/**
+ * What a transaction sets in motion: the text it really took away, and, where `arrive`, the letters it really added.
+ * The person's own typing sets no arrivals (Matt: "Don't ghostly fade the text in I want text input to be
+ * instantaious we can show the ghostly fade away when deleting though still"): a letter drawn out of smoke was a
+ * letter that was not there yet under the finger that typed it.
+ */
+function movingIn(tr: Transaction, now: number, outMs = OUT_MS, singleLetters = true, box?: boolean, arrive = true): Moving[] {
   const moving: Moving[] = [];
   let wait = 0;
-  let letters = 0;
   tr.changes.iterChanges((fromA, toA, fromB, _toB, inserted) => {
     const removed = tr.startState.doc.sliceString(fromA, toA);
     const added = inserted.toString();
@@ -153,19 +154,17 @@ function movingIn(tr: Transaction, now: number, cap = Number.POSITIVE_INFINITY, 
     // "deleting characters should be instant and not glitchy when typing"). A word or a selection taken out at once
     // still smokes, and so does a letter a rewrite takes back while the words are being heard, which is not typing.
     if (gone.trim() && (singleLetters || gone.trim().length > 1)) moving.push({ id: nextId++, from: fromB + prefix, to: fromB + prefix, gone, at: now, dur: outMs, box });
+    if (!arrive) return;
     // A word at a time, one filter each, in turn at the pace its letters would type: a letter per filter made a long
     // phrase bend sixty at once, the phone fell behind, and the rest arrived all together (Matt: "it still animates
     // one line or so and then rapidly finishes"). A single typed letter is its own word, so typing is unchanged.
     const end = added.length - suffix;
     let i = prefix;
-    while (i < end && letters < cap) {
+    while (i < end) {
       while (i < end && !(added[i] ?? '').trim()) i += 1;
       if (i >= end) break;
       let j = i;
-      while (j < end && (added[j] ?? '').trim() && letters < cap) {
-        j += 1;
-        letters += 1;
-      }
+      while (j < end && (added[j] ?? '').trim()) j += 1;
       moving.push({ id: nextId++, from: fromB + i, to: fromB + j, gone: '', at: now + Math.min(wait, STAGGER_CAP_MS), dur: IN_MS + Math.random() * IN_JITTER_MS, box });
       wait += Math.min(WORD_MAX_MS, (j - i + 1) * STAGGER_MS);
       i = j;
@@ -216,9 +215,10 @@ export const wispState = StateField.define<readonly Moving[]>({
     if (tr.state.facet(typing) && (tr.isUserEvent('input') || tr.isUserEvent('delete'))) {
       const now = performance.now();
       const deleting = tr.isUserEvent('delete');
-      // A tapped box turns one letter between two that stay put: it dissolves where it stands.
+      // A tapped box turns one letter between two that stay put: it dissolves where it stands, the mark coming as well
+      // as going, since a tap is not typing. Everything typed or pasted is simply there; only what it replaced smokes.
       const box = tr.isUserEvent('input.toggle') || tr.isUserEvent('input.choice');
-      return [...next, ...paced(movingIn(tr, now, tr.isUserEvent('input.paste') ? PASTE_MAX : Number.POSITIVE_INFINITY, deleting ? deleteMs(now) : OUT_MS, !deleting, box), now)];
+      return [...next, ...paced(movingIn(tr, now, deleting ? deleteMs(now) : OUT_MS, !deleting, box, box), now)];
     }
     return next;
   },

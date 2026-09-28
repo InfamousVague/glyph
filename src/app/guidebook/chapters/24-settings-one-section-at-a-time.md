@@ -55,7 +55,7 @@ How it looks, moves and feels. Its cards are Page, Accent, Type, Spacing, Corner
 | Code | Light page: **Pastel**, Ink, GitHub, Solarized. Dark page: **Pastel**, Ink, One Dark, Dracula, Nord | The colours of code in a code block. Ink keeps code in the page's ink. |
 | Sidebar | **Popover**, Docked | On a wide window only: your notes over the note, or docked as a column beside it. |
 | Animation speed | Relaxed, **Normal**, Brisk | How quickly letters gather and screens and sheets move. |
-| Ghostly typing | **On** | Letters arrive as smoke and gather into words as you talk or type. |
+| Ghostly typing | **On** | Words you say arrive as smoke, and words you delete leave as smoke. What you type appears at once. |
 | Smoke at the edges | **On** | A page turns to smoke as it passes under the header or the dock. |
 | Ripples while recording | **On** | The newest words move with your voice as the phone hears it. |
 | Haptics | **On** | A small tap when a style or a cue kicks in. Only in the phone app, where there is a motor. |

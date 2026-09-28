@@ -20,10 +20,11 @@ import { settle, typing, wispState, type Moving } from './wispMotion.ts';
  *   they were.
  * - Only the newest letters are in motion, capped at a pool of filters, so a
  *   long note costs nothing but its last few words.
- * - With `typing` on, what the person types is treated the same way (Matt: "I
+ * - With `typing` on, what the person deletes leaves into smoke too (Matt: "I
  *   want the text to fade in and delete away with the wisp effect as I
- *   type"): each typed letter arrives from smoke, a backspace leaves its
- *   letter going into it, and a long paste animates only its first letters.
+ *   type"). What they type or paste appears at once, since a letter drawn
+ *   out of smoke is not yet there under the finger that typed it (Matt:
+ *   "Don't ghostly fade the text in I want text input to be instantaious").
  *
  * WispText owns its DOM; a note's is CodeMirror's, so here the motion is all
  * in the filter and none in the DOM: each moving letter is a mark decoration

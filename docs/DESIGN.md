@@ -7581,3 +7581,24 @@ stood clear of the capped column. With the page spanning the pane the dock cross
 clearance is a plain rule now, and the `home-pane` container it asked is gone. The phone is untouched: under 44rem no
 tier applies, the cap never reached a phone's column, and the clearance already applied there.
 
+## 140. Typed text appears at once; deleted text still smokes away (2026-09-28)
+
+Matt: "Don't ghostly fade the text in I want text input to be instantaious we can show the ghostly fade away when
+deleting though still".
+
+With Ghostly typing on, every letter typed used to arrive out of smoke (`editor/wispMotion.ts`), and a paste
+animated its first forty letters. So for a moment a letter that had been typed was not yet there to read. Now the
+typing path sets no arrivals: what is typed or pasted is drawn as it lands. The `PASTE_MAX` cap went with it.
+
+What still moves:
+
+- **What is taken out by hand.** A word or a selection deleted at once smokes away where it stood, quickly, and quicker
+  in a run of backspaces. So does the text a typed letter replaces. A single backspaced letter still just goes,
+  as before.
+- **A tapped box's mark** (`input.toggle`, `input.choice`) dissolves in and out where it stands. A tap is not typing.
+- **Words that were not typed:** the recorder's heard and rewritten words, the AI's lines as they land, and the
+  review's findings, all with the `wisp` annotation. Also the quick reveal of a note's text as it opens.
+
+The setting keeps its name. Its hint now says what it does: "Words you say arrive as smoke, and words you delete leave
+as smoke. What you type appears at once." The Guide's chapters 24 and 30 say the same.
+
