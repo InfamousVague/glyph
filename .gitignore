@@ -61,6 +61,9 @@ src-tauri/gen/android/**
 # Where a note was written: the location permission's state and ask (native generation 20).
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/location/
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/location/**
+# A film for a note: the Photo Picker, the copy and its poster (native generation 21).
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/media/
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/media/**
 !src-tauri/gen/android/app/src/main/res/
 !src-tauri/gen/android/app/src/main/res/xml/
 !src-tauri/gen/android/app/src/main/res/xml/glyph_*.xml

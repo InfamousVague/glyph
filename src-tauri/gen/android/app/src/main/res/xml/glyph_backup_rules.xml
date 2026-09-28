@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Google's backup on Android 11 and earlier (AndroidManifest.xml, android:fullBackupContent). Everything the app keeps
+  is taken as before, but for the films in notes: video/ under the data directory (src-tauri/src/videos.rs), which
+  stays on the phone it was added on. src-tauri/src/paths.rs reads this file, so the folder cannot be renamed on one
+  side alone.
+-->
+<full-backup-content>
+    <exclude domain="root" path="video/" />
+</full-backup-content>
