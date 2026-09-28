@@ -75,8 +75,10 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   const chapters = useMemo(() => chaptersOf(body), [body]);
   const numbers = useMemo(() => numbered(chapters), [chapters]);
   const words = useMemo(() => bookWords(body), [body]);
-  // Everyone who wrote the book: its own authors, then each chapter's, first met first (core/authors.ts).
-  const authors = authorsAcross([body, ...chapters.map((c) => bodyOf?.(c.title) ?? '')]);
+  // Everyone who wrote the book: its own authors, then each chapter's, first met first (core/authors.ts). Read again
+  // only when a body changed: `bodyOf` is a new function on every draw of App, and a journal of a year has a page a day.
+  const pageBodies = useSameList(chapters.map((c) => bodyOf?.(c.title) ?? ''));
+  const authors = useMemo(() => authorsAcross([body, ...pageBodies]), [body, pageBodies]);
   const [adding, setAdding] = useState<'new' | 'existing' | null>(null);
   /** Where the book was left, read once as it opens: reading straight through is picked up where it was. */
   const [left, setLeft] = useState(() => {
@@ -340,4 +342,12 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
 
 function noop(): void {
   // Read-only: nothing typed comes back.
+}
+
+/** `list`, or the list last given when every item is the same: an identity a memo can key on. */
+function useSameList(list: readonly string[]): readonly string[] {
+  const kept = useRef(list);
+  const was = kept.current;
+  if (was.length !== list.length || was.some((item, i) => item !== list[i])) kept.current = list;
+  return kept.current;
 }

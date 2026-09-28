@@ -39,6 +39,7 @@ import { sceneQuery } from './scene/scripted.ts';
 import { syncNow, useSyncStatus } from './core/sync/engine.ts';
 import { createNote, getNote, newNoteId, noteTitle, updateNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
+import { titleKey } from './core/titleKey.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote } from './core/seed.ts';
 import { addGuideBook, GUIDE_TITLE } from './guidebook/guidebook.ts';
 import { outOfTrash, trash } from './core/trash.ts';
@@ -249,8 +250,25 @@ function Shell() {
   };
   const closeTab = (id: string) => closeTabs([id]);
 
+  /*
+   * Every note by its title as a link matches it (core/titleKey.ts), the first of any two that share one, as a search
+   * down the list would find: built once per change to the notes. A notebook's index asks after every page on every
+   * render, and a search per page through a library that titles every note it passes was about a thousand library
+   * scans a render for a journal of a year (docs/DESIGN.md §142).
+   */
+  const byTitle = useMemo(() => {
+    const map = new Map<string, Note>();
+    for (const note of shownNotes) {
+      const key = titleKey(noteTitle(note.body));
+      if (key && !map.has(key)) map.set(key, note);
+    }
+    return map;
+  }, [shownNotes]);
   /** The note by that title in the library, as a `[[link]]` names it (editor/wikiLinks.ts), or undefined. */
-  const titled = (title: string) => shownNotes.find((n) => sameTitle(noteTitle(n.body), title));
+  const titled = (title: string) => {
+    const key = titleKey(title);
+    return key ? byTitle.get(key) : undefined;
+  };
   /** Whether a note by that title is in the library: what a `[[link]]` is drawn by. */
   const hasTitle = (title: string) => titled(title) !== undefined;
   /** What the aside holds now: the open note's book, or its numbered chapters in order, or nothing (aside/aside.ts). */
