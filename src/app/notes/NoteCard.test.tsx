@@ -52,6 +52,5 @@ describe('where the note was written, on its card', () => {
     );
     // The place, and never the coordinates; and never a tag still waiting to be written.
     expect([...host.querySelectorAll('[class*=when]')].map((el) => el.textContent)).toEqual(['Just now · Trafalgar Square', '12:40 · Just now', 'Just now']);
-    expect(host.querySelector('[class*=place]')?.textContent).toBe('Trafalgar Square');
   });
 });

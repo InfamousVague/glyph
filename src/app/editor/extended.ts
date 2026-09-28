@@ -285,7 +285,9 @@ const theme = EditorView.baseTheme({
   },
   '.cm-front': { background: 'color-mix(in oklch, currentColor 3%, transparent)' },
   // The front matter folded: its keys' names on one line, in the same quiet face, and a hand for the tap that opens it.
+  // A block widget sits outside `.cm-line`, so it takes the lines' side padding itself (markdown.module.css).
   '.cm-frontFold': {
+    paddingInline: 'var(--app-gutter, 0)',
     fontFamily: 'var(--glacier-font-mono)',
     fontSize: '0.84em',
     lineHeight: '1.9',

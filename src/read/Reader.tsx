@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Download, Plus } from '@glacier/icons';
 import { failureText } from '../app/core/failure.ts';
 import { Editor } from '../app/editor/Editor.tsx';
@@ -15,8 +15,13 @@ import { readShared, readShareLink, sharedAsFile, type Shared } from '../app/sha
 import { authorsOf } from '../app/core/authors.ts';
 import { geoTagOf } from '../app/core/geotag.ts';
 import { Byline } from '../app/authors/Byline.tsx';
-import { MapCard } from '../app/editor/MapCard.tsx';
 import styles from './Reader.module.css';
+
+/*
+ * The map card, fetched only for a page that says where it was written: most shared pages do not, and the card is
+ * the app's (editor/MapCard.tsx), which would otherwise ride in the chunk this page shares with the app.
+ */
+const MapCard = lazy(() => import('../app/editor/MapCard.tsx').then((module) => ({ default: module.MapCard })));
 
 /**
  * The page a shared note or book is read on (docs/SHARING.md): the link's key opens it here, in the browser, and the
@@ -227,7 +232,11 @@ function Read({
       ) : (
         <article className={styles.note}>
           <Byline authors={authorsOf(current.body)} />
-          {tag ? <MapCard tag={tag} mode={mapOn === page ? 'map' : 'ask'} dark={dark} onShow={() => setMapOn(page)} className={styles.map} /> : null}
+          {tag ? (
+            <Suspense fallback={null}>
+              <MapCard tag={tag} mode={mapOn === page ? 'map' : 'ask'} dark={dark} onShow={() => setMapOn(page)} className={styles.map} />
+            </Suspense>
+          ) : null}
           <Editor
             key={`${page}:${current.title}`}
             value={current.body}

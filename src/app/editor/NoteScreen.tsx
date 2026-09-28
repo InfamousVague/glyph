@@ -302,11 +302,12 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       writeTag({ ...inBody, place });
       return;
     }
+    // The tag still waiting (core/location.ts may have named it already, as it told this screen): the card says it.
     const waiting = pendingTag(note.id);
-    if (waiting && !waiting.place && waiting.lat === lat && waiting.lon === lon) {
+    if (waiting && waiting.lat === lat && waiting.lon === lon) {
       const named = { ...waiting, place };
-      setPendingTag(note.id, named);
-      setTag(named);
+      if (waiting.place !== place) setPendingTag(note.id, named);
+      setTag((was) => (sameTag(was, named) ? was : named));
     }
   };
   // The latest of these, for the listeners registered once per note.

@@ -811,6 +811,28 @@ describe('where the note was written', () => {
     await settle();
     expect(editor().state.doc.toString()).toBe(here);
     expect(pendingTag('n2')).toBeNull();
+    setPreferences({ placeNames: true });
+  });
+
+  it('names a tag still waiting for a new note’s words, on the card', async () => {
+    const { tagNewNotes, pendingTag } = await import('../core/location.ts');
+    const { setPreferences } = await import('../core/preferences.ts');
+    setPreferences({ placeNames: true });
+    // Its own id: a name still waiting on an earlier test's clock is that note's, not this one's.
+    const asked = nominatim('Somerset House');
+    show(screen(await createNote('w1', '')));
+    await act(async () => tagNewNotes(['w1'], Promise.resolve({ lat: 51.511, lon: -0.1171, accuracy: 12, at: 0 }), { reviewing: false }));
+    // Nominatim a second after the last ask, as its policy asks.
+    await settle();
+    act(() => vi.advanceTimersByTime(1200));
+    await settle();
+    expect(card()?.textContent).toContain('Somerset House, London');
+    expect(asked).toHaveLength(1);
+    expect(pendingTag('w1')?.place).toBe('Somerset House, London');
+    expect(editor().state.doc.toString()).toBe('');
+    type('Hello');
+    await settle();
+    expect(editor().state.doc.toString()).toBe('---\nlocation: 51.5110,-0.1171\nplace: "Somerset House, London"\n---\nHello');
   });
 
   it('says on the sheet why a note made since a refusal was not tagged, and nothing of it on an older note', async () => {

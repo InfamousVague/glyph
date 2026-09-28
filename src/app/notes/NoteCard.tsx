@@ -109,11 +109,7 @@ export function NoteCard({ note, index, onOpen, gist, place, dense = false }: No
             </>
           ) : null}
           {when(note.updatedAt)}
-          {where ? (
-            <>
-              {' '}· <span className={styles.place}>{where}</span>
-            </>
-          ) : null}
+          {where ? ` · ${where}` : null}
         </span>
       </button>
     </li>

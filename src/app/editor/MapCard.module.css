@@ -8,6 +8,8 @@
 
 .card {
   position: relative;
+  /* Leaflet's panes carry z-indexes in the hundreds: kept inside the card, never over the header it scrolls under. */
+  isolation: isolate;
   overflow: hidden;
   /* The tape row's weight on a phone, so a spoken tagged note has two rows of one kind above its words. */
   block-size: 6rem;
@@ -94,8 +96,10 @@
   filter: grayscale(1) contrast(0.92) brightness(1.04);
 }
 
+/* Chosen by eye at 2.6 dpr against the page: at 0.8 the streets sank into the dark paper; at 1.4 the blocks
+   competed with the chip's words (DESIGN §134). */
 .card[data-dark] .map :global(.leaflet-tile-pane) {
-  filter: grayscale(1) invert(1) brightness(0.8);
+  filter: grayscale(1) invert(1) brightness(1.1);
 }
 
 /* The map's box is Leaflet's container, and leaflet.css arrives after this sheet: the compound selector outweighs it. */
@@ -105,15 +109,42 @@
   outline: none;
 }
 
-/* The marker: the app's pin in the page's ink, over the wash. */
-.pin {
-  color: var(--app-ink);
-  background: none;
-  border: none;
+/*
+ * The seams between tiles. Leaflet draws its tiles with `mix-blend-mode: plus-lighter` to hide the hairline Chromium
+ * leaves between them, and inside the filtered tile pane that blend opens it instead: a device pixel of the card's
+ * paper at every tile's edge, a grid over the picture. Drawn normally and half a pixel larger, each tile overlaps the
+ * next by that much and the grid goes; seen side by side at 2 and 2.6 dpr in both themes (DESIGN §134). The tiles are
+ * 256px, as the card asks for them (no retina tiles), and `!important` is how a sheet outweighs Leaflet's inline size.
+ */
+.map:global(.leaflet-container) :global(img.leaflet-tile) {
+  mix-blend-mode: normal;
+  width: 256.5px !important;
+  height: 256.5px !important;
 }
 
-.map :global(.leaflet-marker-pane) {
+/*
+ * The pin over the map, in the page's ink and above the wash, its tip on the place at the middle of the box (a ring's
+ * centre, for a rough tag). It arrives with the map, so the quiet card's own pin is never seen beside it.
+ */
+.mark {
+  position: absolute;
   z-index: 460;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -14px -27px;
+  line-height: 0;
+  color: var(--app-ink);
+  opacity: 0;
+  transition: opacity var(--glacier-duration-normal) var(--glacier-ease-out);
+  pointer-events: none;
+}
+
+.mark[data-rough] {
+  translate: -16px -16px;
+}
+
+.card[data-loaded] .mark {
+  opacity: 1;
 }
 
 /* The chips: glass at the corners, one line each, never in the way of a tap. */
@@ -202,7 +233,8 @@
     animation: none;
   }
 
-  .map {
+  .map,
+  .mark {
     transition: none;
   }
 }

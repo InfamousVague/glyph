@@ -296,6 +296,14 @@
   padding-block-start: 0;
 }
 
+/* Nor under the front matter folded to its one quiet line (editor/extended.ts): the heading is still the note's top. */
+.editor :global(.cm-frontFold) + :global(.cm-line).lineH1,
+.editor :global(.cm-frontFold) + :global(.cm-line).lineH2,
+.editor :global(.cm-frontFold) + :global(.cm-line).lineH3,
+.editor :global(.cm-frontFold) + :global(.cm-line).lineH4 {
+  padding-block-start: 0;
+}
+
 /*
  * SPACE AROUND A BLOCK. A quote and a block of code stand clear of the
  * screen's edges and of the lines around them (Matt: "code blocks and >

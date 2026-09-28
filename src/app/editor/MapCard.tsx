@@ -40,10 +40,28 @@ export interface MapCardProps {
 /** OpenStreetMap's standard tiles, under its tile usage policy (docs/THIRD_PARTY.md). */
 const OSM_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
-/** The pin as the map's marker: the app's own line, its body filled with the paper so it reads over tiles. */
-const PIN_SVG = `<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="${PLACE_PATH}" fill="var(--app-paper)" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="10.5" r="2.2" fill="currentColor"/></svg>`;
-/** A rough tag's mark: a ring, since an area is not a point. */
-const RING_SVG = `<svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="color-mix(in srgb, currentColor 10%, transparent)" stroke="currentColor" stroke-width="2.4"/></svg>`;
+/**
+ * The mark over the map: the app's pin, its body filled with the paper so it reads over tiles, its tip on the place;
+ * or, for a rough tag, a ring, since an area is not a point. Drawn by the card rather than as Leaflet's marker: the
+ * map never moves from the tag it was centred on, so the place is always the middle of the box, and Leaflet's
+ * marker pane sits inside its map pane, under the wash, where the pin would be as grey as the streets.
+ */
+function MapMark({ rough }: { rough: boolean }) {
+  return (
+    <span className={styles.mark} data-rough={rough || undefined} aria-hidden="true">
+      {rough ? (
+        <svg viewBox="0 0 32 32" width="32" height="32">
+          <circle cx="16" cy="16" r="14" fill="color-mix(in srgb, currentColor 10%, transparent)" stroke="currentColor" strokeWidth="2.4" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" width="28" height="28">
+          <path d={PLACE_PATH} fill="var(--app-paper)" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="12" cy="10.5" r="2.2" fill="currentColor" />
+        </svg>
+      )}
+    </span>
+  );
+}
 
 const WHY = { 'local-only': 'Local only is on.', off: 'Map off in Settings.' } as const;
 
@@ -86,6 +104,8 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, className }
           markerZoomAnimation: false,
         });
         map.setView([lat, lon], zoom);
+        // Standard tiles, not retina ones: at the Fold's 2.6 dpr the z+1 tiles drawn at half size were sharper but
+        // twice as busy (every shop's mark, the street names at half size), and the card is a picture under a wash.
         const tiles = L.tileLayer(OSM_TILES, { maxZoom: 19, detectRetina: false });
         // The map shows once its tiles are in, whatever a failed one said on the way: a failed tile is the map's
         // paper. Only a map with no tile at all (offline, every one refused) stays the quiet card.
@@ -97,9 +117,8 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, className }
           if (live && drawn) setLoaded(true);
         });
         tiles.addTo(map);
-        // Never Leaflet's own marker image, whose path detection 404s under a bundler: the app's pin, as a div icon.
-        const icon = L.divIcon({ className: styles.pin, html: rough ? RING_SVG : PIN_SVG, iconSize: rough ? [32, 32] : [28, 28], iconAnchor: rough ? [16, 16] : [14, 27] });
-        L.marker([lat, lon], { icon, interactive: false, keyboard: false }).addTo(map);
+        // No Leaflet marker (its default image's path detection 404s under a bundler, and its pane is under the
+        // wash): the card draws the pin at the middle of the box itself (MapMark).
       };
       make();
       // The Fold opening, or a hidden tab coming back: the tiles are redrawn for the new width.
@@ -139,6 +158,7 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, className }
         {rough ? <span className={styles.ring} /> : <Place className={styles.pinMark} />}
       </div>
       {mode === 'map' ? <div ref={mapEl} className={styles.map} aria-hidden="true" /> : null}
+      {mode === 'map' ? <MapMark rough={rough} /> : null}
       <span className={`${styles.chip} ${styles.where}`}>{label}</span>
       {asks ? (
         <span className={`${styles.chip} ${styles.why} ${styles.show}`}>Show the map</span>

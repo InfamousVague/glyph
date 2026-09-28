@@ -153,10 +153,11 @@ describe('the map', () => {
     expect(leaflet.maps[0]!.options).toMatchObject({ dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false, keyboard: false, zoomControl: false, attributionControl: false, zoomAnimation: false });
     expect(leaflet.maps[0]!.views).toEqual([[[51.5074, -0.1278], 15]]);
     expect(leaflet.tiles[0]).toMatchObject({ url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', options: { maxZoom: 19 } });
-    expect(leaflet.icons).toHaveLength(1);
+    // Never Leaflet's marker nor its picture: the card's own pin, over the wash.
+    expect(leaflet.markers).toHaveLength(0);
+    expect(leaflet.icons).toHaveLength(0);
     expect(leaflet.iconImages).toBe(0);
-    expect(leaflet.markers[0]).toMatchObject({ at: [51.5074, -0.1278], options: { interactive: false, keyboard: false } });
-    expect(String(leaflet.icons[0]!.html)).toContain('<path');
+    expect(document.querySelector('[class*=mark] path')).not.toBeNull();
     // Nothing of OSM's is shown yet, so nobody is credited.
     expect(chips()).toEqual(['51.5074, -0.1278']);
     // A failed tile says nothing; the layer's load, once any tile has come, is what fades the map in.
@@ -181,8 +182,8 @@ describe('the map', () => {
     show(<MapCard tag={{ ...LONDON, lat: 51.51, lon: -0.13, rough: true }} mode="map" dark />);
     await waitUntil(() => expect(leaflet.maps).toHaveLength(1));
     expect(leaflet.maps[0]!.views).toEqual([[[51.51, -0.13], 12]]);
-    expect(String(leaflet.icons[0]!.html)).toContain('<circle');
-    expect(String(leaflet.icons[0]!.html)).not.toContain('<path');
+    expect(document.querySelector('[class*=mark][data-rough] circle')).not.toBeNull();
+    expect(document.querySelector('[class*=mark] path')).toBeNull();
     expect(card().hasAttribute('data-dark')).toBe(true);
   });
 
