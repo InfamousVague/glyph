@@ -724,6 +724,115 @@ describe('tagging new notes', () => {
   });
 });
 
+describe('a new note’s map box, held while its fix is on its way', () => {
+  const granted = () => Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'granted' }) } });
+  afterEach(() => Reflect.deleteProperty(navigator, 'permissions'));
+
+  it('is expected only where a fix would come with nothing to answer: the switch, Local only, a refusal, the prompt', async () => {
+    fixAt(51.5, -0.12);
+    // Never answered: nothing comes unless the person allows it, so nothing is held.
+    expect(await location.willLocate()).toBe(false);
+    granted();
+    expect(await location.willLocate()).toBe(true);
+    prefs.setPreferences({ tagNewNotes: false });
+    expect(await location.willLocate()).toBe(false);
+    prefs.setPreferences({ tagNewNotes: true, localOnly: true });
+    expect(await location.willLocate()).toBe(false);
+    prefs.setPreferences({ localOnly: false });
+    mac = true;
+    expect(await location.willLocate()).toBe(false);
+    mac = false;
+    // A refusal kept stands while the device still refuses; allowed again, it is forgotten and the fix expected.
+    location.rememberRefusal('refused');
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'denied' }) } });
+    expect(await location.willLocate()).toBe(false);
+    expect(await location.refusalStanding()).toBe(true);
+    granted();
+    expect(await location.refusalStanding()).toBe(false);
+    expect(await location.willLocate()).toBe(true);
+  });
+
+  it('stays from the first frame until the note is left, found or not, and says when none is coming', async () => {
+    granted();
+    await store.createNote('h1', '');
+    const told: string[] = [];
+    const stop = location.watchTag('h1', (event) => told.push(event.kind));
+    location.holdFor(['h1']);
+    expect(location.heldFor('h1')).toBe('waiting');
+    // Missed while the note is open: the box stays and says so.
+    failWith(2);
+    await location.tagNewNotesIfWanted(['h1'], { reviewing: false });
+    await settle();
+    expect(location.heldFor('h1')).toBe('missed');
+    expect(told).toEqual(['held', 'held']);
+    // Left: gone, so the note reopened draws no box.
+    stop();
+    expect(location.heldFor('h1')).toBeNull();
+  });
+
+  it('gives way to the tag once the fix is found, and is let go by a note left while its fix was coming', async () => {
+    granted();
+    await store.createNote('h2', '');
+    const stop = location.watchTag('h2', () => undefined);
+    location.holdFor(['h2']);
+    fixAt(51.5074, -0.1278);
+    await location.tagNewNotesIfWanted(['h2'], { reviewing: false });
+    await settle();
+    expect(location.heldFor('h2')).toBeNull();
+    expect(location.pendingTag('h2')).not.toBeNull();
+    stop();
+    // Left before the fix settled: kept while it is on its way, then let go when it comes.
+    await store.createNote('h3', '');
+    const stop3 = location.watchTag('h3', () => undefined);
+    location.holdFor(['h3']);
+    let answerFix: (() => void) | null = null;
+    geolocation((ok) => {
+      answerFix = () => ok(position(51.5, -0.12));
+    });
+    const tagging = location.tagNewNotesIfWanted(['h3'], { reviewing: false });
+    await settle();
+    stop3();
+    expect(location.heldFor('h3')).toBe('waiting');
+    answerFix!();
+    await tagging;
+    expect(location.heldFor('h3')).toBeNull();
+  });
+
+  it('says no fix is coming when the ask is not made at all, and is held again by the introduction’s Allow', async () => {
+    await store.createNote('h4', '');
+    const stop = location.watchTag('h4', () => undefined);
+    location.holdFor(['h4']);
+    prefs.setPreferences({ localOnly: true });
+    await location.tagNewNotesIfWanted(['h4'], { reviewing: false });
+    expect(location.heldFor('h4')).toBe('missed');
+    prefs.setPreferences({ localOnly: false });
+    // Never answered: introduced, and nothing held until the press, which holds it before it asks.
+    const { calls } = fixAt(51.5, -0.12);
+    let allow: (() => void) | null = null;
+    await location.tagNewNotesIfWanted(['h4'], { reviewing: false }, { introduce: (press) => (allow = press) });
+    expect(location.heldFor('h4')).toBe('missed');
+    allow!();
+    expect(location.heldFor('h4')).toBe('waiting');
+    await settle();
+    expect(calls).toHaveLength(1);
+    expect(location.heldFor('h4')).toBeNull();
+    stop();
+  });
+
+  it('holds a map note’s box for the one ask its card’s press makes, whatever Tag new notes says', async () => {
+    granted();
+    prefs.setPreferences({ tagNewNotes: false });
+    await store.createNote('m1', '');
+    const stop = location.watchTag('m1', () => undefined);
+    location.holdFor(['m1']);
+    failWith(3);
+    await location.tagEntryIfWanted(['m1'], { reviewing: false });
+    await settle();
+    expect(location.heldFor('m1')).toBe('missed');
+    stop();
+  });
+});
+
 describe('where a tapped map goes', () => {
   it('opens the maps app on Android, Apple Maps on the Mac, and openstreetmap.org elsewhere, never with the title', async () => {
     // Its own module (placeLink.ts), since the shared page draws the card and must not load the rest of this one.

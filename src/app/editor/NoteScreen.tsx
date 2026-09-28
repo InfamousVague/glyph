@@ -31,6 +31,7 @@ import {
   canLocate,
   canShowTiles,
   forgetRefusal,
+  heldFor,
   landTag,
   locate,
   pendingTag,
@@ -55,7 +56,7 @@ import { plusRecheck, type PlusHooks, type PlusKey, type PlusOpening } from './i
 import { AddList } from './AddList.tsx';
 import { REVIEW_HANDED_BACK } from '../ai/useNoteReview.ts';
 import { hasLocationBridge } from '../core/placeLink.ts';
-import { MapCard } from './MapCard.tsx';
+import { MapCard, MapPicture } from './MapCard.tsx';
 import { authorsOf } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
 import { useBack } from '../core/back.ts';
@@ -295,6 +296,12 @@ export function NoteScreen({
     },
     [keep, note.id],
   );
+  /**
+   * The map's box held for a new note while its fix is on its way, or once it is known none is coming (core/location.ts
+   * `holdFor`): drawn empty at the card's full height from the first frame, so the card arriving in it, or a fix that
+   * failed, never moves line 1 under the caret. Kept until the note is left.
+   */
+  const [hold, setHold] = useState(() => heldFor(note.id));
   /** The card just appeared on this open note: it arrives on the beat rather than at full height. */
   const [fresh, setFresh] = useState(false);
   /** The tag just taken off, drawn a moment longer while its card leaves on the same beat; null otherwise. */
@@ -512,6 +519,7 @@ export function NoteScreen({
   useEffect(() => {
     const off = watchTag(note.id, (event) => {
       if (event.kind === 'place') latest.current.namePlace(event.place, event.lat, event.lon);
+      else if (event.kind === 'held') setHold(heldFor(note.id));
       else latest.current.settle();
     });
     const handedBack = (event: Event) => {
@@ -987,6 +995,9 @@ export function NoteScreen({
             onLeft={() => setLeaving(null)}
             className={styles.mapCard}
           />
+        ) : hold && shown === 'raw' && !paging && !drawing ? (
+          // The box held for a new note's fix: the same box, empty, until the tag arrives in it or the note is left.
+          <MapPicture why={hold === 'missed' ? (prefs.localOnly ? 'Local only is on.' : 'No place yet.') : undefined} dark={dark} className={styles.mapCard} />
         ) : null}
 
         {shown === 'transcript' ? (

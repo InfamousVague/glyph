@@ -47,14 +47,14 @@ import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { frontMatterOffset, withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, chaptersOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
 import { entryBody, entryPages, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, templateSentence, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
-import { untouchedRecord, untouchedRecords, forgetUntouched, rememberUntouched, setUntouchedWords, isUntouched, type UntouchedRecord } from './core/untouched.ts';
+import { forgetUntouched, isUntouched, markFresh, rememberUntouched, setUntouchedWords, untouchedRecord, untouchedRecords, type UntouchedRecord } from './core/untouched.ts';
 import { fillTemplate, openEnd } from './core/template.ts';
 import { inTimeOrder } from './book/journalMonths.ts';
 import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
-import { setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted } from './core/location.ts';
+import { holdFor, setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted, willLocate } from './core/location.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { isPlace, isRecording, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
@@ -306,11 +306,13 @@ function Shell() {
    * a book's index takes the book's. A shared link's copy and a Settings sample have ends of their own (`forkFromLink`,
    * `openSample`).
    */
-  const showMade = async (body: string): Promise<Note> => {
+  const showMade = async (body: string, { caret, before }: { caret?: number; before?: (note: Note) => void | Promise<void> } = {}): Promise<Note> => {
     const note = await createNote(newNoteId(), body, 'editor');
     fileNewNote(note.id);
     await refresh();
-    setScreen({ name: 'note', note });
+    // What the note needs before its first frame: a new note's fresh mark and its held map box (`newNote`).
+    await before?.(note);
+    setScreen({ name: 'note', note, ...(caret !== undefined ? { caret } : {}) });
     return note;
   };
 
@@ -425,9 +427,21 @@ function Shell() {
   // And it starts with where the person is, when Settings says so (core/location.ts): the tag waits for the note's
   // first words, so a note opened and left still leaves nothing behind. Only a note the person makes here: a canvas, a
   // book, the Guide, a sample, a shared link's copy and a note made for a title are the app's, and are not tagged.
+  //
+  // It opens ready to type (docs/DESIGN.md §144): the caret in line 1 and the editor focused, the keyboard up where the
+  // phone allows it. It is fresh (core/untouched.ts), so its blank page offers names and templates until the person
+  // writes in it. And where a fix is expected its map's box is held from the first frame (core/location.ts
+  // `willLocate`), asked beside the write so it costs no time on screen, so the card arriving never moves line 1.
   const newNote = async () => {
     tabs.replaceNext(null);
-    const note = await showMade('');
+    const expected = willLocate().catch(() => false);
+    const note = await showMade('', {
+      caret: 0,
+      before: async (made) => {
+        markFresh(made.id);
+        if (await expected) holdFor([made.id]);
+      },
+    });
     void tagNewNotesIfWanted([note.id], { reviewing: false }, { introduce: introduceLocation });
   };
 

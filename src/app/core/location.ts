@@ -61,6 +61,13 @@ import { invoke, isTauri } from './tauri.ts';
  * (`introduce`, a toast with "Allow location" on it), so the system's dialog comes from a press rather than over a
  * blank note.
  *
+ * A NEW NOTE'S MAP HOLDS ITS PLACE (docs/DESIGN.md §144). A new note opens with the caret in its first line, so a card
+ * that arrived with the fix, or left when the fix failed, moved the line under a thumb that was typing. So where a fix
+ * is expected (`willLocate`: the switch, the permission as it stands, no refusal standing) the note's box is held from
+ * its first frame (`holdFor`): drawn empty at the card's full height and kept until the note is left, found or not
+ * (`heldFor` says `missed` once it is known no fix is coming). A note whose prompt was never answered holds nothing
+ * until the introduction's Allow is pressed, which holds it then, under the person's own press.
+ *
  * On the Mac the WebView never answers `getCurrentPosition`, success or error (wry's WKUIDelegate implements no
  * geolocation decision method and macOS has no default position provider), so a page that waits there waits for
  * ever: the Mac is answered `mac` before anything is asked, draws what the phone tagged, and CoreLocation is a
@@ -221,7 +228,7 @@ export async function canAskPlace(): Promise<boolean> {
 
 // ---- the watchers --------------------------------------------------------------------------------
 
-export type TagEvent = { kind: 'place'; place: string; lat: number; lon: number } | { kind: 'pending' };
+export type TagEvent = { kind: 'place'; place: string; lat: number; lon: number } | { kind: 'pending' } | { kind: 'held' };
 
 const watchers = new Map<string, Set<(event: TagEvent) => void>>();
 
@@ -234,7 +241,9 @@ export function watchTag(noteId: string, listener: (event: TagEvent) => void): (
     set.delete(listener);
     if (set.size) return;
     watchers.delete(noteId);
-    // The note left: a tag still waiting for it is written in once its last save has landed, where it may be.
+    // The note left: its box is let go once its fix has settled, and a tag still waiting for it is written in once its
+    // last save has landed, where it may be.
+    if (held.get(noteId) !== 'waiting') held.delete(noteId);
     if (pendingTag(noteId)) window.setTimeout(() => void settleClosed(noteId), LEFT_MS);
   };
 }
@@ -245,6 +254,37 @@ function watched(noteId: string): boolean {
 
 function tell(noteId: string, event: TagEvent): void {
   for (const listener of watchers.get(noteId) ?? []) listener(event);
+}
+
+// ---- the box held for a fix on its way ------------------------------------------------------------
+
+/** The new notes whose map's box is held: while their fix is on its way, and once it is known none is coming. */
+const held = new Map<string, 'waiting' | 'missed'>();
+
+/** Holds each note's map box from now, its fix on its way: the note's screen draws the box empty at its full height. */
+export function holdFor(ids: readonly string[]): void {
+  for (const id of ids) {
+    held.set(id, 'waiting');
+    tell(id, { kind: 'held' });
+  }
+}
+
+/** Whether the note's box is held, and why: its fix on its way, or none coming. Null for a note holding none. */
+export function heldFor(noteId: string): 'waiting' | 'missed' | null {
+  return held.get(noteId) ?? null;
+}
+
+/**
+ * A held note's fix settled. Found, the tag holds the box from here, so the hold goes. Missed, the box stays, saying
+ * so, until the note is left; a note already left lets it go now.
+ */
+function settleHold(ids: readonly string[], found: boolean): void {
+  for (const id of ids) {
+    if (!held.has(id)) continue;
+    if (found || !watched(id)) held.delete(id);
+    else held.set(id, 'missed');
+    tell(id, { kind: 'held' });
+  }
 }
 
 // ---- the place's name ----------------------------------------------------------------------------
@@ -575,7 +615,7 @@ export function landTag(noteId: string, tag: GeoTag): void {
  * written now; anything else waits as a pending tag. The name is asked for once the tag is in the note. Answers why
  * the fix did not come, or null.
  */
-export async function tagNewNotes(ids: readonly string[], fix: Promise<Fix>, held: { reviewing: boolean }): Promise<LocateFailure | null> {
+export async function tagNewNotes(ids: readonly string[], fix: Promise<Fix>, waiting: { reviewing: boolean }): Promise<LocateFailure | null> {
   if (!ids.length) return null;
   let position: Fix;
   try {
@@ -583,6 +623,7 @@ export async function tagNewNotes(ids: readonly string[], fix: Promise<Fix>, hel
   } catch (failure) {
     const why = whyLocateFailed(failure);
     rememberRefusal(why);
+    settleHold(ids, false);
     return why;
   }
   forgetRefusal();
@@ -590,8 +631,9 @@ export async function tagNewNotes(ids: readonly string[], fix: Promise<Fix>, hel
   for (const id of ids) {
     setPendingTag(id, tag);
     if (watched(id)) tell(id, { kind: 'pending' });
-    else if (!held.reviewing) await settleClosed(id);
+    else if (!waiting.reviewing) await settleClosed(id);
   }
+  settleHold(ids, true);
   return null;
 }
 
@@ -634,24 +676,40 @@ let introduced = false;
  * after a refusal until the person allows location (the note's sheet says why the note was not tagged). `quiet`
  * never raises a prompt (a locked phone). Where the prompt has never been answered, `introduce` says what the ask is
  * for in the app's words and hands over the ask for a press to make, once a run: the system's dialog never comes
- * over a blank note unannounced.
+ * over a blank note unannounced. The press holds the notes' boxes first, so the map arrives in its place. Any way
+ * this ends without a fix on its way lets a box held for these notes say none is coming.
  */
 export async function tagNewNotesIfWanted(
   ids: readonly string[],
-  held: { reviewing: boolean },
+  waiting: { reviewing: boolean },
   { quiet = false, introduce }: { quiet?: boolean; introduce?: (allow: () => void) => void } = {},
 ): Promise<LocateFailure | null> {
   const prefs = preferences();
-  if (!ids.length || !prefs.tagNewNotes || prefs.localOnly) return null;
+  if (!ids.length) return null;
+  if (!prefs.tagNewNotes || prefs.localOnly) return missed(ids, null);
   const refused = await stillRefused();
-  if (refused) return refused;
+  if (refused) return missed(ids, refused);
   if (!quiet && introduce && canLocate().ok && (await wouldPrompt())) {
+    // Nothing comes unless the person allows it: a box held for these notes says so until the press holds it again.
+    missed(ids, null);
     if (introduced) return null;
     introduced = true;
-    introduce(() => void tagNewNotes(ids, locate(), held));
+    introduce(() => allowFor(ids, waiting));
     return null;
   }
-  return tagNewNotes(ids, locate({ quiet }), held);
+  return tagNewNotes(ids, locate({ quiet }), waiting);
+}
+
+/** The introduction's Allow: the boxes held under the press, then the ask. */
+function allowFor(ids: readonly string[], waiting: { reviewing: boolean }): void {
+  holdFor(ids);
+  void tagNewNotes(ids, locate(), waiting);
+}
+
+/** No fix is on its way for these notes: a box held for one says so. Answers `why`. */
+function missed(ids: readonly string[], why: LocateFailure | null): LocateFailure | null {
+  settleHold(ids, false);
+  return why;
 }
 
 /** The first ask for a journal's entries this run was introduced: its own, not the new notes' (below). */
@@ -659,24 +717,45 @@ let entryIntroduced = false;
 
 /**
  * Tags a journal's new entries with where they were written (docs/DESIGN.md §142), the journal's switch being the
- * choice: `tagNewNotesIfWanted` without its check of Tag new notes, and with an introduction of its own. Shared, a
- * note's introduction let pass earlier in the run would leave every entry untagged with no refusal kept to say why.
- * Everything that protects the device is the same: never under Local only, not again after a refusal until location
- * is allowed, `quiet` over a locked phone, and the system's prompt only from a press.
+ * choice, and a note whose own choice is to keep its place: one made from A map at the top, the card's press being
+ * that choice (§144). `tagNewNotesIfWanted` without its check of Tag new notes, and with an introduction of its own.
+ * Shared, a note's introduction let pass earlier in the run would leave every entry untagged with no refusal kept to
+ * say why. Everything that protects the device is the same: never under Local only, not again after a refusal until
+ * location is allowed, `quiet` over a locked phone, and the system's prompt only from a press: the introduction's, or,
+ * with no `introduce`, the press that made the note, whose words said what it is for.
  */
 export async function tagEntryIfWanted(
   ids: readonly string[],
-  held: { reviewing: boolean },
+  waiting: { reviewing: boolean },
   { quiet = false, introduce }: { quiet?: boolean; introduce?: (allow: () => void) => void } = {},
 ): Promise<LocateFailure | null> {
-  if (!ids.length || preferences().localOnly) return null;
+  if (!ids.length) return null;
+  if (preferences().localOnly) return missed(ids, null);
   const refused = await stillRefused();
-  if (refused) return refused;
+  if (refused) return missed(ids, refused);
   if (!quiet && introduce && canLocate().ok && (await wouldPrompt())) {
+    missed(ids, null);
     if (entryIntroduced) return null;
     entryIntroduced = true;
-    introduce(() => void tagNewNotes(ids, locate(), held));
+    introduce(() => allowFor(ids, waiting));
     return null;
   }
-  return tagNewNotes(ids, locate({ quiet }), held);
+  return tagNewNotes(ids, locate({ quiet }), waiting);
+}
+
+/**
+ * Whether a new note made now would get a fix without a prompt, so its map's box is held from its first frame: Tag new
+ * notes on, not Local only, a device that can locate, no refusal that still stands, and nothing to answer. Each of
+ * these is read as it stands (Android's bridge, the browser's permissions): nothing is kept between calls.
+ */
+export async function willLocate(): Promise<boolean> {
+  const prefs = preferences();
+  if (!prefs.tagNewNotes || prefs.localOnly || !canLocate().ok) return false;
+  if (await stillRefused()) return false;
+  return !(await wouldPrompt());
+}
+
+/** Whether a refusal the device keeps still stands: location refused, or off for the app, and not allowed since. */
+export async function refusalStanding(): Promise<boolean> {
+  return (await stillRefused()) !== null;
 }

@@ -423,6 +423,44 @@ describe('a new note, and where it was made', () => {
   });
 });
 
+describe('a new note, ready to type', () => {
+  it('opens with the caret in line 1, fresh, with no record written, and holds its map box where a fix is expected', async () => {
+    const { isFresh } = await import('./core/untouched.ts');
+    const { heldFor } = await import('./core/location.ts');
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: () => undefined } });
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'granted' }) } });
+    try {
+      await openApp();
+      act(() => button('Write a note').click());
+      await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+      await waitUntil(() => expect(noteShown()).not.toBeNull());
+      const made = noteShown()!;
+      expect(seen.note!.caret).toBe(0);
+      expect(isFresh(made)).toBe(true);
+      expect(localStorage.getItem('glyph-entry-drafts')).toBeNull();
+      // Allowed already, so the fix is on its way from the first frame, and the box is held for it.
+      expect(heldFor(made)).toBe('waiting');
+    } finally {
+      Reflect.deleteProperty(navigator, 'geolocation');
+      Reflect.deleteProperty(navigator, 'permissions');
+    }
+  });
+
+  it('holds nothing where the prompt was never answered, and leaves a note opened to be read unfocused', async () => {
+    const { heldFor } = await import('./core/location.ts');
+    await seed(['a', '# Apples']);
+    await openApp();
+    act(() => button('Write a note').click());
+    await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+    await waitUntil(() => expect(noteShown()).not.toBeNull());
+    expect(heldFor(noteShown()!)).toBeNull();
+    act(() => button('Home').click());
+    act(() => card('Apples').click());
+    await waitUntil(() => expect(noteShown()).toBe('a'));
+    expect(seen.note!.caret).toBeUndefined();
+  });
+});
+
 describe('a capture ending', () => {
   it('comes back to the note it was spoken into, read fresh', async () => {
     await seed(['a', '# Apples']);

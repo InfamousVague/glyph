@@ -954,6 +954,32 @@ describe('where the note was written', () => {
     setPreferences({ placeNames: true });
   });
 
+  it('holds a new note’s box from its first frame, the box its tag arrives in, and says when no place came', async () => {
+    const { holdFor, tagNewNotes, LocateError } = await import('../core/location.ts');
+    const box = () => document.querySelector<HTMLElement>('[class*=mapCard]');
+    holdFor(['held1']);
+    show(screen(await createNote('held1', ''), { caret: 0 }));
+    // A picture of the card's own box: nothing to press, nothing read out.
+    expect(box()?.hasAttribute('inert')).toBe(true);
+    expect(box()?.querySelector('button')).toBeNull();
+    expect(box()?.textContent).toBe('');
+    await act(async () => tagNewNotes(['held1'], Promise.resolve({ lat: 51.52, lon: -0.1, accuracy: 12, at: 0 }), { reviewing: false }));
+    await settle();
+    // Found: the card itself, in the same box, arriving without the beat that would move the words.
+    expect(box()?.querySelector('button')).not.toBeNull();
+    expect(box()?.hasAttribute('data-arrive')).toBe(false);
+    unmount();
+    holdFor(['held2']);
+    show(screen(await createNote('held2', ''), { caret: 0 }));
+    await act(async () => tagNewNotes(['held2'], Promise.reject(new LocateError('timeout')), { reviewing: false }));
+    await settle();
+    expect(box()?.textContent).toBe('No place yet.');
+    unmount();
+    // Left, and opened again: no box at all.
+    show(screen((await getNote('held2'))!));
+    expect(box()).toBeNull();
+  });
+
   it('sends nothing for a new note’s tag until it has words: the card quiet, no tiles, no name, then both once it lands', async () => {
     const { tagNewNotes, pendingTag } = await import('../core/location.ts');
     const asked = nominatim('Somerset House');
