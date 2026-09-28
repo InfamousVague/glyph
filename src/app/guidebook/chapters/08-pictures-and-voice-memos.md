@@ -31,7 +31,7 @@ The app keeps its pictures in its own storage, beside the library of notes rathe
 ## Where pictures go with their note
 
 - **Sync.** Signed in, a note's pictures go with it to your other devices, sealed the way the note is ([[Accounts, sync and the key you hold]]). A picture that has not reached a device yet is drawn as soon as it arrives.
-- **Sharing.** A shared note or book carries the pictures its pages show, since a reader has no account to fetch them from. When they will not all fit, each is sent as a smaller reading copy, and failing that, as many as fit, in the order the pages show them ([[Sharing a note or a book]]).
+- **Sharing.** A shared note or notebook carries the pictures its pages show, since a reader has no account to fetch them from. When they will not all fit, each is sent as a smaller reading copy, and failing that, as many as fit, in the order the pages show them ([[Sharing a note or a notebook]]).
 - **Download as Markdown**, on a shared page, gives a note with pictures as a zip, with the pictures in an `image` folder beside the page, where its picture lines point.
 
 ## A spoken note's recording
@@ -71,5 +71,5 @@ Moving a note to the Trash changes nothing about it: its words, recording and pi
 ## Read next
 
 - [[Recording a note]]
-- [[Sharing a note or a book]]
+- [[Sharing a note or a notebook]]
 - [[Canvases, cards and lines]]

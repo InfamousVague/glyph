@@ -10,7 +10,7 @@ _One Rust binary behind attack.fm/glyph/api: accounts, sealed sync, shared links
 |---|---|---|
 | `v1/pubkey`, `v1/signup`, the `v1/login` routes, `v1/refresh`, `v1/device`, `v1/keys`, `v1/password`, `v1/recovery`, `v1/account` | accounts and session tokens | `accounts.rs`, `accounts/` |
 | `v1/notes`, `v1/prefs`, `v1/recordings/{id}` | end-to-end encrypted sync | `sync.rs` |
-| `v1/shares`, `v1/shares/{id}` | notes and books shared by link | `shares.rs` |
+| `v1/shares`, `v1/shares/{id}` | notes and notebooks shared by link | `shares.rs` |
 | `v1/live` | the live typing relay, a WebSocket | `live.rs` |
 | `notion/start`, `notion/callback`, `notion/claim`, `notion/refresh` | Notion's OAuth code swap | `notion.rs` |
 | `mcp`, `mcp/*` | the hosted Claude connector, passed through | `mcp_proxy.rs` |

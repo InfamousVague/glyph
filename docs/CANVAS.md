@@ -103,7 +103,7 @@ works in simpler terms").
 **Named from the More sheet.** A canvas has no heading to rename it in, so the sheet that opens from the note's three
 dots (More for this note) has a Name field for a canvas note (`src/app/editor/NoteSettings.tsx`), which writes the
 `title:` front matter and nothing else (`src/app/core/frontMatter.ts`). Matt chose that over renaming in the tab or
-editing the front matter by hand; a tab's menu can rename it too now, as it can a book.
+editing the front matter by hand; a tab's menu can rename it too now, as it can a notebook.
 
 **Its JSON, behind the view switch.** The header's switch, which on a note of words goes between the marks and the
 formatted page, on a canvas note goes between the canvas and its JSON in the editor, where it can be read and

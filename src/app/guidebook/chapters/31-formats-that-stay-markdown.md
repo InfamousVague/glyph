@@ -1,10 +1,10 @@
 # Formats that stay Markdown
 
-_Boards, books, canvases, linked tasks and voice memos, and the standard they all keep: nothing a note needs is stored beside it, and all of it is plain text another app can read._
+_Boards, notebooks, canvases, linked tasks and voice memos, and the standard they all keep: nothing a note needs is stored beside it, and all of it is plain text another app can read._
 
 ## The rule
 
-A new kind of note in Ghost.md is plain text in the note's own file. Mostly that is Markdown a person could type, which reads as words in any other app; a canvas is the one exception in kind, JSON Canvas, the open format Obsidian writes. No sidecar holds a board's columns or a book's order. Some things are kept beside the notes: the library's index, which is a cache; a note's sidecar in `.glyph/notes/<id>.json`, with a recording's length and phrases and the formatted version; and a little device-side state, such as a board's remembered height and which recording a memo's id names. Losing any of it loses nothing a note says.
+A new kind of note in Ghost.md is plain text in the note's own file. Mostly that is Markdown a person could type, which reads as words in any other app; a canvas is the one exception in kind, JSON Canvas, the open format Obsidian writes. No sidecar holds a board's columns or a notebook's order. Some things are kept beside the notes: the library's index, which is a cache; a note's sidecar in `.glyph/notes/<id>.json`, with a recording's length and phrases and the formatted version; and a little device-side state, such as a board's remembered height and which recording a memo's id names. Losing any of it loses nothing a note says.
 
 Every format below answers three questions. What is it as plain text? Which module is the only one that spells it? What does the editor draw from it?
 
@@ -61,16 +61,16 @@ Every transform answers new text or new columns and never changes what it was gi
 
 A tick is where the halves meet. `editor/taskToggle.ts` and `editor/doneSync.ts` put the box's change and `settleFences(state, ticks)` from `editor/boards.ts` into one transaction, so the fence moves in the same edit and the same Undo. An anchor a tick adds is appended to the end of its line, never written by replacing the line, because the tick changes a character at its start and two overlapping changes cannot both apply. `editor/boards/` holds the drawing: the widget, card edits, the drag, the + field, the height remembered across launches.
 
-## Books
+## Notebooks
 
-A book is a note whose front matter says `book: true` and whose body is an index of wiki links. `src/app/book/book.ts`:
+A notebook is a note whose front matter says `book: true` and whose body is an index of wiki links. The code still calls it a book, and its pages chapters. `src/app/book/book.ts`:
 
 - `isBookBody` reads `book` through `frontMatterValue`, taking `true` or `yes`.
-- `chaptersOf` takes every list item that opens with a link, one level deep by indentation. A `#heading` or `|alias` in the link is not the title. Beside a numbered index, a top-level bullet list is about the book, not in it.
-- `numbered` gives "1", "2", "2.1". `withChapter`, `withoutChapter`, `withChapterMoved` and `withChapterAt` edit the index and never touch a chapter note; a chapter added to a numbered index takes the next number.
-- `bookWords` is the book's own words before and after its chapters. `bookOf` finds the first book whose index names a note by title, and `bookIndex` does every page at once for a list.
+- `chaptersOf` takes every list item that opens with a link, one level deep by indentation. A `#heading` or `|alias` in the link is not the title. Beside a numbered index, a top-level bullet list is about the notebook, not in it.
+- `numbered` gives "1", "2", "2.1". `withChapter`, `withoutChapter`, `withChapterMoved` and `withChapterAt` edit the index and never touch a page's note; a page added to a numbered index takes the next number.
+- `bookWords` is the notebook's own words before and after its pages. `bookOf` finds the first notebook whose index names a note by title, and `bookIndex` does every page at once for a list.
 
-`src/app/book/chapterNumber.ts` reads a number from a title, at the end ("· Ch. 8", "(Chapter 8)", "· Chapter VIII") or at the front ("08 · …"), so chapters with no book can still be put in order. A bare "Top 10" is not a chapter number.
+`src/app/book/chapterNumber.ts` reads a number from a title, at the end ("· Ch. 8", "(Chapter 8)", "· Chapter VIII") or at the front ("08 · …"), so chapters with no notebook can still be put in order. A bare "Top 10" is not a chapter number.
 
 ## Canvases
 
@@ -96,7 +96,7 @@ Two blocks can open a note's file, and two codebases read them.
 - `frontMatterValue(body, key)` reads one key with its quotes off.
 - `quotedTitle` quotes a title so a colon stays inside it; `withFrontMatterTitle` and `withFrontMatterValue` write one key and leave every other as it was.
 
-The page writes three keys. `title` names a canvas or a book, neither of which has a first line to rename; a rename from a note's tab writes it, and only those two offer one. `book` makes a book. `authors` (`core/authors.ts`) is comma-separated names: the phone's AI signs a note it co-wrote as `Ghost` (`ai/useLanding.ts`), and the connector adds the AI that wrote through it (`mcp/server.ts`). `core/noteTitle.ts` names a note from `title:` if there is one, else the first line of words, pictures skipped and heading marks and the bookmark taken off. It imports only the front matter rule and `itemSyntax.ts`, so the MCP server bundles the same code the list runs.
+The page writes three keys. `title` names a canvas or a notebook, neither of which has a first line to rename; a rename from a note's tab writes it, and only those two offer one. `book` makes a notebook. `authors` (`core/authors.ts`) is comma-separated names: the phone's AI signs a note it co-wrote as `Ghost` (`ai/useLanding.ts`), and the connector adds the AI that wrote through it (`mcp/server.ts`). `core/noteTitle.ts` names a note from `title:` if there is one, else the first line of words, pictures skipped and heading marks and the bookmark taken off. It imports only the front matter rule and `itemSyntax.ts`, so the MCP server bundles the same code the list runs.
 
 The page once answered where front matter ends three ways, and `book: true` was read out of a block the list showed as words. ==`frontMatterEnd` is why a note can no longer be front matter to one reader and prose to another.==
 

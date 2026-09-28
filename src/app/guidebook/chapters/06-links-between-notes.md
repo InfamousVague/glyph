@@ -14,7 +14,7 @@ A tap opens that note. This is what turns a pile of notes into something you can
 
 - **It matches the way a person says a title**, with case and punctuation set aside, so `[[launch week]]` finds Launch week. Only the plain letters a to z and the digits are compared, and anything else, an accented letter included, counts as a break between words, so `[[Cafe]]` does not find a note called Café. A title written wholly in another alphabet cannot be linked to yet.
 - **A title with no note is drawn dashed.** It is a place to write, not a mistake: tap it and Ghost.md makes that note, with the title as its heading, and opens it.
-- **A link to a book** opens the book where you last left it.
+- **A link to a notebook** opens the notebook where you last left it.
 - **Nothing is stored but the words.** The link is the title. Rename a note and the links that used its old title wait, dashed, until you change them too.
 
 ## A link to a line
@@ -58,7 +58,7 @@ A list item linked to a Notion task or a GitHub issue ends with a small mark nam
 
 ## Links that open the app
 
-A shared note, read in a browser, has **Open in the Ghost.md app**. That opens a `ghostmd://` link on the phone or the Mac, and Ghost.md saves a copy of the shared note or book into your library and opens it. The copy is yours to change; the shared one stays as it is. Sharing is [[Sharing a note or a book]].
+A shared note, read in a browser, has **Open in the Ghost.md app**. That opens a `ghostmd://` link on the phone or the Mac, and Ghost.md saves a copy of the shared note or notebook into your library and opens it. The copy is yours to change; the shared one stays as it is. Sharing is [[Sharing a note or a notebook]].
 
 ## Saying a link
 
@@ -75,4 +75,4 @@ An address is said the way you would read it out: "dot", "slash", "dash", "under
 
 - [[Boards made of list items]]
 - [[Canvases, cards and lines]]
-- [[Sharing a note or a book]]
+- [[Sharing a note or a notebook]]

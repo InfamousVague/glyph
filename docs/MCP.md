@@ -32,8 +32,8 @@ handle: `authors: infamousvague, Claude` in the front matter (`src/app/core/auth
 `author` argument when given, else what the AI's app called itself when it connected ("claude-ai" is Claude). The
 hosted server builds a fresh server for each request, so it keeps that name on the sign-in session: the name the app
 registered with, then its `initialize` clientInfo. A rewrite never drops an author the note already had. The app
-draws the authors as a byline: on the note, gathered across a book in its index, and on a shared page. A known AI
-wears a spark, and anyone else their initial.
+draws the authors as a byline: on the note, gathered across a notebook in its index, and on a shared page. A known
+AI wears a spark, and anyone else their initial.
 
 Every tool reads the account fresh before it acts, so Claude sees what your phone last wrote. A write goes from the
 version just read: if another device changed the note in between, the service refuses the write and Claude is shown

@@ -4,7 +4,7 @@ _A canvas is cards on an endless page with lines between them. Its note keeps it
 
 ## A canvas is a note
 
-The + offers a Canvas beside a Note and a Book, and makes an empty one called "Untitled canvas". Its note is a name in front matter, then the canvas as JSON:
+The + offers a Canvas beside a Note and a Notebook, and makes an empty one called "Untitled canvas". Its note is a name in front matter, then the canvas as JSON:
 
 ```markdown
 ---
@@ -74,7 +74,7 @@ Once there are two cards, a minimap sits at the bottom right with the screen's b
 
 ## In a note, and the examples
 
-A line that is only `![[Cabin weekend, laid out]]` draws that canvas in a frame inside the note: you can pan, zoom and use its map, but not change it. Its name and an Open sit over it, and a press on the name shows the link to edit. A book can hold a canvas as a chapter ([[Books, and reading one through]]).
+A line that is only `![[Cabin weekend, laid out]]` draws that canvas in a frame inside the note: you can pan, zoom and use its map, but not change it. Its name and an Open sit over it, and a press on the name shows the link to edit. A notebook can hold a canvas as a page ([[Notebooks, and reading one through]]).
 
 Settings › About › Examples adds two example canvases to your library:
 
@@ -94,6 +94,6 @@ These were chosen for canvases and are still to come:
 
 ## Read next
 
-- [[Books, and reading one through]]
+- [[Notebooks, and reading one through]]
 - [[Pictures and voice memos]]
 - [[Links between notes]]

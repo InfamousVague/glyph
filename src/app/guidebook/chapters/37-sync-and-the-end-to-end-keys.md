@@ -24,7 +24,7 @@ Sign-up makes a 32-byte AES-256-GCM account key on the device, and everything sy
 | a recording or a picture | `file:<its id>` |
 | the synced settings | `prefs` |
 | a live typing message | `live:<note id>` |
-| a shared note or book, under the share's own key | `glyph/v1/share` |
+| a shared note or notebook, under the share's own key | `glyph/v1/share` |
 | the account key itself, when wrapped | `account-key` |
 
 glyph-api holds the account key only in wrapped form: once under the password's wrap key, and once under each of eight recovery codes. A code looks like `XXXX-XXXX-XXXX`. Its letters come from a 32-character alphabet with no 0, O, 1 or I, which gives sixty bits. Dashes and case are taken out, then the code is split into two halves the same way, salted with `glyph/v1/recovery/<handle>`. The server keeps the SHA-256 of each code's login half. The code itself only ever appears on the person's screen, once.
@@ -79,11 +79,11 @@ Each account has one counter, bumped by every write of a note, the settings or a
 
 ## Shares: the same seal under another key
 
-A shared note or book (`src/app/share/share.ts`) is sealed with the same `sealBytes`. It uses a random 32-byte key made for that share alone, with `glyph/v1/share` as associated data. The link is `https://ghostmarkdown.com/read.html#<id>.<key>`: a 16-byte id, then the key after the `#`, which a browser never sends. The server (`server/src/shares.rs`) holds ciphertext it cannot open.
+A shared note or notebook (`src/app/share/share.ts`) is sealed with the same `sealBytes`. It uses a random 32-byte key made for that share alone, with `glyph/v1/share` as associated data. The link is `https://ghostmarkdown.com/read.html#<id>.<key>`: a 16-byte id, then the key after the `#`, which a browser never sends. The server (`server/src/shares.rs`) holds ciphertext it cannot open.
 
-A book is shared as its index and every chapter that has a note. Pictures ride inside the share, because a reader has no account to fetch them from. The `GSP1` layout is four magic bytes, then four bytes of length, then the JSON with each picture's name and size, then the pictures' bytes. The budget before sealing is 4.4 MB (`SHARE_BYTES`), which keeps the sealed share's base64url under the server's 6 MB (`SHARE_LIMIT`, 6,000,000 characters). Pictures that do not fit as they are kept are redrawn at 1024 pixels, and then as many as fit are taken. The synced settings list every share with its key, so any device can follow edits (three seconds after a save) and stop a share.
+A notebook is shared as its index and every page that has a note. Pictures ride inside the share, because a reader has no account to fetch them from. The `GSP1` layout is four magic bytes, then four bytes of length, then the JSON with each picture's name and size, then the pictures' bytes. The budget before sealing is 4.4 MB (`SHARE_BYTES`), which keeps the sealed share's base64url under the server's 6 MB (`SHARE_LIMIT`, 6,000,000 characters). Pictures that do not fit as they are kept are redrawn at 1024 pixels, and then as many as fit are taken. The synced settings list every share with its key, so any device can follow edits (three seconds after a save) and stop a share.
 
-`read.html` is a second Vite entry (`src/read/Reader.tsx`). It is built from the app's own editor, canvas and book views, all read-only, and it sends no referrer and asks not to be indexed. Save a copy forks the share (`forkShared`): each page becomes the reader's own note, and a title already in their library gets "(shared)".
+`read.html` is a second Vite entry (`src/read/Reader.tsx`). It is built from the app's own editor, canvas and notebook views, all read-only, and it sends no referrer and asks not to be indexed. Save a copy forks the share (`forkShared`): each page becomes the reader's own note, and a title already in their library gets "(shared)".
 
 ## What the server can see
 

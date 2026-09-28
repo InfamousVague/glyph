@@ -7602,3 +7602,36 @@ What still moves:
 The setting keeps its name. Its hint now says what it does: "Words you say arrive as smoke, and words you delete leave
 as smoke. What you type appears at once." The Guide's chapters 24 and 30 say the same.
 
+## 142. Notebooks, and journals of dated entries (2026-09-28)
+
+Matt: "id like books to be renamed notebooks and I'd like a journal function where we can just do entries into a
+book marked as a journal where we pick the template for pages (time and date prefixed, with geo location, etc etc)".
+
+**The word.** A book is a notebook now, and its parts are pages wherever a person reads them: the index, the bar, the
+foot, the aside and the add form said chapters while the cards and the New sheet said pages. The home page's Library
+is Notebooks, under a notebook's own mark (art/Icons.tsx `Notebook`: the book with three rings across its spine, 4
+wide and 4 apart, so at the heading's 19.4px they stay three rings and not a bar). As with Glyph becoming Ghost.md
+(§63), only words changed. `book: true`, `title:`, the share's `kind: 'book'` (a new kind would change the digest
+and reseal every share), `glyph-book-spots`, the element ids (`book-chapter-N`, `data-book-foot`,
+`data-group="library"`), the file names, `src/app/book/`, docs/BOOKS.md, the MCP's tool names and the entries above
+this one keep theirs, so an older app draws a notebook made now as the book it was, and the other way round. "book"
+stays a search word: the palette's New notebook and About's Guide row are found by it. Bookmarks, and "book" the
+verb, are untouched.
+
+**Where it reads.** The + and the New notebook sheet. The index, the bar and the foot a page wears. The aside and its
+toggle, "Notebook index", which it also says over a run of numbered chapters, as "Book index" did. The card's
+"Untitled notebook". The name field on a notebook's More sheet, "What this notebook is called" (it said canvas for
+both). The share row, which adds "Every page goes with it." on a notebook. The share limit's refusal, "Share a page,
+or fewer of them." The shared links' footer. The reader's banner, "A shared notebook." The recorder's chip, "“Field
+guide” is a notebook, so the words stay here." The typeface card, About's Guide row ("The whole app in 44 short
+chapters"), and the MCP's co-author words. The command palette gains New notebook, beside New note. The aside's list
+of numbered chapters with no notebook keeps "Chapters", since that is what they are.
+
+**The Guide and the docs.** Chapter 14 is "Notebooks, and reading one through" and chapter 21 "Sharing a note or a
+notebook", with every link to them, and the files keep their names. An installed Guide keeps its old titles, which
+still agree with each other, so no link breaks: only a fresh add gets the new ones. Where the Guide called itself a
+book it says this Guide, and its own parts stay chapters. docs/BOOKS.md keeps its name under the title Notebooks. The
+Play listing, forms and features, the screenshot notes and the privacy page say notebook. Two things wait: the
+screenshots `04-a-book.png` (its caption, "A book, read straight through.", is drawn into the picture) and
+`09-the-tapes-shelf.png` (it shows Library) are made again in the next screenshot pass, and privacy.html and the MCP's
+words reach the world only with their own deploys, on Matt's word.

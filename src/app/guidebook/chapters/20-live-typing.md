@@ -49,10 +49,10 @@ Live typing sits on top of sync; it does not replace it. While another device is
 
 - **Carets.** You do not see where the other device's caret is. The message for it is defined in the app and never sent.
 - **Peer to peer.** Every keystroke goes through the relay. A direct link between your devices is planned, and not built.
-- **Other people.** Live typing is between your own devices. To show someone a note, share a read-only link ([[Sharing a note or a book]]).
+- **Other people.** Live typing is between your own devices. To show someone a note, share a read-only link ([[Sharing a note or a notebook]]).
 
 ## Read next
 
 - [[Accounts, sync and the key you hold]]
-- [[Sharing a note or a book]]
+- [[Sharing a note or a notebook]]
 - [[Live typing over a relay]]

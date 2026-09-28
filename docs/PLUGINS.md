@@ -38,8 +38,8 @@ Notion and GitHub keep their manifest in `manifest.ts`, beside the `host` their 
 reach nothing through a host, so each declares its manifest inline in `index.tsx`. `manifest.ts` is the convention
 for a plugin with a host, not a rule.
 
-`src/app/plugins/kit.tsx` is not only the plugins'. The book, canvas, workspace and new-note sheets are drawn from it
-too, and it draws with `src/app/editor/NoteSettings.module.css`, so a change to a class there restyles every one of
+`src/app/plugins/kit.tsx` is not only the plugins'. The notebook, canvas, workspace and new-note sheets are drawn from
+it too, and it draws with `src/app/editor/NoteSettings.module.css`, so a change to a class there restyles every one of
 those sheets. The sheet's shell (scrim, grip, drag and the back gesture) is `src/app/editor/Sheet.tsx`.
 
 To add one: make the folder, write the manifest and `index.tsx`, and add the plugin to `BUILT_IN` in
