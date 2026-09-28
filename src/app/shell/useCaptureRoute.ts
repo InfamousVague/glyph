@@ -47,9 +47,11 @@ export interface CaptureRouteOptions {
   sayTooSoon: () => void;
   /** Everything over the screen put away - the sheet, the walkthrough - so the bare recorder is all that is left. */
   clearStage: () => void;
+  /** Says what a first location ask is for and hands its press the ask (App.tsx; core/location.ts `tagNewNotesIfWanted`). */
+  introduceLocation?: (allow: () => void) => void;
 }
 
-export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBoot, tooSoon, sayTooSoon, clearStage }: CaptureRouteOptions): CaptureRoute {
+export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBoot, tooSoon, sayTooSoon, clearStage, introduceLocation }: CaptureRouteOptions): CaptureRoute {
   const start = useCallback(
     async (fromAssistant: boolean, noteId?: string) => {
       await afterPendingDeletes(flushDeletes, () => setScreen(captureScreen(fromAssistant, noteId)));
@@ -111,7 +113,7 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
       // The take's own new note starts with where the phone was, once the capture screen has gone (below). Not a note
       // it only wrote into, and not the notes its spoken commands made (`landing.made`), which are the app's doing.
       const own = note && !existed && !landing?.made.includes(note.id) ? note.id : null;
-      if (own) tagAfter.current = () => void tagNewNotesIfWanted([own], { reviewing: review?.job != null }, { quiet: locked });
+      if (own) tagAfter.current = () => void tagNewNotesIfWanted([own], { reviewing: review?.job != null }, { quiet: locked, introduce: introduce.current });
       // Words a recording put into a note that was already there (capture/liveRoute.ts), or a card after Done confirmed:
       // that note opens, read fresh, with an Undo for what went in (editor/NoteScreen.tsx). Not over a locked phone.
       if (note && landing && !locked) {
@@ -167,6 +169,8 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
    * where the permission is already held.
    */
   const tagAfter = useRef<(() => void) | null>(null);
+  const introduce = useRef(introduceLocation);
+  introduce.current = introduceLocation;
   useEffect(() => {
     if (screen.name === 'capture' || !tagAfter.current) return;
     const tag = tagAfter.current;

@@ -31,9 +31,16 @@ await vi.hoisted(async () => {
 const holds = vi.hoisted(() => [] as [string, boolean][]);
 /** Every recording's better words the screen took out of the queue (capture/refine.ts `dropRefine`). */
 const drops = vi.hoisted(() => [] as [string, number][]);
+/** A review's listening again held open, for a test that needs the review live while it acts: resolved to let it go. */
+const listening = vi.hoisted(() => ({ hold: null as Promise<null> | null }));
 vi.mock('../capture/refine.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../capture/refine.ts')>();
-  return { ...real, holdNote: (id: string, on: boolean) => void holds.push([id, on]), dropRefine: (id: string, fromMs: number) => void drops.push([id, fromMs]) };
+  return {
+    ...real,
+    holdNote: (id: string, on: boolean) => void holds.push([id, on]),
+    dropRefine: (id: string, fromMs: number) => void drops.push([id, fromMs]),
+    listenAgain: (...args: Parameters<typeof real.listenAgain>) => listening.hold ?? real.listenAgain(...args),
+  };
 });
 
 // The map card's Leaflet is a picture the card draws for itself (MapCard.test.tsx); here only that a card is there.
@@ -679,6 +686,19 @@ describe('where the note was written', () => {
     act(() => buttonSaying(document.body, 'Add my location')!.click());
   };
 
+  /*
+   * Nominatim is asked a second after the last ask across the app, by the clock (core/location.ts), and that module
+   * is not imported afresh for each test here. So every test in this block runs an hour after the last on a clock of
+   * its own: a wait left by an earlier test's ask is always over, however fast or slow the run.
+   */
+  let hours = 0;
+  const start = Date.now();
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    hours += 1;
+    vi.setSystemTime(start + hours * 60 * 60_000);
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     Reflect.deleteProperty(navigator, 'geolocation');
@@ -733,6 +753,9 @@ describe('where the note was written', () => {
     expect(buttonSaying(document.body, 'Remove location')?.textContent).toContain('London');
     act(() => buttonSaying(document.body, 'Remove location')!.click());
     expect(editor().state.doc.toString()).toBe('# Groceries\n');
+    // The card leaves on the beat it came on, and then is gone.
+    expect(card()?.hasAttribute('data-leave')).toBe(true);
+    act(() => vi.advanceTimersByTime(300));
     expect(card()).toBeNull();
     fixAt(0, 0, 1);
     addFromSheet();
@@ -814,25 +837,160 @@ describe('where the note was written', () => {
     setPreferences({ placeNames: true });
   });
 
-  it('names a tag still waiting for a new note’s words, on the card', async () => {
+  it('sends nothing for a new note’s tag until it has words: the card quiet, no tiles, no name, then both once it lands', async () => {
     const { tagNewNotes, pendingTag } = await import('../core/location.ts');
-    const { setPreferences } = await import('../core/preferences.ts');
-    setPreferences({ placeNames: true });
-    // Its own id: a name still waiting on an earlier test's clock is that note's, not this one's.
     const asked = nominatim('Somerset House');
     show(screen(await createNote('w1', '')));
     await act(async () => tagNewNotes(['w1'], Promise.resolve({ lat: 51.511, lon: -0.1171, accuracy: 12, at: 0 }), { reviewing: false }));
-    // Nominatim a second after the last ask, as its policy asks.
     await settle();
-    act(() => vi.advanceTimersByTime(1200));
-    await settle();
-    expect(card()?.textContent).toContain('Somerset House, London');
-    expect(asked).toHaveLength(1);
-    expect(pendingTag('w1')?.place).toBe('Somerset House, London');
+    // A draft that may never be kept: the card is there, quiet, and nothing has been asked of OpenStreetMap.
+    expect(card()?.getAttribute('data-mode')).toBe('quiet');
+    expect(card()?.textContent).toContain('51.5110, -0.1171');
+    expect(asked).toHaveLength(0);
+    expect(pendingTag('w1')?.place).toBeNull();
     expect(editor().state.doc.toString()).toBe('');
     type('Hello');
     await settle();
+    // Kept now: the tag is in the note, the map is drawn, and the name is asked once and written in.
+    expect(card()?.getAttribute('data-mode')).toBe('map');
+    await act(async () => vi.advanceTimersByTimeAsync(1200));
+    await settle();
+    expect(asked).toHaveLength(1);
     expect(editor().state.doc.toString()).toBe('---\nlocation: 51.5110,-0.1171\nplace: "Somerset House, London"\n---\nHello');
+  });
+
+  it('takes a new note’s waiting tag with it when the note is left without a word', async () => {
+    const { tagNewNotes, pendingTag } = await import('../core/location.ts');
+    show(screen(await createNote('w2', '')));
+    await act(async () => tagNewNotes(['w2'], Promise.resolve({ lat: 51.511, lon: -0.1171, accuracy: 12, at: 0 }), { reviewing: false }));
+    await settle();
+    expect(pendingTag('w2')).not.toBeNull();
+    unmount();
+    expect(pendingTag('w2')).toBeNull();
+  });
+
+  it('keeps the caret with the words when a tag is written above a note that had no front matter', async () => {
+    fixAt(53.48081, -2.24263);
+    nominatim(null);
+    show(screen(await createNote('c0', '# Walk\n\nThe words.')));
+    const view = editor();
+    act(() => view.dispatch({ selection: { anchor: 0 } }));
+    addFromSheet();
+    await settle();
+    const block = '---\nlocation: 53.4808,-2.2426\n---\n';
+    expect(view.state.doc.toString()).toBe(`${block}# Walk\n\nThe words.`);
+    // The caret is at the start of the words, not in front of the new fence: a keystroke there is words, and the
+    // block stays a block (a share would carry a broken one's location as words).
+    expect(view.state.selection.main.head).toBe(block.length);
+    act(() => view.dispatch({ changes: { from: view.state.selection.main.head, insert: 'Hi ' }, userEvent: 'input.type' }));
+    expect(view.state.doc.toString()).toBe(`${block}Hi # Walk\n\nThe words.`);
+    expect(card()?.textContent).toContain('53.4808, -2.2426');
+  });
+
+  it('keeps a location added just before the note was left, and writes it into the note', async () => {
+    let answer: ((position: GeolocationPosition) => void) | null = null;
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback) => {
+          answer = ok;
+        },
+      },
+    });
+    nominatim(null);
+    show(screen(await createNote('n1', '# Groceries\n- milk')));
+    addFromSheet();
+    await settle();
+    unmount();
+    // The fix comes after the note was left: it is not lost, and not written into a destroyed editor.
+    await act(async () => answer!({ coords: { latitude: 55.95331, longitude: -3.18827, accuracy: 15 }, timestamp: 1 } as GeolocationPosition));
+    await settle();
+    expect((await getNote('n1'))?.body).toBe('---\nlocation: 55.9533,-3.1883\n---\n# Groceries\n- milk');
+  });
+
+  it('holds a location added by hand while a pass is queued or a review is live, so the better words still land', async () => {
+    const { pendingTag } = await import('../core/location.ts');
+    fixAt(48.8566, 2.3522);
+    nominatim(null);
+    queued('n1');
+    show(screen(await createNote('n1', '# Said\n')));
+    addFromSheet();
+    await settle();
+    // Drawn at once from the tag kept aside; the note reads as Done saved it, so the pass's compare still holds.
+    expect(card()?.textContent).toContain('48.8566, 2.3522');
+    expect(editor().state.doc.toString()).toBe('# Said\n');
+    expect(pendingTag('n1')).not.toBeNull();
+    unmount();
+    queued(null);
+    // And with a review live for the note, still listening again: held until it hands its job back.
+    let letGo: (value: null) => void = () => undefined;
+    listening.hold = new Promise<null>((resolve) => {
+      letGo = resolve;
+    });
+    try {
+      const job = { id: 'n2', fromMs: 0, recordingMs: 4000, baseBody: '', savedBody: '# Said', titled: true, priorSegments: [], promptTail: '' };
+      show(screen(await createNote('n2', '# Said\n'), { review: { key: 2, noteId: 'n2', job, heard: 'said', commands: [], touched: [] } }));
+      addFromSheet();
+      await settle();
+      expect(editor().state.doc.toString()).toBe('# Said\n');
+      expect(pendingTag('n2')).not.toBeNull();
+      // Listening fails (a browser cannot), the review hands back, and the tag lands then.
+      letGo(null);
+      await waitUntil(() => expect(editor().state.doc.toString()).toBe('---\nlocation: 48.8566,2.3522\n---\n# Said\n'));
+    } finally {
+      listening.hold = null;
+    }
+  });
+
+  it('writes a name that came while the note was closed when it opens, and only onto the tag it was asked for', async () => {
+    const { wantPlace, placeFor } = await import('../core/location.ts');
+    nominatim('Pont Neuf');
+    const PARIS = { lat: 48.8572, lon: 2.3413, place: null, rough: false };
+    await createNote('p1', '---\nlocation: 48.8572,2.3413\n---\n# Seine\n');
+    // Asked while the note was closed and a pass was queued for it: the name waits in memory, and the note is left be.
+    queued('p1');
+    wantPlace('p1', PARIS);
+    await act(async () => vi.advanceTimersByTimeAsync(1200));
+    await settle();
+    expect(placeFor(PARIS)).toBe('Pont Neuf, London');
+    expect((await getNote('p1'))?.body).toBe('---\nlocation: 48.8572,2.3413\n---\n# Seine\n');
+    queued(null);
+    show(screen((await getNote('p1'))!));
+    await settle();
+    expect(editor().state.doc.toString()).toBe('---\nlocation: 48.8572,2.3413\nplace: "Pont Neuf, London"\n---\n# Seine\n');
+    unmount();
+    // A name for other coordinates is not this note's.
+    await createNote('p2', '---\nlocation: 40.7128,-74.0060\n---\n# NYC\n');
+    show(screen((await getNote('p2'))!));
+    await settle();
+    wantPlace('p2', PARIS);
+    await settle();
+    expect(editor().state.doc.toString()).toBe('---\nlocation: 40.7128,-74.0060\n---\n# NYC\n');
+  });
+
+  it('draws the quiet card under Local only, fetching nothing, and none over the transcript', async () => {
+    const { setPreferences } = await import('../core/preferences.ts');
+    setPreferences({ localOnly: true });
+    try {
+      show(screen(await createNote('n1', TAGGED)));
+      expect(card()?.getAttribute('data-mode')).toBe('quiet');
+      expect(card()?.textContent).toContain('Local only is on.');
+    } finally {
+      setPreferences({ localOnly: false });
+    }
+    unmount();
+    Element.prototype.scrollIntoView = () => undefined;
+    try {
+      await createNote('t1', TAGGED);
+      show(screen((await setNoteRecording('t1', 4000, [{ text: 'words', startMs: 0, endMs: 4000 }]))!));
+      expect(card()).not.toBeNull();
+      act(() => button('Play the recording').click());
+      expect(card()).toBeNull();
+      act(() => button('Pause the recording').click());
+      expect(card()).not.toBeNull();
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+    }
   });
 
   it('says on the sheet why a note made since a refusal was not tagged, and nothing of it on an older note', async () => {

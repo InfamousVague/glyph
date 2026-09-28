@@ -41,8 +41,13 @@ switches under Settings › Location on:
 
 - **Map data** © OpenStreetMap contributors, under the Open Database License (https://www.openstreetmap.org/copyright).
   The tiles come from tile.openstreetmap.org under the OSM tile usage policy (https://operations.osmfoundation.org/policies/tiles/),
-  fetched by the device when a tagged note is opened, with the WebView's own User-Agent and Referer, which the policy
-  accepts for a browser-style app; the card credits "© OpenStreetMap contributors" wherever tiles or a name are shown.
+  fetched by the device when a tagged note is opened; the card credits "© OpenStreetMap contributors" wherever tiles
+  or a name are shown. Each tile carries the page's origin as its Referer (`referrerPolicy: 'strict-origin'` on the
+  layer, so the shared page's own no-referrer rule does not strip it; an origin carries no share's key), which the
+  policy asks of a web page. **Not yet met in the apps:** the policy asks an app for "a distinct, stable
+  `User-Agent`" naming it, and the Android and Mac WebViews send their stock one. Before a store build ships with the
+  map on by default, the WebView's User-Agent is to name Ghost.md (a suffix on Android's, set as the activity makes
+  the WebView), or the tiles are to be fetched as the app, as the place names already are (DESIGN §134, Left undone).
 - **Place names** are asked of Nominatim (https://nominatim.org) under its usage policy
   (https://operations.osmfoundation.org/policies/nominatim/): one request a second at most, once per tag, with a
   User-Agent that names the app (`GhostMd/<version> (https://ghostmarkdown.com)`, src-tauri/src/geocode.rs); on the

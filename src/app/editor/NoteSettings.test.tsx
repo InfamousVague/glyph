@@ -217,11 +217,18 @@ describe('where the note was written', () => {
     }
   });
 
-  it('says why the note was not tagged on its own after a refusal, and still offers to try', () => {
-    show(<NoteSettings {...sheet({ location: location({ refused: 'refused' }) })} />);
+  it('says why the note was not tagged on its own after a refusal, and still offers to try, in the words of where it runs', () => {
+    // The Android app asks again after a first refusal: a tap is the way.
+    show(<NoteSettings {...sheet({ location: location({ refused: 'refused', onPhone: true }) })} />);
     expect(buttonSaying(document.body, 'Add my location')?.textContent).toContain('Ghost.md wasn’t allowed to know where you are, so this note wasn’t tagged. Tap to ask again.');
-    rerender(<NoteSettings {...sheet({ location: location({ refused: 'blocked' }) })} />);
+    rerender(<NoteSettings {...sheet({ location: location({ refused: 'blocked', onPhone: true }) })} />);
     expect(buttonSaying(document.body, 'Add my location')?.textContent).toContain('Location is off for Ghost.md, so this note wasn’t tagged.');
+    // A browser that was refused does not ask again: its own settings first, and no phone in the words.
+    rerender(<NoteSettings {...sheet({ location: location({ refused: 'refused' }) })} />);
+    const said = buttonSaying(document.body, 'Add my location')?.textContent ?? '';
+    expect(said).toContain('Allow location for this site in the browser’s settings, then tap to try again.');
+    expect(said).not.toContain('Tap to ask again');
+    expect(said).not.toContain('phone');
   });
 
   it('has no such row where the screen offers none', () => {

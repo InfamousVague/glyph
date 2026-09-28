@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTopBarTools } from '../core/topBarTools.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@glacier/react';
+import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { useNotePlace } from './notePlace.ts';
@@ -20,8 +21,9 @@ import { isBookBody, type BookPlace } from '../book/book.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
 import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
 import { geoTagOf, sameTag, tagOf, withGeoTag, type GeoTag } from '../core/geotag.ts';
-import { canLocate, canShowTiles, forgetRefusal, locate, pendingTag, placeFor, refusedFor, rememberRefusal, setPendingTag, settleTag, wantPlace, watchTag, whyLocateFailed, type LocateFailure } from '../core/location.ts';
+import { canLocate, canShowTiles, forgetRefusal, landTag, locate, pendingTag, placeFor, refusedFor, rememberRefusal, setPendingTag, settleTag, wantPlace, watchTag, whyLocateFailed, type LocateFailure } from '../core/location.ts';
 import { REVIEW_HANDED_BACK } from '../ai/useNoteReview.ts';
+import { hasLocationBridge } from '../core/placeLink.ts';
 import { MapCard } from './MapCard.tsx';
 import { authorsOf } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
@@ -29,7 +31,7 @@ import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { useUnfold } from '../core/unfold.ts';
 import type { Note } from '../core/store.ts';
-import { isDarkNow, setPreferences, usePreferences } from '../core/preferences.ts';
+import { setPreferences, useDarkNow, usePreferences } from '../core/preferences.ts';
 import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
@@ -138,6 +140,8 @@ const NO_FIX: Record<LocateFailure, string> = {
 
 export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask, review, landing }: NoteScreenProps) {
   const prefs = usePreferences();
+  // The page's side, followed while the note is open: on System the phone may turn dark under it.
+  const dark = useDarkNow(prefs.theme);
   // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
   // the More sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
   // is enough space on the screen").
@@ -168,6 +172,16 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   );
   /** The card just appeared on this open note: it arrives on the beat rather than at full height. */
   const [fresh, setFresh] = useState(false);
+  /** The tag just taken off, drawn a moment longer while its card leaves on the same beat; null otherwise. */
+  const [leaving, setLeaving] = useState<GeoTag | null>(null);
+  /** Whether the screen is still up: a fix that comes after the note was left is kept for it rather than lost. */
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   /*
    * A note that is a canvas (docs/CANVAS.md) is drawn as one where its words would be. Its JSON is there behind the
    * header's view switch (Matt: "the raw JSON in the editor"), but as the note's own switch rather than the
@@ -269,12 +283,27 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         setCanvasBody(after);
         setBookBody(after);
       }
-    } else if (view) {
+    } else if (view && mounted.current && view.dom.isConnected) {
       const doc = view.state.doc.toString();
       const after = withGeoTag(doc, next);
-      if (after !== doc) view.dispatch({ changes: { from: 0, to: frontMatterOffset(doc), insert: after.slice(0, frontMatterOffset(after)) }, scrollIntoView: true, userEvent: 'input.location' });
+      if (after !== doc) {
+        const was = frontMatterOffset(doc);
+        const now = frontMatterOffset(after);
+        /*
+         * The caret stays with the words. CodeMirror keeps a caret at an insertion point before what is inserted, so
+         * a caret at the top of a note with no front matter would be left in front of the new opening fence, and the
+         * next keystroke would break the block and turn the tag into words (which a share then carries). A caret in
+         * the block, or at its end, goes to the start of the words; one in the words moves by what the block grew.
+         */
+        const place = (pos: number) => (pos <= was ? now : pos + now - was);
+        const selection = EditorSelection.create(
+          view.state.selection.ranges.map((range) => EditorSelection.range(place(range.anchor), place(range.head))),
+          view.state.selection.mainIndex,
+        );
+        view.dispatch({ changes: { from: 0, to: was, insert: after.slice(0, now) }, selection, scrollIntoView: true, userEvent: 'input.location' });
+      }
     } else {
-      // No editor yet: the next look, once it is here.
+      // No editor (not here yet, or the note was left): the next look, or the note's own store (`landTag`).
       return false;
     }
     setTag(next);
@@ -292,7 +321,11 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       setPendingTag(note.id, null);
       return;
     }
-    if (settleTag(note.id, body.current, { reviewing: reviewing.current }) !== null && writeTag(waiting)) return;
+    if (settleTag(note.id, body.current, { reviewing: reviewing.current }) !== null && writeTag(waiting)) {
+      // In the note now, so its name may be asked (this device made it; core/location.ts decides whether it may).
+      wantPlace(note.id, waiting);
+      return;
+    }
     setTag((was) => (sameTag(was, waiting) ? was : waiting));
   };
   /** A name that came for the note's tag: written into the note, or onto the tag still waiting. */
@@ -344,6 +377,17 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   useEffect(() => {
     if (!blank) latest.current.settle();
   }, [blank]);
+  // A new note left without a word leaves nothing behind (docs/LIBRARY.md), its waiting tag included.
+  const blankNow = useRef(blank);
+  blankNow.current = blank;
+  useEffect(
+    () => () => {
+      if (blankNow.current && !geoTagOf(body.current)) setPendingTag(note.id, null);
+    },
+    // The note's own leaving; the rest is read from the refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [note.id],
+  );
 
   /** Add my location, from the More sheet: the fix, the tag into the note (or waiting), and its name asked for. */
   const addLocation = () => {
@@ -361,17 +405,22 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         if (said) dismiss();
         forgetRefusal();
         const next = tagOf(fix);
+        // Left while the fix was coming: the tag is kept for the note and written into it where it may land.
+        if (!mounted.current) {
+          landTag(note.id, next);
+          return;
+        }
         setPendingTag(note.id, next);
         setTag(next);
         setFresh(true);
-        // Into the note now, or waiting for the better words with the card drawn from it meanwhile.
+        setLeaving(null);
+        // Into the note now (and its name asked), or waiting for the better words with the card drawn from it meanwhile.
         latest.current.settle();
-        // This device made the tag, so its name may be asked (core/location.ts decides whether it may).
-        wantPlace(note.id, next);
       },
       (failure: unknown) => {
         window.clearTimeout(slow);
         if (said) dismiss();
+        if (!mounted.current) return;
         const why = whyLocateFailed(failure);
         // Refused here is refused: new notes are not asked for again until location is allowed.
         rememberRefusal(why);
@@ -383,11 +432,12 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       },
     );
   };
-  /** Remove location: both keys out, as one undo step; the card going is the feedback. */
+  /** Remove location: both keys out, as one undo step; the card going, on the beat it came on, is the feedback. */
   const removeLocation = () => {
     flush();
     setSettingsOpen(false);
     setFresh(false);
+    setLeaving(tag);
     writeTag(null);
     setPendingTag(note.id, null);
     setTag(null);
@@ -551,8 +601,18 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
           scrolls with the words: not over a book's index, a canvas, or the transcript, which scrolls inside itself
           while the page holds still, so a card there would take its height from the tape for as long as it played.
         */}
-        {tag && shown === 'raw' && !paging && !drawing ? (
-          <MapCard tag={tag} mode={canShowTiles() ? 'map' : 'quiet'} quietWhy={prefs.localOnly ? 'local-only' : !prefs.mapTiles ? 'off' : undefined} dark={isDarkNow(prefs.theme)} arrive={fresh} className={styles.mapCard} />
+        {(tag ?? leaving) && shown === 'raw' && !paging && !drawing ? (
+          <MapCard
+            tag={(tag ?? leaving)!}
+            // A new note's tag still waiting for its first words is drawn quiet: a draft that may never be kept fetches no tiles.
+            mode={canShowTiles() && !(blank && !geoTagOf(body.current)) ? 'map' : 'quiet'}
+            quietWhy={prefs.localOnly ? 'local-only' : !prefs.mapTiles ? 'off' : undefined}
+            dark={dark}
+            arrive={Boolean(tag) && fresh}
+            leave={!tag}
+            onLeft={() => setLeaving(null)}
+            className={styles.mapCard}
+          />
         ) : null}
 
         {shown === 'transcript' ? (
@@ -564,7 +624,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
           <div className={`${styles.body} ${styles.canvasBody}`} hidden={shown !== 'raw'}>
             <CanvasView
               canvas={canvas}
-              dark={isDarkNow(prefs.theme)}
+              dark={dark}
               wiki={onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle, titles: allTitles } : undefined}
               // A change to the canvas is a change to the note: written into the body as the spec's JSON, front
               // matter kept, and saved the way typing is (editor/useNoteSaving.ts).
@@ -601,7 +661,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             tape={recording}
             tapeId={tape.length > 0 ? tapeId(note.id) : null}
             onImageError={pictures.say}
-            dark={isDarkNow(prefs.theme)}
+            dark={dark}
             assist={prefs.assist}
             placeholder="Write something."
             swipeAction={() => itemSend(note.id, editing)}
@@ -648,7 +708,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             : undefined
         }
         onMakeBoard={shown === 'raw' && settingsOpen && boardFrom(view?.state.doc.toString() ?? body.current) ? makeBoard : undefined}
-        location={{ tag, can: canLocate(), asksName: prefs.placeNames && !prefs.localOnly, refused: tag ? null : refusedFor(note.createdAt), onAdd: addLocation, onRemove: removeLocation }}
+        location={{ tag, can: canLocate(), asksName: prefs.placeNames && !prefs.localOnly, refused: tag ? null : refusedFor(note.createdAt), onPhone: hasLocationBridge(), onAdd: addLocation, onRemove: removeLocation }}
         onPin={() => {
           flush();
           onPin({ ...note, starred: pinned });

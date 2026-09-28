@@ -1,6 +1,6 @@
 /*
- * The map card (MapCard.tsx): a box the width of the note's column, the quiet card under and the map over it, the
- * chips at its corners, and the tap over all of it. The tile pane is greyed and washed with the page's paper, so
+ * The map card (MapCard.tsx): a box the width of the note's column, up to a link card's width, the quiet card under
+ * and the map over it, the chips at its corners, and the tap over all of it. The tile pane is greyed and washed with the page's paper, so
  * OpenStreetMap's coloured landuse and black labels sit between the fourth and third inks and the pin is the only
  * full-ink mark; inverted on a dark page. Leaflet's own colours (a #ddd ground, a blue link colour, an outline on
  * focus) are taken off here, so nothing of Leaflet's shows.
@@ -13,6 +13,13 @@
   overflow: hidden;
   /* The tape row's weight on a phone, so a spoken tagged note has two rows of one kind above its words. */
   block-size: 6rem;
+  /*
+   * A card in the note, not a banner over it: the width a link card is held to (editor/linkCards.ts), so on the Mac
+   * or a wide window the place's chip and the pin stay one glance apart.
+   */
+  max-inline-size: 32rem;
+  /* Where the place is: a little below the middle, so the pin's head clears the place's chip above it. */
+  --place-y: calc(50% + 10px);
   border-radius: var(--glacier-radius-lg);
   border: var(--glacier-hairline) solid var(--app-rule);
   background: var(--app-paper-2);
@@ -26,12 +33,15 @@
   }
 }
 
-/* A map without a map: paper, a faint dot grid, and the pin in the middle. Always under the map, so a missing tile is paper. */
+/* A rough tag's ring is an area, not a point: it sits in the middle, where it has the room. */
+.card[data-rough] {
+  --place-y: 50%;
+}
+
+/* A map without a map: paper, a faint dot grid, and the pin where the map will put it. Always under the map, so a missing tile is paper. */
 .quiet {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
   color: var(--app-ink-3);
 }
 
@@ -45,32 +55,24 @@
   opacity: 0.45;
 }
 
-.pinMark {
-  position: relative;
-  font-size: 2em;
-  color: var(--app-ink-2);
-}
-
-/* A rough tag's mark on the quiet card: a ring, since an area is not a point. */
-.ring {
-  position: relative;
-  inline-size: 2em;
-  block-size: 2em;
-  border-radius: 50%;
-  border: 2px solid var(--app-ink-2);
-  background: color-mix(in srgb, var(--app-ink-2) 10%, transparent);
-}
-
-/* The map itself, over the quiet card, arriving once its tiles have loaded. */
+/*
+ * The map itself, over the quiet card, arriving once its tiles have loaded. Its box runs 20px past the card's foot, so
+ * the middle Leaflet centres the tag on is `--place-y`, where the pin is; the card clips the rest. A rough tag's is
+ * the card's own box.
+ */
 .map {
   position: absolute;
-  inset: 0;
+  inset: 0 0 -20px;
   opacity: 0;
   transition: opacity var(--glacier-duration-normal) var(--glacier-ease-out);
   /* Leaflet's own ground and face taken off: tiles arrive over paper, and its words are the page's. */
   background: var(--app-paper-2);
   font: inherit;
   outline: none;
+}
+
+.card[data-rough] .map {
+  inset: 0;
 }
 
 .card[data-loaded] .map {
@@ -123,27 +125,28 @@
 }
 
 /*
- * The pin over the map, in the page's ink and above the wash, its tip on the place at the middle of the box (a ring's
- * centre, for a rough tag). It arrives with the map, so the quiet card's own pin is never seen beside it.
+ * The pin, its tip on the place (a ring's centre, for a rough tag; its size and offset are the card's to say). One
+ * drawing in one place on both layers: on the quiet card in the second ink, and over the map, above the wash, in the
+ * page's ink, arriving with the map. Loading to loaded only deepens the ink.
  */
 .mark {
   position: absolute;
-  z-index: 460;
-  inset-block-start: 50%;
+  inset-block-start: var(--place-y);
   inset-inline-start: 50%;
   translate: -14px -27px;
   line-height: 0;
-  color: var(--app-ink);
-  opacity: 0;
-  transition: opacity var(--glacier-duration-normal) var(--glacier-ease-out);
+  color: var(--app-ink-2);
   pointer-events: none;
 }
 
-.mark[data-rough] {
-  translate: -16px -16px;
+.over {
+  z-index: 460;
+  color: var(--app-ink);
+  opacity: 0;
+  transition: opacity var(--glacier-duration-normal) var(--glacier-ease-out);
 }
 
-.card[data-loaded] .mark {
+.card[data-loaded] .over {
   opacity: 1;
 }
 
@@ -178,8 +181,14 @@
   color: var(--app-ink-3);
 }
 
+/* The one thing to press on the reader's card, so it is drawn as the kit's small button is, with the map's mark. */
 .show {
-  color: var(--app-ink-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  border: var(--glacier-hairline) solid var(--app-rule);
+  background: var(--app-paper);
+  color: var(--app-ink);
 }
 
 /* Bottom right: whose data this is, only where their data is shown. */
@@ -215,9 +224,14 @@
   outline-offset: -2px;
 }
 
-/* A card that appears on an open note arrives on the kit's beat. */
+/* A card that appears on an open note arrives on the kit's beat, and one taken off leaves on it, so the words below move once, smoothly. */
 .card[data-arrive] {
   animation: mapArrive 360ms var(--glacier-ease-out) both;
+}
+
+.card[data-leave] {
+  pointer-events: none;
+  animation: mapLeave 300ms var(--glacier-ease-out) both;
 }
 
 @keyframes mapArrive {
@@ -228,13 +242,24 @@
   }
 }
 
+@keyframes mapLeave {
+  to {
+    block-size: 0;
+    margin-block: 0;
+    border-block-width: 0;
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .card[data-arrive] {
+  .card[data-arrive],
+  .card[data-leave] {
     animation: none;
   }
 
   .map,
-  .mark {
+  .over {
     transition: none;
   }
 }

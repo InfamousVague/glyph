@@ -142,6 +142,15 @@ describe('deleting for good', () => {
     await settle();
     expect(await getNote('a')).toBeNull();
   });
+
+  it('takes a tag still waiting to say where the note was written with it', async () => {
+    mount();
+    setPendingTag('a', { lat: 51.5074, lon: -0.1278, place: null, rough: false });
+    act(() => actions.destroy(apples));
+    await act(async () => actions.flushDeletes());
+    expect(await getNote('a')).toBeNull();
+    expect(pendingTag('a')).toBeNull();
+  });
 });
 
 describe('the trash', () => {

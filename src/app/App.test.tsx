@@ -365,6 +365,47 @@ describe('the side key', () => {
   });
 });
 
+describe('a new note, and where it was made', () => {
+  it('says what the first location ask is for, asks on the press, and tags a note but never a canvas', async () => {
+    const { pendingTag } = await import('./core/location.ts');
+    const calls: PositionOptions[] = [];
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback, _fail: PositionErrorCallback, options: PositionOptions) => {
+          calls.push(options);
+          ok({ coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 15 }, timestamp: 1 } as GeolocationPosition);
+        },
+      },
+    });
+    try {
+      await openApp();
+      act(() => button('Write a note').click());
+      await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+      await waitUntil(() => expect(noteShown()).not.toBeNull());
+      const made = noteShown()!;
+      // Never answered on this device: the app's own words first, and nothing asked of the device until the press.
+      await waitUntil(() => expect(document.body.textContent).toContain('New notes can keep where they were written.'));
+      expect(calls).toHaveLength(0);
+      await act(async () => buttonSaying(document.body, 'Allow location')!.click());
+      await waitUntil(() => expect(pendingTag(made)).toMatchObject({ lat: 51.5074, lon: -0.1278 }));
+      expect(calls).toHaveLength(1);
+      // A canvas is the app's page, not a note the person wrote: not tagged, and nothing asked.
+      act(() => button('Home').click());
+      act(() => button('Write a note').click());
+      await act(async () => buttonSaying(document.body, 'Cards on a page')!.click());
+      await waitUntil(() => expect(noteShown()).not.toBe(made));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(calls).toHaveLength(1);
+      expect(pendingTag(noteShown()!)).toBeNull();
+    } finally {
+      Reflect.deleteProperty(navigator, 'geolocation');
+    }
+  });
+});
+
 describe('a capture ending', () => {
   it('comes back to the note it was spoken into, read fresh', async () => {
     await seed(['a', '# Apples']);

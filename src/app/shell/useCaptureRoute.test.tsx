@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, useState } from 'react';
+import { act, useEffect, useState } from 'react';
 import { createNote, getNote, updateNote } from '../core/store.ts';
 import { autoTagRefusal, pendingTag, watchTag } from '../core/location.ts';
 import { reloadPreferences, setPreferences } from '../core/preferences.ts';
@@ -18,11 +18,30 @@ let screen: Screen;
 const refresh = vi.fn(async () => undefined);
 const flushDeletes = vi.fn(async () => undefined);
 
-function Probe({ from, tooSoon = false, sayTooSoon = () => undefined, clearStage = () => undefined }: { from: Screen; tooSoon?: boolean; sayTooSoon?: () => void; clearStage?: () => void }) {
+/** A note's screen as far as its tag goes: it watches the tag once mounted (editor/NoteScreen.tsx), and hears what comes. */
+const heardOnScreen: string[] = [];
+function NoteWatch({ id }: { id: string }) {
+  useEffect(() => watchTag(id, (event) => void heardOnScreen.push(`${id}:${event.kind}`)), [id]);
+  return null;
+}
+
+function Probe({
+  from,
+  tooSoon = false,
+  sayTooSoon = () => undefined,
+  clearStage = () => undefined,
+  introduceLocation,
+}: {
+  from: Screen;
+  tooSoon?: boolean;
+  sayTooSoon?: () => void;
+  clearStage?: () => void;
+  introduceLocation?: (allow: () => void) => void;
+}) {
   const [now, setNow] = useState<Screen>(from);
   screen = now;
-  route = useCaptureRoute({ screen: now, setScreen: setNow, refresh, flushDeletes, atBoot: false, tooSoon: () => tooSoon, sayTooSoon, clearStage });
-  return null;
+  route = useCaptureRoute({ screen: now, setScreen: setNow, refresh, flushDeletes, atBoot: false, tooSoon: () => tooSoon, sayTooSoon, clearStage, introduceLocation });
+  return now.name === 'note' ? <NoteWatch id={now.note.id} /> : null;
 }
 
 beforeEach(() => {
@@ -204,6 +223,35 @@ describe('where a capture’s new notes were made', () => {
     expect(told).toEqual(['pending']);
     expect((await getNote('n'))?.body).toBe('# Said\n');
     expect(pendingTag('n')).toEqual({ lat: 51.5074, lon: -0.1278, place: null, rough: false });
+  });
+
+  it('asks only once the note’s own screen is up, so the tag goes through it and never under its editor', async () => {
+    heardOnScreen.length = 0;
+    fixAt(40.7128, -74.006);
+    const note = await createNote('fresh', '# Said\n');
+    show(<Probe from={into()} />);
+    // A take that opens its note (an instruction said into it, here; a review does too).
+    await act(async () => route.finished(note, false, undefined, { kind: 'fix' }));
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'fresh' } });
+    await settle();
+    // The screen mounted with the route change and was watching before the fix was asked for: it was handed the tag.
+    expect(heardOnScreen).toEqual(['fresh:pending']);
+    expect((await getNote('fresh'))?.body).toBe('# Said\n');
+    expect(pendingTag('fresh')).toMatchObject({ lat: 40.7128, lon: -74.006 });
+  });
+
+  it('introduces the first ask on a device that never answered the prompt, and asks on the press', async () => {
+    const calls = fixAt(40.7128, -74.006);
+    const note = await createNote('first', '# Said\n');
+    let allow: (() => void) | null = null;
+    show(<Probe from={into()} introduceLocation={(press) => (allow = press)} />);
+    await act(async () => route.finished(note, false));
+    await settle();
+    expect(allow).not.toBeNull();
+    expect(calls).toHaveLength(0);
+    await act(async () => allow!());
+    await settle();
+    expect(calls).toHaveLength(1);
   });
 
   it('keeps the tag aside while a review with a job is live for the note, and never asks at start', async () => {

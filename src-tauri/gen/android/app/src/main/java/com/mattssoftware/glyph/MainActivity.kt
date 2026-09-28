@@ -268,11 +268,8 @@ class MainActivity : TauriActivity() {
 
   override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-    // Location's own answer (location/LocationAccess.kt, native generation 20): the page reads the state again.
-    if (requestCode == LocationAccess.REQUEST) {
-      webView?.let { wv -> runOnUiThread { wv.evaluateJavascript("window.__glyph && window.__glyph.location && window.__glyph.location()", null) } }
-      return
-    }
+    // Location's own answer (location/LocationAccess.kt, native generation 20): kept, and the page reads the state again.
+    if (LocationAccess.answered(this, requestCode, grantResults, webView)) return
     if (requestCode != REQUEST_NOTIFICATIONS) return
     webView?.let { wv ->
       runOnUiThread { wv.evaluateJavascript("window.__glyph && window.__glyph.alerts && window.__glyph.alerts()", null) }

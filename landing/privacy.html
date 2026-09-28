@@ -124,13 +124,14 @@
           <strong>Where a note was written</strong>: a new note you make starts with where you are, once you allow Ghost.md to
           know it, and you can add or remove a note's location from its More sheet. Finding where you are asks your device's
           location service, which on Android and in a browser uses nearby Wi-Fi and mobile networks and so the service's own
-          servers (Google's, Apple's or your browser's). Turn "Tag new notes with my location" off in Settings › Location to
-          stop it; Local only stops it too. Notes you already have are never tagged.
+          servers (Google's, Apple's or your browser's). Turn "Tag new notes with my location" off in Settings › Location on
+          each device to stop it; Local only stops it too. Notes you already have are never tagged.
         </li>
         <li>
           <strong>Maps and place names</strong>: a note tagged with a location shows a small map, drawn with tiles your device
           fetches from openstreetmap.org when you open the note, and asks OpenStreetMap's Nominatim once, when the location is
-          added, for the place's name, which is then kept in the note. Those servers see your IP address and the coordinates
+          written into the note, for the place's name, which is then kept in the note. A new note that never gets a word
+          asks neither. Those servers see your IP address and the coordinates
           asked about (to about 100 m for the name). Both are off under Local only, and each has its own switch in Settings ›
           Location. A note's location is part of the note: it syncs with it, end-to-end encrypted like the rest of the note, it
           is in the note's file in the phone's Files app, and a connected AI assistant sees it. A shared link leaves it out

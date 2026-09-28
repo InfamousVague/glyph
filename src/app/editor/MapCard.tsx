@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Map as LeafletMap } from 'leaflet';
-import { PLACE_PATH, Place } from '../art/Icons.tsx';
+import { PLACE_PATH } from '../art/Icons.tsx';
 import { tagLabel, type GeoTag } from '../core/geotag.ts';
+import { prefersStill } from '../core/motion.ts';
 import { openPlace } from '../core/placeLink.ts';
 import styles from './MapCard.module.css';
 
@@ -11,7 +12,9 @@ import styles from './MapCard.module.css';
  * tag it is given, never reads the note, never asks for a name and never writes.
  *
  * Two layers, always both. Under, the quiet card: paper, a faint dot grid (a map without a map, in the dotwork family
- * of the ghost) and the drawn pin, or a ring for a rough tag, since an area is not a point. Over it, in `map` mode,
+ * of the ghost) and the pin, or a ring for a rough tag, since an area is not a point. The pin is the same drawing in
+ * the same place on both layers, so a map arriving only deepens its ink. It sits a little below the middle of the box
+ * (the map is centred to match), clear of the place's chip above it and the chips at the foot. Over it, in `map` mode,
  * OpenStreetMap's tiles through Leaflet, fading in once the tile layer has loaded, whatever a failed tile said
  * before: loading, offline and every tile failed are one state, the quiet card. No spinner, no error copy. The tile
  * pane is greyed and washed with the page's paper so every tile sits between the fourth and third inks and the pin is
@@ -34,24 +37,47 @@ export interface MapCardProps {
   onShow?: () => void;
   /** The card just appeared on an open note: it arrives on the kit's beat rather than popping in at full height. */
   arrive?: boolean;
+  /** The tag was just taken off: the card leaves on the same beat, then `onLeft` lets it go. */
+  leave?: boolean;
+  onLeft?: () => void;
   className?: string;
 }
 
 /** OpenStreetMap's standard tiles, under its tile usage policy (docs/THIRD_PARTY.md). */
 const OSM_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+/** How long the card takes to leave, as the arrival's beat (MapCard.module.css `mapLeave`). */
+const LEAVE_MS = 300;
+
+/** A street for a fine tag; for a rough one a district, a step wider than the name is asked at, so its ring fits the box. */
+const zoomOf = (rough: boolean) => (rough ? 11 : 15);
 
 /**
- * The mark over the map: the app's pin, its body filled with the paper so it reads over tiles, its tip on the place;
- * or, for a rough tag, a ring, since an area is not a point. Drawn by the card rather than as Leaflet's marker: the
- * map never moves from the tag it was centred on, so the place is always the middle of the box, and Leaflet's
- * marker pane sits inside its map pane, under the wash, where the pin would be as grey as the streets.
+ * How wide a rough tag's ring is drawn, in pixels at its zoom (11): the half diagonal of the cell its two decimals
+ * round to. A hundredth of a degree of longitude is 14.6 px at that zoom anywhere; of latitude, that over the
+ * latitude's cosine (Web Mercator's stretch), so the ring's radius is 14 px in London, 10 at the equator and more
+ * towards the poles. A ring of a fixed size read as a precise spot; at zoom 12 the true one crowded the chips.
  */
-function MapMark({ rough }: { rough: boolean }) {
+function ringRadius(lat: number): number {
+  const half = (0.01 / 360) * 256 * 2 ** zoomOf(true) * 0.5;
+  const cos = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  return Math.round(Math.min(18, Math.max(10, Math.hypot(half, half / cos))));
+}
+
+/**
+ * The mark, on both layers: the app's pin, its body filled with the paper so it reads over tiles, its tip on the
+ * place; or, for a rough tag, a ring the size of the area its decimals leave open, since an area is not a point.
+ * Drawn by the card rather than as Leaflet's marker: the map never moves from the tag it was centred on, so the place
+ * is always the same spot in the box, and Leaflet's marker pane sits inside its map pane, under the wash, where the
+ * pin would be as grey as the streets.
+ */
+function MapMark({ rough, lat, over }: { rough: boolean; lat: number; over: boolean }) {
+  const r = ringRadius(lat);
+  const box = 2 * r + 4;
   return (
-    <span className={styles.mark} data-rough={rough || undefined} aria-hidden="true">
+    <span className={`${styles.mark} ${over ? styles.over : ''}`} data-rough={rough || undefined} aria-hidden="true" style={rough ? { translate: `${-box / 2}px ${-box / 2}px` } : undefined}>
       {rough ? (
-        <svg viewBox="0 0 32 32" width="32" height="32">
-          <circle cx="16" cy="16" r="14" fill="color-mix(in srgb, currentColor 10%, transparent)" stroke="currentColor" strokeWidth="2.4" />
+        <svg viewBox={`0 0 ${box} ${box}`} width={box} height={box}>
+          <circle cx={box / 2} cy={box / 2} r={r} fill="color-mix(in srgb, currentColor 10%, transparent)" stroke="currentColor" strokeWidth="2.4" />
         </svg>
       ) : (
         <svg viewBox="0 0 24 24" width="28" height="28">
@@ -65,10 +91,19 @@ function MapMark({ rough }: { rough: boolean }) {
 
 const WHY = { 'local-only': 'Local only is on.', off: 'Map off in Settings.' } as const;
 
-export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, className }: MapCardProps) {
+export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, leave, onLeft, className }: MapCardProps) {
   const mapEl = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
   const { lat, lon, rough } = tag;
+  const left = useRef(onLeft);
+  left.current = onLeft;
+
+  // Leaving: the card goes on its beat, and then is let go (at once, for a phone that asks for less motion).
+  useEffect(() => {
+    if (!leave) return undefined;
+    const timer = window.setTimeout(() => left.current?.(), prefersStill() ? 0 : LEAVE_MS);
+    return () => window.clearTimeout(timer);
+  }, [leave]);
 
   useEffect(() => {
     if (mode !== 'map') return undefined;
@@ -77,8 +112,7 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, className }
     let live = true;
     let map: LeafletMap | null = null;
     let observer: ResizeObserver | null = null;
-    // A street for a fine tag, a district for a rough one.
-    const zoom = rough ? 12 : 15;
+    const zoom = zoomOf(rough);
     void (async () => {
       const mod = await import('leaflet');
       await import('leaflet/dist/leaflet.css');
@@ -106,7 +140,9 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, className }
         map.setView([lat, lon], zoom);
         // Standard tiles, not retina ones: at the Fold's 2.6 dpr the z+1 tiles drawn at half size were sharper but
         // twice as busy (every shop's mark, the street names at half size), and the card is a picture under a wash.
-        const tiles = L.tileLayer(OSM_TILES, { maxZoom: 19, detectRetina: false });
+        // The page's origin as the Referer, which OSM's tile policy asks of a web page: the shared page sends none
+        // of its own (read.html's no-referrer, which guards the share's address), and an origin carries no share.
+        const tiles = L.tileLayer(OSM_TILES, { maxZoom: 19, detectRetina: false, referrerPolicy: 'strict-origin' });
         // The map shows once its tiles are in, whatever a failed one said on the way: a failed tile is the map's
         // paper. Only a map with no tile at all (offline, every one refused) stays the quiet card.
         let drawn = false;
@@ -153,20 +189,33 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, className }
   };
 
   return (
-    <div className={`${styles.card} ${className ?? ''}`} data-dark={dark || undefined} data-loaded={loaded || undefined} data-mode={mode} data-arrive={arrive || undefined}>
+    <div
+      className={`${styles.card} ${className ?? ''}`}
+      data-dark={dark || undefined}
+      data-loaded={loaded || undefined}
+      data-mode={mode}
+      data-rough={rough || undefined}
+      data-arrive={(arrive && !leave) || undefined}
+      data-leave={leave || undefined}
+    >
       <div className={styles.quiet} aria-hidden="true">
-        {rough ? <span className={styles.ring} /> : <Place className={styles.pinMark} />}
+        <MapMark rough={rough} lat={lat} over={false} />
       </div>
       {mode === 'map' ? <div ref={mapEl} className={styles.map} aria-hidden="true" /> : null}
-      {mode === 'map' ? <MapMark rough={rough} /> : null}
+      {mode === 'map' ? <MapMark rough={rough} lat={lat} over /> : null}
       <span className={`${styles.chip} ${styles.where}`}>{label}</span>
       {asks ? (
-        <span className={`${styles.chip} ${styles.why} ${styles.show}`}>Show the map</span>
+        <span className={`${styles.chip} ${styles.why} ${styles.show}`}>
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+            <path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5zM9 4v13.5M15 6.5v13.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+          </svg>
+          Show the map
+        </span>
       ) : quietWhy && mode === 'quiet' ? (
         <span className={`${styles.chip} ${styles.why}`}>{WHY[quietWhy]}</span>
       ) : null}
       {credit ? <span className={`${styles.chip} ${styles.credit}`}>© OpenStreetMap contributors</span> : null}
-      <button type="button" className={styles.tap} aria-label={asks ? 'Show the map' : `Open ${label} on a map`} onClick={press} />
+      <button type="button" className={styles.tap} aria-label={asks ? 'Show the map' : `Open ${label} on a map`} onClick={press} disabled={leave} />
     </div>
   );
 }

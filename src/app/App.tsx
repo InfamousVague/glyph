@@ -114,10 +114,20 @@ function Shell() {
   // Whether the side key launched the app, asked of the host once (core/host.ts).
   const [launchedByKey] = useState(takeCaptureLaunch);
   const guide = useGuide(launchedByKey);
+  /*
+   * The first time a new note would be tagged on a device that has never answered the location prompt, the app says
+   * what it is for, in its own words, and the prompt comes from the press (core/location.ts `tagNewNotesIfWanted`):
+   * the system's dialog never arrives over a blank note unannounced.
+   */
+  const introduceLocation = useCallback(
+    (allow: () => void) => toast({ message: 'New notes can keep where they were written.', duration: 10_000, action: { label: 'Allow location', onPress: allow } }),
+    [toast],
+  );
   const capture = useCaptureRoute({
     screen,
     setScreen,
     refresh,
+    introduceLocation,
     flushDeletes: actions.flushDeletes,
     atBoot: launchedByKey && !guide.tooSoonAtBoot,
     tooSoon: guide.onReadingPage,
@@ -343,7 +353,7 @@ function Shell() {
   const newNote = async () => {
     tabs.replaceNext(null);
     const note = await showMade('');
-    void tagNewNotesIfWanted([note.id], { reviewing: false });
+    void tagNewNotesIfWanted([note.id], { reviewing: false }, { introduce: introduceLocation });
   };
 
   /*

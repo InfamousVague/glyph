@@ -164,6 +164,16 @@ describe('front matter, folded', () => {
     view.destroy();
   });
 
+  it('is not folded where the words cannot be edited: the shared reader shows the lines as they are', () => {
+    const view = new EditorView({
+      state: EditorState.create({ doc: TAGGED, extensions: [glyphMarkdown([], []), extendedMarkdown(), EditorState.readOnly.of(true), EditorView.editable.of(false)] }),
+      parent: document.body,
+    });
+    expect(frontMatterFolded(view.state)).toBe(false);
+    expect(view.contentDOM.querySelectorAll('.cm-front')).toHaveLength(6);
+    view.destroy();
+  });
+
   it('leaves a note with no front matter, and a rule with words under it, as they are', () => {
     expect(drawn('# Plain\n\nWords.').html).not.toContain('cm-frontFold');
     expect(drawn('---\njust some words\n---').html).not.toContain('cm-frontFold');

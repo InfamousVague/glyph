@@ -181,6 +181,34 @@ describe('a fix', () => {
     await expect(location.locate({ quiet: true })).rejects.toMatchObject({ why: 'unavailable' });
     expect(requested).toEqual([1]);
   });
+
+  it('on Android reads a prompt answered with neither permission as refused, and asks nothing of the device', async () => {
+    android = true;
+    native = true;
+    const { calls } = fixAt(51.5, -0.1);
+    window.GlyphHost = {
+      takeLaunch: () => '',
+      isLocked: () => false,
+      endCapture: () => undefined,
+      locationAccess: () => 'ask',
+      requestLocation: () => setTimeout(() => window.__glyph?.location?.(), 10),
+    };
+    const fix = location.locate();
+    const said = expect(fix).rejects.toMatchObject({ why: 'refused' });
+    await vi.advanceTimersByTimeAsync(20);
+    await said;
+    expect(calls).toHaveLength(0);
+  });
+
+  it('gives up after a minute when nothing answers, a browser’s prompt left open included', async () => {
+    const { calls } = geolocation(() => undefined);
+    const fix = location.locate();
+    const said = expect(fix).rejects.toMatchObject({ why: 'timeout' });
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await said;
+  });
 });
 
 describe('the gates', () => {
@@ -267,6 +295,43 @@ describe('a place’s name', () => {
     expect(location.placeFor({ ...LONDON, lat: 40, lon: -74 })).toBeNull();
   });
 
+  it('asks once for two notes at the same place, and not at all if Local only comes on while an ask waits its turn', async () => {
+    native = true;
+    location.wantPlace('one', LONDON);
+    location.wantPlace('two', LONDON);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(invoked).toHaveLength(1);
+    // Two places: the second waits its second, and Local only turned on meanwhile stops it being sent.
+    location.wantPlace('n1', { ...LONDON, lat: 40, lon: -74 });
+    location.wantPlace('n2', { ...LONDON, lat: 48.8606, lon: 2.3376 });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(invoked).toHaveLength(2);
+    prefs.setPreferences({ localOnly: true });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(invoked).toHaveLength(2);
+    // Not counted as failed: asked again, once asking is allowed again.
+    prefs.setPreferences({ localOnly: false });
+    location.wantPlace('n2', { ...LONDON, lat: 48.8606, lon: 2.3376 });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(invoked.map((call) => call.args.lat)).toEqual([51.507, 40, 48.861]);
+  });
+
+  it('writes a closed note only while its tag is the one asked about, and never while a pass is queued for it', async () => {
+    nominatim();
+    // Moved since the ask: the name is not this tag's.
+    await store.createNote('moved', '---\nlocation: 40.7128,-74.0060\n---\n# NYC\n');
+    location.wantPlace('moved', LONDON);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect((await store.getNote('moved'))?.body).toBe('---\nlocation: 40.7128,-74.0060\n---\n# NYC\n');
+    // A pass queued, and no tag waiting: the note is left for the pass's compare.
+    queued.add('queued');
+    await store.createNote('queued', '---\nlocation: 51.5074,-0.1278\n---\n# Out\n');
+    location.wantPlace('queued', LONDON);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect((await store.getNote('queued'))?.body).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Out\n');
+    expect(location.placeFor(LONDON)).toBe('Trafalgar Square, London');
+  });
+
   it('is written into a closed note, unless a pass is queued to rewrite it, and waits for a pending tag', async () => {
     nominatim();
     await store.createNote('closed', '---\nlocation: 51.5074,-0.1278\n---\n# Out\n');
@@ -331,9 +396,10 @@ describe('tagging new notes', () => {
     expect((await store.getNote('open'))?.body).toBe('# Said\n');
     expect(location.pendingTag('open')).toEqual(LONDON);
     expect(heard).toEqual([{ kind: 'pending' }]);
-    // The name is asked, once for the three: the same place.
+    // The name is asked only for the tag that landed; the others are named when theirs do.
     await settle();
     expect(asked).toHaveLength(1);
+    expect((await store.getNote('plain'))?.body).toBe('---\nlocation: 51.5074,-0.1278\nplace: "Trafalgar Square, London"\n---\n# Said\n');
     // A review live for the note: set aside too.
     await store.createNote('reviewed', '# Said\n');
     await location.tagNewNotes(['reviewed'], fix, { reviewing: true });
@@ -349,6 +415,94 @@ describe('tagging new notes', () => {
     expect(location.pendingTag('blank')).toEqual(LONDON);
     expect((await store.getNote('tagged'))?.body).toBe('---\nlocation: 1.0000,2.0000\n---\n# Here\n');
     expect(location.pendingTag('tagged')).toBeNull();
+  });
+
+  it('writes a closed note’s waiting tag once its pass has gone, keeps it past a day while the pass is queued, and drops it for a note that is gone', async () => {
+    const asked = nominatim();
+    await store.createNote('rec', '# Said\n');
+    queued.add('rec');
+    await location.tagNewNotes(['rec', 'gone'], Promise.resolve({ lat: 51.50741, lon: -0.12776, accuracy: 12, at: 0 }), { reviewing: false });
+    expect(location.pendingTag('rec')).toEqual(LONDON);
+    // A day and more with the pass still queued: the tag is what it waits for, so it is kept.
+    vi.setSystemTime(1_000 * DAY + 2 * DAY);
+    expect(await location.settleWaitingTags()).toBe(0);
+    expect(location.pendingTag('rec')).toEqual(LONDON);
+    expect((await store.getNote('rec'))?.body).toBe('# Said\n');
+    expect(asked).toHaveLength(0);
+    // The pass lands (the words rewritten) and leaves the queue: the tag goes in with the better words, then its name.
+    await store.updateNote('rec', '# Said better\n', (await store.getNote('rec'))!.revision ?? 1);
+    queued.delete('rec');
+    expect(await location.settleWaitingTags()).toBe(1);
+    await settle();
+    expect((await store.getNote('rec'))?.body).toBe('---\nlocation: 51.5074,-0.1278\nplace: "Trafalgar Square, London"\n---\n# Said better\n');
+    expect(location.pendingTag('rec')).toBeNull();
+    // A note that is not there any more takes its waiting tag with it.
+    expect(location.pendingTag('gone')).toBeNull();
+  });
+
+  it('writes a note’s waiting tag a moment after its screen is left, and keeps one made after it was', async () => {
+    nominatim();
+    await store.createNote('left', '# Walk\n');
+    const stop = location.watchTag('left', () => undefined);
+    location.setPendingTag('left', LONDON);
+    stop();
+    await vi.advanceTimersByTimeAsync(1999);
+    expect((await store.getNote('left'))?.body).toBe('# Walk\n');
+    await vi.advanceTimersByTimeAsync(1);
+    expect((await store.getNote('left'))?.body).toContain('location: 51.5074,-0.1278');
+    // A fix that came after the screen went (landTag): written straight into the closed note.
+    await store.createNote('late', '# Late\n');
+    location.landTag('late', { ...LONDON, lat: 48.8566, lon: 2.3522 });
+    await settle();
+    expect((await store.getNote('late'))?.body).toBe('---\nlocation: 48.8566,2.3522\n---\n# Late\n');
+  });
+
+  it('introduces the first ask where the prompt has never been answered, once a run, and asks on the press', async () => {
+    await store.createNote('n1', '# Said\n');
+    await store.createNote('n2', '# Said too\n');
+    const { calls } = fixAt(51.5074, -0.1278);
+    let allow: (() => void) | null = null;
+    const introduce = vi.fn((press: () => void) => {
+      allow = press;
+    });
+    expect(await location.tagNewNotesIfWanted(['n1'], { reviewing: false }, { introduce })).toBeNull();
+    expect(introduce).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(0);
+    // Let pass: the next new note this run is neither introduced again nor asked for.
+    expect(await location.tagNewNotesIfWanted(['n2'], { reviewing: false }, { introduce })).toBeNull();
+    expect(introduce).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(0);
+    // Pressed: the ask is made, from the press, and the note is tagged.
+    allow!();
+    await settle();
+    expect(calls).toHaveLength(1);
+    expect((await store.getNote('n1'))?.body).toContain('location: 51.5074,-0.1278');
+    // Where the prompt was answered already, nothing is introduced.
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'granted' }) } });
+    try {
+      await store.createNote('n3', '# Said\n');
+      const told = vi.fn();
+      await location.tagNewNotesIfWanted(['n3'], { reviewing: false }, { introduce: told });
+      expect(told).not.toHaveBeenCalled();
+      expect(calls).toHaveLength(2);
+    } finally {
+      Reflect.deleteProperty(navigator, 'permissions');
+    }
+  });
+
+  it('says where location is allowed again in the words of where it runs', () => {
+    expect(location.allowLocationWhere()).toBe('Allow location for this site in the browser’s settings');
+    native = true;
+    android = true;
+    window.GlyphHost = { takeLaunch: () => '', isLocked: () => false, endCapture: () => undefined, locationAccess: () => 'blocked' };
+    expect(location.allowLocationWhere()).toBe('Allow location for Ghost.md in the phone’s settings');
+  });
+
+  it('forgets a kept refusal once a fix comes', async () => {
+    location.rememberRefusal('refused');
+    expect(location.autoTagRefusal()).toBe('refused');
+    await location.tagNewNotes(['n1'], Promise.resolve({ lat: 1, lon: 2, accuracy: 12, at: 0 }), { reviewing: false });
+    expect(location.autoTagRefusal()).toBeNull();
   });
 
   it('remembers a refusal so the device is not asked again, until a fix comes', async () => {

@@ -296,12 +296,15 @@
   padding-block-start: 0;
 }
 
-/* Nor under the front matter folded to its one quiet line (editor/extended.ts): the heading is still the note's top. */
+/*
+ * Under the front matter folded to its one quiet line (editor/extended.ts), a heading keeps a little of its room: the
+ * line belongs with the map card above it, not with the title, so the gap below it is the larger.
+ */
 .editor :global(.cm-frontFold) + :global(.cm-line).lineH1,
 .editor :global(.cm-frontFold) + :global(.cm-line).lineH2,
 .editor :global(.cm-frontFold) + :global(.cm-line).lineH3,
 .editor :global(.cm-frontFold) + :global(.cm-line).lineH4 {
-  padding-block-start: 0;
+  padding-block-start: var(--glacier-space-6);
 }
 
 /*

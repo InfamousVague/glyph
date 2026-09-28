@@ -33,6 +33,8 @@ describe('a tag written into the note', () => {
     const withTitle = withGeoTag('---\ntitle: "Map"\n---\n{}', LONDON);
     expect(withGeoTag(withTitle, null)).toBe('---\ntitle: "Map"\n---\n{}');
     expect(withGeoTag('# Plain', null)).toBe('# Plain');
+    // Every line of either: a second typed by hand, or two devices adding a location at once, stays out of a share too.
+    expect(withGeoTag('---\nlocation: 51.5074,-0.1278\nlocation: 1,2\nplace: "A"\nplace: "B"\ntitle: "T"\n---\n# A', null)).toBe('---\ntitle: "T"\n---\n# A');
   });
 
   it('writes four decimals from a fine fix and two from a rough one, read back as rough', () => {

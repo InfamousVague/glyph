@@ -33,11 +33,12 @@ const SYNCED_PREFS = [
   'ripples',
   'motionSpeed',
   'linkPreviews',
-  // Where a note was written: the map, the place name and tagging new notes are the person's choices, so they travel;
-  // a device that is not allowed to know where it is leaves its notes untagged (core/location.ts).
+  // Where a note was written: the map and the place names describe the person, as link previews do, so they travel.
+  // Tagging new notes does not: it makes this device ask for its position (a network lookup on a phone or in a
+  // browser), and whether a device talks to the network stays with the device, as Local only does. A switch turned
+  // on elsewhere must not make a browser tab here raise a location prompt at its next new note (core/location.ts).
   'mapTiles',
   'placeNames',
-  'tagNewNotes',
   // The notes left open: they belong to the person, so the tabs are the same wherever they pick the app up.
   'openNotes',
   'tabGroups',

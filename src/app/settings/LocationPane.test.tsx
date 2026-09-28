@@ -57,12 +57,13 @@ describe('the Location page', () => {
     expect(device.asked).toBe(0);
   });
 
-  it('greys all three under Local only, and says a tagged note shows its coordinates', () => {
+  it('greys all three under Local only, and says a tagged note still shows where it was written', () => {
     setPreferences({ localOnly: true });
     const host = show(<LocationPane />);
     expect(host.querySelectorAll('[data-disabled]')).toHaveLength(3);
     expect([...host.querySelectorAll('.setk-row__why')].map((el) => el.textContent)).toEqual(['Local only is on.', 'Local only is on.', 'Local only is on.']);
-    expect(host.textContent).toContain('A tagged note shows its coordinates and a pin while Local only is on, and no new location is taken.');
+    // A named tag keeps its name under Local only; only the coordinates would be wrong to promise.
+    expect(host.textContent).toContain('A tagged note shows where it was written and a pin while Local only is on, and no new location is taken.');
   });
 
   it('asks for a fix once when tagging is turned on, so the prompt happens here and not over the recorder', async () => {
@@ -83,6 +84,8 @@ describe('the Location page', () => {
     await waitUntil(() => expect(host.textContent).toContain('Ghost.md wasn’t allowed to know where you are, so new notes are not tagged.'));
     expect(preferences().tagNewNotes).toBe(true);
     expect(host.querySelector('.setk-action')).toBeNull();
+    // In a browser the way back is the browser's own settings for the site, not a phone's.
+    expect(host.textContent).toContain('Allow location for this site in the browser’s settings and they will be.');
     // Blocked, on a phone that can open its own settings page.
     const opened = vi.fn(() => true);
     window.GlyphHost = { takeLaunch: () => '', isLocked: () => false, endCapture: () => undefined, openLocationSettings: opened };

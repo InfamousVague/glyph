@@ -94,12 +94,24 @@ function locationValue(tag: GeoTag): string {
   return `${tag.lat.toFixed(digits)},${tag.lon.toFixed(digits)}`;
 }
 
+/** The body with every `key:` line taken out of its front matter: a second one typed by hand, or two devices adding a location at once. */
+function withoutKey(body: string, key: string): string {
+  let out = body;
+  while (frontMatterValue(out, key) !== null) {
+    const next = withFrontMatterValue(out, key, null);
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
 /**
  * The body with `tag` written into its front matter, `location:` first and `place:` after it once known, or with
- * both taken out (and the block with them, when nothing else is in it) for null. The words are untouched.
+ * both taken out, every line of either (and the block with them, when nothing else is in it), for null: a share
+ * leaves the tag out this way (share/share.ts), so a second `location:` must not stay behind. The words are untouched.
  */
 export function withGeoTag(body: string, tag: GeoTag | null): string {
-  if (!tag) return withFrontMatterValue(withFrontMatterValue(body, PLACE, null), LOCATION, null);
+  if (!tag) return withoutKey(withoutKey(body, PLACE), LOCATION);
   const located = withFrontMatterValue(body, LOCATION, locationValue(tag));
   const name = tag.place?.replace(/\s+/g, ' ').trim().slice(0, PLACE_CHARS) ?? '';
   return withFrontMatterValue(located, PLACE, name ? quotedTitle(name, name) : null);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Switch } from '@glacier/react';
-import { autoTagRefusal, canLocate, forgetRefusal, locate, rememberRefusal, whyLocateFailed, type LocateFailure } from '../core/location.ts';
+import { allowLocationWhere, autoTagRefusal, canLocate, forgetRefusal, locate, rememberRefusal, whyLocateFailed, type LocateFailure } from '../core/location.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { PaneSection, RowAction, SettingRow, SettingsFootnote } from './kit/settingsKit.tsx';
 
@@ -67,12 +67,12 @@ export function LocationPane() {
           disabledReason={localOnly}
         />
       </PaneSection>
-      {prefs.localOnly ? <SettingsFootnote>A tagged note shows its coordinates and a pin while Local only is on, and no new location is taken.</SettingsFootnote> : null}
+      {prefs.localOnly ? <SettingsFootnote>A tagged note shows where it was written and a pin while Local only is on, and no new location is taken.</SettingsFootnote> : null}
 
       <PaneSection title="New notes">
         <SettingRow
           label="Tag new notes with my location"
-          hint="Every note you make here starts with where you were, typed or spoken. Off, you add a location by hand from More on a note."
+          hint="Every note you make here starts with where you were, typed or spoken. Off, you add a location by hand from More on a note. This switch stays on this device."
           control={<Switch aria-label="Tag new notes with my location" checked={prefs.tagNewNotes} onCheckedChange={flipTagging} />}
           disabledReason={localOnly ?? tagWhy}
         />
@@ -80,7 +80,7 @@ export function LocationPane() {
       {refused ? (
         <SettingsFootnote>
           {refused === 'blocked' ? 'Location is off for Ghost.md, so new notes are not tagged. ' : 'Ghost.md wasn’t allowed to know where you are, so new notes are not tagged. '}
-          Allow location for Ghost.md in the phone’s settings and they will be.
+          {allowLocationWhere()} and they will be.
           {refused === 'blocked' && openSettings ? (
             <>
               {' '}

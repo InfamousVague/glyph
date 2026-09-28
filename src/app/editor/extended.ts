@@ -30,7 +30,10 @@ import { FENCE, FRONT_MATTER_LINES, frontMatterEnd } from '../core/frontMatter.t
  * written (core/geotag.ts) carries two more lines above its words, which is where §95's "Not yet" for the visible
  * `authors:` line came due. The caret entering the block, or a tap on the folded line, opens it to the lines as
  * they are; leaving folds it again. A block decoration cannot come from a view plugin (it changes the vertical
- * layout), so the fold is a state field, told of the editor's focus through `focusChangeEffect`.
+ * layout), so the fold is a state field, told of the editor's focus through `focusChangeEffect`. Only where the
+ * words can be edited: a read-only page (the shared reader, a note being dictated) shows the lines as they are,
+ * since a stranger has no caret to open the fold with. Goal 2 says nothing is folded; DESIGN §134 says why this is,
+ * and that it is Matt's to keep or take back.
  */
 
 /** The words of a raised or lowered run, by node name: the highlighter gives both the same tag. */
@@ -118,7 +121,11 @@ class FrontWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const div = document.createElement('div');
     div.className = 'cm-frontFold';
-    div.textContent = this.keys.length ? this.keys.join(' · ') : 'front matter';
+    // The band on a span inside, so it keeps to the gutter as the card above it does; the widget's own box stays
+    // margin-free, which is how CodeMirror measures a block widget's height.
+    const band = document.createElement('span');
+    band.textContent = this.keys.length ? this.keys.join(' · ') : 'front matter';
+    div.append(band);
     div.title = 'Front matter. Tap to open it.';
     div.addEventListener('mousedown', (event) => {
       event.preventDefault();
@@ -139,7 +146,7 @@ interface Fold {
 
 function foldOf(state: EditorState, focused: boolean): DecorationSet {
   const front = frontMatter(state.doc);
-  if (!front || (focused && caretIn(state, front))) return Decoration.none;
+  if (!front || !state.facet(EditorView.editable) || (focused && caretIn(state, front))) return Decoration.none;
   const from = state.doc.line(front.from).from;
   const to = state.doc.line(front.to).to;
   const at = state.doc.line(Math.min(front.from + 1, front.to)).from;
@@ -151,7 +158,7 @@ const frontFold = StateField.define<Fold>({
   update(value, tr) {
     let focused = value.focused;
     for (const effect of tr.effects) if (effect.is(focusEffect)) focused = effect.value;
-    if (!tr.docChanged && !tr.selection && focused === value.focused) return value;
+    if (!tr.docChanged && !tr.selection && !tr.reconfigured && focused === value.focused) return value;
     return { focused, decorations: foldOf(tr.state, focused) };
   },
   provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
@@ -292,9 +299,16 @@ const theme = EditorView.baseTheme({
     fontSize: '0.84em',
     lineHeight: '1.9',
     color: 'var(--app-ink-3, var(--glacier-text-muted))',
-    background: 'color-mix(in oklch, currentColor 3%, transparent)',
     cursor: 'pointer',
     userSelect: 'none',
+  },
+  // A label the width of its words, so it reads as the card's and not a band across the page.
+  '.cm-frontFold > span': {
+    display: 'inline-block',
+    maxInlineSize: '100%',
+    paddingInline: 'var(--glacier-space-2, 8px)',
+    borderRadius: 'var(--glacier-radius-sm, 4px)',
+    background: 'color-mix(in oklch, currentColor 3%, transparent)',
   },
 
   // A definition hangs under its term, the way a glossary sets one.

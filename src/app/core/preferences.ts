@@ -2,6 +2,7 @@ import type { TabGroups } from '../notes/tabGroups.ts';
 import { isCodeThemeDark, isCodeThemeLight, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { MOST_TABS } from '../notes/openTabs.ts';
 import { isNoteView, type NoteView } from '../editor/viewMode.ts';
+import { useSyncExternalStore } from 'react';
 import { externalStore } from './externalStore.ts';
 import { prefersStill } from './motion.ts';
 import { readStored, writeStored } from './stored.ts';
@@ -316,8 +317,9 @@ export interface Preferences {
   /**
    * Every note made here starts with where the device was (core/location.ts `tagNewNotesIfWanted`): a note typed
    * from the + and a note a recording makes, never one the app makes for itself. On by default (Matt: "Add a setting
-   * to geotag notes by default and turn it on"), and synced like the rest of what describes the person; a device
-   * that is not allowed to know where it is leaves its notes untagged and says so on the note's More sheet.
+   * to geotag notes by default and turn it on"). Kept on the device, as Local only is (core/sync/prefs.ts): it makes
+   * this device ask for its position, and a device that is not allowed to know where it is leaves its notes untagged
+   * and says so on the note's More sheet.
    */
   tagNewNotes: boolean;
 }
@@ -471,6 +473,23 @@ export function isDarkNow(theme: ThemePref): boolean {
   if (scheme === 'dark') return true;
   if (scheme === 'light') return false;
   return typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/** Follows the phone turning dark or light, for a page on System that is open when it does. */
+function onSchemeChange(changed: () => void): () => void {
+  if (typeof matchMedia === 'undefined') return () => undefined;
+  const query = matchMedia('(prefers-color-scheme: dark)');
+  query.addEventListener?.('change', changed);
+  return () => query.removeEventListener?.('change', changed);
+}
+
+/**
+ * `isDarkNow`, kept current while a screen is up: on System the page follows the phone's own dark mode (the Fold's
+ * turns on at sunset), and a picture drawn in the page's inks - the map card's tiles (editor/MapCard.tsx) - must
+ * turn with it rather than wait for the note to be opened again.
+ */
+export function useDarkNow(theme: ThemePref): boolean {
+  return useSyncExternalStore(onSchemeChange, () => isDarkNow(theme), () => isDarkNow(theme));
 }
 
 /**

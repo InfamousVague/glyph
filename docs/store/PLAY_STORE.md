@@ -62,7 +62,7 @@ GLYPH_STORE=play npm run android:build -- --aab --target aarch64
 | User IDs (the handle) | Yes, optional (only with an account), not shared | Account management |
 | Device or other IDs (a device's public key and kind, e.g. "Android") | Yes, optional, not shared | Account management |
 | Notes, audio, photos | **No** | End-to-end encrypted, so we can't read them. Play counts that as not collected. |
-| Location (approximate and precise) | Yes, optional: only once the person allows the location permission, then on for new notes by default and switched off in Settings › Location; a note's own Add my location. Not shared, except the rounded coordinates asked of OpenStreetMap for a place's name, which the person can switch off | App functionality: a note says where it was written. End-to-end encrypted in sync, so not readable by us. DESIGN §134. |
+| Location (approximate and precise) | Yes, optional: only once the person allows the location permission, then on for new notes by default and switched off in Settings › Location on each device; a note's own Add my location. Not shared with us. Sent to OpenStreetMap, each switchable: the map tiles around a tagged note's place (about a kilometre across, with the device's IP address) each time the note is opened, and the place's coordinates rounded to about 100 m, once, for its name | App functionality: a note says where it was written. End-to-end encrypted in sync, so not readable by us. DESIGN §134. |
 | Anything else (contacts, analytics, crash logs) | No | |
 
 Also answer:

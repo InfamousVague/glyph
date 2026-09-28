@@ -32,6 +32,11 @@ app" goes to the download page. The share service lets the page read it from the
   page unless the note's "Share where it was written" is ticked on its sheet (`place: true` on the kept share). The
   opt-in is the design: a share follows every save, so a location added to a note shared last week, or one arriving
   by sync, would otherwise reach everyone holding the link, and the reader's copy and download would carry it.
+  **The rule lives in the page that seals the share**, and every signed-in device follows every share: a device still
+  on a page from before it (the Mac app until its next launch, a browser tab opened before the deploy, a binary too
+  old to take the update) re-seals a tagged note's share with its whole body when the words change. So the pages that
+  strip the tag go out, and every device is restarted or reloaded, before a shared note is tagged; a format gate on
+  the share service (a newer page's version refusing an older page's write) is the lasting answer, not built yet.
 - **A book** is its index first, then every chapter that has a note, in the index's order. A chapter with no note
   yet is left out, and the reader shows it as "not written yet".
 - **The pictures the pages show** travel in the share (`withPictures`): a reader has no account to fetch them from. A

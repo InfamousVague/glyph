@@ -33,7 +33,7 @@ vi.mock('../core/images.ts', async (importOriginal) => ({
   imageBytes: vi.fn(async (name: string) => onDevice.get(name) ?? null),
 }));
 
-const { linkFor, openShare, readShareLink, refreshShares, shareNote } = await import('./share.ts');
+const { linkFor, openShare, readShareLink, refreshShares, shareNote, shareWithPlace } = await import('./share.ts');
 const { preferences, setPreferences } = await import('../core/preferences.ts');
 
 beforeEach(() => {
@@ -77,5 +77,45 @@ describe('a share and the pictures it lacked', () => {
     setPreferences({ shares: kept });
     expect(await refreshShares()).toBe(1);
     expect(await refreshShares()).toBe(0);
+  });
+});
+
+describe('a share of a note that says where it was written', () => {
+  const TAG = '---\nlocation: 51.5074,-0.1278\nplace: "Trafalgar Square, London"\n---\n';
+  const sentBody = async (at: number, key: string) => (await openShare(puts[at]!.blob, key)).pages[0]!.body;
+
+  it('sends the words without the tag, and the tag only once the note says to carry it', async () => {
+    const note = makeNote('n1', `${TAG}# Walk\n\nThe river.`);
+    notes.push(note);
+    await shareNote(note, notes);
+    const { key } = readShareLink(linkFor('n1')!)!;
+    // What the server holds, opened as a reader would: no location, no place.
+    expect(await sentBody(0, key)).toBe('# Walk\n\nThe river.');
+    // Nothing changed: the tag's absence is what was sent, so nothing goes again.
+    expect(await refreshShares()).toBe(0);
+    // Ticked: sent again at once, carrying both keys.
+    await shareWithPlace('n1', true);
+    expect(puts).toHaveLength(2);
+    expect(await sentBody(1, key)).toBe(`${TAG}# Walk\n\nThe river.`);
+    expect(preferences().shares.n1?.place).toBe(true);
+    // Unticked: sent again without them.
+    await shareWithPlace('n1', false);
+    expect(puts).toHaveLength(3);
+    expect(await sentBody(2, key)).toBe('# Walk\n\nThe river.');
+    expect(preferences().shares.n1?.place).toBeUndefined();
+  });
+
+  it('follows a tag added after the share went, without publishing it', async () => {
+    const note = makeNote('n2', '# Walk\n\nThe river.');
+    notes.push(note);
+    await shareNote(note, notes);
+    const { key } = readShareLink(linkFor('n2')!)!;
+    // "Add my location" on a note shared last week, or a tag arriving by sync: the words did not change for the reader.
+    notes[0] = { ...note, body: `${TAG}# Walk\n\nThe river.` };
+    expect(await refreshShares()).toBe(0);
+    // A change to the words goes, still without the tag.
+    notes[0] = { ...note, body: `${TAG}# Walk\n\nThe river, and the bridge.` };
+    expect(await refreshShares()).toBe(1);
+    expect(await sentBody(1, key)).toBe('# Walk\n\nThe river, and the bridge.');
   });
 });

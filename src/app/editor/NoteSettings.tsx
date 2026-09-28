@@ -65,7 +65,16 @@ interface NoteSettingsProps {
    * why not, whether the place's name would be asked for, why the last automatic tag did not come, and the two
    * presses. Absent where the note has no such row (a canvas's JSON aside, every note has one).
    */
-  location?: { tag: GeoTag | null; can: { ok: true } | { ok: false; why: LocateFailure }; asksName: boolean; refused: LocateFailure | null; onAdd: () => void; onRemove: () => void };
+  location?: {
+    tag: GeoTag | null;
+    can: { ok: true } | { ok: false; why: LocateFailure };
+    asksName: boolean;
+    refused: LocateFailure | null;
+    /** The Android app, which asks again after a first refusal; a browser that was refused does not. */
+    onPhone?: boolean;
+    onAdd: () => void;
+    onRemove: () => void;
+  };
 }
 
 /** Why a fix cannot be asked for here, as the row says it under "Add my location". */
@@ -79,11 +88,16 @@ const CANNOT: Record<LocateFailure, string> = {
   timeout: 'Couldn’t find where you are.',
 };
 
-/** The location row's hint on an untagged note: why it was not tagged on its own, or what a press will do. */
+/**
+ * The location row's hint on an untagged note: why it was not tagged on its own, or what a press will do. Android asks
+ * again after a first refusal, so a tap there asks; a browser that was refused does not ask again, so on a page the
+ * way back is its own settings, then a tap.
+ */
 function locationHint(location: NonNullable<NoteSettingsProps['location']>): string {
   if (!location.can.ok) return CANNOT[location.can.why];
   if (location.refused === 'blocked') return 'Location is off for Ghost.md, so this note wasn’t tagged. Allow it in the phone’s settings, or tap to try again.';
-  if (location.refused) return 'Ghost.md wasn’t allowed to know where you are, so this note wasn’t tagged. Tap to ask again.';
+  if (location.refused && location.onPhone) return 'Ghost.md wasn’t allowed to know where you are, so this note wasn’t tagged. Tap to ask again.';
+  if (location.refused) return 'Ghost.md wasn’t allowed to know where you are, so this note wasn’t tagged. Allow location for this site in the browser’s settings, then tap to try again.';
   return location.asksName ? 'Where you are now, kept in the note. Its name is asked of OpenStreetMap once.' : 'Where you are now, kept in the note.';
 }
 

@@ -163,15 +163,10 @@ export function Board({ className }: IconProps) {
 }
 
 /**
- * The pin's teardrop, on the 24 grid: where a note was written. One path for the drawn pin on the quiet map card and
- * the marker on the map itself (editor/MapCard.tsx), so the two are one drawing; the dot inside is the map's own.
+ * The pin's teardrop, on the 24 grid: where a note was written. The map card draws it (editor/MapCard.tsx), one
+ * drawing on the quiet card and over the map, with the map's own dot inside.
  */
 export const PLACE_PATH = 'M12 21.5c-4.2-4.4-6.5-8-6.5-11a6.5 6.5 0 0 1 13 0c0 3-2.3 6.6-6.5 11z';
-
-/** A place: the pin, with its dot. The map card's mark. */
-export function Place({ className }: IconProps) {
-  return icon(className, `${PLACE_PATH}M12 10.5m-1.4 0a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0-2.8 0`);
-}
 
 /**
  * My location: a ring with four short ticks, the sign every maps app uses for "where I am", which is what the row on
