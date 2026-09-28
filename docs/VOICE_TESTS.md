@@ -47,7 +47,13 @@ on.
 **Taking it back.** 103 to 111 are the take-backs (DESIGN §130): "scratch that" once and twice, "actually, …" before
 the sentence again and before a new one, "scratch that, add it to groceries instead" in one breath and in two, an
 item said for a note named and then scratched, "no wait, four", and the send whose name Whisper cut from its opener
-("Scratch that, add it to" | "Groceries instead."). Their audio is to be made with Matt's cases; next is 112.
+("Scratch that, add it to" | "Groceries instead."). Their audio is to be made with Matt's cases.
+
+**Without the keyword.** 112 to 118 say a command bare (DESIGN §136): "add oat milk to groceries" at the start, "add
+call the plumber to House TODOs" in the middle of a recording, "move this to weekend trip", Matt's sentence in two
+phrases without "Hey Ghost", and what stays words without it: a sentence that sounds like a command and a note there is
+none of, "go to work", and a sentence into a note that opens with a run's words. 066 kept its lines and its recording,
+and now expects the Glyph note written to. Their audio is to be made with Matt's cases; next is 119.
 
 **To record again.** These scripts changed with §126, most of them by losing the "Yes." that confirmed a command, and
 058 by gaining "Glyph, new note.", so their recordings still say the old lines. Each carries `rerecord` in
