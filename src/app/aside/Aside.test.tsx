@@ -36,6 +36,21 @@ describe('the right-hand aside', () => {
     act(() => button('Close').click());
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('shows a journal’s month of entries, newest first, the open one marked, and a tap opening one by id', () => {
+    const entry = (id: string, title: string, date: string) => makeNote(id, `---\ntitle: "${title}"\ndate: ${date}\n---\n**${date.slice(11)}** Words.`);
+    const journal = makeNote('j', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[2026-09-27 21.40]]\n- [[2026-09-28 14.05]]\n');
+    const all = [journal, entry('a', '2026-09-27 21.40', '2026-09-27T21:40'), entry('b', '2026-09-28 14.05', '2026-09-28T14:05')];
+    const onOpen = vi.fn();
+    show(<Aside content={asideContent(all, all[1]!)!} onOpen={onOpen} onOpenTitle={() => {}} />);
+    expect(document.body.textContent).toContain('September 2026');
+    expect([...document.querySelectorAll('ol[aria-label="Entries"] button')].map((b) => b.textContent?.trim())).toEqual(['2814:05 Words.', '2721:40 Words.']);
+    expect(document.querySelector('[aria-current="page"]')?.textContent).toContain('21:40');
+    act(() => (document.querySelector('ol[aria-label="Entries"] button') as HTMLElement).click());
+    expect(onOpen).toHaveBeenCalledWith('b');
+    act(() => button('Open the journal Diary').click());
+    expect(onOpen).toHaveBeenCalledWith('j');
+  });
 });
 
 describe('the aside as the drawer’s card', () => {

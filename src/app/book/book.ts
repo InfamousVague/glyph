@@ -183,6 +183,8 @@ export interface BookPlace {
   title: string;
   chapters: Chapter[];
   at: number;
+  /** The book is a journal (book/journal.ts): its pages are entries, and the bar, the foot and the mark say so. */
+  journal: boolean;
 }
 
 /**
@@ -198,7 +200,7 @@ export function bookOf(notes: readonly Note[], title: string): BookPlace | null 
     if (sameTitle(bookTitle, clean)) continue;
     const chapters = chaptersOf(note.body);
     const at = chapters.findIndex((c) => sameTitle(c.title, clean));
-    if (at >= 0) return { book: note, title: bookTitle, chapters, at };
+    if (at >= 0) return { book: note, title: bookTitle, chapters, at, journal: isJournalBody(note.body) };
   }
   return null;
 }
@@ -214,10 +216,11 @@ export function bookIndex(notes: readonly Note[]): Map<string, BookPlace> {
     if (!isBookBody(note.body)) continue;
     const title = noteTitle(note.body);
     const chapters = chaptersOf(note.body);
+    const journal = isJournalBody(note.body);
     chapters.forEach((chapter, at) => {
       const key = titleKey(chapter.title);
       if (!key || key === titleKey(title) || places.has(key)) return;
-      places.set(key, { book: note, title, chapters, at });
+      places.set(key, { book: note, title, chapters, at, journal });
     });
   }
   return places;

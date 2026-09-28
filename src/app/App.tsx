@@ -47,6 +47,7 @@ import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, isBookBody } from './book/book.ts';
 import { journalNoteBody } from './book/journal.ts';
+import { inTimeOrder } from './book/journalMonths.ts';
 import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
@@ -276,6 +277,14 @@ function Shell() {
   const asideBody = useMemo(() => asideContent(shownNotes, screen.name === 'note' ? screen.note : null), [shownNotes, screen]);
   /** That note's body, for a canvas card that is a note to draw it small (canvas/CanvasView.tsx); null for none. */
   const bodyOfTitle = (title: string) => titled(title)?.body ?? null;
+  /**
+   * The notebook a note is a page of, and its place there, for the bar and the foot it wears (book/BookNav.tsx): a
+   * journal's entries in the order they were written, so Previous is the entry before and the newest is last.
+   */
+  const placeInBook = (note: Note) => {
+    const place = bookOf(shownNotes, noteTitle(note.body));
+    return place ? inTimeOrder(place, titled) : null;
+  };
 
   /**
    * A note just made: filed in the workspace being looked at (core/workspaces.ts), the notes read again, and shown.
@@ -522,8 +531,9 @@ function Shell() {
         hasTitle={hasTitle}
         onOpenWithin={openTitleWithin}
         onNewCanvas={openCanvasWithin}
-        book={bookOf(shownNotes, noteTitle(screen.note.body))}
+        book={placeInBook(screen.note)}
         bodyOfTitle={bodyOfTitle}
+        noteOfTitle={titled}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
         rename={rename}
         onArchive={(n) => {

@@ -17,6 +17,7 @@ import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
 import { BookBar, BookFoot } from '../book/BookNav.tsx';
 import { BookView } from '../book/BookView.tsx';
+import { JournalView } from '../book/JournalView.tsx';
 import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
 import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate } from '../book/journal.ts';
 import { isGuideBook } from '../guidebook/guidebook.ts';
@@ -111,6 +112,8 @@ interface NoteScreenProps {
   onNewCanvas?: (title: string) => void;
   /** A note's body by its title, for a canvas card that is a note to be drawn small (canvas/CanvasView.tsx). */
   bodyOfTitle?: (title: string) => string | null;
+  /** The note by its title, for a journal's entries: when each was written, where, and how it starts (book/JournalView.tsx). */
+  noteOfTitle?: (title: string) => Note | undefined;
   /** Every note's title, for a canvas's + to choose a note from. */
   allTitles?: () => string[];
   /**
@@ -141,7 +144,7 @@ const NO_FIX: Record<LocateFailure, string> = {
   'local-only': 'Local only is on.',
 };
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask, review, landing }: NoteScreenProps) {
+export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, noteOfTitle, allTitles, at, rename, ask, review, landing }: NoteScreenProps) {
   const prefs = usePreferences();
   // The page's side, followed while the note is open: on System the phone may turn dark under it.
   const dark = useDarkNow(prefs.theme);
@@ -507,8 +510,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // The note opens where it was left, and remembers where it is left (editor/notePlace.ts).
   // Opened at an item, the note goes to that line rather than back to where it was left last time.
   useNotePlace(note.id, page, view, shown === 'raw' && !at);
-  // A chapter open is where its book was left, so the book opens here again from outside it (book/bookSpot.ts).
-  const inBook = book?.book.id ?? null;
+  // A chapter open is where its book was left, so the book opens here again from outside it (book/bookSpot.ts). Not a
+  // journal's entry: a journal always opens on itself, where New entry is.
+  const inBook = book && !book.journal ? book.book.id : null;
   useEffect(() => {
     if (inBook) writeBookSpot(inBook, { kind: 'chapter', title });
   }, [inBook, title]);
@@ -687,7 +691,20 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             />
           </div>
         ) : null}
-        {paging ? (
+        {paging && isJournal ? (
+          <div className={styles.body} hidden={shown !== 'raw'}>
+            <JournalView
+              body={bookBody}
+              noteOf={noteOfTitle ?? (() => undefined)}
+              known={hasTitle ?? (() => false)}
+              open={(t) => (onOpenWithin ?? onOpenTitle)?.(t)}
+              onChange={(next) => {
+                setBookBody(next);
+                onChange(next);
+              }}
+            />
+          </div>
+        ) : paging ? (
           <div className={styles.body} hidden={shown !== 'raw'}>
             <BookView
               body={bookBody}

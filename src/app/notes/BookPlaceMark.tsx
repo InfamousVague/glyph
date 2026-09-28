@@ -9,7 +9,7 @@ import styles from './BookPlaceMark.module.css';
  */
 export function BookPlaceMark({ place }: { place: BookPlace }) {
   return (
-    <span className={styles.mark} title={`Page ${place.at + 1} of ${place.title}`}>
+    <span className={styles.mark} title={place.journal ? `An entry in ${place.title}` : `Page ${place.at + 1} of ${place.title}`}>
       <Book size={12} aria-hidden="true" />
       <span className={styles.name}>{place.title}</span>
     </span>

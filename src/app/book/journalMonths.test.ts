@@ -3,7 +3,8 @@ import { inLocale } from '../../test/locale.ts';
 import { makeNote } from '../../test/notes.ts';
 import { withGeoTag } from '../core/geotag.ts';
 import { DEFAULT_TEMPLATE, entryBody, PRESETS } from './journal.ts';
-import { firstWords, monthsOf, type JournalPage } from './journalMonths.ts';
+import { asideMonth, firstWords, inTimeOrder, journalCards, monthsOf, type JournalPage } from './journalMonths.ts';
+import { bookOf } from './book.ts';
 
 /**
  * A journal's entries in months, newest first by when each was written, whatever order its index is in; what a row
@@ -76,5 +77,36 @@ describe('an entry’s first line', () => {
     expect(firstWords(entryBody('t', '2026-09-28T14:05', '# Monday\n\n> What is on your mind this morning?\n\nThe garden, mostly.'), PRESETS[2]!.text)).toBe('The garden, mostly.');
     expect(firstWords(entryBody('t', '2026-09-28T14:05', '# Monday\n\n## To do\n\n- [ ] \n- [ ] Call **Sam**'), PRESETS[3]!.text)).toBe('Call Sam');
     expect(firstWords('---\ntitle: "x"\n---\n![](image/a.jpg)\n14:05 Tea.')).toBe('Tea.');
+  });
+});
+
+describe('a journal elsewhere', () => {
+  const JOURNAL = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[2026-09-28 14.05]]\n- [[Planned]]\n- [[2026-09-27 21.40]]\n- [[2026-09-26 09.00]]\n';
+  const notes = [
+    makeNote('diary', JOURNAL),
+    entry('2026-09-28 14.05', '2026-09-28T14:05', 'Newest.'),
+    entry('2026-09-27 21.40', '2026-09-27T21:40', 'Before.'),
+    makeNote('notebook', '---\ntitle: "Guide"\nbook: true\n---\n- [[Trees]]\n'),
+  ];
+  const noteOf = (title: string) => notes.find((note) => note.id === title);
+
+  it('gives a journal’s card its count and its newest entries, the planned page after them, and a notebook none', () => {
+    const cards = journalCards(notes);
+    expect([...cards.keys()]).toEqual(['diary']);
+    expect(cards.get('diary')).toEqual({ count: 3, newest: ['2026-09-28 14.05', '2026-09-27 21.40', 'Planned'] });
+  });
+
+  it('walks a journal’s entries oldest first for the bar, and a notebook’s pages as they are', () => {
+    const place = inTimeOrder(bookOf(notes, '2026-09-28 14.05')!, noteOf);
+    expect(place.chapters.map((c) => c.title)).toEqual(['2026-09-27 21.40', '2026-09-28 14.05', 'Planned']);
+    expect(place.at).toBe(1);
+    const guide = bookOf(notes, 'Trees')!;
+    expect(inTimeOrder(guide, noteOf)).toBe(guide);
+  });
+
+  it('gives the aside the month of the entry open, or the newest', () => {
+    expect(asideMonth(notes[0]!, notes, '2026-09-27 21.40')?.entries.map((e) => e.title)).toEqual(['2026-09-28 14.05', '2026-09-27 21.40']);
+    expect(asideMonth(notes[0]!, notes, null)?.key).toBe('2026-09');
+    expect(asideMonth(makeNote('empty', '---\nbook: true\njournal: true\n---\n'), notes, null)).toBeNull();
   });
 });

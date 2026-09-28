@@ -40,6 +40,7 @@ import { useMeetingLive } from './useMeetingLive.ts';
 import { CAPS } from './tiers.ts';
 import { useColumnTier } from './useColumnTier.ts';
 import { bookIndex, placeOf } from '../book/book.ts';
+import { journalCards } from '../book/journalMonths.ts';
 import styles from './HomeScreen.module.css';
 
 /**
@@ -161,6 +162,7 @@ export function HomeScreen({
   const books = useMemo(() => bookNotes(shown), [shown]);
   /** Every page's book, for the cards' marks (book/book.ts). */
   const inBooks = useMemo(() => bookIndex(shown), [shown]);
+  const journals = useMemo(() => journalCards(shown), [shown]);
   const tasks = useMemo(() => openTasks(shown), [shown]);
   // One quiet line under each card's title, what the note is about, written by a model on the phone (format/gist.ts).
   // Only the notes with a card or a cassette on the page: the runner asks about what is on screen, not about every
@@ -242,7 +244,7 @@ export function HomeScreen({
 
   /** A note's card (notes/NoteCard.tsx), at its place in the run of cards down the page. */
   const card = (note: Note, i: number) => (
-    <NoteCard key={note.id} note={note} index={i} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} />
+    <NoteCard key={note.id} note={note} index={i} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} entries={journals.get(note.id)} />
   );
 
   return (

@@ -4,7 +4,8 @@ import { noteTitle, type Note } from '../core/store.ts';
 import { geoTagOf } from '../core/geotag.ts';
 import { counter } from '../capture/tape.ts';
 import { hasTape } from './allNotes.ts';
-import { chaptersOf, isBookBody, type BookPlace } from '../book/book.ts';
+import { chaptersOf, isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
+import type { JournalCard } from '../book/journalMonths.ts';
 import { activeGist } from '../format/gist.ts';
 import { hasMarks } from '../ai/marks.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
@@ -17,7 +18,8 @@ import styles from './NoteCard.module.css';
 /**
  * A note as a card: its title, what it is about when the phone has written that (format/gist.ts), the note itself
  * drawn small (notes/NotePeek.tsx), and when it was last touched. A book's card is its name, how many pages it has and
- * the first few of them (docs/BOOKS.md). The AI at work on the note, or its changes still marked in it, is said in the
+ * the first few of them (docs/BOOKS.md); a journal's, how many entries and the newest few by when each was written
+ * (docs/DESIGN.md §142). The AI at work on the note, or its changes still marked in it, is said in the
  * card's corner.
  *
  * One card for the home page's rows and the All notes grid (home/HomeScreen.tsx, notes/AllNotesScreen.tsx), so a
@@ -43,20 +45,26 @@ export interface NoteCardProps {
   gist?: string;
   /** The book this note is a page of (book/book.ts `placeOf`), when it is one. */
   place?: BookPlace | null;
+  /** A journal's entries, newest first (book/journalMonths.ts `journalCards`), when the note is a journal. */
+  entries?: JournalCard;
   /** A step smaller, with the pin and the archive said on the card itself. */
   dense?: boolean;
 }
 
-export function NoteCard({ note, index, onOpen, gist, place, dense = false }: NoteCardProps) {
+export function NoteCard({ note, index, onOpen, gist, place, entries, dense = false }: NoteCardProps) {
   const title = noteTitle(note.body);
   const book = isBookBody(note.body);
-  const chapters = book ? chaptersOf(note.body) : [];
+  const journal = book && isJournalBody(note.body);
+  // A journal's newest entries, else a notebook's first pages, as the index has them.
+  const listed = journal ? (entries?.newest ?? []).map((name, line) => ({ title: name, line, depth: 0 as const })) : book ? chaptersOf(note.body) : [];
+  const count = journal ? (entries?.count ?? listed.length) : listed.length;
+  const part = journal ? ['entry', 'entries'] : ['page', 'pages'];
   const where = geoTagOf(note.body)?.place ?? null;
   return (
     <li key={note.id} className={styles.item} data-dense={dense || undefined} style={{ '--i': Math.min(index, 8) } as CSSProperties}>
       <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
         <span className={styles.title} data-untitled={title ? undefined : ''}>
-          {title ? shortenUrls(title) : book ? 'Untitled notebook' : 'Untitled'}
+          {title ? shortenUrls(title) : journal ? 'Untitled journal' : book ? 'Untitled notebook' : 'Untitled'}
         </span>
         {/* The AI at work on this note's line (format/gist.ts), or changes of its own still marked in the note (ai/marks.ts): said in the card's corner. */}
         {activeGist() === note.id ? (
@@ -80,16 +88,16 @@ export function NoteCard({ note, index, onOpen, gist, place, dense = false }: No
         ) : null}
         {book ? (
           <>
-            <span className={styles.bookMeta}>{chapters.length === 0 ? 'No pages yet' : chapters.length === 1 ? '1 page' : `${chapters.length} pages`}</span>
-            {chapters.length ? (
+            <span className={styles.bookMeta}>{count === 0 ? `No ${part[1]} yet` : count === 1 ? `1 ${part[0]}` : `${count} ${part[1]}`}</span>
+            {listed.length ? (
               <ol className={styles.bookPages} aria-hidden="true">
-                {chapters.slice(0, 4).map((c, n) => (
+                {listed.slice(0, 4).map((c, n) => (
                   <li key={`${c.line}-${c.title}`} data-depth={c.depth}>
                     <span className={styles.bookPageNumber}>{n + 1}</span>
                     {c.title}
                   </li>
                 ))}
-                {chapters.length > 4 ? <li className={styles.bookMore}>and {chapters.length - 4} more</li> : null}
+                {count > 4 ? <li className={styles.bookMore}>and {count - 4} more</li> : null}
               </ol>
             ) : null}
           </>

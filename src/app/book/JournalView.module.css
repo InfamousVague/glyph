@@ -1,0 +1,191 @@
+/*
+ * A journal (JournalView.tsx): New entry, its own words, and its entries by month, in the notebook's own page
+ * (BookView.module.css) and the page's sizes. On a phone a row is two lines, the day over its weekday beside the time
+ * and the words; from 44rem, the Fold opened out, the words move up beside the time and a row is one line.
+ */
+
+.journal {
+  composes: book from './BookView.module.css';
+  container: journal / inline-size;
+}
+
+.adds {
+  composes: adds from './BookView.module.css';
+  margin-block: 0 var(--glacier-space-4);
+}
+
+.action {
+  composes: action from './BookView.module.css';
+}
+
+.empty {
+  margin-block: var(--glacier-space-3);
+  color: var(--glacier-text-muted);
+}
+
+.empty p {
+  margin: 0;
+}
+
+.quiet {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-subtle);
+}
+
+.month {
+  margin-block: var(--glacier-space-5) 0;
+}
+
+/* A month over its entries, as the home page heads a group: a step above a row, in sentence case. */
+.monthName {
+  margin: 0 0 var(--glacier-space-2);
+  font-size: var(--glacier-font-size-lg);
+  line-height: var(--glacier-leading-lg);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-title);
+  color: var(--app-ink);
+}
+
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entries > li + li {
+  border-block-start: 1px solid var(--glacier-border-subtle);
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 2.6em minmax(0, 1fr);
+  grid-template-areas:
+    'day meta'
+    'day first';
+  align-items: baseline;
+  column-gap: var(--glacier-space-3);
+  inline-size: 100%;
+  padding: var(--glacier-space-2) var(--glacier-space-1);
+  border: 0;
+  border-radius: var(--glacier-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.entry:hover,
+.entry:focus-visible {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+  outline: none;
+}
+
+.day {
+  grid-area: day;
+  display: grid;
+  justify-items: center;
+  align-self: start;
+}
+
+/* The day of the month large, in figures of one width, so a column of them lines up. */
+.date {
+  font-size: var(--glacier-font-size-xl);
+  line-height: 1.1;
+  font-weight: var(--glacier-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.weekday {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--glacier-text-subtle);
+}
+
+.meta {
+  grid-area: meta;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--glacier-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--glacier-text-subtle);
+}
+
+/* How it starts: one line, faded out at the edge the way the menu band fades (editor/ContextMenu.module.css), never cut with an ellipsis. */
+.first {
+  grid-area: first;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+
+@container journal (min-width: 44rem) {
+  .entry {
+    grid-template-columns: 4.6em minmax(8em, 16em) minmax(0, 1fr);
+    grid-template-areas: 'day meta first';
+    align-items: center;
+  }
+
+  .day {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4em;
+    justify-items: start;
+    align-self: center;
+  }
+
+  .date {
+    font-size: var(--glacier-font-size-lg);
+  }
+}
+
+/* An older month folded to one row, which opens it in place. */
+.folded {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  inline-size: 100%;
+  margin-block-start: var(--glacier-space-2);
+  padding: var(--glacier-space-3) var(--glacier-space-1);
+  border: 0;
+  border-block-start: 1px solid var(--glacier-border-subtle);
+  background: transparent;
+  color: var(--glacier-text-muted);
+  font: inherit;
+  font-weight: var(--glacier-font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+  cursor: pointer;
+}
+
+.folded + .folded {
+  margin-block-start: 0;
+}
+
+/* A page planned before the notebook was kept as a journal: named, in the index's waiting grey, with its cross. */
+.planned {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+}
+
+.plannedTitle {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0.35em 0.2em;
+  border: 0;
+  background: transparent;
+  color: var(--glacier-text-muted);
+  font: inherit;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tool {
+  composes: tool from './rows.module.css';
+}

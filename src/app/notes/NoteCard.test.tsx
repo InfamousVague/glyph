@@ -54,3 +54,32 @@ describe('where the note was written, on its card', () => {
     expect([...host.querySelectorAll('[class*=when]')].map((el) => el.textContent)).toEqual(['Just now · Trafalgar Square', '12:40 · Just now', 'Just now']);
   });
 });
+
+describe('a notebook’s card', () => {
+  it('counts a journal’s entries and lists the newest, and a notebook’s pages as its index has them', () => {
+    const journal = makeNote('j', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[A]]\n', { updatedAt: Date.now() });
+    const host = show(
+      <ol>
+        <NoteCard note={journal} index={0} onOpen={() => undefined} entries={{ count: 212, newest: ['2026-09-28 14.05', '2026-09-28 08.10', '2026-09-27 21.40', '2026-09-27 07.55'] }} />
+        <NoteCard note={makeNote('n', '---\ntitle: "Guide"\nbook: true\n---\n# Guide\n\n- [[Trees]]\n', { updatedAt: Date.now() })} index={1} onOpen={() => undefined} />
+        <NoteCard note={makeNote('e', '---\ntitle: ""\nbook: true\njournal: true\n---\n', { updatedAt: Date.now() })} index={2} onOpen={() => undefined} entries={{ count: 0, newest: [] }} />
+      </ol>,
+    );
+    const cards = [...host.querySelectorAll('li > button')];
+    expect(cards[0]!.textContent).toContain('212 entries');
+    expect(cards[0]!.textContent).toContain('1' + '2026-09-28 14.05');
+    expect(cards[0]!.textContent).toContain('and 208 more');
+    expect(cards[1]!.textContent).toContain('1 page');
+    expect(cards[2]!.textContent).toContain('Untitled journal');
+    expect(cards[2]!.textContent).toContain('No entries yet');
+  });
+
+  it('marks an entry with its journal, said as an entry rather than a page number', async () => {
+    const { BookPlaceMark } = await import('./BookPlaceMark.tsx');
+    const journal = makeNote('j', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n');
+    const host = show(<BookPlaceMark place={{ book: journal, title: 'Diary', chapters: [], at: 3, journal: true }} />);
+    expect(host.querySelector('[title]')?.getAttribute('title')).toBe('An entry in Diary');
+    show(<BookPlaceMark place={{ book: journal, title: 'Guide', chapters: [], at: 3, journal: false }} />);
+    expect(document.querySelectorAll('[title]')[1]?.getAttribute('title')).toBe('Page 4 of Guide');
+  });
+});

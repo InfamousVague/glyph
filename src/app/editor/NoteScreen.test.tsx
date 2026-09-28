@@ -1111,3 +1111,21 @@ describe('a notebook kept as a journal', () => {
     expect(buttonSaying(document.body, 'Keep it as a journal')).toBeUndefined();
   });
 });
+
+describe('a journal open', () => {
+  it('is drawn as its entries by month rather than a numbered index, and keeps no spot for them', async () => {
+    const journal = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[2026-09-28 14.05]]\n';
+    const entry = await createNote('e1', '---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n**14:05** Walked.');
+    show(screen(await createNote('j1', journal), { hasTitle: () => true, onOpenTitle: () => {}, noteOfTitle: (title) => (title === '2026-09-28 14.05' ? entry : undefined) }));
+    expect(document.querySelector('ol[aria-label="Pages"]')).toBeNull();
+    expect(document.querySelector('h2')?.textContent).toBe('September 2026');
+    expect(document.querySelector('[data-entries]')?.getAttribute('data-entries')).toBe('1');
+    expect(readBookSpot('j1')).toBeNull();
+    unmount();
+    // An entry open writes no spot for its journal: the journal opens on itself.
+    const place = { ...bookOf([{ ...entry, id: 'j1', body: journal }], '2026-09-28 14.05')!, journal: true };
+    show(screen(entry, { book: place, hasTitle: () => true, onOpenTitle: () => {} }));
+    expect(document.querySelector('nav[aria-label="Journal"]')).not.toBeNull();
+    expect(readBookSpot('j1')).toBeNull();
+  });
+});

@@ -59,7 +59,7 @@ interface BookViewProps {
 }
 
 /** The book's own words around its index, drawn as a note is - read-only, formatted - so a link in them opens. */
-function BookWords({ words, known, open, dark }: { words: string; known: (title: string) => boolean; open: (title: string) => void; dark: boolean }) {
+export function BookWords({ words, known, open, dark }: { words: string; known: (title: string) => boolean; open: (title: string) => void; dark: boolean }) {
   return (
     <div className={styles.preface}>
       <Editor value={words} onChange={noop} dark={dark} assist={false} readOnly display="formatted" wiki={{ known, open }} grow />

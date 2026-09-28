@@ -9,6 +9,7 @@ import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { ArchiveBox, Cassette } from '../art/Icons.tsx';
 import { bookIndex, placeOf } from '../book/book.ts';
+import { journalCards } from '../book/journalMonths.ts';
 import { useGists } from '../format/gist.ts';
 import { NoteCard } from './NoteCard.tsx';
 import { WorkspaceBar } from './WorkspaceBar.tsx';
@@ -67,6 +68,7 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtF
   const withTape = useMemo(() => tapeCount(archived ? inSpace : inSpace.filter((n) => !n.archivedAt)), [inSpace, archived]);
   /** Every page's book, for the cards' marks (book/book.ts). */
   const inBooks = useMemo(() => bookIndex(notes), [notes]);
+  const journals = useMemo(() => journalCards(notes), [notes]);
   const gisted = useMemo(() => shown.slice(0, GISTED), [shown]);
   const gists = useGists(gisted);
   // The order chosen is kept for next time.
@@ -173,7 +175,7 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtF
           {shown.length ? (
             <ol className={styles.cards} aria-label="Notes">
               {shown.map((note, i) => (
-                <NoteCard key={note.id} note={note} index={i} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} dense />
+                <NoteCard key={note.id} note={note} index={i} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} entries={journals.get(note.id)} dense />
               ))}
             </ol>
           ) : null}

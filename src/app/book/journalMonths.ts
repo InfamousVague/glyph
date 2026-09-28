@@ -1,7 +1,10 @@
 import { frontMatterEnd } from '../core/frontMatter.ts';
 import { geoTagOf, tagLabel } from '../core/geotag.ts';
+import { noteTitle } from '../core/noteTitle.ts';
 import type { Note } from '../core/store.ts';
-import { isEntryTitle, stampOf } from './journal.ts';
+import { titleKey } from '../core/titleKey.ts';
+import { chaptersOf, isJournalBody, type BookPlace } from './book.ts';
+import { isEntryTitle, stampOf, templateOf } from './journal.ts';
 
 /**
  * A journal's entries as its view draws them (book/JournalView.tsx; docs/DESIGN.md §142): newest first, in runs by the
@@ -108,11 +111,8 @@ function rowOf(page: JournalPage & { note: Note }, template: string): EntryRow {
   return { title: page.title, id: page.note.id, wall, day, weekday, time, place, first, label };
 }
 
-/**
- * The journal's written entries in months, newest first, and the names planned in it with no note yet, in the index's
- * order. `template` is the journal's, so a row's first line is the entry's own words and not the template's.
- */
-export function monthsOf(pages: readonly JournalPage[], template = ''): { months: JournalMonth[]; unwritten: string[] } {
+/** The written entries, newest first, and the names planned with no note yet, in the index's order. */
+function written(pages: readonly JournalPage[], template: string): { rows: EntryRow[]; unwritten: string[] } {
   const rows: (EntryRow & { line: number })[] = [];
   const unwritten: string[] = [];
   for (const page of pages) {
@@ -120,8 +120,22 @@ export function monthsOf(pages: readonly JournalPage[], template = ''): { months
     else if (!isEntryTitle(page.title)) unwritten.push(page.title);
   }
   rows.sort((a, b) => b.wall - a.wall || b.line - a.line);
+  return { rows: rows.map(({ line: _line, ...row }) => row), unwritten };
+}
+
+/** A journal's lines with their notes, found by title as a link finds one. */
+export function pagesOf(body: string, noteOf: (title: string) => Note | undefined): JournalPage[] {
+  return chaptersOf(body).map((chapter) => ({ title: chapter.title, line: chapter.line, note: noteOf(chapter.title) ?? null }));
+}
+
+/**
+ * The journal's written entries in months, newest first, and the names planned in it with no note yet, in the index's
+ * order. `template` is the journal's, so a row's first line is the entry's own words and not the template's.
+ */
+export function monthsOf(pages: readonly JournalPage[], template = ''): { months: JournalMonth[]; unwritten: string[] } {
+  const { rows, unwritten } = written(pages, template);
   const months: JournalMonth[] = [];
-  for (const { line: _line, ...row } of rows) {
+  for (const row of rows) {
     const at = new Date(row.wall);
     const key = `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`;
     const last = months[months.length - 1];
@@ -129,4 +143,58 @@ export function monthsOf(pages: readonly JournalPage[], template = ''): { months
     else months.push({ key, label: wallText(row.wall, { month: 'long', year: 'numeric' }), entries: [row] });
   }
   return { months, unwritten };
+}
+
+/**
+ * A page's place in its journal as the bar and the foot walk it (book/BookNav.tsx): the written entries oldest first,
+ * so Previous is the entry written before this one and the newest is "212 of 212", then any page planned and not yet
+ * written. A notebook's place is answered as it is.
+ */
+export function inTimeOrder(place: BookPlace, noteOf: (title: string) => Note | undefined): BookPlace {
+  if (!place.journal) return place;
+  const { rows, unwritten } = written(pagesOf(place.book.body, noteOf), '');
+  const order = [...rows.reverse().map((row) => row.title), ...unwritten];
+  const chapters = order.map((title) => place.chapters.find((chapter) => chapter.title === title)!).filter(Boolean);
+  const current = place.chapters[place.at]?.title;
+  return { ...place, chapters, at: current === undefined ? -1 : chapters.findIndex((chapter) => chapter.title === current) };
+}
+
+/** Every note by its title's key, the first of two that share one, as a link finds it. */
+function byTitle(notes: readonly Note[]): (title: string) => Note | undefined {
+  const map = new Map<string, Note>();
+  for (const note of notes) {
+    const key = titleKey(noteTitle(note.body));
+    if (key && !map.has(key)) map.set(key, note);
+  }
+  return (title) => map.get(titleKey(title));
+}
+
+/** What a journal's card says (notes/NoteCard.tsx): how many entries, and the newest few by when each was written. */
+export interface JournalCard {
+  count: number;
+  newest: string[];
+}
+
+/** Every journal's card among `notes`, by the journal's id: none where there is no journal. */
+export function journalCards(notes: readonly Note[], newest = 4): Map<string, JournalCard> {
+  const cards = new Map<string, JournalCard>();
+  const journals = notes.filter((note) => isJournalBody(note.body));
+  if (!journals.length) return cards;
+  const noteOf = byTitle(notes);
+  for (const journal of journals) {
+    const { rows, unwritten } = written(pagesOf(journal.body, noteOf), '');
+    cards.set(journal.id, { count: rows.length + unwritten.length, newest: [...rows.map((row) => row.title), ...unwritten].slice(0, newest) });
+  }
+  return cards;
+}
+
+/**
+ * The one month the aside lists for a journal or one of its entries (aside/Aside.tsx): the entry's own month, newest
+ * first, or the journal's newest month. Null for a journal with nothing written.
+ */
+export function asideMonth(journal: Note, notes: readonly Note[], openTitle: string | null): JournalMonth | null {
+  const { months } = monthsOf(pagesOf(journal.body, byTitle(notes)), templateOf(journal.body));
+  if (!months.length) return null;
+  const key = openTitle === null ? null : titleKey(openTitle);
+  return months.find((month) => month.entries.some((entry) => titleKey(entry.title) === key)) ?? months[0]!;
 }
