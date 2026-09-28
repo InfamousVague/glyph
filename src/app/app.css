@@ -490,9 +490,10 @@ body:has(.app-headerPane) .app-statusScrim {
  * nothing shows; once the page runs under it the blur reads as glass. The
  * wisp sits a little way below its edge.
  *
- * The recipe is named once, `--app-glass-mix` and `--app-glass-blur`, for the three things that are this glass: the
- * pane, the tab bar across a split window, and the smoke bench's header (diag/WispBench.module.css). The mix is only
- * the percentage, so each surface still mixes its own `--glacier-bg` where it is drawn.
+ * The recipe is named once, `--app-glass-mix` and `--app-glass-blur`, for the four things that are this glass: the
+ * pane, the tab bar across a split window, the smoke bench's header (diag/WispBench.module.css), and Settings' search
+ * field over its column in the split view (settings/settings.css). The mix is only the percentage, so each surface
+ * still mixes its own `--glacier-bg` where it is drawn.
  */
 :root {
   --app-glass-mix: 66%;

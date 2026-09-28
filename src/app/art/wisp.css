@@ -7,7 +7,8 @@
  *   `--wisp-top-fade`, `--wisp-foot-inset` and the drift, `--wisp-noise-x` and `--wisp-noise-y`;
  * - art/wispMask.ts writes the mask's images and sizes on the root once (`--wisp-mask-top`, `--wisp-mask-foot`,
  *   `--wisp-mask-above`, `--wisp-mask-height`), for the engine that cannot afford the filter;
- * - art/WispEdgeFilter.tsx is the filter itself (`#wispEdge`, `#wispEdgeFoot`).
+ * - art/WispEdgeFilter.tsx is the filter itself (`#wispEdge`, `#wispEdgeFoot`, and `#wispEdgeColumn` for a column's top
+ *   beside a page's).
  *
  * Imported right after app.css (src/main.tsx, src/read/main.tsx), which keeps these rules where they were in the
  * cascade: after the kit and before every module, so a module's own mask or filter on a view still wins as it did.
@@ -50,6 +51,15 @@
  */
 [data-wisp-edge] {
   filter: url(#wispEdge);
+}
+
+/*
+ * A column scrolling beside a page, both smoking at once (Settings' sections in the split view): the same band under a
+ * filter of its own, placed under its own header (art/wispEdge.ts `band`). A top only - the foot's filter is the
+ * page's - and at the weight of the rule above, so the reduced-motion rule below still takes it off by coming later.
+ */
+[data-wisp-edge='column'] {
+  filter: url(#wispEdgeColumn);
 }
 
 [data-wisp-foot] {

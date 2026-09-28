@@ -7602,3 +7602,82 @@ What still moves:
 The setting keeps its name. Its hint now says what it does: "Words you say arrive as smoke, and words you delete leave
 as smoke. What you type appears at once." The Guide's chapters 24 and 30 say the same.
 
+
+## 143. Settings' column smokes under its search field (2026-09-28)
+
+(Numbered 142 because the + menu's branch, in flight at the same time, has 141.)
+
+Matt: "on the settings page when scrolling on the left sidebar we should see the wisp fade effect under the search bar
+covering the overflowing content like we see with the header on the main page".
+
+In the split view (§138) the left column scrolls on its own, and its rows slid under the search field's edge and were
+cut there. Now the field is the column's header, as the top bar is the home page's: laid over the rows in the
+header's glass (`--app-glass-mix` over `--app-glass-blur`, which is what `.app-headerPane` is: the task's "solid" came
+from a stale line in art/wispEdge.ts, since corrected), the rows starting under it (`--wisp-under`), and the column
+wearing the wisp edge under it. On a phone's screen (the Fold opened out) that is the smoke; on a desktop's, the blur
+strip under the glass (§94). At rest nothing moves: the first row stands where it stood, measured the same to the
+pixel on main and the branch in Chromium and WebKit at 1280 x 900 and 880 x 790. The phone's list is unchanged.
+
+**A band of its own.** The column smokes while the section's page beside it may be smoking too, under a header of
+another height: the page's band sits at its own top, the column's under a field 58-60px tall. Every attribute of the
+one filter is global, so a second view wearing it moves the first one's band to its own header, and the drift moves
+both while only one scrolls. So the header's band is drawn twice (`art/WispEdgeFilter.tsx` `TopBand`), the page's and
+the column's, alike but for their ids, and the hook takes `band: 'column'`. Each band has its own drift: its own count
+of views scrolling and its own clock, so the column's smoke holds while only the page scrolls (Matt: "only animate
+when we're actively scrolling"). On the Fold's build, scrolling the page for a second moved the page's noise and left
+the column's where it stood; scrolling the column then moved the column's. The view's attribute says which filter it
+wears (`data-wisp-edge="column"`), at the weight of the page's rule so the reduced-motion rule still takes it off. The
+column's band is a top only: the hook does not hear `foot` with it, since the stylesheet chains a view's two ends as
+the page's top and the foot.
+
+**Its first row.** The home page's first line stands 46px under its header, and the band's lip, 19px under the header's
+edge, reaches it over the first 27px of a scroll. The column's first row starts at the field's edge, its words 15px
+under it and already inside the lip, so the band switching on at the fifth px took them from crisp to full smoke at
+once, and the card's top edge frayed. The column's lip now eases in (`WISP_EDGE_EASE`, a band's depth: the drop, the
+lip and one ramp of the blur, 34px): it starts that far above its place, its ramp under the field's glass, and comes
+down a px for each px scrolled. On the Fold's build the first row stays crisp through the first 12px and goes to smoke
+as it reaches the field's edge, by 20px; from 34px on the column's smoke is the home page's exactly. The desktop's blur
+strip already faded in over 160ms, so it needed nothing. Renders: `first-rows-fold-chromium-dark-home-before-fix`.
+
+**The keyboard.** With the field laid over the list, a row under its glass counted as already in view, so a row
+focused from the keyboard was left behind the field: arrowing up through 13 results for "note" left the focused row
+83% hidden at the worst step, on the Mac and the Fold in both engines, and Shift+Tab did the same. The column's scroll
+padding is now its top padding and a px (the hook measures the field rounded; the Mac's is 59.47): at every step, in
+Chromium and WebKit, the focused row lands clear of the field, as it did on main.
+
+**The budget.** Each filter's region is held to 2^24 device pixels. The page's is the window's size: at two device
+pixels to the CSS pixel, 1280 x 900 gives 2720 x 2360 device pixels, 0.38 of the budget, and 1800 x 1100 gives 3760 x
+2760, 0.62. The column's was the window's too, on the view that each filter has a budget of its own, and that turned
+out not to be so in WebKit: with the filter forced and both bands on at 1800 x 1100, each drawn alone, WebKit gave back
+an empty frame every time, with the break between 1.00 and 1.08 of the budget together. So the column's region is its
+own width, out to its right-hand edge in the window (WebKit counts user space from the document's corner, and keeps the
+window's height for the same reason): 399 px across, 0.13 of the budget at 1800 x 1100, 0.75 for the pair, and WebKit
+draws both. And the column is held to the budget together with a window-wide page's region beside it, so a window
+whose pair would not fit keeps the column's plain edge while the page smokes. The page's top and its foot are still
+held each on its own; whether a view wearing both in WebKit fits at all is not settled (the review found a forced home
+page at 1280 x 900 coming back empty too), and nothing that ships draws either there.
+
+**The scrollbar.** A view under a header has the app's own scrollbar, starting at the header's edge (app.css
+`[data-under-header]`) and never above `--app-safe-top`, for a header at the window's top. The field is below Settings'
+head: on the Mac `--app-safe-top` is 117px against the field's 59, so the track began 58px under the field. The
+column's starts at the field. The app's scrollbar is a classic one, 12px across, so on a desktop a column long enough to
+scroll (a search with many results) lays its rows 12px narrower, as the home page's cards are, and a long title wraps
+or truncates sooner ("Tag new notes with my location" breaks after "with" at 1280 x 900). Matt's call if he would rather
+the platform's overlay scrollbar here.
+
+**The desktop's drift.** On a desktop the edges are plain (the blur strip, the short fade), with no filter worn, yet
+scrolling ran the drift and wrote seventy-odd attributes a second to the filter's noise. It now starts no loop on a
+desktop, for the page's band as well as the column's.
+
+**Not done: WebKit's corner.** The column's band is placed in user space, as the page's is, and WebKit starts user
+space from the document's corner (§54). With the filter in WebKit the band lands as far above its place as the column
+is below the window's top, 69px on the Fold's size: at the column's own top, where the rows under the field's glass are
+bent and smoke is thrown up over the bottom of Settings' head and into the field's padding above the pill, while the
+rows at the field's edge stay crisp. The Mac draws the blur strip and Android is Chromium, so nothing that ships shows
+it; an iPad build would (the Apple target includes the iPad, and a touch screen takes the filter), as it would leave
+Settings' page beside it without smoke. Placing the bands in their views' own boxes, as the lanes' foot is, would
+settle both.
+
+**Not done: the cost of a second band.** A column scrolled and left still keeps its filter while the page beside it
+scrolls, and the compositor applies it again every frame: in headless Chromium's software compositor that was about 23%
+more per frame. What it costs on the Fold's GPU is for the Smoke bench there to say.

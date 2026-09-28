@@ -19,6 +19,8 @@
   flex-direction: column;
   /* What a pane draws against, the cheat sheet among them (guide/CheatSheet.module.css). */
   --sheet-ground: var(--glacier-bg);
+  /* The search field's pill, named for the split view's column to start its sections under the field by. */
+  --settings-find-pill: 2.4rem;
   background: var(--sheet-ground);
   color: var(--glacier-text);
   animation: settingsEnter var(--glacier-duration-normal) var(--glacier-ease-out);
@@ -51,6 +53,7 @@
 
 /* The left column: the search field, fixed, over the sections, which scroll under it. */
 .settingsScreen__split > .settingsScreen__side {
+  position: relative;
   flex: none;
   inline-size: var(--settings-side);
   min-block-size: 0;
@@ -63,6 +66,53 @@
 .settingsScreen__side > .settingsScreen__list,
 .settingsScreen__side > .settingsScreen__find {
   padding-inline: calc(var(--app-safe-left) + var(--glacier-space-4)) var(--glacier-space-4);
+}
+
+/*
+ * The field is the column's header, as the top bar is the home page's (Matt: "when scrolling on the left sidebar we
+ * should see the wisp fade effect under the search bar covering the overflowing content like we see with the header
+ * on the main page"): laid over the sections rather than above them, in the header's glass (app.css `.app-headerPane`,
+ * the page's paper at `--app-glass-mix` over a blur), and the sections go to smoke at its edge on a phone's screen or
+ * under a strip of blur on a desktop's (art/wispEdge.ts, SettingsScreen.tsx `column`). Stood above them, the rows
+ * slid under its edge and were cut there.
+ */
+.settingsScreen__side > .settingsScreen__find {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 3;
+  background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
+  -webkit-backdrop-filter: var(--app-glass-blur);
+  backdrop-filter: var(--app-glass-blur);
+}
+
+/*
+ * The sections start under the field (`--wisp-under`, its height, which the hook writes), where they started below it
+ * before, so nothing moves at rest. Floored at the field's own height, for the frame before it is measured and with
+ * the smoke switched off, when nothing measures it.
+ *
+ * And a row brought into view is brought out from under the field: a row focused from the keyboard (the arrow keys
+ * through the results, Tab) scrolls to the field's edge, as it did when the field stood above the list. Laid over it,
+ * with no scroll padding, a row under the glass counted as already in view, and arrowing up through a search left
+ * the focused row four fifths hidden. A px more than that: the hook measures the field rounded and the floor counts
+ * the pill at its least, so either can come out a fraction short of the field (the Mac's is 59.47px).
+ */
+.settingsScreen__side > .settingsScreen__list {
+  --settings-column-top: max(var(--wisp-under, 0px), calc(var(--glacier-space-1) + var(--settings-find-pill) + var(--glacier-space-3)));
+  padding-block-start: var(--settings-column-top);
+  scroll-padding-block-start: calc(var(--settings-column-top) + 1px);
+}
+
+/*
+ * Its scrollbar starts at the field's edge, where the sections do. app.css starts a scrollbar under a header no higher
+ * than the window's own bar (`--app-safe-top`), which is right for a header at the window's top; the field is below
+ * Settings' head, and on the Mac that bar is 117px against the field's 59, so the track began 58px under the field.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .settingsScreen__side > .settingsScreen__list::-webkit-scrollbar-track {
+    margin-block-start: var(--wisp-under, 0px);
+    margin-top: var(--wisp-under, 0px);
+  }
 }
 
 /* The page takes the pane's whole width, in the app's gutter; the left column already stands off the screen's edge. */
@@ -762,7 +812,7 @@
   display: flex;
   align-items: center;
   gap: var(--glacier-space-2);
-  min-block-size: 2.4rem;
+  min-block-size: var(--settings-find-pill);
   padding-inline: var(--glacier-space-3);
   border-radius: 999px;
   background: var(--app-paper-2);

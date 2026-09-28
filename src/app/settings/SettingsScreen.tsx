@@ -147,6 +147,15 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
   const root = useRef<HTMLDivElement>(null);
   // The list or the pane showing goes to smoke under its header (art/wispEdge.ts).
   const scroller = useRef<HTMLDivElement>(null);
+  /*
+   * And in the split view the left column, which scrolls on its own, goes to smoke under the search field (Matt: "on the
+   * settings page when scrolling on the left sidebar we should see the wisp fade effect under the search bar covering
+   * the overflowing content like we see with the header on the main page"). The field is the column's header, a pane
+   * of the header's glass the sections pass under (settings.css), and the column wears a band of its own beside the
+   * pane's (art/wispEdge.ts `band`): each sits under its own edge, and each drifts only while it is the one scrolled.
+   */
+  const column = useRef<HTMLElement>(null);
+  const findBar = useRef<HTMLDivElement>(null);
 
   // What the field at the top of the list holds, and the setting a result opened onto, for its page to scroll to.
   const [query, setQuery] = useState('');
@@ -286,6 +295,8 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
 
   useSwipeNav(root, { onBack: back, onForward: forward }, open);
   useWispEdge(scroller, open && (active?.id ?? 'list'));
+  // The split view's only: on a phone the field stands above the list, and the list is the scroller above.
+  useWispEdge(column, open && split && 'column', findBar, { band: 'column' });
 
   if (!open) return null;
 
@@ -324,7 +335,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
    * the field before it is asked to close anything.
    */
   const search = (
-    <div className="settingsScreen__find" role="search">
+    <div ref={findBar} className="settingsScreen__find" role="search">
       <div className="settingsScreen__findPill">
         <span className="settingsScreen__findIcon" aria-hidden="true">
           <Search size={16} />
@@ -438,7 +449,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
         <div className="settingsScreen__split">
           <div className="settingsScreen__side">
             {search}
-            <nav className="settingsScreen__list" aria-label={looking ? 'Settings found' : 'Settings sections'}>
+            <nav ref={column} className="settingsScreen__list" aria-label={looking ? 'Settings found' : 'Settings sections'}>
               {looking ? found(current) : list(current)}
             </nav>
           </div>

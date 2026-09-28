@@ -1,9 +1,7 @@
 import {
   WISP_EDGE_ABOVE,
   WISP_EDGE_BAND,
-  WISP_EDGE_BENT_ID,
-  WISP_EDGE_DRIFT_ID,
-  WISP_EDGE_FILTER_ID,
+  WISP_EDGE_BANDS,
   WISP_EDGE_FOOT_BAND,
   WISP_EDGE_FOOT_SOFT,
   WISP_EDGE_FOOT_FILTER_ID,
@@ -13,12 +11,9 @@ import {
   WISP_EDGE_FOOT_NOISE_ID,
   WISP_EDGE_FOOT_SOFT_ID,
   WISP_EDGE_FOOT_STRIP_ID,
-  WISP_EDGE_NEAR_ID,
-  WISP_EDGE_NOISE_ID,
   WISP_EDGE_REACH,
   WISP_EDGE_SOFT,
-  WISP_EDGE_SOFT_ID,
-  WISP_EDGE_STRIP_ID,
+  type WispBandIds,
 } from './wispEdge.ts';
 
 /**
@@ -61,40 +56,16 @@ import {
  * wears it (`placeRegion`), because a filter region has a budget and a region over it is drawn as solid black rather
  * than clipped (art/wispEdge.ts). Nothing outside the region is drawn at all, which is why it is the hook's job and
  * not a guess here.
+ *
+ * The header's band is drawn twice, the page's and a column's, alike but for their ids: a column that scrolls beside a
+ * page (Settings' sections in the split view) smokes under a header of another height at the same moment, and every
+ * attribute here is global, so it has a filter of its own to be placed and drifted in (art/wispEdge.ts `band`).
  */
 export function WispEdgeFilter() {
   return (
     <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false">
-      {/* The header's band: the view under a header, bent and smoked along its top edge. */}
-      <filter id={WISP_EDGE_FILTER_ID} filterUnits="userSpaceOnUse" x="-40" y={-(WISP_EDGE_ABOVE + 40)} width="480" height="1200" colorInterpolationFilters="sRGB">
-        <feTurbulence id={WISP_EDGE_NOISE_ID} type="fractalNoise" baseFrequency="0.018 0.06" numOctaves="2" seed="3" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="rawNoise" />
-        {/* Slid down as it drifts: the gap that opens is above the view, where nothing is drawn. */}
-        <feOffset id={WISP_EDGE_DRIFT_ID} in="rawNoise" dx="0" dy="0" result="slid" />
-        <feColorMatrix in="slid" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1" result="noise" />
-        <feFlood floodColor="#000" result="black" />
-        <feFlood id={WISP_EDGE_STRIP_ID} floodColor="#fff" x="-40" y={-WISP_EDGE_ABOVE} width="4000" height={WISP_EDGE_ABOVE + WISP_EDGE_BAND} result="strip" />
-        <feMerge result="stripOnBlack">
-          <feMergeNode in="black" />
-          <feMergeNode in="strip" />
-        </feMerge>
-        <feGaussianBlur in="stripOnBlack" stdDeviation={`0 ${WISP_EDGE_SOFT}`} result="band" />
-        <feComposite in="noise" in2="band" operator="arithmetic" k1="1" k2="0" k3="-0.5" k4="0.5" result="field" />
-        <feDisplacementMap id={WISP_EDGE_BENT_ID} in="SourceGraphic" in2="field" scale="24" xChannelSelector="R" yChannelSelector="G" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="bent" />
-        <feGaussianBlur id={WISP_EDGE_SOFT_ID} in="bent" stdDeviation="3.4" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="soft" />
-        {/* The bent strokes widened a little: where the blur is allowed to be, so it never glows into empty space. */}
-        <feMorphology id={WISP_EDGE_NEAR_ID} in="bent" operator="dilate" radius="2.5" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="near" />
-        <feComposite in="soft" in2="near" operator="in" result="softNear" />
-        <feColorMatrix in="band" type="luminanceToAlpha" result="bandAlpha" />
-        <feComposite in="softNear" in2="bandAlpha" operator="in" result="smoke" />
-        {/* The view itself where the band isn't, the bent view in it, and the smoke over that. */}
-        <feComposite in="SourceGraphic" in2="bandAlpha" operator="out" result="rest" />
-        <feComposite in="bent" in2="bandAlpha" operator="in" result="bentIn" />
-        <feMerge>
-          <feMergeNode in="rest" />
-          <feMergeNode in="bentIn" />
-          <feMergeNode in="smoke" />
-        </feMerge>
-      </filter>
+      <TopBand ids={WISP_EDGE_BANDS.page} />
+      <TopBand ids={WISP_EDGE_BANDS.column} />
 
       {/* The foot's band: the same again at the view's bottom edge, its strip rising from below it - bent a touch less
           than the top: softened to 24 for "subtle distortions using the wisp effect", then raised to 34 (Matt: "make the
@@ -126,5 +97,40 @@ export function WispEdgeFilter() {
         </feMerge>
       </filter>
     </svg>
+  );
+}
+
+/** The header's band: the view under a header, bent and smoked along its top edge. */
+function TopBand({ ids }: { ids: WispBandIds }) {
+  return (
+    <filter id={ids.filter} filterUnits="userSpaceOnUse" x="-40" y={-(WISP_EDGE_ABOVE + 40)} width="480" height="1200" colorInterpolationFilters="sRGB">
+      <feTurbulence id={ids.noise} type="fractalNoise" baseFrequency="0.018 0.06" numOctaves="2" seed="3" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="rawNoise" />
+      {/* Slid down as it drifts: the gap that opens is above the view, where nothing is drawn. */}
+      <feOffset id={ids.drift} in="rawNoise" dx="0" dy="0" result="slid" />
+      <feColorMatrix in="slid" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1" result="noise" />
+      <feFlood floodColor="#000" result="black" />
+      <feFlood id={ids.strip} floodColor="#fff" x="-40" y={-WISP_EDGE_ABOVE} width="4000" height={WISP_EDGE_ABOVE + WISP_EDGE_BAND} result="strip" />
+      <feMerge result="stripOnBlack">
+        <feMergeNode in="black" />
+        <feMergeNode in="strip" />
+      </feMerge>
+      <feGaussianBlur in="stripOnBlack" stdDeviation={`0 ${WISP_EDGE_SOFT}`} result="band" />
+      <feComposite in="noise" in2="band" operator="arithmetic" k1="1" k2="0" k3="-0.5" k4="0.5" result="field" />
+      <feDisplacementMap id={ids.bent} in="SourceGraphic" in2="field" scale="24" xChannelSelector="R" yChannelSelector="G" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="bent" />
+      <feGaussianBlur id={ids.soft} in="bent" stdDeviation="3.4" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="soft" />
+      {/* The bent strokes widened a little: where the blur is allowed to be, so it never glows into empty space. */}
+      <feMorphology id={ids.near} in="bent" operator="dilate" radius="2.5" x="-40" y="-40" width="4000" height={40 + WISP_EDGE_REACH} result="near" />
+      <feComposite in="soft" in2="near" operator="in" result="softNear" />
+      <feColorMatrix in="band" type="luminanceToAlpha" result="bandAlpha" />
+      <feComposite in="softNear" in2="bandAlpha" operator="in" result="smoke" />
+      {/* The view itself where the band isn't, the bent view in it, and the smoke over that. */}
+      <feComposite in="SourceGraphic" in2="bandAlpha" operator="out" result="rest" />
+      <feComposite in="bent" in2="bandAlpha" operator="in" result="bentIn" />
+      <feMerge>
+        <feMergeNode in="rest" />
+        <feMergeNode in="bentIn" />
+        <feMergeNode in="smoke" />
+      </feMerge>
+    </filter>
   );
 }
