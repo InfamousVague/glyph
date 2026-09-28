@@ -34,7 +34,7 @@ export const GEO_AUTOLINK = /<geo:[^>\s]*>/gi;
 export const GEO_DEFINITION = /^ {0,3}\[([^\]\n]+)\]:\s*<?geo:\S*>?.*$/gim;
 
 /** The one form a place line takes: the words, then the latitude and the longitude as groups 2 and 3. */
-const PLACE = /^\[([^\[\]\n]*)\]\(geo:(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)\)$/i;
+const PLACE = /^\[([^[\]\n]*)\]\(geo:(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)\)$/i;
 /** A line that opens or closes fenced code, as editor/lines.ts reads one. */
 const FENCE = /^\s*(```|~~~)/;
 /** The most a place's name may run to, as the tag's `place:` may (core/geotag.ts). */
