@@ -153,7 +153,7 @@ describe('asking Notion', () => {
     request = () => ({ status: 200, body: { ok: 1 } });
     expect(await notionRequest('GET', 'users/me')).toEqual({ ok: 1 });
     request = () => ({ status: 401, body: { message: 'API token is invalid.' } });
-    await expect(notionRequest('GET', 'users/me')).rejects.toThrow('Notion signed Ghost.md out. Sign in again in Settings > Notion.');
+    await expect(notionRequest('GET', 'users/me')).rejects.toThrow('Notion signed Ghost.md out. Sign in again in Settings › Plugins › Notion.');
     request = () => ({ status: 404, body: null });
     await expect(notionRequest('PATCH', 'pages/abc')).rejects.toThrow('Notion can’t see that task. Share its board with Ghost.md in Notion.');
     await expect(notionRequest('POST', 'databases/abc/query')).rejects.toThrow('Notion can’t see that board. Share it with Ghost.md in Notion.');

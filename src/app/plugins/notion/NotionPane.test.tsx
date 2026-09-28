@@ -91,7 +91,7 @@ describe('Settings > Notion', () => {
     boards = [];
     let host = show(<NotionPane />);
     await waitUntil(() => expect(host.textContent).toContain('No boards shared yet'));
-    boards = new Error('Notion signed Ghost.md out. Sign in again in Settings > Notion.');
+    boards = new Error('Notion signed Ghost.md out. Sign in again in Settings › Plugins › Notion.');
     host = show(<NotionPane />);
     await waitUntil(() => expect(host.textContent).toContain('Notion signed Ghost.md out.'));
   });

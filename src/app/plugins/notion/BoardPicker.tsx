@@ -62,7 +62,7 @@ export function BoardPicker({ noteId, onDone }: { noteId: string; onDone: () => 
         ) : boards.length ? (
           boards.map((board) => <SheetRow key={board.id} icon={NotionMark} label={board.title} chosen={chosen?.id === board.id} onPress={() => choose(board)} />)
         ) : (
-          <SheetRow label="No boards yet" hint="Sign in again from Settings > Notion and tick the boards you want." />
+          <SheetRow label="No boards yet" hint="Sign in again from Settings › Plugins › Notion and tick the boards you want." />
         )}
       </SheetGroup>
       {chosen ? (

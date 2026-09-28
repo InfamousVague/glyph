@@ -36,7 +36,7 @@ export const glyphTheme = (dark: boolean) =>
       // textarea; Glyph paints the styled text itself, so it can use the
       // reading face and vary the size per heading.
       '.cm-scroller': {
-        // The note's own face (Settings > Type, typefaces.css), which may not be the interface's.
+        // The note's own face (Settings › Appearance › Type, typefaces.css), which may not be the interface's.
         fontFamily: 'var(--app-note-font, var(--glacier-font-sans))',
         // A full kit step above reading size, scaled by the text-size setting
         // (app.css). The leading is a little looser than the kit's 1.5, which

@@ -1,5 +1,5 @@
 /*
- * A card that is a choice (Settings > Appearance and Type): a label holding a hidden radio and a picture of what
+ * A card that is a choice (Settings › Appearance): a label holding a hidden radio and a picture of what
  * choosing it gives - the theme cards (ThemeCards.module.css), the interface-size cards (ScaleCards.module.css) and the
  * typeface cards (TypefaceCards.module.css). The hairline, the stronger line under a pointer, the accent ring when
  * chosen and the focus ring when the radio has the keyboard are this file's; each card's size, corner and picture

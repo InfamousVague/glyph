@@ -157,7 +157,7 @@ export function tapesWaiting(tapes: readonly Note[], sources: { refining: Readon
   return waiting;
 }
 
-/** Where a digest phrase goes: a group on the page, or Settings › Formatting for a missing model. */
+/** Where a digest phrase goes: a group on the page, or Settings › Recording › Model for a missing model. */
 export type DigestGo = 'tasks' | 'tapes' | 'model';
 
 export interface DigestPhrase {
