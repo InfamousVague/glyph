@@ -734,6 +734,24 @@ describe('a journal’s entries', () => {
     expect(records()[id]).toBeDefined();
   });
 
+  it('makes an entry from home through the +, in the journal written in last, in a tab of its own', async () => {
+    await seed(['diary', DIARY], ['older', DIARY.replace(/Diary/g, 'Dreams')]);
+    await openApp();
+    // The journal sits in a tab behind home: its line is written from the store, once.
+    act(() => card('Diary').click());
+    act(() => button('Home').click());
+    act(() => button('Write a note').click());
+    const row = buttonSaying(document.body, 'Entry in Diary')!;
+    expect(row.textContent).toContain('Starts with the date and the time.');
+    await act(async () => row.click());
+    await waitUntil(() => expect(noteShown()).not.toBeNull());
+    const id = noteShown()!;
+    expect(tabs()).toEqual(['diary', id]);
+    const { title } = records()[id]!;
+    expect(await diaryBody()).toBe(`${DIARY}- [[${title}]]\n`);
+    expect((await getNote('older'))!.body).not.toContain(title);
+  });
+
   it('opens the journal itself from its card, after an entry was read', async () => {
     const title = '2026-09-28 14.05';
     await seed(['diary', `${DIARY}- [[${title}]]\n`], ['e1', `---\ntitle: "${title}"\ndate: 2026-09-28T14:05\n---\nWords of mine.`]);

@@ -325,7 +325,7 @@ export function NoteSettings({
       ) : null}
 
       {/* Read by anyone with its link, and nobody else (share/share.ts, docs/SHARING.md). */}
-      <ShareRows noteId={noteId} kind={name?.kind === 'notebook' || name?.kind === 'journal' ? 'notebook' : 'note'} />
+      <ShareRows noteId={noteId} kind={name?.kind === 'journal' ? 'journal' : name?.kind === 'notebook' ? 'notebook' : 'note'} />
 
       {/* The group under AI, named like the rest of them (Matt: "the section under AI is not labeled"). */}
       <SheetHeading>Where it sits</SheetHeading>

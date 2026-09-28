@@ -15,8 +15,13 @@ import styles from '../editor/NoteSettings.module.css';
  * written", with the kit's tick: the link leaves the location out until it is ticked (share.ts's header says why).
  *
  * A notebook's row says its pages go with it, since a share of a notebook carries every page (share.ts `shareNote`).
+ *
+ * A journal is shared an entry at a time (docs/DESIGN.md §142), so one not shared has one quiet row saying so. A
+ * shared notebook is sent whole again after any save of any of its pages, every picture read again each time, and a
+ * year of entries with photographs is past what one share carries: it would lose pictures without a word. A notebook
+ * shared before it was kept as a journal goes on being shared as it was, with the usual rows.
  */
-export function ShareRows({ noteId, kind = 'note' }: { noteId: string; kind?: 'note' | 'notebook' }) {
+export function ShareRows({ noteId, kind = 'note' }: { noteId: string; kind?: 'note' | 'notebook' | 'journal' }) {
   const { session } = useAccount();
   const link = useSyncExternalStore(onShares, () => linkFor(noteId), () => null);
   const withPlace = useSyncExternalStore(onShares, () => sharingPlace(noteId), () => false);
@@ -74,7 +79,14 @@ export function ShareRows({ noteId, kind = 'note' }: { noteId: string; kind?: 'n
     <>
       <p className={styles.heading}>Sharing</p>
       <div className={styles.group}>
-        {!session ? (
+        {kind === 'journal' && !link ? (
+          <div className={styles.row} aria-disabled>
+            <span className={styles.icon} aria-hidden="true">
+              <Link2 size={18} strokeWidth={2.2} />
+            </span>
+            <span className={styles.label}>A journal is shared an entry at a time. Open one to share it.</span>
+          </div>
+        ) : !session ? (
           <div className={styles.row} aria-disabled>
             <span className={styles.icon} aria-hidden="true">
               <Link2 size={18} strokeWidth={2.2} />

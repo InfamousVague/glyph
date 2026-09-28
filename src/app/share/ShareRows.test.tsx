@@ -109,6 +109,21 @@ describe('a note’s sharing', () => {
     expect(buttonSaying(document.body.lastElementChild!, 'Share a read-only link')?.textContent).not.toContain('page');
   });
 
+  it('says a journal is shared an entry at a time, with nothing to press, signed in or out, until it is shared', () => {
+    const host = show(<ShareRows noteId="j" kind="journal" />);
+    expect(host.textContent).toContain('A journal is shared an entry at a time. Open one to share it.');
+    expect(host.querySelector('button')).toBeNull();
+    account.session = null;
+    const out = show(<ShareRows noteId="j" kind="journal" />);
+    expect(out.textContent).toContain('A journal is shared an entry at a time.');
+    // A notebook shared before it was kept as a journal goes on as it was.
+    account.session = { user: 'matt' };
+    shares.links.set('k', 'https://attack.fm/glyph/read.html#x');
+    const shared = show(<ShareRows noteId="k" kind="journal" />);
+    expect(buttonSaying(shared, 'Copy the link')).toBeTruthy();
+    expect(shared.textContent).not.toContain('an entry at a time');
+  });
+
   it('shows the link itself where the clipboard will not take it', async () => {
     shares.links.set('a', 'https://attack.fm/glyph/read.html#kept');
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => Promise.reject(new Error('no')) } });

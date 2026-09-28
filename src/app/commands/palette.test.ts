@@ -159,6 +159,27 @@ describe('what the palette offers', () => {
     expect(acts.speakInto).toHaveBeenCalledWith('j');
   });
 
+  it('offers a new entry in each of up to three journals, the one written in last first', () => {
+    const acts = { ...doing(), newEntry: vi.fn() };
+    const journals = ['Diary', 'Dreams', 'Garden', 'Travel'].map((title, i) => ({ id: `j${i}`, title, journal: true as const }));
+    const entries = paletteCommands(world({ journals }), acts).filter((c) => c.descriptor.id.startsWith('entry:'));
+    expect(entries.map((c) => c.descriptor.label)).toEqual(['New entry in Diary', 'New entry in Dreams', 'New entry in Garden']);
+    expect(entries[0]!.descriptor.keywords).toContain('diary');
+    entries[1]!.run();
+    expect(acts.newEntry).toHaveBeenCalledWith('j1');
+    // With nowhere to make one, none.
+    expect(paletteCommands(world({ journals }), doing()).some((c) => c.descriptor.id.startsWith('entry:'))).toBe(false);
+  });
+
+  it('leaves a journal’s entries out of the notes offered before a word is typed, and finds them when typed for', () => {
+    const notes = [
+      { id: 'e1', title: '2026-09-28 14.05', entry: true as const },
+      { id: 'n1', title: 'Groceries' },
+    ];
+    expect(notesByName(notes).map((n) => n.id)).toEqual(['n1']);
+    expect(notesByName(notes, '2026-09-28').map((n) => n.id)).toEqual(['e1']);
+  });
+
   it('opens the New notebook sheet on Journal, found by a diary’s words, where the app offers it', () => {
     expect(paletteCommands(world(), doing()).some((command) => command.descriptor.id === 'journal')).toBe(false);
     const acts = { ...doing(), newJournal: vi.fn() };

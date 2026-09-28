@@ -46,7 +46,7 @@ import { isTrashed, outOfTrash, trash } from './core/trash.ts';
 import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { frontMatterOffset, withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
-import { entryBody, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
+import { entryBody, entryPages, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, templateSentence, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
 import { entryRecord, entryRecords, forgetEntry, rememberEntry, setEntryWords, untouchedEntry, type EntryRecord } from './book/entryDrafts.ts';
 import { fillTemplate, openEnd } from './book/template.ts';
 import { inTimeOrder } from './book/journalMonths.ts';
@@ -532,6 +532,12 @@ function Shell() {
       }
     }
   };
+  /** The journals, the one written in last first: its note changed last, as a new entry's line changes it. */
+  const journals = useMemo(() => shownNotes.filter((n) => isJournalBody(n.body)).sort((a, b) => b.updatedAt - a.updatedAt), [shownNotes]);
+  /** The + sheet's row for a new entry, in the journal written in last. */
+  const entryRow = journals[0]
+    ? { journal: noteTitle(journals[0].body) || 'Untitled journal', hint: templateSentence(templateOf(journals[0].body)), onPress: () => void newEntry(journals[0]!.id) }
+    : undefined;
   /** The first ask for where a journal's entries were written, introduced in the app's words, from its own press. */
   const introduceEntries = (journal: string) => (allow: () => void) =>
     toast({ message: `${journal} keeps where each entry was written.`, duration: 10_000, action: { label: 'Allow location', onPress: allow } });
@@ -802,9 +808,12 @@ function Shell() {
    * The command palette (commands/palette.ts): what Glyph can do right now, and how. Built here because this is where
    * the app's doings already live - every command below is something a person can also do by hand.
    */
+  // A journal's entries are found by name when typed for, and left out of the forty offered before a word is typed.
+  const entryIds = useMemo(() => entryPages(shownNotes), [shownNotes]);
   const paletteWorld = useMemo(
     () => ({
-      notes: shownNotes.map((n) => ({ id: n.id, title: noteTitle(n.body) })),
+      notes: shownNotes.map((n) => ({ id: n.id, title: noteTitle(n.body), ...(entryIds.has(n.id) ? { entry: true as const } : {}) })),
+      journals: journals.slice(0, 3).map((n) => ({ id: n.id, title: noteTitle(n.body) || 'Untitled journal', journal: true as const })),
       tabs: tabs.tabs.map((n) => ({ id: n.id, title: noteTitle(n.body) })),
       workspaces: spaces.list.map((w) => ({ id: w.id, name: w.name })),
       workspace: spaces.current?.id ?? null,
@@ -818,7 +827,7 @@ function Shell() {
       tabGroups: tabs.groups.list.map((g) => ({ id: g.id, name: g.name })),
       tabGroup: screen.name === 'note' ? (tabs.groups.of[screen.note.id] ?? null) : null,
     }),
-    [shownNotes, tabs.tabs, spaces, screen, walk.canBack, walk.canOn, prefs.noteView, prefs.theme, tabs.groups],
+    [shownNotes, entryIds, journals, tabs.tabs, spaces, screen, walk.canBack, walk.canOn, prefs.noteView, prefs.theme, tabs.groups],
   );
   const { setGroups } = tabs;
   /*
@@ -832,6 +841,7 @@ function Shell() {
     newNote: () => void newNote(),
     newNotebook: newBook,
     newJournal,
+    newEntry: (journalId: string) => void newEntry(journalId),
     speak,
     speakInto,
     closeTab,
@@ -981,6 +991,7 @@ function Shell() {
         onNote={() => void newNote()}
         onCanvas={() => void newCanvas()}
         onBook={newBook}
+        entry={entryRow}
         onMeeting={canMeet ? newMeeting : undefined}
         onFromLink={forkFromLink}
       />

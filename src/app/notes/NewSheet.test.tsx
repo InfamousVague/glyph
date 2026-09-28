@@ -46,6 +46,17 @@ describe('the + sheet', () => {
     expect(sheet()?.textContent).not.toMatch(/\bbook\b/i);
   });
 
+  it('offers a new entry in the journal written in last, right after Note, with what an entry starts with', () => {
+    const onPress = vi.fn();
+    const onClose = vi.fn();
+    show(<NewSheet open onClose={onClose} onNote={noop} onCanvas={noop} onBook={noop} entry={{ journal: 'Diary', hint: 'Starts with the date and the time.', onPress }} />);
+    const rows = [...sheet()!.querySelectorAll('button')].map((b) => b.textContent);
+    expect(rows[1]).toBe('Entry in DiaryStarts with the date and the time.');
+    act(() => buttonSaying(sheet()!, 'Entry in Diary')!.click());
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
   it('saves a copy from a pasted link, saying what went wrong in the row, and closes once it is saved', async () => {
     const onClose = vi.fn();
     const onFromLink = vi.fn(async (link: string) => {

@@ -22,12 +22,16 @@ export interface PaletteNote {
   title: string;
   /** A journal (book/journal.ts): its mic makes an entry and speaks it. */
   journal?: true;
+  /** One of a journal's entries: found by name when typed for, and not among the forty offered before a word is typed. */
+  entry?: true;
 }
 
 /** The app as it stands, for deciding what can be done right now. */
 export interface PaletteWorld {
   /** Every note, newest first: each is an "Open …". */
   notes: readonly PaletteNote[];
+  /** The journals, the one written in last first, at most three: each is a "New entry in …". */
+  journals?: readonly PaletteNote[];
   /** The notes open as tabs. */
   tabs: readonly PaletteNote[];
   workspaces: readonly { id: string; name: string }[];
@@ -58,6 +62,8 @@ export interface PaletteDoing {
   newNotebook: () => void;
   /** The same sheet with Journal chosen (docs/DESIGN.md §142). Absent, no such command. */
   newJournal?: () => void;
+  /** A new entry in that journal, as its New entry makes one. */
+  newEntry?: (journalId: string) => void;
   speak: () => void;
   speakInto: (id: string) => void;
   closeTab: (id: string) => void;
@@ -98,15 +104,16 @@ const NOTE_GROUP = 'Notes by name';
 const NOTE_KEYWORDS = 'note go to';
 
 /**
- * The notes offered by name: with nothing typed, the forty changed last; with a query, the forty newest the query
- * finds, in the whole library. A note matches as the kit's palette matches a row, every word of the query somewhere
+ * The notes offered by name: with nothing typed, the forty changed last, a journal's entries left out (a year of them
+ * would be every one of the forty, docs/DESIGN.md §142); with a query, the forty newest the query finds, in the whole
+ * library, entries among them. A note matches as the kit's palette matches a row, every word of the query somewhere
  * in "Open <title>", its group or its keywords, so this only chooses which forty the kit is given. Without it, a
  * library that had just been handed forty-five new notes at once (Ghost.md: The Guide, guidebook/guidebook.ts) could
  * not find any older note by name until that note was changed again.
  */
 export function notesByName(notes: readonly PaletteNote[], query = ''): PaletteNote[] {
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (!words.length) return notes.slice(0, MOST_NOTES);
+  if (!words.length) return notes.filter((note) => !note.entry).slice(0, MOST_NOTES);
   const around = `${NOTE_GROUP} ${NOTE_KEYWORDS}`.toLowerCase();
   const found: PaletteNote[] = [];
   for (const note of notes) {
@@ -172,6 +179,12 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query 
   if (doing.newJournal) {
     const newJournal = doing.newJournal;
     add({ id: 'journal', label: 'New journal', group: 'Notes', keywords: 'diary log dated entries daily' }, () => newJournal());
+  }
+  if (doing.newEntry) {
+    const newEntry = doing.newEntry;
+    for (const journal of (world.journals ?? []).slice(0, 3)) {
+      add({ id: `entry:${journal.id}`, label: `New entry in ${titleOf(journal)}`, group: 'Notes', keywords: 'journal diary today write entry' }, () => newEntry(journal.id));
+    }
   }
   add({ id: 'speak', label: 'Speak a new note', group: 'Notes', keywords: 'record voice dictate mic talk' }, () => doing.speak());
   add({ id: 'list', label: 'Home', group: 'Notes', keywords: 'home list back dashboard start' }, () => doing.showList());
