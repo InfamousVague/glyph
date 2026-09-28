@@ -7,8 +7,8 @@
 //! calls one library function, and turns a `LibraryError` into a `String`.
 //! The three that do more say what: `apply_command_mutation` checks what the
 //! page sent before any of it is written, `delete_note` takes a note's
-//! pictures and recording with it, and `sync_put_file` keeps a file that
-//! arrived by sync.
+//! pictures, films and recording with it, and `sync_put_file` keeps a file
+//! that arrived by sync.
 //!
 //! `Result<T, String>` rather than `Result<T, LibraryError>` because Tauri
 //! needs the error half to be `Serialize`, and a string is what arrives in
@@ -18,7 +18,7 @@
 //! benefit - and `LibraryError`'s `Display` already writes the sentence a
 //! person should read.
 
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use tauri::Manager;
@@ -247,24 +247,36 @@ pub fn update_note(
 /// The recording goes whether or not the row was still there: a file whose note
 /// is gone is a recording nothing can play, and nothing else would ever remove
 /// it. A file that cannot be removed does not fail the delete; the note is
-/// gone, which is what was asked. The pictures the body refers to go the same
-/// way, except one another note still shows.
+/// gone, which is what was asked. The pictures and films the body refers to go
+/// the same way, except one another note still shows.
 #[tauri::command]
 pub fn delete_note(
     app: tauri::AppHandle,
     store: tauri::State<'_, NotesStore>,
     id: String,
 ) -> std::result::Result<bool, String> {
-    let images = crate::paths::images_dir(&app).ok();
-    let recordings = crate::paths::recordings_dir(&app).ok();
-    let jobs = crate::paths::jobs_dir(&app).ok();
-    delete_with_files(&store, images.as_deref(), recordings.as_deref(), jobs.as_deref(), &id)
+    let kept = Kept {
+        images: crate::paths::images_dir(&app).ok(),
+        videos: crate::paths::videos_dir(&app).ok(),
+        recordings: crate::paths::recordings_dir(&app).ok(),
+        jobs: crate::paths::jobs_dir(&app).ok(),
+    };
+    delete_with_files(&store, &kept, &id)
 }
 
-/// `delete_note`'s work, given where pictures, recordings and write-ups are
-/// kept (or `None` where the platform gave no directory, which leaves the
-/// files alone).
-fn delete_with_files(notes: &NotesStore, images: Option<&Path>, recordings: Option<&Path>, jobs: Option<&Path>, id: &str) -> std::result::Result<bool, String> {
+/// Where a note's files are kept, each `None` where the platform gave no
+/// directory, which leaves those files alone.
+struct Kept {
+    images: Option<PathBuf>,
+    videos: Option<PathBuf>,
+    recordings: Option<PathBuf>,
+    jobs: Option<PathBuf>,
+}
+
+/// `delete_note`'s work, given where pictures, films, recordings and write-ups
+/// are kept.
+fn delete_with_files(notes: &NotesStore, kept: &Kept, id: &str) -> std::result::Result<bool, String> {
+    let (images, videos, recordings, jobs) = (kept.images.as_deref(), kept.videos.as_deref(), kept.recordings.as_deref(), kept.jobs.as_deref());
     let mut library = notes.lock();
     // The body is read before the row goes: it is the only list of the
     // pictures the note had. They go after it, so a failed delete never
@@ -273,8 +285,11 @@ fn delete_with_files(notes: &NotesStore, images: Option<&Path>, recordings: Opti
     // which reads the index the delete has just changed.
     let body = library.get_note(id).ok().flatten().map(|note| note.body);
     let removed = library.delete_note(id).map_err(|e| e.to_string())?;
-    if let (Some(body), Some(images)) = (body, images) {
-        crate::images::remove_unreferenced(images, &library, &body);
+    if let (Some(body), Some(images)) = (&body, images) {
+        crate::images::remove_unreferenced(images, &library, body);
+    }
+    if let (Some(body), Some(videos)) = (&body, videos) {
+        crate::videos::remove_unreferenced(videos, &library, body);
     }
     drop(library);
     if let Some(file) = recordings.and_then(|dir| recording_file(dir, id)) {
@@ -376,7 +391,7 @@ mod tests {
         fn new() -> Phone {
             let root = TempDir::new("commands");
             let notes = NotesStore(Mutex::new(Library::open_fs(&root.join("Library")).unwrap()));
-            for dir in ["images", "recordings", "jobs"] {
+            for dir in ["images", "video", "recordings", "jobs"] {
                 std::fs::create_dir_all(root.join(dir)).unwrap();
             }
             Phone { notes, root }
@@ -387,7 +402,13 @@ mod tests {
         }
 
         fn delete(&self, id: &str) -> Result<bool, String> {
-            delete_with_files(&self.notes, Some(&self.file("images")), Some(&self.file("recordings")), Some(&self.file("jobs")), id)
+            let kept = Kept {
+                images: Some(self.file("images")),
+                videos: Some(self.file("video")),
+                recordings: Some(self.file("recordings")),
+                jobs: Some(self.file("jobs")),
+            };
+            delete_with_files(&self.notes, &kept, id)
         }
     }
 
@@ -410,6 +431,22 @@ mod tests {
         assert!(phone.file("recordings/n2.wav").exists() && phone.file("images/theirs.jpg").exists() && phone.file("jobs/n2.progress").exists());
         assert_eq!(phone.notes.lock().get_note("n1").unwrap(), None);
         assert!(phone.notes.lock().get_note("n2").unwrap().is_some());
+    }
+
+    #[test]
+    fn a_deleted_note_takes_its_films_and_their_posters_but_not_another_notes() {
+        let phone = Phone::new();
+        for name in ["video/mine.mp4", "video/shared.webm", "images/mine.jpg", "images/shared.jpg"] {
+            std::fs::write(phone.file(name), b"bytes").unwrap();
+        }
+        {
+            let mut library = phone.notes.lock();
+            library.save_note("n1", "[![video 0:12](image/mine.jpg)](video/mine.mp4)\n[![video 0:03](image/shared.jpg)](video/shared.webm)\n", "editor").unwrap();
+            library.save_note("n2", "[![video 0:03](image/shared.jpg)](video/shared.webm)\n", "editor").unwrap();
+        }
+        assert_eq!(phone.delete("n1"), Ok(true));
+        assert!(!phone.file("video/mine.mp4").exists() && !phone.file("images/mine.jpg").exists(), "the film and its poster go with it");
+        assert!(phone.file("video/shared.webm").exists() && phone.file("images/shared.jpg").exists(), "another note still names them");
     }
 
     #[test]
@@ -438,7 +475,8 @@ mod tests {
         let phone = Phone::new();
         std::fs::write(phone.file("images/mine.jpg"), b"bytes").unwrap();
         phone.notes.lock().save_note("n1", "![](image/mine.jpg)\n", "editor").unwrap();
-        assert_eq!(delete_with_files(&phone.notes, None, None, None, "n1"), Ok(true));
+        let nowhere = Kept { images: None, videos: None, recordings: None, jobs: None };
+        assert_eq!(delete_with_files(&phone.notes, &nowhere, "n1"), Ok(true));
         assert!(phone.file("images/mine.jpg").exists(), "no directory given, nothing removed from one");
     }
 

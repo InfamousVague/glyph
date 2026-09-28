@@ -208,7 +208,13 @@ pub use install::peek;
 /// Also 20, in the same binary: `geocode_place`, a tagged note's place name asked of Nominatim with the app's own User-Agent; the Android
 /// manifest's location permissions and the activity's `locationAccess`, `requestLocation` and
 /// `openLocationSettings`; the opener's `geo:` scope, so a tapped map opens the maps app (docs/DESIGN.md §134).
-pub const NATIVE_GENERATION: u32 = 20;
+///
+/// 21: a film in a note (docs/DESIGN.md §141): the activity's `GlyphHost.pickVideo`, the Photo Picker with no
+/// permission asked, copying the film and its poster into `picked/` and answering `window.__glyph.video`;
+/// `save_video` and `discard_picked`; the `vid` scheme playing a film in ranges by seek (ranged.rs); `delete_note`
+/// and a daily sweep taking the films no note names, and a launch sweep of what waits in `picked/`; the reset taking
+/// `video/` and `picked/`; and the manifest's backup rules keeping `video/` out of Google's cloud backup.
+pub const NATIVE_GENERATION: u32 = 21;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in
