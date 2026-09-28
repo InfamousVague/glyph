@@ -32,6 +32,7 @@ import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { plugins } from '../plugins/registry.ts';
 import { linkableTitles, moreRows, readGates, topRows, writeCanvasFrame, writeNoteLink, writeRow, type AddRow, type AddRowId } from './addRows.ts';
+import { onNamingLine } from './openHeading.ts';
 import { closePlus, plusMenu, type PlusKey, type PlusOpening } from './insertPlus.ts';
 import styles from './AddList.module.css';
 
@@ -166,7 +167,7 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
   }, []);
 
   const rows: (AddRow | { id: 'back'; words: string })[] =
-    page === 'top' ? topRows(gates, now) : page === 'more' ? [{ id: 'back', words: 'Back' }, ...moreRows(gates)] : [];
+    page === 'top' ? topRows(gates, now, onNamingLine(view.state)) : page === 'more' ? [{ id: 'back', words: 'Back' }, ...moreRows(gates)] : [];
 
   /** The list closed: told to the editor first, so the × turns back and what a row writes is not read as a change under it. */
   const close = useCallback(

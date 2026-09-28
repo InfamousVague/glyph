@@ -5,6 +5,7 @@ import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { isBookBody } from '../book/book.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 import { useWorkspaces } from '../core/workspaces.ts';
+import { titleNow, useLiveTitles } from '../core/liveTitles.ts';
 import { setTopBarTools } from '../core/topBarTools.ts';
 import { House } from '../art/Icons.tsx';
 import { scrollSideways } from '../core/scrollSideways.ts';
@@ -126,6 +127,8 @@ export function NoteTabs({
     setRenaming(made.id);
   };
   const spaces = useWorkspaces();
+  // Each open note's title as its editor has it now (core/liveTitles.ts): a new note's tab says its name as it is typed.
+  const live = useLiveTitles();
   const row = useRef<HTMLDivElement>(null);
   /** The tab being carried by a drag, while it is. */
   const [moving, setMoving] = useState<string | null>(null);
@@ -225,7 +228,7 @@ export function NoteTabs({
         >
           <span ref={outline.glide} className={styles.glide} aria-hidden="true" />
           {tabs.map((note, at) => {
-            const title = noteTitle(note.body) || 'Untitled';
+            const title = titleNow(note, noteTitle(note.body), live) || 'Untitled';
             const active = note.id === activeId;
             const groupId = groups.of[note.id];
             const group = groupId ? groups.list.find((g) => g.id === groupId) : undefined;

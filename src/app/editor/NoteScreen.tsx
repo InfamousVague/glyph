@@ -21,7 +21,9 @@ import { BookView } from '../book/BookView.tsx';
 import { JournalView } from '../book/JournalView.tsx';
 import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
 import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate, type JournalWriter } from '../book/journal.ts';
-import { untouchedRecord, forgetUntouched, isUntouched } from '../core/untouched.ts';
+import { forgetUntouched, isFresh, isUntouched, keepFresh, rememberUntouched, untouchedRecord } from '../core/untouched.ts';
+import { nameOffers } from '../core/noteNames.ts';
+import { setLiveTitle } from '../core/liveTitles.ts';
 import { isGuideBook } from '../guidebook/guidebook.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
 import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
@@ -176,10 +178,41 @@ interface NoteScreenProps {
   rename?: NoteRename | null;
   /** A spoken instruction about this note, to run on it as it opens (App.tsx, ai/instruction.ts); `key` tells one from the next. */
   ask?: NoteAsk;
+  /**
+   * Every note's title key, archived and in the Trash too (App.tsx): a name another note has is not offered on a new
+   * note's blank page (core/noteNames.ts). Absent, nothing is taken.
+   */
+  takenTitles?: ReadonlySet<string>;
   /** The review after the recording that just made or grew this note (ai/useNoteReview.ts): run here, in the strip and the note. */
   review?: ReviewHandoff & { key: number };
   /** What the recording that just ended wrote into this note, for its Undo (editor/useLanding.ts). */
   landing?: CaptureLanding & { key: number };
+}
+
+/** Nothing taken, for a screen given no titles. */
+const NO_TITLES: ReadonlySet<string> = new Set();
+
+/** The time now, read again at the turn of each minute while `on`: the blank page's names follow the clock. */
+function useMinute(on: boolean): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    if (!on) return undefined;
+    const tick = () => setNow(new Date());
+    tick();
+    let every = 0;
+    const first = window.setTimeout(
+      () => {
+        tick();
+        every = window.setInterval(tick, 60_000);
+      },
+      60_000 - (Date.now() % 60_000) + 20,
+    );
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(every);
+    };
+  }, [on]);
+  return now;
 }
 
 /** How long a place from the + waits for its name before it is written with its coordinates (core/location.ts rule 2). */
@@ -221,6 +254,7 @@ export function NoteScreen({
   ask,
   review,
   landing,
+  takenTitles,
 }: NoteScreenProps) {
   const prefs = usePreferences();
   // The page's side, followed while the note is open: on System the phone may turn dark under it.
@@ -282,11 +316,25 @@ export function NoteScreen({
    */
   const drafted = useRef(untouchedRecord(note.id) !== null);
   const [untouched, setUntouched] = useState(() => drafted.current && isUntouched(note.id, note.body, note));
+  /*
+   * A note made in this run that nobody has written in (core/untouched.ts `markFresh`): only it is offered names and
+   * templates on its blank page. The person's first own words spoil it for good, before the record they are compared
+   * with can be forgotten below.
+   */
+  const [fresh, setFreshNote] = useState(() => isFresh(note.id));
+  const freshNow = useRef(fresh);
   const onChange = useCallback(
     (next: string) => {
       keep(next);
       const now = geoTagOf(next) ?? pendingTag(note.id);
       setTag((was) => (sameTag(was, now) ? was : now));
+      if (freshNow.current) {
+        keepFresh(note.id, next);
+        if (!isFresh(note.id)) {
+          freshNow.current = false;
+          setFreshNote(false);
+        }
+      }
       if (!drafted.current) return;
       const still = isUntouched(note.id, next);
       setUntouched(still);
@@ -303,7 +351,7 @@ export function NoteScreen({
    */
   const [hold, setHold] = useState(() => heldFor(note.id));
   /** The card just appeared on this open note: it arrives on the beat rather than at full height. */
-  const [fresh, setFresh] = useState(false);
+  const [arriving, setArriving] = useState(false);
   /** The tag just taken off, drawn a moment longer while its card leaves on the same beat; null otherwise. */
   const [leaving, setLeaving] = useState<GeoTag | null>(null);
   /** Whether the screen is still up: a fix that comes after the note was left is kept for it rather than lost. */
@@ -385,6 +433,8 @@ export function NoteScreen({
     fireNativeHaptic('selection');
   };
   useLiveNote(view, note.id);
+  // The tab says the note's name as line 1 is written (core/liveTitles.ts), a name tapped on its blank page included.
+  useEffect(() => setLiveTitle(note.id, title), [note.id, title]);
   // "Added to House TODOs", with an Undo that is an edit here; and no better words written under the open note.
   useLanding(note.id, landing, view, { toast, dismiss });
   const pictures = useNotePictures(view);
@@ -583,7 +633,7 @@ export function NoteScreen({
         }
         setPendingTag(note.id, next);
         setTag(next);
-        setFresh(true);
+        setArriving(true);
         setLeaving(null);
         // Into the note now (and its name asked), or waiting for the better words with the card drawn from it meanwhile.
         latest.current.settle(true);
@@ -742,7 +792,7 @@ export function NoteScreen({
   const removeLocation = () => {
     flush();
     setSettingsOpen(false);
-    setFresh(false);
+    setArriving(false);
     setLeaving(tag);
     writeTag(null, true);
     setPendingTag(note.id, null);
@@ -843,6 +893,35 @@ export function NoteScreen({
     view?.dispatch({ effects: plusRecheck.of(null) });
     if (!plusAllowed) setAdding(null);
   }, [view, plusAllowed]);
+
+  /*
+   * A new note's blank page (docs/DESIGN.md §144): the names under its first line (editor/nameChips.ts), and under them
+   * the screen's own element, which holds the ghost while they are shown, so the ghost is always below them. Offered
+   * while the note is fresh (made in this run, nothing of the person's in it), has no words, and is words being
+   * written (the +'s own gate). The names turn with the minute, so they are read again at each turn while offered.
+   */
+  const offering = fresh && blank && plusAllowed;
+  const clock = useMinute(offering);
+  const names = useMemo(() => (offering ? nameOffers(clock, takenTitles ?? NO_TITLES) : null), [offering, clock, takenTitles]);
+  const [offersHost] = useState(() => document.createElement('div'));
+  const [offersShown, setOffersShown] = useState(false);
+  /**
+   * A name tapped: the note's heading, as the only name a note of words has is its first line, and the caret on the
+   * line under it. Its record first (core/untouched.ts), so a note named and left without a word of the person's own
+   * is taken back as an untouched entry is. One change, so one undo takes it back to a blank page with the names on it.
+   */
+  const nameIt = (name: string) => {
+    const editor = viewRef.current;
+    if (!editor || !isFresh(note.id)) return;
+    const words = `# ${name}\n\n`;
+    rememberUntouched(note.id, { title: name, words, at: Date.now() });
+    drafted.current = true;
+    setUntouched(true);
+    const from = frontMatterOffset(editor.state.doc.toString());
+    editor.dispatch({ changes: { from, to: editor.state.doc.length, insert: words }, selection: { anchor: from + words.length }, scrollIntoView: true, userEvent: 'input.name' });
+    editor.focus();
+    fireNativeHaptic('selection');
+  };
   /**
    * Where the list may go: the note's scrolling page, below the header, which clears the top bar and the tabs
    * (`--app-safe-top`) even while the page itself runs up under them.
@@ -990,7 +1069,7 @@ export function NoteScreen({
             mode={canShowTiles() && !((blank || untouched) && !geoTagOf(body.current)) ? 'map' : 'quiet'}
             quietWhy={prefs.localOnly ? 'local-only' : !prefs.mapTiles ? 'off' : undefined}
             dark={dark}
-            arrive={Boolean(tag) && fresh}
+            arrive={Boolean(tag) && arriving}
             leave={!tag}
             onLeft={() => setLeaving(null)}
             className={styles.mapCard}
@@ -1069,11 +1148,15 @@ export function NoteScreen({
             wiki={wiki}
             onAiMarks={ai.onAiMarks}
             plus={plusHooks}
+            blankPage={{ names, host: offering ? offersHost : null, onName: nameIt, onShown: setOffersShown }}
+            openHeading
             places="live"
             videos="play"
             grow
           />
-          {blank && !typed ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
+          {blank && !typed && !(offering && offersShown) ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
+          {/* Under the names while they are shown: the ghost, in the page's flow, so it is never behind them. */}
+          {offering && offersShown ? createPortal(<Ghost scene="new-note" align="center" className={styles.offersGhost} />, offersHost) : null}
         </div>
         {/* And under its last line, the chapters either side again, to go on from the end of the page (docs/BOOKS.md). */}
         {book && onOpenTitle && shown === 'raw' ? <BookFoot place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}

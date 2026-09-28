@@ -1793,3 +1793,105 @@ describe('the + beside the line in a journal', () => {
     }
   });
 });
+
+describe('a new note’s blank page', () => {
+  /** The names drawn under line 1, by what they write. */
+  const chips = () => [...document.querySelectorAll<HTMLButtonElement>('.cm-nameChip')];
+  const chip = (kind: string) => document.querySelector<HTMLButtonElement>(`.cm-nameChip[data-kind="${kind}"]`);
+  /** A new note as + › Note makes one: fresh, and opened with the caret in line 1 and the focus. */
+  const fresh = async (id: string, over: Partial<Parameters<typeof NoteScreen>[0]> = {}) => {
+    const { markFresh } = await import('../core/untouched.ts');
+    markFresh(id);
+    show(screen(await createNote(id, ''), { caret: 0, ...over }));
+    // CodeMirror tells its extensions of the focus 10ms after it comes.
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+  };
+  const today = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+
+  beforeEach(() => void vi.spyOn(document, 'hasFocus').mockReturnValue(true));
+  afterEach(() => vi.restoreAllMocks());
+
+  it('offers the four names on a fresh note with the focus, the day in words first, and the ghost under them', async () => {
+    await fresh('b1');
+    expect(editor().hasFocus).toBe(true);
+    expect(chips().map((one) => one.dataset.kind)).toEqual(['words', 'day', 'minute', 'week']);
+    expect(chip('day')?.textContent).toBe(today());
+    // The ghost is in their block, after them, and not over the page behind them.
+    const block = document.querySelector('.cm-blankOffers')!;
+    expect(block.querySelector('[class*=offersGhost]')).not.toBeNull();
+    expect(document.querySelector('[class*=blankGhost]')).toBeNull();
+  });
+
+  it('names the note from a tap: its heading, the caret under it, one undo step, a record, and the tab says it', async () => {
+    const { untouchedRecord } = await import('../core/untouched.ts');
+    const { useLiveTitles } = await import('../core/liveTitles.ts');
+    await fresh('b2');
+    act(() => chip('day')!.click());
+    const view = editor();
+    const words = `# ${today()}\n\n`;
+    expect(view.state.doc.toString()).toBe(words);
+    expect(view.state.selection.main.head).toBe(words.length);
+    expect(view.hasFocus).toBe(true);
+    expect(untouchedRecord('b2')).toMatchObject({ title: today(), words });
+    expect(untouchedRecord('b2')?.journalId).toBeUndefined();
+    expect(chips()).toHaveLength(0);
+    // The tab row's title, as the store outside App has it.
+    let said = '';
+    function Tab() {
+      said = useLiveTitles().get('b2')?.title ?? '';
+      return null;
+    }
+    const probe = document.body.appendChild(document.createElement('div'));
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(probe);
+    act(() => root.render(<Tab />));
+    expect(said).toBe(today());
+    act(() => root.unmount());
+    // One undo: a blank page with the names on it again.
+    act(() => void undo(view));
+    await settle();
+    expect(view.state.doc.toString()).toBe('');
+    expect(chips()).toHaveLength(4);
+  });
+
+  it('leaves out a name another note has, the others keeping their order', async () => {
+    await fresh('b3', { takenTitles: new Set([today().replace(/-/g, ' ')]) });
+    expect(chips().map((one) => one.dataset.kind)).toEqual(['words', 'minute', 'week']);
+  });
+
+  it('goes at the first letter, and a fresh note typed in and emptied never offers them again', async () => {
+    const { isFresh } = await import('../core/untouched.ts');
+    await fresh('b4');
+    type('T');
+    expect(chips()).toHaveLength(0);
+    const view = editor();
+    act(() => view.dispatch({ changes: { from: 0, to: view.state.doc.length }, userEvent: 'delete' }));
+    await settle();
+    expect(view.state.doc.toString()).toBe('');
+    expect(isFresh('b4')).toBe(false);
+    expect(chips()).toHaveLength(0);
+  });
+
+  it('never offers a name on an old note emptied by hand, so nothing can take it away', async () => {
+    const { untouchedRecord } = await import('../core/untouched.ts');
+    // Made before this run of the screen: not fresh, however empty.
+    show(screen(await createNote('old1', 'A list I had.'), { caret: 0 }));
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+    const view = editor();
+    act(() => view.dispatch({ changes: { from: 0, to: view.state.doc.length }, userEvent: 'delete' }));
+    await settle();
+    expect(chips()).toHaveLength(0);
+    expect(document.querySelector('.cm-blankOffers')).toBeNull();
+    expect(untouchedRecord('old1')).toBeNull();
+    unmount();
+    expect(await getNote('old1')).not.toBeNull();
+  });
+
+  it('says `A name` in an open first heading', async () => {
+    show(screen(await createNote('h1', '# \n\n- [ ] Milk')));
+    expect(document.querySelector('.cm-openHint')?.textContent).toBe('A name');
+  });
+});

@@ -66,6 +66,7 @@ import { useOpenTabs } from './shell/useOpenTabs.ts';
 import { useRootStamp } from './shell/useRootStamp.ts';
 import { useTrail } from './shell/useTrail.ts';
 import { useVisibleNotes } from './shell/useVisibleNotes.ts';
+import { dropLiveTitles } from './core/liveTitles.ts';
 
 /**
  * The whole app: which screen is up, and everything drawn over it.
@@ -253,6 +254,7 @@ function Shell() {
 
   /** One tab closed, or a whole group's; the note being read among them hands over to the tab left beside it. */
   const closeTabs = (ids: readonly string[]) => {
+    dropLiveTitles(ids);
     const next = tabs.close(ids);
     if (next === undefined) return;
     if (next) openNote(next);
@@ -281,6 +283,13 @@ function Shell() {
   };
   /** Whether a note by that title is in the library: what a `[[link]]` is drawn by. */
   const hasTitle = (title: string) => titled(title) !== undefined;
+  /**
+   * Every title a note has, as its key: every note the store answers, archived and in the Trash too, as a journal's new
+   * entry reads them. A new note's blank page offers no name another note has (core/noteNames.ts), and a template's
+   * heading that is taken gets " (2)" (notes/noteTemplates.ts), so a note restored from the Trash never meets a second
+   * of its name.
+   */
+  const takenTitles = useMemo(() => new Set(notes.map((n) => titleKey(noteTitle(n.body))).filter(Boolean)), [notes]);
   /**
    * The notes some journal's index names (book/journal.ts `entryPages`): its entries. Recent, the palette's first list
    * and the pickers of a notebook's pages leave them out, as they leave the Guide's pages out.
@@ -794,6 +803,7 @@ function Shell() {
         onNewEntry={() => void newEntry(screen.note.id)}
         onJournal={onJournal}
         caret={screen.caret}
+        takenTitles={takenTitles}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
         pageTitles={() => shownNotes.filter((n) => !entryIds.has(n.id)).map((n) => noteTitle(n.body)).filter(Boolean)}
         rename={rename}

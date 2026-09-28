@@ -43,6 +43,9 @@ import { aiChanges, type AiChange } from './aiChanges.ts';
 import { insertPlus, type PlusHooks } from './insertPlus.ts';
 import { placeCards, refreshPlaceCards, type PlaceMode } from './placeCards.ts';
 import { videoCards, type VideoMode } from './videos.ts';
+import { nameChips, setOffers, type BlankOffers } from './nameChips.ts';
+import { openHeading as openHeadingHint } from './openHeading.ts';
+import { isMobile } from '../core/platform.ts';
 import { plugins } from '../plugins/registry.ts';
 import styles from './markdown.module.css';
 
@@ -70,8 +73,8 @@ import styles from './markdown.module.css';
  * Compartments and are swapped in place when they change. Everything else -
  * `grow`, `arrivals`, `wispTyping`, `ripples`, `peek`, `diagrams`,
  * `placeholder`, and whether `wiki` or `linkMenus` was given at all - is read
- * once, when the view is made, and so are whether `plus` was given, which
- * `places` and which `videos`; a caller that needs a different set remounts
+ * once, when the view is made, and so are whether `plus` or `blankPage` was
+ * given, `openHeading`, which `places` and which `videos`; a caller that needs a different set remounts
  * the editor with a new `key` (src/read/Reader.tsx does). And a new `wiki`
  * object is also a sign the notes changed (below), so a caller keeps the same
  * one while its lookups are the same.
@@ -164,6 +167,14 @@ interface EditorProps {
    * this phone, `shared` on a shared page, and `still`, the poster and its length, everywhere else. Read once.
    */
   videos?: VideoMode;
+  /**
+   * A new note's blank page (editor/nameChips.ts): the names under its first line and the screen's element under them,
+   * or nothing on offer; told to the view as they change. Whether it was given is read once; `onName` and `onShown` are
+   * read through a ref. Only the note screen gives it.
+   */
+  blankPage?: BlankOffers & { onName: (name: string) => void; onShown?: (shown: boolean) => void };
+  /** `A name` said in an open first heading (editor/openHeading.ts): the note screen and a template's card. Read once. */
+  openHeading?: boolean;
 }
 
 /**
@@ -217,6 +228,8 @@ export function Editor({
   plus,
   places = 'off',
   videos = 'still',
+  blankPage,
+  openHeading = false,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -240,6 +253,8 @@ export function Editor({
   onAiMarksRef.current = onAiMarks;
   const plusRef = useRef(plus);
   plusRef.current = plus;
+  const blankRef = useRef(blankPage);
+  blankRef.current = blankPage;
 
   const themeSlot = useRef(new Compartment());
   const assistSlot = useRef(new Compartment());
@@ -340,6 +355,12 @@ export function Editor({
               onKey: (key) => plusRef.current?.onKey(key) ?? false,
             })
           : [],
+        // What goes in an open first heading, said in it (openHeading.ts).
+        openHeading ? openHeadingHint() : [],
+        // A new note's names and what the screen puts under them (nameChips.ts), where the screen asked for them.
+        blankPage && !peek
+          ? nameChips({ readyAtOnce: !isMobile, onName: (name) => blankRef.current?.onName(name), onShown: (shown) => blankRef.current?.onShown?.(shown) })
+          : [],
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString());
           for (const tr of update.transactions) feelTransaction(tr);
@@ -391,6 +412,19 @@ export function Editor({
   useEffect(() => {
     view.current?.dispatch({ effects: displaySlot.current.reconfigure(noteView(display)) });
   }, [display]);
+
+  // What the blank page offers, told to the view as it changes: the names turn with the minute, and go at the first
+  // letter. Compared by what they say, so a render that made the same list again tells the view nothing.
+  const offered = useRef('');
+  const names = blankPage?.names ?? null;
+  const offersHost = blankPage?.host ?? null;
+  useEffect(() => {
+    const said = JSON.stringify(names?.map((offer) => [offer.name, offer.label]) ?? null);
+    const hostId = offersHost ? 'host' : '';
+    if (offered.current === `${said}|${hostId}` && view.current) return;
+    offered.current = `${said}|${hostId}`;
+    view.current?.dispatch({ effects: setOffers.of({ names, host: offersHost }) });
+  }, [names, offersHost]);
 
   // A different note was opened. Compared against the view's own document
   // rather than a previous prop, so the echo of our own `onChange` is ignored.

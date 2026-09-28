@@ -321,6 +321,15 @@
   position: relative;
 }
 
+/*
+ * The ghost while a new note's names are shown under its first line (editor/nameChips.ts): in their block, after them,
+ * so however many rows the names take it is never behind them.
+ */
+.offersGhost {
+  padding-block: var(--glacier-space-8) var(--glacier-space-4);
+  pointer-events: none;
+}
+
 /* The note's authors (authors/Byline.tsx), in the note's own column, over its first line. */
 .byline {
   padding-inline: var(--app-gutter);
