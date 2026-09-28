@@ -446,15 +446,38 @@ describe('where a capture’s new notes were made', () => {
     expect((await getNote('said'))?.body).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Said\n');
   });
 
+  it('leaves a note spoken into from its own mic as it was: untagged, and filed where it was or nowhere', async () => {
+    const calls = fixAt(51.5074, -0.1278);
+    const work = addWorkspace('Work')!;
+    chooseWorkspace(work.id);
+    const note = await createNote('n', '# Kept\n');
+    show(<Probe from={into('n')} />);
+    // The take went on its end (capture/CaptureScreen.tsx), and nothing a command made: no landing to say so.
+    const grown = await updateNote('n', '# Kept\n\nMore words.\n', note.revision ?? 1);
+    await act(async () => route.finished(grown, false));
+    await settle();
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'n' } });
+    // docs/DESIGN.md §134: existing notes are never tagged.
+    expect(calls).toHaveLength(0);
+    expect(pendingTag('n')).toBeNull();
+    expect(workspaceOf('n')).toBeNull();
+    // Its review after the recording is no different.
+    show(<Probe from={into('n')} />);
+    await act(async () => route.finished(grown, false, { noteId: 'n', job: null, heard: 'more words', commands: [], touched: [] }));
+    await settle();
+    expect(calls).toHaveLength(0);
+    expect(workspaceOf('n')).toBeNull();
+  });
+
   it('hands the tag to the note’s screen when it opens, rather than writing under its editor', async () => {
     fixAt(51.5074, -0.1278);
     const note = await createNote('n', '# Said\n');
     // The note's screen, as it watches its tag once mounted (editor/NoteScreen.tsx).
     const told: string[] = [];
     const off = watchTag('n', (event) => told.push(event.kind));
-    show(<Probe from={into('n')} />);
+    // The take's own new note: a note spoken into from its own mic is not tagged at all (the test above).
+    show(<Probe from={into()} />);
     await act(async () => route.finished(note, false));
-    expect(screen).toMatchObject({ name: 'note', note: { id: 'n' } });
     await settle();
     off();
     expect(told).toEqual(['pending']);

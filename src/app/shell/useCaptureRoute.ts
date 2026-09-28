@@ -281,9 +281,13 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
   const finished = useCallback(
     async (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk, landing?: CaptureLanding) => {
       // A spoken note lands in the workspace the list is showing, unless it is filed already; so do the notes it made.
-      // A note that was there already and only had words put into it (`landing.blocks`) stays where it was filed, or
-      // unfiled.
-      const existed = note !== null && landing !== undefined && landing.blocks.length > 0 && !landing.made.includes(note.id);
+      // A note that was there already and only had words put into it stays where it was filed, or unfiled: one a
+      // command wrote into (`landing.blocks`), or the note whose own mic this was. That one leaves no landing, and it
+      // used to be filed and tagged as though the take had made it, against docs/DESIGN.md §134's "existing notes are
+      // never tagged". Read before the first await, while the capture screen is still the one aimed.
+      const current = now.current.screen;
+      const aimedAt = current.name === 'capture' ? current.noteId : undefined;
+      const existed = note !== null && ((landing !== undefined && landing.blocks.length > 0 && !landing.made.includes(note.id)) || (note.id === aimedAt && !landing?.made.includes(note.id)));
       if (note && !existed) fileNewNote(note.id);
       for (const made of landing?.made ?? []) fileNewNote(made);
       await refresh();
@@ -322,8 +326,7 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
       // Otherwise the list, the new note at its top: reading it back is a tap
       // away, and a locked phone has already stepped back behind its lock
       // screen, so nothing of the note is shown to whoever is holding it.
-      const current = now.current.screen;
-      const from = current.name === 'capture' ? current.noteId : undefined;
+      const from = aimedAt;
       if (from && !locked) {
         const fresh = await getNote(note?.id ?? from).catch(() => null);
         if (fresh) {
