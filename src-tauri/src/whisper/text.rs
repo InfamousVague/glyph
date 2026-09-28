@@ -92,9 +92,12 @@ pub fn clean(raw: &str) -> String {
 /// the line: at the end, just before the committed tail, it read as a
 /// sentence of its own and a phrase carried across a cut started over in
 /// capitals (`tests::a_prompt_tail_carries_a_sentence_across_the_cut`).
-/// "Hey Ghost" follows it: the app is Ghost.md now and that is the keyword a
-/// person says, so the recogniser is told its spelling the same way.
-pub const CUE_VOCABULARY: &str = "Glyph. Hey Ghost. Title. Heading. Bullet point. Number one. Check box. To do. Quote. \
+/// "Hey Ghost", the keyword a person says now, is NOT here, for the same
+/// reason: put after "Glyph." it made base.en start that carried phrase over
+/// in capitals again ("Fresh bread on the way home." where the test wants
+/// "fresh"), so it goes with the spoken cues below, after a finished sentence,
+/// which is where the keyword is said anyway.
+pub const CUE_VOCABULARY: &str = "Glyph. Title. Heading. Bullet point. Number one. Check box. To do. Quote. \
     Important. Bold, end bold. Italics, end italics. Divider. New paragraph.";
 
 /// The cues added since, spoken far less often: in the prompt only where a sentence has just ended, since any word
@@ -106,7 +109,8 @@ pub const MORE_CUES: &str = "Subheading. Option. Info box. Hidden line. Calculat
     Create list. Add to list. Called. Groceries. Grocery list. Redact, end redact.";
 
 /// The words a person says TO the app rather than into the note: the keyword
-/// on its own, and the take-backs (`capture/takeBack.ts`), so "scratch that"
+/// ("Hey Ghost", and "Ghost" on its own), and the take-backs
+/// (`capture/takeBack.ts`), so "scratch that"
 /// is heard as those two words and not as "scratched at". After `MORE_CUES`,
 /// where a sentence has just ended. NOT counted by `without_prompt_echo`: a
 /// person who says "Hey Ghost. Scratch that. Never mind." has said three of
@@ -114,8 +118,8 @@ pub const MORE_CUES: &str = "Subheading. Option. Info box. Hidden line. Calculat
 /// in a row is the prompt recited. The risky openers the page also takes
 /// ("actually", "I mean", "sorry", "or rather", "no") are ordinary words and
 /// are not made more likely.
-pub const SPOKEN_CUES: &str = "Ghost. Scratch that. Strike that. Take that back. Forget that. Delete that. Never mind. \
-    Cancel that. Ignore that. No wait.";
+pub const SPOKEN_CUES: &str = "Hey Ghost. Ghost. Scratch that. Strike that. Take that back. Forget that. Delete that. \
+    Never mind. Cancel that. Ignore that. No wait.";
 
 /// The prompt for the next window: the cue vocabulary, then the committed tail.
 pub fn prompt(committed: &str, tail_chars: usize) -> String {
@@ -303,10 +307,11 @@ mod tests {
     fn the_vocabulary_is_one_line_of_cue_sentences() {
         // The `\` continuation must not leave a run of spaces in the prompt.
         assert!(!CUE_VOCABULARY.contains("  "), "{CUE_VOCABULARY:?}");
-        assert_eq!(sentences(CUE_VOCABULARY).count(), 14);
+        assert_eq!(sentences(CUE_VOCABULARY).count(), 13);
         assert!(!MORE_CUES.contains("  "), "{MORE_CUES:?}");
         assert!(!SPOKEN_CUES.contains("  "), "{SPOKEN_CUES:?}");
-        assert!(sentences(CUE_VOCABULARY).any(|s| s == "Hey Ghost."), "the keyword the app answers to");
+        assert!(sentences(SPOKEN_CUES).any(|s| s == "Hey Ghost."), "the keyword the app answers to");
+        assert!(!sentences(CUE_VOCABULARY).any(|s| s == "Hey Ghost."), "never before a carried phrase (the prompt-tail test)");
         assert!(sentences(MORE_CUES).any(|s| s == "Redact, end redact."));
     }
 

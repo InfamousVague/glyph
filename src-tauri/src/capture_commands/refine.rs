@@ -123,7 +123,8 @@ pub async fn capture_refine(
                     scope.spawn(|| {
                         let mut last = -1;
                         while !finished.load(Ordering::Relaxed) {
-                            let percent = progress.load(Ordering::Relaxed);
+                            // Clamped: whisper.cpp's last report can pass 100 (whisper/tests.rs says why).
+                            let percent = progress.load(Ordering::Relaxed).clamp(0, 100);
                             if percent != last {
                                 last = percent;
                                 let _ = emitter.emit(
