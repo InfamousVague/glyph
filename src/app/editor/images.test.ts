@@ -35,6 +35,18 @@ describe('putting a picture into a note', () => {
     expect(v.state.doc.toString()).toBe('Trip\n![](image/a.jpg)\n\nMore');
   });
 
+  it('takes an empty to-do’s line, with a blank line so it is not the to-do’s words', () => {
+    const v = view('- [ ] milk\n- [ ] ', 17);
+    insertImage(v, 'a.jpg');
+    expect(v.state.doc.toString()).toBe('- [ ] milk\n\n![](image/a.jpg)\n');
+  });
+
+  it('goes under a quote outside it', () => {
+    const v = view('> The deposit comes back.', 4);
+    insertImage(v, 'a.jpg');
+    expect(v.state.doc.toString()).toBe('> The deposit comes back.\n\n![](image/a.jpg)\n');
+  });
+
   it('lands where the caret was when the paste happened, whatever changed since', () => {
     const doc = '![](image/first.jpg)\n\no';
     const v = view(doc, doc.length);

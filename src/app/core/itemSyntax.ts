@@ -167,6 +167,22 @@ export function withoutBookmark(text: string): string {
   return text.replace(BOOKMARK_SPACED, '');
 }
 
+/** A quote's markers at the start of a line, however deep: `>`, `> >`, and the spaces after each. */
+const QUOTE_MARKS = /^\s*(?:>[ \t]*)+/;
+
+/**
+ * What a line says: its text with the bookmark, the quote's markers, the list lead (a bullet or a number, and a box
+ * or a choice) and the anchor naming it taken off, and trimmed. Empty for a line that has only a lead, `- `, `- [ ] `,
+ * `3. `, `> `, or nothing at all: the line the + beside the line is drawn on (editor/insertPlus.ts), and one an
+ * insert may take whole (editor/inserts.ts). A heading's `#` stays, since `# ` is already a heading being written.
+ */
+export function lineWords(text: string): string {
+  const unquoted = text.replace(QUOTE_MARKS, '');
+  const lead = listLead(unquoted);
+  // The bookmark after the lead is taken with its space, so it is taken from the words, not before the lead is read.
+  return withoutAnchor(withoutBookmark(lead ? unquoted.slice(lead.wordsAt) : unquoted)).trim();
+}
+
 /** What may end an item's line after its words: its anchor, a mark, a counter, the bookmark. */
 const LINE_TAIL = new RegExp(String.raw`\s+(?:${ANCHOR}|${MARK}|${COUNTER}|${BOOKMARK})$`);
 

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { activeBlock, activeMarks, toggleBlock, toggleMark } from './format.ts';
+import { history, undo } from '@codemirror/commands';
+import { ensureSyntaxTree } from '@codemirror/language';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import type { SyntaxNode } from '@lezer/common';
+import { activeBlock, activeMarks, insertRule, insertTable, toggleBlock, toggleMark } from './format.ts';
+import { glyphMarkdown } from './language.ts';
 
 /**
  * What the formatting bar writes, checked against what the highlighter reads.
@@ -93,6 +98,56 @@ describe('toggleBlock', () => {
     expect(activeBlock(view.state)).toBe('heading');
     toggleBlock(view, 'heading');
     expect(text(view)).toBe('deep');
+  });
+});
+
+describe("Style's table and rule", () => {
+  /** The node names a doc parses to: the app's own parser, or plain GFM as Obsidian and GitHub read the file. */
+  const parsed = (doc: string, plain = false) => {
+    const state = EditorState.create({ doc, extensions: [plain ? markdown({ base: markdownLanguage }) : glyphMarkdown([], [])] });
+    const names: string[] = [];
+    ensureSyntaxTree(state, doc.length, 5000)!.iterate({ enter: (node) => void names.push(node.name) });
+    return names;
+  };
+  /** The node holding `needle`, innermost first, as the app's parser reads `doc`. */
+  const around = (doc: string, needle: string) => {
+    const state = EditorState.create({ doc, extensions: [glyphMarkdown([], [])] });
+    const chain: string[] = [];
+    for (let node: SyntaxNode | null = ensureSyntaxTree(state, doc.length, 5000)!.resolveInner(doc.indexOf(needle) + 1, 1); node; node = node.parent) chain.push(node.name);
+    return chain;
+  };
+
+  it('puts a blank line between a table and the words after it, so they are not a row', () => {
+    const view = viewOf('Para\n\nnext words', 5);
+    insertTable(view);
+    const doc = text(view);
+    expect(doc).toBe('Para\n\n| Column | Column |\n| --- | --- |\n| Cell | Cell |\n\nnext words');
+    expect(around(doc, 'next words')).not.toContain('TableRow');
+    // Without the blank line the same words are a row: the check can fail.
+    expect(around('Para\n| Column | Column |\n| --- | --- |\n| Cell | Cell |\nnext words', 'next words')).toContain('TableRow');
+  });
+
+  it('keeps the rule under a paragraph from making it a heading where other apps read the file', () => {
+    const view = viewOf('Para\n', 5);
+    insertRule(view);
+    expect(text(view)).toBe('Para\n\n---');
+    expect(parsed(text(view), true)).not.toContain('SetextHeading2');
+    // Plain GFM reads the unmended form as a heading, which is what the blank line is for.
+    expect(parsed('Para\n---', true)).toContain('SetextHeading2');
+  });
+
+  it('takes an empty list item’s line', () => {
+    const view = viewOf('- a\n- ', 6);
+    insertTable(view);
+    expect(text(view)).toBe('- a\n\n| Column | Column |\n| --- | --- |\n| Cell | Cell |');
+    expect(view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)).toBe('Column');
+  });
+
+  it('is one step to undo', () => {
+    const view = new EditorView({ state: EditorState.create({ doc: 'Words', selection: { anchor: 5 }, extensions: [history()] }) });
+    insertRule(view);
+    undo(view);
+    expect(text(view)).toBe('Words');
   });
 });
 
