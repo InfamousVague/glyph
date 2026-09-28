@@ -48,7 +48,14 @@ function view({ more = 600, header = 0, foot = false }: { more?: number; header?
       </>
     );
   }
-  // Sizes first, on the prototype, since the hook reads them in its first effect.
+  sizeViews({ more, header });
+  const host = show(<Page />);
+  const el = host.querySelector<HTMLElement>('[data-testid="view"]')!;
+  return { host, el, scrollTo: (top: number) => scroll(el, top) };
+}
+
+/** Sizes every view, on the prototype since the hook reads them in its first effect: a header `header` px tall. */
+function sizeViews({ more = 600, header = 0 }: { more?: number; header?: number }) {
   const sized = (name: 'clientHeight' | 'scrollHeight' | 'offsetHeight' | 'offsetWidth', value: (el: HTMLElement) => number) =>
     vi.spyOn(HTMLElement.prototype, name, 'get').mockImplementation(function (this: HTMLElement) {
       return value(this);
@@ -57,15 +64,41 @@ function view({ more = 600, header = 0, foot = false }: { more?: number; header?
   sized('offsetHeight', (el) => (el.tagName === 'HEADER' ? header : 800));
   sized('offsetWidth', () => 400);
   sized('scrollHeight', () => 800 + more);
-  const host = show(<Page />);
-  const el = host.querySelector<HTMLElement>('[data-testid="view"]')!;
-  const scrollTo = (top: number) => {
-    el.scrollTop = top;
-    act(() => {
-      el.dispatchEvent(new Event('scroll'));
-    });
+}
+
+function scroll(el: HTMLElement, top: number) {
+  el.scrollTop = top;
+  act(() => {
+    el.dispatchEvent(new Event('scroll'));
+  });
+}
+
+/**
+ * A page and a column beside it, as Settings' split view has them: the page under no header, the column under a
+ * header `header` px tall (the search field) and wearing the column's band.
+ */
+function pageAndColumn(header = 54) {
+  function Split() {
+    const page = useRef<HTMLDivElement>(null);
+    const column = useRef<HTMLElement>(null);
+    const field = useRef<HTMLElement>(null);
+    edge.useWispEdge(page, 'page');
+    edge.useWispEdge(column, 'column', field, { band: 'column' });
+    return (
+      <>
+        <WispEdgeFilter />
+        <header ref={field} />
+        <nav ref={column} data-testid="column" />
+        <div ref={page} data-testid="page" />
+      </>
+    );
+  }
+  sizeViews({ header });
+  const host = show(<Split />);
+  return {
+    page: host.querySelector<HTMLElement>('[data-testid="page"]')!,
+    column: host.querySelector<HTMLElement>('[data-testid="column"]')!,
   };
-  return { host, el, scrollTo };
 }
 
 const attr = (id: string, name: string) => document.getElementById(id)?.getAttribute(name);
@@ -163,5 +196,77 @@ describe('useWispEdge', () => {
     expect(el.hasAttribute('data-wisp-foot')).toBe(false);
     expect(el.hasAttribute('data-under-header')).toBe(false);
     expect(el.dataset.wispDraw).toBeUndefined();
+  });
+});
+
+/*
+ * Settings' split view scrolls a column beside a page, both smoking at their tops at once under headers of different
+ * heights. On the one filter the second view placed moved the first one's band too (every attribute on a filter is
+ * global) and the drift moved both while one scrolled; the column has a band of its own.
+ */
+describe('a column’s band beside the page’s', () => {
+  it('places each under its own header, and takes only its own away at the top', () => {
+    const { page, column } = pageAndColumn(54);
+    scroll(page, 120);
+    scroll(column, 120);
+    expect(page.getAttribute('data-wisp-edge')).toBe('');
+    expect(column.getAttribute('data-wisp-edge')).toBe('column');
+    // The page's strip at its own top, as if the column were not there; the column's under its 54px header.
+    expect(attr(edge.WISP_EDGE_STRIP_ID, 'height')).toBe(String(edge.WISP_EDGE_ABOVE + edge.WISP_EDGE_BAND));
+    expect(Number(attr(edge.WISP_EDGE_COLUMN_STRIP_ID, 'height'))).toBeGreaterThan(edge.WISP_EDGE_ABOVE + 54 + edge.WISP_EDGE_BAND);
+    expect(column.style.getPropertyValue('--wisp-under')).toBe('54px');
+    expect(page.style.getPropertyValue('--wisp-under')).toBe('0px');
+    // Each filter's region is the window's, each held to the budget on its own.
+    expect(attr(edge.WISP_EDGE_COLUMN_FILTER_ID, 'height')).toBe(attr(edge.WISP_EDGE_FILTER_ID, 'height'));
+    scroll(column, 0);
+    expect(column.hasAttribute('data-wisp-edge')).toBe(false);
+    expect(attr(edge.WISP_EDGE_COLUMN_STRIP_ID, 'height')).toBe('0');
+    expect(attr(edge.WISP_EDGE_STRIP_ID, 'height')).toBe(String(edge.WISP_EDGE_ABOVE + edge.WISP_EDGE_BAND));
+  });
+
+  it('drifts only the band being scrolled: the column’s smoke holds while the page beside it scrolls', () => {
+    // The animation clock by hand, and the wait for the scrolling to stop on a fake clock. Last in the file: the drift
+    // keeps the last step's time, and these frames are stamped far past the real clock's.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const frames = new Map<number, FrameRequestCallback>();
+    let id = 0;
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.set(++id, callback);
+      return id;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (which: number) => frames.delete(which));
+    vi.spyOn(Document.prototype, 'visibilityState', 'get').mockReturnValue('visible');
+    let now = 1e9;
+    const run = (count = 6) => {
+      for (let i = 0; i < count; i += 1) {
+        now += 40;
+        const due = [...frames.values()];
+        frames.clear();
+        for (const frame of due) frame(now);
+      }
+    };
+    try {
+      const { page, column } = pageAndColumn(54);
+      scroll(column, 120);
+      run();
+      const held = attr(edge.WISP_EDGE_COLUMN_DRIFT_ID, 'dy');
+      expect(held).not.toBe('0');
+      expect(attr(edge.WISP_EDGE_DRIFT_ID, 'dy')).toBe('0');
+      // The column's scrolling stops; the page's starts, and goes on for a while.
+      act(() => vi.advanceTimersByTime(200));
+      scroll(page, 120);
+      run();
+      scroll(page, 160);
+      run();
+      expect(attr(edge.WISP_EDGE_DRIFT_ID, 'dy')).not.toBe('0');
+      expect(attr(edge.WISP_EDGE_COLUMN_DRIFT_ID, 'dy')).toBe(held);
+      // And the column picks up again when it is scrolled.
+      scroll(column, 160);
+      run();
+      expect(attr(edge.WISP_EDGE_COLUMN_DRIFT_ID, 'dy')).not.toBe(held);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
   });
 });

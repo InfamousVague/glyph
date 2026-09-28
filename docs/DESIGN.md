@@ -7602,3 +7602,42 @@ What still moves:
 The setting keeps its name. Its hint now says what it does: "Words you say arrive as smoke, and words you delete leave
 as smoke. What you type appears at once." The Guide's chapters 24 and 30 say the same.
 
+
+## 141. Settings' column smokes under its search field (2026-09-28)
+
+Matt: "on the settings page when scrolling on the left sidebar we should see the wisp fade effect under the search bar
+covering the overflowing content like we see with the header on the main page".
+
+In the split view (§138) the left column scrolls on its own, and its rows slid under the search field's edge and were
+cut there. Now the field is the column's header, as the top bar is the home page's: laid over the rows in the
+header's glass (`--app-glass-mix` over `--app-glass-blur`), the rows starting under it (`--wisp-under`), and the column
+wearing the wisp edge under it. On a phone's screen (the Fold opened out) that is the smoke; on a desktop's, the blur
+strip under the glass (§94). At rest nothing moves: the first row stands where it stood, measured the same to the
+pixel on main and the branch in Chromium and WebKit at 1280 x 900 and 880 x 790. The phone's list is unchanged.
+
+**A band of its own.** The column smokes while the section's page beside it may be smoking too, under a header of
+another height: the page's band sits at its own top, the column's under a field 58-60px tall. Every attribute of the
+one filter is global, so a second view wearing it moves the first one's band to its own header, and the drift moves
+both while only one scrolls. So the header's band is drawn twice (`art/WispEdgeFilter.tsx` `TopBand`), the page's and
+the column's, alike but for their ids, and the hook takes `band: 'column'`. Each band has its own drift: its own count
+of views scrolling and its own clock, so the column's smoke holds while only the page scrolls (Matt: "only animate
+when we're actively scrolling"). On the Fold's build, scrolling the page for a second moved the page's noise and left
+the column's where it stood; scrolling the column then moved the column's. The view's attribute says which filter it
+wears (`data-wisp-edge="column"`), at the weight of the page's rule so the reduced-motion rule still takes it off.
+
+**The budget.** Each filter worn gets its own buffer, and each is held to 2^24 device pixels on its own. At two device
+pixels to the CSS pixel, a 1280 x 900 window gives each region 1360 x 1180, 2720 x 2360 device pixels, 0.38 of the
+budget; 1800 x 1100 gives 3760 x 2760, 0.62. Forced onto the filter in WebKit at both sizes, with both views scrolled,
+neither went black. It is slow there, as art/wispMask.ts says it is, which is why the Mac draws the blur strip.
+
+**The scrollbar.** A view under a header has the app's own scrollbar, starting at the header's edge (app.css
+`[data-under-header]`) and never above `--app-safe-top`, for a header at the window's top. The field is below Settings'
+head: on the Mac `--app-safe-top` is 117px against the field's 59, so the track began 58px under the field. The
+column's starts at the field. The app's scrollbar is a classic one, 12px across, so on a desktop a column long enough to
+scroll (a search with many results) lays its rows 12px narrower, as the home page's cards are.
+
+**Not done: WebKit's corner.** The column's band is placed in user space, as the page's is, and WebKit starts user
+space from the document's corner (§54). With the filter in WebKit the band landed as far above the field's edge as the
+column is below the window's top, 69px: under the field's glass, with the rows below it crisp. The Mac draws the blur
+strip, so only a WebKit tablet with the filter would see this, as it would on the section's page below the same head.
+Placing the page's bands in their views' own boxes, as the lanes' foot is, would settle both.
