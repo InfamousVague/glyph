@@ -160,7 +160,9 @@ exactly as the app does (`src/app/core/sync/crypto.ts` is the same code, bundled
 your notes, as anyone who can unlock your phone can; keep it as you keep the phone. `logout` removes it.
 
 The server itself runs on your computer, started by Claude, and talks to nothing but Ghost.md's sync service. Claude
-sees the words of the notes it reads, as it sees anything you paste into it.
+sees the words of the notes it reads, as it sees anything you paste into it, including where a tagged note was
+written (its `location:` and `place:` front matter, DESIGN §134); `update_note` keeps that across a rewrite that
+dropped it, as it keeps the authors.
 
 ## Where the pieces are
 

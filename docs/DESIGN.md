@@ -5996,3 +5996,148 @@ whole.
 
 Cites: §21, §26, §29g, §29i, §31, "The card is the note, small" and "A home page, and the notes list gone"
 (2026-09-18), §64/§67, §71, §72, §84/§97, §92/§110, §94, §115, §118, §121, §124, §125, §127.
+
+## 134. Where a note was written: the tag and the map card (2026-09-27)
+
+Matt: "Add the ability to geotag notes and show a map card embedded on the note". Then, while it was being built:
+"Add a setting to geotag notes by default and turn it on".
+
+Built on branch notes/geotag against HEAD 891f3cd (1.8.0-20), in slices committed alone: the tag in the front matter
+and the device half; the card, the note and its sheet; the folded front matter; Settings › Location; new notes tagged;
+the share, the reader, the MCP, the gist and the card's foot; a second look and a browser pass, each put right in its
+own commit; the native half; the docs. §133 is left for the meetings branch, which may take it.
+
+**The tag is words.** A note that knows where it was written says so in its own front matter, `location:
+51.5074,-0.1278` and, once known, `place: "Trafalgar Square, London"`: two flat keys beside `title:`, `book:` and
+`authors:`, read and written by core/frontMatter.ts as they are, so the tag syncs like typing, is in the note's file,
+and shows in Obsidian's Properties. Four decimals at most (about 11 m); a rough fix (accuracy past 1000 m, Android's
+Approximate) is written with two, and read back as rough: zoom 12, a ring rather than a pin, "Roughly" before the
+numbers. Reading is tolerant (spaces, quotes, brackets) and never rewrites; anything that is not two numbers in range
+is no tag, left as typed. The peek, the title, the gist (hashed and judged on the words after the front matter, so a
+tag never becomes a card's line nor regenerates one), the review's prompt and the AI's runs never see it as words.
+core/geotag.ts is the pure half, which the MCP server bundles to carry a tag across `update_note` as it carries the
+authors; core/location.ts is the device half; core/placeLink.ts is where a tapped map goes, apart from both so a shared
+page loads neither.
+
+**Tagged by default, as Matt asked, and only what the person makes.** "Tag new notes with my location" is on by
+default and synced with the other preferences that describe the person (Settings › Location). It covers a typed new
+note (App.tsx `newNote`, the + sheet's Note and New note) and a recording's own new note (shell/useCaptureRoute.ts
+`finished`), and nothing the app makes: not the Guide's chapters, the samples, the example board and canvas, a canvas
+or a book from the + sheet, a note made for a title, a shared link's copy, a note that arrives by sync, and not the
+notes a recording's spoken commands made (`landing.made`: a list by name, "New note" and its card), since Matt listed
+"notes created by a spoken command" among the app's. Existing notes are never tagged. The position is asked once: the
+first new note raises the permission prompt; refused (or blocked on Android), the switch stays on, the refusal is
+kept (`glyph-geotag-refused`), no new note asks again, and the More sheet of every note made since says why ("Ghost.md
+wasn't allowed to know where you are, so this note wasn't tagged. Tap to ask again."), never on a note from before.
+Allowing location in the phone's settings forgets the refusal (Android's bridge reads granted, or the browser's
+permissions API does), as does a fix from the sheet or Settings. A quiet ask over a locked phone that would have
+needed the prompt is not a refusal.
+
+**The rule the recorder taught.** Better words land only if the note still reads as Done saved it (capture/refine.ts
+`apply`), on the queue path and, one step later, on the review path, which hands its job back when it ends
+(`REVIEW_HANDED_BACK`, ai/useNoteReview.ts). So a tag for a new recording waits (`setPendingTag`, a day at most):
+written at once where no pass and no review is coming, written by the note's screen once the pass has landed or the
+review has handed back, and drawn on the card from the waiting record meanwhile. A typed note's tag waits for its
+first words, so a note opened and left still leaves nothing behind. The waiting tag goes with the note to the trash,
+with a delete for good and with the recording's Undo, which also takes a tag out of a note it leaves with nothing
+else. The recorder's tag is asked from an effect on the screen once it has changed from the capture screen: the
+note's screen has mounted and watches its tag by then (a parent's effects run after its children's), so the tag goes
+through its editor rather than under it, where a write would leave the editor's saving a revision behind. Never at
+`start`: the generated chrome client has one permission listener for the microphone and the location. Nothing in
+capture/ changed. When the meetings branch has merged, refine's compare can learn to look past the page's front
+matter, and the wait can go.
+
+**Nothing leaves the phone unless chosen, and Local only turns all of it off.** A fix is a network lookup on Android
+and the web (the fused provider sends nearby Wi-Fi and cell identifiers to Google; browsers to theirs), so Local only
+turns off the fix itself, not only the tiles and the name. The tiles and the name are each a switch. The name is asked
+of Nominatim once, at three decimals (two for a rough tag), only for a tag this device made (never for a note that
+arrived by sync, a forked share or one the MCP wrote), one request a second across the app, from Rust in the app
+(src-tauri/src/geocode.rs, generation 20) since its policy asks for a User-Agent naming the application and a page
+cannot set one; on the web the page's own origin names it. A share leaves `location:` and `place:` out of every page
+unless that note's "Share where it was written" is ticked on its sheet (`shares[id].place`), since a share follows
+every save and a location added to a note shared last week would otherwise reach everyone holding its link. The
+reader page shows a tagged page's map only on a tap ("Show the map"), never asks for a name, and loads the card itself
+only for a tagged page.
+
+**The card.** At the top of the note with the byline, over the first line, the width of the column, 6rem tall on a
+phone and 8rem from 600px (the opened Fold, the Mac): OpenStreetMap's standard tiles through Leaflet, greyscale under a
+45% wash of the page's paper-2 so the map sits back and the pin is the only full-ink mark, inverted on a dark page from
+the app's own theme rather than the OS's. The pin is the card's own drawing over the wash, its tip at the middle of the
+box, since the map never moves from the tag it was centred on (Leaflet's marker pane sits inside its map pane, under
+the wash, which drew the pin as grey as the streets). The place or the coordinates in a chip at the top left, "©
+OpenStreetMap contributors" at the bottom right only where OSM's tiles or name are shown, why the card is quiet at the
+bottom left. Loading, offline and every tile refused are one state, the quiet card under the map: paper, a dot grid,
+the pin (a ring for a rough tag); the map fades in once a tile has come. It follows the Fold opening (a
+ResizeObserver), takes none of Leaflet's colours, arrives on the kit's beat when added to an open note, is isolated so
+Leaflet's z-indexes never cross the header it scrolls under, and is not drawn over the transcript, a canvas or a
+book's index, where the page does not scroll with the words. A tap opens the phone's maps chooser (`geo:`, the
+opener's scope widened), Apple Maps on the Mac, openstreetmap.org elsewhere, with the place or the coordinates and
+never the title. Leaflet arrives only when a map is drawn, as its own chunk.
+
+**The front matter folds.** Goal 2 says nothing is folded, and §95 left the visible `authors:` line as a "Not yet";
+a tagged note doubles the lines above its words, so the block is now drawn as one quiet line naming its keys
+("location · place") while the caret is out of it or the editor is not focused. The caret entering it, or a tap on the
+line, opens it to the lines exactly as they are, so what is edited is still what is seen. The heading under the folded
+line is the note's top and keeps no space above it.
+
+**Platforms, as found.** Android: the generated chrome client already raises the prompt on the page's first
+`getCurrentPosition` and grants silently once the app holds the permission; what was missing was the manifest, since
+Android denies an undeclared permission with no dialog. location/LocationAccess.kt says "blocked" (denied twice, or
+off for the app), which the page turns into "Open settings", and asks ahead of any fix through the activity's own
+request code 4105 (4101 update alerts, 4102 a picked picture, 4103 and 4104 the meetings' notifications and
+microphone), never through the chrome client's one shared launcher. The Mac's WebView never answers a position
+request (wry has no geolocation delegate, macOS no default provider), so the Mac is told `mac` before anything is
+asked, draws what the phone tagged, and its Info.plist carries the location strings for the day CoreLocation is
+wired. The web asks the browser. NATIVE_GENERATION is 20 (the meetings branch makes it 20 too; the entries merge);
+BUNDLE_REQUIRES stays 19, each native call gated (the bridge's `locationAccess` on Android, generation 20 for the name).
+
+**Copy.** The sheet's row, last in Where it sits, with the locate mark: "Add my location" / "Where you are now, kept in
+the note. Its name is asked of OpenStreetMap once." (the second sentence only with place names on); "Remove location" /
+the place or the coordinates; and, where it cannot: "Local only is on. A location fix would ask the phone's location
+service.", "This Mac can't say where it is yet. Tag it on the phone and it syncs here.", "Update Ghost.md to tag notes
+with where they were written.", "This browser can't say where you are." Toasts on a failed fix: "Ghost.md wasn't
+allowed to know where you are.", "Location is off for Ghost.md." with Open settings, "Couldn't find where you are. Try
+again with location on, or outside." No toast for a tag added or removed: the card arriving or going is the feedback;
+"Finding where you are." only after 600 ms. Settings › Location: "Map on a tagged note", "Place names", "Tag new notes
+with my location" ("Every note you make here starts with where you were, typed or spoken. Off, you add a location by
+hand from More on a note."), and a footnote after a refusal. The card: "Local only is on.", "Map off in Settings.",
+"Show the map". The share row: "Share where it was written". A card's foot: "3 min ago · Trafalgar Square", the name
+only, never coordinates, and only from the note's own words.
+
+**Measured** (the web build, Chromium, 412 × 915 at 2.6 dpr unless said, the note's tab strip showing). The H1's top:
+134px on an untagged note, 280 on a tagged one (the card 120 to 216, the folded line 252 to 280), so a tag costs 146px
+at 412; at 840 the card is 128 tall and the H1 at 326; at 1280, 340. Tiles: 6 in a 6rem card at 412, 8 in an 8rem
+card at 840, 12 at 1280. Filters chosen side by side against the page: light `grayscale(1) contrast(0.92)
+brightness(1.04)`, dark `grayscale(1) invert(1) brightness(1.1)` (0.8 sank the streets into the paper, 1.4 made the
+blocks compete with the chip's words), the wash paper-2 at 0.45 in both. Standard tiles, not retina: at 2.6 dpr the z+1
+tiles at half size were sharper but twice as busy. Leaflet's own seam fix (`mix-blend-mode: plus-lighter`) opened a
+device pixel of paper at every tile edge inside the filtered pane; tiles drawn normally and 256.5px wide close it,
+seen at 2 and 2.6 dpr in both themes. Local only: the tagged note opened with no request to openstreetmap.org. One
+Nominatim request for a new note, `lat=51.508&lon=-0.128&zoom=15`, answered "Trafalgar Square, City of Westminster".
+Bundle, against main at 891f3cd: `index-<hash>.js` 2062.56 → 2074.27 kB (gzip 531.26 → 536.07), the chunk the app
+shares with the reader (BookView) 1115.01 → 1119.17 kB, `read-*.js` 5.75 → 6.34 kB; new, the card's chunk 6.86 kB
+(+3.16 kB CSS) and Leaflet's 149.91 kB (gzip 43.42) with 15.61 kB of CSS, loaded only for a drawn map.
+
+**Tests.** core/geotag.test.ts (the round trip, the precision, the tolerant read, `shortPlace`), core/location.test.ts
+(the fix and its failures, the gates, the name asked once a second apart at three decimals, the waiting tag, refusals
+kept, forgotten, and never a quiet ask), editor/MapCard.test.tsx, editor/NoteScreen.test.tsx (the card where it is and
+is not drawn; Add and Remove as one undo step; the waiting tag on the queue and review paths; a new note's tag drawn
+at once, named while it waits, landed with the first words, never over a tag the note has; the sheet's refusal line),
+editor/NoteSettings.test.tsx, editor/extended.test.ts (the fold), editor/useLanding.test.tsx,
+settings/LocationPane.test.tsx, shell/useCaptureRoute.test.tsx (the take's own note only, handed to the note's screen,
+a review keeps it waiting, never at start), notes/NoteCard.test.tsx, notes/useNoteActions.test.tsx,
+share/share.test.ts, share/ShareRows.test.tsx, src/read/Reader.test.tsx, mcp/server.test.ts, ai/start.test.ts,
+ai/useNoteReview.test.tsx, format/gist.test.tsx, core/preferences.test.ts, core/sync/prefs.test.ts; Rust: geocode.rs's
+URL and refusals, unsupported.rs's sentence. The Kotlin compiled (`:app:compileUniversalDebugKotlin`) and the manifest
+merged in a copy of the generated project.
+
+**Left undone.** On the Fold, by the builder and not CI: the prompt on the first new note, Approximate drawn rough,
+blocked and Open settings, the `geo:` chooser, a spoken tagged note with its tape row measured, a tagged note synced
+to the Mac. The reader's card was tested, not seen: a share needs the share service. CoreLocation on the Mac; "Update
+location" as a third row state; a "Set a place" by name for notes written elsewhere; asking for a name again after a
+failed ask, other than remove and add; refine's compare looking past the front matter once meetings/page has merged.
+Main has since gained docs/store/play/forms.md (the Play pack), which says the location permission and its Data safety
+rows are to be answered if this is in the bundle: its "The app never reads location" and the Location row there need
+reading again against this section when it merges.
+
+Cites: §21, §29g, §95, §126, §127, §132, docs/LIBRARY.md "Front matter", docs/SHARING.md, docs/MCP.md

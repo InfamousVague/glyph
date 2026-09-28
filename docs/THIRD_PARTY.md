@@ -34,6 +34,22 @@ If that is ever a concern, the author's own unmodified WOFF2 files from the mapl
 package's place under the same name.
 
 
+## Maps
+
+Where a note was written (docs/DESIGN.md §134) is drawn from OpenStreetMap, only on a tagged note and only with the
+switches under Settings › Location on:
+
+- **Map data** © OpenStreetMap contributors, under the Open Database License (https://www.openstreetmap.org/copyright).
+  The tiles come from tile.openstreetmap.org under the OSM tile usage policy (https://operations.osmfoundation.org/policies/tiles/),
+  fetched by the device when a tagged note is opened, with the WebView's own User-Agent and Referer, which the policy
+  accepts for a browser-style app; the card credits "© OpenStreetMap contributors" wherever tiles or a name are shown.
+- **Place names** are asked of Nominatim (https://nominatim.org) under its usage policy
+  (https://operations.osmfoundation.org/policies/nominatim/): one request a second at most, once per tag, with a
+  User-Agent that names the app (`GhostMd/<version> (https://ghostmarkdown.com)`, src-tauri/src/geocode.rs); on the
+  web the page's own origin names it. The name is kept in the note and never asked again.
+- **Leaflet** (https://leafletjs.com), BSD-2-Clause, draws the map; listed in package.json as code dependencies are,
+  and loaded only when a map is shown.
+
 ## Models
 
 The app ships no model. It downloads them when asked, each checked against a SHA-256 compiled into the binary, from

@@ -27,7 +27,11 @@ app" goes to the download page. The share service lets the page read it from the
 
 `src/app/share/share.ts` `sharedOf` builds `{ v: 1, kind, title, pages: [{ title, body }], at }`.
 
-- **A note** is one page: its body as stored, front matter and all. A canvas note is shared the same way.
+- **A note** is one page: its body as stored, front matter and all. A canvas note is shared the same way. One
+  exception: where the note was written (`location:` and `place:`, core/geotag.ts, DESIGN §134) is left out of every
+  page unless the note's "Share where it was written" is ticked on its sheet (`place: true` on the kept share). The
+  opt-in is the design: a share follows every save, so a location added to a note shared last week, or one arriving
+  by sync, would otherwise reach everyone holding the link, and the reader's copy and download would carry it.
 - **A book** is its index first, then every chapter that has a note, in the index's order. A chapter with no note
   yet is left out, and the reader shows it as "not written yet".
 - **The pictures the pages show** travel in the share (`withPictures`): a reader has no account to fetch them from. A
@@ -46,11 +50,12 @@ digest of what was last sent, end-to-end encrypted with the rest of the settings
 keeps it up to date and can stop it. A device that kept its own list in `glyph-shares`, as builds before this did,
 folds it in once. `followShares` listens for notes saved here and notes changed by sync, and, three seconds after the
 last save, re-seals every share whose contents changed (a book's share changes when any of its chapters does) and
-sends it again, and does the same once a few seconds after launch. A share never changes its link. A share also
-remembers which of its pictures this device lacked when it was sent (`lacked`), and goes again once one of them is
-here - a picture that arrives by sync changes no page, so the digest alone would never notice. Only those names are
-looked for, so a picture left out for room is not. Every share sent before this reads as changed once (the digest's
-"p2"), so it goes out again with its pictures and that list.
+sends it again, and does the same once a few seconds after launch. The digest is of what is sent, so ticking or
+unticking "Share where it was written" changes it, and the share goes again with or without the location. A share
+never changes its link. A share also remembers which of its pictures this device lacked when it was sent (`lacked`),
+and goes again once one of them is here - a picture that arrives by sync changes no page, so the digest alone would
+never notice. Only those names are looked for, so a picture left out for room is not. Every share sent before this
+reads as changed once (the digest's "p2"), so it goes out again with its pictures and that list.
 
 Sharing needs an account (Settings › Account), since the server keeps a share with the account that made it.
 
