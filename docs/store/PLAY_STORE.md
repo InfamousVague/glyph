@@ -53,7 +53,7 @@ GLYPH_STORE=play npm run android:build -- --aab --target aarch64
    - **Target audience:** 13 and over.
    - **Data safety:** the answers below.
    - **Foreground service permissions** (from 1.9.0, DESIGN §127): Play asks what each declared type is for, with a
-     short video of it in use. Three are declared:
+     short video of it in use (`docs/store/play/forms.md` has the words to paste). Three are declared:
      - `FOREGROUND_SERVICE_MICROPHONE`: recording a meeting the person started from the app, with the screen off
        (Meeting in the + sheet). The notification and Android's microphone mark show while it records, with Stop.
      - `FOREGROUND_SERVICE_MEDIA_PROCESSING` (Android 15+) and `FOREGROUND_SERVICE_SPECIAL_USE` (Android 14, subtype
