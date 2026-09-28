@@ -145,6 +145,17 @@ export function withEntry(body: string, title: string): string {
   return withChapter(body, title);
 }
 
+/**
+ * The journal on screen, writing its own index (editor/NoteScreen.tsx): App puts an entry's line in, or takes it out,
+ * through the journal's editor rather than under it, since the open journal's next save would otherwise write the old
+ * index back or be refused.
+ */
+export interface JournalWriter {
+  id: string;
+  /** `change` made to the journal's body as the screen holds it, saved at once. */
+  write: (change: (body: string) => string) => void;
+}
+
 // ---- an entry -------------------------------------------------------------------------------------
 
 /** Two figures. */

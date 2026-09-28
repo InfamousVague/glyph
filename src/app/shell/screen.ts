@@ -39,6 +39,8 @@ export type Screen =
       review?: ReviewHandoff & { key: number };
       /** What a recording just wrote into this note, for its Undo (capture/landing.ts); `key` tells one from the next. */
       landing?: CaptureLanding & { key: number };
+      /** A journal's entry just made: the caret at the end of its words, where the first word goes (App.tsx `newEntry`). */
+      caretAtEnd?: true;
     }
   | {
       name: 'capture';

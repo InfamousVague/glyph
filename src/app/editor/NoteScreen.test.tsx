@@ -10,6 +10,7 @@ import { goBack } from '../core/back.ts';
 import { setTapeId, tapeId } from '../core/clips.ts';
 import { setTopBarTools } from '../core/topBarTools.ts';
 import { bookOf } from '../book/book.ts';
+import type { JournalWriter } from '../book/journal.ts';
 import { readBookSpot } from '../book/bookSpot.ts';
 
 // The Glacier kit reads matchMedia as it loads, and the page's smoke watches its header's size.
@@ -889,6 +890,32 @@ describe('where the note was written', () => {
     expect(editor().state.doc.toString()).toBe('---\nlocation: 51.5110,-0.1171\nplace: "Somerset House, London"\n---\nHello');
   });
 
+  it('keeps an untouched entry’s tag waiting, its card quiet and its place unnamed, until its first own words', async () => {
+    const { tagNewNotes, pendingTag } = await import('../core/location.ts');
+    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const asked = nominatim('Somerset House');
+    const words = '# Monday 28 September\n\n**14:05** ';
+    const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
+    rememberEntry('en1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    show(screen(await createNote('en1', made)));
+    // A place no other test here has named: names already known this run are not asked again.
+    await act(async () => tagNewNotes(['en1'], Promise.resolve({ lat: 51.5033, lon: -0.1196, accuracy: 12, at: 0 }), { reviewing: false }));
+    await settle();
+    expect(card()?.getAttribute('data-mode')).toBe('quiet');
+    expect(asked).toHaveLength(0);
+    expect(pendingTag('en1')).not.toBeNull();
+    expect(editor().state.doc.toString()).toBe(made);
+    // Not the blank note's ghost: the entry has words.
+    expect(document.querySelector('[class*=blankGhost]')).toBeNull();
+    type('Walked along the river.');
+    await settle();
+    expect(card()?.getAttribute('data-mode')).toBe('map');
+    expect(editor().state.doc.toString()).toContain('location: 51.5033,-0.1196');
+    await act(async () => vi.advanceTimersByTimeAsync(1200));
+    await settle();
+    expect(asked).toHaveLength(1);
+  });
+
   it('takes a new note’s waiting tag with it when the note is left without a word', async () => {
     const { tagNewNotes, pendingTag } = await import('../core/location.ts');
     show(screen(await createNote('w2', '')));
@@ -1095,6 +1122,30 @@ describe('a notebook kept as a journal', () => {
     const body = await written();
     expect(body).toContain('journal: true');
     expect(body).toContain('[[Day three]]');
+  });
+
+  it('puts the caret at the end of a new entry’s words, and has the editor’s focus', async () => {
+    const entry = '---\ntitle: "2026-09-28 14.05"\n---\n# Monday 28 September\n\n**14:05** ';
+    show(screen(await createNote('en1', entry), { caretAtEnd: true }));
+    await settle();
+    expect(editor().state.selection.main.head).toBe(entry.length);
+    expect(editor().hasFocus).toBe(true);
+  });
+
+  it('hands App a way to write the journal’s index through the screen, saved at once, and takes it back as it goes', async () => {
+    const writers: (JournalWriter | null)[] = [];
+    const journal = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n';
+    show(screen(await createNote('j1', journal), { hasTitle: () => true, onOpenTitle: () => {}, onJournal: (writer) => writers.push(writer) }));
+    expect(writers.at(-1)?.id).toBe('j1');
+    act(() => writers.at(-1)!.write((body) => `${body}- [[2026-09-28 14.05]]\n`));
+    await settle();
+    // Saved at once, not on the typing's wait.
+    expect(saved().at(-1)).toBe(`${journal}- [[2026-09-28 14.05]]\n`);
+    // A notebook that is not a journal hands nothing over; the journal's screen gone, the way is taken back.
+    unmount();
+    expect(writers.at(-1)).toBeNull();
+    show(screen(await createNote('b1', NOTEBOOK), { hasTitle: () => true, onOpenTitle: () => {}, onJournal: (writer) => writers.push(writer) }));
+    expect(writers.at(-1)).toBeNull();
   });
 
   it('is not offered on the Guide, a note of words, or a canvas', async () => {

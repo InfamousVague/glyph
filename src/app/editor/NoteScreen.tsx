@@ -19,7 +19,8 @@ import { BookBar, BookFoot } from '../book/BookNav.tsx';
 import { BookView } from '../book/BookView.tsx';
 import { JournalView } from '../book/JournalView.tsx';
 import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
-import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate } from '../book/journal.ts';
+import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate, type JournalWriter } from '../book/journal.ts';
+import { entryRecord, untouchedEntry } from '../book/entryDrafts.ts';
 import { isGuideBook } from '../guidebook/guidebook.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
 import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
@@ -114,6 +115,16 @@ interface NoteScreenProps {
   bodyOfTitle?: (title: string) => string | null;
   /** The note by its title, for a journal's entries: when each was written, where, and how it starts (book/JournalView.tsx). */
   noteOfTitle?: (title: string) => Note | undefined;
+  /** New entry, for a journal (App.tsx `newEntry`): the journal's one action. */
+  onNewEntry?: () => void;
+  /**
+   * A journal open here hands App the way to write its index through this screen (book/journal.ts `JournalWriter`),
+   * and takes it back as it goes: an entry's line put in or taken out while the journal is open is a change the screen
+   * makes and saves, never a write under it that its next save would undo or be refused by.
+   */
+  onJournal?: (writer: JournalWriter | null) => void;
+  /** A journal's entry just made: the caret at the end of its words, and the keyboard up where the phone allows it. */
+  caretAtEnd?: boolean;
   /** Every note's title, for a canvas's + to choose a note from. */
   allTitles?: () => string[];
   /**
@@ -144,7 +155,30 @@ const NO_FIX: Record<LocateFailure, string> = {
   'local-only': 'Local only is on.',
 };
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, noteOfTitle, allTitles, at, rename, ask, review, landing }: NoteScreenProps) {
+export function NoteScreen({
+  note,
+  onBack,
+  onDelete,
+  onSpeak,
+  onPin,
+  onArchive,
+  onOpenTitle,
+  hasTitle,
+  book,
+  onOpenWithin,
+  onNewCanvas,
+  bodyOfTitle,
+  noteOfTitle,
+  onNewEntry,
+  onJournal,
+  caretAtEnd = false,
+  allTitles,
+  at,
+  rename,
+  ask,
+  review,
+  landing,
+}: NoteScreenProps) {
   const prefs = usePreferences();
   // The page's side, followed while the note is open: on System the phone may turn dark under it.
   const dark = useDarkNow(prefs.theme);
@@ -192,11 +226,21 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
    * redraws the card, and a tag that has not changed leaves the state as it was.
    */
   const [tag, setTag] = useState<GeoTag | null>(() => geoTagOf(note.body) ?? pendingTag(note.id));
+  /*
+   * A journal's entry this device made and nobody has written in yet (book/entryDrafts.ts; docs/DESIGN.md §142). Not
+   * `blank`, which keeps its meaning, no words at all, so the blank note's ghost never draws over an entry's date:
+   * this is its own state, read from the entry's record, and followed only for a note that has one. While it holds, a
+   * tag waits for the entry's first own words and the map fetches no tiles, since the entry is taken back if it is
+   * left as it is (App.tsx).
+   */
+  const drafted = useRef(entryRecord(note.id) !== null);
+  const [untouched, setUntouched] = useState(() => drafted.current && untouchedEntry(note.id, note.body, note));
   const onChange = useCallback(
     (next: string) => {
       keep(next);
       const now = geoTagOf(next) ?? pendingTag(note.id);
       setTag((was) => (sameTag(was, now) ? was : now));
+      if (drafted.current) setUntouched(untouchedEntry(note.id, next));
     },
     [keep, note.id],
   );
@@ -430,10 +474,10 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     // The editor arriving is what this waits for; the rest is read from the refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.id, view]);
-  // A new note's first words: the tag waiting for them lands.
+  // A new note's first words, or an entry's first of its own: the tag waiting for them lands.
   useEffect(() => {
-    if (!blank) latest.current.settle();
-  }, [blank]);
+    if (!blank && !untouched) latest.current.settle();
+  }, [blank, untouched]);
   // A new note left without a word leaves nothing behind (docs/LIBRARY.md), its waiting tag included.
   const blankNow = useRef(blank);
   blankNow.current = blank;
@@ -518,6 +562,26 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   }, [inBook, title]);
   const { marked, bookmark } = useBookmark(note, view, page, (message) => toast({ message }));
   useLandAt(at, view, page, header);
+  // A journal's entry just made: the caret at the end of its words, once the editor is here. No new note focused itself
+  // before; whether Android raises the keyboard after the entry's write is the phone's to say.
+  const caretPlaced = useRef(!caretAtEnd);
+  useEffect(() => {
+    if (caretPlaced.current || !view) return;
+    caretPlaced.current = true;
+    view.dispatch({ selection: { anchor: view.state.doc.length }, scrollIntoView: true });
+    view.focus();
+  }, [view]);
+  // A journal open hands App the way to write its index through this screen (`onJournal`), and takes it back as it goes.
+  const writeIndex = useRef<(change: (body: string) => string) => void>(() => undefined);
+  writeIndex.current = (change) => {
+    writeNotebook(change);
+    flush();
+  };
+  useEffect(() => {
+    if (!isJournal || !onJournal) return undefined;
+    onJournal({ id: note.id, write: (change) => writeIndex.current(change) });
+    return () => onJournal(null);
+  }, [isJournal, onJournal, note.id]);
 
   /**
    * The note's list laid out as a board (core/boards.ts): each item gets a name at the end, and a fence of columns
@@ -663,8 +727,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {(tag ?? leaving) && shown === 'raw' && !paging && !drawing ? (
           <MapCard
             tag={(tag ?? leaving)!}
-            // A new note's tag still waiting for its first words is drawn quiet: a draft that may never be kept fetches no tiles.
-            mode={canShowTiles() && !(blank && !geoTagOf(body.current)) ? 'map' : 'quiet'}
+            // A new note's tag still waiting for its first words is drawn quiet: a draft that may never be kept fetches no
+            // tiles. So is an untouched entry's, which is taken back if it is left as it is.
+            mode={canShowTiles() && !((blank || untouched) && !geoTagOf(body.current)) ? 'map' : 'quiet'}
             quietWhy={prefs.localOnly ? 'local-only' : !prefs.mapTiles ? 'off' : undefined}
             dark={dark}
             arrive={Boolean(tag) && fresh}
@@ -695,6 +760,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
           <div className={styles.body} hidden={shown !== 'raw'}>
             <JournalView
               body={bookBody}
+              onNewEntry={onNewEntry}
               noteOf={noteOfTitle ?? (() => undefined)}
               known={hasTitle ?? (() => false)}
               open={(t) => (onOpenWithin ?? onOpenTitle)?.(t)}

@@ -1,3 +1,4 @@
+import { untouchedEntry } from '../book/entryDrafts.ts';
 import { refinePending } from '../capture/refine.ts';
 import { frontMatterOffset } from './frontMatter.ts';
 import { geoTagOf, shortPlace, tagOf, withGeoTag, type Fix, type GeoTag, type PlaceAnswer } from './geotag.ts';
@@ -42,13 +43,16 @@ import { invoke, isTauri } from './tauri.ts';
  *    drawn from the waiting tag meanwhile. A pending tag lives a day (longer while its pass is still queued), and
  *    goes with the note to the trash and with the recording's Undo. It also waits for a note's first words: a typed
  *    new note is a draft with no file until it has some (docs/LIBRARY.md), and a tag written into an empty note
- *    would make one; a draft left without any takes its waiting tag with it.
+ *    would make one; a draft left without any takes its waiting tag with it. A journal's entry has words from birth,
+ *    its template's, so its tag waits for the first of its own instead (`hasOwnWords`): an entry nobody wrote in is
+ *    taken back when it is left (book/entryDrafts.ts), and no place lands on it or is named first.
  *
  * 4. NEVER WHILE THE RECORDER IS LIVE. The generated RustWebChromeClient has one `permissionListener` shared by the
  *    microphone, geolocation and camera prompts: a location ask raised while the recorder's getUserMedia prompt is
- *    pending overwrites the microphone's callback. `locate` is called from three places only, none of them the
- *    recorder: a note's More sheet, the Location pane, and the shell after a capture has ended and its screen has
- *    gone (shell/useCaptureRoute.ts, App.tsx's new note).
+ *    pending overwrites the microphone's callback. `locate` is called from four places only, none of them the
+ *    recorder: a note's More sheet, the Location pane, a journal's place switch (book/TemplatePicker.tsx), and the
+ *    shell after a capture has ended and its screen has gone (shell/useCaptureRoute.ts, App.tsx's new note and new
+ *    entry).
  *
  * The first automatic ask on a device that has never answered the prompt is introduced in the app's own words first
  * (`introduce`, a toast with "Allow location" on it), so the system's dialog comes from a press rather than over a
@@ -379,6 +383,15 @@ function hasWords(body: string): boolean {
 }
 
 /**
+ * Whether the words are the person's own: any at all, and not a journal's entry still as this device made it from its
+ * template (book/entryDrafts.ts). An entry has words from birth, its date and its time, and a tag landing on one nobody
+ * wrote in would keep it, and ask its name of Nominatim, for an entry about to be taken back.
+ */
+function hasOwnWords(noteId: string, body: string, note?: Parameters<typeof untouchedEntry>[2]): boolean {
+  return hasWords(body) && !untouchedEntry(noteId, body, note);
+}
+
+/**
  * The body with the note's pending tag written in, when it may land: not while a better-words pass is queued or
  * running for the note, not while a review is live for it (`live.reviewing`), and not into a note with no words yet.
  * Null when it may not, or there is nothing waiting.
@@ -386,7 +399,7 @@ function hasWords(body: string): boolean {
 export function settleTag(noteId: string, body: string, live: { reviewing: boolean }): string | null {
   const tag = pendingTag(noteId);
   if (!tag) return null;
-  if (live.reviewing || refinePending(noteId) || !hasWords(body)) return null;
+  if (live.reviewing || refinePending(noteId) || !hasOwnWords(noteId, body)) return null;
   return withGeoTag(body, tag);
 }
 
@@ -482,7 +495,7 @@ async function settleClosed(id: string): Promise<boolean> {
     setPendingTag(id, null);
     return false;
   }
-  if (!hasWords(fresh.body)) return false;
+  if (!hasOwnWords(id, fresh.body, fresh)) return false;
   try {
     await updateNote(id, withGeoTag(fresh.body, tag), fresh.revision ?? 1);
   } catch {
@@ -607,6 +620,33 @@ export async function tagNewNotesIfWanted(
   if (!quiet && introduce && canLocate().ok && (await wouldPrompt())) {
     if (introduced) return null;
     introduced = true;
+    introduce(() => void tagNewNotes(ids, locate(), held));
+    return null;
+  }
+  return tagNewNotes(ids, locate({ quiet }), held);
+}
+
+/** The first ask for a journal's entries this run was introduced: its own, not the new notes' (below). */
+let entryIntroduced = false;
+
+/**
+ * Tags a journal's new entries with where they were written (docs/DESIGN.md §142), the journal's switch being the
+ * choice: `tagNewNotesIfWanted` without its check of Tag new notes, and with an introduction of its own. Shared, a
+ * note's introduction let pass earlier in the run would leave every entry untagged with no refusal kept to say why.
+ * Everything that protects the device is the same: never under Local only, not again after a refusal until location
+ * is allowed, `quiet` over a locked phone, and the system's prompt only from a press.
+ */
+export async function tagEntryIfWanted(
+  ids: readonly string[],
+  held: { reviewing: boolean },
+  { quiet = false, introduce }: { quiet?: boolean; introduce?: (allow: () => void) => void } = {},
+): Promise<LocateFailure | null> {
+  if (!ids.length || preferences().localOnly) return null;
+  const refused = await stillRefused();
+  if (refused) return refused;
+  if (!quiet && introduce && canLocate().ok && (await wouldPrompt())) {
+    if (entryIntroduced) return null;
+    entryIntroduced = true;
     introduce(() => void tagNewNotes(ids, locate(), held));
     return null;
   }

@@ -497,3 +497,177 @@ describe('the notes Settings › About adds', () => {
     expect(vi.mocked(syncNow).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(addGuideBook).mock.invocationCallOrder[0]!);
   });
 });
+
+describe('a journal’s entries', () => {
+  const DIARY = '---\ntitle: "Diary"\nbook: true\njournal: true\ntemplate: "# {{date}}\\n\\n**{{time}}** "\n---\n# Diary\n\n';
+  const records = () => JSON.parse(localStorage.getItem('glyph-entry-drafts') ?? '{}') as Record<string, { title: string; journalId: string }>;
+  /** Opens the journal from its card and makes an entry from its view; answers the entry's id and title. */
+  const newEntry = async () => {
+    await act(async () => seen.note!.onNewEntry!());
+    await waitUntil(() => expect(noteShown()).not.toBe('diary'));
+    const id = noteShown()!;
+    return { id, title: records()[id]!.title };
+  };
+  const diaryBody = async () => (await getNote('diary'))!.body;
+
+  it('makes an entry named by the minute from the template, its line last in the journal, and opens it with the caret at the end', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    expect(noteShown()).toBe('diary');
+    const { id, title } = await newEntry();
+    expect(title).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}\.\d{2}$/);
+    expect(records()[id]).toMatchObject({ journalId: 'diary', title });
+    expect(await diaryBody()).toBe(`${DIARY}- [[${title}]]\n`);
+    const body = (await getNote(id))!.body;
+    expect(body).toMatch(new RegExp(`^---\\ntitle: "${title}"\\ndate: \\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}\\n---\\n# \\w+.*\\n\\n\\*\\*\\d{2}:\\d{2}\\*\\* $`));
+    expect(seen.note!.caretAtEnd).toBe(true);
+    // In the journal's tab: made from inside it.
+    expect(tabs()).toEqual([id]);
+  });
+
+  it('puts one line in for each entry made from inside the journal, a second in one minute named with (2)', async () => {
+    const { updateNote } = await import('./core/store.ts');
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    const first = await newEntry();
+    const made = (await getNote(first.id))!;
+    await updateNote(first.id, `${made.body}Morning.`, made.revision ?? 1);
+    // Back to the journal in the entry's tab, as its bar does, and another.
+    await act(async () => seen.note!.onOpenWithin!('Diary'));
+    await waitUntil(() => expect(noteShown()).toBe('diary'));
+    const second = await newEntry();
+    expect(second.title).not.toBe(first.title);
+    if (second.title.startsWith(first.title)) expect(second.title).toBe(`${first.title} (2)`);
+    expect(await diaryBody()).toBe(`${DIARY}- [[${first.title}]]\n- [[${second.title}]]\n`);
+  });
+
+  it('takes an entry nobody wrote in back when it is left for home: the note and its line, with no word said', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    const { id } = await newEntry();
+    act(() => button('Home').click());
+    await waitUntil(async () => expect(await getNote(id)).toBeNull());
+    await waitUntil(async () => expect(await diaryBody()).toBe(DIARY));
+    expect(records()[id]).toBeUndefined();
+    expect(tabs()).toEqual([]);
+    expect(document.body.textContent).not.toContain('Moved');
+  });
+
+  it('keeps an entry written in, and forgets its record', async () => {
+    const { updateNote } = await import('./core/store.ts');
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    const { id, title } = await newEntry();
+    const made = (await getNote(id))!;
+    await updateNote(id, `${made.body}Walked along the river.`, made.revision ?? 1);
+    act(() => button('Home').click());
+    await waitUntil(() => expect(records()[id]).toBeUndefined());
+    expect((await getNote(id))?.body).toContain('Walked along the river.');
+    expect(await diaryBody()).toContain(`[[${title}]]`);
+  });
+
+  it('keeps an untouched entry while its tab is open behind another note, and takes it back once the tab is closed', async () => {
+    await seed(['diary', DIARY], ['walk', '# Walk']);
+    await openApp();
+    act(() => card('Walk').click());
+    act(() => button('Home').click());
+    act(() => card('Diary').click());
+    const { id, title } = await newEntry();
+    expect(tabs()).toEqual(['walk', id]);
+    act(() => button('Walk').click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(await getNote(id)).not.toBeNull();
+    expect(records()[id]).toBeDefined();
+    act(() => button(title).click());
+    expect(noteShown()).toBe(id);
+    act(() => button(`Close ${title}`).click());
+    await waitUntil(async () => expect(await getNote(id)).toBeNull());
+    await waitUntil(async () => expect(await diaryBody()).toBe(DIARY));
+  });
+
+  it('takes back at launch an entry the phone let go of, with its line, before any place lands on it', async () => {
+    const { pendingTag, setPendingTag, settleWaitingTags } = await import('./core/location.ts');
+    const title = '2026-09-28 14.05';
+    const words = '# Monday 28 September\n\n**14:05** ';
+    await seed(['diary', `${DIARY}- [[${title}]]\n`], ['left', `---\ntitle: "${title}"\ndate: 2026-09-28T14:05\n---\n${words}`]);
+    localStorage.setItem('glyph-entry-drafts', JSON.stringify({ left: { journalId: 'diary', title, words, at: Date.now() } }));
+    setPendingTag('left', { lat: 51.5074, lon: -0.1278, place: null, rough: false });
+    // The launch sweep may run first: it lands nothing on an entry nobody wrote in.
+    expect(await settleWaitingTags()).toBe(0);
+    expect((await getNote('left'))?.body).not.toContain('location:');
+    await openApp();
+    await waitUntil(async () => expect(await getNote('left')).toBeNull());
+    await waitUntil(async () => expect(await diaryBody()).toBe(DIARY));
+    expect(pendingTag('left')).toBeNull();
+  });
+
+  it('leaves an entry moved to the Trash there with its line, for Undo to bring back', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    const { id, title } = await newEntry();
+    act(() => seen.note!.onDelete(id));
+    await waitUntil(() => expect(records()[id]).toBeUndefined());
+    expect(await getNote(id)).not.toBeNull();
+    expect(await diaryBody()).toContain(`[[${title}]]`);
+  });
+
+  it('keeps where an entry was written when the journal says so, whatever Tag new notes says, and never under Local only', async () => {
+    const { pendingTag, settleWaitingTags } = await import('./core/location.ts');
+    const { updateNote } = await import('./core/store.ts');
+    const calls: PositionOptions[] = [];
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback, _fail: PositionErrorCallback, options: PositionOptions) => {
+          calls.push(options);
+          ok({ coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 15 }, timestamp: 1 } as GeolocationPosition);
+        },
+      },
+    });
+    // Answered before on this device: no introduction, the fix at once.
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'granted' }) } });
+    try {
+      setPreferences({ tagNewNotes: false, placeNames: false });
+      await seed(['diary', DIARY.replace('---\n# Diary', 'entry-place: true\n---\n# Diary')]);
+      await openApp();
+      act(() => card('Diary').click());
+      const { id } = await newEntry();
+      await waitUntil(() => expect(pendingTag(id)).toMatchObject({ lat: 51.5074, lon: -0.1278 }));
+      // It waits for the entry's first own words, then lands.
+      expect((await getNote(id))!.body).not.toContain('location:');
+      const made = (await getNote(id))!;
+      await updateNote(id, `${made.body}Coffee by the river.`, made.revision ?? 1);
+      expect(await settleWaitingTags()).toBe(1);
+      expect((await getNote(id))!.body).toContain('location: 51.5074,-0.1278');
+      // Under Local only nothing is asked.
+      setPreferences({ localOnly: true });
+      act(() => button('Home').click());
+      act(() => card('Diary').click());
+      const second = await newEntry();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(pendingTag(second.id)).toBeNull();
+      expect(calls).toHaveLength(1);
+    } finally {
+      Reflect.deleteProperty(navigator, 'geolocation');
+      Reflect.deleteProperty(navigator, 'permissions');
+    }
+  });
+
+  it('opens the journal itself from its card, after an entry was read', async () => {
+    const title = '2026-09-28 14.05';
+    await seed(['diary', `${DIARY}- [[${title}]]\n`], ['e1', `---\ntitle: "${title}"\ndate: 2026-09-28T14:05\n---\nWords of mine.`]);
+    writeBookSpot('diary', { kind: 'chapter', title });
+    await openApp();
+    act(() => card('Diary').click());
+    expect(noteShown()).toBe('diary');
+  });
+});

@@ -37,22 +37,24 @@ import { LaunchScreen } from './launch/LaunchScreen.tsx';
 import { SceneBench } from './diag/SceneBench.tsx';
 import { sceneQuery } from './scene/scripted.ts';
 import { syncNow, useSyncStatus } from './core/sync/engine.ts';
-import { createNote, getNote, newNoteId, noteTitle, updateNote, useNotes, type Note, listNotes } from './core/store.ts';
+import { createNote, deleteNote, getNote, newNoteId, noteTitle, updateNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { titleKey } from './core/titleKey.ts';
 import { addBoardNote, addCanvasNote, addHowCanvas, addSampleNote } from './core/seed.ts';
 import { addGuideBook, GUIDE_TITLE } from './guidebook/guidebook.ts';
-import { outOfTrash, trash } from './core/trash.ts';
+import { isTrashed, outOfTrash, trash } from './core/trash.ts';
 import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { withFrontMatterTitle } from './core/frontMatter.ts';
-import { bookNoteBody, bookOf, isBookBody } from './book/book.ts';
-import { journalNoteBody } from './book/journal.ts';
+import { bookNoteBody, bookOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
+import { entryBody, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
+import { entryRecords, forgetEntry, rememberEntry, untouchedEntry, type EntryRecord } from './book/entryDrafts.ts';
+import { fillTemplate } from './book/template.ts';
 import { inTimeOrder } from './book/journalMonths.ts';
 import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
-import { tagNewNotesIfWanted } from './core/location.ts';
+import { setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted } from './core/location.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { isPlace, isRecording, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
@@ -455,6 +457,125 @@ function Shell() {
   const speak = () => void capture.start(false);
   const speakInto = (id: string) => void capture.start(false, id);
 
+  /*
+   * A journal's entries (docs/DESIGN.md §142, book/journal.ts). New entry makes a note named by the minute, starts it
+   * from the journal's template, puts its line last in the journal's index and opens it with the caret at the end: in
+   * the journal's tab from inside the journal, a tab of its own from anywhere else.
+   *
+   * The order is the record first (book/entryDrafts.ts), then the line, then the note, so that a WebView let go at any
+   * step leaves a record the take-back below can finish from. The line goes through the journal's own screen when it is
+   * the note being read (`journalWriter`), since its next save would otherwise write the old index back.
+   */
+  const journalWriter = useRef<JournalWriter | null>(null);
+  const onJournal = useCallback((writer: JournalWriter | null) => {
+    journalWriter.current = writer;
+  }, []);
+  /** Entries being made now: the take-back leaves them alone until they are on screen. */
+  const making = useRef(new Set<string>());
+  /** A change to a journal's index: through its screen when it is open, else a write from what the store has, tried twice. */
+  const writeJournal = async (journalId: string, change: (body: string) => string) => {
+    const writer = journalWriter.current;
+    if (writer?.id === journalId) {
+      writer.write(change);
+      return;
+    }
+    for (let tries = 0; tries < 2; tries += 1) {
+      const fresh = await getNote(journalId).catch(() => null);
+      if (!fresh) return;
+      const next = change(fresh.body);
+      if (next === fresh.body) return;
+      try {
+        await updateNote(journalId, next, fresh.revision ?? 1);
+        return;
+      } catch {
+        // Another writer got there first: read it again, once.
+      }
+    }
+  };
+  /** The first ask for where a journal's entries were written, introduced in the app's words, from its own press. */
+  const introduceEntries = (journal: string) => (allow: () => void) =>
+    toast({ message: `${journal} keeps where each entry was written.`, duration: 10_000, action: { label: 'Allow location', onPress: allow } });
+  const newEntry = async (journalId: string) => {
+    const journal = await getNote(journalId).catch(() => null);
+    if (!journal || !isJournalBody(journal.body)) return;
+    const name = noteTitle(journal.body);
+    const now = Date.now();
+    // Unique against every note there is, archived and in the Trash too: a second entry in one minute is " (2)".
+    const taken = new Set((await listNotes().catch(() => notes)).map((n) => titleKey(noteTitle(n.body))));
+    const title = uniqueTitle(entryTitle(now), taken);
+    const words = fillTemplate(templateOf(journal.body), { at: new Date(now), title, journal: name });
+    const id = newNoteId();
+    making.current.add(id);
+    try {
+      rememberEntry(id, { journalId, title, words, at: now });
+      await writeJournal(journalId, (body) => withEntry(body, title));
+      tabs.replaceNext(shown === journalId ? journalId : null);
+      const note = await createNote(id, entryBody(title, localStamp(now), words), 'editor');
+      fileNewNote(id);
+      await refresh();
+      setScreen({ name: 'note', note, caretAtEnd: true });
+      // Where it was written, when the journal keeps that: the tag waits for the entry's first own words.
+      if (entryPlaceOf(journal.body)) void tagEntryIfWanted([id], { reviewing: false }, { introduce: introduceEntries(name) });
+    } finally {
+      making.current.delete(id);
+    }
+  };
+
+  /*
+   * An entry nobody has written in, taken back once it is left (docs/DESIGN.md §142): the promise a new note keeps, that
+   * a note opened and left leaves nothing behind, kept for an entry that had words from birth. Looked at whenever the
+   * screen or the open tabs change, and at launch, which opens on the home page. An entry stays while it is the note
+   * on screen, while a capture is aimed at it, and while its tab is open behind another note, a capture or a meeting:
+   * a tab switched, a link followed, a recording of something else. Anywhere else - home, All notes, the Academy, its
+   * tab closed or given to another note - it is read fresh and, untouched, deleted with its line and its waiting tag,
+   * with no toast, since nothing of the person's is lost. Touched, it is theirs and its record goes. In the Trash, it is
+   * left there with its line, so Undo brings both back. Never on the screen's unmount: that is also a tab switch and
+   * the entry's own mic starting a capture.
+   */
+  const where = useRef({ screen, open: tabs.open });
+  where.current = { screen, open: tabs.open };
+  const stays = (id: string) => {
+    const { screen: now, open } = where.current;
+    if (now.name === 'note' && now.note.id === id) return true;
+    if (now.name === 'capture' && now.noteId === id) return true;
+    return open.includes(id) && (now.name === 'note' || now.name === 'capture' || now.name === 'meeting');
+  };
+  const takingBack = useRef(new Set<string>());
+  const takeBack = async (id: string, record: EntryRecord) => {
+    let fresh: Note | null;
+    try {
+      fresh = await getNote(id);
+    } catch {
+      // The store did not answer: the next look.
+      return;
+    }
+    if (stays(id) || making.current.has(id)) return;
+    if (!fresh) {
+      await writeJournal(record.journalId, (body) => withoutChapter(body, record.title));
+      forgetEntry(id);
+      return;
+    }
+    if (isTrashed(id) || !untouchedEntry(id, fresh.body, fresh)) {
+      forgetEntry(id);
+      return;
+    }
+    await deleteNote(id);
+    await writeJournal(record.journalId, (body) => withoutChapter(body, record.title));
+    setPendingTag(id, null);
+    tabs.drop(id);
+    forgetEntry(id);
+    await refresh();
+  };
+  useEffect(() => {
+    for (const [id, record] of Object.entries(entryRecords())) {
+      if (making.current.has(id) || takingBack.current.has(id) || stays(id)) continue;
+      takingBack.current.add(id);
+      void takeBack(id, record).finally(() => takingBack.current.delete(id));
+    }
+    // The screen and the tabs are what an entry is left by; the rest is read through refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, tabs.open]);
+
   // The home page, the grid and the open note sit beside the sidebar on a wide desktop window; a capture and the
   // Academy still take the whole window.
   const split = sidebar && isPlace(screen);
@@ -534,6 +655,9 @@ function Shell() {
         book={placeInBook(screen.note)}
         bodyOfTitle={bodyOfTitle}
         noteOfTitle={titled}
+        onNewEntry={() => void newEntry(screen.note.id)}
+        onJournal={onJournal}
+        caretAtEnd={screen.caretAtEnd}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
         rename={rename}
         onArchive={(n) => {
