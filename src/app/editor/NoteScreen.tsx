@@ -45,7 +45,7 @@ import { placeMarkdown } from '../core/placeRefs.ts';
 import { videoMarkdown } from '../core/videoRefs.ts';
 import { canAddVideos, pickVideo } from '../core/videos.ts';
 import { failureText } from '../core/failure.ts';
-import { rememberShape } from './videos.ts';
+import { filmAdded } from './videos.ts';
 import { afterComposition, focusToken, insertLineAt, nameLater, releaseSpot, reserveSpot, spotAt } from './inserts.ts';
 import { plusRecheck, type PlusHooks, type PlusKey, type PlusOpening } from './insertPlus.ts';
 import { AddList } from './AddList.tsx';
@@ -560,7 +560,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       }
       await afterComposition(editor, 300);
       const line = placeMarkdown(tag, name);
-      const landed = insertLineAt(editor, spot, line, { userEvent: 'input.plus.drawn', token });
+      const landed = insertLineAt(editor, spot, line, { userEvent: 'input.plus.drawn', token, apart: true });
       const depth = undoDepth(editor.state);
       quiet();
       letGo();
@@ -579,9 +579,10 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
    * A film from the + beside the line (native generation 21): picked with the Photo Picker, copied with its poster
    * (media/VideoPick.kt) and kept (`save_video`), then written as a line of its own where the caret was, its poster
    * linked to it (core/videoRefs.ts), which draws its card (editor/videos.ts). The place is kept from the tap, since the
-   * picker leaves the app and a long film takes a while to copy; "Adding the video." says so after a moment. A write
-   * that lands after the person went to another field leaves the focus where they are (`focusToken`). What goes wrong
-   * is said on the note's line, as a picture's is.
+   * picker leaves the app and a long film takes a while to copy; "Adding the video." says so a moment after the copy
+   * starts, and not while the picker is still up. A film copied for a note that was left, or whose place went, is
+   * thrown away rather than kept for nothing. A write that lands after the person went to another field leaves the
+   * focus where they are (`focusToken`). What goes wrong is said on the note's line, as a picture's is.
    */
   const addVideo = () => {
     const editor = viewRef.current;
@@ -589,10 +590,14 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     const token = focusToken(editor);
     const spot = reserveSpot(editor);
     let said = false;
-    const slow = window.setTimeout(() => {
-      said = true;
-      toast({ message: 'Adding the video.', duration: 0 });
-    }, 600);
+    let slow = 0;
+    const copying = () => {
+      window.clearTimeout(slow);
+      slow = window.setTimeout(() => {
+        said = true;
+        toast({ message: 'Adding the video.', duration: 0 });
+      }, 600);
+    };
     const quiet = () => {
       window.clearTimeout(slow);
       if (said) dismiss();
@@ -601,13 +606,14 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       token.done();
       if (editor.dom.isConnected) releaseSpot(editor, spot);
     };
+    const wanted = () => mounted.current && editor.dom.isConnected && spotAt(editor, spot) !== null;
     void (async () => {
       try {
-        const film = await pickVideo();
+        const film = await pickVideo({ keep: wanted, copying });
         quiet();
-        if (!film || !mounted.current || !editor.dom.isConnected || spotAt(editor, spot) === null) return;
-        rememberShape(film.poster, film.width, film.height);
-        const landed = insertLineAt(editor, spot, videoMarkdown(film.poster, film.video, film.ms), { userEvent: 'input.plus.drawn', token });
+        if (!film || !wanted()) return;
+        filmAdded(film.poster, film.width, film.height);
+        const landed = insertLineAt(editor, spot, videoMarkdown(film.poster, film.video, film.ms), { userEvent: 'input.plus.drawn', token, apart: true });
         releaseSpot(editor, landed.spot);
         fireNativeHaptic('light');
       } catch (failure) {

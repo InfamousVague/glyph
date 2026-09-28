@@ -58,6 +58,24 @@
   mask-image: linear-gradient(to bottom, transparent, #000 32px, #000 calc(100% - 32px), transparent);
 }
 
+/*
+ * The doors between the pages, held outside the rows that scroll: More at the first page's foot, Back at the top of
+ * More and of a step. A phone's keyboard leaves room for six or seven rows, and More must never be the one under the
+ * fade.
+ */
+.head,
+.foot {
+  flex: none;
+}
+
+.head {
+  padding: var(--glacier-space-1) var(--glacier-space-1) 0;
+}
+
+.foot {
+  padding: 0 var(--glacier-space-1) var(--glacier-space-1);
+}
+
 /* A page turned: More and back, a step to choose a note, each slides in from the side it came from. */
 .page {
   display: flex;
@@ -113,8 +131,11 @@
   background: var(--app-paper-3);
 }
 
-/* The row the keys are on while the editor keeps the focus: the kit's ring, so the keyboard's place is seen. */
-.row[data-active],
+/*
+ * The row the keys are on while the editor keeps the focus: the kit's ring, so the keyboard's place is seen. Lit by the
+ * pointer, or first as the list opens, it has the paper alone, or the ring would follow the mouse.
+ */
+.list[data-keys] .row[data-active],
 .row:focus-visible {
   outline: 2px solid var(--glacier-focus-ring);
   outline-offset: -2px;

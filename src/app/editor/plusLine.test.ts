@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EditorState } from '@codemirror/state';
+import { EditorSelection, EditorState } from '@codemirror/state';
 import { plusLine } from './plusLine.ts';
 
 /**
@@ -31,8 +31,16 @@ describe('the line the + is drawn on', () => {
     expect(lineOf('# ')).toBeNull();
   });
 
-  it('is never on a selection, which belongs to press and hold', () => {
-    expect(lineOf('a\n\nb', 0, 3)).toBeNull();
+  it('is never on a selection, which belongs to press and hold, nor beside one of several carets', () => {
+    // The head on the empty line: it is the selection that says no, not words.
+    expect(lineOf('a\n\nb', 0, 2)).toBeNull();
+    expect(lineOf('a\n\nb', 2, 2)).toBe(2);
+    const carets = EditorState.create({
+      doc: '\n\n',
+      selection: EditorSelection.create([EditorSelection.cursor(0), EditorSelection.cursor(2)]),
+      extensions: [EditorState.allowMultipleSelections.of(true)],
+    });
+    expect(plusLine(carets, here)).toBeNull();
   });
 
   it('is never in a view that has lost focus, cannot be edited, or is not a note being written', () => {

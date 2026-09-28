@@ -49,6 +49,12 @@ describe('a map card under a place line', () => {
     expect(cards(mount(CAIS, 'off'))).toHaveLength(0);
   });
 
+  it('leaves a place’s line in fenced code as the code was written, unfolded', () => {
+    const view = mount(`Lunch\n\`\`\`\n${CAIS}\n\`\`\``, 'live');
+    expect(shown(view, 3)).toBe(CAIS);
+    view.destroy();
+  });
+
   it('is the map card itself, with no place chip since the line says the name, and a press on it is not the note’s', async () => {
     const view = mount(`Lunch\n${CAIS}`, 'live');
     const card = cards(view)[0]!;

@@ -13,7 +13,7 @@ The picture goes in on the line you were on if that line is empty, or holds only
 
 ## The + beside the line
 
-Rest the caret on an empty line, and a small **+** comes into the margin beside it. An empty line is one with no words: nothing at all, or only a list's dash, a to-do's box or a quote's mark. Type a letter and the + goes. There is none on a line with words, in a block of code, in the front matter, while you only read, or while the AI is writing into the note.
+Rest the caret on an empty line, and a small **+** comes into the margin beside it. An empty line is one with no words: nothing at all, or only a list's dash, a to-do's box or a quote's mark, beside which the + sits smaller and further out, so the two never read as one. Type a letter and the + goes. There is none on a line with words, in a block of code, in the front matter, while you only read, or while the AI is writing into the note.
 
 Tap it, or click it, and it turns into a × and a short list opens beside it. The keyboard stays up and the caret stays where it was. On the Mac the arrow keys move through the list, Return chooses, Escape closes it, and Left goes back from More.
 
@@ -28,7 +28,7 @@ Tap it, or click it, and it turns into a × and a short list opens beside it. Th
 | A to-do | A to-do's box. An empty list item becomes a to-do. |
 | More | The rest, on a second page of the same list |
 
-More holds a heading, a bulleted list, a numbered list, a quote, a callout, a choice, a block of code, a divider, a board, a chart, a canvas drawn in a frame, a footnote, a tag, a counter, a sum, and each effect that is switched on. Each comes with a little to write over. Back, at the top, goes to the first page.
+More holds a heading, a bulleted list, a numbered list, a quote, a callout, a choice, a block of code, a divider, a board, a chart, a canvas drawn in a frame, a footnote, a tag, a counter, a sum, and each effect that is switched on, named as it is said, such as Heated words. Each comes with a little to write over. A footnote's number goes at the end of the words just above, and its line at the end of the note. Back, at the top, goes to the first page, and so does the back gesture. More and Back never scroll out of sight, however little room the keyboard leaves.
 
 Each is one Undo, and what it puts in is there at once. A row the device cannot do is not in the list: the Mac has no place, since it cannot say where it is, and no picture yet. Only the Android app has A video, and only once it is the newest, since the app itself picks and keeps the film. A row a setting holds off is greyed, with the setting named.
 
@@ -40,13 +40,13 @@ A place is one line, a link to where it is:
 [Cais do Sodré, Lisbon](geo:38.7057,-9.1446)
 ```
 
-Away from the caret the line reads as the name alone, with the map under it. Tap the map to open the place in your maps app. A note can hold as many places as you like. Where the note itself was written is another thing, kept at the top of the note with its own map.
+Under a line of words it leaves a blank line first, so no other app reads it as the end of your sentence. Away from the caret the line reads as the name alone, with the map under it. Tap the map to open the place in your maps app. A note can hold as many places as you like. Where the note itself was written is another thing, kept at the top of the note with its own map.
 
 The name is asked of OpenStreetMap while the phone finds where you are, when Place names is on in Settings › Account › Location. When no name comes within a few seconds the line keeps the coordinates, and the name is written in afterwards only if you have done nothing in the note since. Under Local only the row is greyed, and a place already in a note shows its map quiet, with no tiles. A shared note leaves its places out unless you tick **Share the places in it** ([[Sharing a note or a book]]). Other apps show the line as a link.
 
 ## A video
 
-**A video** opens the phone's Photo Picker. It asks for no permission: the app sees only the film you choose. The film is kept as it was filmed, with a still from near its start, and a long one takes a moment to copy, while the note says "Adding the video." The phone keeps at least 500 MB free, so a film that would fill it is refused, and says so.
+**A video** opens the phone's Photo Picker. It asks for no permission: the app sees only the film you choose. The film is kept as it was filmed, with a still from near its start, and a long one takes a moment to copy once you have chosen it, while the note says "Adding the video." One film is added at a time. The phone keeps at least 500 MB free, so a film that would fill it is refused, and says so. MP4, MOV and WebM films are kept, and any other kind is refused in words.
 
 A film is one line, its still linked to it:
 
@@ -56,7 +56,7 @@ A film is one line, its still linked to it:
 
 Away from the caret the line reads video 0:12, with the still under it and the length at its foot. Tap it to play, with sound, and tap again to pause. The corner opens it full screen, and the back gesture closes it. Nothing plays by itself, and one film plays at a time.
 
-The film stays on the phone you added it on. It is not synced, not shared, and not sent to Google's backup, though moving to a new phone by cable or Smart Switch carries it. The still goes wherever the note goes, as any picture does. So your other devices show the still, and say the film stays on the phone it was added on, and a shared note shows the still and says only a still is shared. On a phone where the film is not, the card says "This video isn’t on this phone." instead of offering to play. An app older than the films says to update it.
+The film stays on the phone you added it on. It is not synced, not shared, and not sent to Google's backup. Moving to a new phone by cable is meant to carry it, though that has not yet been tried with Smart Switch. The still goes wherever the note goes, as any picture does. So your other devices show the still, and say the film stays on the phone it was added on, and a shared note shows the still and says only a still is shared. On a phone where the film is not, the card says "This video isn’t on this phone." instead of offering to play. A film that is there but that the phone cannot play says "This video can’t be played on this phone." An app older than the films says to update it.
 
 ## What it is written as
 

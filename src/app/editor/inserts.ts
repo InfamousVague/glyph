@@ -11,11 +11,15 @@ import { anchorSpan, lineWords, listLead, withoutBookmark } from '../core/itemSy
  *
  * Three kinds of insert, by what they are (docs/DESIGN.md §141):
  *
- * - **A thing drawn on a line of its own**, a picture, a place, a canvas's frame: it takes the caret's line when that
- *   line says nothing (`givesWay`), or goes on a new line after it, so a line is never split. A blank line goes
- *   before it when the line above is a list item, a quote or a table row, or the thing would be read as part of that
- *   block: `- [ ] ` then a picture was a to-do whose words were the picture, and a picture on the empty line under a
- *   table was a row of it. The caret is left on a fresh line after it, so typing carries on underneath.
+ * - **A thing drawn on a line of its own**, a picture, a place, a film, a canvas's frame: it takes the caret's line
+ *   when that line says nothing (`givesWay`), or goes on a new line after it, so a line is never split. A blank line
+ *   goes before it when the line above is a list item, a quote or a table row, or the thing would be read as part of
+ *   that block: `- [ ] ` then a picture was a to-do whose words were the picture, and a picture on the empty line
+ *   under a table was a row of it. A place, a film and a frame are links, so they keep apart from a paragraph above
+ *   too (`apart`): under `Lunch at the harbour` a place would be read, by any other reader, as the end of the
+ *   sentence, "Lunch at the harbour Cais do Sodré", and sat in the app like the paragraph's second line. A picture
+ *   under a paragraph stays as it was, which every reader draws as a picture of its own. The caret is left on a fresh
+ *   line after it, so typing carries on underneath.
  * - **A block**, a table, a rule, a fence: the same, and a blank line on either side where the line there has words.
  *   Without the one after, a table took the next line of words as a row. Without the one before, a rule under a
  *   paragraph reads as a heading in Obsidian and GitHub, though never in the app, whose parser has no setext headings
@@ -79,11 +83,15 @@ function lineAtPos(state: EditorState, at: number): Line {
   return state.doc.lineAt(Math.max(0, Math.min(at, state.doc.length)));
 }
 
-/** A thing drawn on a line of its own, at the caret's line `at` (see the header). */
-export function ownLinePlan(state: EditorState, at: number, text: string): Plan {
+/**
+ * A thing drawn on a line of its own, at the caret's line `at` (see the header). `apart`, for a link drawn as a card
+ * (a place, a film, a frame), keeps a blank line from any words above as well as from a block.
+ */
+export function ownLinePlan(state: EditorState, at: number, text: string, { apart = false }: { apart?: boolean } = {}): Plan {
   const line = lineAtPos(state, at);
   const take = givesWay(line.text);
-  const gap = holds(state, take ? lineBefore(state, line) : line) ? '\n' : '';
+  const above = take ? lineBefore(state, line) : line;
+  const gap = holds(state, above) || (apart && Boolean(above?.text.trim())) ? '\n' : '';
   const insert = take ? `${gap}${text}\n` : `\n${gap}${text}\n`;
   const from = take ? line.from : line.to;
   return { changes: { from, to: line.to, insert }, selection: { anchor: from + insert.length } };
@@ -224,18 +232,28 @@ export function formPlan(state: EditorState, at: number, form: LineForm): Plan {
 const FOOTNOTE_REF = /\[\^(\d+)\]/g;
 const FOOTNOTE_DEF = /^\s{0,3}\[\^[^\]\s]+\]:/;
 
+/** A line a footnote's marker may close: words, and not a table's row, a fence or a footnote's own line. */
+function annotatable(line: Line | null): line is Line {
+  if (!line || !lineWords(line.text)) return false;
+  return !/^\s*(\||```|~~~)/.test(line.text) && !FOOTNOTE_DEF.test(line.text);
+}
+
 /**
- * A footnote: the next free number at the caret, as words are put there, and its line at the end of the note, with
- * the caret on it to write what it says (editor/footnotes.ts draws it raised, with its words on a tap).
+ * A footnote: the next free number, and its line at the end of the note, with the caret on it to write what it says
+ * (editor/footnotes.ts draws it raised, with its words on a tap). The number goes where the caret is, as words are
+ * put there; but on an empty line, which is where the + beside the line is, it closes the words just above instead,
+ * as the Guide writes one (`four hundred[^1]`), since a marker alone on a line is a footnote to nothing.
  */
 export function footnotePlan(state: EditorState, at: number): Plan {
   const doc = state.doc.toString();
   const taken = [...doc.matchAll(FOOTNOTE_REF)].map((found) => Number(found[1]));
   const number = Math.max(0, ...taken) + 1;
   const marker = `[^${number}]`;
-  const words = wordsPlan(state, at, marker);
-  const inserted = (words.changes as { insert: string }).insert;
-  const text = at === doc.length ? `${doc}${inserted}` : doc;
+  const line = lineAtPos(state, at);
+  const above = lineWords(line.text) ? null : lineBefore(state, line);
+  const words: Plan = annotatable(above) ? { changes: { from: above.from + above.text.trimEnd().length, insert: marker } } : wordsPlan(state, at, marker);
+  const { from, insert: inserted } = words.changes as { from: number; insert: string };
+  const text = from === doc.length ? `${doc}${inserted}` : doc;
   const last = text.slice(text.lastIndexOf('\n') + 1);
   const gap = !text ? '' : FOOTNOTE_DEF.test(last) ? '\n' : text.endsWith('\n\n') ? '' : text.endsWith('\n') ? '\n' : '\n\n';
   const definition = `${gap}[^${number}]: `;
@@ -326,20 +344,29 @@ export function focusToken(view: EditorView): { fresh: () => boolean; done: () =
 
 /**
  * A line of its own at a kept place, by `ownLinePlan`, as one step. The caret goes after it only if it is still where
- * it was when the write was asked for; with a stale `token` nothing but the words moves. Answers a kept place at the
- * new line's start, for a name that follows it (`nameLater`); the caller lets it go.
+ * it was when the write was asked for; with a stale `token` nothing but the words moves, and no scroll or focus. A
+ * caret left on the empty line the thing took is carried past it all the same, or the first letter typed on coming
+ * back would go in front of the thing and break it. Answers a kept place at the new line's start, for a name that
+ * follows it (`nameLater`); the caller lets it go.
  */
-export function insertLineAt(view: EditorView, spot: number, text: string, { userEvent, token }: { userEvent?: string; token?: { fresh: () => boolean } } = {}): { spot: number } {
+export function insertLineAt(
+  view: EditorView,
+  spot: number,
+  text: string,
+  { userEvent, token, apart }: { userEvent?: string; token?: { fresh: () => boolean }; apart?: boolean } = {},
+): { spot: number } {
   const pos = spotAt(view, spot) ?? view.state.selection.main.head;
   const main = view.state.selection.main;
   const stayed = main.empty && main.head === pos;
   const fresh = token ? token.fresh() : true;
-  const plan = ownLinePlan(view.state, pos, text);
-  const change = plan.changes as { from: number; insert: string };
+  const plan = ownLinePlan(view.state, pos, text, { apart });
+  const change = plan.changes as { from: number; to: number; insert: string };
   const lineStart = change.from + change.insert.length - text.length - 1;
+  const took = givesWay(lineAtPos(view.state, pos).text);
+  const moved = fresh && stayed && plan.selection;
   view.dispatch({
     changes: plan.changes,
-    ...(fresh && stayed && plan.selection ? { selection: plan.selection, scrollIntoView: true } : {}),
+    ...(moved ? { selection: plan.selection, scrollIntoView: true } : took ? { selection: view.state.selection.map(view.state.changes(plan.changes), 1) } : {}),
     ...(userEvent ? { userEvent } : {}),
     annotations: isolateHistory.of('full'),
   });

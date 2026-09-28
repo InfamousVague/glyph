@@ -149,6 +149,15 @@ describe("Style's table and rule", () => {
     undo(view);
     expect(text(view)).toBe('Words');
   });
+
+  it('keeps what is typed over its seed straight after a step of its own', () => {
+    const view = new EditorView({ state: EditorState.create({ doc: 'Words\n', selection: { anchor: 6 }, extensions: [history()] }) });
+    insertTable(view);
+    const { from, to } = view.state.selection.main;
+    view.dispatch({ changes: { from, to, insert: 'Name' }, selection: { anchor: from + 4 }, userEvent: 'input.type' });
+    undo(view);
+    expect(text(view)).toBe('Words\n\n| Column | Column |\n| --- | --- |\n| Cell | Cell |');
+  });
 });
 
 describe('activeMarks', () => {

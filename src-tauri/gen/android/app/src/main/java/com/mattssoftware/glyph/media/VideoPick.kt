@@ -40,7 +40,10 @@ import java.util.UUID
  * read from the file but that: no place it was filmed, no date, no device.
  *
  * The page hears `window.__glyph.video(json)`, its own event, never the picture's (a pick of each at once must not
- * answer the other): `{ path, poster, ms, width, height }`, `{ cancelled: true }` or `{ error }`. Rust then keeps both
+ * answer the other): `{ copying: true }` as soon as a film is chosen, so the page says it is adding it only then and
+ * not while the picker is up, and then `{ path, poster, ms, width, height }`, `{ cancelled: true }` or `{ error }`.
+ * Whatever goes wrong on the copying thread is answered, never thrown, since a throw there would end the app and
+ * leave the page waiting for a film that never comes. Rust then keeps both
  * (videos.rs `save_video`) or, for an answer the page was not waiting for, throws them away (`discard_picked`), and
  * what waits in `picked/` for more than an hour goes at the next launch. RUST TWIN: videos.rs, whose EXTENSIONS are
  * this file's, and paths.rs, whose `picked` this writes to; tests on both sides read the other.
@@ -67,9 +70,11 @@ object VideoPick {
   const val NO_ROOM = "There isn’t room on this phone for that video."
   const val UNREADABLE = "This video can’t be read."
   const val NO_PICKER = "This phone has no video picker."
+  /** A film of a kind that is not kept (3GP, MKV): not a damaged one, so not said as one. */
+  const val UNSUPPORTED = "This kind of video can’t be added. MP4, MOV and WebM can."
 
   /** The film was taken up to no more room than the phone keeps free. */
-  private class NoRoom : IOException()
+  internal class NoRoom : IOException()
 
   /** Whether this phone has the Photo Picker itself: Android 13 and later, or 11 and 12 with its module. */
   private fun photoPicker(): Boolean =
@@ -91,6 +96,10 @@ object VideoPick {
         activity.startActivityForResult(pickerIntent(), REQUEST)
       } catch (error: ActivityNotFoundException) {
         tell(failed(NO_PICKER))
+      } catch (error: Exception) {
+        // A picker that refuses to be started (a SecurityException from a locked-down phone) is no picker here either.
+        Log.w(TAG, "video picker not started", error)
+        tell(failed(NO_PICKER))
       }
     }
     return "started"
@@ -98,19 +107,30 @@ object VideoPick {
 
   /**
    * The picker's answer: a film copied, read and given its poster on a thread of its own, and `tell` given the JSON the
-   * page reads. Answers whether the request was this one.
+   * page reads, first that it is copying. Answers whether the request was this one.
    */
   fun answered(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?, tell: (String) -> Unit): Boolean {
     if (requestCode != REQUEST) return false
-    val uri = data?.data
+    // The Photo Picker answers with the film's address; a chooser's provider may answer with it in a clip alone.
+    val uri = data?.data ?: data?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
     if (resultCode != Activity.RESULT_OK || uri == null) {
       tell(cancelled())
       return true
     }
+    tell(copying())
     val context = activity.applicationContext
-    Thread({ tell(keep(context, uri)) }, "glyph-video-pick").start()
+    Thread({ tell(keepAnswered(context, uri)) }, "glyph-video-pick").start()
     return true
   }
+
+  /** `keep`, with anything it throws answered as a film that could not be read rather than let loose on its thread. */
+  private fun keepAnswered(context: Context, uri: Uri): String =
+    try {
+      keep(context, uri)
+    } catch (error: Throwable) {
+      Log.w(TAG, "video not kept", error)
+      failed(UNREADABLE)
+    }
 
   /** The film at `uri` copied into picked/ with its poster beside it, as the answer's JSON. */
   private fun keep(context: Context, uri: Uri): String {
@@ -118,7 +138,7 @@ object VideoPick {
     val cacheDir = context.cacheDir
     // Where `save_video` adopts from: `PICKED` in src-tauri/src/paths.rs. Rename both together.
     val dir = File(cacheDir, "picked").apply { mkdirs() }
-    val extension = extensionFor(resolver.getType(uri), nameOf(resolver, uri)) ?: return failed(UNREADABLE)
+    val extension = extensionFor(resolver.getType(uri), nameOf(resolver, uri)) ?: return failed(UNSUPPORTED)
     val room = { StatFs(dir.path).availableBytes }
     if (!fits(sizeOf(resolver, uri), room())) return failed(NO_ROOM)
     val id = UUID.randomUUID().toString()
@@ -130,7 +150,7 @@ object VideoPick {
     } catch (full: NoRoom) {
       film.delete()
       return failed(NO_ROOM)
-    } catch (error: Exception) {
+    } catch (error: Throwable) {
       Log.w(TAG, "video not copied", error)
       film.delete()
       return failed(UNREADABLE)
@@ -143,7 +163,7 @@ object VideoPick {
       val width = number(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH).toInt()
       val height = number(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT).toInt()
       val rotation = number(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION).toInt()
-      val frame = if (ms > 0) retriever.getFrameAtTime(frameAtUs(ms), MediaMetadataRetriever.OPTION_CLOSEST_SYNC) else null
+      val frame = if (ms > 0) frameOf(retriever, frameAtUs(ms)) else null
       if (frame == null) {
         film.delete()
         return failed(UNREADABLE)
@@ -158,7 +178,8 @@ object VideoPick {
       FileOutputStream(poster).use { upright.compress(Bitmap.CompressFormat.JPEG, 85, it) }
       val (shownWidth, shownHeight) = shown(rotation, width, height, upright.width, upright.height)
       picked(film.absolutePath, poster.absolutePath, ms, shownWidth, shownHeight)
-    } catch (error: Exception) {
+    } catch (error: Throwable) {
+      // An 8K frame made whole on a phone short of memory is an Error, not an Exception: the copies go all the same.
       Log.w(TAG, "video not read", error)
       film.delete()
       poster.delete()
@@ -172,8 +193,19 @@ object VideoPick {
     }
   }
 
+  /**
+   * The poster's frame, made no bigger than the poster, where the phone can (Android 8.1 and later): an 8K film's frame
+   * made whole first is about 130 MB, only to be shrunk to 1600 px straight after.
+   */
+  private fun frameOf(retriever: MediaMetadataRetriever, us: Long): Bitmap? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+      retriever.getScaledFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, POSTER_MAX_PX, POSTER_MAX_PX)
+    } else {
+      retriever.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+    }
+
   /** Copies in 1 MB blocks, looking at the room left every so often, and stops before the phone is full. */
-  private fun copy(from: InputStream, to: OutputStream, room: () -> Long) {
+  internal fun copy(from: InputStream, to: OutputStream, room: () -> Long) {
     val block = ByteArray(BLOCK)
     var blocks = 0
     while (true) {
@@ -240,6 +272,9 @@ object VideoPick {
   /** A film picked and copied: where it is, its poster, its length in ms, and its size as it is watched. */
   fun picked(path: String, poster: String, ms: Long, width: Int, height: Int): String =
     json("path" to path, "poster" to poster, "ms" to ms, "width" to width, "height" to height)
+
+  /** A film was chosen and its copy is starting: the pick still waits for its answer. */
+  fun copying(): String = json("copying" to true)
 
   /** The picker closed with nothing chosen. */
   fun cancelled(): String = json("cancelled" to true)

@@ -50,14 +50,17 @@ function open(over: Partial<AddListProps> = {}, by: PlusOpening['by'] = 'touch')
 const words = () => [...document.querySelectorAll('#add-list [role=menuitem]')].map((row) => row.textContent);
 const rowSaying = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('#add-list button')].find((row) => row.textContent?.startsWith(text));
 
-/** The sizes the list draws at, which jsdom does not lay out: a 256-wide card of 44px rows. */
+/** How much of the card is not the rows that scroll: More held at its foot, and the padding round it. */
+const HELD = 44 + 4;
+
+/** The sizes the list draws at, which jsdom does not lay out: a 256-wide card of 44px rows, one of them held at its foot. */
 function sized(rows: number) {
   Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
     configurable: true,
     get(this: HTMLElement) {
       if (this.id === 'add-list') return rows * 44 + 8;
       if (this.dataset.index !== undefined) return 44;
-      if (this.parentElement?.id === 'add-list') return rows * 44 + 8;
+      if (this.dataset.rows !== undefined) return rows * 44 + 8 - HELD;
       return 0;
     },
   });
@@ -71,10 +74,13 @@ function sized(rows: number) {
   Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
     configurable: true,
     get(this: HTMLElement) {
-      return this.parentElement?.id === 'add-list' ? rows * 44 + 8 : 0;
+      return this.dataset.rows !== undefined ? rows * 44 + 8 - HELD : 0;
     },
   });
 }
+
+/** The rows that scroll, inside the card. */
+const scrolling = () => document.querySelector<HTMLElement>('#add-list [data-rows]')!;
 
 function screen(width: number, height: number, { coarse = true } = {}) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
@@ -175,12 +181,29 @@ describe('where it goes', () => {
     rowAt(240);
     const { list } = open();
     const at = placed(list()!);
-    const rows = list()!.firstElementChild as HTMLElement;
-    const height = parseFloat(rows.style.maxBlockSize);
+    const height = parseFloat(scrolling().style.maxBlockSize) + HELD;
     // Above is 234 - 68 = 166 and below 492 - 273 = 219: below is larger, and the list keeps off the row.
     expect(at.top).toBe(240 + 27 + 6);
     expect(height).toBe(500 - 8 - at.top);
     expect(at.top).toBeGreaterThanOrEqual(240 + 27);
+  });
+
+  it('keeps More in sight however little room there is: it is held at the foot, and only the rows above it scroll', () => {
+    // The phone with the keyboard up (412 by 579), the + where the editor keeps the caret, and the note's pane under
+    // its header and tabs: seven rows and More fit neither side.
+    screen(412, 579, { coarse: false });
+    rowAt(444);
+    const { list } = open({ pane: () => new DOMRect(0, 110, 412, 469) });
+    const more = rowSaying('More')!;
+    expect(list()!.contains(more)).toBe(true);
+    expect(scrolling().contains(more)).toBe(false);
+    expect(scrolling().style.maxBlockSize).not.toBe('');
+    expect(scrolling().contains(rowSaying('A to-do')!)).toBe(true);
+    // On More, Back is held at the top the same way.
+    press(more);
+    const back = rowSaying('Back')!;
+    expect(scrolling().contains(back)).toBe(false);
+    expect(list()!.contains(back)).toBe(true);
   });
 
   it('keeps to one side of the opened Fold’s crease: at the text when it fits before it', () => {
@@ -249,7 +272,7 @@ describe('what closes it', () => {
     screen(412, 500, { coarse: false });
     rowAt(240);
     const { list } = open();
-    const rows = list()!.firstElementChild as HTMLElement;
+    const rows = scrolling();
     const was = placed(list()!).top;
     // Were the list placed again on its own scroll, it would move to where the + now says, and its cap would be taken
     // off and put back, which drops the rows' scroll in a real layout.
@@ -291,6 +314,44 @@ describe('driven from the editor’s keys', () => {
     expect(words()[0]).toBe('Back');
   });
 
+  it('rings the lit row only once a key has moved it, never where the pointer lit it', () => {
+    open({}, 'pointer');
+    const list = () => document.getElementById('add-list')!;
+    expect(document.querySelector('#add-list [data-active]')?.textContent).toBe('A picture');
+    expect(list().hasAttribute('data-keys')).toBe(false);
+    act(() => void keys.current?.('down'));
+    expect(list().hasAttribute('data-keys')).toBe(true);
+    const table = rowSaying('A table')!;
+    act(() => table.dispatchEvent(Object.assign(new MouseEvent('pointerover', { bubbles: true }), { pointerType: 'mouse' })));
+    act(() => table.dispatchEvent(Object.assign(new MouseEvent('pointerenter', { bubbles: false }), { pointerType: 'mouse' })));
+    expect(document.querySelector('#add-list [data-active]')?.textContent).toBe('A table');
+    expect(list().hasAttribute('data-keys')).toBe(false);
+  });
+
+  it('goes into More with Right, and leaves Right on any other row to the editor', () => {
+    open({}, 'pointer');
+    let taken = true;
+    act(() => void (taken = keys.current?.('right') ?? false));
+    expect(taken).toBe(false);
+    expect(words()).toContain('A to-do');
+    act(() => void keys.current?.('up'));
+    expect(document.querySelector('#add-list [data-active]')?.textContent).toBe('More');
+    act(() => void (taken = keys.current?.('right') ?? false));
+    expect(taken).toBe(true);
+    expect(words()[0]).toBe('Back');
+  });
+
+  it('lights the first row of a page turned to, wherever the keys were on the page before', () => {
+    open({}, 'pointer');
+    act(() => void keys.current?.('up'));
+    act(() => void keys.current?.('enter'));
+    expect(document.querySelector('#add-list [data-active]')?.textContent).toBe('Back');
+    act(() => void keys.current?.('down'));
+    act(() => void keys.current?.('down'));
+    act(() => void keys.current?.('left'));
+    expect(document.querySelector('#add-list [data-active]')?.textContent).toBe('A picture');
+  });
+
   it('goes back from More with Left, and closes on Left at the top, leaving the key to the editor', () => {
     open({}, 'pointer');
     press(rowSaying('More'));
@@ -309,6 +370,25 @@ describe('from the keyboard on the + itself', () => {
     open({}, 'keyboard');
     expect(document.activeElement?.textContent).toBe('A picture');
   });
+
+  it('goes back from More with Left while the focus is in the list, and not while it is in a field', () => {
+    open({}, 'keyboard');
+    press(rowSaying('More'));
+    expect(words()[0]).toBe('Back');
+    const left = () => {
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true });
+      act(() => void document.activeElement!.dispatchEvent(event));
+      return event;
+    };
+    expect(left().defaultPrevented).toBe(true);
+    expect(words()).toContain('A to-do');
+    expect(closed).toBe(0);
+    press(rowSaying('A note'));
+    const field = document.querySelector<HTMLInputElement>('#add-list input')!;
+    field.focus();
+    expect(left().defaultPrevented).toBe(false);
+    expect(document.querySelector('#add-list input')).not.toBeNull();
+  });
 });
 
 describe('More', () => {
@@ -319,6 +399,32 @@ describe('More', () => {
     press(rowSaying('A heading'));
     expect(closed).toBe(1);
     expect(view.state.doc.toString()).toBe('Lunch\n## ');
+  });
+
+  it('goes back to the first page with Back, and does not close', () => {
+    open();
+    press(rowSaying('More'));
+    press(rowSaying('Back'));
+    expect(closed).toBe(0);
+    expect(words()).toEqual(['A picture', 'A place', expect.stringMatching(/2026|20\d\d/), 'A table', 'A note', 'A to-do', 'More']);
+  });
+
+  it('goes back a page with the phone’s back gesture, and closes from the first page', () => {
+    open();
+    press(rowSaying('More'));
+    act(() => void goBack());
+    expect(closed).toBe(0);
+    expect(words()).toContain('A to-do');
+    act(() => void goBack());
+    expect(closed).toBe(1);
+  });
+
+  it('opens at its top, whatever the page before was scrolled to', () => {
+    open();
+    const rows = scrolling();
+    Object.defineProperty(rows, 'scrollTop', { configurable: true, writable: true, value: 120 });
+    press(rowSaying('More'));
+    expect(rows.scrollTop).toBe(0);
   });
 });
 
@@ -335,6 +441,17 @@ describe('A note', () => {
     press(rowSaying('Lisbon'));
     expect(view.state.doc.toString()).toBe('Lunch\n[[Lisbon]]');
     expect(closed).toBe(1);
+  });
+
+  it('goes back to the list with its Back, held above the field', () => {
+    open();
+    press(rowSaying('A note'));
+    const back = rowSaying('Back')!;
+    expect(scrolling().contains(back)).toBe(false);
+    press(back);
+    expect(closed).toBe(0);
+    expect(document.querySelector('#add-list input')).toBeNull();
+    expect(words()).toContain('A note');
   });
 
   it('says when nothing is called that', () => {

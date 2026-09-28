@@ -24,8 +24,9 @@ interface GlyphInbound {
   /** A picked picture, as JSON: `{ path }`, `{ cancelled: true }` or `{ error }` (core/images.ts). */
   image?: (json: string) => void;
   /**
-   * A picked film, as JSON (native generation 21): `{ path, poster, ms, width, height }`, `{ cancelled: true }` or
-   * `{ error }` (core/videos.ts). Its own event, never `image`'s, whose one pending pick it must not answer.
+   * A picked film, as JSON (native generation 21): `{ copying: true }` once one is chosen, then `{ path, poster, ms,
+   * width, height }`, `{ cancelled: true }` or `{ error }` (core/videos.ts). Its own event, never `image`'s, whose one
+   * pending pick it must not answer.
    */
   video?: (json: string) => void;
   /** The back gesture: true if the page used it, false at the root (core/back.ts). */

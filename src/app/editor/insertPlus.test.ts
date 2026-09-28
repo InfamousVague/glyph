@@ -78,6 +78,10 @@ describe('the + beside the line', () => {
     expect(stateOf(view)).toBe('shown');
   });
 
+  it('settles for about 150ms: long enough for Enter, Enter, and no pause to wait out', () => {
+    expect(SETTLE_MS).toBe(150);
+  });
+
   it('never comes on a line with words, however long the caret rests', async () => {
     const view = await mount('Lunch at the harbour');
     await vi.advanceTimersByTimeAsync(SETTLE_MS * 10);
@@ -94,6 +98,52 @@ describe('the + beside the line', () => {
     type(view, 'N');
     await vi.advanceTimersByTimeAsync(SETTLE_MS * 4);
     expect(stateOf(view)).toBe('off');
+  });
+
+  it('settles afresh on each empty line a run of Enters passes, so the first line’s wait never shows it on the last', async () => {
+    const view = await mount('Lunch');
+    type(view, '\n');
+    await vi.advanceTimersByTimeAsync(SETTLE_MS - 50);
+    type(view, '\n');
+    // Were the first line's wait still running, the + would come 50ms after the second Enter.
+    await vi.advanceTimersByTimeAsync(SETTLE_MS - 1);
+    expect(stateOf(view)).toBe('waiting');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(stateOf(view)).toBe('shown');
+  });
+
+  it('stays through a change that leaves the caret on the same empty line, rather than blinking out and back', async () => {
+    const view = await mount('Lunch\n- ');
+    await vi.advanceTimersByTimeAsync(SETTLE_MS + 1000);
+    expect(stateOf(view)).toBe('shown');
+    type(view, ' ');
+    expect(stateOf(view)).toBe('shown');
+    // Enter on an empty item ends the list: the lead goes, and the caret stays on the line.
+    view.dispatch({ changes: { from: 'Lunch\n'.length, to: view.state.doc.length }, selection: { anchor: 'Lunch\n'.length }, userEvent: 'input' });
+    expect(stateOf(view)).toBe('shown');
+    await vi.advanceTimersByTimeAsync(SETTLE_MS);
+    expect(stateOf(view)).toBe('shown');
+  });
+
+  it('keeps clear of a lead’s own mark, and sits in the middle of an empty line', async () => {
+    const view = await mount('Lunch\n- ');
+    await vi.advanceTimersByTimeAsync(SETTLE_MS);
+    expect(plusOf(view).hasAttribute('data-lead')).toBe(true);
+    view.dispatch({ changes: { from: 'Lunch\n'.length, to: view.state.doc.length }, userEvent: 'input' });
+    expect(plusOf(view).hasAttribute('data-lead')).toBe(false);
+  });
+
+  it('comes at once under a fine pointer over its place while it waits', async () => {
+    const view = await mount('Lunch\n');
+    expect(stateOf(view)).toBe('waiting');
+    plusOf(view).getBoundingClientRect = () => new DOMRect(0, 30, 22, 27);
+    const move = (pointerType: string, x: number, y: number) =>
+      view.scrollDOM.dispatchEvent(Object.assign(new MouseEvent('pointermove', { clientX: x, clientY: y, bubbles: true }), { pointerType }));
+    move('touch', 10, 40);
+    move('mouse', 60, 40);
+    expect(stateOf(view)).toBe('waiting');
+    move('mouse', 10, 40);
+    expect(stateOf(view)).toBe('shown');
   });
 
   it('goes at once with the first letter, with no fade when it had not finished arriving', async () => {
@@ -122,6 +172,41 @@ describe('the + beside the line', () => {
     expect(plusOf(view).hidden).toBe(true);
   });
 
+  it('is placed beside the line it comes to before it is seen, never where it last stood', async () => {
+    // No frame ever comes, as on a busy main thread: only a placing made at once can move it.
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 0);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (!this.classList.contains('cm-line')) return new DOMRect(0, 0, 400, 600);
+      return new DOMRect(0, [...this.parentElement!.children].indexOf(this) * 30, 400, 24);
+    });
+    const view = await mount('A\n\nB\n\nC', 'A\n'.length);
+    await vi.advanceTimersByTimeAsync(SETTLE_MS + 1000);
+    expect([stateOf(view), plusOf(view).style.top]).toEqual(['shown', '30px']);
+    view.dispatch({ selection: { anchor: 'A\n\nB\n'.length } });
+    const seen: string[] = [];
+    new MutationObserver(() => {
+      if (stateOf(view) === 'shown') seen.push(plusOf(view).style.top);
+    }).observe(plusOf(view), { attributes: true, attributeFilter: ['data-state'] });
+    await vi.advanceTimersByTimeAsync(SETTLE_MS + 100);
+    expect(stateOf(view)).toBe('shown');
+    expect(seen).toEqual(['90px']);
+  });
+
+  it('is level with the words of a line whose box runs on below them, as a quote’s last line’s does', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('cm-line') ? new DOMRect(0, 60, 400, 30) : new DOMRect(0, 0, 400, 600);
+    });
+    const real = window.getComputedStyle;
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+      const style = real(element);
+      if (!(element as HTMLElement).classList.contains('cm-line')) return style;
+      return { ...style, borderTopWidth: '0px', paddingTop: '0px', paddingBottom: '0px', borderBottomWidth: '6px' } as CSSStyleDeclaration;
+    });
+    const view = await mount('> quote\n> ');
+    await vi.advanceTimersByTimeAsync(SETTLE_MS);
+    expect([plusOf(view).style.top, plusOf(view).style.height]).toEqual(['60px', '24px']);
+  });
+
   it('marks its own line only, for the bookmark’s edge to step aside', async () => {
     const view = await mount('Lunch §§\n\nMore');
     view.dispatch({ selection: { anchor: 'Lunch §§\n'.length } });
@@ -129,6 +214,27 @@ describe('the + beside the line', () => {
     const marked = [...view.contentDOM.querySelectorAll('.cm-plusLine')];
     expect(marked).toHaveLength(1);
     expect(marked[0]!.textContent).toBe('');
+  });
+});
+
+describe('its line’s mark, under a composition', () => {
+  it('is left as it is while the keyboard composes, and changed once it has finished', async () => {
+    const view = await mount('Lunch\n');
+    await vi.advanceTimersByTimeAsync(SETTLE_MS);
+    const marked = () => view.contentDOM.querySelectorAll('.cm-plusLine').length;
+    expect(marked()).toBe(1);
+    let composing = true;
+    Object.defineProperty(view, 'composing', { configurable: true, get: () => composing });
+    hooks.allow = false;
+    view.dispatch({ effects: plusRecheck.of(null) });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(plusOf(view).hidden).toBe(true);
+    // Rebuilding the line under a live composition breaks typing on a phone (editor/glyphLines.ts).
+    expect(marked()).toBe(1);
+    composing = false;
+    view.dispatch({ effects: plusRecheck.of(null) });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(marked()).toBe(0);
   });
 });
 

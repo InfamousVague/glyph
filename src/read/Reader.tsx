@@ -226,7 +226,8 @@ function Read({
           <h1 className={styles.title}>{current.title}</h1>
           <Byline authors={authorsOf(current.body)} />
           <div className={styles.canvas}>
-            <CanvasView canvas={canvas} dark={dark} wiki={{ known: (t) => indexOf(t) >= 0, open, body: bodyOf, titles }} />
+            {/* A card's film is its still here too: the film never leaves the phone it was added on. */}
+            <CanvasView canvas={canvas} dark={dark} wiki={{ known: (t) => indexOf(t) >= 0, open, body: bodyOf, titles }} videos="shared" />
           </div>
         </>
       ) : (

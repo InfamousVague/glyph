@@ -23,6 +23,9 @@ import { heightMemory } from './heightMemory.ts';
  * half-fetched bundle), or the diagram written wrong - in the typewriter face, exactly as typed, with a quiet line
  * saying why. Nothing is ever lost, and nothing spins for ever.
  *
+ * **In the app's two inks.** On a light page it is Mermaid's own grey theme (`neutral`), not its default, whose
+ * lavender boxes and purple lines were the one colour in a note; a dark page has Mermaid's dark theme, grey already.
+ *
  * What it draws is cached by what it says and which way the app is painted, so scrolling past a diagram redraws
  * nothing; and a diagram's height is remembered between launches (`glyph-mermaid-heights`), so the editor knows how
  * tall a diagram is before it has drawn it and the note does not jump as one comes into view - the same lesson as
@@ -103,7 +106,7 @@ async function render(code: string, dark: boolean): Promise<Drawing> {
       startOnLoad: false,
       // Labels are the note's own words, but a note can come from anywhere: no HTML out of a diagram, ever.
       securityLevel: 'strict',
-      theme: dark ? 'dark' : 'default',
+      theme: dark ? 'dark' : 'neutral',
       fontFamily: 'inherit',
     });
     id += 1;

@@ -90,7 +90,7 @@ describe('the list’s rows', () => {
   });
 
   it('keep the rest behind More: the forms, the blocks, the small marks, and the effects that are on', () => {
-    const heat = { name: 'Heat', delimiter: '🔥🔥', look: { kind: 'effect', effect: 'heat' } } as const;
+    const heat = { name: 'Heat', delimiter: '🔥🔥', look: { kind: 'effect', effect: 'heat' }, cue: 'heated' } as const;
     expect(rows.moreRows(gates({ effects: [heat] })).map((row) => row.words)).toEqual([
       'A heading',
       'A bulleted list',
@@ -107,7 +107,7 @@ describe('the list’s rows', () => {
       'A tag',
       'A counter',
       'A sum',
-      'Heat',
+      'Heated words',
     ]);
     expect(rows.moreRows(gates({ canvas: false })).map((row) => row.id)).not.toContain('canvas');
   });
@@ -156,7 +156,21 @@ describe('what each row writes on an empty line', () => {
   it('the time and the words, at the caret', () => {
     expect(written('time')).toBe(`Lunch\n${stamp(NOW)}|`);
     expect(written('tag')).toBe('Lunch\n#[tag]');
-    expect(written('counter')).toBe('Lunch\n| [0/8]');
+    expect(written('counter')).toBe('Lunch\n[Count] [0/8]');
+    expect(written('counter', 'Goals\n- ')).toBe('Goals\n- [Count] [0/8]');
+  });
+
+  it('an effect as words to write over between its marks, named as it is said', async () => {
+    const { plugins } = await import('../plugins/registry.ts');
+    const heat = { name: 'Heat', delimiter: '🔥🔥', look: { kind: 'effect', effect: 'heat' }, cue: 'heated' } as const;
+    const spy = vi.spyOn(plugins, 'formats').mockReturnValue([heat]);
+    try {
+      expect(written('effect:Heat')).toBe('Lunch\n🔥🔥[words]🔥🔥');
+      expect(rows.effectWords(heat)).toBe('Heated words');
+      expect(rows.effectWords({ ...heat, cue: undefined, name: 'Glow' })).toBe('Glow words');
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('a to-do, a choice and the lists as a line’s lead', () => {
@@ -185,8 +199,12 @@ describe('what each row writes on an empty line', () => {
     expect(written('board', '- Tent ^first-card\n\n')).toBe('- Tent ^first-card\n\n```board\nTo do: first-card-2\nDoing:\nDone:\n```\n\n- [ ] [First card] ^first-card-2');
   });
 
-  it('a footnote, its number at the caret and its line at the end', () => {
-    expect(written('footnote', 'Lunch\n')).toBe('Lunch\n[^1]\n\n[^1]: |');
+  it('a footnote, its number closing the words above and its line at the end', () => {
+    expect(written('footnote', 'Lunch  \n')).toBe('Lunch[^1]  \n\n[^1]: |');
+    expect(written('footnote', 'Tent[^1]\n\n[^1]: Borrowed.\n\nStove\n')).toBe('Tent[^1]\n\n[^1]: Borrowed.\n\nStove[^2]\n\n[^2]: |');
+    // With no words just above, or a table's row, it goes where the caret is.
+    expect(written('footnote', 'Lunch\n\n')).toBe('Lunch\n\n[^1]\n\n[^1]: |');
+    expect(written('footnote', '| a | b |\n')).toBe('| a | b |\n[^1]\n\n[^1]: |');
   });
 
   it('each as one step to undo', () => {

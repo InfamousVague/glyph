@@ -94,7 +94,6 @@ export function canPickPicture(): boolean {
   return false;
 }
 
-
 /** Whether a place can be added here: never where the device cannot say, dimmed under Local only. */
 export function placeRow(): AddGates['place'] {
   if (!locateHere().ok) return 'absent';
@@ -157,8 +156,17 @@ export function moreRows(gates: AddGates): AddRow[] {
   ];
   if (gates.canvas) rows.push({ id: 'canvas', words: 'A canvas', step: 'canvas' });
   rows.push({ id: 'footnote', words: 'A footnote' }, { id: 'tag', words: 'A tag' }, { id: 'counter', words: 'A counter' }, { id: 'sum', words: 'A sum' });
-  for (const effect of gates.effects) rows.push({ id: `effect:${effect.name}`, words: effect.name });
+  for (const effect of gates.effects) rows.push({ id: `effect:${effect.name}`, words: effectWords(effect) });
   return rows;
+}
+
+/**
+ * An effect's row, named as it is said while recording ("heated", "frosted"), so it reads as words that look a way:
+ * "Heated words". A plugin's effect with no word of its own is named by its name.
+ */
+export function effectWords(effect: InlineFormat): string {
+  const said = effect.cue?.trim() || effect.name;
+  return `${said.charAt(0).toUpperCase()}${said.slice(1).toLowerCase()} words`;
 }
 
 // ---- the seeds ---------------------------------------------------------------------------------------------
@@ -172,8 +180,10 @@ export const CODE_SEED = '```\n\n```';
  * card (canvas/edits.ts `CHART_CARD`), with "Start" selected to be written over.
  */
 export const CHART_SEED = CHART_CARD.trimEnd();
-/** A counter to name: it goes after the caret, which waits before it for what is being counted. */
-export const COUNTER_SEED = ' [0/8]';
+/** A counter, with what it counts selected to be written over, as the Guide's `- Water [3/8]` is. */
+export const COUNTER_SEED = 'Count [0/8]';
+/** The words an effect's seed holds, selected to be written over. */
+export const EFFECT_WORDS = 'words';
 
 /**
  * A small board, as Make a board writes one (core/boards.ts `boardFrom`): the three columns, and one to-do named in
@@ -203,7 +213,7 @@ export function planFor(view: EditorView, id: AddRowId, now = new Date()): { pla
   if (id === 'sum') return { plan: formPlan(state, at, 'sum') };
   if (id === 'footnote') return { plan: footnotePlan(state, at) };
   if (id === 'tag') return { plan: wordsPlan(state, at, '#tag', { from: 1, to: 4 }) };
-  if (id === 'counter') return { plan: { changes: { from: at, insert: COUNTER_SEED }, selection: { anchor: at } } };
+  if (id === 'counter') return { plan: wordsPlan(state, at, COUNTER_SEED, { from: 0, to: COUNTER_SEED.indexOf(' [') }) };
   if (id === 'table') return { block: TABLE_SEED };
   if (id === 'callout') return { block: { text: CALLOUT_SEED, select: { from: CALLOUT_SEED.length } } };
   if (id === 'code') return { block: { text: CODE_SEED, select: { from: 4 } } };
@@ -213,8 +223,9 @@ export function planFor(view: EditorView, id: AddRowId, now = new Date()): { pla
   if (id.startsWith('effect:')) {
     const effect = plugins.formats().find((format) => `effect:${format.name}` === id);
     if (!effect) return null;
+    // Its marks round a word to write over, as the tag's and the chart's seeds are: the marks alone draw nothing.
     const mark = effect.delimiter;
-    return { plan: wordsPlan(state, at, `${mark}${mark}`, { from: mark.length }) };
+    return { plan: wordsPlan(state, at, `${mark}${EFFECT_WORDS}${mark}`, { from: mark.length, to: mark.length + EFFECT_WORDS.length }) };
   }
   return null;
 }
@@ -235,7 +246,7 @@ export function writeNoteLink(view: EditorView, title: string): void {
 
 /** A canvas drawn in a frame, on a line of its own (editor/canvasFrames.ts): `![[Title]]`. */
 export function writeCanvasFrame(view: EditorView, title: string): void {
-  apply(view, ownLinePlan(view.state, view.state.selection.main.head, `![[${title}]]`), 'input.plus.drawn');
+  apply(view, ownLinePlan(view.state, view.state.selection.main.head, `![[${title}]]`, { apart: true }), 'input.plus.drawn');
 }
 
 /**

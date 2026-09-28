@@ -20,6 +20,12 @@ import { invoke, isTauri } from './tauri.ts';
 /** The binary generation with `pickVideo`, `save_video`, `discard_picked` and the `vid` scheme. */
 export const VIDEO_GENERATION = 21;
 
+/** The scheme films play through. RUST TWIN: src-tauri/src/videos.rs `SCHEME`, which a test here reads. */
+export const VIDEO_SCHEME = 'vid';
+
+/** What a person reads when they ask for a second film while the first is still being copied. */
+export const STILL_ADDING = 'A video is still being added.';
+
 /** A film picked and kept: its name, its poster's, its length and its size as it is watched. */
 export interface PickedVideo {
   video: string;
@@ -29,8 +35,12 @@ export interface PickedVideo {
   height: number;
 }
 
-/** What the shell answers a pick with (media/VideoPick.kt `picked`, `cancelled`, `failed`). */
-export type VideoAnswer = { path: string; poster: string; ms: number; width: number; height: number } | { cancelled: true } | { error: string };
+/**
+ * What the shell answers a pick with (media/VideoPick.kt `picked`, `cancelled`, `failed`), and `copying`, which it
+ * says first, once a film is chosen and before the copy starts: the pick is still waiting, and the page can now say it
+ * is adding the film, rather than while the picker is still up.
+ */
+export type VideoAnswer = { path: string; poster: string; ms: number; width: number; height: number } | { cancelled: true } | { error: string } | { copying: true };
 
 /** The shell's JSON as the page reads it; anything else is a film that could not be read. */
 export function readVideoAnswer(json: string): VideoAnswer {
@@ -43,6 +53,7 @@ export function readVideoAnswer(json: string): VideoAnswer {
   }
   if (!answer || typeof answer !== 'object') return unread;
   const said = answer as Record<string, unknown>;
+  if (said.copying === true) return { copying: true };
   if (said.cancelled === true) return { cancelled: true };
   if (typeof said.error === 'string') return { error: said.error };
   if (typeof said.path !== 'string' || typeof said.poster !== 'string') return unread;
@@ -50,8 +61,14 @@ export function readVideoAnswer(json: string): VideoAnswer {
   return { path: said.path, poster: said.poster, ms: number(said.ms), width: number(said.width), height: number(said.height) };
 }
 
-let pending: ((answer: VideoAnswer) => void) | null = null;
+/** The one pick waiting for its film: what its answer settles, and who is told when the copying starts. */
+let pending: { settle: (answer: Exclude<VideoAnswer, { copying: true }>) => void; copying?: () => void } | null = null;
 let listening = false;
+
+/** Throws away a film and its poster the shell copied, which no note will name. */
+function discard(answer: { path: string; poster: string }): void {
+  for (const path of [answer.path, answer.poster]) void invoke('discard_picked', { path }).catch(() => undefined);
+}
 
 /**
  * Hears the shell's `video` answers from now on: the one a pick is waiting for, and one it is not, a film picked
@@ -62,15 +79,17 @@ export function listenForVideos(): void {
   listening = true;
   answerHost('video', (json) => {
     const answer = readVideoAnswer(json);
+    if ('copying' in answer) {
+      pending?.copying?.();
+      return;
+    }
     const waiting = pending;
     pending = null;
     if (waiting) {
-      waiting(answer);
+      waiting.settle(answer);
       return;
     }
-    if ('path' in answer) {
-      for (const path of [answer.path, answer.poster]) void invoke('discard_picked', { path }).catch(() => undefined);
-    }
+    if ('path' in answer) discard(answer);
   });
 }
 
@@ -108,6 +127,20 @@ export function filmGone(name: string): void {
 }
 
 /**
+ * Whether the film is on this phone now, asked afresh: a film that would not play is asked again before its card
+ * says it is gone, since a film the WebView cannot decode, or a read that failed, is still here. One gone is
+ * remembered as gone.
+ */
+export async function filmStillHere(name: string): Promise<boolean> {
+  const here = await fetch(videoUrl(name), { method: 'HEAD' }).then(
+    (response) => response.ok,
+    () => false,
+  );
+  if (!here) filmGone(name);
+  return here;
+}
+
+/**
  * Where films play at all: on an Android phone of generation 21 (`phone`), on an older Android binary (`update`), or
  * on another device, which never has a film (`elsewhere`). Nothing is asked but the generation, once per page.
  */
@@ -132,19 +165,31 @@ export async function filmHere(name: string): Promise<FilmHere> {
  * (core/images.ts); src-tauri/src/videos.rs serves it in ranges.
  */
 export function videoUrl(name: string): string {
-  return convertFileSrc(name, 'vid');
+  return convertFileSrc(name, VIDEO_SCHEME);
+}
+
+/** What a pick asks of its caller as it goes. */
+export interface PickWays {
+  /** Whether the film is still wanted once it has been copied: the note still open, its place still kept. */
+  keep?: () => boolean;
+  /** The film was chosen and its copy has started. */
+  copying?: () => void;
 }
 
 /**
- * Lets the person pick a film, keeps it, and answers it; null if they chose none. Throws the sentence a person reads
- * when it could not be read or kept.
+ * Lets the person pick a film, keeps it, and answers it; null if they chose none, or if `keep` says it is no longer
+ * wanted, when its copies are thrown away rather than kept for a note that will never name them (the poster would go
+ * among the pictures, which nothing sweeps). One pick at a time: a second while the first is still being copied is
+ * refused, since the shell's answer does not say which pick it is for. Throws the sentence a person reads when it
+ * could not be read or kept.
  */
-export async function pickVideo(): Promise<PickedVideo | null> {
+export async function pickVideo({ keep, copying }: PickWays = {}): Promise<PickedVideo | null> {
   const bridge = window.GlyphHost;
   if (typeof bridge?.pickVideo !== 'function') throw new Error('Videos need the newest Ghost.md.');
+  if (pending) throw new Error(STILL_ADDING);
   listenForVideos();
-  const answer = await new Promise<VideoAnswer>((resolve) => {
-    pending = resolve;
+  const answer = await new Promise<Exclude<VideoAnswer, { copying: true }>>((resolve) => {
+    pending = { settle: resolve, copying };
     let started: string | undefined;
     try {
       started = bridge.pickVideo?.();
@@ -158,6 +203,10 @@ export async function pickVideo(): Promise<PickedVideo | null> {
   });
   if ('cancelled' in answer) return null;
   if ('error' in answer) throw new Error(answer.error);
+  if (keep && !keep()) {
+    discard(answer);
+    return null;
+  }
   const kept = await invoke<{ video: string; poster: string }>('save_video', { path: answer.path, poster: answer.poster });
   asked.set(kept.video, Promise.resolve(true));
   return { ...kept, ms: answer.ms, width: answer.width, height: answer.height };

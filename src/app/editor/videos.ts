@@ -4,8 +4,8 @@ import { svgElement } from '../art/svg.ts';
 import { onBack } from '../core/back.ts';
 import { IMAGE_READY, imageUrl } from '../core/images.ts';
 import { lengthText, videoOfLine, type VideoLine } from '../core/videoRefs.ts';
-import { filmGone, filmHere, filmsPlay, videoUrl, type FilmHere } from '../core/videos.ts';
-import { forEachLineOutsideFences, selectedLines } from './lines.ts';
+import { filmHere, filmsPlay, filmStillHere, videoUrl, type FilmHere } from '../core/videos.ts';
+import { forEachLineOutsideFences, inFence, selectedLines } from './lines.ts';
 import styles from './videos.module.css';
 
 /**
@@ -32,22 +32,29 @@ import styles from './videos.module.css';
  *   its length, and the same words for another device or an older binary, and nothing asked.
  * - `shared`, a shared page: "Only a still from it is shared.", since the reader never had the film.
  *
- * The picture widget steps aside for these lines (editor/images.ts), so the poster is drawn once.
+ * A film that will not play once it is tapped is asked about again before its card says anything: gone from the phone,
+ * it says so; still here (a kind the WebView cannot play, or a read that failed), it says it cannot be played here,
+ * rather than that it is missing.
+ *
+ * The picture widget steps aside for these lines (editor/images.ts), so the poster is drawn once. A film's line in
+ * fenced code is the code's words, with no card and no fold.
  */
 
 export type VideoMode = 'play' | 'still' | 'shared';
 
 /**
- * What a card knows of its film: where it stands (core/videos.ts `filmHere`), `shared` on a shared page, and `quiet`
- * while nothing needs saying (the film is here to play, or the question is still out).
+ * What a card knows of its film: where it stands (core/videos.ts `filmHere`), `shared` on a shared page, `unplayable`
+ * for a film here that would not play, and `quiet` while nothing needs saying (the film is here to play, or the
+ * question is still out).
  */
-export type CardState = Exclude<FilmHere, 'here'> | 'shared' | 'quiet';
+export type CardState = Exclude<FilmHere, 'here'> | 'shared' | 'unplayable' | 'quiet';
 
 /** The words under a card, for whoever reads it; none while all is well. */
 export function videoWords(mode: VideoMode, state: CardState, ms: number | null): string {
   const length = ms === null ? '' : ` of ${lengthText(ms)}`;
   if (mode === 'shared' || state === 'shared') return `A video${length}. Only a still from it is shared.`;
   if (state === 'missing') return 'This video isn’t on this phone.';
+  if (state === 'unplayable') return 'This video can’t be played on this phone.';
   if (state === 'update') return 'Update Ghost.md to play this video.';
   if (state === 'elsewhere') return `A video${length}. It stays on the phone it was added on.`;
   return '';
@@ -59,6 +66,15 @@ const shapes = new Map<string, number>();
 /** A film just picked says its shape before its poster has loaded (NoteScreen's `addVideo`). */
 export function rememberShape(poster: string, width: number, height: number): void {
   if (width > 0 && height > 0) shapes.set(poster, height / width);
+}
+
+/** Posters of films just added, whose card keeps the caret under it in sight once, as the poster arrives. */
+const justAdded = new Set<string>();
+
+/** A film just added: its shape, and that its card's first poster keeps the caret in sight (NoteScreen's `addVideo`). */
+export function filmAdded(poster: string, width: number, height: number): void {
+  rememberShape(poster, width, height);
+  justAdded.add(poster);
 }
 
 /** The film playing now, anywhere on the page: starting another pauses it. */
@@ -121,9 +137,12 @@ function follow(film: HTMLVideoElement, line: HTMLElement): () => void {
 
 /**
  * The film full screen: a layer of the page, black, the film contained in it from where the card's had got to, a tap
- * to pause or play, and a white close. The back gesture (and Escape) closes it, and the time goes back to the card.
+ * to pause or play, and a white close. The back gesture (and Escape) closes it, the time goes back to the card, and
+ * the focus to `returnTo` (the card's Full screen), or to where it was, so a keyboard or a screen reader keeps its
+ * place.
  */
-export function openFullScreen(name: string, from: number, label: string, done: (time: number) => void): () => void {
+export function openFullScreen(name: string, from: number, label: string, done: (time: number) => void, returnTo?: HTMLElement): () => void {
+  const before = document.activeElement;
   const layer = document.createElement('div');
   layer.className = styles.layer ?? '';
   layer.setAttribute('role', 'dialog');
@@ -152,6 +171,8 @@ export function openFullScreen(name: string, from: number, label: string, done: 
     film.removeAttribute('src');
     film.load();
     layer.remove();
+    const back = returnTo?.isConnected ? returnTo : before instanceof HTMLElement && before.isConnected ? before : null;
+    back?.focus({ preventScroll: true });
   };
   const off = onBack(() => {
     shut();
@@ -202,10 +223,12 @@ class VideoWidget extends WidgetType {
     /*
      * The poster arrives a moment after the card is laid out, and the card grows to its size then. A film just added
      * leaves the caret on the line under its card, which the growing card would push out of sight: kept in sight here,
-     * while the note has the focus, as the insert's own scroll meant it to be.
+     * while the note has the focus, as the insert's own scroll meant it to be. Once, for the film just added: a card
+     * drawn again as it scrolls back into view would otherwise pull the page back to the caret under the finger.
      */
     const learn = () => {
       if (still.naturalWidth) rememberShape(poster, still.naturalWidth, still.naturalHeight);
+      if (!justAdded.delete(poster)) return;
       if (!view.hasFocus || !card.isConnected) return;
       const head = view.state.selection.main.head;
       const at = view.posAtDOM(card);
@@ -278,19 +301,22 @@ class VideoWidget extends WidgetType {
     const full = button(styles.full ?? '', 'Full screen', mark('full', '1.05rem'));
 
     /**
-     * The film went since it was asked about: the card says so, and plays nothing. Only the card's own film, while it
-     * is the card's: one let go is emptied, which a WebView may answer with an error of its own.
+     * The film would not play: asked again whether it is on the phone at all, and the card says which, gone or not
+     * playable here, and plays nothing. Only the card's own film, while it is the card's: one let go is emptied, which
+     * a WebView may answer with an error of its own.
      */
     const gone = (event: Event) => {
       if (!film || event.target !== film) return;
-      filmGone(video);
       letGo();
-      toggle.remove();
-      full.remove();
-      line.remove();
       delete card.dataset.playing;
       delete card.dataset.started;
-      say('missing');
+      void filmStillHere(video).then((here) => {
+        if (!alive) return;
+        toggle.remove();
+        full.remove();
+        line.remove();
+        say(here ? 'unplayable' : 'missing');
+      });
     };
 
     const filmNow = (): HTMLVideoElement => {
@@ -324,11 +350,17 @@ class VideoWidget extends WidgetType {
     full.addEventListener('click', () => {
       const from = film?.currentTime ?? 0;
       film?.pause();
-      openFullScreen(video, from, length ? `The video, ${length}, full screen` : 'The video, full screen', (time) => {
-        if (!alive) return;
-        filmNow().currentTime = time;
-        card.dataset.started = '';
-      });
+      openFullScreen(
+        video,
+        from,
+        length ? `The video, ${length}, full screen` : 'The video, full screen',
+        (time) => {
+          if (!alive) return;
+          filmNow().currentTime = time;
+          card.dataset.started = '';
+        },
+        full,
+      );
     });
 
     void filmHere(video).then((where) => {
@@ -392,7 +424,8 @@ function foldAll(view: EditorView): DecorationSet {
   const doc = view.state.doc;
   for (const { from, to } of view.visibleRanges) {
     for (let line = doc.lineAt(from); ; line = doc.line(line.number + 1)) {
-      if (!active.has(line.number) && videoOfLine(line.text)) for (const fold of foldsOf(line.from, line.text)) builder.add(fold.from, fold.to, hidden);
+      // Asked of a film's line alone, which is rare, so a long note is not walked for every other line.
+      if (!active.has(line.number) && videoOfLine(line.text) && !inFence(doc, line.number)) for (const fold of foldsOf(line.from, line.text)) builder.add(fold.from, fold.to, hidden);
       if (line.to >= to || line.number >= doc.lines) break;
     }
   }

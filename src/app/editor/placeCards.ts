@@ -4,7 +4,7 @@ import { Suspense, createElement, lazy, useState } from 'react';
 import type { GeoTag } from '../core/geotag.ts';
 import { placeOfLine } from '../core/placeRefs.ts';
 import { onPreferences, preferences } from '../core/preferences.ts';
-import { forEachLineOutsideFences, selectedLines } from './lines.ts';
+import { forEachLineOutsideFences, inFence, selectedLines } from './lines.ts';
 import { mountReact } from './reactMount.ts';
 
 /**
@@ -160,7 +160,8 @@ function foldAll(view: EditorView): DecorationSet {
     for (let line = doc.lineAt(from); ; line = doc.line(line.number + 1)) {
       if (!active.has(line.number)) {
         const place = placeOfLine(line.text);
-        if (place) for (const fold of foldsOf(line.from, line.text, place.words)) builder.add(fold.from, fold.to, hidden);
+        // A place's line in fenced code is the code's words, as the cards take it: asked of a place's line alone.
+        if (place && !inFence(doc, line.number)) for (const fold of foldsOf(line.from, line.text, place.words)) builder.add(fold.from, fold.to, hidden);
       }
       if (line.to >= to || line.number >= doc.lines) break;
     }

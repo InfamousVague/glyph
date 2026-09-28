@@ -1,32 +1,35 @@
 /**
- * The date and the time as the app writes them into a note: one way, wherever a note is stamped. The + beside the
- * line writes "28 Sep 2026, 14:05" where the caret is (editor/AddList.tsx), and a journal titles its entries by the
- * same words, so a stamp typed by the + and an entry's title read alike.
+ * A moment written as words, one way wherever the app writes one: the time the + puts at the line (docs/DESIGN.md
+ * §141), a journal entry's date and time (§142, book/template.ts `{{date}}` and `{{time}}`), and the home page's day.
  *
- * The rules are a meeting's title's (capture/meeting.ts `meetingTitle`): the day and the short month in the locale's
- * own order, with the locale's literals between them dropped and its own abbreviation kept ("Sept." in German), and
- * then a 24-hour clock. A stamp adds the year after the month, since a note outlives the year it was written in. The
- * long day is the home page's heading (home/HomeScreen.tsx), "Monday 28 September".
+ * In the device's own language and order, and always on a 24-hour clock, as a meeting's title is written
+ * (capture/meeting.ts `meetingTitle`): "14:05" reads the same to everyone who reads the note later, and a note does
+ * not say "2:05" and leave the afternoon to be guessed. Pure, and it imports nothing, so the MCP server fills a
+ * journal's template with the same words the app does.
  *
- * Pure, and read in the device's own locale: a stamp is words for the person who wrote it.
+ * Every format is asked of `Intl.DateTimeFormat` with no locale, which is the device's, so the three agree with each
+ * other and with the rest of the page.
  */
 
-/** "28 Sep 2026, 14:05": the day and the short month in the locale's order, the year, and a 24-hour clock. */
+/** "28 Sep 2026, 14:05": the day and the short month in the locale's order, the year, and the time. */
 export function stamp(date: Date): string {
-  const parts = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).formatToParts(date);
-  const day = parts
+  // The day and the month in the locale's own order, its literals between them dropped (de-DE's "28. Sept." is
+  // "28 Sept."), as a meeting's title takes them; a locale's own abbreviation is kept as it is.
+  const dayMonth = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
+    .formatToParts(date)
     .filter((part) => part.type === 'day' || part.type === 'month')
     .map((part) => part.value)
     .join(' ');
-  return `${day} ${date.getFullYear()}, ${clockTime(date)}`;
+  const year = new Intl.DateTimeFormat(undefined, { year: 'numeric' }).format(date);
+  return `${dayMonth} ${year}, ${clockTime(date)}`;
 }
 
-/** "14:05": the time on a 24-hour clock, whatever the locale's own clock. */
+/** "14:05": the time on a 24-hour clock, whatever clock the locale keeps. */
 export function clockTime(date: Date): string {
   return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
 }
 
-/** "Monday 28 September": the weekday, the day and the long month, as the home page heads its day. */
+/** "Monday 28 September": the weekday, the day and the month, no year, as the home page greets the day. */
 export function longDay(date: Date): string {
-  return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  return new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(date);
 }

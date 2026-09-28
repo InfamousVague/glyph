@@ -3,6 +3,7 @@ import { imageUrl } from '../core/images.ts';
 import { openLink } from '../core/linkPreview.ts';
 import { shortUrl } from '../core/shortUrl.ts';
 import { Editor } from '../editor/Editor.tsx';
+import type { VideoMode } from '../editor/videos.ts';
 import { NotePeek } from '../notes/NotePeek.tsx';
 import { fileTitle, isImageFile, isOnlyTable, ownPicture, paintProps, type CanvasHue } from './cardLooks.ts';
 import type { CanvasWiki } from './CanvasView.tsx';
@@ -28,6 +29,8 @@ export interface CardProps {
   node: CanvasNode;
   dark: boolean;
   wiki?: CanvasWiki;
+  /** Whose film cards a card of words draws (editor/videos.ts): the owner's still, or a shared page's. */
+  videos?: VideoMode;
   /** The canvas, which is what "near the screen" is measured against. */
   root: RefObject<HTMLDivElement | null>;
   /** Open to be written in: a card of words shows its editor as the note does, taking every tap and key. */
@@ -129,7 +132,7 @@ function cornerOf({ node, editing, onResize, onPreviewSize, scale }: Pick<CardPr
 
 /** A card of words: the note's own editor, read-only in its peek until opened, then live in the note's mode. */
 function TextCard(props: KindProps<'text'>) {
-  const { node, hue, place, dark, root, editing = false, lifted = false, lineFrom = false, onWrite, onRemove } = props;
+  const { node, hue, place, dark, videos, root, editing = false, lifted = false, lineFrom = false, onWrite, onRemove } = props;
   // Opened to be written in: the keyboard comes up with it (Matt: "a text card appears under the fingers, keyboard up").
   const opened = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -156,7 +159,7 @@ function TextCard(props: KindProps<'text'>) {
         </div>
       ) : (
         <Near root={root} className={styles.words}>
-          <Editor value={node.text} onChange={noop} dark={dark} assist={false} readOnly display="formatted" peek diagrams grow />
+          <Editor value={node.text} onChange={noop} dark={dark} assist={false} readOnly display="formatted" videos={videos} peek diagrams grow />
         </Near>
       )}
       {editing && onRemove ? <Remove label="Take this card off the canvas" onPress={() => onRemove(node.id)} /> : null}

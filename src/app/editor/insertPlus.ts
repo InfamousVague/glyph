@@ -31,12 +31,22 @@ import { plusLine } from './plusLine.ts';
  * other key, a change or a caret move closes it. Tab reaches the + from the editor even while it waits, and Enter on
  * it opens the list with the focus in it.
  *
+ * A change that leaves the caret on the same empty line (a space, Enter ending an empty item) leaves the + where it
+ * is, rather than blinking it out and back.
+ *
+ * It sits level with the caret's row: the middle of the line's own row, inside the border and padding a quote's last
+ * line or a callout's carries below its words. Beside a line with a lead (`- `, `2. `, `> `) it is drawn smaller and
+ * at the gutter's outer edge, or it and the lead's own mark would read as one, "+-".
+ *
  * While shown, its line carries `cm-plusLine`, which fades the bookmark's edge in the same gutter; the class is only
  * changed while nothing is being composed, since rebuilding a line under a live composition breaks typing on a phone
  * (editor/glyphLines.ts).
  */
 
-/** How long the caret rests on an empty line before the + comes: long enough that Enter, Enter never flickers it. */
+/**
+ * How long the caret rests on an empty line before the + comes: long enough that Enter, Enter never flickers it, and
+ * short enough to read as at once.
+ */
 export const SETTLE_MS = 150;
 /** The + arriving, on typing's own arc (editor/wispMotion.ts `IN_MS`); a keystroke inside it takes it at once. */
 const IN_MS = 350;
@@ -139,6 +149,35 @@ function lineElement(view: EditorView, from: number): HTMLElement | null {
   }
 }
 
+/** Where the + goes, in the scroller's own coordinates. */
+interface PlusBox {
+  top: number;
+  height: number;
+  left: number;
+}
+
+/**
+ * The row of line `number`, in the scroller's coordinates: the line's box less the border and padding round its words,
+ * which a quote's last line and a callout's carry below them. An empty line is one row, so this is the caret's row.
+ */
+function measureRow(view: EditorView, number: number): PlusBox | null {
+  if (number > view.state.doc.lines) return null;
+  const element = lineElement(view, view.state.doc.line(number).from);
+  if (!element) return null;
+  const row = element.getBoundingClientRect();
+  const style = getComputedStyle(element);
+  const px = (value: string) => parseFloat(value) || 0;
+  const above = px(style.borderTopWidth) + px(style.paddingTop);
+  const below = px(style.borderBottomWidth) + px(style.paddingBottom);
+  const inner = row.height - above - below;
+  const scroller = view.scrollDOM.getBoundingClientRect();
+  return {
+    top: row.top + (inner > 0 ? above : 0) - scroller.top + view.scrollDOM.scrollTop,
+    height: inner > 0 ? inner : row.height,
+    left: view.contentDOM.offsetLeft,
+  };
+}
+
 function plusView(hooks: PlusHooks) {
   return ViewPlugin.fromClass(
     class {
@@ -228,13 +267,16 @@ function plusView(hooks: PlusHooks) {
         window.clearTimeout(this.settleTimer);
         const line = this.target();
         if (this.look === 'shown') {
-          if (line && line.number === this.line && !changed) {
+          // Still beside the same empty line, however it changed: it stays, rather than blinking out and back.
+          if (line && line.number === this.line) {
+            this.lead(line.text);
             this.place();
             return;
           }
           this.out(changed);
         }
         this.line = line?.number ?? null;
+        this.lead(line?.text ?? '');
         if (!line) {
           if (this.look !== 'leaving') this.set('off');
           return;
@@ -255,10 +297,18 @@ function plusView(hooks: PlusHooks) {
           this.reconsider(false);
           return;
         }
+        // Placed before it is seen: a measure queued for the next frame can come after a busy frame's paint, and the +
+        // would fade in beside the row it last stood by.
+        this.lead(line.text);
+        this.placeNow();
         this.set('shown');
         this.shownAt = performance.now();
-        this.place();
         this.markLine();
+      }
+
+      /** Whether its line has a lead, which it keeps clear of (see the header). */
+      private lead(text: string) {
+        this.button.toggleAttribute('data-lead', text.trim() !== '');
       }
 
       /** The + going: on a deleted letter's beat, or at once when it had not finished arriving or motion is asked to be still. */
@@ -275,7 +325,7 @@ function plusView(hooks: PlusHooks) {
         this.leaveTimer = window.setTimeout(() => {
           if (this.look !== 'leaving') return;
           this.set(this.line === null ? 'off' : 'waiting');
-          this.place();
+          this.placeNow();
         }, OUT_MS);
       }
 
@@ -316,28 +366,27 @@ function plusView(hooks: PlusHooks) {
         if (event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom) this.show();
       };
 
-      /** Beside its line's row: measured from the line's own box, in the scroller's coordinates, as the swipe's tile is. */
+      /**
+       * Beside its line's row, in the scroller's coordinates, as the swipe's tile is: measured in CodeMirror's own
+       * measure, as an update may not read the layout.
+       */
       private place() {
         if (this.look === 'leaving' || this.line === null) return;
         const number = this.line;
-        this.view.requestMeasure({
-          key: this,
-          read: (view) => {
-            if (number > view.state.doc.lines) return null;
-            const from = view.state.doc.line(number).from;
-            const element = lineElement(view, from);
-            if (!element) return null;
-            const row = element.getBoundingClientRect();
-            const scroller = view.scrollDOM.getBoundingClientRect();
-            return { top: row.top - scroller.top + view.scrollDOM.scrollTop, height: row.height, left: view.contentDOM.offsetLeft };
-          },
-          write: (box) => {
-            if (!box) return;
-            this.button.style.top = `${box.top}px`;
-            this.button.style.height = `${box.height}px`;
-            this.button.style.left = `${box.left}px`;
-          },
-        });
+        this.view.requestMeasure({ key: this, read: (view) => measureRow(view, number), write: (box) => this.write(box) });
+      }
+
+      /** The same, at once: from a timer or an event, outside any update, where the layout may be read. */
+      private placeNow() {
+        if (this.look === 'leaving' || this.line === null || !this.view.dom.isConnected) return;
+        this.write(measureRow(this.view, this.line));
+      }
+
+      private write(box: PlusBox | null) {
+        if (!box) return;
+        this.button.style.top = `${box.top}px`;
+        this.button.style.height = `${box.height}px`;
+        this.button.style.left = `${box.left}px`;
       }
     },
   );
@@ -399,6 +448,12 @@ const plusTheme = EditorView.baseTheme({
     inlineSize: 'clamp(8px, calc(var(--app-gutter, 1rem) - 6px), 0.75rem)',
     blockSize: 'clamp(8px, calc(var(--app-gutter, 1rem) - 6px), 0.75rem)',
     transition: 'transform var(--app-turn, 420ms ease)',
+  },
+  // Beside a line's lead, smaller and at the gutter's outer edge, clear of the lead's own mark.
+  '.cm-plus[data-lead]': { placeItems: 'center start', paddingInlineStart: '2px' },
+  '.cm-plus[data-lead] svg': {
+    inlineSize: 'clamp(8px, calc(var(--app-gutter, 1rem) - 12px), 0.625rem)',
+    blockSize: 'clamp(8px, calc(var(--app-gutter, 1rem) - 12px), 0.625rem)',
   },
   // Open, the + is a ×: the same strokes, turned.
   ".cm-plus[aria-expanded='true'] svg": { transform: 'rotate(45deg)' },

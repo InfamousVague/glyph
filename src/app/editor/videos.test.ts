@@ -15,6 +15,8 @@ import { inlineImages } from './images.ts';
 const where = vi.hoisted(() => ({
   film: 'here' as 'here' | 'missing' | 'update' | 'elsewhere',
   plays: 'phone' as 'phone' | 'update' | 'elsewhere',
+  /** Whether the film is still on the phone when a card asks again. */
+  still: false,
   asked: [] as string[],
   gone: [] as string[],
 }));
@@ -27,7 +29,11 @@ vi.mock('../core/videos.ts', () => ({
     where.asked.push('(which device)');
     return where.plays;
   },
-  filmGone: (name: string) => where.gone.push(name),
+  filmStillHere: async (name: string) => {
+    where.asked.push(`again ${name}`);
+    if (!where.still) where.gone.push(name);
+    return where.still;
+  },
   videoUrl: (name: string) => `http://vid.localhost/${name}`,
 }));
 vi.mock('../core/images.ts', async (importOriginal) => ({
@@ -35,7 +41,7 @@ vi.mock('../core/images.ts', async (importOriginal) => ({
   imageUrl: (name: string) => `http://img.localhost/${name}`,
 }));
 
-const { videoCards, videoWords } = await import('./videos.ts');
+const { filmAdded, videoCards, videoWords } = await import('./videos.ts');
 
 const LINE = '[![video 0:12](image/p1.jpg)](video/f1.mp4)';
 
@@ -57,7 +63,7 @@ beforeEach(() => {
   // A phone's height with the keyboard up: jsdom lays nothing out, and CodeMirror draws only the cards whose estimated
   // heights fit its margin, which two at a 768px window's 60vh do not.
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: 400 });
-  Object.assign(where, { film: 'here', plays: 'phone', asked: [], gone: [] });
+  Object.assign(where, { film: 'here', plays: 'phone', still: false, asked: [], gone: [] });
   played = [];
   // jsdom has no media: a film plays and pauses as a flag, and says so as a real one does.
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (this: HTMLMediaElement) {
@@ -185,14 +191,26 @@ describe('playing', () => {
     view.destroy();
   });
 
-  it('says the film is gone when it will not play after all', async () => {
+  it('says the film is gone when it will not play after all, and the phone says it is not there', async () => {
     const card = cards(mount(LINE, 'play'))[0]!;
     await waitUntil(() => expect(card.querySelector('button[aria-label^="Play"]')).not.toBeNull());
     card.querySelector<HTMLButtonElement>('button[aria-label^="Play"]')!.click();
     card.querySelector('video')!.dispatchEvent(new Event('error'));
-    expect(wordsOf(card)).toBe('This video isn’t on this phone.');
+    await waitUntil(() => expect(wordsOf(card)).toBe('This video isn’t on this phone.'));
     expect(card.querySelector('video, button')).toBeNull();
     expect(where.gone).toEqual(['f1.mp4']);
+  });
+
+  it('says a film still on the phone that will not play cannot be played here, never that it is missing', async () => {
+    where.still = true;
+    const card = cards(mount(LINE, 'play'))[0]!;
+    await waitUntil(() => expect(card.querySelector('button[aria-label^="Play"]')).not.toBeNull());
+    card.querySelector<HTMLButtonElement>('button[aria-label^="Play"]')!.click();
+    card.querySelector('video')!.dispatchEvent(new Event('error'));
+    await waitUntil(() => expect(wordsOf(card)).toBe('This video can’t be played on this phone.'));
+    expect(where.asked).toContain('again f1.mp4');
+    expect(where.gone).toEqual([]);
+    expect(card.querySelector('video, button')).toBeNull();
   });
 
   it('goes full screen in a layer of the page, from where it had got to, and back hands the time back', async () => {
@@ -223,28 +241,70 @@ describe('playing', () => {
     expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     expect(goBack()).toBe(false);
   });
+
+  it('gives the focus back to its Full screen when it closes, by the close or by back', async () => {
+    const card = cards(mount(LINE, 'play'))[0]!;
+    await waitUntil(() => expect(card.querySelector('button[aria-label="Full screen"]')).not.toBeNull());
+    const full = card.querySelector<HTMLButtonElement>('button[aria-label="Full screen"]')!;
+    full.click();
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Close');
+    document.body.querySelector<HTMLButtonElement>('[role="dialog"] button[aria-label="Close"]')!.click();
+    expect(document.activeElement).toBe(full);
+    full.click();
+    goBack();
+    expect(document.activeElement).toBe(full);
+  });
 });
 
 describe('a film just added', () => {
   it('keeps the caret under its card in sight as the poster arrives, while the note has the focus', () => {
+    filmAdded('p1.jpg', 1080, 1920);
     const view = mount(`${LINE}\n`, 'play', LINE.length + 1);
+    const dispatch = vi.spyOn(view, 'dispatch');
+    vi.spyOn(view, 'hasFocus', 'get').mockReturnValue(true);
+    cards(view)[0]!.querySelector('img')!.dispatchEvent(new Event('load'));
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    view.destroy();
+  });
+
+  it('keeps it in sight once: a card drawn again as the note scrolls never pulls the page back to the caret', () => {
+    filmAdded('p1.jpg', 1080, 1920);
+    const view = mount(`${LINE}\n`, 'play', LINE.length + 1);
+    vi.spyOn(view, 'hasFocus', 'get').mockReturnValue(true);
     const dispatch = vi.spyOn(view, 'dispatch');
     const poster = cards(view)[0]!.querySelector('img')!;
     poster.dispatchEvent(new Event('load'));
-    expect(dispatch).not.toHaveBeenCalled();
-    vi.spyOn(view, 'hasFocus', 'get').mockReturnValue(true);
     poster.dispatchEvent(new Event('load'));
     expect(dispatch).toHaveBeenCalledTimes(1);
-    // The caret anywhere else is the person's to scroll to.
-    view.dispatch({ selection: { anchor: 0 } });
-    dispatch.mockClear();
-    poster.dispatchEvent(new Event('load'));
+    view.destroy();
+    // A film that was not just added, with the caret on the line under it, scrolls nothing as its poster comes.
+    const other = mount(`${LINE}\n`, 'play', LINE.length + 1);
+    vi.spyOn(other, 'hasFocus', 'get').mockReturnValue(true);
+    const again = vi.spyOn(other, 'dispatch');
+    cards(other)[0]!.querySelector('img')!.dispatchEvent(new Event('load'));
+    expect(again).not.toHaveBeenCalled();
+    other.destroy();
+  });
+
+  it('leaves the caret anywhere else to the person', () => {
+    filmAdded('p1.jpg', 1080, 1920);
+    const view = mount(`${LINE}\n`, 'play', 0);
+    vi.spyOn(view, 'hasFocus', 'get').mockReturnValue(true);
+    const dispatch = vi.spyOn(view, 'dispatch');
+    cards(view)[0]!.querySelector('img')!.dispatchEvent(new Event('load'));
     expect(dispatch).not.toHaveBeenCalled();
     view.destroy();
   });
 });
 
 describe('the film’s line', () => {
+  it('in fenced code is the code as written, with no card and no fold', () => {
+    const view = mount(`Before\n\`\`\`\n${LINE}\n\`\`\`\nAfter`, 'play', 0);
+    expect(cards(view)).toHaveLength(0);
+    expect(shown(view, 3)).toBe(LINE);
+    view.destroy();
+  });
+
   it('reads as its words off the caret’s line, and as written on it while the note is being written', () => {
     const view = mount(`Harbour\n${LINE}`, 'play', 0);
     expect(shown(view, 2)).toBe('video 0:12');

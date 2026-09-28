@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { imageNames } from './imageRefs.ts';
-import { lengthOf, lengthText, videoMarkdown, videoNames, videoOfLine } from './videoRefs.ts';
+import { VIDEO_EXTENSIONS, lengthOf, lengthText, videoMarkdown, videoNames, videoOfLine } from './videoRefs.ts';
 
 /**
  * How a note names a film (core/videoRefs.ts): a poster picture linked to it, whose poster every picture pipeline
@@ -56,5 +58,15 @@ describe('a film in the words', () => {
     expect(lengthText(59_600)).toBe('1:00');
     expect(lengthText(724_000)).toBe('12:04');
     expect(lengthText(3_723_000)).toBe('1:02:03');
+  });
+});
+
+describe('the kinds of film', () => {
+  it('are the ones Rust keeps, each of which a line names', () => {
+    const rust = readFileSync(join(process.cwd(), 'src-tauri/src/videos.rs'), 'utf8');
+    const kept = /pub const EXTENSIONS: \[&str; \d+\] = \[([^\]]*)\]/.exec(rust)?.[1];
+    expect(kept, 'videos.rs no longer says `pub const EXTENSIONS`').toBeDefined();
+    expect([...kept!.matchAll(/"(\w+)"/g)].map((found) => found[1]).sort()).toEqual([...VIDEO_EXTENSIONS].sort());
+    for (const kind of VIDEO_EXTENSIONS) expect(videoNames(`[![video 0:01](image/p.jpg)](video/f.${kind})`), kind).toEqual([`f.${kind}`]);
   });
 });

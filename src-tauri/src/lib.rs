@@ -94,7 +94,6 @@ mod images;
 mod videos;
 mod ranged;
 
-
 // Starting over, from developer settings: notes, recordings, pictures, and on
 // request the models. See its header.
 mod reset;

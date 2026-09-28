@@ -133,6 +133,32 @@ describe('a thing on a line of its own', () => {
     outsideBlocks(out, PICTURE);
   });
 
+  it('keeps apart from a paragraph above when it is a link, a place, so no reader runs it into the sentence', () => {
+    const doc = 'Lunch at the harbour\n';
+    const state = stateOf(doc);
+    const out = after(state, ownLinePlan(state, doc.length, PLACE, { apart: true }));
+    expect(out.doc).toBe(`Lunch at the harbour\n\n${PLACE}\n`);
+    expect(out.caret).toBe(out.doc.length);
+    const tree = ensureSyntaxTree(stateOf(out.doc), out.doc.length, 5000)!;
+    const paragraph = tree.resolveInner(out.doc.indexOf(PLACE) + 1, 1);
+    let node: SyntaxNode | null = paragraph;
+    while (node && node.name !== 'Paragraph') node = node.parent;
+    expect(node?.from).toBe(out.doc.indexOf(PLACE));
+    // Under a line of words that the caret is on, too; and a picture keeps to the line under the words.
+    const words = stateOf('Lunch', 2);
+    expect(after(words, ownLinePlan(words, 2, PLACE, { apart: true })).doc).toBe(`Lunch\n\n${PLACE}\n`);
+    expect(after(state, ownLinePlan(state, doc.length, PICTURE)).doc).toBe(`Lunch at the harbour\n${PICTURE}\n`);
+  });
+
+  it('keeps out of a list item whose words run on to a line of their own', () => {
+    // The second line has no lead: only the parser says it is still the item's.
+    const doc = '- milk\nand eggs\n';
+    const state = stateOf(doc);
+    const out = after(state, ownLinePlan(state, doc.length, PICTURE)).doc;
+    expect(out).toBe(`- milk\nand eggs\n\n${PICTURE}\n`);
+    outsideBlocks(out, PICTURE);
+  });
+
   it('keeps a bookmarked or anchored empty item, and goes under it', () => {
     const doc = '- [ ] ^anchor';
     const state = stateOf(doc);
@@ -262,6 +288,11 @@ describe('a line’s form', () => {
     expect(form('', 'sum')).toBe('= ');
   });
 
+  it('leaves an empty quote line a quote, and never nests another in it', () => {
+    expect(form('> ', 'quote')).toBe('> ');
+    expect(form('>', 'quote')).toBe('>');
+  });
+
   it('keeps a quote around a heading, and a list’s lead before a sum', () => {
     expect(form('> ', 'heading')).toBe('> ## ');
     expect(form('- ', 'sum')).toBe('- = ');
@@ -278,9 +309,11 @@ describe('a footnote', () => {
     expect(out.caret).toBe(out.doc.length);
   });
 
-  it('starts at 1 with a blank line before its words', () => {
+  it('starts at 1, closing the words just above an empty line, with a blank line before its words', () => {
     const state = stateOf('Words\n', 6);
-    expect(after(state, footnotePlan(state, 6)).doc).toBe('Words\n[^1]\n\n[^1]: ');
+    expect(after(state, footnotePlan(state, 6)).doc).toBe('Words[^1]\n\n[^1]: ');
+    const apart = stateOf('Words\n\n', 7);
+    expect(after(apart, footnotePlan(apart, 7)).doc).toBe('Words\n\n[^1]\n\n[^1]: ');
   });
 });
 
@@ -292,6 +325,18 @@ describe('one Undo for each', () => {
     apply(view, blockPlan(view.state, doc.length, '| Column | Column |\n| --- | --- |\n| Cell | Cell |', { from: 2, to: 8 }));
     undo(view);
     expect(view.state.doc.toString()).toBe(doc);
+    view.destroy();
+  });
+
+  it('keeps what is typed straight after it a step of its own', () => {
+    const view = viewOf('Para\n');
+    apply(view, itemPlan(view.state, view.state.doc.length, 'todo'));
+    const end = view.state.doc.length;
+    view.dispatch({ changes: { from: end, insert: 'milk' }, selection: { anchor: end + 4 }, userEvent: 'input.type' });
+    undo(view);
+    expect(view.state.doc.toString()).toBe('Para\n- [ ] ');
+    undo(view);
+    expect(view.state.doc.toString()).toBe('Para\n');
     view.destroy();
   });
 });
@@ -320,18 +365,45 @@ describe('a line that arrives later', () => {
     view.destroy();
   });
 
-  it('with a stale focus token: no selection, no focus taken', () => {
+  it('with a stale focus token: no focus taken, no scroll, and a caret left on the line carried past it', () => {
     const view = viewOf('One\n\n', 5);
     const other = document.body.appendChild(document.createElement('input'));
     const token = focusToken(view);
     other.focus();
     const spot = reserveSpot(view);
     const focus = vi.spyOn(view, 'focus');
+    const dispatch = vi.spyOn(view, 'dispatch');
     insertLineAt(view, spot, PLACE, { userEvent: 'input.plus.drawn', token });
     expect(view.state.doc.toString()).toBe(`One\n\n${PLACE}\n`);
-    expect(view.state.selection.main.head).toBe(5);
+    // Left at the line's start, the first letter typed on coming back would go in front of the place and break it.
+    expect(view.state.selection.main.head).toBe(`One\n\n${PLACE}\n`.length);
+    expect(dispatch.mock.calls[0]![0]).not.toHaveProperty('scrollIntoView');
     expect(focus).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(other);
+    token.done();
+    view.destroy();
+  });
+
+  it('with a stale focus token leaves a caret the person put elsewhere where it is', () => {
+    const view = viewOf('One\n\nTwo', 4);
+    const other = document.body.appendChild(document.createElement('input'));
+    const token = focusToken(view);
+    other.focus();
+    const spot = reserveSpot(view);
+    view.dispatch({ selection: { anchor: 3 } });
+    insertLineAt(view, spot, PLACE, { userEvent: 'input.plus.drawn', token, apart: true });
+    expect(view.state.selection.main.head).toBe(3);
+    token.done();
+    view.destroy();
+  });
+
+  it('counts a focus inside the note as the note’s, and one anywhere else as somewhere else', () => {
+    const view = viewOf('One\n');
+    const token = focusToken(view);
+    view.contentDOM.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(token.fresh()).toBe(true);
+    document.body.appendChild(document.createElement('input')).focus();
+    expect(token.fresh()).toBe(false);
     token.done();
     view.destroy();
   });
@@ -398,6 +470,28 @@ describe('a place’s name that comes late', () => {
     expect(nameLater(view, spot, depth, COORDS, NAMED)).toBe(false);
     redo(view);
     expect(view.state.doc.toString()).toBe(`Lunch at the harbour\n${COORDS}\nx`);
+    view.destroy();
+  });
+
+  it('keeps what is typed straight after it a step of its own', () => {
+    const { view, spot, depth } = written();
+    expect(nameLater(view, spot, depth, COORDS, NAMED)).toBe(true);
+    // Right against the name, where CodeMirror would otherwise take the two as one change.
+    const end = view.state.doc.length - 1;
+    view.dispatch({ changes: { from: end, insert: ' at noon' }, userEvent: 'input.type' });
+    undo(view);
+    expect(view.state.doc.toString()).toBe(`Lunch at the harbour\n${NAMED}\n`);
+    view.destroy();
+  });
+
+  it('is never written into a note whose undo is not the editor’s own, as a note live on two devices is', () => {
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'Lunch at the harbour\n', selection: { anchor: 21 }, extensions: [glyphMarkdown([], []), insertSpots] }),
+      parent: document.body.appendChild(document.createElement('div')),
+    });
+    const landed = insertLineAt(view, reserveSpot(view), COORDS, { userEvent: 'input.plus.drawn' });
+    expect(nameLater(view, landed.spot, 0, COORDS, NAMED)).toBe(false);
+    expect(view.state.doc.toString()).toBe(`Lunch at the harbour\n${COORDS}\n`);
     view.destroy();
   });
 

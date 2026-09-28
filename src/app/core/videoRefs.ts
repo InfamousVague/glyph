@@ -18,8 +18,14 @@ import { lineWords } from './itemSyntax.ts';
  * Only the words, and nothing that reaches a device, as core/imageRefs.ts and core/placeRefs.ts are.
  */
 
+/**
+ * The kinds of film a note names. RUST TWIN: src-tauri/src/videos.rs `EXTENSIONS`, which keeps them, and which a test
+ * here reads: a kind the phone keeps that the page does not name would be a film with no card.
+ */
+export const VIDEO_EXTENSIONS = ['mp4', 'm4v', 'mov', 'webm'] as const;
+
 /** A film's reference in a body: the alt, the poster's name and the film's name, as groups 1 to 3. Global. */
-export const VIDEO_REF = /\[!\[([^\]\n]*)\]\(image\/([A-Za-z0-9_.-]+)\)\]\(video\/([A-Za-z0-9_-]+\.(?:mp4|m4v|mov|webm))\)/g;
+export const VIDEO_REF = new RegExp(`\\[!\\[([^\\]\\n]*)\\]\\(image\\/([A-Za-z0-9_.-]+)\\)\\]\\(video\\/([A-Za-z0-9_-]+\\.(?:${VIDEO_EXTENSIONS.join('|')}))\\)`, 'g');
 
 /** The one form a video line's words take. */
 const VIDEO_WORDS = new RegExp(`^${VIDEO_REF.source}$`);

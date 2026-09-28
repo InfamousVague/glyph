@@ -165,11 +165,11 @@ from a list of ideas.
   its line, with or without a list's or a quote's lead: what the + beside the line writes for A place. The map card is
   drawn under it, live on the note screen (tiles only with the map switch on and Local only off), quiet until asked on
   a shared page, and not at all on a note drawn small or a notebook read straight through. Off the caret's line the
-  `[` and the `](geo:…)` fold away and the name reads alone. Four decimals, or two for a rough fix, which reads back
-  as rough. The words are the place's name, or the coordinates when no name came. A share leaves every `geo:` address
-  out unless "Share the places in it" is ticked (docs/SHARING.md). Another app shows a link; Obsidian's Map View reads
-  inline places only in a note whose own front matter has `locations:`, which a Ghost.md note never has, so there too
-  it is a link. (`src/app/core/placeRefs.ts`, `src/app/editor/placeCards.ts`)
+  `[` and the `](geo:…)` fold away and the name reads alone, but in fenced code. Four decimals, or two for a rough
+  fix, which reads back as rough. The words are the place's name, or the coordinates when no name came. A share leaves
+  every `geo:` address out unless "Share the places in it" is ticked (docs/SHARING.md). Another app shows a link;
+  Obsidian's Map View reads inline places only in a note whose own front matter has `locations:`, which a Ghost.md
+  note never has, so there too it is a link. (`src/app/core/placeRefs.ts`, `src/app/editor/placeCards.ts`)
 - **Films — `[![video 0:12](image/<poster>.jpg)](video/<name>.mp4)`.** A poster picture linked to its film, alone on
   its line, with or without a list's or a quote's lead: what the + beside the line writes for A video, on an Android
   phone from native generation 21. The alt is "video" and the length, as a voice memo's is. The poster is an ordinary
@@ -178,9 +178,11 @@ from a list of ideas.
   length at its foot: on the note screen, on the phone that has the film, a tap plays it (a HEAD to the app's `vid`
   scheme first says whether it is there, and "This video isn’t on this phone." when it is not); on another device, a
   shared page or an older binary it is the still, with a sentence for that reader. The picture widget steps aside for
-  the line, so the poster is drawn once. Off the caret's line the `[![` and the `](image/…)](video/…)` fold away and
-  "video 0:12" reads alone. Another app shows the still as a link to a file it does not have: pictures live in the
-  app's own storage, outside the library. (`src/app/core/videoRefs.ts`, `src/app/editor/videos.ts`)
+  the line, so the poster is drawn once. A film on the phone that will not play is asked about again, and its card
+  says "This video can’t be played on this phone." rather than that it is missing. Off the caret's line the `[![` and
+  the `](image/…)](video/…)` fold away and "video 0:12" reads alone, but in fenced code, where the line is the code's
+  words. Another app shows the still as a link to a file it does not have: pictures live in the app's own storage,
+  outside the library. (`src/app/core/videoRefs.ts`, `src/app/editor/videos.ts`)
 
 ### Where an insert goes
 
@@ -192,7 +194,10 @@ where it is other readers the rule is for (`src/app/editor/inserts.ts`, its test
   that line has no words: blank, or only a list's, a to-do's or a quote's lead. Otherwise it goes on a new line after
   it, and a line is never split. A line that holds a bookmark or an anchor is kept, since taking it would lose them.
   When the line above is a list item, a quote or a table row, a blank line goes first: `- [ ] ` followed by a picture
-  was a to-do whose words were the picture, and a picture on the empty line under a table was a row of it.
+  was a to-do whose words were the picture, and a picture on the empty line under a table was a row of it. A place, a
+  film and a frame, which are links, keep a blank line from a paragraph above too: `Lunch at the harbour` then a place
+  is one paragraph in any other reader, "Lunch at the harbour Cais do Sodré, Lisbon". A picture under a paragraph
+  stays on the next line, which every reader draws as a picture of its own.
 - **A block** (a table, a rule, a fence, a callout, a board) is the same, with a blank line on either side where the
   line there has words. Without the one after, a table took the next line of words as a row. Without the one before,
   `Para` then `---` is a level 2 heading in Obsidian, GitHub and any CommonMark reader, though never in Ghost.md, whose

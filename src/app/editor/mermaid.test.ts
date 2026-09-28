@@ -90,7 +90,7 @@ describe('a diagram drawn in a note', () => {
     await vi.waitFor(() => expect(diagram?.hasAttribute('data-drawn')).toBe(true));
     expect(diagram?.querySelector('svg')?.getAttribute('data-code')).toBe('flowchart TD');
     // A note can come from anywhere: no HTML out of a diagram, ever.
-    expect(library.settings[0]).toMatchObject({ securityLevel: 'strict', theme: 'default', startOnLoad: false });
+    expect(library.settings[0]).toMatchObject({ securityLevel: 'strict', theme: 'neutral', startOnLoad: false });
   });
 
   it('draws one diagram at a time, and draws what it has drawn once', async () => {
@@ -138,7 +138,8 @@ describe('a diagram drawn in a note', () => {
     // A drawn diagram carries its colours inside its picture, so it cannot follow a CSS variable.
     setPreferences({ theme: 'dark' });
     await vi.waitFor(() => expect(library.pending).toHaveLength(2));
-    expect(library.settings.map((settings) => settings.theme)).toEqual(['default', 'dark']);
+    // Mermaid's grey on a light page, never its lavender default: the app's two inks.
+    expect(library.settings.map((settings) => settings.theme)).toEqual(['neutral', 'dark']);
   });
 
   it('draws nothing for an empty fence', () => {

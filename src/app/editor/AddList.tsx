@@ -46,7 +46,8 @@ import styles from './AddList.module.css';
  * It is not a sheet, which would take the page and the keyboard with it, and not the sideways band of press and hold,
  * whose bold words under icons read as a toolbox. It is the list the + promised: seven things and More, which turns
  * the list over to the rest in the same card, with Back at its top (Matt: "Fuller but hide extras behind nested
- * menu").
+ * menu"). More and Back are the doors between the two pages, so neither ever scrolls: a phone's keyboard leaves room
+ * for six or seven rows at most, and the rows between the doors scroll under a fade while the doors stay put.
  *
  * **Focus.** Pressed with a finger or a mouse, the list never takes the focus: the editor keeps it, with its caret and
  * the keyboard, and the list is driven from the editor's keys (Up and Down move the lit row, Enter chooses it, Escape
@@ -54,10 +55,14 @@ import styles from './AddList.module.css';
  * the keyboard on the + itself, the focus comes into the list's first row. A step that asks which note to link to is
  * the one place the list takes the focus on purpose, for its field.
  *
+ * The lit row wears the kit's ring only once a key has moved it, so the keyboard's place is seen; lit by the pointer,
+ * or first as the list opens, it has the pressed paper and no ring, which would otherwise follow the mouse about.
+ *
  * **Closing.** A row chosen closes the list first and then does what it says. So do a press anywhere else, a wheel or
  * a drag outside it, Escape, the back gesture, the × pressed again, any other key, and any change or caret move in the
  * note. A scroll does not: the keyboard rising shortens the page and the editor scrolls the caret into view, so the
- * list follows the + instead, and closes only once the + has left the screen.
+ * list follows the + instead, and closes only once the + has left the screen. On More or a step, the back gesture
+ * goes back a page, as Back and Left do.
  */
 
 export interface AddListProps {
@@ -140,6 +145,8 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
   // keys have a place to start from.
   const driven = opening.by !== 'keyboard';
   const [active, setActive] = useState(opening.by === 'touch' ? -1 : 0);
+  // Whether a key moved the lit row last, rather than the pointer or the list opening: only then is it ringed.
+  const [keyed, setKeyed] = useState(false);
 
   // The gates, read once as the list opens (editor/addRows.ts).
   const gates = useMemo(
@@ -227,6 +234,7 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
 
   const move = (by: number) => {
     if (!rows.length) return;
+    setKeyed(true);
     setActive((was) => (was < 0 ? (by > 0 ? 0 : rows.length - 1) : (was + by + rows.length) % rows.length));
   };
 
@@ -282,8 +290,8 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
     }
   };
 
-  // The phone's back gesture closes it.
-  useBack(true, () => close(true));
+  // The phone's back gesture goes back a page, as Back does, and closes the list from its first.
+  useBack(true, () => (page === 'top' ? close(true) : go('top', 'back')));
 
   // It closes on a press anywhere but itself and the +, and on a wheel or a drag outside it.
   useEffect(() => {
@@ -424,6 +432,48 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
   const step = page === 'note' || page === 'canvas';
   const found = step ? linkableTitles((page === 'note' ? titles : canvases)?.() ?? [], own, looking) : [];
 
+  /** A row of the menu, where it is drawn: among the rows that scroll, or held at the card's top or foot. */
+  const menuRow = (row: (typeof rows)[number], index: number) => {
+    const dimmed = 'dimmed' in row ? row.dimmed : undefined;
+    return (
+      <button
+        key={row.id}
+        type="button"
+        role="menuitem"
+        id={rowId(row.id)}
+        className={styles.row}
+        data-index={index}
+        data-active={(driven && index === active) || undefined}
+        tabIndex={driven ? -1 : index === Math.max(0, active) ? 0 : -1}
+        aria-disabled={dimmed ? true : undefined}
+        aria-label={'label' in row ? row.label : undefined}
+        onClick={() => choose(row)}
+        onPointerEnter={(event) => {
+          if (!driven || event.pointerType !== 'mouse') return;
+          setKeyed(false);
+          setActive(index);
+        }}
+      >
+        <span className={styles.icon} aria-hidden="true">
+          {iconFor(row.id)}
+        </span>
+        <span className={styles.words}>
+          {row.words}
+          {dimmed ? <span className={styles.why}>{dimmed}</span> : null}
+        </span>
+        {'step' in row && row.step === 'more' ? (
+          <span className={styles.onward} aria-hidden="true">
+            <ChevronRight size={16} strokeWidth={2} />
+          </span>
+        ) : null}
+      </button>
+    );
+  };
+  // The doors between the pages never scroll away: Back held at the top of More, More at the foot of the first page.
+  const head = page === 'more' && rows[0]?.id === 'back' ? 0 : -1;
+  const foot = page === 'top' && rows.at(-1)?.id === 'more' ? rows.length - 1 : -1;
+  const turned = { 'data-turn': turn ?? undefined };
+
   return (
     <div
       ref={card}
@@ -431,22 +481,31 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
       id={LIST_ID}
       role={step ? 'group' : 'menu'}
       aria-label={step ? (page === 'note' ? 'Which note?' : 'Which canvas?') : 'Add to this note'}
+      data-keys={(driven && keyed) || undefined}
       // A press on the list must not take the editor's focus or its caret, for a mouse as for a finger.
       onPointerDown={(event) => {
         if (!(event.target instanceof HTMLInputElement)) event.preventDefault();
       }}
       onKeyDown={onKeyDown}
     >
-      <div ref={rowsBox} className={styles.rows} data-more={more || undefined}>
-        <div key={page} className={styles.page} data-turn={turn ?? undefined}>
+      {step ? (
+        <div key={`${page}-head`} className={`${styles.page} ${styles.head}`} {...turned}>
+          <button type="button" className={styles.row} data-index={0} onClick={() => go('top', 'back')}>
+            <span className={styles.icon} aria-hidden="true">
+              {iconFor('back')}
+            </span>
+            <span className={styles.words}>Back</span>
+          </button>
+        </div>
+      ) : head >= 0 ? (
+        <div key={`${page}-head`} className={`${styles.page} ${styles.head}`} {...turned}>
+          {menuRow(rows[head]!, head)}
+        </div>
+      ) : null}
+      <div ref={rowsBox} className={styles.rows} data-rows="" data-more={more || undefined}>
+        <div key={page} className={styles.page} {...turned}>
           {step ? (
             <>
-              <button type="button" className={styles.row} data-index={0} onClick={() => go('top', 'back')}>
-                <span className={styles.icon} aria-hidden="true">
-                  {iconFor('back')}
-                </span>
-                <span className={styles.words}>Back</span>
-              </button>
               <p className={styles.title}>{page === 'note' ? 'Which note?' : 'Which canvas?'}</p>
               <input
                 className={styles.field}
@@ -481,43 +540,15 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
               </ul>
             </>
           ) : (
-            rows.map((row, index) => {
-              const dimmed = 'dimmed' in row ? row.dimmed : undefined;
-              return (
-                <button
-                  key={row.id}
-                  type="button"
-                  role="menuitem"
-                  id={rowId(row.id)}
-                  className={styles.row}
-                  data-index={index}
-                  data-active={(driven && index === active) || undefined}
-                  tabIndex={driven ? -1 : index === Math.max(0, active) ? 0 : -1}
-                  aria-disabled={dimmed ? true : undefined}
-                  aria-label={'label' in row ? row.label : undefined}
-                  onClick={() => choose(row)}
-                  onPointerEnter={(event) => {
-                    if (driven && event.pointerType === 'mouse') setActive(index);
-                  }}
-                >
-                  <span className={styles.icon} aria-hidden="true">
-                    {iconFor(row.id)}
-                  </span>
-                  <span className={styles.words}>
-                    {row.words}
-                    {dimmed ? <span className={styles.why}>{dimmed}</span> : null}
-                  </span>
-                  {'step' in row && row.step === 'more' ? (
-                    <span className={styles.onward} aria-hidden="true">
-                      <ChevronRight size={16} strokeWidth={2} />
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })
+            rows.map((row, index) => (index === head || index === foot ? null : menuRow(row, index)))
           )}
         </div>
       </div>
+      {foot >= 0 ? (
+        <div key={`${page}-foot`} className={`${styles.page} ${styles.foot}`} {...turned}>
+          {menuRow(rows[foot]!, foot)}
+        </div>
+      ) : null}
     </div>
   );
 }

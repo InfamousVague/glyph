@@ -19,9 +19,42 @@ class VideoPickTest {
       """{"path":"/cache/picked/a.mp4","poster":"/cache/picked/a.jpg","ms":12345,"width":1080,"height":1920}""",
       VideoPick.picked("/cache/picked/a.mp4", "/cache/picked/a.jpg", 12_345, 1080, 1920),
     )
+    assertEquals("""{"copying":true}""", VideoPick.copying())
     assertEquals("""{"cancelled":true}""", VideoPick.cancelled())
     assertEquals("""{"error":"There isn’t room on this phone for that video."}""", VideoPick.failed(VideoPick.NO_ROOM))
     assertEquals("""{"error":"This video can’t be read."}""", VideoPick.failed(VideoPick.UNREADABLE))
+    assertEquals("""{"error":"This kind of video can’t be added. MP4, MOV and WebM can."}""", VideoPick.failed(VideoPick.UNSUPPORTED))
+  }
+
+  /** A film of `blocks` megabytes of nothing, read without holding it. */
+  private fun nothing(blocks: Int) =
+    object : java.io.InputStream() {
+      var left = blocks.toLong() * 1024 * 1024
+      override fun read(): Int = if (left-- > 0) 0 else -1
+      override fun read(into: ByteArray, at: Int, length: Int): Int {
+        if (left <= 0) return -1
+        val n = minOf(length.toLong(), left).toInt()
+        left -= n
+        return n
+      }
+    }
+
+  @Test
+  fun a_copy_stops_before_the_phone_is_full_and_runs_on_while_there_is_room() {
+    val mb = 1024L * 1024
+    var looked = 0
+    val kept = java.io.ByteArrayOutputStream()
+    VideoPick.copy(nothing(3), kept) { looked += 1; 0L }
+    assertEquals("a short film is copied before the room is looked at", 3 * mb, kept.size().toLong())
+    val sink = object : java.io.OutputStream() { override fun write(b: Int) = Unit; override fun write(b: ByteArray, off: Int, len: Int) = Unit }
+    VideoPick.copy(nothing(128), sink) { 600 * mb }
+    try {
+      VideoPick.copy(nothing(128), sink) { 499 * mb }
+      throw AssertionError("a copy that would leave less than the spare room went on")
+    } catch (full: VideoPick.NoRoom) {
+      // Stopped: the page is told there is no room.
+    }
+    assertEquals(0, looked)
   }
 
   @Test

@@ -51,6 +51,21 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('a page that loads while the shell holds a film', () => {
+  it('listens from the moment it loads, where the bridge has the picker', async () => {
+    vi.resetModules();
+    const was = window.__glyph;
+    window.__glyph = {};
+    window.GlyphHost = { pickVideo: () => 'started' } as unknown as Window['GlyphHost'];
+    try {
+      await import('./videos.ts');
+      expect(typeof window.__glyph?.video).toBe('function');
+    } finally {
+      window.__glyph = was;
+    }
+  });
+});
+
 describe('who may add a film', () => {
   it('is an Android binary of generation 21 whose bridge has the picker, and nothing else', async () => {
     expect(await videos.canAddVideos()).toBe(true);
@@ -98,6 +113,38 @@ describe('a pick', () => {
     await expect(videos.pickVideo()).rejects.toThrow('Videos need the newest Ghost.md.');
   });
 
+  it('refuses a second film while the first is still being copied, and the first lands where it was asked for', async () => {
+    const first = videos.pickVideo();
+    await expect(videos.pickVideo()).rejects.toThrow(videos.STILL_ADDING);
+    answer(PICKED);
+    expect(await first).toMatchObject({ video: 'f1.mp4' });
+    expect(device.commands.map((sent) => sent.command)).toEqual(['save_video']);
+    // Once it has landed, the next may be picked.
+    const next = videos.pickVideo();
+    answer({ cancelled: true });
+    expect(await next).toBeNull();
+  });
+
+  it('says when the copy starts, and goes on waiting for the film', async () => {
+    const copying = vi.fn();
+    const picked = videos.pickVideo({ copying });
+    answer({ copying: true });
+    expect(copying).toHaveBeenCalledTimes(1);
+    answer(PICKED);
+    expect(await picked).toMatchObject({ video: 'f1.mp4' });
+  });
+
+  it('throws a film away, rather than keeping it, once it is no longer wanted', async () => {
+    const picked = videos.pickVideo({ keep: () => false });
+    answer(PICKED);
+    expect(await picked).toBeNull();
+    await Promise.resolve();
+    expect(device.commands).toEqual([
+      { command: 'discard_picked', args: { path: PICKED.path } },
+      { command: 'discard_picked', args: { path: PICKED.poster } },
+    ]);
+  });
+
   it('throws away a film nobody is waiting for, the film and its poster', async () => {
     videos.listenForVideos();
     answer(PICKED);
@@ -137,6 +184,24 @@ describe('whether a film is on this phone', () => {
     expect(heads).toHaveLength(2);
   });
 
+  it('asks again, afresh, when a film would not play, and remembers one gone as gone', async () => {
+    const heads: string[] = [];
+    let here = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        heads.push(url);
+        return { ok: here } as Response;
+      }),
+    );
+    expect(await videos.filmHere('again.mp4')).toBe('here');
+    expect(await videos.filmStillHere('again.mp4')).toBe(true);
+    here = false;
+    expect(await videos.filmStillHere('again.mp4')).toBe(false);
+    expect(heads).toHaveLength(3);
+    expect(await videos.filmHere('again.mp4')).toBe('missing');
+  });
+
   it('knows a film just added is here without asking', async () => {
     const fetch = vi.fn();
     vi.stubGlobal('fetch', fetch);
@@ -173,15 +238,42 @@ describe('what the Kotlin says, and what the page reads', () => {
     expect(keysOf('failed')).toEqual(Object.keys(videos.readVideoAnswer('{"error":"x"}')));
   });
 
+  /** The code of `fun <name>(` in `source`, up to the next blank line: never the KDoc above it. */
+  const body = (source: string, name: string) => {
+    const from = source.indexOf(`fun ${name}(`);
+    expect(from, `fun ${name}`).toBeGreaterThan(-1);
+    return source.slice(from, source.indexOf('\n\n', from));
+  };
+
   it('pushes the event the page listens for, never the picture’s', () => {
-    expect(activity).toContain('window.__glyph.video(');
+    // Read from the code that sends it, not a comment that names it.
+    const sent = [...body(activity, 'tellVideo').matchAll(/window\.__glyph\.(\w+)\(/g)].map((found) => found[1]);
+    expect(sent).toEqual(['video']);
     videos.listenForVideos();
     expect(typeof window.__glyph?.video).toBe('function');
     expect(pick).not.toContain('__glyph.image');
   });
 
+  it('is wired: the bridge starts the pick and the activity hands its answer over, both telling the page', () => {
+    expect(activity).toMatch(/@JavascriptInterface\s+fun pickVideo\(\): String = VideoPick\.start\(this@MainActivity, ::tellVideo\)/);
+    expect(body(activity, 'onActivityResult')).toMatch(/if \(VideoPick\.answered\(this, requestCode, resultCode, data, ::tellVideo\)\) return/);
+  });
+
+  it('says it is copying as its own answer, once a film is chosen and before the copy', () => {
+    expect(keysOf('copying')).toEqual(Object.keys(videos.readVideoAnswer('{"copying":true}')));
+    const answered = body(pick, 'answered');
+    expect(answered.indexOf('tell(copying())')).toBeGreaterThan(-1);
+    expect(answered.indexOf('tell(copying())')).toBeLessThan(answered.indexOf('Thread('));
+  });
+
+  it('plays through the scheme Rust registers', () => {
+    const rust = readFileSync(join(process.cwd(), 'src-tauri/src/videos.rs'), 'utf8');
+    expect(rust).toContain(`pub const SCHEME: &str = "${videos.VIDEO_SCHEME}";`);
+    expect(videos.videoUrl('f1.mp4')).toBe(`http://${videos.VIDEO_SCHEME}.localhost/f1.mp4`);
+  });
+
   it('says the words the page shows as they are', () => {
-    for (const words of ['There isn’t room on this phone for that video.', 'This video can’t be read.', 'This phone has no video picker.']) {
+    for (const words of ['There isn’t room on this phone for that video.', 'This video can’t be read.', 'This phone has no video picker.', 'This kind of video can’t be added. MP4, MOV and WebM can.']) {
       expect(pick).toContain(`"${words}"`);
     }
   });

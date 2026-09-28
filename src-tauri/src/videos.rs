@@ -15,7 +15,8 @@
 //! the phone it was added on: it is never synced or shared, and the Android
 //! manifest's backup rules keep `video/` out of Google's cloud backup, where a
 //! long film would take the app past its quota and stop the notes' backup with
-//! it. A move to a new phone by cable carries it.
+//! it. A move to a new phone by cable is meant to carry it; whether Smart
+//! Switch honours the rules has not been tried.
 //!
 //! The Android shell picks a film with the Photo Picker, copies it into
 //! `<app_cache_dir>/picked/` and makes its poster there
@@ -25,9 +26,14 @@
 //! and what even that misses goes in the launch sweep of `picked/`.
 //!
 //! The page plays a film through the `vid` scheme, `http://vid.localhost/<name>`,
-//! in ranges (ranged.rs). A deleted note takes the films only it named, and a
-//! daily sweep takes a film no note has named for a week: time for an Undo, a
-//! note in the trash, and sync to catch up.
+//! in ranges (ranged.rs). The folder it plays from is found once and kept: on
+//! Android the platform's answer is a trip to the main thread, and a 4K film
+//! asks for a range several times a second while it plays. A deleted note
+//! takes the films only it named, and a daily sweep takes a film no note has
+//! named for a week: time for an Undo, a note in the trash, and sync to catch
+//! up. What waits in `picked/` for over an hour goes at launch, and again each
+//! time a film is kept or thrown away, since a phone can keep the app's
+//! process for days and a film's copy is big.
 //!
 //! Every name that reaches a path is checked first, as a picture's is: a
 //! plain id, then one film extension.
@@ -43,7 +49,8 @@
 
 use std::collections::BTreeMap;
 use std::io::Read as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
@@ -75,12 +82,20 @@ pub fn valid_name(name: &str) -> bool {
     stem.len() <= 64 && crate::fsx::plain_id(stem) && EXTENSIONS.contains(&extension)
 }
 
+/// The atoms an older QuickTime film may open with in place of `ftyp`: the
+/// format predates it, and a `.mov` from an older camera or editor starts
+/// with its padding, its media or its index.
+const QUICKTIME_FIRST: [&[u8; 4]; 6] = [b"wide", b"free", b"skip", b"mdat", b"moov", b"pnot"];
+
 /// Whether a film's first bytes are what its extension says: an ISO box with
-/// `ftyp` at byte 4 for MP4 and QuickTime, EBML's magic for WebM.
+/// `ftyp` at byte 4 for MP4 and QuickTime (or, for QuickTime, one of its older
+/// first atoms), EBML's magic for WebM.
 fn sniffed(first: &[u8], extension: &str) -> bool {
+    let atom = first.get(4..8);
     match extension {
         "webm" => first.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]),
-        _ => first.len() >= 8 && &first[4..8] == b"ftyp",
+        "mov" => atom.is_some_and(|atom| atom == b"ftyp" || QUICKTIME_FIRST.iter().any(|first| atom == &first[..])),
+        _ => atom == Some(b"ftyp"),
     }
 }
 
@@ -97,6 +112,12 @@ fn inside_picked(picked: &Path, path: &Path) -> Option<std::path::PathBuf> {
 /// `picked`, and anything that is not a film by its extension and its first
 /// bytes, or is empty.
 pub fn adopt(picked: &Path, videos: &Path, path: &Path) -> Result<String, String> {
+    adopt_by(picked, videos, path, |from, to| std::fs::rename(from, to))
+}
+
+/// `adopt`, with the rename it tries first given: the cache and the data
+/// directory can be on different mounts, where a rename always fails.
+fn adopt_by(picked: &Path, videos: &Path, path: &Path, rename: impl Fn(&Path, &Path) -> std::io::Result<()>) -> Result<String, String> {
     let refuse = || NOT_KEPT.to_string();
     let file = inside_picked(picked, path).ok_or_else(refuse)?;
     let extension = file
@@ -116,7 +137,7 @@ pub fn adopt(picked: &Path, videos: &Path, path: &Path) -> Result<String, String
     // A rename where it can be; the cache and the data directory can be on
     // different mounts, and then it is a copy and a delete. A copy that fails
     // half way leaves nothing behind.
-    if std::fs::rename(&file, &target).is_err() {
+    if rename(&file, &target).is_err() {
         if std::fs::copy(&file, &target).is_err() {
             let _ = std::fs::remove_file(&target);
             return Err(refuse());
@@ -179,7 +200,9 @@ pub fn save_video(app: tauri::AppHandle, path: String, poster: String) -> Result
         let picked = crate::paths::picked_dir(&app).map_err(not_kept)?;
         let videos = crate::paths::videos_dir(&app).map_err(not_kept)?;
         let images = crate::paths::images_dir(&app).map_err(not_kept)?;
-        save(&picked, &videos, &images, Path::new(&path), Path::new(&poster))
+        let saved = save(&picked, &videos, &images, Path::new(&path), Path::new(&poster));
+        sweep_picked(&picked, SystemTime::now());
+        saved
     }
 }
 
@@ -193,7 +216,9 @@ pub fn discard_picked(app: tauri::AppHandle, path: String) -> Result<(), String>
     #[cfg(not(target_os = "ios"))]
     {
         let picked = crate::paths::picked_dir(&app)?;
-        discard(&picked, Path::new(&path))
+        let discarded = discard(&picked, Path::new(&path));
+        sweep_picked(&picked, SystemTime::now());
+        discarded
     }
 }
 
@@ -313,12 +338,25 @@ pub fn install(app: &tauri::App) {
     });
 }
 
+/// `<app_data_dir>/video`, found once: it never moves while the app runs.
+static PLAYED_FROM: OnceLock<PathBuf> = OnceLock::new();
+
 /// Serves `<app_data_dir>/video/<name>` to the page's `<video>`, in ranges.
 pub fn serve<R: tauri::Runtime>(app: &tauri::AppHandle<R>, request: &tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<u8>> {
+    let videos = match PLAYED_FROM.get() {
+        Some(dir) => Some(dir.clone()),
+        None => crate::paths::videos_dir(app).ok().map(|dir| PLAYED_FROM.get_or_init(|| dir).clone()),
+    };
+    serve_in(videos.as_deref(), request)
+}
+
+/// The answer to `request` for a film kept in `videos` (or nowhere, when the
+/// platform gave no directory): by a valid name only, in ranges, and a `HEAD`
+/// with the headers alone.
+fn serve_in(videos: Option<&Path>, request: &tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<u8>> {
     let name = request.uri().path().trim_start_matches('/');
-    let file = valid_name(name)
-        .then(|| crate::paths::videos_dir(app).ok())
-        .flatten()
+    let file = videos
+        .filter(|_| valid_name(name))
         .and_then(|dir| std::fs::File::open(dir.join(name)).ok())
         .and_then(|file| file.metadata().ok().map(|meta| (file, meta.len())));
     let range = request.headers().get(tauri::http::header::RANGE).and_then(|v| v.to_str().ok());
@@ -383,6 +421,15 @@ mod tests {
     }
 
     #[test]
+    fn an_older_quicktime_film_is_one_whatever_atom_it_opens_with() {
+        for first in [&b"\0\0\0\x08wide\0\0\0\x10mdat"[..], b"\0\0\0\x08free", b"\0\0\0\x08skip", b"\0\0\x10\0mdat", b"\0\0\x10\0moov", b"\0\0\0\x14pnot"] {
+            assert!(sniffed(first, "mov"), "{first:?}");
+            assert!(!sniffed(first, "mp4") && !sniffed(first, "m4v"), "an MP4 always opens with ftyp: {first:?}");
+        }
+        assert!(!sniffed(b"\0\0\0\x08junk", "mov"));
+    }
+
+    #[test]
     fn a_picked_film_and_its_poster_are_kept_under_new_names() {
         let phone = Phone::new();
         let film = phone.picked("pick-1.mp4", MP4);
@@ -397,6 +444,23 @@ mod tests {
         let webm = phone.picked("pick-2.webm", WEBM);
         let still = phone.picked("pick-2.jpg", b"\xFF\xD8\xFF");
         assert!(phone.save(&webm, &still).unwrap().video.ends_with(".webm"));
+    }
+
+    #[test]
+    fn a_film_on_another_mount_is_copied_and_the_pick_let_go() {
+        let phone = Phone::new();
+        let film = phone.picked("pick-1.mp4", MP4);
+        // The cache and the data directory on different mounts: every rename fails.
+        let across = |_: &Path, _: &Path| Err(std::io::Error::other("cross-device link"));
+        let name = adopt_by(&phone.at("picked"), &phone.at("video"), &film, across).unwrap();
+        assert_eq!(std::fs::read(phone.at("video").join(&name)).unwrap(), MP4);
+        assert!(!film.exists(), "copied, then let go from picked");
+        // A copy that cannot be made leaves nothing half made, and the pick where it was.
+        let film = phone.picked("pick-2.mp4", MP4);
+        std::fs::remove_dir_all(phone.at("video")).unwrap();
+        std::fs::write(phone.at("video"), b"a file where the folder should be").unwrap();
+        assert!(adopt_by(&phone.at("picked"), &phone.at("video"), &film, across).is_err());
+        assert!(film.exists());
     }
 
     #[test]
@@ -501,6 +565,73 @@ mod tests {
         assert_eq!(sweep(&videos, start + day * 14 + Duration::from_secs(5), in_use), ["renamed.mov"]);
         // Nowhere to look: nothing to do.
         assert!(sweep(&root.join("none"), start, |_| false).is_empty());
+    }
+
+    #[test]
+    fn the_sweep_looks_once_a_day_even_when_a_film_is_due() {
+        let root = TempDir::new("videos-daily");
+        let videos = root.join("video");
+        std::fs::create_dir_all(&videos).unwrap();
+        std::fs::write(videos.join("due.mp4"), MP4).unwrap();
+        let hour = Duration::from_secs(60 * 60);
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000);
+        // Last looked an hour ago, and the film was first found unnamed eight days ago: it is due, but not today.
+        let memory = Orphans { swept_at: millis(now - hour), unnamed: BTreeMap::from([("due.mp4".to_string(), millis(now - hour * 24 * 8))]) };
+        std::fs::write(videos.join(ORPHANS), serde_json::to_vec(&memory).unwrap()).unwrap();
+        assert!(sweep(&videos, now, |_| false).is_empty(), "looked at within the day");
+        assert!(videos.join("due.mp4").exists());
+        assert_eq!(sweep(&videos, now + hour * 23, |_| false), ["due.mp4"]);
+    }
+
+    /// A request as the WebView sends one to the scheme.
+    fn asked(method: &str, name: &str, range: Option<&str>) -> tauri::http::Request<Vec<u8>> {
+        let mut builder = tauri::http::Request::builder().method(method).uri(format!("http://vid.localhost/{name}"));
+        if let Some(range) = range {
+            builder = builder.header(tauri::http::header::RANGE, range);
+        }
+        builder.body(Vec::new()).unwrap()
+    }
+
+    #[test]
+    fn the_scheme_serves_a_kept_film_by_its_name_in_ranges_and_a_head_reads_nothing() {
+        use crate::test_support::header_of;
+        use tauri::http::{header, StatusCode};
+        let root = TempDir::new("videos-serve");
+        let videos = root.join("video");
+        std::fs::create_dir_all(&videos).unwrap();
+        // Over the 8 MB a request with no range is answered with, as a film is.
+        let long: Vec<u8> = (0..(crate::ranged::WHOLE_CAP as usize + 10)).map(|i| (i % 251) as u8).collect();
+        std::fs::write(videos.join("f1.mp4"), &long).unwrap();
+        std::fs::write(root.join("secret.mp4"), MP4).unwrap();
+
+        // The card's HEAD: here, how long, and no bytes, whatever its size.
+        let head = serve_in(Some(&videos), &asked("HEAD", "f1.mp4", None));
+        assert_eq!((head.status(), head.body().len()), (StatusCode::OK, 0));
+        assert_eq!(header_of(&head, header::CONTENT_LENGTH), Some(long.len().to_string().as_str()));
+        assert_eq!(header_of(&head, header::CONTENT_TYPE), Some("video/mp4"));
+        // The element's ranges, read from the film.
+        let part = serve_in(Some(&videos), &asked("GET", "f1.mp4", Some("bytes=100-199")));
+        assert_eq!((part.status(), part.body().as_slice()), (StatusCode::PARTIAL_CONTENT, &long[100..200]));
+        // No film by that name, a name that is not a film's, and nowhere to keep films: not on this phone.
+        assert_eq!(serve_in(Some(&videos), &asked("HEAD", "gone.mp4", None)).status(), StatusCode::NOT_FOUND);
+        assert_eq!(serve_in(Some(&videos), &asked("GET", "../secret.mp4", Some("bytes=0-1"))).status(), StatusCode::NOT_FOUND);
+        assert_eq!(serve_in(None, &asked("HEAD", "f1.mp4", None)).status(), StatusCode::NOT_FOUND);
+    }
+
+    /// What lib.rs must say for the page to play and keep films: the scheme
+    /// registered by this module's name for it, both commands in the handler,
+    /// and the launch sweep. Any one missing passes every other test.
+    #[test]
+    fn the_app_registers_the_scheme_the_commands_and_the_sweep() {
+        let lib = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs")).unwrap();
+        for wired in [
+            ".register_uri_scheme_protocol(videos::SCHEME, |ctx, request| videos::serve(ctx.app_handle(), &request))",
+            "videos::save_video,",
+            "videos::discard_picked,",
+            "videos::install(app);",
+        ] {
+            assert!(lib.contains(wired), "lib.rs no longer says {wired}");
+        }
     }
 
     #[test]

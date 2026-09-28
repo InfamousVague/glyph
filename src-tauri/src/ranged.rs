@@ -5,11 +5,13 @@
 //! A `<video>` seeks by asking for byte ranges, and treats a server with no
 //! `Accept-Ranges` as one it cannot seek on. A film the phone filmed can be a
 //! gigabyte, so nothing here ever reads a file whole: a range is a seek and a
-//! read of its bytes, an open-ended range (`bytes=a-`, the element's "the
-//! rest") is answered with the first `OPEN_RANGE_CAP` of it as a 206 whose
-//! `Content-Range` says there is more, and a `HEAD` reads nothing at all (the
-//! page asks one to learn whether the film is on this phone before it draws a
-//! play button). A request with no range is answered whole only up to
+//! read of its bytes, never more than `OPEN_RANGE_CAP` of them at once, so an
+//! open-ended range (`bytes=a-`, the element's "the rest"), the last bytes
+//! (`bytes=-n`) and a closed range as wide as the film are each answered with
+//! at most that much as a 206 whose `Content-Range` says where it ends, which
+//! a media element reads as "ask again from here". A `HEAD` reads nothing at
+//! all (the page asks one to learn whether the film is on this phone before it
+//! draws a play button). A request with no range is answered whole only up to
 //! `WHOLE_CAP`, and past that with a 416 that names the length, so the element
 //! asks again in ranges.
 //!
@@ -58,9 +60,12 @@ pub enum Asked {
 }
 
 /// The bytes a `Range` header asks for within `total`: `bytes=a-b` (an end
-/// past the file is the file's end), `bytes=a-` for the rest (capped at
-/// `OPEN_RANGE_CAP` from `a`), and `bytes=-n` for the last `n`. Several ranges
-/// at once, or anything else, is answered as though no range were asked.
+/// past the file is the file's end), `bytes=a-` for the rest, and `bytes=-n`
+/// for the last `n`, each capped at `OPEN_RANGE_CAP` from where it starts: a
+/// 206 shorter than asked is the server's to give, and a range a gigabyte wide
+/// would be a gigabyte in memory twice over on a phone (here, then the
+/// WebView's copy). Several ranges at once, or anything else, is answered as
+/// though no range were asked.
 pub fn asked(range: Option<&str>, total: u64) -> Asked {
     let Some(spec) = range.and_then(|range| range.trim().strip_prefix("bytes=")) else { return Asked::Whole };
     if spec.contains(',') {
@@ -89,7 +94,7 @@ pub fn asked(range: Option<&str>, total: u64) -> Asked {
         if end < start {
             return Asked::Whole;
         }
-        end.min(total - 1)
+        end.min(total - 1).min(start.saturating_add(OPEN_RANGE_CAP) - 1)
     };
     Asked::Part(start, end)
 }
@@ -181,6 +186,10 @@ mod tests {
         let gigabyte = 1024 * 1024 * 1024;
         assert_eq!(asked(Some("bytes=0-"), gigabyte), Asked::Part(0, OPEN_RANGE_CAP - 1));
         assert_eq!(asked(Some("bytes=5000-"), gigabyte), Asked::Part(5000, 5000 + OPEN_RANGE_CAP - 1));
+        // The last bytes of a long film, and a closed range as wide as it, are capped the same way.
+        assert_eq!(asked(Some("bytes=-500000000"), gigabyte), Asked::Part(gigabyte - 500_000_000, gigabyte - 500_000_000 + OPEN_RANGE_CAP - 1));
+        assert_eq!(asked(Some("bytes=0-1073741823"), 2 * gigabyte), Asked::Part(0, OPEN_RANGE_CAP - 1));
+        assert_eq!(asked(Some("bytes=100-199"), gigabyte), Asked::Part(100, 199), "a narrow range is answered as asked");
     }
 
     /// A file on disk, opened the way the scheme opens it.
